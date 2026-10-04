@@ -45,16 +45,6 @@ const PrintStartOperation* PrintStartAnalysis::get_operation(PrintStartOpCategor
     return (it != operations.end()) ? &(*it) : nullptr;
 }
 
-std::vector<const PrintStartOperation*> PrintStartAnalysis::get_uncontrollable_operations() const {
-    std::vector<const PrintStartOperation*> result;
-    for (const auto& op : operations) {
-        if (!op.has_skip_param && op.category != PrintStartOpCategory::HOMING) {
-            result.push_back(&op);
-        }
-    }
-    return result;
-}
-
 std::string PrintStartAnalysis::summary() const {
     if (!found) {
         return "No print start macro found";
@@ -222,7 +212,6 @@ PrintStartAnalysis PrintStartAnalyzer::parse_macro(const std::string& macro_name
     PrintStartAnalysis result;
     result.found = true;
     result.macro_name = macro_name;
-    result.raw_gcode = gcode;
 
     // Detect operations
     result.operations = detect_operations(gcode);
@@ -251,16 +240,6 @@ PrintStartAnalysis PrintStartAnalyzer::parse_macro(const std::string& macro_name
                   result.total_ops_count, result.controllable_count, result.known_params.size());
 
     return result;
-}
-
-std::string PrintStartAnalyzer::get_suggested_skip_param(const std::string& op_name) {
-    // Use shared pattern registry
-    const auto* kw = find_keyword(op_name);
-    if (kw) {
-        return kw->skip_param;
-    }
-    // Default: SKIP_ + operation name
-    return "SKIP_" + op_name;
 }
 
 PrintStartOpCategory PrintStartAnalyzer::categorize_operation(const std::string& command) {

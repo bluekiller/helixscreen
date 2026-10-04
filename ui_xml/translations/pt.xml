@@ -32,7 +32,6 @@
   <translation tag="%s uses %s, which has filament but no material set — the printer will not start until you set it." pt="%s usa %s, que tem filamento mas nenhum material definido — a impressora não vai começar até você defini-lo."/>
   <translation tag="%s: %.0fg of %.0fg needed" pt="%s: %.0fg de %.0fg necessários"/>
   <translation tag="%u layers" pt="%u camadas"/>
-  <translation tag="%zu changes" pt="%zu alterações"/>
   <translation tag="%zu events queued" pt="%zu eventos na fila"/>
   <translation tag="%zu plugins failed to load" pt="%zu plugins falharam ao carregar"/>
   <translation tag="&apos;{}&apos; already exists. Replace the stored mesh?" pt="&apos;{}&apos; já existe. Substituir a malha salva?"/>
@@ -113,7 +112,6 @@
   <translation tag="= Loosen" pt="= Afrouxar"/>
   <translation tag="= Tighten" pt="= Apertar"/>
   <translation tag="A" pt="A"/>
-  <translation tag="A backup of %s is created before applying" pt="Um backup de %s é criado antes de aplicar"/>
   <translation tag="A few minutes, nearly all of it heating. You judge nothing by eye." pt="Alguns minutos, quase todo aquecendo. Você não julga nada a olho."/>
   <translation tag="A motor IO pin couldn&apos;t be restored. Power-cycle the printer to recover" pt="Não foi possível restaurar um pino de E/S do motor. Desligue e ligue a impressora para recuperar"/>
   <translation tag="A motor&apos;s parameters couldn&apos;t be written. Power-cycle the printer to retry" pt="Não foi possível gravar os parâmetros de um motor. Desligue e ligue a impressora para tentar novamente"/>
@@ -236,9 +234,6 @@
   <translation tag="Appearance" pt="Aparência"/>
   <translation tag="Applies to" pt="Aplica-se a"/>
   <translation tag="Apply" pt="Aplicar"/>
-  <translation tag="Apply Changes" pt="Aplicar Alterações"/>
-  <translation tag="Applying Changes" pt="Aplicando Alterações"/>
-  <translation tag="Applying..." pt="Aplicando..."/>
   <translation tag="Archive" pt="Arquivar"/>
   <translation tag="Archive Spool?" pt="Arquivar Carretel?"/>
   <translation tag="Are you sure you want to cancel this print? All progress will be lost." pt="Tem certeza de que deseja cancelar esta impressão? Todo o progresso será perdido."/>
@@ -501,7 +496,6 @@
   <translation tag="Change tool" pt="Trocar ferramenta"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." pt="Alterações aplicadas imediatamente. Ajuste durante a impressão para calibrar."/>
   <translation tag="Changes are temporary and reset on printer reboot" pt="Alterações são temporárias e resetam ao reiniciar a impressora"/>
-  <translation tag="Changes can be reversed anytime using the Macro Viewer." pt="As alterações podem ser revertidas a qualquer momento usando o Macro Viewer."/>
   <translation tag="Check AFC configuration" pt="Verifique a configuração do AFC"/>
   <translation tag="Check Again" pt="Verificar Novamente"/>
   <translation tag="Check Klipper console for details" pt="Verifique o console do Klipper para detalhes"/>
@@ -615,7 +609,6 @@
   <translation tag="Configure G10/G11 firmware retraction" pt="Configurar retração de firmware G10/G11"/>
   <translation tag="Configure Graph" pt="Configurar Gráfico"/>
   <translation tag="Configure Moonraker" pt="Configurar Moonraker"/>
-  <translation tag="Configure PRINT_START" pt="Configurar PRINT_START"/>
   <translation tag="Configure Spoolman integration and weight sync settings." pt="Configurar integração com Spoolman e configurações de sincronização de peso."/>
   <translation tag="Configure WiFi for this device, or skip if you&apos;re using Ethernet" pt="Configure o WiFi para este dispositivo, ou pule se estiver usando Ethernet"/>
   <translation tag="Configure devices in Moonraker" pt="Configurar dispositivos no Moonraker"/>
@@ -851,7 +844,6 @@
   <translation tag="Documentation" pt="Documentação"/>
   <translation tag="Don&apos;t Save" pt="Não Salvar"/>
   <translation tag="Don&apos;t ask again" pt="Não perguntar novamente"/>
-  <translation tag="Don&apos;t show again" pt="Não mostrar novamente"/>
   <translation tag="Done" pt="Concluído"/>
   <translation tag="Download update?" pt="Baixar atualização?"/>
   <translation tag="Download v{}?" pt="Baixar v{}?"/>
@@ -933,10 +925,6 @@
   <translation tag="Ended" pt="Finalizado"/>
   <translation tag="Endless spool failover cleared for every slot" pt="Carretel reserva limpo para todos os slots"/>
   <translation tag="Endless spool is turned off on this MMU" pt="O carretel infinito está desativado neste MMU"/>
-  <translation tag="Enhanced {} operation in PRINT_START" pt="{} operação aprimorada no PRINT_START"/>
-  <translation tag="Enhanced {} operations in PRINT_START" pt="{} operações aprimoradas no PRINT_START"/>
-  <translation tag="Enhancement Complete!" pt="Aprimoramento Concluído!"/>
-  <translation tag="Enhancement Failed" pt="Aprimoramento Falhou"/>
   <translation tag="Ensure Happy Hare or AFC is installed and configured" pt="Certifique-se de que o Happy Hare ou o AFC esteja instalado e configurado"/>
   <translation tag="Enter Current PIN" pt="Digite o PIN Atual"/>
   <translation tag="Enter G-code command..." pt="Digite o comando G-code..."/>
@@ -1028,7 +1016,6 @@
   <translation tag="FILTERS" pt="FILTROS"/>
   <translation tag="Factory Reset" pt="Restauração de Fábrica"/>
   <translation tag="Failed" pt="Falhou"/>
-  <translation tag="Failed to analyze PRINT_START macro" pt="Falha ao analisar macro PRINT_START"/>
   <translation tag="Failed to apply limits" pt="Falha ao aplicar limites"/>
   <translation tag="Failed to apply settings" pt="Falha ao aplicar configurações"/>
   <translation tag="Failed to archive spool" pt="Falha ao arquivar carretel"/>
@@ -1072,7 +1059,6 @@
   <translation tag="Failed to open history" pt="Falha ao abrir histórico"/>
   <translation tag="Failed to open history list" pt="Falha ao abrir lista de histórico"/>
   <translation tag="Failed to open temperature graph" pt="Falha ao abrir gráfico de temperatura"/>
-  <translation tag="Failed to open wizard" pt="Falha ao abrir assistente"/>
   <translation tag="Failed to pause print: {}" pt="Falha ao pausar impressão: {}"/>
   <translation tag="Failed to purge: {}" pt="Falha ao purgar: {}"/>
   <translation tag="Failed to read G-code for remap" pt="Falha ao ler G-code para remapeamento"/>
@@ -1504,7 +1490,6 @@
   <translation tag="KLICKY CONTROLS" pt="CONTROLES KLICKY"/>
   <translation tag="Keep Navigation Bar" pt="Manter barra de navegação"/>
   <translation tag="Keep Printing" pt="Continuar Imprimindo"/>
-  <translation tag="Keep Required" pt="Manter Obrigatório"/>
   <translation tag="Keep Spool Info on Eject" pt="Manter Informações do Carretel ao Ejetar"/>
   <translation tag="Keep clear of the printer while the toolhead is moving" pt="Afaste-se da impressora enquanto o cabeçote se move"/>
   <translation tag="Keep current" pt="Manter atual"/>
@@ -1521,7 +1506,6 @@
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." pt="O Klipper reserva &apos;default&apos; para novas calibrações. Escolha outro nome."/>
   <translation tag="Klipper restarting - macros activating" pt="Reiniciando o Klipper - ativando macros"/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." pt="O Klipper parou de informar o progresso. A análise pode ficar sem memória em impressoras pequenas; reinicie o Klipper e tente novamente."/>
-  <translation tag="Klipper will restart to apply changes" pt="O Klipper será reiniciado para aplicar as alterações"/>
   <translation tag="Klipper will restart to apply changes." pt="O Klipper será reiniciado para aplicar as alterações."/>
   <translation tag="Klipper will restart to apply new settings." pt="Klipper será reiniciado para aplicar as novas configurações."/>
   <translation tag="Klipper: " pt="Klipper: "/>
@@ -1656,7 +1640,6 @@
   <translation tag="Macro Browser" pt="Navegador de Macros"/>
   <translation tag="Macro Button" pt="Botão de macro"/>
   <translation tag="Macro Buttons" pt="Botões de Macro"/>
-  <translation tag="Macro analysis not initialized" pt="Análise de macro não inicializada"/>
   <translation tag="Macro failed: {}" pt="Falha na macro: {}"/>
   <translation tag="Macro for bed mesh calibration" pt="Macro para calibração da malha da mesa"/>
   <translation tag="Macro for chamber/bed heat soak" pt="Macro para aquecimento prolongado da câmara/mesa"/>
@@ -1680,9 +1663,6 @@
   <translation tag="Main LED Strip" pt="Fita de LED Principal"/>
   <translation tag="Maintaining" pt="Mantendo"/>
   <translation tag="Maintenance" pt="Manutenção"/>
-  <translation tag="Make %s Optional?" pt="Tornar %s Opcional?"/>
-  <translation tag="Make Optional" pt="Tornar Opcional"/>
-  <translation tag="Make bed mesh and QGL skippable" pt="Tornar malha da mesa e QGL opcionais"/>
   <translation tag="Make sure every nozzle is clean." pt="Certifique-se de que todos os bicos estejam limpos."/>
   <translation tag="Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats." pt="Verifique se não há filamento carregado no cabeçote: ele pode amolecer na extrusora enquanto a mesa aquece."/>
   <translation tag="MakeID (Bluetooth)" pt="MakeID (Bluetooth)"/>
@@ -1835,7 +1815,6 @@
   <translation tag="No Macros Found" pt="Nenhuma Macro Encontrada"/>
   <translation tag="No Multi-Filament System connected" pt="Nenhum sistema multi-filamento conectado"/>
   <translation tag="No Multi-Filament System connected." pt="Nenhum sistema multi-filamento conectado."/>
-  <translation tag="No PRINT_START macro found" pt="Macro PRINT_START não encontrada"/>
   <translation tag="No Power Devices" pt="Sem Dispositivos de Energia"/>
   <translation tag="No Spool" pt="Sem bobina"/>
   <translation tag="No Spools" pt="Sem Carretéis"/>
@@ -1845,7 +1824,6 @@
   <translation tag="No buffer data available" pt="Nenhum dado de buffer disponível"/>
   <translation tag="No camera — use USB barcode scanner" pt="Sem câmera — use leitor de código de barras USB"/>
   <translation tag="No chamber temperature sensor detected" pt="Nenhum sensor de temperatura da câmara detectado"/>
-  <translation tag="No changes selected.&#10;&#10;Click Cancel to close." pt="Nenhuma alteração selecionada.&#10;&#10;Clique em Cancelar para fechar."/>
   <translation tag="No changes to revert" pt="Nenhuma alteração para reverter"/>
   <translation tag="No color" pt="Sem cor"/>
   <translation tag="No dryer available. Store filament in a sealed dry box with desiccant for best results." pt="Nenhum secador disponível. Armazene o filamento em uma caixa seca selada com dessecante para melhores resultados."/>
@@ -2031,8 +2009,6 @@
   <translation tag="PRINTER" pt="IMPRESSORA"/>
   <translation tag="PRINTER VISUALS" pt="VISUAIS DA IMPRESSORA"/>
   <translation tag="PRINTERS" pt="IMPRESSORAS"/>
-  <translation tag="PRINT_START has {} skippable operation" pt="PRINT_START tem {} operação opcional"/>
-  <translation tag="PRINT_START has {} skippable operations" pt="PRINT_START tem {} operações opcionais"/>
   <translation tag="PROBE SENSORS" pt="SENSORES DE SONDA"/>
   <translation tag="PTFE tube connection loose" pt="Conexão do tubo PTFE solta"/>
   <translation tag="Pair" pt="Parear"/>
@@ -2331,7 +2307,6 @@
   <translation tag="Readings from extra temperature sensors" pt="Leituras de sensores adicionais"/>
   <translation tag="Ready" pt="Pronto"/>
   <translation tag="Ready for filament operations" pt="Pronto para operações de filamento"/>
-  <translation tag="Ready to Apply" pt="Pronto para Aplicar"/>
   <translation tag="Ready to calibrate" pt="Pronto para calibrar"/>
   <translation tag="Rear" pt="Trás"/>
   <translation tag="Rear Left" pt="Trás esquerda"/>
@@ -2491,7 +2466,6 @@
   <translation tag="Retry" pt="Tentar Novamente"/>
   <translation tag="Reverse Multiplier" pt="Multiplicador de retrocesso"/>
   <translation tag="Review detected hardware validation issues" pt="Revisar problemas de validação de hardware detectados"/>
-  <translation tag="Review your changes" pt="Revisar suas alterações"/>
   <translation tag="Review your configuration below, then click Finish to save" pt="Revise sua configuração abaixo e clique em Finalizar para salvar"/>
   <translation tag="Rewinding" pt="Rebobinando"/>
   <translation tag="Right" pt="Direita"/>
@@ -2678,7 +2652,6 @@
   <translation tag="Settings Snapshot" pt="Captura de Configurações"/>
   <translation tag="Settings reset to defaults. Restarting..." pt="Configurações restauradas para os padrões. Reiniciando..."/>
   <translation tag="Setup" pt="Configuração"/>
-  <translation tag="Setup Complete!" pt="Configuração Concluída!"/>
   <translation tag="Setup Timelapse" pt="Configurar Timelapse"/>
   <translation tag="Several printers match - choose yours" pt="Várias impressoras correspondem - escolha a sua"/>
   <translation tag="Shadow Intensity" pt="Intensidade da Sombra"/>
@@ -3023,7 +2996,7 @@
   <translation tag="This is what data would be sent if enabled" pt="Estes são os dados que seriam enviados se habilitado"/>
   <translation tag="This may take up to 30 seconds" pt="Isso pode levar até 30 segundos"/>
   <translation tag="This plugin asks for no special permissions." pt="Este plugin não pede permissões especiais."/>
-  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." pt="Este plugin permite que o HelixScreen controle opções de início de impressão como malha da mesa e QGL. Após instalado, use Configurar PRINT_START abaixo para habilitar etapas opcionais."/>
+  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL." pt="Este plugin permite que o HelixScreen controle opções de início de impressão como malha da mesa e QGL."/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" pt="Esta impressão precisa de cerca de %.0fg, mas o carretel tem cerca de %.0fg restantes. Iniciar mesmo assim?"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" pt="Esta impressora não consegue calibrar os offsets de ferramenta automaticamente"/>
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." pt="Esta impressora preenche seus gates a partir do Spoolman. O HelixScreen limpou a própria cópia; remova a bobina no Spoolman."/>
@@ -3294,7 +3267,6 @@
   <translation tag="Welcome to HelixScreen" pt="Bem-vindo ao HelixScreen"/>
   <translation tag="What We Collect" pt="O Que Coletamos"/>
   <translation tag="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs." pt="Quando habilitado, apenas a macro é executada. Quando desabilitado, as temperaturas são definidas primeiro, depois a macro é executada."/>
-  <translation tag="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation." pt="Ao iniciar uma impressão, você poderá escolher se deseja executar %s. Isso economiza tempo quando você já fez isso recentemente ou deseja mais controle sobre a preparação da sua impressão."/>
   <translation tag="Where UI sounds play" pt="Onde os sons da interface são reproduzidos"/>
   <translation tag="Whether filament is loaded" pt="Se há filamento carregado"/>
   <translation tag="Which macro the Close feeder button sends" pt="Qual macro o botão Fechar alimentador envia"/>
@@ -3345,12 +3317,9 @@
   <translation tag="YOU WIN!&#10;Score: {}&#10;Tap to play again" pt="VOCÊ VENCEU!&#10;Pontuação: {}&#10;Toque para jogar de novo"/>
   <translation tag="Year" pt="Ano"/>
   <translation tag="Yes" pt="Sim"/>
-  <translation tag="You can now skip these operations when starting prints.&#10;&#10;Look for the new options in the print details before starting each print.&#10;&#10;A backup of your config was saved automatically." pt="Agora você pode pular essas operações ao iniciar impressões.&#10;&#10;Procure as novas opções nos detalhes da impressão antes de iniciar cada impressão.&#10;&#10;Um backup da sua configuração foi salvo automaticamente."/>
   <translation tag="You can skip this and calibrate later in Settings." pt="Você pode pular isto e calibrar depois nas Configurações."/>
   <translation tag="You have unsaved changes. Discard them?" pt="Você tem alterações não salvas. Descartar?"/>
-  <translation tag="Your PRINT_START macro will be updated to give you control over:&#10;&#10;" pt="Sua macro PRINT_START será atualizada para lhe dar controle sobre:&#10;&#10;"/>
   <translation tag="Your completed prints will appear here" pt="Suas impressões concluídas aparecerão aqui"/>
-  <translation tag="Your print start is already fully configured!" pt="Seu início de impressão já está totalmente configurado!"/>
   <translation tag="Your printer at a glance" pt="Sua impressora num relance"/>
   <translation tag="Your printer has an automatic filament changer" pt="Sua impressora possui um trocador automático de filamento"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" pt="Sua impressora estava offline durante a configuração, então as opções de hardware foram puladas. Configurar agora?"/>

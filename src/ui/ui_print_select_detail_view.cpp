@@ -391,32 +391,34 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     history_status_icon_ = find_required(overlay_root_, "history_status_icon", get_name());
     history_status_label_ = find_required(overlay_root_, "history_status_label", get_name());
 
-    // Initialize print preparation manager (only if not already created —
-    // survives destroy-on-close so callbacks set by PrintSelectPanel persist)
-    if (!prep_manager_) {
-        prep_manager_ = std::make_unique<PrintPreparationManager>();
-        // A scan answer can be what a deferred Print tap is waiting on.
-        prep_manager_->set_on_scan_answered([this]() { fire_on_preflight_ready(); });
-    }
-
     spdlog::debug("[DetailView] Detail view created");
     return overlay_root_;
 }
 
 void PrintSelectDetailView::set_dependencies(IMoonrakerAPI* api, PrinterState* printer_state) {
+    set_analysis_dependencies(api, printer_state);
+
+    // Ask once, well before the G-code is needed, and never block on the
+    // answer. A printer that never replies simply leaves us on the HTTP path.
+    resolve_local_gcodes_root();
+}
+
+void PrintSelectDetailView::set_analysis_dependencies(IMoonrakerAPI* api,
+                                                      PrinterState* printer_state) {
     api_ = api;
     printer_state_ = printer_state;
 
-    // Ask once, well before the user opens a file, and never block on the
-    // answer. A printer that never replies simply leaves us on the HTTP path.
-    resolve_local_gcodes_root();
-
-    if (prep_manager_) {
-        prep_manager_->set_dependencies(api_, printer_state_);
-        // Per-option toggle state flows through the OptionStateProvider that
-        // populate_option_rows() registers with the prep manager — no need to
-        // wire individual legacy state/visibility subjects here.
+    // Not tied to the widget tree: the panel wires dependencies at setup, before
+    // any file opens, so the PRINT_START analysis starts on connect, and the
+    // manager survives destroy-on-close with the callbacks PrintSelectPanel set.
+    if (!prep_manager_) {
+        prep_manager_ = std::make_unique<PrintPreparationManager>();
+        // A scan answer can be what a deferred Print tap is waiting on.
+        prep_manager_->set_on_scan_answered([this]() { fire_on_preflight_ready(); });
     }
+    // Per-option toggle state flows through the OptionStateProvider that
+    // populate_option_rows() registers with the prep manager.
+    prep_manager_->set_dependencies(api_, printer_state_);
 }
 
 // ============================================================================
@@ -446,6 +448,9 @@ void PrintSelectDetailView::show(const std::string& filename, const std::string&
         spdlog::warn("[DetailView] Cannot show: widget not created");
         return;
     }
+
+    // No-op once resolved; retries an attempt that met a connection still coming up.
+    resolve_local_gcodes_root();
 
     // Cache parameters for on_activate() to use
     current_filename_ = filename;
@@ -599,6 +604,11 @@ std::string PrintSelectDetailView::canonical_gcode_path() const {
 
 void PrintSelectDetailView::resolve_local_gcodes_root() {
     if (local_gcodes_root_resolved_ || !api_) {
+        return;
+    }
+    // A request now fails before reaching Moonraker, and latching that answer
+    // would send every file over HTTP for the rest of the session.
+    if (api_->get_connection_state() != ConnectionState::CONNECTED) {
         return;
     }
 

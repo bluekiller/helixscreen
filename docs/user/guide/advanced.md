@@ -134,50 +134,6 @@ If your macro list is cluttered with macros you never run, you can hide them fro
 
 ---
 
-## Configure PRINT_START
-
-HelixScreen's [pre-print skip toggles](printing.md#pre-print-options) — Auto bed level, Quad gantry level, Z-tilt adjust, Nozzle clean — can only skip a step if that step is written so it can be turned off. When those operations live *inside* your `PRINT_START` (or `START_PRINT`) macro, they run every time and the toggles can't reach them.
-
-**Configure PRINT_START** reads your own macro, finds those operations, and — with your approval — rewrites the macro so each one becomes optional. Afterward, the matching toggle on the print screen actually skips it.
-
-> **Safety:** This feature **edits your Klipper printer configuration** on the printer. It is a deliberate, consent-based action: nothing is changed until you review each operation and tap **Apply Changes**. A backup of your config is saved automatically before anything is written, and Klipper restarts once the changes are applied.
-
-### Opening the wizard
-
-1. Enable **Beta Features** first (see [Beta Features](beta-features.md)) — this tool lives behind the beta flag.
-2. Navigate to **Advanced → Configure PRINT_START**.
-
-HelixScreen may also prompt you on its own: when it notices skippable steps in your macro, a notification reading **"PRINT_START has N skippable operations"** appears with a **Configure** button that opens the same wizard.
-
-If your macro is already set up (or has nothing that can be made optional), you'll see **"Your print start is already fully configured!"** instead, and the wizard won't open.
-
-### Reviewing each operation
-
-The wizard walks you through one operation at a time (a progress counter like **"1 of 3"** shows your place). For each one — Bed Mesh, Quad Gantry Leveling, Z-Tilt Adjustment, or Nozzle Cleaning — it asks **"Make [operation] Optional?"** and explains in plain language what changes.
-
-You have two choices per operation:
-
-| Button | What it does |
-|--------|--------------|
-| **Keep Required** | Leave this operation alone — it will always run |
-| **Make Optional** | Rewrite it so the pre-print toggle can skip it |
-
-> **Note:** Homing is never offered here — it's required for safe printing and can't be made skippable.
-
-### Applying your changes
-
-After the last operation, a **Ready to Apply** summary lists every change you approved under **"Your PRINT_START macro will be updated to give you control over:"**.
-
-- The **"Create backup of printer.cfg before applying"** option is checked by default.
-- A reminder notes that **"Klipper will restart to apply changes"**.
-- Tap **Cancel** to discard everything, or **Apply Changes** to write them.
-
-While applying, the wizard shows its progress (creating the backup, then writing the changes). When it finishes you'll see a **Setup Complete!** confirmation letting you know a backup was saved and the new skip options are now available in the print details before each print. Tap **Close** to finish.
-
-> **Tip:** The changes are reversible. You can undo them later from the Macro Viewer, or re-run the wizard if you edit your macro again.
-
----
-
 ## Interactive Prompts
 
 Some Klipper macros can ask you questions mid-run — "Which lane should I load?", "Purge complete?", "Tip formed cleanly?" — using Klipper's standard prompt protocol. HelixScreen renders these as a native touchscreen dialog automatically. This is common with multi-material systems like Happy Hare / ERCF, and with custom confirmation macros.

@@ -113,7 +113,6 @@ class AdvancedPanel : public PanelBase {
     void handle_macros_clicked();
     void handle_console_clicked();
     void handle_history_clicked();
-    void handle_configure_print_start_clicked();
     void handle_pid_tuning_clicked();
     void handle_timelapse_setup_clicked();
     void handle_helix_plugin_install_clicked();
@@ -162,7 +161,6 @@ class AdvancedPanel : public PanelBase {
     static void on_macros_clicked(lv_event_t* e);
     static void on_console_clicked(lv_event_t* e);
     static void on_history_clicked(lv_event_t* e);
-    static void on_configure_print_start_clicked(lv_event_t* e);
     static void on_pid_tuning_clicked(lv_event_t* e);
     static void on_timelapse_videos_clicked(lv_event_t* e);
     static void on_timelapse_setup_clicked(lv_event_t* e);

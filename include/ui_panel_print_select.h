@@ -753,6 +753,7 @@ class PrintSelectPanel : public PanelBase {
     bool panel_initialized_ = false;               ///< Guard flag for resize callback
     bool first_activation_ = true;                 ///< Skip redundant refresh on first activation
     bool file_list_loaded_ = false;                ///< A listing has been rendered at least once
+    bool detail_view_built_ = false;               ///< create_detail_view() built the widget tree
     bool detail_view_open_ = false;                ///< True while detail view overlay is showing
     bool files_changed_while_detail_open_ = false; ///< True if filelist changed while detail open
     bool was_deactivated_ = false; ///< True if panel was fully deactivated (navigated away)
@@ -937,7 +938,12 @@ class PrintSelectPanel : public PanelBase {
     void update_sort_indicators();
 
     /**
-     * @brief Create detail view overlay (called once during setup)
+     * @brief Create the detail view and its PRINT_START analysis, without widgets
+     */
+    void ensure_detail_view_model();
+
+    /**
+     * @brief Build the detail view overlay's widget tree (first open only)
      */
     void create_detail_view();
     void create_print_controller();

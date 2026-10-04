@@ -32,7 +32,6 @@ translations:
   '%s uses %s, which has filament but no material set — the printer will not start until you set it.': '%s usa %s, que tem filamento mas nenhum material definido — a impressora não vai começar até você defini-lo.'
   '%s: %.0fg of %.0fg needed': '%s: %.0fg de %.0fg necessários'
   '%u layers': '%u camadas'
-  '%zu changes': '%zu alterações'
   '%zu events queued': '%zu eventos na fila'
   '%zu plugins failed to load': '%zu plugins falharam ao carregar'
   "'{}' already exists. Replace the stored mesh?": "'{}' já existe. Substituir a malha salva?"
@@ -120,7 +119,6 @@ translations:
   = Loosen: = Afrouxar
   = Tighten: = Apertar
   A: A
-  A backup of %s is created before applying: 'Um backup de %s é criado antes de aplicar'
   A few minutes, nearly all of it heating. You judge nothing by eye.: 'Alguns minutos, quase todo aquecendo. Você não julga nada a olho.'
   A motor IO pin couldn't be restored. Power-cycle the printer to recover: Não foi possível restaurar um pino de E/S do motor. Desligue e ligue a impressora para recuperar
   A motor's parameters couldn't be written. Power-cycle the printer to retry: Não foi possível gravar os parâmetros de um motor. Desligue e ligue a impressora para tentar novamente
@@ -257,9 +255,6 @@ translations:
   Appearance: Aparência
   Applies to: Aplica-se a
   Apply: Aplicar
-  Apply Changes: Aplicar Alterações
-  Applying Changes: Aplicando Alterações
-  Applying...: Aplicando...
   Archive: Arquivar
   Archive Spool?: Arquivar Carretel?
   Are you sure you want to cancel this print? All progress will be lost.: Tem certeza
@@ -557,8 +552,6 @@ translations:
     imediatamente. Ajuste durante a impressão para calibrar.
   Changes are temporary and reset on printer reboot: Alterações são temporárias e
     resetam ao reiniciar a impressora
-  Changes can be reversed anytime using the Macro Viewer.: As alterações podem ser
-    revertidas a qualquer momento usando o Macro Viewer.
   Check AFC configuration: 'Verifique a configuração do AFC'
   Check Again: Verificar Novamente
   Check Klipper console for details: Verifique o console do Klipper para detalhes
@@ -687,7 +680,6 @@ translations:
   Configure G10/G11 firmware retraction: Configurar retração de firmware G10/G11
   Configure Graph: Configurar Gráfico
   Configure Moonraker: Configurar Moonraker
-  Configure PRINT_START: Configurar PRINT_START
   Configure Spoolman integration and weight sync settings.: Configurar integração
     com Spoolman e configurações de sincronização de peso.
   Configure WiFi for this device, or skip if you're using Ethernet: Configure o WiFi
@@ -947,7 +939,6 @@ translations:
   Documentation: Documentação
   Don't Save: Não Salvar
   Don't ask again: Não perguntar novamente
-  Don't show again: Não mostrar novamente
   Done: Concluído
   Download update?: Baixar atualização?
   Download v{}?: Baixar v{}?
@@ -1039,10 +1030,6 @@ translations:
   Ended: Finalizado
   Endless spool failover cleared for every slot: 'Carretel reserva limpo para todos os slots'
   Endless spool is turned off on this MMU: 'O carretel infinito está desativado neste MMU'
-  Enhanced {} operation in PRINT_START: '{} operação aprimorada no PRINT_START'
-  Enhanced {} operations in PRINT_START: '{} operações aprimoradas no PRINT_START'
-  Enhancement Complete!: Aprimoramento Concluído!
-  Enhancement Failed: Aprimoramento Falhou
   Ensure Happy Hare or AFC is installed and configured: Certifique-se de que o Happy Hare ou o AFC esteja instalado e configurado
   Enter Current PIN: Digite o PIN Atual
   Enter G-code command...: Digite o comando G-code...
@@ -1142,7 +1129,6 @@ translations:
   FILTERS: FILTROS
   Factory Reset: Restauração de Fábrica
   Failed: Falhou
-  Failed to analyze PRINT_START macro: Falha ao analisar macro PRINT_START
   Failed to apply limits: Falha ao aplicar limites
   Failed to apply settings: Falha ao aplicar configurações
   Failed to archive spool: Falha ao arquivar carretel
@@ -1192,7 +1178,6 @@ translations:
   Failed to open history: Falha ao abrir histórico
   Failed to open history list: Falha ao abrir lista de histórico
   Failed to open temperature graph: Falha ao abrir gráfico de temperatura
-  Failed to open wizard: Falha ao abrir assistente
   'Failed to pause print: {}': 'Falha ao pausar impressão: {}'
   'Failed to purge: {}': 'Falha ao purgar: {}'
   Failed to read G-code for remap: Falha ao ler G-code para remapeamento
@@ -1676,7 +1661,6 @@ translations:
   KLICKY CONTROLS: CONTROLES KLICKY
   Keep Navigation Bar: Manter barra de navegação
   Keep Printing: Continuar Imprimindo
-  Keep Required: Manter Obrigatório
   Keep Spool Info on Eject: Manter Informações do Carretel ao Ejetar
   Keep clear of the printer while the toolhead is moving: Afaste-se da impressora enquanto o cabeçote se move
   Keep current: Manter atual
@@ -1701,8 +1685,6 @@ translations:
   Klipper reserves 'default' for new calibrations. Choose another name.: "O Klipper reserva 'default' para novas calibrações. Escolha outro nome."
   Klipper restarting - macros activating: 'Reiniciando o Klipper - ativando macros'
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "O Klipper parou de informar o progresso. A análise pode ficar sem memória em impressoras pequenas; reinicie o Klipper e tente novamente."
-  Klipper will restart to apply changes: O Klipper será reiniciado para aplicar as
-    alterações
   Klipper will restart to apply changes.: O Klipper será reiniciado para aplicar as
     alterações.
   Klipper will restart to apply new settings.: Klipper será reiniciado para aplicar
@@ -1848,7 +1830,6 @@ translations:
   Macro Browser: Navegador de Macros
   Macro Button: 'Botão de macro'
   Macro Buttons: Botões de Macro
-  Macro analysis not initialized: Análise de macro não inicializada
   'Macro failed: {}': 'Falha na macro: {}'
   Macro for bed mesh calibration: Macro para calibração da malha da mesa
   Macro for chamber/bed heat soak: Macro para aquecimento prolongado da câmara/mesa
@@ -1874,9 +1855,6 @@ translations:
   Main LED Strip: Fita de LED Principal
   Maintaining: Mantendo
   Maintenance: 'Manutenção'
-  Make %s Optional?: Tornar %s Opcional?
-  Make Optional: Tornar Opcional
-  Make bed mesh and QGL skippable: Tornar malha da mesa e QGL opcionais
   Make sure every nozzle is clean.: Certifique-se de que todos os bicos estejam limpos.
   'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.': 'Verifique se não há filamento carregado no cabeçote: ele pode amolecer na extrusora enquanto a mesa aquece.'
 
@@ -2042,7 +2020,6 @@ translations:
   No Macros Found: Nenhuma Macro Encontrada
   No Multi-Filament System connected: Nenhum sistema multi-filamento conectado
   No Multi-Filament System connected.: Nenhum sistema multi-filamento conectado.
-  No PRINT_START macro found: Macro PRINT_START não encontrada
   No Power Devices: Sem Dispositivos de Energia
   No Spool: Sem bobina
   No Spools: Sem Carretéis
@@ -2053,8 +2030,6 @@ translations:
   No camera — use USB barcode scanner: Sem câmera — use leitor de código de barras
     USB
   No chamber temperature sensor detected: 'Nenhum sensor de temperatura da câmara detectado'
-  ? "No changes selected.\n\nClick Cancel to close."
-  : "Nenhuma alteração selecionada.\n\nClique em Cancelar para fechar."
   No changes to revert: Nenhuma alteração para reverter
   No color: Sem cor
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: Nenhum
@@ -2252,8 +2227,6 @@ translations:
   PRINTER: IMPRESSORA
   PRINTER VISUALS: VISUAIS DA IMPRESSORA
   PRINTERS: IMPRESSORAS
-  PRINT_START has {} skippable operation: PRINT_START tem {} operação opcional
-  PRINT_START has {} skippable operations: PRINT_START tem {} operações opcionais
   PROBE SENSORS: SENSORES DE SONDA
   PTFE tube connection loose: Conexão do tubo PTFE solta
   Pair: Parear
@@ -2581,7 +2554,6 @@ translations:
   Readings from extra temperature sensors: Leituras de sensores adicionais
   Ready: Pronto
   Ready for filament operations: Pronto para operações de filamento
-  Ready to Apply: Pronto para Aplicar
   Ready to calibrate: Pronto para calibrar
   Rear: 'Trás'
   Rear Left: 'Trás esquerda'
@@ -2756,7 +2728,6 @@ translations:
   Reverse Multiplier: 'Multiplicador de retrocesso'
   Review detected hardware validation issues: Revisar problemas de validação de hardware
     detectados
-  Review your changes: Revisar suas alterações
   Review your configuration below, then click Finish to save: Revise sua configuração
     abaixo e clique em Finalizar para salvar
   Rewinding: Rebobinando
@@ -2978,7 +2949,6 @@ translations:
   Settings reset to defaults. Restarting...: Configurações restauradas para os padrões.
     Reiniciando...
   Setup: 'Configuração'
-  Setup Complete!: Configuração Concluída!
   Setup Timelapse: Configurar Timelapse
   Several printers match - choose yours: Várias impressoras correspondem - escolha a sua
   Shadow Intensity: Intensidade da Sombra
@@ -3400,11 +3370,7 @@ translations:
     se habilitado
   This may take up to 30 seconds: Isso pode levar até 30 segundos
   This plugin asks for no special permissions.: 'Este plugin não pede permissões especiais.'
-  ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
-  : Este plugin permite que o HelixScreen controle opções de início de impressão como
-    malha da mesa e QGL. Após instalado, use Configurar PRINT_START abaixo para habilitar
-    etapas opcionais.
+  This plugin lets HelixScreen control print start options like bed mesh and QGL.: 'Este plugin permite que o HelixScreen controle opções de início de impressão como malha da mesa e QGL.'
   This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?: Esta
     impressão precisa de cerca de %.0fg, mas o carretel tem cerca de %.0fg restantes.
     Iniciar mesmo assim?
@@ -3714,12 +3680,6 @@ translations:
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: Quando
     habilitado, apenas a macro é executada. Quando desabilitado, as temperaturas são
     definidas primeiro, depois a macro é executada.
-  ? When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
-  : Ao iniciar uma impressão, você poderá escolher se deseja executar %s. Isso economiza
-    tempo quando você já fez isso recentemente ou deseja mais controle sobre a preparação
-    da sua impressão.
   Where UI sounds play: Onde os sons da interface são reproduzidos
   Whether filament is loaded: Se há filamento carregado
   Which macro the Close feeder button sends: Qual macro o botão Fechar alimentador envia
@@ -3773,16 +3733,10 @@ translations:
   : "VOCÊ VENCEU!\nPontuação: {}\nToque para jogar de novo"
   Year: Ano
   'Yes': Sim
-  ? "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
-  : "Agora você pode pular essas operações ao iniciar impressões.\n\nProcure as novas opções nos detalhes da impressão antes de iniciar cada impressão.\n\nUm backup da sua configuração foi salvo automaticamente."
   You can skip this and calibrate later in Settings.: Você pode pular isto e calibrar
     depois nas Configurações.
   You have unsaved changes. Discard them?: Você tem alterações não salvas. Descartar?
-  ? "Your PRINT_START macro will be updated to give you control over:\n\n"
-  : "Sua macro PRINT_START será atualizada para lhe dar controle sobre:\n\n"
   Your completed prints will appear here: Suas impressões concluídas aparecerão aqui
-  Your print start is already fully configured!: Seu início de impressão já está totalmente
-    configurado!
   Your printer at a glance: Sua impressora num relance
   Your printer has an automatic filament changer: Sua impressora possui um trocador
     automático de filamento

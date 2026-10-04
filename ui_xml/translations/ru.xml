@@ -32,7 +32,6 @@
   <translation tag="%s uses %s, which has filament but no material set — the printer will not start until you set it." ru="%s использует %s, где есть филамент, но не задан материал — принтер не начнёт печать, пока вы его не зададите."/>
   <translation tag="%s: %.0fg of %.0fg needed" ru="%s: %.0fг из %.0fг"/>
   <translation tag="%u layers" ru="%u слоёв"/>
-  <translation tag="%zu changes" ru="%zu изменений"/>
   <translation tag="%zu events queued" ru="%zu событий в очереди"/>
   <translation tag="%zu plugins failed to load" ru="Не удалось загрузить %zu плагинов"/>
   <translation tag="&apos;{}&apos; already exists. Replace the stored mesh?" ru="&apos;{}&apos; уже существует. Заменить сохранённую сетку?"/>
@@ -113,7 +112,6 @@
   <translation tag="= Loosen" ru="= Ослабить"/>
   <translation tag="= Tighten" ru="= Затянуть"/>
   <translation tag="A" ru="A"/>
-  <translation tag="A backup of %s is created before applying" ru="Перед применением создаётся резервная копия %s"/>
   <translation tag="A few minutes, nearly all of it heating. You judge nothing by eye." ru="Несколько минут, почти всё время нагрев. Ничего не нужно оценивать на глаз."/>
   <translation tag="A motor IO pin couldn&apos;t be restored. Power-cycle the printer to recover" ru="Не удалось восстановить вывод ввода-вывода двигателя. Выключите и включите принтер"/>
   <translation tag="A motor&apos;s parameters couldn&apos;t be written. Power-cycle the printer to retry" ru="Не удалось записать параметры двигателя. Выключите и включите принтер и повторите попытку"/>
@@ -236,9 +234,6 @@
   <translation tag="Appearance" ru="Внешний вид"/>
   <translation tag="Applies to" ru="Применяется к"/>
   <translation tag="Apply" ru="Применить"/>
-  <translation tag="Apply Changes" ru="Применить изменения"/>
-  <translation tag="Applying Changes" ru="Применение изменений"/>
-  <translation tag="Applying..." ru="Применение..."/>
   <translation tag="Archive" ru="Архивировать"/>
   <translation tag="Archive Spool?" ru="Архивировать катушку?"/>
   <translation tag="Are you sure you want to cancel this print? All progress will be lost." ru="Вы уверены, что хотите отменить печать? Весь прогресс будет потерян."/>
@@ -501,7 +496,6 @@
   <translation tag="Change tool" ru="Сменить инструмент"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." ru="Изменения применяются немедленно. Корректируйте во время печати."/>
   <translation tag="Changes are temporary and reset on printer reboot" ru="Изменения временные и сбрасываются при перезагрузке принтера"/>
-  <translation tag="Changes can be reversed anytime using the Macro Viewer." ru="Изменения можно отменить в любое время через Macro Viewer."/>
   <translation tag="Check AFC configuration" ru="Проверьте конфигурацию AFC"/>
   <translation tag="Check Again" ru="Проверить снова"/>
   <translation tag="Check Klipper console for details" ru="Подробности смотрите в консоли Klipper"/>
@@ -615,7 +609,6 @@
   <translation tag="Configure G10/G11 firmware retraction" ru="Настроить аппаратный ретракт G10/G11"/>
   <translation tag="Configure Graph" ru="Настроить график"/>
   <translation tag="Configure Moonraker" ru="Настроить Moonraker"/>
-  <translation tag="Configure PRINT_START" ru="Настроить PRINT_START"/>
   <translation tag="Configure Spoolman integration and weight sync settings." ru="Настройте интеграцию со Spoolman и синхронизацию веса."/>
   <translation tag="Configure WiFi for this device, or skip if you&apos;re using Ethernet" ru="Настройте WiFi для этого устройства или пропустите, если используете Ethernet"/>
   <translation tag="Configure devices in Moonraker" ru="Настроить устройства в Moonraker"/>
@@ -851,7 +844,6 @@
   <translation tag="Documentation" ru="Документация"/>
   <translation tag="Don&apos;t Save" ru="Не сохранять"/>
   <translation tag="Don&apos;t ask again" ru="Больше не спрашивать"/>
-  <translation tag="Don&apos;t show again" ru="Больше не показывать"/>
   <translation tag="Done" ru="Готово"/>
   <translation tag="Download update?" ru="Загрузить обновление?"/>
   <translation tag="Download v{}?" ru="Загрузить v{}?"/>
@@ -933,10 +925,6 @@
   <translation tag="Ended" ru="Завершено"/>
   <translation tag="Endless spool failover cleared for every slot" ru="Резервные катушки очищены для всех слотов"/>
   <translation tag="Endless spool is turned off on this MMU" ru="Бесконечная катушка отключена на этом MMU"/>
-  <translation tag="Enhanced {} operation in PRINT_START" ru="Улучшена {} операция в PRINT_START"/>
-  <translation tag="Enhanced {} operations in PRINT_START" ru="Улучшено {} операций в PRINT_START"/>
-  <translation tag="Enhancement Complete!" ru="Улучшение завершено!"/>
-  <translation tag="Enhancement Failed" ru="Ошибка улучшения"/>
   <translation tag="Ensure Happy Hare or AFC is installed and configured" ru="Убедитесь, что Happy Hare или AFC установлен и настроен"/>
   <translation tag="Enter Current PIN" ru="Введите текущий PIN"/>
   <translation tag="Enter G-code command..." ru="Введите команду G-code..."/>
@@ -1028,7 +1016,6 @@
   <translation tag="FILTERS" ru="ФИЛЬТРЫ"/>
   <translation tag="Factory Reset" ru="Сброс к заводским настройкам"/>
   <translation tag="Failed" ru="Ошибка"/>
-  <translation tag="Failed to analyze PRINT_START macro" ru="Не удалось проанализировать макрос PRINT_START"/>
   <translation tag="Failed to apply limits" ru="Не удалось применить ограничения"/>
   <translation tag="Failed to apply settings" ru="Не удалось применить настройки"/>
   <translation tag="Failed to archive spool" ru="Не удалось архивировать катушку"/>
@@ -1072,7 +1059,6 @@
   <translation tag="Failed to open history" ru="Не удалось открыть историю"/>
   <translation tag="Failed to open history list" ru="Не удалось открыть список истории"/>
   <translation tag="Failed to open temperature graph" ru="Не удалось открыть график температуры"/>
-  <translation tag="Failed to open wizard" ru="Не удалось открыть мастер"/>
   <translation tag="Failed to pause print: {}" ru="Не удалось приостановить печать: {}"/>
   <translation tag="Failed to purge: {}" ru="Не удалось прочистить: {}"/>
   <translation tag="Failed to read G-code for remap" ru="Не удалось прочитать G-code для переназначения"/>
@@ -1504,7 +1490,6 @@
   <translation tag="KLICKY CONTROLS" ru="УПРАВЛЕНИЕ KLICKY"/>
   <translation tag="Keep Navigation Bar" ru="Сохранить панель навигации"/>
   <translation tag="Keep Printing" ru="Продолжить печать"/>
-  <translation tag="Keep Required" ru="Оставить обязательным"/>
   <translation tag="Keep Spool Info on Eject" ru="Сохранять данные катушки при извлечении"/>
   <translation tag="Keep clear of the printer while the toolhead is moving" ru="Не приближайтесь к принтеру, пока перемещается печатающая головка"/>
   <translation tag="Keep current" ru="Оставить текущую"/>
@@ -1521,7 +1506,6 @@
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." ru="Klipper резервирует &apos;default&apos; для новых калибровок. Выберите другое имя."/>
   <translation tag="Klipper restarting - macros activating" ru="Перезапуск Klipper - активация макросов"/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." ru="Klipper перестал сообщать о ходе. На небольших принтерах его анализу может не хватить памяти; перезапустите Klipper и повторите попытку."/>
-  <translation tag="Klipper will restart to apply changes" ru="Klipper перезапустится для применения изменений"/>
   <translation tag="Klipper will restart to apply changes." ru="Klipper перезапустится для применения изменений."/>
   <translation tag="Klipper will restart to apply new settings." ru="Klipper перезапустится для применения новых настроек."/>
   <translation tag="Klipper: " ru="Klipper: "/>
@@ -1656,7 +1640,6 @@
   <translation tag="Macro Browser" ru="Обзор макросов"/>
   <translation tag="Macro Button" ru="Кнопка макроса"/>
   <translation tag="Macro Buttons" ru="Кнопки макросов"/>
-  <translation tag="Macro analysis not initialized" ru="Анализ макросов не инициализирован"/>
   <translation tag="Macro failed: {}" ru="Ошибка макроса: {}"/>
   <translation tag="Macro for bed mesh calibration" ru="Макрос для калибровки сетки стола"/>
   <translation tag="Macro for chamber/bed heat soak" ru="Макрос для прогрева камеры/стола"/>
@@ -1680,9 +1663,6 @@
   <translation tag="Main LED Strip" ru="Основная LED-лента"/>
   <translation tag="Maintaining" ru="Поддержание"/>
   <translation tag="Maintenance" ru="Обслуживание"/>
-  <translation tag="Make %s Optional?" ru="Сделать %s необязательным?"/>
-  <translation tag="Make Optional" ru="Сделать опциональным"/>
-  <translation tag="Make bed mesh and QGL skippable" ru="Сделать сетку стола и QGL пропускаемыми"/>
   <translation tag="Make sure every nozzle is clean." ru="Убедитесь, что все сопла чистые."/>
   <translation tag="Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats." ru="Убедитесь, что в печатающей головке нет филамента: он может размягчиться в экструдере, пока греется стол."/>
   <translation tag="MakeID (Bluetooth)" ru="MakeID (Bluetooth)"/>
@@ -1835,7 +1815,6 @@
   <translation tag="No Macros Found" ru="Макросы не найдены"/>
   <translation tag="No Multi-Filament System connected" ru="Мультифиламентная система не подключена"/>
   <translation tag="No Multi-Filament System connected." ru="Мультифиламентная система не подключена."/>
-  <translation tag="No PRINT_START macro found" ru="Макрос PRINT_START не найден"/>
   <translation tag="No Power Devices" ru="Нет устройств питания"/>
   <translation tag="No Spool" ru="Нет катушки"/>
   <translation tag="No Spools" ru="Нет катушек"/>
@@ -1845,7 +1824,6 @@
   <translation tag="No buffer data available" ru="Данные буфера недоступны"/>
   <translation tag="No camera — use USB barcode scanner" ru="Нет камеры — используйте USB сканер штрих-кодов"/>
   <translation tag="No chamber temperature sensor detected" ru="Датчик температуры камеры не обнаружен"/>
-  <translation tag="No changes selected.&#10;&#10;Click Cancel to close." ru="Изменения не выбраны.&#10;&#10;Нажмите «Отмена», чтобы закрыть."/>
   <translation tag="No changes to revert" ru="Нет изменений для отката"/>
   <translation tag="No color" ru="Без цвета"/>
   <translation tag="No dryer available. Store filament in a sealed dry box with desiccant for best results." ru="Сушилка недоступна. Храните филамент в герметичном контейнере с влагопоглотителем для лучших результатов."/>
@@ -2031,8 +2009,6 @@
   <translation tag="PRINTER" ru="ПРИНТЕР"/>
   <translation tag="PRINTER VISUALS" ru="ВНЕШНИЙ ВИД ПРИНТЕРА"/>
   <translation tag="PRINTERS" ru="ПРИНТЕРЫ"/>
-  <translation tag="PRINT_START has {} skippable operation" ru="В PRINT_START есть {} пропускаемая операция"/>
-  <translation tag="PRINT_START has {} skippable operations" ru="В PRINT_START есть {} пропускаемых операций"/>
   <translation tag="PROBE SENSORS" ru="ДАТЧИКИ ЗОНДА"/>
   <translation tag="PTFE tube connection loose" ru="Соединение трубки PTFE ослабло"/>
   <translation tag="Pair" ru="Сопряжение"/>
@@ -2331,7 +2307,6 @@
   <translation tag="Readings from extra temperature sensors" ru="Показания доп. датчиков температуры"/>
   <translation tag="Ready" ru="Готов"/>
   <translation tag="Ready for filament operations" ru="Готово к операциям с филаментом"/>
-  <translation tag="Ready to Apply" ru="Готово к применению"/>
   <translation tag="Ready to calibrate" ru="Готов к калибровке"/>
   <translation tag="Rear" ru="Сзади"/>
   <translation tag="Rear Left" ru="Сзади слева"/>
@@ -2491,7 +2466,6 @@
   <translation tag="Retry" ru="Повторить"/>
   <translation tag="Reverse Multiplier" ru="Множитель обратного хода"/>
   <translation tag="Review detected hardware validation issues" ru="Просмотр обнаруженных проблем валидации оборудования"/>
-  <translation tag="Review your changes" ru="Просмотр ваших изменений"/>
   <translation tag="Review your configuration below, then click Finish to save" ru="Проверьте конфигурацию ниже, затем нажмите «Готово» для сохранения"/>
   <translation tag="Rewinding" ru="Перемотка"/>
   <translation tag="Right" ru="Справа"/>
@@ -2678,7 +2652,6 @@
   <translation tag="Settings Snapshot" ru="Снимок настроек"/>
   <translation tag="Settings reset to defaults. Restarting..." ru="Настройки сброшены к значениям по умолчанию. Перезапуск..."/>
   <translation tag="Setup" ru="Настройка"/>
-  <translation tag="Setup Complete!" ru="Настройка завершена!"/>
   <translation tag="Setup Timelapse" ru="Настроить таймлапс"/>
   <translation tag="Several printers match - choose yours" ru="Подходят несколько принтеров - выберите свой"/>
   <translation tag="Shadow Intensity" ru="Интенсивность тени"/>
@@ -3023,7 +2996,7 @@
   <translation tag="This is what data would be sent if enabled" ru="Эти данные были бы отправлены при включении"/>
   <translation tag="This may take up to 30 seconds" ru="Это может занять до 30 секунд"/>
   <translation tag="This plugin asks for no special permissions." ru="Этот плагин не запрашивает специальных разрешений."/>
-  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." ru="Этот плагин позволяет HelixScreen управлять опциями начала печати, такими как сетка стола и QGL. После установки используйте «Настроить PRINT_START» ниже для включения опциональных шагов."/>
+  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL." ru="Этот плагин позволяет HelixScreen управлять опциями начала печати, такими как сетка стола и QGL."/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" ru="Для этой печати нужно около %.0fг, но на катушке осталось около %.0fг. Всё равно начать?"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" ru="Этот принтер не может калибровать смещения инструментов автоматически"/>
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." ru="Этот принтер берёт данные шлюзов из Spoolman. HelixScreen очистил свою копию; удалите катушку в Spoolman."/>
@@ -3294,7 +3267,6 @@
   <translation tag="Welcome to HelixScreen" ru="Добро пожаловать в HelixScreen"/>
   <translation tag="What We Collect" ru="Что мы собираем"/>
   <translation tag="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs." ru="Когда включено, запускается только макрос. Когда выключено, сначала задаются температуры, затем запускается макрос."/>
-  <translation tag="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation." ru="При запуске печати вы сможете выбрать, запускать ли %s. Это экономит время, если вы уже делали это недавно или хотите больше контроля над подготовкой печати."/>
   <translation tag="Where UI sounds play" ru="Где воспроизводятся звуки интерфейса"/>
   <translation tag="Whether filament is loaded" ru="Загружен ли филамент"/>
   <translation tag="Which macro the Close feeder button sends" ru="Какой макрос отправляет кнопка «Закрыть фидер»"/>
@@ -3345,12 +3317,9 @@
   <translation tag="YOU WIN!&#10;Score: {}&#10;Tap to play again" ru="ПОБЕДА!&#10;Счёт: {}&#10;Нажмите, чтобы сыграть снова"/>
   <translation tag="Year" ru="Год"/>
   <translation tag="Yes" ru="Да"/>
-  <translation tag="You can now skip these operations when starting prints.&#10;&#10;Look for the new options in the print details before starting each print.&#10;&#10;A backup of your config was saved automatically." ru="Теперь вы можете пропускать эти операции при запуске печати.&#10;&#10;Ищите новые параметры в деталях печати перед началом каждой печати.&#10;&#10;Резервная копия вашей конфигурации была сохранена автоматически."/>
   <translation tag="You can skip this and calibrate later in Settings." ru="Вы можете пропустить это и откалибровать позже в настройках."/>
   <translation tag="You have unsaved changes. Discard them?" ru="У вас есть несохранённые изменения. Отменить их?"/>
-  <translation tag="Your PRINT_START macro will be updated to give you control over:&#10;&#10;" ru="Ваш макрос PRINT_START будет обновлён, чтобы дать вам контроль над:&#10;&#10;"/>
   <translation tag="Your completed prints will appear here" ru="Ваши завершённые печати появятся здесь"/>
-  <translation tag="Your print start is already fully configured!" ru="Ваш старт печати уже полностью настроен!"/>
   <translation tag="Your printer at a glance" ru="Ваш принтер одним взглядом"/>
   <translation tag="Your printer has an automatic filament changer" ru="Ваш принтер оснащён автоматическим сменщиком филамента"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" ru="Принтер был не в сети во время настройки, поэтому параметры оборудования пропущены. Настроить их сейчас?"/>

@@ -463,7 +463,6 @@ void register_xml_components() {
     register_xml("runout_guidance_modal.xml");
     register_xml("shutdown_modal.xml");
     register_xml("plugin_install_modal.xml");
-    register_xml("macro_enhance_modal.xml");
     register_xml("action_prompt_modal.xml");
     register_xml("info_qr_modal.xml");
     register_xml("chamber_dryer_modal.xml");
