@@ -964,3 +964,15 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: unhomed shows the jog pad's warning h
     CHECK(lv_obj_get_style_border_width(home, LV_PART_MAIN) == 3);
     CHECK(lv_obj_get_width(home) == lv_obj_get_height(home));
 }
+
+TEST_CASE_METHOD(MoveTabFixture, "motion: the header title stays on one line",
+                 "[motion][move-tab][xml]") {
+    // Squeezed by the coordinates, a wrapping title broke mid-word ("MOTI" /
+    // "ON"); clip measures it unwrapped, so it keeps one line at any width.
+    lv_obj_t* title = panel_widget("header_title");
+    CHECK(lv_label_get_long_mode(title) == LV_LABEL_LONG_MODE_CLIP);
+    lv_obj_set_width(title, 20);
+    lv_obj_update_layout(title);
+    CHECK(lv_obj_get_height(title) ==
+          lv_font_get_line_height(lv_obj_get_style_text_font(title, LV_PART_MAIN)));
+}

@@ -154,13 +154,16 @@
               <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
               <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
             </icon>
+            <!-- At small the title, three 3-digit coordinates and this label do
+                 not fit one header line; the icon alone (tinted while showing
+                 actual) carries the toggle there, so the title keeps its room. -->
             <lv_label name="header_pos_swap_target" text="Target" translation_tag="Target" style_text_font="#font_small">
               <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
-              <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="1"/>
+              <bind_flag_if cond="settings_motion_show_actual_position eq 1 or ui_breakpoint eq 2" flag="hidden"/>
             </lv_label>
             <lv_label name="header_pos_swap_actual" text="Actual" translation_tag="Actual" style_text_font="#font_small">
               <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
-              <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="0"/>
+              <bind_flag_if cond="settings_motion_show_actual_position eq 0 or ui_breakpoint eq 2" flag="hidden"/>
             </lv_label>
           </lv_obj>
         </lv_obj>
