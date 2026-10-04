@@ -487,6 +487,16 @@ PrinterState, WebSocket/threading, shutdown, DisplayManager, XML processing
 
 ---
 
+## Superpowers Skills Here
+
+Worktrees come from `scripts/setup-worktree.sh` and go away with
+`scripts/teardown-worktree.sh`. These replace the create step in
+`superpowers:using-git-worktrees` (a native or plain `git worktree add` tree has no lib/
+symlinks, submodules or build) and the `git worktree remove` step in
+`superpowers:finishing-a-development-branch`, which refuses here.
+
+---
+
 ## Autonomous Sessions
 
 Given autonomous control ("work independently", "minimal interruption"), load the

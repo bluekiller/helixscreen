@@ -347,7 +347,8 @@ void AboutSettingsOverlay::attach_print_hours(IMoonrakerClient& client) {
             if (helix::json_util::notification_action(data) != "finished") {
                 return;
             }
-            helix::ui::queue_update([]() { get_about_settings_overlay().fetch_print_hours(); });
+            helix::ui::queue_update("AboutSettingsOverlay::attach_print_hours",
+                                    []() { get_about_settings_overlay().fetch_print_hours(); });
         });
 }
 

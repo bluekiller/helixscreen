@@ -767,6 +767,66 @@ SHAPES
     lacks "run_next_tick" "$output"
 }
 
+# --- Every queue_update() names its producer ---
+#
+# The test-isolation listener reports a leaked UpdateQueue callback by its tag;
+# an untagged one reads `<untagged>`, which names no owner (#1685). App code
+# passes a string literal first: queue_update("Owner::method", fn). The
+# forwarding wrappers in include/ thread file/line instead and are not linted.
+# A tag forwarded through a variable? // QUEUE_TAG_OK: <reason>
+queue_untagged_pattern() {
+    printf '%s' '(^|[^_[:alnum:]])queue_update[[:space:]]*\([[:space:]]*[^"[:space:]]'
+}
+
+# clang-format wraps a long call after the open paren; join that line to the next.
+queue_split_pattern() {
+    printf '%s' '(^|[^_[:alnum:]])queue_update[[:space:]]*\([[:space:]]*$'
+}
+
+check_queue_update_tagged() {
+    local offenders
+    # shellcheck disable=SC2046  # paths have no spaces; word splitting is intended
+    offenders=$(CODE_LINT_JOIN="$(queue_split_pattern)" code_offenders \
+        "$(queue_untagged_pattern)" QUEUE_TAG_OK \
+        $(git ls-files --cached --others --exclude-standard src firmware | grep -E '\.(cpp|h)$'))
+    [ -z "$offenders" ] && return 0
+    echo "Untagged queue_update() (a leak would report <untagged>):"
+    printf '%s\n' "$offenders"
+    echo "Pass the owner as a literal first: queue_update(\"Owner::method\", fn)."
+    return 1
+}
+
+@test "every queue_update() in app code passes a producer tag" {
+    run check_queue_update_tagged
+    [ "$status" -eq 0 ]
+}
+
+@test "the queue_update tag gate catches tagless and wrapped calls, and skips tags and opt-outs" {
+    local f="${BATS_TEST_TMPDIR}/queue_shapes.cpp"
+    cat > "$f" <<'SHAPES'
+helix::ui::queue_update([this]() {});
+ui::queue_update(std::move(cb));
+helix::ui::queue_update(
+    [x]() {});
+helix::ui::queue_update("Owner::method", [this]() {});
+helix::ui::queue_update(
+    "Owner::wrapped", [x]() {});
+// helix::ui::queue_update([]() {}) in a comment
+ui_queue_update([] {});
+helix::ui::queue_update(tag, [o]() {}); // QUEUE_TAG_OK: forwarded literal
+SHAPES
+    CODE_LINT_JOIN="$(queue_split_pattern)" run code_offenders \
+        "$(queue_untagged_pattern)" QUEUE_TAG_OK "$f"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 3 ]
+    contains "queue_shapes.cpp:1: " "$output"
+    contains "queue_shapes.cpp:3: " "$output"
+    lacks "Owner::" "$output"
+    lacks "in a comment" "$output"
+    lacks "ui_queue_update" "$output"
+    lacks "QUEUE_TAG_OK" "$output"
+}
+
 # --- One observe<V>() entry point ---
 #
 # The per-type observer factories (observe_int_sync, observe_string, the *_immediate

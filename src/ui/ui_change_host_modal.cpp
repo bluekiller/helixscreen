@@ -293,7 +293,7 @@ void ChangeHostModal::handle_save() {
     // heap corruption via stale observer dispatch.
     if (completion_callback_) {
         auto callback = completion_callback_;
-        helix::ui::queue_update([callback]() { callback(true); });
+        helix::ui::queue_update("ChangeHostModal::handle_save", [callback]() { callback(true); });
     }
 }
 
@@ -437,61 +437,62 @@ void show_connection_failed_modal(const std::string& title, const std::string& m
     // thread. Everything below touches LVGL, so hop to the main thread first —
     // this mirrors what ui_notification_error() does internally for the
     // OK-only path this replaces.
-    helix::ui::queue_update([title, message]() {
-        // Reconnect first: a wedged transport (reported on Android, where the
-        // process outlives its sockets) cannot be revived from outside the app,
-        // and a full teardown/rebuild re-resolves the host — the one thing the
-        // auto-retry loop cannot do for a changed IP. The prompt's job is to
-        // offer that action; address surgery stays one tap away but secondary.
-        //
-        // The declarative helpers close their own dialog once the callback
-        // returns, so this only has to do the work. The Modal::get_top() guess
-        // it replaces named whatever happened to be on top rather than this
-        // prompt, which is only ever correct by luck of ordering.
-        auto reconnect = [] {
-            if (auto* client = get_moonraker_client()) {
-                client->force_reconnect();
-            } else {
-                spdlog::warn("[ChangeHost] Reconnect requested but no client is registered");
+    helix::ui::queue_update(
+        "ui_change_host_modal::show_connection_failed_modal", [title, message]() {
+            // Reconnect first: a wedged transport (reported on Android, where the
+            // process outlives its sockets) cannot be revived from outside the app,
+            // and a full teardown/rebuild re-resolves the host — the one thing the
+            // auto-retry loop cannot do for a changed IP. The prompt's job is to
+            // offer that action; address surgery stays one tap away but secondary.
+            //
+            // The declarative helpers close their own dialog once the callback
+            // returns, so this only has to do the work. The Modal::get_top() guess
+            // it replaces named whatever happened to be on top rather than this
+            // prompt, which is only ever correct by luck of ordering.
+            auto reconnect = [] {
+                if (auto* client = get_moonraker_client()) {
+                    client->force_reconnect();
+                } else {
+                    spdlog::warn("[ChangeHost] Reconnect requested but no client is registered");
+                }
+            };
+
+            // On a printer that runs HelixScreen itself, the address is not the
+            // fault and "Change Address" is a trap: it walks the user into editing
+            // a correct 127.0.0.1 while the real problem is a Moonraker service
+            // that did not start. Retrying those services is the meaningful action.
+            //
+            // Only when we POSITIVELY know the printer is this machine. The default
+            // is deliberately "" rather than "localhost": an unconfigured host is
+            // the one case where changing the address is exactly the right action,
+            // and defaulting to a loopback literal would take that action away from
+            // every user who has not set a host yet.
+            // Locality here must read the ATTEMPTED host, not the live endpoint:
+            // this dialog fires exactly when the connection failed, so the
+            // moonraker_is_remote subject is still at its default (local) and
+            // would suppress "Change Address" for every remote host.
+            std::string host;
+            Config* cfg = Config::get_instance();
+            host = cfg->get<std::string>(cfg->df() + "moonraker_host", "");
+
+            if (!host.empty() && helix::is_moonraker_on_same_host(host)) {
+                helix::ui::modal_alert(title.c_str(), message.c_str(), ModalSeverity::Error,
+                                       lv_tr("Reconnect"), reconnect);
+                return;
             }
-        };
 
-        // On a printer that runs HelixScreen itself, the address is not the
-        // fault and "Change Address" is a trap: it walks the user into editing
-        // a correct 127.0.0.1 while the real problem is a Moonraker service
-        // that did not start. Retrying those services is the meaningful action.
-        //
-        // Only when we POSITIVELY know the printer is this machine. The default
-        // is deliberately "" rather than "localhost": an unconfigured host is
-        // the one case where changing the address is exactly the right action,
-        // and defaulting to a loopback literal would take that action away from
-        // every user who has not set a host yet.
-        // Locality here must read the ATTEMPTED host, not the live endpoint:
-        // this dialog fires exactly when the connection failed, so the
-        // moonraker_is_remote subject is still at its default (local) and
-        // would suppress "Change Address" for every remote host.
-        std::string host;
-        Config* cfg = Config::get_instance();
-        host = cfg->get<std::string>(cfg->df() + "moonraker_host", "");
+            helix::ui::ConfirmOptions opts;
+            opts.on_cancel = [] {
+                // This prompt closes itself the moment this returns, so the host
+                // form is never left stacked over a live error modal whose
+                // buttons stay pressable behind it.
+                show_change_host_modal();
+            };
+            opts.cancel_text = lv_tr("Change Address");
 
-        if (!host.empty() && helix::is_moonraker_on_same_host(host)) {
-            helix::ui::modal_alert(title.c_str(), message.c_str(), ModalSeverity::Error,
-                                   lv_tr("Reconnect"), reconnect);
-            return;
-        }
-
-        helix::ui::ConfirmOptions opts;
-        opts.on_cancel = [] {
-            // This prompt closes itself the moment this returns, so the host
-            // form is never left stacked over a live error modal whose
-            // buttons stay pressable behind it.
-            show_change_host_modal();
-        };
-        opts.cancel_text = lv_tr("Change Address");
-
-        helix::ui::modal_confirm(title.c_str(), message.c_str(), ModalSeverity::Error,
-                                 lv_tr("Reconnect"), reconnect, opts);
-    });
+            helix::ui::modal_confirm(title.c_str(), message.c_str(), ModalSeverity::Error,
+                                     lv_tr("Reconnect"), reconnect, opts);
+        });
 }
 
 } // namespace helix::ui

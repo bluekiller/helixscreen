@@ -87,7 +87,7 @@ void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api,
     // Wire on_notify callback for standalone notifications (action:notify)
     m_action_prompt_manager->set_on_notify([](const std::string& message) {
         spdlog::info("[ActionPrompt] Notification: {}", message);
-        ui::queue_update([message]() {
+        ui::queue_update("GcodeResponseRouting::attach", [message]() {
             ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
         });
     });

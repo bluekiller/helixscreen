@@ -2482,7 +2482,7 @@ void PrintStartCollector::save_prediction_entry() {
     // The heating rates came from real samples along the way and stay valid.
     if (fallback_completion_) {
         spdlog::debug("[PrintStartCollector] Timeout completion: saving heating rates only");
-        helix::ui::queue_update([]() {
+        helix::ui::queue_update("PrintStartCollector::save_prediction_entry", []() {
             auto* cfg = Config::get_instance();
             ThermalRateManager::instance().save_to_config(*cfg);
         });
@@ -2562,7 +2562,7 @@ void PrintStartCollector::save_prediction_entry() {
         predictor_.add_entry(entry);
     }
 
-    helix::ui::queue_update([entry]() {
+    helix::ui::queue_update("PrintStartCollector::save_prediction_entry", [entry]() {
         auto* cfg = Config::get_instance();
         helix::PreprintPredictor::append_to_config(entry);
         ThermalRateManager::instance().save_to_config(*cfg);

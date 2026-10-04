@@ -226,8 +226,9 @@ void unwind_async(const FilamentOpSurface& surface, const FilamentOpPlan& plan) 
     }
     // Marshal first, then guard: token.defer() is main-thread only, so a guard
     // applied on the network thread would itself be the violation.
-    helix::ui::queue_update(
-        [s = surface, plan]() { guarded(s, [s, plan]() { s.on_async_failed(plan); }); });
+    helix::ui::queue_update("filament_op_execute::unwind_async", [s = surface, plan]() {
+        guarded(s, [s, plan]() { s.on_async_failed(plan); });
+    });
 }
 
 /// Completion hook, marshalled to the main thread and then guarded.
@@ -235,7 +236,8 @@ void finished(const FilamentOpSurface& surface, const std::function<void()>& hoo
     if (!hook) {
         return;
     }
-    helix::ui::queue_update([s = surface, hook]() { guarded(s, hook); });
+    helix::ui::queue_update("filament_op_execute::finished",
+                            [s = surface, hook]() { guarded(s, hook); });
 }
 
 /// The error copy a failed macro or fallback raises. A timed-out macro is not a

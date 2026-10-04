@@ -199,7 +199,9 @@
         </centered_column>
 
         <!-- Empty state: the FETCH failed - tap retries the fetch -->
-        <lv_obj name="picker_empty" width="100%" height="120" scrollable="false" hidden="true" clickable="true">
+        <lv_obj name="picker_empty"
+                width="100%" height="120" scrollable="false" hidden="true" clickable="true"
+                style_radius="#border_radius">
           <style name="styles.press_wash" selector="pressed"/>
           <bind_flag_if_not_eq subject="edit_picker_state" flag="hidden" ref_value="1"/>
           <event_cb trigger="clicked" callback="ams_edit_picker_retry_cb"/>

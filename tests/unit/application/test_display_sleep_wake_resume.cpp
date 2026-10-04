@@ -33,6 +33,8 @@
 #include "theme_manager.h"
 
 #include <array>
+#include <chrono>
+#include <thread>
 
 #include "../../catch_amalgamated.hpp"
 
@@ -222,6 +224,28 @@ TEST_CASE_METHOD(SleepWakeFixture, "waking from sleep resumes the panel the scre
     mgr.check_display_sleep();
     REQUIRE(mgr.is_display_dimmed());
     REQUIRE(panel_.deactivates == 2);
+}
+
+TEST_CASE_METHOD(SleepWakeFixture,
+                 "a screensaver preview ignores the activity that launched it, then dismisses",
+                 "[application][display][screensaver][preview]") {
+    configure_idle(/*screensaver_type=*/1, /*dim_sec=*/30, /*sleep_sec=*/60);
+    DisplayManager mgr;
+
+    mgr.preview_screensaver(1);
+    REQUIRE(mgr.is_display_dimmed());
+
+    // The launching click is still fresh inside the grace window.
+    lv_display_trigger_activity(nullptr);
+    mgr.check_display_sleep();
+    REQUIRE(mgr.is_display_dimmed());
+
+    // Past the window the same activity dismisses it. The grace runs on the wall clock,
+    // not LVGL's virtual tick.
+    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+    lv_display_trigger_activity(nullptr);
+    mgr.check_display_sleep();
+    REQUIRE_FALSE(mgr.is_display_dimmed());
 }
 
 TEST_CASE_METHOD(SleepWakeFixture, "waking does not resume a lifecycle Application suspended",

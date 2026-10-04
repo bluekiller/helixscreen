@@ -688,15 +688,16 @@ void PrinterSession::setup_discovery_callbacks() {
         // Use std::move on the main thread to avoid iterating hash table nodes
         // during copy-assign, which is vulnerable to heap corruption (#789).
         auto snapshot = std::make_shared<helix::PrinterDiscovery>(hardware);
-        helix::ui::queue_update([api, client, app, snapshot]() {
-            if (app->m_host.shutdown_complete)
-                return;
-            // A new discovery cycle is starting — re-arm the once-per-connection
-            // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
-            app->m_prompter.begin_discovery_cycle();
-            api->hardware() = std::move(*snapshot);
-            helix::init_subsystems_from_hardware(api->hardware(), api, client);
-        });
+        helix::ui::queue_update(
+            "PrinterSession::setup_discovery_callbacks", [api, client, app, snapshot]() {
+                if (app->m_host.shutdown_complete)
+                    return;
+                // A new discovery cycle is starting — re-arm the once-per-connection
+                // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
+                app->m_prompter.begin_discovery_cycle();
+                api->hardware() = std::move(*snapshot);
+                helix::init_subsystems_from_hardware(api->hardware(), api, client);
+            });
     });
 
     client->set_on_discovery_complete([api, client, app](const helix::PrinterDiscovery& hardware,

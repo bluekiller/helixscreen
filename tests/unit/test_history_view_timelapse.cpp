@@ -23,6 +23,7 @@
 #include "../ui_test_utils.h"
 #include "display_settings_manager.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "static_panel_registry.h"
 #include "timelapse_state.h"
 
 #include <algorithm>
@@ -72,6 +73,9 @@ class HistoryTimelapseFixture : public LVGLUITestFixture {
             NavigationManager::instance().go_back();
             settle();
         }
+        // The global overlay captured this fixture's API at init; the next case
+        // builds its own.
+        StaticPanelRegistry::instance().destroy_all();
         helix::TimelapseState::instance().deinit_subjects();
         DisplaySettingsManager::instance().set_animations_enabled(animations_were_enabled_);
     }

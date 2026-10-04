@@ -34,6 +34,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import BINARY
+from helix.app import HelixApp
 from helix.goldens import compare_images
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -198,7 +200,53 @@ _SUBSET = [
     "motion", "bed-mesh", "zoffset", "macros",
 ]
 
-SCREENS = [(name, _steps_for(_RECIPES[name])) for name in _SUBSET]
+# Extra command-line args per golden variant, one app boot per variant. The
+# "" variant is the default 800x480 dark rendering and keeps the unsuffixed
+# golden names; every other variant's golden is `<screen>@<variant>.png`.
+_VARIANTS = {
+    "": [],
+    "small": ["-s", "small"],
+    "large": ["-s", "large"],
+    "light": ["--light"],
+}
+
+# Each kept (screen, variant) pair is byte-identical across at least 3
+# independent app boots. These are not, so they stay out:
+_UNSTABLE = {
+    # The card grid's position differs between fresh boots at these sizes and
+    # in light mode; the default print-select's wait_for() is not enough here.
+    ("print-select", "small"),
+    ("print-select", "large"),
+    ("print-select", "light"),
+    # Differs in roughly one boot in three.
+    ("motion", "large"),
+}
+CASES = [(variant, name, _steps_for(_RECIPES[name]))
+         for variant in _VARIANTS for name in _SUBSET
+         if (name, variant) not in _UNSTABLE]
+
+
+def _golden_name(variant: str, name: str) -> str:
+    return f"{name}@{variant}" if variant else name
+
+
+@pytest.fixture
+def helix_app(variant, tmp_path_factory):
+    """A fresh app per case, shadowing conftest's shared instance in this module.
+
+    A panel's own state survives `ctl reset`, so in a shared app each capture
+    depends on which screens ran before it.
+    """
+    if not BINARY.exists():
+        pytest.skip(f"{BINARY} not built - run `make -j`")
+    workdir = tmp_path_factory.mktemp(f"helix-{variant or 'default'}")
+    app = HelixApp(binary=BINARY,
+                   socket_path=workdir / "control.sock",
+                   log_path=workdir / "app.log",
+                   extra_args=_VARIANTS[variant])
+    with app:
+        yield app
+
 
 # Screens whose correct rendering depends on a one-time async event that
 # `wait_idle()`/`freeze()` cannot see, keyed to a (subject, value) `wait_for()`
@@ -254,12 +302,13 @@ def _capture_settled(helix_app):
     )
 
 
-@pytest.mark.parametrize("name,steps", SCREENS, ids=[s[0] for s in SCREENS])
-def test_screen_matches_golden(helix_app, golden, name, steps):
+@pytest.mark.parametrize("variant,name,steps", CASES,
+                         ids=[_golden_name(v, n) for v, n, _ in CASES])
+def test_screen_matches_golden(helix_app, golden, variant, name, steps):
     for method, *args in steps:
         getattr(helix_app, method)(*args)
     wait_target = _POST_NAV_WAIT_SUBJECT.get(name)
     if wait_target:
         helix_app.wait_for(*wait_target)
     image = _capture_settled(helix_app)
-    golden(image, name)
+    golden(image, _golden_name(variant, name))

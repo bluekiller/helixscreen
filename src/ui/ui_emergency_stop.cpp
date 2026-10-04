@@ -506,7 +506,8 @@ void EmergencyStopOverlay::show_recovery_for(RecoveryReason reason) {
         // intentional-restart window that happens to cover a real, permanent
         // shutdown removes the dialog for good rather than delaying it.
         pending_recovery_reason_.store(static_cast<int>(reason), std::memory_order_relaxed);
-        helix::ui::queue_update([]() { instance().arm_recovery_recheck(); });
+        helix::ui::queue_update("EmergencyStopOverlay::show_recovery_for",
+                                []() { instance().arm_recovery_recheck(); });
         return;
     }
 
@@ -520,7 +521,8 @@ void EmergencyStopOverlay::show_recovery_for(RecoveryReason reason) {
     // latch, so a guard declining it leaves nothing stranded that this caller
     // could hand back - the latch is empty. The re-check is where the return
     // value has an owner.
-    helix::ui::queue_update([reason]() { (void)instance().show_recovery_for_main(reason); });
+    helix::ui::queue_update("EmergencyStopOverlay::show_recovery_for",
+                            [reason]() { (void)instance().show_recovery_for_main(reason); });
 }
 
 bool EmergencyStopOverlay::show_recovery_for_main(RecoveryReason reason) {

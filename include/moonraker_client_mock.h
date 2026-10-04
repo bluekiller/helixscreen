@@ -1516,6 +1516,20 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     void dispatch_shaper_calibrate_response(char axis);
 
     /**
+     * @brief Play console lines one per tick, then run on_done
+     *
+     * The timer and its payload are tracked in calibration_timers_, so a mock
+     * torn down mid-playback frees both and on_done never runs.
+     */
+    void play_console_lines(std::vector<std::string> lines, uint32_t interval_ms,
+                            std::function<void()> on_done);
+
+    /// play_console_lines() for ticks that do more than print one line: each
+    /// step runs on its own tick, then on_done on the tick after the last.
+    void play_console_steps(std::vector<std::function<void()>> steps, uint32_t interval_ms,
+                            std::function<void()> on_done);
+
+    /**
      * @brief Dispatch TEST_RESONANCES response sequence
      *
      * Simulates Klipper's TEST_RESONANCES AXIS=<1,1|1,-1> OUTPUT=resonances

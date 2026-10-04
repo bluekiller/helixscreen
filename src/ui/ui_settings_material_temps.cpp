@@ -5,8 +5,8 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
-#include "ui_fonts.h"
 #include "ui_nav_manager.h"
+#include "ui_row_text.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
 
@@ -16,7 +16,6 @@
 #include "material_settings_manager.h"
 #include "printer_state.h"
 #include "temperature_controller.h"
-#include "theme_manager.h"
 #include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
@@ -160,51 +159,19 @@ void MaterialTempsOverlay::populate_material_list() {
         int bed_temp = mat.bed_temp;
         bool has_override = mgr.has_override(mat.name) && !mat.user_defined;
 
-        // Material row
-        auto* row = lv_obj_create(list_view_);
-        lv_obj_set_name(row, mat.name);
-        lv_obj_set_width(row, lv_pct(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        lv_obj_set_style_pad_all(row, theme_manager_get_spacing("space_sm"), 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_flex_cross_place(row, LV_FLEX_ALIGN_CENTER, 0);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        // Press feedback
-        lv_obj_set_style_bg_color(row, theme_manager_get_color("primary"), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, 40, LV_STATE_PRESSED);
-        lv_obj_set_style_radius(row, 8, 0);
-        // Exception: rows created programmatically, not from XML
-        lv_obj_add_event_cb(row, on_material_row_clicked, LV_EVENT_CLICKED, nullptr);
-
-        // Material name
-        auto* name_label = lv_label_create(row);
-        lv_label_set_text(name_label, mat.name);
-        lv_obj_set_flex_grow(name_label, 1);
-        lv_obj_set_style_text_color(name_label, theme_manager_get_color("text"), 0);
-        lv_obj_add_flag(name_label, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_remove_flag(name_label, LV_OBJ_FLAG_CLICKABLE);
-
-        // Override indicator (tune icon in primary color)
-        if (has_override) {
-            auto* indicator = lv_label_create(row);
-            lv_label_set_text(indicator, "\xF3\xB0\x98\xAE"); // tune icon
-            lv_obj_set_style_text_font(indicator, &mdi_icons_16, 0);
-            lv_obj_set_style_text_color(indicator, theme_manager_get_color("primary"), 0);
-            lv_obj_set_style_pad_right(indicator, theme_manager_get_spacing("space_xs"), 0);
-            lv_obj_add_flag(indicator, LV_OBJ_FLAG_EVENT_BUBBLE);
-            lv_obj_remove_flag(indicator, LV_OBJ_FLAG_CLICKABLE);
-        }
-
-        // Temperature summary
-        auto* temp_label = lv_label_create(row);
         char temp_buf[48];
         snprintf(temp_buf, sizeof(temp_buf), "%d-%d / %d°C", nozzle_min, nozzle_max, bed_temp);
-        lv_label_set_text(temp_label, temp_buf);
-        lv_obj_set_style_text_color(temp_label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_add_flag(temp_label, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_remove_flag(temp_label, LV_OBJ_FLAG_CLICKABLE);
+
+        const char* attrs[] = {
+            "temps_text", temp_buf, "hide_override", has_override ? "false" : "true", nullptr,
+        };
+        auto* row = static_cast<lv_obj_t*>(lv_xml_create(list_view_, "material_temps_row", attrs));
+        if (!row) {
+            continue;
+        }
+        lv_obj_set_name(row, mat.name);
+        helix::ui::set_row_label_text(row, "material_name", mat.name);
+        lv_obj_add_event_cb(row, on_material_row_clicked, LV_EVENT_CLICKED, nullptr);
     }
 
     spdlog::debug("[{}] Populated {} materials", get_name(), sorted.size());

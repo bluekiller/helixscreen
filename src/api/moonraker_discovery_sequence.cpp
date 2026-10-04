@@ -845,22 +845,26 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                 // LVGL subjects. discover_from_config() rebuilds its list
                                 // from scratch, so a reconnect re-run cannot duplicate.
                                 nlohmann::json cfg_for_sensors = cfg;
-                                helix::ui::queue_update([cfg_for_sensors]() {
-                                    helix::sensors::ProbeSensorManager::instance()
-                                        .discover_from_config(cfg_for_sensors);
-                                    helix::sensors::AccelSensorManager::instance()
-                                        .discover_from_config(cfg_for_sensors);
-                                });
+                                helix::ui::queue_update(
+                                    "MoonrakerDiscoverySequence::continue_discovery_objects",
+                                    [cfg_for_sensors]() {
+                                        helix::sensors::ProbeSensorManager::instance()
+                                            .discover_from_config(cfg_for_sensors);
+                                        helix::sensors::AccelSensorManager::instance()
+                                            .discover_from_config(cfg_for_sensors);
+                                    });
 
                                 // Update LED controller with configfile data (effect targets +
                                 // output_pin PWM + generic LED pin config)
                                 nlohmann::json cfg_copy = cfg;
-                                helix::ui::queue_update([cfg_copy]() {
-                                    auto& led_ctrl = helix::led::LedController::instance();
-                                    if (led_ctrl.is_initialized()) {
-                                        led_ctrl.apply_configfile(cfg_copy);
-                                    }
-                                });
+                                helix::ui::queue_update(
+                                    "MoonrakerDiscoverySequence::continue_discovery_objects",
+                                    [cfg_copy]() {
+                                        auto& led_ctrl = helix::led::LedController::instance();
+                                        if (led_ctrl.is_initialized()) {
+                                            led_ctrl.apply_configfile(cfg_copy);
+                                        }
+                                    });
                             }
 
                             // Analyze M106/M107/M141 macros from configfile.settings to detect
