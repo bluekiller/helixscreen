@@ -583,6 +583,7 @@ src/xml_registration.cpp
 src/ui/theme_manager.cpp
 src/ui/theme_token_scan.cpp
 src/ui/theme_color_math.cpp
+src/ui/overlay_geometry.cpp
 src/ui/grid_edit_mode.cpp
 src/ui/grid_edit_cross_page.cpp
 src/ui/grid_edit_drop.cpp
