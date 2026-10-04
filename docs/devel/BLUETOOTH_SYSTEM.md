@@ -25,7 +25,7 @@ How HelixScreen talks to Bluetooth: the runtime-loaded plugin and its C ABI, the
                                                         ├─ BusThread  ── owns every sd_bus_* call
                                                         ├─ BlueZ Agent1 at /helix/bt/agent
                                                         ├─ tracked RFCOMM fds
-                                                        └─ BLE connections (handle >= 1000)
+                                                        └─ BLE connections (handles tagged BLE_HANDLE_TAG)
 ```
 
 The main binary never links libsystemd or libbluetooth for Bluetooth. Everything that touches BlueZ lives in the plugin, and the app reaches it only through the function pointers that `BluetoothLoader` resolves. A device without Bluetooth hardware, or a build without the plugin, gets `is_available() == false` and no library is loaded.
@@ -38,18 +38,19 @@ The main binary never links libsystemd or libbluetooth for Bluetooth. Everything
 |------|---------|
 | `include/bluetooth_plugin.h` | The C ABI: `HELIX_BT_API_VERSION`, `helix_bt_device`, every function-pointer typedef and `HELIX_BT_SYM_*` symbol name |
 | `include/bluetooth_loader.h` / `src/system/bluetooth_loader.cpp` | `BluetoothLoader` singleton: hardware check, `dlopen`, version check, symbol resolution, `get_or_create_context()` |
-| `src/bluetooth/bt_context.h` | Private `helix_bt_context` struct (bus, bus thread, agent slot, RFCOMM fd set, BLE connection table). Never seen by the app |
+| `src/bluetooth/bt_context.h` | Private `helix_bt_context` struct (bus, bus thread, agent slot, discovery lock, RFCOMM fd set, BLE connection table), the BLE handle tag, and the adapter/device path helpers. Never seen by the app |
 | `src/bluetooth/bt_bus_thread.h` / `.cpp` | `BusThread`: the single thread that owns the `sd_bus*` |
-| `src/bluetooth/bt_plugin.cpp` | `helix_bt_get_info`, `helix_bt_init`, `helix_bt_deinit`, `helix_bt_last_error`, `mac_to_dbus_path` |
+| `src/bluetooth/bt_plugin.cpp` | `helix_bt_get_info`, `helix_bt_init`, `helix_bt_deinit`, `helix_bt_last_error`, `device_dbus_path` |
 | `src/bluetooth/bt_agent.cpp` | BlueZ `Agent1` (NoInputNoOutput, auto-accept) so "Just Works" pairing bonds |
-| `src/bluetooth/bt_discovery.cpp` | `helix_bt_discover`, `helix_bt_enumerate_known`, `helix_bt_stop_discovery`, device filtering and classification |
+| `src/bluetooth/bt_discovery.cpp` | `helix_bt_discover`, `helix_bt_enumerate_known`, `helix_bt_stop_discovery`, `find_adapter_path`, device filtering |
 | `src/bluetooth/bt_pairing.cpp` | `helix_bt_pair`, `is_paired` / `is_bonded` / `is_connected`, `helix_bt_remove_device` |
 | `src/bluetooth/bt_rfcomm.cpp` | `helix_bt_connect_rfcomm`: a plain `AF_BLUETOOTH` RFCOMM socket |
 | `src/bluetooth/bt_sdp.cpp` | `helix_bt_sdp_find_rfcomm_channel`: SDP lookup of the RFCOMM channel for a UUID16 |
 | `src/bluetooth/bt_ble.cpp` | BLE GATT connect, chunked write, notification read, and the unified `helix_bt_disconnect` |
 | `src/bluetooth/bt_lzo.cpp` | `helix_bt_lzo_compress`: miniLZO wrapper for the MakeID protocol |
 | `include/bt_discovery_utils.h` | Printer brand table (`KNOWN_BRANDS`), printer UUID prefixes, `name_suggests_ble()` |
-| `include/bt_scanner_discovery_utils.h` | HID scanner classification (`0x1124` classic HID, `0x1812` HID-over-GATT, brand names) |
+| `include/bt_scanner_discovery_utils.h` | HID scanner classification (`0x1124` classic HID, `0x1812` HID-over-GATT, brand names) and `classify_device()`, the printer/scanner traits discovery reports |
+| `include/bt_discovery_run.h` / `src/system/bt_discovery_run.cpp` | `SharedContext` (a plugin context co-owned by an overlay and its workers) and `DiscoveryRun` (one scan on a worker, reported on the UI thread) |
 | `include/bt_print_utils.h` / `src/system/bt_print_utils.cpp` | `rfcomm_send()`, `rfcomm_send_receive()`, `resolve_label_printer_channel()` |
 | `src/ui/ui_settings_label_printer.cpp` | Label printer settings: scan, pair, forget a BT printer |
 | `src/ui/ui_settings_barcode_scanner.cpp` | Barcode scanner settings: list known scanners, scan, pair (HID bonding), forget |
@@ -60,7 +61,7 @@ The main binary never links libsystemd or libbluetooth for Bluetooth. Everything
 
 ## Build Flags and Platforms
 
-`src/bluetooth/*.cpp` is excluded from the app (`Makefile#"APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/bluetooth/*.cpp),$(APP_SRCS))"`) and built by `mk/bluetooth.mk` into `build/<target>/lib/libhelix-bluetooth.so` as part of `make all` (the `bluetooth-plugin` goal in `mk/rules.mk`).
+`src/bluetooth/*.cpp` is excluded from the app (`Makefile#"APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/bluetooth/*.cpp),$(APP_SRCS))"`) and built by `mk/bluetooth.mk` into `build/<target>/bin/libhelix-bluetooth.so`, beside the binary, as part of `make all` (the `bluetooth-plugin` goal in `mk/rules.mk`).
 
 The plugin is built only when both libraries are found (`mk/bluetooth.mk#"BT_AVAILABLE := yes"`):
 
@@ -71,11 +72,11 @@ The plugin is built only when both libraries are found (`mk/bluetooth.mk#"BT_AVA
 
 Otherwise the build prints `Bluetooth plugin: skipped (missing libbluetooth-dev or libsystemd-dev)` and carries on.
 
-**Which platforms ship it.** Only the toolchains that install `libbluetooth-dev` produce the plugin: the `docker/Dockerfile.pi` (arm64), `docker/Dockerfile.pi32` (armhf) and `docker/Dockerfile.x86` images, plus CI's native jobs in `.github/workflows/build.yml`. The MIPS, AD5M, CC1 and other buildroot/vendor targets have no libbluetooth in their sysroot, so their releases contain no plugin and Bluetooth is simply absent there. `release-package` (`mk/cross.mk#"define release-package"`) copies the `.so` into the release's `bin/` when it exists, and `make deploy-*` rsyncs it to the device's `bin/`.
+**Which platforms ship it.** Only the toolchains that install `libbluetooth-dev` produce the plugin: the `docker/Dockerfile.pi` (arm64), `docker/Dockerfile.pi32` (armhf) and `docker/Dockerfile.x86` images, plus CI's native jobs in `.github/workflows/build.yml`. The MIPS, AD5M, CC1 and other buildroot/vendor targets have no libbluetooth in their sysroot, so their releases contain no plugin and Bluetooth is simply absent there. `release-package` (`mk/cross.mk#"define release-package"`) copies the `.so` from `build/<target>/bin/` into the release's `bin/` when it exists, and `make deploy-*` rsyncs it to the device's `bin/`.
 
 A separate gate, `HELIX_HAS_LABEL_PRINTER` (default `1`, forced to `0` on AD5M-class targets in `mk/cross.mk`), compiles out `bt_print_utils.cpp` and the label printer backends. It does not affect the plugin build.
 
-**Plugin location at runtime.** The loader looks for `libhelix-bluetooth.so` in the same directory as the running executable (`/proc/self/exe`). A native dev build puts the plugin in `build/lib/` and the binary in `build/bin/`, so a dev run does not load it unless you copy it next to `build/bin/helix-screen`. The loader also requires `/sys/class/bluetooth/hci0` to exist before it even tries.
+**Plugin location at runtime.** The loader looks for `libhelix-bluetooth.so` in the same directory as the running executable (`/proc/self/exe`). Every build puts it there, so a native dev run on a machine with an adapter loads it the same way a device does. The loader first requires an `hci*` entry under `/sys/class/bluetooth/`, and `HELIX_BLUETOOTH=0` skips loading altogether; `helix-tests` pins that, so the unit suite never opens the host's system bus or registers a BlueZ agent ([ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)).
 
 ---
 
@@ -103,7 +104,7 @@ Return conventions across the ABI:
 |------|------------|
 | Actions (`discover`, `pair`, `remove_device`, `ble_write`, `sdp_find_rfcomm_channel`) | `0` on success, negative errno on failure |
 | Queries (`is_paired`, `is_bonded`, `is_connected`) | `1` / `0`, or negative errno |
-| Connects | RFCOMM returns the socket fd; BLE returns a handle `>= BLE_HANDLE_OFFSET` (1000) |
+| Connects | RFCOMM returns the socket fd; BLE returns a handle with `BLE_HANDLE_TAG` (`0x40000000`) set. `connect_rfcomm` refuses an fd carrying that bit, so the two can never collide |
 | Errors | Every failure path stores a string in `ctx->last_error`; read it with `last_error(ctx)` |
 
 Strings handed to a discovery callback (`helix_bt_device::mac`, `name`, `service_uuid`) point into plugin-owned temporaries and are only valid for the duration of the callback. Copy them, as both settings overlays do.
@@ -136,7 +137,7 @@ helix_bt_register_agent(ctx);
 | MakeID backend, Brother PT backend | Shared |
 | Phomemo backend, BLE path | Private: `init()` and `deinit()` around each print |
 | Niimbot backend | Private, persistent static `s_ctx`, rebuilt when the connection dies (`src/system/niimbot_bt_printer.cpp#ensure_connected`) |
-| `LabelPrinterSettingsOverlay`, `BarcodeScannerSettingsOverlay` | Private `bt_ctx_` each, created on first use and deinited in the overlay destructor |
+| `LabelPrinterSettingsOverlay`, `BarcodeScannerSettingsOverlay` | Private `SharedContext` each (`include/bt_discovery_run.h#SharedContext`): the first worker that needs it calls `init()`, and `deinit()` runs once the overlay and every worker holding it have let go |
 
 Each `init()` registers its own `Agent1` and asks to be the default agent, so the most recent context wins default-agent status. The MakeID backend uses the shared one because a second context on an RFCOMM link the UI already established fails with `ECONNABORTED` (`src/system/makeid_bt_printer.cpp#"loader.get_or_create_context()"`). New code should use `get_or_create_context()` unless it has a measured reason to own a bus connection.
 
@@ -182,34 +183,22 @@ Rules that follow from this:
 | `ble_write()` | Calling thread. Writes straight to the `AcquireWrite` fd when there is one; otherwise one `WriteValue` `run_sync` per chunk |
 | `ble_read()` | Calling thread, waiting on the connection's notification queue (filled by a bus-thread signal handler) or polling the `AcquireNotify` fd |
 
-Because almost every call blocks, the app never calls the plugin from the LVGL thread for anything slow. Consumers spawn a worker (`try { std::thread(...).detach(); } catch (const std::system_error&)`, per THREADING.md section 8) and marshal results back with `helix::ui::queue_update()`. The discovery callback is a C function pointer that runs on the bus thread, so it must copy the device fields and hop to the UI thread before touching any widget or overlay state:
+Because almost every call blocks, the app never calls the plugin from the LVGL thread. Consumers spawn a worker (`try { std::thread(...).detach(); } catch (const std::system_error&)`, per THREADING.md section 8) and marshal results back with `helix::ui::queue_update()` or a lifetime token's `defer()`.
+
+Both settings overlays scan through `DiscoveryRun` (`include/bt_discovery_run.h#DiscoveryRun`). It owns the parts that outlive any one overlay call: the per-scan state lives in a `shared_ptr` the worker co-owns, so a Stop, a rescan or the overlay's destruction never frees what the worker or its queued callbacks still read. The overlay supplies three callbacks:
 
 ```cpp
-// src/ui/ui_settings_label_printer.cpp (start_bt_discovery)
-std::thread([ctx, disc_ctx, token, &loader]() {
-    loader.discover(
-        ctx, 15000,
-        [](const helix_bt_device* dev, void* user_data) {
-            auto* dctx = static_cast<BtDiscoveryContext*>(user_data);
-            if (!dctx->alive.load())
-                return;
-
-            // Copy device info to avoid dangling pointers
-            BtDeviceInfo info;
-            info.mac = dev->mac ? dev->mac : "";
-            info.name = dev->name ? dev->name : "Unknown";
-            ...
-            // Marshal to UI thread
-            helix::ui::queue_update(
-                "LabelPrinterSettingsOverlay::start_bt_discovery", [dctx, info]() {
-                    if (!dctx->alive.load())
-                        return;
-                ...
+// src/ui/ui_settings_barcode_scanner.cpp (start_bt_discovery)
+helix::bluetooth::DiscoveryRun::Callbacks callbacks;
+callbacks.accept = [](const helix_bt_device& dev) { return dev.is_scanner; };  // bus thread
+callbacks.on_device = [this](const helix::bluetooth::DiscoveredDevice& found) { ... };  // UI thread
+callbacks.on_finished = [this](bool context_ok) { ... };  // UI thread
+bt_discovery_.start(bt_ctx_, 15000, lifetime_.token(), std::move(callbacks));
 ```
 
-`BtDiscoveryContext::alive` lets `stop_bt_discovery()` silence callbacks still in flight. The barcode scanner overlay holds that context in a `std::shared_ptr` that the worker thread copies (`include/ui_settings_barcode_scanner.h#BtDiscoveryContext`), which keeps it valid however long the worker outlives a stop. Follow that form in new code.
+`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and calls `stop_discovery()`; a later `start()` gets fresh state. `on_finished(false)` means `SharedContext::get()` could not create a context.
 
-Two calls do run on the UI thread today: the barcode scanner overlay's first `init()` and its `enumerate_known()` seed when the overlay is built (`src/ui/ui_settings_barcode_scanner.cpp#"loader.enumerate_known("`). Each is a handful of D-Bus round trips, so a stalled `bluetoothd` costs up to 5 s per call there.
+The barcode scanner overlay seeds its list from `enumerate_known()` the same way: the saved scanner shows at once, and BlueZ's known scanners merge in from a worker (`src/ui/ui_settings_barcode_scanner.cpp#seed_known_bt_devices`).
 
 ### Teardown order
 
@@ -219,10 +208,10 @@ Two calls do run on the UI thread today: the barcode scanner overlay's first `in
 
 ## Discovery
 
-`helix_bt_discover()` (`src/bluetooth/bt_discovery.cpp#"helix_bt_discover(helix_bt_context* ctx"`) runs in four steps:
+`helix_bt_discover()` (`src/bluetooth/bt_discovery.cpp#"helix_bt_discover(helix_bt_context* ctx"`) holds the context's `discover_mutex` for the whole scan, so two scans on one context run one after the other instead of sharing its slot and flag. It runs in four steps:
 
 1. On the bus thread, find the adapter (first object exposing `org.bluez.Adapter1` in `GetManagedObjects`), report every device BlueZ already knows, add an `InterfacesAdded` match, and call `Adapter1.StartDiscovery` (`InProgress` counts as success).
-2. On the caller's thread, sleep in 100 ms steps until `timeout_ms` elapses or `helix_bt_stop_discovery()` clears `ctx->discovering`.
+2. On the caller's thread, sleep in 100 ms steps until `timeout_ms` elapses or `helix_bt_stop_discovery()` bumps `ctx->discover_stop_gen`. The generation is read before waiting for the mutex, so a stop issued while a scan is still queued behind another ends that scan too.
 3. On the bus thread, `StopDiscovery` and unref the match.
 4. Return `0`.
 
@@ -239,17 +228,19 @@ Two calls do run on the UI thread today: the barcode scanner overlay's first `in
 | Already paired | `Paired` is true and the device has a real name |
 | Scanner | A HID UUID (`0x1124` or `0x1812`, `include/bt_scanner_discovery_utils.h#is_hid_scanner_uuid`) or `is_likely_bt_scanner()` on the name |
 
+`classify_device()` (`include/bt_scanner_discovery_utils.h#classify_device`) computes the printer-UUID, printer-name and scanner traits, and the unit tests call the same function.
+
 Everything else is dropped with a `[bt] filtered:` line. Two fields are then derived:
 
 - `is_ble` comes from the matching printer UUID, but the brand table overrides it: a name whose brand is marked BLE-only (Niimbot, MakeID/YichipFPGA, Supvan) is reported as BLE even when it also advertises SPP.
 - `is_scanner` is set only when the device matched as a scanner and not as a printer:
 
 ```cpp
-// src/bluetooth/bt_discovery.cpp (parse_device_properties)
-dev.is_scanner = dominated_by_scanner && !dominated_by_uuid && !dominated_by_name;
+// include/bt_scanner_discovery_utils.h (DeviceTraits)
+bool is_scanner() const { return scanner && !printer_uuid && !printer_name; }
 ```
 
-`service_uuid` carries the matching **printer** UUID, or null. A HID UUID never lands there, so a consumer that wants to know whether a device is a scanner should read `is_scanner`.
+`service_uuid` carries the matching **printer** UUID, or null. A HID UUID never lands there, so a consumer that wants to know whether a device is a scanner reads `is_scanner`, as both overlays do.
 
 Dual-mode printers (a Niimbot D110 is one) can show up as two BlueZ entries with the same name, one per transport. The label printer overlay keeps the entry whose transport matches the brand table and drops the other.
 
@@ -270,7 +261,7 @@ BlueZ only stores link keys when an agent is registered. `helix_bt_register_agen
 3. On any other `Pair()` failure, assume a BLE device that does not support classic pairing and call `Device1.Connect()`, which bonds implicitly on LE. Success or `AlreadyConnected` sets `Trusted` and returns `0`.
 4. If both fail, `last_error` gets the `Connect()` error message.
 
-`mac_to_dbus_path()` maps `AA:BB:...` to `/org/bluez/hci0/dev_AA_BB_...`, so pairing, property queries and `remove_device()` all assume adapter `hci0`. Discovery looks the adapter up instead.
+`device_dbus_path()` (`src/bluetooth/bt_plugin.cpp#device_dbus_path`) maps `AA:BB:...` to `<adapter>/dev_AA_BB_...` under the adapter `find_adapter_path()` reports, the same lookup discovery uses, falling back to `/org/bluez/hci0` when BlueZ lists none. Pairing, property queries, `remove_device()` (which calls `RemoveDevice` on that adapter) and `connect_ble()` all go through it.
 
 ### After pairing
 
@@ -316,15 +307,15 @@ if (channel_was_cached && attempt == 0) {
 2. Poll `ServicesResolved` for up to 10 s.
 3. Find the characteristic whose UUID matches `write_uuid`, then try `AcquireWrite` (a raw fd plus the negotiated MTU). Without it, read the device MTU and fall back to one `WriteValue` D-Bus call per chunk.
 4. Try `AcquireNotify` for responses. Without an fd, `StartNotify` plus a `PropertiesChanged` match feeds the connection's receive queue from the bus thread.
-5. Store a `BleConnection` and return `BLE_HANDLE_OFFSET + index`.
+5. Store the `BleConnection` in the first free slot of the table and return `BLE_HANDLE_TAG | slot`. Slots hold `shared_ptr`, so a read or write that looked a connection up keeps it alive while a disconnect frees the slot.
 
-`ble_write()` splits data into `MTU - 3` byte chunks with a 10 ms gap between them. `ble_read()` waits up to `timeout_ms` on the receive queue, then does a zero-timeout poll of the notify fd; it returns the byte count, `0` on timeout, or a negative errno.
+`ble_write()` splits data into `MTU - 3` byte chunks with a 10 ms gap between them. `ble_read()` waits up to `timeout_ms` on the receive queue, then does a zero-timeout poll of the notify fd; it returns the byte count, `0` on timeout, or a negative errno. A disconnect wakes a blocked reader, which returns `-ENOTCONN`.
 
-`helix_bt_disconnect(ctx, handle)` (`src/bluetooth/bt_ble.cpp#"helix_bt_disconnect(helix_bt_context* ctx, int handle)"`) dispatches on the handle value: `>= 1000` is a BLE connection (close fds, unref the signal match, `Device1.Disconnect`, mark inactive), anything lower is a tracked RFCOMM fd.
+`helix_bt_disconnect(ctx, handle)` (`src/bluetooth/bt_ble.cpp#"helix_bt_disconnect(helix_bt_context* ctx, int handle)"`) dispatches on the handle value: one carrying `BLE_HANDLE_TAG` is a BLE connection (mark inactive and wake readers, close fds, unref the signal match, `Device1.Disconnect`, free the slot for the next connection), anything else is a tracked RFCOMM fd.
 
 ### LZO
 
-`helix_bt_lzo_compress()` is not Bluetooth at all. It lives in the plugin so miniLZO is linked only where MakeID printing can happen. Size the output buffer at `in_len + in_len/16 + 64 + 3` bytes.
+`helix_bt_lzo_compress()` is not Bluetooth at all. It lives in the plugin so miniLZO is linked only where MakeID printing can happen. Size the output buffer at `in_len + in_len/16 + 64 + 3` bytes. Its work memory (`LZO1X_1_MEM_COMPRESS`, 128 KB on 64-bit) comes from the heap, not the caller's stack.
 
 ---
 
@@ -333,7 +324,7 @@ if (channel_was_cached && attempt == 0) {
 | Consumer | Uses | Notes |
 |----------|------|-------|
 | `LabelPrinterSettingsOverlay` | `discover`, `stop_discovery`, `pair`, `is_paired`, `is_connected`, `remove_device` | Skips devices flagged `is_scanner`. See LABEL_PRINTER_SYSTEM.md for the settings it writes |
-| `BarcodeScannerSettingsOverlay` | `enumerate_known`, `discover`, `pair`, `is_paired`, `is_bonded`, `remove_device` | Keeps only scanner-looking devices; the bonded HID device then feeds `UsbScannerMonitor` as an ordinary input device |
+| `BarcodeScannerSettingsOverlay` | `enumerate_known`, `discover`, `pair`, `is_paired`, `is_bonded`, `remove_device` | Keeps only devices flagged `is_scanner`; the bonded HID device then feeds `UsbScannerMonitor` as an ordinary input device |
 | Brother QL, Phomemo SPP | `rfcomm_send()` | |
 | Brother PT, MakeID | Shared context + `connect_rfcomm` / `rfcomm_send_receive()`; MakeID also `lzo_compress` | |
 | Phomemo BLE, Niimbot | `connect_ble`, `ble_write`, `ble_read` | Private contexts, see [Contexts](#contexts) |
@@ -346,7 +337,7 @@ All label-printer paths enter through `print_spool_label()`; the dispatch from c
 
 | Symptom | Where to look |
 |---------|---------------|
-| No Bluetooth rows in settings | Log line `[BluetoothLoader] No Bluetooth hardware detected` (no `hci0`) or `Plugin not available` (`.so` missing next to the binary, or a platform that does not build it). At debug level `dlopen failed: ...` names the reason |
+| No Bluetooth rows in settings | Log line `[BluetoothLoader] No Bluetooth hardware detected` (no `hci*` under `/sys/class/bluetooth`), `Disabled by HELIX_BLUETOOTH=0`, or `Plugin not available` (`.so` missing next to the binary, or a platform that does not build it). At debug level `dlopen failed: ...` names the reason |
 | `API version mismatch: expected N, got M` | The `.so` in `bin/` is from a different build than the binary. Redeploy both |
 | Toast "Bluetooth initialization failed" | `init()` returned null: `[bt] failed to open system bus` on stderr means no D-Bus system bus or no permission to it |
 | Pairing succeeds but the device does not stay paired | Check stderr for `[bt] agent: RegisterAgent failed`. Without an agent the bond never stores. Another agent (a running `bluetoothctl`) can also hold default-agent status |
@@ -355,13 +346,12 @@ All label-printer paths enter through `print_spool_label()`; the dispatch from c
 | `timeout waiting for BLE services` | `ServicesResolved` never became true within 10 s, usually a printer that went to sleep or is connected to a phone |
 | `GATT characteristic not found` | The device exposes no characteristic with the backend's write UUID: wrong brand match, or a dual-mode device's BR/EDR half was selected |
 | Calls fail with `BusThread not running` / `BusThread exited` | `sd_bus_process` failed (`[bt] BusThread sd_bus_process error` on stderr), typically `bluetoothd` or `dbus` restarting. The context is dead; a private context is rebuilt on next use, the shared one is not |
-| UI hitch around opening the scanner settings | The synchronous `init()` + `enumerate_known()` there; see [Which thread runs what](#which-thread-runs-what) |
 
 ---
 
 ## Testing and Mocking
 
-There is no mock Bluetooth backend and no `HELIX_MOCK_*` variable for it: `--test` runs see `is_available() == false` on any machine where the plugin is not next to the binary. What is tested:
+There is no mock Bluetooth backend and no `HELIX_MOCK_*` variable for it: a `--test` run loads the real plugin when the machine has an adapter, and `HELIX_BLUETOOTH=0` turns that off. What is tested:
 
 | Test | Covers | Tag |
 |------|--------|-----|
@@ -369,13 +359,15 @@ There is no mock Bluetooth backend and no `HELIX_MOCK_*` variable for it: `--tes
 | `tests/unit/test_bluetooth_loader.cpp` | Loader singleton and null pointers when unavailable | `[bluetooth]` |
 | `tests/unit/test_bt_channel_resolver.cpp` | `resolve_label_printer_channel()` cache, SDP and fallback paths | `[bt][resolver]` |
 | `tests/unit/test_bt_discovery_utils.cpp`, `test_bt_scanner_discovery_utils.cpp` | Brand table, UUID and name classifiers | `[bluetooth][discovery]`, `[bluetooth][scanner]` |
-| `tests/unit/test_bt_device_classification.cpp` | The `is_scanner` decision matrix | `[bluetooth][scanner][classification]` |
+| `tests/unit/test_bt_device_classification.cpp` | The `is_scanner` decision matrix, through `classify_device()` | `[bluetooth][scanner][classification]` |
+| `tests/unit/test_bt_ble_connections.cpp` | BLE handle tagging, slot reuse, an RFCOMM fd above 1000, a blocked `ble_read` woken by disconnect. Compiles the plugin sources into the test on a bus-less context | `[bt][ble]`, the wakeup case `[slow]` |
+| `tests/unit/test_bt_discovery_run.cpp` | `DiscoveryRun` and `SharedContext` against fake loader entry points: cancel then rescan, a dead owner, init failure, deinit after the last worker | `[bt][discovery_run][slow]` |
 
-The `[slow]` BusThread cases run in nightly CI, not in `make unit-sweep`; run them with `make t F='[bt]'`.
+The `[slow]` cases run in nightly CI, not in `make unit-sweep`; run them with `make t F='[bt]'`.
 
-`BluetoothLoader`'s function pointers are public members, so a test can swap one for a fake and restore it afterwards. `test_bt_channel_resolver.cpp` does exactly that for `sdp_find_rfcomm_channel` (`tests/unit/test_bt_channel_resolver.cpp#"struct LoaderMock"`). Use the same scoped-swap pattern to test consumer logic without hardware.
+`BluetoothLoader`'s function pointers are public members, so a test can swap one for a fake and restore it afterwards. `test_bt_channel_resolver.cpp` does exactly that for `sdp_find_rfcomm_channel` (`tests/unit/test_bt_channel_resolver.cpp#"struct LoaderMock"`), and `test_bt_discovery_run.cpp` for `init`, `deinit`, `discover` and `stop_discovery`. Use the same scoped-swap pattern to test consumer logic without hardware.
 
-Anything that touches BlueZ (discovery, pairing, BLE connect) has to be verified on hardware: a Pi with the plugin deployed, or a Linux desktop with an adapter and the `.so` copied into `build/bin/`.
+Anything that touches BlueZ (discovery, pairing, BLE connect) has to be verified on hardware: a Pi with the plugin deployed, or a Linux desktop whose BlueZ exposes an adapter, running a native build.
 
 ---
 
@@ -399,7 +391,8 @@ Add the name prefix to `KNOWN_SCANNER_BRANDS` in `include/bt_scanner_discovery_u
 
 ### Writing a new consumer
 
-- Get the context from `get_or_create_context()`.
+- Get the context from `get_or_create_context()`, or hold a `SharedContext` when the consumer owns workers that can outlive it.
+- To scan, use `DiscoveryRun` rather than a hand-written discovery thread.
 - Never call the plugin from the LVGL thread. Spawn a worker inside `try`/`catch (const std::system_error&)` and report back through `helix::ui::queue_update()` guarded by a lifetime token (THREADING.md sections 2 and 8).
 - Copy every string out of a `helix_bt_device` before the callback returns.
 - For RFCOMM, call `rfcomm_send()` / `rfcomm_send_receive()` rather than opening sockets yourself; they hold the process-wide RFCOMM mutex and the channel cache.
