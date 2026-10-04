@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_types.h"
 #include "filament_slot_override.h"
 #include "filament_slot_override_store.h"
@@ -452,10 +453,8 @@ TEST_CASE("FilamentSlotOverride roundtrips through JSON", "[filament_slot_overri
 
 TEST_CASE("FilamentSlotOverrideStore load returns empty when namespace absent",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     // lane_data namespace has no entries for any slot.
     FilamentSlotOverrideStore store(&api, "ifs");
 
@@ -465,10 +464,8 @@ TEST_CASE("FilamentSlotOverrideStore load returns empty when namespace absent",
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking parses lane_data entries",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed lane_data namespace with two AFC-shaped entries + our extensions.
     // lane1 also exercises the print-temp fields parse — they round-trip via
@@ -538,10 +535,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking parses lane_data entries",
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking skips entries missing lane field",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     // Entry without the required "lane" field - should be skipped silently.
     json bad = {{"material", "PLA"}};
     api.mock_set_db_value("lane_data", "lane1", bad);
@@ -553,10 +548,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking skips entries missing lane fi
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking rejects negative lane values",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     json bad = {{"lane", "-1"}, {"material", "PLA"}};
     api.mock_set_db_value("lane_data", "lane1", bad);
@@ -569,10 +562,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking rejects negative lane values"
 TEST_CASE("FilamentSlotOverrideStore save_async writes AFC-shaped record to lane_data",
           "[filament_slot_override]") {
     TmpCacheDir tmp("save_afc");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -642,10 +633,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async emits the shared lane_data key a
     // overrides under the key it already looks for. Unknown keys are ignored, so
     // carrying both spellings costs nothing.
     TmpCacheDir tmp("save_hh_aliases");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -675,10 +664,8 @@ TEST_CASE("FilamentSlotOverrideStore lane_data carries the real Spoolman filamen
     // material". A slot linked through the Spoolman picker must therefore put
     // the same shape of value there that AFC's own filament_name parse does.
     TmpCacheDir tmp("save_spoolman_real_name");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -725,10 +712,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async omits aliases when source empty"
     // emits neither vendor nor vendor_name; an empty spool_name emits neither
     // spool_name nor name.
     TmpCacheDir tmp("save_no_aliases");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -763,10 +748,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async omits aliases when source empty"
 TEST_CASE("FilamentSlotOverride persists product_name independently of catalog_id",
           "[filament_slot_override]") {
     TmpCacheDir tmp("catalog_name_only");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -806,10 +789,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking reads an alias-only record",
     // vendor / spool_name — Happy Hare's mmu_server.push_lane_data and AFC's
     // send_lane_data (#833) both do. The reader must fall back to the alias keys
     // so these records parse correctly.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     json hh_lane = {
         {"lane", "0"},
@@ -830,10 +811,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking reads an alias-only record",
 TEST_CASE("FilamentSlotOverrideStore save_async emits explicit bed/nozzle temps",
           "[filament_slot_override]") {
     TmpCacheDir tmp("save_temps_explicit");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -858,10 +837,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async emits explicit bed/nozzle temps"
 TEST_CASE("FilamentSlotOverrideStore save_async falls back to material DB when temps unset",
           "[filament_slot_override]") {
     TmpCacheDir tmp("save_temps_fallback");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -886,10 +863,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async falls back to material DB when t
 TEST_CASE("FilamentSlotOverrideStore save_async omits temps when no material and no override",
           "[filament_slot_override]") {
     TmpCacheDir tmp("save_temps_none");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -910,10 +885,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async omits temps when no material and
 TEST_CASE("FilamentSlotOverrideStore save_async sets updated_at on the stored record",
           "[filament_slot_override]") {
     TmpCacheDir tmp("save_updated_at");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -945,10 +918,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async sets updated_at on the stored re
 
 TEST_CASE("FilamentSlotOverrideStore save_async reports error on MR DB failure",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
 
     api.mock_reject_next_db_post();
@@ -976,10 +947,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async reports error on MR DB failure",
 
 TEST_CASE("FilamentSlotOverrideStore clear_async removes single slot", "[filament_slot_override]") {
     TmpCacheDir tmp("clear_single");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed two entries; clearing slot 0 should leave slot 1 untouched.
     nlohmann::json lane1 = {{"lane", "0"}, {"material", "PLA"}};
@@ -1007,10 +976,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async removes single slot", "[filamen
 TEST_CASE("FilamentSlotOverrideStore clear_async succeeds for absent slot (idempotent)",
           "[filament_slot_override]") {
     TmpCacheDir tmp("clear_idempotent");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1030,10 +997,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async succeeds for absent slot (idemp
 
 TEST_CASE("FilamentSlotOverrideStore clear_async rejects negative slot_index",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
 
@@ -1050,10 +1015,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async rejects negative slot_index",
 TEST_CASE("FilamentSlotOverrideStore clear_async handles null callback gracefully",
           "[filament_slot_override]") {
     TmpCacheDir tmp("clear_null_cb");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1067,10 +1030,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async handles null callback gracefull
 TEST_CASE("FilamentSlotOverrideStore clear_async maps 404 error to success",
           "[filament_slot_override]") {
     TmpCacheDir tmp("clear_404");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     MoonrakerError err;
     err.code = 404;
@@ -1091,10 +1052,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async maps 404 error to success",
 
 TEST_CASE("FilamentSlotOverrideStore clear_async propagates non-missing-key errors",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     MoonrakerError err;
     err.code = 500;
@@ -1118,10 +1077,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async propagates non-missing-key erro
 TEST_CASE("FilamentSlotOverrideStore clear_async maps message-based missing-key error to success",
           "[filament_slot_override]") {
     TmpCacheDir tmp("clear_msg_missing");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     MoonrakerError err;
     err.code = 0; // no code, only message
@@ -1157,10 +1114,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async callback fires after store destr
     // before store destruction, but the dir still needs to exist when the
     // fire happens.
     TmpCacheDir tmp("lifetime_save");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_defer_next_db_post();
 
@@ -1184,10 +1139,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async callback fires after store destr
 TEST_CASE("FilamentSlotOverrideStore clear_async callback fires after store destroyed (no UAF)",
           "[filament_slot_override][lifetime]") {
     TmpCacheDir tmp("lifetime_clear");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_defer_next_db_delete();
 
@@ -1205,10 +1158,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async callback fires after store dest
 TEST_CASE(
     "FilamentSlotOverrideStore save_async error callback fires after store destroyed (no UAF)",
     "[filament_slot_override][lifetime]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_defer_next_db_post();
 
@@ -1245,10 +1196,8 @@ TEST_CASE(
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking returns empty on timeout",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_defer_next_db_get(); // namespace GET never completes
 
@@ -1279,10 +1228,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking returns empty on timeout",
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking handles non-object namespace value",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed the namespace with a non-object (string) value. The key-agnostic
     // reader short-circuits at its own is_object() guard (before
@@ -1298,10 +1245,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking handles non-object namespace 
 TEST_CASE(
     "FilamentSlotOverrideStore load_blocking skips namespace siblings that are not lane records",
     "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // The reader is key-agnostic — it no longer filters on a "lane" key prefix.
     // Namespace siblings are still skipped, but by two different gates now:
@@ -1337,10 +1282,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async writes local cache on success",
           "[filament_slot_override]") {
     TmpCacheDir tmp("task6_save_writes");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1376,10 +1319,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_async erases from local cache on succ
           "[filament_slot_override]") {
     TmpCacheDir tmp("task6_clear_erases");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1410,10 +1351,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async preserves other backends in cach
     nlohmann::json seeded = {{"version", 1}, {"ace", {{"slots", {{"0", {{"brand", "eSUN"}}}}}}}};
     std::ofstream(tmp.path / "filament_slot_overrides.json") << seeded.dump(2);
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1437,10 +1376,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async survives corrupt existing cache"
     // Seed with unparseable JSON.
     std::ofstream(tmp.path / "filament_slot_overrides.json") << "not json at all {{{ ";
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1490,10 +1427,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking falls back to cache when MR D
                              }}}}};
     std::ofstream(tmp.path / "filament_slot_overrides.json") << doc.dump(2);
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Force MR DB GET to fail — simulates a connection/server failure.
     api.mock_reject_next_db_get();
@@ -1515,10 +1450,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking falls back to cache on MR DB 
     nlohmann::json doc = {{"version", 1}, {"ifs", {{"slots", {{"0", {{"brand", "eSUN"}}}}}}}};
     std::ofstream(tmp.path / "filament_slot_overrides.json") << doc.dump(2);
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_defer_next_db_get(); // never fires within the wait window
 
@@ -1545,10 +1478,8 @@ TEST_CASE(
     nlohmann::json doc = {{"version", 1}, {"ifs", {{"slots", {{"0", {{"brand", "StaleBrand"}}}}}}}};
     std::ofstream(tmp.path / "filament_slot_overrides.json") << doc.dump(2);
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     // No seed into lane_data — MR DB returns empty (success, not error).
 
     FilamentSlotOverrideStore store(&api, "ifs");
@@ -1563,10 +1494,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking cache fallback handles missin
     TmpCacheDir tmp("task7_missing_cache");
     // No cache file created — TmpCacheDir makes the dir but not the file.
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_reject_next_db_get();
 
@@ -1582,10 +1511,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking cache fallback handles corrup
     TmpCacheDir tmp("task7_corrupt_cache");
     std::ofstream(tmp.path / "filament_slot_overrides.json") << "not json";
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_reject_next_db_get();
 
@@ -1606,10 +1533,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking cache returns only this backe
                           {"ace", {{"slots", {{"0", {{"brand", "SHOULD_NOT_LEAK"}}}}}}}};
     std::ofstream(tmp.path / "filament_slot_overrides.json") << doc.dump(2);
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_reject_next_db_get();
 
@@ -1639,10 +1564,8 @@ TEST_CASE("Migration: ACE backend migrates legacy namespace to lane_data on firs
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_ace_migrate");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed legacy namespace with 2 slots; lane_data is empty → forces migration.
     json legacy = {
@@ -1701,10 +1624,8 @@ TEST_CASE("Migration: CFS backend migrates its legacy namespace, not ACE's",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_cfs_isolation");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("helix-screen", "cfs_slot_overrides",
                           json{{"0", {{"brand", "CFS-Brand"}}}});
@@ -1732,10 +1653,8 @@ TEST_CASE("Migration: IFS backend skips migration entirely",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_ifs_skip");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Even if a malformed "helix-screen:ifs_slot_overrides" somehow existed
     // (e.g. hand-seeded during testing, or a misconfigured third-party tool),
@@ -1756,10 +1675,8 @@ TEST_CASE("Migration: no-op when lane_data already populated",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_no_op_with_lane_data");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Both lane_data AND legacy present. lane_data wins; legacy untouched.
     // This is the "second startup after migration already happened" case,
@@ -1783,10 +1700,8 @@ TEST_CASE("Migration: idempotent (second startup after migration is no-op)",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_idempotent");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("helix-screen", "ace_slot_overrides",
                           json{{"0", {{"brand", "Polymaker"}, {"material", "PLA"}}}});
@@ -1812,10 +1727,8 @@ TEST_CASE("Migration: aborts without deleting legacy if write fails",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_abort_on_write_fail");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("helix-screen", "ace_slot_overrides",
                           json{{"0", {{"brand", "Polymaker"}}}});
@@ -1840,10 +1753,8 @@ TEST_CASE("Migration: non-object slot entries are skipped silently",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_malformed_slot");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // "0" is malformed (string, not object). "1" is valid. The migration
     // must not choke on the bad entry — skip it, migrate "1", and still
@@ -1866,10 +1777,8 @@ TEST_CASE("Migration: legacy with only malformed entries is still cleaned up",
           "[filament_slot_override][migration]") {
     TmpCacheDir tmp("task8_all_malformed");
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Legacy with ONLY malformed entries (all non-object).
     nlohmann::json legacy = {
@@ -1900,10 +1809,8 @@ TEST_CASE("Migration: deletes legacy per-backend local JSON file after success",
     std::ofstream(legacy_local) << R"({"0": {"brand": "Old"}})";
     REQUIRE(std::filesystem::exists(legacy_local));
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("helix-screen", "ace_slot_overrides",
                           json{{"0", {{"brand", "Polymaker"}}}});
@@ -1939,10 +1846,8 @@ TEST_CASE("Migration: deletes legacy per-backend local JSON file after success",
 TEST_CASE("mirror_firmware_to_lane_data FillUnsetOnly: empty override gets firmware values",
           "[mirror_firmware]") {
     TmpCacheDir tmp("mirror_fillunset_empty");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -1964,10 +1869,8 @@ TEST_CASE("mirror_firmware_to_lane_data FillUnsetOnly: empty override gets firmw
 TEST_CASE("mirror_firmware_to_lane_data FillUnsetOnly: user color preserved against firmware",
           "[mirror_firmware]") {
     TmpCacheDir tmp("mirror_fillunset_user_wins");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2005,10 +1908,8 @@ TEST_CASE("mirror_firmware_to_lane_data: pure black firmware color is mirrored "
     // Now color_set is the explicit signal; firmware_color == 0 IS a real
     // color and must round-trip into lane_data as "color":"#000000".
     TmpCacheDir tmp("mirror_black_filament");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2049,10 +1950,8 @@ TEST_CASE("mirror_firmware_to_lane_data: pure black firmware color is mirrored "
 TEST_CASE("mirror_firmware_to_lane_data FillUnsetOnly: partial override fills only the gap",
           "[mirror_firmware]") {
     TmpCacheDir tmp("mirror_fillunset_partial");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2081,10 +1980,8 @@ TEST_CASE("mirror_firmware_to_lane_data FillUnsetOnly: partial override fills on
 
 TEST_CASE("mirror_firmware_to_lane_data: no-signal cases skip writing", "[mirror_firmware]") {
     TmpCacheDir tmp("mirror_no_signal");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2107,10 +2004,8 @@ TEST_CASE("mirror_firmware_to_lane_data: no-signal cases skip writing", "[mirror
 TEST_CASE("mirror_firmware_to_lane_data OverwriteAlways: external color edit propagates",
           "[mirror_firmware]") {
     TmpCacheDir tmp("mirror_overwrite_external");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2142,10 +2037,8 @@ TEST_CASE("mirror_firmware_to_lane_data OverwriteAlways: external color edit pro
 TEST_CASE("mirror_firmware_to_lane_data: steady state does not churn lane_data",
           "[mirror_firmware]") {
     TmpCacheDir tmp("mirror_steady_state");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2407,10 +2300,8 @@ TEST_CASE("load_blocking: a lane_data record with no lock keys declares no colou
     // is never the user's declaration, so the auto-mirror stays free to refresh
     // what such a record merely remembers.
     TmpCacheDir tmp("legacy_lane_data_lock_default");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value(
         "lane_data", "lane1",
@@ -2445,10 +2336,8 @@ TEST_CASE("save + load round-trip preserves explicit lock state", "[filament_slo
     // subsequent firmware changes still propagate, and a user's declarations
     // must reload as declarations.
     TmpCacheDir tmp("lock_state_roundtrip");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -2491,10 +2380,8 @@ TEST_CASE("save + load round-trip preserves explicit lock state", "[filament_slo
 
 TEST_CASE("FilamentSlotOverrideStore seated slot round-trips through save/load",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
 
@@ -2522,10 +2409,8 @@ TEST_CASE("FilamentSlotOverrideStore seated slot round-trips through save/load",
 
 TEST_CASE("FilamentSlotOverrideStore clear_seated_slot_async removes the seated key",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
 
@@ -2549,10 +2434,8 @@ TEST_CASE("FilamentSlotOverrideStore clear_seated_slot_async removes the seated 
 
 TEST_CASE("FilamentSlotOverrideStore load_seated_slot_blocking returns nullopt when unset",
           "[filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // No "seated" key set → absent → nullopt.
     FilamentSlotOverrideStore store(&api, "ifs");
@@ -2604,10 +2487,8 @@ using helix::ams::LaneKeyStyle;
 TEST_CASE("FilamentSlotOverrideStore save_async writes a T-keyed record on Tool key style",
           "[filament_slot_override][lane_key_style]") {
     TmpCacheDir tmp("tool_save_t");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "snapmaker", LaneKeyStyle::Tool);
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -2638,10 +2519,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async writes a lane-keyed record on La
     }
 
     TmpCacheDir tmp("lane_save_" + backend);
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, backend, LaneKeyStyle::Lane);
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -2661,10 +2540,8 @@ TEST_CASE("FilamentSlotOverrideStore save_async writes a lane-keyed record on La
 TEST_CASE("FilamentSlotOverrideStore Tool key style uses 0-based tool numbers",
           "[filament_slot_override][lane_key_style]") {
     TmpCacheDir tmp("tool_zero_based");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "snapmaker", LaneKeyStyle::Tool);
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -2687,10 +2564,8 @@ TEST_CASE("FilamentSlotOverrideStore records carry a 0-based STRING lane field (
     // Orca's safe_json_string (MoonrakerPrinterAgent.cpp:661) is is_string()-
     // guarded with NO coercion, so the inner "lane" MUST be a JSON string or
     // Orca silently drops the record (:796). Both styles must satisfy this.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverride ovr;
     ovr.material = "PLA";
@@ -2725,10 +2600,8 @@ TEST_CASE("FilamentSlotOverrideStore records carry a 0-based STRING lane field (
 TEST_CASE("FilamentSlotOverrideStore clear_async deletes the T-key on Tool key style",
           "[filament_slot_override][lane_key_style]") {
     TmpCacheDir tmp("tool_clear_t");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "T0", json{{"lane", "0"}, {"material", "PLA"}});
 
@@ -2764,10 +2637,8 @@ TEST_CASE("lane_key_style_for maps AmsType to key style",
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking reads T-keyed records",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed a T-keyed record and read it with a LANE-style (ace) store: the
     // agnostic reader still ingests it. Agnosticism is a property of the
@@ -2782,10 +2653,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking reads T-keyed records",
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking reads a record under an unrecognized key",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // A record under a foreign key (Mainsail/Happy Hare/anyone) is ingested as
     // long as its inner "lane" field parses. The key is not a filter anymore.
@@ -2799,10 +2668,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking reads a record under an unrec
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking ignores the seated key when parsing lanes",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // "seated" is a plain int sibling — never a lane record. Even though its
     // value (2) looks like a slot index, it must not fabricate a slot-2 entry.
@@ -2818,10 +2685,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking ignores the seated key when p
 
 TEST_CASE("FilamentSlotOverrideStore load_seated_slot_blocking still works alongside T-keyed lanes",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "T0", json{{"lane", "0"}, {"material", "PLA"}});
     api.mock_set_db_value("lane_data", "T1", json{{"lane", "1"}, {"material", "ABS"}});
@@ -2842,10 +2707,8 @@ TEST_CASE("FilamentSlotOverrideStore load_seated_slot_blocking still works along
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking prefers the canonical key on duplicates (Tool)",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Both keys describe slot 0. Tool style → the canonical key is "T0".
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
@@ -2860,10 +2723,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking prefers the canonical key on 
 
 TEST_CASE("FilamentSlotOverrideStore load_blocking prefers the canonical key on duplicates (Lane)",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Same seeds, Lane style (ace) → the canonical key is "lane1".
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
@@ -2878,10 +2739,8 @@ TEST_CASE("FilamentSlotOverrideStore load_blocking prefers the canonical key on 
 
 TEST_CASE("FilamentSlotOverrideStore canonical key wins even when a rival key sorts after it",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // "zzz_custom" sorts AFTER "T0" in nlohmann's byte-sorted iteration, so if
     // reconciliation were accidentally "first-iterated wins" the canonical T0
@@ -2899,10 +2758,8 @@ TEST_CASE("FilamentSlotOverrideStore canonical key wins even when a rival key so
 
 TEST_CASE("FilamentSlotOverrideStore canonical key wins over a newer scan_time on a rival key",
           "[filament_slot_override][lane_key_style]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // The rival (non-canonical lane1) carries the NEWER scan_time. Canonical
     // preference deliberately ignores recency — scan_time is optional and would
@@ -2926,10 +2783,8 @@ TEST_CASE("FilamentSlotOverrideStore canonical key wins over a newer scan_time o
 
 TEST_CASE("Key migration: Tool-style backend rewrites laneN records to T<n>",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
     api.mock_set_db_value("lane_data", "lane3", json{{"lane", "2"}, {"material", "ABS"}});
@@ -2957,10 +2812,8 @@ TEST_CASE("Key migration: Tool-style backend rewrites laneN records to T<n>",
 
 TEST_CASE("Key migration: Lane-style backends are untouched",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
 
@@ -2974,10 +2827,8 @@ TEST_CASE("Key migration: Lane-style backends are untouched",
 
 TEST_CASE("Key migration: idempotent (second load is a no-op)",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
 
@@ -3000,10 +2851,8 @@ TEST_CASE("Key migration: idempotent (second load is a no-op)",
 
 TEST_CASE("Key migration: preserves the seated key",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
     api.mock_set_db_value("lane_data", "seated", nlohmann::json(1));
@@ -3019,10 +2868,8 @@ TEST_CASE("Key migration: preserves the seated key",
 
 TEST_CASE("Key migration: aborts without deleting laneN if the T-key write fails",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
     api.mock_reject_next_db_post(); // fail the T0 write
@@ -3042,10 +2889,8 @@ TEST_CASE("Key migration: aborts without deleting laneN if the T-key write fails
 
 TEST_CASE("Key migration: all-or-nothing across multiple slots",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PLA"}});
     api.mock_set_db_value("lane_data", "lane2", json{{"lane", "1"}, {"material", "ABS"}});
@@ -3066,10 +2911,8 @@ TEST_CASE("Key migration: all-or-nothing across multiple slots",
 
 TEST_CASE("Key migration: drops a stale laneN when the canonical T-key already exists",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Both exist for slot 0. T0 is Mainsail's newer record; lane1 is our stale
     // leftover. The migration must DROP lane1 (delete only), NOT POST lane1's
@@ -3091,10 +2934,8 @@ TEST_CASE("Key migration: drops a stale laneN when the canonical T-key already e
 
 TEST_CASE("Key migration: leaves third-party keys alone",
           "[filament_slot_override][lane_key_style][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // gate_0 is not a key WE wrote (not "lane1"), so renaming it would be
     // vandalism of a shared namespace. Leave it; accept a permanent
@@ -3113,10 +2954,8 @@ TEST_CASE("Key migration: leaves third-party keys alone",
 TEST_CASE("Key migration: does not run when MR DB is unreachable",
           "[filament_slot_override][lane_key_style][migration]") {
     TmpCacheDir tmp("migrate_unreachable");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // The namespace fetch fails → load falls back to local cache and must NOT
     // attempt any destructive key moves. Regression fence on the reachability
@@ -3137,10 +2976,8 @@ TEST_CASE("Legacy migration on ace still writes lane keys",
     // (Lane) backend migrating helix-screen:ace_slot_overrides must still write
     // 1-based "lane1" keys, not "T0".
     TmpCacheDir tmp("legacy_lane_keys");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("helix-screen", "ace_slot_overrides",
                           json{{"0", {{"brand", "Polymaker"}, {"material", "PLA"}}}});
@@ -3235,10 +3072,8 @@ TEST_CASE("Anomaly scan: non-object namespace is empty result, no crash",
 TEST_CASE("lane_data carries both the Orca match string and our display string",
           "[filament_slot_override][orca_match]") {
     TmpCacheDir tmp("orca_match_emit");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -3261,10 +3096,8 @@ TEST_CASE("lane_data carries both the Orca match string and our display string",
 TEST_CASE("material is omitted when nothing is safely matchable",
           "[filament_slot_override][orca_match][safety]") {
     TmpCacheDir tmp("orca_match_omit");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
 
@@ -3309,10 +3142,8 @@ TEST_CASE("foreign records without helix_material still read",
 TEST_CASE("load heals our own records with an unmatchable material",
           "[filament_slot_override][migration][orca_match]") {
     TmpCacheDir tmp("orca_heal");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // A pre-fix record: unmatchable material, no helix_material, but our
     // helix_locked_* markers prove we wrote it.
@@ -3341,10 +3172,8 @@ TEST_CASE("load heals our own records with an unmatchable material",
 TEST_CASE("load never rewrites a foreign record",
           "[filament_slot_override][migration][orca_match]") {
     TmpCacheDir tmp("orca_heal_foreign");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // No helix_locked_* keys — written by AFC's plugin or Mainsail. Even though
     // "ASA-GF" is unmatchable, this namespace is shared and not ours to edit.
@@ -3368,10 +3197,8 @@ TEST_CASE("healed record is not re-healed on a second load",
     // filament_slot_override_store.cpp). Pin it with a real second boot,
     // not just the "already has helix_material" comment.
     TmpCacheDir tmp("orca_heal_once");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("lane_data", "lane2",
                           json{{"lane", "1"},
@@ -3428,10 +3255,8 @@ TEST_CASE("load skips the heal entirely when Orca tables are unavailable",
     } restore_tables;
 
     TmpCacheDir tmp("orca_heal_unavailable");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Pre-existing helix-authored record with a precise material and no
     // helix_material yet — exactly what the heal targets.
@@ -3471,10 +3296,8 @@ TEST_CASE("load heals a stale laneN record before the Tool-key migration moves i
     // actually read) so the migration picks up the already-healed body when
     // it moves it to T<n>.
     TmpCacheDir tmp("orca_heal_tool_migration");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // A pre-fix, 1-based laneN record: unmatchable material, no
     // helix_material, but our helix_locked_* markers prove we wrote it.
@@ -3520,10 +3343,8 @@ TEST_CASE("drift: heal repairs an already-healed record whose match no longer ex
     } restore_tables;
 
     TmpCacheDir tmp("orca_heal_drift");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Already-healed from an earlier boot: matchable material="ASA", precise
     // identity "ASA-GF" preserved via helix_material.
@@ -3642,10 +3463,8 @@ TEST_CASE("a namespace document that is not an object parses to nothing",
 
 TEST_CASE("a reload hands back what the namespace holds",
           "[filament_slot_override][parse_namespace]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PETG"}});
     FilamentSlotOverrideStore store(&api, "ace");
 
@@ -3663,10 +3482,8 @@ TEST_CASE("a reload hands back what the namespace holds",
 
 TEST_CASE("a reload that cannot reach the database calls nothing back",
           "[filament_slot_override][parse_namespace]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value("lane_data", "lane1", json{{"lane", "0"}, {"material", "PETG"}});
     FilamentSlotOverrideStore store(&api, "ace");
 
@@ -3711,10 +3528,8 @@ TEST_CASE("rewriting a record without an edit never adds a colour or material de
     using helix::ams::declares_material;
 
     TmpCacheDir tmp("rewrite_declares_nothing_new");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     json shape;
     SECTION("a release 1.0 linked record with both keys true") {
@@ -4142,10 +3957,8 @@ TEST_CASE("SlotFingerprintTracker forget releases only one write's claims",
 
 TEST_CASE("bind_fingerprint_persistence seeds from records and persists observations",
           "[filament_slot_override][ams]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     std::unordered_map<int, FilamentSlotOverride> overrides;
@@ -4190,10 +4003,8 @@ TEST_CASE("bind_fingerprint_persistence seeds from records and persists observat
 TEST_CASE("persist_staged_override saves the record the map holds under the lock",
           "[filament_slot_override]") {
     TmpCacheDir tmp("persist_staged");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -4221,10 +4032,8 @@ TEST_CASE("persist_staged_override saves the record the map holds under the lock
 TEST_CASE("persist_staged_override saves nothing for a slot with no staged record",
           "[filament_slot_override]") {
     TmpCacheDir tmp("persist_unstaged");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     FilamentSlotOverrideStore store(&api, "ifs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);

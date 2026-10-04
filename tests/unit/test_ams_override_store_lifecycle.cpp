@@ -25,6 +25,7 @@
 #include "../test_helpers/afc_test_access.h"
 #include "../test_helpers/backend_user_edit.h"
 #include "../test_helpers/happy_hare_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_backend_ace.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_happy_hare.h"
@@ -254,10 +255,8 @@ class StoreBackedAce : public helix::AmsBackendAce {
 TEST_CASE("make_loaded_override_store returns the store and its loaded map together",
           "[ams][filament_slot_override]") {
     ScopedOverrideCacheDir cache("helper");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     api.mock_set_db_value("private-ns", "lane2",
                           nlohmann::json{{"lane", "1"}, {"material", "PETG"}});
@@ -275,10 +274,8 @@ TEST_CASE("make_loaded_override_store returns the store and its loaded map toget
 TEST_CASE("make_loaded_override_store defaults to the shared lane_data namespace",
           "[ams][filament_slot_override]") {
     ScopedOverrideCacheDir cache("helper_default_ns");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     auto loaded =
         helix::ams::make_loaded_override_store(&api, "somebackend", helix::AmsType::AFC, "[TEST]");
@@ -304,10 +301,8 @@ TEST_CASE("make_loaded_override_store with no API yields no store and no overrid
 TEST_CASE("Happy Hare slot identity survives a restart",
           "[ams][happyhare][filament_slot_override]") {
     ScopedOverrideCacheDir cache("hh");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // --- session 1: the user edits gate 1 -----------------------------------
     {
@@ -370,10 +365,8 @@ TEST_CASE("Happy Hare slot identity survives a restart",
 TEST_CASE("Happy Hare cleared slot override does not return after a restart",
           "[ams][happyhare][filament_slot_override]") {
     ScopedOverrideCacheDir cache("hh_clear");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // --- session 1: the user edits gate 1, then clears it -------------------
     {
@@ -403,10 +396,8 @@ TEST_CASE("Happy Hare cleared slot override does not return after a restart",
 
 TEST_CASE("AFC slot identity survives a restart", "[ams][afc][filament_slot_override]") {
     ScopedOverrideCacheDir cache("afc");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     {
         helix::test::RegisteredBackend<StoreBackedAfc> afc_reg(&api);
@@ -459,10 +450,8 @@ TEST_CASE(
     "AFC keeps the material and colour the user typed when firmware disagrees after a restart",
     "[ams][afc][filament_slot_override]") {
     ScopedOverrideCacheDir cache("afc_authorship");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     {
         helix::test::RegisteredBackend<StoreBackedAfc> afc_reg(&api);
@@ -489,10 +478,8 @@ TEST_CASE("Happy Hare keeps the material and colour the user typed when the gate
           "after a restart",
           "[ams][happyhare][filament_slot_override]") {
     ScopedOverrideCacheDir cache("hh_authorship");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     {
         helix::test::RegisteredBackend<StoreBackedHappyHare> hh_reg(&api);
@@ -519,10 +506,9 @@ TEST_CASE("Happy Hare keeps the material and colour the user typed when the gate
 TEST_CASE("ACE keeps the material and colour the user typed when the hub disagrees after a restart",
           "[ams][ace][filament_slot_override]") {
     ScopedOverrideCacheDir cache("ace_authorship");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     const std::vector<std::tuple<std::string, uint32_t, std::string>> hub_says_red_pla{
         {"ready", 0xFF0000, "PLA"},

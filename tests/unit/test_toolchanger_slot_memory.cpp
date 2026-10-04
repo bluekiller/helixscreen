@@ -26,6 +26,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/mock_printer.h"
 #include "../test_helpers/toolchanger_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "ams_backend_toolchanger.h"
@@ -486,10 +487,8 @@ class StoreBackedHelper : public helix::AmsBackendToolChanger {
 TEST_CASE("Tool-changer slot metadata round-trips through Moonraker",
           "[ams][toolchanger][slot_memory][filament_slot_override][slow]") {
     ScopedCacheDir tmp("roundtrip");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // --- session 1: the user edits tool 1 -----------------------------------
     {
@@ -553,10 +552,8 @@ TEST_CASE("Tool-changer slot metadata round-trips through Moonraker",
 TEST_CASE("A cleared tool-changer record is gone after a reload",
           "[ams][toolchanger][slot_memory][filament_slot_override][slow][1661]") {
     ScopedCacheDir tmp("clearreload");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     {
         helix::test::RegisteredBackend<StoreBackedHelper> h_reg(&api, 4);
@@ -603,10 +600,9 @@ TEST_CASE("Starting with a live API does not deadlock",
     // every backend type - but it surfaced there as a SIGTERM'd shard inside 54
     // cases, which reads like infrastructure flake. Fail here instead.
     ScopedCacheDir tmp("deadlock");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     helix::AmsBackendToolChanger backend(&api, &client);
     backend.set_discovered_tools({"T0", "T1"});
@@ -667,10 +663,8 @@ TEST_CASE("a tool changer rediscovery keeps a lane whose only identity is its Sp
 TEST_CASE("a tool changer start paints a lane whose only identity is its Spoolman record",
           "[lane][toolchanger][1653][slow]") {
     ScopedCacheDir tmp("spoolman_only_start");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<StoreBackedHelper> h_reg(&api, 4);
     StoreBackedHelper& h = *h_reg;
