@@ -376,7 +376,7 @@ class FilamentPanel : public PanelBase {
     lv_subject_t safety_warning_visible_subject_{};
     lv_subject_t warning_temps_subject_{};
     lv_subject_t
-        safety_warning_text_subject_; ///< "Heat to at least X°C to load/unload" with dynamic temp
+        safety_warning_text_subject_{}; ///< "Heat to at least X°C to load/unload" with dynamic temp
     lv_subject_t material_nozzle_temp_subject_{};
     lv_subject_t material_bed_temp_subject_{};
 

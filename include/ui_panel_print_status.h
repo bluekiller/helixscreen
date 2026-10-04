@@ -353,7 +353,7 @@ class PrintStatusPanel : public OverlayBase {
     lv_subject_t speed_subject_{};
     lv_subject_t flow_subject_{};
     lv_subject_t
-        view_toggle_icon_subject_; ///< MDI codepoint for btn_view_toggle_icon (cube/layers)
+        view_toggle_icon_subject_{}; ///< MDI codepoint for btn_view_toggle_icon (cube/layers)
     lv_subject_t
         camera_button_label_subject_{}; ///< "Cam"/"Camera" — short form at Medium and below
 
