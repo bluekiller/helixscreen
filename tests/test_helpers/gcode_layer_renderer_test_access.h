@@ -123,6 +123,13 @@ class GCodeLayerRendererTestAccess {
         renderer.ghost_thread_running_.store(false);
     }
 
+    /// Switch the projection. Production always draws FRONT; the pick tests use
+    /// TOP_DOWN so a click can be named in plain XY millimetres.
+    static void set_view_mode(GCodeLayerRenderer& renderer, ViewMode mode) {
+        renderer.view_mode_.store(static_cast<int>(mode), std::memory_order_relaxed);
+        renderer.bounds_valid_ = false;
+    }
+
     /// The per-segment draw gate, private because every draw path consults it
     /// internally. A test pins its feature-type filtering here.
     static bool renders_segment(const GCodeLayerRenderer& renderer, const ToolpathSegment& seg) {

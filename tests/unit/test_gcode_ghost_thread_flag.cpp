@@ -89,7 +89,6 @@ TEST_CASE("a finished ghost build never strands the running flag", "[gcode][ghos
     GCodeLayerRenderer renderer;
     renderer.set_canvas_size(kCanvas, kCanvas);
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(true);
 
     int spawned = 0;

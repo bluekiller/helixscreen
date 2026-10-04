@@ -383,16 +383,7 @@ class GCodeLayerRenderer {
     /// View mode alias — uses shared enum from gcode_projection.h
     using ViewMode = helix::gcode::ViewMode;
 
-    /**
-     * @brief Set view mode
-     * @param mode View mode (TOP_DOWN, FRONT, or ISOMETRIC)
-     */
-    void set_view_mode(ViewMode mode) {
-        view_mode_.store(static_cast<int>(mode), std::memory_order_relaxed);
-        bounds_valid_ = false; // Recompute scale for new projection
-    }
-
-    /** @brief Get current view mode */
+    /** @brief Projection the renderer draws and picks in; FRONT outside tests */
     ViewMode get_view_mode() const {
         return static_cast<ViewMode>(view_mode_.load(std::memory_order_relaxed));
     }
@@ -481,13 +472,6 @@ class GCodeLayerRenderer {
     void auto_fit();
 
     /**
-     * @brief Fit current layer to canvas
-     *
-     * Computes scale and offset to fit only the current layer's bounding box.
-     */
-    void fit_layer();
-
-    /**
      * @brief Set zoom scale manually
      * @param scale Pixels per mm
      */
@@ -544,14 +528,6 @@ class GCodeLayerRenderer {
     // =========================================================================
     // Internal Rendering
     // =========================================================================
-
-    /**
-     * @brief Render a single segment
-     * @param layer LVGL draw layer
-     * @param seg Toolpath segment to render
-     * @param ghost If true, render in ghost style (grey, for preview)
-     */
-    void render_segment(lv_layer_t* layer, const ToolpathSegment& seg, bool ghost = false);
 
     /**
      * @brief Render L-shaped corner brackets around highlighted objects' bounding boxes
@@ -620,15 +596,6 @@ class GCodeLayerRenderer {
      * @return true if segment should be rendered
      */
     bool should_render_segment(const ToolpathSegment& seg) const;
-
-    /// Panels at or below this width get the narrower selection halo. A 2px-per-side
-    /// halo swallows small objects whole at 480x272, so the delta halves there.
-    static constexpr int SMALL_PANEL_WIDTH_PX = 320;
-
-    /// True when the render target is small enough to need the narrow halo.
-    bool is_small_panel() const {
-        return canvas_width_ <= SMALL_PANEL_WIDTH_PX;
-    }
 
     /**
      * @brief Get line color for a segment
@@ -862,7 +829,6 @@ class GCodeLayerRenderer {
 
     // Ghost cache methods (LVGL-based, for main thread progressive rendering)
     void ensure_ghost_cache(int width, int height);
-    void render_ghost_layers(int from_layer, int to_layer);
     void blit_ghost_cache(lv_layer_t* target);
     void destroy_ghost_cache();
 
