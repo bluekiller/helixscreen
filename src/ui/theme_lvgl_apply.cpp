@@ -428,6 +428,39 @@ static ThemePalette convert_to_theme_palette(const theme_palette_t* p,
     return palette;
 }
 
+namespace {
+
+/// Both mode palettes of the active theme, as raw colours and as ThemeManager
+/// palettes. A single-mode theme fills both sides from the mode it supports, so
+/// no empty colour string from the unsupported mode is ever parsed.
+struct PalettePair {
+    theme_palette_t dark_raw;
+    theme_palette_t light_raw;
+    ThemePalette dark;
+    ThemePalette light;
+
+    const theme_palette_t& raw_for(bool is_dark) const {
+        return is_dark ? dark_raw : light_raw;
+    }
+};
+
+PalettePair build_palette_pair() {
+    const helix::ThemeData& theme = runtime().active_theme;
+    const bool has_dark = theme.supports_dark();
+    const bool has_light = theme.supports_light();
+    const auto& dark_src = has_dark ? theme.dark : theme.light;
+    const auto& light_src = has_light ? theme.light : theme.dark;
+
+    PalettePair pair;
+    pair.dark_raw = build_palette_from_mode(dark_src);
+    pair.light_raw = build_palette_from_mode(light_src);
+    pair.dark = convert_to_theme_palette(&pair.dark_raw, theme.properties);
+    pair.light = convert_to_theme_palette(&pair.light_raw, theme.properties);
+    return pair;
+}
+
+} // namespace
+
 /**
  * @brief Sync the mutable palette manager to active_theme
  *
@@ -438,22 +471,10 @@ static ThemePalette convert_to_theme_palette(const theme_palette_t* p,
  * repeat-skip path can afford it.
  */
 void resync_palette_manager(bool is_dark) {
-    // Build palettes from active_theme for contrast calculations.
-    // For single-mode themes, use the valid palette for both sides to avoid
-    // parsing empty color strings from the unsupported mode.
-    bool has_dark = runtime().active_theme.supports_dark();
-    bool has_light = runtime().active_theme.supports_light();
-    const auto& dark_src = has_dark ? runtime().active_theme.dark : runtime().active_theme.light;
-    const auto& light_src = has_light ? runtime().active_theme.light : runtime().active_theme.dark;
-    theme_palette_t dark_theme_pal = build_palette_from_mode(dark_src);
-    theme_palette_t light_theme_pal = build_palette_from_mode(light_src);
-
-    const auto& props = runtime().active_theme.properties;
-    ThemePalette dark_pal = convert_to_theme_palette(&dark_theme_pal, props);
-    ThemePalette light_pal = convert_to_theme_palette(&light_theme_pal, props);
+    const PalettePair pair = build_palette_pair();
 
     auto& tm = ThemeManager::instance();
-    tm.set_palettes(light_pal, dark_pal);
+    tm.set_palettes(pair.light, pair.dark);
     tm.init();
     tm.set_dark_mode(is_dark);
 }
@@ -494,25 +515,14 @@ lv_theme_t* theme_init_lvgl(lv_display_t* display, const theme_palette_t* palett
 void theme_update_colors(bool is_dark) {
     auto& tm = ThemeManager::instance();
 
-    // Build palettes, falling back to the valid mode for single-mode themes
-    bool has_dark = runtime().active_theme.supports_dark();
-    bool has_light = runtime().active_theme.supports_light();
-    const auto& dark_src = has_dark ? runtime().active_theme.dark : runtime().active_theme.light;
-    const auto& light_src = has_light ? runtime().active_theme.light : runtime().active_theme.dark;
-    theme_palette_t dark_theme_pal = build_palette_from_mode(dark_src);
-    theme_palette_t light_theme_pal = build_palette_from_mode(light_src);
-
-    const auto& props = runtime().active_theme.properties;
-    ThemePalette dark_pal = convert_to_theme_palette(&dark_theme_pal, props);
-    ThemePalette light_pal = convert_to_theme_palette(&light_theme_pal, props);
-
-    tm.set_palettes(light_pal, dark_pal);
+    const PalettePair pair = build_palette_pair();
+    tm.set_palettes(pair.light, pair.dark);
 
     tm.set_dark_mode(is_dark);
 
     // Update handle/knob styles from new theme properties and palette
-    const theme_palette_t& current_pal = is_dark ? dark_theme_pal : light_theme_pal;
-    update_handle_styles(&current_pal, resolve_border_radius(props));
+    update_handle_styles(&pair.raw_for(is_dark),
+                         resolve_border_radius(runtime().active_theme.properties));
 
     spdlog::debug("[Theme] Updated colors, dark_mode={}", is_dark);
 }

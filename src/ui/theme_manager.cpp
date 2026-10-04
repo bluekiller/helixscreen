@@ -167,6 +167,24 @@ static helix::ThemeData theme_manager_load_active_theme() {
     return theme;
 }
 
+/// Publish an int subject: the first call initializes it, a repeat call that did
+/// not pass through theme_manager_deinit() just moves its value. The subject
+/// outlives widget teardown, so observer guards on it are exempt; a non-null
+/// `xml_name` makes it bindable from XML.
+static void publish_int_subject(lv_subject_t& subject, bool& ready, int32_t value,
+                                const char* xml_name) {
+    if (!ready) {
+        lv_subject_init_int(&subject, value);
+        ready = true;
+    } else {
+        lv_subject_set_int(&subject, value);
+    }
+    ObserverGuard::mark_subject_teardown_exempt(&subject);
+    if (xml_name) {
+        lv_xml_register_subject(nullptr, xml_name, &subject);
+    }
+}
+
 void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
     auto tm_init_start = std::chrono::steady_clock::now();
 
@@ -210,9 +228,7 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
 
     // Initialize theme change notification subject
     if (!subjects().changed_ready) {
-        lv_subject_init_int(&subjects().changed, 0);
-        subjects().changed_ready = true;
-        ObserverGuard::mark_subject_teardown_exempt(&subjects().changed);
+        publish_int_subject(subjects().changed, subjects().changed_ready, 0, nullptr);
     }
 
     // Override runtime theme constants based on light/dark mode preference
@@ -254,14 +270,8 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         int32_t resp_res = responsive_dimension(display);
         UiBreakpoint bp = breakpoint_for(resp_res);
 
-        if (!subjects().breakpoint_ready) {
-            lv_subject_init_int(&subjects().breakpoint, to_int(bp));
-            subjects().breakpoint_ready = true;
-        } else {
-            lv_subject_set_int(&subjects().breakpoint, to_int(bp));
-        }
-        ObserverGuard::mark_subject_teardown_exempt(&subjects().breakpoint);
-        lv_xml_register_subject(nullptr, "ui_breakpoint", &subjects().breakpoint);
+        publish_int_subject(subjects().breakpoint, subjects().breakpoint_ready, to_int(bp),
+                            "ui_breakpoint");
         spdlog::debug("[Theme] Registered ui_breakpoint subject: {} (min_dim={})", to_int(bp),
                       resp_res);
     }
@@ -273,14 +283,8 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         int32_t vert_res = responsive_vertical_dimension(display);
         UiBreakpoint vbp = breakpoint_for(vert_res);
 
-        if (!subjects().breakpoint_v_ready) {
-            lv_subject_init_int(&subjects().breakpoint_v, to_int(vbp));
-            subjects().breakpoint_v_ready = true;
-        } else {
-            lv_subject_set_int(&subjects().breakpoint_v, to_int(vbp));
-        }
-        ObserverGuard::mark_subject_teardown_exempt(&subjects().breakpoint_v);
-        lv_xml_register_subject(nullptr, "ui_breakpoint_v", &subjects().breakpoint_v);
+        publish_int_subject(subjects().breakpoint_v, subjects().breakpoint_v_ready, to_int(vbp),
+                            "ui_breakpoint_v");
         spdlog::debug("[Theme] Registered ui_breakpoint_v subject: {} (vert_dim={})", to_int(vbp),
                       vert_res);
     }
@@ -296,14 +300,8 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         int32_t ver_res = lv_display_get_vertical_resolution(display);
         int is_portrait = is_portrait_layout(detect_layout_type(hor_res, ver_res)) ? 1 : 0;
 
-        if (!subjects().is_portrait_ready) {
-            lv_subject_init_int(&subjects().is_portrait, is_portrait);
-            subjects().is_portrait_ready = true;
-        } else {
-            lv_subject_set_int(&subjects().is_portrait, is_portrait);
-        }
-        ObserverGuard::mark_subject_teardown_exempt(&subjects().is_portrait);
-        lv_xml_register_subject(nullptr, "ui_is_portrait", &subjects().is_portrait);
+        publish_int_subject(subjects().is_portrait, subjects().is_portrait_ready, is_portrait,
+                            "ui_is_portrait");
         spdlog::debug("[Theme] Registered ui_is_portrait subject: {} ({}x{})", is_portrait, hor_res,
                       ver_res);
     }
