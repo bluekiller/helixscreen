@@ -689,10 +689,9 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
 // Apply the colour priority chain to the 2D renderer: per-tool AMS overrides, then a
 // single external (AMS/Spoolman) override, then the colour the file was sliced for.
 //
-// Must run every time the 2D renderer is created, not just on load. Switching render
-// mode lazily constructs it and used to apply only the G-code's own tool palette, so
-// flipping 3D -> 2D silently reverted the view from the loaded filament colour to the
-// sliced-for colour.
+// Must run every time the 2D renderer is created, not just on load: a render-mode
+// switch constructs it lazily, and a renderer given only the file's own palette shows
+// the sliced-for colour instead of the loaded filament.
 static void apply_2d_renderer_colors(gcode_viewer_state_t* st) {
     if (!st || !st->layer_renderer_2d_ || !st->gcode_file) {
         return;
@@ -2779,10 +2778,9 @@ bool ui_gcode_viewer_apply_ams_tool_colors(lv_obj_t* obj) {
         return false;
     }
     // Pure adapter over the ONE color rule: color(tool N) = the color of the lane
-    // that actually prints N. It used to walk AmsSystemInfo::tool_to_slot_map
-    // itself, which made it a second, dumber implementation of the same question
-    // — and a wrong one on a tool changer, where that map is physical attachment
-    // rather than print routing. Empty means "nothing knowable": leave the
+    // that actually prints N. AmsSystemInfo::tool_to_slot_map is not that
+    // answer on a tool changer, where it is physical attachment rather than
+    // print routing. Empty means "nothing knowable": leave the
     // renderer's slicer palette alone rather than painting over it.
     const auto colors = AmsState::instance().routed_tool_colors();
     if (colors.empty()) {

@@ -412,12 +412,9 @@ void GCodeLayerRenderer::auto_fit() {
     AABB bb;
     if (streaming_controller_) {
         // The index scan accumulates true XY bounds over every extruding move,
-        // filtered the same way the full-file parser filters global_bounding_box.
-        // This used to sample three layers (first/middle/last) and union their
-        // segments, which framed spiral-vase prints against a 3-point hull
-        // (#1127) and mis-framed anything whose widest cross-section wasn't one
-        // of the three. Using the index also avoids loading three layers — no
-        // cache churn, no blocking reads, on the auto-fit path.
+        // filtered the same way the full-file parser filters global_bounding_box,
+        // so the fit covers the widest cross-section wherever it is (#1127)
+        // without loading a single layer on the auto-fit path.
         const auto& stats = streaming_controller_->get_index_stats();
 
         if (stats.has_z_bounds()) {
@@ -704,8 +701,7 @@ void GCodeLayerRenderer::apply_ssao() {
     // Runs IN PLACE on the render cache. That is safe for one specific reason:
     // the pass reads only the ALPHA of its neighbours and writes only RGB, so a
     // pixel it has already rewritten still answers every later neighbour test
-    // identically. It used to memcpy the whole canvas into a second buffer to
-    // get that guarantee, which the channel split already provides for free.
+    // identically, so no second buffer is needed.
     // =========================================================================
     constexpr float OUTLINE_DARKEN = 0.3f; // Outline brightness (0=black, 1=original)
 

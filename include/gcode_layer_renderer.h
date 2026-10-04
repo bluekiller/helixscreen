@@ -864,20 +864,14 @@ class GCodeLayerRenderer {
      *
      * The worker runs on a background thread while the main thread keeps using
      * the renderer, so every non-atomic member it touches has to be captured
-     * before it starts. It used to capture them ITSELF, in a block headed
-     * "capture ALL shared state at thread start" - but "thread start" is on the
-     * worker, which is exactly the window in which the main thread is free to be
-     * writing. `selection_` was the one field already handled correctly, copied
-     * at std::thread construction; its neighbours were not.
+     * before it starts. The capture has to happen on the SPAWNING thread: once
+     * the worker is running, the main thread is free to write the colors, the
+     * transform (set_scale(), set_offset(), set_content_offset_y(),
+     * set_canvas_size()) and the selection, and a copy taken on the worker
+     * races those writes.
      *
-     * Unsynchronized against the worker's capture, before this struct existed:
-     * set_extrusion_color(), set_scale(), set_offset(), set_content_offset_y()
-     * and set_canvas_size(). set_tool_color_palette() had already been hardened
-     * by joining the worker first, and its comment names this exact hazard.
-     *
-     * Building the snapshot on the SPAWNING thread fixes the whole family at
-     * once, and passing it by value means the worker body has nothing to read a
-     * member through even by accident.
+     * Passed by value, so the worker body has nothing to read a member through
+     * even by accident.
      */
     struct GhostSnapshot {
         TransformParams transform{};
