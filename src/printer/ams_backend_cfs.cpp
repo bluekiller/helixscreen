@@ -957,13 +957,13 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     // merge gate in handle_status tests the same optional so such a
     // frame leaves the latch as it was.
     //
-    // `runout` is deliberately NOT read here. It is the runout-SWAP plan — an
-    // ordered `chain` of fallback slots and the `loaded_slot` they back — which
-    // the module publishes whenever runout_swap_enabled is on and a lane is
-    // loaded, including on the load-completion frame of a wholly successful
-    // load. Treating its presence as an event arms a runout episode against the
-    // lane that just loaded, and that episode drops the lane's remembered
-    // Spoolman link the moment the bay next reads empty.
+    // `runout` is NOT a runout signal. It is the runout-SWAP plan — the
+    // `chain` of fallback slots and the `loaded_slot` they back — which the
+    // module publishes whenever a lane is loaded, including on the
+    // load-completion frame of a wholly successful load. Treating its presence
+    // as an event arms a runout episode against the lane that just loaded, and
+    // that episode drops the lane's remembered Spoolman link the moment the bay
+    // next reads empty. It is read below as the backup relation instead.
     //
     // filament_loaded is left false for the same reason as the stock parse —
     // the toolhead sensor branch in handle_status is its sole writer.
@@ -1105,6 +1105,26 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
 
     unit.slot_count = static_cast<int>(unit.slots.size());
     info.total_slots = unit.slot_count;
+
+    // The swap plan (#1464). box.py's _runout_status builds `chain` from every
+    // other present slot with identical material and colour, in slot order, and
+    // runout_recovery swaps to chain[0]; the tail is not a succession, so the
+    // head is the one edge stated. Same index space as loaded_slot. null means
+    // nothing is loaded, so no plan: left nullopt, like an absent key.
+    auto runout_it = box_json.find("runout");
+    if (runout_it != box_json.end() && runout_it->is_object()) {
+        std::vector<int> edges(static_cast<size_t>(unit.slot_count), -1);
+        const int source = helix::json_util::safe_int(*runout_it, "loaded_slot", -1);
+        auto chain_it = runout_it->find("chain");
+        if (source >= 0 && source < unit.slot_count && chain_it != runout_it->end() &&
+            chain_it->is_array() && !chain_it->empty() && chain_it->front().is_number_integer()) {
+            const int target = chain_it->front().get<int>();
+            if (target >= 0 && target < unit.slot_count && target != source) {
+                edges[static_cast<size_t>(source)] = target;
+            }
+        }
+        info.endless_spool_backup_edges = std::move(edges);
+    }
 
     // loaded_slot is -1 when nothing is loaded. It indexes the same slots[]
     // array — including the external entry, which is not in our vector. A bay
@@ -1492,13 +1512,24 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                 // a delta omission, and the flat dialect never sends
                 // same_material - retaining stock-era grouping would answer
                 // from a dead schema forever, so it is cleared.
+                //
+                // The flat swap plan follows the same presence rule: a delta
+                // omitting `runout` keeps the last plan, an explicit null
+                // (nothing loaded) clears it. Stock never publishes one.
                 if (is_flat) {
                     system_info_.endless_spool_group_ids.clear();
                     system_info_.endless_spool_groups_reported = false;
-                } else if (new_info.endless_spool_groups_reported) {
-                    system_info_.endless_spool_group_ids =
-                        std::move(new_info.endless_spool_group_ids);
-                    system_info_.endless_spool_groups_reported = true;
+                    if (box.contains("runout")) {
+                        system_info_.endless_spool_backup_edges =
+                            std::move(new_info.endless_spool_backup_edges);
+                    }
+                } else {
+                    system_info_.endless_spool_backup_edges.reset();
+                    if (new_info.endless_spool_groups_reported) {
+                        system_info_.endless_spool_group_ids =
+                            std::move(new_info.endless_spool_group_ids);
+                        system_info_.endless_spool_groups_reported = true;
+                    }
                 }
             }
 
@@ -3788,8 +3819,13 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
     // instead of restating it.
     EndlessSpoolEnabled enabled =
         system_info_.endless_spool_enabled ? EndlessSpoolEnabled::On : EndlessSpoolEnabled::Off;
-    if (enabled == EndlessSpoolEnabled::On && system_info_.endless_spool_groups_reported &&
-        endless_spool_config_from_groups(system_info_.endless_spool_group_ids).empty()) {
+    // The fork's swap plan answers the same question for the loaded spool: an
+    // empty chain means a runout now has nothing to swap to.
+    const auto& edges = system_info_.endless_spool_backup_edges;
+    if (enabled == EndlessSpoolEnabled::On &&
+        ((system_info_.endless_spool_groups_reported &&
+          endless_spool_config_from_groups(system_info_.endless_spool_group_ids).empty()) ||
+         (edges && endless_spool_config_from_edges(*edges).empty()))) {
         enabled = EndlessSpoolEnabled::OnWithoutBackup;
     }
 
@@ -3797,6 +3833,15 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
             .enabled = enabled,
             .editability = EndlessSpoolEditability::ReadOnly,
             .restriction = EndlessSpoolRestriction::FirmwareManaged};
+}
+
+helix::printer::EndlessSpoolConfig AmsBackendCfs::get_endless_spool_config() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // A plan published while swapping is off backs nothing up.
+    if (!system_info_.endless_spool_enabled || !system_info_.endless_spool_backup_edges) {
+        return {};
+    }
+    return endless_spool_config_from_edges(*system_info_.endless_spool_backup_edges);
 }
 
 std::vector<int> AmsBackendCfs::get_tool_mapping() const {

@@ -5634,6 +5634,92 @@ TEST_CASE("CFS flat: a slot delta does not clear the endless-spool enable bit",
     CHECK(backend.get_endless_spool_capabilities().enabled == EndlessSpoolEnabled::On);
 }
 
+// The fork's `runout` object is box.py's swap plan: `loaded_slot` and `chain`,
+// the other present slots with identical material and colour in slot order.
+// A runout swaps to chain[0], so that edge is the per-slot relation the AMS
+// context menu's backup row reads (#1464).
+TEST_CASE("CFS flat: runout.chain is the loaded slot's backup edge",
+          "[ams][cfs][flat][endless_spool][1464]") {
+    CfsRemapHelper backend;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_flat_fork_box()));
+
+    SECTION("the chain head backs the loaded slot, and the row has a relation to show") {
+        const auto caps = backend.get_endless_spool_capabilities();
+        const auto cfg = backend.get_endless_spool_config();
+        // decide_show_backup_row's inputs: a read-only backend shows the row
+        // only when it is available AND reports a relation.
+        CHECK(caps.available());
+        CHECK_FALSE(cfg.empty());
+        CHECK(caps.enabled == EndlessSpoolEnabled::On);
+        CHECK(endless_spool_backup_for(cfg, 0) == 1);
+        CHECK(endless_spool_backup_for(cfg, 1) == -1);
+        CHECK(endless_spool_backup_for(cfg, 2) == -1);
+    }
+
+    SECTION("a delta that omits runout keeps the parsed chain") {
+        json delta = make_flat_fork_box();
+        delta.erase("runout");
+        delta["slots"][3]["present"] = false;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(delta));
+        CHECK(endless_spool_backup_for(backend.get_endless_spool_config(), 0) == 1);
+    }
+
+    SECTION("runout null (nothing loaded) clears the relation, not a negative") {
+        json idle = make_flat_fork_box();
+        idle["runout"] = nullptr;
+        idle["loaded_slot"] = -1;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(idle));
+        CHECK(backend.get_endless_spool_config().empty());
+        CHECK(backend.get_endless_spool_capabilities().enabled == EndlessSpoolEnabled::On);
+    }
+
+    SECTION("an empty chain means the loaded spool has no backup") {
+        json lonely = make_flat_fork_box();
+        lonely["runout"] = json{{"chain", json::array()}, {"loaded_slot", 0}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(lonely));
+        CHECK(backend.get_endless_spool_config().empty());
+        CHECK(backend.get_endless_spool_capabilities().enabled ==
+              EndlessSpoolEnabled::OnWithoutBackup);
+    }
+
+    SECTION("only the chain head is a backup; the tail is not a succession") {
+        json multi = make_flat_fork_box();
+        multi["runout"] = json{{"chain", json::array({0, 3})}, {"loaded_slot", 2}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(multi));
+        const auto cfg = backend.get_endless_spool_config();
+        CHECK(endless_spool_backup_for(cfg, 2) == 0);
+        CHECK(endless_spool_backup_for(cfg, 0) == -1);
+        CHECK(endless_spool_backup_for(cfg, 3) == -1);
+    }
+
+    SECTION("swap disabled: the plan is published but no backup is claimed") {
+        json off = make_flat_fork_box();
+        off["runout_swap_enabled"] = false;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(off));
+        CHECK(backend.get_endless_spool_config().empty());
+    }
+
+    SECTION("out-of-range or self-referencing entries are ignored") {
+        json bad = make_flat_fork_box();
+        bad["runout"] = json{{"chain", json::array({9})}, {"loaded_slot", 0}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(bad));
+        CHECK(backend.get_endless_spool_config().empty());
+
+        bad["runout"] = json{{"chain", json::array({0})}, {"loaded_slot", 0}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(bad));
+        CHECK(backend.get_endless_spool_config().empty());
+
+        bad["runout"] = json{{"chain", json::array({"1"})}, {"loaded_slot", 0}};
+        REQUIRE_NOTHROW(CfsTestAccess::handle_status(backend, make_cfs_notification(bad)));
+        CHECK(backend.get_endless_spool_config().empty());
+    }
+
+    SECTION("a stock frame drops the fork-era chain") {
+        CfsTestAccess::handle_status(backend, make_cfs_notification(make_runout_box(0)));
+        CHECK(backend.get_endless_spool_config().empty());
+    }
+}
+
 // ============================================================================
 // Pre-dispatch failure does not fire the envelope unwind
 // ============================================================================

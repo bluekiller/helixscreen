@@ -244,13 +244,13 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // Capabilities
 
     /**
-     * @brief CFS auto-refill: available, firmware-managed, no per-slot relation.
+     * @brief CFS auto-refill: available, firmware-managed, read-only.
      *
-     * The box picks the refill spool itself from its own `same_material` groups
-     * and exposes no per-slot mapping, so this backend deliberately does NOT
-     * override get_endless_spool_config() - the base's empty relation is the
-     * truthful answer, and it is what keeps the UI from drawing a backup
-     * dropdown that could only ever read "None".
+     * Stock firmware picks the refill spool itself from its own `same_material`
+     * groups and exposes no per-slot mapping, so get_endless_spool_config()
+     * answers empty there - that is what keeps the UI from drawing a backup
+     * dropdown that could only ever read "None". The flat fork publishes its
+     * swap plan (`runout.chain`), and that one edge is the relation (#1464).
      *
      * `enabled` comes from `box.auto_refill` (stock) / `box.runout_swap_enabled`
      * (flat fork) via AmsSystemInfo::endless_spool_enabled, so on and off are now
@@ -262,12 +262,18 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
      * cannot keep. Frames without the field (the flat dialect never sends it)
      * keep the plain On answer - no data is not a negative - and a stock delta
      * that omits the field retains the last known grouping (presence-gated
-     * like filament_runout); only a schema switch to flat clears it.
+     * like filament_runout); only a schema switch to flat clears it. On the
+     * fork, a published plan with an empty chain is the same OnWithoutBackup.
      *
      * @note Takes `mutex_`; callers must NOT hold it.
      */
     [[nodiscard]] helix::printer::EndlessSpoolCapabilities
     get_endless_spool_capabilities() const override;
+
+    /// The fork's swap plan as one directed edge (loaded slot -> chain head);
+    /// empty on stock, with no plan published, or with swapping off.
+    /// @note Takes `mutex_`; callers must NOT hold it.
+    [[nodiscard]] helix::printer::EndlessSpoolConfig get_endless_spool_config() const override;
     [[nodiscard]] std::vector<int> get_tool_mapping() const override;
 
     /// True except on K1, where BOX_MODIFY_TN no-ops (#968) so no confirming
