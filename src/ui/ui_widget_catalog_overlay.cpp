@@ -3,7 +3,6 @@
 #include "ui_widget_catalog_overlay.h"
 
 #include "ui_effects.h"
-#include "ui_fonts.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_selector_model.h"
@@ -16,7 +15,6 @@
 #include "panel_widget_config.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
-#include "theme_manager.h"
 
 #include <lvgl/lvgl.h>
 #include <spdlog/fmt/fmt.h>
@@ -250,120 +248,29 @@ std::string format_track_span(int tracks) {
 lv_obj_t* WidgetCatalogOverlay::create_row(lv_obj_t* parent, const char* name, const char* icon,
                                            const char* description, int colspan, int rowspan,
                                            bool already_placed, bool unavailable) {
-    // Row container: horizontal, fixed height
-    lv_obj_t* row = lv_obj_create(parent);
-    lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, LV_SIZE_CONTENT);
-    int32_t pad_xs = theme_manager_get_spacing("space_xs");
-    lv_obj_set_style_pad_all(row, theme_manager_get_spacing("space_md"), 0);
-    lv_obj_set_style_pad_gap(row, theme_manager_get_spacing("space_sm"), 0);
-    lv_obj_set_style_bg_color(row, theme_manager_get_color("card_bg"), 0);
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(row, 8, 0);
-    lv_obj_set_style_border_width(row, 0, 0);
-    lv_obj_set_layout(row, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_flex_cross_place(row, LV_FLEX_ALIGN_CENTER, 0);
-    lv_obj_set_style_flex_main_place(row, LV_FLEX_ALIGN_SPACE_BETWEEN, 0);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-
-    // Icon
-    if (icon && icon[0] != '\0') {
-        const char* variant = (already_placed || unavailable) ? "muted" : "secondary";
-        const char* icon_attrs[] = {"src", icon, "size", "sm", "variant", variant, nullptr};
-        lv_xml_create(row, "icon", icon_attrs);
-    }
-
-    if (already_placed || unavailable) {
-        lv_obj_set_style_opa(row, LV_OPA_40, 0);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
-    } else {
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        // Pressed feedback
-        lv_obj_set_style_bg_color(row, theme_get_accent_color(), LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-    }
-
-    // Left side: name + description column
-    // Width comes from flex_grow, not from the content: the name can be much
-    // wider than the row. A gated widget carries its reason in the name
-    // ("Humidity (No humidity sensor detected)"), which is longer than any
-    // widget name, and sizing to content ran that straight through the size
-    // badge and the "Placed" label on a 480px panel.
-    lv_obj_t* text_col = lv_obj_create(row);
-    lv_obj_set_width(text_col, 0);
-    lv_obj_set_height(text_col, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(text_col, 0, 0);
-    lv_obj_set_style_bg_opa(text_col, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(text_col, 0, 0);
-    lv_obj_set_layout(text_col, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(text_col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_grow(text_col, 1);
-    lv_obj_remove_flag(text_col, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(text_col, LV_OBJ_FLAG_SCROLLABLE);
-
-    // Wrap rather than ellipsize. The gate reason lives at the end of the name,
-    // so clipping it is exactly the half that explains why the row is greyed out.
-    lv_obj_t* name_label = lv_label_create(text_col);
-    lv_label_set_text(name_label, name);
-    lv_obj_set_width(name_label, LV_PCT(100));
-    lv_label_set_long_mode(name_label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_font(name_label, &noto_sans_16, 0);
-    lv_obj_set_style_text_color(name_label, theme_manager_get_color("text"), 0);
-
-    if (description && description[0] != '\0') {
-        lv_obj_t* desc_label = lv_label_create(text_col);
-        lv_label_set_text(desc_label, description);
-        lv_obj_set_width(desc_label, LV_PCT(100));
-        lv_label_set_long_mode(desc_label, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_font(desc_label, &noto_sans_12, 0);
-        lv_obj_set_style_text_color(desc_label, theme_manager_get_color("text_muted"), 0);
-    }
-
-    // Right side: size badge + optional "Placed" label
-    lv_obj_t* right_group = lv_obj_create(row);
-    lv_obj_set_size(right_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(right_group, 0, 0);
-    lv_obj_set_style_pad_gap(right_group, pad_xs, 0);
-    lv_obj_set_style_bg_opa(right_group, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(right_group, 0, 0);
-    lv_obj_set_layout(right_group, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(right_group, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_flex_cross_place(right_group, LV_FLEX_ALIGN_CENTER, 0);
-    lv_obj_remove_flag(right_group, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(right_group, LV_OBJ_FLAG_SCROLLABLE);
-
-    if (already_placed) {
-        lv_obj_t* placed_label = lv_label_create(right_group);
-        lv_label_set_text(placed_label, lv_tr("Placed"));
-        lv_obj_set_style_text_font(placed_label, &noto_sans_12, 0);
-        lv_obj_set_style_text_color(placed_label, theme_manager_get_color("text_muted"), 0);
-    }
-
-    // Size badge (e.g. "2x1")
-    lv_obj_t* badge = lv_obj_create(right_group);
-    lv_obj_set_size(badge, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    int32_t badge_pad_ver = theme_manager_get_spacing("space_xxs");
-    lv_obj_set_style_pad_left(badge, pad_xs, 0);
-    lv_obj_set_style_pad_right(badge, pad_xs, 0);
-    lv_obj_set_style_pad_top(badge, badge_pad_ver, 0);
-    lv_obj_set_style_pad_bottom(badge, badge_pad_ver, 0);
-    lv_obj_set_style_bg_color(badge, theme_manager_get_color("secondary"), 0);
-    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(badge, 4, 0);
-    lv_obj_set_style_border_width(badge, 0, 0);
-    lv_obj_remove_flag(badge, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
+    const bool dimmed = already_placed || unavailable;
+    const bool has_icon = icon && icon[0] != '\0';
+    const bool has_desc = description && description[0] != '\0';
 
     char size_text[16];
     snprintf(size_text, sizeof(size_text), "%sx%s", format_track_span(colspan).c_str(),
              format_track_span(rowspan).c_str());
-    lv_obj_t* badge_label = lv_label_create(badge);
-    lv_label_set_text(badge_label, size_text);
-    lv_obj_set_style_text_font(badge_label, &noto_sans_12, 0);
-    lv_obj_set_style_text_color(badge_label, theme_manager_get_color("text_muted"), 0);
 
-    return row;
+    const char* attrs[] = {
+        "row_name",      name,
+        "row_desc",      has_desc ? description : "",
+        "hide_desc",     has_desc ? "false" : "true",
+        "icon_src",      has_icon ? icon : "",
+        "icon_variant",  dimmed ? "muted" : "secondary",
+        "hide_icon",     has_icon ? "false" : "true",
+        "size_text",     size_text,
+        "placed_text",   already_placed ? lv_tr("Placed") : "",
+        "hide_placed",   already_placed ? "false" : "true",
+        "row_opa",       dimmed ? "40%" : "255",
+        "row_clickable", dimmed ? "false" : "true",
+        nullptr,
+    };
+    return static_cast<lv_obj_t*>(lv_xml_create(parent, "widget_catalog_row", attrs));
 }
 
 /// True when this widget's hardware gate subject exists and reads 0.
@@ -692,6 +599,9 @@ lv_obj_t* WidgetCatalogOverlay::create_widget_row(
     const char* desc = def.description ? lv_tr(def.description) : nullptr;
     lv_obj_t* row = create_row(parent, name_str.c_str(), def.icon, desc, def.colspan, def.rowspan,
                                already_placed, hardware_gated || no_fit);
+    if (!row) {
+        return nullptr;
+    }
     // Named for the def id so tests and `ctl` can address the row directly.
     lv_obj_set_name(row, def.id);
 

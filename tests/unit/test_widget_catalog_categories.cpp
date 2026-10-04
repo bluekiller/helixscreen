@@ -19,6 +19,7 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/config_test_access.h"
+#include "../test_helpers/press_wash_probe.h"
 #include "../test_helpers/process_async_timers.h"
 #include "../test_helpers/scope_exit.h"
 #include "config.h"
@@ -589,6 +590,8 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     // Rows are named for their def ids.
     lv_obj_t* row = lv_obj_find_by_name(scroll, target->id);
     REQUIRE(row != nullptr);
+    // An offerable row presses with the shared wash (prestonbrown/helixscreen#1297).
+    CHECK(helix::test::paints_press_wash(row));
 
     lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
     settle();

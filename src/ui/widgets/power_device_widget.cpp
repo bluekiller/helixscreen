@@ -460,37 +460,13 @@ void PowerDeviceWidget::show_device_picker() {
     // Helper lambda to create a device row in the picker
     auto create_device_row = [&](const std::string& device_id, const std::string& display,
                                  bool is_selected) {
-        lv_obj_t* row = lv_obj_create(list);
-        lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(row, space_sm, 0);
-        lv_obj_set_style_pad_gap(row, space_xs, 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_radius(row, 6, 0);
-
-        // Highlight selected row
-        lv_obj_set_style_bg_opa(row, is_selected ? 30 : 0, 0);
-        if (is_selected) {
-            lv_obj_set_style_bg_color(row, theme_manager_get_color("primary"), 0);
+        const char* attrs[] = {
+            "label", display.c_str(), "selected", is_selected ? "true" : "false", nullptr,
+        };
+        lv_obj_t* row = static_cast<lv_obj_t*>(lv_xml_create(list, "picker_option_row", attrs));
+        if (!row) {
+            return;
         }
-
-        // Pressed feedback
-        lv_obj_set_style_bg_color(row, theme_manager_get_color("text_muted"),
-                                  LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-
-        // Device display name
-        lv_obj_t* label = lv_label_create(row);
-        lv_label_set_text(label, display.c_str());
-        lv_obj_set_flex_grow(label, 1);
-        lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
-        lv_obj_set_style_text_font(label, lv_font_get_default(), 0);
-        lv_obj_set_style_text_color(label, theme_manager_get_color("text"), 0);
-        lv_obj_remove_flag(label, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
 
         // Store device name for click handler
         auto* name_copy = new std::string(device_id);
@@ -607,38 +583,14 @@ void PowerDeviceWidget::show_device_picker() {
 
         // Helper to create a sensor chip
         auto make_chip = [&](const char* label_text, const std::string& sensor_id, bool selected) {
-            lv_obj_t* chip = lv_obj_create(sensor_grid);
-            lv_obj_set_height(chip, LV_SIZE_CONTENT);
-            lv_obj_set_width(chip, LV_SIZE_CONTENT);
-            lv_obj_set_style_pad_ver(chip, space_xs, 0);
-            lv_obj_set_style_pad_hor(chip, space_sm, 0);
-            lv_obj_set_style_radius(chip, 12, 0);
-            lv_obj_remove_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(chip, LV_OBJ_FLAG_CLICKABLE);
-
-            // Highlight if selected
-            if (selected) {
-                lv_obj_set_style_border_width(chip, 2, 0);
-                lv_obj_set_style_border_color(chip, theme_manager_get_color("primary"), 0);
-                lv_obj_set_style_bg_opa(chip, 20, 0);
-                lv_obj_set_style_bg_color(chip, theme_manager_get_color("primary"), 0);
-            } else {
-                lv_obj_set_style_border_width(chip, 1, 0);
-                lv_obj_set_style_border_color(chip, theme_manager_get_color("border"), 0);
-                lv_obj_set_style_bg_opa(chip, 0, 0);
+            const char* attrs[] = {
+                "label", label_text, "selected", selected ? "true" : "false", nullptr,
+            };
+            lv_obj_t* chip =
+                static_cast<lv_obj_t*>(lv_xml_create(sensor_grid, "picker_chip", attrs));
+            if (!chip) {
+                return;
             }
-
-            // Pressed feedback
-            lv_obj_set_style_bg_color(chip, theme_manager_get_color("text_muted"),
-                                      LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_bg_opa(chip, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-
-            lv_obj_t* lbl = lv_label_create(chip);
-            lv_label_set_text(lbl, label_text);
-            lv_obj_set_style_text_font(lbl, lv_font_get_default(), 0);
-            lv_obj_set_style_text_color(lbl, theme_manager_get_color("text"), 0);
-            lv_obj_remove_flag(lbl, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
 
             // Store sensor ID as user_data (heap-allocated string)
             auto* id_copy = new std::string(sensor_id);

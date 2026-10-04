@@ -5,8 +5,6 @@
 
 #include "ui_button.h"
 #include "ui_error_reporting.h"
-#include "ui_fonts.h"
-#include "ui_icon_codepoints.h"
 #include "ui_panel_print_select.h"
 #include "ui_utils.h"
 
@@ -16,7 +14,6 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
 #include "printer_state.h"
-#include "theme_manager.h"
 
 #include <lvgl/lvgl.h>
 #include <spdlog/fmt/fmt.h>
@@ -91,6 +88,24 @@ void JobQueueModal::register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_jq_modal_toggle_queue", [](lv_event_t*) {
         if (s_active_instance_) {
             s_active_instance_->toggle_queue();
+        }
+    });
+
+    // job_queue_row: the row starts its job, its trash icon removes it. Both
+    // read the RowData the row carries in user_data.
+    lv_xml_register_event_cb(nullptr, "on_jq_row_start", [](lv_event_t* e) {
+        auto* row = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+        auto* rd = static_cast<RowData*>(lv_obj_get_user_data(row));
+        if (rd && s_active_instance_) {
+            s_active_instance_->start_job(rd->job_id, rd->filename);
+        }
+    });
+
+    lv_xml_register_event_cb(nullptr, "on_jq_row_delete", [](lv_event_t* e) {
+        auto* icon = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+        auto* rd = static_cast<RowData*>(lv_obj_get_user_data(lv_obj_get_parent(icon)));
+        if (rd && s_active_instance_) {
+            s_active_instance_->remove_job(rd->job_id);
         }
     });
 
@@ -196,11 +211,6 @@ void JobQueueModal::populate_job_list() {
     }
 
     const auto& jobs = jqs->get_jobs();
-    const lv_font_t* name_font = theme_manager_get_font("font_body");
-    const lv_font_t* small_font = theme_manager_get_font("font_small");
-    lv_color_t text_color = theme_manager_get_color("text");
-    lv_color_t muted_color = theme_manager_get_color("text_muted");
-    lv_color_t danger_color = theme_manager_get_color("danger");
 
     for (const auto& job : jobs) {
         // Extract just the filename
@@ -210,79 +220,11 @@ void JobQueueModal::populate_job_list() {
             display_name = display_name.substr(slash + 1);
         }
 
-        // Row container — clickable to start print
-        lv_obj_t* row = lv_obj_create(list);
-        lv_obj_set_width(row, lv_pct(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_color(row, theme_manager_get_color("card_bg"), 0);
-        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(row, theme_get_accent_color(), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_20, LV_STATE_PRESSED);
-        lv_obj_set_style_radius(row, 6, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        int32_t row_pad = theme_manager_get_spacing("space_sm");
-        lv_obj_set_style_pad_all(row, row_pad, 0);
-        lv_obj_set_style_pad_gap(row, row_pad, 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_flex_main_place(row, LV_FLEX_ALIGN_SPACE_BETWEEN, 0);
-        lv_obj_set_style_flex_cross_place(row, LV_FLEX_ALIGN_CENTER, 0);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-
-        // Store job data for row click and delete callbacks
-        // Widget pool recycling exception: dynamic list with per-item callbacks
-        auto* row_data = make_row_data(job.job_id, job.filename);
-        lv_obj_set_user_data(row, row_data);
-
-        // Clean up row data when row is deleted
-        lv_obj_add_event_cb(
-            row,
-            [](lv_event_t* e) {
-                auto* rd = static_cast<RowData*>(lv_event_get_user_data(e));
-                free_row_data(rd);
-            },
-            LV_EVENT_DELETE, row_data);
-
-        // Row click → start job
-        lv_obj_add_event_cb(
-            row,
-            [](lv_event_t* e) {
-                auto* rd = static_cast<RowData*>(lv_event_get_user_data(e));
-                if (rd && s_active_instance_) {
-                    s_active_instance_->start_job(rd->job_id, rd->filename);
-                }
-            },
-            LV_EVENT_CLICKED, row_data);
-
-        // Left side: filename + time info (L071: pass clicks to parent row)
-        lv_obj_t* info_col = lv_obj_create(row);
-        lv_obj_set_height(info_col, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(info_col, 0, 0);
-        lv_obj_set_style_border_width(info_col, 0, 0);
-        lv_obj_set_style_pad_all(info_col, 0, 0);
-        lv_obj_set_style_pad_gap(info_col, theme_manager_get_spacing("space_xxs"), 0);
-        lv_obj_set_flex_flow(info_col, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_grow(info_col, 1);
-        lv_obj_remove_flag(info_col, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(info_col, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_remove_flag(info_col, LV_OBJ_FLAG_SCROLLABLE);
-
-        // Filename
-        lv_obj_t* name_label = lv_label_create(info_col);
-        lv_label_set_text(name_label, display_name.c_str());
-        if (name_font)
-            lv_obj_set_style_text_font(name_label, name_font, 0);
-        lv_obj_set_style_text_color(name_label, text_color, 0);
-        lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
-        lv_obj_set_width(name_label, lv_pct(100));
-
-        // Time in queue
+        std::string queued;
         if (job.time_in_queue > 0) {
-            lv_obj_t* time_label = lv_label_create(info_col);
             int mins = static_cast<int>(job.time_in_queue / 60);
             int hours = mins / 60;
             mins = mins % 60;
-            std::string queued;
             if (hours > 0) {
                 queued = fmt::format(lv_tr("Queued {}h {}m ago"), hours, mins);
             } else if (mins > 0) {
@@ -290,37 +232,31 @@ void JobQueueModal::populate_job_list() {
             } else {
                 queued = lv_tr("Just queued");
             }
-            lv_label_set_text(time_label, queued.c_str());
-            if (small_font)
-                lv_obj_set_style_text_font(time_label, small_font, 0);
-            lv_obj_set_style_text_color(time_label, muted_color, 0);
         }
 
-        // Delete icon (right side) — plain clickable label, no button chrome
-        const char* trash_glyph = helix::ui::icon::lookup_codepoint("trash_can_outline");
-        lv_obj_t* del_icon = lv_label_create(row);
-        lv_label_set_text(del_icon, trash_glyph ? trash_glyph : "X");
-        lv_obj_set_style_text_color(del_icon, danger_color, 0);
-        lv_obj_set_style_text_color(del_icon, theme_manager_get_color("text"), LV_STATE_PRESSED);
-        lv_obj_add_flag(del_icon, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_pad_all(del_icon, theme_manager_get_spacing("space_xs"), 0);
-        const char* icon_font_name = lv_xml_get_const(nullptr, "icon_font_sm");
-        const lv_font_t* icon_font =
-            icon_font_name ? lv_xml_get_font(nullptr, icon_font_name) : nullptr;
-        if (icon_font) {
-            lv_obj_set_style_text_font(del_icon, icon_font, 0);
+        const char* attrs[] = {
+            "queued_text", queued.c_str(), "hide_queued", queued.empty() ? "true" : "false",
+            nullptr,
+        };
+        auto* row = static_cast<lv_obj_t*>(lv_xml_create(list, "job_queue_row", attrs));
+        if (!row) {
+            continue;
+        }
+        if (auto* name_label = lv_obj_find_by_name(row, "job_filename")) {
+            // DECLARATIVE_OK: user text; as a prop a leading '#' reads as a const
+            lv_label_set_text(name_label, display_name.c_str());
         }
 
-        // Delete click — uses row_data from parent row (freed when row is deleted)
+        // Job data for the row's start and delete callbacks, freed with the row.
+        auto* row_data = make_row_data(job.job_id, job.filename);
+        lv_obj_set_user_data(row, row_data);
         lv_obj_add_event_cb(
-            del_icon,
+            row,
             [](lv_event_t* e) {
                 auto* rd = static_cast<RowData*>(lv_event_get_user_data(e));
-                if (rd && s_active_instance_) {
-                    s_active_instance_->remove_job(rd->job_id);
-                }
+                free_row_data(rd);
             },
-            LV_EVENT_CLICKED, row_data);
+            LV_EVENT_DELETE, row_data);
     }
 }
 
