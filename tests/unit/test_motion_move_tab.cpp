@@ -23,6 +23,7 @@
 #include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "moonraker_api.h"
 #include "moonraker_client_mock.h"
@@ -631,4 +632,69 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: each tap is its own gesture, even on 
 
     INFO(all_scripts());
     CHECK(xy_moves(client_) == 2);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: the XML wires a real pointer drag to the panel",
+                 "[motion][bed-tab][xml]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+    lv_area_t c;
+    lv_obj_get_coords(area, &c);
+    UITest::init(lv_screen_active());
+
+    // Through LVGL's own input pipeline: a misspelled trigger or callback name
+    // in motion_bed_map.xml leaves this drag moving nothing.
+    UITest::press_at(c.x1 + 2, c.y1 + 2);
+    UITest::press_at((c.x1 + c.x2) / 2, (c.y1 + c.y2) / 2);
+    drain();
+    CHECK(bed_readout().find("X ") != std::string::npos);
+    UITest::press_at(c.x2 - 2, c.y2 - 2);
+    UITest::release();
+    drain();
+    UITest::cleanup();
+
+    INFO(all_scripts());
+    CHECK(xy_moves(client_) >= 2);
+    CHECK(all_scripts().find(" Y0.02 ") != std::string::npos);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: the surface stays live while the toolhead reports busy",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    // idle_timeout reads Printing during any move, the drag's own included; a
+    // surface disabled by it stops receiving the drag that caused it.
+    get_printer_state().update_from_status({{"idle_timeout", {{"state", "Printing"}}}});
+    drain();
+    CHECK_FALSE(lv_obj_has_state(area, LV_STATE_DISABLED));
+    get_printer_state().update_from_status({{"idle_timeout", {{"state", "Ready"}}}});
+    drain();
+}
+
+TEST_CASE_METHOD(MoveTabFixture,
+                 "bed tab: no gesture starts while another operation holds the head",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    // A manual probe session holds the head absolutely: no recent app motion
+    // can excuse it the way it excuses idle_timeout.
+    lv_subject_t* probe = get_printer_state().get_manual_probe_active_subject();
+    lv_subject_set_int(probe, 1);
+    REQUIRE(get_printer_state().is_external_blocking_operation_active());
+    auto& panel = get_global_motion_panel();
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    drain();
+    // The finger is not tracked at all: no target under it, nothing sent.
+    CHECK(bed_readout().find("X ") == std::string::npos);
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    lv_subject_set_int(probe, 0);
+    drain();
+
+    CHECK(xy_moves(client_) == 0);
 }

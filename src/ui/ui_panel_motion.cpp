@@ -1522,6 +1522,11 @@ void MotionPanel::refresh_bed_readout() {
 void MotionPanel::handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_point_t screen_point) {
     switch (phase) {
     case helix::BedTouch::Pressed:
+        // Another operation (homing, leveling, a long macro) holds the head.
+        // Our own moves never count: the surface keeps a gesture it started.
+        if (get_printer_state().is_external_blocking_operation_active()) {
+            return;
+        }
         bed_pressing_ = true;
         bed_dragging_ = false;
         bed_press_point_ = screen_point;
