@@ -675,7 +675,9 @@ extern "C" int helix_bt_ble_read(helix_bt_context* ctx, int handle, uint8_t* buf
     {
         std::unique_lock<std::mutex> lk(conn->rx_mu);
         if (conn->rx_cv.wait_for(lk, std::chrono::milliseconds(timeout_ms),
-                                 [conn] { return !conn->rx_queue.empty(); })) {
+                                 [conn] { return !conn->rx_queue.empty() || !conn->active; })) {
+            if (conn->rx_queue.empty())
+                return -ENOTCONN;
             auto data = std::move(conn->rx_queue.front());
             conn->rx_queue.pop_front();
             lk.unlock();

@@ -48,7 +48,7 @@ struct helix_bt_context {
         int acquired_fd = -1;
         int notify_fd = -1;
         uint16_t mtu = 20;
-        bool active = false;
+        std::atomic<bool> active{false};
 
         // PropertiesChanged signal match for GATT notifications (used when
         // AcquireNotify failed and we fell back to StartNotify — values then
