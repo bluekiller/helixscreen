@@ -5699,24 +5699,64 @@ TEST_CASE("CFS flat: runout.chain is the loaded slot's backup edge",
         CHECK(backend.get_endless_spool_config().empty());
     }
 
-    SECTION("out-of-range or self-referencing entries are ignored") {
-        json bad = make_flat_fork_box();
-        bad["runout"] = json{{"chain", json::array({9})}, {"loaded_slot", 0}};
-        CfsTestAccess::handle_status(backend, make_cfs_notification(bad));
-        CHECK(backend.get_endless_spool_config().empty());
-
-        bad["runout"] = json{{"chain", json::array({0})}, {"loaded_slot", 0}};
-        CfsTestAccess::handle_status(backend, make_cfs_notification(bad));
-        CHECK(backend.get_endless_spool_config().empty());
-
-        bad["runout"] = json{{"chain", json::array({"1"})}, {"loaded_slot", 0}};
-        REQUIRE_NOTHROW(CfsTestAccess::handle_status(backend, make_cfs_notification(bad)));
-        CHECK(backend.get_endless_spool_config().empty());
+    SECTION("a chain head that names no other bay states nothing, not a negative") {
+        // Only an empty chain is the firmware saying "no backup". A head we
+        // cannot map is no statement at all: no relation, and plain On.
+        for (const json& chain : {json::array({9}), json::array({0}), json::array({"1"})}) {
+            json bad = make_flat_fork_box();
+            bad["runout"] = json{{"chain", chain}, {"loaded_slot", 0}};
+            REQUIRE_NOTHROW(CfsTestAccess::handle_status(backend, make_cfs_notification(bad)));
+            CHECK(backend.get_endless_spool_config().empty());
+            CHECK(backend.get_endless_spool_capabilities().enabled == EndlessSpoolEnabled::On);
+        }
     }
 
     SECTION("a stock frame drops the fork-era chain") {
         CfsTestAccess::handle_status(backend, make_cfs_notification(make_runout_box(0)));
         CHECK(backend.get_endless_spool_config().empty());
+    }
+}
+
+// The fork numbers slots globally, (box address - 1) * 4 + local. With boxes 2
+// and 3 on the bus, slots[].index runs 4..11 while our bays are 0..7, and
+// loaded_slot and chain use the payload's numbering.
+TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
+          "[ams][cfs][flat][endless_spool][1464]") {
+    json box = make_flat_fork_box();
+    json slots = json::array();
+    for (int i = 4; i < 12; ++i) {
+        slots.push_back({{"index", i},
+                         {"external", false},
+                         {"present", true},
+                         {"loaded", i == 6},
+                         {"material", "PLA"},
+                         {"color", i == 9 ? "#111111" : "#F2F2F2"}});
+    }
+    slots.push_back({{"index", 12},
+                     {"external", true},
+                     {"present", true},
+                     {"loaded", false},
+                     {"material", ""},
+                     {"color", ""}});
+    box["slots"] = slots;
+    box["loaded_slot"] = 6;
+    box["runout"] = json{{"chain", json::array({8, 10})}, {"loaded_slot", 6}};
+
+    CfsRemapHelper backend;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(box));
+
+    // Payload 6 is our bay 2, payload 8 is bay 4.
+    CHECK(backend.get_system_info().current_slot == 2);
+    const auto cfg = backend.get_endless_spool_config();
+    CHECK(endless_spool_backup_for(cfg, 2) == 4);
+    CHECK(endless_spool_backup_for(cfg, 6) == -1);
+
+    SECTION("the external entry still reads as bypass") {
+        json bypass = box;
+        bypass["loaded_slot"] = 12;
+        bypass["runout"] = nullptr;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(bypass));
+        CHECK(backend.get_system_info().current_slot == -2);
     }
 }
 

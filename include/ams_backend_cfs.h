@@ -406,6 +406,13 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// Flat (`slots[]`) parse — community Kalico box.py reimplementations.
     static AmsSystemInfo parse_flat_box_status(const nlohmann::json& box_json);
 
+    /// The fork's runout-swap plan (`box.runout`) as per-bay directed edges:
+    /// edges[bay] = the bay a runout on it swaps to, or -1 (#1464). nullopt when
+    /// the frame states nothing usable: no plan (null/absent, nothing loaded) or
+    /// a chain head that names no other bay. An empty chain is engaged all -1,
+    /// the one real negative.
+    static std::optional<std::vector<int>> parse_flat_runout_edges(const nlohmann::json& box_json);
+
     /// Fold a persisted flat-schema fingerprint with exactly three pipes
     /// (material|brand|product|colour, the legacy four-field composite) onto
     /// the current two-field shape, so an upgrade does not read every stored
@@ -865,6 +872,11 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     // episode. -2 (bypass sentinel) is never stored: the external spool is
     // not a bay and has no lane override.
     int runout_lane_ = -1;
+
+    /// parse_flat_runout_edges() as last published. Presence-gated: a delta
+    /// omitting `runout` keeps it, an explicit null clears it, a stock frame
+    /// clears it. Guarded by mutex_.
+    std::optional<std::vector<int>> flat_backup_edges_;
 
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.

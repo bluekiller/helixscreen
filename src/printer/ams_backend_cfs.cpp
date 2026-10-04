@@ -471,6 +471,34 @@ static int find_external_slot_index(const nlohmann::json& box_json) {
     return -1;
 }
 
+// Flat payload slot index -> bay position. The fork numbers slots globally,
+// (box address - 1) * 4 + local, so with a box missing from the chain the
+// indices skip; our bays are the kept slots[] entries by vector position, the
+// numbering parse_flat_box_status gives them. loaded_slot and runout.chain use
+// the payload's numbering and go through this map; an index it lacks names no
+// bay.
+static std::unordered_map<int, int> flat_bay_positions(const nlohmann::json& box_json) {
+    std::unordered_map<int, int> positions;
+    auto it = box_json.find("slots");
+    if (it == box_json.end() || !it->is_array()) {
+        return positions;
+    }
+    int position = 0;
+    for (const auto& slot_json : *it) {
+        if (!slot_json.is_object() || helix::json_util::safe_bool(slot_json, "external", false)) {
+            continue;
+        }
+        positions.emplace(helix::json_util::safe_int(slot_json, "index", position), position);
+        ++position;
+    }
+    return positions;
+}
+
+static int flat_bay_position(const std::unordered_map<int, int>& positions, int payload_index) {
+    auto it = positions.find(payload_index);
+    return it == positions.end() ? -1 : it->second;
+}
+
 AmsSystemInfo
 AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
                                       const std::unordered_map<int, std::string>* own_labels) {
@@ -963,7 +991,8 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     // load-completion frame of a wholly successful load. Treating its presence
     // as an event arms a runout episode against the lane that just loaded, and
     // that episode drops the lane's remembered Spoolman link the moment the bay
-    // next reads empty. It is read below as the backup relation instead.
+    // next reads empty. parse_flat_runout_edges() reads it as the backup
+    // relation instead.
     //
     // filament_loaded is left false for the same reason as the stock parse —
     // the toolhead sensor branch in handle_status is its sole writer.
@@ -1059,9 +1088,9 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
             SlotInfo slot;
             // Index by VECTOR POSITION, not the payload's `index`. Downstream
             // slot-widget creation walks this vector and treats position as the
-            // bay, so a sparse or out-of-order payload must not leave holes. On
-            // every payload seen so far the two agree; warn if they ever stop,
-            // because a silent relabel would put a spool on the wrong bay.
+            // bay, so a sparse or out-of-order payload must not leave holes. The
+            // two differ when a box is missing from the chain; payload indices
+            // are translated through flat_bay_positions().
             slot.slot_index = static_cast<int>(unit.slots.size());
             slot.global_index = slot.slot_index;
             if (int reported = helix::json_util::safe_int(slot_json, "index", slot.slot_index);
@@ -1106,35 +1135,15 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     unit.slot_count = static_cast<int>(unit.slots.size());
     info.total_slots = unit.slot_count;
 
-    // The swap plan (#1464). box.py's _runout_status builds `chain` from every
-    // other present slot with identical material and colour, in slot order, and
-    // runout_recovery swaps to chain[0]; the tail is not a succession, so the
-    // head is the one edge stated. Same index space as loaded_slot. null means
-    // nothing is loaded, so no plan: left nullopt, like an absent key.
-    auto runout_it = box_json.find("runout");
-    if (runout_it != box_json.end() && runout_it->is_object()) {
-        std::vector<int> edges(static_cast<size_t>(unit.slot_count), -1);
-        const int source = helix::json_util::safe_int(*runout_it, "loaded_slot", -1);
-        auto chain_it = runout_it->find("chain");
-        if (source >= 0 && source < unit.slot_count && chain_it != runout_it->end() &&
-            chain_it->is_array() && !chain_it->empty() && chain_it->front().is_number_integer()) {
-            const int target = chain_it->front().get<int>();
-            if (target >= 0 && target < unit.slot_count && target != source) {
-                edges[static_cast<size_t>(source)] = target;
-            }
-        }
-        info.endless_spool_backup_edges = std::move(edges);
-    }
-
-    // loaded_slot is -1 when nothing is loaded. It indexes the same slots[]
-    // array — including the external entry, which is not in our vector. A bay
-    // index lands in the bounds branch; the external index maps to the -2
-    // bypass sentinel (the same convention AFC and Happy Hare use, and what
-    // AmsState's bypass subjects key off).
+    // loaded_slot is -1 when nothing is loaded. It is a payload index, and can
+    // name the external entry, which is not in our vector. A bay index maps to
+    // its position; the external index maps to the -2 bypass sentinel (the same
+    // convention AFC and Happy Hare use, and what AmsState's bypass subjects key
+    // off).
     int loaded_slot = helix::json_util::safe_int(box_json, "loaded_slot", -1);
-    if (loaded_slot >= 0 && loaded_slot < unit.slot_count) {
-        info.current_slot = loaded_slot;
-        info.current_tool = loaded_slot;
+    if (int bay = flat_bay_position(flat_bay_positions(box_json), loaded_slot); bay >= 0) {
+        info.current_slot = bay;
+        info.current_tool = bay;
     } else if (loaded_slot >= 0 && loaded_slot == find_external_slot_index(box_json)) {
         info.current_slot = -2;
         info.current_tool = -2;
@@ -1148,6 +1157,37 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     sync_tool_map_from_forward(info, /*identity_fallback=*/true);
 
     return info;
+}
+
+std::optional<std::vector<int>>
+AmsBackendCfs::parse_flat_runout_edges(const nlohmann::json& box_json) {
+    // box.py's _runout_status builds `chain` from every other present slot with
+    // identical material and colour, in slot order, and runout_recovery swaps to
+    // chain[0]; the tail is not a succession, so the head is the one edge
+    // stated. null means nothing is loaded: no plan.
+    auto runout_it = box_json.find("runout");
+    if (runout_it == box_json.end() || !runout_it->is_object()) {
+        return std::nullopt;
+    }
+    auto chain_it = runout_it->find("chain");
+    if (chain_it == runout_it->end() || !chain_it->is_array()) {
+        return std::nullopt;
+    }
+    const auto positions = flat_bay_positions(box_json);
+    std::vector<int> edges(positions.size(), -1);
+    if (chain_it->empty()) {
+        return edges;
+    }
+    const int source =
+        flat_bay_position(positions, helix::json_util::safe_int(*runout_it, "loaded_slot", -1));
+    const int target = chain_it->front().is_number_integer()
+                           ? flat_bay_position(positions, chain_it->front().get<int>())
+                           : -1;
+    if (source < 0 || target < 0 || target == source) {
+        return std::nullopt;
+    }
+    edges[static_cast<size_t>(source)] = target;
+    return edges;
 }
 
 // Canonicalize per-slot RFID data into a fingerprint string used by
@@ -1520,11 +1560,10 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                     system_info_.endless_spool_group_ids.clear();
                     system_info_.endless_spool_groups_reported = false;
                     if (box.contains("runout")) {
-                        system_info_.endless_spool_backup_edges =
-                            std::move(new_info.endless_spool_backup_edges);
+                        flat_backup_edges_ = parse_flat_runout_edges(box);
                     }
                 } else {
-                    system_info_.endless_spool_backup_edges.reset();
+                    flat_backup_edges_.reset();
                     if (new_info.endless_spool_groups_reported) {
                         system_info_.endless_spool_group_ids =
                             std::move(new_info.endless_spool_group_ids);
@@ -3821,7 +3860,7 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
         system_info_.endless_spool_enabled ? EndlessSpoolEnabled::On : EndlessSpoolEnabled::Off;
     // The fork's swap plan answers the same question for the loaded spool: an
     // empty chain means a runout now has nothing to swap to.
-    const auto& edges = system_info_.endless_spool_backup_edges;
+    const auto& edges = flat_backup_edges_;
     if (enabled == EndlessSpoolEnabled::On &&
         ((system_info_.endless_spool_groups_reported &&
           endless_spool_config_from_groups(system_info_.endless_spool_group_ids).empty()) ||
@@ -3838,10 +3877,10 @@ helix::printer::EndlessSpoolCapabilities AmsBackendCfs::get_endless_spool_capabi
 helix::printer::EndlessSpoolConfig AmsBackendCfs::get_endless_spool_config() const {
     std::lock_guard<std::mutex> lock(mutex_);
     // A plan published while swapping is off backs nothing up.
-    if (!system_info_.endless_spool_enabled || !system_info_.endless_spool_backup_edges) {
+    if (!system_info_.endless_spool_enabled || !flat_backup_edges_) {
         return {};
     }
-    return endless_spool_config_from_edges(*system_info_.endless_spool_backup_edges);
+    return endless_spool_config_from_edges(*flat_backup_edges_);
 }
 
 std::vector<int> AmsBackendCfs::get_tool_mapping() const {

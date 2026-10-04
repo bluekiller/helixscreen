@@ -1501,11 +1501,6 @@ struct AmsSystemInfo {
     /// capability answer would claim a negative it never read.
     bool endless_spool_groups_reported = false;
 
-    /// Directed runout-swap edges: edges[global_slot] = the slot a runout on it
-    /// swaps to, or -1. Only the CFS fork dialect publishes these (`box.runout`).
-    /// nullopt = no plan was published, which is "unknown", not "no backup".
-    std::optional<std::vector<int>> endless_spool_backup_edges;
-
     bool supports_bypass = false;            ///< Has bypass selector position
     bool has_hardware_bypass_sensor = false; ///< true=auto-detect sensor, false=virtual/manual
     TipMethod tip_method = TipMethod::CUT;   ///< How filament tip is handled during unload
