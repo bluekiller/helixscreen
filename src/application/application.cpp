@@ -3111,10 +3111,7 @@ void Application::setup_discovery_callbacks() {
             // Computed from api->hardware() (post-copy) — *snapshot is moved
             // into set_hardware below and is empty after that point.
             const size_t new_fingerprint = helix::compute_hardware_fingerprint(api->hardware());
-            const bool hw_changed = app->m_first_discovery_complete ||
-                                    (new_fingerprint != app->m_last_hardware_fingerprint);
-            app->m_last_hardware_fingerprint = new_fingerprint;
-            app->m_first_discovery_complete = false;
+            const bool hw_changed = app->note_hardware_fingerprint(new_fingerprint);
             crash_handler::breadcrumb::note("disc", "hw_changed", hw_changed ? 1L : 0L);
             if (hw_changed) {
                 spdlog::info("[Application] on_discovery_complete #{} — hardware shape changed "
@@ -4862,6 +4859,22 @@ void Application::cancel_add_printer_wizard() {
     });
 }
 
+bool Application::note_hardware_fingerprint(size_t fingerprint) {
+    const bool changed = m_first_discovery_complete || fingerprint != m_last_hardware_fingerprint;
+    m_last_hardware_fingerprint = fingerprint;
+    m_first_discovery_complete = false;
+    return changed;
+}
+
+void Application::reset_discovery_session() {
+    m_first_discovery_complete = true;
+    m_last_hardware_fingerprint = 0;
+    m_targeted_reconfig_shown = false;
+    m_hardware_setup_prompt_shown = false;
+    m_type_mismatch_shown = false;
+    m_pending_hardware_setup_steps.clear();
+}
+
 void Application::tear_down_printer_state() {
     spdlog::info("[Application] Tearing down printer state...");
     teardown_printer_scope(TeardownScope::PrinterSwitch);
@@ -4886,6 +4899,9 @@ void Application::teardown_printer_scope(TeardownScope scope) {
 
     // A callback armed for the old printer's wizard must not fire against the next one.
     set_wizard_cancel_callback(nullptr);
+
+    // The next printer's discovery is a first discovery with its own prompts to show.
+    reset_discovery_session();
 
     // A switch freezes the UpdateQueue before the disconnect: work the WebSocket thread
     // enqueues from here on is buffered, and update_queue_shutdown() below discards the

@@ -264,3 +264,29 @@ TEST_CASE_METHOD(
     CHECK_FALSE(settings_persisted());
     CHECK(invalidations_ == 0);
 }
+
+// ============================================================================
+// Discovery session state across a printer scope
+// ============================================================================
+
+TEST_CASE_METHOD(PrinterSwitchFixture,
+                 "Application: a new printer scope's first discovery counts as a hardware change "
+                 "even when its fingerprint matches the previous printer's",
+                 "[application][switch_printer][discovery]") {
+    constexpr size_t SAME_HARDWARE = 0xABCD;
+
+    REQUIRE(ApplicationTestAccess::note_hardware_fingerprint(app_, SAME_HARDWARE));
+    // A reconnect to the same printer with unchanged hardware stays a no-op.
+    REQUIRE_FALSE(ApplicationTestAccess::note_hardware_fingerprint(app_, SAME_HARDWARE));
+
+    ApplicationTestAccess::type_mismatch_shown(app_) = true;
+    ApplicationTestAccess::hardware_setup_prompt_shown(app_) = true;
+    ApplicationTestAccess::targeted_reconfig_shown(app_) = true;
+
+    ApplicationTestAccess::reset_discovery_session(app_);
+
+    CHECK(ApplicationTestAccess::note_hardware_fingerprint(app_, SAME_HARDWARE));
+    CHECK_FALSE(ApplicationTestAccess::type_mismatch_shown(app_));
+    CHECK_FALSE(ApplicationTestAccess::hardware_setup_prompt_shown(app_));
+    CHECK_FALSE(ApplicationTestAccess::targeted_reconfig_shown(app_));
+}
