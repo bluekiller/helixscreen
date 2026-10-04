@@ -245,6 +245,9 @@ void drain_calib_queue() {
 // status-parsing fixtures further down; forward-declared so the bypass tests
 // above them can share it.
 static json make_cfs_notification(const json& box_obj);
+namespace {
+json make_flat_fork_box();
+} // namespace
 
 TEST_CASE("CFS bypass: fork dialect commands the attended load", "[ams][cfs][bypass]") {
     CfsRemapHelper backend;
@@ -4811,8 +4814,7 @@ TEST_CASE("CFS load routes the bypass sentinel instead of refusing it", "[ams][c
     SECTION("Fork keeps its own T<external> attended load") {
         CfsRemapHelper backend;
         backend.mark_running();
-        CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(1)));
-        CfsTestAccess::set_macro_variant_fork(backend);
+        CfsTestAccess::handle_status(backend, make_cfs_notification(make_flat_fork_box()));
 
         // Fork resolves the external bay through its own T command, so the
         // sentinel must NOT be diverted into our stock-dialect script.
@@ -5717,11 +5719,12 @@ TEST_CASE("CFS flat: runout.chain is the loaded slot's backup edge",
     }
 }
 
+namespace {
+
 // The fork numbers slots globally, (box address - 1) * 4 + local. With boxes 2
-// and 3 on the bus, slots[].index runs 4..11 while our bays are 0..7, and
-// loaded_slot and chain use the payload's numbering.
-TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
-          "[ams][cfs][flat][endless_spool][1464]") {
+// and 3 on the bus, slots[].index runs 4..11 (external holder 12) while our
+// bays are 0..7; payload 6 is loaded and is our bay 2.
+json make_gapped_fork_box() {
     json box = make_flat_fork_box();
     json slots = json::array();
     for (int i = 4; i < 12; ++i) {
@@ -5741,7 +5744,14 @@ TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
     box["slots"] = slots;
     box["loaded_slot"] = 6;
     box["runout"] = json{{"chain", json::array({8, 10})}, {"loaded_slot", 6}};
+    return box;
+}
 
+} // namespace
+
+TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
+          "[ams][cfs][flat][endless_spool][1464]") {
+    const json box = make_gapped_fork_box();
     CfsRemapHelper backend;
     CfsTestAccess::handle_status(backend, make_cfs_notification(box));
 
@@ -5757,6 +5767,39 @@ TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
         bypass["runout"] = nullptr;
         CfsTestAccess::handle_status(backend, make_cfs_notification(bypass));
         CHECK(backend.get_system_info().current_slot == -2);
+    }
+}
+
+// Commands go the other way: box.py registers T<n> and takes SLOT= in its own
+// global numbering, so a bay must be sent as the payload index it was
+// published under. Bay 2 is firmware slot 6 here; sending 2 moves filament in a
+// bay that is not on the bus.
+TEST_CASE("CFS fork: commands name the firmware slot, not the bay position",
+          "[ams][cfs][fork][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_gapped_fork_box()));
+
+    SECTION("load") {
+        REQUIRE(backend.load_filament(3).result == AmsResult::SUCCESS);
+        REQUIRE(backend.dispatched == std::vector<std::string>{"T7"});
+    }
+
+    SECTION("tool change with a spool loaded swaps through T<n>") {
+        REQUIRE(backend.change_tool(4).result == AmsResult::SUCCESS);
+        REQUIRE(backend.dispatched == std::vector<std::string>{"T8"});
+    }
+
+    SECTION("slot identity write") {
+        backend.push_slot_identity_to_firmware(2, "PETG", "eSUN", "", 0x0A2989);
+        REQUIRE(backend.captured.size() == 1);
+        CHECK(backend.captured[0].rfind("_BOX_SLOT_SET SLOT=6 ", 0) == 0);
+    }
+
+    SECTION("slot clear") {
+        helix::AmsBackend& base = backend;
+        base.clear_slot_override(2);
+        CHECK(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=6"});
     }
 }
 
@@ -6469,8 +6512,13 @@ TEST_CASE("CFS clear_slot_override clears the Box profile on Fork only", "[ams][
     base.clear_slot_override(2);
     REQUIRE(backend.captured.empty());
 
+    // Fork with no flat frame has no firmware slot for the bay: refuse, never
+    // guess (#1464).
     CfsTestAccess::set_macro_variant_fork(backend);
+    base.clear_slot_override(2);
+    REQUIRE(backend.captured.empty());
 
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_flat_fork_box()));
     base.clear_slot_override(2);
 
     REQUIRE(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=2"});

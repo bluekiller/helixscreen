@@ -878,6 +878,17 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// clears it. Guarded by mutex_.
     std::optional<std::vector<int>> flat_backup_edges_;
 
+    /// flat_bay_positions() of the last flat frame that carried slots[]: the
+    /// fork's payload slot index for each bay. Guarded by mutex_.
+    std::unordered_map<int, int> flat_bay_positions_;
+
+    /// The slot number a command names for @p bay: the bay itself on stock
+    /// dialects, the fork's payload index on Fork (box.py registers T<n> and
+    /// takes SLOT= in its global numbering). -1 when Fork has no payload index
+    /// for that bay, which callers refuse rather than guess.
+    /// **Caller must hold mutex_.**
+    [[nodiscard]] int firmware_slot_locked(int bay) const;
+
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
     helix::ams::FilamentSlotOverrideStore* lane_record_store() override {

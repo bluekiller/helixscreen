@@ -499,6 +499,21 @@ static int flat_bay_position(const std::unordered_map<int, int>& positions, int 
     return it == positions.end() ? -1 : it->second;
 }
 
+// The inverse: the payload index a bay was published under, -1 when unknown.
+static int flat_payload_index(const std::unordered_map<int, int>& positions, int bay) {
+    for (const auto& [payload_index, position] : positions) {
+        if (position == bay) {
+            return payload_index;
+        }
+    }
+    return -1;
+}
+
+int AmsBackendCfs::firmware_slot_locked(int bay) const {
+    return macro_variant_ == CfsMacroVariant::Fork ? flat_payload_index(flat_bay_positions_, bay)
+                                                   : bay;
+}
+
 AmsSystemInfo
 AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
                                       const std::unordered_map<int, std::string>* own_labels) {
@@ -1562,6 +1577,7 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                     if (box.contains("runout")) {
                         flat_backup_edges_ = parse_flat_runout_edges(box);
                     }
+                    flat_bay_positions_ = flat_bay_positions(box);
                 } else {
                     flat_backup_edges_.reset();
                     if (new_info.endless_spool_groups_reported) {
@@ -2052,6 +2068,7 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
     // size is unknown), so a 4-slot CFS refuses index 7 here instead of
     // dispatching a load script for a bay that is not there.
     int max_slot;
+    int firmware_slot;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         max_slot = slot_index_bound_locked() - 1;
@@ -2060,6 +2077,7 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
                 return err;
             }
         }
+        firmware_slot = firmware_slot_locked(slot_index);
     }
 
     std::string gcode;
@@ -2070,7 +2088,7 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
         spdlog::info("[AMS CFS] Bypass load — external spool, via {}",
                      has_load_material ? "LOAD_MATERIAL" : "fallback feed");
     } else {
-        gcode = load_gcode(slot_index, macro_variant_);
+        gcode = load_gcode(firmware_slot, macro_variant_);
     }
 
     if (gcode.empty()) {
@@ -2163,8 +2181,10 @@ AmsError AmsBackendCfs::do_change_tool(int tool) {
         return err;
 
     bool needs_unload = false;
+    int firmware_slot;
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        firmware_slot = firmware_slot_locked(tool);
         // Cut-first decision centralized in needs_unload_before_load(): on K1 CFS
         // current_slot reports a *preloaded* (cassette-staged) slot with the
         // nozzle still empty, so the K1 override keys on filament_loaded only
@@ -2181,8 +2201,8 @@ AmsError AmsBackendCfs::do_change_tool(int tool) {
     // sit high while fewer units are attached. The 1:1 slot identity (CFS bays
     // map 1:1 to tools) is what lets the builders below encode it as a bay
     // TNN; encodability is the only bound a key needs.
-    std::string gcode =
-        needs_unload ? swap_gcode(tool, macro_variant_) : load_gcode(tool, macro_variant_);
+    std::string gcode = needs_unload ? swap_gcode(firmware_slot, macro_variant_)
+                                     : load_gcode(firmware_slot, macro_variant_);
     if (gcode.empty()) {
         // 15 = the last encodable TNN index; slot_to_tnn refuses anything past it.
         return AmsErrorHelper::invalid_slot(lane_noun(), tool, 15);
@@ -2385,8 +2405,10 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
         // The echo staging's stamp, for the matched abandons on the failure
         // paths below.
         std::uint64_t echo_sequence = 0;
+        int firmware_slot;
         {
             std::lock_guard<std::mutex> lock(mutex_);
+            firmware_slot = firmware_slot_locked(global_index);
             for (const auto& unit : system_info_.units) {
                 for (const auto& slot : unit.slots) {
                     if (slot.global_index == global_index) {
@@ -2435,11 +2457,12 @@ void AmsBackendCfs::push_slot_identity_to_firmware(int global_index, const std::
             }
         }
         std::string gcode =
-            slot_set_gcode(global_index, slot_material, color_rgb, slot_brand, name, spoolman_id);
+            slot_set_gcode(firmware_slot, slot_material, color_rgb, slot_brand, name, spoolman_id);
         if (gcode.empty()) {
             spdlog::debug("{} slot-set skipped for slot {}", backend_log_tag(), global_index);
+            std::lock_guard<std::mutex> lock(mutex_);
+            rfid_tracker_.forget_expected(global_index, staged_echoes);
             if (declared) {
-                std::lock_guard<std::mutex> lock(mutex_);
                 own_write_echoes_.abandon(global_index, echo_sequence);
             }
             return;
@@ -4762,6 +4785,7 @@ void AmsBackendCfs::strip_spoolman_link_on_runout_locked(SlotInfo& slot, int slo
 }
 
 void AmsBackendCfs::clear_slot_override(int slot_index) {
+    int firmware_slot;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto* slot = system_info_.get_slot_global(slot_index);
@@ -4772,11 +4796,18 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);
         clear_override_locked(slot_index, slot);
+        firmware_slot = firmware_slot_locked(slot_index);
     }
 
     emit_event(EVENT_SLOT_CHANGED, std::to_string(slot_index));
     if (macro_variant_ == CfsMacroVariant::Fork) {
-        execute_gcode("_BOX_SLOT_CLEAR SLOT=" + std::to_string(slot_index));
+        if (firmware_slot < 0) {
+            spdlog::warn("{} clear_slot_override: bay {} has no firmware slot - not clearing the "
+                         "Box profile",
+                         backend_log_tag(), slot_index);
+            return;
+        }
+        execute_gcode("_BOX_SLOT_CLEAR SLOT=" + std::to_string(firmware_slot));
     }
 }
 
