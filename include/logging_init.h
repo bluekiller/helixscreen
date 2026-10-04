@@ -502,6 +502,13 @@ spdlog::level::level_enum resolve_log_level(int cli_verbosity, const std::string
  */
 std::string tail_ring_buffer(int num_lines);
 
+/**
+ * @brief Empty the debug-bundle ring. The ring is process-wide, so a bundle
+ * assembled in one test otherwise carries every line logged by the tests
+ * before it.
+ */
+void clear_ring_buffer();
+
 /// Number of messages the ring buffer currently retains (capacity), for the
 /// bundle's log_meta diagnostic key. 0 before init() installs the sink.
 size_t ring_buffer_capacity();

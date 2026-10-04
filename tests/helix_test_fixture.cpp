@@ -24,6 +24,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "http_executor.h"
 #include "lane_source_store.h"
+#include "logging_init.h"
 #include "lvgl_log_handler.h"
 #include "panel_widget_manager.h"
 #include "rpc_error_correlation.h"
@@ -542,6 +543,10 @@ void HelixTestFixture::reset_all() {
     // bodies; a case asserting "first occurrence logs at its usual level" would
     // otherwise depend on how many distinct warnings earlier cases emitted.
     helix::logging::reset_lvgl_log_dedupe();
+
+    // The debug-bundle log tail reads this ring, so whatever earlier cases
+    // logged (a store path, an SSID) would otherwise show up in a later bundle.
+    helix::logging::clear_ring_buffer();
 
     // SettingsManager::init_subjects() is one-shot, so a setting a test changed
     // (jog speeds, jog distances) would otherwise outlive the Config reset above.

@@ -767,6 +767,12 @@ std::string effective_log_file_path() {
     return (g_effective_target == LogTarget::File) ? g_effective_file_path : std::string{};
 }
 
+void clear_ring_buffer() {
+    if (auto sink = g_ring_sink) {
+        sink->clear();
+    }
+}
+
 std::string tail_ring_buffer(int num_lines) {
     auto sink = g_ring_sink; // copy the shared_ptr so a concurrent init() swap is safe
     if (!sink) {
