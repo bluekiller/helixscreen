@@ -1309,6 +1309,96 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing the selection removes the halo",
 }
 
 // ===========================================================================
+// Recoloring a built preview.
+//
+// Both caches hold pixels, so a color change that does not drop them leaves the
+// old color on screen until something unrelated invalidates.
+// ===========================================================================
+
+TEST_CASE_METHOD(LVGLTestFixture, "a new extrusion color repaints a completed solid cache",
+                 "[layer_renderer][color]") {
+    auto gcode = make_test_gcode();
+    lv_obj_t* canvas = lv_canvas_create(test_screen());
+    REQUIRE(canvas != nullptr);
+    static uint8_t buf[200 * 200 * 4];
+    lv_canvas_set_buffer(canvas, buf, 200, 200, LV_COLOR_FORMAT_ARGB8888);
+
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+    renderer.set_ghost_mode(false);
+    renderer.set_ssao_enabled(false);
+    renderer.set_antialias_enabled(false);
+    renderer.set_canvas_size(200, 200);
+    renderer.set_current_layer(0);
+
+    // Painted pixels whose dominant channel is red vs blue (ARGB8888 is BGRA).
+    auto count = [&]() {
+        std::fill(buf, buf + 200 * 200 * 4, uint8_t{0});
+        drive_until_cached(renderer, canvas);
+        std::pair<int, int> red_blue{0, 0};
+        for (int i = 0; i < 200 * 200; ++i) {
+            const uint8_t b = buf[i * 4 + 0];
+            const uint8_t r = buf[i * 4 + 2];
+            if (buf[i * 4 + 3] == 0) {
+                continue;
+            }
+            if (r > b) {
+                ++red_blue.first;
+            } else if (b > r) {
+                ++red_blue.second;
+            }
+        }
+        return red_blue;
+    };
+
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+    const auto first = count();
+    REQUIRE(first.first > 0);
+    REQUIRE(first.second == 0);
+
+    renderer.set_extrusion_color(lv_color_hex(0x0000FF));
+    const auto second = count();
+    INFO("red=" << second.first << " blue=" << second.second);
+    CHECK(second.first == 0);
+    CHECK(second.second > 0);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a new extrusion color drops the built ghost",
+                 "[layer_renderer][color][ghost]") {
+    auto gcode = make_test_gcode();
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+
+    renderer.pump_offscreen_build(200, 200);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    renderer.pump_offscreen_build(200, 200);
+    REQUIRE(renderer.has_ghost_output());
+
+    // The same color is not a change, so a healthy ghost survives it.
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+    CHECK(renderer.has_ghost_output());
+
+    renderer.set_extrusion_color(lv_color_hex(0x0000FF));
+    CHECK_FALSE(renderer.has_ghost_output());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "installing a tool palette drops the built ghost",
+                 "[layer_renderer][color][ghost]") {
+    auto gcode = make_test_gcode();
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+
+    renderer.pump_offscreen_build(200, 200);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    renderer.pump_offscreen_build(200, 200);
+    REQUIRE(renderer.has_ghost_output());
+
+    renderer.set_tool_color_palette({"#112233", "#445566"});
+    CHECK_FALSE(renderer.has_ghost_output());
+}
+
+// ===========================================================================
 // Scrubbing the layer slider backwards.
 //
 // The rim is not re-derived per frame: it is stamped into the solid cache as

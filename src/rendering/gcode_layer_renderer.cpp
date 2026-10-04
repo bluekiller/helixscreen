@@ -222,8 +222,14 @@ void GCodeLayerRenderer::set_content_offset_y(float offset_percent) {
 // ============================================================================
 
 void GCodeLayerRenderer::set_extrusion_color(lv_color_t color) {
+    if (use_custom_extrusion_color_ && lv_color_eq(color_extrusion_, color)) {
+        // Unchanged: keep a healthy ghost build rather than restarting it.
+        return;
+    }
     color_extrusion_ = color;
     use_custom_extrusion_color_ = true;
+    // Both caches hold pixels painted in the old color.
+    invalidate_cache();
 }
 
 void GCodeLayerRenderer::set_travel_color(lv_color_t color) {
@@ -253,6 +259,8 @@ void GCodeLayerRenderer::set_tool_color_palette(const std::vector<std::string>& 
     // set_gcode()/set_streaming_controller().
     cancel_background_ghost_render();
     tool_palette_.set_from_hex_palette(hex_colors);
+    // Both caches hold pixels painted from the previous palette.
+    invalidate_cache();
     if (tool_palette_.has_tool_colors()) {
         spdlog::debug("[GCodeLayerRenderer] Set tool color palette: {} colors", hex_colors.size());
     }
