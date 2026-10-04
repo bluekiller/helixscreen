@@ -24,11 +24,11 @@ class DisplayManagerTestAccess {
     }
 
     static void set_use_hardware_blank(DisplayManager& dm, bool use_hw) {
-        dm.m_use_hardware_blank = use_hw;
+        dm.m_sleep.m_use_hardware_blank = use_hw;
     }
 
     static void set_use_power_off(DisplayManager& dm, bool use_power_off) {
-        dm.m_use_power_off = use_power_off;
+        dm.m_sleep.m_use_power_off = use_power_off;
     }
 
     static void set_backlight(DisplayManager& dm, std::unique_ptr<BacklightBackend> backlight) {
@@ -45,7 +45,7 @@ class DisplayManagerTestAccess {
     // True while the power-off flush suppression is engaged (#1049 regression
     // guard: must be set after a real power-off enter_sleep, cleared on restore).
     static bool is_flush_suppressed(DisplayManager& dm) {
-        return dm.m_flush_suppressed_for_sleep;
+        return dm.m_sleep.m_flush_suppressed_for_sleep;
     }
 
     // Run the SAME power-off gate that DisplayManager::init() applies, against the
@@ -56,13 +56,13 @@ class DisplayManagerTestAccess {
     static bool compute_use_power_off(DisplayManager& dm) {
         bool has_usable_backlight = dm.m_backlight && dm.m_backlight->is_available();
         bool backend_can_power_off = dm.m_backend && dm.m_backend->supports_power_off();
-        dm.m_use_power_off = DisplayManager::should_use_power_off(
-            dm.m_use_hardware_blank, has_usable_backlight, backend_can_power_off);
-        return dm.m_use_power_off;
+        dm.m_sleep.m_use_power_off = helix::should_use_power_off(
+            dm.m_sleep.m_use_hardware_blank, has_usable_backlight, backend_can_power_off);
+        return dm.m_sleep.m_use_power_off;
     }
 
     static void enter_sleep(DisplayManager& dm, int timeout_sec) {
-        dm.enter_sleep(timeout_sec);
+        dm.m_sleep.enter_sleep(timeout_sec);
     }
 
     // Creates the pointer from the manager's backend and runs init()'s input
@@ -133,20 +133,20 @@ class DisplayManagerTestAccess {
     // re-running select_sleep_mechanism(): the power-off branch can degrade to the
     // overlay at runtime, so this is the only way to prove enter_sleep() honored
     // the selector instead of re-deriving the branch itself.
-    static DisplayManager::SleepMechanism last_sleep_mechanism(DisplayManager& dm) {
-        return dm.m_last_sleep_mechanism;
+    static helix::SleepMechanism last_sleep_mechanism(DisplayManager& dm) {
+        return dm.m_sleep.m_last_sleep_mechanism;
     }
 
     // Mirror of the Android window's FLAG_KEEP_SCREEN_ON request (#1245). Must
     // stay true for the entire lifetime of a non-Android build.
     static bool keep_screen_on(DisplayManager& dm) {
-        return dm.m_keep_screen_on;
+        return dm.m_sleep.m_keep_screen_on;
     }
 
     // The software sleep overlay, so a test can assert a black rect was (or was
     // NOT) painted — the whole point of #1245 is that Android stops painting one.
     static lv_obj_t* sleep_overlay(DisplayManager& dm) {
-        return dm.m_sleep_overlay;
+        return dm.m_sleep.m_sleep_overlay;
     }
 
     // The wake-touch gate wake_display() engages (#1245). Private on the
@@ -161,18 +161,18 @@ class DisplayManagerTestAccess {
     // WITHOUT the post-wake repaint. Production wake_display() runs this then
     // lv_refr_now().
     static void restore_display_output(DisplayManager& dm) {
-        dm.m_display_sleeping = false;
-        dm.restore_display_output();
+        dm.m_sleep.m_display_sleeping = false;
+        dm.m_sleep.restore_display_output();
     }
 
     // The software sleep overlay pair on its own, so a repeated create or destroy
     // can be checked against the screen hold the overlay takes.
     static void create_sleep_overlay(DisplayManager& dm) {
-        dm.create_sleep_overlay();
+        dm.m_sleep.create_sleep_overlay();
     }
 
     static void destroy_sleep_overlay(DisplayManager& dm) {
-        dm.destroy_sleep_overlay();
+        dm.m_sleep.destroy_sleep_overlay();
     }
 
     // Refresh pacing as init() would have read it from the environment.
@@ -181,12 +181,12 @@ class DisplayManagerTestAccess {
     }
 
     static void set_display_sleeping(DisplayManager& dm, bool sleeping) {
-        dm.m_display_sleeping = sleeping;
+        dm.m_sleep.m_display_sleeping = sleeping;
     }
 
     // Set by sleep_aware_read_cb when a press arrives while asleep or dimmed.
     static bool wake_requested(DisplayManager& dm) {
-        return dm.m_wake_requested;
+        return dm.m_sleep.m_wake_requested;
     }
 
     // Deletes the pointer device create_input_devices() created.
@@ -200,7 +200,7 @@ class DisplayManagerTestAccess {
 #ifdef HELIX_ENABLE_SCREENSAVER
     // What check_display_sleep() records when it starts a screensaver.
     static void set_screensaver_active(DisplayManager& dm, bool active) {
-        dm.m_screensaver_active = active;
+        dm.m_sleep.m_screensaver_active = active;
     }
 #endif
 };

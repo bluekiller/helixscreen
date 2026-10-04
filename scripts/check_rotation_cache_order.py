@@ -66,7 +66,7 @@ DEFAULT_FILE = "src/application/display_manager.cpp"
 # settle call and an extracted cache helper each change a number here.
 GUARDED_FUNCTIONS = {
     "DisplayManager::init": 1,
-    "DisplayManager::run_rotation_probe": 2,
+    "DisplayManager::settle_display_rotation": 1,
 }
 
 # The cache write under protection - either half of the pair. Matching runs

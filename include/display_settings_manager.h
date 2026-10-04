@@ -105,6 +105,11 @@ class DisplaySettingsManager {
         return settings_.get(Key::Brightness);
     }
 
+    /** @brief The brightness to restore to the backlight: get_brightness() held to 10-100 */
+    int user_brightness() const {
+        return std::clamp(get_brightness(), 10, 100);
+    }
+
     /**
      * @brief Apply brightness live WITHOUT persisting (clamped 10-100)
      *
