@@ -338,14 +338,10 @@ void ActionPromptModal::create_button(const PromptButton& btn, lv_obj_t* contain
 
     // Create callback data with owned copy of gcode string and lifetime token.
     //
-    // An empty gcode means DO NOTHING — the button closes the modal and sends
-    // no command. This used to fall back to sending the *label*, so a button
-    // marked "OK" or "Dismiss" transmitted `OK` to Klipper (#1172). Nothing
-    // relies on that fallback: Klipper's own `action_prompt_button` protocol
-    // already applies the label-as-gcode convention explicitly in
-    // ActionPromptManager::parse_button_spec(), so prompts arriving over the
-    // wire are unaffected. Only programmatically built PromptData reaches here
-    // with a blank gcode, and there it always meant "no command".
+    // An empty gcode means DO NOTHING: the button closes the modal and sends no
+    // command (#1172). Klipper's label-as-gcode convention is applied in
+    // ActionPromptManager::parse_button_spec(), so a wire prompt never reaches
+    // here with a blank gcode; only PromptData built in C++ does.
     auto cbd = std::make_unique<ButtonCallbackData>();
     cbd->modal = this;
     cbd->token = lifetime_.token();
@@ -404,9 +400,7 @@ void ActionPromptModal::clear_dynamic_content() {
 // ============================================================================
 
 void ActionPromptModal::handle_button_click(const std::string& gcode) {
-    // An empty gcode is a dismiss affordance: close, send nothing. Callers no
-    // longer have to smuggle a Klipper comment ("; error-dismiss") through to
-    // get a button that does nothing (#1172).
+    // An empty gcode is a dismiss affordance: close, send nothing (#1172).
     if (gcode.empty()) {
         spdlog::info("[ActionPromptModal] Dismiss button clicked (no gcode)");
         hide(ModalCloseReason::ButtonPress);

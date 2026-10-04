@@ -18,14 +18,10 @@
  * @brief Modal dialog for displaying Klipper action:prompt messages
  *
  * Displays interactive prompts from Klipper macros with dynamic buttons.
- * Buttons can be styled with different colors and grouped for layout.
+ * Buttons can be styled with different colors; each button group gets its own row.
  *
- * ## Integration Note
- * The component must be registered in main.cpp before use:
- * @code
- * lv_xml_register_component_from_file("action_prompt_modal",
- *     "ui_xml/action_prompt_modal.xml");
- * @endcode
+ * The action_prompt_modal and action_prompt_button_row components are
+ * registered in src/xml_registration.cpp.
  *
  * ## Usage:
  * @code
