@@ -1,6 +1,8 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../lvgl_test_fixture.h"
+#include "../test_helpers/usb_scan_wait.h"
 #include "usb_printer_detector.h"
 
 #include "../catch_amalgamated.hpp"
@@ -57,4 +59,33 @@ TEST_CASE("USB printer detector ignores the generic STM32 CDC-ACM id",
     // 0483:5740 is ST's stock virtual COM port id, shared by unrelated boards.
     // A CDC-ACM device gets a tty, never the /dev/usb/lpN node printing needs.
     CHECK_FALSE(UsbPrinterDetector::is_known_printer(0x0483, 0x5740));
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "USB printer polling enumerates the bus off the UI thread",
+                 "[label-printer][usb-detect]") {
+    UsbPrinterDetector detector;
+    int calls = 0;
+
+    SECTION("the first result arrives through the UI queue, not inside start_polling") {
+        detector.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
+        CHECK(calls == 0);
+        helix::test::wait_for_usb_scan();
+        CHECK(calls == 1);
+    }
+
+    SECTION("a scan still running when the detector dies reports nothing") {
+        {
+            UsbPrinterDetector doomed;
+            doomed.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
+        }
+        helix::test::wait_for_usb_scan();
+        CHECK(calls == 0);
+    }
+
+    SECTION("a scan still running when polling stops reports nothing") {
+        detector.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
+        detector.stop_polling();
+        helix::test::wait_for_usb_scan();
+        CHECK(calls == 0);
+    }
 }
