@@ -15,6 +15,8 @@ Everything about selecting, starting, monitoring, and tuning your prints.
 
 If your printer exposes a USB drive, the top-left of the panel shows **Printer** and **USB** tabs. Tap a tab to switch which storage the file browser lists — **Printer** shows files on the printer's storage (Moonraker's virtual SD card), **USB** shows files on the attached USB drive. The tabs only appear when more than one source is available.
 
+Printing (or queueing) a file from the **USB** tab first copies it to the printer's storage, into a folder named `usb_prints`, with a progress bar while it copies. The copy stays there afterwards, so the file is also listed under **Printer** and can be reprinted without the stick. Copying a file with the same name again replaces the earlier copy.
+
 **USB sticks on boards that do not mount them.** Some printer boards have nothing that mounts a USB stick when you plug it in. There, HelixScreen mounts the stick itself, read-only, at `/mnt/usb/<device>` (for example `/mnt/usb/sda1`), and a stick plugged in while HelixScreen is running shows up within about a second. HelixScreen never touches a stick the system has already mounted, and it only does this when it runs as root. It unmounts its own mounts when a stick is removed and when HelixScreen shuts down. FAT, exFAT and NTFS sticks are supported. On a board whose kernel only mounts FAT sticks with short names, a file like `3DBenchy.gcode` appears as `3DBENC~1.GCO` and still prints. To turn this off, set `HELIX_USB_AUTOMOUNT=0` in `helixscreen.env`.
 
 **View options:**
