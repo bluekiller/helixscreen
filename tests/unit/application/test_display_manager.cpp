@@ -531,7 +531,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     DisplayManager mgr;
     DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockPointerBackend>());
 
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    DisplayManagerTestAccess::create_input_devices(mgr);
     lv_indev_t* pointer = mgr.pointer_input();
     REQUIRE(pointer != nullptr);
 
@@ -547,10 +547,9 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     DisplayManager mgr;
     DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockPointerBackend>());
 
-    // rebuild_input_after_backend_swap() calls watch_pointer()/watch_keyboard()
-    // right after creating each device - the same two calls init() makes in
-    // the same order, so this proves init()'s keyboard watch too.
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    // finish_input_setup() is init()'s own input path, so this proves init()'s
+    // keyboard watch.
+    DisplayManagerTestAccess::create_input_devices(mgr);
     lv_indev_t* keyboard = mgr.keyboard_input();
     REQUIRE(keyboard != nullptr);
 
@@ -840,8 +839,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     }
 }
 
-TEST_CASE_METHOD(ApplicationTestFixture,
-                 "Rebuilding input after a backend swap reports the new keyboard's presence",
+TEST_CASE_METHOD(ApplicationTestFixture, "Input setup reports the new keyboard's presence",
                  "[application][display][indev][1572]") {
     ScopedKeyboardPresence restore;
     auto& settings = helix::DisplaySettingsManager::instance();
@@ -849,7 +847,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
 
     DisplayManager mgr;
     DisplayManagerTestAccess::set_backend(mgr, std::make_unique<KeyboardBackend>(true));
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    DisplayManagerTestAccess::create_input_devices(mgr);
 
     CHECK(settings.hardware_keyboard_present());
 }

@@ -61,12 +61,12 @@ class DisplayManagerTestAccess {
         dm.enter_sleep(timeout_sec);
     }
 
-    // Deletes the current m_pointer/m_keyboard and recreates them from the
-    // manager's backend, mirroring init()'s input setup. Production calls this
-    // after a DRM-to-fbdev rotation fallback; a test drives it directly against
-    // an injected backend to prove the indev-delete watch it installs.
-    static void rebuild_input_after_backend_swap(DisplayManager& dm) {
-        dm.rebuild_input_after_backend_swap();
+    // Creates the pointer from the manager's backend and runs init()'s input
+    // setup on it (the default scroll throw/limit), without init()'s LVGL and
+    // device bring-up.
+    static void create_input_devices(DisplayManager& dm) {
+        dm.m_pointer = dm.m_backend->create_input_pointer();
+        dm.finish_input_setup(25, 10);
     }
 
     static void create_keyboard_input(DisplayManager& dm) {
@@ -84,8 +84,8 @@ class DisplayManagerTestAccess {
     }
 
     // Registers the manager's current m_pointer/m_keyboard with its
-    // IndevDeleteWatch, the same call init() and rebuild_input_after_backend_swap()
-    // both make right after creating the device.
+    // IndevDeleteWatch, the same call init() makes right after creating the
+    // device.
     static void watch_pointer(DisplayManager& dm) {
         dm.watch_pointer();
     }
@@ -185,7 +185,7 @@ class DisplayManagerTestAccess {
         return dm.m_wake_requested;
     }
 
-    // Deletes the pointer device a test-driven input rebuild created.
+    // Deletes the pointer device create_input_devices() created.
     static void delete_pointer_input(DisplayManager& dm) {
         if (dm.m_pointer) {
             lv_indev_delete(dm.m_pointer);

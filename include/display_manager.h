@@ -710,8 +710,8 @@ class DisplayManager : public helix::ICalibrationSink {
     // flush hook per dirty area; a cheap early-out when no sinks are attached.
     helix::RemoteScreenManager m_remote_screen;
 
-    // Refresh pacing from the environment, parsed once by init() and applied again after
-    // an input rebuild, whose new devices start at LVGL's default read period.
+    // Refresh pacing from the environment, parsed once by init() and applied after its
+    // input devices exist, since new devices start at LVGL's default read period.
     helix::RefreshTiming m_refresh_timing;
 
     // Display sleep state
@@ -777,12 +777,6 @@ class DisplayManager : public helix::ICalibrationSink {
 
     // Runs inside sleep_aware_read_cb, so only where that wrapper is installed
     helix::ScrollClickGuard m_scroll_guard;
-
-    // Last scroll config applied to the pointer, remembered so a post-swap input
-    // rebuild (rotation fallback) can reapply it. Defaults match the clamped
-    // InputSettingsManager defaults.
-    int m_scroll_throw = 25;
-    int m_scroll_limit = 10;
 
     // Sleep/wake callbacks (e.g. camera stream suspend)
     std::vector<std::function<void(bool sleeping)>> m_sleep_callbacks;
@@ -854,13 +848,11 @@ class DisplayManager : public helix::ICalibrationSink {
     void configure_scroll(int scroll_throw, int scroll_limit);
 
     /// Applies scroll, long-press, the sleep-aware wrapper and the scroll guard to
-    /// a freshly created m_pointer. init() and rebuild_input_after_backend_swap()
-    /// both call it, so the two paths set the pointer up identically.
+    /// a freshly created m_pointer, from finish_input_setup().
     void configure_pointer(int scroll_throw, int scroll_limit);
 
-    /// Registers m_pointer/m_keyboard with m_indev_delete_watch. init() and
-    /// rebuild_input_after_backend_swap() both call these right after
-    /// creating the device, so the two paths watch it identically.
+    /// Registers m_pointer/m_keyboard with m_indev_delete_watch, right after
+    /// the device is created.
     void watch_pointer();
     void watch_keyboard();
 
@@ -887,19 +879,13 @@ class DisplayManager : public helix::ICalibrationSink {
     /// same action instead of a bare pointer write repeated twice.
     static void set_active_instance(DisplayManager* dm);
 
-    /**
-     * @brief Recreate input devices on the current backend after a backend swap
-     *
-     * Used by the DRM→fbdev rotation fallback when it runs post-init: the old
-     * indevs are bound to the freed DRM backend and the deleted display, so they
-     * are deleted and rebuilt (mirroring init()'s input setup) on the fbdev
-     * backend. No-op-safe to call with null input devices.
-     */
-    void rebuild_input_after_backend_swap();
+    /// The input setup init() runs once m_pointer exists: configures the pointer,
+    /// creates the keyboard, then applies m_refresh_timing to the timers both
+    /// devices just created.
+    void finish_input_setup(int scroll_throw, int scroll_limit);
 
     /// Create the backend's keyboard indev, report whether it is a physical
-    /// keyboard to DisplaySettingsManager, and watch and group it. init() and
-    /// rebuild_input_after_backend_swap() both create the keyboard through this.
+    /// keyboard to DisplaySettingsManager, and watch and group it.
     void create_keyboard_input();
 
     /**

@@ -393,9 +393,9 @@ bool DisplayManager::init(const Config& config) {
             rotation_degrees = helix::Config::get_instance()->get<int>("/display/rotate", 0);
         }
 
-        // Kernel auto-detection and interactive probing are handled by
-        // Application::run_rotation_probe_and_layout(), which checks both
-        // rotation_probed and has_rotate_key before overwriting config.
+        // A first-boot kernel panel_orientation arrives as config.rotation
+        // (Application::init_display()). The interactive probe runs later, from
+        // Application::run_rotation_probe_and_layout().
 
         // Apply rotation from config, env, or CLI
         if (rotation_degrees != 0) {
@@ -497,17 +497,8 @@ bool DisplayManager::init(const Config& config) {
     }
 
     // Configure scroll behavior and sleep-aware wrapper
-    if (m_pointer) {
-        configure_pointer(config.scroll_throw, config.scroll_limit);
-    }
-
-    // Create keyboard input device (optional)
-    create_keyboard_input();
-
-    // Refresh pacing overrides, now that the refresh, animation, input and update-queue
-    // timers they set all exist.
     m_refresh_timing = helix::refresh_timing_from_env();
-    helix::apply_refresh_timing(m_refresh_timing);
+    finish_input_setup(config.scroll_throw, config.scroll_limit);
     spdlog::info("[DisplayManager] Refresh pacing: period {} ms (0 = LVGL default, scope {}), "
                  "screensaver {} ms (0 = global period), loop floor {} ms, {} ms while a "
                  "screensaver runs",
@@ -756,10 +747,6 @@ void DisplayManager::shutdown() {
 }
 
 void DisplayManager::configure_scroll(int scroll_throw, int scroll_limit) {
-    // Remember the values so a post-swap input rebuild (rotation fallback) can
-    // reapply them to the freshly-created pointer without re-reading config.
-    m_scroll_throw = scroll_throw;
-    m_scroll_limit = scroll_limit;
     if (!m_pointer) {
         return;
     }
@@ -864,38 +851,17 @@ lv_timer_t* DisplayManager::install_debug_touch_timer() {
     return lv_timer_create(&DisplayManager::debug_touch_tick, 30, nullptr);
 }
 
-void DisplayManager::rebuild_input_after_backend_swap() {
-    // A backend swap (DRM→fbdev rotation fallback) deleted the display and freed
-    // the old backend. lv_display_delete() only detaches indevs (sets their
-    // display to NULL) — it does not free them — so m_pointer/m_keyboard still
-    // point at indevs bound to the gone backend, whose read_cb/user_data now
-    // reference freed memory. Delete them and recreate on the current backend,
-    // mirroring init()'s input setup so scroll/long-press/sleep-wrapper/keyboard
-    // behavior is preserved.
+void DisplayManager::finish_input_setup(int scroll_throw, int scroll_limit) {
     if (m_pointer) {
-        lv_indev_delete(m_pointer); // NOTE: swap, not shutdown
-        m_pointer = nullptr;
-    }
-    if (m_keyboard) {
-        lv_indev_delete(m_keyboard); // NOTE: swap, not shutdown
-        m_keyboard = nullptr;
-    }
-    // The saved read callback belonged to the deleted pointer; drop it so the
-    // sleep-aware wrapper re-captures the new pointer's callback on reinstall.
-    m_original_pointer_read_cb = nullptr;
-
-    m_pointer = m_backend->create_input_pointer();
-    if (m_pointer) {
-        configure_pointer(m_scroll_throw, m_scroll_limit);
+        configure_pointer(scroll_throw, scroll_limit);
     }
 
+    // Create keyboard input device (optional)
     create_keyboard_input();
 
-    // The new devices, and a display the swap recreated, start at LVGL's default periods.
+    // Refresh pacing overrides, now that the refresh, animation, input and update-queue
+    // timers they set all exist.
     helix::apply_refresh_timing(m_refresh_timing);
-
-    spdlog::info("[DisplayManager] Input rebuilt after backend swap (pointer={}, keyboard={})",
-                 m_pointer ? "ok" : "null", m_keyboard ? "ok" : "null");
 }
 
 void DisplayManager::create_keyboard_input() {
@@ -1229,7 +1195,7 @@ void apply_refresh_timing(const RefreshTiming& timing) {
     if (period == 0 || !timing.scope_all) {
         return;
     }
-    // Looked up afresh on every call: a backend swap deletes and recreates the devices.
+    // Looked up afresh on every call: devices come and go (unplug, hot-plug).
     for (lv_indev_t* indev = lv_indev_get_next(nullptr); indev != nullptr;
          indev = lv_indev_get_next(indev)) {
         if (lv_timer_t* read = lv_indev_get_read_timer(indev)) {
@@ -1909,13 +1875,8 @@ bool DisplayManager::try_drm_to_fbdev_fallback(lv_display_rotation_t rot, bool s
         return true; // No fallback needed
     }
 
-    // If input devices were already created (apply_rotation runs this fallback
-    // after init()), they are bound to the DRM backend we are about to free and
-    // to the display we are about to delete — they must be rebuilt on the fbdev
-    // backend below. At init time m_pointer is still null and init() creates the
-    // input devices after this returns, so nothing to rebuild there.
-    const bool had_input_devices = (m_pointer != nullptr);
-
+    // Runs only from init(), before the input devices exist: nothing yet is bound
+    // to the DRM backend or the display freed below.
     spdlog::warn("[DisplayManager] DRM lacks hardware rotation for {}°, "
                  "falling back to fbdev (flicker-free software rotation)",
                  static_cast<int>(rot) * 90);
@@ -1940,15 +1901,6 @@ bool DisplayManager::try_drm_to_fbdev_fallback(lv_display_rotation_t rot, bool s
     }
     spdlog::info("[DisplayManager] Fbdev fallback succeeded at {}x{}", m_width, m_height);
     warn_fbdev_high_dpi();
-
-    // Recreate the input devices on the new backend. lv_display_delete() only
-    // detached them (their display is now NULL) and m_backend.reset() freed the
-    // DRM backend their read_cb/user_data pointed into — leaving m_pointer as a
-    // display-less indev referencing freed memory and the fbdev backend with no
-    // input at all. Rebuild only when they already existed (post-init swap).
-    if (had_input_devices) {
-        rebuild_input_after_backend_swap();
-    }
     return true;
 }
 

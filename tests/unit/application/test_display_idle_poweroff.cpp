@@ -688,7 +688,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 }
 #endif
 
-TEST_CASE_METHOD(LVGLTestFixture, "an input rebuild paces its new devices by the refresh timing",
+TEST_CASE_METHOD(LVGLTestFixture, "input setup paces its new devices by the refresh timing",
                  "[application][display][refresh_period]") {
     helix::ScopedTimerPeriods timers;
     helix::RefreshTiming timing;
@@ -711,7 +711,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "an input rebuild paces its new devices by the
         }
     } delete_pointer{mgr};
 
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    DisplayManagerTestAccess::create_input_devices(mgr);
 
     lv_indev_t* pointer = mgr.pointer_input();
     REQUIRE(pointer != nullptr);
@@ -722,7 +722,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "an input rebuild paces its new devices by the
 }
 
 TEST_CASE_METHOD(LVGLTestFixture,
-                 "an input rebuild keeps a held screensaver refresh period until release",
+                 "input setup keeps a held screensaver refresh period until release",
                  "[application][display][refresh_period]") {
     helix::ScopedTimerPeriods timers;
     helix::RefreshTiming timing;
@@ -750,7 +750,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     hold.acquire();
     REQUIRE(helix::default_refr_timer_period() == 16);
 
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    DisplayManagerTestAccess::create_input_devices(mgr);
 
     CHECK(hold.is_held());
     CHECK(helix::default_refr_timer_period() == 16);

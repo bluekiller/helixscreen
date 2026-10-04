@@ -91,8 +91,8 @@ class IndevDeleteWatch {
                 continue;
             }
             // Only while the slot still names this device - a caller may
-            // already have pointed it at a fresh device (a backend swap)
-            // before this delete event reaches it.
+            // already have pointed it at a fresh device before this
+            // delete event reaches it.
             if (it->slot != nullptr && *it->slot == target) {
                 *it->slot = nullptr;
             }
