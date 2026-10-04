@@ -14,6 +14,7 @@
 #include "error_modal_view.h"
 #include "fault_surface_correlation.h"
 #include "firmware_fault_codes.h"
+#include "gcode_response_lines.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "moonraker_error.h"
@@ -612,23 +613,7 @@ void GcodeErrorRouter::process_line(const std::string& line, bool firmware_repor
 }
 
 void GcodeErrorRouter::on_notify_gcode_response(const nlohmann::json& msg) {
-    if (first_notify_param(msg) == nullptr) {
-        return;
-    }
-    const auto& params = msg["params"];
-    if (params[0].is_array()) {
-        for (const auto& line : params[0]) {
-            if (line.is_string()) {
-                process_line(line.get<std::string>());
-            }
-        }
-    } else if (params[0].is_string()) {
-        for (const auto& line : params) {
-            if (line.is_string()) {
-                process_line(line.get<std::string>());
-            }
-        }
-    }
+    for_each_gcode_response_line(msg, [this](const std::string& line) { process_line(line); });
 }
 
 void GcodeErrorRouter::on_notify_status_update(const nlohmann::json& msg) {

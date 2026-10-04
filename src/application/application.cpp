@@ -33,6 +33,7 @@
 #include "environment_config.h"
 #include "gcode_error_router.h"
 #include "gcode_narration_router.h"
+#include "gcode_response_lines.h"
 #include "hardware_fingerprint.h"
 #include "hardware_role_registry.h"
 #include "hardware_validator.h"
@@ -2632,27 +2633,9 @@ void Application::init_action_prompt() {
     // All lines from G-code console output come through this notification
     client->register_method_callback(
         "notify_gcode_response", "action_prompt_manager", [this](const nlohmann::json& msg) {
-            // notify_gcode_response has params: [["line1", "line2", ...]]
-            if (!msg.contains("params") || !msg["params"].is_array() || msg["params"].empty()) {
-                return;
-            }
-
-            const auto& params = msg["params"];
-            // params can be an array of strings, or an array containing an array of strings
-            // Handle both formats
-            if (params[0].is_array()) {
-                for (const auto& line : params[0]) {
-                    if (line.is_string()) {
-                        m_action_prompt_manager->process_line(line.get<std::string>());
-                    }
-                }
-            } else if (params[0].is_string()) {
-                for (const auto& line : params) {
-                    if (line.is_string()) {
-                        m_action_prompt_manager->process_line(line.get<std::string>());
-                    }
-                }
-            }
+            helix::for_each_gcode_response_line(msg, [this](const std::string& line) {
+                m_action_prompt_manager->process_line(line);
+            });
         });
 
     // Recovery modal presenter: source-agnostic owner of the CRITICAL recovery
@@ -2692,11 +2675,7 @@ void Application::init_action_prompt() {
     // Some slicers don't emit SET_PRINT_STATS_INFO, so Moonraker's print_stats.info
     // never updates current_layer. This parses gcode responses as a fallback.
     client->register_method_callback(
-        "notify_gcode_response", "layer_tracker", [this](const nlohmann::json& msg) {
-            if (!msg.contains("params") || !msg["params"].is_array() || msg["params"].empty()) {
-                return;
-            }
-
+        "notify_gcode_response", "layer_tracker", [](const nlohmann::json& msg) {
             // Only track layers while printing or paused
             // RAW_PRINT_STATE_OK: layer tracking. There are no layers during a
             // preparing window, and admitting one would derive a layer number
@@ -2706,58 +2685,19 @@ void Application::init_action_prompt() {
                 return;
             }
 
-            auto process_line = [this](const std::string& line) {
-                if (line.empty()) {
-                    return;
+            helix::for_each_gcode_response_line(msg, [](const std::string& line) {
+                const auto parsed = helix::parse_layer_line(line);
+                if (parsed.current >= 0) {
+                    spdlog::debug("[LayerTracker] Layer {} from gcode response: {}", parsed.current,
+                                  line);
+                    get_printer_state().set_print_layer_current(parsed.current);
                 }
-
-                int layer = -1;
-                int total = -1;
-
-                // Pattern 1: SET_PRINT_STATS_INFO CURRENT_LAYER=N [TOTAL_LAYER=N]
-                // Klipper echoes this command in gcode responses
-                if (line.find("SET_PRINT_STATS_INFO") != std::string::npos) {
-                    auto pos = line.find("CURRENT_LAYER=");
-                    if (pos != std::string::npos) {
-                        layer = std::atoi(line.c_str() + pos + 14);
-                    }
-                    pos = line.find("TOTAL_LAYER=");
-                    if (pos != std::string::npos) {
-                        total = std::atoi(line.c_str() + pos + 12);
-                    }
+                if (parsed.total >= 0) {
+                    spdlog::debug("[LayerTracker] Total layers {} from gcode response",
+                                  parsed.total);
+                    get_printer_state().set_print_layer_total(parsed.total);
                 }
-
-                // Pattern 2: ;LAYER:N (OrcaSlicer, PrusaSlicer, Cura comment format)
-                if (layer < 0 && line.size() >= 8 && line[0] == ';' && line[1] == 'L' &&
-                    line[2] == 'A' && line[3] == 'Y' && line[4] == 'E' && line[5] == 'R' &&
-                    line[6] == ':') {
-                    layer = std::atoi(line.c_str() + 7);
-                }
-
-                if (layer >= 0) {
-                    spdlog::debug("[LayerTracker] Layer {} from gcode response: {}", layer, line);
-                    get_printer_state().set_print_layer_current(layer);
-                }
-                if (total >= 0) {
-                    spdlog::debug("[LayerTracker] Total layers {} from gcode response", total);
-                    get_printer_state().set_print_layer_total(total);
-                }
-            };
-
-            const auto& params = msg["params"];
-            if (params[0].is_array()) {
-                for (const auto& line : params[0]) {
-                    if (line.is_string()) {
-                        process_line(line.get<std::string>());
-                    }
-                }
-            } else if (params[0].is_string()) {
-                for (const auto& line : params) {
-                    if (line.is_string()) {
-                        process_line(line.get<std::string>());
-                    }
-                }
-            }
+            });
         });
 
     spdlog::debug("[Application] Action prompt system initialized");
