@@ -1335,11 +1335,9 @@ void MotionPanel::handle_preset(helix::MotionPreset preset) {
     }
     // Computed at tap time: bounds can change (settings, calibration) between
     // the panel opening and the tap.
-    const auto& ps = get_printer_state();
-    const auto area = helix::preset_area(ps.get_axis_bounds(), ps.get_gcode_axis_bounds(),
-                                         api->hardware().build_volume());
-    const auto target = helix::motion_preset_target(
-        preset, area, helix::circular_bed_kinematics(api->hardware().kinematics()));
+    const auto plate = bed_plate();
+    const auto target =
+        plate ? helix::motion_preset_target(preset, plate->area, plate->circular) : std::nullopt;
     if (!target) {
         NOTIFY_INFO(lv_tr("Axis limits unknown"));
         return;
@@ -1387,21 +1385,18 @@ void MotionPanel::handle_park() {
 }
 
 void MotionPanel::park_over_plate(bool lift_z) {
-    IMoonrakerAPI* api = get_moonraker_api();
-    if (!api) {
+    if (!get_moonraker_api()) {
         return;
     }
-    const auto& ps = get_printer_state();
-    const AxisBounds gcode = ps.get_gcode_axis_bounds();
-    auto target = helix::plate_rear_park(
-        helix::preset_area(ps.get_axis_bounds(), gcode, api->hardware().build_volume()));
+    const AxisBounds gcode = get_printer_state().get_gcode_axis_bounds();
+    const auto plate = bed_plate();
+    auto target = plate ? helix::plate_rear_park(plate->area) : std::nullopt;
     if (!target) {
         NOTIFY_INFO(lv_tr("Axis limits unknown"));
         return;
     }
     if (lift_z && gcode.has_z) {
-        target->z = std::min(static_cast<double>(current_z_) + PARK_Z_LIFT_MM,
-                             static_cast<double>(gcode.z_max));
+        target->z = std::min(commanded_z() + PARK_Z_LIFT_MM, static_cast<double>(gcode.z_max));
     }
     dispatch_target(*target);
 }
