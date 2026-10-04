@@ -768,6 +768,11 @@ void UpdateChecker::shutdown() {
         std::lock_guard<std::mutex> lock(mutex_);
         pending_callback_ = nullptr;
         config_snapshot_ = {};
+        // The download state describes the run that just ended; the next init()
+        // starts at Idle like the subjects it recreates.
+        download_status_ = DownloadStatus::Idle;
+        download_progress_ = 0;
+        download_error_.clear();
     }
 
     // Cleanup subjects
