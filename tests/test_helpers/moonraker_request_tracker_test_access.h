@@ -15,4 +15,9 @@ class MoonrakerRequestTrackerTestAccess {
         std::lock_guard<std::mutex> lock(tracker.requests_mutex_);
         tracker.pending_requests_[id] = std::move(request);
     }
+
+    static size_t pending_count(helix::MoonrakerRequestTracker& tracker) {
+        std::lock_guard<std::mutex> lock(tracker.requests_mutex_);
+        return tracker.pending_requests_.size();
+    }
 };

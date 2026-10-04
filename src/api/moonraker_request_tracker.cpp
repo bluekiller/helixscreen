@@ -4,6 +4,7 @@
 #include "moonraker_request_tracker.h"
 
 #include "hv/WebSocketClient.h"
+#include "json_utils.h"
 #include "rpc_error_correlation.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -89,8 +90,11 @@ RequestId MoonrakerRequestTracker::send(hv::WebSocketClient& ws, const std::stri
         rpc["params"] = params;
     }
 
-    spdlog::trace("[Request Tracker] send: {}", rpc.dump());
-    int result = ws.send(rpc.dump());
+    // Params carry free-form text (gcode scripts, filenames, SSIDs); a strict dump
+    // throws on invalid UTF-8 after the request is already registered as pending.
+    const std::string payload = json_util::safe_dump(rpc);
+    spdlog::trace("[Request Tracker] send: {}", payload);
+    int result = ws.send(payload);
     spdlog::trace("[Request Tracker] send({}) returned {}", method, result);
 
     // Return the request ID on success, or INVALID_REQUEST_ID on send failure
@@ -136,8 +140,9 @@ int MoonrakerRequestTracker::send_fire_and_forget(hv::WebSocketClient& ws,
         rpc["params"] = params;
     }
 
-    spdlog::trace("[Request Tracker] send_fire_and_forget: {}", rpc.dump());
-    int result = ws.send(rpc.dump());
+    const std::string payload = json_util::safe_dump(rpc);
+    spdlog::trace("[Request Tracker] send_fire_and_forget: {}", payload);
+    int result = ws.send(payload);
     return result < 0 ? result : 0;
 }
 
