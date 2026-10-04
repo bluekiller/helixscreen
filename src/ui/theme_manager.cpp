@@ -407,11 +407,13 @@ void theme_manager_deinit() {
     spdlog::trace("[Theme] Deinitialized theme subjects");
 }
 
-/// Every tree on the display that can hold XML-built widgets: each screen,
-/// loaded or not. The bottom, top and sys layers are screens[] entries too.
+/// Named <style> token colors, then every tree on the display that can hold
+/// XML-built widgets: each screen, loaded or not. The bottom, top and sys
+/// layers are screens[] entries too.
 static void reapply_xml_token_colors(lv_display_t* disp) {
     if (!disp)
         return;
+    lv_xml_reapply_style_tokens();
     for (uint32_t i = 0; i < disp->screen_cnt; i++) {
         lv_xml_reapply_token_styles(disp->screens[i]);
     }

@@ -13,6 +13,9 @@
 #include "theme_loader.h"
 #include "theme_manager.h"
 
+#include <cmath>
+#include <utility>
+
 #include "../catch_amalgamated.hpp"
 
 namespace {
@@ -179,4 +182,161 @@ TEST_CASE_METHOD(XMLTestFixture, "a literal white status text survives a mode sw
     CHECK(bg_rgb(named(root, "backdrop")) == 0x000000);
     theme_manager_apply_theme(theme, true);
     CHECK(text_rgb(named(root, "status")) == 0xFFFFFF);
+}
+
+namespace {
+
+/// An int subject registered under `name` for the life of one test.
+struct ScopedIntSubject {
+    lv_subject_t subject{};
+    explicit ScopedIntSubject(const char* name, int32_t value) {
+        lv_subject_init_int(&subject, value);
+        lv_xml_register_subject(nullptr, name, &subject);
+    }
+    ~ScopedIntSubject() {
+        lv_subject_deinit(&subject);
+    }
+};
+
+double luminance(uint32_t rgb_hex) {
+    auto ch = [](uint32_t c) {
+        double v = c / 255.0;
+        return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * ch((rgb_hex >> 16) & 0xFF) + 0.7152 * ch((rgb_hex >> 8) & 0xFF) +
+           0.0722 * ch(rgb_hex & 0xFF);
+}
+
+double contrast(uint32_t a, uint32_t b) {
+    double la = luminance(a), lb = luminance(b);
+    if (la < lb)
+        std::swap(la, lb);
+    return (la + 0.05) / (lb + 0.05);
+}
+
+} // namespace
+
+TEST_CASE_METHOD(XMLTestFixture, "a component style's token color follows a mode switch",
+                 "[theme][xml]") {
+    RestoreTheme restore;
+    const auto theme = helix::get_builtin_fallback_theme();
+    theme_manager_apply_theme(theme, true);
+    REQUIRE(hex(theme.dark.elevated_bg) != hex(theme.light.elevated_bg));
+
+    // The bed mesh profiles card's active row: a named style, not an inline color.
+    const char* xml = R"(<component>
+  <styles>
+    <style name="lr_active_row" bg_opa="255" bg_color="#elevated_bg"/>
+  </styles>
+  <view extends="lv_obj" width="300" height="300">
+    <lv_obj name="row" width="200" height="40"><style name="lr_active_row"/></lv_obj>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("lr_named_style", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_named_style");
+    REQUIRE(root != nullptr);
+    REQUIRE(bg_rgb(named(root, "row")) == hex(theme.dark.elevated_bg));
+
+    theme_manager_apply_theme(theme, false);
+    // A row built after the switch takes the style as it is now.
+    lv_obj_t* later = create_component("lr_named_style");
+    REQUIRE(later != nullptr);
+    CHECK(bg_rgb(named(later, "row")) == hex(theme.light.elevated_bg));
+    CHECK(bg_rgb(named(root, "row")) == hex(theme.light.elevated_bg));
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "a label's text color from a bound or component style beats the walker",
+                 "[theme][xml]") {
+    ScopedIntSubject sel("lr_bound_sel", 1);
+    const char* xml = R"(<component>
+  <styles>
+    <style name="lr_accent_text" text_color="#primary"/>
+  </styles>
+  <view extends="lv_obj" width="300" height="300">
+    <lv_label name="bound" text="Bound">
+      <bind_style_if_eq name="lr_accent_text" subject="lr_bound_sel" ref_value="1"/>
+    </lv_label>
+    <lv_label name="styled" text="Styled"><style name="lr_accent_text"/></lv_label>
+    <lv_obj name="dark" width="200" height="100" style_bg_opa="255" style_bg_color="0x000000">
+      <text_body name="bound_on_dark" text="Bound">
+        <bind_style_if_eq name="lr_accent_text" subject="lr_bound_sel" ref_value="1"/>
+      </text_body>
+      <text_body name="semantic_on_dark" text="Plain"/>
+    </lv_obj>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("lr_bound_text", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_bound_text");
+    REQUIRE(root != nullptr);
+    const uint32_t primary = const_rgb("primary");
+    REQUIRE(primary != const_rgb("text"));
+    REQUIRE(primary != 0xFFFFFF);
+
+    theme_apply_current_palette_to_tree(root);
+    CHECK(text_rgb(named(root, "bound")) == primary);
+    CHECK(text_rgb(named(root, "styled")) == primary);
+    CHECK(text_rgb(named(root, "bound_on_dark")) == primary);
+    // Only the shared semantic text style: the dark-ancestor rule still applies.
+    CHECK(text_rgb(named(root, "semantic_on_dark")) == 0xFFFFFF);
+
+    // Unbound, the label is the walker's again.
+    lv_subject_set_int(&sel.subject, 0);
+    theme_apply_current_palette_to_tree(root);
+    CHECK(text_rgb(named(root, "bound")) == const_rgb("text"));
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "a selected motion rail tab shows the new mode's colors after a switch",
+                 "[theme][xml][motion]") {
+    RestoreTheme restore;
+    const auto theme = helix::get_builtin_fallback_theme();
+    theme_manager_apply_theme(theme, true);
+    ScopedIntSubject active("lr_tab_active", 1);
+    ScopedIntSubject idle("lr_tab_idle", 0);
+    lv_subject_t label_subject{};
+    static char label_buf[32];
+    lv_subject_init_string(&label_subject, label_buf, nullptr, sizeof(label_buf), "Move");
+    lv_xml_register_subject(nullptr, "lr_tab_label", &label_subject);
+
+    REQUIRE(lv_xml_register_component_from_file("A:ui_xml/components/zone_tab.xml") ==
+            LV_RESULT_OK);
+    // The motion panel's rail tabs, as ui_xml/motion_panel.xml instantiates them.
+    const char* xml = R"(<component>
+  <view extends="lv_obj" width="400" height="200">
+    <zone_tab name="sel_tab" label_subject="lr_tab_label" active_subject="lr_tab_active" tab_index="0"
+              icon="cursor_move" callback="on_motion_tab_clicked"
+              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"/>
+    <zone_tab name="idle_tab" label_subject="lr_tab_label" active_subject="lr_tab_idle" tab_index="1"
+              icon="crosshairs_gps" callback="on_motion_tab_clicked"
+              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"/>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("lr_motion_tabs", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_motion_tabs");
+    REQUIRE(root != nullptr);
+    lv_obj_t* sel_tab = named(root, "sel_tab");
+    lv_obj_t* sel_label = named(sel_tab, "tab_label");
+    REQUIRE(bg_rgb(sel_tab) == hex(theme.dark.primary));
+
+    theme_manager_apply_theme(theme, false);
+    // zone_tab_pill_selected sets bg_color="#primary" and no text color, so the
+    // label takes the button's contrast-adjusted text against the new primary.
+    const lv_color_t light_primary = theme_manager_parse_hex_color(theme.light.primary.c_str());
+    const uint32_t want_text = rgb(theme_manager_get_contrast_adjusted_text(
+        theme_manager_parse_hex_color(theme.light.text.c_str()), light_primary));
+    CHECK(bg_rgb(sel_tab) == hex(theme.light.primary));
+    CHECK(text_rgb(sel_label) == want_text);
+    INFO("light contrast label/pill = " << contrast(text_rgb(sel_label), bg_rgb(sel_tab)));
+    CHECK(contrast(text_rgb(sel_label), bg_rgb(sel_tab)) >= 4.0);
+
+    // A tab built after the switch takes the pill style as it is now.
+    lv_obj_t* fresh = create_component("lr_motion_tabs");
+    REQUIRE(fresh != nullptr);
+    CHECK(bg_rgb(named(fresh, "sel_tab")) == hex(theme.light.primary));
+    // TODO: a freshly built selected pill's label keeps the semantic `text`
+    // color, about 1.5:1 on light `primary`; it needs a `text_on_primary` token
+    // in zone_tab_pill_selected before a contrast check can hold here.
+
+    lv_subject_deinit(&label_subject);
 }

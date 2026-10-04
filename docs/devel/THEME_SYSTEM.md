@@ -82,7 +82,7 @@ lv_obj_report_style_change(nullptr)      ← CRITICAL: invalidates LVGL style ca
     ↓
 Re-register XML color/property consts; update screen bg
     ↓
-lv_xml_reapply_token_styles()            ← every screen and layer: inline #token colors re-resolve
+lv_xml_reapply_style_tokens() + lv_xml_reapply_token_styles()  ← <style> and inline #token colors re-resolve
     ↓
 theme_manager_refresh_widget_tree()      ← lv_obj_refresh_style() on every widget (picks up inline styles)
     ↓
@@ -104,10 +104,14 @@ and selector: a global token (`style_text_color="#text_muted"`) with its name, a
   helper that skips a property+selector `lv_xml_obj_has_authored_style()` reports. A token
   is already right after the re-apply, and a literal such as the QR scanner's white status
   text stays as written. Widgets with no inline color are themed by the walker as before.
+- `lv_xml_reapply_style_tokens()` rewrites the `#token` colors of every named `<style>` in
+  place, so widgets using the style, and ones built from it later, take the new mode.
+- The walker also leaves a label's text color alone when a style someone chose provides it
+  (a bound style, a component `<style>`, one added from C++). ThemeManager's shared semantic
+  text styles do not count: a plain `text_body` on a dark ancestor still turns white.
 
 Not recorded, so still the walker's to theme: colors passed through a component `$prop`
-(resolved at the instance tag, where the token name is lost), named `<style>` definitions,
-and colors set from C++.
+(resolved at the instance tag, where the token name is lost) and colors set from C++.
 
 ---
 

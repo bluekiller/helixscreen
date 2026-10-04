@@ -11,6 +11,8 @@
 
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/lvgl.h"
+#include "lvgl/src/core/lv_obj_private.h"       // obj->styles: LVGL has no style iterator
+#include "lvgl/src/core/lv_obj_style_private.h" // lv_obj_style_t fields
 #include "theme_manager.h"
 #include "theme_manager_internal.h"
 
@@ -52,6 +54,28 @@ static void swap_map_add(std::vector<ColorSwapEntry>& map, lv_color_t from, lv_c
     map.push_back({from, to});
 }
 
+/// True when a label's text color at `selector` comes from a style someone
+/// chose for it: a bound style, a component <style> or one added from C++.
+/// A local value, an LVGL theme style and ThemeManager's shared semantic text
+/// styles do not count; those are what the walker is there to replace.
+static bool label_text_color_from_chosen_style(lv_obj_t* obj, lv_style_selector_t selector) {
+    if (!lv_obj_check_type(obj, &lv_label_class))
+        return false;
+    const lv_style_t* primary = ThemeManager::instance().get_style(StyleRole::TextPrimary);
+    const lv_style_t* muted = ThemeManager::instance().get_style(StyleRole::TextMuted);
+    for (uint32_t i = 0; i < obj->style_cnt; i++) {
+        const lv_obj_style_t& entry = obj->styles[i];
+        if (entry.is_local || entry.is_trans || entry.is_theme || entry.is_disabled)
+            continue;
+        if (entry.selector != selector || entry.style == primary || entry.style == muted)
+            continue;
+        lv_style_value_t value;
+        if (lv_style_get_prop(entry.style, LV_STYLE_TEXT_COLOR, &value) == LV_STYLE_RES_FOUND)
+            return true;
+    }
+    return false;
+}
+
 // Every local colour this file writes goes through here.
 static void set_palette_color(lv_obj_t* obj, lv_style_prop_t prop, lv_color_t color,
                               lv_style_selector_t selector) {
@@ -59,6 +83,9 @@ static void set_palette_color(lv_obj_t* obj, lv_style_prop_t prop, lv_color_t co
     // token follows a theme switch through lv_xml_reapply_token_styles(), and a
     // literal (white on a black camera backdrop) must not follow it at all.
     if (lv_xml_obj_has_authored_style(obj, prop, selector))
+        return;
+    // A local value outranks every normal style, so writing one would hide it.
+    if (prop == LV_STYLE_TEXT_COLOR && label_text_color_from_chosen_style(obj, selector))
         return;
     lv_style_value_t value{};
     value.color = color;
