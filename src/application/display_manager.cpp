@@ -13,6 +13,7 @@
 
 #include "display_manager.h"
 
+#include "display_idle_decision.h"
 #include "print_lifecycle_state.h"
 
 // Private LVGL header for direct flush_cb capture (matches application.cpp pattern)
@@ -1378,10 +1379,6 @@ void DisplayManager::check_display_sleep() {
 
     // Get LVGL inactivity time (milliseconds since last touch/input)
     uint32_t inactive_ms = lv_display_get_inactive_time(nullptr);
-    uint32_t dim_timeout_ms =
-        (m_dim_timeout_sec > 0) ? static_cast<uint32_t>(m_dim_timeout_sec) * 1000U : UINT32_MAX;
-    uint32_t sleep_timeout_ms =
-        (sleep_timeout_sec > 0) ? static_cast<uint32_t>(sleep_timeout_sec) * 1000U : UINT32_MAX;
 
     // Periodic debug logging (every 30 seconds when inactive > 10s)
     static uint32_t last_log_time = 0;
@@ -1394,9 +1391,6 @@ void DisplayManager::check_display_sleep() {
             m_display_sleeping, m_backlight ? "yes" : "no");
         last_log_time = now;
     }
-
-    // Check for activity (touch detected within last 500ms)
-    bool activity_detected = (inactive_ms < 500);
 
     // Android host sleep (#1245): Android pauses the app when it powers the panel
     // down and resumes it when the panel comes back, and neither transition is a
@@ -1421,90 +1415,64 @@ void DisplayManager::check_display_sleep() {
     }
 #endif
 
-    if (m_display_sleeping) {
-        // Wake via sleep_aware_read_cb (embedded) or LVGL activity detection (SDL).
-        // On SDL, the sleep-aware wrapper isn't installed because it breaks SDL's
-        // mouse device identification, so we fall back to LVGL activity tracking.
-        if (m_wake_requested || activity_detected || resumed_from_host_sleep) {
-            m_wake_requested = false;
-            wake_display();
-        }
-    } else if (m_display_dimmed) {
-        // Currently dimmed - wake on touch, or go to sleep if timeout exceeded.
-        // During a screensaver preview, skip activity-based dismiss for a brief
-        // grace window — otherwise the click that *launched* the preview is
-        // still fresh in lv_display_get_inactive_time() and closes it instantly.
-        bool dismiss_on_activity = activity_detected;
+    helix::IdleInputs in;
+    in.state = m_display_sleeping ? helix::IdleState::Sleeping
+               : m_display_dimmed ? helix::IdleState::Dimmed
+                                  : helix::IdleState::Awake;
+    in.inactive_ms = inactive_ms;
+    in.dim_timeout_sec = m_dim_timeout_sec;
+    in.sleep_timeout_sec = sleep_timeout_sec;
+    in.inhibit_entry = inhibit_sleep_entry;
+    in.can_dim = m_backlight && m_backlight->supports_dimming();
+    in.wake_requested = m_wake_requested;
+    in.host_resumed = resumed_from_host_sleep;
 #ifdef HELIX_ENABLE_SCREENSAVER
-        if (m_screensaver_is_preview) {
-            constexpr uint32_t PREVIEW_GRACE_MS = 750;
-            uint32_t elapsed = get_ticks() - m_preview_start_tick_ms;
-            if (elapsed < PREVIEW_GRACE_MS) {
-                dismiss_on_activity = false;
-            }
-        }
+    in.has_screensaver = ScreensaverManager::configured_type() != ScreensaverType::OFF;
+    in.saver_running = m_screensaver_active;
+    in.is_preview = m_screensaver_is_preview;
+    in.preview_elapsed_ms = get_ticks() - m_preview_start_tick_ms;
 #endif
-        if (m_wake_requested || dismiss_on_activity) {
-            m_wake_requested = false;
-            wake_display();
-        } else if (!inhibit_sleep_entry && sleep_timeout_sec > 0 &&
-                   inactive_ms >= sleep_timeout_ms) {
-            // Transition from dimmed to sleeping
-            enter_sleep(sleep_timeout_sec);
-        }
-    } else {
-        // Currently awake - check if we should dim, start screensaver, or sleep.
-        // Inhibited during prints when sleep_while_printing=false.
-        if (inhibit_sleep_entry) {
-            return;
-        }
-        bool can_dim = m_backlight && m_backlight->supports_dimming();
+
+    // Wake on a request from sleep_aware_read_cb (embedded) or on LVGL activity (SDL, where
+    // the wrapper is not installed because it breaks mouse device identification).
+    // Two-stage idle (#1049): Dim lowers the backlight and/or starts the screensaver,
+    // Sleep blanks or powers off. Both timeouts run from the same idle clock.
+    switch (helix::decide_idle(in).action) {
+    case helix::IdleAction::None:
+        break;
+    case helix::IdleAction::Wake:
+        m_wake_requested = false;
+        wake_display();
+        break;
+    case helix::IdleAction::Sleep:
+        enter_sleep(sleep_timeout_sec);
+        break;
+    case helix::IdleAction::StartSaver:
 #ifdef HELIX_ENABLE_SCREENSAVER
-        bool has_screensaver = ScreensaverManager::configured_type() != ScreensaverType::OFF;
-#else
-        bool has_screensaver = false;
-#endif
-        // Two-stage idle (#1049), both timeouts measured from the same idle clock:
-        //   Dim   → dim the backlight and/or start the screensaver (intermediate)
-        //   Sleep → enter full sleep / power-off (final)
-        // The Sleep>=Dim ordering is guaranteed by DisplaySettingsManager's
-        // coupling (now also enforced on no-backlight + screensaver devices), so
-        // the dim/screensaver branch is reachable before sleep even on the
-        // reporter's no-backlight Pi.
-        if (sleep_timeout_sec > 0 && inactive_ms >= sleep_timeout_ms) {
-            // Sleep timeout reached — go to full sleep (blank / power-off).
-            enter_sleep(sleep_timeout_sec);
-        } else if (m_dim_timeout_sec > 0 && inactive_ms >= dim_timeout_ms &&
-                   (can_dim || has_screensaver)) {
-            // Dim timeout reached — start screensaver and/or dim backlight.
-            // On devices without backlight dimming, screensaver alone provides
-            // the idle visual state (instead of skipping to sleep).
-            m_display_dimmed = true;
-#ifdef HELIX_ENABLE_SCREENSAVER
-            if (!m_screensaver_active && has_screensaver) {
-                // Suspend active panel lifecycle to stop widget timers (clock, etc.)
-                // that would otherwise invalidate underlying UI and bleed through
-                NavigationManager::instance().suspend_active();
-                m_lifecycle_suspended = true;
-                ScreensaverManager::instance().start(ScreensaverManager::configured_type());
-                m_screensaver_active = true;
-                if (m_backlight) {
-                    // Screensaver needs enough brightness to see the toasters,
-                    // but respect user's dim setting if it's higher
-                    m_backlight->set_brightness(std::max(m_dim_brightness_percent, 50));
-                }
-                spdlog::info("[DisplayManager] Screensaver started after {}s inactivity",
-                             m_dim_timeout_sec);
-            } else
-#endif
-            {
-                if (m_backlight) {
-                    m_backlight->set_brightness(m_dim_brightness_percent);
-                }
-                spdlog::info("[DisplayManager] Display dimmed to {}% after {}s inactivity",
-                             m_dim_brightness_percent, m_dim_timeout_sec);
-            }
+        m_display_dimmed = true;
+        // Suspend the active panel lifecycle so widget timers (clock, etc.) do not
+        // invalidate the UI underneath the screensaver.
+        NavigationManager::instance().suspend_active();
+        m_lifecycle_suspended = true;
+        ScreensaverManager::instance().start(ScreensaverManager::configured_type());
+        m_screensaver_active = true;
+        if (m_backlight) {
+            // The screensaver needs enough brightness to be seen, but a higher dim
+            // setting wins.
+            m_backlight->set_brightness(std::max(m_dim_brightness_percent, 50));
         }
+        spdlog::info("[DisplayManager] Screensaver started after {}s inactivity",
+                     m_dim_timeout_sec);
+#endif
+        break;
+    case helix::IdleAction::Dim:
+        m_display_dimmed = true;
+        if (m_backlight) {
+            m_backlight->set_brightness(m_dim_brightness_percent);
+        }
+        spdlog::info("[DisplayManager] Display dimmed to {}% after {}s inactivity",
+                     m_dim_brightness_percent, m_dim_timeout_sec);
+        break;
     }
 }
 
