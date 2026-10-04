@@ -27,6 +27,7 @@
          Rows are created in C++ as output arrives. -->
     <lv_obj name="gcode_console_tail"
             width="100%" height="100%" style_pad_all="#space_sm" scrollable="false" clickable="true" hidden="true">
+      <style name="styles.press_wash" selector="pressed"/>
       <bind_flag_if_eq subject="$tail_view_subject" flag="hidden" ref_value="0"/>
       <event_cb trigger="clicked" callback="gcode_console_clicked_cb"/>
       <text_muted name="gcode_console_tail_empty"
