@@ -51,3 +51,10 @@ TEST_CASE("USB printer detector", "[label-printer][usb-detect]") {
         REQUIRE_FALSE(detector.is_polling());
     }
 }
+
+TEST_CASE("USB printer detector ignores the generic STM32 CDC-ACM id",
+          "[label-printer][usb-detect]") {
+    // 0483:5740 is ST's stock virtual COM port id, shared by unrelated boards.
+    // A CDC-ACM device gets a tty, never the /dev/usb/lpN node printing needs.
+    CHECK_FALSE(UsbPrinterDetector::is_known_printer(0x0483, 0x5740));
+}

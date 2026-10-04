@@ -20,8 +20,7 @@ namespace helix {
 // ============================================================================
 
 static const std::vector<KnownUsbPrinter> s_known_printers = {
-    {0x0483, 0x5740, "Phomemo M110"}, // STM32 CDC-ACM variant
-    {0x0493, 0x8760, "Phomemo M110"}, // Original USB variant
+    {0x0493, 0x8760, "Phomemo M110"},
     // Future printers added here
 };
 
