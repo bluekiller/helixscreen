@@ -15,6 +15,8 @@
 
 #include "ui_print_select_usb_source.h"
 
+#include "../lvgl_test_fixture.h"
+#include "../test_helpers/usb_scan_wait.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "print_file_data.h"
 #include "usb_backend_mock.h"
@@ -40,8 +42,9 @@ UsbDrive drive(const std::string& mount, const std::string& label) {
 
 } // namespace
 
-TEST_CASE("PrintSelectUsbSource scans every mounted drive and survives losing one",
-          "[usb][multi_drive]") {
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "PrintSelectUsbSource scans every mounted drive and survives losing one",
+                 "[usb][multi_drive]") {
     helix::ui::PrintSelectUsbSource::init_subjects();
 
     UsbManager manager(true); // force mock
@@ -67,6 +70,7 @@ TEST_CASE("PrintSelectUsbSource scans every mounted drive and survives losing on
     REQUIRE(usb_present() == 1);
 
     usb_source.select_usb_source();
+    helix::test::wait_for_usb_scan();
     REQUIRE(listed.size() == 3);
     CHECK(listed[0] == "a.gcode");
     CHECK(listed[1] == "b.gcode");
@@ -75,6 +79,7 @@ TEST_CASE("PrintSelectUsbSource scans every mounted drive and survives losing on
     // Pulling the first stick leaves the second one's files on the USB tab.
     backend->simulate_drive_remove("/media/usb0");
     usb_source.on_drive_removed();
+    helix::test::wait_for_usb_scan();
     CHECK(usb_source.get_current_source() == FileSource::USB);
     CHECK(usb_present() == 1);
     REQUIRE(listed.size() == 2);
@@ -89,7 +94,8 @@ TEST_CASE("PrintSelectUsbSource scans every mounted drive and survives losing on
     manager.stop();
 }
 
-TEST_CASE("USB thumbnails are cached per file path, not per filename", "[usb][thumbnail]") {
+TEST_CASE_METHOD(LVGLTestFixture, "USB thumbnails are cached per file path, not per filename",
+                 "[usb][thumbnail]") {
     helix::ui::PrintSelectUsbSource::init_subjects();
 
     // Two sticks (or two folders on one) routinely hold a same-named file
@@ -123,6 +129,7 @@ TEST_CASE("USB thumbnails are cached per file path, not per filename", "[usb][th
     });
     usb_source.set_usb_manager(&manager);
     usb_source.select_usb_source();
+    helix::test::wait_for_usb_scan();
 
     REQUIRE(thumbs.size() == 2);
     CHECK_FALSE(thumbs[0].empty());
@@ -131,4 +138,44 @@ TEST_CASE("USB thumbnails are cached per file path, not per filename", "[usb][th
 
     manager.stop();
     fs::remove_all(root);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "PrintSelectUsbSource walks the stick off the UI thread",
+                 "[usb][usb_async]") {
+    helix::ui::PrintSelectUsbSource::init_subjects();
+
+    UsbManager manager(true);
+    REQUIRE(manager.start());
+    auto* backend = static_cast<UsbBackendMock*>(manager.get_backend());
+    REQUIRE(backend != nullptr);
+    backend->simulate_drive_insert(drive("/media/usb0", "FIRST"));
+    backend->set_mock_files("/media/usb0", {{"/media/usb0/a.gcode", "a.gcode", 100, 1000}});
+
+    helix::ui::PrintSelectUsbSource usb_source;
+    int deliveries = 0;
+    usb_source.set_on_files_ready([&](std::vector<PrintFileData>&&) { ++deliveries; });
+    usb_source.set_usb_manager(&manager);
+
+    SECTION("the list arrives through the UI queue, not inside the call") {
+        usb_source.select_usb_source();
+        CHECK(deliveries == 0);
+        helix::test::wait_for_usb_scan();
+        CHECK(deliveries == 1);
+    }
+
+    SECTION("a scan that lands after a switch back to Printer is dropped") {
+        usb_source.select_usb_source();
+        usb_source.select_printer_source();
+        helix::test::wait_for_usb_scan();
+        CHECK(deliveries == 0);
+    }
+
+    SECTION("only the newest of two overlapping refreshes delivers") {
+        usb_source.select_usb_source();
+        usb_source.refresh_files();
+        helix::test::wait_for_usb_scan();
+        CHECK(deliveries == 1);
+    }
+
+    manager.stop();
 }

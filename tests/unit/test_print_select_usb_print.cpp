@@ -13,6 +13,7 @@
 
 #include "../test_helpers/print_select_panel_fixture.h"
 #include "../test_helpers/print_select_panel_test_access.h"
+#include "../test_helpers/usb_scan_wait.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "job_queue_state.h"
@@ -68,6 +69,7 @@ class UsbPrintFixture : private helix::PrintSelectGlobalStateReset,
 
         panel_->set_usb_manager(&usb_);
         panel_->on_source_usb_clicked();
+        helix::test::wait_for_usb_scan();
         drain();
         REQUIRE(PrintSelectPanelTestAccess::list_contains(*panel_, "part.gcode"));
         REQUIRE(panel_->select_file_by_name("part.gcode"));

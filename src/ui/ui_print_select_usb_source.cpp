@@ -8,6 +8,7 @@
 
 #include "gcode_parser.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "http_executor.h"
 #include "print_file_data.h"
 #include "static_subject_registry.h"
 #include "subject_debug_registry.h"
@@ -19,6 +20,41 @@
 #include <iterator>
 
 namespace helix::ui {
+
+namespace {
+
+struct UsbScan {
+    std::vector<UsbGcodeFile> files;
+    std::vector<std::string> thumbnails; ///< Cache path per file, empty if none
+};
+
+// Reads the stick: a directory walk plus a header read per file, slow enough
+// on a large stick to stall a frame, so it never runs on the UI thread.
+UsbScan scan_drives(const UsbManager& manager, const std::vector<UsbDrive>& drives) {
+    UsbScan scan;
+    // Every drive contributes to one flat list: a file's path already carries
+    // its mount point, so a second stick needs no selector to be reachable.
+    for (const auto& drive : drives) {
+        auto files = manager.scan_for_gcode(drive.mount_path);
+        spdlog::info("[UsbSource] Found {} G-code files on USB drive '{}'", files.size(),
+                     drive.label);
+        scan.files.insert(scan.files.end(), std::make_move_iterator(files.begin()),
+                          std::make_move_iterator(files.end()));
+    }
+
+    scan.thumbnails.reserve(scan.files.size());
+    for (const auto& file : scan.files) {
+        std::string cache_path;
+        auto best = helix::gcode::get_best_thumbnail(file.path);
+        if (!best.png_data.empty()) {
+            cache_path = get_thumbnail_cache().save_raw_png("usb:" + file.path, best.png_data);
+        }
+        scan.thumbnails.push_back(std::move(cache_path));
+    }
+    return scan;
+}
+
+} // namespace
 
 // Subject for source tab state: 0 = Printer (default), 1 = USB
 static lv_subject_t s_print_source_is_usb;
@@ -247,6 +283,7 @@ void PrintSelectUsbSource::on_drive_removed() {
 
 void PrintSelectUsbSource::refresh_files() {
     usb_files_.clear();
+    scan_lifetime_.invalidate();
 
     if (!usb_manager_) {
         spdlog::warn("[UsbSource] UsbManager not available");
@@ -266,19 +303,24 @@ void PrintSelectUsbSource::refresh_files() {
         return;
     }
 
-    // Every drive contributes to one flat list: a file's path already carries
-    // its mount point, so a second stick needs no selector to be reachable.
-    for (const auto& drive : drives) {
-        auto files = usb_manager_->scan_for_gcode(drive.mount_path);
-        spdlog::info("[UsbSource] Found {} G-code files on USB drive '{}'", files.size(),
-                     drive.label);
-        usb_files_.insert(usb_files_.end(), std::make_move_iterator(files.begin()),
-                          std::make_move_iterator(files.end()));
-    }
-
-    if (on_files_ready_) {
-        on_files_ready_(convert_to_print_file_data());
-    }
+    // The manager outlives the panel's sources: SubjectInitializer owns it
+    // until shutdown.
+    const UsbManager* manager = usb_manager_;
+    helix::http::HttpExecutor::fast().submit(
+        [this, tok = scan_lifetime_.token(), manager, drives = std::move(drives)]() {
+            auto scan = scan_drives(*manager, drives);
+            tok.defer("PrintSelectUsbSource::refresh_files", [this, scan = std::move(scan)]() {
+                // A switch back to Printer while the walk ran leaves the
+                // panel's list to the Printer source.
+                if (current_source_ != FileSource::USB) {
+                    return;
+                }
+                usb_files_ = scan.files;
+                if (on_files_ready_) {
+                    on_files_ready_(convert_to_print_file_data(scan.thumbnails));
+                }
+            });
+        });
 }
 
 // ============================================================================
@@ -292,23 +334,17 @@ void PrintSelectUsbSource::update_button_states() {
     }
 }
 
-std::vector<PrintFileData> PrintSelectUsbSource::convert_to_print_file_data() const {
+std::vector<PrintFileData>
+PrintSelectUsbSource::convert_to_print_file_data(const std::vector<std::string>& thumbnails) const {
     std::vector<PrintFileData> result;
     result.reserve(usb_files_.size());
 
     const std::string default_thumbnail = PrintSelectCardView::get_default_thumbnail();
-    for (const auto& usb_file : usb_files_) {
-        auto file_data = PrintFileData::from_usb_file(usb_file, default_thumbnail);
-
-        auto best = helix::gcode::get_best_thumbnail(usb_file.path);
-        if (!best.png_data.empty()) {
-            auto& cache = get_thumbnail_cache();
-            std::string cache_path = cache.save_raw_png("usb:" + usb_file.path, best.png_data);
-            if (!cache_path.empty()) {
-                file_data.thumbnail_path = cache_path;
-            }
+    for (size_t i = 0; i < usb_files_.size(); ++i) {
+        auto file_data = PrintFileData::from_usb_file(usb_files_[i], default_thumbnail);
+        if (i < thumbnails.size() && !thumbnails[i].empty()) {
+            file_data.thumbnail_path = thumbnails[i];
         }
-
         result.push_back(std::move(file_data));
     }
 

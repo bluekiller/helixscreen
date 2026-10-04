@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
 #include "usb_backend.h"
 
 #include <functional>
@@ -76,11 +77,9 @@ class PrintSelectUsbSource {
     PrintSelectUsbSource() = default;
     ~PrintSelectUsbSource() = default;
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable: in-flight scans hold a token keyed to this object
     PrintSelectUsbSource(const PrintSelectUsbSource&) = delete;
     PrintSelectUsbSource& operator=(const PrintSelectUsbSource&) = delete;
-    PrintSelectUsbSource(PrintSelectUsbSource&&) noexcept = default;
-    PrintSelectUsbSource& operator=(PrintSelectUsbSource&&) noexcept = default;
 
     // === Setup ===
 
@@ -199,8 +198,9 @@ class PrintSelectUsbSource {
     /**
      * @brief Refresh USB file list
      *
-     * Scans connected USB drives for G-code files.
-     * Invokes on_files_ready callback with results.
+     * Walks every connected drive for G-code and extracts header thumbnails
+     * on a worker thread, then invokes on_files_ready on the UI thread. Only
+     * the newest refresh delivers, and only while the USB source is active.
      */
     void refresh_files();
 
@@ -230,6 +230,9 @@ class PrintSelectUsbSource {
     UsbFilesReadyCallback on_files_ready_;
     SourceChangedCallback on_source_changed_;
 
+    /// Each refresh invalidates it, so an older scan landing late is dropped.
+    helix::AsyncLifetimeGuard scan_lifetime_;
+
     // === Internal Methods ===
 
     /**
@@ -239,8 +242,11 @@ class PrintSelectUsbSource {
 
     /**
      * @brief Convert USB files to PrintFileData format
+     * @param thumbnails Cached thumbnail path per usb_files_ entry; empty keeps
+     *                   the default thumbnail
      */
-    [[nodiscard]] std::vector<PrintFileData> convert_to_print_file_data() const;
+    [[nodiscard]] std::vector<PrintFileData>
+    convert_to_print_file_data(const std::vector<std::string>& thumbnails) const;
 };
 
 } // namespace helix::ui

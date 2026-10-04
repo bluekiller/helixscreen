@@ -128,7 +128,9 @@ class UsbManager {
   private:
     void on_backend_event(UsbEvent event, const UsbDrive& drive);
 
-    std::unique_ptr<UsbBackend> backend_;
+    // Shared so a scan can walk the stick without holding mutex_: stop()
+    // dropping its reference mid-walk leaves the scan's copy alive.
+    std::shared_ptr<UsbBackend> backend_;
     DriveCallback drive_callback_;
     mutable std::mutex mutex_;
     bool force_mock_;

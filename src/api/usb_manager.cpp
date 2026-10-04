@@ -91,14 +91,18 @@ std::vector<UsbDrive> UsbManager::get_drives() const {
 
 std::vector<UsbGcodeFile> UsbManager::scan_for_gcode(const std::string& mount_path,
                                                      int max_depth) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_ptr<UsbBackend> backend;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        backend = backend_;
+    }
 
     std::vector<UsbGcodeFile> files;
-    if (!backend_ || !backend_->is_running()) {
+    if (!backend || !backend->is_running()) {
         return files;
     }
 
-    UsbError result = backend_->scan_for_gcode(mount_path, files, max_depth);
+    UsbError result = backend->scan_for_gcode(mount_path, files, max_depth);
     if (!result.success()) {
         spdlog::warn("[UsbManager] Failed to scan for G-code: {}", result.technical_msg);
         files.clear();
