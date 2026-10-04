@@ -62,6 +62,10 @@ size_t canvas_instance_count(const std::string& name);
 /// reports a content size different from the last one. An empty function removes it.
 /// The listener must not enter Lua; it defers.
 void canvas_set_size_listener(const std::string& name, std::function<void(int32_t, int32_t)> fn);
+/// The font a `font_<name>` XML const resolves to, or null when no such const exists.
+/// theme_manager_get_font itself falls back to the default font, so the const check
+/// here is what makes an unknown token detectable; the binding validates with this.
+const lv_font_t* canvas_resolve_font(const std::string& name);
 /// Replays `list` into `layer` with `content` as its origin and resolves every token now.
 void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const DisplayList& list);
 

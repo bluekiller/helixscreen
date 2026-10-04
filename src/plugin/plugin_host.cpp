@@ -351,7 +351,8 @@ bool PluginHost::load(PluginInfo& info) {
     l.ctx->ui = &l.ui;
     for (Installer install :
          {&install_core_bindings, &install_ui_bindings, &install_printer_bindings,
-          &install_moonraker_bindings, &install_io_bindings, &install_widget_bindings})
+          &install_moonraker_bindings, &install_io_bindings, &install_widget_bindings,
+          &install_canvas_bindings})
         install(*l.ctx);
 
     if (!l.rt->run_file("main.lua")) {

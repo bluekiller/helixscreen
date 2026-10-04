@@ -191,6 +191,14 @@ void canvas_set_size_listener(const std::string& name, std::function<void(int32_
     it->second.listener = std::move(fn);
 }
 
+const lv_font_t* canvas_resolve_font(const std::string& name) {
+    char token[64];
+    snprintf(token, sizeof(token), "font_%s", name.c_str());
+    // theme_manager_get_font falls back to the default font on an unknown token;
+    // the const existing is what proves the token is real.
+    return lv_xml_get_const_silent(nullptr, token) ? theme_manager_get_font(token) : nullptr;
+}
+
 void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const DisplayList& list) {
     // Tokens resolve here, at draw time, so a dark-mode switch costs only an
     // invalidate. Color names and font names never collide (fonts carry the
@@ -214,12 +222,7 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
         if (idx >= list.tokens.size() || idx >= kMaxCanvasTokens)
             return nullptr;
         if (!(fonts_done & (1u << idx))) {
-            char token[64];
-            snprintf(token, sizeof(token), "font_%s", list.tokens[idx].c_str());
-            // theme_manager_get_font falls back to the default font on an
-            // unknown token; a canvas with no such font token skips the Text.
-            fonts[idx] =
-                lv_xml_get_const_silent(nullptr, token) ? theme_manager_get_font(token) : nullptr;
+            fonts[idx] = canvas_resolve_font(list.tokens[idx]);
             fonts_done |= 1u << idx;
         }
         return fonts[idx];
