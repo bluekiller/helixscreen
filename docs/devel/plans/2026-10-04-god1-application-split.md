@@ -58,3 +58,31 @@ restart takes the `hw_changed=false` path; switch to a same-shape printer; Spool
 lane changes; manual-probe auto-open. Hardware: AD5M external-update restart and fresh-install
 preset detect; a toolchanger's spool auto-assign; Spoolman bypass vs lane; Klipper-down first
 boot then healthy boot; reconnect mid-print shows no prompt and sends no z-offset gcode.
+
+## Tranche 2: PrinterSession (designed 2026-10-04, awaiting approval)
+
+Tranche 1 shipped at `709ec4e11` (application.cpp 5,289 -> 3,855).
+
+- `PrinterSession` owns everything a printer switch destroys and rebuilds: Moonraker, history
+  managers, job queue state, subjects, panels, app layout, overlay panels, the plugin trio, the
+  G-code response routing, the prompter, the fingerprint fields, the soft-restart flag and
+  `m_wizard_previous_printer_id`. Application keeps process state (display, config, args,
+  screen, splash, hot reload, lock, background state) and owns the `AsyncLifetimeGuard` the
+  session borrows.
+- One session for the process lifetime, torn down and rebuilt in place: queued discovery
+  lambdas and nav callbacks hold raw pointers to it. It holds `m_screen` as `lv_obj_t*&`
+  (`init_moonraker` reassigns it).
+- Boot connects before `init_ui`; a switch connects after. Both orders stay.
+- Teardown body moves verbatim; the display restore becomes an `exit_display` parameter at the
+  same position, and the exit tail (`HttpExecutor::stop_all`, display reset, theme deinit) stays
+  in `Application::shutdown()`.
+- `src/application/gcode_response_routing.{h,cpp}` takes `init_action_prompt`'s seven objects;
+  detach is two calls kept at today's two teardown positions.
+
+Commits: (1) bats gate pinning the teardown call order, proven red by swapping two lines;
+(2) pure `parse_layer_line()` plus one shared response-line walker; (3) the routing bundle;
+(4) the switch state machine with Restart hooks, success path tested for the first time;
+(5) discovery-session state; (6) members and teardown body verbatim, gate repointed with the
+golden list unchanged; (7) phase methods, discovery callbacks, plugin trio; mock switch smoke and
+zeus ASAN. Gates and doc anchors naming application.cpp move in the same commit as the code.
+application.cpp ends near 2,450 lines.
