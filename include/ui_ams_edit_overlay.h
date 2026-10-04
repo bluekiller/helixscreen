@@ -167,22 +167,23 @@ class AmsEditOverlay : public OverlayBase {
 
     // === Subjects for XML binding ===
     SubjectManager subjects_;
-    lv_subject_t slot_indicator_subject_;
-    lv_subject_t temp_nozzle_subject_;
-    lv_subject_t temp_bed_subject_;
-    lv_subject_t remaining_pct_subject_;
-    lv_subject_t view_mode_subject_;    ///< kView* ("ams_edit_view")
-    lv_subject_t picker_state_subject_; ///< 0=loading, 1=fetch error (retry), 2=content, 3=no match
-    lv_subject_t save_disabled_subject_; ///< 1=Save disabled ("ams_edit_save_disabled")
-    lv_subject_t save_hidden_subject_;   ///< 1=header Save hidden ("ams_edit_save_hidden")
-    lv_subject_t is_managed_subject_;    ///< 1=linked Spoolman spool ("ams_edit_is_managed")
+    lv_subject_t slot_indicator_subject_{};
+    lv_subject_t temp_nozzle_subject_{};
+    lv_subject_t temp_bed_subject_{};
+    lv_subject_t remaining_pct_subject_{};
+    lv_subject_t view_mode_subject_{}; ///< kView* ("ams_edit_view")
+    lv_subject_t
+        picker_state_subject_{}; ///< 0=loading, 1=fetch error (retry), 2=content, 3=no match
+    lv_subject_t save_disabled_subject_{}; ///< 1=Save disabled ("ams_edit_save_disabled")
+    lv_subject_t save_hidden_subject_{};   ///< 1=header Save hidden ("ams_edit_save_hidden")
+    lv_subject_t is_managed_subject_{};    ///< 1=linked Spoolman spool ("ams_edit_is_managed")
     /// 1 when the slot's identity is the linked spool's ("ams_edit_identity_is_spoolmans").
     /// Carries no availability of its own: the XML combines it with
     /// printer_has_spoolman, so no C++ observer has to join two subjects.
-    lv_subject_t identity_is_spoolmans_subject_;
-    lv_subject_t identity_text_subject_; ///< "Brand · Material" for the read-only row
-    lv_subject_t chip_text_subject_;     ///< card identity label text
-    lv_subject_t spoolman_id_subject_;   ///< "#19" beside the Spoolman mark, "" when untracked
+    lv_subject_t identity_is_spoolmans_subject_{};
+    lv_subject_t identity_text_subject_{}; ///< "Brand · Material" for the read-only row
+    lv_subject_t chip_text_subject_{};     ///< card identity label text
+    lv_subject_t spoolman_id_subject_{};   ///< "#19" beside the Spoolman mark, "" when untracked
     char identity_text_buf_[96] = {0};
     char chip_text_buf_[96] = {0};
     char spoolman_id_buf_[16] = {0};

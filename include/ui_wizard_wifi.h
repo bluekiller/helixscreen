@@ -161,17 +161,17 @@ class WizardWifiStep : public helix::wizard::Step {
     lv_obj_t* network_list_container_ = nullptr;
 
     // Subjects (visibility controlled by Modal system)
-    lv_subject_t wifi_enabled_;
-    lv_subject_t wifi_status_;
-    lv_subject_t wifi_ip_;
-    lv_subject_t wifi_mac_;
-    lv_subject_t ethernet_status_;
-    lv_subject_t ethernet_mac_;
-    lv_subject_t wifi_scanning_;
-    lv_subject_t wifi_password_modal_ssid_;
-    lv_subject_t wifi_connecting_;
-    lv_subject_t wifi_hardware_available_;
-    lv_subject_t wifi_can_toggle_radio_; ///< 1 if the backend can move the radio
+    lv_subject_t wifi_enabled_{};
+    lv_subject_t wifi_status_{};
+    lv_subject_t wifi_ip_{};
+    lv_subject_t wifi_mac_{};
+    lv_subject_t ethernet_status_{};
+    lv_subject_t ethernet_mac_{};
+    lv_subject_t wifi_scanning_{};
+    lv_subject_t wifi_password_modal_ssid_{};
+    lv_subject_t wifi_connecting_{};
+    lv_subject_t wifi_hardware_available_{};
+    lv_subject_t wifi_can_toggle_radio_{}; ///< 1 if the backend can move the radio
 
     // String buffers (must be persistent)
     char wifi_status_buffer_[64];

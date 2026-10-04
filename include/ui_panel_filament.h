@@ -369,19 +369,19 @@ class FilamentPanel : public PanelBase {
     //
 
     SubjectManager subjects_;
-    lv_subject_t temp_display_subject_;
-    lv_subject_t status_subject_;
-    lv_subject_t material_selected_subject_;
-    lv_subject_t extrusion_allowed_subject_;
-    lv_subject_t safety_warning_visible_subject_;
-    lv_subject_t warning_temps_subject_;
+    lv_subject_t temp_display_subject_{};
+    lv_subject_t status_subject_{};
+    lv_subject_t material_selected_subject_{};
+    lv_subject_t extrusion_allowed_subject_{};
+    lv_subject_t safety_warning_visible_subject_{};
+    lv_subject_t warning_temps_subject_{};
     lv_subject_t
         safety_warning_text_subject_; ///< "Heat to at least X°C to load/unload" with dynamic temp
-    lv_subject_t material_nozzle_temp_subject_;
-    lv_subject_t material_bed_temp_subject_;
+    lv_subject_t material_nozzle_temp_subject_{};
+    lv_subject_t material_bed_temp_subject_{};
 
     // Nozzle label (dynamic: "Nozzle" or "Nozzle N" for multi-tool)
-    lv_subject_t nozzle_label_subject_;
+    lv_subject_t nozzle_label_subject_{};
     char nozzle_label_buf_[32] = {};
     ObserverGuard active_tool_observer_;
     ObserverGuard language_observer_;
@@ -389,18 +389,18 @@ class FilamentPanel : public PanelBase {
 
     // Tool selector caption (the active backend's noun: "Tool", "Toolhead").
     // The closed dropdown's own text is owned by sync_tool_dropdown_text().
-    lv_subject_t tool_noun_subject_;
+    lv_subject_t tool_noun_subject_{};
     char tool_noun_buf_[32] = {};
     void update_tool_noun();
     void sync_tool_dropdown_text();
 
     // Left card temperature subjects (current and target for nozzle/bed)
-    lv_subject_t nozzle_current_subject_;
-    lv_subject_t nozzle_target_subject_;
-    lv_subject_t bed_current_subject_;
-    lv_subject_t bed_target_subject_;
-    lv_subject_t chamber_current_subject_;
-    lv_subject_t chamber_target_subject_;
+    lv_subject_t nozzle_current_subject_{};
+    lv_subject_t nozzle_target_subject_{};
+    lv_subject_t bed_current_subject_{};
+    lv_subject_t bed_target_subject_{};
+    lv_subject_t chamber_current_subject_{};
+    lv_subject_t chamber_target_subject_{};
 
     // Operation state
     OperationTimeoutGuard operation_guard_;
@@ -409,8 +409,8 @@ class FilamentPanel : public PanelBase {
     // tool: Load disabled when that tool is already loaded; Unload + Purge
     // disabled when it is NOT loaded. Re-evaluated on tool-selector change and
     // when live AMS state changes (observers below).
-    lv_subject_t load_disabled_subject_;      ///< 1 = Load button disabled
-    lv_subject_t unload_disabled_subject_;    ///< 1 = Unload/Purge buttons disabled
+    lv_subject_t load_disabled_subject_{};    ///< 1 = Load button disabled
+    lv_subject_t unload_disabled_subject_{};  ///< 1 = Unload/Purge buttons disabled
     ObserverGuard ams_loaded_observer_;       ///< Re-eval gating on live load change
     ObserverGuard ams_current_slot_observer_; ///< Re-eval gating on active-slot change
     ObserverGuard print_active_observer_;     ///< Re-eval gating on print start/pause/end
@@ -422,18 +422,18 @@ class FilamentPanel : public PanelBase {
     int selected_op_slot() const;
 
     // Cooldown button visibility (1 when nozzle target > 0, 0 otherwise)
-    lv_subject_t nozzle_heating_subject_;
+    lv_subject_t nozzle_heating_subject_{};
 
     // Portrait spacer state (1 = the graph card is an invisible spacer and the
     // strip button stands in for it). C++ decides via fit_portrait_graph();
     // the XML bindings on the card, its container and btn_temp_graph draw it.
-    lv_subject_t graph_spacer_subject_;
+    lv_subject_t graph_spacer_subject_{};
 
     // Extrude length button active subjects (boolean: 0=inactive, 1=active)
     // Using separate subjects because bind_style doesn't work with multiple ref_values
-    lv_subject_t extrude_length_5mm_active_subject_;
-    lv_subject_t extrude_length_10mm_active_subject_;
-    lv_subject_t extrude_length_25mm_active_subject_;
+    lv_subject_t extrude_length_5mm_active_subject_{};
+    lv_subject_t extrude_length_10mm_active_subject_{};
+    lv_subject_t extrude_length_25mm_active_subject_{};
 
     // Per-op button feedback state (int: 0=idle, 1=busy/spinner, 2=done/check).
     // Drives ui_button bind_op_state so the triggering button shows on-button
@@ -441,11 +441,11 @@ class FilamentPanel : public PanelBase {
     // a time. A pending revert timer resets the active op back to idle after the
     // brief "done" checkmark.
     enum class FilamentOp { Load, Unload, Purge, Extrude, Retract };
-    lv_subject_t op_load_state_subject_;
-    lv_subject_t op_unload_state_subject_;
-    lv_subject_t op_purge_state_subject_;
-    lv_subject_t op_extrude_state_subject_;
-    lv_subject_t op_retract_state_subject_;
+    lv_subject_t op_load_state_subject_{};
+    lv_subject_t op_unload_state_subject_{};
+    lv_subject_t op_purge_state_subject_{};
+    lv_subject_t op_extrude_state_subject_{};
+    lv_subject_t op_retract_state_subject_{};
     lv_timer_t* op_revert_timer_ = nullptr; ///< shared one-shot timer (min-spinner delay / revert)
     FilamentOp op_revert_target_ = FilamentOp::Load; ///< which op the timer resets
     std::optional<FilamentOp> op_in_flight_; ///< op driven by run_filament_macro (one at a time)
@@ -601,7 +601,7 @@ class FilamentPanel : public PanelBase {
     lv_obj_t* external_spool_material_label_ = nullptr;
     lv_obj_t* external_spool_color_label_ = nullptr;
     ObserverGuard external_spool_observer_;
-    lv_subject_t card_title_subject_;
+    lv_subject_t card_title_subject_{};
     char card_title_buf_[32] = {};
 
     void setup_external_spool_display();

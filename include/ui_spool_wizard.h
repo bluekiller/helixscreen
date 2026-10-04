@@ -245,20 +245,20 @@ class SpoolWizardOverlay : public OverlayBase {
 
     // ========== Subjects ==========
     SubjectManager subjects_;
-    lv_subject_t step_subject_;
-    lv_subject_t can_proceed_subject_;
-    lv_subject_t step_label_subject_;
-    lv_subject_t creating_subject_;
-    lv_subject_t selected_vendor_name_subject_;
-    lv_subject_t summary_vendor_subject_;
-    lv_subject_t summary_filament_subject_;
-    lv_subject_t show_create_vendor_subject_;
-    lv_subject_t show_create_filament_subject_;
-    lv_subject_t vendor_count_subject_;
-    lv_subject_t filament_count_subject_;
-    lv_subject_t vendors_loading_subject_;
-    lv_subject_t filaments_loading_subject_;
-    lv_subject_t can_create_vendor_subject_;
+    lv_subject_t step_subject_{};
+    lv_subject_t can_proceed_subject_{};
+    lv_subject_t step_label_subject_{};
+    lv_subject_t creating_subject_{};
+    lv_subject_t selected_vendor_name_subject_{};
+    lv_subject_t summary_vendor_subject_{};
+    lv_subject_t summary_filament_subject_{};
+    lv_subject_t show_create_vendor_subject_{};
+    lv_subject_t show_create_filament_subject_{};
+    lv_subject_t vendor_count_subject_{};
+    lv_subject_t filament_count_subject_{};
+    lv_subject_t vendors_loading_subject_{};
+    lv_subject_t filaments_loading_subject_{};
+    lv_subject_t can_create_vendor_subject_{};
 
     // ========== String buffers for subjects ==========
     char step_label_buf_[64] = {};

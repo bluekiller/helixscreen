@@ -159,26 +159,26 @@ class JobQueueState {
     bool pruned_this_connect_ = false;
 
     // LVGL subjects
-    lv_subject_t job_queue_state_subject_;
+    lv_subject_t job_queue_state_subject_{};
     char state_buffer_[64];
-    lv_subject_t job_queue_summary_subject_;
+    lv_subject_t job_queue_summary_subject_{};
     char summary_buffer_[128];
     // "Up next: <name> (+N)" for the print-status panel and home widget; the
     // display name of the first queued job, "" when the queue is empty.
-    lv_subject_t job_queue_up_next_text_subject_;
+    lv_subject_t job_queue_up_next_text_subject_{};
     char up_next_text_buffer_[320];
     // "Start next: <name>" for the completion modal's secondary button.
-    lv_subject_t job_queue_start_next_text_subject_;
+    lv_subject_t job_queue_start_next_text_subject_{};
     char start_next_text_buffer_[320];
     // automatic_transition as 0/1, for XML bindings that hide queue-mode UI
     // Moonraker's own start would bypass.
-    lv_subject_t job_queue_automatic_transition_subject_;
+    lv_subject_t job_queue_automatic_transition_subject_{};
     // Queued-job count. The refresh channel for every queue surface: the home
     // panel's job_queue widget, the print-status widget's queue row, and the
     // job-queue modal each observe it and rebuild off a change. Nothing else
     // rebuilds them, so a queue mutation that does not move this subject is
     // invisible until the next resize.
-    lv_subject_t job_queue_count_subject_;
+    lv_subject_t job_queue_count_subject_{};
     /// Owns every subject above and the death signal
     /// get_subjects_lifetime() hands out.
     SubjectManager subjects_;

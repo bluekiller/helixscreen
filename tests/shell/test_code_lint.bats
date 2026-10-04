@@ -614,6 +614,58 @@ SHAPES
     lacks "helix::Regex" "$output"
 }
 
+# --- lv_subject_t declarations are value-initialized ---
+#
+# A subject that has not been through lv_subject_init_*() must read as
+# LV_SUBJECT_TYPE_INVALID with an empty subscriber list, so a publish that
+# arrives first is LVGL's warned no-op. Without `{}` a member or local holds
+# whatever the allocation held, and garbage that reads as an INT subject sends
+# lv_subject_set_int() down a wild subscriber list (#1423). Static storage is
+# zeroed already, so `static` declarations are exempt. Unavoidable?
+# // SUBJECT_INIT_OK: <reason>
+subject_no_init_pattern() {
+    printf '%s' '^[[:space:]]*(lv_subject_t[[:space:]]+[_[:alnum:]]+[[:space:]]*(\[[^]]*\])?|std::array<[[:space:]]*lv_subject_t[[:space:]]*,[^>]*>[[:space:]]+[_[:alnum:]]+)[[:space:]]*;'
+}
+
+check_subjects_value_initialized() {
+    local offenders
+    # shellcheck disable=SC2046  # paths have no spaces; word splitting is intended
+    offenders=$(code_offenders "$(subject_no_init_pattern)" SUBJECT_INIT_OK $(rtti_lint_files))
+    [ -z "$offenders" ] && return 0
+    echo "lv_subject_t declared without an initializer (reads as garbage until init):"
+    printf '%s\n' "$offenders"
+    echo "Write \`lv_subject_t name_{};\`. Unavoidable? // SUBJECT_INIT_OK: <reason>"
+    return 1
+}
+
+@test "lv_subject_t declarations are value-initialized (#1423)" {
+    run check_subjects_value_initialized
+    [ "$status" -eq 0 ]
+}
+
+@test "the subject-init gate catches bare declarations, and stays quiet on initialized, static and pointer forms" {
+    local f="${BATS_TEST_TMPDIR}/subject_shapes.h"
+    cat > "$f" <<'SHAPES'
+    lv_subject_t bare_;
+    lv_subject_t slots_[MAX_SLOTS];
+    std::array<lv_subject_t, 4> rows_;
+    lv_subject_t braced_{};
+    lv_subject_t braced_slots_[MAX_SLOTS]{};
+    std::array<lv_subject_t, 4> braced_rows_{};
+    static lv_subject_t zeroed_by_storage;
+    lv_subject_t* pointer_ = nullptr;
+    extern lv_subject_t elsewhere;
+    lv_subject_t hatch_; // SUBJECT_INIT_OK: test fixture
+    // lv_subject_t in_a_comment_;
+SHAPES
+    run code_offenders "$(subject_no_init_pattern)" SUBJECT_INIT_OK "$f"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 3 ]
+    lacks "braced" "$output"
+    lacks "static" "$output"
+    lacks "SUBJECT_INIT_OK" "$output"
+}
+
 # --- One way to defer to the main thread per job ---
 #
 # UpdateQueue work bound to an object goes through AsyncLifetimeGuard::defer or

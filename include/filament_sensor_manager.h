@@ -677,15 +677,15 @@ class FilamentSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
-    lv_subject_t runout_detected_;
-    lv_subject_t scoped_runout_; ///< Print-scoped runout (FIX B); driven by PrintStatusPanel
-    lv_subject_t toolhead_detected_;
-    lv_subject_t entry_detected_;
-    lv_subject_t probe_triggered_;
-    lv_subject_t any_runout_;
-    lv_subject_t motion_active_;
-    lv_subject_t master_enabled_subject_;
-    lv_subject_t sensor_count_;
+    lv_subject_t runout_detected_{};
+    lv_subject_t scoped_runout_{}; ///< Print-scoped runout (FIX B); driven by PrintStatusPanel
+    lv_subject_t toolhead_detected_{};
+    lv_subject_t entry_detected_{};
+    lv_subject_t probe_triggered_{};
+    lv_subject_t any_runout_{};
+    lv_subject_t motion_active_{};
+    lv_subject_t master_enabled_subject_{};
+    lv_subject_t sensor_count_{};
 };
 
 } // namespace helix

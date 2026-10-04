@@ -273,14 +273,14 @@ class HistoryListPanel : public OverlayBase {
     // === Subject for panel state binding ===
     //
 
-    lv_subject_t subject_panel_state_;      ///< 0 = LOADING, 1 = EMPTY, 2 = HAS_JOBS
-    lv_subject_t subject_filters_expanded_; ///< 0 = filter dropdowns collapsed, 1 = expanded
-    lv_subject_t subject_filter_active_; ///< 1 when a status/search/sort filter is active (drives
-                                         ///< funnel accent)
+    lv_subject_t subject_panel_state_{};      ///< 0 = LOADING, 1 = EMPTY, 2 = HAS_JOBS
+    lv_subject_t subject_filters_expanded_{}; ///< 0 = filter dropdowns collapsed, 1 = expanded
+    lv_subject_t subject_filter_active_{}; ///< 1 when a status/search/sort filter is active (drives
+                                           ///< funnel accent)
 
     // Empty state message subjects (for dynamic text based on filter state)
-    lv_subject_t subject_empty_message_; ///< Empty state message text
-    lv_subject_t subject_empty_hint_;    ///< Empty state hint text
+    lv_subject_t subject_empty_message_{}; ///< Empty state message text
+    lv_subject_t subject_empty_hint_{};    ///< Empty state hint text
 
     // Buffers for empty state string subjects
     char empty_message_buf_[64] = {};
@@ -298,22 +298,22 @@ class HistoryListPanel : public OverlayBase {
     std::atomic<uint32_t> detail_overlay_generation_{0};
 
     // Detail overlay subjects (string subjects for reactive binding)
-    lv_subject_t detail_filename_;
-    lv_subject_t detail_status_;
-    lv_subject_t detail_status_icon_;
-    lv_subject_t detail_status_variant_;
-    lv_subject_t detail_start_time_;
-    lv_subject_t detail_end_time_;
-    lv_subject_t detail_duration_;
-    lv_subject_t detail_layers_;
-    lv_subject_t detail_layer_height_;
-    lv_subject_t detail_nozzle_temp_;
-    lv_subject_t detail_bed_temp_;
-    lv_subject_t detail_filament_;
-    lv_subject_t detail_filament_type_;
-    lv_subject_t detail_can_reprint_;   ///< 1 if file exists, 0 otherwise
-    lv_subject_t detail_status_code_;   ///< 0=completed, 1=cancelled, 2=error, 3=in_progress
-    lv_subject_t detail_has_timelapse_; ///< 1 if timelapse available, 0 otherwise
+    lv_subject_t detail_filename_{};
+    lv_subject_t detail_status_{};
+    lv_subject_t detail_status_icon_{};
+    lv_subject_t detail_status_variant_{};
+    lv_subject_t detail_start_time_{};
+    lv_subject_t detail_end_time_{};
+    lv_subject_t detail_duration_{};
+    lv_subject_t detail_layers_{};
+    lv_subject_t detail_layer_height_{};
+    lv_subject_t detail_nozzle_temp_{};
+    lv_subject_t detail_bed_temp_{};
+    lv_subject_t detail_filament_{};
+    lv_subject_t detail_filament_type_{};
+    lv_subject_t detail_can_reprint_{};   ///< 1 if file exists, 0 otherwise
+    lv_subject_t detail_status_code_{};   ///< 0=completed, 1=cancelled, 2=error, 3=in_progress
+    lv_subject_t detail_has_timelapse_{}; ///< 1 if timelapse available, 0 otherwise
 
     // Buffers for string subjects (LVGL 9.4 requires pre-allocated buffers)
     static constexpr size_t DETAIL_BUF_SIZE = 128;

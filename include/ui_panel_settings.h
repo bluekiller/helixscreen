@@ -123,27 +123,27 @@ class SettingsPanel : public PanelBase {
     SubjectManager subjects_;
 
     // Info row subjects
-    lv_subject_t printer_host_value_subject_;
+    lv_subject_t printer_host_value_subject_{};
 
     // Visibility subjects (controls which settings are shown)
-    lv_subject_t show_touch_calibration_subject_;
+    lv_subject_t show_touch_calibration_subject_{};
 
     // Platform visibility subjects (Android hides these)
-    lv_subject_t show_network_settings_subject_;
-    lv_subject_t show_update_settings_subject_;
+    lv_subject_t show_network_settings_subject_{};
+    lv_subject_t show_update_settings_subject_{};
     // 1 when updates are managed by the device firmware (HELIX_DISABLE_AUTO_UPDATES):
     // hides the in-app check/install controls and shows a static notice instead.
-    lv_subject_t updates_firmware_managed_subject_;
+    lv_subject_t updates_firmware_managed_subject_{};
     // 1 when in-app updates are suppressed for a NON-firmware reason (self-update is
     // physically impossible because the install tree isn't writable). Drives a
     // neutral "updates aren't available" notice, mutually exclusive with the
     // firmware-managed notice above.
-    lv_subject_t updates_unavailable_subject_;
+    lv_subject_t updates_unavailable_subject_{};
     // 1 once a plugin host exists: unhides the Plugins row (settings_panel.xml)
-    lv_subject_t plugins_available_subject_;
+    lv_subject_t plugins_available_subject_{};
 
     // Touch calibration status subject
-    lv_subject_t touch_cal_status_subject_;
+    lv_subject_t touch_cal_status_subject_{};
     char touch_cal_status_buf_[48]; // e.g., "Calibrated" or "Not calibrated"
 
     // Static buffers for string subjects
@@ -151,13 +151,13 @@ class SettingsPanel : public PanelBase {
 
     // Live status line shown under each stateful root row (settings_panel.xml),
     // refreshed by refresh_status_lines().
-    lv_subject_t settings_status_display_subject_;
-    lv_subject_t settings_status_appearance_subject_;
-    lv_subject_t settings_status_sound_subject_;
-    lv_subject_t settings_status_devices_subject_;
-    lv_subject_t settings_status_connection_subject_;
-    lv_subject_t settings_status_language_time_subject_;
-    lv_subject_t settings_status_updates_subject_;
+    lv_subject_t settings_status_display_subject_{};
+    lv_subject_t settings_status_appearance_subject_{};
+    lv_subject_t settings_status_sound_subject_{};
+    lv_subject_t settings_status_devices_subject_{};
+    lv_subject_t settings_status_connection_subject_{};
+    lv_subject_t settings_status_language_time_subject_{};
+    lv_subject_t settings_status_updates_subject_{};
     char settings_status_display_buf_[64];
     char settings_status_appearance_buf_[64];
     char settings_status_sound_buf_[64];

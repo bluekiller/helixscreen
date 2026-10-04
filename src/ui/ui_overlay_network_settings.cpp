@@ -54,8 +54,8 @@ struct NetworkSettingsItemData {
     std::string ssid;
     bool is_secured;
     char band_buffer[16];
-    lv_subject_t band_text;    ///< String subject bound to band_label's text
-    lv_subject_t band_visible; ///< 1 when the badge should be shown, else 0
+    lv_subject_t band_text{};    ///< String subject bound to band_label's text
+    lv_subject_t band_visible{}; ///< 1 when the badge should be shown, else 0
 
     NetworkSettingsItemData(const std::string& ssid_, bool secured, const std::string& band)
         : ssid(ssid_), is_secured(secured) {

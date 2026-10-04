@@ -28,11 +28,11 @@
 namespace helix {
 
 namespace {
-lv_subject_t s_tab_subject;
-lv_subject_t s_require_confirm_subject;
+lv_subject_t s_tab_subject{};
+lv_subject_t s_require_confirm_subject{};
 /// 1 while the configured macro declares a parameter list, so the Options tab
 /// can show the "Default Parameters" row only for macros that have one.
-lv_subject_t s_has_param_defaults_subject;
+lv_subject_t s_has_param_defaults_subject{};
 bool s_subjects_registered = false;
 
 // Curated icon list for the picker grid (matches FavoriteMacroWidget).

@@ -82,12 +82,12 @@ static int compute_signal_icon_state(int signal_strength, bool is_secured) {
  */
 struct WifiWizardNetworkItemData {
     WiFiNetwork network;
-    lv_subject_t ssid;              // Stack-allocated subject
-    lv_subject_t signal_strength;   // Stack-allocated subject
-    lv_subject_t is_secured;        // Stack-allocated subject
-    lv_subject_t signal_icon_state; // Combined state 1-8 for icon visibility binding
-    lv_subject_t band_text;         // Band badge text ("2.4G" / "5G" / "2.4/5G")
-    lv_subject_t band_visible;      // 1 when the badge should be shown, else 0
+    lv_subject_t ssid{};              // Stack-allocated subject
+    lv_subject_t signal_strength{};   // Stack-allocated subject
+    lv_subject_t is_secured{};        // Stack-allocated subject
+    lv_subject_t signal_icon_state{}; // Combined state 1-8 for icon visibility binding
+    lv_subject_t band_text{};         // Band badge text ("2.4G" / "5G" / "2.4/5G")
+    lv_subject_t band_visible{};      // 1 when the badge should be shown, else 0
     char ssid_buffer[64];
     char band_buffer[16];
     WizardWifiStep* parent; // Back-reference for callbacks
