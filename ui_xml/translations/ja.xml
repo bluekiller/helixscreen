@@ -1350,6 +1350,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." ja="前のフィラメントをパージするためノズルを {}°C に保持しています。"/>
   <translation tag="Home" ja="ホーム"/>
   <translation tag="Home &amp; Continue" ja="ホーミングして続行"/>
+  <translation tag="Home all axes to use the map" ja="マップを使うには全軸をホーミングしてください"/>
   <translation tag="Home and sweep the cutter to re-find its position" ja="原点復帰後にカッターを走査して位置を再検出します"/>
   <translation tag="Home failed" ja="ホーミング失敗"/>
   <translation tag="Home printer first?" ja="先にプリンターをホーミングしますか？"/>
@@ -2866,7 +2867,6 @@
   <translation tag="Tap anywhere if this text is right-side up" ja="この文字が正しい向きならどこかをタップ"/>
   <translation tag="Tap anywhere to begin" ja="どこかをタップして開始"/>
   <translation tag="Tap anywhere to begin calibration" ja="どこかをタップしてキャリブレーション開始"/>
-  <translation tag="Tap or drag to move" ja="タップまたはドラッグで移動"/>
   <translation tag="Tap the bed&apos;s front-left corner" ja="ベッドの手前左の角をタップ"/>
   <translation tag="Tap the bed&apos;s front-right corner" ja="ベッドの手前右の角をタップ"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" ja="十字をタップ（ポイント %1$d / 3）— タッチ %2$d / %3$d"/>

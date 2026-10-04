@@ -1505,6 +1505,7 @@ translations:
     vorheriges Filament auszuspülen.
   Home: Home
   Home & Continue: Referenzieren & Fortfahren
+  Home all axes to use the map: Alle Achsen referenzieren, um die Karte zu nutzen
   Home and sweep the cutter to re-find its position: Referenzfahrt und Messfahrt des Schneiders, um seine Position neu zu ermitteln
   Home failed: Referenzfahrt fehlgeschlagen
   Home printer first?: Drucker zuerst referenzieren?
@@ -3199,7 +3200,6 @@ translations:
     richtig herum ist
   Tap anywhere to begin: Tippen Sie irgendwo, um zu beginnen
   Tap anywhere to begin calibration: Tippen Sie irgendwo, um die Kalibrierung zu starten
-  Tap or drag to move: Tippen oder ziehen zum Bewegen
   Tap the bed's front-left corner: Auf die vordere linke Ecke des Heizbetts tippen
   Tap the bed's front-right corner: Auf die vordere rechte Ecke des Heizbetts tippen
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Fadenkreuz

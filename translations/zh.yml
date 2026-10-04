@@ -1395,6 +1395,7 @@ translations:
   Holding nozzle at {}°C to purge previous filament.: 将喷嘴保持在 {}°C 以清洗之前的耗材。
   Home: 归位
   Home & Continue: 归位并继续
+  Home all axes to use the map: 请先归位所有轴以使用地图
   Home and sweep the cutter to re-find its position: 归零并扫过切刀以重新找到其位置
   Home failed: 归位失败
   Home printer first?: 先将打印机归位？
@@ -2977,7 +2978,6 @@ translations:
   Tap anywhere if this text is right-side up: 如果文字方向正确请点击任意位置
   Tap anywhere to begin: 点击任意位置开始
   Tap anywhere to begin calibration: 点击任意位置开始校准
-  Tap or drag to move: 点击或拖动以移动
   Tap the bed's front-left corner: 点击热床的左前角
   Tap the bed's front-right corner: 点击热床的右前角
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: 点击十字准星（第 %1$d

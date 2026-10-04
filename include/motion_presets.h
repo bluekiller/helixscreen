@@ -109,4 +109,18 @@ std::optional<AxisTarget> bed_map_target(float x_px, float y_px, const BedCoordM
  */
 std::optional<double> bed_map_lift_z(double current_z, double clearance_mm, double z_max);
 
+/**
+ * @brief Half the length of a Bed-tab crosshair guide
+ *
+ * A guide runs edge to edge across the plate through the marker. On a
+ * rectangular plate that is the full @p half_extent; on a round one it is the
+ * chord at @p offset from the centre, and nothing once the marker is off the
+ * plate.
+ *
+ * @param offset The guide's distance from the plate centre, across it (px).
+ * @param half_extent Half the plate's size along the guide (px); the radius
+ *        on a round plate.
+ */
+float bed_map_guide_half_span(float offset, float half_extent, bool circular);
+
 } // namespace helix

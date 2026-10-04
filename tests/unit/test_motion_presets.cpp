@@ -320,3 +320,15 @@ TEST_CASE("bed map lift completes before XY travel, even behind an in-flight mov
     CHECK(z_line < xy_line);
     CHECK(gcode.substr(xy_line).find('Z') == std::string::npos);
 }
+
+TEST_CASE("bed map guides span the plate, or the chord of a round one", "[motion][bed_map]") {
+    // Rectangular: edge to edge wherever the line sits.
+    CHECK(helix::bed_map_guide_half_span(0.0f, 100.0f, false) == Catch::Approx(100.0f));
+    CHECK(helix::bed_map_guide_half_span(80.0f, 100.0f, false) == Catch::Approx(100.0f));
+    // Circular: the chord at that offset from the centre.
+    CHECK(helix::bed_map_guide_half_span(0.0f, 100.0f, true) == Catch::Approx(100.0f));
+    CHECK(helix::bed_map_guide_half_span(60.0f, 100.0f, true) == Catch::Approx(80.0f));
+    CHECK(helix::bed_map_guide_half_span(-60.0f, 100.0f, true) == Catch::Approx(80.0f));
+    // A head off the round plate draws no guide rather than a NaN.
+    CHECK(helix::bed_map_guide_half_span(120.0f, 100.0f, true) == 0.0f);
+}

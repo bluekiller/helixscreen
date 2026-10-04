@@ -643,6 +643,7 @@ void MotionPanel::register_position_observers() {
             self->current_x_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
             self->update_bed_marker();
+            self->refresh_bed_readout();
         },
         get_printer_state().get_subjects_lifetime());
 
@@ -654,6 +655,7 @@ void MotionPanel::register_position_observers() {
             self->current_y_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
             self->update_bed_marker();
+            self->refresh_bed_readout();
         },
         get_printer_state().get_subjects_lifetime());
 
@@ -694,6 +696,7 @@ void MotionPanel::register_position_observers() {
                 return;
             self->live_x_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
+            self->refresh_bed_readout();
         },
         get_printer_state().get_subjects_lifetime());
     live_position_observer_y_ = observe<int>(
@@ -703,6 +706,7 @@ void MotionPanel::register_position_observers() {
                 return;
             self->live_y_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
+            self->refresh_bed_readout();
         },
         get_printer_state().get_subjects_lifetime());
     live_position_observer_z_ = observe<int>(
@@ -712,6 +716,7 @@ void MotionPanel::register_position_observers() {
                 return;
             self->live_z_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
+            self->refresh_bed_readout();
         },
         get_printer_state().get_subjects_lifetime());
 
@@ -729,6 +734,7 @@ void MotionPanel::register_position_observers() {
         [](MotionPanel* self, int show_actual) {
             self->show_actual_ = show_actual != 0;
             self->refresh_position_display();
+            self->refresh_bed_readout();
         },
         SettingsManager::instance().get_subjects_lifetime());
 
@@ -1457,6 +1463,20 @@ std::optional<double> MotionPanel::bed_lift_z() {
         static_cast<double>(bounds.z_max));
 }
 
+namespace {
+/// The plate's rectangle inside the Bed tab surface's content box, rounded
+/// to the pixels layout_bed_map() gives it.
+struct PlateRect {
+    int32_t x, y, w, h;
+};
+PlateRect plate_rect(const helix::BedCoordMapper& mapper, const helix::AxisBounds& area) {
+    const auto [x1, y1] = mapper.mm_to_px(area.x_min, area.y_max);
+    const auto [x2, y2] = mapper.mm_to_px(area.x_max, area.y_min);
+    return {static_cast<int32_t>(std::lround(x1)), static_cast<int32_t>(std::lround(y1)),
+            static_cast<int32_t>(std::lround(x2 - x1)), static_cast<int32_t>(std::lround(y2 - y1))};
+}
+} // namespace
+
 void MotionPanel::layout_bed_map() {
     if (!overlay_root_ || motion_tab_ != 2) {
         return;
@@ -1470,13 +1490,9 @@ void MotionPanel::layout_bed_map() {
     if (lv_obj_get_content_width(area) <= 0 || lv_obj_get_content_height(area) <= 0) {
         return;
     }
-    const auto mapper = bed_surface_mapper(area, plate->area);
-    const auto [x1, y1] = mapper.mm_to_px(plate->area.x_min, plate->area.y_max);
-    const auto [x2, y2] = mapper.mm_to_px(plate->area.x_max, plate->area.y_min);
-    lv_obj_set_pos(plate_obj, static_cast<int32_t>(std::lround(x1)),
-                   static_cast<int32_t>(std::lround(y1)));
-    lv_obj_set_size(plate_obj, static_cast<int32_t>(std::lround(x2 - x1)),
-                    static_cast<int32_t>(std::lround(y2 - y1)));
+    const auto rect = plate_rect(bed_surface_mapper(area, plate->area), plate->area);
+    lv_obj_set_pos(plate_obj, rect.x, rect.y);
+    lv_obj_set_size(plate_obj, rect.w, rect.h);
     lv_subject_set_int(&motion_bed_circular_, plate->circular ? 1 : 0);
     update_bed_marker();
 }
@@ -1487,37 +1503,72 @@ void MotionPanel::update_bed_marker() {
     }
     lv_obj_t* area = lv_obj_find_by_name(overlay_root_, "bed_map_area");
     lv_obj_t* marker = area ? lv_obj_find_by_name(area, "bed_map_marker") : nullptr;
+    lv_obj_t* plate_obj = area ? lv_obj_find_by_name(area, "bed_map_plate") : nullptr;
     const auto plate = bed_plate();
-    if (!marker || !plate) {
+    if (!marker || !plate_obj || !plate) {
         return;
     }
-    const auto [px, py] = bed_surface_mapper(area, plate->area).mm_to_px(current_x_, current_y_);
-    lv_obj_set_pos(marker, static_cast<int32_t>(std::lround(px)) - lv_obj_get_width(marker) / 2,
-                   static_cast<int32_t>(std::lround(py)) - lv_obj_get_height(marker) / 2);
+    const auto mapper = bed_surface_mapper(area, plate->area);
+    const auto [fx, fy] = mapper.mm_to_px(current_x_, current_y_);
+    const auto px = static_cast<int32_t>(std::lround(fx));
+    const auto py = static_cast<int32_t>(std::lround(fy));
+    lv_obj_set_pos(marker, px - lv_obj_get_width(marker) / 2, py - lv_obj_get_height(marker) / 2);
+
+    // The guides live in the plate's content box, which clips them to its
+    // rectangle; on a round plate their length is the chord through the marker.
+    lv_obj_t* guide_x = lv_obj_find_by_name(plate_obj, "bed_map_guide_x");
+    lv_obj_t* guide_y = lv_obj_find_by_name(plate_obj, "bed_map_guide_y");
+    if (!guide_x || !guide_y) {
+        return;
+    }
+    const auto rect = plate_rect(mapper, plate->area);
+    const int32_t border = lv_obj_get_style_border_width(plate_obj, LV_PART_MAIN);
+    const int32_t cw = rect.w - 2 * border;
+    const int32_t ch = rect.h - 2 * border;
+    const float lx = static_cast<float>(px - rect.x - border);
+    const float ly = static_cast<float>(py - rect.y - border);
+    const float half_h = helix::bed_map_guide_half_span(lx - cw / 2.0f, ch / 2.0f, plate->circular);
+    const float half_w = helix::bed_map_guide_half_span(ly - ch / 2.0f, cw / 2.0f, plate->circular);
+    lv_obj_set_pos(guide_x, static_cast<int32_t>(lx) - lv_obj_get_width(guide_x) / 2,
+                   static_cast<int32_t>(std::lround(ch / 2.0f - half_h)));
+    lv_obj_set_height(guide_x, static_cast<int32_t>(std::lround(2.0f * half_h)));
+    lv_obj_set_pos(guide_y, static_cast<int32_t>(std::lround(cw / 2.0f - half_w)),
+                   static_cast<int32_t>(ly) - lv_obj_get_height(guide_y) / 2);
+    lv_obj_set_width(guide_y, static_cast<int32_t>(std::lround(2.0f * half_w)));
 }
 
 void MotionPanel::refresh_bed_readout() {
     if (!subjects_initialized_) {
         return;
     }
+    const bool dragging = bed_drag_target_ && bed_drag_target_->x && bed_drag_target_->y;
     std::string text;
-    if (bed_drag_target_ && bed_drag_target_->x && bed_drag_target_->y) {
-        text = fmt::format("X {:.1f}  Y {:.1f}", *bed_drag_target_->x, *bed_drag_target_->y);
-    }
-    // Announced before the tap: an unrequested Z move is acceptable only when
-    // the user was told about it first.
-    if (const auto lift = bed_lift_z()) {
+    if (!dragging && !helix::toolhead_is_homed(get_printer_state())) {
+        text = lv_tr("Home all axes to use the map");
+    } else {
+        // The target under a dragging finger, else where the head is, from
+        // the same source the header coordinates show.
+        const float z = show_actual_ ? live_z_ : current_z_;
+        text = dragging
+                   ? fmt::format("X {:.1f}  Y {:.1f}", *bed_drag_target_->x, *bed_drag_target_->y)
+                   : fmt::format("X {:.1f}  Y {:.1f}", show_actual_ ? live_x_ : current_x_,
+                                 show_actual_ ? live_y_ : current_y_);
         char z_buf[16];
-        char lift_buf[16];
-        format_axis_value(z_buf, sizeof(z_buf), current_z_);
-        format_distance_label(lift_buf, sizeof(lift_buf), static_cast<float>(*lift));
-        if (!text.empty()) {
+        format_axis_value(z_buf, sizeof(z_buf), z);
+        // Announced before the tap: an unrequested Z move is acceptable only
+        // when the user was told about it first.
+        if (const auto lift = bed_lift_z()) {
+            char lift_buf[16];
+            format_distance_label(lift_buf, sizeof(lift_buf), static_cast<float>(*lift));
             text += "  ";
+            text += fmt::format(fmt::runtime(lv_tr("Z {}, will lift to {}mm")), z_buf, lift_buf);
+        } else if (!dragging) {
+            text += fmt::format("  Z {}", z_buf);
         }
-        text += fmt::format(fmt::runtime(lv_tr("Z {}, will lift to {}mm")), z_buf, lift_buf);
     }
-    if (text.empty()) {
-        text = lv_tr("Tap or drag to move");
+    // Position frames arrive many times a second; most change nothing shown.
+    if (text == motion_bed_readout_buf_) {
+        return;
     }
     snprintf(motion_bed_readout_buf_, sizeof(motion_bed_readout_buf_), "%s", text.c_str());
     lv_subject_copy_string(&motion_bed_readout_, motion_bed_readout_buf_);

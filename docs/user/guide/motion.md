@@ -103,14 +103,14 @@ Everything on the Move tab is disabled while a print is running or paused, and w
 
 ## Bed Tab
 
-The **Bed** tab shows the print plate from above, rear edge at the top, with a dot where the toolhead is. **Tap anywhere on the plate** and the toolhead goes there in X and Y. **Drag** and the toolhead follows your finger, while the readout under the plate shows the X and Y beneath it. The head chases the latest point rather than every point it passed, so on a fast drag it moves in short hops and catches up when you stop. A tap or drag past the edge of the plate goes to the nearest point on it; on a delta printer the plate is drawn round and the nearest point is on its rim.
+The **Bed** tab shows the print plate from above, rear edge at the top, with a ringed dot where the toolhead is and faint crosshair lines through it, edge to edge. The readout under the plate shows the head's X, Y and Z. **Tap anywhere on the plate** and the toolhead goes there in X and Y. **Drag** and the toolhead follows your finger, while the readout under the plate shows the X and Y beneath it. The head chases the latest point rather than every point it passed, so on a fast drag it moves in short hops and catches up when you stop. A tap or drag past the edge of the plate goes to the nearest point on it; on a delta printer the plate is drawn round and the nearest point is on its rim.
 
 The map is deliberately coarse. For an exact position, tap a coordinate in the header or use the Move tab.
 
 The plate is the same area the Move tab uses: the probing area from your `[bed_mesh]` config (or the axis travel when there is none), so a tap never sends the head off the plate into a purge bucket or tool dock.
 
 - **Z clearance.** A move keeps the current Z, unless the nozzle is below the **Bed Map Clearance** height ([Motion Settings](#motion-settings), 5 mm by default). Then it first lifts to that height and only then travels, so it never drags across the plate. A drag lifts once, before its first move. The readout warns you before you tap, for example "Z 0.20, will lift to 5mm".
-- **Not homed.** If any axis is not homed, Z included (the lift needs a known height), the plate greys out and the dot is hidden rather than drawn at a guessed spot. A **Home** button in the middle homes all axes. Tapping the plate instead homes first and then moves.
+- **Not homed.** If any axis is not homed, Z included (the lift needs a known height), the plate greys out and the dot is hidden rather than drawn at a guessed spot. The readout says to home first, and the same home button the jog pad has (a house in a yellow ring) sits in the middle of the plate; tap it to home all axes. Tapping the plate instead homes first and then moves.
 - **Printing.** The Bed tab is disabled while a print is running or paused. The plate also greys out while the toolhead is busy and while the printer isn't ready.
 
 ---

@@ -1350,6 +1350,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." pt="Mantendo o bico a {}°C para purgar o filamento anterior."/>
   <translation tag="Home" pt="Início"/>
   <translation tag="Home &amp; Continue" pt="Fazer home e continuar"/>
+  <translation tag="Home all axes to use the map" pt="Referencie todos os eixos para usar o mapa"/>
   <translation tag="Home and sweep the cutter to re-find its position" pt="Referencia e varre o cortador para reencontrar sua posição"/>
   <translation tag="Home failed" pt="Homing falhou"/>
   <translation tag="Home printer first?" pt="Fazer home da impressora primeiro?"/>
@@ -2866,7 +2867,6 @@
   <translation tag="Tap anywhere if this text is right-side up" pt="Toque em qualquer lugar se este texto estiver correto"/>
   <translation tag="Tap anywhere to begin" pt="Toque em qualquer lugar para começar"/>
   <translation tag="Tap anywhere to begin calibration" pt="Toque em qualquer lugar para iniciar a calibração"/>
-  <translation tag="Tap or drag to move" pt="Toque ou arraste para mover"/>
   <translation tag="Tap the bed&apos;s front-left corner" pt="Toque no canto frontal esquerdo da mesa"/>
   <translation tag="Tap the bed&apos;s front-right corner" pt="Toque no canto frontal direito da mesa"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" pt="Toque na mira (ponto %1$d de 3) — toque %2$d de %3$d"/>

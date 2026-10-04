@@ -439,6 +439,12 @@ std::string bed_readout() {
     return lv_subject_get_string(lv_xml_get_subject(nullptr, "motion_bed_readout"));
 }
 
+/// At rest the readout names the head's position, Z included; a drag target
+/// (with no lift pending) has no Z.
+bool readout_at_rest() {
+    return bed_readout().find("  Z ") != std::string::npos;
+}
+
 } // namespace
 
 TEST_CASE_METHOD(MoveTabFixture, "bed tab: the plate fits its slot and the pills show",
@@ -526,7 +532,7 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: the head follows a drag and release a
     panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
     drain();
     CHECK(xy_moves(client_) == 2);
-    CHECK(bed_readout().find("X ") == std::string::npos);
+    CHECK(readout_at_rest());
 }
 
 TEST_CASE_METHOD(MoveTabFixture, "bed tab: release past the last streamed point sends it",
@@ -737,7 +743,7 @@ TEST_CASE_METHOD(MoveTabFixture,
     panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
     drain();
     // The finger is not tracked at all: no target under it, nothing sent.
-    CHECK(bed_readout().find("X ") == std::string::npos);
+    CHECK(bed_readout() == "X 10.0  Y 10.0  Z 10.00");
     panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
     lv_subject_set_int(probe, 0);
     drain();
@@ -853,7 +859,7 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: leaving the panel ends the gesture in
 
     panel.on_deactivating(DeactivateReason::NavigateAway);
     drain();
-    CHECK(bed_readout().find("X ") == std::string::npos);
+    CHECK(readout_at_rest());
 
     // A release the panel never saw the press for moves nothing.
     panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
@@ -891,4 +897,68 @@ TEST_CASE_METHOD(MoveTabFixture, "motion: a Z frame landing before its ack is no
     REQUIRE(motion.held[0].target.z.has_value());
     CHECK(*motion.held[0].target.z == Catch::Approx(12.0));
     set_moonraker_api(&api_);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: at rest the readout shows where the head is",
+                 "[motion][bed-tab]") {
+    auto& ps = get_printer_state();
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    CHECK(bed_readout() == "X 10.0  Y 10.0  Z 10.00");
+
+    ps.update_from_status({{"gcode_move", {{"gcode_position", {158.6, 104.0, 0.2, 0.0}}}}});
+    drain();
+    // Below clearance the Z part becomes the lift announcement.
+    CHECK(bed_readout() == "X 158.6  Y 104.0  Z 0.20, will lift to 5mm");
+
+    ps.update_from_status(ready_status("xy"));
+    drain();
+    CHECK(bed_readout() == "Home all axes to use the map");
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: crosshair guides cross the plate through the marker",
+                 "[motion][bed-tab][xml]") {
+    get_global_motion_panel().set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {60.0, 150.0, 10.0, 0.0}}}}});
+    drain();
+    lv_obj_update_layout(lv_screen_active());
+    lv_area_t marker;
+    lv_area_t plate;
+    lv_area_t vertical;
+    lv_area_t horizontal;
+    lv_obj_get_coords(panel_widget("bed_map_marker"), &marker);
+    lv_obj_get_content_coords(panel_widget("bed_map_plate"), &plate);
+    lv_obj_t* guide_x = panel_widget("bed_map_guide_x");
+    lv_obj_t* guide_y = panel_widget("bed_map_guide_y");
+    lv_obj_get_coords(guide_x, &vertical);
+    lv_obj_get_coords(guide_y, &horizontal);
+
+    // Through the marker's centre...
+    CHECK(std::abs((vertical.x1 + vertical.x2) / 2 - (marker.x1 + marker.x2) / 2) <= 1);
+    CHECK(std::abs((horizontal.y1 + horizontal.y2) / 2 - (marker.y1 + marker.y2) / 2) <= 1);
+    // ...edge to edge across the plate, and no further.
+    CHECK(std::abs(vertical.y1 - plate.y1) <= 1);
+    CHECK(std::abs(vertical.y2 - plate.y2) <= 1);
+    CHECK(std::abs(horizontal.x1 - plate.x1) <= 1);
+    CHECK(std::abs(horizontal.x2 - plate.x2) <= 1);
+
+    get_printer_state().update_from_status(ready_status(""));
+    drain();
+    CHECK(lv_obj_has_flag(guide_x, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(guide_y, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: unhomed shows the jog pad's warning home button",
+                 "[motion][bed-tab][xml]") {
+    get_global_motion_panel().set_motion_tab(2);
+    get_printer_state().update_from_status(ready_status(""));
+    drain();
+    lv_obj_t* home = panel_widget("bed_map_home");
+    REQUIRE_FALSE(lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN));
+    const auto& palette = ThemeManager::instance().current_palette();
+    CHECK(lv_color_eq(lv_obj_get_style_border_color(home, LV_PART_MAIN), palette.warning));
+    CHECK(lv_color_eq(lv_obj_get_style_bg_color(home, LV_PART_MAIN), palette.elevated_bg));
+    CHECK(lv_obj_get_style_border_width(home, LV_PART_MAIN) == 3);
+    CHECK(lv_obj_get_width(home) == lv_obj_get_height(home));
 }

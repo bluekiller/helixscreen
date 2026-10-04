@@ -1350,6 +1350,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." en="Holding nozzle at {}°C to purge previous filament."/>
   <translation tag="Home" en="Home"/>
   <translation tag="Home &amp; Continue" en="Home &amp; Continue"/>
+  <translation tag="Home all axes to use the map" en="Home all axes to use the map"/>
   <translation tag="Home and sweep the cutter to re-find its position" en="Home and sweep the cutter to re-find its position"/>
   <translation tag="Home failed" en="Home failed"/>
   <translation tag="Home printer first?" en="Home printer first?"/>
@@ -2866,7 +2867,6 @@
   <translation tag="Tap anywhere if this text is right-side up" en="Tap anywhere if this text is right-side up"/>
   <translation tag="Tap anywhere to begin" en="Tap anywhere to begin"/>
   <translation tag="Tap anywhere to begin calibration" en="Tap anywhere to begin calibration"/>
-  <translation tag="Tap or drag to move" en="Tap or drag to move"/>
   <translation tag="Tap the bed&apos;s front-left corner" en="Tap the bed&apos;s front-left corner"/>
   <translation tag="Tap the bed&apos;s front-right corner" en="Tap the bed&apos;s front-right corner"/>
   <translation tag="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d" en="Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d"/>

@@ -162,6 +162,14 @@ std::optional<AxisTarget> bed_map_target(float x_px, float y_px, const BedCoordM
     return target;
 }
 
+float bed_map_guide_half_span(float offset, float half_extent, bool circular) {
+    if (!circular) {
+        return half_extent;
+    }
+    const float squared = half_extent * half_extent - offset * offset;
+    return squared > 0.0f ? std::sqrt(squared) : 0.0f;
+}
+
 std::optional<double> bed_map_lift_z(double current_z, double clearance_mm, double z_max) {
     const double lift = std::min(clearance_mm, z_max);
     if (current_z >= lift - AxisMove::EPSILON_MM) {

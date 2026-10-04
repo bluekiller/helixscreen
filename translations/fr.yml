@@ -1509,6 +1509,7 @@ translations:
     purger le filament précédent.
   Home: Origine
   Home & Continue: Référencer et continuer
+  Home all axes to use the map: Référencez tous les axes pour utiliser la carte
   Home and sweep the cutter to re-find its position: Prend l'origine et balaie le coupeur pour retrouver sa position
   Home failed: Échec de la référence
   Home printer first?: Référencer l'imprimante d'abord ?
@@ -3216,7 +3217,6 @@ translations:
     à l'endroit
   Tap anywhere to begin: Appuyez n'importe où pour commencer
   Tap anywhere to begin calibration: Appuyez n'importe où pour démarrer la calibration
-  Tap or drag to move: Appuyez ou glissez pour déplacer
   Tap the bed's front-left corner: Touchez le coin avant gauche du plateau
   Tap the bed's front-right corner: Touchez le coin avant droit du plateau
   Tap the crosshair (point %1$d of 3) — touch %2$d of %3$d: Appuyez sur

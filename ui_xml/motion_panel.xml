@@ -24,6 +24,12 @@
     <px name="bed_map_inset_small" value="7"/>
     <px name="bed_map_inset_medium" value="8"/>
     <px name="bed_map_inset_large" value="10"/>
+    <!-- Bed tab unhomed home button, near the jog pad's centre zone. -->
+    <px name="bed_map_home_size_micro" value="44"/>
+    <px name="bed_map_home_size_tiny" value="52"/>
+    <px name="bed_map_home_size_small" value="60"/>
+    <px name="bed_map_home_size_medium" value="72"/>
+    <px name="bed_map_home_size_large" value="88"/>
   </consts>
   <!-- Motion Sub-Screen: XYZ Movement & Homing -->
   <!-- Coordinates live in the header slot on landscape screens and in a slim
