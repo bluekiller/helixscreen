@@ -13,6 +13,7 @@
  */
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_cfs.h"
 #include "ams_types.h"
@@ -173,10 +174,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "Non-id backends: eject rule inert, field merg
     settings.init_subjects();
     settings.set_ams_keep_spool_info_on_eject(false);
 
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<helix::printer::AmsBackendCfs> backend_reg(&api, nullptr);
     helix::printer::AmsBackendCfs& backend = *backend_reg;

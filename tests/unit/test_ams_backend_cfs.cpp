@@ -4,6 +4,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_cfs.h"
 #include "ams_remap.h"
@@ -2476,10 +2477,8 @@ TEST_CASE("CFS override loaded at init is applied over firmware data",
     // color_name / total_weight_g from the RFID material DB, but the
     // override wins for every non-default field per the merge policy.
     CfsTmpCacheDir tmp("task14_override_applied");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2520,10 +2519,8 @@ TEST_CASE("CFS migrates from helix-screen:cfs_slot_overrides on first startup",
     // directly so we don't need to drive on_started() (which requires a
     // started subscription backend).
     CfsTmpCacheDir tmp("task14_migration");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed legacy namespace with a PLA Orange override on slot 0. lane_data is
     // untouched -> forces migration.
@@ -2563,10 +2560,8 @@ TEST_CASE("CFS migrates from helix-screen:cfs_slot_overrides on first startup",
 
 TEST_CASE("CFS apply_user_edit writes to store", "[ams][cfs][filament_slot_override]") {
     CfsTmpCacheDir tmp("task14_persist_true");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2612,10 +2607,8 @@ TEST_CASE("CFS apply_user_edit writes to store", "[ams][cfs][filament_slot_overr
 TEST_CASE("CFS sync_external_identity does NOT write to store",
           "[ams][cfs][filament_slot_override]") {
     CfsTmpCacheDir tmp("task14_persist_false");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2666,10 +2659,8 @@ TEST_CASE("CFS sync_external_identity does NOT write to store",
 TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)",
           "[ams][cfs][filament_slot_override]") {
     CfsTmpCacheDir tmp("task14_uid_swap_clears");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2762,10 +2753,8 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
 TEST_CASE("CFS clear_slot_override drops the whole Spoolman link",
           "[ams][cfs][filament_slot_override][1625]") {
     CfsTmpCacheDir tmp("clear_spoolman_link");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2805,10 +2794,8 @@ TEST_CASE("CFS first RFID observation does NOT clear override",
     // fingerprint, the very first observation is a BASELINE and must never
     // fire a clear. Matches Snapmaker semantics.
     CfsTmpCacheDir tmp("task14_first_uid_baseline");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2850,10 +2837,8 @@ TEST_CASE("CFS empty RFID fingerprint does not update baseline or clear",
     // This is the contract that keeps transient tag-read failures from
     // masking a genuine hardware swap on the next good read.
     CfsTmpCacheDir tmp("task14_empty_uid_noop");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2896,10 +2881,8 @@ TEST_CASE("CFS override preserved across unchanged parses", "[ams][cfs][filament
     // that was broken pre-Task-14: firmware data overwrote user edits on
     // every status notification.
     CfsTmpCacheDir tmp("task14_preserved_unchanged");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -2964,10 +2947,8 @@ TEST_CASE("CFS parse: color_value 'unknown' is EMPTY, real hex is AVAILABLE", "[
 // system must report current_slot == -1 and filament_loaded == false.
 TEST_CASE("CFS: box.filament selection index does not fake a loaded slot", "[ams][cfs]") {
     CfsTmpCacheDir tmp("presence_box_filament");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "cfs");
@@ -2993,10 +2974,8 @@ TEST_CASE("CFS: box.filament selection index does not fake a loaded slot", "[ams
 // is gated on has_unit_data.
 TEST_CASE("CFS: partial box.filament update does not clear active slot", "[ams][cfs]") {
     CfsTmpCacheDir tmp("presence_partial_no_clobber");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "cfs");
@@ -3024,10 +3003,8 @@ TEST_CASE("CFS: partial box.filament update does not clear active slot", "[ams][
 // (carrying box.filament but no sensor param) must NOT clobber it back to false.
 TEST_CASE("CFS: box-only update does not clobber sensor-derived filament_loaded", "[ams][cfs]") {
     CfsTmpCacheDir tmp("presence_sensor_authority");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "cfs");
@@ -3059,10 +3036,8 @@ TEST_CASE("CFS: box-only update does not clobber sensor-derived filament_loaded"
 // identity so ui_ams_slot.cpp can render the "assigned, not present" ghost.
 TEST_CASE("CFS: user override does not fake presence on an empty bay", "[ams][cfs]") {
     CfsTmpCacheDir tmp("presence_override_trust");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "cfs");
@@ -3650,10 +3625,8 @@ TEST_CASE("CFS flat-schema two edits in one poll window both survive their echoe
 
 TEST_CASE("CFS restart compares against the fingerprint the record carried",
           "[ams][cfs][flat][filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     json box_f1 = make_flat_box("PLA", "Polymaker", "PolyLite Orange", "#FF5500");
     json box_f2 = make_flat_box("PETG", "Bambu", "Basic Green", "#00FF00");
@@ -6001,10 +5974,8 @@ TEST_CASE("CFS stock echo of a user edit does not file as firmware truth (#1633)
     // the same code table. Filing that echo as VendorCache hands the lane the
     // user's abandoned edit as the machine's word once the override is cleared.
     CfsTmpCacheDir tmp("cfs_echo_suppressed");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -6084,10 +6055,8 @@ TEST_CASE("CFS fork echo of a user edit does not file as firmware truth (#1633)"
     // no lane at all.
     helix::test::RegisteredBackend<CfsRemapHelper> backend_reg;
     CfsRemapHelper& backend = *backend_reg;
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     // The identity push runs only with an override store attached.
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
@@ -6136,10 +6105,8 @@ TEST_CASE("CFS untagged insert offers Clear (#1710)", "[ams][cfs][1710]") {
     // three frames of silence are No evidence under the slot spec's insert
     // rule: keep everything and ask the user whether it is the same spool.
     CfsTmpCacheDir tmp("cfs_insert_notice");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
@@ -6507,10 +6474,8 @@ TEST_CASE("CFS flat fingerprint upgrade folds stored composites (#1710)", "[ams]
     // fingerprint counted brand and the product line, with the box reporting
     // the same spool under a different brand and product line, must not read
     // as a swap at the first poll.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     helix::test::RegisteredBackend<AmsBackendCfs> backend_reg(&api, nullptr);
     AmsBackendCfs& backend = *backend_reg;
 
