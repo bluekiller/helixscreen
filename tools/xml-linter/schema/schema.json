@@ -1370,6 +1370,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1387,6 +1390,9 @@
         },
         "stroke_opa": {
           "type": "opa"
+        },
+        "style_text_color": {
+          "type": "color"
         },
         "text_transform": {
           "type": "enum",
@@ -1406,6 +1412,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1423,6 +1432,9 @@
         },
         "stroke_opa": {
           "type": "opa"
+        },
+        "style_text_color": {
+          "type": "color"
         },
         "text_transform": {
           "type": "enum",
@@ -1442,6 +1454,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1460,6 +1475,9 @@
         "stroke_opa": {
           "type": "opa"
         },
+        "style_text_color": {
+          "type": "color"
+        },
         "text_transform": {
           "type": "enum",
           "enum": "text_transform"
@@ -1477,6 +1495,9 @@
         },
         "stroke_opa": {
           "type": "string"
+        },
+        "style_text_color": {
+          "type": "color"
         },
         "text_transform": {
           "type": "enum",

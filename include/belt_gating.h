@@ -9,6 +9,7 @@ enum class BeltGate {
     OK,
     NOT_CONNECTED,    ///< no printer connection or klippy is not ready
     NO_ACCELEROMETER, ///< no adxl345/lis2dw/... section in printer.cfg
+    DETECTING,        ///< kinematics not known yet; hardware detection is running
     NOT_COREXY,       ///< the A/B belt-path model does not apply
     NOT_COLOCATED,    ///< klippy's UDS socket is not reachable from here
     PRINTING,         ///< a print job owns the toolhead
@@ -18,6 +19,7 @@ struct BeltGateInputs {
     bool connected = false;
     bool has_accelerometer = false;
     bool is_corexy = false;
+    bool detecting = false; ///< hardware detection has not answered yet
     bool klippy_socket_reachable = false;
     bool print_active = false;
 };

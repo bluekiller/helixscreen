@@ -386,64 +386,67 @@ void XmlHotReloader::scan_and_reload() {
             auto reload_name = comp_name;
             auto reload_buf = std::move(xml_buf);
             auto after_cb = after_reload_callback_;
-            helix::ui::queue_update([reload_name, reload_buf = std::move(reload_buf), after_cb]() {
-                auto start = std::chrono::steady_clock::now();
+            helix::ui::queue_update(
+                "XmlHotReloader::scan_and_reload",
+                [reload_name, reload_buf = std::move(reload_buf), after_cb]() {
+                    auto start = std::chrono::steady_clock::now();
 
-                size_t owned_subjects = 0;
-                size_t borrowed_subjects = 0;
-                count_scope_subjects(reload_name.c_str(), owned_subjects, borrowed_subjects);
-                if (owned_subjects > 0 || borrowed_subjects > 0) {
-                    spdlog::debug("[HotReload] '{}' scope holds {} XML-declared subject(s) "
-                                  "(freed and re-parsed; observers detached, so live widgets "
-                                  "bound to them go inert until rebuilt below) and {} "
-                                  "C++-registered subject(s) (kept alive by C++ and carried "
-                                  "across into the new scope)",
-                                  reload_name, owned_subjects, borrowed_subjects);
-                }
+                    size_t owned_subjects = 0;
+                    size_t borrowed_subjects = 0;
+                    count_scope_subjects(reload_name.c_str(), owned_subjects, borrowed_subjects);
+                    if (owned_subjects > 0 || borrowed_subjects > 0) {
+                        spdlog::debug("[HotReload] '{}' scope holds {} XML-declared subject(s) "
+                                      "(freed and re-parsed; observers detached, so live widgets "
+                                      "bound to them go inert until rebuilt below) and {} "
+                                      "C++-registered subject(s) (kept alive by C++ and carried "
+                                      "across into the new scope)",
+                                      reload_name, owned_subjects, borrowed_subjects);
+                    }
 
-                // Subjects the scope only borrows are registered from C++ once at
-                // startup. Unregister destroys the scope and with it those
-                // registrations, and re-parsing the XML cannot recreate them — so
-                // snapshot them here and put them back below, or the component
-                // comes back live but with every bind_* naming one resolving to
-                // nothing.
-                auto borrowed = snapshot_borrowed_subjects(reload_name.c_str());
+                    // Subjects the scope only borrows are registered from C++ once at
+                    // startup. Unregister destroys the scope and with it those
+                    // registrations, and re-parsing the XML cannot recreate them — so
+                    // snapshot them here and put them back below, or the component
+                    // comes back live but with every bind_* naming one resolving to
+                    // nothing.
+                    auto borrowed = snapshot_borrowed_subjects(reload_name.c_str());
 
-                // Unregister old component definition
-                auto result = lv_xml_component_unregister(reload_name.c_str());
-                if (result != LV_RESULT_OK) {
-                    spdlog::warn("[HotReload] Failed to unregister '{}' — registering fresh",
-                                 reload_name);
-                }
+                    // Unregister old component definition
+                    auto result = lv_xml_component_unregister(reload_name.c_str());
+                    if (result != LV_RESULT_OK) {
+                        spdlog::warn("[HotReload] Failed to unregister '{}' — registering fresh",
+                                     reload_name);
+                    }
 
-                // Re-register from the pre-validated buffer (NOT from file —
-                // file could change again between pre-flight and now).
-                result =
-                    lv_xml_register_component_from_data(reload_name.c_str(), reload_buf.c_str());
-                if (result != LV_RESULT_OK) {
-                    // Shouldn't happen — pre-flight already parsed this exact
-                    // buffer successfully. If we ever get here, the component
-                    // is unregistered and live widgets are inert; log loudly.
-                    spdlog::error("[HotReload] Post-pre-flight parse failure for '{}' — "
-                                  "component is now unregistered; fix and save again",
-                                  reload_name);
-                    return;
-                }
+                    // Re-register from the pre-validated buffer (NOT from file —
+                    // file could change again between pre-flight and now).
+                    result = lv_xml_register_component_from_data(reload_name.c_str(),
+                                                                 reload_buf.c_str());
+                    if (result != LV_RESULT_OK) {
+                        // Shouldn't happen — pre-flight already parsed this exact
+                        // buffer successfully. If we ever get here, the component
+                        // is unregistered and live widgets are inert; log loudly.
+                        spdlog::error("[HotReload] Post-pre-flight parse failure for '{}' — "
+                                      "component is now unregistered; fix and save again",
+                                      reload_name);
+                        return;
+                    }
 
-                size_t restored = restore_borrowed_subjects(reload_name.c_str(), borrowed);
-                if (restored > 0) {
-                    spdlog::debug("[HotReload] '{}': carried {} C++-registered subject(s) into "
-                                  "the new scope",
-                                  reload_name, restored);
-                }
+                    size_t restored = restore_borrowed_subjects(reload_name.c_str(), borrowed);
+                    if (restored > 0) {
+                        spdlog::debug("[HotReload] '{}': carried {} C++-registered subject(s) into "
+                                      "the new scope",
+                                      reload_name, restored);
+                    }
 
-                auto elapsed = std::chrono::steady_clock::now() - start;
-                auto us = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
-                spdlog::info("[HotReload] Reloaded: {} ({:.1f}ms)", reload_name, us / 1000.0);
+                    auto elapsed = std::chrono::steady_clock::now() - start;
+                    auto us =
+                        std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+                    spdlog::info("[HotReload] Reloaded: {} ({:.1f}ms)", reload_name, us / 1000.0);
 
-                if (after_cb)
-                    after_cb(reload_name);
-            });
+                    if (after_cb)
+                        after_cb(reload_name);
+                });
         }
     }
 }

@@ -38,6 +38,7 @@
             width="#icon_button_size_lg" height="#icon_button_size_lg" ignore_layout="true" align="top_left"
             style_translate_x="#space_md" style_translate_y="#space_md" style_bg_color="#card_bg" style_bg_opa="180"
             style_radius="#icon_button_radius_lg" clickable="true" style_pad_all="0" scrollable="false">
+      <style name="styles.press_wash" selector="pressed"/>
       <bind_flag_if_eq subject="exclude_objects_available" flag="hidden" ref_value="0"/>
       <lv_label text="#icon_debug_step_over"
                 style_text_font="mdi_icons_24" style_text_color="#text_muted" align="center"/>
@@ -50,6 +51,7 @@
             width="#icon_button_size_lg" height="#icon_button_size_lg" ignore_layout="true" align="top_left"
             style_translate_x="#space_md" style_translate_y="#space_md" style_bg_color="#card_bg" style_bg_opa="180"
             style_radius="#icon_button_radius_lg" clickable="true" style_pad_all="0" scrollable="false">
+      <style name="styles.press_wash" selector="pressed"/>
       <bind_flag_if_eq subject="gcode_viewer_mode" flag="hidden" ref_value="0"/>
       <lv_label name="btn_view_toggle_icon"
                 bind_text="view_toggle_icon" style_text_font="mdi_icons_24" style_text_color="#text_muted"

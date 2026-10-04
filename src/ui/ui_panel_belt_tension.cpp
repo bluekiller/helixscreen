@@ -239,8 +239,8 @@ void BeltTensionPanel::set_render_tier_for_test(helix::PlatformTier tier,
     tier_animations_ = supports_animations;
 }
 
-void BeltTensionPanel::set_total_ram_mb_for_test(size_t total_mb) {
-    ram_mb_override_ = total_mb;
+void BeltTensionPanel::set_memory_for_test(const helix::MemoryInfo& mem) {
+    mem_override_ = mem;
 }
 
 void BeltTensionPanel::show() {
@@ -278,6 +278,7 @@ void BeltTensionPanel::on_activate() {
 
     // Detect hardware capabilities
     if (calibrator_) {
+        detection_pending_ = true;
         calibrator_->detect_hardware(
             lifetime_.bg_cb("BeltTensionPanel::detect_hardware",
                             [this](const helix::calibration::BeltTensionHardware& hw) {
@@ -292,6 +293,7 @@ void BeltTensionPanel::on_activate() {
                 // detected_hw_ is now known-bad, so the gate must be recomputed
                 // against it rather than left on a stale pass.
                 detected_hw_ = {};
+                detection_pending_ = false;
                 refresh_gate();
             }));
     }
@@ -383,6 +385,7 @@ void BeltTensionPanel::set_view_state(ViewState state) {
 
 void BeltTensionPanel::on_hardware_detected(const helix::calibration::BeltTensionHardware& hw) {
     detected_hw_ = hw;
+    detection_pending_ = false;
 
     const char* kin_label = lv_tr("Unknown");
     switch (hw.kinematics) {
@@ -462,9 +465,14 @@ void BeltTensionPanel::handle_retest_clicked(helix::calibration::BeltPath path) 
 }
 
 void BeltTensionPanel::run_after_ram_check(std::function<void()> go) {
-    const size_t total_mb = ram_mb_override_.value_or(helix::get_system_memory_info().total_mb());
-    if (total_mb >= helix::RESONANCE_LOW_RAM_WARN_MB) {
+    const helix::MemoryInfo mem = mem_override_.value_or(helix::get_system_memory_info());
+    const auto verdict = helix::resonance_memory_check(mem);
+    if (verdict == helix::ResonanceMemory::OK) {
         go();
+        return;
+    }
+    if (verdict == helix::ResonanceMemory::REFUSE) {
+        helix::ui::show_resonance_memory_refusal(mem.headroom_mb());
         return;
     }
     // Klipper analyses the sweep on this same host, and on a small board that
@@ -474,7 +482,7 @@ void BeltTensionPanel::run_after_ram_check(std::function<void()> go) {
     }
     helix::ui::ConfirmOptions opts;
     opts.owner_token = lifetime_.token();
-    helix::ui::show_low_ram_resonance_warning(total_mb, &low_ram_dialog_, go, opts);
+    helix::ui::show_low_ram_resonance_warning(mem.total_mb(), &low_ram_dialog_, go, opts);
     if (!low_ram_dialog_) {
         go(); // the modal failed to build; do not silently block the check
     }
@@ -631,7 +639,9 @@ void BeltTensionPanel::on_sweep_error(const std::string& message) {
 void BeltTensionPanel::on_stall() {
     spdlog::warn("[BeltTension] Stall guard fired: no progress for {} ms", STALL_TIMEOUT_MS);
     on_error(lv_tr("Klipper stopped reporting progress. Its analysis can run out of memory on "
-                   "small printers; restart Klipper, then try again."));
+                   "small printers and leave Klipper stuck, where a firmware restart cannot "
+                   "reach it. Power-cycle the printer (or restart Klipper over SSH), then try "
+                   "again."));
 }
 
 void BeltTensionPanel::finish_run() {
@@ -868,6 +878,8 @@ void BeltTensionPanel::refresh_gate() {
         lv_subject_get_int(ps.get_klippy_state_subject()) == static_cast<int>(KlippyState::READY);
     in.has_accelerometer = accel_subj && lv_subject_get_int(accel_subj) != 0;
     in.is_corexy = detected_hw_.kinematics == helix::calibration::KinematicsType::COREXY;
+    in.detecting = detection_pending_ &&
+                   detected_hw_.kinematics == helix::calibration::KinematicsType::UNKNOWN;
     in.klippy_socket_reachable = klippy_socket_reachable_;
     in.print_active = lv_subject_get_int(ps.get_print_active_subject()) != 0;
 

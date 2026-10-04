@@ -15,6 +15,7 @@
 #include "exception_policy.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "memory_utils.h"
 #include "settings_manager.h"
 #include "system/crash_handler.h"
 #include "theme_manager.h"
@@ -1354,7 +1355,7 @@ class ConfirmationModal : public Modal {
             } else {
                 // Untokened callers keep the older contract: the capture
                 // simply has to outlive the dialog.
-                helix::ui::queue_update(std::move(on_dismiss_));
+                helix::ui::queue_update("ConfirmationModal::on_dismiss", std::move(on_dismiss_));
             }
         }
         // No self-delete: the stack entry owns this instance and frees it when
@@ -1504,6 +1505,26 @@ lv_obj_t* helix::ui::modal_alert(const char* title, const char* message, ModalSe
                                   m.set_callbacks(std::move(on_ok), nullptr,
                                                   /*has_cancel=*/false);
                               });
+}
+
+lv_obj_t* helix::ui::show_resonance_memory_refusal(size_t headroom_mb,
+                                                   std::function<void()> on_close,
+                                                   const AlertOptions& options) {
+    std::string msg = lv_tr("There is not enough free memory to run this test. Klipper's "
+                            "analysis would run out of memory and leave the printer stuck "
+                            "until it is power-cycled.");
+    helix::contain_exceptions("[Modal] Memory refusal format", [&] {
+        msg = fmt::format(lv_tr("Only {} MB of memory is free, and Klipper's analysis needs "
+                                "about {} MB. Running the test would leave the printer stuck "
+                                "until it is power-cycled."),
+                          headroom_mb, helix::RESONANCE_MIN_HEADROOM_MB);
+    });
+    AlertOptions all = options;
+    if (on_close && !all.on_dismiss) {
+        all.on_dismiss = on_close;
+    }
+    return modal_alert(lv_tr("Not Enough Memory"), msg.c_str(), ModalSeverity::Error, lv_tr("OK"),
+                       std::move(on_close), all);
 }
 
 lv_obj_t* helix::ui::show_low_ram_resonance_warning(size_t total_mb, lv_obj_t** dialog_handle,

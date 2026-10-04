@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>6856844bc</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>7af4d565f</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 100 done, 10 in progress, 26 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 100 done, 12 in progress, 24 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -1900,7 +1900,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </section>
 <section id="sec-g"><h2>G. God classes</h2><p class="lede">Later; stage behind test decoupling (TB-1).</p>
 <details class="f" id="GOD-1" data-tag="god-class" data-size="1.1" data-status="progress">
-<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">709ec4e11</code><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
+<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god1-printer-session</code><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
 <div class="fbody">
 <p class="branch">First tranche shipped: <code>refactor/god1-application-split</code>, merged at <code>709ec4e11</code>. Discovery reactions are an ordered 24-step table (<code>discovery_steps.cpp</code>); attach/detach pairs for timelapse, update response, print hours and Spoolman active-spool sync; <code>HardwareSetupPrompter</code> with a pure <code>choose_prompt</code>; process guards, demo overlays and SDL shortcuts moved out. application.cpp 5,289 -&gt; 3,855 lines. Left: <code>PrinterSession</code> (switch, teardown, <code>init_printer_state</code>) and <code>init_action_prompt</code>. Plan: <code>docs/devel/plans/2026-10-04-god1-application-split.md</code>.</p>
 <dl>
@@ -1970,8 +1970,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-6" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">theme_manager.cpp is 14 jobs over file statics with no class boundary</span><span class="fimpact">enabler for ~700 lines of theme dedup</span></summary>
+<details class="f" id="GOD-6" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god6-theme-split</code><span class="ftitle">theme_manager.cpp is 14 jobs over file statics with no class boundary</span><span class="fimpact">enabler for ~700 lines of theme dedup</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/ui/theme_manager.cpp</code> (free functions + ~35 file-static globals), <code>include/theme_manager.h</code>, <code>src/ui/theme_manager_new.cpp</code></dd>
@@ -2027,8 +2027,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
+<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god10-display-sleep</code><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
 <div class="fbody">
 <dl>
 <dt>Locations</dt><dd><code>src/application/display_manager.cpp#DisplayManager::run_rotation_probe</code>, <code>#DisplayManager::enter_sleep</code>, <code>#DisplayManager::init</code>, <code>include/display_manager.h#DisplayManager</code></dd>

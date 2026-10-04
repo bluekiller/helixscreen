@@ -143,7 +143,7 @@ void apply_refresh_timing(const RefreshTiming& timing) {
     if (period == 0 || !timing.scope_all) {
         return;
     }
-    // Looked up afresh on every call: a backend swap deletes and recreates the devices.
+    // Looked up afresh on every call: devices come and go (unplug, hot-plug).
     for (lv_indev_t* indev = lv_indev_get_next(nullptr); indev != nullptr;
          indev = lv_indev_get_next(indev)) {
         if (lv_timer_t* read = lv_indev_get_read_timer(indev)) {

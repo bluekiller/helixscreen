@@ -665,7 +665,7 @@ void SpoolmanPanel::duplicate_spool(int spool_id) {
         body,
         [token, display](const SpoolInfo& created) {
             spdlog::info("[Spoolman] Duplicated '{}' as spool #{}", display, created.id);
-            helix::ui::queue_update([token, created]() {
+            helix::ui::queue_update("SpoolmanPanel::duplicate_spool", [token, created]() {
                 std::string msg =
                     std::string(lv_tr("Duplicated")) + ": #" + std::to_string(created.id);
                 ToastManager::instance().show(ToastSeverity::SUCCESS, msg.c_str(), 3000);
@@ -678,7 +678,7 @@ void SpoolmanPanel::duplicate_spool(int spool_id) {
         },
         [display](const MoonrakerError& err) {
             spdlog::error("[Spoolman] Failed to duplicate '{}': {}", display, err.message);
-            helix::ui::queue_update([]() {
+            helix::ui::queue_update("SpoolmanPanel::duplicate_spool", []() {
                 ToastManager::instance().show(ToastSeverity::ERROR,
                                               lv_tr("Failed to duplicate spool"), 3000);
             });
@@ -717,7 +717,7 @@ void SpoolmanPanel::archive_spool(int spool_id) {
                 spool_id, body,
                 [spool_id]() {
                     spdlog::info("[Spoolman] Spool {} archived successfully", spool_id);
-                    helix::ui::queue_update([spool_id]() {
+                    helix::ui::queue_update("SpoolmanPanel::archive_spool", [spool_id]() {
                         ToastManager::instance().show(ToastSeverity::SUCCESS,
                                                       lv_tr("Spool archived"), 2000);
                         auto& panel = get_global_spoolman_panel();
@@ -728,7 +728,7 @@ void SpoolmanPanel::archive_spool(int spool_id) {
                 [spool_id](const MoonrakerError& err) {
                     spdlog::error("[Spoolman] Failed to archive spool {}: {}", spool_id,
                                   err.message);
-                    helix::ui::queue_update([]() {
+                    helix::ui::queue_update("SpoolmanPanel::archive_spool", []() {
                         ToastManager::instance().show(ToastSeverity::ERROR,
                                                       lv_tr("Failed to archive spool"), 3000);
                     });
@@ -756,7 +756,7 @@ void SpoolmanPanel::delete_spool(int spool_id) {
                 spool_id,
                 [spool_id]() {
                     spdlog::info("[Spoolman] Spool {} deleted successfully", spool_id);
-                    helix::ui::queue_update([spool_id]() {
+                    helix::ui::queue_update("SpoolmanPanel::delete_spool", [spool_id]() {
                         ToastManager::instance().show(ToastSeverity::SUCCESS,
                                                       lv_tr("Spool deleted"), 2000);
                         auto& panel = get_global_spoolman_panel();
@@ -767,7 +767,7 @@ void SpoolmanPanel::delete_spool(int spool_id) {
                 [spool_id](const MoonrakerError& err) {
                     spdlog::error("[Spoolman] Failed to delete spool {}: {}", spool_id,
                                   err.message);
-                    helix::ui::queue_update([]() {
+                    helix::ui::queue_update("SpoolmanPanel::delete_spool", []() {
                         ToastManager::instance().show(ToastSeverity::ERROR,
                                                       lv_tr("Failed to delete spool"), 3000);
                     });

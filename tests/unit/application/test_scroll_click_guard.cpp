@@ -195,7 +195,7 @@ class LiveChain {
         snapshot_.config->set<int>("/input/scroll_guard_cooldown_ms", 150);
         DisplayManagerTestAccess::set_active_instance(&mgr);
         DisplayManagerTestAccess::set_backend(mgr, std::make_unique<ScriptedFbdevBackend>());
-        DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+        DisplayManagerTestAccess::create_input_devices(mgr);
         pointer_ = mgr.pointer_input();
         REQUIRE(pointer_ != nullptr);
         // What LVGL's read timer would call for this device.

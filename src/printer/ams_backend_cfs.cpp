@@ -4430,8 +4430,9 @@ bool AmsBackendCfs::judge_insert_locked(SlotInfo& slot, int slot_index,
     case helix::ams::InsertVerdict::NoEvidence:
         // Keep everything and ask. The notice is self-gating, so a lane with
         // nothing the new spool could contradict stays silent.
-        helix::ui::queue_update(
-            [slot_index] { helix::ui::offer_clear_after_unverified_insert(slot_index); });
+        helix::ui::queue_update("AmsBackendCfs::judge_insert_locked", [slot_index] {
+            helix::ui::offer_clear_after_unverified_insert(slot_index);
+        });
         return false;
     case helix::ams::InsertVerdict::SameSpool:
         break;

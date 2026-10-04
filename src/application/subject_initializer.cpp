@@ -521,7 +521,8 @@ void SubjectInitializer::init_usb_manager(const RuntimeConfig& runtime_config) {
                 if (!within_grace_period) {
                     // Marshal notification to main thread — callback fires from
                     // USB backend's background thread
-                    helix::ui::queue_update([]() { NOTIFY_SUCCESS(lv_tr("USB drive connected")); });
+                    helix::ui::queue_update("SubjectInitializer::init_usb_manager",
+                                            []() { NOTIFY_SUCCESS(lv_tr("USB drive connected")); });
                 } else {
                     spdlog::debug("[USB] Suppressing toast for drive present at startup");
                 }
@@ -529,18 +530,21 @@ void SubjectInitializer::init_usb_manager(const RuntimeConfig& runtime_config) {
                     // Marshal to main thread — callback fires from UsbBackendMock's
                     // demo thread, and panel methods touch LVGL widgets.
                     // Capture weak_alive to guard against panel destruction.
-                    helix::ui::queue_update([panel, weak_alive]() {
-                        if (!weak_alive.expired())
-                            panel->on_usb_drive_inserted();
-                    });
+                    helix::ui::queue_update("SubjectInitializer::init_usb_manager",
+                                            [panel, weak_alive]() {
+                                                if (!weak_alive.expired())
+                                                    panel->on_usb_drive_inserted();
+                                            });
                 }
             } else if (event == UsbEvent::DRIVE_REMOVED) {
-                helix::ui::queue_update([]() { NOTIFY_INFO(lv_tr("USB drive removed")); });
+                helix::ui::queue_update("SubjectInitializer::init_usb_manager",
+                                        []() { NOTIFY_INFO(lv_tr("USB drive removed")); });
                 if (panel) {
-                    helix::ui::queue_update([panel, weak_alive]() {
-                        if (!weak_alive.expired())
-                            panel->on_usb_drive_removed();
-                    });
+                    helix::ui::queue_update("SubjectInitializer::init_usb_manager",
+                                            [panel, weak_alive]() {
+                                                if (!weak_alive.expired())
+                                                    panel->on_usb_drive_removed();
+                                            });
                 }
             }
         });

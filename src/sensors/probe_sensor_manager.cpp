@@ -268,8 +268,9 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
                 update_subjects();
             } else {
                 spdlog::debug("[ProbeSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update(
-                    [] { ProbeSensorManager::instance().update_subjects_on_main_thread(); });
+                helix::ui::queue_update("ProbeSensorManager::update_from_status", [] {
+                    ProbeSensorManager::instance().update_subjects_on_main_thread();
+                });
             }
         }
     }

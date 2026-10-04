@@ -107,8 +107,15 @@ The panel owns stall detection: `BeltTensionPanel::STALL_TIMEOUT_MS` (120 s, an
 `OperationTimeoutGuard`) fires when no progress line arrived, because Klipper prints one
 every second. `BeltResonanceCollector` carries no deadline of its own. The stall message
 names the likeliest cause on a small board, Klipper's analysis running out of memory, and
-tells the user to restart Klipper: an OOM-killed analysis leaves klippy wedged, and the
-Moonraker firmware-restart RPC cannot reach it.
+tells the user to power-cycle (or restart Klipper over SSH): an OOM-killed analysis leaves
+klippy wedged, the Moonraker firmware-restart RPC cannot reach it, and on the CC1 and AD5M
+Moonraker's service manager does not list Klipper at all.
+
+Start refuses outright when `MemAvailable + SwapFree` is under
+`RESONANCE_MIN_HEADROOM_MB` (64 MB), and asks first on a board under 200 MB total
+(`include/memory_utils.h#resonance_memory_check`, shared with input shaper). On the CC1
+the OOM killer takes HelixScreen before the analysis, so the stall error never shows
+there: the check has to happen before Start.
 
 **Stop** is not a pause. A sweep cannot be resumed, so `handle_stop_clicked` calls
 `BeltTensionCalibrator::emergency_abort`, which is

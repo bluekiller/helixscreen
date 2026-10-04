@@ -587,6 +587,7 @@ translations:
   Checking for webcam...: Verificando webcam...
   Checking plugin: Verificando plugin
   Checking slots...: Verificando slots...
+  Checking the printer...: "Verificando a impressora..."
   Checking timelapse plugin...: Verificando plugin de timelapse...
   Checking webcam: Verificando webcam
   Checking...: Verificando...
@@ -1684,6 +1685,8 @@ translations:
     emergência, fuga térmica ou erro de configuração.
   Klipper reserves 'default' for new calibrations. Choose another name.: "O Klipper reserva 'default' para novas calibrações. Escolha outro nome."
   Klipper restarting - macros activating: 'Reiniciando o Klipper - ativando macros'
+  ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
+  : "O Klipper parou de informar o progresso. A análise pode ficar sem memória em impressoras pequenas e deixar o Klipper travado, onde um reinício de firmware não o alcança. Desligue e ligue a impressora (ou reinicie o Klipper via SSH) e tente novamente."
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "O Klipper parou de informar o progresso. A análise pode ficar sem memória em impressoras pequenas; reinicie o Klipper e tente novamente."
   Klipper will restart to apply changes.: O Klipper será reiniciado para aplicar as
     alterações.
@@ -2104,6 +2107,7 @@ translations:
   Normal: Normal
   Not Connected: 'Não conectado'
   Not Enough Filament: Filamento Insuficiente
+  Not Enough Memory: "Memória insuficiente"
   Not Initialized: 'Não inicializado'
   Not Now: Agora Não
   Not Supported: 'Não suportado'
@@ -2177,6 +2181,8 @@ translations:
   One tap runs this macro. Dangerous macros still ask.: 'Um toque executa esta macro. Macros perigosas ainda pedem confirmação.'
   'Only on A: {} Hz': "Somente em A: {} Hz"
   'Only on B: {} Hz': "Somente em B: {} Hz"
+  ? Only {} MB of memory is free, and Klipper's analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled.
+  : "Apenas {} MB de memória estão livres, e a análise do Klipper precisa de cerca de {} MB. O teste deixaria a impressora travada até ser desligada e ligada."
   Ooze Reduction: 'Redução de escorrimento'
   Open: Abrir
   Open Source Licenses: Licenças de código aberto
@@ -3331,6 +3337,8 @@ translations:
   Theme changes apply after restart.: Alterações de tema aplicam após reiniciar.
   Theme reset to defaults: Tema redefinido para os padrões
   'Theme: ': 'Tema: '
+  ? There is not enough free memory to run this test. Klipper's analysis would run out of memory and leave the printer stuck until it is power-cycled.
+  : "Não há memória livre suficiente para este teste. A análise do Klipper ficaria sem memória e deixaria a impressora travada até ser desligada e ligada."
   'These tools have a different filament grade loaded:': 'Estas ferramentas têm um grau de filamento diferente carregado:'
   'These tools have incompatible materials loaded:': 'Estas ferramentas têm materiais
     incompatíveis carregados:'

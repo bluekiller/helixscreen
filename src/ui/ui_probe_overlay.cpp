@@ -624,7 +624,7 @@ void ProbeOverlay::handle_probe_accuracy() {
                 // L081_FREEZE_OK: handler is registered when the user taps Probe
                 // Accuracy (post-startup); samples are a high-frequency stream where
                 // a dropped progress tick is harmless.
-                helix::ui::queue_update([z_val]() {
+                helix::ui::queue_update("ProbeOverlay::handle_probe_accuracy", [z_val]() {
                     auto& overlay = get_global_probe_overlay();
                     overlay.probe_acc_sample_count_++;
                     int current = overlay.probe_acc_sample_count_;
@@ -652,8 +652,9 @@ void ProbeOverlay::handle_probe_accuracy() {
                 api->unregister_method_callback("notify_gcode_response", handler_name);
 
                 std::string results = line;
-                helix::ui::queue_update(
-                    [results]() { get_global_probe_overlay().show_accuracy_results(results); });
+                helix::ui::queue_update("ProbeOverlay::handle_probe_accuracy", [results]() {
+                    get_global_probe_overlay().show_accuracy_results(results);
+                });
                 return;
             }
 
@@ -664,8 +665,9 @@ void ProbeOverlay::handle_probe_accuracy() {
                 api->unregister_method_callback("notify_gcode_response", handler_name);
 
                 std::string error_msg = line;
-                helix::ui::queue_update(
-                    [error_msg]() { get_global_probe_overlay().set_accuracy_error(error_msg); });
+                helix::ui::queue_update("ProbeOverlay::handle_probe_accuracy", [error_msg]() {
+                    get_global_probe_overlay().set_accuracy_error(error_msg);
+                });
             }
         });
 
@@ -695,8 +697,9 @@ void ProbeOverlay::handle_probe_accuracy() {
             spdlog::error("[Probe] PROBE_ACCURACY failed: {}", err.user_message());
             api->unregister_method_callback("notify_gcode_response", handler_name);
             std::string msg = err.user_message();
-            helix::ui::queue_update(
-                [msg]() { get_global_probe_overlay().set_accuracy_error(msg); });
+            helix::ui::queue_update("ProbeOverlay::handle_probe_accuracy", [msg]() {
+                get_global_probe_overlay().set_accuracy_error(msg);
+            });
         },
         IAdvancedAPI::PROBING_TIMEOUT_MS + prep_timeout_ms);
 }

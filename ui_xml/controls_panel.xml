@@ -96,7 +96,7 @@
           <!-- Z-Offset display (clickable to open Print Tune overlay) -->
           <lv_obj name="btn_zoffset_tune"
                   width="100%" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_xs"
-                  style_margin_top="#space_sm" clickable="true" scrollable="false">
+                  style_margin_top="#space_sm" clickable="true" scrollable="false" style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_zoffset_tune"/>
             <text_muted width="content" text="Z-Offset:" translation_tag="Z-Offset:"/>
@@ -175,7 +175,7 @@
             <!-- Nozzle section (clickable) -->
             <lv_obj name="btn_nozzle_temp"
                     width="100%" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
-                    style_margin_top="#space_xs" clickable="true" scrollable="false">
+                    style_margin_top="#space_xs" clickable="true" scrollable="false" style_radius="#border_radius">
               <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_nozzle_temp_clicked"/>
               <!-- Left side: animated heater icon + label -->
@@ -196,7 +196,8 @@
               <!-- Right side: temp display + edit icon -->
               <lv_obj name="nozzle_temp_edit_container"
                       width="content" height="content" flex_flow="row" style_pad_all="0" scrollable="false"
-                      style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12">
+                      style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12"
+                      style_radius="#border_radius">
                 <style name="styles.press_wash" selector="pressed"/>
                 <event_cb trigger="clicked" callback="on_nozzle_target_edit"/>
                 <icon src="pencil" size="xs" variant="tertiary" clickable="false" event_bubble="true"/>
@@ -212,7 +213,7 @@
             <!-- Bed section (clickable) -->
             <lv_obj name="btn_bed_temp"
                     width="100%" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
-                    clickable="true" scrollable="false">
+                    clickable="true" scrollable="false" style_radius="#border_radius">
               <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_bed_temp_clicked"/>
               <!-- Left side: animated bed icon + label -->
@@ -232,7 +233,8 @@
               <!-- Right side: temp display + edit icon -->
               <lv_obj name="bed_temp_edit_container"
                       width="content" height="content" flex_flow="row" style_pad_all="0" scrollable="false"
-                      style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12">
+                      style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12"
+                      style_radius="#border_radius">
                 <style name="styles.press_wash" selector="pressed"/>
                 <event_cb trigger="clicked" callback="on_bed_target_edit"/>
                 <icon src="pencil" size="xs" variant="tertiary" clickable="false" event_bubble="true"/>
@@ -247,7 +249,7 @@
             <!-- Chamber section (visible only if printer has chamber sensor) -->
             <lv_obj name="btn_chamber_temp"
                     width="100%" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
-                    hidden="true" clickable="true" scrollable="false">
+                    hidden="true" clickable="true" scrollable="false" style_radius="#border_radius">
               <style name="styles.press_wash" selector="pressed"/>
               <bind_flag_if_eq subject="printer_has_chamber" flag="hidden" ref_value="0"/>
               <event_cb trigger="clicked" callback="on_chamber_temp_clicked"/>
@@ -269,7 +271,8 @@
               <!-- Right side: temp display + edit icon -->
               <lv_obj name="chamber_temp_edit_container"
                       width="content" height="content" flex_flow="row" style_pad_all="0" scrollable="false"
-                      style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12">
+                      style_flex_cross_place="center" style_pad_gap="#space_xs" clickable="true" ext_click_area="12"
+                      style_radius="#border_radius">
                 <style name="styles.press_wash" selector="pressed"/>
                 <event_cb trigger="clicked" callback="on_chamber_target_edit"/>
                 <icon src="pencil" size="xs" variant="tertiary" clickable="false" event_bubble="true"/>

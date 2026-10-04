@@ -156,7 +156,7 @@ void NiimbotBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
     auto& loader = helix::bluetooth::BluetoothLoader::instance();
     if (!loader.is_available()) {
         spdlog::error("Niimbot BT: Bluetooth not available");
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("NiimbotBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, lv_tr("Bluetooth not available"));
         });
@@ -165,7 +165,7 @@ void NiimbotBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
 
     if (mac_.empty()) {
         spdlog::error("Niimbot BT: No device configured");
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("NiimbotBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, lv_tr("Bluetooth device not configured"));
         });
@@ -441,14 +441,14 @@ void NiimbotBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
                 // content correctly on a persistent BLE connection.
             }
 
-            helix::ui::queue_update([callback, success, error]() {
+            helix::ui::queue_update("NiimbotBluetoothPrinter::print", [callback, success, error]() {
                 if (callback)
                     callback(success, error);
             });
         }).detach();
     } catch (const std::system_error& e) {
         spdlog::error("Niimbot BT: failed to spawn print thread: {}", e.what());
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("NiimbotBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, lv_tr("System busy — please try again"));
         });
