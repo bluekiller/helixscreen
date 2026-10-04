@@ -25,4 +25,4 @@ beta
 # install on the next tag, and release.yml's pre-upload downgrade guard cannot
 # refuse it: 1.1.0 > 1.0.0 is a forward move. That is why this value and the
 # release/1.0 cut belong to one change rather than two.
-# See docs/devel/RELEASE_1_0_CHECKLIST.md § "The atomic branch cut".
+# See docs/devel/BRANCHING.md.

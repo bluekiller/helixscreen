@@ -35,8 +35,7 @@ below the release it names.
 line, so a tag there would publish over the stable manifest for every user, and
 `release.yml`'s pre-upload downgrade guard cannot refuse it — a higher version is
 a *forward* move. Cutting a new maintenance line and flipping the trunk's channel
-belong to one change, never two. See `RELEASE_1_0_CHECKLIST.md` § "The atomic
-branch cut".
+belong to one change, never two.
 
 Nothing about moving a branch publishes anything: `release.yml` triggers only on
 `push: tags: v*`, and the R2 workflows are `workflow_dispatch` only. A release is
