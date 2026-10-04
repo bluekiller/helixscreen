@@ -12,8 +12,10 @@
 #include "theme_manager.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <map>
 
 namespace helix::plugin {
@@ -120,6 +122,16 @@ void* canvas_xml_create(lv_xml_parser_state_t* state, const char** attrs) {
     return obj;
 }
 
+/// A non-finite coordinate or size skips the primitive outright: the
+/// float-to-int casts are undefined on NaN, and range comparisons alone
+/// cannot reject one (nan > limit is false).
+bool finite_coords(std::initializer_list<lv_value_precise_t> vals) {
+    for (lv_value_precise_t v : vals)
+        if (!std::isfinite(v))
+            return false;
+    return true;
+}
+
 } // namespace
 
 void register_plugin_canvas_widget() {
@@ -219,6 +231,8 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
     for (const CanvasPrim& p : list.prims) {
         switch (p.op) {
         case CanvasOp::Line: {
+            if (!finite_coords({p.a, p.b, p.c, p.d}))
+                break;
             lv_draw_line_dsc_t dsc;
             lv_draw_line_dsc_init(&dsc);
             dsc.p1 = {ox + p.a, oy + p.b};
@@ -230,14 +244,24 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             break;
         }
         case CanvasOp::Polyline: {
-            if (p.count < 2 || p.first + p.count > list.points.size())
+            // Overflow-free range check: first + count can wrap past the size.
+            if (p.count < 2 || p.first > list.points.size() ||
+                p.count > list.points.size() - p.first)
                 break;
             // lv_draw_line copies the point array into its draw task, so the
             // translated local copy can go out of scope right after.
             std::vector<lv_point_precise_t> pts(p.count);
+            bool finite = true;
             for (uint32_t i = 0; i < p.count; ++i) {
-                pts[i] = {ox + list.points[p.first + i].x, oy + list.points[p.first + i].y};
+                const lv_point_precise_t& src = list.points[p.first + i];
+                if (!std::isfinite(src.x) || !std::isfinite(src.y)) {
+                    finite = false;
+                    break;
+                }
+                pts[i] = {ox + src.x, oy + src.y};
             }
+            if (!finite)
+                break;
             lv_draw_line_dsc_t dsc;
             lv_draw_line_dsc_init(&dsc);
             dsc.points = pts.data();
@@ -249,6 +273,8 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             break;
         }
         case CanvasOp::Rect: {
+            if (!finite_coords({p.a, p.b, p.c, p.d}))
+                break;
             lv_draw_rect_dsc_t dsc;
             lv_draw_rect_dsc_init(&dsc);
             if (p.color != kNoToken) {
@@ -271,6 +297,8 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             break;
         }
         case CanvasOp::Circle: {
+            if (!finite_coords({p.a, p.b}))
+                break;
             lv_draw_rect_dsc_t dsc;
             lv_draw_rect_dsc_init(&dsc);
             if (p.color != kNoToken) {
@@ -293,11 +321,14 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             break;
         }
         case CanvasOp::Arc: {
+            if (!finite_coords({p.a, p.b, p.c, p.d}))
+                break;
             lv_draw_arc_dsc_t dsc;
             lv_draw_arc_dsc_init(&dsc);
             dsc.center = {static_cast<int32_t>(content.x1 + p.a),
                           static_cast<int32_t>(content.y1 + p.b)};
-            dsc.radius = static_cast<uint16_t>(p.radius);
+            // A negative radius would wrap to ~65k in the uint16 cast.
+            dsc.radius = static_cast<uint16_t>(p.radius > 0 ? p.radius : 0);
             dsc.start_angle = p.c;
             dsc.end_angle = p.d;
             dsc.color = color_of(p.color);
@@ -307,8 +338,11 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             break;
         }
         case CanvasOp::Text: {
+            // Overflow-free range check, same shape as the Polyline one.
+            if (p.first > list.text.size() || p.count > list.text.size() - p.first)
+                break;
             const lv_font_t* font = p.font == kNoToken ? nullptr : font_of(p.font);
-            if (!font || p.first + p.count > list.text.size())
+            if (!font || !finite_coords({p.a, p.b}))
                 break;
             lv_draw_label_dsc_t dsc;
             lv_draw_label_dsc_init(&dsc);

@@ -9,6 +9,7 @@
 #include "plugin_canvas.h"
 #include "theme_manager.h"
 
+#include <limits>
 #include <lvgl.h>
 
 #include "../catch_amalgamated.hpp"
@@ -217,6 +218,52 @@ TEST_CASE_METHOD(CanvasRig, "every primitive kind replays", "[plugin][canvas]") 
     lv_refr_now(nullptr);
     // Completing the refresh without crashing is the assertion: the replay
     // touches every primitive's memory while a draw task consumes it.
+}
+
+TEST_CASE_METHOD(CanvasRig, "a non-finite primitive draws nothing", "[plugin][canvas]") {
+    lv_obj_t* root = make();
+    lv_obj_update_layout(root);
+    lv_obj_t* canvas = canvas_of(root);
+    REQUIRE(canvas != nullptr);
+
+    auto list = std::make_unique<DisplayList>();
+    list->tokens = {"primary"};
+
+    const auto nan = std::numeric_limits<lv_value_precise_t>::quiet_NaN();
+
+    CanvasPrim fill;
+    fill.op = CanvasOp::Rect;
+    fill.color = 0;
+    fill.a = 0;
+    fill.b = nan;
+    fill.c = 200;
+    fill.d = 100;
+    list->prims.push_back(fill);
+
+    CanvasPrim line;
+    line.op = CanvasOp::Line;
+    line.color = 0;
+    line.a = nan;
+    line.b = 0;
+    line.c = 100;
+    line.d = 50;
+    list->prims.push_back(line);
+
+    // A wrapped first + count must not read past the point vector.
+    CanvasPrim poly;
+    poly.op = CanvasOp::Polyline;
+    poly.color = 0;
+    poly.first = 0xFFFFFFFF;
+    poly.count = 2;
+    list->points = {{0, 0}, {10, 10}, {20, 20}};
+    list->prims.push_back(poly);
+
+    canvas_commit("t__c", std::move(list));
+    lv_refr_now(nullptr); // completing at all is half the assertion
+
+    const uint32_t primary = as_rgb(theme_manager_get_color("primary"));
+    REQUIRE(primary != 0); // a black primary would make the check below vacuous
+    CHECK(center_pixel_rgb(canvas) != primary);
 }
 
 TEST_CASE_METHOD(CanvasRig, "a committed fill paints its pixels", "[plugin][canvas]") {
