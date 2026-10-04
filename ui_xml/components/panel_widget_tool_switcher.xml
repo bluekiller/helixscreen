@@ -23,7 +23,8 @@
          tile; a tap raises the tool picker. -->
     <lv_obj name="tool_switcher_compact"
             width="100%" height="100%" style_pad_ver="0" style_pad_gap="#space_xxs" style_bg_opa="0"
-            style_border_width="0" scrollable="false" hidden="true">
+            style_border_width="0" scrollable="false" hidden="true" style_radius="#border_radius">
+      <style name="styles.press_wash" selector="pressed"/>
       <bind_flag_if_eq subject="tool_switcher_compact" flag="hidden" ref_value="0"/>
       <style name="styles.tile_column"/>
       <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
