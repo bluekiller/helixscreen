@@ -187,6 +187,31 @@ std::string resolve_role_from_config(HardwareRoleId id, Config* config,
     return res.object;
 }
 
+bool heal_heater_roles(Config* config, const std::vector<std::string>& heaters) {
+    if (!config) {
+        return false;
+    }
+    bool changed = false;
+    for (auto id : {HardwareRoleId::HotendHeater, HardwareRoleId::BedHeater}) {
+        const auto* desc = role_descriptor(id);
+        if (!desc)
+            continue;
+        const std::string key = config->df() + desc->config_key;
+        const std::string dflt =
+            desc->canonical_default ? std::string(desc->canonical_default) : std::string();
+        const std::string saved = config->get<std::string>(key, dflt);
+        std::string healed = resolve_role_from_config(id, config, heaters, false);
+        if (!healed.empty() && healed != saved) {
+            config->set<std::string>(key, healed);
+            changed = true;
+        }
+    }
+    if (changed && !config->save()) {
+        spdlog::warn("[HardwareRole] Failed to persist heater role heals");
+    }
+    return changed;
+}
+
 std::vector<helix::wizard::StepId> unresolved_guided_steps(Config* config,
                                                            const PrinterDiscovery& hw) {
     std::vector<helix::wizard::StepId> out;

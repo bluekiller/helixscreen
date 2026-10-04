@@ -2848,28 +2848,7 @@ void Application::setup_discovery_callbacks() {
             // toast every boot for a stale saved role that has a confident replacement.
             // Gated on hw_changed — healing is purely a function of heater hardware shape.
             if (hw_changed) {
-                const auto& heaters = hw.heaters();
-                auto* cfg = Config::get_instance();
-                bool heater_changed = false;
-                for (auto id :
-                     {helix::HardwareRoleId::HotendHeater, helix::HardwareRoleId::BedHeater}) {
-                    const auto* desc = helix::role_descriptor(id);
-                    if (!desc)
-                        continue;
-                    const std::string key = cfg->df() + desc->config_key;
-                    const std::string dflt = desc->canonical_default
-                                                 ? std::string(desc->canonical_default)
-                                                 : std::string();
-                    const std::string saved = cfg->get<std::string>(key, dflt);
-                    std::string healed = helix::resolve_role_from_config(id, cfg, heaters, false);
-                    if (!healed.empty() && healed != saved) {
-                        cfg->set<std::string>(key, healed);
-                        heater_changed = true;
-                    }
-                }
-                if (heater_changed && !cfg->save()) {
-                    spdlog::warn("[Application] Failed to persist heater role heals");
-                }
+                helix::heal_heater_roles(Config::get_instance(), hw.heaters());
             }
 
             // Pay off a hardware snapshot the wizard deferred because Klipper was
