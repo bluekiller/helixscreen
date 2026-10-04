@@ -75,13 +75,6 @@ void ui_text_apply_transform(lv_obj_t* label, const char* transform);
 namespace helix::ui {
 
 /**
- * Marks a text_* label whose color the XML set inline (style_text_color). The
- * palette walker skips such a label, so the author's color survives Modal::show
- * and a theme switch.
- */
-constexpr lv_obj_flag_t AUTHORED_TEXT_COLOR_FLAG = LV_OBJ_FLAG_USER_2;
-
-/**
  * Fit text into a width by replacing its middle with an ellipsis
  *
  * Text that measures within @p max_width comes back unchanged. Text that
