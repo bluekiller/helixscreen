@@ -8,26 +8,26 @@
             width="100%" flex_grow="1" style_pad_all="#space_md" style_pad_gap="#space_md" flex_flow="column"
             scrollable="false">
       <lv_label name="temp-spark__detail_value"
-                bind_text="temp-spark__value" style_text_font="#font_heading_xlarge" style_text_color="#text"/>
+                bind_text="temp-spark__value" style_text_font="#font_xl" style_text_color="#text"/>
       <plugin_canvas name="temp-spark__graph" width="100%" flex_grow="1"/>
       <lv_obj width="100%"
               flex_flow="row" style_pad_gap="#space_lg" scrollable="false" style_bg_opa="0" style_border_width="0">
         <lv_obj flex_flow="column" style_pad_gap="#space_xxs" flex_grow="1" style_bg_opa="0" style_border_width="0">
-          <lv_label text="Min" style_text_font="#font_heading_micro" style_text_color="#text_muted"/>
+          <lv_label text="Min" style_text_font="#font_small" style_text_color="#text_muted"/>
           <lv_label name="temp-spark__min_value"
-                    bind_text="temp-spark__min_text" style_text_font="#font_heading_small" style_text_color="#text"/>
+                    bind_text="temp-spark__min_text" style_text_font="#font_body" style_text_color="#text"/>
         </lv_obj>
         <lv_obj flex_flow="column" style_pad_gap="#space_xxs" flex_grow="1" style_bg_opa="0" style_border_width="0">
-          <lv_label text="Max" style_text_font="#font_heading_micro" style_text_color="#text_muted"/>
+          <lv_label text="Max" style_text_font="#font_small" style_text_color="#text_muted"/>
           <lv_label name="temp-spark__max_value"
-                    bind_text="temp-spark__max_text" style_text_font="#font_heading_small" style_text_color="#text"/>
+                    bind_text="temp-spark__max_text" style_text_font="#font_body" style_text_color="#text"/>
         </lv_obj>
         <lv_obj name="temp-spark__target_stat"
                 flex_flow="column" style_pad_gap="#space_xxs" flex_grow="1" style_bg_opa="0" style_border_width="0">
           <bind_flag_if_eq subject="temp-spark__show_target" flag="hidden" ref_value="0"/>
-          <lv_label text="Target" style_text_font="#font_heading_micro" style_text_color="#text_muted"/>
+          <lv_label text="Target" style_text_font="#font_small" style_text_color="#text_muted"/>
           <lv_label name="temp-spark__target_value"
-                    bind_text="temp-spark__target_text" style_text_font="#font_heading_small" style_text_color="#text"/>
+                    bind_text="temp-spark__target_text" style_text_font="#font_body" style_text_color="#text"/>
         </lv_obj>
       </lv_obj>
     </lv_obj>

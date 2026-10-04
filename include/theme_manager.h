@@ -502,6 +502,18 @@ void theme_manager_refresh_orientation(lv_display_t* display = nullptr);
 void theme_manager_register_responsive_fonts(lv_display_t* display);
 
 /**
+ * @brief Whether a font token is a responsive base token
+ *
+ * True for tokens like font_body that theme_manager_register_responsive_fonts
+ * re-points per breakpoint, false for size-suffixed variants (font_body_large)
+ * and non-font names. A suffixed variant names one tier's face, which
+ * AssetManager registers only at that tier and above, so below it the XML
+ * engine silently substitutes the default font.
+ */
+// NAMESPACE_OK: joins this header's global theme_manager_* free-function API
+bool theme_manager_font_token_is_base(const char* token);
+
+/**
  * @brief Toggle between light and dark themes
  *
  * Switches theme mode, re-registers XML color constants, updates theme

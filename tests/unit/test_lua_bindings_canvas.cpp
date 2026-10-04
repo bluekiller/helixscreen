@@ -129,6 +129,7 @@ TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
         {"c:arc(5, 5, -4, 0, 90)", "radius"},
         {"c:text(0, 0, string.rep('a', 257))", "at most 256"},
         {"c:text(0, 0, 'x', {font = 'nope'})", "font token"},
+        {"c:text(0, 0, 'x', {font = 'heading_large'})", "must be a base token"},
     };
     for (const Bad& row : bad) {
         CAPTURE(row.code);
@@ -161,6 +162,16 @@ TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
     list = canvas_committed("test-plugin__bounds");
     REQUIRE(list);
     CHECK(list->prims.size() == 5);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "canvas fonts resolve only base tokens", "[plugin][lua][canvas]") {
+    // The draw path skips a text prim whose font fails to resolve, and the
+    // binding refuses the same name, so a size-suffixed token never reaches a
+    // committed list on either path.
+    CHECK(canvas_resolve_font("heading_large") == nullptr);
+    CHECK(canvas_resolve_font("heading") != nullptr);
+    CHECK(canvas_resolve_font("small") != nullptr); // the base token, not _small
+    CHECK(canvas_resolve_font("nope") == nullptr);
 }
 
 TEST_CASE_METHOD(XMLTestFixture, "the unit cap holds and the list stays usable",

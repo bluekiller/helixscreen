@@ -7,6 +7,7 @@
 
 #include "helix-xml/src/libs/expat/expat.h"
 #include "plugin_manifest.h"
+#include "theme_manager.h"
 
 #include <algorithm>
 #include <string>
@@ -154,6 +155,14 @@ void on_end(void*, const XML_Char*) {}
 
 std::optional<std::string> check_plugin_attr(std::string_view id, std::string_view name,
                                              std::string_view value) {
+    // Base font tokens only: a size-suffixed variant names a face AssetManager
+    // registers from its tier up, so on a smaller display the XML engine
+    // silently substitutes the default font.
+    if (name == "style_text_font" && starts_with(value, "#font_") &&
+        !theme_manager_font_token_is_base(value.data() + 1))
+        return "style_text_font=\"" + std::string(value) +
+               "\": plugins may use only base font tokens; a size-suffixed variant renders as "
+               "the default font below its tier";
     bool is_callback = name == "callback" || name == "event_cb" || ends_with(name, "_callback") ||
                        ends_with(name, "_cb");
     bool is_subject =

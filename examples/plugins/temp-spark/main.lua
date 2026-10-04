@@ -73,7 +73,8 @@ local function draw(c, scale, with_target)
             pts[#pts + 1] = (h - 1) * (1 - t / scale)
         end
         c:polyline(pts, {color = "primary", width = 2})
-        if with_target and target_now and helix.settings.get("show_target") then
+        if with_target and target_now and target_now > 0 and
+            helix.settings.get("show_target") then
             local y = (h - 1) * (1 - target_now / scale)
             c:line(0, y, w - 1, y, {color = "text_muted"})
         end

@@ -131,6 +131,23 @@ TEST_CASE("plugin_canvas is available and keeps the name rule", "[plugin][xml_po
     CHECK(why.find("object names must be p__<name>") != std::string::npos);
 }
 
+TEST_CASE("plugin XML fonts are responsive base tokens", "[plugin][xml_policy]") {
+    CHECK(
+        check_plugin_xml("p", {}, view_with(R"(<lv_label text="v" style_text_font="#font_body"/>)"))
+            .empty());
+    // font_small is the base token named "small", not a suffixed variant.
+    CHECK(check_plugin_xml("p", {},
+                           view_with(R"(<lv_label text="v" style_text_font="#font_small"/>)"))
+              .empty());
+    std::string why = check_plugin_xml(
+        "p", {}, view_with(R"(<lv_label text="v" style_text_font="#font_heading_large"/>)"));
+    CHECK_FALSE(why.empty());
+    CHECK(why.find("base font tokens") != std::string::npos);
+    // Values outside the #font_ vocabulary are the XML engine's business.
+    CHECK(check_plugin_xml("p", {}, view_with(R"(<lv_label text="v" style_text_font="inches"/>)"))
+              .empty());
+}
+
 TEST_CASE("a plugin id that prefixes an app name owns nothing of it", "[plugin][xml_policy]") {
     CHECK_FALSE(check_plugin_xml("ams", {}, view_with(R"(<ams_device_operations/>)")).empty());
     CHECK_FALSE(check_plugin_xml("ams", {},

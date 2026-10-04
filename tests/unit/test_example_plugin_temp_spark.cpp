@@ -85,6 +85,22 @@ std::vector<lv_point_precise_t> spark_points() {
     return {list->points.begin() + p.first, list->points.begin() + p.first + p.count};
 }
 
+/// The graph's committed list as (window polyline count, target Line or null).
+std::pair<size_t, const CanvasPrim*> graph_prims() {
+    const DisplayList* list = canvas_committed("temp-spark__graph");
+    size_t polylines = 0;
+    const CanvasPrim* line = nullptr;
+    if (list) {
+        for (const CanvasPrim& p : list->prims) {
+            if (p.op == CanvasOp::Polyline)
+                ++polylines;
+            else if (p.op == CanvasOp::Line)
+                line = &p;
+        }
+    }
+    return {polylines, line};
+}
+
 std::string text_subject(const char* name) {
     return lv_subject_get_string(lv_xml_get_subject(nullptr, name));
 }
@@ -258,16 +274,7 @@ TEST_CASE_METHOD(TempSparkFx, "the detail graph draws the target line", "[plugin
     const auto [w, h] = canvas_size("temp-spark__graph");
     REQUIRE(w > 1);
     REQUIRE(h > 1);
-    const DisplayList* list = canvas_committed("temp-spark__graph");
-    REQUIRE(list);
-    const CanvasPrim* line = nullptr;
-    size_t polylines = 0;
-    for (const CanvasPrim& p : list->prims) {
-        if (p.op == CanvasOp::Polyline)
-            ++polylines;
-        else if (p.op == CanvasOp::Line)
-            line = &p;
-    }
+    const auto [polylines, line] = graph_prims();
     CHECK(polylines == 1);
     REQUIRE(line);
     CHECK(line->b == Approx((h - 1) * (1 - 200.0 / 220)).margin(0.01));
@@ -276,18 +283,17 @@ TEST_CASE_METHOD(TempSparkFx, "the detail graph draws the target line", "[plugin
     // show_target off removes the line and keeps the window.
     REQUIRE(rig.host->set_setting("temp-spark", "show_target", false));
     drain();
-    list = canvas_committed("temp-spark__graph");
-    REQUIRE(list);
-    line = nullptr;
-    polylines = 0;
-    for (const CanvasPrim& p : list->prims) {
-        if (p.op == CanvasOp::Polyline)
-            ++polylines;
-        else if (p.op == CanvasOp::Line)
-            line = &p;
-    }
-    CHECK(line == nullptr);
-    CHECK(polylines == 1);
+    CHECK(graph_prims() == std::pair<size_t, const CanvasPrim*>{1, nullptr});
+
+    // Back on, the line returns: its absence above was the setting.
+    REQUIRE(rig.host->set_setting("temp-spark", "show_target", true));
+    drain();
+    CHECK(graph_prims().second != nullptr);
+
+    // A target of 0 is a heater that is off: no line on the bottom edge.
+    set_deci("extruder_target", 0);
+    process_lvgl(1200); // the tick re-reads the target and redraws
+    CHECK(graph_prims() == std::pair<size_t, const CanvasPrim*>{1, nullptr});
 }
 
 TEST_CASE_METHOD(TempSparkFx, "the tile event opens the detail overlay until unload",

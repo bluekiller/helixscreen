@@ -19,9 +19,9 @@ The author guide is [docs/devel/PLUGIN_DEVELOPMENT.md](../../docs/devel/PLUGIN_D
   show_target, declared in the manifest's settings schema.
 - `helix.ui.on` + `helix.ui.overlay`: the tile's `plugin_event` opens the
   detail overlay; unload closes it automatically.
-- `helix.canvas`: `polyline`, `line`, `commit`, `on_size` — the sparkline on the
-  tile and the graph plus target line in the overlay are retained drawings
-  rebuilt on every sample.
+- `helix.canvas`: `polyline`, `line`, `size`, `commit`, `on_size`: the sparkline
+  on the tile and the graph plus target line in the overlay are retained
+  drawings rebuilt on every sample.
 - `helix.log.warn`: failures degrade to an empty window instead of faulting.
 
 ## Run it

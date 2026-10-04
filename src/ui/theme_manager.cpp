@@ -3153,6 +3153,27 @@ static bool ends_with_suffix(const char* str, const char* suffix) {
     return strcmp(str + str_len - suffix_len, suffix) == 0;
 }
 
+// The size-suffix ladder responsive font triplets are declared over. A base
+// font token (font_body) carries none of these after the font_ prefix, and
+// theme_manager_register_responsive_fonts re-points it at the tier's variant
+// so it renders at a real size on every display. The plugin XML policy and
+// the canvas font resolver both consult theme_manager_font_token_is_base, so
+// the plugin-side rule and the theme's ladder stay one rule.
+static const char* const kFontSizeSuffixes[] = {"_micro", "_tiny",   "_small",  "_medium",
+                                                "_large", "_xlarge", "_xxlarge"};
+
+// NAMESPACE_OK: joins this header's global theme_manager_* free-function API
+bool theme_manager_font_token_is_base(const char* token) {
+    // The suffix test runs on the name after font_: font_small is the base
+    // token "small", not the _small variant of a token named "font".
+    if (strncmp(token, "font_", 5) != 0 || token[5] == '\0')
+        return false;
+    for (const char* suffix : kFontSizeSuffixes)
+        if (ends_with_suffix(token + 5, suffix))
+            return false;
+    return true;
+}
+
 // Parser callback for ALL elements of a given type (no suffix matching)
 struct AllElementParserData {
     const char* element_type;

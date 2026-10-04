@@ -195,8 +195,12 @@ const lv_font_t* canvas_resolve_font(const std::string& name) {
     char token[64];
     snprintf(token, sizeof(token), "font_%s", name.c_str());
     // theme_manager_get_font falls back to the default font on an unknown token;
-    // the const existing is what proves the token is real.
-    return lv_xml_get_const_silent(nullptr, token) ? theme_manager_get_font(token) : nullptr;
+    // the const existing is what proves the token is real. Base tokens only: a
+    // size-suffixed variant names a face registered from its tier up, so on a
+    // smaller display it would silently draw text in the default font.
+    return theme_manager_font_token_is_base(token) && lv_xml_get_const_silent(nullptr, token)
+               ? theme_manager_get_font(token)
+               : nullptr;
 }
 
 void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const DisplayList& list) {

@@ -457,7 +457,10 @@ int m_text(lua_State* L) {
     opt_str(L, opts, "font", &font);
     opt_str(L, opts, "color", &color);
     if (!canvas_resolve_font(font))
-        return luaL_error(L, "helix.canvas: unknown font token '%s'", font);
+        return luaL_error(L,
+                          "helix.canvas: font token '%s' must be a base token; a size-suffixed "
+                          "variant renders as the default font below its tier",
+                          font);
     check_color(L, color);
     st.text.assign(str, len);
     st.prim.first = 0;

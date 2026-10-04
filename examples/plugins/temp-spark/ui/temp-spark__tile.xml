@@ -8,9 +8,9 @@
         flex_flow="column" scrollable="false">
     <event_cb trigger="clicked" callback="plugin_event" user_data="temp-spark__open"/>
     <lv_label name="temp-spark__heater"
-              bind_text="temp-spark__heater_label" style_text_font="#font_heading_micro" style_text_color="#text_muted"/>
+              bind_text="temp-spark__heater_label" style_text_font="#font_small" style_text_color="#text_muted"/>
     <lv_label name="temp-spark__value"
-              bind_text="temp-spark__value" style_text_font="#font_heading_medium" style_text_color="#text"/>
+              bind_text="temp-spark__value" style_text_font="#font_heading" style_text_color="#text"/>
     <plugin_canvas name="temp-spark__spark" width="100%" flex_grow="1"/>
   </view>
 </component>
