@@ -394,11 +394,21 @@ TEST_CASE_METHOD(TempSparkFx, "the tile event opens the detail overlay until unl
     rig.host->load_from("examples/plugins");
     size_t next = 0;
     answer_calls(rig, next, store_series("extruder", 25.0));
+    // The detail view extends overlay_panel, whose header is a header_bar; an
+    // unregistered dependency silently vanishes from the tree in tests.
+    REQUIRE(register_component("header_bar"));
 
     rig.host->dispatch_event("temp-spark__open");
     drain();
     CHECK(NavigationManager::instance().has_open_overlays());
     CHECK(rig.host->overlays().open_count("temp-spark") == 1);
+
+    // The overlay's title arrives as the creation attr overlay() passes; a
+    // header's title_subject retitles only on change, and the heater label
+    // never changes after load. The header uppercases what it shows.
+    lv_obj_t* title = lv_obj_find_by_name(lv_screen_active(), "header_title");
+    REQUIRE(title);
+    CHECK(std::string(lv_label_get_text(title)) == "EXTRUDER");
 
     rig.host->disable("temp-spark");
     drain(); // close_all queues go_back; its body runs on the next queue pass

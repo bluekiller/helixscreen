@@ -4,7 +4,13 @@
        gridlines and the target drawn as a dashed line, plus a stat row. The
        value row carries the window length; the target column hides unless the
        show_target subject is 1. -->
-  <view extends="overlay_panel" title="Temperature" title_subject="temp-spark__heater_label" bg_color="#card_bg">
+  <!-- A literal title on the view would ignore the creation attr, so the
+       heater name rides in through a prop: overlay() supplies it and the
+       default is what a bare create shows. -->
+  <api>
+    <prop name="title" type="string" default="Temperature"/>
+  </api>
+  <view extends="overlay_panel" title="$title" title_subject="temp-spark__heater_label" bg_color="#card_bg">
     <lv_obj name="temp-spark__detail_content"
             width="100%" flex_grow="1" style_pad_all="#space_md" style_pad_gap="#space_sm" flex_flow="column"
             scrollable="false">
@@ -12,7 +18,7 @@
               height="content" flex_flow="row" style_pad_all="0" style_flex_main_place="space_between"
               style_flex_cross_place="center" scrollable="false" style_bg_opa="0" style_border_width="0">
         <lv_obj flex_flow="row"
-                style_pad_all="0" style_pad_gap="#space_xxs" style_flex_cross_place="baseline" scrollable="false"
+                style_pad_all="0" style_pad_gap="#space_xxs" style_flex_cross_place="center" scrollable="false"
                 style_bg_opa="0" style_border_width="0">
           <lv_label name="temp-spark__detail_value"
                     bind_text="temp-spark__value" style_text_font="#font_xl" style_text_color="#text"/>

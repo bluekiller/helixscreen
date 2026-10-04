@@ -298,9 +298,12 @@ spark:on_size(render)
 graph:on_size(render)
 
 -- The tile's only event opens the detail overlay. The XML addresses it as
--- plugin_event with user_data temp-spark__open; unload closes it.
+-- plugin_event with user_data temp-spark__open; unload closes it. A header's
+-- bound subject retitles only on CHANGE, and the heater label never changes
+-- after load, so the name arrives as the creation title through the detail
+-- component's `title` prop; title_subject covers a heater switch while open.
 helix.ui.on("open", function()
-    helix.ui.overlay("temp-spark__detail")
+    helix.ui.overlay("temp-spark__detail", {title = selected().label})
 end)
 
 arm_timer()
