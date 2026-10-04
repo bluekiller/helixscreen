@@ -46,7 +46,6 @@ Each manager has a matching `*_types.h` header (`filament_sensor_types.h`, `humi
 | `src/ui/ui_filament_runout_handler.cpp` | Runout guidance modal, driven by `filament_any_runout` and `has_real_runout()` |
 | `src/ui/panel_widgets/thermistor_widget.cpp`, `humidity_widget.cpp`, `width_sensor_widget.cpp`, `filament_sensor_widget.cpp` | Home-panel widgets for each category |
 | `include/sensor_state.h`, `src/printer/sensor_state.cpp` | Moonraker `[sensor]` components (separate universe, see below) |
-| `include/switch_sensor_types.h` | `SwitchSensorRole` and friends. Nothing in `src/` includes it; only `tests/unit/test_switch_sensor_manager.cpp` does |
 
 ## Architecture
 
