@@ -112,7 +112,9 @@ class NetworkSettingsOverlay : public OverlayBase {
      * - on_refresh_clicked
      * - on_test_network_clicked
      * - on_add_other_clicked
-     * - on_network_item_clicked
+     * - on_network_settings_item_clicked
+     * - on_network_settings_password_cancel
+     * - on_network_settings_password_connect
      * - on_network_settings_forget
      */
     void register_callbacks() override;

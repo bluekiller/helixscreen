@@ -21,8 +21,9 @@ matched statically; its XML references show up as unregistered and sit in the
 baseline.
 
 XML references counted: the values of callback=, *_callback= and event_cb=
-attributes. A value forwarded from a component parameter ($name) is the
-caller's business and is skipped.
+attributes, and the value half of a C++ "..._callback", "name" attribute pair
+handed to lv_xml_create/modal_show. A value forwarded from a component
+parameter ($name) is the caller's business and is skipped.
 
 This is a RATCHET keyed on names: --baseline lists today's accepted debt, the
 gate fails on anything not listed, and says when an entry can be dropped.
@@ -46,6 +47,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_required_names import call_args, strip_comments  # noqa: E402
 
 XML_REF_RE = re.compile(r'\b(?:[a-z_]*callback|event_cb)="([^"]*)"')
+# C++ naming a callback through a component's `$..._callback` prop:
+# lv_xml_create(parent, "comp", {"click_callback", "on_x", nullptr}).
+CPP_ATTR_REF_RE = re.compile(r'"[a-z_]*callback"\s*,\s*"(\w+)"')
 ENTRY_RE = re.compile(r'\{\s*"([A-Za-z_]\w*)"\s*,')
 
 
@@ -92,6 +96,11 @@ def collect_xml_refs(root: Path) -> dict[str, set[str]]:
         for value in XML_REF_RE.findall(f.read_text(errors="replace")):
             if value and "$" not in value and re.fullmatch(r"\w+", value):
                 refs[value].add(rel)
+    src = root / "src"
+    if src.is_dir():
+        for f in sorted(src.rglob("*.cpp")):
+            for name in CPP_ATTR_REF_RE.findall(strip_comments(f.read_text(errors="replace"))):
+                refs[name].add(str(f.relative_to(root)))
     return refs
 
 
