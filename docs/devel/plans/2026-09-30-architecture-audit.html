@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>7dc81df44</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>6856844bc</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -1900,8 +1900,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </section>
 <section id="sec-g"><h2>G. God classes</h2><p class="lede">Later; stage behind test decoupling (TB-1).</p>
 <details class="f" id="GOD-1" data-tag="god-class" data-size="1.1" data-status="progress">
-<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god1-application-split</code><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
+<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">709ec4e11</code><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
 <div class="fbody">
+<p class="branch">First tranche shipped: <code>refactor/god1-application-split</code>, merged at <code>709ec4e11</code>. Discovery reactions are an ordered 24-step table (<code>discovery_steps.cpp</code>); attach/detach pairs for timelapse, update response, print hours and Spoolman active-spool sync; <code>HardwareSetupPrompter</code> with a pure <code>choose_prompt</code>; process guards, demo overlays and SDL shortcuts moved out. application.cpp 5,289 -&gt; 3,855 lines. Left: <code>PrinterSession</code> (switch, teardown, <code>init_printer_state</code>) and <code>init_action_prompt</code>. Plan: <code>docs/devel/plans/2026-10-04-god1-application-split.md</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/application.cpp#Application::setup_discovery_callbacks</code>, <code>#Application::run</code>, <code>#Application::init_action_prompt</code>, <code>include/application.h#Application</code></dd>
 <dt>Evidence</dt><dd>5,371 lines (4.3x the 1,249 #1325 was filed against), 219 includes, 41 members, 554 commits (214 since June; next file 66). Growth is event reactions: discovery 873, hardware prompts 357, action prompt 277, printer session 402. <code>on_discovery_complete</code> runs ~22 jobs in sequence (fingerprint, LED, fans, Spoolman sync ~190 lines, autodetect, HardwareValidator, telemetry...), 19 gated on <code>hw_changed</code>.</dd>
