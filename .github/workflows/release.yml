@@ -319,7 +319,9 @@ jobs:
     name: Build (Android)
     needs: [validate-shell, plan]
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    # Two ABIs ran 46-64 minutes through assembleRelease + bundleRelease, and
+    # armeabi-v7a adds roughly half again, so 90 would cut a cold-cache run.
+    timeout-minutes: 130
 
     steps:
     - name: Checkout repository

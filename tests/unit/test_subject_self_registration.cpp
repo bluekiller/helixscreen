@@ -245,3 +245,29 @@ TEST_CASE("XMLTestFixture leaves no PrinterState entry behind in the registry",
     auto names = StaticSubjectRegistry::instance().names();
     REQUIRE(std::find(names.begin(), names.end(), "PrinterState") == names.end());
 }
+
+// ============================================================================
+// XML names are withdrawn with their owner
+// ============================================================================
+
+TEST_CASE("AmsState deinit withdraws the ams_-prefixed XML names", "[shutdown][xml_name]") {
+    LVGLTestFixture fixture;
+    AmsState::instance().deinit_subjects();
+    AmsState::instance().init_subjects(true);
+
+    const char* names[] = {"ams_supports_bypass",      "ams_bypass_active",
+                           "ams_filament_loaded",      "ams_filament_runout",
+                           "ams_external_spool_color", "ams_external_spool_material"};
+    for (const char* name : names) {
+        INFO(name);
+        REQUIRE(lv_xml_get_subject(nullptr, name) != nullptr);
+    }
+
+    AmsState::instance().deinit_subjects();
+
+    for (const char* name : names) {
+        INFO(name);
+        REQUIRE(lv_xml_get_subject(nullptr, name) == nullptr);
+    }
+    StaticSubjectRegistry::instance().clear();
+}

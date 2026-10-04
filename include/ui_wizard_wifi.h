@@ -105,9 +105,9 @@ class WizardWifiStep : public helix::wizard::Step {
      *
      * Registers callbacks:
      * - on_wifi_toggle_changed
-     * - on_network_item_clicked
-     * - on_wifi_password_cancel
-     * - on_wifi_password_connect
+     * - on_wizard_wifi_network_clicked
+     * - on_wizard_wifi_password_cancel
+     * - on_wizard_wifi_password_connect
      */
     void register_callbacks() override;
 

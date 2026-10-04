@@ -142,6 +142,15 @@ class Application {
     /// ProcessExit ends both.
     enum class TeardownScope { PrinterSwitch, ProcessExit };
     void teardown_printer_scope(TeardownScope scope);
+
+    /// Records a discovery's hardware fingerprint; true when the hardware shape differs from
+    /// the previous discovery of this printer session (always true for the first one).
+    bool note_hardware_fingerprint(size_t fingerprint);
+
+    /// Re-arms the per-printer discovery state: the fingerprint comparison and the
+    /// once-per-connection prompt guards. Runs when a printer scope is torn down for a
+    /// switch or soft restart, so the next printer's first discovery runs the full pipeline.
+    void reset_discovery_session();
     void init_printer_state();
 
     // Helper functions

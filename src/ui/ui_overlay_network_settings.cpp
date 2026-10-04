@@ -204,7 +204,7 @@ void NetworkSettingsOverlay::register_callbacks() {
          [](lv_event_t*) { get_network_settings_overlay().handle_test_network_clicked(); }},
         {"on_add_other_clicked",
          [](lv_event_t*) { get_network_settings_overlay().handle_add_other_clicked(); }},
-        {"on_network_item_clicked",
+        {"on_network_settings_item_clicked",
          [](lv_event_t* e) { get_network_settings_overlay().handle_network_item_clicked(e); }},
         // Scoped name: the XML callback namespace is flat and other overlays have forget flows.
         {"on_network_settings_forget",
@@ -220,9 +220,9 @@ void NetworkSettingsOverlay::register_callbacks() {
         {"on_security_changed",
          [](lv_event_t* e) { get_network_settings_overlay().handle_security_changed(e); }},
         // Password modal
-        {"on_wifi_password_cancel",
+        {"on_network_settings_password_cancel",
          [](lv_event_t*) { get_network_settings_overlay().handle_password_cancel_clicked(); }},
-        {"on_wifi_password_connect",
+        {"on_network_settings_password_connect",
          [](lv_event_t*) { get_network_settings_overlay().handle_password_connect_clicked(); }},
     });
 }
@@ -628,8 +628,9 @@ void NetworkSettingsOverlay::build_network_list(const std::vector<WiFiNetwork>& 
     // Create network items
     static int item_counter = 0;
     for (const auto& network : sorted_networks) {
+        const char* item_attrs[] = {"click_callback", "on_network_settings_item_clicked", nullptr};
         lv_obj_t* item =
-            static_cast<lv_obj_t*>(lv_xml_create(networks_list_, "wifi_network_item", nullptr));
+            static_cast<lv_obj_t*>(lv_xml_create(networks_list_, "wifi_network_item", item_attrs));
         if (!item) {
             spdlog::error("[NetworkSettingsOverlay] Failed to create network item for SSID: {}",
                           helix::redact::ssid(network.ssid));
@@ -1507,7 +1508,10 @@ void NetworkSettingsOverlay::show_password_modal(const char* ssid) {
     lv_subject_set_int(&wifi_connecting_, 0);
 
     // Show modal
-    password_modal_ = helix::ui::modal_show("wifi_password_modal");
+    const char* modal_attrs[] = {"cancel_callback", "on_network_settings_password_cancel",
+                                 "connect_callback", "on_network_settings_password_connect",
+                                 nullptr};
+    password_modal_ = helix::ui::modal_show("wifi_password_modal", modal_attrs);
     if (!password_modal_) {
         spdlog::error("[NetworkSettingsOverlay] Failed to show password modal");
         return;
