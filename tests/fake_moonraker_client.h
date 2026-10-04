@@ -34,6 +34,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "hv/json.hpp"
@@ -97,6 +98,37 @@ class FakeMoonrakerClient : public helix::IMoonrakerClient {
             }
         }
         return true;
+    }
+
+    /// The callbacks a consumer installed through set_on_hardware_discovered() and
+    /// set_on_discovery_complete(). Empty until installed.
+    std::function<void(const helix::PrinterDiscovery&)> on_hardware_discovered;
+    std::function<void(const helix::PrinterDiscovery&, const nlohmann::json&)>
+        on_discovery_complete;
+
+    /// Every (method, handler) subscription still live, sorted. Take one before
+    /// attaching a feature and compare after detaching it: equal means the feature
+    /// left nothing registered behind.
+    std::vector<std::pair<std::string, std::string>> live_handlers() const {
+        std::vector<std::pair<std::string, std::string>> out;
+        for (const auto& [method, handlers] : method_callbacks) {
+            for (const MethodCallback& h : handlers) {
+                out.emplace_back(method, h.handler_name);
+            }
+        }
+        std::sort(out.begin(), out.end());
+        return out;
+    }
+
+    /// Number of live handlers named @p handler_name under @p method.
+    size_t handler_count(const std::string& method, const std::string& handler_name) const {
+        auto it = method_callbacks.find(method);
+        if (it == method_callbacks.end()) {
+            return 0;
+        }
+        return static_cast<size_t>(
+            std::count_if(it->second.begin(), it->second.end(),
+                          [&](const MethodCallback& h) { return h.handler_name == handler_name; }));
     }
 
     /// The most recent recorded RPC, or nullptr if nothing was sent.
@@ -202,9 +234,14 @@ class FakeMoonrakerClient : public helix::IMoonrakerClient {
     }
     void parse_objects(const nlohmann::json&) override {}
     void clear_discovery_cache() override {}
-    void set_on_hardware_discovered(std::function<void(const helix::PrinterDiscovery&)>) override {}
+    void
+    set_on_hardware_discovered(std::function<void(const helix::PrinterDiscovery&)> cb) override {
+        on_hardware_discovered = std::move(cb);
+    }
     void set_on_discovery_complete(
-        std::function<void(const helix::PrinterDiscovery&, const nlohmann::json&)>) override {}
+        std::function<void(const helix::PrinterDiscovery&, const nlohmann::json&)> cb) override {
+        on_discovery_complete = std::move(cb);
+    }
     void set_bed_mesh_callback(std::function<void(const nlohmann::json&)>) override {}
     helix::SubscriptionId
     register_notify_update(std::function<void(const nlohmann::json&)>) override {
