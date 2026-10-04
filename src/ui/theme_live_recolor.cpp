@@ -65,7 +65,9 @@ static bool label_text_color_from_chosen_style(lv_obj_t* obj, lv_style_selector_
     const lv_style_t* muted = ThemeManager::instance().get_style(StyleRole::TextMuted);
     for (uint32_t i = 0; i < obj->style_cnt; i++) {
         const lv_obj_style_t& entry = obj->styles[i];
-        if (entry.is_local || entry.is_trans || entry.is_theme || entry.is_disabled)
+        // A disabled entry still counts: lv_obj_bind_style toggles its style
+        // disabled, and a local value written now would hide it once enabled.
+        if (entry.is_local || entry.is_trans || entry.is_theme)
             continue;
         if (entry.selector != selector || entry.style == primary || entry.style == muted)
             continue;

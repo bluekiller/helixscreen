@@ -279,11 +279,73 @@ TEST_CASE_METHOD(XMLTestFixture,
     CHECK(text_rgb(named(root, "bound_on_dark")) == primary);
     // Only the shared semantic text style: the dark-ancestor rule still applies.
     CHECK(text_rgb(named(root, "semantic_on_dark")) == 0xFFFFFF);
+}
 
-    // Unbound, the label is the walker's again.
-    lv_subject_set_int(&sel.subject, 0);
-    theme_apply_current_palette_to_tree(root);
-    CHECK(text_rgb(named(root, "bound")) == const_rgb("text"));
+// lv_obj_bind_style attaches the style once and toggles it disabled, so a
+// binding that is off when the walker runs must still keep the walker off.
+TEST_CASE_METHOD(XMLTestFixture, "a bound text style off at a switch shows when it turns on later",
+                 "[theme][xml][motion]") {
+    RestoreTheme restore;
+    const auto theme = helix::get_builtin_fallback_theme();
+    theme_manager_apply_theme(theme, true);
+    ScopedIntSubject active("lr_late_active", 1);
+    lv_subject_t label_subject{};
+    static char label_buf[32];
+    lv_subject_init_string(&label_subject, label_buf, nullptr, sizeof(label_buf), "Move");
+    lv_xml_register_subject(nullptr, "lr_late_label", &label_subject);
+    REQUIRE(lv_xml_register_component_from_file("A:ui_xml/components/zone_tab.xml") ==
+            LV_RESULT_OK);
+
+    // Selected at the switch, so the idle label style is attached but disabled.
+    const char* xml = R"(<component>
+  <view extends="lv_obj" width="400" height="200">
+    <zone_tab name="tab" label_subject="lr_late_label" active_subject="lr_late_active" tab_index="0"
+              callback="on_motion_tab_clicked" label_idle_style="zone_tab_label_muted"/>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("lr_late_bound", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_late_bound");
+    REQUIRE(root != nullptr);
+    lv_obj_t* label = named(named(root, "tab"), "tab_label");
+
+    theme_manager_apply_theme(theme, false);
+    lv_subject_set_int(&active.subject, 0);
+    CHECK(text_rgb(label) == hex(theme.light.text_muted));
+
+    lv_subject_deinit(&label_subject);
+}
+
+// A status color handed down through a component prop (history_list_row's
+// row_status) is the author's, whichever token or literal the caller passed.
+TEST_CASE_METHOD(XMLTestFixture, "a text color passed through a component prop survives a switch",
+                 "[theme][xml]") {
+    RestoreTheme restore;
+    const auto theme = helix::get_builtin_fallback_theme();
+    theme_manager_apply_theme(theme, true);
+
+    REQUIRE(lv_xml_register_component_from_data("lr_status_row", R"(<component>
+  <api><prop name="status_color" type="color" default="0x888888"/></api>
+  <view extends="lv_obj" width="300" height="60">
+    <text_small name="row_status" text="Completed" style_text_color="$status_color"/>
+  </view>
+</component>)") == LV_RESULT_OK);
+    REQUIRE(lv_xml_register_component_from_data("lr_status_list", R"(<component>
+  <view extends="lv_obj" width="300" height="200" flex_flow="column">
+    <lr_status_row name="done" status_color="#success"/>
+    <lr_status_row name="failed" status_color="0xD03030"/>
+  </view>
+</component>)") == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_status_list");
+    REQUIRE(root != nullptr);
+    lv_obj_t* done = named(named(root, "done"), "row_status");
+    lv_obj_t* failed = named(named(root, "failed"), "row_status");
+    const uint32_t success = const_rgb("success");
+    REQUIRE(text_rgb(done) == success);
+    REQUIRE(success != hex(theme.light.text_muted));
+
+    theme_manager_apply_theme(theme, false);
+    CHECK(text_rgb(done) == success);
+    CHECK(text_rgb(failed) == 0xD03030);
 }
 
 TEST_CASE_METHOD(XMLTestFixture,

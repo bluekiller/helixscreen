@@ -107,11 +107,12 @@ and selector: a global token (`style_text_color="#text_muted"`) with its name, a
 - `lv_xml_reapply_style_tokens()` rewrites the `#token` colors of every named `<style>` in
   place, so widgets using the style, and ones built from it later, take the new mode.
 - The walker also leaves a label's text color alone when a style someone chose provides it
-  (a bound style, a component `<style>`, one added from C++). ThemeManager's shared semantic
+  (a bound style, on or off at the time, a component `<style>`, one added from C++). ThemeManager's shared semantic
   text styles do not count: a plain `text_body` on a dark ancestor still turns white.
 
-Not recorded, so still the walker's to theme: colors passed through a component `$prop`
-(resolved at the instance tag, where the token name is lost) and colors set from C++.
+A color passed through a component `$prop` is resolved at the instance tag, where the token
+name is lost, so it counts as a literal: kept, never re-applied. Colors set from C++ are not
+recorded and stay the walker's to theme.
 
 ---
 
