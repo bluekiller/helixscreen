@@ -7,6 +7,7 @@
 
 #include "async_lifetime_guard.h"
 #include "cli_args.h"
+#include "hardware_setup_prompter.h"
 #include "invalidation_suppression.h"
 #include "lvgl/lvgl.h"
 #include "main_loop_handler.h"
@@ -159,32 +160,6 @@ class Application {
     void show_screensaver_migration_notice_if_pending();
 #endif
     void setup_discovery_callbacks();
-    // Re-resolve + persist fan AND heater roles and re-init fan state so the UI
-    // rebinds after a targeted hardware-reconfig wizard page finishes. Marshals to
-    // the main thread internally; safe to call from a main-thread on_complete.
-    void reapply_hardware_roles();
-    // Offer to run the hardware wizard steps a Klipper-down setup could not show
-    // (#1160). Main thread only — shows a modal. Both answers settle the debt.
-    void prompt_deferred_hardware_setup(std::vector<helix::wizard::StepId> steps);
-    // Run the accepted offer as a targeted wizard session, fired by a one-shot
-    // timer so the wizard is built after the modal's exit animation rather than
-    // underneath it. Consumes m_pending_hardware_setup_steps.
-    void launch_deferred_hardware_setup();
-    // Clear this printer's deferred-hardware-setup marker and persist it.
-    void settle_deferred_hardware_setup();
-    // Saved-vs-detected printer type check (bundle F2LNLQCC: a Voron Trident
-    // saved as AD5M Pro silently received AD5M pre-print options and presets).
-    // Shows the one-time actionable mismatch modal; guarded to once per session
-    // and once per saved type (TYPE_MISMATCH_SHOWN_FOR). Main thread only.
-    void maybe_warn_type_mismatch(const helix::PrinterDiscovery& hardware);
-    // Run the accepted re-identify as a targeted wizard session (PrinterIdentify
-    // step ONLY — never a full wizard run), fired by a one-shot timer so the
-    // wizard is built after the modal's exit animation rather than underneath it.
-    void launch_type_reidentify_wizard();
-    // Record + persist the mismatch decision for the current saved type. Both
-    // modal arms call this before anything else: a crash mid-wizard must not
-    // leave the prompt pending forever.
-    void settle_type_mismatch_warning();
     lv_obj_t* create_overlay_panel(lv_obj_t* screen, const char* component_name,
                                    const char* display_name);
     void init_action_prompt();
@@ -310,22 +285,8 @@ class Application {
     // State
     bool m_running = false;
     bool m_wizard_active = false;
-    // Guards the discovery-triggered targeted hardware-reconfig wizard so it launches
-    // at most once per connection. Reset when a new hardware discovery begins.
-    bool m_targeted_reconfig_shown = false;
-    // Guards the deferred hardware-setup offer (#1160) so a reconnect within one
-    // session cannot re-ask. The persisted per-printer marker is what stops it
-    // across sessions — cleared as soon as the user answers either way.
-    bool m_hardware_setup_prompt_shown = false;
-    // Guards the saved-vs-detected printer type mismatch warning so it shows at
-    // most once per session, whichever button dismisses it. The persisted
-    // TYPE_MISMATCH_SHOWN_FOR flag covers cross-boot; intentionally NOT reset on
-    // reconnect.
-    bool m_type_mismatch_shown = false;
-    // Steps the deferred hardware-setup offer will run if accepted. Held here
-    // for launch_deferred_hardware_setup()'s timer to consume from the
-    // instance when the user accepts.
-    std::vector<helix::wizard::StepId> m_pending_hardware_setup_steps;
+    // The hardware prompts a discovery pass can raise, and their once-per-session guards.
+    helix::HardwareSetupPrompter m_prompter;
     // Hardware-shape fingerprint from the most recent on_discovery_complete.
     // When a reconnect's fingerprint matches (hardware unchanged), expensive
     // user-facing side-effects (LED chip population, hardware validation

@@ -391,7 +391,10 @@ void Application::release_instance_lock() {
     }
 }
 
-Application::Application() = default;
+Application::Application()
+    : m_prompter(
+          m_async_lifetime, [this] { return m_screen; },
+          [this] { return m_moonraker ? m_moonraker->api() : nullptr; }) {}
 
 Application::~Application() {
     shutdown();
@@ -2330,264 +2333,6 @@ void Application::apply_startup_cli_actions() {
     }
 }
 
-void Application::reapply_hardware_roles() {
-    m_async_lifetime.defer("Application::reapply_hardware_roles", [this]() {
-        IMoonrakerAPI* api = m_moonraker ? m_moonraker->api() : nullptr;
-        if (!api) {
-            return;
-        }
-        const auto& fans = api->hardware().fans();
-        const auto& heaters = api->hardware().heaters();
-        // Re-resolve + persist fan roles, then rebind fan UI to the new mapping.
-        // apply_roles, not init_fans: the wizard changed which fan plays which
-        // role, not which fans exist, so the discovered list comes from what
-        // discovery actually stored rather than being re-passed from here.
-        auto roles = helix::FanRoleConfig::from_config(Config::get_instance(), fans);
-        get_printer_state().apply_fan_roles(roles);
-        // Heater roles persist back to config (no dedicated runtime fan-style consumer).
-        helix::resolve_role_from_config(helix::HardwareRoleId::HotendHeater, Config::get_instance(),
-                                        heaters, /*persist_autoheal=*/true);
-        helix::resolve_role_from_config(helix::HardwareRoleId::BedHeater, Config::get_instance(),
-                                        heaters, /*persist_autoheal=*/true);
-    });
-}
-
-void Application::settle_deferred_hardware_setup() {
-    Config* config = Config::get_instance();
-    if (!helix::wizard_clear_hardware_setup_deferred(config)) {
-        return;
-    }
-    if (!config->save()) {
-        spdlog::warn("[Application] Failed to persist deferred hardware setup decision");
-    }
-}
-
-void Application::launch_deferred_hardware_setup() {
-    auto steps = std::move(m_pending_hardware_setup_steps);
-    m_pending_hardware_setup_steps.clear();
-    if (steps.empty()) {
-        return;
-    }
-    spdlog::info("[Application] Launching deferred hardware setup ({} step(s))", steps.size());
-
-    ui_wizard_register_event_callbacks();
-    ui_wizard_container_register_responsive_constants();
-    ui_wizard_init_subjects();
-    // Back on the first targeted step has nothing to retreat to, so give it the
-    // same dismiss semantics as the reconfig wizard.
-    set_wizard_cancel_callback([]() {
-        ui_wizard_complete_targeted();
-        set_wizard_cancel_callback(nullptr);
-    });
-    Application* app = this;
-    ui_wizard_create_targeted(m_screen, std::move(steps), [app]() {
-        set_wizard_cancel_callback(nullptr);
-        // ui_wizard_complete_targeted() deliberately skips the expected-hardware
-        // population, so record the user's fresh picks here.
-        ui_wizard_record_expected_hardware(Config::get_instance());
-        app->reapply_hardware_roles();
-    });
-}
-
-void Application::prompt_deferred_hardware_setup(std::vector<helix::wizard::StepId> steps) {
-    // The steps to run are parked on the Application instance for the confirm
-    // callback's timer to consume (launch_deferred_hardware_setup() reads them
-    // from there). on_dismiss clears them too, so a backdrop tap or ESC cannot
-    // strand the offer.
-    m_pending_hardware_setup_steps = std::move(steps);
-    spdlog::info("[Application] Offering deferred hardware setup ({} step(s))",
-                 m_pending_hardware_setup_steps.size());
-
-    helix::ui::ConfirmOptions opts;
-    opts.on_cancel = [this] {
-        m_pending_hardware_setup_steps.clear();
-        // Declining is final for this printer. The offer is for optional
-        // role assignments the app already has working defaults for, the
-        // snapshot was written regardless so nothing is flagged either way,
-        // and re-asking on every boot is the exact nag the surrounding
-        // reconfig-wizard code records declines to avoid. `--wizard` still
-        // re-runs setup, and a saved role that later breaks still routes to
-        // the targeted reconfig wizard on its own.
-        settle_deferred_hardware_setup();
-        spdlog::info("[Application] Deferred hardware setup declined");
-    };
-    opts.cancel_text = lv_tr("Not now");
-    opts.on_dismiss = [this] { m_pending_hardware_setup_steps.clear(); };
-    opts.owner_token = m_async_lifetime.token();
-
-    helix::ui::modal_confirm(
-        lv_tr("Printer hardware detected"),
-        lv_tr("Your printer was offline during setup, so hardware options were skipped. "
-              "Set them up now?"),
-        ModalSeverity::Info, lv_tr("Set up"),
-        [this] {
-            // Settle first: the wizard tears itself down asynchronously, and a
-            // crash mid-run must not leave the offer pending forever.
-            settle_deferred_hardware_setup();
-            // Build the wizard AFTER the modal's exit animation, not inside the
-            // click that started it: the dialog's own close only marks the
-            // backdrop exiting, so creating the full-screen wizard here would
-            // put it underneath a still-fading backdrop. The pending step list
-            // lives on the Application instance until the timer consumes it.
-            lv_timer_t* launch = lv_timer_create(
-                [](lv_timer_t* t) {
-                    auto* self = static_cast<Application*>(lv_timer_get_user_data(t));
-                    lv_timer_delete(t);
-                    self->launch_deferred_hardware_setup();
-                },
-                300, this);
-            lv_timer_set_repeat_count(launch, 1);
-        },
-        opts);
-}
-
-void Application::settle_type_mismatch_warning() {
-    auto* cfg = Config::get_instance();
-    cfg->set<std::string>(cfg->df() + helix::wizard::TYPE_MISMATCH_SHOWN_FOR,
-                          cfg->get<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, ""));
-    if (!cfg->save()) {
-        spdlog::warn("[Application] Failed to persist type mismatch decision");
-    }
-}
-
-void Application::maybe_warn_type_mismatch(const helix::PrinterDiscovery& hardware) {
-    // The gates below all decline silently in normal operation. A debug bundle
-    // is the only view we get of a reporter's run, so each one says why it
-    // declined: without that there is no way to tell a 68%-confidence near-miss
-    // apart from detection returning nothing at all (bundle TZT85MQ3).
-    if (m_type_mismatch_shown) {
-        spdlog::debug("[Application] Type mismatch check skipped: already prompted this session");
-        return;
-    }
-    if (get_runtime_config()->should_mock_moonraker()) {
-        // A mock printer's identity is whatever the persona declares, so a
-        // mismatch against the saved type says nothing about real hardware.
-        // Gate on the runtime-config predicate, not on HELIX_MOCK_PRINTER:
-        // plain --test runs the mock client without that env var ever being
-        // set, so the old getenv check let every --test launch open the
-        // prompt against whatever type settings-test.json happened to carry.
-        spdlog::debug("[Application] Type mismatch check skipped: mock printer");
-        return;
-    }
-    if (Config::get_instance()->is_wizard_required() || is_wizard_active()) {
-        spdlog::debug("[Application] Type mismatch check skipped: wizard required or active");
-        return;
-    }
-
-    auto* cfg = Config::get_instance();
-    const std::string stored = cfg->get<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, "");
-
-    // The saved type is a display name, so an entry renamed in the printer
-    // database orphans every config written under the old one and detection
-    // then contradicts a type that was never wrong. Resolve through the
-    // database's alias list and heal the stored value, otherwise the stale
-    // name keeps missing every other name-keyed lookup too (image, preset,
-    // pre-print profile) long after this prompt is dismissed.
-    const std::string saved = PrinterDetector::canonical_type_name(stored);
-    if (saved != stored) {
-        cfg->set<std::string>(cfg->df() + helix::wizard::PRINTER_TYPE, saved);
-        if (!cfg->save()) {
-            spdlog::warn("[Application] Failed to persist renamed printer type '{}' -> '{}'",
-                         stored, saved);
-        }
-    }
-
-    // Canonicalised too: a dismissal recorded under the pre-rename name still
-    // answers for the same printer.
-    const std::string flag = PrinterDetector::canonical_type_name(
-        cfg->get<std::string>(cfg->df() + helix::wizard::TYPE_MISMATCH_SHOWN_FOR, ""));
-
-    auto detected = PrinterDetector::auto_detect(hardware);
-    const auto decision = PrinterDetector::classify_type_mismatch(saved, detected, flag);
-    if (decision != PrinterDetector::MismatchDecision::Warn) {
-        // info, not debug: this runs once per discovery pass, and it is the line
-        // that answers "why was there no prompt?" in a bundle.
-        spdlog::info("[Application] No type mismatch prompt: detected '{}' at {}% (runner-up '{}' "
-                     "at {}%, margin {}, {} tied), saved '{}', dismissed-for '{}', need >={}% and "
-                     "margin >={} - {}",
-                     detected.type_name, detected.confidence, detected.runner_up_type_name,
-                     detected.runner_up_confidence, detected.margin(), detected.tied_count, saved,
-                     flag, PrinterDetector::MISMATCH_MIN_CONFIDENCE,
-                     PrinterDetector::DETECT_MIN_MARGIN,
-                     PrinterDetector::mismatch_decision_name(decision));
-        return;
-    }
-
-    // Session guard: one prompt per boot regardless of which button dismisses it.
-    m_type_mismatch_shown = true;
-    spdlog::info("[Application] Printer type mismatch: saved '{}' but detected '{}' ({}%)", saved,
-                 detected.type_name, detected.confidence);
-
-    // modal_confirm takes a plain const char* - compose the parameterized body
-    // first (fmt::runtime: the format string is the translated handle, not a
-    // compile-time literal).
-    const std::string body =
-        fmt::format(fmt::runtime(lv_tr("This printer looks like a {} ({}% confidence), but it is "
-                                       "set up as a {}. A wrong type applies incorrect pre-print "
-                                       "options and presets.")),
-                    detected.type_name, detected.confidence, saved);
-
-    helix::ui::ConfirmOptions opts;
-    opts.on_cancel = [this] {
-        // Declining is final for this saved type. Keeping the type is a
-        // deliberate choice (a heavily modified printer can legitimately
-        // outvote a heuristic), and the persisted flag stops the
-        // prompt from re-appearing every boot. The model picker remains
-        // available from Printer Manager and the full `--wizard` run.
-        settle_type_mismatch_warning();
-        spdlog::info("[Application] Type mismatch warning declined");
-    };
-    opts.cancel_text = lv_tr("Keep current");
-    opts.owner_token = m_async_lifetime.token();
-    // No on_dismiss, deliberately: a backdrop tap or ESC is not an answer, so
-    // the prompt stays armed for the next boot. Only a button settles it, and
-    // an accidental tap must not permanently silence a wrong-printer warning.
-
-    helix::ui::modal_confirm(
-        lv_tr("Printer type mismatch"), body.c_str(), ModalSeverity::Warning, lv_tr("Choose Model"),
-        [this] {
-            // Settle first: the wizard tears itself down asynchronously, and a
-            // crash mid-run must not leave the prompt pending forever.
-            settle_type_mismatch_warning();
-            // Build the wizard AFTER the modal's exit animation, not inside the
-            // click that started it: the dialog's own close only marks the
-            // backdrop exiting, so creating the full-screen wizard here would
-            // put it underneath a still-fading backdrop (same 300 ms one-shot
-            // as launch_deferred_hardware_setup).
-            lv_timer_t* launch = lv_timer_create(
-                [](lv_timer_t* t) {
-                    auto* self = static_cast<Application*>(lv_timer_get_user_data(t));
-                    lv_timer_delete(t);
-                    self->launch_type_reidentify_wizard();
-                },
-                300, this);
-            lv_timer_set_repeat_count(launch, 1);
-        },
-        opts);
-}
-
-void Application::launch_type_reidentify_wizard() {
-    spdlog::info("[Application] Launching printer re-identify wizard");
-    ui_wizard_register_event_callbacks();
-    ui_wizard_container_register_responsive_constants();
-    ui_wizard_init_subjects();
-    // Back on the first targeted step has nothing to retreat to, so give it the
-    // same dismiss semantics as the deferred hardware-setup session.
-    set_wizard_cancel_callback([]() {
-        ui_wizard_complete_targeted();
-        set_wizard_cancel_callback(nullptr);
-    });
-    Application* app = this;
-    ui_wizard_create_targeted(m_screen, {helix::wizard::StepId::PrinterIdentify}, [app]() {
-        set_wizard_cancel_callback(nullptr);
-        // The identify step's cleanup already persisted PRINTER_TYPE and applied
-        // the new preset (ui_wizard_printer_identify.cpp cleanup). The preset
-        // rewrote fan/heater role keys, so rebind the runtime mappings the same
-        // way the deferred hardware-setup session does.
-        app->reapply_hardware_roles();
-    });
-}
-
 void Application::setup_discovery_callbacks() {
     IMoonrakerClient* client = m_moonraker->client();
     IMoonrakerAPI* api = m_moonraker->api();
@@ -2636,7 +2381,7 @@ void Application::setup_discovery_callbacks() {
                 return;
             // A new discovery cycle is starting — re-arm the once-per-connection
             // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
-            app->m_targeted_reconfig_shown = false;
+            app->m_prompter.begin_discovery_cycle();
             api->hardware() = std::move(*snapshot);
             helix::init_subsystems_from_hardware(api->hardware(), api, client);
         });
@@ -2884,103 +2629,21 @@ void Application::setup_discovery_callbacks() {
                 validator.notify_user(validation_result);
             }
 
-            // Route unresolved GUIDED hardware roles (a saved fan/heater role with no
-            // confident live substitute) into the targeted reconfig wizard — only the
-            // affected step(s), not the full first-run wizard. Skipped while the first-run
-            // wizard is required/active, and gated to once-per-connection so it does not
-            // relaunch on reconnect churn within a single session.
-            //
-            // Also gated on hw_changed: unresolved guided steps are purely a function of
-            // (saved config, current hardware). If hardware is unchanged since the last
-            // discovery, the result is identical and re-launching the wizard would just
-            // harass the user. Ending the wizard session (Finish or Cancel) persists
-            // the decline, so the next discovery with the SAME hardware would also see
-            // no unresolved steps —
-            // the hw_changed gate is defense-in-depth for the rare case where a prior
-            // session was killed before the decline could be persisted.
-            auto reconfig_steps = helix::unresolved_guided_steps(Config::get_instance(), hw);
-            // Idle gate: NEVER launch the reconfig wizard over a live print.
-            // The print_active subject is NOT yet updated from this discovery's
-            // initial status — dispatch_status_update() above only QUEUES the status
+            // The print_active subject is NOT yet updated from this discovery's initial
+            // status — dispatch_status_update() above only QUEUES the status
             // (m_notification_queue); print_active_ is applied a tick later in
             // process_notifications, AFTER this queue_update returns. On a fresh
             // connection mid-print (app/panel restart during a print) the subject
             // still reads its initialized 0. Consult the just-arrived status directly
-            // so a reconfig wizard never launches over a live print.
+            // so a wizard never launches over a live print.
             bool print_active =
                 lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0;
             if (status_snapshot &&
                 helix::PrinterPrintState::status_indicates_active_print(*status_snapshot)) {
                 print_active = true;
             }
-            if (hw_changed && !reconfig_steps.empty() && !print_active &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active() &&
-                !app->m_targeted_reconfig_shown) {
-                app->m_targeted_reconfig_shown = true;
-                ui_wizard_register_event_callbacks();
-                ui_wizard_container_register_responsive_constants();
-                ui_wizard_init_subjects();
-                // Ending the session — Cancel here, Finish in the on_complete callback
-                // below — settles every guided role the session's steps could not
-                // resolve: a step only offers controls for the roles it shows (the fan
-                // step has no aux dropdown), so a preset-saved role with no live match
-                // can never be satisfied inside the session and would relaunch the
-                // wizard on every boot. settle_targeted_reconfig() writes "" (declined)
-                // for each such role, read against the CURRENT discovered hardware.
-                set_wizard_cancel_callback([api]() {
-                    // reapply_hardware_roles() is intentionally NOT called here:
-                    // ui_wizard_complete_targeted() fires the on_complete callback
-                    // (registered in ui_wizard_create_targeted below), which already
-                    // reapplies the roles. Calling it here too would be a redundant
-                    // double reapply.
-                    helix::settle_targeted_reconfig(Config::get_instance(), api->hardware());
-                    ui_wizard_complete_targeted();
-                    set_wizard_cancel_callback(nullptr);
-                });
-                ui_wizard_create_targeted(app->m_screen, reconfig_steps, [app, api]() {
-                    set_wizard_cancel_callback(nullptr);
-                    helix::settle_targeted_reconfig(Config::get_instance(), api->hardware());
-                    app->reapply_hardware_roles();
-                });
-            }
-
-            // Offer the hardware steps the Klipper-down wizard could not show
-            // (#1160). The user skipped them because their printer was broken,
-            // not because they had nothing to choose. Gated exactly like the
-            // reconfig wizard above (idle, no wizard running, once per session),
-            // plus reconfig_steps.empty() so the two never stack — if a reconfig
-            // session just launched, the offer waits for the next boot.
-            if (hardware_setup_deferred && hw_changed && !print_active &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active() &&
-                reconfig_steps.empty() && !app->m_hardware_setup_prompt_shown) {
-                auto steps = ui_wizard_deferred_hardware_steps();
-                app->m_hardware_setup_prompt_shown = true;
-                if (steps.empty()) {
-                    // Nothing left to ask about (a preset already answers these,
-                    // or the printer has none of the optional hardware). Settle
-                    // the debt silently rather than showing a dead-end dialog.
-                    spdlog::info("[Application] Deferred hardware setup has no steps to offer; "
-                                 "settling silently");
-                    app->settle_deferred_hardware_setup();
-                } else {
-                    app->prompt_deferred_hardware_setup(std::move(steps));
-                }
-            }
-
-            // Saved printer type vs detected hardware (bundle F2LNLQCC: a Voron
-            // Trident saved as "FlashForge Adventurer 5M Pro" silently received
-            // AD5M pre-print options, presets, and screws-tilt direction on every
-            // boot — auto_detect_and_save self-guards on a saved type and never
-            // re-checks). One actionable prompt per saved type. Gated exactly
-            // like the reconfig wizard and deferred offer above — plus
-            // reconfig_steps.empty() and !hardware_setup_deferred so the three
-            // never stack in one discovery pass — and on the same hw_changed
-            // gate: detection is purely a function of the hardware shape.
-            if (hw_changed && !print_active && reconfig_steps.empty() && !hardware_setup_deferred &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active() &&
-                !app->m_type_mismatch_shown) {
-                app->maybe_warn_type_mismatch(api->hardware());
-            }
+            app->m_prompter.run_discovery_prompts(hw, hw_changed, print_active,
+                                                  hardware_setup_deferred);
 
             // Save session snapshot for next comparison (even if no issues)
             validator.save_session_snapshot(Config::get_instance(), api->hardware());
@@ -4031,10 +3694,7 @@ bool Application::note_hardware_fingerprint(size_t fingerprint) {
 void Application::reset_discovery_session() {
     m_first_discovery_complete = true;
     m_last_hardware_fingerprint = 0;
-    m_targeted_reconfig_shown = false;
-    m_hardware_setup_prompt_shown = false;
-    m_type_mismatch_shown = false;
-    m_pending_hardware_setup_steps.clear();
+    m_prompter.reset_for_new_connection();
 }
 
 void Application::tear_down_printer_state() {
