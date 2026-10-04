@@ -58,8 +58,9 @@ struct FrequencySeriesData {
     lv_color_t color = {};         ///< Line color
     bool visible = true;           ///< Visibility state
     bool muted = false;            ///< Draw thin/translucent instead of via the LVGL series
-    FrChartSeriesStyle style = {}; ///< Effective draw style (muted series ignore it)
-    lv_chart_series_t* lv_series = nullptr; ///< LVGL chart series (chart mode only)
+    FrChartSeriesStyle requested_style = {}; ///< Style the caller asked for
+    FrChartSeriesStyle style = {};           ///< Effective draw style (muted series ignore it)
+    lv_chart_series_t* lv_series = nullptr;  ///< LVGL chart series (chart mode only)
 
     // Peak marker data
     bool has_peak = false;
@@ -138,6 +139,25 @@ static FrequencySeriesData* find_series(ui_frequency_response_chart_t* chart, in
  */
 static bool series_uses_custom_draw(const FrequencySeriesData* series) {
     return series->muted || series->style.glow || series->style.fill;
+}
+
+/**
+ * @brief Re-derive a series' effective style from its requested one and the
+ *        chart's configured tier
+ */
+static void restyle_series(ui_frequency_response_chart_t* chart, FrequencySeriesData* series) {
+    series->style =
+        fr_chart_effective_style(series->requested_style, chart->tier, chart->supports_animations);
+
+    if (chart->chart && series->lv_series) {
+        // Glow and fill must be layered under the series line, which the
+        // built-in renderer cannot do (user draw callbacks run after it), so
+        // a styled series is drawn entirely by draw_styled_series_cb() and its
+        // built-in series stays hidden exactly like a muted one.
+        lv_chart_hide_series(chart->chart, series->lv_series,
+                             series_uses_custom_draw(series) ? true : !series->visible);
+        lv_obj_invalidate(chart->chart);
+    }
 }
 
 /**
@@ -352,6 +372,7 @@ int ui_frequency_response_chart_add_series(ui_frequency_response_chart_t* chart,
     // not stay muted: the new series would be double-drawn (1px copy over its
     // LVGL series) and could never be hidden by a chip toggle.
     series->muted = false;
+    series->requested_style = FrChartSeriesStyle{};
     series->style = FrChartSeriesStyle{};
     series->has_peak = false;
     series->markers.clear();
@@ -428,6 +449,29 @@ void ui_frequency_response_chart_show_series(ui_frequency_response_chart_t* char
     }
 
     spdlog::debug("[FreqChart] Series {} visibility: {}", series_id, visible);
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+void ui_frequency_response_chart_set_series_color(ui_frequency_response_chart_t* chart,
+                                                  int series_id, lv_color_t color) {
+    FrequencySeriesData* series = find_series(chart, series_id);
+    if (!series) {
+        return;
+    }
+    series->color = color;
+    if (chart->chart) {
+        if (series->lv_series) {
+            lv_chart_set_series_color(chart->chart, series->lv_series, color);
+        }
+        lv_obj_invalidate(chart->chart);
+    }
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+lv_color_t ui_frequency_response_chart_get_series_color(ui_frequency_response_chart_t* chart,
+                                                        int series_id) {
+    const FrequencySeriesData* series = find_series(chart, series_id);
+    return series ? series->color : lv_color_black();
 }
 
 void ui_frequency_response_chart_set_series_muted(ui_frequency_response_chart_t* chart,
@@ -516,6 +560,14 @@ ui_frequency_response_chart_get_markers(ui_frequency_response_chart_t* chart, in
 }
 
 // NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
+std::vector<float>
+ui_frequency_response_chart_get_series_amplitudes(ui_frequency_response_chart_t* chart,
+                                                  int series_id) {
+    const FrequencySeriesData* series = find_series(chart, series_id);
+    return series ? series->amplitudes : std::vector<float>{};
+}
+
+// NAMESPACE_OK: joins the header's global ui_frequency_response_chart_* API
 bool ui_frequency_response_chart_is_series_visible(
     ui_frequency_response_chart_t* chart, // NAMESPACE_OK: matches this file's C-style chart API
     int series_id) {
@@ -535,17 +587,8 @@ void ui_frequency_response_chart_set_series_style(ui_frequency_response_chart_t*
         return;
     }
 
-    series->style = fr_chart_effective_style(style, chart->tier, chart->supports_animations);
-
-    if (chart->chart && series->lv_series) {
-        // Glow and fill must be layered under the series line, which the
-        // built-in renderer cannot do (user draw callbacks run after it), so
-        // a styled series is drawn entirely by draw_styled_series_cb() and its
-        // built-in series stays hidden exactly like a muted one.
-        lv_chart_hide_series(chart->chart, series->lv_series,
-                             series_uses_custom_draw(series) ? true : !series->visible);
-        lv_obj_invalidate(chart->chart);
-    }
+    series->requested_style = style;
+    restyle_series(chart, series);
 
     spdlog::debug("[FreqChart] Series {} style: width={} glow={} fill={}", series_id,
                   series->style.line_width, series->style.glow, series->style.fill);
@@ -1377,6 +1420,7 @@ static void draw_x_axis_labels_cb(lv_event_t* e) {
 
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
+    label_dsc.base.obj = chart_obj; // owner, so LV_EVENT_DRAW_TASK_ADDED can see the task
     label_dsc.color = theme_manager_get_color("text_muted");
     label_dsc.font = label_font;
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
@@ -1462,6 +1506,7 @@ static void draw_y_axis_labels_cb(lv_event_t* e) {
 
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
+    label_dsc.base.obj = chart_obj; // owner, so LV_EVENT_DRAW_TASK_ADDED can see the task
     label_dsc.color = theme_manager_get_color("text_muted");
     label_dsc.font = label_font;
     label_dsc.align = LV_TEXT_ALIGN_RIGHT;
@@ -1637,6 +1682,12 @@ void ui_frequency_response_chart_configure_for_platform(ui_frequency_response_ch
     } else if (chart->chart_mode && chart->chart) {
         // Update point count if chart exists and mode is chart
         lv_chart_set_point_count(chart->chart, static_cast<uint32_t>(chart->max_points));
+    }
+
+    for (auto& series : chart->series) {
+        if (series.id != -1) {
+            restyle_series(chart, &series);
+        }
     }
 
     spdlog::debug("[FreqChart] Configured for {} tier: max_points={}, chart_mode={}",

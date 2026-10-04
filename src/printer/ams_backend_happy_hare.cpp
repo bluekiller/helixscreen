@@ -1216,8 +1216,9 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
                 binding != gate_readings_.end() && binding->second.spoolman_id.value_or(0) > 0;
             if (entry->info.status == SlotStatus::EMPTY && !binding_names_spool) {
                 const int gate = static_cast<int>(i);
-                helix::ui::queue_update(
-                    [gate] { helix::ui::offer_clear_after_unverified_insert(gate); });
+                helix::ui::queue_update("AmsBackendHappyHare::parse_mmu_state", [gate] {
+                    helix::ui::offer_clear_after_unverified_insert(gate);
+                });
             }
         }
     }

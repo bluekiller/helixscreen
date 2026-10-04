@@ -31,6 +31,7 @@
 
 #include "../test_fixtures.h"
 #include "helix-xml/src/xml/lv_xml_component.h"
+#include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -111,4 +112,33 @@ TEST_CASE_METHOD(XMLTestFixture,
     // whatever test runs next in this process (packs themselves are left
     // registered -- see note above).
     lv_translation_set_language("en");
+}
+
+// Modal::show and a theme switch run the palette walker over the tree, and the
+// walker writes a local text color onto every label. An author's inline color
+// is a local style too, so the walker must leave it alone (#1735).
+TEST_CASE_METHOD(XMLTestFixture, "the palette walker keeps an inline style_text_color",
+                 "[xml][ui_text][theme]") {
+    const char* xml = R"(<component>
+  <view extends="lv_obj" width="300" height="300">
+    <text_small name="authored" text="Warn" style_text_color="#FF0000"/>
+    <text_small name="themed" text="Plain"/>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("it_inline_color", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("it_inline_color");
+    REQUIRE(root != nullptr);
+    lv_obj_t* authored = lv_obj_find_by_name(root, "authored");
+    lv_obj_t* themed = lv_obj_find_by_name(root, "themed");
+    REQUIRE(authored != nullptr);
+    REQUIRE(themed != nullptr);
+
+    lv_obj_set_style_text_color(themed, lv_color_hex(0x00FF00), LV_PART_MAIN);
+    theme_apply_current_palette_to_tree(root);
+
+    CHECK(lv_color_to_u32(lv_obj_get_style_text_color(authored, LV_PART_MAIN)) ==
+          lv_color_to_u32(lv_color_hex(0xFF0000)));
+    // The walker still themes a label nobody colored in XML.
+    CHECK(lv_color_to_u32(lv_obj_get_style_text_color(themed, LV_PART_MAIN)) !=
+          lv_color_to_u32(lv_color_hex(0x00FF00)));
 }

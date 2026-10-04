@@ -169,7 +169,7 @@ void print_spool_label(const SpoolInfo& spool, PrintCallback callback) {
             spdlog::info("[LabelPrinter] Configured USB printer not found, using {}",
                          detected[0].product_name);
         } else if (!found) {
-            helix::ui::queue_update([callback]() {
+            helix::ui::queue_update("label_printer_utils::print_spool_label", [callback]() {
                 if (callback)
                     callback(false, lv_tr("No USB printer detected"));
             });
@@ -251,7 +251,7 @@ void print_spool_label(const SpoolInfo& spool, PrintCallback callback) {
 
             auto bitmap = LabelRenderer::render(spool, actual_preset, actual_size);
             if (bitmap.empty()) {
-                helix::ui::queue_update([callback]() {
+                helix::ui::queue_update("label_printer_utils::print_spool_label", [callback]() {
                     if (callback)
                         callback(false, lv_tr("Failed to render label"));
                 });

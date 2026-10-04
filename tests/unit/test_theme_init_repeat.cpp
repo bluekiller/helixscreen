@@ -10,8 +10,10 @@
  */
 
 #include "ui_breakpoint.h"
+#include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "helix-xml/src/xml/lv_xml_component.h"
 #include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
@@ -136,4 +138,39 @@ TEST_CASE_METHOD(LVGLUITestFixture, "applying a theme forces the next init to re
     CHECK(theme_manager_full_init_count() == before + 1);
 
     helix::ui::UpdateQueue::instance().drain();
+}
+
+// A live dark/light switch has to reach the XML color tokens, or everything
+// built after the switch (a modal, a lazily created panel) resolves
+// #text_muted and #card_bg to the startup mode's colors.
+TEST_CASE_METHOD(LVGLUITestFixture, "a mode switch updates the color tokens new XML resolves",
+                 "[theme]") {
+    const helix::ThemeData& theme = theme_manager_get_active_theme();
+    REQUIRE(!theme.dark.text_muted.empty());
+    REQUIRE(!theme.light.text_muted.empty());
+    REQUIRE(theme.dark.text_muted != theme.light.text_muted);
+    REQUIRE(theme.dark.card_bg != theme.light.card_bg);
+
+    REQUIRE(lv_xml_register_component_from_data(
+                "theme_token_probe",
+                "<component><view extends=\"lv_obj\" style_text_color=\"#text_muted\""
+                " style_bg_color=\"#card_bg\"/></component>") == LV_RESULT_OK);
+
+    auto check_built_after_switch = [&](bool dark) {
+        theme_manager_apply_theme(theme_manager_get_active_theme(), dark);
+        helix::ui::UpdateQueue::instance().drain();
+        const helix::ModePalette& p = dark ? theme.dark : theme.light;
+
+        lv_obj_t* probe =
+            static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "theme_token_probe", nullptr));
+        REQUIRE(probe != nullptr);
+        CHECK(lv_color_to_u32(lv_obj_get_style_text_color(probe, LV_PART_MAIN)) ==
+              lv_color_to_u32(theme_manager_parse_hex_color(p.text_muted.c_str())));
+        CHECK(lv_color_to_u32(lv_obj_get_style_bg_color(probe, LV_PART_MAIN)) ==
+              lv_color_to_u32(theme_manager_parse_hex_color(p.card_bg.c_str())));
+        lv_obj_delete(probe);
+    };
+
+    check_built_after_switch(true);
+    check_built_after_switch(false); // and back, which also restores the fixture's light mode
 }

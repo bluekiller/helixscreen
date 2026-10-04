@@ -473,3 +473,27 @@ TEST_CASE("standalone_rotation prefers the CLI value, then the configured one",
     CHECK(helix::standalone_rotation(90) == 90);
     CHECK(helix::standalone_rotation(0) == 180);
 }
+
+// The kernel's panel_orientation has to reach DisplayManager::init() as the
+// startup rotation: the backends gate the stored touch range and calibration on
+// the display's rotation inside create_input_pointer(), so a rotation applied
+// after init() leaves a range fit to the unrotated frame
+// (prestonbrown/helixscreen#1428).
+TEST_CASE("startup_rotation hands a first-boot panel_orientation to display init",
+          "[display][rotation]") {
+    SECTION("first boot adopts the kernel orientation") {
+        CHECK(helix::startup_rotation(0, true, 90) == 90);
+        CHECK(helix::startup_rotation(0, true, 270) == 270);
+    }
+    SECTION("an explicit request wins over the kernel") {
+        CHECK(helix::startup_rotation(180, true, 90) == 180);
+        CHECK(helix::startup_rotation(180, false, 90) == 180);
+    }
+    SECTION("a configured or already-probed boot ignores the kernel") {
+        CHECK(helix::startup_rotation(0, false, 90) == 0);
+    }
+    SECTION("no orientation, or Normal, leaves the display unrotated") {
+        CHECK(helix::startup_rotation(0, true, -1) == 0);
+        CHECK(helix::startup_rotation(0, true, 0) == 0);
+    }
+}

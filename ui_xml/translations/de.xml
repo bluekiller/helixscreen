@@ -529,6 +529,7 @@
   <translation tag="Checking for webcam..." de="Webcam wird gesucht..."/>
   <translation tag="Checking plugin" de="Plugin wird geprüft"/>
   <translation tag="Checking slots..." de="Prüfe Slots..."/>
+  <translation tag="Checking the printer..." de="Drucker wird geprüft..."/>
   <translation tag="Checking timelapse plugin..." de="Prüfe Zeitraffer-Plugin..."/>
   <translation tag="Checking webcam" de="Webcam wird geprüft"/>
   <translation tag="Checking..." de="Prüfe..."/>
@@ -1505,6 +1506,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." de="Klipper ist in den Shutdown-Zustand gewechselt. Dies kann auf einen Notaus, thermisches Durchgehen oder einen Konfigurationsfehler zurückzuführen sein."/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." de="Klipper reserviert &apos;default&apos; für neue Kalibrierungen. Wählen Sie einen anderen Namen."/>
   <translation tag="Klipper restarting - macros activating" de="Klipper startet neu - Makros werden aktiviert"/>
+  <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again." de="Klipper meldet keinen Fortschritt mehr. Seine Auswertung kann auf kleinen Druckern den Speicher erschöpfen und Klipper blockieren, sodass ein Firmware-Neustart es nicht erreicht. Schalten Sie den Drucker aus und wieder ein (oder starten Sie Klipper per SSH neu) und versuchen Sie es dann erneut."/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." de="Klipper meldet keinen Fortschritt mehr. Seine Auswertung kann auf kleinen Druckern den Speicher erschöpfen; starten Sie Klipper neu und versuchen Sie es erneut."/>
   <translation tag="Klipper will restart to apply changes." de="Klipper wird neu starten, um Änderungen anzuwenden."/>
   <translation tag="Klipper will restart to apply new settings." de="Klipper wird neu starten, um neue Einstellungen anzuwenden."/>
@@ -1891,6 +1893,7 @@
   <translation tag="Normal" de="Normal"/>
   <translation tag="Not Connected" de="Nicht verbunden"/>
   <translation tag="Not Enough Filament" de="Nicht genug Filament"/>
+  <translation tag="Not Enough Memory" de="Nicht genug Speicher"/>
   <translation tag="Not Initialized" de="Nicht initialisiert"/>
   <translation tag="Not Now" de="Nicht jetzt"/>
   <translation tag="Not Supported" de="Nicht unterstützt"/>
@@ -1964,6 +1967,7 @@
   <translation tag="One tap runs this macro. Dangerous macros still ask." de="Ein Tipp führt dieses Makro aus. Gefährliche Makros fragen weiterhin nach."/>
   <translation tag="Only on A: {} Hz" de="Nur bei A: {} Hz"/>
   <translation tag="Only on B: {} Hz" de="Nur bei B: {} Hz"/>
+  <translation tag="Only {} MB of memory is free, and Klipper&apos;s analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled." de="Nur {} MB Speicher sind frei, und die Auswertung von Klipper benötigt etwa {} MB. Der Test würde den Drucker blockieren, bis er aus- und wieder eingeschaltet wird."/>
   <translation tag="Ooze Reduction" de="Ooze-Reduzierung"/>
   <translation tag="Open" de="Öffnen"/>
   <translation tag="Open Source Licenses" de="Open-Source-Lizenzen"/>
@@ -2967,6 +2971,7 @@
   <translation tag="Theme changes apply after restart." de="Themenänderungen werden nach dem Neustart wirksam."/>
   <translation tag="Theme reset to defaults" de="Thema auf Standardwerte zurückgesetzt"/>
   <translation tag="Theme: " de="Design: "/>
+  <translation tag="There is not enough free memory to run this test. Klipper&apos;s analysis would run out of memory and leave the printer stuck until it is power-cycled." de="Für diesen Test ist nicht genug freier Speicher vorhanden. Die Auswertung von Klipper würde den Speicher erschöpfen und den Drucker blockieren, bis er aus- und wieder eingeschaltet wird."/>
   <translation tag="These tools have a different filament grade loaded:" de="Bei diesen Werkzeugen ist eine andere Filamentklasse geladen:"/>
   <translation tag="These tools have incompatible materials loaded:" de="Diese Werkzeuge haben inkompatible Materialien geladen:"/>
   <translation tag="These tools have no filament loaded:" de="Diese Werkzeuge haben kein Filament geladen:"/>

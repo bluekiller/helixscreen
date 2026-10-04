@@ -46,6 +46,23 @@ TEST_CASE_METHOD(LVGLTestFixture, "chart stores the effective style per series",
     ui_frequency_response_chart_destroy(chart);
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "chart style: re-configuring the tier re-derives styles",
+                 "[chart][belt]") {
+    auto* chart = ui_frequency_response_chart_create(lv_screen_active());
+    ui_frequency_response_chart_configure_for_platform(chart, helix::PlatformTier::BASIC, true);
+    int id = ui_frequency_response_chart_add_series(chart, "A", lv_color_hex(0x4FA3F7));
+    ui_frequency_response_chart_set_series_style(chart, id, {3, true, true});
+    REQUIRE_FALSE(ui_frequency_response_chart_get_series_style(chart, id).glow);
+
+    ui_frequency_response_chart_configure_for_platform(chart, helix::PlatformTier::STANDARD, true);
+    CHECK(ui_frequency_response_chart_get_series_style(chart, id).glow);
+
+    ui_frequency_response_chart_configure_for_platform(chart, helix::PlatformTier::STANDARD, false);
+    CHECK_FALSE(ui_frequency_response_chart_get_series_style(chart, id).glow);
+
+    ui_frequency_response_chart_destroy(chart);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "chart style: default style keeps the built-in series",
                  "[chart][belt]") {
     auto* chart = ui_frequency_response_chart_create(lv_screen_active());

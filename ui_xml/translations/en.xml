@@ -529,6 +529,7 @@
   <translation tag="Checking for webcam..." en="Checking for webcam..."/>
   <translation tag="Checking plugin" en="Checking plugin"/>
   <translation tag="Checking slots..." en="Checking slots..."/>
+  <translation tag="Checking the printer..." en="Checking the printer..."/>
   <translation tag="Checking timelapse plugin..." en="Checking timelapse plugin..."/>
   <translation tag="Checking webcam" en="Checking webcam"/>
   <translation tag="Checking..." en="Checking..."/>
@@ -1505,6 +1506,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." en="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error."/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." en="Klipper reserves &apos;default&apos; for new calibrations. Choose another name."/>
   <translation tag="Klipper restarting - macros activating" en="Klipper restarting - macros activating"/>
+  <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again." en="Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again."/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." en="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again."/>
   <translation tag="Klipper will restart to apply changes." en="Klipper will restart to apply changes."/>
   <translation tag="Klipper will restart to apply new settings." en="Klipper will restart to apply new settings."/>
@@ -1891,6 +1893,7 @@
   <translation tag="Normal" en="Normal"/>
   <translation tag="Not Connected" en="Not Connected"/>
   <translation tag="Not Enough Filament" en="Not Enough Filament"/>
+  <translation tag="Not Enough Memory" en="Not Enough Memory"/>
   <translation tag="Not Initialized" en="Not Initialized"/>
   <translation tag="Not Now" en="Not Now"/>
   <translation tag="Not Supported" en="Not Supported"/>
@@ -1964,6 +1967,7 @@
   <translation tag="One tap runs this macro. Dangerous macros still ask." en="One tap runs this macro. Dangerous macros still ask."/>
   <translation tag="Only on A: {} Hz" en="Only on A: {} Hz"/>
   <translation tag="Only on B: {} Hz" en="Only on B: {} Hz"/>
+  <translation tag="Only {} MB of memory is free, and Klipper&apos;s analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled." en="Only {} MB of memory is free, and Klipper&apos;s analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled."/>
   <translation tag="Ooze Reduction" en="Ooze Reduction"/>
   <translation tag="Open" en="Open"/>
   <translation tag="Open Source Licenses" en="Open Source Licenses"/>
@@ -2967,6 +2971,7 @@
   <translation tag="Theme changes apply after restart." en="Theme changes apply after restart."/>
   <translation tag="Theme reset to defaults" en="Theme reset to defaults"/>
   <translation tag="Theme: " en="Theme: "/>
+  <translation tag="There is not enough free memory to run this test. Klipper&apos;s analysis would run out of memory and leave the printer stuck until it is power-cycled." en="There is not enough free memory to run this test. Klipper&apos;s analysis would run out of memory and leave the printer stuck until it is power-cycled."/>
   <translation tag="These tools have a different filament grade loaded:" en="These tools have a different filament grade loaded:"/>
   <translation tag="These tools have incompatible materials loaded:" en="These tools have incompatible materials loaded:"/>
   <translation tag="These tools have no filament loaded:" en="These tools have no filament loaded:"/>

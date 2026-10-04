@@ -203,18 +203,7 @@ void SettingsManager::init_subjects() {
         get_printer_state().apply_effective_bed_moves();
     }
 
-    // Jog step distances (Fine/Coarse/Turbo x inner/outer, mm). Read on every
-    // jog rather than bound to a widget, so a cache is enough; the settings
-    // overlay re-reads on open.
-    static_assert(JOG_MODE_COUNT == 3, "jog_distances_ cache is sized for three modes");
-    for (int m = 0; m < JOG_MODE_COUNT; ++m) {
-        const JogMode mode = static_cast<JogMode>(m);
-        for (int outer = 0; outer < 2; ++outer) {
-            float mm = config->get<float>(config->df() + jog_distance_key(mode, outer),
-                                          jog_distance_default(mode, outer));
-            jog_distances_[m][outer] = std::clamp(mm, 0.01f, 200.0f);
-        }
-    }
+    load_jog_distances();
 
     // Chamber assignment (default: "auto" = use name heuristics).
     // Legacy paths (printer/chamber_{sensor,heater}) moved to the canonical flat paths
@@ -265,6 +254,30 @@ void SettingsManager::init_subjects() {
                                                       [this]() { deinit_subjects(); });
 
     spdlog::debug("[SettingsManager] Subjects initialized");
+}
+
+void SettingsManager::load_jog_distances() {
+    // Jog step distances (Fine/Coarse/Turbo x inner/outer, mm). Read on every
+    // jog rather than bound to a widget, so a cache is enough; the settings
+    // overlay re-reads on open.
+    static_assert(JOG_MODE_COUNT == 3, "jog_distances_ cache is sized for three modes");
+    Config* config = Config::get_instance();
+    for (int m = 0; m < JOG_MODE_COUNT; ++m) {
+        const JogMode mode = static_cast<JogMode>(m);
+        for (int outer = 0; outer < 2; ++outer) {
+            float mm = config->get<float>(config->df() + jog_distance_key(mode, outer),
+                                          jog_distance_default(mode, outer));
+            jog_distances_[m][outer] = std::clamp(mm, 0.01f, 200.0f);
+        }
+    }
+}
+
+void SettingsManager::reload_from_config() {
+    if (!subjects_initialized_) {
+        return;
+    }
+    settings_.reload();
+    load_jog_distances();
 }
 
 void SettingsManager::deinit_subjects() {

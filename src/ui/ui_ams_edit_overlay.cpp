@@ -1228,25 +1228,26 @@ void AmsEditOverlay::handle_scan_qr() {
             // user confirms with Save.
             SlotInfo scanned;
             apply_spool_to_slot(scanned, spool);
-            helix::ui::queue_update([scanned = std::move(scanned)]() {
-                auto& editor = get_ams_edit_overlay();
-                if (!editor.get_root()) {
-                    return; // editor tree gone (shutdown) — drop silently
-                }
-                int keep_slot = editor.working_info_.slot_index;
-                int keep_global = editor.working_info_.global_index;
-                int keep_tool = editor.working_info_.mapped_tool;
-                editor.working_info_ = scanned;
-                editor.working_info_.slot_index = keep_slot;
-                editor.working_info_.global_index = keep_global;
-                editor.working_info_.mapped_tool = keep_tool;
-                editor.switch_to_form();
-                editor.update_ui();
-                editor.update_temp_display();
-                editor.update_sync_button_state();
-                editor.update_spoolman_button_state();
-                NOTIFY_INFO("{} {} scanned — review and Save", scanned.brand, scanned.material);
-            });
+            helix::ui::queue_update(
+                "AmsEditOverlay::handle_scan_qr", [scanned = std::move(scanned)]() {
+                    auto& editor = get_ams_edit_overlay();
+                    if (!editor.get_root()) {
+                        return; // editor tree gone (shutdown) — drop silently
+                    }
+                    int keep_slot = editor.working_info_.slot_index;
+                    int keep_global = editor.working_info_.global_index;
+                    int keep_tool = editor.working_info_.mapped_tool;
+                    editor.working_info_ = scanned;
+                    editor.working_info_.slot_index = keep_slot;
+                    editor.working_info_.global_index = keep_global;
+                    editor.working_info_.mapped_tool = keep_tool;
+                    editor.switch_to_form();
+                    editor.update_ui();
+                    editor.update_temp_display();
+                    editor.update_sync_button_state();
+                    editor.update_spoolman_button_state();
+                    NOTIFY_INFO("{} {} scanned — review and Save", scanned.brand, scanned.material);
+                });
         },
         []() {
             // Cancel: scanner pops, editor resurfaces via on_activate. Nothing

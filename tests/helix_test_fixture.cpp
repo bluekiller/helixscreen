@@ -24,12 +24,16 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "http_executor.h"
 #include "lane_source_store.h"
+#include "logging_init.h"
+#include "lvgl_log_handler.h"
 #include "panel_widget_manager.h"
 #include "rpc_error_correlation.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
 #include "screensaver_canvas.h"
 #include "screensaver_registry.h"
+#include "settings_manager.h"
+#include "sound_manager.h"
 #include "standard_macros.h"
 #include "system/crash_error_log_sink.h"
 #include "system_settings_manager.h"
@@ -438,6 +442,7 @@ void HelixTestFixture::reset_all() {
     if (helix::AmsState::instance().get_backend() != nullptr) {
         helix::AmsState::instance().set_backend(nullptr);
     }
+    helix::AmsStateTestAccess::reset_action(helix::AmsState::instance());
     helix::AmsStateTestAccess::clear_narration(helix::AmsState::instance());
 
     // DisplaySettingsManager's animations_enabled is a process-global subject
@@ -519,6 +524,9 @@ void HelixTestFixture::reset_all() {
     // settings_audio_device_available to 0 and leaves the real value to
     // refresh_audio_device_available(), which only Application calls.
     helix::AudioSettingsManager::instance().init_subjects();
+    // init_subjects() is a no-op while the subjects are alive, so a value a test
+    // set without tearing the manager down (sounds_enabled) is reloaded here.
+    helix::AudioSettingsManager::instance().reload_from_config();
     helix::SafetySettingsManager::instance().init_subjects();
 
     // fault_surface_correlation entries live for 3s of wall clock, which spans
@@ -530,6 +538,34 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // The LVGL warning dedupe is a process-wide cache that wipes itself at 256
+    // bodies; a case asserting "first occurrence logs at its usual level" would
+    // otherwise depend on how many distinct warnings earlier cases emitted.
+    helix::logging::reset_lvgl_log_dedupe();
+
+    // The debug-bundle log tail reads this ring, so whatever earlier cases
+    // logged (a store path, an SSID) would otherwise show up in a later bundle.
+    helix::logging::clear_ring_buffer();
+
+    // SettingsManager::init_subjects() is one-shot, so a setting a test changed
+    // (jog speeds, jog distances) would otherwise outlive the Config reset above.
+    helix::SettingsManager::instance().reload_from_config();
+
+    // MoonrakerManager::init() hands SoundManager a pointer to its client, and
+    // nothing takes it back when a test destroys the manager. A set client lets
+    // set_hardware() install the M300 backend, which flips has_speaker() on for
+    // every later capability test. Shutdown first so an M300 backend is joined
+    // while the client is still named; host_recovery=false keeps the clear from
+    // probing a host backend back in.
+    helix::SoundManager::instance().shutdown();
+    helix::SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/false);
+
+    // The executors start with the binary (the isolation listener warms both
+    // lanes), and submit() on a stopped lane drops the work, so a case that
+    // stops one would leave every later transfer or REST test waiting on a
+    // callback that never comes. start() is idempotent.
+    helix::http::HttpExecutor::start_all();
 
     // A backend torn down at the end of a test can leave a fetch queued on the
     // process-wide executors. Waiting here, bounded, keeps that worker from

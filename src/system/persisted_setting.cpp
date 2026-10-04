@@ -22,12 +22,24 @@ int normalize(const PersistedSetting& s, int value) {
 }
 } // namespace
 
-void init_setting(const PersistedSetting& s, lv_subject_t& subject, SubjectManager& subjects) {
+namespace {
+int load_value(const PersistedSetting& s) {
     const Config* config = Config::get_instance();
     const std::string path = path_of(s, *config);
-    const int value = s.is_bool ? (config->get<bool>(path, s.def != 0) ? 1 : 0)
-                                : normalize(s, config->get<int>(path, s.def));
+    return s.is_bool ? (config->get<bool>(path, s.def != 0) ? 1 : 0)
+                     : normalize(s, config->get<int>(path, s.def));
+}
+} // namespace
+
+void init_setting(const PersistedSetting& s, lv_subject_t& subject, SubjectManager& subjects) {
+    const int value = load_value(s);
     UI_MANAGED_SUBJECT_INT(subject, value, s.xml_name, subjects);
+}
+
+void reload_setting(const PersistedSetting& s, lv_subject_t& subject) {
+    if (subject.type == LV_SUBJECT_TYPE_INT) {
+        lv_subject_set_int(&subject, load_value(s));
+    }
 }
 
 int get_setting(const PersistedSetting& s, const lv_subject_t& subject) {

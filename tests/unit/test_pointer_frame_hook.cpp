@@ -336,8 +336,8 @@ TEST_CASE_METHOD(
     lv_indev_t* slot = first;
     watch.watch(first, &slot);
 
-    // A backend swap (rebuild_input_after_backend_swap()) points the slot at a
-    // freshly created device before the old one's own delete event arrives.
+    // The slot moves to a freshly created device before the old one's own
+    // delete event arrives.
     slot = second;
 
     // lv_evdev deletes its own device when a read fails, as it does on unplug.

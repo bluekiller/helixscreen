@@ -141,14 +141,14 @@ TEST_CASE_METHOD(HelixTestFixture, "resolved_lane reflects what was ingested for
                  "[lane][apply]") {
     Observation sensed(ObservationSource::Sensed);
     sensed.present = true;
-    helix::ams::ingest(0, sensed);
+    helix::ams::ingest(helix::ams::lane_id_for(0, 0), sensed);
 
     Observation cache(ObservationSource::VendorCache);
     cache.color_rgb = 0xED2C2C;
     cache.material = "PETG";
-    helix::ams::ingest(0, cache);
+    helix::ams::ingest(helix::ams::lane_id_for(0, 0), cache);
 
-    const ResolvedLane r = resolved_lane(0);
+    const ResolvedLane r = resolved_lane(helix::ams::lane_id_for(0, 0));
     CHECK(r.present == true);
     CHECK(r.color_rgb == 0xED2C2C);
     CHECK(r.material == "PETG");
@@ -158,7 +158,7 @@ TEST_CASE_METHOD(HelixTestFixture, "an unwritten lane resolves to nothing observ
                  "[lane][apply]") {
     // Not "empty and grey". Nobody has looked at this lane, and the difference
     // is what lets apply_resolved leave a backend's own values in place.
-    const ResolvedLane r = resolved_lane(5);
+    const ResolvedLane r = resolved_lane(helix::ams::lane_id_for(0, 5));
     CHECK_FALSE(r.present.has_value());
     CHECK_FALSE(r.material.has_value());
     CHECK_FALSE(r.color_rgb.has_value());

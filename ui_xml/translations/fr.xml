@@ -529,6 +529,7 @@
   <translation tag="Checking for webcam..." fr="Recherche d&apos;une webcam..."/>
   <translation tag="Checking plugin" fr="Vérification du plugin"/>
   <translation tag="Checking slots..." fr="Vérification des slots..."/>
+  <translation tag="Checking the printer..." fr="Vérification de l&apos;imprimante..."/>
   <translation tag="Checking timelapse plugin..." fr="Vérification du plugin timelapse..."/>
   <translation tag="Checking webcam" fr="Vérification de la webcam"/>
   <translation tag="Checking..." fr="Vérification..."/>
@@ -1505,6 +1506,7 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." fr="Klipper est passé en état d&apos;arrêt. Cela peut être dû à un arrêt d&apos;urgence, à un emballement thermique ou à une erreur de configuration."/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." fr="Klipper réserve &apos;default&apos; aux nouvelles calibrations. Choisissez un autre nom."/>
   <translation tag="Klipper restarting - macros activating" fr="Redémarrage de Klipper - activation des macros"/>
+  <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again." fr="Klipper ne signale plus la progression. Son analyse peut manquer de mémoire sur les petites imprimantes et bloquer Klipper, qu&apos;un redémarrage firmware ne peut alors plus atteindre. Éteignez puis rallumez l&apos;imprimante (ou redémarrez Klipper via SSH), puis réessayez."/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." fr="Klipper ne signale plus la progression. Son analyse peut manquer de mémoire sur les petites imprimantes ; redémarrez Klipper puis réessayez."/>
   <translation tag="Klipper will restart to apply changes." fr="Klipper redémarrera pour appliquer les modifications."/>
   <translation tag="Klipper will restart to apply new settings." fr="Klipper va redémarrer pour appliquer les nouveaux paramètres."/>
@@ -1891,6 +1893,7 @@
   <translation tag="Normal" fr="Normal"/>
   <translation tag="Not Connected" fr="Non connecté"/>
   <translation tag="Not Enough Filament" fr="Filament insuffisant"/>
+  <translation tag="Not Enough Memory" fr="Mémoire insuffisante"/>
   <translation tag="Not Initialized" fr="Non initialisé"/>
   <translation tag="Not Now" fr="Pas maintenant"/>
   <translation tag="Not Supported" fr="Non pris en charge"/>
@@ -1964,6 +1967,7 @@
   <translation tag="One tap runs this macro. Dangerous macros still ask." fr="Un appui exécute cette macro. Les macros dangereuses demandent toujours confirmation."/>
   <translation tag="Only on A: {} Hz" fr="Seulement sur A : {} Hz"/>
   <translation tag="Only on B: {} Hz" fr="Seulement sur B : {} Hz"/>
+  <translation tag="Only {} MB of memory is free, and Klipper&apos;s analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled." fr="Seulement {} Mo de mémoire sont libres, et l&apos;analyse de Klipper a besoin d&apos;environ {} Mo. Le test bloquerait l&apos;imprimante jusqu&apos;à ce qu&apos;elle soit éteinte puis rallumée."/>
   <translation tag="Ooze Reduction" fr="Réduction du suintement"/>
   <translation tag="Open" fr="Ouvrir"/>
   <translation tag="Open Source Licenses" fr="Licences open source"/>
@@ -2967,6 +2971,7 @@
   <translation tag="Theme changes apply after restart." fr="Les modifications du thème s&apos;appliquent après redémarrage."/>
   <translation tag="Theme reset to defaults" fr="Thème réinitialisé par défaut"/>
   <translation tag="Theme: " fr="Thème : "/>
+  <translation tag="There is not enough free memory to run this test. Klipper&apos;s analysis would run out of memory and leave the printer stuck until it is power-cycled." fr="Il n&apos;y a pas assez de mémoire libre pour ce test. L&apos;analyse de Klipper manquerait de mémoire et bloquerait l&apos;imprimante jusqu&apos;à ce qu&apos;elle soit éteinte puis rallumée."/>
   <translation tag="These tools have a different filament grade loaded:" fr="Ces outils ont un grade de filament différent chargé :"/>
   <translation tag="These tools have incompatible materials loaded:" fr="Ces outils ont des matériaux incompatibles chargés :"/>
   <translation tag="These tools have no filament loaded:" fr="Ces outils n&apos;ont pas de filament chargé :"/>
