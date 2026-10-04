@@ -818,7 +818,11 @@ if [[ -d "$MAIN_OBJ" ]]; then
         # Either way, make only recompiles files whose sources diverge in the worktree.
         CLONE_START=$(date +%s)
         rm -rf "$WORKTREE_OBJ"
-        cp -Rc "$MAIN_OBJ" "$WORKTREE_OBJ" 2>/dev/null || cp -a "$MAIN_OBJ" "$WORKTREE_OBJ"
+        # A build running in the main tree renames its *.tmp files away mid-copy, which
+        # fails cp; the objects are only a cache, so finish the setup and drop the strays.
+        cp -Rc "$MAIN_OBJ" "$WORKTREE_OBJ" 2>/dev/null || cp -a "$MAIN_OBJ" "$WORKTREE_OBJ" ||
+            echo -e "  build/obj: ${YELLOW}some files changed during the copy (a build is running in the main tree); continuing${RESET}"
+        find "$WORKTREE_OBJ" -name '*.tmp' -delete 2>/dev/null || true
         CLONE_END=$(date +%s)
         NEW_COUNT=$(find "$WORKTREE_OBJ" -name "*.o" 2>/dev/null | wc -l | tr -d ' ')
         echo -e "  build/obj: ${GREEN}cloned $NEW_COUNT objects in $((CLONE_END - CLONE_START))s${RESET}"
