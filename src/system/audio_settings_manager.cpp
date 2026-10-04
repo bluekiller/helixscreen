@@ -57,6 +57,12 @@ void AudioSettingsManager::init_subjects() {
     spdlog::debug("[AudioSettingsManager] Subjects initialized");
 }
 
+void AudioSettingsManager::reload_from_config() {
+    if (subjects_initialized_) {
+        settings_.reload();
+    }
+}
+
 void AudioSettingsManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
