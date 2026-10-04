@@ -36,6 +36,9 @@ class AudioSettingsManager {
     /** @brief Initialize LVGL subjects and load from Config */
     void init_subjects();
 
+    /** @brief Re-read every persisted setting from Config; no-op before init_subjects() */
+    void reload_from_config();
+
     /** @brief Deinitialize LVGL subjects (called by StaticSubjectRegistry) */
     void deinit_subjects();
 
