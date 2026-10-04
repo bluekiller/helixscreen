@@ -328,6 +328,10 @@ class MotionPanel : public OverlayBase {
     std::optional<helix::AxisTarget> bed_sent_target_;
     /// The Z every move of this gesture lifts to, decided at its first move.
     std::optional<double> bed_gesture_lift_z_;
+    /// A move of this gesture was refused; it sends nothing more.
+    bool bed_gesture_failed_ = false;
+    /// Stop tracking the finger: no press, no drag target, readout at rest.
+    void end_bed_gesture();
 
     /// Commanded Z as the acks have moved it, until a status frame reports
     /// the new position: an ack lands before the frame that carries its Z.

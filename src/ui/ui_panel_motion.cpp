@@ -493,6 +493,8 @@ void MotionPanel::on_deactivating(DeactivateReason reason) {
     // in_flight forever.
     jog_coalescer_.reset();
     stop_hold_repeat();
+    // A release arriving after the panel comes back belongs to no gesture.
+    end_bed_gesture();
 }
 
 void MotionPanel::on_ui_destroyed() {
@@ -503,6 +505,7 @@ void MotionPanel::on_ui_destroyed() {
     jog_pad_ = nullptr;
     jog_coalescer_.reset();
     stop_hold_repeat();
+    end_bed_gesture();
 }
 
 // ============================================================================
@@ -1127,6 +1130,8 @@ bool MotionPanel::send_jog_move(const helix::JogCoalescer::CoalescedMove& move) 
     });
     auto on_error = lifetime_.bg_cb("MotionPanel::on_jog_error", [this](const MoonrakerError& err) {
         jog_coalescer_.on_error();
+        // A Bed-tab drag would send the next sample into the same refusal.
+        bed_gesture_failed_ = true;
         // The printer refused the move: a hold-to-repeat still ticking would
         // re-send it every interval and raise one error toast per tick.
         stop_hold_repeat();
@@ -1536,6 +1541,7 @@ void MotionPanel::handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_poi
         bed_dragging_ = false;
         bed_press_point_ = screen_point;
         bed_sent_target_.reset();
+        bed_gesture_failed_ = false;
         return;
     case helix::BedTouch::Pressing: {
         if (!bed_pressing_) {
@@ -1558,7 +1564,7 @@ void MotionPanel::handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_poi
         // flight, the newest target pending. Only on a homed machine: an
         // unhomed one would queue a home per pointer sample, so its drag
         // commits once, on release.
-        if (helix::toolhead_is_homed(get_printer_state())) {
+        if (!bed_gesture_failed_ && helix::toolhead_is_homed(get_printer_state())) {
             send_bed_gesture_target(*target);
         }
         return;
@@ -1568,23 +1574,25 @@ void MotionPanel::handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_poi
             return;
         }
         const auto target = bed_target_at(area, bed_dragging_ ? screen_point : bed_press_point_);
-        bed_pressing_ = false;
-        bed_dragging_ = false;
-        bed_drag_target_.reset();
+        end_bed_gesture();
         // A drag that already streamed the point it ended on sends nothing more.
-        if (target && !same_xy(target, bed_sent_target_)) {
+        if (target && !bed_gesture_failed_ && !same_xy(target, bed_sent_target_)) {
             send_bed_gesture_target(*target);
+            refresh_bed_readout(); // a lift now in flight is no longer pending
         }
-        refresh_bed_readout();
         return;
     }
     case helix::BedTouch::Lost:
-        bed_pressing_ = false;
-        bed_dragging_ = false;
-        bed_drag_target_.reset();
-        refresh_bed_readout();
+        end_bed_gesture();
         return;
     }
+}
+
+void MotionPanel::end_bed_gesture() {
+    bed_pressing_ = false;
+    bed_dragging_ = false;
+    bed_drag_target_.reset();
+    refresh_bed_readout();
 }
 
 void MotionPanel::send_bed_gesture_target(const helix::AxisTarget& target) {

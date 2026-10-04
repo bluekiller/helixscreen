@@ -830,3 +830,57 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: Z unhomed counts as unhomed, like Par
     REQUIRE(scripts.find("G0 X234.9") != std::string::npos);
     CHECK(home < scripts.find("G0 X234.9"));
 }
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a refused move ends the stream for that gesture",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& moves = held_api.holding_.held;
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    REQUIRE(moves.size() == 1);
+    MoonrakerError err;
+    err.message = "Move out of range";
+    moves[0].on_error(err);
+    drain();
+
+    // Every later sample would be refused the same way, one toast each.
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, false, true));
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, false, true));
+    drain();
+    CHECK(moves.size() == 1);
+
+    // The next gesture starts clean.
+    bed_tap(area, far_point(area, true, true));
+    CHECK(moves.size() == 2);
+    set_moonraker_api(&api_);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: leaving the panel ends the gesture in progress",
+                 "[motion][bed-tab]") {
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    drain();
+    REQUIRE(xy_moves(client_) == 1);
+    REQUIRE(bed_readout().find("X ") != std::string::npos);
+
+    panel.on_deactivating(DeactivateReason::NavigateAway);
+    drain();
+    CHECK(bed_readout().find("X ") == std::string::npos);
+
+    // A release the panel never saw the press for moves nothing.
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    drain();
+    CHECK(xy_moves(client_) == 1);
+}
