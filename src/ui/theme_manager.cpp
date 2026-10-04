@@ -134,48 +134,45 @@ static void android_set_window_bg_color(lv_color_t color) {
 
 using namespace helix;
 
-static lv_theme_t* current_theme = nullptr;
-static bool use_dark_mode = true;
-static lv_display_t* theme_display = nullptr;
+namespace helix::theme_detail {
 
-// Repeat-guard state for theme_manager_init(): the display pointer, its
-// resolution and the mode of the last FULL rebuild, plus a count of rebuilds.
-// A repeat call for an unchanged target skips the whole registration pass,
-// which otherwise re-parses ui_xml/ from scratch on every fixture instance.
-static bool theme_fully_initialized = false;
-static int32_t theme_init_h_res = 0;
-static int32_t theme_init_v_res = 0;
-static int theme_full_init_count = 0;
+ThemeRuntime& runtime() {
+    static ThemeRuntime rt;
+    return rt;
+}
 
-static helix::ThemeData active_theme;
+ThemeSubjects& subjects() {
+    static ThemeSubjects subs;
+    return subs;
+}
 
-// Theme change notification subject (monotonically increasing generation counter)
-static lv_subject_t theme_changed_subject;
-static int32_t theme_generation = 0;
-static bool theme_subject_initialized = false;
+void ThemeSubjects::deinit() {
+    auto drop = [](lv_subject_t& subject, bool& ready) {
+        if (ready) {
+            lv_subject_deinit(&subject);
+            ready = false;
+        }
+    };
+    if (changed_ready) {
+        generation = 0;
+    }
+    drop(changed, changed_ready);
+    drop(breakpoint, breakpoint_ready);
+    drop(breakpoint_v, breakpoint_v_ready);
+    drop(is_portrait, is_portrait_ready);
+    if (swatch_ready) {
+        for (auto& subject : swatch_desc) {
+            lv_subject_deinit(&subject);
+        }
+        swatch_ready = false;
+    }
+}
 
-// Breakpoint index subject for reactive responsive visibility (0=MICRO..6=XXLARGE)
-static lv_subject_t ui_breakpoint_subject;
-static bool breakpoint_subject_initialized = false;
-// Second ladder, exposed as a subject. #1209 put min(w,h) vs height behind an
-// allow-list of px tokens only, so every bind_* in ui_xml/ still saw the cramped
-// axis and no declarative binding could reach a tall panel's height.
-static lv_subject_t ui_breakpoint_v_subject;
-static bool breakpoint_v_subject_initialized = false;
-// Orientation subject: 1 for any portrait class, 0 otherwise. ui_breakpoint
-// classifies the cramped-axis tier and cannot answer "is this portrait" --
-// 480x800 and 800x480 can land on the same tier. Lets ui_xml/*.xml branch
-// layout inline with <if cond="ui_is_portrait eq 1"> instead of maintaining
-// ui_xml/portrait/* variant files.
-static lv_subject_t ui_is_portrait_subject;
-static bool is_portrait_subject_initialized = false;
+} // namespace helix::theme_detail
 
-// Swatch description subjects for theme editor (file-scope for deinit access)
-static constexpr size_t SWATCH_DESC_COUNT = 16;
-static constexpr size_t SWATCH_DESC_BUF_SIZE = 32;
-static lv_subject_t swatch_desc_subjects[SWATCH_DESC_COUNT];
-static char swatch_desc_bufs[SWATCH_DESC_COUNT][SWATCH_DESC_BUF_SIZE];
-static bool swatch_descs_initialized = false;
+using helix::theme_detail::runtime;
+using helix::theme_detail::subjects;
+using helix::theme_detail::ThemeSubjects;
 
 // Color-swap map for container theming (replaces name-based heuristics)
 struct ColorSwapEntry {
@@ -292,14 +289,14 @@ static theme_palette_t build_palette_from_mode(const helix::ModePalette& mode_pa
  * Falls back to the available palette if the requested mode is not supported.
  */
 static const helix::ModePalette& get_current_mode_palette() {
-    if (use_dark_mode && active_theme.supports_dark()) {
-        return active_theme.dark;
-    } else if (!use_dark_mode && active_theme.supports_light()) {
-        return active_theme.light;
-    } else if (active_theme.supports_dark()) {
-        return active_theme.dark;
+    if (runtime().dark && runtime().active_theme.supports_dark()) {
+        return runtime().active_theme.dark;
+    } else if (!runtime().dark && runtime().active_theme.supports_light()) {
+        return runtime().active_theme.light;
+    } else if (runtime().active_theme.supports_dark()) {
+        return runtime().active_theme.dark;
     } else {
-        return active_theme.light;
+        return runtime().active_theme.light;
     }
 }
 
@@ -314,12 +311,12 @@ static const helix::ModePalette& get_current_mode_palette() {
  * and handle_color from the active theme. Switch knobs always stay round.
  */
 static void update_handle_styles(const theme_palette_t* palette, int border_radius) {
-    bool bar_knob = (active_theme.properties.handle_style == "bar");
+    bool bar_knob = (runtime().active_theme.properties.handle_style == "bar");
     int32_t slider_knob_radius = bar_knob ? 2 : LV_RADIUS_CIRCLE;
 
     // Resolve handle color token to palette color
     lv_color_t knob_color = palette->primary;
-    const auto& hc = active_theme.properties.handle_color;
+    const auto& hc = runtime().active_theme.properties.handle_color;
     if (hc == "text")
         knob_color = palette->text;
     else if (hc == "secondary")
@@ -357,10 +354,12 @@ static void update_handle_styles(const theme_palette_t* palette, int border_radi
     }
 
     // Slider knob shadow: functional depth cue
-    int knob_shadow_w =
-        active_theme.properties.shadow_intensity > 0 ? active_theme.properties.shadow_intensity : 4;
-    int knob_shadow_opa =
-        active_theme.properties.shadow_opa > 0 ? active_theme.properties.shadow_opa : LV_OPA_30;
+    int knob_shadow_w = runtime().active_theme.properties.shadow_intensity > 0
+                            ? runtime().active_theme.properties.shadow_intensity
+                            : 4;
+    int knob_shadow_opa = runtime().active_theme.properties.shadow_opa > 0
+                              ? runtime().active_theme.properties.shadow_opa
+                              : LV_OPA_30;
     lv_style_set_shadow_width(&slider_knob_style, knob_shadow_w);
     lv_style_set_shadow_color(&slider_knob_style, lv_color_black());
     lv_style_set_shadow_opa(&slider_knob_style, static_cast<lv_opa_t>(knob_shadow_opa));
@@ -598,7 +597,7 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
  * @brief Resolve border radius pixels from size index + current display breakpoint.
  */
 static int resolve_border_radius(const helix::ThemeProperties& props) {
-    int32_t resp_res = responsive_dimension(theme_display);
+    int32_t resp_res = responsive_dimension(runtime().display);
     const char* suffix = theme_manager_get_breakpoint_suffix(resp_res);
     return helix::BorderRadiusSizes::pixels(props.border_radius_size, suffix);
 }
@@ -628,7 +627,7 @@ static ThemePalette convert_to_theme_palette(const theme_palette_t* p,
     palette.border_radius = resolve_border_radius(props);
     palette.button_radius = helix::BorderRadiusSizes::button_pixels(
         props.border_radius_size,
-        theme_manager_get_breakpoint_suffix(responsive_dimension(theme_display)));
+        theme_manager_get_breakpoint_suffix(responsive_dimension(runtime().display)));
     palette.border_width = props.border_width;
     palette.border_opacity = props.border_opacity;
     palette.shadow_width = props.shadow_intensity;
@@ -650,14 +649,14 @@ static void resync_palette_manager(bool is_dark) {
     // Build palettes from active_theme for contrast calculations.
     // For single-mode themes, use the valid palette for both sides to avoid
     // parsing empty color strings from the unsupported mode.
-    bool has_dark = active_theme.supports_dark();
-    bool has_light = active_theme.supports_light();
-    const auto& dark_src = has_dark ? active_theme.dark : active_theme.light;
-    const auto& light_src = has_light ? active_theme.light : active_theme.dark;
+    bool has_dark = runtime().active_theme.supports_dark();
+    bool has_light = runtime().active_theme.supports_light();
+    const auto& dark_src = has_dark ? runtime().active_theme.dark : runtime().active_theme.light;
+    const auto& light_src = has_light ? runtime().active_theme.light : runtime().active_theme.dark;
     theme_palette_t dark_theme_pal = build_palette_from_mode(dark_src);
     theme_palette_t light_theme_pal = build_palette_from_mode(light_src);
 
-    const auto& props = active_theme.properties;
+    const auto& props = runtime().active_theme.properties;
     ThemePalette dark_pal = convert_to_theme_palette(&dark_theme_pal, props);
     ThemePalette light_pal = convert_to_theme_palette(&light_theme_pal, props);
 
@@ -678,7 +677,7 @@ static lv_theme_t* theme_init_lvgl(lv_display_t* display, const theme_palette_t*
     resync_palette_manager(is_dark);
 
     // Initialize widget-specific styles not in StyleRole enum
-    const auto& props = active_theme.properties;
+    const auto& props = runtime().active_theme.properties;
     init_extra_styles(palette, resolve_border_radius(props));
 
     // Create LVGL default theme as base (we'll layer on top)
@@ -704,14 +703,14 @@ static void theme_update_colors(bool is_dark) {
     auto& tm = ThemeManager::instance();
 
     // Build palettes, falling back to the valid mode for single-mode themes
-    bool has_dark = active_theme.supports_dark();
-    bool has_light = active_theme.supports_light();
-    const auto& dark_src = has_dark ? active_theme.dark : active_theme.light;
-    const auto& light_src = has_light ? active_theme.light : active_theme.dark;
+    bool has_dark = runtime().active_theme.supports_dark();
+    bool has_light = runtime().active_theme.supports_light();
+    const auto& dark_src = has_dark ? runtime().active_theme.dark : runtime().active_theme.light;
+    const auto& light_src = has_light ? runtime().active_theme.light : runtime().active_theme.dark;
     theme_palette_t dark_theme_pal = build_palette_from_mode(dark_src);
     theme_palette_t light_theme_pal = build_palette_from_mode(light_src);
 
-    const auto& props = active_theme.properties;
+    const auto& props = runtime().active_theme.properties;
     ThemePalette dark_pal = convert_to_theme_palette(&dark_theme_pal, props);
     ThemePalette light_pal = convert_to_theme_palette(&light_theme_pal, props);
 
@@ -1475,7 +1474,7 @@ static void theme_manager_register_semantic_colors(lv_xml_component_scope_t* sco
 
     // Swatch descriptions for theme editor - registered as string subjects
     // so bind_text="swatch_N_desc" works in XML (consts don't resolve for bind_text)
-    static constexpr const char* swatch_descriptions[SWATCH_DESC_COUNT] = {
+    static constexpr const char* swatch_descriptions[ThemeSubjects::kSwatchCount] = {
         "App background",    "Panel/sidebar background", "Card surfaces",
         "Elevated surfaces", "Borders and dividers",     "Primary text",
         "Secondary text",    "Subtle/hint text",         "Primary accent",
@@ -1484,16 +1483,16 @@ static void theme_manager_register_semantic_colors(lv_xml_component_scope_t* sco
         "Focus ring",
     };
 
-    if (!swatch_descs_initialized) {
-        for (size_t i = 0; i < SWATCH_DESC_COUNT; ++i) {
-            lv_subject_init_string(&swatch_desc_subjects[i], swatch_desc_bufs[i], nullptr,
-                                   SWATCH_DESC_BUF_SIZE, swatch_descriptions[i]);
+    if (!subjects().swatch_ready) {
+        for (size_t i = 0; i < ThemeSubjects::kSwatchCount; ++i) {
+            lv_subject_init_string(&subjects().swatch_desc[i], subjects().swatch_bufs[i], nullptr,
+                                   ThemeSubjects::kSwatchBufSize, swatch_descriptions[i]);
             char key[24];
             snprintf(key, sizeof(key), "swatch_%zu_desc", i);
-            ObserverGuard::mark_subject_teardown_exempt(&swatch_desc_subjects[i]);
-            lv_xml_register_subject(nullptr, key, &swatch_desc_subjects[i]);
+            ObserverGuard::mark_subject_teardown_exempt(&subjects().swatch_desc[i]);
+            lv_xml_register_subject(nullptr, key, &subjects().swatch_desc[i]);
         }
-        swatch_descs_initialized = true;
+        subjects().swatch_ready = true;
     }
 
     spdlog::debug("[Theme] Registered 16 semantic colors + legacy aliases (dark={}, light={})",
@@ -1517,7 +1516,7 @@ static void theme_manager_register_theme_properties(lv_xml_component_scope_t* sc
     char buf[32];
 
     // Register border_radius and button_radius from size table + current breakpoint
-    int32_t resp_res = responsive_dimension(theme_display);
+    int32_t resp_res = responsive_dimension(runtime().display);
     const char* suffix = theme_manager_get_breakpoint_suffix(resp_res);
     int radius_px = helix::BorderRadiusSizes::pixels(theme.properties.border_radius_size, suffix);
     snprintf(buf, sizeof(buf), "%d", radius_px);
@@ -1648,9 +1647,9 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
     // so every path that actually changes the state re-runs.
     const int32_t h_res = display ? lv_display_get_horizontal_resolution(display) : 0;
     const int32_t v_res = display ? lv_display_get_vertical_resolution(display) : 0;
-    if (theme_fully_initialized && theme_display == display &&
-        use_dark_mode_param == use_dark_mode && h_res == theme_init_h_res &&
-        v_res == theme_init_v_res && theme_subject_initialized) {
+    if (runtime().fully_initialized && runtime().display == display &&
+        use_dark_mode_param == runtime().dark && h_res == runtime().init_h_res &&
+        v_res == runtime().init_v_res && subjects().changed_ready) {
         // The registration pass can stay skipped, but two pieces of mutable
         // state still have to come back in line, because this call is the
         // boundary that restores them.
@@ -1673,17 +1672,17 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         return;
     }
 
-    theme_display = display;
-    use_dark_mode = use_dark_mode_param;
-    theme_init_h_res = h_res;
-    theme_init_v_res = v_res;
-    theme_full_init_count++;
+    runtime().display = display;
+    runtime().dark = use_dark_mode_param;
+    runtime().init_h_res = h_res;
+    runtime().init_v_res = v_res;
+    runtime().full_init_count++;
 
     // Initialize theme change notification subject
-    if (!theme_subject_initialized) {
-        lv_subject_init_int(&theme_changed_subject, 0);
-        theme_subject_initialized = true;
-        ObserverGuard::mark_subject_teardown_exempt(&theme_changed_subject);
+    if (!subjects().changed_ready) {
+        lv_subject_init_int(&subjects().changed, 0);
+        subjects().changed_ready = true;
+        ObserverGuard::mark_subject_teardown_exempt(&subjects().changed);
     }
 
     // Override runtime theme constants based on light/dark mode preference
@@ -1695,16 +1694,16 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
     }
 
     // Load active theme from config/themes directory
-    active_theme = theme_manager_load_active_theme();
+    runtime().active_theme = theme_manager_load_active_theme();
 
     // Register semantic colors from dual-palette system (includes _light/_dark variants and base
     // names) NOTE: Legacy palette registration removed - was causing token collisions (text_light
     // conflict)
-    theme_manager_register_semantic_colors(scope, active_theme, use_dark_mode);
+    theme_manager_register_semantic_colors(scope, runtime().active_theme, runtime().dark);
 
     // Register theme properties (border_radius, etc.) - must be before static constants
     // so theme values override globals.xml defaults (first registration wins in LVGL)
-    theme_manager_register_theme_properties(scope, active_theme, use_dark_mode);
+    theme_manager_register_theme_properties(scope, runtime().active_theme, runtime().dark);
 
     // Register static constants (colors, px, strings without dynamic suffixes)
     theme_manager_register_static_constants(scope);
@@ -1714,7 +1713,7 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
 
     // Auto-register all color pairs from globals.xml (xxx_light/xxx_dark -> xxx)
     // This handles screen_bg, text, header_text, elevated_bg, card_bg, etc.
-    theme_manager_register_color_pairs(scope, use_dark_mode);
+    theme_manager_register_color_pairs(scope, runtime().dark);
 
     // Register responsive constants (must be before theme init so fonts are available)
     theme_manager_register_responsive_spacing(display);
@@ -1725,14 +1724,14 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         int32_t resp_res = responsive_dimension(display);
         UiBreakpoint bp = breakpoint_for(resp_res);
 
-        if (!breakpoint_subject_initialized) {
-            lv_subject_init_int(&ui_breakpoint_subject, to_int(bp));
-            breakpoint_subject_initialized = true;
+        if (!subjects().breakpoint_ready) {
+            lv_subject_init_int(&subjects().breakpoint, to_int(bp));
+            subjects().breakpoint_ready = true;
         } else {
-            lv_subject_set_int(&ui_breakpoint_subject, to_int(bp));
+            lv_subject_set_int(&subjects().breakpoint, to_int(bp));
         }
-        ObserverGuard::mark_subject_teardown_exempt(&ui_breakpoint_subject);
-        lv_xml_register_subject(nullptr, "ui_breakpoint", &ui_breakpoint_subject);
+        ObserverGuard::mark_subject_teardown_exempt(&subjects().breakpoint);
+        lv_xml_register_subject(nullptr, "ui_breakpoint", &subjects().breakpoint);
         spdlog::debug("[Theme] Registered ui_breakpoint subject: {} (min_dim={})", to_int(bp),
                       resp_res);
     }
@@ -1744,14 +1743,14 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         int32_t vert_res = responsive_vertical_dimension(display);
         UiBreakpoint vbp = breakpoint_for(vert_res);
 
-        if (!breakpoint_v_subject_initialized) {
-            lv_subject_init_int(&ui_breakpoint_v_subject, to_int(vbp));
-            breakpoint_v_subject_initialized = true;
+        if (!subjects().breakpoint_v_ready) {
+            lv_subject_init_int(&subjects().breakpoint_v, to_int(vbp));
+            subjects().breakpoint_v_ready = true;
         } else {
-            lv_subject_set_int(&ui_breakpoint_v_subject, to_int(vbp));
+            lv_subject_set_int(&subjects().breakpoint_v, to_int(vbp));
         }
-        ObserverGuard::mark_subject_teardown_exempt(&ui_breakpoint_v_subject);
-        lv_xml_register_subject(nullptr, "ui_breakpoint_v", &ui_breakpoint_v_subject);
+        ObserverGuard::mark_subject_teardown_exempt(&subjects().breakpoint_v);
+        lv_xml_register_subject(nullptr, "ui_breakpoint_v", &subjects().breakpoint_v);
         spdlog::debug("[Theme] Registered ui_breakpoint_v subject: {} (vert_dim={})", to_int(vbp),
                       vert_res);
     }
@@ -1767,14 +1766,14 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         int32_t ver_res = lv_display_get_vertical_resolution(display);
         int is_portrait = is_portrait_layout(detect_layout_type(hor_res, ver_res)) ? 1 : 0;
 
-        if (!is_portrait_subject_initialized) {
-            lv_subject_init_int(&ui_is_portrait_subject, is_portrait);
-            is_portrait_subject_initialized = true;
+        if (!subjects().is_portrait_ready) {
+            lv_subject_init_int(&subjects().is_portrait, is_portrait);
+            subjects().is_portrait_ready = true;
         } else {
-            lv_subject_set_int(&ui_is_portrait_subject, is_portrait);
+            lv_subject_set_int(&subjects().is_portrait, is_portrait);
         }
-        ObserverGuard::mark_subject_teardown_exempt(&ui_is_portrait_subject);
-        lv_xml_register_subject(nullptr, "ui_is_portrait", &ui_is_portrait_subject);
+        ObserverGuard::mark_subject_teardown_exempt(&subjects().is_portrait);
+        lv_xml_register_subject(nullptr, "ui_is_portrait", &subjects().is_portrait);
         spdlog::debug("[Theme] Registered ui_is_portrait subject: {} ({}x{})", is_portrait, hor_res,
                       ver_res);
     }
@@ -1790,7 +1789,7 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
         }
     }
 
-    spdlog::trace("[Theme] Runtime constants set for {} mode", use_dark_mode ? "dark" : "light");
+    spdlog::trace("[Theme] Runtime constants set for {} mode", runtime().dark ? "dark" : "light");
 
     // Read responsive font based on current breakpoint
     // NOTE: We read the variant directly because base constants are removed to enable
@@ -1859,12 +1858,12 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
     theme_palette_t palette = build_palette_from_mode(mode_palette);
 
     // Initialize custom HelixScreen theme (wraps LVGL default theme)
-    current_theme = theme_init_lvgl(display, &palette, use_dark_mode, base_font);
+    runtime().current_theme = theme_init_lvgl(display, &palette, runtime().dark, base_font);
 
-    if (current_theme) {
-        lv_display_set_theme(display, current_theme);
+    if (runtime().current_theme) {
+        lv_display_set_theme(display, runtime().current_theme);
         spdlog::debug("[Theme] Initialized HelixScreen theme: {} mode",
-                      use_dark_mode ? "dark" : "light");
+                      runtime().dark ? "dark" : "light");
         spdlog::trace("[Theme] Colors: primary={}, screen={}, card={}", mode_palette.primary,
                       mode_palette.screen_bg, mode_palette.card_bg);
     } else {
@@ -1882,12 +1881,12 @@ void theme_manager_init(lv_display_t* display, bool use_dark_mode_param) {
                       std::chrono::steady_clock::now() - tm_init_start)
                       .count(),
                   helix::theme_tokens::enabled() ? "on" : "off");
-    theme_fully_initialized = true;
+    runtime().fully_initialized = true;
 }
 
 // NAMESPACE_OK: joins the global theme_manager_init/deinit family
 int theme_manager_full_init_count() {
-    return theme_full_init_count;
+    return runtime().full_init_count;
 }
 
 void theme_manager_deinit() {
@@ -1895,29 +1894,7 @@ void theme_manager_deinit() {
     // lv_subject_deinit() removes all observers from each subject AND removes the
     // unsubscribe_on_delete_cb from widgets. Without this, lv_deinit() -> obj_delete_core()
     // fires stale callbacks that try to remove from corrupted observer linked lists.
-    if (theme_subject_initialized) {
-        lv_subject_deinit(&theme_changed_subject);
-        theme_subject_initialized = false;
-        theme_generation = 0;
-    }
-    if (breakpoint_subject_initialized) {
-        lv_subject_deinit(&ui_breakpoint_subject);
-        breakpoint_subject_initialized = false;
-    }
-    if (breakpoint_v_subject_initialized) {
-        lv_subject_deinit(&ui_breakpoint_v_subject);
-        breakpoint_v_subject_initialized = false;
-    }
-    if (is_portrait_subject_initialized) {
-        lv_subject_deinit(&ui_is_portrait_subject);
-        is_portrait_subject_initialized = false;
-    }
-    if (swatch_descs_initialized) {
-        for (size_t i = 0; i < SWATCH_DESC_COUNT; ++i) {
-            lv_subject_deinit(&swatch_desc_subjects[i]);
-        }
-        swatch_descs_initialized = false;
-    }
+    subjects().deinit();
     spdlog::trace("[Theme] Deinitialized theme subjects");
 }
 
@@ -1944,7 +1921,7 @@ void theme_manager_refresh_widget_tree(lv_obj_t* root) {
 }
 
 void theme_manager_apply_theme(const helix::ThemeData& theme, bool dark_mode) {
-    if (!theme_display) {
+    if (!runtime().display) {
         spdlog::error("[Theme] Cannot apply theme: theme not initialized");
         return;
     }
@@ -1959,17 +1936,18 @@ void theme_manager_apply_theme(const helix::ThemeData& theme, bool dark_mode) {
     }
 
     // Capture old palette colors before overwriting, for swap map (copy, not ref!)
-    const helix::ModePalette old_mp = use_dark_mode ? active_theme.dark : active_theme.light;
+    const helix::ModePalette old_mp =
+        runtime().dark ? runtime().active_theme.dark : runtime().active_theme.light;
     bool have_old = !old_mp.screen_bg.empty();
 
-    active_theme = theme;
-    use_dark_mode = effective_dark;
+    runtime().active_theme = theme;
+    runtime().dark = effective_dark;
 
     // The repeat guard keys on the display, its resolution and the mode, none of
     // which name the theme. Replacing active_theme here would otherwise leave a
     // later theme_manager_init() free to skip its registration pass and keep
     // serving whatever was applied, instead of reloading the configured theme.
-    theme_fully_initialized = false;
+    runtime().fully_initialized = false;
 
     spdlog::info("[Theme] Applying theme '{}' in {} mode", theme.name,
                  effective_dark ? "dark" : "light");
@@ -2000,16 +1978,16 @@ void theme_manager_apply_theme(const helix::ThemeData& theme, bool dark_mode) {
     theme_update_colors(effective_dark);
 
     // Re-register XML constants: semantic colors, theme properties, and color pairs
-    theme_manager_register_semantic_colors(nullptr, active_theme, effective_dark);
-    theme_manager_register_theme_properties(nullptr, active_theme, effective_dark);
+    theme_manager_register_semantic_colors(nullptr, runtime().active_theme, effective_dark);
+    theme_manager_register_theme_properties(nullptr, runtime().active_theme, effective_dark);
 
     // Update border_radius constant for live preview (register_const is first-wins,
     // so we need update_const for subsequent changes)
     {
         const char* bp_suffix =
-            theme_manager_get_breakpoint_suffix(responsive_dimension(theme_display));
-        int radius_px =
-            helix::BorderRadiusSizes::pixels(active_theme.properties.border_radius_size, bp_suffix);
+            theme_manager_get_breakpoint_suffix(responsive_dimension(runtime().display));
+        int radius_px = helix::BorderRadiusSizes::pixels(
+            runtime().active_theme.properties.border_radius_size, bp_suffix);
         char radius_buf[16];
         snprintf(radius_buf, sizeof(radius_buf), "%d", radius_px);
         lv_xml_update_const(nullptr, "border_radius", radius_buf);
@@ -2041,51 +2019,51 @@ void theme_manager_apply_theme(const helix::ThemeData& theme, bool dark_mode) {
     lv_obj_invalidate(lv_screen_active());
     theme_manager_notify_change();
 
-    spdlog::info("[Theme] Theme apply complete (generation={})", theme_generation);
+    spdlog::info("[Theme] Theme apply complete (generation={})", subjects().generation);
 }
 
 void theme_manager_toggle_dark_mode() {
-    theme_manager_apply_theme(active_theme, !use_dark_mode);
+    theme_manager_apply_theme(runtime().active_theme, !runtime().dark);
 }
 
 bool theme_manager_is_dark_mode() {
-    return use_dark_mode;
+    return runtime().dark;
 }
 
 const helix::ThemeData& theme_manager_get_active_theme() {
-    return active_theme;
+    return runtime().active_theme;
 }
 
 helix::ThemeModeSupport theme_manager_get_mode_support() {
-    return active_theme.get_mode_support();
+    return runtime().active_theme.get_mode_support();
 }
 
 bool theme_manager_supports_dark_mode() {
-    return active_theme.supports_dark();
+    return runtime().active_theme.supports_dark();
 }
 
 bool theme_manager_supports_light_mode() {
-    return active_theme.supports_light();
+    return runtime().active_theme.supports_light();
 }
 
 lv_subject_t* theme_manager_get_changed_subject() {
-    return &theme_changed_subject;
+    return &subjects().changed;
 }
 
 lv_subject_t* theme_manager_get_breakpoint_subject() {
-    return &ui_breakpoint_subject;
+    return &subjects().breakpoint;
 }
 
 void theme_manager_notify_change() {
-    if (!theme_subject_initialized)
+    if (!subjects().changed_ready)
         return;
-    theme_generation++;
-    lv_subject_set_int(&theme_changed_subject, theme_generation);
-    spdlog::debug("[Theme] Notified theme change (generation={})", theme_generation);
+    subjects().generation++;
+    lv_subject_set_int(&subjects().changed, subjects().generation);
+    spdlog::debug("[Theme] Notified theme change (generation={})", subjects().generation);
 }
 
 void theme_manager_preview(const helix::ThemeData& theme) {
-    theme_manager_apply_theme(theme, use_dark_mode);
+    theme_manager_apply_theme(theme, runtime().dark);
 }
 
 void theme_manager_preview(const helix::ThemeData& theme, bool is_dark) {
@@ -2505,7 +2483,8 @@ void theme_apply_current_palette_to_tree(lv_obj_t* root) {
         return;
 
     // Get the active palette based on current mode
-    const helix::ModePalette& palette = use_dark_mode ? active_theme.dark : active_theme.light;
+    const helix::ModePalette& palette =
+        runtime().dark ? runtime().active_theme.dark : runtime().active_theme.light;
 
     const char* root_name = lv_obj_get_name(root);
     spdlog::debug("[Theme] Applying current palette to tree root={}",
@@ -2597,7 +2576,7 @@ lv_color_t theme_manager_get_color(const char* base_name) {
 
     if (light_str && dark_str) {
         // Both variants exist - use theme-appropriate one
-        return theme_manager_parse_hex_color(use_dark_mode ? dark_str : light_str);
+        return theme_manager_parse_hex_color(runtime().dark ? dark_str : light_str);
     }
 
     // Pattern 2: Static color with just base name (no variants)
@@ -2615,7 +2594,7 @@ lv_color_t theme_manager_get_color(const char* base_name) {
 
     // Nothing found — only log error if theme is initialized (otherwise this is
     // benign, e.g. tests or early init before theme_manager_init() is called)
-    if (current_theme) {
+    if (runtime().current_theme) {
         spdlog::error("[Theme] Color not found: {} (no base, no _light/_dark variants)", base_name);
     } else {
         spdlog::trace("[Theme] Color not found (theme not initialized): {}", base_name);
@@ -2716,7 +2695,7 @@ int32_t theme_manager_get_spacing(const char* token) {
 
     const char* value = lv_xml_get_const_silent(nullptr, token);
     if (!value) {
-        if (current_theme) {
+        if (runtime().current_theme) {
             spdlog::warn("[Theme] Spacing token '{}' not found - is theme initialized?", token);
         } else {
             spdlog::trace("[Theme] Spacing token '{}' not found (theme not initialized)", token);
@@ -2746,7 +2725,7 @@ const lv_font_t* theme_manager_get_font(const char* token) {
     // Get the font name from the registered constant (e.g., "font_small" -> "noto_sans_16")
     const char* font_name = lv_xml_get_const_silent(nullptr, token);
     if (!font_name) {
-        if (current_theme) {
+        if (runtime().current_theme) {
             spdlog::warn("[Theme] Font token '{}' not found - falling back to default font", token);
         } else {
             spdlog::trace("[Theme] Font token '{}' not found (theme not initialized)", token);
