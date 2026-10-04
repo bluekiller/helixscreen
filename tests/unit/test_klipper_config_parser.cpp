@@ -743,3 +743,12 @@ TEST_CASE("KlipperConfigParser: duplicate sections and includes", "[klipper_conf
     CHECK_FALSE(p.has_section("include extra.cfg"));
     CHECK(p.get_keys("s") == std::vector<std::string>{"a", "c"});
 }
+
+TEST_CASE("KlipperConfigParser: set on a duplicated key edits the copy get() reads",
+          "[klipper_config]") {
+    KlipperConfigParser p;
+    p.parse("[s]\ncut: False\ng: A\ncut:\n  B\n  C\n[t]\nx: 1\n");
+    p.set("s", "cut", "True");
+    CHECK(p.get("s", "cut") == "True");
+    CHECK(p.serialize() == "[s]\ncut: False\ng: A\ncut: True\n[t]\nx: 1\n");
+}

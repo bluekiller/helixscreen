@@ -24,9 +24,10 @@ std::optional<ConfigKey> ConfigStructure::find_key(const std::string& section,
     if (it == sections.end())
         return std::nullopt;
 
-    for (const auto& k : it->second.keys) {
-        if (k.name == key)
-            return k;
+    // Klipper keeps the last of a repeated key, so that is the line an edit must reach.
+    for (auto k = it->second.keys.rbegin(); k != it->second.keys.rend(); ++k) {
+        if (k->name == key)
+            return *k;
     }
     return std::nullopt;
 }
@@ -337,6 +338,9 @@ std::optional<std::string> KlipperConfigEditor::set_value(const std::string& con
     std::string prefix = raw_line.substr(0, delim_pos + 1);
     // Restore the original spacing between delimiter and old value
     std::string spacing = raw_line.substr(delim_pos + 1, value_start - (delim_pos + 1));
+    // A bare `key:` has no spacing to preserve.
+    if (spacing.empty() && !new_value.empty())
+        spacing = " ";
     lines[target] = prefix + spacing + new_value;
 
     bool trailing = !content.empty() && content.back() == '\n';
