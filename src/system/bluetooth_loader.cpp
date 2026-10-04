@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 
 #include <climits>
+#include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <dlfcn.h>
@@ -19,6 +20,11 @@ BluetoothLoader& BluetoothLoader::instance() {
 }
 
 BluetoothLoader::BluetoothLoader() {
+    const char* enabled = ::getenv("HELIX_BLUETOOTH");
+    if (enabled != nullptr && enabled[0] == '0' && enabled[1] == '\0') {
+        spdlog::info("[BluetoothLoader] Disabled by HELIX_BLUETOOTH=0");
+        return;
+    }
     if (!has_bt_hardware()) {
         spdlog::info(
             "[BluetoothLoader] No Bluetooth hardware detected (no /sys/class/bluetooth/hci*)");
