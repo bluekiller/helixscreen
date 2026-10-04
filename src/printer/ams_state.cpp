@@ -1184,6 +1184,9 @@ std::vector<helix::AvailableSlot> AmsState::collect_available_slots() const {
         bool multi_unit = info.units.size() > 1;
 
         for (const auto& unit : info.units) {
+            if (unit.absent) {
+                continue;
+            }
             for (const auto& slot_info : unit.slots) {
                 helix::AvailableSlot as;
                 as.slot_index = slot_info.global_index;

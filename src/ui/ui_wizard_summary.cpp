@@ -231,8 +231,8 @@ void WizardSummaryStep::init_subjects() {
         AmsSystemInfo info = backend->get_system_info();
         // Format: "AFC • 4 lanes" or "Happy Hare • 8 lanes"
         ams_type_str = info.type_name;
-        if (info.total_slots > 0) {
-            ams_type_str += " • " + std::to_string(info.total_slots) + " lanes";
+        if (const int bays = info.present_slot_count(); bays > 0) {
+            ams_type_str += " • " + std::to_string(bays) + " lanes";
         }
         ams_visible = 1;
     }

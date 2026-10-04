@@ -26,6 +26,7 @@
 #include "printer_state.h"
 #include "spoolman_types.h"
 
+#include <algorithm>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
@@ -101,7 +102,7 @@ AmsContextMenu::~AmsContextMenu() {
 
 AmsContextMenu::AmsContextMenu(AmsContextMenu&& other) noexcept
     : ContextMenu(std::move(other)), action_callback_(std::move(other.action_callback_)),
-      backend_(other.backend_), total_slots_(other.total_slots_),
+      backend_(other.backend_), total_slots_(other.total_slots_), bays_(std::move(other.bays_)),
       tool_dropdown_(other.tool_dropdown_), backup_dropdown_(other.backup_dropdown_),
       pending_is_loaded_(other.pending_is_loaded_) {
     // Nothing to transfer for the subjects: they are static and shared. Copying
@@ -122,6 +123,7 @@ AmsContextMenu& AmsContextMenu::operator=(AmsContextMenu&& other) noexcept {
         action_callback_ = std::move(other.action_callback_);
         backend_ = other.backend_;
         total_slots_ = other.total_slots_;
+        bays_ = std::move(other.bays_);
         tool_dropdown_ = other.tool_dropdown_;
         backup_dropdown_ = other.backup_dropdown_;
         pending_is_loaded_ = other.pending_is_loaded_;
@@ -155,8 +157,15 @@ bool AmsContextMenu::show_near_widget(lv_obj_t* parent, int slot_index, lv_obj_t
     external_spool_mode_ = false;
 
     // Get total slots from backend
+    bays_.clear();
     if (backend_) {
-        total_slots_ = backend_->get_system_info().total_slots;
+        const AmsSystemInfo info = backend_->get_system_info();
+        total_slots_ = info.total_slots;
+        for (int i = 0; i < total_slots_; ++i) {
+            if (info.slot_exists(i)) {
+                bays_.push_back(i);
+            }
+        }
     } else {
         total_slots_ = 0;
     }
@@ -178,6 +187,7 @@ bool AmsContextMenu::show_for_external_spool(lv_obj_t* parent, lv_obj_t* anchor_
     backend_ = nullptr;
     pending_is_loaded_ = false;
     total_slots_ = 0;
+    bays_.clear();
     external_spool_mode_ = true;
     external_offer_toggle_ = offer_toggle;
 
@@ -899,21 +909,11 @@ void AmsContextMenu::handle_backup_changed() {
 
     int selected = static_cast<int>(lv_dropdown_get_selected(backup_dropdown_));
 
-    // Convert dropdown index back to actual slot index
-    // Dropdown: None=0, then all slots except current slot
+    // Dropdown: None=0, then each backup candidate in order.
+    const std::vector<int> candidates = backup_candidates_for(bays_, get_item_index());
     int backup_slot = -1; // Default to None
-    if (selected > 0) {
-        // Find the actual slot index by counting through slots (skipping current)
-        int dropdown_idx = 0;
-        for (int i = 0; i < total_slots_; ++i) {
-            if (i != get_item_index()) {
-                dropdown_idx++;
-                if (dropdown_idx == selected) {
-                    backup_slot = i;
-                    break;
-                }
-            }
-        }
+    if (selected > 0 && selected <= static_cast<int>(candidates.size())) {
+        backup_slot = candidates[static_cast<size_t>(selected - 1)];
     }
 
     // Ask the BACKEND whether this pairing is allowed. Same rule that tagged the
@@ -1051,18 +1051,12 @@ void AmsContextMenu::populate_backup_dropdown() {
     lv_dropdown_set_options(backup_dropdown_, options.c_str());
 
     int current_backup = get_current_backup_for_slot();
-    // Map backup slot to dropdown index, accounting for skipped current slot
-    // Dropdown: None=0, then all slots except current slot
+    // Dropdown: None=0, then each backup candidate in order.
+    const std::vector<int> candidates = backup_candidates_for(bays_, get_item_index());
     int selected_index = 0; // Default to None
-    if (current_backup >= 0) {
-        // Count how many slots appear before the backup slot in the dropdown
-        // (which skips the current slot)
-        selected_index = 1; // Start after "None"
-        for (int i = 0; i < current_backup; ++i) {
-            if (i != get_item_index()) {
-                selected_index++;
-            }
-        }
+    if (auto it = std::find(candidates.begin(), candidates.end(), current_backup);
+        it != candidates.end()) {
+        selected_index = 1 + static_cast<int>(it - candidates.begin());
     }
     lv_dropdown_set_selected(backup_dropdown_, static_cast<uint32_t>(selected_index));
 
@@ -1096,20 +1090,30 @@ LaneNoun AmsContextMenu::menu_lane_noun() const {
 }
 
 std::string AmsContextMenu::build_backup_options() const {
-    return build_backup_options_for(menu_lane_noun(), total_slots_, get_item_index(),
-                                    backend_eligible_fn());
+    return build_backup_options_for(menu_lane_noun(),
+                                    backup_candidates_for(bays_, get_item_index()),
+                                    get_item_index(), backend_eligible_fn());
 }
 
-std::string AmsContextMenu::build_backup_options_for(LaneNoun noun, int total_slots, int item_index,
+std::vector<int> AmsContextMenu::backup_candidates_for(const std::vector<int>& bays,
+                                                       int item_index) {
+    std::vector<int> candidates;
+    for (int bay : bays) {
+        if (bay != item_index) {
+            candidates.push_back(bay);
+        }
+    }
+    return candidates;
+}
+
+std::string AmsContextMenu::build_backup_options_for(LaneNoun noun,
+                                                     const std::vector<int>& candidates,
+                                                     int item_index,
                                                      const BackupEligibleFn& eligible) {
     std::string options = lv_tr("None");
 
-    // One option per position, in the backend's own word ("Lane 1", "Gate 1").
-    // Skip the current slot (can't be backup for itself).
-    for (int i = 0; i < total_slots; ++i) {
-        if (i == item_index) {
-            continue;
-        }
+    // One option per candidate, in the backend's own word ("Lane 1", "Gate 1").
+    for (int i : candidates) {
         options += "\n" + helix::ui::lane_label(noun, i);
         if (item_index >= 0 && eligible) {
             switch (eligible(item_index, i)) {

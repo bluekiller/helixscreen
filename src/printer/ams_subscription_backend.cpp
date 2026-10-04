@@ -474,7 +474,7 @@ AmsError AmsSubscriptionBackend::validate_slot_index_locked(int slot_index) cons
     if (bound <= 0) {
         return AmsErrorHelper::no_slots_discovered(lane_noun());
     }
-    if (slot_index < 0 || slot_index >= bound) {
+    if (slot_index < 0 || slot_index >= bound || system_info_.slot_absent(slot_index)) {
         return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, bound - 1);
     }
     return AmsErrorHelper::success();
