@@ -80,7 +80,11 @@ void deliver_size(CanvasState* s, const std::string& full) {
     e->size_pending = false;
     if (e->size_ref == LUA_NOREF)
         return;
-    auto [w, h] = canvas_size(full);
+    // Plain locals, not structured bindings: capturing a binding in a lambda is
+    // C++20, and cross builds compile this file as C++17.
+    const std::pair<int32_t, int32_t> size = canvas_size(full);
+    const int32_t w = size.first;
+    const int32_t h = size.second;
     if (w <= 0 || h <= 0)
         return;
     if (w == e->delivered_w && h == e->delivered_h)
@@ -325,7 +329,9 @@ int m_line(lua_State* L) {
 
 int m_polyline(lua_State* L) {
     CanvasEntry* e = handle_entry(L);
-    luaL_checktype(L, 2, LUA_TTABLE);
+    if (lua_type(L, 2) != LUA_TTABLE)
+        return luaL_error(L, "helix.canvas: polyline needs an even-length array of at least "
+                             "2 points");
     const lua_Integer n = lua_rawlen(L, 2);
     if (n < 4 || n % 2 != 0)
         return luaL_error(L, "helix.canvas: polyline needs an even-length array of at least "
@@ -493,13 +499,15 @@ int m_size(lua_State* L) {
 int m_on_size(lua_State* L) {
     CanvasEntry* e = handle_entry(L);
     LuaRuntime& rt = context(L).rt;
+    // Validate before unref, so a bad argument cannot silence a live handler.
+    if (!lua_isnone(L, 2) && !lua_isnil(L, 2))
+        luaL_checktype(L, 2, LUA_TFUNCTION);
     if (e->size_ref != LUA_NOREF) {
         rt.unref(e->size_ref);
         e->size_ref = LUA_NOREF;
     }
     if (lua_isnone(L, 2) || lua_isnil(L, 2))
         return 0;
-    luaL_checktype(L, 2, LUA_TFUNCTION);
     e->size_ref = rt.ref_value(L, 2);
     // A new handler has not been told any size; a known one schedules a call.
     e->delivered_w = -1;
@@ -512,6 +520,8 @@ int m_on_size(lua_State* L) {
 int canvas_new(lua_State* L) {
     PluginContext& ctx = context(L);
     const char* local = luaL_checkstring(L, 1);
+    if (*local == '\0')
+        return luaL_error(L, "helix.canvas: name must not be empty");
     std::string full = plugin_owned_name(ctx.manifest.id, local);
     CanvasState* s = canvas_state(L);
     size_t index = s->canvases.size();

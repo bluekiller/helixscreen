@@ -118,6 +118,7 @@ TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
         {"c:line(0, 0, 1, 1, {colour = 'text'})", "unknown option"},
         {"c:polyline({1, 2, 3})", "even-length"},
         {"c:polyline({1, 2})", "even-length"},
+        {"c:polyline('xy')", "even-length"},
         {"c:polyline({0, 0, 0/0, 5})", "finite"},
         {"c:polyline({0, 0, 'x', 5})", "number"},
         {"c:rect(0, 0, 10, 10, {})", "fill or border"},
@@ -141,6 +142,11 @@ TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
     const DisplayList* list = canvas_committed("test-plugin__c");
     REQUIRE(list);
     CHECK(list->prims.size() == 1);
+
+    // An empty local name has no owned-name form, so it is refused outright.
+    REQUIRE(b.t.run("ok, err = pcall(helix.canvas, '')"));
+    CHECK(b.t.global("ok") == "false");
+    CHECK(b.t.global("err").find("must not be empty") != std::string::npos);
 
     // The boundary values themselves are accepted.
     REQUIRE(b.t.run(R"(
@@ -239,6 +245,20 @@ TEST_CASE_METHOD(XMLTestFixture, "list bytes count against the memory cap",
     const size_t after_clear = b.t.rt->memory_used();
     CHECK(after_clear >= after_commit);
     CHECK(after_clear <= after_commit + 1024); // residue: the loop's interned strings
+
+    // Repeated draw/commit/clear cycles hand back every per-cycle byte; a leak
+    // of even one cycle's charge would grow N-fold past any tolerance.
+    const size_t before_cycles = b.t.rt->memory_used();
+    REQUIRE(b.t.run(R"(
+        for round = 1, 25 do
+            for i = 1, 20 do c:line(0, 0, 10, 10) end
+            c:commit()
+            c:clear()
+            collectgarbage()
+        end
+    )"));
+    const size_t after_cycles = b.t.rt->memory_used();
+    CHECK(after_cycles <= before_cycles + 1024);
 }
 
 TEST_CASE_METHOD(DemoRig, "on_size runs on the main loop with the content size",
@@ -260,19 +280,33 @@ TEST_CASE_METHOD(DemoRig, "on_size runs on the main loop with the content size",
 }
 
 TEST_CASE_METHOD(DemoRig, "an on_size handler can remove itself", "[plugin][lua][canvas]") {
-    lv_subject_t* mode = lv_xml_get_subject(nullptr, "canvas-demo__mode");
-    REQUIRE(mode);
-    REQUIRE(demo_int("n") == 1); // the ctor's delivery, with mode still 0
+    REQUIRE(demo_int("n") == 1); // the ctor's delivery
 
-    // This delivery runs the handler one last time, and it removes itself.
-    lv_subject_set_int(mode, 1);
+    // The handler retires itself once the canvas reaches 220 wide: this
+    // delivery runs one last time, and it removes itself.
+    resize(240);
+    drain();
+    CHECK(demo_subject("sz") == "240x80");
+    CHECK(demo_int("n") == 2);
+
+    // The removed handler hears nothing further.
+    resize(220);
+    drain();
+    CHECK(demo_subject("sz") == "240x80");
+    CHECK(demo_int("n") == 2);
+}
+
+TEST_CASE_METHOD(DemoRig, "a size that returns to the last delivered value is not delivered",
+                 "[plugin][lua][canvas]") {
     resize(200);
     drain();
     CHECK(demo_subject("sz") == "200x80");
     CHECK(demo_int("n") == 2);
 
-    // The removed handler hears nothing further.
-    resize(220);
+    // 200 -> 160 -> 200 nets no change: the return to the last delivered size
+    // is a no-op, not a second delivery.
+    resize(160);
+    resize(200);
     drain();
     CHECK(demo_subject("sz") == "200x80");
     CHECK(demo_int("n") == 2);
@@ -323,7 +357,9 @@ TEST_CASE_METHOD(DemoRig, "two instances of one canvas name share the slot",
     CHECK(canvas_instance_count("canvas-demo__c") == 2);
     CHECK(demo_int("n") == 1); // both report 160x80; only the first is a change
 
-    lv_obj_set_width(lv_obj_find_by_name(second, "canvas-demo__c"), 220);
+    lv_obj_t* second_canvas = lv_obj_find_by_name(second, "canvas-demo__c");
+    REQUIRE(second_canvas != nullptr);
+    lv_obj_set_width(second_canvas, 220);
     lv_obj_update_layout(second);
     drain();
     CHECK(demo_subject("sz") == "220x80");
