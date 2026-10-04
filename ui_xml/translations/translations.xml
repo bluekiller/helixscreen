@@ -746,7 +746,7 @@
   <translation tag="Current: %s" de="Aktuell: %s" en="Current: %s" es="Actual: %s" fr="Actuel : %s" it="Attuale: %s" ja="現在: %s" pt="Atual: %s" ru="Текущий: %s" zh="当前: %s"/>
   <translation tag="Current: %s · %s" de="Aktuell: %s · %s" en="Current: %s · %s" es="Actual: %s · %s" fr="Actuel : %s · %s" it="Attuale: %s · %s" ja="現在: %s · %s" pt="Atual: %s · %s" ru="Текущий: %s · %s" zh="当前: %s · %s"/>
   <translation tag="Current: Bypass" de="Aktuell: Bypass" en="Current: Bypass" es="Actual: Bypass" fr="Actuel : Bypass" it="Attuale: Bypass" ja="現在: バイパス" pt="Atual: Bypass" ru="Текущий: Обход" zh="当前: 旁通"/>
-  <translation tag="Currently Loaded" de="Aktuell geladen" en="Currently Loaded" es="Actualmente cargado" fr="Actuellement chargÃ©" it="Attualmente caricato" ja="現在ロード中" pt="Atualmente carregado" ru="Загружено" zh="当前已装载"/>
+  <translation tag="Currently Loaded" de="Aktuell geladen" en="Currently Loaded" es="Actualmente cargado" fr="Actuellement chargé" it="Attualmente caricato" ja="現在ロード中" pt="Atualmente carregado" ru="Загружено" zh="当前已装载"/>
   <translation tag="Currently printing" de="Aktueller Druck" en="Currently printing" es="Imprimiendo actualmente" fr="Impression en cours" it="Stampa in corso" ja="印刷中" pt="Imprimindo atualmente" ru="Сейчас печатается" zh="正在打印"/>
   <translation tag="Custom" de="Benutzerdefiniert" en="Custom" es="Personalizado" fr="Personnalisé" it="Personalizzato" ja="カスタム" pt="Personalizado" ru="Свой" zh="自定义"/>
   <translation tag="Custom..." de="Benutzerdefiniert..." en="Custom..." es="Personalizado..." fr="Personnalisé..." it="Personalizzato..." ja="カスタム..." pt="Personalizado..." ru="Настроить..." zh="自定义..."/>
