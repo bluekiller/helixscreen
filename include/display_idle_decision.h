@@ -87,4 +87,11 @@ inline IdleDecision decide_idle(const IdleInputs& in) {
     return {IdleAction::None};
 }
 
+/// Whether a wake shows the lock screen. A screensaver preview is user-initiated from
+/// settings, so dismissing one never locks.
+inline bool wake_should_auto_lock(bool was_sleeping, bool was_dimmed, bool was_preview,
+                                  bool auto_lock_enabled, bool has_pin) {
+    return (was_sleeping || was_dimmed) && !was_preview && auto_lock_enabled && has_pin;
+}
+
 } // namespace helix

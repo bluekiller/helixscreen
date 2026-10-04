@@ -587,8 +587,7 @@ bool DisplayManager::init(const Config& config) {
                 [](lv_timer_t* t) {
                     auto* dm = static_cast<DisplayManager*>(lv_timer_get_user_data(t));
                     if (dm && dm->m_backlight && dm->m_backlight->is_available()) {
-                        int brightness = DisplaySettingsManager::instance().get_brightness();
-                        brightness = std::clamp(brightness, 10, 100);
+                        const int brightness = DisplaySettingsManager::instance().user_brightness();
                         dm->m_backlight->set_brightness(brightness);
                         spdlog::info("[DisplayManager] Delayed brightness override: {}%",
                                      brightness);
@@ -1577,8 +1576,7 @@ void DisplayManager::wake_display() {
     }
 
     // Restore configured brightness from settings
-    int brightness = DisplaySettingsManager::instance().get_brightness();
-    brightness = std::clamp(brightness, 10, 100);
+    const int brightness = DisplaySettingsManager::instance().user_brightness();
 
     if (m_backlight) {
         m_backlight->set_brightness(brightness);
@@ -1589,9 +1587,9 @@ void DisplayManager::wake_display() {
     // Auto-lock: show lock screen when waking from sleep or screensaver/dim.
     // Screensaver previews are user-initiated from settings — they didn't go
     // idle, so engaging auto-lock on preview dismiss would be surprising.
-    if ((was_sleeping || was_dimmed) && !was_preview &&
-        helix::LockManager::instance().auto_lock_enabled() &&
-        helix::LockManager::instance().has_pin()) {
+    if (helix::wake_should_auto_lock(was_sleeping, was_dimmed, was_preview,
+                                     helix::LockManager::instance().auto_lock_enabled(),
+                                     helix::LockManager::instance().has_pin())) {
         spdlog::info("[DisplayManager] Auto-lock engaged on wake");
         helix::LockManager::instance().lock();
         helix::ui::LockScreenOverlay::instance().show();
@@ -1644,8 +1642,7 @@ void DisplayManager::ensure_display_on() {
     m_display_dimmed = false;
 
     // Get configured brightness (or default to 50%)
-    int brightness = DisplaySettingsManager::instance().get_brightness();
-    brightness = std::clamp(brightness, 10, 100);
+    const int brightness = DisplaySettingsManager::instance().user_brightness();
 
     // Apply to hardware - this ensures display is visible
     if (m_backlight) {
@@ -1681,8 +1678,7 @@ void DisplayManager::restore_display_on_shutdown() {
     }
 
     // Ensure display is awake before exiting so next app doesn't start with black screen
-    int brightness = DisplaySettingsManager::instance().get_brightness();
-    brightness = std::clamp(brightness, 10, 100);
+    const int brightness = DisplaySettingsManager::instance().user_brightness();
 
     if (m_backlight) {
         m_backlight->set_brightness(brightness);

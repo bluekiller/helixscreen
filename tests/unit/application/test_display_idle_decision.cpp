@@ -200,3 +200,25 @@ TEST_CASE("decide_idle truth table", "[display][idle_decision]") {
         CHECK(helix::decide_idle(r.in).action == r.want);
     }
 }
+
+TEST_CASE("wake_should_auto_lock truth table", "[display][idle_decision]") {
+    struct LockRow {
+        const char* label;
+        bool sleeping, dimmed, preview, enabled, pin, want;
+    };
+    const LockRow rows[] = {
+        {"wake from sleep locks", true, false, false, true, true, true},
+        {"wake from dim locks", false, true, false, true, true, true},
+        {"wake from sleep and dim locks", true, true, false, true, true, true},
+        {"a preview dismiss never locks", false, true, true, true, true, false},
+        {"a preview flag blocks even from sleep", true, true, true, true, true, false},
+        {"auto-lock disabled", true, false, false, false, true, false},
+        {"no PIN set", true, false, false, true, false, false},
+        {"already awake", false, false, false, true, true, false},
+    };
+    for (const auto& r : rows) {
+        INFO(r.label);
+        CHECK(helix::wake_should_auto_lock(r.sleeping, r.dimmed, r.preview, r.enabled, r.pin) ==
+              r.want);
+    }
+}
