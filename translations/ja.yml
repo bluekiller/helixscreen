@@ -32,7 +32,6 @@ translations:
   '%s uses %s, which has filament but no material set — the printer will not start until you set it.': '%s は %s を使用しますが、フィラメントはあるのに材料が設定されていません。設定するまでプリンターは開始しません。'
   '%s: %.0fg of %.0fg needed': '%s: %.0fg（必要 %.0fg）'
   '%u layers': '%uレイヤー'
-  '%zu changes': '%zu件の変更'
   '%zu events queued': '%zu 件のイベントを待機中'
   '%zu plugins failed to load': '%zu 個のプラグインの読み込みに失敗しました'
   "'{}' already exists. Replace the stored mesh?": "'{}' は既に存在します。保存されたメッシュを置き換えますか？"
@@ -116,7 +115,6 @@ translations:
   = Loosen: = 緩める
   = Tighten: = 締める
   A: A
-  A backup of %s is created before applying: '適用前に %s のバックアップを作成します'
   A few minutes, nearly all of it heating. You judge nothing by eye.: '数分かかりますが、そのほとんどは加熱です。目視での判断は不要です。'
   A motor IO pin couldn't be restored. Power-cycle the printer to recover: モーターのIOピンを復元できませんでした。プリンターの電源を入れ直してください
   A motor's parameters couldn't be written. Power-cycle the printer to retry: モーターのパラメーターを書き込めませんでした。プリンターの電源を入れ直して再試行してください
@@ -239,9 +237,6 @@ translations:
   Appearance: 外観
   Applies to: 適用対象
   Apply: 適用
-  Apply Changes: 変更を適用
-  Applying Changes: 変更を適用中
-  Applying...: 適用中...
   Archive: アーカイブ
   Archive Spool?: スプールをアーカイブしますか？
   Are you sure you want to cancel this print? All progress will be lost.: この印刷をキャンセルしますか？すべての進行状況が失われます。
@@ -510,7 +505,6 @@ translations:
   Change tool: ツールを交換
   Changes apply immediately. Adjust during print for tuning.: 変更は即座に適用されます。印刷中に調整して最適化できます。
   Changes are temporary and reset on printer reboot: 変更は一時的で、プリンター再起動時にリセットされます
-  Changes can be reversed anytime using the Macro Viewer.: 変更はいつでも Macro Viewer を使って元に戻せます。
   Check AFC configuration: 'AFC 設定を確認してください'
   Check Again: 再確認
   Check Klipper console for details: 詳細は Klipper コンソールを確認してください
@@ -630,7 +624,6 @@ translations:
   Configure G10/G11 firmware retraction: G10/G11 ファームウェアリトラクションを設定
   Configure Graph: グラフを設定
   Configure Moonraker: Moonraker を設定
-  Configure PRINT_START: PRINT_START を設定
   Configure Spoolman integration and weight sync settings.: Spoolman 連携と重量同期設定を行います。
   Configure WiFi for this device, or skip if you're using Ethernet: WiFi を設定するか、イーサネットを使用する場合はスキップしてください
   Configure devices in Moonraker: Moonraker でデバイスを設定
@@ -877,7 +870,6 @@ translations:
   Documentation: ドキュメント
   Don't Save: 保存しない
   Don't ask again: 今後表示しない
-  Don't show again: 次回から表示しない
   Done: 完了
   Download update?: アップデートをダウンロードしますか？
   Download v{}?: v{}をダウンロードしますか？
@@ -967,10 +959,6 @@ translations:
   Ended: 終了
   Endless spool failover cleared for every slot: 'すべてのスロットのエンドレススプール設定を消去しました'
   Endless spool is turned off on this MMU: 'この MMU ではエンドレススプールが無効です'
-  Enhanced {} operation in PRINT_START: PRINT_START 内の {} 操作を強化しました
-  Enhanced {} operations in PRINT_START: PRINT_START 内の {} 操作を強化しました
-  Enhancement Complete!: 改善完了！
-  Enhancement Failed: 改善失敗
   Ensure Happy Hare or AFC is installed and configured: Happy Hare または AFC がインストールされ、設定されていることを確認してください
   Enter Current PIN: 現在の PIN を入力
   Enter G-code command...: G-code コマンドを入力...
@@ -1062,7 +1050,6 @@ translations:
   FILTERS: フィルター
   Factory Reset: 工場出荷時リセット
   Failed: 失敗
-  Failed to analyze PRINT_START macro: PRINT_START マクロの解析に失敗しました
   Failed to apply limits: 制限の適用に失敗しました
   Failed to apply settings: 設定の適用に失敗しました
   Failed to archive spool: スプールのアーカイブに失敗しました
@@ -1108,7 +1095,6 @@ translations:
   Failed to open history: 履歴を開けませんでした
   Failed to open history list: 履歴リストを開けませんでした
   Failed to open temperature graph: 温度グラフを開けませんでした
-  Failed to open wizard: ウィザードを開けませんでした
   'Failed to pause print: {}': '印刷の一時停止に失敗しました: {}'
   'Failed to purge: {}': 'パージに失敗しました: {}'
   Failed to read G-code for remap: リマップ用のG-codeの読み込みに失敗しました
@@ -1561,7 +1547,6 @@ translations:
   KLICKY CONTROLS: Klickyコントロール
   Keep Navigation Bar: ナビゲーションバーを維持
   Keep Printing: 印刷を続行
-  Keep Required: 必須を維持
   Keep Spool Info on Eject: 取り出し時にスプール情報を保持
   Keep clear of the printer while the toolhead is moving: ツールヘッドが動いている間はプリンターから離れてください
   Keep current: 現状維持
@@ -1583,7 +1568,6 @@ translations:
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper は 'default' を新しいキャリブレーション用に予約しています。別の名前を選んでください。"
   Klipper restarting - macros activating: 'Klipper を再起動しています - マクロを有効化中'
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipperが進捗の報告を停止しました。小型のプリンターでは解析でメモリが不足することがあります。Klipperを再起動してから再試行してください。"
-  Klipper will restart to apply changes: 変更を適用するために Klipper が再起動します
   Klipper will restart to apply changes.: 変更を適用するために Klipper が再起動します。
   Klipper will restart to apply new settings.: 新しい設定を適用するためKlipperが再起動します。
   'Klipper: ': 'Klipper: '
@@ -1721,7 +1705,6 @@ translations:
   Macro Browser: マクロブラウザ
   Macro Button: 'マクロボタン'
   Macro Buttons: マクロボタン
-  Macro analysis not initialized: マクロ解析が初期化されていません
   'Macro failed: {}': 'マクロの実行に失敗しました: {}'
   Macro for bed mesh calibration: ベッドメッシュキャリブレーション用マクロ
   Macro for chamber/bed heat soak: チャンバー/ベッドヒートソーク用マクロ
@@ -1745,9 +1728,6 @@ translations:
   Main LED Strip: メインLEDストリップ
   Maintaining: 維持中
   Maintenance: 'メンテナンス'
-  Make %s Optional?: '%sをオプションにしますか？'
-  Make Optional: オプションにする
-  Make bed mesh and QGL skippable: ベッドメッシュと QGL をスキップ可能にする
   Make sure every nozzle is clean.: すべてのノズルが清潔であることを確認してください。
   'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.': 'ツールヘッドにフィラメントがロードされていないことを確認してください: ベッドの加熱中にエクストルーダー内で柔らかくなることがあります。'
 
@@ -1907,7 +1887,6 @@ translations:
   No Macros Found: マクロが見つかりません
   No Multi-Filament System connected: マルチフィラメントシステムが接続されていません
   No Multi-Filament System connected.: マルチフィラメントシステムが接続されていません。
-  No PRINT_START macro found: PRINT_START マクロが見つかりません
   No Power Devices: 電源デバイスなし
   No Spool: スプールなし
   No Spools: スプールなし
@@ -1917,8 +1896,6 @@ translations:
   No buffer data available: バッファーデータがありません
   No camera — use USB barcode scanner: カメラなし — USB バーコードスキャナーを使用してください
   No chamber temperature sensor detected: 'チャンバー温度センサーが検出されません'
-  ? "No changes selected.\n\nClick Cancel to close."
-  : "変更が選択されていません。\n\n「キャンセル」をクリックして閉じてください。"
   No changes to revert: 元に戻す変更はありません
   No color: 色なし
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: 乾燥機がありません。最良の結果を得るには、乾燥剤入りの密封ドライボックスにフィラメントを保管してください。
@@ -2110,8 +2087,6 @@ translations:
   PRINTER: プリンター
   PRINTER VISUALS: プリンター表示
   PRINTERS: プリンター
-  PRINT_START has {} skippable operation: PRINT_START にはスキップ可能な操作が {} 個あります
-  PRINT_START has {} skippable operations: PRINT_START にはスキップ可能な操作が {} 個あります
   PROBE SENSORS: プローブセンサー
   PTFE tube connection loose: PTFE チューブの接続が緩んでいます
   Pair: ペアリング
@@ -2422,7 +2397,6 @@ translations:
   Readings from extra temperature sensors: 追加の温度センサーの値
   Ready: 準備完了
   Ready for filament operations: フィラメント操作の準備ができています
-  Ready to Apply: 適用の準備完了
   Ready to calibrate: キャリブレーション準備完了
   Rear: '奥'
   Rear Left: '左奥'
@@ -2588,7 +2562,6 @@ translations:
   Retry: 再試行
   Reverse Multiplier: '逆方向倍率'
   Review detected hardware validation issues: 検出されたハードウェア検証の問題を確認
-  Review your changes: 変更を確認
   Review your configuration below, then click Finish to save: 以下の設定を確認し、「完了」をクリックして保存してください
   Rewinding: 巻き戻し中
   Right: '右'
@@ -2786,7 +2759,6 @@ translations:
   Settings Snapshot: 設定スナップショット
   Settings reset to defaults. Restarting...: 設定をデフォルトにリセットしました。再起動中...
   Setup: 'セットアップ'
-  Setup Complete!: セットアップ完了！
   Setup Timelapse: タイムラプスを設定
   Several printers match - choose yours: 複数のプリンターが一致します - 選択してください
   Shadow Intensity: 影の強度
@@ -3166,10 +3138,7 @@ translations:
   This is what data would be sent if enabled: これは有効にした場合に送信されるデータです
   This may take up to 30 seconds: 最大30秒かかる場合があります
   This plugin asks for no special permissions.: 'このプラグインは特別な権限を要求しません。'
-  ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
-  : このプラグインにより、HelixScreen がベッドメッシュや QGL などの印刷開始オプションを制御できます。インストール後、以下の「PRINT_START
-    を設定」を使用してオプションの手順を有効にしてください。
+  This plugin lets HelixScreen control print start options like bed mesh and QGL.: 'このプラグインにより、HelixScreen がベッドメッシュや QGL などの印刷開始オプションを制御できます。'
   This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?: この印刷には約
     %.0fg 必要ですが、スプールの残量は約 %.0fg です。それでも開始しますか？
   This printer cannot calibrate tool offsets automatically: このプリンターはツールオフセットを自動でキャリブレートできません
@@ -3456,10 +3425,6 @@ translations:
   Welcome to HelixScreen: HelixScreen へようこそ
   What We Collect: 収集する情報
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: 有効時はマクロのみ実行されます。無効時は先に温度を設定してからマクロが実行されます。
-  ? When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
-  : 印刷開始時に %s を実行するかどうかを選択できるようになります。最近すでに実行した場合や、印刷準備をより細かく制御したい場合に時間を節約できます。
   Where UI sounds play: UIサウンドの再生先
   Whether filament is loaded: フィラメントの装填状態
   Which macro the Close feeder button sends: 「フィーダーを閉じる」ボタンが送信するマクロ
@@ -3512,14 +3477,9 @@ translations:
   : "クリア！\nスコア: {}\nタップでもう一度"
   Year: 年
   'Yes': はい
-  ? "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
-  : "印刷開始時にこれらの操作をスキップできるようになりました。\n\n各印刷を開始する前に、印刷の詳細で新しいオプションを確認してください。\n\n設定のバックアップが自動的に保存されました。"
   You can skip this and calibrate later in Settings.: スキップして後で設定でキャリブレーションできます。
   You have unsaved changes. Discard them?: 保存されていない変更があります。破棄しますか？
-  ? "Your PRINT_START macro will be updated to give you control over:\n\n"
-  : "PRINT_START マクロが更新され、以下を制御できるようになります:\n\n"
   Your completed prints will appear here: 完了した印刷がここに表示されます
-  Your print start is already fully configured!: 印刷開始設定はすでに完全に構成されています！
   Your printer at a glance: プリンターを一目で確認
   Your printer has an automatic filament changer: プリンターに自動フィラメントチェンジャーが搭載されています
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: セットアップ中にプリンターがオフラインだったため、ハードウェアオプションはスキップされました。今すぐ設定しますか？

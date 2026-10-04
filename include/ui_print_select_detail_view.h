@@ -147,6 +147,14 @@ class PrintSelectDetailView : public OverlayBase {
     void set_dependencies(IMoonrakerAPI* api, PrinterState* printer_state);
 
     /**
+     * @brief Wire only the PRINT_START analysis, for before the first open
+     *
+     * Asks Moonraker nothing else: at panel setup the connection is usually
+     * still coming up. set_dependencies() does the rest when a file opens.
+     */
+    void set_analysis_dependencies(IMoonrakerAPI* api, PrinterState* printer_state);
+
+    /**
      * @brief Set callback for delete confirmation
      */
     void set_on_delete_confirmed(DeleteConfirmedCallback callback) {

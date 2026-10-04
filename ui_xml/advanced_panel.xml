@@ -160,20 +160,11 @@
                   style_pad_gap="#space_sm">
             <icon src="info" size="xs" variant="secondary"/>
             <text_small flex_grow="1"
-                        text="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps."
-                        translation_tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps."
+                        text="This plugin lets HelixScreen control print start options like bed mesh and QGL."
+                        translation_tag="This plugin lets HelixScreen control print start options like bed mesh and QGL."
                         long_mode="wrap" style_text_color="#text_muted"/>
           </lv_obj>
         </lv_obj>
-        <!-- Configure PRINT_START -->
-        <beta_feature>
-          <setting_action_row name="row_configure_print_start"
-                              label="Configure PRINT_START" label_tag="Configure PRINT_START" icon="code_braces"
-                              description="Make bed mesh and QGL skippable"
-                              description_tag="Make bed mesh and QGL skippable">
-            <event_cb trigger="clicked" callback="on_configure_print_start"/>
-          </setting_action_row>
-        </beta_feature>
         <!-- Helix Helper Macros (helix_macros.cfg): back the Clean Nozzle and
              Bed Mesh slots on printers with no macros of their own. One row
              visible per helix_macros_status value (bind_flag_if_not_eq hides

@@ -32,7 +32,6 @@ translations:
   '%s uses %s, which has filament but no material set — the printer will not start until you set it.': '%s 使用 %s，该位置有耗材但未设置材料 — 设置后打印机才会开始。'
   '%s: %.0fg of %.0fg needed': '%s：%.0fg / 需要 %.0fg'
   '%u layers': '%u 层'
-  '%zu changes': '%zu 项更改'
   '%zu events queued': '%zu 个事件已排队'
   '%zu plugins failed to load': '%zu 个插件加载失败'
   "'{}' already exists. Replace the stored mesh?": "'{}' 已存在。替换已保存的网格？"
@@ -115,7 +114,6 @@ translations:
   = Loosen: = 松开
   = Tighten: = 拧紧
   A: 辅
-  A backup of %s is created before applying: '应用前会创建 %s 的备份'
   A few minutes, nearly all of it heating. You judge nothing by eye.: '需要几分钟，几乎全是加热时间。你无需用肉眼判断任何东西。'
   A motor IO pin couldn't be restored. Power-cycle the printer to recover: 无法恢复电机 IO 引脚。请重新为打印机上电以恢复
   A motor's parameters couldn't be written. Power-cycle the printer to retry: 无法写入电机参数。请重新为打印机上电后重试
@@ -238,9 +236,6 @@ translations:
   Appearance: 外观
   Applies to: 适用于
   Apply: 应用
-  Apply Changes: 应用更改
-  Applying Changes: 正在应用更改
-  Applying...: 正在应用...
   Archive: 归档
   Archive Spool?: 归档料盘？
   Are you sure you want to cancel this print? All progress will be lost.: 确定要取消此打印吗？所有进度将丢失。
@@ -509,7 +504,6 @@ translations:
   Change tool: 切换工具
   Changes apply immediately. Adjust during print for tuning.: 更改立即生效。可在打印时调整进行调优。
   Changes are temporary and reset on printer reboot: 更改是临时的，打印机重启后会重置
-  Changes can be reversed anytime using the Macro Viewer.: 可随时使用 Macro Viewer 恢复更改。
   Check AFC configuration: '请检查 AFC 配置'
   Check Again: 重新检查
   Check Klipper console for details: 详情请查看 Klipper 控制台
@@ -628,7 +622,6 @@ translations:
   Configure G10/G11 firmware retraction: 配置 G10/G11 固件回抽
   Configure Graph: 配置图表
   Configure Moonraker: 配置 Moonraker
-  Configure PRINT_START: 配置 PRINT_START
   Configure Spoolman integration and weight sync settings.: 配置 Spoolman 集成和重量同步设置。
   Configure WiFi for this device, or skip if you're using Ethernet: 为此设备配置 WiFi，如使用以太网可跳过
   Configure devices in Moonraker: 在 Moonraker 中配置设备
@@ -874,7 +867,6 @@ translations:
   Documentation: 文档
   Don't Save: 不保存
   Don't ask again: 不再询问
-  Don't show again: 不再显示
   Done: 完成
   Download update?: 下载更新？
   Download v{}?: 下载 v{}？
@@ -963,10 +955,6 @@ translations:
   Ended: 已结束
   Endless spool failover cleared for every slot: '已清除所有槽位的无限料盘设置'
   Endless spool is turned off on this MMU: '此 MMU 上的无限料盘已关闭'
-  Enhanced {} operation in PRINT_START: 增强了 PRINT_START 中的 {} 项操作
-  Enhanced {} operations in PRINT_START: 增强了 PRINT_START 中的 {} 项操作
-  Enhancement Complete!: 增强完成！
-  Enhancement Failed: 增强失败
   Ensure Happy Hare or AFC is installed and configured: 请确保已安装并配置 Happy Hare 或 AFC
   Enter Current PIN: 输入当前 PIN 码
   Enter G-code command...: 输入 G-code 命令...
@@ -1058,7 +1046,6 @@ translations:
   FILTERS: 筛选
   Factory Reset: 恢复出厂设置
   Failed: 失败
-  Failed to analyze PRINT_START macro: 分析 PRINT_START 宏失败
   Failed to apply limits: 应用限制失败
   Failed to apply settings: 应用设置失败
   Failed to archive spool: 归档料盘失败
@@ -1104,7 +1091,6 @@ translations:
   Failed to open history: 打开历史记录失败
   Failed to open history list: 打开历史列表失败
   Failed to open temperature graph: 打开温度图表失败
-  Failed to open wizard: 打开向导失败
   'Failed to pause print: {}': '暂停打印失败: {}'
   'Failed to purge: {}': '清洗失败: {}'
   Failed to read G-code for remap: 读取用于重新映射的 G-code 失败
@@ -1556,7 +1542,6 @@ translations:
   KLICKY CONTROLS: KLICKY 控制
   Keep Navigation Bar: 保留导航栏
   Keep Printing: 继续打印
-  Keep Required: 保持必需
   Keep Spool Info on Eject: 弹出时保留料盘信息
   Keep clear of the printer while the toolhead is moving: 工具头移动时请远离打印机
   Keep current: 保留当前
@@ -1578,7 +1563,6 @@ translations:
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper 将 'default' 保留用于新的校准。请选择其他名称。"
   Klipper restarting - macros activating: '正在重启 Klipper - 正在启用宏'
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存；请重启 Klipper 后重试。"
-  Klipper will restart to apply changes: Klipper 将重启以应用更改
   Klipper will restart to apply changes.: Klipper 将重启以应用更改。
   Klipper will restart to apply new settings.: Klipper 将重启以应用新设置。
   'Klipper: ': 'Klipper: '
@@ -1715,7 +1699,6 @@ translations:
   Macro Browser: 宏浏览器
   Macro Button: '宏按钮'
   Macro Buttons: 宏按钮
-  Macro analysis not initialized: 宏分析未初始化
   'Macro failed: {}': '宏执行失败: {}'
   Macro for bed mesh calibration: 热床网格校准宏
   Macro for chamber/bed heat soak: 腔体/热床预热浸泡宏
@@ -1739,9 +1722,6 @@ translations:
   Main LED Strip: 主 LED 灯带
   Maintaining: 保持中
   Maintenance: '维护'
-  Make %s Optional?: 将 %s 设为可选？
-  Make Optional: 设为可选
-  Make bed mesh and QGL skippable: 使热床网格和 QGL 可跳过
   Make sure every nozzle is clean.: 请确保所有喷嘴都干净。
   'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.': 请确认工具头中没有装入耗材:热床加热时它可能在挤出机中变软。
 
@@ -1900,7 +1880,6 @@ translations:
   No Macros Found: 未找到宏
   No Multi-Filament System connected: 未连接多耗材系统
   No Multi-Filament System connected.: 未连接多耗材系统。
-  No PRINT_START macro found: 未找到 PRINT_START 宏
   No Power Devices: 无电源设备
   No Spool: 无料盘
   No Spools: 无料盘
@@ -1910,8 +1889,6 @@ translations:
   No buffer data available: 无可用缓冲区数据
   No camera — use USB barcode scanner: 无摄像头 — 请使用 USB 条码扫描器
   No chamber temperature sensor detected: '未检测到腔体温度传感器'
-  ? "No changes selected.\n\nClick Cancel to close."
-  : "未选择任何更改。\n\n点击取消以关闭。"
   No changes to revert: 没有可撤销的更改
   No color: 无颜色
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: 无可用烘干机。建议将耗材存放在带干燥剂的密封干燥箱中。
@@ -2103,8 +2080,6 @@ translations:
   PRINTER: 打印机
   PRINTER VISUALS: 打印机外观
   PRINTERS: 打印机
-  PRINT_START has {} skippable operation: PRINT_START 有 {} 项可跳过的操作
-  PRINT_START has {} skippable operations: PRINT_START 有 {} 项可跳过的操作
   PROBE SENSORS: 探针传感器
   PTFE tube connection loose: PTFE 管接头松动
   Pair: 配对
@@ -2413,7 +2388,6 @@ translations:
   Readings from extra temperature sensors: 额外温度传感器的读数
   Ready: 就绪
   Ready for filament operations: 可进行耗材操作
-  Ready to Apply: 准备应用
   Ready to calibrate: 准备校准
   Rear: '后'
   Rear Left: '左后'
@@ -2579,7 +2553,6 @@ translations:
   Retry: 重试
   Reverse Multiplier: '反向倍率'
   Review detected hardware validation issues: 查看检测到的硬件验证问题
-  Review your changes: 查看您的更改
   Review your configuration below, then click Finish to save: 请检查以下配置，然后点击完成以保存
   Rewinding: 回卷中
   Right: '右'
@@ -2777,7 +2750,6 @@ translations:
   Settings Snapshot: 设置快照
   Settings reset to defaults. Restarting...: 设置已重置为默认值。正在重启...
   Setup: '设置向导'
-  Setup Complete!: 设置完成！
   Setup Timelapse: 设置延时摄影
   Several printers match - choose yours: 多台打印机匹配 - 请选择您的打印机
   Shadow Intensity: 阴影强度
@@ -3157,9 +3129,7 @@ translations:
   This is what data would be sent if enabled: 这是启用后将发送的数据
   This may take up to 30 seconds: 这可能需要 30 秒
   This plugin asks for no special permissions.: '此插件不请求任何特殊权限。'
-  ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
-  : 此插件让 HelixScreen 控制打印启动选项，如热床网格和 QGL。安装后，使用下面的配置 PRINT_START 启用可选步骤。
+  This plugin lets HelixScreen control print start options like bed mesh and QGL.: '此插件让 HelixScreen 控制打印启动选项，如热床网格和 QGL。'
   This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?: 本次打印需要约
     %.0fg，但料盘仅剩约 %.0fg。仍要开始吗？
   This printer cannot calibrate tool offsets automatically: 此打印机无法自动校准工具偏移
@@ -3446,10 +3416,6 @@ translations:
   Welcome to HelixScreen: 欢迎使用 HelixScreen
   What We Collect: 我们收集的内容
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: 启用时仅运行宏。禁用时先设置温度，然后运行宏。
-  ? When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
-  : 开始打印时，您可以选择是否运行 %s。如果您最近已经执行过或希望对打印准备过程有更多控制，这样可以节省时间。
   Where UI sounds play: 界面声音的播放位置
   Whether filament is loaded: 耗材是否已装载
   Which macro the Close feeder button sends: “关闭送料器”按钮发送的宏
@@ -3502,14 +3468,9 @@ translations:
   : "你赢了！\n得分：{}\n点按再玩一次"
   Year: 年
   'Yes': 是
-  ? "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
-  : "现在开始打印时可以跳过这些操作。\n\n在每次开始打印前，请在打印详情中查找新的选项。\n\n已自动保存配置备份。"
   You can skip this and calibrate later in Settings.: 您可以跳过此步骤，稍后在设置中进行校准。
   You have unsaved changes. Discard them?: 您有未保存的更改。是否丢弃？
-  ? "Your PRINT_START macro will be updated to give you control over:\n\n"
-  : "您的 PRINT_START 宏将被更新，以便您控制以下内容：\n\n"
   Your completed prints will appear here: 您完成的打印将显示在此处
-  Your print start is already fully configured!: 您的打印启动已完全配置！
   Your printer at a glance: 一览您的打印机
   Your printer has an automatic filament changer: 您的打印机配有自动换色系统
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: 设置期间打印机离线，硬件选项已跳过。现在设置吗？

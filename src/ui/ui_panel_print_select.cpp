@@ -686,8 +686,10 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // without a visit; only its detail view is lazy.
     create_print_controller();
 
-    // The detail view is built by the first show_detail_view() /
-    // show_delete_confirmation(); most sessions never open one.
+    // The detail view's widget tree is built by the first show_detail_view() /
+    // show_delete_confirmation(); most sessions never open one. Its model exists
+    // now so the PRINT_START analysis runs on connect, not on the first file tap.
+    ensure_detail_view_model();
 
     // Register resize callback
     // Note: register_resize_callback expects a C callback, so we use a static trampoline
@@ -1657,8 +1659,10 @@ void PrintSelectPanel::set_api(IMoonrakerAPI* api) {
     }
 
     // Update detail view's dependencies (it was created with nullptr in setup())
-    if (detail_view_) {
+    if (detail_view_built_) {
         detail_view_->set_dependencies(api_, &printer_state_);
+    } else if (detail_view_) {
+        detail_view_->set_analysis_dependencies(api_, &printer_state_);
     }
 
     // Update print controller's API reference
@@ -2659,11 +2663,8 @@ void PrintSelectPanel::create_print_controller() {
     print_controller_->recover_pending_remap();
 }
 
-void PrintSelectPanel::create_detail_view() {
+void PrintSelectPanel::ensure_detail_view_model() {
     if (detail_view_) {
-        // The detail overlay lives under parent_screen_, not panel_, so it
-        // survives a panel rebuild. setup() is re-entrant; only the first
-        // call constructs the view.
         return;
     }
     detail_view_ = std::make_unique<helix::ui::PrintSelectDetailView>();
@@ -2674,6 +2675,23 @@ void PrintSelectPanel::create_detail_view() {
 
     // Initialize subjects BEFORE create() so XML bindings can find them [L004]
     detail_view_->init_subjects();
+    detail_view_->set_analysis_dependencies(api_, &printer_state_);
+
+    // Re-enable the print button when macro analysis completes.
+    if (auto* prep_mgr = detail_view_->get_prep_manager()) {
+        prep_mgr->set_macro_analysis_callback(
+            [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
+    }
+}
+
+void PrintSelectPanel::create_detail_view() {
+    if (detail_view_built_) {
+        // The detail overlay lives under parent_screen_, not panel_, so it
+        // survives a panel rebuild. setup() is re-entrant; only the first
+        // call constructs the view.
+        return;
+    }
+    ensure_detail_view_model();
 
     // create() now returns lv_obj_t* per OverlayBase interface
     if (!detail_view_->create(parent_screen_)) {
@@ -2681,8 +2699,8 @@ void PrintSelectPanel::create_detail_view() {
         detail_view_.reset();
         return;
     }
+    detail_view_built_ = true;
 
-    // Set dependencies and callbacks
     detail_view_->set_dependencies(api_, &printer_state_);
     detail_view_->set_visible_subject(&detail_view_visible_subject_);
     detail_view_->set_on_delete_confirmed([this]() { delete_file(); });
@@ -2698,15 +2716,6 @@ void PrintSelectPanel::create_detail_view() {
         plugin_install_modal_.set_installer(&plugin_installer_);
         plugin_install_modal_.show(lv_screen_active());
     });
-
-    // Re-enable the print button when macro analysis completes. The legacy
-    // bullet-text "preprint steps" display has been replaced by the dynamic
-    // PrePrintOption toggle UI in print_file_detail.xml, so no scan/analysis
-    // text refresh is needed here anymore.
-    if (auto* prep_mgr = detail_view_->get_prep_manager()) {
-        prep_mgr->set_macro_analysis_callback(
-            [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
-    }
 
     if (print_controller_) {
         print_controller_->set_detail_view(detail_view_.get());

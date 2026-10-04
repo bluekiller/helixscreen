@@ -20,8 +20,6 @@
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "macro_modification_manager.h"
-#include "moonraker_manager.h"
 #include "observer_factory.h"
 #include "panel_widgets/shutdown_widget.h"
 #include "printer_state.h"
@@ -70,7 +68,6 @@ void AdvancedPanel::init_subjects() {
         {"on_advanced_macros", on_macros_clicked},
         {"on_console_row_clicked", on_console_clicked},
         {"on_history_row_clicked", on_history_clicked},
-        {"on_configure_print_start", on_configure_print_start_clicked},
         {"on_helix_plugin_install_clicked", on_helix_plugin_install_clicked},
         {"on_helix_plugin_uninstall_clicked", on_helix_plugin_uninstall_clicked},
         {"on_helix_macros_install_clicked", on_helix_macros_install_clicked},
@@ -147,29 +144,6 @@ void AdvancedPanel::handle_history_clicked() {
     get_global_history_dashboard_panel().show(parent_screen_);
 }
 
-void AdvancedPanel::handle_configure_print_start_clicked() {
-    spdlog::debug("[{}] Configure PRINT_START clicked", get_name());
-
-    MoonrakerManager* mgr = get_moonraker_manager();
-    if (!mgr) {
-        spdlog::error("[{}] No MoonrakerManager available", get_name());
-        ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Not connected to printer"),
-                                      2000);
-        return;
-    }
-
-    helix::MacroModificationManager* macro_mgr = mgr->macro_analysis();
-    if (!macro_mgr) {
-        spdlog::error("[{}] No MacroModificationManager available", get_name());
-        ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Macro analysis not initialized"),
-                                      2000);
-        return;
-    }
-
-    // Launch wizard (handles its own analysis and UI)
-    macro_mgr->analyze_and_launch_wizard();
-}
-
 void AdvancedPanel::handle_pid_tuning_clicked() {
     spdlog::debug("[{}] PID Tuning clicked - opening calibration panel", get_name());
 
@@ -203,10 +177,6 @@ void AdvancedPanel::on_console_clicked(lv_event_t* /*e*/) {
 
 void AdvancedPanel::on_history_clicked(lv_event_t* /*e*/) {
     get_global_advanced_panel().handle_history_clicked();
-}
-
-void AdvancedPanel::on_configure_print_start_clicked(lv_event_t* /*e*/) {
-    get_global_advanced_panel().handle_configure_print_start_clicked();
 }
 
 void AdvancedPanel::on_helix_plugin_install_clicked(lv_event_t* /*e*/) {

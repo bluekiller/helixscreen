@@ -177,7 +177,8 @@ class PrintPreparationManager {
      * @brief Analyze the printer's PRINT_START macro (async)
      *
      * Fetches macro definition from printer config and detects operations
-     * like bed mesh, QGL, etc. Result is cached and reused.
+     * like bed mesh, QGL, etc. Result is cached and reused until a reconnect
+     * or a Klipper restart, either of which re-reads the macro.
      *
      * Call this once when connecting to the printer or when the detail
      * view needs to show macro-level operations.
@@ -553,6 +554,12 @@ class PrintPreparationManager {
     // === PRINT_START Analysis Cache ===
     std::optional<helix::PrintStartAnalysis> macro_analysis_;
     bool macro_analysis_in_progress_ = false;
+    // The config may have changed under the analysis in flight; run again when it lands.
+    bool macro_analysis_stale_ = false;
+    // Last value seen, so a re-subscription is told apart from a real transition.
+    int last_connection_state_ = -1;
+    // Klippy left READY while connected; its return to READY is a restart.
+    bool klippy_restarting_ = false;
 
     // Retry logic for macro analysis
     int macro_analysis_retry_count_ = 0;
@@ -561,9 +568,10 @@ class PrintPreparationManager {
     // === Lifetime Guard for Async Callbacks ===
     helix::AsyncLifetimeGuard lifetime_;
 
-    // === Connection Observer ===
-    // Triggers macro analysis when printer connection becomes CONNECTED
+    // === Connection Observers ===
+    // Analyze on connect; re-read the macro on a reconnect or a Klipper restart.
     ObserverGuard connection_observer_;
+    ObserverGuard klippy_observer_;
 
     // === Pre-start completion wait ===
     // When the pre-start gcode RPC times out but Klipper still reports
@@ -731,13 +739,14 @@ class PrintPreparationManager {
      */
     void analyze_print_start_macro_internal();
 
-    /**
-     * @brief Schedule a deferred retry of macro analysis
-     *
-     * Used when MacroModificationManager is currently analyzing — defers
-     * to its result instead of starting a duplicate PrintStartAnalyzer run.
-     */
-    void schedule_deferred_macro_check();
+    void on_connection_state(int state);
+    void on_klippy_state(int state);
+
+    /// Drop the cached analysis and run a fresh one, or mark the one in flight stale.
+    void refresh_macro_analysis();
+
+    /// When the analysis that just landed is stale, start another and return true.
+    bool restart_stale_macro_analysis();
 
     /**
      * @brief Collect macro skip parameters based on user checkboxes and macro analysis

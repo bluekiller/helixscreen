@@ -1362,6 +1362,31 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
 }
 
 TEST_CASE_METHOD(MacroAnalysisRetryFixture,
+                 "PrintPreparationManager: a failed analysis runs again on reconnect",
+                 "[print_preparation][retry][eventloop][slow][1233]") {
+    set_list_files_always_fail();
+    std::atomic<bool> landed{false};
+    manager_.set_macro_analysis_callback(
+        [&](const helix::PrintStartAnalysis& /*analysis*/) { landed = true; });
+
+    manager_.analyze_print_start_macro();
+    REQUIRE(wait_for([&]() { return landed.load(); }, 8000));
+    REQUIRE(get_list_files_call_count() == 3);
+    REQUIRE_FALSE(manager_.get_macro_analysis()->found);
+
+    set_list_files_success_empty();
+    landed = false;
+    printer_state_.set_printer_connection_state(static_cast<int>(ConnectionState::DISCONNECTED),
+                                                "Disconnected");
+    printer_state_.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED),
+                                                "Connected");
+
+    REQUIRE(wait_for([&]() { return landed.load(); }, 5000));
+    CHECK(get_list_files_call_count() == 1);
+    CHECK_FALSE(manager_.is_macro_analysis_in_progress());
+}
+
+TEST_CASE_METHOD(MacroAnalysisRetryFixture,
                  "PrintPreparationManager: macro analysis retry counter resets on new request",
                  "[print_preparation][retry][eventloop][slow]") {
     SECTION("New analysis request after cache clears uses fresh retry counter") {

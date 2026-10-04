@@ -497,7 +497,6 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/machine_limits_overlay.xml",
     "ui_xml/macro_buttons_overlay.xml",
     "ui_xml/macro_card.xml",
-    "ui_xml/macro_enhance_modal.xml",
     "ui_xml/macro_panel.xml",
     "ui_xml/macro_param_modal.xml",
     "ui_xml/material_temps_overlay.xml",

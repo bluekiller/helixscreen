@@ -32,7 +32,6 @@ translations:
   '%s uses %s, which has filament but no material set — the printer will not start until you set it.': '%s uses %s, which has filament but no material set — the printer will not start until you set it.'
   '%s: %.0fg of %.0fg needed': '%s: %.0fg of %.0fg needed'
   '%u layers': '%u layers'
-  '%zu changes': '%zu changes'
   '%zu events queued': '%zu events queued'
   '%zu plugins failed to load': '%zu plugins failed to load'
   "'{}' already exists. Replace the stored mesh?": "'{}' already exists. Replace the stored mesh?"
@@ -114,7 +113,6 @@ translations:
   = Loosen: = Loosen
   = Tighten: = Tighten
   A: A
-  A backup of %s is created before applying: A backup of %s is created before applying
   A few minutes, nearly all of it heating. You judge nothing by eye.: 'A few minutes, nearly all of it heating. You judge nothing by eye.'
   A motor IO pin couldn't be restored. Power-cycle the printer to recover: A motor IO pin couldn't be restored. Power-cycle the printer to recover
   A motor's parameters couldn't be written. Power-cycle the printer to retry: A motor's parameters couldn't be written. Power-cycle the printer to retry
@@ -249,9 +247,6 @@ translations:
   Appearance: Appearance
   Applies to: Applies to
   Apply: Apply
-  Apply Changes: Apply Changes
-  Applying Changes: Applying Changes
-  Applying...: Applying...
   Archive: Archive
   Archive Spool?: Archive Spool?
   Are you sure you want to cancel this print? All progress will be lost.: Are you
@@ -538,8 +533,6 @@ translations:
     Adjust during print for tuning.
   Changes are temporary and reset on printer reboot: Changes are temporary and reset
     on printer reboot
-  Changes can be reversed anytime using the Macro Viewer.: Changes can be reversed
-    anytime using the Macro Viewer.
   Check AFC configuration: Check AFC configuration
   Check Again: Check Again
   Check Klipper console for details: Check Klipper console for details
@@ -663,7 +656,6 @@ translations:
   Configure G10/G11 firmware retraction: Configure G10/G11 firmware retraction
   Configure Graph: Configure Graph
   Configure Moonraker: Configure Moonraker
-  Configure PRINT_START: Configure PRINT_START
   Configure Spoolman integration and weight sync settings.: Configure Spoolman integration
     and weight sync settings.
   Configure WiFi for this device, or skip if you're using Ethernet: Configure WiFi
@@ -914,7 +906,6 @@ translations:
   Documentation: Documentation
   Don't Save: Don't Save
   Don't ask again: Don't ask again
-  Don't show again: Don't show again
   Done: Done
   Download update?: Download update?
   Download v{}?: Download v{}?
@@ -999,10 +990,6 @@ translations:
   Ended: Ended
   Endless spool failover cleared for every slot: Endless spool failover cleared for every slot
   Endless spool is turned off on this MMU: Endless spool is turned off on this MMU
-  Enhanced {} operation in PRINT_START: Enhanced {} operation in PRINT_START
-  Enhanced {} operations in PRINT_START: Enhanced {} operations in PRINT_START
-  Enhancement Complete!: Enhancement Complete!
-  Enhancement Failed: Enhancement Failed
   Ensure Happy Hare or AFC is installed and configured: Ensure Happy Hare or AFC is installed and configured
   Enter Current PIN: Enter Current PIN
   Enter G-code command...: Enter G-code command...
@@ -1100,7 +1087,6 @@ translations:
   FILTERS: FILTERS
   Factory Reset: Factory Reset
   Failed: Failed
-  Failed to analyze PRINT_START macro: Failed to analyze PRINT_START macro
   Failed to apply limits: Failed to apply limits
   Failed to apply settings: Failed to apply settings
   Failed to archive spool: Failed to archive spool
@@ -1149,7 +1135,6 @@ translations:
   Failed to open history: Failed to open history
   Failed to open history list: Failed to open history list
   Failed to open temperature graph: Failed to open temperature graph
-  Failed to open wizard: Failed to open wizard
   'Failed to pause print: {}': 'Failed to pause print: {}'
   'Failed to purge: {}': 'Failed to purge: {}'
   Failed to read G-code for remap: Failed to read G-code for remap
@@ -1620,7 +1605,6 @@ translations:
   KLICKY CONTROLS: KLICKY CONTROLS
   Keep Navigation Bar: Keep Navigation Bar
   Keep Printing: Keep Printing
-  Keep Required: Keep Required
   Keep Spool Info on Eject: Keep Spool Info on Eject
   Keep clear of the printer while the toolhead is moving: Keep clear of the printer while the toolhead is moving
   Keep current: Keep current
@@ -1644,7 +1628,6 @@ translations:
   Klipper reserves 'default' for new calibrations. Choose another name.: Klipper reserves 'default' for new calibrations. Choose another name.
   Klipper restarting - macros activating: Klipper restarting - macros activating
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.
-  Klipper will restart to apply changes: Klipper will restart to apply changes
   Klipper will restart to apply changes.: Klipper will restart to apply changes.
   Klipper will restart to apply new settings.: Klipper will restart to apply new settings.
   'Klipper: ': 'Klipper: '
@@ -1785,7 +1768,6 @@ translations:
   Macro Browser: Macro Browser
   Macro Button: Macro Button
   Macro Buttons: Macro Buttons
-  Macro analysis not initialized: Macro analysis not initialized
   'Macro failed: {}': 'Macro failed: {}'
   Macro for bed mesh calibration: Macro for bed mesh calibration
   Macro for chamber/bed heat soak: Macro for chamber/bed heat soak
@@ -1810,9 +1792,6 @@ translations:
   Main LED Strip: Main LED Strip
   Maintaining: Maintaining
   Maintenance: Maintenance
-  Make %s Optional?: Make %s Optional?
-  Make Optional: Make Optional
-  Make bed mesh and QGL skippable: Make bed mesh and QGL skippable
   Make sure every nozzle is clean.: Make sure every nozzle is clean.
   'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.': 'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.'
   MakeID (Bluetooth): MakeID (Bluetooth)
@@ -1977,7 +1956,6 @@ translations:
   No Macros Found: No Macros Found
   No Multi-Filament System connected: No Multi-Filament System connected
   No Multi-Filament System connected.: No Multi-Filament System connected.
-  No PRINT_START macro found: No PRINT_START macro found
   No Power Devices: No Power Devices
   No Spool: No Spool
   No Spools: No Spools
@@ -1987,8 +1965,6 @@ translations:
   No buffer data available: No buffer data available
   No camera — use USB barcode scanner: No camera — use USB barcode scanner
   No chamber temperature sensor detected: No chamber temperature sensor detected
-  ? "No changes selected.\n\nClick Cancel to close."
-  : "No changes selected.\n\nClick Cancel to close."
   No changes to revert: No changes to revert
   No color: No color
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: No
@@ -2181,8 +2157,6 @@ translations:
   PRINTER: PRINTER
   PRINTER VISUALS: PRINTER VISUALS
   PRINTERS: PRINTERS
-  PRINT_START has {} skippable operation: PRINT_START has {} skippable operation
-  PRINT_START has {} skippable operations: PRINT_START has {} skippable operations
   PROBE SENSORS: PROBE SENSORS
   PTFE tube connection loose: PTFE tube connection loose
   Pair: Pair
@@ -2503,7 +2477,6 @@ translations:
   Readings from extra temperature sensors: Readings from extra temperature sensors
   Ready: Ready
   Ready for filament operations: Ready for filament operations
-  Ready to Apply: Ready to Apply
   Ready to calibrate: Ready to calibrate
   Rear: Rear
   Rear Left: Rear Left
@@ -2673,7 +2646,6 @@ translations:
   Reverse Multiplier: Reverse Multiplier
   Review detected hardware validation issues: Review detected hardware validation
     issues
-  Review your changes: Review your changes
   Review your configuration below, then click Finish to save: Review your configuration
     below, then click Finish to save
   Rewinding: Rewinding
@@ -2886,7 +2858,6 @@ translations:
   Settings Snapshot: Settings Snapshot
   Settings reset to defaults. Restarting...: Settings reset to defaults. Restarting...
   Setup: Setup
-  Setup Complete!: Setup Complete!
   Setup Timelapse: Setup Timelapse
   Several printers match - choose yours: Several printers match - choose yours
   Shadow Intensity: Shadow Intensity
@@ -3286,10 +3257,7 @@ translations:
   This is what data would be sent if enabled: This is what data would be sent if enabled
   This may take up to 30 seconds: This may take up to 30 seconds
   This plugin asks for no special permissions.: This plugin asks for no special permissions.
-  ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
-  : This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
+  This plugin lets HelixScreen control print start options like bed mesh and QGL.: This plugin lets HelixScreen control print start options like bed mesh and QGL.
   This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?: This
     print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?
   This printer cannot calibrate tool offsets automatically: This printer cannot calibrate tool offsets automatically
@@ -3596,12 +3564,6 @@ translations:
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: When
     enabled, only the macro runs. When disabled, temperatures are set first, then
     the macro runs.
-  ? When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
-  : When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
   Where UI sounds play: Where UI sounds play
   Whether filament is loaded: Whether filament is loaded
   Which macro the Close feeder button sends: Which macro the Close feeder button sends
@@ -3654,16 +3616,10 @@ translations:
   : "YOU WIN!\nScore: {}\nTap to play again"
   Year: Year
   'Yes': 'Yes'
-  ? "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
-  : "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
   You can skip this and calibrate later in Settings.: You can skip this and calibrate
     later in Settings.
   You have unsaved changes. Discard them?: You have unsaved changes. Discard them?
-  ? "Your PRINT_START macro will be updated to give you control over:\n\n"
-  : "Your PRINT_START macro will be updated to give you control over:\n\n"
   Your completed prints will appear here: Your completed prints will appear here
-  Your print start is already fully configured!: Your print start is already fully
-    configured!
   Your printer at a glance: Your printer at a glance
   Your printer has an automatic filament changer: Your printer has an automatic filament
     changer

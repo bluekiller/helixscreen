@@ -3,11 +3,14 @@
 #pragma once
 
 #include "ui_panel_print_select.h"
+#include "ui_print_select_detail_view.h"
 
 #include "print_start_controller_test_access.h"
 
 #include <map>
 #include <string>
+
+#include "../catch_amalgamated.hpp"
 
 // Test-only read access to PrintSelectPanel's file list.
 //
@@ -62,8 +65,14 @@ struct PrintSelectPanelTestAccess {
         }
     }
 
+    /// Build the detail view the way the first file open does.
+    static void build_detail_view(PrintSelectPanel& panel) {
+        panel.create_detail_view();
+    }
+
+    /// Whether the detail view's widget tree has been built (a file was opened).
     static bool detail_view_built(const PrintSelectPanel& panel) {
-        return panel.detail_view_ != nullptr;
+        return panel.detail_view_built_;
     }
 
     /// Whether the detail-view overlay is currently pushed (OverlayBase's
@@ -133,5 +142,10 @@ struct PrintSelectPanelTestAccess {
     /// whose pending state would otherwise leak into later tests.
     static void clear_pending_queued_start(PrintSelectPanel& panel) {
         panel.pending_queued_start_.reset();
+    }
+
+    /// The detail view's print preparation manager, or null before one exists.
+    static helix::ui::PrintPreparationManager* prep_manager(const PrintSelectPanel& panel) {
+        return panel.detail_view_ ? panel.detail_view_->get_prep_manager() : nullptr;
     }
 };

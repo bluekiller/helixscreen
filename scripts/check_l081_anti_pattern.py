@@ -148,8 +148,8 @@ REGISTER_CB_RE = re.compile(
 # first WLED discovery, first PRINT_START analysis), the dropped result
 # strands the UI until the next user-triggered fetch — which for fire-once
 # bootstraps never comes. Confirmed regression sweep on 2026-05-11 found
-# 4 sites matching this pattern across PrintHistoryManager, PrintSelectPanel,
-# MacroModificationManager, and LedController.
+# sites matching this pattern across PrintHistoryManager, PrintSelectPanel,
+# and LedController.
 #
 # We match the most common entry shapes:
 #   api_->files().get_*(...) / get_metadata / metascan_file / etc.

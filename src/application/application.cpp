@@ -2008,7 +2008,7 @@ bool Application::init_moonraker() {
     // API is now injected at panel construction in init_panel_subjects()
     // No need for deferred inject_api() call
 
-    // Register MoonrakerManager globally (for Advanced panel access to MacroModificationManager)
+    // Register MoonrakerManager globally
     set_moonraker_manager(m_moonraker.get());
 
     // Discovery callbacks on the client update the API's hardware_ and run
@@ -2026,9 +2026,6 @@ bool Application::init_moonraker() {
     m_job_queue_state->init_subjects();
     set_job_queue_state(m_job_queue_state.get());
     spdlog::debug("[Application] JobQueueState created");
-
-    // Initialize macro modification manager (for PRINT_START wizard)
-    m_moonraker->init_macro_analysis(m_config);
 
     // Validate screen before keyboard init (debugging potential race condition)
     if (!m_screen) {

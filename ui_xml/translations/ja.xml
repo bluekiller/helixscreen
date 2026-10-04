@@ -32,7 +32,6 @@
   <translation tag="%s uses %s, which has filament but no material set — the printer will not start until you set it." ja="%s は %s を使用しますが、フィラメントはあるのに材料が設定されていません。設定するまでプリンターは開始しません。"/>
   <translation tag="%s: %.0fg of %.0fg needed" ja="%s: %.0fg（必要 %.0fg）"/>
   <translation tag="%u layers" ja="%uレイヤー"/>
-  <translation tag="%zu changes" ja="%zu件の変更"/>
   <translation tag="%zu events queued" ja="%zu 件のイベントを待機中"/>
   <translation tag="%zu plugins failed to load" ja="%zu 個のプラグインの読み込みに失敗しました"/>
   <translation tag="&apos;{}&apos; already exists. Replace the stored mesh?" ja="&apos;{}&apos; は既に存在します。保存されたメッシュを置き換えますか？"/>
@@ -113,7 +112,6 @@
   <translation tag="= Loosen" ja="= 緩める"/>
   <translation tag="= Tighten" ja="= 締める"/>
   <translation tag="A" ja="A"/>
-  <translation tag="A backup of %s is created before applying" ja="適用前に %s のバックアップを作成します"/>
   <translation tag="A few minutes, nearly all of it heating. You judge nothing by eye." ja="数分かかりますが、そのほとんどは加熱です。目視での判断は不要です。"/>
   <translation tag="A motor IO pin couldn&apos;t be restored. Power-cycle the printer to recover" ja="モーターのIOピンを復元できませんでした。プリンターの電源を入れ直してください"/>
   <translation tag="A motor&apos;s parameters couldn&apos;t be written. Power-cycle the printer to retry" ja="モーターのパラメーターを書き込めませんでした。プリンターの電源を入れ直して再試行してください"/>
@@ -236,9 +234,6 @@
   <translation tag="Appearance" ja="外観"/>
   <translation tag="Applies to" ja="適用対象"/>
   <translation tag="Apply" ja="適用"/>
-  <translation tag="Apply Changes" ja="変更を適用"/>
-  <translation tag="Applying Changes" ja="変更を適用中"/>
-  <translation tag="Applying..." ja="適用中..."/>
   <translation tag="Archive" ja="アーカイブ"/>
   <translation tag="Archive Spool?" ja="スプールをアーカイブしますか？"/>
   <translation tag="Are you sure you want to cancel this print? All progress will be lost." ja="この印刷をキャンセルしますか？すべての進行状況が失われます。"/>
@@ -501,7 +496,6 @@
   <translation tag="Change tool" ja="ツールを交換"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." ja="変更は即座に適用されます。印刷中に調整して最適化できます。"/>
   <translation tag="Changes are temporary and reset on printer reboot" ja="変更は一時的で、プリンター再起動時にリセットされます"/>
-  <translation tag="Changes can be reversed anytime using the Macro Viewer." ja="変更はいつでも Macro Viewer を使って元に戻せます。"/>
   <translation tag="Check AFC configuration" ja="AFC 設定を確認してください"/>
   <translation tag="Check Again" ja="再確認"/>
   <translation tag="Check Klipper console for details" ja="詳細は Klipper コンソールを確認してください"/>
@@ -615,7 +609,6 @@
   <translation tag="Configure G10/G11 firmware retraction" ja="G10/G11 ファームウェアリトラクションを設定"/>
   <translation tag="Configure Graph" ja="グラフを設定"/>
   <translation tag="Configure Moonraker" ja="Moonraker を設定"/>
-  <translation tag="Configure PRINT_START" ja="PRINT_START を設定"/>
   <translation tag="Configure Spoolman integration and weight sync settings." ja="Spoolman 連携と重量同期設定を行います。"/>
   <translation tag="Configure WiFi for this device, or skip if you&apos;re using Ethernet" ja="WiFi を設定するか、イーサネットを使用する場合はスキップしてください"/>
   <translation tag="Configure devices in Moonraker" ja="Moonraker でデバイスを設定"/>
@@ -851,7 +844,6 @@
   <translation tag="Documentation" ja="ドキュメント"/>
   <translation tag="Don&apos;t Save" ja="保存しない"/>
   <translation tag="Don&apos;t ask again" ja="今後表示しない"/>
-  <translation tag="Don&apos;t show again" ja="次回から表示しない"/>
   <translation tag="Done" ja="完了"/>
   <translation tag="Download update?" ja="アップデートをダウンロードしますか？"/>
   <translation tag="Download v{}?" ja="v{}をダウンロードしますか？"/>
@@ -933,10 +925,6 @@
   <translation tag="Ended" ja="終了"/>
   <translation tag="Endless spool failover cleared for every slot" ja="すべてのスロットのエンドレススプール設定を消去しました"/>
   <translation tag="Endless spool is turned off on this MMU" ja="この MMU ではエンドレススプールが無効です"/>
-  <translation tag="Enhanced {} operation in PRINT_START" ja="PRINT_START 内の {} 操作を強化しました"/>
-  <translation tag="Enhanced {} operations in PRINT_START" ja="PRINT_START 内の {} 操作を強化しました"/>
-  <translation tag="Enhancement Complete!" ja="改善完了！"/>
-  <translation tag="Enhancement Failed" ja="改善失敗"/>
   <translation tag="Ensure Happy Hare or AFC is installed and configured" ja="Happy Hare または AFC がインストールされ、設定されていることを確認してください"/>
   <translation tag="Enter Current PIN" ja="現在の PIN を入力"/>
   <translation tag="Enter G-code command..." ja="G-code コマンドを入力..."/>
@@ -1028,7 +1016,6 @@
   <translation tag="FILTERS" ja="フィルター"/>
   <translation tag="Factory Reset" ja="工場出荷時リセット"/>
   <translation tag="Failed" ja="失敗"/>
-  <translation tag="Failed to analyze PRINT_START macro" ja="PRINT_START マクロの解析に失敗しました"/>
   <translation tag="Failed to apply limits" ja="制限の適用に失敗しました"/>
   <translation tag="Failed to apply settings" ja="設定の適用に失敗しました"/>
   <translation tag="Failed to archive spool" ja="スプールのアーカイブに失敗しました"/>
@@ -1072,7 +1059,6 @@
   <translation tag="Failed to open history" ja="履歴を開けませんでした"/>
   <translation tag="Failed to open history list" ja="履歴リストを開けませんでした"/>
   <translation tag="Failed to open temperature graph" ja="温度グラフを開けませんでした"/>
-  <translation tag="Failed to open wizard" ja="ウィザードを開けませんでした"/>
   <translation tag="Failed to pause print: {}" ja="印刷の一時停止に失敗しました: {}"/>
   <translation tag="Failed to purge: {}" ja="パージに失敗しました: {}"/>
   <translation tag="Failed to read G-code for remap" ja="リマップ用のG-codeの読み込みに失敗しました"/>
@@ -1504,7 +1490,6 @@
   <translation tag="KLICKY CONTROLS" ja="Klickyコントロール"/>
   <translation tag="Keep Navigation Bar" ja="ナビゲーションバーを維持"/>
   <translation tag="Keep Printing" ja="印刷を続行"/>
-  <translation tag="Keep Required" ja="必須を維持"/>
   <translation tag="Keep Spool Info on Eject" ja="取り出し時にスプール情報を保持"/>
   <translation tag="Keep clear of the printer while the toolhead is moving" ja="ツールヘッドが動いている間はプリンターから離れてください"/>
   <translation tag="Keep current" ja="現状維持"/>
@@ -1521,7 +1506,6 @@
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." ja="Klipper は &apos;default&apos; を新しいキャリブレーション用に予約しています。別の名前を選んでください。"/>
   <translation tag="Klipper restarting - macros activating" ja="Klipper を再起動しています - マクロを有効化中"/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." ja="Klipperが進捗の報告を停止しました。小型のプリンターでは解析でメモリが不足することがあります。Klipperを再起動してから再試行してください。"/>
-  <translation tag="Klipper will restart to apply changes" ja="変更を適用するために Klipper が再起動します"/>
   <translation tag="Klipper will restart to apply changes." ja="変更を適用するために Klipper が再起動します。"/>
   <translation tag="Klipper will restart to apply new settings." ja="新しい設定を適用するためKlipperが再起動します。"/>
   <translation tag="Klipper: " ja="Klipper: "/>
@@ -1656,7 +1640,6 @@
   <translation tag="Macro Browser" ja="マクロブラウザ"/>
   <translation tag="Macro Button" ja="マクロボタン"/>
   <translation tag="Macro Buttons" ja="マクロボタン"/>
-  <translation tag="Macro analysis not initialized" ja="マクロ解析が初期化されていません"/>
   <translation tag="Macro failed: {}" ja="マクロの実行に失敗しました: {}"/>
   <translation tag="Macro for bed mesh calibration" ja="ベッドメッシュキャリブレーション用マクロ"/>
   <translation tag="Macro for chamber/bed heat soak" ja="チャンバー/ベッドヒートソーク用マクロ"/>
@@ -1680,9 +1663,6 @@
   <translation tag="Main LED Strip" ja="メインLEDストリップ"/>
   <translation tag="Maintaining" ja="維持中"/>
   <translation tag="Maintenance" ja="メンテナンス"/>
-  <translation tag="Make %s Optional?" ja="%sをオプションにしますか？"/>
-  <translation tag="Make Optional" ja="オプションにする"/>
-  <translation tag="Make bed mesh and QGL skippable" ja="ベッドメッシュと QGL をスキップ可能にする"/>
   <translation tag="Make sure every nozzle is clean." ja="すべてのノズルが清潔であることを確認してください。"/>
   <translation tag="Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats." ja="ツールヘッドにフィラメントがロードされていないことを確認してください: ベッドの加熱中にエクストルーダー内で柔らかくなることがあります。"/>
   <translation tag="MakeID (Bluetooth)" ja="MakeID (Bluetooth)"/>
@@ -1835,7 +1815,6 @@
   <translation tag="No Macros Found" ja="マクロが見つかりません"/>
   <translation tag="No Multi-Filament System connected" ja="マルチフィラメントシステムが接続されていません"/>
   <translation tag="No Multi-Filament System connected." ja="マルチフィラメントシステムが接続されていません。"/>
-  <translation tag="No PRINT_START macro found" ja="PRINT_START マクロが見つかりません"/>
   <translation tag="No Power Devices" ja="電源デバイスなし"/>
   <translation tag="No Spool" ja="スプールなし"/>
   <translation tag="No Spools" ja="スプールなし"/>
@@ -1845,7 +1824,6 @@
   <translation tag="No buffer data available" ja="バッファーデータがありません"/>
   <translation tag="No camera — use USB barcode scanner" ja="カメラなし — USB バーコードスキャナーを使用してください"/>
   <translation tag="No chamber temperature sensor detected" ja="チャンバー温度センサーが検出されません"/>
-  <translation tag="No changes selected.&#10;&#10;Click Cancel to close." ja="変更が選択されていません。&#10;&#10;「キャンセル」をクリックして閉じてください。"/>
   <translation tag="No changes to revert" ja="元に戻す変更はありません"/>
   <translation tag="No color" ja="色なし"/>
   <translation tag="No dryer available. Store filament in a sealed dry box with desiccant for best results." ja="乾燥機がありません。最良の結果を得るには、乾燥剤入りの密封ドライボックスにフィラメントを保管してください。"/>
@@ -2031,8 +2009,6 @@
   <translation tag="PRINTER" ja="プリンター"/>
   <translation tag="PRINTER VISUALS" ja="プリンター表示"/>
   <translation tag="PRINTERS" ja="プリンター"/>
-  <translation tag="PRINT_START has {} skippable operation" ja="PRINT_START にはスキップ可能な操作が {} 個あります"/>
-  <translation tag="PRINT_START has {} skippable operations" ja="PRINT_START にはスキップ可能な操作が {} 個あります"/>
   <translation tag="PROBE SENSORS" ja="プローブセンサー"/>
   <translation tag="PTFE tube connection loose" ja="PTFE チューブの接続が緩んでいます"/>
   <translation tag="Pair" ja="ペアリング"/>
@@ -2331,7 +2307,6 @@
   <translation tag="Readings from extra temperature sensors" ja="追加の温度センサーの値"/>
   <translation tag="Ready" ja="準備完了"/>
   <translation tag="Ready for filament operations" ja="フィラメント操作の準備ができています"/>
-  <translation tag="Ready to Apply" ja="適用の準備完了"/>
   <translation tag="Ready to calibrate" ja="キャリブレーション準備完了"/>
   <translation tag="Rear" ja="奥"/>
   <translation tag="Rear Left" ja="左奥"/>
@@ -2491,7 +2466,6 @@
   <translation tag="Retry" ja="再試行"/>
   <translation tag="Reverse Multiplier" ja="逆方向倍率"/>
   <translation tag="Review detected hardware validation issues" ja="検出されたハードウェア検証の問題を確認"/>
-  <translation tag="Review your changes" ja="変更を確認"/>
   <translation tag="Review your configuration below, then click Finish to save" ja="以下の設定を確認し、「完了」をクリックして保存してください"/>
   <translation tag="Rewinding" ja="巻き戻し中"/>
   <translation tag="Right" ja="右"/>
@@ -2678,7 +2652,6 @@
   <translation tag="Settings Snapshot" ja="設定スナップショット"/>
   <translation tag="Settings reset to defaults. Restarting..." ja="設定をデフォルトにリセットしました。再起動中..."/>
   <translation tag="Setup" ja="セットアップ"/>
-  <translation tag="Setup Complete!" ja="セットアップ完了！"/>
   <translation tag="Setup Timelapse" ja="タイムラプスを設定"/>
   <translation tag="Several printers match - choose yours" ja="複数のプリンターが一致します - 選択してください"/>
   <translation tag="Shadow Intensity" ja="影の強度"/>
@@ -3023,7 +2996,7 @@
   <translation tag="This is what data would be sent if enabled" ja="これは有効にした場合に送信されるデータです"/>
   <translation tag="This may take up to 30 seconds" ja="最大30秒かかる場合があります"/>
   <translation tag="This plugin asks for no special permissions." ja="このプラグインは特別な権限を要求しません。"/>
-  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." ja="このプラグインにより、HelixScreen がベッドメッシュや QGL などの印刷開始オプションを制御できます。インストール後、以下の「PRINT_START を設定」を使用してオプションの手順を有効にしてください。"/>
+  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL." ja="このプラグインにより、HelixScreen がベッドメッシュや QGL などの印刷開始オプションを制御できます。"/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" ja="この印刷には約 %.0fg 必要ですが、スプールの残量は約 %.0fg です。それでも開始しますか？"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" ja="このプリンターはツールオフセットを自動でキャリブレートできません"/>
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." ja="このプリンターのゲートは Spoolman から設定されます。HelixScreen 側のコピーはクリアしました。Spoolman でスプールを削除してください。"/>
@@ -3294,7 +3267,6 @@
   <translation tag="Welcome to HelixScreen" ja="HelixScreen へようこそ"/>
   <translation tag="What We Collect" ja="収集する情報"/>
   <translation tag="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs." ja="有効時はマクロのみ実行されます。無効時は先に温度を設定してからマクロが実行されます。"/>
-  <translation tag="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation." ja="印刷開始時に %s を実行するかどうかを選択できるようになります。最近すでに実行した場合や、印刷準備をより細かく制御したい場合に時間を節約できます。"/>
   <translation tag="Where UI sounds play" ja="UIサウンドの再生先"/>
   <translation tag="Whether filament is loaded" ja="フィラメントの装填状態"/>
   <translation tag="Which macro the Close feeder button sends" ja="「フィーダーを閉じる」ボタンが送信するマクロ"/>
@@ -3345,12 +3317,9 @@
   <translation tag="YOU WIN!&#10;Score: {}&#10;Tap to play again" ja="クリア！&#10;スコア: {}&#10;タップでもう一度"/>
   <translation tag="Year" ja="年"/>
   <translation tag="Yes" ja="はい"/>
-  <translation tag="You can now skip these operations when starting prints.&#10;&#10;Look for the new options in the print details before starting each print.&#10;&#10;A backup of your config was saved automatically." ja="印刷開始時にこれらの操作をスキップできるようになりました。&#10;&#10;各印刷を開始する前に、印刷の詳細で新しいオプションを確認してください。&#10;&#10;設定のバックアップが自動的に保存されました。"/>
   <translation tag="You can skip this and calibrate later in Settings." ja="スキップして後で設定でキャリブレーションできます。"/>
   <translation tag="You have unsaved changes. Discard them?" ja="保存されていない変更があります。破棄しますか？"/>
-  <translation tag="Your PRINT_START macro will be updated to give you control over:&#10;&#10;" ja="PRINT_START マクロが更新され、以下を制御できるようになります:&#10;&#10;"/>
   <translation tag="Your completed prints will appear here" ja="完了した印刷がここに表示されます"/>
-  <translation tag="Your print start is already fully configured!" ja="印刷開始設定はすでに完全に構成されています！"/>
   <translation tag="Your printer at a glance" ja="プリンターを一目で確認"/>
   <translation tag="Your printer has an automatic filament changer" ja="プリンターに自動フィラメントチェンジャーが搭載されています"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" ja="セットアップ中にプリンターがオフラインだったため、ハードウェアオプションはスキップされました。今すぐ設定しますか？"/>
