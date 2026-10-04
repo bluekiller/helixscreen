@@ -254,6 +254,26 @@ inline int standalone_rotation(int cli_rotation) {
     return kernel > 0 ? kernel : 0;
 }
 
+/**
+ * @brief Rotation DisplayManager::init() applies at startup
+ *
+ * The requested rotation, else the kernel's panel_orientation when the
+ * first-boot rotation probe owns this boot. It must be applied in init(),
+ * before the input devices exist: the backends gate the stored touch range and
+ * calibration on the display's rotation from create_input_pointer()
+ * (prestonbrown/helixscreen#1428).
+ *
+ * @param requested CLI rotation in degrees (0 = none requested)
+ * @param probe_wanted Whether the first-boot rotation probe owns this boot
+ * @param kernel_orientation DisplayBackend::detect_panel_orientation(), -1 if absent
+ */
+inline int startup_rotation(int requested, bool probe_wanted, int kernel_orientation) {
+    if (requested != 0 || !probe_wanted) {
+        return requested;
+    }
+    return kernel_orientation > 0 ? kernel_orientation : 0;
+}
+
 } // namespace helix
 
 /**

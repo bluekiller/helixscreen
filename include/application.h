@@ -100,6 +100,7 @@ class Application {
     bool init_config();
     bool init_logging();
     bool init_display();
+    bool rotation_probe_wanted() const;
     void run_rotation_probe_and_layout();
     bool init_theme();
     bool init_assets();
@@ -241,6 +242,11 @@ class Application {
     // Screen dimensions (0 = auto-detect from display hardware)
     int m_screen_width = 0;
     int m_screen_height = 0;
+
+    // First-boot rotation probe decision and the kernel panel_orientation it
+    // read (-1 = none), both taken in init_display() before the display exists
+    bool m_rotation_probe_wanted = false;
+    int m_kernel_orientation = -1;
 
     // UI objects (not owned, managed by LVGL)
     lv_obj_t* m_screen = nullptr;
