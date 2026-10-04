@@ -828,7 +828,7 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
 
     // Dispatch to appropriate renderer based on mode
     if (st->is_using_2d_mode()) {
-        // 2D Layer Renderer (orthographic top-down view)
+        // 2D layer renderer (orthographic FRONT corner view)
         if (!st->layer_renderer_2d_) {
             // Lazy initialization of 2D renderer (non-streaming mode only)
             // In streaming mode, layer_renderer_2d_ is already initialized in open_file_async

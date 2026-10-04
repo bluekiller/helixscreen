@@ -1884,7 +1884,7 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
     uint8_t ghost_r = wash_r * GHOST_INFILL_BRIGHT_PERCENT / 100;
     uint8_t ghost_g = wash_g * GHOST_INFILL_BRIGHT_PERCENT / 100;
     uint8_t ghost_b = wash_b * GHOST_INFILL_BRIGHT_PERCENT / 100;
-    uint8_t ghost_a = 255; // Full alpha, we'll apply 40% when blitting
+    uint8_t ghost_a = 255; // Full alpha; blit_ghost_cache() applies the translucency
     uint32_t ghost_color = (ghost_a << 24) | (ghost_r << 16) | (ghost_g << 8) | ghost_b;
 
     uint8_t wall_r = wash_r * GHOST_WALL_BRIGHT_PERCENT / 100;

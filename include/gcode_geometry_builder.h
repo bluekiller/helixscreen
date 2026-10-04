@@ -385,7 +385,7 @@ struct RibbonGeometry {
         return total;
     }
 
-    /// Pre-computed interleaved vertex buffers for GPU upload (packed 20-byte layout — see
+    /// Pre-computed interleaved vertex buffers for GPU upload (packed 12-byte layout — see
     /// PackedVertex). Prepared on background thread to avoid blocking UI during VBO upload.
     struct PreparedLayerBuffer {
         std::vector<uint8_t>

@@ -38,13 +38,15 @@ constexpr bool reveal_ready_2d(bool ghost_output, bool solid_incomplete, bool gh
 }
 
 /**
- * @brief 2D orthographic layer renderer for G-code visualization
+ * @brief 2D software-rasterized G-code preview
  *
- * Renders a single layer from a top-down view using direct X/Y → pixel
- * mapping. Optimized for low-power hardware (AD5M) without 3D matrix transforms.
+ * Draws every layer up to the current one in the orthographic FRONT corner
+ * view (see gcode_projection.h), into its own ARGB8888 buffers rather than
+ * through the LVGL draw API. Built for low-power hardware (AD5M) with no GPU.
  *
  * Features:
- * - Single layer rendering (fast, no depth sorting)
+ * - Progressive solid cache, painted in layer order with no depth buffer
+ * - Background-built ghost of the whole model under it
  * - Auto-fit to canvas bounds
  * - Toggle visibility of travels/supports
  * - Print progress integration (auto-follow current layer)
@@ -257,16 +259,6 @@ class GCodeLayerRenderer {
         return depth_shading_.load(std::memory_order_relaxed);
     }
 
-    /**
-     * @brief Enable/disable screen-space ambient occlusion post-processing
-     * @param enable true to enable SSAO (default: OFF)
-     *
-     * When enabled in FRONT view, applies a post-processing pass to the solid
-     * cache buffer that darkens pixels in concavities (corners, crevices) for
-     * improved depth perception. Only applied when the cache is fully rendered.
-     *
-     * Toggle via HELIX_SSAO=1 environment variable for testing.
-     */
     /// Enable/disable antialiased strokes, independently of the outline pass.
     /// Invalidates the cache: the geometry has to be redrawn to change.
     void set_antialias_enabled(bool enable) {
@@ -282,6 +274,12 @@ class GCodeLayerRenderer {
         return antialias_enabled_.load(std::memory_order_relaxed);
     }
 
+    /**
+     * @brief Enable/disable the silhouette outline pass (called SSAO in code)
+     *
+     * Once the solid cache is complete, darkens every filled pixel that borders
+     * an empty one. HELIX_SSAO and the device tier pick the default.
+     */
     void set_ssao_enabled(bool enable) {
         ssao_enabled_.store(enable, std::memory_order_relaxed);
         // Undo the shading before dropping the record of it, or the darkened

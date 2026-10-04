@@ -27,7 +27,7 @@ enum class GcodeViewerState {
  * - Auto: Uses GLES 3D if available, falls back to 2D layer view.
  *         Can be overridden via HELIX_GCODE_MODE env var.
  * - Render3D: Forces 3D GLES renderer (isometric ribbon view with full camera control).
- * - Layer2D: Forces 2D orthographic layer view (front/top view, single layer at a time)
+ * - Layer2D: Forces the 2D software renderer (orthographic corner view)
  *
  * Environment variable override (checked at widget creation):
  * - HELIX_GCODE_MODE=3D  -> Use 3D GLES renderer
@@ -257,7 +257,7 @@ void ui_gcode_viewer_force_redraw(lv_obj_t* obj);
  *
  * - AUTO: Uses GLES 3D if available, falls back to 2D layer view
  * - 3D: Forces 3D GLES renderer with full camera control
- * - 2D_LAYER: Forces top-down orthographic single-layer view (fast on AD5M)
+ * - 2D_LAYER: Forces the 2D software renderer (orthographic corner view, fast on AD5M)
  *
  * Default is AUTO. Settings are persisted in SettingsManager.
  */
