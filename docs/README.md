@@ -84,6 +84,10 @@ Welcome to the HelixScreen documentation. Choose your path:
 | [**Sound System**](devel/SOUND_SYSTEM.md) | Audio architecture, JSON themes, backends |
 | [**Screensavers**](devel/SCREENSAVERS.md) | Registry, shared parts, CPU gate and stored levels, adding a saver |
 | [**LED Control**](devel/LED_CONTROL.md) | LED system: 5 backends, auto-state lighting, overlays |
+| [**Sensor Management**](devel/SENSOR_MANAGEMENT.md) | Sensor managers (filament, temperature, humidity, probe, accel, width, load cell): discovery, subjects, runout handling |
+| [**Action Prompts**](devel/ACTION_PROMPTS.md) | Klipper `action:prompt_*` macros: parser, state machine, modal, button gcode |
+| [**Bluetooth System**](devel/BLUETOOTH_SYSTEM.md) | Runtime-loaded BT plugin: C ABI, bus thread, discovery, pairing, RFCOMM/BLE |
+| [**USB Management**](devel/USB_MANAGEMENT.md) | USB drives, the fallback automounter, print-select USB source, USB label printers, HID scanners |
 | [**Chamber Heaters**](devel/CHAMBER_HEATER.md) | Chamber heater backends, discovery, diagnostics, ceiling rules |
 | [**Bed Drying**](devel/BED_DRYING.md) | Drying filament on the heated bed: capability, flow, the spools-on-the-bed latch, restarts |
 | [**Printer Manager**](devel/PRINTER_MANAGER.md) | Printer overlay, custom images, inline editing |
