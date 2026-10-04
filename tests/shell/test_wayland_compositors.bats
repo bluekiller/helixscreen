@@ -40,6 +40,9 @@ case "$cmd" in
     [ "$svc" = "$MOCK_ACTIVE_SVC" ] && exit 0 || exit 1 ;;
   stop|disable)
     echo "$cmd ${@: -1}" >> "$MOCK_SYSTEMCTL_LOG" ; exit 0 ;;
+  show)
+    # systemd >= 230 answers `show -p Id --value <name>` with <name>.service
+    echo "${@: -1}.service" ; exit 0 ;;
   *) exit 0 ;;
 esac
 EOF
@@ -80,7 +83,7 @@ EOF
     export MOCK_ACTIVE_SVC="weston"
     found_any=false
     stop_wayland_compositors >/dev/null
-    grep -q "^systemd-dropin:weston$" "$INSTALL_DIR/config/.disabled_services"
+    grep -q "^systemd-dropin:weston.service$" "$INSTALL_DIR/config/.disabled_services"
 }
 
 @test "wayland: kills a lingering compositor process (no systemd unit)" {
@@ -125,9 +128,9 @@ EOF
     run stop_wayland_compositors
     [ "$status" -eq 0 ]
 
-    grep -q "^disable labwc$" "$MOCK_SYSTEMCTL_LOG"
-    refute_grep "^stop labwc$" "$MOCK_SYSTEMCTL_LOG"
-    grep -qxF "systemd-dropin:labwc" "$INSTALL_DIR/config/.disabled_services"
+    grep -q "^disable labwc.service$" "$MOCK_SYSTEMCTL_LOG"
+    refute_grep "^stop labwc" "$MOCK_SYSTEMCTL_LOG"
+    grep -qxF "systemd-dropin:labwc.service" "$INSTALL_DIR/config/.disabled_services"
     contains "Reboot" "$output"
     lacks "Killed lingering" "$output"
 }

@@ -117,20 +117,26 @@ _TAKEN_DOWN_UNITS=""
 # read as our doing.
 # Args: $1 = unit name, $2 = "nostop" to leave a running unit up until reboot
 _take_down_unit() {
-    local unit dropin
+    local unit dropin record=systemd-dropin
     unit=$(systemctl show -p Id --value "$1" 2>/dev/null)
     [ -n "$unit" ] || unit="$1"
+    # systemd ignores a drop-in dir named after a bare unit name.
+    case "$unit" in *.*) ;; *) unit="$unit.service" ;; esac
     case " $_TAKEN_DOWN_UNITS " in *" $unit "*) return 0 ;; esac
     _TAKEN_DOWN_UNITS="$_TAKEN_DOWN_UNITS $unit"
 
     dropin=$(competing_ui_dropin "$unit")
-    $SUDO mkdir -p "$(dirname "$dropin")" 2>/dev/null || true
-    printf '[Unit]\nConditionPathExists=!%s/bin/helix-screen\n' "$INSTALL_DIR" \
-        | $SUDO tee "$dropin" >/dev/null 2>&1 || true
-    $SUDO systemctl daemon-reload 2>/dev/null || true
+    if $SUDO mkdir -p "$(dirname "$dropin")" 2>/dev/null \
+        && printf '[Unit]\nConditionPathExists=!%s/bin/helix-screen\n' "$INSTALL_DIR" \
+            | $SUDO tee "$dropin" >/dev/null 2>&1; then
+        $SUDO systemctl daemon-reload 2>/dev/null || true
+    else
+        log_warn "Could not write $dropin: $unit is only disabled, so a firmware update may re-enable it."
+        record=systemd
+    fi
     [ "${2:-}" = "nostop" ] || $SUDO systemctl stop "$unit" 2>/dev/null || true
     $SUDO systemctl disable "$unit" 2>/dev/null || true
-    record_disabled_service "systemd-dropin" "$unit"
+    record_disabled_service "$record" "$unit"
     $SUDO systemctl reset-failed "$unit" 2>/dev/null || true
 }
 

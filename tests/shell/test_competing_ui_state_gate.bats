@@ -70,9 +70,14 @@ setup() {
 
 # Mock systemctl reporting one unit in one state and every other unit absent.
 # Logs each invocation so a test can assert on stop/disable/enable.
-# Args: $1 = unit name, $2 = is-active exit (0 running), $3 = is-enabled word
+# `show -p Id --value <name>` answers `<name>.service`, as systemd >= 230 does
+# for any name; pass "noid" to model an older systemd that prints nothing.
+# Args: $1 = unit name, $2 = is-active exit (0 running), $3 = is-enabled word,
+#       $4 = "noid" (optional)
 mock_unit_state() {
     local unit="$1" active_exit="$2" enabled_word="$3"
+    local show_body='for a; do last=$a; done; echo "$last.service"'
+    [ "${4:-}" = "noid" ] && show_body=':'
     local enabled_exit=1
     # systemd exits 0 for `static`, `indirect` and `alias` as well as the enabled
     # words, which is the trap the word match exists to avoid.
@@ -90,6 +95,9 @@ case \"\$1\" in
     is-enabled)
         case \"\$*\" in *'$unit'*) echo '$enabled_word'; exit $enabled_exit ;; esac
         echo 'not-found'; exit 4
+        ;;
+    show)
+        $show_body
         ;;
 esac
 exit 0
@@ -165,7 +173,7 @@ exit 0
 
     grep -q "stop KlipperScreen" "$SYSTEMCTL_LOG"
     grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-dropin:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:KlipperScreen.service" "$DISABLED_SERVICES_FILE"
 }
 
 @test "pi: an enabled but stopped KlipperScreen is disabled and recorded" {
@@ -176,7 +184,7 @@ exit 0
     [ "$status" -eq 0 ]
 
     grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-dropin:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:KlipperScreen.service" "$DISABLED_SERVICES_FILE"
 }
 
 @test "pi: a taken-down unit gets a drop-in that keeps it down while HelixScreen is installed" {
@@ -188,11 +196,37 @@ exit 0
     [ "$status" -eq 0 ]
 
     local dropin
-    dropin=$(competing_ui_dropin KlipperScreen)
+    dropin=$(competing_ui_dropin KlipperScreen.service)
     grep -qxF "[Unit]" "$dropin"
     grep -qxF "ConditionPathExists=!$INSTALL_DIR/bin/helix-screen" "$dropin"
     grep -q "daemon-reload" "$SYSTEMCTL_LOG"
     refute_grep "mask" "$SYSTEMCTL_LOG"
+}
+
+@test "pi: a systemd that prints no Id still gets a .service drop-in" {
+    # systemd ignores a drop-in dir named after a bare unit name.
+    mock_unit_state "KlipperScreen" 0 "enabled" noid
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    [ -f "$HELIX_SYSTEMD_UNIT_DIR/KlipperScreen.service.d/helixscreen-competing.conf" ]
+    grep -qxF "systemd-dropin:KlipperScreen.service" "$DISABLED_SERVICES_FILE"
+}
+
+@test "pi: a drop-in that cannot be written is recorded as a plain disable" {
+    # A read-only /etc: the unit is only disabled, and the record must not
+    # claim the durable part. A path under a regular file fails even for root.
+    mock_unit_state "KlipperScreen" 0 "enabled"
+    : > "$BATS_TEST_TMPDIR/not-a-dir"
+    HELIX_SYSTEMD_UNIT_DIR="$BATS_TEST_TMPDIR/not-a-dir/system"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
+    grep -qxF "systemd:KlipperScreen.service" "$DISABLED_SERVICES_FILE"
+    refute_grep "systemd-dropin" "$DISABLED_SERVICES_FILE"
 }
 
 @test "pi: a unit name is resolved to its Id and taken down once" {
@@ -259,7 +293,7 @@ exit 0
     [ "$status" -eq 0 ]
 
     grep -q "disable cage@tty1" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-dropin:cage@tty1" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:cage@tty1.service" "$DISABLED_SERVICES_FILE"
 }
 
 @test "compositor: a stopped, disabled weston is left alone" {
@@ -288,8 +322,8 @@ exit 0
     grep -q "stop lightdm" "$SYSTEMCTL_LOG"
     grep -q "disable lightdm" "$SYSTEMCTL_LOG"
     grep -q "reset-failed lightdm" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-dropin:lightdm" "$DISABLED_SERVICES_FILE"
-    [ -f "$(competing_ui_dropin lightdm)" ]
+    grep -qxF "systemd-dropin:lightdm.service" "$DISABLED_SERVICES_FILE"
+    [ -f "$(competing_ui_dropin lightdm.service)" ]
     # The default target is the user's: keeping the DM down is enough.
     refute_grep "set-default" "$SYSTEMCTL_LOG"
 }
@@ -316,8 +350,8 @@ exit 0
 
     refute_grep "^stop lightdm" "$SYSTEMCTL_LOG"
     grep -q "disable lightdm" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-dropin:lightdm" "$DISABLED_SERVICES_FILE"
-    [ -f "$(competing_ui_dropin lightdm)" ]
+    grep -qxF "systemd-dropin:lightdm.service" "$DISABLED_SERVICES_FILE"
+    [ -f "$(competing_ui_dropin lightdm.service)" ]
 }
 
 @test "display manager: XDG_SESSION_TYPE=wayland alone marks a graphical session" {
@@ -389,7 +423,7 @@ exit 0
     run stop_competing_uis
     [ "$status" -eq 0 ]
     local dropin
-    dropin=$(competing_ui_dropin KlipperScreen)
+    dropin=$(competing_ui_dropin KlipperScreen.service)
     [ -f "$dropin" ]
 
     : > "$SYSTEMCTL_LOG"
@@ -418,7 +452,7 @@ exit 0
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
-    grep -qxF "systemd-dropin:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:KlipperScreen.service" "$DISABLED_SERVICES_FILE"
 
     : > "$SYSTEMCTL_LOG"
     run reenable_disabled_services
