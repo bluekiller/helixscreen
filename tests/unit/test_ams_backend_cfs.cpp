@@ -5992,6 +5992,84 @@ TEST_CASE("CFS fork: lane records stay on their bays when a box drops",
     }
 }
 
+// A placeholder's bays belong to a box that is not there: nothing reaches them
+// and nothing counts them (#1464).
+TEST_CASE("CFS: an absent box's bays refuse every operation", "[ams][cfs][1464]") {
+    SECTION("fork {1,3}: load, edit and identity write are refused") {
+        CfsRemapHelper backend;
+        backend.mark_running();
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes({1, 3})));
+
+        CHECK(backend.load_filament(5).result == AmsResult::INVALID_SLOT);
+        CHECK(backend.change_tool(5).result == AmsResult::INVALID_SLOT);
+        CHECK(backend.dispatched.empty());
+
+        SlotInfo edit;
+        edit.material = "PETG";
+        edit.color_rgb = 0x0A2989;
+        CHECK(helix::test::apply_edit(backend, 5, edit).result == AmsResult::INVALID_SLOT);
+        CHECK_FALSE(CfsTestAccess::get_override(backend, 5).has_value());
+
+        backend.push_slot_identity_to_firmware(5, "PETG", "eSUN", "", 0x0A2989);
+        CHECK(backend.captured.empty());
+
+        const auto info = backend.get_system_info();
+        CHECK(info.present_slot_count() == 8);
+        CHECK(backend.get_slot_info(5).status == SlotStatus::EMPTY);
+        CHECK(backend.get_slot_info(5).mapped_tool == -1);
+    }
+
+    SECTION("stock T1+T3: tool assignment and RFID never touch T2's bays") {
+        json box = make_multi_unit_box(3);
+        box["T2"] = json{{"state", "None"}};
+        CfsRemapHelper backend;
+        backend.mark_running();
+        helix::ams::FilamentSlotOverride kept;
+        kept.spool_name = "T2A spool";
+        CfsTestAccess::seed_override(backend, 4, kept);
+        CfsTestAccess::handle_status(backend, make_cfs_notification(box));
+        CfsTestAccess::handle_status(backend, make_cfs_notification(box));
+
+        CHECK(backend.set_tool_mapping(0, 5).result == AmsResult::INVALID_SLOT);
+        CHECK(backend.captured.empty());
+        CHECK_FALSE(CfsTestAccess::last_rfid_uid(backend, 5).has_value());
+        REQUIRE(CfsTestAccess::get_override(backend, 4).has_value());
+        CHECK(CfsTestAccess::get_override(backend, 4)->spool_name == "T2A spool");
+    }
+}
+
+// The last box dropping leaves no placeholder: its bays fall outside the span,
+// and what was kept for them waits there unchanged until it returns.
+TEST_CASE("CFS fork: a trailing box dropping leaves its state untouched",
+          "[ams][cfs][fork][lane][1464]") {
+    helix::test::RegisteredBackend<CfsRemapHelper> backend;
+    backend->mark_running();
+    CfsTestAccess::handle_status(*backend,
+                                 make_cfs_notification(make_fork_box_with_boxes({1, 2, 3})));
+    helix::ams::FilamentSlotOverride box3a;
+    box3a.spool_name = "Box 3 A spool";
+    box3a.spoolman_id = 108;
+    CfsTestAccess::seed_override(*backend, 8, box3a);
+    const auto baseline = CfsTestAccess::last_rfid_uid(*backend, 8);
+
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(make_fork_box_with_boxes({1, 2})));
+    CHECK(backend->get_system_info().total_slots == 8);
+    CHECK(backend->get_system_info().present_slot_count() == 8);
+    CHECK(backend->load_filament(8).result == AmsResult::INVALID_SLOT);
+    REQUIRE(CfsTestAccess::get_override(*backend, 8).has_value());
+    CHECK(CfsTestAccess::get_override(*backend, 8)->spool_name == "Box 3 A spool");
+    CHECK(CfsTestAccess::last_rfid_uid(*backend, 8) == baseline);
+    const auto lane = helix::ams::lane_sources(backend.lane(8));
+    REQUIRE(lane.vendor_cache.has_value());
+    CHECK(lane.vendor_cache->product_name == std::optional<std::string>("Box 3 A"));
+
+    CfsTestAccess::handle_status(*backend,
+                                 make_cfs_notification(make_fork_box_with_boxes({1, 2, 3})));
+    REQUIRE(CfsTestAccess::get_override(*backend, 8).has_value());
+    CHECK(CfsTestAccess::get_override(*backend, 8)->spool_name == "Box 3 A spool");
+}
+
 // Stock numbers bays by box address too: with T2 off the bus, T3's bays are
 // global 8-11 and must stay reachable (#1464).
 TEST_CASE("CFS stock: a unit behind a disconnected one is still addressable", "[ams][cfs][1464]") {
