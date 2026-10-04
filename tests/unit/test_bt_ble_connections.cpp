@@ -20,6 +20,7 @@
 
 #include "../../src/bluetooth/bt_agent.cpp"
 #include "../../src/bluetooth/bt_ble.cpp"
+#include "../../src/bluetooth/bt_discovery.cpp"
 #include "../../src/bluetooth/bt_plugin.cpp"
 
 using namespace std::chrono_literals;

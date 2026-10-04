@@ -219,8 +219,7 @@ static int on_interfaces_added(sd_bus_message* msg, void* userdata, sd_bus_error
     return 0;
 }
 
-/// Find the BlueZ adapter path (typically /org/bluez/hci0)
-static std::string find_adapter_path(sd_bus* bus) {
+std::string helix::bluetooth::find_adapter_path(sd_bus* bus) {
     sd_bus_error error = SD_BUS_ERROR_NULL;
     sd_bus_message* reply = nullptr;
 
@@ -348,7 +347,7 @@ extern "C" int helix_bt_discover(helix_bt_context* ctx, int timeout_ms, helix_bt
 
     try {
         ctx->bus_thread->run_sync([&](sd_bus* bus) {
-            adapter = find_adapter_path(bus);
+            adapter = helix::bluetooth::find_adapter_path(bus);
             if (adapter.empty()) {
                 std::lock_guard<std::mutex> lock(ctx->mutex);
                 ctx->last_error = "no BlueZ adapter found";

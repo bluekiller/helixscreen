@@ -20,9 +20,11 @@
 // Shared helper: MAC to D-Bus path
 // ---------------------------------------------------------------------------
 
-std::string mac_to_dbus_path(const char* mac) {
-    // "AA:BB:CC:DD:EE:FF" -> "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
-    std::string path = "/org/bluez/hci0/dev_";
+std::string helix::bluetooth::device_dbus_path(sd_bus* bus, const char* mac) {
+    std::string path = find_adapter_path(bus);
+    if (path.empty())
+        path = "/org/bluez/hci0";
+    path += "/dev_";
     if (mac) {
         std::string m(mac);
         std::replace(m.begin(), m.end(), ':', '_');

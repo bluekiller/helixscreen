@@ -22,11 +22,16 @@
 #include <systemd/sd-bus.h>
 #include <vector>
 
-/// Convert MAC address "AA:BB:CC:DD:EE:FF" to BlueZ D-Bus object path
-/// "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
-std::string mac_to_dbus_path(const char* mac);
-
 namespace helix::bluetooth {
+
+/// Object path of the first BlueZ adapter (typically "/org/bluez/hci0"), or empty when
+/// BlueZ answers with none. Bus thread only.
+std::string find_adapter_path(sd_bus* bus);
+
+/// BlueZ object path of @p mac under the adapter find_adapter_path() reports, falling back
+/// to hci0 when there is none so the D-Bus call names a path and fails with BlueZ's error.
+/// Bus thread only.
+std::string device_dbus_path(sd_bus* bus, const char* mac);
 
 /// Bit set in every BLE handle. connect_rfcomm refuses an fd that carries it, so an RFCOMM
 /// fd and a BLE handle can never share a value.

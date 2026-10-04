@@ -362,7 +362,15 @@ extern "C" int helix_bt_connect_ble(helix_bt_context* ctx, const char* mac,
         return -ENODEV;
     }
 
-    std::string device_path = mac_to_dbus_path(mac);
+    std::string device_path;
+    try {
+        ctx->bus_thread->run_sync(
+            [&](sd_bus* bus) { device_path = helix::bluetooth::device_dbus_path(bus, mac); });
+    } catch (const std::exception& e) {
+        std::lock_guard<std::mutex> lock(ctx->mutex);
+        ctx->last_error = e.what();
+        return -EIO;
+    }
     fprintf(stderr, "[bt] BLE connecting to %s (%s)\n", mac, device_path.c_str());
 
     int r = 0;

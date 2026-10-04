@@ -6,6 +6,7 @@
 
 #include <climits>
 #include <cstring>
+#include <dirent.h>
 #include <dlfcn.h>
 #include <string>
 #include <unistd.h>
@@ -20,7 +21,7 @@ BluetoothLoader& BluetoothLoader::instance() {
 BluetoothLoader::BluetoothLoader() {
     if (!has_bt_hardware()) {
         spdlog::info(
-            "[BluetoothLoader] No Bluetooth hardware detected (no /sys/class/bluetooth/hci0)");
+            "[BluetoothLoader] No Bluetooth hardware detected (no /sys/class/bluetooth/hci*)");
         return;
     }
     spdlog::info("[BluetoothLoader] Bluetooth hardware detected");
@@ -61,7 +62,18 @@ bool BluetoothLoader::is_available() const {
 }
 
 bool BluetoothLoader::has_bt_hardware() {
-    return access("/sys/class/bluetooth/hci0", F_OK) == 0;
+    DIR* dir = opendir("/sys/class/bluetooth");
+    if (!dir)
+        return false;
+    bool found = false;
+    while (const dirent* entry = readdir(dir)) {
+        if (std::strncmp(entry->d_name, "hci", 3) == 0) {
+            found = true;
+            break;
+        }
+    }
+    closedir(dir);
+    return found;
 }
 
 bool BluetoothLoader::try_load() {
