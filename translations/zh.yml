@@ -537,6 +537,7 @@ translations:
   Checking for webcam...: 正在检查摄像头...
   Checking plugin: 正在检查插件
   Checking slots...: 正在检查槽位...
+  Checking the printer...: "正在检查打印机..."
   Checking timelapse plugin...: 正在检查延时摄影插件...
   Checking webcam: 正在检查摄像头
   Checking...: 检查中...
@@ -1562,6 +1563,8 @@ translations:
     已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper 将 'default' 保留用于新的校准。请选择其他名称。"
   Klipper restarting - macros activating: '正在重启 Klipper - 正在启用宏'
+  ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
+  : "Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存并使 Klipper 卡住，此时固件重启无法到达。请将打印机断电重启（或通过 SSH 重启 Klipper），然后重试。"
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存；请重启 Klipper 后重试。"
   Klipper will restart to apply changes.: Klipper 将重启以应用更改。
   Klipper will restart to apply new settings.: Klipper 将重启以应用新设置。
@@ -1959,6 +1962,7 @@ translations:
   Normal: 正常
   Not Connected: '未连接'
   Not Enough Filament: 耗材不足
+  Not Enough Memory: "内存不足"
   Not Initialized: '未初始化'
   Not Now: 暂不
   Not Supported: '不支持'
@@ -2032,6 +2036,8 @@ translations:
   One tap runs this macro. Dangerous macros still ask.: '单击即可运行此宏。危险宏仍会询问。'
   'Only on A: {} Hz': "仅 A：{} Hz"
   'Only on B: {} Hz': "仅 B：{} Hz"
+  ? Only {} MB of memory is free, and Klipper's analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled.
+  : "可用内存仅 {} MB，而 Klipper 的分析需要约 {} MB。运行测试会使打印机卡住，直到断电重启。"
   Ooze Reduction: '减少渗漏'
   Open: 打开
   Open Source Licenses: 开源许可证
@@ -3095,6 +3101,8 @@ translations:
   Theme changes apply after restart.: 主题更改在重启后生效。
   Theme reset to defaults: 主题已重置为默认值
   'Theme: ': '主题: '
+  ? There is not enough free memory to run this test. Klipper's analysis would run out of memory and leave the printer stuck until it is power-cycled.
+  : "可用内存不足，无法运行此测试。Klipper 的分析会耗尽内存，使打印机卡住，直到断电重启。"
   'These tools have a different filament grade loaded:': 以下工具装载的耗材等级不同：
   'These tools have incompatible materials loaded:': 这些工具加载了不兼容的材料：
   'These tools have no filament loaded:': '以下工具未加载耗材:'

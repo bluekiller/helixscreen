@@ -355,3 +355,27 @@ TEST_CASE("write_oom_score_adj: reports failure on an unwritable path", "[memory
 
     std::filesystem::remove(base);
 }
+
+TEST_CASE("resonance memory check refuses on headroom, warns on total", "[memory][resonance]") {
+    auto mb = [](size_t total, size_t avail, size_t swap) {
+        helix::MemoryInfo m;
+        m.total_kb = total * 1024;
+        m.available_kb = avail * 1024;
+        m.swap_free_kb = swap * 1024;
+        return m;
+    };
+    using helix::ResonanceMemory;
+    // CC1 as measured: 114 MB, no swap, 25 MB available -> wedged klippy.
+    CHECK(helix::resonance_memory_check(mb(114, 25, 0)) == ResonanceMemory::REFUSE);
+    // AD5M as measured: less RAM, but swap brings headroom to ~74 MB -> survived.
+    CHECK(helix::resonance_memory_check(mb(107, 10, 64)) == ResonanceMemory::WARN);
+    // Swap counts; the floor is exclusive at 64.
+    CHECK(helix::resonance_memory_check(mb(150, 30, 33)) == ResonanceMemory::REFUSE);
+    CHECK(helix::resonance_memory_check(mb(150, 30, 34)) == ResonanceMemory::WARN);
+    // A big host with plenty free starts without asking.
+    CHECK(helix::resonance_memory_check(mb(1024, 600, 0)) == ResonanceMemory::OK);
+    // A big host that is nearly out is still refused: the floor is about headroom.
+    CHECK(helix::resonance_memory_check(mb(1024, 40, 0)) == ResonanceMemory::REFUSE);
+    // Unreadable memory info never blocks.
+    CHECK(helix::resonance_memory_check(helix::MemoryInfo{}) == ResonanceMemory::OK);
+}

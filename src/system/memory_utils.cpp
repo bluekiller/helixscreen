@@ -147,6 +147,7 @@ MemoryInfo get_system_memory_info() {
     info.total_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "MemTotal"));
     info.available_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "MemAvailable"));
     info.free_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "MemFree"));
+    info.swap_free_kb = static_cast<size_t>(parse_meminfo_kb(meminfo, "SwapFree"));
 
     // Fallback: if MemAvailable not present (older kernels), estimate from free + buffers/cache
     if (info.available_kb == 0 && info.free_kb > 0) {

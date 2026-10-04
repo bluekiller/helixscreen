@@ -8,6 +8,7 @@
 #include "belt_gating.h"
 #include "belt_tension_calibrator.h"
 #include "belt_tension_types.h"
+#include "memory_utils.h"
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "platform_capabilities.h"
@@ -115,9 +116,9 @@ class BeltTensionPanel : public OverlayBase {
     /// PlatformCapabilities::detect() when the first measurement starts.
     void set_render_tier_for_test(helix::PlatformTier tier, bool supports_animations);
 
-    /// Pin the RAM size the low-memory warning checks. Production reads the
-    /// host's own memory, which is the printer's: the check only runs co-located.
-    void set_total_ram_mb_for_test(size_t total_mb);
+    /// Pin the memory the low-memory check reads. Production reads the host's
+    /// own memory, which is the printer's: the check only runs co-located.
+    void set_memory_for_test(const helix::MemoryInfo& mem);
 
     //
     // === Event Handlers (public for XML callbacks) ===
@@ -286,6 +287,7 @@ class BeltTensionPanel : public OverlayBase {
 
     // Hardware detection cache. Feeds BeltGateInputs::is_corexy.
     helix::calibration::BeltTensionHardware detected_hw_;
+    bool detection_pending_ = false; ///< detect_hardware() has not answered yet
 
     // Run state
     PathRun runs_[2];
@@ -294,7 +296,7 @@ class BeltTensionPanel : public OverlayBase {
     // " · was N%" from it.
     float similarity_percent_ = 0.0f;
     float was_similarity_percent_ = 0.0f;
-    std::optional<size_t> ram_mb_override_;
+    std::optional<helix::MemoryInfo> mem_override_;
     lv_obj_t* low_ram_dialog_ = nullptr;
     std::vector<helix::calibration::BeltPath> queue_;
     /// Size of the queue this run started with, for "2 of 2" detail lines.

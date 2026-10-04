@@ -550,7 +550,13 @@ void InputShaperPanel::start_with_preflight(char axis) {
     }
 
     auto mem = helix::get_system_memory_info();
-    if (mem.total_mb() < helix::RESONANCE_LOW_RAM_WARN_MB) {
+    const auto verdict = helix::resonance_memory_check(mem);
+    if (verdict == helix::ResonanceMemory::REFUSE) {
+        calibrate_all_mode_ = false; // nothing started, so no Y sweep may chain after it
+        helix::ui::show_resonance_memory_refusal(mem.headroom_mb());
+        return;
+    }
+    if (verdict == helix::ResonanceMemory::WARN) {
         // Re-entry guard: a second entry while the warning modal is open is a no-op.
         if (low_ram_warn_dialog_)
             return;
