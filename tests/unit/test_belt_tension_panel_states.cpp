@@ -357,7 +357,8 @@ TEST_CASE("a stall trips the stall guard", "[belt][panel]") {
     CHECK(fx.state_int("belt_tension_state") ==
           static_cast<int>(BeltTensionPanel::ViewState::ERROR));
     CHECK(fx.text("bt_error_message").find("stopped reporting progress") != std::string::npos);
-    CHECK(fx.text("bt_error_message").find("restart Klipper") != std::string::npos);
+    CHECK(fx.text("bt_error_message").find("power-cycle") != std::string::npos);
+    CHECK(fx.text("bt_error_message").find("Restart the Klipper service") != std::string::npos);
 }
 
 TEST_CASE("closing mid-run stops listening", "[belt][panel]") {

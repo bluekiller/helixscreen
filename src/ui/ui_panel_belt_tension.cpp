@@ -631,7 +631,9 @@ void BeltTensionPanel::on_sweep_error(const std::string& message) {
 void BeltTensionPanel::on_stall() {
     spdlog::warn("[BeltTension] Stall guard fired: no progress for {} ms", STALL_TIMEOUT_MS);
     on_error(lv_tr("Klipper stopped reporting progress. Its analysis can run out of memory on "
-                   "small printers; restart Klipper, then try again."));
+                   "small printers and leave Klipper stuck, where a firmware restart cannot "
+                   "reach it. Restart the Klipper service from Mainsail or Fluidd, or "
+                   "power-cycle the printer, then try again."));
 }
 
 void BeltTensionPanel::finish_run() {

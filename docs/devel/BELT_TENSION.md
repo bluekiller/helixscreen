@@ -107,8 +107,9 @@ The panel owns stall detection: `BeltTensionPanel::STALL_TIMEOUT_MS` (120 s, an
 `OperationTimeoutGuard`) fires when no progress line arrived, because Klipper prints one
 every second. `BeltResonanceCollector` carries no deadline of its own. The stall message
 names the likeliest cause on a small board, Klipper's analysis running out of memory, and
-tells the user to restart Klipper: an OOM-killed analysis leaves klippy wedged, and the
-Moonraker firmware-restart RPC cannot reach it.
+tells the user to restart the Klipper service (Mainsail/Fluidd) or power-cycle: an
+OOM-killed analysis leaves klippy wedged, and the Moonraker firmware-restart RPC cannot
+reach it.
 
 **Stop** is not a pause. A sweep cannot be resumed, so `handle_stop_clicked` calls
 `BeltTensionCalibrator::emergency_abort`, which is
