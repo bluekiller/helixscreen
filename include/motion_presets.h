@@ -4,6 +4,7 @@
 #pragma once
 
 #include "axis_move.h"
+#include "bed_coord_mapper.h"
 #include "printer_detector.h"
 #include "printer_motion_state.h"
 #include "printer_state.h"
@@ -75,5 +76,37 @@ inline constexpr double PARK_REAR_MARGIN_MM = 10.0;
  * @return nullopt when either axis's bounds are unknown or degenerate.
  */
 std::optional<AxisTarget> plate_rear_park(const AxisBounds& area);
+
+/**
+ * @brief Mapper for the Bed tab's top-down plate drawn into a viewport
+ *
+ * The plate spans exactly @p area, so the area's minimum corner is the
+ * mapper's origin: a centre-origin delta and a plate inset from travel map
+ * the same way.
+ */
+BedCoordMapper bed_map_mapper(const AxisBounds& area, int viewport_w_px, int viewport_h_px);
+
+/**
+ * @brief XY target for a touch on the Bed tab, in G-code millimetres
+ *
+ * Never fails on a touch outside the plate: it clamps to the nearest point
+ * the plate allows, which on a circular bed is the inscribed circle's rim.
+ * X and Y only.
+ *
+ * @param x_px, y_px Touch point relative to the viewport @p mapper was built for.
+ * @param area The plate in G-code space (preset_area()).
+ * @return nullopt when either axis's bounds are unknown or degenerate.
+ */
+std::optional<AxisTarget> bed_map_target(float x_px, float y_px, const BedCoordMapper& mapper,
+                                         const AxisBounds& area, bool circular_bed);
+
+/**
+ * @brief Z a Bed-tab move lifts to before it travels, if any
+ *
+ * A nozzle below @p clearance_mm would drag across the plate, so the move
+ * rises to the clearance (capped at @p z_max) first. At or above it, or
+ * when the cap leaves nothing to rise to, there is no lift.
+ */
+std::optional<double> bed_map_lift_z(double current_z, double clearance_mm, double z_max);
 
 } // namespace helix

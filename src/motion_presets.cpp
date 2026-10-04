@@ -127,4 +127,43 @@ std::optional<AxisTarget> plate_rear_park(const AxisBounds& area) {
     return target;
 }
 
+BedCoordMapper bed_map_mapper(const AxisBounds& area, int viewport_w_px, int viewport_h_px) {
+    return BedCoordMapper(area.x_max - area.x_min, area.y_max - area.y_min, viewport_w_px,
+                          viewport_h_px, area.x_min, area.y_min);
+}
+
+std::optional<AxisTarget> bed_map_target(float x_px, float y_px, const BedCoordMapper& mapper,
+                                         const AxisBounds& area, bool circular_bed) {
+    const auto center_x = axis_center(area.has_x, area.x_min, area.x_max);
+    const auto center_y = axis_center(area.has_y, area.y_min, area.y_max);
+    if (!center_x || !center_y) {
+        return std::nullopt;
+    }
+    const auto [mm_x, mm_y] = mapper.px_to_mm(x_px, y_px);
+    double x = mm_x;
+    double y = mm_y;
+    if (circular_bed) {
+        const double radius = std::min(area.x_max - area.x_min, area.y_max - area.y_min) / 2.0;
+        const double dx = x - *center_x;
+        const double dy = y - *center_y;
+        const double dist = std::hypot(dx, dy);
+        if (dist > radius) {
+            x = *center_x + dx * radius / dist;
+            y = *center_y + dy * radius / dist;
+        }
+    }
+    AxisTarget target;
+    target.x = std::clamp(x, static_cast<double>(area.x_min), static_cast<double>(area.x_max));
+    target.y = std::clamp(y, static_cast<double>(area.y_min), static_cast<double>(area.y_max));
+    return target;
+}
+
+std::optional<double> bed_map_lift_z(double current_z, double clearance_mm, double z_max) {
+    const double lift = std::min(clearance_mm, z_max);
+    if (current_z >= lift - AxisMove::EPSILON_MM) {
+        return std::nullopt;
+    }
+    return lift;
+}
+
 } // namespace helix

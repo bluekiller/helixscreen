@@ -1,8 +1,11 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "jog_coalescer.h"
+#include "moonraker_motion_api.h"
 #include "motion_presets.h"
 
 #include <iterator>
+#include <string>
 
 #include "../catch_amalgamated.hpp"
 
@@ -196,4 +199,122 @@ TEST_CASE("plate_rear_park centres in X and sits inside the rear of the plate",
     AxisBounds unknown = known_bounds(0, 235, 0, 235);
     unknown.has_y = false;
     CHECK_FALSE(helix::plate_rear_park(unknown).has_value());
+}
+
+TEST_CASE("bed map touch maps to the point under the finger", "[motion][bed_map]") {
+    // 300x150 viewport over a 200x100 plate: scale 1.5, no letterbox.
+    const AxisBounds area = known_bounds(10, 210, 20, 120);
+    const auto mapper = helix::bed_map_mapper(area, 300, 150);
+
+    const auto top_left = helix::bed_map_target(0, 0, mapper, area, false);
+    REQUIRE(top_left.has_value());
+    CHECK(*top_left->x == Catch::Approx(10.0));
+    CHECK(*top_left->y == Catch::Approx(120.0)); // top of the view is the rear
+    CHECK_FALSE(top_left->z.has_value());
+
+    const auto mid = helix::bed_map_target(150, 75, mapper, area, false);
+    REQUIRE(mid.has_value());
+    CHECK(*mid->x == Catch::Approx(110.0));
+    CHECK(*mid->y == Catch::Approx(70.0));
+
+    const auto front_right = helix::bed_map_target(300, 150, mapper, area, false);
+    REQUIRE(front_right.has_value());
+    CHECK(*front_right->x == Catch::Approx(210.0));
+    CHECK(*front_right->y == Catch::Approx(20.0));
+}
+
+TEST_CASE("bed map touch outside the plate clamps to its edge", "[motion][bed_map]") {
+    // Square plate in a wide viewport: 100px letterbox each side.
+    const AxisBounds area = known_bounds(0, 200, 0, 200);
+    const auto mapper = helix::bed_map_mapper(area, 400, 200);
+
+    const auto left_margin = helix::bed_map_target(10, 100, mapper, area, false);
+    REQUIRE(left_margin.has_value());
+    CHECK(*left_margin->x == Catch::Approx(0.0));
+    CHECK(*left_margin->y == Catch::Approx(100.0));
+
+    const auto off_corner = helix::bed_map_target(-50, 500, mapper, area, false);
+    REQUIRE(off_corner.has_value());
+    CHECK(*off_corner->x == Catch::Approx(0.0));
+    CHECK(*off_corner->y == Catch::Approx(0.0));
+}
+
+TEST_CASE("bed map on a circular bed clamps to the inscribed radius", "[motion][bed_map]") {
+    // Delta: centre origin, radius 100.
+    const AxisBounds area = known_bounds(-100, 100, -100, 100);
+    const auto mapper = helix::bed_map_mapper(area, 200, 200);
+
+    // The view's top-right corner is (100, 100): outside the round bed, so it
+    // pulls in along the diagonal to the rim.
+    const auto corner = helix::bed_map_target(200, 0, mapper, area, true);
+    REQUIRE(corner.has_value());
+    CHECK(*corner->x == Catch::Approx(70.7106781).margin(1e-4));
+    CHECK(*corner->y == Catch::Approx(70.7106781).margin(1e-4));
+
+    // Inside the radius nothing moves.
+    const auto inside = helix::bed_map_target(150, 100, mapper, area, true);
+    REQUIRE(inside.has_value());
+    CHECK(*inside->x == Catch::Approx(50.0));
+    CHECK(*inside->y == Catch::Approx(0.0));
+
+    // The same corner on a rectangular bed reaches the corner.
+    const auto square = helix::bed_map_target(200, 0, mapper, area, false);
+    REQUIRE(square.has_value());
+    CHECK(*square->x == Catch::Approx(100.0));
+    CHECK(*square->y == Catch::Approx(100.0));
+}
+
+TEST_CASE("bed map refuses unknown plate bounds", "[motion][bed_map]") {
+    AxisBounds area = known_bounds(0, 200, 0, 200);
+    area.has_x = false;
+    const auto mapper = helix::bed_map_mapper(known_bounds(0, 200, 0, 200), 200, 200);
+    CHECK_FALSE(helix::bed_map_target(100, 100, mapper, area, false).has_value());
+}
+
+TEST_CASE("bed map lift rises to clearance only from below it", "[motion][bed_map]") {
+    const auto lift = helix::bed_map_lift_z(0.2, 5.0, 250.0);
+    REQUIRE(lift.has_value());
+    CHECK(*lift == Catch::Approx(5.0));
+
+    CHECK_FALSE(helix::bed_map_lift_z(5.0, 5.0, 250.0).has_value());
+    CHECK_FALSE(helix::bed_map_lift_z(12.0, 5.0, 250.0).has_value());
+
+    // A clearance above travel is capped there.
+    const auto capped = helix::bed_map_lift_z(1.0, 5.0, 3.0);
+    REQUIRE(capped.has_value());
+    CHECK(*capped == Catch::Approx(3.0));
+    CHECK_FALSE(helix::bed_map_lift_z(3.0, 5.0, 3.0).has_value());
+}
+
+TEST_CASE("bed map lift completes before XY travel, even behind an in-flight move",
+          "[motion][bed_map]") {
+    // The lift rides in the same target as its XY, so a target replacing it
+    // in the coalescer replaces both and can never strip the lift off.
+    helix::JogCoalescer coalescer;
+    helix::AxisTarget first;
+    first.x = 10.0;
+    first.y = 10.0;
+    first.z = 5.0;
+    REQUIRE(coalescer.on_target(first).has_value());
+
+    helix::AxisTarget second;
+    second.x = 150.0;
+    second.y = 80.0;
+    second.z = *helix::bed_map_lift_z(0.2, 5.0, 250.0);
+    CHECK_FALSE(coalescer.on_target(second).has_value());
+    const auto flushed = coalescer.on_ack();
+    REQUIRE(flushed.has_value());
+    const auto* sent = std::get_if<helix::AxisTarget>(&*flushed);
+    REQUIRE(sent != nullptr);
+    REQUIRE(sent->z.has_value());
+
+    // From Z 0.2 the script lifts on its own line, then travels.
+    const std::string gcode =
+        MoonrakerMotionAPI::generate_absolute_move_gcode(*sent, 6000.0, 600.0, 0.2);
+    const auto z_line = gcode.find("Z5");
+    const auto xy_line = gcode.find("X150");
+    REQUIRE(z_line != std::string::npos);
+    REQUIRE(xy_line != std::string::npos);
+    CHECK(z_line < xy_line);
+    CHECK(gcode.substr(xy_line).find('Z') == std::string::npos);
 }
