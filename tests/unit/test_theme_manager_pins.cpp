@@ -12,6 +12,7 @@
  * `HELIX_UPDATE_GOLDEN=1 ./build/bin/helix-tests "[theme_pins]"` and review the diff.
  */
 
+#include "../../src/ui/theme_manager_internal.h"
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
 #include "helix-xml/src/xml/lv_xml.h"
@@ -207,7 +208,7 @@ namespace {
 void noop_cb(lv_observer_t*, lv_subject_t*) {}
 } // namespace
 
-TEST_CASE_METHOD(LVGLUITestFixture, "swatch, breakpoint and portrait subjects follow init/deinit",
+TEST_CASE_METHOD(LVGLUITestFixture, "theme subjects exist once the theme is initialized",
                  "[theme_pins][theme]") {
     std::vector<lv_subject_t*> subjects;
     for (const char* name : {"ui_breakpoint", "ui_breakpoint_v", "ui_is_portrait"}) {
@@ -215,32 +216,62 @@ TEST_CASE_METHOD(LVGLUITestFixture, "swatch, breakpoint and portrait subjects fo
         REQUIRE(s != nullptr);
         subjects.push_back(s);
     }
+    CHECK(subjects[0] == theme_manager_get_breakpoint_subject());
     for (int i = 0; i < 16; ++i) {
         lv_subject_t* s =
             lv_xml_get_subject(nullptr, ("swatch_" + std::to_string(i) + "_desc").c_str());
         REQUIRE(s != nullptr);
-        subjects.push_back(s);
     }
-    subjects.push_back(theme_manager_get_changed_subject());
-    CHECK(lv_subject_get_int(subjects[0]) ==
-          lv_subject_get_int(theme_manager_get_breakpoint_subject()));
-    CHECK(std::string(lv_subject_get_string(subjects[3])) == "App background");
-    CHECK(std::string(lv_subject_get_string(subjects[18])) == "Focus ring");
+    CHECK(std::string(lv_subject_get_string(lv_xml_get_subject(nullptr, "swatch_0_desc"))) ==
+          "App background");
+    CHECK(std::string(lv_subject_get_string(lv_xml_get_subject(nullptr, "swatch_15_desc"))) ==
+          "Focus ring");
+    CHECK(theme_manager_get_changed_subject() != nullptr);
+}
 
-    for (lv_subject_t* s : subjects) {
-        const uint32_t before = lv_ll_get_len(&s->subs_ll);
+// theme_manager_deinit() delegates to this. It runs on a local instance because
+// tearing down the process-wide subjects mid-test would strip observers that
+// other modules hold for the life of the fixture.
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "ThemeSubjects::deinit drops every observer and resets the generation",
+                 "[theme_pins][theme]") {
+    helix::theme_detail::ThemeSubjects subs;
+    lv_subject_init_int(&subs.changed, 0);
+    subs.changed_ready = true;
+    subs.generation = 7;
+    lv_subject_init_int(&subs.breakpoint, 2);
+    subs.breakpoint_ready = true;
+    lv_subject_init_int(&subs.breakpoint_v, 3);
+    subs.breakpoint_v_ready = true;
+    lv_subject_init_int(&subs.is_portrait, 0);
+    subs.is_portrait_ready = true;
+    for (size_t i = 0; i < subs.kSwatchCount; ++i) {
+        lv_subject_init_string(&subs.swatch_desc[i], subs.swatch_bufs[i], nullptr,
+                               subs.kSwatchBufSize, "x");
+    }
+    subs.swatch_ready = true;
+
+    std::vector<lv_subject_t*> all = {&subs.changed, &subs.breakpoint, &subs.breakpoint_v,
+                                      &subs.is_portrait};
+    for (auto& s : subs.swatch_desc)
+        all.push_back(&s);
+    for (lv_subject_t* s : all) {
         lv_subject_add_observer(s, noop_cb, nullptr);
-        REQUIRE(lv_ll_get_len(&s->subs_ll) == before + 1);
+        REQUIRE(lv_ll_get_len(&s->subs_ll) == 1);
     }
 
-    theme_manager_deinit();
-    for (lv_subject_t* s : subjects) {
+    subs.deinit();
+
+    for (lv_subject_t* s : all) {
         CHECK(lv_ll_get_len(&s->subs_ll) == 0);
     }
+    CHECK_FALSE(subs.changed_ready);
+    CHECK_FALSE(subs.breakpoint_ready);
+    CHECK_FALSE(subs.breakpoint_v_ready);
+    CHECK_FALSE(subs.is_portrait_ready);
+    CHECK_FALSE(subs.swatch_ready);
+    CHECK(subs.generation == 0);
 
-    // The next init publishes them again and restarts the generation count.
-    theme_manager_init(lv_display_get_default(), false);
-    CHECK(generation() == 0);
-    CHECK(lv_xml_get_subject(nullptr, "ui_is_portrait") != nullptr);
-    CHECK(lv_xml_get_subject(nullptr, "swatch_15_desc") != nullptr);
+    // A second deinit is a no-op rather than a double free.
+    subs.deinit();
 }

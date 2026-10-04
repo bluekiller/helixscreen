@@ -47,6 +47,49 @@ struct ThemeRuntime {
 
 ThemeRuntime& runtime();
 
+/**
+ * @brief 16-color semantic palette for theme initialization (internal use)
+ */
+struct theme_palette_t {
+    lv_color_t screen_bg;   // 0: Main app background
+    lv_color_t overlay_bg;  // 1: Sidebar/panel background
+    lv_color_t card_bg;     // 2: Card surfaces
+    lv_color_t elevated_bg; // 3: Elevated/control surfaces (buttons, inputs)
+    lv_color_t border;      // 4: Borders and dividers
+    lv_color_t text;        // 5: Primary text
+    lv_color_t text_muted;  // 6: Secondary text
+    lv_color_t text_subtle; // 7: Hint/tertiary text
+    lv_color_t primary;     // 8: Primary accent
+    lv_color_t secondary;   // 9: Secondary accent
+    lv_color_t tertiary;    // 10: Tertiary accent
+    lv_color_t info;        // 11: Info states
+    lv_color_t success;     // 12: Success states
+    lv_color_t warning;     // 13: Warning states
+    lv_color_t danger;      // 14: Error/danger states
+    lv_color_t focus;       // 15: Focus ring color
+};
+
+/// Palette of the active theme for the current mode, falling back to whichever
+/// mode the theme supports.
+const helix::ModePalette& get_current_mode_palette();
+
+theme_palette_t build_palette_from_mode(const helix::ModePalette& mode_palette);
+
+/// Rebuild the ThemeManager palettes from the active theme and sync its mode.
+void resync_palette_manager(bool is_dark);
+
+/// Create the helix_theme (over lv_theme_default) and its shared styles.
+lv_theme_t* theme_init_lvgl(lv_display_t* display, const theme_palette_t* palette, bool is_dark,
+                            const lv_font_t* base_font);
+
+/// Re-point the ThemeManager palettes and the handle styles at the active
+/// theme without rebuilding the LVGL theme.
+void theme_update_colors(bool is_dark);
+
+/// True when `obj` sits in a dialog or on a container whose opaque background
+/// is the elevated surface colour, where inputs need overlay_bg for contrast.
+bool is_on_elevated_surface(lv_obj_t* obj);
+
 /// The subjects the theme publishes to XML. deinit() tears them all down before
 /// lv_deinit() so no widget deletion fires a stale observer callback.
 struct ThemeSubjects {
