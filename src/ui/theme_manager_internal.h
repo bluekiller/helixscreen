@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace helix::theme_detail {
 
@@ -19,6 +20,12 @@ namespace helix::theme_detail {
 /// asset-root seam. On CWD-less targets (ESP-IDF VFS) this is an absolute path
 /// under the mount the firmware configured via helix::set_asset_root().
 const char* ui_xml_dir();
+
+/// Apply the high-DPI UI scale to one authored px token. Opacities (`*_opacity`)
+/// and anything that is not a bare positive integer pass through unchanged.
+/// Shared by the responsive resolver and the static-constant registration so a
+/// fixed-size box and the scaled glyph inside it cannot disagree.
+std::string scale_px_token(const std::string& name, const std::string& value, double scale);
 
 /// Core theme state: which display, which mode, which theme, and what the
 /// repeat guard in theme_manager_init() last built. Main-thread only.
