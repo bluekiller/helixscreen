@@ -70,14 +70,14 @@ void Application::handle_keyboard_shortcuts() {
             theme_manager_toggle_dark_mode();
         });
 
-        // F key - toggle filament runout simulation (needs m_moonraker)
+        // F key - toggle filament runout simulation (needs m_session.moonraker())
         shortcuts.register_key_if(
             SDL_SCANCODE_F,
             [this]() {
                 spdlog::info("[Application] F key - toggling filament runout simulation");
-                m_moonraker->client()->toggle_filament_runout_simulation();
+                m_session.moonraker()->client()->toggle_filament_runout_simulation();
             },
-            [this]() { return m_moonraker && m_moonraker->client(); });
+            [this]() { return m_session.moonraker() && m_session.moonraker()->client(); });
 
         // P key - cycle through configured printers (test mode only)
         shortcuts.register_key_if(
@@ -111,10 +111,11 @@ void Application::handle_keyboard_shortcuts() {
             SDL_SCANCODE_A,
             [this]() {
                 spdlog::info("[Application] A key - triggering test action prompt");
-                m_routing.action_prompt_manager()->trigger_test_prompt();
+                m_session.routing().action_prompt_manager()->trigger_test_prompt();
             },
             [this]() {
-                return get_runtime_config()->is_test_mode() && m_routing.action_prompt_manager();
+                return get_runtime_config()->is_test_mode() &&
+                       m_session.routing().action_prompt_manager();
             });
 
         // N key - test action notification (test mode only)
@@ -122,10 +123,11 @@ void Application::handle_keyboard_shortcuts() {
             SDL_SCANCODE_N,
             [this]() {
                 spdlog::info("[Application] N key - triggering test action notification");
-                m_routing.action_prompt_manager()->trigger_test_notify();
+                m_session.routing().action_prompt_manager()->trigger_test_notify();
             },
             [this]() {
-                return get_runtime_config()->is_test_mode() && m_routing.action_prompt_manager();
+                return get_runtime_config()->is_test_mode() &&
+                       m_session.routing().action_prompt_manager();
             });
 
         // Android back button — pop navigation stack (overlay/modal/panel)

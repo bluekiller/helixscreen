@@ -128,11 +128,6 @@ class Application {
     // Soft restart (printer switching): the session sequences these two
     void tear_down_printer_state();
 
-    /// What survives the teardown: a printer switch keeps the process and LVGL alive,
-    /// ProcessExit ends both.
-    enum class TeardownScope { PrinterSwitch, ProcessExit };
-    void teardown_printer_scope(TeardownScope scope);
-
     void init_printer_state();
 
     // Helper functions
@@ -160,30 +155,7 @@ class Application {
     helix::AsyncLifetimeGuard m_async_lifetime;
 
     std::unique_ptr<DisplayManager> m_display;
-    std::unique_ptr<SubjectInitializer> m_subjects;
-    std::unique_ptr<MoonrakerManager> m_moonraker;
-    std::unique_ptr<JobQueueState> m_job_queue_state;
-    std::unique_ptr<PrintHistoryManager> m_history_manager;
-    std::unique_ptr<TemperatureHistoryManager> m_temp_history_manager;
-    std::unique_ptr<helix::PanelFactory> m_panels;
     std::unique_ptr<helix::XmlHotReloader> m_hot_reloader;
-#if HELIX_HAS_PLUGINS
-    std::unique_ptr<helix::plugin::PluginHost> m_plugin_host;
-    /// Hot-reloads plugins from HELIX_PLUGIN_DIR while it is the source (no
-    /// sync driver runs then). Holds a reference to m_plugin_host, so it must
-    /// be reset before the host at every teardown.
-    std::unique_ptr<helix::plugin::PluginDirWatcher> m_plugin_watcher;
-    /// Syncs the Moonraker plugin folder into the host's cache dir. Holds a
-    /// reference to m_plugin_host, so it must be reset before the host at
-    /// every teardown, and rebuilt with it on a printer switch.
-    std::unique_ptr<helix::plugin::PluginSyncDriver> m_plugin_sync;
-    /// Plugin ids an earlier load or sync already showed; a sync finding an
-    /// id outside this set toasts "new plugin available".
-    std::set<std::string> m_known_plugin_ids;
-#endif
-
-    /// Action prompts, the error / narration / LAN-pairing routers and layer tracking.
-    helix::GcodeResponseRouting m_routing;
 
     // Configuration
     helix::Config* m_config = nullptr; // Singleton, not owned
@@ -193,19 +165,8 @@ class Application {
     int m_screen_width = 0;
     int m_screen_height = 0;
 
-    // UI objects (not owned, managed by LVGL)
+    // Screen (not owned, managed by LVGL); the session reads it through a reference
     lv_obj_t* m_screen = nullptr;
-    lv_obj_t* m_app_layout = nullptr;
-
-    // Overlay panels (for lifecycle management)
-    struct OverlayPanels {
-        lv_obj_t* motion = nullptr;
-        lv_obj_t* nozzle_temp = nullptr;
-        lv_obj_t* bed_temp = nullptr;
-        lv_obj_t* print_status = nullptr;
-        lv_obj_t* ams = nullptr;
-        lv_obj_t* bed_mesh = nullptr;
-    } m_overlay_panels;
 
     // NOTE: Print start collector and observers are kept in main.cpp
     // until the observer pattern is refactored to support capturing lambdas.

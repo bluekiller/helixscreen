@@ -671,9 +671,10 @@ std::set<MethodHandler> extract_method_callback_pairs(const std::string& body, b
 
 // Method callbacks registered by name inside application.cpp whose body reaches a panel, a
 // subject, or a manager-owned pointer that teardown destroys before it releases the
-// MoonrakerClient. The shared teardown_printer_scope() must drop these. Registration is not
-// confined to setup_discovery_callbacks - layer_tracker and action_prompt_manager install from
-// GcodeResponseRouting::attach - so the registration scan below covers both files.
+// MoonrakerClient. The shared PrinterSession::teardown_printer_scope() must drop these.
+// Registration is not confined to setup_discovery_callbacks - layer_tracker and
+// action_prompt_manager install from GcodeResponseRouting::attach - so the registration scan below
+// covers both files.
 //
 // Subscriptions owned by a feature's attach()/detach() pair are not listed: their
 // registration lives in the feature, and tests/unit/test_discovery_attach_detach.cpp proves
@@ -751,18 +752,21 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
     const std::string impl = read_file("src/application/application.cpp");
     REQUIRE_FALSE(impl.empty());
 
+    const std::string session_impl = read_file("src/application/printer_session.cpp");
+    REQUIRE_FALSE(session_impl.empty());
     const std::string tear_down =
         extract_method_body(impl, "Application", "tear_down_printer_state");
     const std::string shutdown = extract_method_body(impl, "Application", "shutdown");
-    const std::string scope = extract_method_body(impl, "Application", "teardown_printer_scope");
+    const std::string scope =
+        extract_method_body(session_impl, "PrinterSession", "teardown_printer_scope");
     REQUIRE_FALSE(tear_down.empty());
     REQUIRE_FALSE(shutdown.empty());
     REQUIRE_FALSE(scope.empty());
 
     // Both paths run the one ordered teardown, so one body holds every unregister.
-    CHECK(tear_down.find("teardown_printer_scope(TeardownScope::PrinterSwitch)") !=
-          std::string::npos);
-    CHECK(shutdown.find("teardown_printer_scope(TeardownScope::ProcessExit)") != std::string::npos);
+    CHECK(tear_down.find("teardown_printer_scope(helix::PrinterSession::TeardownScope::"
+                         "PrinterSwitch)") != std::string::npos);
+    CHECK(shutdown.find("TeardownScope::ProcessExit") != std::string::npos);
 
     // The G-code response handlers register and unregister inside GcodeResponseRouting;
     // the teardown must call both of its detach halves.
@@ -815,8 +819,8 @@ TEST_CASE("A printer switch freezes the UpdateQueue before it disconnects the cl
     // discarded by update_queue_shutdown(), not run after the objects it touches are gone.
     // Teardown cannot be driven at runtime (see application_test_access.h), so this is a
     // source-level contract.
-    const std::string impl = read_file("src/application/application.cpp");
-    const std::string scope = extract_method_body(impl, "Application", "teardown_printer_scope");
+    const std::string impl = read_file("src/application/printer_session.cpp");
+    const std::string scope = extract_method_body(impl, "PrinterSession", "teardown_printer_scope");
     REQUIRE_FALSE(scope.empty());
     const auto freeze = scope.find("queue_freeze.emplace(");
     const auto disconnect = scope.find("client()->disconnect()");

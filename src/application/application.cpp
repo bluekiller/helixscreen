@@ -397,8 +397,8 @@ Application::Application()
           m_config, m_async_lifetime,
           {[this] { tear_down_printer_state(); }, [this] { init_printer_state(); },
            [] { NavigationManager::instance().set_active(PanelId::Home); }},
-          [this] { return m_screen; },
-          [this] { return m_moonraker ? m_moonraker->api() : nullptr; }) {}
+          m_screen, [this] { return m_screen; },
+          [this] { return m_session.moonraker() ? m_session.moonraker()->api() : nullptr; }) {}
 
 Application::~Application() {
     shutdown();
@@ -1349,10 +1349,10 @@ bool Application::init_display() {
     // unregister — so each switch would stack another copy and fire one extra
     // force_reconnect() per wake. init_display() runs once per process, and the
     // captured `this` owns m_display, so the callback list cannot outlive it.
-    // m_moonraker is read lazily at wake time and need not exist yet.
+    // m_session.moonraker() is read lazily at wake time and need not exist yet.
 #ifdef __ANDROID__
     m_display->register_sleep_callback([this](bool sleeping) {
-        if (!sleeping && m_moonraker && m_moonraker->client()) {
+        if (!sleeping && m_session.moonraker() && m_session.moonraker()->client()) {
             // Debounce: on_enter_foreground() may have already called
             // force_reconnect for the same wake event. Skip if it ran
             // within the last 5 seconds — the second call would bump
@@ -1366,7 +1366,7 @@ bool Application::init_display() {
             }
             spdlog::info("[Application] Display woke — reconnecting WebSocket");
             m_last_force_reconnect = now;
-            m_moonraker->client()->force_reconnect();
+            m_session.moonraker()->client()->force_reconnect();
         }
     });
 #endif
@@ -1783,11 +1783,11 @@ bool Application::init_translations() {
 }
 
 bool Application::init_core_subjects() {
-    m_subjects = std::make_unique<SubjectInitializer>();
+    m_session.subjects() = std::make_unique<SubjectInitializer>();
 
     // Phase 1-3: Core subjects, PrinterState, AmsState
     // These must exist before MoonrakerManager::init() can create the API
-    m_subjects->init_core_and_state();
+    m_session.subjects()->init_core_and_state();
 
     // Register the ams_current_tool_text formatter (a translated position
     // label, e.g. "Tool 1", or "---") now that AmsState's subjects are live.
@@ -1815,21 +1815,21 @@ bool Application::init_core_subjects() {
 bool Application::init_panel_subjects() {
     // Phase 4: Panel subjects with API injection
     // API is now available from MoonrakerManager
-    m_subjects->init_panels(m_moonraker->api(), *get_runtime_config());
+    m_session.subjects()->init_panels(m_session.moonraker()->api(), *get_runtime_config());
 
     // Phase 5-7: Observers and utility subjects
-    m_subjects->init_post(*get_runtime_config());
+    m_session.subjects()->init_post(*get_runtime_config());
 
     // Initialize EmergencyStopOverlay (moved from MoonrakerManager)
     // Must happen after both API and EmergencyStopOverlay::init_subjects()
-    EmergencyStopOverlay::instance().init(get_printer_state(), m_moonraker->api());
+    EmergencyStopOverlay::instance().init(get_printer_state(), m_session.moonraker()->api());
     EmergencyStopOverlay::instance().create();
     EmergencyStopOverlay::instance().set_require_confirmation(
         SafetySettingsManager::instance().get_estop_require_confirmation());
 
     // Initialize AbortManager for smart print cancellation
     // Must happen after both API and AbortManager::init_subjects()
-    helix::AbortManager::instance().init(m_moonraker->api(), &get_printer_state());
+    helix::AbortManager::instance().init(m_session.moonraker()->api(), &get_printer_state());
 
     // Spaghetti / failed-print detection
     // (see docs/devel/printers/SNAPMAKER_U1_SUPPORT.md, defect_detection)
@@ -1861,12 +1861,13 @@ bool Application::init_panel_subjects() {
     ui_probe_overlay_register_callbacks();
 
     // Create temperature history manager (collects temp samples from PrinterState subjects)
-    m_temp_history_manager = std::make_unique<TemperatureHistoryManager>(get_printer_state());
-    set_temperature_history_manager(m_temp_history_manager.get());
+    m_session.temp_history_manager() =
+        std::make_unique<TemperatureHistoryManager>(get_printer_state());
+    set_temperature_history_manager(m_session.temp_history_manager().get());
     spdlog::debug("[Application] TemperatureHistoryManager created");
 
     // Initialize PerformanceState subjects and wire the data source.
-    // Must happen after IMoonrakerAPI is up (m_moonraker->api() is valid here)
+    // Must happen after IMoonrakerAPI is up (m_session.moonraker()->api() is valid here)
     // and before XML panels are created so subjects exist when bindings resolve.
     helix::perf::PerformanceState::instance().init_subjects();
 #ifdef HELIX_ENABLE_MOCKS
@@ -1877,7 +1878,8 @@ bool Application::init_panel_subjects() {
 #endif
     {
         helix::perf::PerformanceState::instance().set_source(
-            std::make_unique<helix::perf::MoonrakerPerformanceSource>(m_moonraker->api()));
+            std::make_unique<helix::perf::MoonrakerPerformanceSource>(
+                m_session.moonraker()->api()));
     }
     spdlog::debug("[Application] PerformanceState initialized");
 
@@ -1891,12 +1893,12 @@ bool Application::init_ui() {
     // subtrees in one call — the other half of what per-panel deferral would
     // move off boot and onto the first navigation.
     auto layout_t0 = std::chrono::steady_clock::now();
-    m_app_layout = static_cast<lv_obj_t*>(lv_xml_create(m_screen, "app_layout", nullptr));
+    m_session.app_layout() = static_cast<lv_obj_t*>(lv_xml_create(m_screen, "app_layout", nullptr));
     spdlog::debug(
         "[Application] app_layout XML create took {:.1f}ms",
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - layout_t0)
             .count());
-    if (!m_app_layout) {
+    if (!m_session.app_layout()) {
         spdlog::error("[Application] Failed to create app_layout from XML");
         return false;
     }
@@ -1909,7 +1911,7 @@ bool Application::init_ui() {
     lv_obj_update_layout(m_screen);
 
     // Register app_layout with navigation
-    NavigationManager::instance().set_app_layout(m_app_layout);
+    NavigationManager::instance().set_app_layout(m_session.app_layout());
 
     // Initialize printer status icon (sets up observers on PrinterState)
     PrinterStatusIcon::instance().init();
@@ -1955,8 +1957,8 @@ bool Application::init_ui() {
     NavigationManager::instance().init_overlay_backdrop(m_screen);
 
     // Find navbar and content area
-    lv_obj_t* navbar = lv_obj_find_by_name(m_app_layout, "navbar");
-    lv_obj_t* content_area = lv_obj_find_by_name(m_app_layout, "content_area");
+    lv_obj_t* navbar = lv_obj_find_by_name(m_session.app_layout(), "navbar");
+    lv_obj_t* content_area = lv_obj_find_by_name(m_session.app_layout(), "content_area");
 
     if (!navbar || !content_area) {
         spdlog::error("[Application] Failed to find navbar/content_area");
@@ -1979,22 +1981,21 @@ bool Application::init_ui() {
     }
 
     // Initialize panels
-    m_panels = std::make_unique<PanelFactory>();
-    if (!m_panels->find_panels(panel_container)) {
+    m_session.panels() = std::make_unique<PanelFactory>();
+    if (!m_session.panels()->find_panels(panel_container)) {
         return false;
     }
-    m_panels->setup_panels(m_screen);
+    m_session.panels()->setup_panels(m_screen);
 
     // Create print status overlay
-    if (!m_panels->create_print_status_overlay(m_screen)) {
+    if (!m_session.panels()->create_print_status_overlay(m_screen)) {
         spdlog::error("[Application] Failed to create print status overlay");
         return false;
     }
-    // print_status is now lazily created via PrintStatusPanel::push_overlay()
-    m_overlay_panels.print_status = nullptr;
+    // print_status is created lazily by PrintStatusPanel::push_overlay()
 
     // Initialize keypad
-    m_panels->init_keypad(m_screen);
+    m_session.panels()->init_keypad(m_screen);
 
     spdlog::info("[Application] UI created successfully");
     helix::MemoryMonitor::log_now("after_ui_created");
@@ -2002,8 +2003,8 @@ bool Application::init_ui() {
 }
 
 bool Application::init_moonraker() {
-    m_moonraker = std::make_unique<MoonrakerManager>();
-    if (!m_moonraker->init(*get_runtime_config(), m_config)) {
+    m_session.moonraker() = std::make_unique<MoonrakerManager>();
+    if (!m_session.moonraker()->init(*get_runtime_config(), m_config)) {
         spdlog::error("[Application] Moonraker initialization failed");
         return false;
     }
@@ -2012,22 +2013,23 @@ bool Application::init_moonraker() {
     // No need for deferred inject_api() call
 
     // Register MoonrakerManager globally
-    set_moonraker_manager(m_moonraker.get());
+    set_moonraker_manager(m_session.moonraker().get());
 
     // Discovery callbacks on the client update the API's hardware_ and run
     // Application-level initialization.
     setup_discovery_callbacks();
 
     // Create print history manager (shared cache for history panels and file status indicators)
-    m_history_manager =
-        std::make_unique<PrintHistoryManager>(m_moonraker->api(), get_moonraker_client());
-    set_print_history_manager(m_history_manager.get());
+    m_session.history_manager() =
+        std::make_unique<PrintHistoryManager>(m_session.moonraker()->api(), get_moonraker_client());
+    set_print_history_manager(m_session.history_manager().get());
     spdlog::debug("[Application] PrintHistoryManager created");
 
     // Create job queue state manager
-    m_job_queue_state = std::make_unique<JobQueueState>(m_moonraker->api(), get_moonraker_client());
-    m_job_queue_state->init_subjects();
-    set_job_queue_state(m_job_queue_state.get());
+    m_session.job_queue_state() =
+        std::make_unique<JobQueueState>(m_session.moonraker()->api(), get_moonraker_client());
+    m_session.job_queue_state()->init_subjects();
+    set_job_queue_state(m_session.job_queue_state().get());
     spdlog::debug("[Application] JobQueueState created");
 
     // Validate screen before keyboard init (debugging potential race condition)
@@ -2059,11 +2061,11 @@ void Application::init_plugins() {
     // The watcher and the driver hold references to the host, so they die
     // first; a printer switch rebuilds all of them against the new printer's
     // cache.
-    m_plugin_watcher.reset();
-    m_plugin_sync.reset();
-    if (m_plugin_host) {
-        m_plugin_host->unload_all();
-        m_plugin_host.reset();
+    m_session.plugin_watcher().reset();
+    m_session.plugin_sync().reset();
+    if (m_session.plugin_host()) {
+        m_session.plugin_host()->unload_all();
+        m_session.plugin_host().reset();
     }
     helix::plugin::PluginHost::Deps deps;
     deps.backend = helix::plugin::make_app_backend();
@@ -2077,64 +2079,64 @@ void Application::init_plugins() {
     deps.memory_budget = helix::plugin::plugin_memory_budget(
         uint64_t{helix::get_system_memory_info().total_kb} * 1024);
     helix::plugin::register_plugin_event_callback();
-    m_plugin_host = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
+    m_session.plugin_host() = std::make_unique<helix::plugin::PluginHost>(std::move(deps));
 
     const char* dir = std::getenv("HELIX_PLUGIN_DIR");
     std::string cache;
     if (dir && *dir) {
-        m_plugin_host->load_from(dir);
+        m_session.plugin_host()->load_from(dir);
         // Developer mode: no sync driver runs against a local dir, so a poll
         // timer is the only thing that picks edits up while the app runs.
         if (RuntimeConfig::hot_reload_enabled())
-            m_plugin_watcher =
-                std::make_unique<helix::plugin::PluginDirWatcher>(*m_plugin_host, dir);
+            m_session.plugin_watcher() =
+                std::make_unique<helix::plugin::PluginDirWatcher>(*m_session.plugin_host(), dir);
     } else {
         // Boot offline from the last sync: the per-printer cache is the plugin dir.
         cache = helix::plugin::plugin_cache_dir_for(m_config->get_active_printer_id());
-        m_plugin_host->load_from(cache);
+        m_session.plugin_host()->load_from(cache);
         // No driver without a Moonraker API (tests, early boot): the host still
         // runs the cached plugins, only the sync is missing.
-        if (m_moonraker && m_moonraker->api()) {
-            m_plugin_sync = std::make_unique<helix::plugin::PluginSyncDriver>(
-                *m_plugin_host, helix::plugin::make_moonraker_source_deps(m_moonraker->api()),
-                cache);
-            m_plugin_sync->on_synced = [this](const helix::plugin::SyncResult& result) {
+        if (m_session.moonraker() && m_session.moonraker()->api()) {
+            m_session.plugin_sync() = std::make_unique<helix::plugin::PluginSyncDriver>(
+                *m_session.plugin_host(),
+                helix::plugin::make_moonraker_source_deps(m_session.moonraker()->api()), cache);
+            m_session.plugin_sync()->on_synced = [this](const helix::plugin::SyncResult& result) {
                 on_plugin_sync(result);
             };
             // Discovery completion is queued behind this boot, but a driver
             // built once the connection is already up must not wait for the
             // next reconnect to hear about plugins.
-            if (m_moonraker->api()->is_connected())
-                m_plugin_sync->sync_now();
+            if (m_session.moonraker()->api()->is_connected())
+                m_session.plugin_sync()->sync_now();
         }
     }
-    m_known_plugin_ids.clear();
-    for (const auto& info : m_plugin_host->plugins())
-        m_known_plugin_ids.insert(info.dir_name);
+    m_session.known_plugin_ids().clear();
+    for (const auto& info : m_session.plugin_host()->plugins())
+        m_session.known_plugin_ids().insert(info.dir_name);
     update_plugins_row_visibility();
 }
 
 void Application::on_plugin_sync(const helix::plugin::SyncResult& result) {
     std::vector<std::string> fresh;
     for (const auto& id : result.changed) {
-        if (m_known_plugin_ids.count(id) == 0)
+        if (m_session.known_plugin_ids().count(id) == 0)
             fresh.push_back(id);
     }
-    m_known_plugin_ids.clear();
-    for (const auto& info : m_plugin_host->plugins())
-        m_known_plugin_ids.insert(info.dir_name);
+    m_session.known_plugin_ids().clear();
+    for (const auto& info : m_session.plugin_host()->plugins())
+        m_session.known_plugin_ids().insert(info.dir_name);
     update_plugins_row_visibility();
 
     // Only a folder the host can actually load is "new": a synced dir with no
     // manifest, or one the host rejected, cannot be enabled, so it never toasts.
-    fresh = helix::plugin::loadable_plugin_ids(fresh, m_plugin_host->plugins());
+    fresh = helix::plugin::loadable_plugin_ids(fresh, m_session.plugin_host()->plugins());
     if (fresh.empty())
         return;
     if (fresh.size() == 1) {
         // Prefer the manifest's display name; an unreadable manifest falls back
         // to the directory name.
         std::string name = fresh.front();
-        for (const auto& info : m_plugin_host->plugins()) {
+        for (const auto& info : m_session.plugin_host()->plugins()) {
             if (info.dir_name == fresh.front()) {
                 if (info.manifest)
                     name = info.manifest->name;
@@ -2155,7 +2157,8 @@ void Application::on_plugin_sync(const helix::plugin::SyncResult& result) {
 
 void Application::update_plugins_row_visibility() {
     if (auto* subj = lv_xml_get_subject(nullptr, "settings_plugins_available"))
-        lv_subject_set_int(subj, m_plugin_host && !m_plugin_host->plugins().empty() ? 1 : 0);
+        lv_subject_set_int(
+            subj, m_session.plugin_host() && !m_session.plugin_host()->plugins().empty() ? 1 : 0);
 }
 #endif
 
@@ -2327,7 +2330,8 @@ void Application::apply_startup_cli_actions() {
     RuntimeConfig* runtime_config = get_runtime_config();
     if (runtime_config->select_file != nullptr) {
         NavigationManager::instance().set_active(PanelId::PrintSelect);
-        auto* print_panel = get_print_select_panel(get_printer_state(), m_moonraker->api());
+        auto* print_panel =
+            get_print_select_panel(get_printer_state(), m_session.moonraker()->api());
         if (print_panel) {
             print_panel->set_pending_file_selection(runtime_config->select_file);
         }
@@ -2335,8 +2339,8 @@ void Application::apply_startup_cli_actions() {
 }
 
 void Application::setup_discovery_callbacks() {
-    IMoonrakerClient* client = m_moonraker->client();
-    IMoonrakerAPI* api = m_moonraker->api();
+    IMoonrakerClient* client = m_session.moonraker()->client();
+    IMoonrakerAPI* api = m_session.moonraker()->api();
 
     Application* app = this;
 
@@ -2357,8 +2361,8 @@ void Application::setup_discovery_callbacks() {
                 if (!helix::plugin::is_plugin_filelist_change(msg))
                     return;
                 token.defer("Application::plugin_filelist_changed", [app]() {
-                    if (app->m_plugin_sync)
-                        app->m_plugin_sync->request_sync();
+                    if (app->m_session.plugin_sync())
+                        app->m_session.plugin_sync()->request_sync();
                 });
             });
     }
@@ -2413,8 +2417,8 @@ void Application::setup_discovery_callbacks() {
 #if HELIX_HAS_PLUGINS
             // Every connect and reconnect re-syncs the plugin folder: it may
             // have changed while the connection was down.
-            if (app->m_plugin_sync)
-                app->m_plugin_sync->sync_now();
+            if (app->m_session.plugin_sync())
+                app->m_session.plugin_sync()->sync_now();
 #endif
 
             // Copy snapshot into API's hardware data. Copy (not move) so we can
@@ -2463,7 +2467,7 @@ void Application::setup_discovery_callbacks() {
                 *snapshot,
                 *status_snapshot,
                 app->m_session.prompter(),
-                app->m_job_queue_state.get(),
+                app->m_session.job_queue_state().get(),
                 app->m_screen,
                 n,
                 hw_changed,
@@ -2519,12 +2523,12 @@ bool Application::connect_moonraker() {
     // unregister path.
 
     // Set HTTP base URL for API
-    IMoonrakerAPI* api = m_moonraker->api();
+    IMoonrakerAPI* api = m_session.moonraker()->api();
     api->set_http_base_url(http_base_url);
 
     // Connect
     spdlog::debug("[Application] Connecting to {}", moonraker_url);
-    int result = m_moonraker->connect(moonraker_url, http_base_url);
+    int result = m_session.moonraker()->connect(moonraker_url, http_base_url);
 
     if (result != 0) {
         spdlog::error("[Application] Failed to initiate connection (code {})", result);
@@ -2534,11 +2538,12 @@ bool Application::connect_moonraker() {
     // Start auto-discovery (client handles this internally after connect)
 
     // Initialize print start collector (monitors PRINT_START macro progress)
-    m_moonraker->init_print_start_collector();
+    m_session.moonraker()->init_print_start_collector();
 
     // G-code response routing: action prompts, error and narration routers, layer tracking
-    if (m_moonraker->client()) {
-        m_routing.attach(m_moonraker->client(), m_moonraker->api(), m_async_lifetime);
+    if (m_session.moonraker()->client()) {
+        m_session.routing().attach(m_session.moonraker()->client(), m_session.moonraker()->api(),
+                                   m_async_lifetime);
     } else {
         spdlog::warn("[Application] Cannot init G-code response routing - no client");
     }
@@ -2940,12 +2945,12 @@ void Application::on_enter_background() {
     NavigationManager::instance().suspend_active();
 
     // 2. Disconnect WebSocket (stops all status updates and reconnect timer)
-    if (m_moonraker) {
+    if (m_session.moonraker()) {
         // Mark the disconnect as expected so the DISCONNECTED notification
         // (queued here, drained on resume) doesn't clear the overlay stack
         // and bounce the user to home (#1245).
         NavigationManager::instance().mark_disconnect_expected();
-        m_moonraker->client()->disconnect();
+        m_session.moonraker()->client()->disconnect();
     }
 
     // 3. Mute sound
@@ -2970,9 +2975,9 @@ void Application::on_enter_foreground() {
     SoundManager::instance().initialize();
 
     // 3. Reconnect WebSocket (triggers discovery + full state refresh)
-    if (m_moonraker && m_moonraker->client()) {
+    if (m_session.moonraker() && m_session.moonraker()->client()) {
         m_last_force_reconnect = std::chrono::steady_clock::now();
-        m_moonraker->client()->force_reconnect();
+        m_session.moonraker()->client()->force_reconnect();
     }
 
     // 4. Resume the visible panel/overlay lifecycle. Repainting alone only
@@ -3036,16 +3041,16 @@ void Application::show_screensaver_migration_notice_if_pending() {
 #endif // HELIX_ENABLE_SCREENSAVER
 
 void Application::process_notifications() {
-    if (m_moonraker) {
-        m_moonraker->process_notifications();
+    if (m_session.moonraker()) {
+        m_session.moonraker()->process_notifications();
     }
 }
 
 void Application::check_timeouts() {
     uint32_t current_time = DisplayManager::get_ticks();
     if (current_time - m_last_timeout_check >= m_timeout_check_interval) {
-        if (m_moonraker) {
-            m_moonraker->process_timeouts();
+        if (m_session.moonraker()) {
+            m_session.moonraker()->process_timeouts();
         }
         m_last_timeout_check = current_time;
     }
@@ -3057,279 +3062,8 @@ void Application::check_timeouts() {
 
 void Application::tear_down_printer_state() {
     spdlog::info("[Application] Tearing down printer state...");
-    teardown_printer_scope(TeardownScope::PrinterSwitch);
+    m_session.teardown_printer_scope(helix::PrinterSession::TeardownScope::PrinterSwitch);
     spdlog::info("[Application] Printer state torn down");
-}
-
-// The one ordered teardown behind both soft restart (PrinterSwitch: the process and LVGL
-// stay alive, init_printer_state() rebuilds afterwards) and shutdown() (ProcessExit:
-// lv_deinit() frees every widget and the process ends). Steps that differ are guarded by
-// `exiting` and say why; everything else runs identically in both scopes. Subjects stay
-// alive until StaticSubjectRegistry::deinit_all() so ObserverGuards can call
-// lv_observer_remove() while destroying.
-void Application::teardown_printer_scope(TeardownScope scope) {
-    const bool exiting = scope == TeardownScope::ProcessExit;
-    auto destroy_panels = [exiting] {
-        if (exiting) {
-            StaticPanelRegistry::instance().destroy_all();
-        } else {
-            helix::ui::destroy_static_panels();
-        }
-    };
-
-    // A callback armed for the old printer's wizard must not fire against the next one.
-    set_wizard_cancel_callback(nullptr);
-
-    // The next printer's discovery is a first discovery with its own prompts to show.
-    m_session.reset_discovery_session();
-
-    // A switch freezes the UpdateQueue before the disconnect: work the WebSocket thread
-    // enqueues from here on is buffered, and update_queue_shutdown() below discards the
-    // buffer, so it never runs against the plugins, history managers and AMS backends
-    // destroyed in between. Exit needs no freeze; update_queue_shutdown() gates the queue
-    // off for good.
-    std::optional<helix::ui::UpdateQueue::ScopedFreeze> queue_freeze;
-    if (!exiting) {
-        queue_freeze.emplace(helix::ui::UpdateQueue::instance(), "teardown_printer_scope");
-    }
-
-    // Disconnect the WebSocket client FIRST to stop background threads (mock simulation,
-    // WebSocket I/O). Otherwise a notification delivered mid-teardown can trigger new API
-    // requests (history fetch, metascan, webcam detection). The client object stays valid
-    // for the unregister_method_callback() calls below.
-    if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->disconnect();
-    }
-
-    // Clear SoundManager's client ref so the M300 sequencer thread won't call
-    // gcode_script() on a dangling pointer (#714). Exit skips host recovery:
-    // SoundManager::shutdown() runs below, so re-opening audio hardware would only be
-    // torn down again.
-    SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/!exiting);
-
-    // Clear app_globals BEFORE destroying managers so destructors (e.g. PrintSelectPanel)
-    // never reach destroyed objects.
-    set_moonraker_manager(nullptr);
-    set_moonraker_api(nullptr);
-    set_moonraker_client(nullptr);
-    set_job_queue_state(nullptr); // the object itself dies after deinit_all(), below
-    set_print_history_manager(nullptr);
-    set_temperature_history_manager(nullptr);
-
-    // Deactivate overlays and clear navigation registries
-    NavigationManager::instance().shutdown();
-
-    // Detach page-scroll-buttons controllers (gutters + observers) while panel widgets are
-    // still alive, before m_panels.reset() / destroy_all() tear down the containers they
-    // point at.
-    helix::ui::PageScrollAutoInject::instance().shutdown();
-
-    UpdateChecker::instance().stop_auto_check();
-
-    if (exiting) {
-        // Process-level singletons: they persist across a printer switch.
-        // The banner goes before UpdateChecker so its observers release cleanly (#705).
-        UpgradeBanner::instance().shutdown();
-        UpdateChecker::instance().shutdown();    // cancels pending checks
-        TelemetryManager::instance().shutdown(); // persists queue, joins send thread
-        helix::CrashHistory::instance().shutdown();
-        AfcMessageDedup::instance().shutdown();
-        // Before the client is destroyed: the M300 backend's sender lambda references it
-        // and the sequencer thread must be stopped first (#714).
-        SoundManager::instance().shutdown();
-        PostOpCooldownManager::instance().shutdown(); // cancel pending cooldown timers
-    }
-
-    // Unload plugins before destroying what they depend on: plugin closers remove
-    // printer-subject observers and Moonraker notify handlers, so they must run while the
-    // subjects (deinit_all below) and the Moonraker client (m_moonraker.reset below) are
-    // still alive.
-#if HELIX_HAS_PLUGINS
-    // The watcher and the driver hold host references, and the driver's filelist handler
-    // must not outlive the driver it feeds.
-    if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->unregister_method_callback("notify_filelist_changed", "PluginSync");
-        // Before the plugin host goes: the registry's union stops being consulted, so
-        // the refresh the unload-time clears schedule shrinks the subscription back to
-        // app objects instead of growing it.
-        m_moonraker->client()->set_subscription_extras_provider({});
-    }
-    m_plugin_watcher.reset();
-    m_plugin_sync.reset();
-    if (m_plugin_host) {
-        m_plugin_host->unload_all();
-        m_plugin_host.reset();
-    }
-#endif
-
-    // History managers MUST be reset before moonraker (they use the client for
-    // unregistration). JobQueueState is reset AFTER deinit_all() because it owns LVGL
-    // subjects that panels still observe: destroying it early frees subject memory while
-    // panel ObserverGuards still hold observer pointers into those lists.
-    m_history_manager.reset();
-    m_temp_history_manager.reset();
-
-    // Unregister the connection-scoped method callbacks whose bodies reach panels or
-    // subjects: StaticPanelRegistry::destroy_all() and StaticSubjectRegistry::deinit_all()
-    // both run well before the client is released. external_spool_sync additionally
-    // dereferences a raw IMoonrakerAPI* that the manager owns, straight from the WebSocket
-    // thread.
-    if (m_moonraker && m_moonraker->client()) {
-        helix::TimelapseState::instance().detach(*m_moonraker->client());
-        UpdateChecker::instance().detach(*m_moonraker->client());
-        helix::settings::get_about_settings_overlay().detach_print_hours(*m_moonraker->client());
-        helix::spoolman_sync::detach(*m_moonraker->client());
-    }
-
-    // Unsubscribe power device and sensor state
-    if (m_moonraker && m_moonraker->api()) {
-        helix::PowerDeviceState::instance().unsubscribe(*m_moonraker->api());
-        helix::SensorState::instance().unsubscribe(*m_moonraker->api());
-    }
-
-    // Unregister the response handlers and drop the prompt system before moonraker is
-    // destroyed.
-    m_routing.detach_handlers(m_moonraker ? m_moonraker->client() : nullptr);
-
-    // Stop AMS backend subscriptions BEFORE destroying MoonrakerClient: backends hold
-    // SubscriptionGuards with raw client pointers and must unsubscribe while the client's
-    // mutex is still alive.
-    AmsState::instance().clear_backends();
-
-    // Drain deferred UI callbacks BEFORE destroying panels. observe<int> and
-    // observe<const char*> defer via ui_queue_update(), so queued callbacks may hold
-    // `this` pointers to living panels; running them after m_panels.reset() is a
-    // use-after-free.
-    helix::ui::update_queue_shutdown();
-
-    if (!exiting) {
-        // Singletons that outlive this printer and hold API/client pointers or observe
-        // PrinterState subjects about to be freed. LedAutoState drives LedController, so
-        // it goes first.
-        helix::led::LedAutoState::instance().deinit();
-        helix::led::LedController::instance().deinit();
-    }
-
-    // Stop ALL LVGL animations before destroying panels: they hold widget pointers, and
-    // completion callbacks fired by lv_anim_delete_all() would dereference freed objects
-    // if the panels were already gone.
-    lv_anim_delete_all();
-
-    m_panels.reset();
-    m_subjects.reset();
-
-    if (exiting && m_display) {
-        // Guard for early exit paths like --help
-        m_display->restore_display_on_shutdown();
-    }
-
-    if (!exiting) {
-        // The widgets this tracks are destroyed by the tree delete below; lv_deinit() does
-        // that on exit.
-        ModalStack::instance().clear();
-    }
-
-    // Stop the consumption tracker BEFORE destroying overlays. Overlay teardown can free
-    // the tracker's PrinterState observer struct, and a later ObserverGuard::reset() then
-    // dereferences freed memory (#927). Its self-registration with StaticSubjectRegistry
-    // remains as a backstop and is a no-op once the observers are null.
-    helix::FilamentConsumptionTracker::instance().stop();
-
-    // Destroy ALL static panel/overlay globals (releases ObserverGuards, deinits local
-    // subjects). LVGL must still be initialized so lv_observer_remove() can remove
-    // unsubscribe_on_delete_cb from widget event lists. A switch frees the overlay roots
-    // the panel destructors hand back (400-800KB each, parented to the screen, nothing
-    // else deletes them); exit leaves them for lv_deinit(), because deleting widgets
-    // inside this window reopens the crash it exists to avoid.
-    destroy_panels();
-
-    if (!exiting) {
-        // Release global observer guards that observe subjects about to be freed.
-        ui_notification_deinit();
-        helix::deinit_active_print_media_manager();
-    }
-
-    // Deinit core singleton subjects (PrinterState, AmsState, SettingsManager, ...) BEFORE
-    // lv_deinit(). lv_subject_deinit() calls lv_observer_remove() for each observer, which
-    // removes unsubscribe_on_delete_cb from widget event lists, so widgets then delete
-    // without firing stale unsubscribe callbacks on corrupted linked lists.
-    StaticSubjectRegistry::instance().deinit_all();
-
-    // Sweep any panel singleton a deinit callback lazily re-created on its way out (a
-    // callback reaching through an auto-creating get_global_*_panel() getter builds a
-    // replacement). Destroying it here, while LVGL and spdlog are up, keeps its destructor
-    // off the static-destruction path. No-op when nothing resurrected.
-    destroy_panels();
-
-    // After deinit_all() so JobQueueState's registered cleanup lambda runs on a live
-    // object; before m_moonraker.reset() so client unregistration works.
-    m_job_queue_state.reset();
-
-    if (exiting) {
-        // Destroy runtime CJK fonts before LVGL shutdown
-        helix::system::CjkFontManager::instance().shutdown();
-    }
-
-    // Invalidate all ObserverGuards so any reset() in surviving destructors releases
-    // instead of calling lv_observer_remove() on freed observer pointers.
-    // lv_subject_deinit() (via deinit_all() above) frees each observer it iterates, so
-    // without this MoonrakerManager's ObserverGuard members would call
-    // lv_observer_remove() on freed memory (lv_observer.c, lv_ll_remove).
-    ObserverGuard::invalidate_all(exiting);
-
-    // Tear down GcodeErrorRouter before MoonrakerClient: its dtor unregisters the live and
-    // replay callbacks, both of which touch the client. Reset the router BEFORE the
-    // presenter (the presenter must outlive it), and AmsErrorBridge, which also holds a
-    // presenter reference, before that.
-    m_routing.release_routers();
-
-    // Destroy MoonrakerManager (its ObserverGuards now release without touching freed
-    // observer memory thanks to invalidate_all() above).
-    m_moonraker.reset();
-
-    if (exiting) {
-        // No code path can submit new HTTP work now. Stop the executors: drains the
-        // currently-executing item and breaks promises on anything still queued.
-        helix::http::HttpExecutor::stop_all();
-
-        // Shutdown display (calls lv_deinit). All observer callbacks were removed above,
-        // so widget deletion touches no observer linked list.
-        m_display.reset();
-
-        // Theme manager subjects (theme_changed_subject, swatch descriptions) are
-        // file-scope statics not tracked by StaticSubjectRegistry, so they are torn down
-        // by hand, and only HERE, after the display is gone.
-        //
-        // They must outlive m_display.reset(), because that is what runs lv_xml_deinit():
-        // a component scope holding a <subject_expr> owns RAW lv_observer_t* pointers
-        // (lv_xml_subject_expr_t::observers) attached to these subjects, and releases them
-        // with lv_observer_remove(). Those are not ObserverGuards, so
-        // ObserverGuard::invalidate_all() does not cover them; deinitialising the subjects
-        // first frees every observer on them and the later scope teardown reads freed
-        // memory.
-        //
-        // Running last is safe: lv_xml_deinit() detaches the <subject_expr> observers
-        // before lv_deinit(), and lv_deinit() removes the object-bound ones, so these
-        // subjects have no subscribers left by now.
-        theme_manager_deinit();
-        return;
-    }
-
-    KeyboardManager::instance().reset(); // widget pointers dangle after the tree delete
-
-    // Delete the LVGL widget tree (panels already released their references). The display
-    // stays alive, so no lv_deinit(). cancel_add_printer_wizard() reaches here inside a
-    // queue_update() batch, where a synchronous lv_obj_del() would delete inside
-    // UpdateQueue::process_pending() and can corrupt LVGL's global event list (#776/#190/#80);
-    // m_app_layout is also the Home widget grid, where a relayout racing teardown could
-    // iterate a freed container (#983). safe_delete_subtree() detaches the tree off-screen
-    // synchronously (so the immediate init_printer_state() rebuild sees a clean m_screen),
-    // forces LV_LAYOUT_NONE, and frees it asynchronously outside the batch.
-    if (m_app_layout) {
-        helix::ui::safe_delete_subtree(m_app_layout);
-        m_app_layout = nullptr;
-    }
-    m_overlay_panels = {};
 }
 
 void Application::init_printer_state() {
@@ -3459,7 +3193,33 @@ void Application::shutdown() {
 
     spdlog::info("[Application] Shutting down...");
 
-    teardown_printer_scope(TeardownScope::ProcessExit);
+    m_session.teardown_printer_scope(helix::PrinterSession::TeardownScope::ProcessExit,
+                                     m_display.get());
+
+    // No code path can submit new HTTP work now. Stop the executors: drains the
+    // currently-executing item and breaks promises on anything still queued.
+    helix::http::HttpExecutor::stop_all();
+
+    // Shutdown display (calls lv_deinit). All observer callbacks were removed above,
+    // so widget deletion touches no observer linked list.
+    m_display.reset();
+
+    // Theme manager subjects (theme_changed_subject, swatch descriptions) are
+    // file-scope statics not tracked by StaticSubjectRegistry, so they are torn down
+    // by hand, and only HERE, after the display is gone.
+    //
+    // They must outlive m_display.reset(), because that is what runs lv_xml_deinit():
+    // a component scope holding a <subject_expr> owns RAW lv_observer_t* pointers
+    // (lv_xml_subject_expr_t::observers) attached to these subjects, and releases them
+    // with lv_observer_remove(). Those are not ObserverGuards, so
+    // ObserverGuard::invalidate_all() does not cover them; deinitialising the subjects
+    // first frees every observer on them and the later scope teardown reads freed
+    // memory.
+    //
+    // Running last is safe: lv_xml_deinit() detaches the <subject_expr> observers
+    // before lv_deinit(), and lv_deinit() removes the object-bound ones, so these
+    // subjects have no subscribers left by now.
+    theme_manager_deinit();
 
     // Uninstall crash handler last — clean shutdown reached this point, so a
     // SIGBUS/SIGSEGV after this is the kernel's problem, not ours.

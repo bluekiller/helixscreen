@@ -54,8 +54,5 @@ CjkFontManager::instance().shutdown()
 ObserverGuard::invalidate_all
 m_routing.release_routers()
 m_moonraker.reset()
-HttpExecutor::stop_all()
-m_display.reset()
-theme_manager_deinit()
 KeyboardManager::instance().reset()
 safe_delete_subtree
