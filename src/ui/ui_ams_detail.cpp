@@ -523,9 +523,9 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
     }
 
     // Map active slot to local index for unit-scoped views
-    int active_slot = info.current_slot;
+    int active_slot = info.path_active_slot();
     if (unit_index >= 0) {
-        int local_active = info.current_slot - slot_offset;
+        int local_active = active_slot - slot_offset;
         active_slot = (local_active >= 0 && local_active < slot_count) ? local_active : -1;
     }
     ui_filament_path_canvas_set_active_slot(canvas, active_slot);

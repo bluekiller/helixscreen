@@ -402,6 +402,19 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     /// @return true when current_slot/current_tool/filament_loaded changed
     bool seat_from_global_index_locked(int current_index);
 
+    /// The displayed slot for a global tool index, or -1 when that tool lives
+    /// in a unit this backend does not display. Caller holds mutex_.
+    int displayed_slot_for_global_index_locked(int global_index) const;
+
+    /// Track the fork manager's `target_index` (the global tool a toolchange
+    /// is heading for, -1 when none is under way). While it names a tool
+    /// that is not seated, the target is the pending slot and an idle hub
+    /// reads as LOADING, so a toolchange the printer started itself (PRINT_START,
+    /// a T<n> mid-print, a macro) shows on the path before the tool seats.
+    /// Caller holds mutex_.
+    /// @return true when pending_target_slot or action changed
+    bool apply_target_index_locked(const nlohmann::json& data);
+
     /// Seat the loaded tool from a LOCAL slot index (loaded_slot, the
     /// ValgACE "loaded" scan, current_filament's parsed local index): -1
     /// clears, otherwise the index is the slot and the tool. Caller holds
@@ -536,6 +549,12 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     /// unchanged, so Klipper sends no frame to contradict the stamp
     /// (prestonbrown/helixscreen#1676).
     bool manager_states_seat_ = false;
+
+    /// Last `target_index` the manager stated (-1 = no toolchange under way),
+    /// and whether the LOADING currently shown was raised from it rather than
+    /// by this backend's own load command.
+    int target_index_ = -1;
+    bool driver_loading_ = false;
 
     /// Whether the driver has published `ace_pro_enabled`, and its last value.
     /// Absent means this rig has no master switch at all, which is a different

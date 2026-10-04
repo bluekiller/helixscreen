@@ -1580,6 +1580,20 @@ struct AmsSystemInfo {
     }
 
     /**
+     * @brief The lane the filament path draws as active
+     *
+     * The destination of a toolchange under way, else the seated slot. An
+     * unload is still retracting the seated strand, so it keeps the seated
+     * lane even while the toolchange already names its target.
+     */
+    [[nodiscard]] int path_active_slot() const {
+        if (pending_target_slot >= 0 && action != AmsAction::UNLOADING) {
+            return pending_target_slot;
+        }
+        return current_slot;
+    }
+
+    /**
      * @brief Check if system is available and connected
      * @return true if AMS type is detected and has at least one unit
      */
