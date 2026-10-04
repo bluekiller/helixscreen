@@ -702,6 +702,7 @@ void AmsOverviewPanel::refresh_system_path(const AmsSystemInfo& info, int curren
             topo = backend->get_unit_topology(i);
         }
         ui_system_path_canvas_set_unit_topology(system_path_, i, static_cast<int>(topo));
+        helix::ui::ui_system_path_canvas_set_unit_absent(system_path_, i, unit.absent);
 
         if (i < static_cast<int>(tool_layout.units.size())) {
             const auto& utl = tool_layout.units[i];

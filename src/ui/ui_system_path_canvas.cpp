@@ -80,6 +80,7 @@ struct SystemPathData {
     int unit_tool_count[MAX_UNITS] = {};     // Tools per unit (BT=4, OpenAMS=1)
     int unit_first_tool[MAX_UNITS] = {};     // First tool index for this unit
     int unit_topology[MAX_UNITS] = {};       // 0=LINEAR, 1=HUB, 2=PARALLEL
+    bool unit_absent[MAX_UNITS] = {};        // Box not on the bus: column drawn empty
     int total_tools = 0;                     // Total tool count across all units
     int active_tool = -1;                    // Currently active tool (-1=none)
     int current_tool = -1;                   // Virtual tool number (slot-based, for label)
@@ -776,6 +777,9 @@ static int collect_routes_and_draw_unit_stems(lv_layer_t* layer, SystemPathData*
                                               HubInfo* hub_infos) {
     int total_routes = 0;
     for (int i = 0; i < data->unit_count && i < SystemPathData::MAX_UNITS; i++) {
+        if (data->unit_absent[i]) {
+            continue;
+        }
         int topology = data->unit_topology[i];
         if (topology == 2 || topology == 3) {
             total_routes =
@@ -990,6 +994,9 @@ static void draw_unit_columns(lv_layer_t* layer, SystemPathData* data, const Sys
     // Draw unit entry lines (one per unit, from entry to merge point) and
     // collect each unit's convergence lane for one shared draw_merge_fan call.
     for (int i = 0; i < data->unit_count && i < SystemPathData::MAX_UNITS; i++) {
+        if (data->unit_absent[i]) {
+            continue;
+        }
         int32_t unit_x = unit_stem_x(data, L, i);
         bool is_active = (i == data->active_unit);
 
@@ -1415,6 +1422,18 @@ void ui_system_path_canvas_set_unit_tools(lv_obj_t* obj, int unit_index, int too
     data->unit_first_tool[unit_index] = first_tool;
     lv_obj_invalidate(obj);
 }
+
+namespace helix::ui {
+void ui_system_path_canvas_set_unit_absent(lv_obj_t* obj, int unit_index, bool absent) {
+    auto* data = get_data(obj);
+    if (!data || unit_index < 0 || unit_index >= SystemPathData::MAX_UNITS)
+        return;
+    if (data->unit_absent[unit_index] == absent)
+        return;
+    data->unit_absent[unit_index] = absent;
+    lv_obj_invalidate(obj);
+}
+} // namespace helix::ui
 
 void ui_system_path_canvas_set_unit_topology(lv_obj_t* obj, int unit_index, int topology) {
     auto* data = get_data(obj);
