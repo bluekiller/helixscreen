@@ -3,45 +3,25 @@
 
 #include "theme_manager.h"
 
-#include "ui_button.h"
 #include "ui_error_reporting.h"
-#include "ui_fonts.h"
 #include "ui_gradient_canvas.h"
-#include "ui_icon.h"
 #include "ui_observer_guard.h"
-#include "ui_split_button.h"
-#include "ui_switch.h"
 
-#include "asset_manager.h"
 #include "border_radius_sizes.h"
 #include "config.h"
-#include "data_root_resolver.h"
-#include "display_metrics.h"
-#include "helix-xml/src/libs/expat/expat.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "layout_manager.h"
 #include "lvgl/lvgl.h"
-#include "lvgl/src/themes/lv_theme_private.h"
-#include "settings_manager.h"
-#include "text_io.h"
 #include "theme_loader.h"
 #include "theme_manager_internal.h"
 #include "theme_token_table.h"
 
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
-#include <array>
-#include <cctype>
 #include <chrono>
-#include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <dirent.h>
 #include <string>
-#include <tuple>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #ifdef __ANDROID__
