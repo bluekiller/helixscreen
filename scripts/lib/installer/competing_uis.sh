@@ -51,8 +51,13 @@ QIDI_STOCK_UI_EXEC_PATTERN='QD_Q2/bin/|qidiclient|qidi-client|makerbase-client'
 # master holder) — stopping those carries risk without freeing card0.
 WAYLAND_COMPOSITORS="cage weston labwc sway wayfire"
 
+# Display managers start an X or Wayland session that takes the display, one
+# layer above the compositors (#1693). The default target is left alone: with
+# the DM masked, graphical.target has nothing left to start.
+DISPLAY_MANAGERS="lightdm gdm3 gdm sddm xdm nodm slim"
+
 # Record a disabled service for later re-enablement
-# Args: $1 = type ("systemd" or "sysv-chmod"), $2 = target (service name or script path)
+# Args: $1 = type ("systemd", "systemd-mask" or "sysv-chmod"), $2 = target (service name or script path)
 record_disabled_service() {
     local type="$1"
     local target="$2"
@@ -90,6 +95,38 @@ _unit_is_competing() {
     return 1
 }
 
+# Stop, disable and mask a competing systemd unit, and record it for uninstall.
+# disable only removes the wants symlink, so a vendor firmware update that
+# re-enables the unit hands it the display back; a mask survives that (#1534).
+# systemd refuses to mask a unit whose file lives in /etc/systemd/system, so
+# such a unit is recorded as disabled only and uninstall never unmasks it.
+# reset-failed clears a unit that was failing on its own out of
+# `systemctl --failed`, where it would read as our doing.
+# Args: $1 = unit name
+_take_down_unit() {
+    $SUDO systemctl stop "$1" 2>/dev/null || true
+    $SUDO systemctl disable "$1" 2>/dev/null || true
+    if $SUDO systemctl mask "$1" >/dev/null 2>&1; then
+        record_disabled_service "systemd-mask" "$1"
+    else
+        record_disabled_service "systemd" "$1"
+    fi
+    $SUDO systemctl reset-failed "$1" 2>/dev/null || true
+}
+
+# Stop enabled or running display managers (systemd only). Sets found_any in
+# the caller's scope.
+stop_display_managers() {
+    local dm
+    [ "$INIT_SYSTEM" = "systemd" ] || return 0
+    for dm in $DISPLAY_MANAGERS; do
+        _unit_is_competing "$dm" || continue
+        log_info "Stopping, disabling and masking display manager $dm..."
+        _take_down_unit "$dm"
+        found_any=true
+    done
+}
+
 # Stop Wayland compositors holding the DRM master (cage/weston/labwc/sway/...).
 # Run AFTER the named-UI loop so a compositor launched by a UI service (e.g.
 # KlipperScreen.service ExecStart=cage -- screen.py) is already gone; this catches
@@ -103,10 +140,8 @@ stop_wayland_compositors() {
         if [ "$INIT_SYSTEM" = "systemd" ]; then
             for svc in "$comp" "${comp}@tty1"; do
                 if _unit_is_competing "$svc"; then
-                    log_info "Stopping and disabling Wayland compositor service $svc (DRM master)..."
-                    $SUDO systemctl stop "$svc" 2>/dev/null || true
-                    $SUDO systemctl disable "$svc" 2>/dev/null || true
-                    record_disabled_service "systemd" "$svc"
+                    log_info "Stopping, disabling and masking Wayland compositor service $svc (DRM master)..."
+                    _take_down_unit "$svc"
                     found_any=true
                 fi
             done
@@ -325,9 +360,7 @@ stop_qidi_competing_uis() {
         grep -E '^ExecStart=' "$unit_path" 2>/dev/null \
             | grep -qiE "$QIDI_STOCK_UI_EXEC_PATTERN" || continue
         log_info "Stopping stock QIDI UI unit ($unit)..."
-        $SUDO systemctl stop "$unit" 2>/dev/null || true
-        $SUDO systemctl disable "$unit" 2>/dev/null || true
-        record_disabled_service "systemd" "$unit"
+        _take_down_unit "$unit"
         found_any=true
         stopped=true
     done
@@ -658,10 +691,8 @@ stop_competing_uis() {
         # Check systemd services
         if [ "$INIT_SYSTEM" = "systemd" ]; then
             if _unit_is_competing "$ui"; then
-                log_info "Stopping and disabling $ui (systemd service)..."
-                $SUDO systemctl stop "$ui" 2>/dev/null || true
-                $SUDO systemctl disable "$ui" 2>/dev/null || true
-                record_disabled_service "systemd" "$ui"
+                log_info "Stopping, disabling and masking $ui (systemd service)..."
+                _take_down_unit "$ui"
                 found_any=true
             fi
         fi
@@ -693,6 +724,8 @@ stop_competing_uis() {
 
     # Free the DRM master from any Wayland compositor (KlipperScreen-under-cage etc.)
     stop_wayland_compositors
+
+    stop_display_managers
 
     if [ "$found_any" = true ]; then
         log_info "Waiting for competing UIs to stop..."

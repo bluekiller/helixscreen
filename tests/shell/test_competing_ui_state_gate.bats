@@ -68,9 +68,11 @@ setup() {
 
 # Mock systemctl reporting one unit in one state and every other unit absent.
 # Logs each invocation so a test can assert on stop/disable/enable.
-# Args: $1 = unit name, $2 = is-active exit (0 running), $3 = is-enabled word
+# Args: $1 = unit name, $2 = is-active exit (0 running), $3 = is-enabled word,
+#       $4 = mask exit (default 0; systemd refuses to mask a unit whose file
+#            lives in /etc/systemd/system)
 mock_unit_state() {
-    local unit="$1" active_exit="$2" enabled_word="$3"
+    local unit="$1" active_exit="$2" enabled_word="$3" mask_exit="${4:-0}"
     local enabled_exit=1
     # systemd exits 0 for `static`, `indirect` and `alias` as well as the enabled
     # words, which is the trap the word match exists to avoid.
@@ -88,6 +90,9 @@ case \"\$1\" in
     is-enabled)
         case \"\$*\" in *'$unit'*) echo '$enabled_word'; exit $enabled_exit ;; esac
         echo 'not-found'; exit 4
+        ;;
+    mask)
+        exit $mask_exit
         ;;
 esac
 exit 0
@@ -163,7 +168,8 @@ exit 0
 
     grep -q "stop KlipperScreen" "$SYSTEMCTL_LOG"
     grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qF "systemd:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -q "mask KlipperScreen" "$SYSTEMCTL_LOG"
+    grep -qxF "systemd-mask:KlipperScreen" "$DISABLED_SERVICES_FILE"
 }
 
 @test "pi: an enabled but stopped KlipperScreen is disabled and recorded" {
@@ -174,7 +180,19 @@ exit 0
     [ "$status" -eq 0 ]
 
     grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qF "systemd:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-mask:KlipperScreen" "$DISABLED_SERVICES_FILE"
+}
+
+@test "pi: a unit systemd refuses to mask is recorded as disabled only" {
+    # Uninstall must not unmask what was never masked.
+    mock_unit_state "KlipperScreen" 0 "enabled" 1
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
+    grep -qxF "systemd:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    refute_grep "systemd-mask:" "$DISABLED_SERVICES_FILE"
 }
 
 @test "pi: a KlipperScreen the user already disabled is left alone" {
@@ -218,7 +236,7 @@ exit 0
     [ "$status" -eq 0 ]
 
     grep -q "disable cage@tty1" "$SYSTEMCTL_LOG"
-    grep -qF "systemd:cage@tty1" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-mask:cage@tty1" "$DISABLED_SERVICES_FILE"
 }
 
 @test "compositor: a stopped, disabled weston is left alone" {
@@ -232,14 +250,68 @@ exit 0
     [ ! -f "$DISABLED_SERVICES_FILE" ] || refute_grep "weston" "$DISABLED_SERVICES_FILE"
 }
 
+# --- display managers (#1693): a DM starts a session that takes the display ---
+
+@test "display manager: an enabled, failed lightdm is masked, reset and recorded" {
+    # QIDI Q2 firmware 1.1.1: lightdm enabled under graphical.target, failing.
+    mock_unit_state "lightdm" 3 "enabled"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    grep -q "disable lightdm" "$SYSTEMCTL_LOG"
+    grep -q "mask lightdm" "$SYSTEMCTL_LOG"
+    grep -q "reset-failed lightdm" "$SYSTEMCTL_LOG"
+    grep -qxF "systemd-mask:lightdm" "$DISABLED_SERVICES_FILE"
+    # The default target is the user's: masking the DM is enough.
+    refute_grep "set-default" "$SYSTEMCTL_LOG"
+}
+
+@test "display manager: a disabled sddm is left alone" {
+    mock_unit_state "sddm" 3 "disabled"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    refute_grep "disable sddm" "$SYSTEMCTL_LOG"
+    refute_grep "mask sddm" "$SYSTEMCTL_LOG"
+}
+
 # --- round trip: what the sweep records, uninstall re-enables ---
+
+@test "round trip: a masked unit is unmasked before it is re-enabled" {
+    mock_unit_state "lightdm" 3 "enabled"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    : > "$SYSTEMCTL_LOG"
+    run reenable_disabled_services
+    [ "$status" -eq 0 ]
+
+    [ "$(grep -n "unmask lightdm" "$SYSTEMCTL_LOG" | cut -d: -f1)" -lt \
+      "$(grep -n "^enable lightdm" "$SYSTEMCTL_LOG" | cut -d: -f1)" ]
+}
+
+@test "round trip: a disable-only record never unmasks" {
+    # A unit masked by the user after install stays masked.
+    echo "systemd:KlipperScreen" > "$DISABLED_SERVICES_FILE"
+    mock_unit_state "KlipperScreen" 3 "masked"
+
+    run reenable_disabled_services
+    [ "$status" -eq 0 ]
+
+    grep -q "^enable KlipperScreen" "$SYSTEMCTL_LOG"
+    refute_grep "unmask" "$SYSTEMCTL_LOG"
+}
+
 
 @test "round trip: an enabled but stopped KlipperScreen is re-enabled on uninstall" {
     mock_unit_state "KlipperScreen" 3 "enabled"
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
-    grep -qF "systemd:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-mask:KlipperScreen" "$DISABLED_SERVICES_FILE"
 
     : > "$SYSTEMCTL_LOG"
     run reenable_disabled_services

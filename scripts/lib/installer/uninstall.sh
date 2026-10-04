@@ -179,7 +179,10 @@ reenable_disabled_services() {
         local target="${entry#*:}"
 
         case "$type" in
-            systemd)
+            systemd|systemd-mask)
+                if [ "$type" = "systemd-mask" ]; then
+                    $SUDO systemctl unmask "$target" 2>/dev/null || true
+                fi
                 log_info "Re-enabling systemd service: $target"
                 enable_unit_or_warn "$target"
                 HELIX_REENABLED_UNITS="${HELIX_REENABLED_UNITS} ${target}"
