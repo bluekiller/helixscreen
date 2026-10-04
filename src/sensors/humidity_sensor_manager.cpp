@@ -102,9 +102,9 @@ void HumiditySensorManager::discover(const std::vector<std::string>& klipper_obj
 
     spdlog::info("[HumiditySensorManager] Discovered {} humidity sensors", sensors_.size());
 
-    // Auto-assign roles based on sensor name when no roles are configured yet.
-    // If a sensor name contains "chamber", assign CHAMBER role; "dryer" gets DRYER role.
-    // Only auto-assigns if no sensor already holds that role (respects saved config).
+    // Auto-assign roles from the sensor name: the first "chamber" sensor gets CHAMBER,
+    // the first "dryer" sensor gets DRYER. sensors_ was rebuilt above, so every
+    // sensor starts at NONE here and the result depends only on the names.
     if (!sensors_.empty()) {
         bool has_chamber_role = find_config_by_role(HumiditySensorRole::CHAMBER) != nullptr;
         bool has_dryer_role = find_config_by_role(HumiditySensorRole::DRYER) != nullptr;

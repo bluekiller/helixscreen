@@ -1053,10 +1053,8 @@ void FilamentSensorManager::update_from_status(const json& status) {
             // Build the Klipper object key (e.g., "filament_switch_sensor fsensor")
             std::string key = sensor.klipper_name;
 
-            // Check if this sensor has an update
-            // Moonraker sends updates with the full object name as key
+            // Moonraker keys status by the full object name
             if (!status.contains(key)) {
-                // Also try without the prefix for older Moonraker versions
                 continue;
             }
 
@@ -1295,7 +1293,7 @@ void FilamentSensorManager::update_from_status(const json& status) {
 
         // Always update subjects on first status (initial_status_received_ handles this)
         // and on any state change. Without this, subjects stay at -1 ("no sensor")
-        // when the initial Moonraker status matches the default state (filament_detected=false).
+        // when the initial Moonraker status matches the default state (filament_detected=true).
         bool need_subject_update = any_changed || !initial_status_received_;
         initial_status_received_ = true;
 

@@ -31,8 +31,8 @@ class IMoonrakerAPI;
 namespace helix {
 
 // Test-only friend (defined in tests/unit/test_runout_empty_lane_scope.cpp) used
-// to set per-sensor roles directly, bypassing the single-RUNOUT exclusivity in
-// set_sensor_role() so multi-lane (Snapmaker) runout scenarios can be exercised.
+// to set per-sensor roles directly, the way a settings.json restore does, without
+// going through set_sensor_role().
 class RunoutScopeTestAccess;
 class BypassArmingTestAccess;
 // Test-only friend (defined in tests/test_helpers/post_unload_grace_test_access.h)
@@ -516,7 +516,7 @@ class FilamentSensorManager {
      * Used to suppress notifications and modals while sensor states
      * are being synchronized after Moonraker connection.
      *
-     * @return true if within grace period (first 2 seconds after sensor discovery)
+     * @return true within AppConstants::Startup::SENSOR_STABILIZATION_PERIOD of sensor discovery
      */
     [[nodiscard]] bool is_in_startup_grace_period() const;
 
@@ -668,7 +668,7 @@ class FilamentSensorManager {
 
     // Tracks whether we've received the first status update from Moonraker.
     // Ensures update_subjects() fires on initial status even when sensor state
-    // matches defaults (filament_detected=false), which wouldn't trigger any_changed.
+    // matches defaults (filament_detected=true), which wouldn't trigger any_changed.
     bool initial_status_received_ = false;
 
     // Discovery time for suppressing initial state notifications

@@ -172,7 +172,7 @@ Each manager exposes `get_subjects_lifetime()`. Pass it as the fourth argument o
 
 Three managers persist per-sensor config under the active printer's prefix (`Config::df()`): `filament_sensors`, `probe_sensors` and `width_sensors`. Each stores a `sensors` array of `{klipper_name, role, enabled, ...}` and the filament block adds `master_enabled` and an optional per-sensor `lane`. The UI writes through `save_config_to_file()` after each change (Settings > Sensors and the wizard).
 
-Temperature, humidity and accelerometer managers implement `load_config(json)` / `save_config()` but nothing in `src/` calls them, so their roles come only from discovery-time auto-assignment and from `set_sensor_role()` calls that last until the next rediscovery. `LoadCellManager::load_config()` is a documented no-op.
+Temperature, humidity and accelerometer managers implement `load_config(json)` / `save_config()`, but nothing in `src/` calls them, and nothing in `src/` calls their `set_sensor_role()` either: the Settings overlay lists these sensors read-only. Their roles are therefore exactly what discovery derives from the names, plus the chamber promotion `PrinterState` applies from the saved chamber assignment, and a rediscovery reproduces them. Wire `load_config_from_file()` / `save_config_to_file()` the way width does when a UI starts assigning these roles. `LoadCellManager::load_config()` is a documented no-op.
 
 ## Filament Sensors
 
