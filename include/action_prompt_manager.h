@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
+
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -30,6 +32,13 @@
  * - `prompt_show` - Display the prompt
  * - `prompt_end` - Close the prompt
  * - `notify <message>` - Show a standalone notification
+ *
+ * ## Threading
+ *
+ * Every state change runs on the main thread. Lines from the WebSocket thread
+ * go through make_line_sink(), which hops them to the main thread, so
+ * process_line() and the on_show/on_close callbacks are always main-thread
+ * calls. is_showing() and current_prompt_name() may be called from any thread.
  *
  * ## Usage
  *
@@ -129,27 +138,23 @@ class ActionPromptManager {
     /**
      * @brief Check if an action prompt is currently being displayed
      *
-     * Thread-safe static accessor (s_instance is atomic). Returns false
-     * if no instance is set or if the manager is not in the SHOWING state.
-     * See current_prompt_name() for relaxed consistency notes.
+     * Safe from any thread: reads only the published title, never the prompt
+     * the main thread is editing. A reader on another thread may see a value
+     * one transition old.
      *
      * @return true if a prompt is currently visible
      */
     [[nodiscard]] static bool is_showing() {
         auto* inst = s_instance.load(std::memory_order_acquire);
-        return inst != nullptr && inst->has_active_prompt();
+        return inst != nullptr && std::atomic_load(&inst->m_showing_title) != nullptr;
     }
 
     /**
      * @brief Get the title/name of the currently displayed prompt
      *
-     * Returns the title from prompt_begin if a prompt is currently showing.
-     * Returns empty string if no prompt is active or no instance is set.
-     *
-     * Note: Relaxed consistency — prompt state is only mutated on the main
-     * thread, so reads from the websocket thread may see stale data. Worst
-     * case is a false negative on toast suppression (toast shows when it
-     * could have been suppressed), which is the safe default.
+     * Returns the title from prompt_begin if a prompt is currently showing,
+     * otherwise an empty string. Safe from any thread, with the same staleness
+     * as is_showing().
      *
      * @return Current prompt title, or empty string
      */
@@ -158,11 +163,8 @@ class ActionPromptManager {
         if (inst == nullptr) {
             return {};
         }
-        const auto* prompt = inst->get_current_prompt();
-        if (prompt == nullptr) {
-            return {};
-        }
-        return prompt->title;
+        auto title = std::atomic_load(&inst->m_showing_title);
+        return title ? *title : std::string{};
     }
 
     /**
@@ -176,11 +178,11 @@ class ActionPromptManager {
         }
     }
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable: make_line_sink() hands out callables bound to `this`
     ActionPromptManager(const ActionPromptManager&) = delete;
     ActionPromptManager& operator=(const ActionPromptManager&) = delete;
-    ActionPromptManager(ActionPromptManager&&) = default;
-    ActionPromptManager& operator=(ActionPromptManager&&) = default;
+    ActionPromptManager(ActionPromptManager&&) = delete;
+    ActionPromptManager& operator=(ActionPromptManager&&) = delete;
 
     // ========================================================================
     // Static Parsing Functions (can be tested without instance)
@@ -245,11 +247,21 @@ class ActionPromptManager {
      * @brief Process a single line from notify_gcode_response
      *
      * Main entry point for feeding lines to the state machine.
-     * Non-action lines are silently ignored.
+     * Non-action lines are silently ignored. Main thread only; other threads
+     * feed lines through make_line_sink().
      *
      * @param line The raw line to process
      */
     void process_line(const std::string& line);
+
+    /**
+     * @brief A callable that feeds lines to process_line() from any thread
+     *
+     * Call on the main thread. The returned callable may run on any thread: it
+     * drops non-action lines where it runs and defers the rest to the main
+     * thread, where they are skipped once this manager is destroyed.
+     */
+    [[nodiscard]] std::function<void(const std::string&)> make_line_sink();
 
     // ========================================================================
     // Callbacks
@@ -308,8 +320,15 @@ class ActionPromptManager {
     // Static instance for cross-TU access
     static std::atomic<ActionPromptManager*> s_instance;
 
-    // State machine
+    // State machine. Change it through set_state(), which publishes m_showing_title.
     State m_state = State::IDLE;
+
+    // The showing prompt's title for readers on other threads; null unless
+    // SHOWING. Accessed only through std::atomic_load/std::atomic_store.
+    std::shared_ptr<const std::string> m_showing_title;
+
+    // Expires the deferred lines of make_line_sink() when this manager dies.
+    AsyncLifetimeGuard m_lifetime;
 
     // Current prompt being built or shown
     std::unique_ptr<PromptData> m_current_prompt;
@@ -327,6 +346,7 @@ class ActionPromptManager {
     // Command Handlers
     // ========================================================================
 
+    void set_state(State state);
     void handle_prompt_begin(const std::string& payload);
     void handle_prompt_text(const std::string& payload);
     void handle_prompt_button(const std::string& payload, bool is_footer);

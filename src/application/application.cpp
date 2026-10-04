@@ -2600,45 +2600,36 @@ void Application::init_action_prompt() {
         });
     }
 
-    // Wire on_show callback to display modal (uses ui_queue_update() for thread safety)
+    // The manager runs on the main thread, so the modal follows it in lock-step.
     m_action_prompt_manager->set_on_show([this](const helix::PromptData& data) {
         spdlog::info("[ActionPrompt] Showing prompt: {}", data.title);
-        // WebSocket callbacks run on background thread - must use ui_queue_update
-        m_async_lifetime.defer("Application::action_prompt_show", [this, data]() {
-            lv_obj_t* screen = lv_screen_active();
-            if (m_action_prompt_modal && screen) {
-                m_action_prompt_modal->show_prompt(screen, data);
-            }
-        });
+        lv_obj_t* screen = lv_screen_active();
+        if (m_action_prompt_modal && screen) {
+            m_action_prompt_modal->show_prompt(screen, data);
+        }
     });
 
-    // Wire on_close callback to hide modal
     m_action_prompt_manager->set_on_close([this]() {
         spdlog::info("[ActionPrompt] Closing prompt");
-        m_async_lifetime.defer("Application::action_prompt_close", [this]() {
-            if (m_action_prompt_modal) {
-                m_action_prompt_modal->hide();
-            }
-        });
+        if (m_action_prompt_modal) {
+            m_action_prompt_modal->hide();
+        }
     });
 
-    // Wire on_notify callback for standalone notifications (action:notify)
     m_action_prompt_manager->set_on_notify([](const std::string& message) {
         spdlog::info("[ActionPrompt] Notification: {}", message);
-        helix::ui::queue_update("Application::init_action_prompt", [message]() {
-            ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
-        });
+        ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
     });
 
-    // Allow mock AMS backends to inject action_prompt lines (e.g., calibration wizard)
-    auto* prompt_mgr = m_action_prompt_manager.get();
-    AmsState::instance().set_gcode_response_callback(
-        [prompt_mgr](const std::string& line) { prompt_mgr->process_line(line); });
+    // Lines arrive on the WebSocket thread (and from mock AMS backends, e.g. the
+    // calibration wizard); the sink hops them to the main thread.
+    auto feed_line = m_action_prompt_manager->make_line_sink();
+    AmsState::instance().set_gcode_response_callback(feed_line);
 
     // Register for notify_gcode_response messages from Moonraker
     // All lines from G-code console output come through this notification
     client->register_method_callback(
-        "notify_gcode_response", "action_prompt_manager", [this](const nlohmann::json& msg) {
+        "notify_gcode_response", "action_prompt_manager", [feed_line](const nlohmann::json& msg) {
             // notify_gcode_response has params: [["line1", "line2", ...]]
             if (!msg.contains("params") || !msg["params"].is_array() || msg["params"].empty()) {
                 return;
@@ -2646,18 +2637,10 @@ void Application::init_action_prompt() {
 
             const auto& params = msg["params"];
             // params can be an array of strings, or an array containing an array of strings
-            // Handle both formats
-            if (params[0].is_array()) {
-                for (const auto& line : params[0]) {
-                    if (line.is_string()) {
-                        m_action_prompt_manager->process_line(line.get<std::string>());
-                    }
-                }
-            } else if (params[0].is_string()) {
-                for (const auto& line : params) {
-                    if (line.is_string()) {
-                        m_action_prompt_manager->process_line(line.get<std::string>());
-                    }
+            const auto& lines = params[0].is_array() ? params[0] : params;
+            for (const auto& line : lines) {
+                if (line.is_string()) {
+                    feed_line(line.get<std::string>());
                 }
             }
         });

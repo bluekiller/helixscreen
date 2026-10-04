@@ -14,8 +14,12 @@
  *   prompt_button_group_start/end, prompt_show, prompt_end, notify
  */
 
+#include "ui_update_queue.h"
+
+#include "../lvgl_test_fixture.h"
 #include "action_prompt_manager.h"
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -1473,4 +1477,42 @@ TEST_CASE("ActionPromptManager: Static current_prompt_name() accessor", "[action
         ActionPromptManager::set_instance(nullptr);
         REQUIRE(ActionPromptManager::current_prompt_name().empty());
     }
+}
+
+// ============================================================================
+// Line sink: lines from other threads are applied on the main thread
+// ============================================================================
+
+TEST_CASE_METHOD(LVGLTestFixture, "ActionPromptManager: the line sink applies lines only on drain",
+                 "[action_prompt][threading]") {
+    ActionPromptManager manager;
+    auto feed = manager.make_line_sink();
+
+    feed("// action:prompt_begin Filament Change");
+    feed("ok");
+    feed("// action:prompt_button Continue|RESUME|primary");
+    feed("// action:prompt_show");
+
+    // Nothing has touched the state yet: the caller's thread only queued.
+    CHECK(manager.get_state() == ActionPromptManager::State::IDLE);
+
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(manager.has_active_prompt());
+    REQUIRE(manager.get_current_prompt() != nullptr);
+    CHECK(manager.get_current_prompt()->title == "Filament Change");
+    CHECK(manager.get_current_prompt()->buttons.size() == 1);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "ActionPromptManager: queued lines are dropped once it is gone",
+                 "[action_prompt][threading]") {
+    std::function<void(const std::string&)> feed;
+    {
+        ActionPromptManager manager;
+        feed = manager.make_line_sink();
+        feed("// action:prompt_begin Gone");
+    }
+    feed("// action:prompt_show");
+    // Under ASAN a deferred process_line on the destroyed manager is a UAF.
+    helix::ui::UpdateQueue::instance().drain();
+    SUCCEED();
 }
