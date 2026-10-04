@@ -261,6 +261,30 @@ excluded — see the task-10 report for the evidence. Adding one of them later n
 either a mock-side way to pin the drifting value, or accepting a masked/cropped
 comparison region; don't just re-add the token and hope.
 
+#### Size and theme variants
+
+Each screen in the subset is also captured under the variants in `_VARIANTS`
+(`test_screens.py`): `small` (`-s small`, 480x400), `large` (`-s large`, 1024x600)
+and `light` (`--light`). The default variant (`""`, 800x480 dark) keeps the
+unsuffixed golden names (`settings.png`); every other variant's golden is
+`<screen>@<variant>.png` and its test id is `[<screen>@<variant>]`. Every
+case boots its own app: a panel's own state survives `ctl reset`, so in a shared
+app a capture depends on which screens ran before it. A full run takes about a
+minute.
+
+A (screen, variant) pair belongs in the corpus only once its capture is
+byte-identical across at least 3 independent app boots, the same bar the default
+subset met. To add a variant or a screen:
+
+1. Add the entry to `_VARIANTS` (or the token to `_SUBSET`).
+2. Capture only the new goldens, so no existing one is overwritten:
+   `.venv/bin/python -m pytest tests/ui/test_screens.py -k "<variant>" --accept-goldens`
+3. Run the whole file without `--accept-goldens` at least 3 times; each run is a
+   fresh boot. Add any pair that goes red to `_UNSTABLE` with a comment naming
+   what drifts; print-select's three variants and `motion@large` are there.
+4. Open every new PNG and confirm it shows the intended screen, at the intended
+   size and theme, fully settled.
+
 Every golden'd screen also depends on `settings_animations_enabled` being off, or
 `NavigationManager`'s overlay slide+fade can still be mid-flight when `freeze()`
 runs, locking in a half-transitioned frame. This used to be a real bug: each
