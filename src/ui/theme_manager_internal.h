@@ -86,6 +86,11 @@ lv_theme_t* theme_init_lvgl(lv_display_t* display, const theme_palette_t* palett
 /// theme without rebuilding the LVGL theme.
 void theme_update_colors(bool is_dark);
 
+/// Replace the colour-swap maps used to recolour inline-styled containers:
+/// every surface and border colour of `old_palette` maps to its `new_palette`
+/// counterpart. A null `old_palette` leaves both maps empty.
+void set_swap_maps(const helix::ModePalette* old_palette, const helix::ModePalette& new_palette);
+
 /// True when `obj` sits in a dialog or on a container whose opaque background
 /// is the elevated surface colour, where inputs need overlay_bg for contrast.
 bool is_on_elevated_surface(lv_obj_t* obj);

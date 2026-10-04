@@ -587,6 +587,7 @@ src/ui/overlay_geometry.cpp
 src/ui/theme_fonts.cpp
 src/ui/theme_responsive.cpp
 src/ui/theme_lvgl_apply.cpp
+src/ui/theme_live_recolor.cpp
 src/ui/grid_edit_mode.cpp
 src/ui/grid_edit_cross_page.cpp
 src/ui/grid_edit_drop.cpp
