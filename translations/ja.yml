@@ -1455,6 +1455,7 @@ translations:
   Ignore the click that fires when you lift after scrolling: スクロール後に指を離したときに発生するクリックを無視
   'Import failed: {}': 'インポートに失敗しました: {}'
   Imported {}: '{} をインポートしました'
+  Importing {}...: '{} をインポート中...'
   In Progress: 進行中
   Inactive: 非アクティブ
   Include Klipper/Moonraker logs: Klipper/Moonrakerのログを含める

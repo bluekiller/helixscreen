@@ -1402,6 +1402,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" ja="スクロール後に指を離したときに発生するクリックを無視"/>
   <translation tag="Import failed: {}" ja="インポートに失敗しました: {}"/>
   <translation tag="Imported {}" ja="{} をインポートしました"/>
+  <translation tag="Importing {}..." ja="{} をインポート中..."/>
   <translation tag="In Progress" ja="進行中"/>
   <translation tag="Inactive" ja="非アクティブ"/>
   <translation tag="Include Klipper/Moonraker logs" ja="Klipper/Moonrakerのログを含める"/>

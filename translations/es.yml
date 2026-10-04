@@ -1557,6 +1557,7 @@ translations:
     dispara al levantar el dedo después de desplazarte
   'Import failed: {}': 'Error al importar: {}'
   Imported {}: '{} importado'
+  Importing {}...: 'Importando {}...'
   In Progress: En Progreso
   Inactive: Inactivo
   Include Klipper/Moonraker logs: Incluir registros de Klipper/Moonraker

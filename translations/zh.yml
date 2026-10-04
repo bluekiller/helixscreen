@@ -1450,6 +1450,7 @@ translations:
   Ignore the click that fires when you lift after scrolling: 忽略滚动后抬起手指时触发的点击
   'Import failed: {}': '导入失败: {}'
   Imported {}: 已导入 {}
+  Importing {}...: '正在导入 {}...'
   In Progress: 进行中
   Inactive: 未激活
   Include Klipper/Moonraker logs: 包含 Klipper/Moonraker 日志

@@ -1402,6 +1402,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" zh="忽略滚动后抬起手指时触发的点击"/>
   <translation tag="Import failed: {}" zh="导入失败: {}"/>
   <translation tag="Imported {}" zh="已导入 {}"/>
+  <translation tag="Importing {}..." zh="正在导入 {}..."/>
   <translation tag="In Progress" zh="进行中"/>
   <translation tag="Inactive" zh="未激活"/>
   <translation tag="Include Klipper/Moonraker logs" zh="包含 Klipper/Moonraker 日志"/>

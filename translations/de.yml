@@ -1566,6 +1566,7 @@ translations:
     nach dem Scrollen beim Loslassen ausgelöst wird
   'Import failed: {}': 'Import fehlgeschlagen: {}'
   Imported {}: '{} importiert'
+  Importing {}...: '{} wird importiert...'
   In Progress: In Bearbeitung
   Inactive: Inaktiv
   Include Klipper/Moonraker logs: Klipper/Moonraker-Protokolle einschließen

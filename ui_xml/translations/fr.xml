@@ -1402,6 +1402,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" fr="Ignorer le clic déclenché au relâchement après un défilement"/>
   <translation tag="Import failed: {}" fr="Échec de l&apos;importation : {}"/>
   <translation tag="Imported {}" fr="{} importé"/>
+  <translation tag="Importing {}..." fr="Importation de {}..."/>
   <translation tag="In Progress" fr="En cours"/>
   <translation tag="Inactive" fr="Inactif"/>
   <translation tag="Include Klipper/Moonraker logs" fr="Inclure les journaux Klipper/Moonraker"/>

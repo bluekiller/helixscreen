@@ -1504,6 +1504,7 @@ translations:
     fires when you lift after scrolling
   'Import failed: {}': 'Import failed: {}'
   Imported {}: Imported {}
+  Importing {}...: Importing {}...
   In Progress: In Progress
   Inactive: Inactive
   Include Klipper/Moonraker logs: Include Klipper/Moonraker logs

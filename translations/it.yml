@@ -1555,6 +1555,7 @@ translations:
     attiva al rilascio dopo lo scorrimento
   'Import failed: {}': 'Importazione fallita: {}'
   Imported {}: Importato {}
+  Importing {}...: 'Importazione di {}...'
   In Progress: In corso
   Inactive: Inattivo
   Include Klipper/Moonraker logs: Includi log Klipper/Moonraker

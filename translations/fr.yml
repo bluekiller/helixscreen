@@ -1571,6 +1571,7 @@ translations:
     au relâchement après un défilement
   'Import failed: {}': 'Échec de l''importation : {}'
   Imported {}: '{} importé'
+  Importing {}...: 'Importation de {}...'
   In Progress: En cours
   Inactive: Inactif
   Include Klipper/Moonraker logs: Inclure les journaux Klipper/Moonraker

@@ -1402,6 +1402,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" ru="Игнорировать клик, возникающий при отпускании после прокрутки"/>
   <translation tag="Import failed: {}" ru="Ошибка импорта: {}"/>
   <translation tag="Imported {}" ru="Импортировано {}"/>
+  <translation tag="Importing {}..." ru="Импорт {}..."/>
   <translation tag="In Progress" ru="В процессе"/>
   <translation tag="Inactive" ru="Неактивно"/>
   <translation tag="Include Klipper/Moonraker logs" ru="Включить логи Klipper/Moonraker"/>

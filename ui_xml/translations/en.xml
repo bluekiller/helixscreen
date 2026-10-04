@@ -1402,6 +1402,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" en="Ignore the click that fires when you lift after scrolling"/>
   <translation tag="Import failed: {}" en="Import failed: {}"/>
   <translation tag="Imported {}" en="Imported {}"/>
+  <translation tag="Importing {}..." en="Importing {}..."/>
   <translation tag="In Progress" en="In Progress"/>
   <translation tag="Inactive" en="Inactive"/>
   <translation tag="Include Klipper/Moonraker logs" en="Include Klipper/Moonraker logs"/>

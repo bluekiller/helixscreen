@@ -1539,6 +1539,7 @@ translations:
     при отпускании после прокрутки
   'Import failed: {}': 'Ошибка импорта: {}'
   Imported {}: Импортировано {}
+  Importing {}...: 'Импорт {}...'
   In Progress: В процессе
   Inactive: Неактивно
   Include Klipper/Moonraker logs: Включить логи Klipper/Moonraker

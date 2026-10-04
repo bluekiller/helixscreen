@@ -1559,6 +1559,7 @@ translations:
     ao soltar após rolagem
   'Import failed: {}': 'Falha ao importar: {}'
   Imported {}: '{} importado'
+  Importing {}...: 'Importando {}...'
   In Progress: Em Andamento
   Inactive: Inativo
   Include Klipper/Moonraker logs: Incluir logs do Klipper/Moonraker
