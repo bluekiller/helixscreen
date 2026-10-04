@@ -40,6 +40,7 @@
 #include "temperature_sensor_manager.h"
 #include "test_helpers/ams_state_test_access.h"
 #include "test_helpers/config_test_access.h"
+#include "test_helpers/display_manager_test_access.h"
 #include "test_helpers/emergency_stop_test_access.h"
 #include "test_helpers/layout_manager_test_access.h"
 #include "test_helpers/print_control_buttons_test_access.h"
@@ -577,6 +578,9 @@ void HelixTestFixture::reset_all() {
     // for every refresh, so a case that initialized it would make a later case's
     // display resize invisible to the theme.
     LayoutManagerTestAccess::reset(helix::LayoutManager::instance());
+
+    // The wake gate arms a one-shot timer that re-enables every pointer indev.
+    DisplayManagerTestAccess::cancel_input_gate_timers();
 
     restore_default_logger();
 

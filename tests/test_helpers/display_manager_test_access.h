@@ -5,6 +5,7 @@
 #include "backlight_backend.h"
 #include "display_backend.h"
 #include "display_manager.h"
+#include "misc/lv_timer_private.h" // timer_cb: identifies the wake gate's own timer
 
 #include <memory>
 
@@ -151,6 +152,20 @@ class DisplayManagerTestAccess {
     // the gate alone.
     static void disable_input_briefly(DisplayManager& dm) {
         dm.disable_input_briefly();
+    }
+
+    // Delete every pending wake-gate re-enable timer. Left armed, the first
+    // lv_timer_handler() that crosses its 200ms re-enables every pointer indev
+    // in the process, including ones a later case disabled on purpose.
+    static void cancel_input_gate_timers() {
+        lv_timer_t* timer = lv_timer_get_next(nullptr);
+        while (timer) {
+            lv_timer_t* next = lv_timer_get_next(timer);
+            if (timer->timer_cb == &DisplayManager::reenable_input_cb) {
+                lv_timer_delete(timer);
+            }
+            timer = next;
+        }
     }
 
     // Exercises the wake-side panel restore (power-on / unblank / overlay removal)
