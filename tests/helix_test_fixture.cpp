@@ -46,6 +46,7 @@
 #include "test_helpers/layout_manager_test_access.h"
 #include "test_helpers/print_control_buttons_test_access.h"
 #include "test_helpers/printer_state_test_access.h"
+#include "test_helpers/tips_manager_test_access.h"
 #include "tool_state.h"
 #include "ui/ui_widget_helpers.h"
 
@@ -588,6 +589,8 @@ void HelixTestFixture::reset_all() {
         !lv_xml_get_subject(nullptr, "ams_edit_save_disabled")) {
         helix::detail::lazy_global_slot<helix::ui::AmsEditOverlay>().reset();
     }
+
+    TipsManagerTestAccess::reset_if_created();
 
     // The wake gate arms a one-shot timer that re-enables every pointer indev.
     DisplayManagerTestAccess::finish_input_gate();
