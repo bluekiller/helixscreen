@@ -60,13 +60,19 @@ nlohmann::json load_printer_capture(const std::string& slug) {
     return j;
 }
 
-/// PrinterHardwareData aggregated from a real machine's captures: the object
-/// list, /printer/info hostname, and whatever other endpoints the snapshot
-/// recorded. Fields the capture does not carry keep their defaults, exactly as
-/// a discovery that never fetched them would leave them.
-PrinterHardwareData printer_capture(const std::string& slug) {
-    const nlohmann::json j = load_printer_capture(slug);
+/// The hardware -> expected model rows in tests/fixtures/printers/detection_cases.json,
+/// read once: each DYNAMIC_SECTION re-enters its test case, and a re-read would
+/// repeat the load's assertions once per row.
+const nlohmann::json& load_detection_corpus() {
+    static const nlohmann::json corpus = load_printer_capture("detection_cases");
+    return corpus;
+}
 
+/// PrinterHardwareData from one hardware JSON object: the shape of a machine
+/// capture and of a corpus row's "hardware". Fields it does not carry keep
+/// their defaults, exactly as a discovery that never fetched them would leave
+/// them.
+PrinterHardwareData hardware_from_json(const nlohmann::json& j, const std::string& label) {
     // Every key must be one this loader reads, so a misspelled or unread key
     // fails here instead of leaving the capture silently weaker.
     static const std::set<std::string> kKnownKeys = {
@@ -74,7 +80,7 @@ PrinterHardwareData printer_capture(const std::string& slug) {
         "leds",       "hostname", "printer_objects", "steppers",     "kinematics",
         "mcu",        "mcu_list", "cpu_arch",        "build_volume", "configfile_settings"};
     for (const auto& item : j.items()) {
-        INFO("capture '" << slug << "' has a key the loader does not read: " << item.key());
+        INFO("'" << label << "' has a key the loader does not read: " << item.key());
         CHECK(kKnownKeys.count(item.key()) == 1);
     }
 
@@ -110,11 +116,18 @@ PrinterHardwareData printer_capture(const std::string& slug) {
     // capture takes the same reading a live connection does.
     if (j.contains("configfile_settings")) {
         helix::PrinterDiscovery discovery;
-        INFO("capture '" << slug << "' configfile_settings carries no stepper extent");
+        INFO("'" << label << "' configfile_settings carries no stepper extent");
         REQUIRE(discovery.parse_build_volume(j.at("configfile_settings")));
         hardware.build_volume = discovery.build_volume();
     }
     return hardware;
+}
+
+/// PrinterHardwareData aggregated from a real machine's captures: the object
+/// list, /printer/info hostname, and whatever other endpoints the snapshot
+/// recorded.
+PrinterHardwareData printer_capture(const std::string& slug) {
+    return hardware_from_json(load_printer_capture(slug), "capture " + slug);
 }
 
 } // namespace
@@ -207,19 +220,51 @@ class PrinterDetectorFixture {
 // Basic Detection Tests
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Detect FlashForge AD5M Pro by tvocValue sensor",
-                 "[printer][sensor_match]") {
-    auto hardware = flashforge_ad5m_pro_hardware();
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
+// ============================================================================
+// Detection corpus: hardware -> expected model
+// ============================================================================
+//
+// One row of tests/fixtures/printers/detection_cases.json per printer shape:
+// the hardware a machine reports and the model it must be detected as. A new
+// printer is a row there, not a test case. Scoring rules whose assertions are
+// not "this hardware is that model" stay as cases below.
 
-    REQUIRE(result.detected());
-    // LED strip + hostname + tvoc sensor separate the Pro from every other machine
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-    REQUIRE(PrinterDetector::meets_autosave_threshold(result));
+TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: corpus rows detect their expected model",
+                 "[printer][detector][corpus][1284][ad5m][ad5x][anycubic][artillery][board_match]["
+                 "build_volume][case_sensitivity][combined][cpu_arch_match][creality][elegoo]["
+                 "flsun][heuristics][hostname_exclude][hostname_match][kinematics][led_match]["
+                 "macros][mcu][negative][non_printer][objects][prusa][qidi][ratos][ratrig][real_"
+                 "world][regression][sensor_match][sovol][steppers][tool_count]") {
+    const nlohmann::json& corpus = load_detection_corpus();
+    for (const auto& row : corpus) {
+        const std::string name = row.at("name").get<std::string>();
+        DYNAMIC_SECTION(name) {
+            const PrinterHardwareData hardware = row.contains("capture")
+                                                     ? printer_capture(row.at("capture"))
+                                                     : hardware_from_json(row.at("hardware"), name);
+            auto result = PrinterDetector::detect(hardware);
+            CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
+                    result.runner_up_confidence, result.margin(), result.tied_count);
+
+            REQUIRE(result.detected());
+            REQUIRE(result.type_name == row.at("expect").get<std::string>());
+            REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
+            if (row.value("autosave", false)) {
+                REQUIRE(PrinterDetector::meets_autosave_threshold(result));
+            }
+        }
+    }
+}
+
+TEST_CASE("PrinterDetector: corpus rows are unique, so no section is silently skipped",
+          "[printer][detector][corpus]") {
+    const nlohmann::json& corpus = load_detection_corpus();
+    std::set<std::string> names;
+    for (const auto& row : corpus) {
+        names.insert(row.at("name").get<std::string>());
+    }
+    REQUIRE(!corpus.empty());
+    REQUIRE(names.size() == corpus.size());
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect Voron V2 by bed_fans",
@@ -287,126 +332,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - 
     REQUIRE(result.reason.find("voron") != std::string::npos);
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - Creality K1",
-                 "[printer][hostname_match]") {
-    auto hardware = creality_k1_hardware();
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // Hostname "k1-max" matches K1 Max specifically
-    REQUIRE(result.type_name == "Creality K1 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - Creality Ender 3",
-                 "[printer][hostname_match]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "ender3-pro" // Avoid "v2" pattern conflict
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // "ender3" hostname is a specific match: no other entry scores at all
-    REQUIRE(result.type_name == "Creality Ender 3");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Detect by hostname - Creality Ender 3 V3 KE",
-                 "[printer][hostname_match]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan", "heater_fan hotend_fan"},
-                                 .leds = {},
-                                 .hostname = "Creality_Ender_3_V3_KE",
-                                 .printer_objects = {"adxl345"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-                                 .kinematics = "cartesian"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender-3 V3 KE");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Distinguish Ender-3 V3 KE from Ender-3 V3",
-                 "[printer][hostname_match]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan", "heater_fan hotend_fan"},
-                                 .leds = {},
-                                 .hostname = "creality-ender3-v3-ke",
-                                 .printer_objects = {"adxl345"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-                                 .kinematics = "cartesian"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender-3 V3 KE");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: V3 KE hostname does not match V3 (hostname_exclude)",
-                 "[printer][hostname_match][hostname_exclude]") {
-    // "ender-3-v3-ke" contains "ender-3-v3" as a substring, so without
-    // hostname_exclude the V3 non-KE entry would also match at high confidence.
-    // The hostname_exclude heuristic on V3 disqualifies it when "v3-ke" is present.
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan", "heater_fan hotend_fan"},
-                                 .leds = {},
-                                 .hostname = "ender-3-v3-ke",
-                                 .printer_objects = {"adxl345"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-                                 .kinematics = "cartesian"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender-3 V3 KE");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: V3 hostname without KE still detects V3",
-                 "[printer][hostname_match][hostname_exclude]") {
-    // Ensure the exclusion doesn't break normal V3 detection
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan", "heater_fan hotend_fan"},
-                                 .leds = {},
-                                 .hostname = "ender-3-v3",
-                                 .printer_objects = {"adxl345"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-                                 .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender-3 V3");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Edge Cases
 // ============================================================================
@@ -466,64 +391,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // Case Sensitivity Tests
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Case-insensitive sensor matching",
-                 "[printer][case_sensitivity]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder"},
-        .sensors = {"TVOCVALUE", "temperature_sensor chamber"}, // Uppercase
-        .fans = {},
-        .leds = {"led chamber_light"}, // LED distinguishes AD5M Pro from Adventurer 5M
-        .hostname = "test"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro");
-    // High-confidence sensor match (tvocValue is distinctive)
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-    REQUIRE(PrinterDetector::meets_autosave_threshold(result));
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Case-insensitive hostname matching",
-                 "[printer][case_sensitivity]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder"},
-        .sensors = {},
-        .fans = {},
-        .leds = {"led chamber_light"}, // chamber_light LED distinguishes AD5M Pro from regular 5M
-        .hostname = "FLASHFORGE-AD5M"  // Uppercase
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro");
-    // The chamber_light LED is the case-insensitive signal under test
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Case-insensitive fan matching",
-                 "[printer][case_sensitivity]") {
-    PrinterHardwareData hardware{.heaters = {"extruder"},
-                                 .sensors = {},
-                                 .fans = {"BED_FANS", "EXHAUST_fan"}, // Mixed case
-                                 .leds = {},
-                                 .hostname = "test"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    // Medium-high confidence fan combo match
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Heuristic Type Tests
 // ============================================================================
@@ -568,26 +435,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: fan_match heuristic -
     // One Voron fan pattern is family evidence only: dozens of entries tie.
     REQUIRE(result.type_name.rfind("Voron", 0) == 0);
     REQUIRE(result.margin() == 0);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: fan_combo heuristic - multiple patterns required",
-                 "[printer][heuristics]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder"},
-        .sensors = {},
-        .fans = {"bed_fans", "chamber_fan", "exhaust_fan"}, // Medium-high confidence with combo
-        .leds = {},
-        .hostname = "test"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    // fan_combo has higher confidence than single fan_match
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: fan_combo missing one pattern fails",
@@ -638,175 +485,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Real FlashForge AD5M 
     // tvocValue + LED + hostname separate the Pro from every other machine
     REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
     REQUIRE(PrinterDetector::meets_autosave_threshold(result));
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Real Voron 2.4 fingerprint",
-                 "[printer][real_world]") {
-    // Typical Voron 2.4 configuration
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber", "temperature_sensor raspberry_pi",
-                    "temperature_sensor octopus"},
-        .fans = {"fan", "heater_fan hotend_fan", "controller_fan octopus_fan",
-                 "temperature_fan bed_fans", "fan_generic exhaust_fan"},
-        .leds = {}, // Remove LEDs entirely to avoid AD5M Pro pattern match
-        .hostname = "voron2-4159"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Voron 2.4 without v2 in hostname",
-                 "[printer][real_world]") {
-    // Voron V2 with generic hostname (only hardware detection available)
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber"},
-        .fans = {"bed_fans", "exhaust_fan", "controller_fan"},
-        .leds = {},
-        .hostname = "mainsailos", // Generic hostname
-        .printer_objects = {},
-        .steppers = {},
-
-        .kinematics = "corexy" // Add kinematics to confirm Voron pattern
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Voron 0.1 by hostname only",
-                 "[printer][real_world]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan", "heater_fan hotend_fan"},
-                                 .leds = {},
-                                 .hostname = "voron-v01"}; // Use v01 to match 0.1 specifically
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 0.2"); // Database matches V0.2, not V0.1
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Voron Trident by hostname",
-                 "[printer][real_world]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "voron-trident-300"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron Trident");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Voron Switchwire by hostname",
-                 "[printer][real_world]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "switchwire-250"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron Switchwire");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Creality K1 with chamber fan",
-                 "[printer][real_world]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan", "chamber_fan"},
-                                 .leds = {},
-                                 .hostname = "creality-k1-max"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name ==
-            "Creality K1 Max"); // Hostname has "k1-max" so it should match K1 Max
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Creality Ender 3 V2",
-                 "[printer][real_world]") {
-    // NOTE: Hostname must contain "ender3" pattern but avoid "v2" substring
-    // which would match Voron 2.4 at higher confidence (85% vs 80%)
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "my-ender3-printer" // Contains "ender3" without "v2"
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender 3");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Creality Ender 5 Plus",
-                 "[printer][real_world]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "ender5-plus"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender 5");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Creality CR-10",
-                 "[printer][real_world]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "cr-10-s5"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality CR-10");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 // ============================================================================
@@ -998,173 +676,13 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: kinematics_match heur
     REQUIRE_FALSE(PrinterDetector::meets_autosave_threshold(result));
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: kinematics_match heuristic - CoreXZ (Switchwire)",
-                 "[printer][kinematics]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "test",
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "corexz"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron Switchwire"); // CoreXZ is Switchwire signature
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: kinematics_match heuristic - Cartesian",
-                 "[printer][kinematics]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "ender3-test", // To help distinguish
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "cartesian"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality Ender 3");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Enhanced Detection Tests - Stepper Count
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: stepper_count heuristic - 4 Z steppers (Voron 2.4)",
-                 "[printer][steppers]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "test",
-                                 .printer_objects = {"quad_gantry_level"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1",
-                                              "stepper_z2", "stepper_z3"},
-
-                                 .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: stepper_count heuristic - 3 Z steppers (Trident)",
-                 "[printer][steppers]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "test",
-        .printer_objects = {"z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2"},
-
-        .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron Trident");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: stepper_count heuristic - Single Z stepper",
-                 "[printer][steppers]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "voron-v0", // Help identify V0
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 0.2");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Enhanced Detection Tests - Build Volume
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: build_volume_range heuristic - Small (V0)",
-                 "[printer][build_volume]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "voron-v02", // Use v02 to specifically match Voron 0.2
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 120, .y_min = 0, .y_max = 120, .z_max = 120}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 0.2");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: build_volume_range heuristic - K1 vs K1 Max",
-                 "[printer][build_volume]") {
-    // K1 Max has ~300mm build volume
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"chamber_fan"},
-        .leds = {},
-        .hostname = "creality-k1max", // Specific K1 Max hostname
-        .printer_objects = {},
-        .steppers = {},
-
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality K1 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: build_volume_range heuristic - K2 Plus vs K2 Pro",
@@ -1211,33 +729,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
         REQUIRE(result.type_name == "Creality K2 Pro");
         REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
     }
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: build_volume_range heuristic - Large (Ender 5 Max)",
-                 "[printer][build_volume]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "ender5-max", // Add "max" to specifically match Ender 5 Max
-        .printer_objects = {},
-        .steppers = {},
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 400, .y_min = 0, .y_max = 400, .z_max = 400}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // The dedicated Ender 5 Max entry wins: hostname 'ender5-max' + large build
-    // volume + cartesian kinematics. Qidi Max 4 (same ~400mm footprint) is ruled
-    // out by its kinematics_exclude on cartesian, so it can't shadow the Ender.
-    REQUIRE(result.type_name == "Creality Ender 5 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 // A corexy printer with the Qidi Max 4 footprint detects as Qidi Max 4, but the
@@ -1420,30 +911,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     REQUIRE_FALSE(result.type_name == "KAMP (Adaptive Meshing)");
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Doron Velta wins over Klippain addon",
-                 "[printer][macros][non_printer]") {
-    // Doron Velta hardware with Klippain Shake&Tune macros installed
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "doron-velta",
-                                 .printer_objects = {"delta_calibrate",
-                                                     "gcode_macro AXES_SHAPER_CALIBRATION",
-                                                     "gcode_macro BELTS_SHAPER_CALIBRATION"},
-                                 .steppers = {"stepper_a", "stepper_b", "stepper_c"},
-                                 .kinematics = "delta"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // A real printer always beats a non-printer addon
-    REQUIRE(result.type_name == "Doron Velta");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: Only addon macros yields no detection or real printer",
                  "[printer][macros][non_printer]") {
@@ -1475,106 +942,9 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // Enhanced Detection Tests - Object Exists
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: object_exists heuristic - quad_gantry_level",
-                 "[printer][objects]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "test",
-                                 .printer_objects = {"quad_gantry_level"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1",
-                                              "stepper_z2", "stepper_z3"},
-
-                                 .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: object_exists heuristic - z_tilt",
-                 "[printer][objects]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "test",
-        .printer_objects = {"z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2"},
-
-        .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // z_tilt with 3 Z steppers = Trident
-    REQUIRE(result.type_name == "Voron Trident");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Enhanced Detection Tests - Combined Heuristics
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Combined heuristics - Full Voron 2.4 fingerprint",
-                 "[printer][combined]") {
-    // Full Voron 2.4 setup with all data sources
-    // Note: Avoid using "neopixel" in leds as it matches AD5M Pro at 92% confidence
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber"},
-        .fans = {"bed_fans", "exhaust_fan", "nevermore"},
-        .leds = {"stealthburner_leds"}, // Voron-specific LED name, not "neopixel"
-        .hostname = "voron-2-4",
-        .printer_objects = {"quad_gantry_level"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2",
-                     "stepper_z3"},
-
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 350, .y_min = 0, .y_max = 350, .z_max = 330}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Combined heuristics - Full Creality K1 fingerprint",
-                 "[printer][combined]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber_temp"},
-        .fans = {"fan", "chamber_fan"},
-        .leds = {},
-        .hostname = "k1-printer",
-        .printer_objects = {"temperature_fan chamber_fan"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 250}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality K1");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Combined heuristics - Delta printer",
                  "[printer][combined]") {
@@ -1805,83 +1175,9 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     }
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: board_match heuristic - Fysetc board identifies Doron Velta",
-                 "[printer][board_match]") {
-    // Doron Velta with Fysetc R4 mainboard visible as temperature_sensor
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor Fysetc_R4"},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "dv",
-        .printer_objects = {"temperature_sensor Fysetc_R4", "probe_eddy_current fly_eddy_probe"},
-        .steppers = {"stepper_a", "stepper_b", "stepper_c"},
-
-        .kinematics = "delta"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Doron Velta");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: board_match is case insensitive",
-                 "[printer][board_match]") {
-    // Board name in different case should still match
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {},
-                                 .leds = {},
-                                 .hostname = "test",
-                                 .printer_objects = {"temperature_sensor fysetc_spider"},
-                                 .steppers = {"stepper_a", "stepper_b", "stepper_c"},
-
-                                 .kinematics = "delta"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // Should still match Doron Velta due to case-insensitive fysetc match
-    REQUIRE(result.type_name == "Doron Velta");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // LED-Based Detection Tests (AD5M Pro vs AD5M)
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: AD5M Pro distinguished by LED chamber light",
-                 "[printer][led_match]") {
-    // AD5M Pro has LED chamber light - this is the key differentiator from regular AD5M
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"tvocValue", "temperature_sensor chamber_temp"},
-        .fans = {"fan", "fan_generic exhaust_fan"},
-        .leds = {"led chamber_light"}, // LED chamber light - AD5M Pro exclusive
-        .hostname = "flashforge-ad5m", // Generic AD5M hostname
-        .printer_objects = {},
-        .steppers = {},
-
-        .kinematics = "cartesian"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // LED chamber light should distinguish Pro from regular 5M
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro");
-    // The reported chamber light is what separates the Pro from the rest
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-    REQUIRE(PrinterDetector::meets_autosave_threshold(result));
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Regular AD5M without LED",
                  "[printer][led_match]") {
@@ -2121,175 +1417,9 @@ TEST_CASE("PrinterDetector: auto_detect carries the reported flag from discovery
     CHECK_FALSE(parsed.objects_reported());
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: AD5M Pro with chamber_light LED",
-                 "[printer][led_match]") {
-    // AD5M Pro has "led chamber_light" - the key differentiator
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {"tvocValue"},
-                                 .fans = {"fan"},
-                                 .leds = {"led chamber_light"}, // AD5M Pro chamber LED
-                                 .hostname = "ad5m",
-                                 .printer_objects = {},
-                                 .steppers = {},
-
-                                 .kinematics = "cartesian"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro");
-    // The reported chamber light separates the Pro from the family
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-    REQUIRE(PrinterDetector::meets_autosave_threshold(result));
-}
-
 // ============================================================================
 // Top Printer Fingerprints - Comprehensive Real-World Tests
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Prusa MK3S+ fingerprint",
-                 "[printer][real_world][prusa]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor board_temp"},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "prusa-i3-mk3s", // Use "i3-mk3s" to be more specific
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_e"},
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 210, .z_max = 210}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name ==
-            "Prusa MK4"); // Database matches MK4 (MK3S+ might not be in database)
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Prusa MINI fingerprint",
-                 "[printer][real_world][prusa]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "prusa-mini-plus", // Use "mini-plus" to be more specific
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 180, .y_min = 0, .y_max = 180, .z_max = 180}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name ==
-            "Prusa MK4"); // Database matches MK4 (MINI might not be in database)
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Rat Rig V-Core 3 fingerprint",
-                 "[printer][real_world][ratrig]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber"},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "ratrig-vcore3",
-        .printer_objects = {"z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2"},
-
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Core 3"); // Database has "RatRig" (no space)
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: RatOS V-Core 3 by RatOS marker with renamed host",
-                 "[printer][ratrig][ratos]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .hostname = "my-printer",
-        .printer_objects = {"gcode_macro RatOS", "z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2"},
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300}};
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Core 3");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: RatOS V-Minion is Cartesian (kinematics fix)",
-                 "[printer][ratrig][ratos]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .hostname = "ratrig-vminion",
-        .printer_objects = {"gcode_macro RatOS"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 180, .y_min = 0, .y_max = 180, .z_max = 180}};
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Minion");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: RatOS V-Minion by Cartesian + RatOS marker (renamed host)",
-                 "[printer][ratrig][ratos]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .hostname = "tinybox",
-        .printer_objects = {"gcode_macro RatOS"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 180, .y_min = 0, .y_max = 180, .z_max = 180}};
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Minion");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: RatOS V-Core 4 by hostname",
-                 "[printer][ratrig][ratos]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .hostname = "ratrig-vcore4",
-        .printer_objects = {"gcode_macro RatOS", "z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300}};
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Core 4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: V-Core 4 host (3Z) not misdetected as V-Core 3",
@@ -2309,110 +1439,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: RatOS V-Core 4 IDEX by ratos_hybrid_corexy + dual_carriage",
-                 "[printer][ratrig][ratos]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "extruder1", "heater_bed"},
-        .hostname = "ratrig-vcore4-idex",
-        .printer_objects = {"gcode_macro RatOS", "z_tilt", "dual_carriage"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "dual_carriage"},
-        .kinematics = "ratos_hybrid_corexy",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300}};
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Core 4 IDEX");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: RatOS V-Core Pro by hostname",
-                 "[printer][ratrig][ratos]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .hostname = "ratrig-vcore-pro",
-        .printer_objects = {"gcode_macro RatOS", "z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2"},
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300}};
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "RatRig V-Core Pro");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Anycubic Kobra fingerprint",
-                 "[printer][real_world][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "anycubic-kobra",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 250}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Elegoo Neptune fingerprint",
-                 "[printer][real_world][elegoo]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "elegoo-neptune", // Remove "3" to match generic Neptune
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 280}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Elegoo Neptune 4"); // Database has Neptune 4
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Sovol SV06 fingerprint",
-                 "[printer][real_world][sovol]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "sovol-sv06",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 250}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Sovol SV06");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Hostname-free Sovol regression tests
 //
@@ -2423,30 +1449,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Sovol SV06 fingerprin
 // `load_cell` object, the SV08 fork's unverified `probe_pressure` object, and
 // the specialized models being swallowed by their plain-SV06 siblings.
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Sovol SV06 ACE detected hostname-free (load-cell stack)",
-                 "[printer][sovol][regression]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "",
-        .printer_objects = {"smart_effector", "hx711", "lis2dw hotend", "lis2dw bed", "probe",
-                            "z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 235, .z_max = 250}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Sovol SV06 ACE");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(
     PrinterDetectorFixture,
@@ -2548,29 +1550,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Sovol Zero detected hostname-free (eddy + single-Z + tiny bed)",
-                 "[printer][sovol][regression]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "",
-        .printer_objects = {"probe_eddy_current eddy", "z_offset_calibration"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "corexy",
-        .build_volume = {.x_min = 0, .x_max = 152, .y_min = 0, .y_max = 152, .z_max = 155}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Sovol Zero");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: Sovol SV07 detected hostname-free and NOT swallowed by SV06 ACE",
                  "[printer][sovol][regression]") {
     PrinterHardwareData hardware{
@@ -2654,30 +1633,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     REQUIRE(result.runner_up_confidence == result.confidence);
 }
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Artillery Sidewinder fingerprint",
-                 "[printer][real_world][artillery]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "artillery-sidewinder-x2", // Add more specific model
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1"}, // Dual Z
-
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 400}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name ==
-            "Artillery Sidewinder X2"); // Hostname "sidewinder" matches Sidewinder X2 entry
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: BIQU B1 fingerprint",
                  "[printer][real_world][biqu]") {
     // BIQU B1 is not in the printer database, so we test that the detector
@@ -2737,33 +1692,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Two Trees Sapphire Pr
 // ============================================================================
 // MCU-Based Detection Tests (Future Feature)
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32H723 (BTT Octopus Pro)",
-                 "[printer][mcu]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "test",
-        .printer_objects = {"quad_gantry_level"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1", "stepper_z2",
-                     "stepper_z3"},
-
-        .kinematics = "corexy",
-        .mcu = "stm32h723xx",                          // BTT Octopus Pro MCU
-        .mcu_list = {"stm32h723xx", "rp2040", "linux"} // Main + EBB CAN + Linux host
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // STM32H7 + QGL + 4 Z steppers = Voron 2.4 with BTT board
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: MCU match - STM32F103 (FlashForge stock)", "[printer][mcu]") {
@@ -2861,110 +1789,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // MCU-Based Detection Tests - HC32F460 (Anycubic Huada Signature)
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - HC32F460 Anycubic Kobra 2",
-                 "[printer][mcu][anycubic]") {
-    // HC32F460 is a Huada chip almost exclusively used by Anycubic
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "kobra2",
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "cartesian",
-                                 .mcu = "HC32F460",
-                                 .mcu_list = {"HC32F460"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra 2");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: MCU match - HC32F460 Anycubic Kobra 2 Max",
-                 "[printer][mcu][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "kobra-2-max",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 420, .y_min = 0, .y_max = 420, .z_max = 500},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra 2 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - HC32F460 Anycubic Kobra S1",
-                 "[printer][mcu][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "kobra-s1",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 250, .z_max = 250},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra S1");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: MCU match - HC32F460 Anycubic Kobra S1 Max",
-                 "[printer][mcu][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "kobra-s1-max",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 400, .y_min = 0, .y_max = 400, .z_max = 450},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra S1 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: MCU alone - HC32F460 provides supporting evidence",
                  "[printer][mcu][anycubic]") {
@@ -3000,212 +1824,17 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // MCU-Based Detection Tests - GD32F303 (FLSUN MKS Robin Nano)
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - GD32F303 FLSUN V400",
-                 "[printer][mcu][flsun]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "flsun-v400",
-                                 .printer_objects = {"delta_calibrate"},
-                                 .steppers = {"stepper_a", "stepper_b", "stepper_c"},
-
-                                 .kinematics = "delta",
-                                 .mcu = "GD32F303",
-                                 .mcu_list = {"GD32F303"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FLSUN V400");
-    // The MCU is what separates the delta vendors
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - GD32F303 FLSUN Super Racer",
-                 "[printer][mcu][flsun]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "flsun-sr",
-                                 .printer_objects = {"delta_calibrate"},
-                                 .steppers = {"stepper_a", "stepper_b", "stepper_c"},
-
-                                 .kinematics = "delta",
-                                 .mcu = "GD32F303",
-                                 .mcu_list = {"GD32F303"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FLSUN Super Racer");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // MCU-Based Detection Tests - STM32H723 (Creality K1 Series)
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32H723 Creality K1",
-                 "[printer][mcu][creality]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber_temp"},
-        .fans = {"fan", "chamber_fan"},
-        .leds = {},
-        .hostname = "creality-k1",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "corexy",
-        .mcu = "STM32H723",
-        .mcu_list = {"STM32H723"},
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 250},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality K1");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32H723 Creality K1 Max",
-                 "[printer][mcu][creality]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor chamber_temp"},
-        .fans = {"fan", "chamber_fan"},
-        .leds = {},
-        .hostname = "creality-k1-max",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "corexy",
-        .mcu = "STM32H723",
-        .mcu_list = {"STM32H723"},
-        .build_volume = {.x_min = 0, .x_max = 300, .y_min = 0, .y_max = 300, .z_max = 300},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality K1 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32H723 Creality K1C",
-                 "[printer][mcu][creality]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {"temperature_sensor chamber_temp"},
-                                 .fans = {"fan", "chamber_fan"},
-                                 .leds = {},
-                                 .hostname = "creality-k1c",
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "corexy",
-                                 .mcu = "STM32H723",
-                                 .mcu_list = {"STM32H723"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality K1C");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 // ============================================================================
 // MCU-Based Detection Tests - STM32F401 (Elegoo Neptune 4)
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32F401 Elegoo Neptune 4",
-                 "[printer][mcu][elegoo]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "elegoo-neptune4",
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "cartesian",
-                                 .mcu = "STM32F401",
-                                 .mcu_list = {"STM32F401"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Elegoo Neptune 4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: MCU match - STM32F401 Elegoo Neptune 4 Pro",
-                 "[printer][mcu][elegoo]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "elegoo-neptune4-pro",
-                                 .printer_objects = {},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-                                 .kinematics = "cartesian",
-                                 .mcu = "STM32F401",
-                                 .mcu_list = {"STM32F401"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Elegoo Neptune 4 Pro");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // MCU-Based Detection Tests - STM32F402 (Qidi Plus 4)
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32F402 Qidi Plus 4",
-                 "[printer][mcu][qidi]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed", "heater_chamber"},
-        .sensors = {"temperature_sensor chamber"},
-        .fans = {"fan", "chamber_fan"},
-        .leds = {},
-        .hostname = "qidi-plus4",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "corexy",
-        .mcu = "STM32F402",
-        .mcu_list = {"STM32F402"},
-        .build_volume = {.x_min = 0, .x_max = 305, .y_min = 0, .y_max = 305, .z_max = 305},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Qidi Plus 4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 // ============================================================================
 // Regression: stock Qidi Q2 ships the generic `linaro-alip` Linaro rootfs
@@ -3729,194 +2358,13 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // MCU-Based Detection Tests - STM32F103 (Sovol SV08)
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match - STM32F103 Sovol SV08",
-                 "[printer][mcu][sovol]") {
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {},
-                                 .fans = {"fan"},
-                                 .leds = {},
-                                 .hostname = "sovol-sv08",
-                                 .printer_objects = {"quad_gantry_level"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1",
-                                              "stepper_z2", "stepper_z3"},
-
-                                 .kinematics = "corexy",
-                                 .mcu = "STM32F103",
-                                 .mcu_list = {"STM32F103"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Sovol SV08");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Build Volume Detection Tests - Anycubic Series
 // ============================================================================
 
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: build_volume_range - Kobra S1 (250mm)",
-                 "[printer][build_volume][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "kobra-s1", // Specific Kobra S1 hostname
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 250, .z_max = 250},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // 250mm build volume + HC32F460 + "kobra-s1" hostname should match Kobra S1
-    REQUIRE(result.type_name == "Anycubic Kobra S1");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: build_volume_range - Kobra 2 Max (420mm)",
-                 "[printer][build_volume][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan"},
-        .leds = {},
-        .hostname = "kobra-2-max", // Specific Kobra 2 Max hostname
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 420, .y_min = 0, .y_max = 420, .z_max = 500},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // Large build volume + HC32F460 should identify as Kobra 2 Max
-    REQUIRE(result.type_name == "Anycubic Kobra 2 Max");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
 // ============================================================================
 // Anycubic Kobra 2/3 Series - Extended Coverage (cartesian bedslingers + ACE)
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Anycubic Kobra 2 Pro by hostname + build volume",
-                 "[printer][real_world][anycubic]") {
-    // Kobra 2 Pro: cartesian bedslinger, LeviQ probe, ~220mm bed.
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "anycubic-kobra2pro",
-        .printer_objects = {"probe"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 250}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra 2 Pro");
-    // The "kobra2pro" hostname outranks the sibling entries
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Anycubic Kobra 3 by ACE + CS1237 (cartesian, no hostname)",
-                 "[printer][real_world][anycubic]") {
-    // Kobra 3 is a CARTESIAN bedslinger (confirmed via Anycubic's official
-    // printer_k3c_k3v2c.cfg), NOT corexy. The ACE multi-material unit and the
-    // CS1237 nozzle-load cell are its hardware discriminators. With no hostname
-    // it must still resolve to the Kobra 3 over any other cartesian bedslinger.
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "mainsailos", // generic - no Anycubic hint
-        .printer_objects = {"filament_hub", "cs1237", "probe"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 250, .z_max = 260}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // Must be the cartesian Kobra 3, NOT the corexy Kobra S1 and NOT a Kobra 2.
-    REQUIRE(result.type_name == "Anycubic Kobra 3");
-    // filament_hub + cs1237 are hardware no other cartesian bedslinger carries
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Anycubic Kobra 3 with hostname",
-                 "[printer][real_world][anycubic]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "anycubic-kobra3",
-        .printer_objects = {"filament_hub", "cs1237"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 250, .z_max = 260}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra 3");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Anycubic Kobra 3 V2 disambiguated by hostname",
-                 "[printer][real_world][anycubic]") {
-    // Kobra 3 V2 shares hardware with the Kobra 3 (same ACE + CS1237 cartesian
-    // platform). The hostname is the only discriminator.
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "anycubic-kobra3v2",
-        .printer_objects = {"filament_hub", "cs1237"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "cartesian",
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 250, .z_max = 260}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // "kobra3v2" must out-rank the plain Kobra 3's "kobra3" match.
-    REQUIRE(result.type_name == "Anycubic Kobra 3 V2");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: Anycubic Kobra 3 Max by dual-Y + ACE (beats Kobra 2 Max)",
@@ -3951,63 +2399,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
     // The point of the test: it out-scores the look-alike rather than tying it.
     REQUIRE(result.confidence > result.runner_up_confidence);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Anycubic Kobra S1 by corexy + ACE + filament_tracker",
-                 "[printer][real_world][anycubic]") {
-    // Kobra S1 is an ENCLOSED CoreXY (confirmed via Anycubic printer_s1c.cfg)
-    // with the ACE unit and an ADC filament_tracker. With no hostname it must
-    // resolve to the S1, not the cartesian Kobra 3 (which shares the ~250mm bed).
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "mainsailos", // generic - no Anycubic hint
-        .printer_objects = {"filament_hub", "filament_tracker"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "corexy",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 250, .y_min = 0, .y_max = 250, .z_max = 250}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // CoreXY kinematics rules out the cartesian Kobra 3; ACE + filament_tracker
-    // + HC32F460 confirm the S1 over the S1 Max (which needs a chamber).
-    REQUIRE(result.type_name == "Anycubic Kobra S1");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Anycubic Kobra S1 Max by chamber + ACE",
-                 "[printer][real_world][anycubic]") {
-    // Kobra S1 Max: enclosed CoreXY with a heated chamber (its exclusive
-    // discriminator over the S1) plus ACE, on the HC32F460.
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "anycubic-kobra-s1-max",
-        .printer_objects = {"chamber", "filament_hub"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-        .kinematics = "corexy",
-        .mcu = "HC32F460",
-        .mcu_list = {"HC32F460"},
-        .build_volume = {.x_min = 0, .x_max = 350, .y_min = 0, .y_max = 350, .z_max = 350}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Anycubic Kobra S1 Max");
-    // hostname + chamber + ACE separate the S1 Max
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 // ============================================================================
@@ -4064,95 +2455,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: MCU match case insens
 // ============================================================================
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: Combined - Anycubic Kobra 2 full fingerprint",
-                 "[printer][combined][anycubic]") {
-    // Full Anycubic Kobra 2 setup with all data sources
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"temperature_sensor mcu_temp"},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "anycubic-kobra-2",
-        .printer_objects = {},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z"},
-
-        .kinematics = "cartesian",
-        .mcu = "HC32F460PETB",
-        .mcu_list = {"HC32F460PETB"},
-        .build_volume = {.x_min = 0, .x_max = 220, .y_min = 0, .y_max = 220, .z_max = 250},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // The HC32F460 MCU is hardware only the Kobra 2 family carries, so the
-    // full fingerprint names the model: like the FLSUN V400's GD32F303, the
-    // machine's own board separates it from the plain Kobra, whose entry
-    // claims no MCU and falls behind on identifying evidence.
-    REQUIRE(result.type_name == "Anycubic Kobra 2");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-    REQUIRE(PrinterDetector::meets_autosave_threshold(result));
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Combined - FLSUN V400 full fingerprint",
-                 "[printer][combined][flsun]") {
-    // Full FLSUN V400 setup with all data sources
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {},
-        .fans = {"fan", "heater_fan hotend_fan"},
-        .leds = {},
-        .hostname = "flsun-v400-delta",
-        .printer_objects = {"delta_calibrate", "bed_mesh"},
-        .steppers = {"stepper_a", "stepper_b", "stepper_c"},
-
-        .kinematics = "delta",
-        .mcu = "GD32F303RET6",
-        .mcu_list = {"GD32F303RET6"},
-        .build_volume = {.x_min = -150, .x_max = 150, .y_min = -150, .y_max = 150, .z_max = 400},
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FLSUN V400");
-    // The MCU is what separates the delta vendors here
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Combined - Qidi Plus 4 full fingerprint",
-                 "[printer][combined][qidi]") {
-    // Full Qidi Plus 4 setup
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed", "heater_chamber"},
-        .sensors = {"temperature_sensor chamber"},
-        .fans = {"fan", "chamber_fan", "auxiliary_fan"},
-        .leds = {}, // Remove LEDs to avoid matching AD5M Pro LED patterns
-        .hostname = "qidi-plus-4",
-        .printer_objects = {"z_tilt"},
-        .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1"},
-
-        .kinematics = "corexy",
-        .mcu = "STM32F402",
-        .mcu_list = {"STM32F402", "rp2040"},
-        .build_volume = {.x_min = 0, .x_max = 305, .y_min = 0, .y_max = 305, .z_max = 305},
-        // Main + toolhead
-    };
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Qidi Plus 4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: detect() exposes the runner-up candidate",
                  "[printer][detector][runner_up]") {
     PrinterDetector::reload();
@@ -4178,34 +2480,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // ============================================================================
 // Negative Tests - MCU Should Not Cause False Positives
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: MCU alone should not override strong hostname match",
-                 "[printer][mcu][negative]") {
-    // Voron with Anycubic MCU (user swapped board) - hostname should win
-    // Note: Avoid using "neopixel" in leds as it matches AD5M Pro at 92% confidence
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {"temperature_sensor chamber"},
-                                 .fans = {"bed_fans", "exhaust_fan"},
-                                 .leds = {"stealthburner_leds"}, // Voron-specific LED name
-                                 .hostname = "voron-2-4-350",
-                                 .printer_objects = {"quad_gantry_level"},
-                                 .steppers = {"stepper_x", "stepper_y", "stepper_z", "stepper_z1",
-                                              "stepper_z2", "stepper_z3"},
-
-                                 .kinematics = "corexy",
-                                 .mcu = "HC32F460", // Anycubic MCU in Voron (unusual)
-                                 .mcu_list = {"HC32F460"}};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    // Strong Voron evidence (QGL + 4Z + corexy + hostname) should override MCU
-    REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: Common MCU should not cause false positive",
@@ -4752,29 +3026,6 @@ TEST_CASE("PrinterDetector: Kalico limited_cartesian filter includes cartesian p
 // ============================================================================
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: tool_count heuristic matches 4 extruders for AD5X",
-                 "[printer][heuristics][tool_count]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "extruder1", "extruder2", "extruder3", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "ad5x-printer",
-        .printer_objects = {},
-        .steppers = {},
-        .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5X");
-    // 4 extruders + ad5x hostname separate the AD5X from every other machine
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: tool_count heuristic does not match wrong extruder count",
                  "[printer][heuristics][tool_count]") {
     // Only 1 extruder - should NOT match tool_count_4
@@ -4793,31 +3044,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     if (result.detected()) {
         REQUIRE(result.type_name != "FlashForge Adventurer 5X");
     }
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: tool_count excludes extruder_stepper from count",
-                 "[printer][heuristics][tool_count]") {
-    // 4 extruders + extruder_stepper should still count as 4 (not 5)
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "extruder1", "extruder2", "extruder3", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "ad5x-test",
-        .printer_objects = {},
-        .steppers = {},
-        .kinematics = "corexy"};
-    // extruder_stepper would be in printer_objects, not heaters, but verify the logic works
-    // by confirming the 4-extruder case still matches
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5X");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
@@ -4858,51 +3084,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
 // ============================================================================
 // cpu_arch_match Heuristic Tests
 // ============================================================================
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: cpu_arch_match heuristic matches MIPS architecture",
-                 "[printer][heuristics][cpu_arch_match]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "extruder1", "extruder2", "extruder3", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "ad5x-printer",
-        .printer_objects = {},
-        .steppers = {},
-        .kinematics = "corexy",
-        .cpu_arch = "MIPS Ingenic X2600"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5X");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: cpu_arch_match is case-insensitive",
-                 "[printer][heuristics][cpu_arch_match]") {
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "extruder1", "extruder2", "extruder3", "heater_bed"},
-        .sensors = {},
-        .fans = {},
-        .leds = {},
-        .hostname = "ad5x-test",
-        .printer_objects = {},
-        .steppers = {},
-        .kinematics = "corexy",
-        .cpu_arch = "mips ingenic x2600"}; // All lowercase
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5X");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
-}
 
 TEST_CASE_METHOD(PrinterDetectorFixture,
                  "PrinterDetector: cpu_arch_match does not match wrong architecture",
@@ -5003,31 +3184,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     if (result.detected()) {
         REQUIRE(result.type_name.find("Adventurer 5M") == std::string::npos);
     }
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: AD5X wins over AD5M when both share FlashForge characteristics",
-                 "[printer][heuristics][regression][ad5x]") {
-    // Both AD5X and AD5M share: flashforge hostname, weight sensor, corexy
-    // AD5X should win due to IFS objects and 4-extruder tool count
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "extruder1", "extruder2", "extruder3", "heater_bed"},
-        .sensors = {"weightValue", "weight"},
-        .fans = {},
-        .leds = {},
-        .hostname = "flashforge",
-        .printer_objects = {"zmod_ifs_switch_sensor _ifs_port_sensor_1",
-                            "gcode_macro SET_EXTRUDER_SLOT"},
-        .steppers = {},
-        .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5X");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 // ============================================================================
@@ -5362,28 +3518,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     REQUIRE(result.type_name.find("(ForgeX)") == std::string::npos);
     REQUIRE(result.margin() == 0);
     REQUIRE_FALSE(PrinterDetector::meets_autosave_threshold(result));
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: macro_exclude prevents stock match when ForgeX present",
-                 "[printer][heuristics][ad5m]") {
-    // Stock AD5M Pro entry has macro_exclude for SUPPORT_FORGE_X
-    // When ForgeX IS present, only the ForgeX entry should match
-    PrinterHardwareData hardware{.heaters = {"extruder", "heater_bed"},
-                                 .sensors = {"tvocValue", "weightValue"},
-                                 .fans = {},
-                                 .leds = {"led chamber_light"},
-                                 .hostname = "flashforge-ad5m-pro",
-                                 .printer_objects = {"mod_params", "gcode_macro SUPPORT_FORGE_X"},
-                                 .steppers = {},
-                                 .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro (ForgeX)");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 // ============================================================================
@@ -6492,30 +4626,6 @@ TEST_CASE_METHOD(PrinterDetectorFixture,
     REQUIRE(result.confidence < kHeuristicClassCeiling);
     REQUIRE(PrinterDetector::classify_type_mismatch("Voron 2.4", result, "") !=
             PrinterDetector::MismatchDecision::Warn);
-}
-
-TEST_CASE_METHOD(PrinterDetectorFixture,
-                 "PrinterDetector: genuine AD5M Pro shape still detects as AD5M Pro",
-                 "[printer][1284]") {
-    // Stock AD5M Pro fingerprint: chamber_light LED + tvoc/weight sensors +
-    // FlashForge hostname. The LED heuristic stays a useful corroborating
-    // signal (it breaks the Pro-vs-5M tie), and the sensor/hostname
-    // heuristics alone carry detection well past the high-confidence bar.
-    PrinterHardwareData hardware{
-        .heaters = {"extruder", "heater_bed"},
-        .sensors = {"tvocValue", "weightValue", "temperature_sensor chamber_temp"},
-        .fans = {"fan", "fan_generic exhaust_fan"},
-        .leds = {"led chamber_light"},
-        .hostname = "flashforge-ad5m-pro",
-        .kinematics = "corexy"};
-
-    auto result = PrinterDetector::detect(hardware);
-    CAPTURE(result.type_name, result.confidence, result.runner_up_type_name,
-            result.runner_up_confidence, result.margin(), result.tied_count);
-
-    REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge Adventurer 5M Pro");
-    REQUIRE(result.margin() >= PrinterDetector::DETECT_MIN_MARGIN);
 }
 
 // ============================================================================
