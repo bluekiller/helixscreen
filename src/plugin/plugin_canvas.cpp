@@ -246,7 +246,7 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             dsc.p2 = {ox + p.c, oy + p.d};
             dsc.color = color_of(p.color);
             dsc.width = p.width;
-            dsc.opa = LV_OPA_COVER;
+            dsc.opa = p.opa;
             lv_draw_line(layer, &dsc);
             break;
         }
@@ -275,7 +275,7 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             dsc.point_cnt = static_cast<int32_t>(p.count);
             dsc.color = color_of(p.color);
             dsc.width = p.width;
-            dsc.opa = LV_OPA_COVER;
+            dsc.opa = p.opa;
             lv_draw_line(layer, &dsc);
             break;
         }
@@ -286,12 +286,12 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             lv_draw_rect_dsc_init(&dsc);
             if (p.color != kNoToken) {
                 dsc.bg_color = color_of(p.color);
-                dsc.bg_opa = LV_OPA_COVER;
+                dsc.bg_opa = p.opa;
             }
             if (p.border != kNoToken) {
                 dsc.border_color = color_of(p.border);
                 dsc.border_width = p.width;
-                dsc.border_opa = LV_OPA_COVER;
+                dsc.border_opa = p.opa;
             }
             dsc.radius = p.radius;
             const lv_area_t a = {
@@ -310,12 +310,12 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             lv_draw_rect_dsc_init(&dsc);
             if (p.color != kNoToken) {
                 dsc.bg_color = color_of(p.color);
-                dsc.bg_opa = LV_OPA_COVER;
+                dsc.bg_opa = p.opa;
             }
             if (p.border != kNoToken) {
                 dsc.border_color = color_of(p.border);
                 dsc.border_width = p.width;
-                dsc.border_opa = LV_OPA_COVER;
+                dsc.border_opa = p.opa;
             }
             dsc.radius = LV_RADIUS_CIRCLE;
             const lv_area_t a = {
@@ -340,7 +340,7 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             dsc.end_angle = p.d;
             dsc.color = color_of(p.color);
             dsc.width = p.width;
-            dsc.opa = LV_OPA_COVER;
+            dsc.opa = p.opa;
             lv_draw_arc(layer, &dsc);
             break;
         }

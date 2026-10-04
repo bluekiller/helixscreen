@@ -25,6 +25,7 @@ const char kCanvasStateKey = 0;
 const char kCanvasMeta[] = "helix.canvas";
 constexpr size_t kMaxCanvases = 8;
 constexpr int32_t kMaxStroke = 64;
+constexpr int32_t kMaxOpaPercent = 100; // opa is authored 0-100; stored as 0-255
 constexpr size_t kMaxTextBytes = 256;
 // Left uncharged so the luaL_error that reports a refused call has Lua memory
 // to raise into; on a completely full heap the error would surface as a
@@ -193,6 +194,23 @@ int32_t opt_width(lua_State* L, int idx, const char* name, int32_t fallback) {
     return static_cast<int32_t>(v); // unreachable; luaL_error raises
 }
 
+// Reads the opa field, a percent, and returns LVGL's 0-255 alpha scale.
+uint8_t opt_opa(lua_State* L, int idx) {
+    if (!idx)
+        return LV_OPA_COVER;
+    lua_getfield(L, idx, "opa");
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return LV_OPA_COVER;
+    }
+    int ok = 0;
+    lua_Number v = lua_tonumberx(L, -1, &ok);
+    lua_pop(L, 1);
+    if (!ok || !std::isfinite(v) || v < 0 || v > kMaxOpaPercent)
+        luaL_error(L, "helix.canvas: opa must be 0 to %d", static_cast<int>(kMaxOpaPercent));
+    return static_cast<uint8_t>(v * LV_OPA_COVER / kMaxOpaPercent + 0.5);
+}
+
 int32_t opt_radius(lua_State* L, int idx) {
     if (!idx)
         return 0;
@@ -293,6 +311,11 @@ void add_staged(lua_State* L, CanvasEntry* e, Staged& st, size_t units) {
     st.prim.color = st.color;
     st.prim.border = st.border;
     st.prim.font = st.font;
+    // first is the op's offset into the shared buffer, fixed at append time.
+    if (st.prim.op == CanvasOp::Polyline)
+        st.prim.first = static_cast<uint32_t>(e->pending.points.size());
+    else if (st.prim.op == CanvasOp::Text)
+        st.prim.first = static_cast<uint32_t>(e->pending.text.size());
     e->pending.prims.push_back(st.prim);
     for (const lv_point_precise_t& p : st.points)
         e->pending.points.push_back(p);
@@ -317,11 +340,12 @@ int m_line(lua_State* L) {
     st.prim.c = coord(L, 4, "x2");
     st.prim.d = coord(L, 5, "y2");
     int opts = opts_index(L, 6);
-    check_opts(L, opts, {"color", "width"});
+    check_opts(L, opts, {"color", "width", "opa"});
     const char* color = "text";
     opt_str(L, opts, "color", &color);
     check_color(L, color);
     st.prim.width = opt_width(L, opts, "width", 1);
+    st.prim.opa = opt_opa(L, opts);
     plan_tokens(e->pending, color, nullptr, nullptr, st);
     add_staged(L, e, st, 1);
     return 0;
@@ -357,14 +381,14 @@ int m_polyline(lua_State* L) {
         else
             st.points.back().y = static_cast<lv_value_precise_t>(v);
     }
-    st.prim.first = 0;
     st.prim.count = static_cast<uint32_t>(n / 2);
     int opts = opts_index(L, 3);
-    check_opts(L, opts, {"color", "width"});
+    check_opts(L, opts, {"color", "width", "opa"});
     const char* color = "text";
     opt_str(L, opts, "color", &color);
     check_color(L, color);
     st.prim.width = opt_width(L, opts, "width", 1);
+    st.prim.opa = opt_opa(L, opts);
     plan_tokens(e->pending, color, nullptr, nullptr, st);
     add_staged(L, e, st, static_cast<size_t>(n / 2));
     return 0;
@@ -372,10 +396,11 @@ int m_polyline(lua_State* L) {
 
 // Shared by rect and circle: fill/border/border_width (+radius for rect).
 void parse_shape_opts(lua_State* L, int opts, DisplayList& pending, bool with_radius, Staged& st) {
-    check_opts(L, opts,
-               with_radius
-                   ? std::initializer_list<const char*>{"fill", "border", "border_width", "radius"}
-                   : std::initializer_list<const char*>{"fill", "border", "border_width"});
+    check_opts(
+        L, opts,
+        with_radius
+            ? std::initializer_list<const char*>{"fill", "border", "border_width", "radius", "opa"}
+            : std::initializer_list<const char*>{"fill", "border", "border_width", "opa"});
     const char* fill = nullptr;
     const char* border = nullptr;
     opt_str(L, opts, "fill", &fill);
@@ -387,6 +412,7 @@ void parse_shape_opts(lua_State* L, int opts, DisplayList& pending, bool with_ra
     if (border)
         check_color(L, border);
     st.prim.width = opt_width(L, opts, "border_width", 1);
+    st.prim.opa = opt_opa(L, opts);
     if (with_radius)
         st.prim.radius = opt_radius(L, opts);
     plan_tokens(pending, fill, border, nullptr, st);
@@ -429,11 +455,12 @@ int m_arc(lua_State* L) {
     st.prim.c = angle(L, 5);
     st.prim.d = angle(L, 6);
     int opts = opts_index(L, 7);
-    check_opts(L, opts, {"color", "width"});
+    check_opts(L, opts, {"color", "width", "opa"});
     const char* color = "text";
     opt_str(L, opts, "color", &color);
     check_color(L, color);
     st.prim.width = opt_width(L, opts, "width", 1);
+    st.prim.opa = opt_opa(L, opts);
     plan_tokens(e->pending, color, nullptr, nullptr, st);
     add_staged(L, e, st, 1);
     return 0;
@@ -463,7 +490,6 @@ int m_text(lua_State* L) {
                           font);
     check_color(L, color);
     st.text.assign(str, len);
-    st.prim.first = 0;
     st.prim.count = static_cast<uint32_t>(len);
     plan_tokens(e->pending, color, nullptr, font, st);
     add_staged(L, e, st, 1);

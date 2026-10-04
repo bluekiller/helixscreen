@@ -25,11 +25,12 @@ constexpr uint8_t kNoToken = 0xFF;
 /// top-left of the widget's content box. Token fields index DisplayList::tokens.
 struct CanvasPrim {
     CanvasOp op;
-    uint8_t color = kNoToken;  // stroke, or fill for Rect/Circle
-    uint8_t border = kNoToken; // Rect/Circle border
-    uint8_t font = kNoToken;   // Text
-    int32_t width = 1;         // stroke or border width
-    int32_t radius = 0;        // Rect corner radius; Arc/Circle radius
+    uint8_t color = kNoToken;   // stroke, or fill for Rect/Circle
+    uint8_t border = kNoToken;  // Rect/Circle border
+    uint8_t font = kNoToken;    // Text
+    int32_t width = 1;          // stroke or border width
+    int32_t radius = 0;         // Rect corner radius; Arc/Circle radius
+    uint8_t opa = LV_OPA_COVER; // stroke/fill alpha, 0 transparent to 255 opaque
     lv_value_precise_t a = 0, b = 0, c = 0,
                        d = 0;      // Line x1 y1 x2 y2; Rect x y w h;
                                    // Arc cx cy start end (degrees); Circle cx cy; Text x y

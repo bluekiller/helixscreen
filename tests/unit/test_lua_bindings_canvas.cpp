@@ -100,6 +100,57 @@ TEST_CASE_METHOD(XMLTestFixture, "commit publishes what was drawn", "[plugin][lu
     CHECK(list->units == 0);
 }
 
+TEST_CASE_METHOD(XMLTestFixture, "each text and polyline reads its own bytes",
+                 "[plugin][lua][canvas]") {
+    BoundRuntime b({&install_canvas_bindings});
+    REQUIRE(b.t.run(R"(
+        local c = helix.canvas("c")
+        c:text(0, 0, "one")
+        c:text(0, 9, "two")
+        c:polyline({0, 0, 5, 5, 10, 0})
+        c:polyline({1, 1, 6, 6, 11, 1})
+        c:commit()
+    )"));
+    const DisplayList* list = canvas_committed("test-plugin__c");
+    REQUIRE(list);
+    CHECK(list->prims.size() == 4);
+    // first/count index the shared buffers, so the second of each kind must
+    // not alias the first's bytes.
+    std::vector<std::string> texts;
+    std::vector<uint32_t> line_firsts;
+    for (const CanvasPrim& p : list->prims) {
+        if (p.op == CanvasOp::Text)
+            texts.push_back(list->text.substr(p.first, p.count));
+        if (p.op == CanvasOp::Polyline)
+            line_firsts.push_back(p.first);
+    }
+    REQUIRE(texts.size() == 2);
+    CHECK(texts[0] == "one");
+    CHECK(texts[1] == "two");
+    REQUIRE(line_firsts.size() == 2);
+    CHECK(line_firsts[0] == 0);
+    CHECK(line_firsts[1] == 3);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "opa sets a primitive's alpha percent", "[plugin][lua][canvas]") {
+    BoundRuntime b({&install_canvas_bindings});
+    REQUIRE(b.t.run(R"(
+        local c = helix.canvas("c")
+        c:line(0, 0, 1, 1, {opa = 50})
+        c:polyline({0, 0, 5, 5})
+        c:rect(0, 0, 2, 2, {fill = "text", opa = 0})
+        c:arc(5, 5, 2, 0, 90, {opa = 100})
+        c:commit()
+    )"));
+    const DisplayList* list = canvas_committed("test-plugin__c");
+    REQUIRE(list);
+    REQUIRE(list->prims.size() == 4);
+    CHECK(list->prims[0].opa == 128); // 50 percent, rounded on the 0-255 scale
+    CHECK(list->prims[1].opa == 255); // absent opa draws opaque
+    CHECK(list->prims[2].opa == 0);
+    CHECK(list->prims[3].opa == 255);
+}
+
 TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
                  "[plugin][lua][canvas]") {
     BoundRuntime b({&install_canvas_bindings});
@@ -113,6 +164,9 @@ TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
         {"c:line(0/0, 0, 10, 10)", "finite"},
         {"c:line(1e9, 0, 10, 10)", "within"},
         {"c:line(0, 0, 1, 1, {width = 65})", "width"},
+        {"c:line(0, 0, 1, 1, {opa = 101})", "opa"},
+        {"c:line(0, 0, 1, 1, {opa = -1})", "opa"},
+        {"c:rect(0, 0, 1, 1, {fill = 'text', opa = 101})", "opa"},
         {"c:line(0, 0, 1, 1, {width = -2})", "width"},
         {"c:line(0, 0, 1, 1, {color = 'nope'})", "color token"},
         {"c:line(0, 0, 1, 1, {colour = 'text'})", "unknown option"},
