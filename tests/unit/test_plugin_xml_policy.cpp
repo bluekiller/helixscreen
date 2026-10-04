@@ -102,6 +102,28 @@ TEST_CASE("plugin XML may use only its own components and the app allowlist",
     CHECK(check_plugin_xml("ab", {}, view_with(R"(<overlay_panel title="Demo"/>)")).empty());
 }
 
+TEST_CASE("plugin XML may use the app's icon and text widgets", "[plugin][xml_policy]") {
+    for (const char* el : {"icon", "text_heading", "text_body", "text_muted", "text_small",
+                           "text_xs", "text_tiny"}) {
+        std::string xml = view_with(std::string("<") + el + " name=\"demo__x\"/>");
+        CHECK(check_plugin_xml("demo", {"demo__w"}, xml) == std::string());
+    }
+    CHECK(check_plugin_xml("demo", {"demo__w"}, view_with("<text_button/>")) != std::string());
+}
+
+TEST_CASE("app widgets keep the name rules", "[plugin][xml_policy]") {
+    // An unowned object name, an unowned bind_text subject, and a foreign callback are
+    // each rejected on icon and on text_body exactly as on lv_label.
+    const char* bad[] = {
+        "<icon name=\"other__x\"/>",
+        "<text_body bind_text=\"extruder_temp\"/>",
+        "<icon><event_cb trigger=\"clicked\" callback=\"settings_open\"/></icon>",
+    };
+    for (const char* inner : bad) {
+        CHECK(check_plugin_xml("demo", {"demo__w"}, view_with(inner)) != std::string());
+    }
+}
+
 TEST_CASE("a plugin id that prefixes an app name owns nothing of it", "[plugin][xml_policy]") {
     CHECK_FALSE(check_plugin_xml("ams", {}, view_with(R"(<ams_device_operations/>)")).empty());
     CHECK_FALSE(check_plugin_xml("ams", {},

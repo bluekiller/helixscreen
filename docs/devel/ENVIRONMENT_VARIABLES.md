@@ -1337,7 +1337,8 @@ plugin source instead of the printer's `config/helixscreen/plugins/` folder: no 
 runs. In native dev builds, plugin hot reload is on by default under the same
 `HELIX_HOT_RELOAD` gate as XML hot reload: the app polls the directory about once a second and
 reloads each plugin whose files changed (`HELIX_HOT_RELOAD=0` disables it; cross-compiled
-release builds default it off).
+release builds default it off). The manifest schema, the XML rules and the full `helix.*`
+API are in [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md).
 
 | Property | Value |
 |----------|-------|

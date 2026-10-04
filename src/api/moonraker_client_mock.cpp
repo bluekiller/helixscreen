@@ -3757,6 +3757,23 @@ void MoonrakerClientMock::dispatch_method_callback(const std::string& method, co
     }
 }
 
+void MoonrakerClientMock::dispatch_status_update(const json& status, bool from_cached_snapshot) {
+    MoonrakerClient::dispatch_status_update(status, from_cached_snapshot);
+
+    // The wrapping matches MoonrakerClient::dispatch_status_update exactly, so
+    // a method-callback registrant sees the same frame a live one would.
+    json msg = {{"method", "notify_status_update"}, {"params", json::array({status, 0.0})}};
+    if (from_cached_snapshot) {
+        msg[helix::CACHED_SNAPSHOT_MARKER] = true;
+    }
+    dispatch_method_callback("notify_status_update", msg);
+}
+
+bool MoonrakerClientMock::led_effect_enabled(const std::string& object_name) const {
+    std::lock_guard<std::mutex> lock(led_mutex_);
+    return enabled_led_effects_.count(object_name) > 0;
+}
+
 void MoonrakerClientMock::start_temperature_simulation() {
     // Use exchange for atomic check-and-set - prevents race condition if called concurrently
     bool was_running = simulation_running_.exchange(true);
