@@ -662,6 +662,8 @@ void MotionPanel::register_position_observers() {
             if (!self->subjects_initialized_)
                 return;
             self->gcode_z_centimm_ = centimm;
+            // A fresh frame supersedes whatever the acks predicted.
+            self->acked_z_.reset();
             self->current_z_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
             self->update_z_button_blocked();
@@ -1090,7 +1092,7 @@ bool MotionPanel::dispatch_target(const helix::AxisTarget& target) {
         target, static_cast<double>(bounds.x_min), static_cast<double>(bounds.x_max),
         static_cast<double>(bounds.y_min), static_cast<double>(bounds.y_max), z_range);
 
-    target_start_z_ = jog_coalescer_.target_start_z(current_z_);
+    target_start_z_ = jog_coalescer_.target_start_z(commanded_z());
     if (auto immediate = jog_coalescer_.on_target(clamped)) {
         return send_jog_move(*immediate);
     }
@@ -1115,10 +1117,13 @@ bool MotionPanel::send_jog_move(const helix::JogCoalescer::CoalescedMove& move) 
     const double z_feedrate = static_cast<double>(helix::effective_jog_speed_mm_min(
         settings.get_jog_speed_z(), limits.min_feedrate_mm_min, limits.max_feedrate_mm_min));
 
-    auto on_ack = lifetime_.bg_cb("MotionPanel::on_jog_ack", [this]() {
+    auto on_ack = lifetime_.bg_cb("MotionPanel::on_jog_ack", [this, move]() {
+        note_acked_z(move);
         if (auto flush = jog_coalescer_.on_ack()) {
             send_jog_move(*flush);
         }
+        // The lift the Bed tab announces follows the commanded Z just acked.
+        refresh_bed_readout();
     });
     auto on_error = lifetime_.bg_cb("MotionPanel::on_jog_error", [this](const MoonrakerError& err) {
         jog_coalescer_.on_error();
@@ -1448,7 +1453,7 @@ std::optional<double> MotionPanel::bed_lift_z() {
         return std::nullopt;
     }
     return helix::bed_map_lift_z(
-        jog_coalescer_.target_start_z(current_z_),
+        jog_coalescer_.target_start_z(commanded_z()),
         static_cast<double>(SettingsManager::instance().get_bed_map_clearance_mm()),
         static_cast<double>(bounds.z_max));
 }
@@ -1505,7 +1510,7 @@ void MotionPanel::refresh_bed_readout() {
     if (const auto lift = bed_lift_z()) {
         char z_buf[16];
         char lift_buf[16];
-        format_axis_value(z_buf, sizeof(z_buf), current_z_);
+        format_axis_value(z_buf, sizeof(z_buf), static_cast<float>(commanded_z()));
         format_distance_label(lift_buf, sizeof(lift_buf), static_cast<float>(*lift));
         if (!text.empty()) {
             text += "  ";
@@ -1584,13 +1589,18 @@ void MotionPanel::handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_poi
 }
 
 void MotionPanel::send_bed_gesture_target(const helix::AxisTarget& target) {
-    // Only the gesture's first move may lift: later ones start from wherever
-    // that lift left Z, which the panel's commanded Z may not show yet.
-    commit_bed_target(target, /*allow_lift=*/!bed_sent_target_);
+    // The lift is decided once, at the gesture's first move, and stamped on
+    // every later one: a sample replacing a pending target replaces it
+    // wholesale, so a lift carried by the first alone could be dropped. A
+    // repeated G0 to the same height is no motion, never a descent.
+    if (!bed_sent_target_) {
+        bed_gesture_lift_z_ = bed_lift_z();
+    }
+    commit_bed_target(target, bed_gesture_lift_z_);
     bed_sent_target_ = target;
 }
 
-void MotionPanel::commit_bed_target(helix::AxisTarget target, bool allow_lift) {
+void MotionPanel::commit_bed_target(helix::AxisTarget target, std::optional<double> lift_z) {
     if (!get_moonraker_api() || !moves_allowed()) {
         return;
     }
@@ -1601,15 +1611,28 @@ void MotionPanel::commit_bed_target(helix::AxisTarget target, bool allow_lift) {
         return;
     }
     // The lift rides in the same target as the XY: move_to raises Z on its
-    // own line before the XY travel, and a later tap replacing this one
-    // pending in the coalescer replaces both together.
-    if (const auto lift = allow_lift ? bed_lift_z() : std::nullopt) {
-        target.z = *lift;
+    // own line before the XY travel.
+    if (lift_z) {
+        target.z = *lift_z;
     }
     spdlog::info("[{}] Bed map target X{:.2f} Y{:.2f}{}", get_name(), target.x.value_or(0.0),
                  target.y.value_or(0.0),
                  target.z ? fmt::format(" (lift Z{:.2f})", *target.z) : std::string());
     dispatch_target(target);
+}
+
+double MotionPanel::commanded_z() const {
+    return acked_z_.value_or(static_cast<double>(current_z_));
+}
+
+void MotionPanel::note_acked_z(const helix::JogCoalescer::CoalescedMove& move) {
+    if (const auto* target = std::get_if<helix::AxisTarget>(&move)) {
+        if (target->z) {
+            acked_z_ = *target->z;
+        }
+    } else if (const double dz = std::get<helix::AxisMove>(move).dz; dz != 0.0) {
+        acked_z_ = commanded_z() + dz;
+    }
 }
 
 void MotionPanel::handle_motors_off() {

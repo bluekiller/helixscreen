@@ -189,10 +189,9 @@ class MotionPanel : public OverlayBase {
     /// wins), with the release point sent only if it differs from the last.
     void handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_point_t screen_point);
 
-    /// Bed tab: send the toolhead to @p target (XY), lifting Z to the
-    /// clearance setting first when @p allow_lift and it sits below it.
-    /// Unhomed XY homes first.
-    void commit_bed_target(helix::AxisTarget target, bool allow_lift = true);
+    /// Bed tab: send the toolhead to @p target (XY), raising Z to @p lift_z
+    /// first when set. Unhomed XY homes first, and then never lifts.
+    void commit_bed_target(helix::AxisTarget target, std::optional<double> lift_z);
 
     /// Bed tab: size the plate to the bed's aspect inside the touch surface
     /// and place the marker. No-op while another tab is showing.
@@ -327,6 +326,16 @@ class MotionPanel : public OverlayBase {
     std::optional<helix::AxisTarget> bed_drag_target_;
     /// The last target this gesture sent; empty until its first move.
     std::optional<helix::AxisTarget> bed_sent_target_;
+    /// The Z every move of this gesture lifts to, decided at its first move.
+    std::optional<double> bed_gesture_lift_z_;
+
+    /// Commanded Z as the acks have moved it, until a status frame reports
+    /// the new position: an ack lands before the frame that carries its Z.
+    std::optional<double> acked_z_;
+    /// Best known commanded Z: the acked one while a frame is outstanding.
+    double commanded_z() const;
+    /// Advance acked_z_ by a move the printer just acknowledged.
+    void note_acked_z(const helix::JogCoalescer::CoalescedMove& move);
 
     /// Send one of the current gesture's targets, lifting only on the first.
     void send_bed_gesture_target(const helix::AxisTarget& target);

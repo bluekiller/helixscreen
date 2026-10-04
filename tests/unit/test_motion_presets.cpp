@@ -288,8 +288,10 @@ TEST_CASE("bed map lift rises to clearance only from below it", "[motion][bed_ma
 
 TEST_CASE("bed map lift completes before XY travel, even behind an in-flight move",
           "[motion][bed_map]") {
-    // The lift rides in the same target as its XY, so a target replacing it
-    // in the coalescer replaces both and can never strip the lift off.
+    // A tap's lift rides in the same target as its XY, so a later tap
+    // replacing it in the coalescer replaces both. A drag's later samples
+    // replace it too, which is why the panel stamps the gesture's lift on
+    // every one of them (test_motion_move_tab.cpp).
     helix::JogCoalescer coalescer;
     helix::AxisTarget first;
     first.x = 10.0;

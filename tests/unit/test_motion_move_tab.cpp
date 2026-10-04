@@ -37,6 +37,7 @@
 #include <array>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
@@ -54,6 +55,34 @@ nlohmann::json ready_status(const char* homed_axes) {
         {"gcode_move", {{"gcode_position", {10.0, 10.0, 10.0, 0.0}}}},
     };
 }
+
+/// Holds every absolute move instead of acking it, so a test decides when
+/// (and whether) each one lands: the mock client acks synchronously, which
+/// keeps the coalescer from ever holding anything pending.
+class HoldingMotionAPI : public MoonrakerMotionAPI {
+  public:
+    using MoonrakerMotionAPI::MoonrakerMotionAPI;
+    struct Held {
+        helix::AxisTarget target;
+        SuccessCallback on_success;
+        ErrorCallback on_error;
+    };
+    void move_to(const helix::AxisTarget& target, double, double, SuccessCallback on_success,
+                 ErrorCallback on_error, std::optional<double>) override {
+        held.push_back({target, std::move(on_success), std::move(on_error)});
+    }
+    std::vector<Held> held;
+};
+
+class HoldingAPI : public MoonrakerAPI {
+  public:
+    HoldingAPI(helix::IMoonrakerClient& client, helix::PrinterState& state)
+        : MoonrakerAPI(client, state), holding_(client, state, get_safety_limits()) {}
+    MoonrakerMotionAPI& motion() override {
+        return holding_;
+    }
+    HoldingMotionAPI holding_;
+};
 
 class MoveTabFixture : public LVGLUITestFixture {
   public:
@@ -507,7 +536,7 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: release past the last streamed point 
     CHECK(all_scripts().find(" Y0.02 ") != std::string::npos);
 }
 
-TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag from below clearance lifts once, first",
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag from below clearance lifts first, to one height",
                  "[motion][bed-tab]") {
     auto& ps = get_printer_state();
     auto& panel = get_global_motion_panel();
@@ -525,15 +554,22 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag from below clearance lifts onc
     panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, false, true));
     drain();
 
-    // The mock acks without moving the commanded Z this panel reads, so a
-    // per-move lift decision would lift again on every move.
+    // Every move of the gesture carries the one lift height decided at its
+    // start, so a coalesced replacement can never drop it; the mock acks
+    // without moving the commanded Z, which a per-move decision would misread.
     const std::string scripts = all_scripts();
     INFO(scripts);
     CHECK(xy_moves(client_) == 3);
     const auto lift = scripts.find("G0 Z5");
     REQUIRE(lift != std::string::npos);
     CHECK(lift < scripts.find("G0 X"));
-    CHECK(scripts.find("G0 Z", lift + 1) == std::string::npos);
+    size_t z_lines = 0;
+    for (size_t at = scripts.find("G0 Z"); at != std::string::npos;
+         at = scripts.find("G0 Z", at + 1)) {
+        CHECK(scripts.compare(at, 6, "G0 Z5 ") == 0);
+        ++z_lines;
+    }
+    CHECK(z_lines == 3);
 }
 
 TEST_CASE_METHOD(MoveTabFixture, "bed tab: below clearance the lift is announced, then done first",
@@ -697,4 +733,72 @@ TEST_CASE_METHOD(MoveTabFixture,
     drain();
 
     CHECK(xy_moves(client_) == 0);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag sample replacing a pending one keeps the lift",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& moves = held_api.holding_.held;
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 0.2, 0.0}}}}});
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    REQUIRE(moves.size() == 1); // in flight, carrying the lift
+    REQUIRE(moves[0].target.z.has_value());
+    // Two more samples while it is in flight: the second replaces the first
+    // pending one wholesale.
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, false, true));
+    REQUIRE(moves.size() == 1);
+
+    moves[0].on_success();
+    drain();
+    REQUIRE(moves.size() == 2);
+    // The flushed target is the latest sample, still at the gesture's lift Z.
+    CHECK(moves[1].target.x == Catch::Approx(0.02));
+    REQUIRE(moves[1].target.z.has_value());
+    CHECK(*moves[1].target.z == Catch::Approx(*moves[0].target.z));
+
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, false, true));
+    set_moonraker_api(&api_);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a lift is never computed below an acked commanded Z",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& moves = held_api.holding_.held;
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 0.2, 0.0}}}}});
+    drain();
+
+    // The keypad raises Z to 10; the ack lands before any status frame does,
+    // so the panel's commanded Z still reads 0.2.
+    panel.request_axis_target('z', 10.0);
+    REQUIRE(moves.size() == 1);
+    moves[0].on_success();
+    drain();
+    CHECK(bed_readout().find("lift") == std::string::npos);
+
+    lv_obj_t* area = panel_widget("bed_map_area");
+    bed_tap(area, far_point(area, true, true));
+    REQUIRE(moves.size() == 2);
+    // A "lift" to 5mm from a head at 10 would be a descent across the plate.
+    CHECK_FALSE(moves[1].target.z.has_value());
+
+    // A frame reporting Z again is the truth from then on, even one lower
+    // than the ack predicted (moved from another client).
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 1.0, 0.0}}}}});
+    drain();
+    CHECK(bed_readout().find("Z 1.00, will lift to 5mm") != std::string::npos);
+    set_moonraker_api(&api_);
 }
