@@ -11,7 +11,7 @@
     <!-- Content area -->
     <lv_obj width="100%"
             height="content" style_min_height="160" style_pad_left="#space_lg" style_pad_right="#space_lg"
-            style_pad_top="#space_lg" style_pad_bottom="0" flex_flow="column" style_flex_cross_place="center"
+            style_pad_top="#space_lg" style_pad_bottom="#space_lg" flex_flow="column" style_flex_cross_place="center"
             style_pad_gap="#space_md">
       <!-- Info icon -->
       <icon src="info" size="lg" variant="success"/>
