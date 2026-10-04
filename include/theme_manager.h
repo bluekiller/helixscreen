@@ -846,6 +846,19 @@ void theme_apply_current_palette_to_tree(lv_obj_t* root);
 lv_color_t theme_manager_get_color(const char* base_name);
 
 /**
+ * @brief Whether a color token resolves
+ *
+ * True when theme_manager_get_color would find the token: both _light and _dark
+ * variants, or a plain constant. Plugin canvas code uses this to reject an
+ * unknown token before committing a display list.
+ *
+ * @param base_name Color constant base name (e.g., "screen_bg", "warning")
+ * @return True when the token exists in the loaded theme
+ */
+// NAMESPACE_OK: joins this header's global theme_manager_* free-function API
+bool theme_manager_has_color(const char* base_name);
+
+/**
  * @brief Look up the Nth color from the rotating `object_color_1..8` palette.
  *
  * Cycles every 8 (`(index % 8) + 1`). Used by exclude-object visuals so the

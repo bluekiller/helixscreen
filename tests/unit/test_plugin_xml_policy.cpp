@@ -124,6 +124,13 @@ TEST_CASE("app widgets keep the name rules", "[plugin][xml_policy]") {
     }
 }
 
+TEST_CASE("plugin_canvas is available and keeps the name rule", "[plugin][xml_policy]") {
+    CHECK(check_plugin_xml("p", {}, view_with(R"(<plugin_canvas name="p__c"/>)")).empty());
+    std::string why = check_plugin_xml("p", {}, view_with(R"(<plugin_canvas name="c"/>)"));
+    CHECK_FALSE(why.empty());
+    CHECK(why.find("object names must be p__<name>") != std::string::npos);
+}
+
 TEST_CASE("a plugin id that prefixes an app name owns nothing of it", "[plugin][xml_policy]") {
     CHECK_FALSE(check_plugin_xml("ams", {}, view_with(R"(<ams_device_operations/>)")).empty());
     CHECK_FALSE(check_plugin_xml("ams", {},

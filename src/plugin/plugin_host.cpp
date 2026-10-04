@@ -17,6 +17,7 @@
 #include "lvgl/lvgl.h"
 #include "panel_widget_manager.h"
 #include "panel_widget_registry.h"
+#include "plugin_canvas.h"
 #include "plugin_settings_overlay.h"
 #include "plugin_xml_policy.h"
 #include "translation_loader.h"
@@ -88,6 +89,7 @@ void register_plugin_event_callback() {
          }},
     });
     register_plugin_settings_callbacks();
+    register_plugin_canvas_widget();
     registered = true;
 }
 

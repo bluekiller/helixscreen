@@ -43,11 +43,12 @@ bool ends_with(std::string_view s, std::string_view tail) {
 
 // App widgets a plugin's own components may build on: chrome and presentational
 // widgets whose only name-taking attributes are the generic bind_* and name= ones
-// checked below.
+// checked below. plugin_canvas is the plugin drawing surface; its name= is the
+// registry key its committed display list publishes under.
 bool is_allowlisted_app_component(std::string_view name) {
     return name == "overlay_panel" || name == "icon" || name == "text_heading" ||
            name == "text_body" || name == "text_muted" || name == "text_small" ||
-           name == "text_xs" || name == "text_tiny";
+           name == "text_xs" || name == "text_tiny" || name == "plugin_canvas";
 }
 
 bool is_allowed_element(const Walk& w, std::string_view el) {

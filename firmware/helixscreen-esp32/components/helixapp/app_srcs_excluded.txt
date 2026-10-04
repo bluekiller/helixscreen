@@ -310,3 +310,4 @@ src/plugin/plugins_overlay.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_source.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_source_app.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_dir_watcher.cpp  # not in the v1 Core+AMS cut
+src/plugin/plugin_canvas.cpp  # not in the v1 Core+AMS cut
