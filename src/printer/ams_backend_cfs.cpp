@@ -1571,20 +1571,25 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
             // updates that only touch a subset of units.
             std::unordered_map<int, std::string> observed_uids;
             if (is_flat) {
-                // The flat schema has a single unit; its bays are the kept
-                // entries of slots[] numbered by vector position, exactly as
-                // parse_flat_box_status numbers them. The skips are the
+                // Each bay's fingerprint is filed under its firmware slot
+                // number from flat_bay_indices(), the numbering
+                // parse_flat_box_status gives the bay. The skips are the
                 // parse's own, so a fingerprint can never address a different
                 // bay than the parse put a spool on.
+                const auto bay_indices = flat_bay_indices(box);
                 auto slots_it = box.find("slots");
                 if (slots_it != box.end() && slots_it->is_array()) {
-                    int position = 0;
+                    size_t bay_ordinal = 0;
                     for (const auto& slot_json : *slots_it) {
                         if (!slot_json.is_object() ||
                             helix::json_util::safe_bool(slot_json, "external", false)) {
                             continue;
                         }
-                        observed_uids[position++] = build_cfs_flat_slot_uid(slot_json);
+                        if (bay_ordinal >= bay_indices.size()) {
+                            break;
+                        }
+                        observed_uids[bay_indices[bay_ordinal++]] =
+                            build_cfs_flat_slot_uid(slot_json);
                     }
                 }
             } else {

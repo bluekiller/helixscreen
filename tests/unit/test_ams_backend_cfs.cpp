@@ -5955,6 +5955,51 @@ TEST_CASE("CFS fork: per-bay state stays on its physical slot when a box drops",
     }
 }
 
+// The RFID fingerprint of each bay is read under the firmware's slot number, so
+// a box leaving the head of the chain does not hand the next box's tags to its
+// bays, where they would read as a spool swap and clear its overrides (#1464).
+TEST_CASE("CFS fork: RFID fingerprints stay on their bays when a box drops",
+          "[ams][cfs][fork][1464]") {
+    auto run = [](const std::vector<int>& full, const std::vector<int>& dropped) {
+        CfsRemapHelper backend;
+        backend.mark_running();
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes(full)));
+        for (int bay = 4; bay < 8; ++bay) {
+            helix::ams::FilamentSlotOverride kept;
+            kept.spool_name = "Box 2 bay " + std::to_string(bay);
+            CfsTestAccess::seed_override(backend, bay, kept);
+        }
+        std::map<int, std::optional<std::string>> baselines;
+        for (int bay = 0; bay < 4 * full.back(); ++bay) {
+            baselines[bay] = CfsTestAccess::last_rfid_uid(backend, bay);
+        }
+        REQUIRE(baselines[8].has_value());
+
+        for (const auto& boxes : {dropped, full}) {
+            CfsTestAccess::handle_status(backend,
+                                         make_cfs_notification(make_fork_box_with_boxes(boxes)));
+            for (int bay = 4; bay < 8; ++bay) {
+                INFO("bay " << bay);
+                REQUIRE(CfsTestAccess::get_override(backend, bay).has_value());
+                CHECK(CfsTestAccess::get_override(backend, bay)->spool_name ==
+                      "Box 2 bay " + std::to_string(bay));
+            }
+            for (const auto& [bay, uid] : baselines) {
+                INFO("bay " << bay);
+                CHECK(CfsTestAccess::last_rfid_uid(backend, bay) == uid);
+            }
+        }
+    };
+
+    SECTION("{1,2,3} -> {2,3} -> {1,2,3}") {
+        run({1, 2, 3}, {2, 3});
+    }
+    SECTION("{1,2,3,4} -> {1,3,4} -> {1,2,3,4}") {
+        run({1, 2, 3, 4}, {1, 3, 4});
+    }
+}
+
 // The lane store is keyed by the same index, so what the box last said about a
 // bay stays on that bay's lane while its box is gone, and the shared views
 // built from it neither show nor offer the missing box's bays as real ones.
