@@ -581,6 +581,7 @@ src/xml_registration.cpp
 
 # ===== override->real swaps + Moonraker command surface + generated =====
 src/ui/theme_manager.cpp
+src/ui/theme_token_scan.cpp
 src/ui/grid_edit_mode.cpp
 src/ui/grid_edit_cross_page.cpp
 src/ui/grid_edit_drop.cpp
