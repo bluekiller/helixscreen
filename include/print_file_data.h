@@ -41,7 +41,9 @@ enum class FileHistoryStatus {
  */
 struct PrintFileData {
     std::string filename;
-    std::string thumbnail_path;         ///< Pre-scaled .bin path for cards (fast rendering)
+    std::string local_path;     ///< Absolute path on this host for a file Moonraker cannot see
+                                ///< (a USB stick); empty for Moonraker's own files
+    std::string thumbnail_path; ///< Pre-scaled .bin path for cards (fast rendering)
     std::string original_thumbnail_url; ///< Moonraker relative URL (for detail view PNG lookup)
     size_t file_size_bytes;             ///< File size in bytes
     std::string uuid;                   ///< Slicer UUID from metadata (empty if not available)

@@ -686,6 +686,8 @@
   <translation tag="Copy Command" en="Copy Command"/>
   <translation tag="Copy failed - use SSH manually" en="Copy failed - use SSH manually"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." en="Copy it into this filament&apos;s slicer profile. The printer keeps nothing."/>
+  <translation tag="Copying from USB" en="Copying from USB"/>
+  <translation tag="Copying from USB..." en="Copying from USB..."/>
   <translation tag="Corner roundness" en="Corner roundness"/>
   <translation tag="Correction (Ki)" en="Correction (Ki)"/>
   <translation tag="Could not add to queue" en="Could not add to queue"/>
@@ -693,6 +695,7 @@
   <translation tag="Could not answer the connection request" en="Could not answer the connection request"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." en="Could not check webcam status.&#10;Check printer connection."/>
   <translation tag="Could not confirm cancel" en="Could not confirm cancel"/>
+  <translation tag="Could not copy {} from USB: {}" en="Could not copy {} from USB: {}"/>
   <translation tag="Could not forget device" en="Could not forget device"/>
   <translation tag="Could not load printer database" en="Could not load printer database"/>
   <translation tag="Could not move the plate" en="Could not move the plate"/>

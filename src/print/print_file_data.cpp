@@ -47,6 +47,7 @@ PrintFileData PrintFileData::from_usb_file(const UsbGcodeFile& file,
                                            const std::string& default_thumbnail) {
     PrintFileData data;
     data.filename = file.filename;
+    data.local_path = file.path;
     data.is_dir = false;
     data.file_size_bytes = file.size_bytes;
     data.modified_timestamp = static_cast<time_t>(file.modified_time);

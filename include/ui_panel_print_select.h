@@ -536,6 +536,11 @@ class PrintSelectPanel : public PanelBase {
      */
     void start_print(bool force = false);
 
+    /// Moonraker directory (under the gcodes root) that USB files are copied
+    /// into before they print. Not "usb": that name is the stick symlink some
+    /// images create, which check_moonraker_usb_symlink() looks for.
+    static constexpr const char* kUsbCopyDir = "usb_prints";
+
     /**
      * @brief Queue the selected file instead of starting it.
      *
@@ -702,8 +707,9 @@ class PrintSelectPanel : public PanelBase {
     std::string selected_filament_type_; ///< Filament type of selected file (for dropdown default)
     std::vector<std::string> selected_filament_colors_; ///< Tool colors of selected file
     std::vector<std::string>
-        selected_filament_materials_;        ///< Per-tool material types of selected file
-    size_t selected_file_size_bytes_ = 0;    ///< File size of selected file (for safety checks)
+        selected_filament_materials_;     ///< Per-tool material types of selected file
+    size_t selected_file_size_bytes_ = 0; ///< File size of selected file (for safety checks)
+    std::string selected_local_path_; ///< USB file's path on this host; empty for Moonraker files
     time_t selected_modified_timestamp_ = 0; ///< mtime of selected file (tools-used cache key)
     uint64_t selected_gcode_end_byte_ = 0;   ///< G-code body end offset (sizes the footer read)
     FileHistoryStatus selected_history_status_ =
@@ -931,6 +937,27 @@ class PrintSelectPanel : public PanelBase {
     /// True while an add_job request is on the wire: taps are ignored and the
     /// button renders disabled until its callback lands (success or failure).
     bool queue_add_in_flight_ = false;
+
+    /// True while a USB file is being copied to Moonraker; Print and Add to
+    /// Queue taps are ignored until the copy lands or fails.
+    bool usb_copy_in_flight_ = false;
+
+    /**
+     * @brief Copy the selected USB file into Moonraker's gcodes root.
+     *
+     * Moonraker cannot read a stick HelixScreen mounted itself, so a USB file
+     * is uploaded to kUsbCopyDir/<filename> (replacing an earlier copy there)
+     * before it prints or queues. @p then runs on the main thread with the
+     * Moonraker-relative directory once the copy is in place; a failure
+     * toasts and runs nothing.
+     */
+    void copy_usb_file_to_printer(std::function<void(const std::string& dir)> then);
+
+    /// Hand the controller @p filename in Moonraker directory @p dir and start.
+    void dispatch_print(const std::string& filename, const std::string& dir);
+
+    /// post_job @p filename (Moonraker-relative) with the detail view's options.
+    void queue_file(const std::string& filename);
 
     /**
      * @brief Update sort indicator icons on column headers

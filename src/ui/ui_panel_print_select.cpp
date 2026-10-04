@@ -12,6 +12,7 @@
 
 #include "ui_panel_print_select.h"
 
+#include "ui_busy_overlay.h"
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
@@ -2770,6 +2771,7 @@ void PrintSelectPanel::apply_file_selection(const PrintFileData& file) {
     selected_filament_colors_ = file.filament_colors;
     selected_filament_materials_ = file.filament_types;
     selected_file_size_bytes_ = file.file_size_bytes;
+    selected_local_path_ = file.local_path;
     selected_modified_timestamp_ = file.modified_timestamp;
     selected_gcode_end_byte_ = file.gcode_end_byte;
     selected_history_status_ = file.history_status;
@@ -2844,6 +2846,9 @@ void PrintSelectPanel::on_file_long_pressed(size_t file_index) {
 }
 
 void PrintSelectPanel::start_print(bool force) {
+    if (usb_copy_in_flight_) {
+        return;
+    }
     if (print_button_mode_ == helix::ui::PrintSelectButtonMode::Queue) {
         add_to_queue();
         return;
@@ -2887,16 +2892,26 @@ void PrintSelectPanel::start_print(bool force) {
         }
     }
 
-    // Set the file to print in the controller
+    const std::string filename = selected_filename_buffer_;
+    if (!selected_local_path_.empty()) {
+        copy_usb_file_to_printer(
+            [this, filename](const std::string& dir) { dispatch_print(filename, dir); });
+        return;
+    }
+    dispatch_print(filename, current_path_);
+}
+
+void PrintSelectPanel::dispatch_print(const std::string& filename, const std::string& dir) {
     // Pass extracted thumbnail path so USB/embedded thumbnails propagate to print status
-    print_controller_->set_file(selected_filename_buffer_, current_path_, selected_filament_colors_,
+    print_controller_->set_file(filename, dir, selected_filament_colors_,
                                 selected_detail_thumbnail_buffer_);
 
     // A Print tap for the pending queued file puts the removal bookkeeping
     // past the reach of hide_detail_view(): from here only a confirmed start
     // (finish_pending_queued_job) or the user opening a different file
     // clears it.
-    if (pending_queued_start_ && pending_queued_start_->filename == composed_selected_filename()) {
+    const std::string composed = dir.empty() ? filename : dir + "/" + filename;
+    if (pending_queued_start_ && pending_queued_start_->filename == composed) {
         pending_queued_start_->start_attempted = true;
     }
 
@@ -2904,23 +2919,77 @@ void PrintSelectPanel::start_print(bool force) {
     print_controller_->initiate();
 }
 
+void PrintSelectPanel::copy_usb_file_to_printer(std::function<void(const std::string& dir)> then) {
+    if (!api_) {
+        NOTIFY_ERROR(lv_tr("Cannot start print: internal error"));
+        return;
+    }
+
+    const std::string filename = selected_filename_buffer_;
+    const std::string local_path = selected_local_path_;
+    const std::string dir = kUsbCopyDir;
+    const std::string dest = dir + "/" + filename;
+    spdlog::info("[{}] Copying USB file {} to gcodes/{}", get_name(), local_path, dest);
+
+    usb_copy_in_flight_ = true;
+    BusyOverlay::show(lv_tr("Copying from USB..."));
+
+    // Moonraker's upload replaces a same-named file. That is wanted inside
+    // kUsbCopyDir, which holds nothing but these copies, and Moonraker
+    // refuses to replace the file it is printing.
+    api_->transfers().upload_file_from_path(
+        "gcodes", dest, local_path,
+        object_lifetime_.bg_cb("PrintSelectPanel::usb_copy_done",
+                               [this, dir, then = std::move(then)]() {
+                                   usb_copy_in_flight_ = false;
+                                   BusyOverlay::hide();
+                                   then(dir);
+                               }),
+        [this, tok = object_lifetime_.token(), filename](const MoonrakerError& err) {
+            tok.defer("PrintSelectPanel::usb_copy_failed", [this, filename, err]() {
+                usb_copy_in_flight_ = false;
+                BusyOverlay::hide();
+                NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), filename, err.user_message());
+            });
+        },
+        [label = std::string(lv_tr("Copying from USB"))](size_t done, size_t total) {
+            const float pct =
+                total > 0 ? 100.0f * static_cast<float>(done) / static_cast<float>(total) : 0.0f;
+            helix::ui::queue_update("PrintSelectPanel::usb_copy_progress",
+                                    [label, pct]() { BusyOverlay::set_progress(label, pct); });
+        });
+}
+
 void PrintSelectPanel::add_to_queue() {
     // One Add in flight at a time: the button is disabled while the request
     // runs, but a hardware double-tap can still land before the subject
     // propagates, and a second add_job would queue the file twice.
-    if (queue_add_in_flight_) {
+    if (queue_add_in_flight_ || usb_copy_in_flight_) {
         return;
     }
 
-    auto* jqs = get_job_queue_state();
-    if (!api_ || !jqs) {
+    if (!api_ || !get_job_queue_state()) {
         NOTIFY_ERROR(lv_tr("Cannot add to queue: internal error"));
         return;
     }
 
     // Moonraker addresses queued files the same way started ones: relative to
     // the gcodes root, with any subdirectory prefixed.
-    std::string filename = composed_selected_filename();
+    if (!selected_local_path_.empty()) {
+        const std::string name = selected_filename_buffer_;
+        copy_usb_file_to_printer(
+            [this, name](const std::string& dir) { queue_file(dir + "/" + name); });
+        return;
+    }
+    queue_file(composed_selected_filename());
+}
+
+void PrintSelectPanel::queue_file(const std::string& filename) {
+    auto* jqs = get_job_queue_state();
+    if (!api_ || !jqs) {
+        NOTIFY_ERROR(lv_tr("Cannot add to queue: internal error"));
+        return;
+    }
 
     helix::queue::QueuedJobOptions options;
     options.filename = filename;

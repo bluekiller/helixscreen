@@ -773,6 +773,8 @@ translations:
   Copy Command: Befehl kopieren
   Copy failed - use SSH manually: Kopieren fehlgeschlagen – SSH verwenden
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Trage ihn ins Slicer-Profil dieses Filaments ein. Der Drucker speichert nichts.'
+  Copying from USB: 'Kopieren von USB'
+  Copying from USB...: 'Kopieren von USB...'
   Corner roundness: Eckenrundung
   Correction (Ki): Korrektur (Ki)
   Could not add to queue: Konnte nicht zur Warteschlange hinzufügen
@@ -783,6 +785,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Webcam-Status konnte nicht geprüft werden.\nDruckerverbindung prüfen."
   Could not confirm cancel: Abbruch konnte nicht bestätigt werden
+  'Could not copy {} from USB: {}': '{} konnte nicht von USB kopiert werden: {}'
   Could not forget device: Gerät konnte nicht vergessen werden
   Could not load printer database: Druckerdatenbank konnte nicht geladen werden
   Could not move the plate: Heizbett konnte nicht bewegt werden

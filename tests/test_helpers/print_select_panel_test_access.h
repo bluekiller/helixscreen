@@ -114,6 +114,12 @@ struct PrintSelectPanelTestAccess {
         PrintStartControllerTestAccess::fire_print_started(*panel.print_controller_);
     }
 
+    /// The file the print controller was last told to start: {filename, dir}.
+    static std::pair<std::string, std::string> controller_file(const PrintSelectPanel& panel) {
+        REQUIRE(panel.print_controller_ != nullptr);
+        return PrintStartControllerTestAccess::file(*panel.print_controller_);
+    }
+
     /// The detail view's current option-row states (id -> on).
     static std::map<std::string, bool> collect_option_states(const PrintSelectPanel& panel) {
         if (!panel.detail_view_) {

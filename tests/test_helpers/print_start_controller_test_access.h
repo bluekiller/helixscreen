@@ -14,6 +14,8 @@
 
 #include "ui_print_start_controller.h"
 
+#include <string>
+#include <utility>
 #include <vector>
 
 class PrintStartControllerTestAccess {
@@ -43,6 +45,11 @@ class PrintStartControllerTestAccess {
 
     static size_t gate_resume_index(const helix::ui::PrintStartController& c) {
         return c.gate_resume_index_;
+    }
+
+    /// The file set_file() last handed the controller: {filename, directory}.
+    static std::pair<std::string, std::string> file(const helix::ui::PrintStartController& c) {
+        return {c.filename_, c.path_};
     }
 
     // --- print-start success hook (test_job_queue_start_guard.cpp) ---

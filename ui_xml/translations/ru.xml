@@ -686,6 +686,8 @@
   <translation tag="Copy Command" ru="Копировать команду"/>
   <translation tag="Copy failed - use SSH manually" ru="Ошибка копирования - используйте SSH вручную"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." ru="Перепишите его в профиль слайсера для этого филамента. Принтер ничего не сохраняет."/>
+  <translation tag="Copying from USB" ru="Копирование с USB"/>
+  <translation tag="Copying from USB..." ru="Копирование с USB..."/>
   <translation tag="Corner roundness" ru="Скругление углов"/>
   <translation tag="Correction (Ki)" ru="Коррекция (Ki)"/>
   <translation tag="Could not add to queue" ru="Не удалось добавить в очередь"/>
@@ -693,6 +695,7 @@
   <translation tag="Could not answer the connection request" ru="Не удалось ответить на запрос подключения"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." ru="Не удалось проверить статус веб-камеры.&#10;Проверьте подключение принтера."/>
   <translation tag="Could not confirm cancel" ru="Не удалось подтвердить отмену"/>
+  <translation tag="Could not copy {} from USB: {}" ru="Не удалось скопировать {} с USB: {}"/>
   <translation tag="Could not forget device" ru="Не удалось забыть устройство"/>
   <translation tag="Could not load printer database" ru="Не удалось загрузить базу данных принтеров"/>
   <translation tag="Could not move the plate" ru="Не удалось переместить стол"/>
