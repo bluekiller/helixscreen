@@ -153,7 +153,8 @@ All values are integers so XML can bind them. Fixed-name subjects register globa
 | `filament_runout_scoped` | Filament | same -1/0/1/2, scoped to the running print's tools; written by `PrintStatusPanel` via `set_scoped_runout()` |
 | `filament_any_runout` | Filament | 1 when `has_any_runout()` and outside the startup grace period |
 | `filament_motion_active`, `filament_master_enabled`, `filament_sensor_count` | Filament | 0/1, 0/1, count |
-| `probe_triggered` | Filament (Z_PROBE role) and Probe | -1/0/1(/2) |
+| `filament_probe_triggered` | Filament (a switch sensor in the Z_PROBE role) | -1/0/1/2 |
+| `probe_triggered` | Probe | -1/0/1 |
 | `temp_sensor_count` | Temperature | count; the per-sensor subjects carry decidegrees (°C x 10) |
 | `chamber_humidity`, `dryer_humidity` | Humidity | % x 10, -1 when no enabled sensor holds the role |
 | `chamber_pressure` | Humidity | Pa (hPa x 100), -1 when unavailable |
@@ -164,8 +165,6 @@ All values are integers so XML can bind them. Fixed-name subjects register globa
 | `load_cell_count` | Load cell | count |
 
 The `*_count` subjects double as hardware gates: `src/ui/panel_widget_registry.cpp` names `temp_sensor_count`, `filament_sensor_count`, `humidity_sensor_count` and `width_sensor_count` as `hardware_gate_subject`s, and `ui_xml/sensors_overlay.xml` hides each section with `bind_flag_if_eq ... ref_value="0"`.
-
-`FilamentSensorManager` and `ProbeSensorManager` both register an XML subject named `probe_triggered`. No XML binds it today; if you need one, read it through a manager's getter rather than by name.
 
 Each manager exposes `get_subjects_lifetime()`. Pass it as the fourth argument of `observe<int>()` for any observer that can outlive the manager's teardown, as `src/ui/ui_filament_runout_handler.cpp#show_runout_guidance_modal` does with `get_any_runout_subject()`.
 

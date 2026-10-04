@@ -121,7 +121,7 @@ void FilamentSensorManager::init_subjects() {
 
     // Initialize all subjects with SubjectManager for automatic cleanup
     // Role-state encoding (filament_runout_detected, filament_toolhead_detected,
-    // filament_entry_detected, probe_triggered):
+    // filament_entry_detected, filament_probe_triggered):
     //   -1 = no sensor configured for this role (hide indicator entirely)
     //    0 = sensor enabled, no filament / not triggered (empty/red)
     //    1 = sensor enabled, filament present / triggered (loaded/green)
@@ -136,7 +136,7 @@ void FilamentSensorManager::init_subjects() {
     UI_MANAGED_SUBJECT_INT(scoped_runout_, -1, "filament_runout_scoped", subjects_);
     UI_MANAGED_SUBJECT_INT(toolhead_detected_, -1, "filament_toolhead_detected", subjects_);
     UI_MANAGED_SUBJECT_INT(entry_detected_, -1, "filament_entry_detected", subjects_);
-    UI_MANAGED_SUBJECT_INT(probe_triggered_, -1, "probe_triggered", subjects_);
+    UI_MANAGED_SUBJECT_INT(probe_triggered_, -1, "filament_probe_triggered", subjects_);
     UI_MANAGED_SUBJECT_INT(any_runout_, 0, "filament_any_runout", subjects_);
     UI_MANAGED_SUBJECT_INT(motion_active_, 0, "filament_motion_active", subjects_);
     UI_MANAGED_SUBJECT_INT(master_enabled_subject_, master_enabled_ ? 1 : 0,
