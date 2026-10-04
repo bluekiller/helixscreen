@@ -81,6 +81,10 @@ class PrinterSwitchFixture : public ApplicationTestFixture {
         helix::ConfigTestAccess::active_printer_id(*cfg_) = "alpha";
         helix::ConfigTestAccess::read_only_mode(*cfg_) = false;
 
+        // The restart paths fire the real registry. Registrations other tests left behind
+        // can capture objects that no longer exist, so start from an empty one.
+        helix::PrinterCacheRegistry::instance().clear();
+
         // Count per-printer cache invalidations without caring who triggers them.
         helix::PrinterCacheRegistry::instance().register_invalidator(
             PROBE_NAME, [this]() { ++invalidations_; });
@@ -95,7 +99,7 @@ class PrinterSwitchFixture : public ApplicationTestFixture {
 
     ~PrinterSwitchFixture() override {
         // The registry outlives the fixture; the invalidator closes over `this`.
-        helix::PrinterCacheRegistry::instance().unregister(PROBE_NAME);
+        helix::PrinterCacheRegistry::instance().clear();
         set_wizard_cancel_callback(nullptr);
         // cancel_add_printer_wizard() defers its teardown through AsyncLifetimeGuard;
         // that callback closes over app_, so drop it rather than run it.
