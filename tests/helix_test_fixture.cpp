@@ -177,6 +177,29 @@ struct ConfigSandbox {
 };
 const ConfigSandbox g_config_sandbox;
 
+/// The default logger as the process first saw it. Cases that call
+/// logging::init(), swap in a capture logger, or raise the level for their own
+/// output leave the next case logging into a different logger at a different
+/// threshold, so a case that reads back an info line finds nothing.
+void restore_default_logger() {
+    struct Baseline {
+        std::shared_ptr<spdlog::logger> logger = spdlog::default_logger();
+        spdlog::level::level_enum level = logger->level();
+        std::vector<spdlog::sink_ptr> sinks = logger->sinks();
+    };
+    static const Baseline baseline;
+
+    if (spdlog::default_logger() != baseline.logger) {
+        spdlog::set_default_logger(baseline.logger);
+    }
+    if (baseline.logger->level() != baseline.level) {
+        baseline.logger->set_level(baseline.level);
+    }
+    if (baseline.logger->sinks() != baseline.sinks) {
+        baseline.logger->sinks() = baseline.sinks;
+    }
+}
+
 } // namespace
 
 namespace helix::test {
@@ -548,6 +571,8 @@ void HelixTestFixture::reset_all() {
     // bodies; a case asserting "first occurrence logs at its usual level" would
     // otherwise depend on how many distinct warnings earlier cases emitted.
     helix::logging::reset_lvgl_log_dedupe();
+
+    restore_default_logger();
 
     // The debug-bundle log tail reads this ring, so whatever earlier cases
     // logged (a store path, an SSID) would otherwise show up in a later bundle.
