@@ -154,15 +154,16 @@ class DisplayManagerTestAccess {
         dm.disable_input_briefly();
     }
 
-    // Delete every pending wake-gate re-enable timer. Left armed, the first
-    // lv_timer_handler() that crosses its 200ms re-enables every pointer indev
-    // in the process, including ones a later case disabled on purpose.
-    static void cancel_input_gate_timers() {
+    // Run every pending wake-gate re-enable timer now, which re-enables the
+    // pointer indevs it disabled and deletes itself. Left armed, its 200ms
+    // would elapse inside a later case's lv_timer_handler() and enable every
+    // pointer indev in the process, including one that case disabled on purpose.
+    static void finish_input_gate() {
         lv_timer_t* timer = lv_timer_get_next(nullptr);
         while (timer) {
             lv_timer_t* next = lv_timer_get_next(timer);
             if (timer->timer_cb == &DisplayManager::reenable_input_cb) {
-                lv_timer_delete(timer);
+                timer->timer_cb(timer);
             }
             timer = next;
         }

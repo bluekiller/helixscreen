@@ -590,7 +590,7 @@ void HelixTestFixture::reset_all() {
     }
 
     // The wake gate arms a one-shot timer that re-enables every pointer indev.
-    DisplayManagerTestAccess::cancel_input_gate_timers();
+    DisplayManagerTestAccess::finish_input_gate();
 
     restore_default_logger();
 
