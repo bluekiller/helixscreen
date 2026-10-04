@@ -802,3 +802,31 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: a lift is never computed below an ack
     CHECK(bed_readout().find("Z 1.00, will lift to 5mm") != std::string::npos);
     set_moonraker_api(&api_);
 }
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: Z unhomed counts as unhomed, like Park",
+                 "[motion][bed-tab]") {
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    get_printer_state().update_from_status(ready_status("xy"));
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+    // With Z unknown no lift can be computed, so the map offers homing first.
+    CHECK(lv_obj_has_flag(panel_widget("bed_map_marker"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(panel_widget("bed_map_home"), LV_OBJ_FLAG_HIDDEN));
+
+    // A drag streams nothing; release homes, then moves.
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    drain();
+    CHECK(client_.gcode_script_history().empty());
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    drain();
+
+    const std::string scripts = all_scripts();
+    INFO(scripts);
+    const auto home = scripts.find("G28");
+    REQUIRE(home != std::string::npos);
+    REQUIRE(scripts.find("G0 X234.9") != std::string::npos);
+    CHECK(home < scripts.find("G0 X234.9"));
+}

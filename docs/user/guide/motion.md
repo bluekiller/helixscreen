@@ -110,7 +110,7 @@ The map is deliberately coarse. For an exact position, tap a coordinate in the h
 The plate is the same area the Move tab uses: the probing area from your `[bed_mesh]` config (or the axis travel when there is none), so a tap never sends the head off the plate into a purge bucket or tool dock.
 
 - **Z clearance.** A move keeps the current Z, unless the nozzle is below the **Bed Map Clearance** height ([Motion Settings](#motion-settings), 5 mm by default). Then it first lifts to that height and only then travels, so it never drags across the plate. A drag lifts once, before its first move. The readout warns you before you tap, for example "Z 0.20, will lift to 5mm".
-- **Not homed.** The plate greys out and the dot is hidden rather than drawn at a guessed spot. A **Home** button in the middle homes all axes. Tapping the plate instead homes first and then moves.
+- **Not homed.** If any axis is not homed, Z included (the lift needs a known height), the plate greys out and the dot is hidden rather than drawn at a guessed spot. A **Home** button in the middle homes all axes. Tapping the plate instead homes first and then moves.
 - **Printing.** The Bed tab is disabled while a print is running or paused. The plate also greys out while the toolhead is busy and while the printer isn't ready.
 
 ---

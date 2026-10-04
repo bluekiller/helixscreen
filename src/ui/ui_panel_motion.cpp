@@ -1558,8 +1558,7 @@ void MotionPanel::handle_bed_touch(helix::BedTouch phase, lv_obj_t* area, lv_poi
         // flight, the newest target pending. Only on a homed machine: an
         // unhomed one would queue a home per pointer sample, so its drag
         // commits once, on release.
-        auto& ps = get_printer_state();
-        if (helix::axis_is_homed(ps, helix::Axis::X) && helix::axis_is_homed(ps, helix::Axis::Y)) {
+        if (helix::toolhead_is_homed(get_printer_state())) {
             send_bed_gesture_target(*target);
         }
         return;
@@ -1604,10 +1603,15 @@ void MotionPanel::commit_bed_target(helix::AxisTarget target, std::optional<doub
     if (!get_moonraker_api() || !moves_allowed()) {
         return;
     }
-    auto& ps = get_printer_state();
-    if (!helix::axis_is_homed(ps, helix::Axis::X) || !helix::axis_is_homed(ps, helix::Axis::Y)) {
-        // No lift: the Z this panel holds predates the G28 about to run.
-        ensure_xy_homed_then(lifetime_, [this, target]() { dispatch_target(target); });
+    // Every axis, like Park: the lift needs a known Z.
+    if (!helix::toolhead_is_homed(get_printer_state())) {
+        // No lift: the Z this panel holds predates the G28 about to run, and
+        // homing leaves the nozzle clear of the plate.
+        helix::ensure_homed_then(
+            get_moonraker_api(), lifetime_, [this, target]() { dispatch_target(target); },
+            lifetime_.bg_cb("MotionPanel::bed_home_failed", [](const MoonrakerError& err) {
+                NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+            }));
         return;
     }
     // The lift rides in the same target as the XY: move_to raises Z on its

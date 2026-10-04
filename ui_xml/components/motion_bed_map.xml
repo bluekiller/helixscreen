@@ -35,22 +35,23 @@
               style_border_width="2" style_radius="#border_radius" style_pad_all="0" scrollable="false"
               clickable="false">
         <bind_style_if name="bed_plate_live"
-                       cond="motion_x_homed eq 1 and motion_y_homed eq 1 and nav_buttons_enabled eq 1 and machine_motion_blocked eq 0"/>
+                       cond="motion_x_homed eq 1 and motion_y_homed eq 1 and motion_z_homed eq 1 and nav_buttons_enabled eq 1 and machine_motion_blocked eq 0"/>
         <bind_style_if name="bed_plate_dim"
-                       cond="motion_x_homed eq 0 or motion_y_homed eq 0 or nav_buttons_enabled eq 0 or machine_motion_blocked eq 1"/>
+                       cond="motion_x_homed eq 0 or motion_y_homed eq 0 or motion_z_homed eq 0 or nav_buttons_enabled eq 0 or machine_motion_blocked eq 1"/>
         <bind_style_if name="bed_plate_round" cond="motion_bed_circular eq 1"/>
       </lv_obj>
-      <!-- Hidden, not drawn at a guess, until X and Y are homed. Its size
+      <!-- Hidden, not drawn at a guess, until every axis is homed: with Z
+           unknown no clearance lift can be computed, so the map homes first. Its size
            and the surface inset live in motion_panel.xml: responsive consts
            resolve only from top-level layout files. -->
       <lv_obj name="bed_map_marker"
               width="#bed_map_marker_size" height="#bed_map_marker_size" style_radius="9999" style_bg_color="#primary"
               style_bg_opa="255" style_border_width="2" style_border_color="#screen_bg" style_border_opa="255"
               scrollable="false" clickable="false">
-        <bind_flag_if cond="motion_x_homed eq 0 or motion_y_homed eq 0" flag="hidden"/>
+        <bind_flag_if cond="motion_x_homed eq 0 or motion_y_homed eq 0 or motion_z_homed eq 0" flag="hidden"/>
       </lv_obj>
       <ui_button name="bed_map_home" align="center" icon="home" text="Home" translation_tag="Home" moves_machine="true">
-        <bind_flag_if cond="motion_x_homed eq 1 and motion_y_homed eq 1" flag="hidden"/>
+        <bind_flag_if cond="motion_x_homed eq 1 and motion_y_homed eq 1 and motion_z_homed eq 1" flag="hidden"/>
         <event_cb trigger="clicked" callback="on_motion_bed_home"/>
       </ui_button>
     </lv_obj>
