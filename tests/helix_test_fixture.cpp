@@ -30,6 +30,7 @@
 #include "safety_settings_manager.h"
 #include "screensaver_canvas.h"
 #include "screensaver_registry.h"
+#include "sound_manager.h"
 #include "standard_macros.h"
 #include "system/crash_error_log_sink.h"
 #include "system_settings_manager.h"
@@ -530,6 +531,15 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // MoonrakerManager::init() hands SoundManager a pointer to its client, and
+    // nothing takes it back when a test destroys the manager. A set client lets
+    // set_hardware() install the M300 backend, which flips has_speaker() on for
+    // every later capability test. Shutdown first so an M300 backend is joined
+    // while the client is still named; host_recovery=false keeps the clear from
+    // probing a host backend back in.
+    helix::SoundManager::instance().shutdown();
+    helix::SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/false);
 
     // A backend torn down at the end of a test can leave a fetch queued on the
     // process-wide executors. Waiting here, bounded, keeps that worker from
