@@ -3,6 +3,7 @@
 
 #include "helix_test_fixture.h"
 
+#include "ui_ams_edit_overlay.h"
 #include "ui_animations_pref.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
@@ -578,6 +579,15 @@ void HelixTestFixture::reset_all() {
     // for every refresh, so a case that initialized it would make a later case's
     // display resize invisible to the theme.
     LayoutManagerTestAccess::reset(helix::LayoutManager::instance());
+
+    // Its subjects publish global XML names, and a second AmsEditOverlay built
+    // on the stack (which cases do to reach its private members) takes those
+    // names over and withdraws them when it dies. The singleton still counts
+    // them as registered, so it is dropped to re-register on next use.
+    if (helix::lazy_global_if_exists<helix::ui::AmsEditOverlay>() &&
+        !lv_xml_get_subject(nullptr, "ams_edit_save_disabled")) {
+        helix::detail::lazy_global_slot<helix::ui::AmsEditOverlay>().reset();
+    }
 
     // The wake gate arms a one-shot timer that re-enables every pointer indev.
     DisplayManagerTestAccess::cancel_input_gate_timers();
