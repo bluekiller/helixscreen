@@ -413,7 +413,7 @@ Top-level:
 | `temp_c` / `humidity_pct` | number | Unit environment — JSON **numbers**, not the stock schema's strings |
 | `state` / `state_code` | string / int | e.g. `"IDLE"` / `0` |
 | `status` / `status_code` | string / int | e.g. `"OK"` / `0` |
-| `runout` | null \| object | `null` while idle; a descriptor once tripped |
+| `runout` | null \| object | The runout-swap plan, not a runout event: `{"loaded_slot": N, "chain": [...]}` whenever a bay is loaded (or the runout origin while one is active), `null` otherwise. `chain` is every other present slot with identical `material` and `color`, in slot order, as `slots[].index` values; `runout_recovery` swaps to `chain[0]`. HelixScreen reports `loaded_slot -> chain[0]` as the endless-spool backup edge, and an empty chain as OnWithoutBackup (#1464) |
 | `runout_swap_enabled` | bool | Endless-spool equivalent |
 | `materials` | dict | `{"PLA": {"target_temp": 220}, ...}` — per-material recommended temps, keyed by the same string each slot reports. Stock has no equivalent. |
 | `load_path` | object | Shared feed path: `encoder`, `buffer`, `printhead_sensor`, `clog_detection` |

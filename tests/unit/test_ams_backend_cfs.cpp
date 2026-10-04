@@ -245,6 +245,9 @@ void drain_calib_queue() {
 // status-parsing fixtures further down; forward-declared so the bypass tests
 // above them can share it.
 static json make_cfs_notification(const json& box_obj);
+namespace {
+json make_flat_fork_box();
+} // namespace
 
 TEST_CASE("CFS bypass: fork dialect commands the attended load", "[ams][cfs][bypass]") {
     CfsRemapHelper backend;
@@ -4811,8 +4814,7 @@ TEST_CASE("CFS load routes the bypass sentinel instead of refusing it", "[ams][c
     SECTION("Fork keeps its own T<external> attended load") {
         CfsRemapHelper backend;
         backend.mark_running();
-        CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(1)));
-        CfsTestAccess::set_macro_variant_fork(backend);
+        CfsTestAccess::handle_status(backend, make_cfs_notification(make_flat_fork_box()));
 
         // Fork resolves the external bay through its own T command, so the
         // sentinel must NOT be diverted into our stock-dialect script.
@@ -5634,6 +5636,213 @@ TEST_CASE("CFS flat: a slot delta does not clear the endless-spool enable bit",
     CHECK(backend.get_endless_spool_capabilities().enabled == EndlessSpoolEnabled::On);
 }
 
+// The fork's `runout` object is box.py's swap plan: `loaded_slot` and `chain`,
+// the other present slots with identical material and colour in slot order.
+// A runout swaps to chain[0], so that edge is the per-slot relation the AMS
+// context menu's backup row reads (#1464).
+TEST_CASE("CFS flat: runout.chain is the loaded slot's backup edge",
+          "[ams][cfs][flat][endless_spool][1464]") {
+    CfsRemapHelper backend;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_flat_fork_box()));
+
+    SECTION("the chain head backs the loaded slot, and the row has a relation to show") {
+        const auto caps = backend.get_endless_spool_capabilities();
+        const auto cfg = backend.get_endless_spool_config();
+        // decide_show_backup_row's inputs: a read-only backend shows the row
+        // only when it is available AND reports a relation.
+        CHECK(caps.available());
+        CHECK_FALSE(cfg.empty());
+        CHECK(caps.enabled == EndlessSpoolEnabled::On);
+        CHECK(endless_spool_backup_for(cfg, 0) == 1);
+        CHECK(endless_spool_backup_for(cfg, 1) == -1);
+        CHECK(endless_spool_backup_for(cfg, 2) == -1);
+    }
+
+    SECTION("a delta that omits runout keeps the parsed chain") {
+        json delta = make_flat_fork_box();
+        delta.erase("runout");
+        delta["slots"][3]["present"] = false;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(delta));
+        CHECK(endless_spool_backup_for(backend.get_endless_spool_config(), 0) == 1);
+    }
+
+    SECTION("runout null (nothing loaded) clears the relation, not a negative") {
+        json idle = make_flat_fork_box();
+        idle["runout"] = nullptr;
+        idle["loaded_slot"] = -1;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(idle));
+        CHECK(backend.get_endless_spool_config().empty());
+        CHECK(backend.get_endless_spool_capabilities().enabled == EndlessSpoolEnabled::On);
+    }
+
+    SECTION("an empty chain means the loaded spool has no backup") {
+        json lonely = make_flat_fork_box();
+        lonely["runout"] = json{{"chain", json::array()}, {"loaded_slot", 0}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(lonely));
+        CHECK(backend.get_endless_spool_config().empty());
+        CHECK(backend.get_endless_spool_capabilities().enabled ==
+              EndlessSpoolEnabled::OnWithoutBackup);
+    }
+
+    SECTION("only the chain head is a backup; the tail is not a succession") {
+        json multi = make_flat_fork_box();
+        multi["runout"] = json{{"chain", json::array({0, 3})}, {"loaded_slot", 2}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(multi));
+        const auto cfg = backend.get_endless_spool_config();
+        CHECK(endless_spool_backup_for(cfg, 2) == 0);
+        CHECK(endless_spool_backup_for(cfg, 0) == -1);
+        CHECK(endless_spool_backup_for(cfg, 3) == -1);
+    }
+
+    SECTION("swap disabled: the plan is published but no backup is claimed") {
+        json off = make_flat_fork_box();
+        off["runout_swap_enabled"] = false;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(off));
+        CHECK(backend.get_endless_spool_config().empty());
+    }
+
+    SECTION("a chain head that names no other bay states nothing, not a negative") {
+        // Only an empty chain is the firmware saying "no backup". A head we
+        // cannot map is no statement at all: no relation, and plain On.
+        for (const json& chain : {json::array({9}), json::array({0}), json::array({"1"})}) {
+            json bad = make_flat_fork_box();
+            bad["runout"] = json{{"chain", chain}, {"loaded_slot", 0}};
+            REQUIRE_NOTHROW(CfsTestAccess::handle_status(backend, make_cfs_notification(bad)));
+            CHECK(backend.get_endless_spool_config().empty());
+            CHECK(backend.get_endless_spool_capabilities().enabled == EndlessSpoolEnabled::On);
+        }
+    }
+
+    SECTION("a stock frame drops the fork-era chain") {
+        CfsTestAccess::handle_status(backend, make_cfs_notification(make_runout_box(0)));
+        CHECK(backend.get_endless_spool_config().empty());
+    }
+}
+
+namespace {
+
+// The fork numbers slots globally, (box address - 1) * 4 + local. With boxes 2
+// and 3 on the bus, slots[].index runs 4..11 (external holder 12) while our
+// bays are 0..7; payload 6 is loaded and is our bay 2.
+json make_gapped_fork_box() {
+    json box = make_flat_fork_box();
+    json slots = json::array();
+    for (int i = 4; i < 12; ++i) {
+        slots.push_back({{"index", i},
+                         {"external", false},
+                         {"present", true},
+                         {"loaded", i == 6},
+                         {"material", "PLA"},
+                         {"color", i == 9 ? "#111111" : "#F2F2F2"}});
+    }
+    slots.push_back({{"index", 12},
+                     {"external", true},
+                     {"present", true},
+                     {"loaded", false},
+                     {"material", ""},
+                     {"color", ""}});
+    box["slots"] = slots;
+    box["loaded_slot"] = 6;
+    box["runout"] = json{{"chain", json::array({8, 10})}, {"loaded_slot", 6}};
+    return box;
+}
+
+} // namespace
+
+TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
+          "[ams][cfs][flat][endless_spool][1464]") {
+    const json box = make_gapped_fork_box();
+    CfsRemapHelper backend;
+    CfsTestAccess::handle_status(backend, make_cfs_notification(box));
+
+    // Payload 6 is our bay 2, payload 8 is bay 4.
+    CHECK(backend.get_system_info().current_slot == 2);
+    const auto cfg = backend.get_endless_spool_config();
+    CHECK(endless_spool_backup_for(cfg, 2) == 4);
+    CHECK(endless_spool_backup_for(cfg, 6) == -1);
+
+    SECTION("the external entry still reads as bypass") {
+        json bypass = box;
+        bypass["loaded_slot"] = 12;
+        bypass["runout"] = nullptr;
+        CfsTestAccess::handle_status(backend, make_cfs_notification(bypass));
+        CHECK(backend.get_system_info().current_slot == -2);
+    }
+}
+
+// Commands go the other way: box.py registers T<n> and takes SLOT= in its own
+// global numbering, so a bay must be sent as the payload index it was
+// published under. Bay 2 is firmware slot 6 here; sending 2 moves filament in a
+// bay that is not on the bus.
+TEST_CASE("CFS fork: commands name the firmware slot, not the bay position",
+          "[ams][cfs][fork][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_gapped_fork_box()));
+
+    SECTION("load") {
+        REQUIRE(backend.load_filament(3).result == AmsResult::SUCCESS);
+        REQUIRE(backend.dispatched == std::vector<std::string>{"T7"});
+    }
+
+    SECTION("tool change with a spool loaded swaps through T<n>") {
+        REQUIRE(backend.change_tool(4).result == AmsResult::SUCCESS);
+        REQUIRE(backend.dispatched == std::vector<std::string>{"T8"});
+    }
+
+    SECTION("slot identity write") {
+        backend.push_slot_identity_to_firmware(2, "PETG", "eSUN", "", 0x0A2989);
+        REQUIRE(backend.captured.size() == 1);
+        CHECK(backend.captured[0].rfind("_BOX_SLOT_SET SLOT=6 ", 0) == 0);
+    }
+
+    SECTION("slot clear") {
+        helix::AmsBackend& base = backend;
+        base.clear_slot_override(2);
+        CHECK(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=6"});
+    }
+}
+
+// A Fork bay with no published slot number is refused, not sent as a guess.
+// Fork latched over a stock frame is the one way to hold a valid bay with no
+// flat frame behind it.
+TEST_CASE("CFS fork: a bay with no firmware slot is refused with its own error",
+          "[ams][cfs][fork][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(1)));
+    CfsTestAccess::set_macro_variant_fork(backend);
+
+    SECTION("load") {
+        const auto err = backend.load_filament(2);
+        CHECK(err.result == AmsResult::INVALID_SLOT);
+        CHECK(err.technical_msg == "Slot 2 not known to the box firmware");
+        CHECK(backend.dispatched.empty());
+    }
+
+    SECTION("tool change") {
+        const auto err = backend.change_tool(1);
+        CHECK(err.result == AmsResult::INVALID_SLOT);
+        CHECK(err.technical_msg == "Slot 1 not known to the box firmware");
+        CHECK(backend.dispatched.empty());
+    }
+}
+
+// box.py registers no BOX_MODIFY_TN, so a remap on Fork would error and move
+// nothing. The UI asks can_remap() before offering the pick.
+TEST_CASE("CFS fork: tool remapping is not offered", "[ams][cfs][fork][1464]") {
+    CfsRemapHelper stock;
+    CfsTestAccess::handle_status(stock, make_cfs_notification(make_multi_unit_box(1)));
+    CHECK(helix::printer::can_remap(stock));
+
+    CfsRemapHelper fork;
+    fork.mark_running();
+    CfsTestAccess::handle_status(fork, make_cfs_notification(make_flat_fork_box()));
+    CHECK_FALSE(helix::printer::can_remap(fork));
+    CHECK(fork.set_tool_mapping(0, 1).result == AmsResult::NOT_SUPPORTED);
+    CHECK(fork.captured.empty());
+}
+
 // ============================================================================
 // Pre-dispatch failure does not fire the envelope unwind
 // ============================================================================
@@ -6343,8 +6552,13 @@ TEST_CASE("CFS clear_slot_override clears the Box profile on Fork only", "[ams][
     base.clear_slot_override(2);
     REQUIRE(backend.captured.empty());
 
+    // Fork with no flat frame has no firmware slot for the bay: refuse, never
+    // guess (#1464).
     CfsTestAccess::set_macro_variant_fork(backend);
+    base.clear_slot_override(2);
+    REQUIRE(backend.captured.empty());
 
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_flat_fork_box()));
     base.clear_slot_override(2);
 
     REQUIRE(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=2"});

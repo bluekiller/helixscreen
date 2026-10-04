@@ -70,8 +70,8 @@ class AmsContextMenuTestAccess {
     }
 
     static bool decide_show_backup_row(const helix::printer::EndlessSpoolCapabilities& caps,
-                                       bool has_relation) {
-        return AmsContextMenu::decide_show_backup_row(caps, has_relation);
+                                       const helix::printer::EndlessSpoolConfig& cfg, int slot) {
+        return AmsContextMenu::decide_show_backup_row(caps, cfg, slot);
     }
 
     using BackupEligibleFn = AmsContextMenu::BackupEligibleFn;
@@ -97,12 +97,15 @@ class AmsContextMenuTestAccess {
     }
 };
 
-// The backup dropdown had no test at all, and CFS is what exposed the gap: it
-// reports the feature as available and read-only but has no per-slot relation of
-// any kind, so the row rendered with a permanently empty value.
+// A read-only backend's row is only worth drawing on a slot that has a backup:
+// anywhere else it reads a permanent "None" that looks like "nothing configured".
 TEST_CASE("AmsContextMenu::decide_show_backup_row needs a relation, not just availability",
           "[ams][context_menu][endless_spool]") {
     using namespace helix::printer;
+
+    // Slot 0 backs onto slot 1; nothing else has an edge.
+    const EndlessSpoolConfig none;
+    const EndlessSpoolConfig edge_0_to_1 = endless_spool_config_from_edges({1, -1, -1, -1});
 
     const EndlessSpoolCapabilities unsupported;
 
@@ -137,35 +140,46 @@ TEST_CASE("AmsContextMenu::decide_show_backup_row needs a relation, not just ava
         .restriction = EndlessSpoolRestriction::PluginMissing};
 
     SECTION("no such feature: never") {
-        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(unsupported, false));
-        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(unsupported, true));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(unsupported, none, 0));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(unsupported, edge_0_to_1, 0));
     }
 
     SECTION("plugin not installed: never - there is nothing to configure yet") {
         CHECK_FALSE(
-            AmsContextMenuTestAccess::decide_show_backup_row(synthetic_plugin_missing, false));
-        CHECK_FALSE(
-            AmsContextMenuTestAccess::decide_show_backup_row(synthetic_plugin_missing, true));
+            AmsContextMenuTestAccess::decide_show_backup_row(synthetic_plugin_missing, none, 0));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(synthetic_plugin_missing,
+                                                                     edge_0_to_1, 0));
     }
 
     SECTION("AD5X stock zMod: same shape as CFS, hides when no relation") {
         // FirmwareManaged + ReadOnly + no per-slot relation -> the CFS rule.
-        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(ad5x_stock, false));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(ad5x_stock, none, 0));
     }
 
     SECTION("editable: always, even before anything is configured") {
-        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(afc, false));
-        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(afc, true));
+        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(afc, none, 0));
+        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(afc, edge_0_to_1, 0));
+        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(afc, edge_0_to_1, 2));
     }
 
     SECTION("read-only WITH a relation: shown, so the user can see it") {
-        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(hh_multi_unit, true));
+        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(hh_multi_unit, edge_0_to_1, 0));
     }
 
     SECTION("read-only with NO relation: hidden - this is the CFS fix") {
         // Showing it produced a dropdown stuck on "None" that could never be
         // told apart from "no backup configured".
-        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(cfs, false));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(cfs, none, 0));
+    }
+
+    SECTION("read-only: only the slot that HAS an edge shows the row (#1464)") {
+        // The CFS fork publishes one edge, for the loaded slot. Every other
+        // slot would render a disabled "None" the firmware never stated.
+        CHECK(AmsContextMenuTestAccess::decide_show_backup_row(cfs, edge_0_to_1, 0));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(cfs, edge_0_to_1, 1));
+        CHECK_FALSE(AmsContextMenuTestAccess::decide_show_backup_row(cfs, edge_0_to_1, 2));
+        CHECK_FALSE(
+            AmsContextMenuTestAccess::decide_show_backup_row(hh_multi_unit, edge_0_to_1, 3));
     }
 }
 
