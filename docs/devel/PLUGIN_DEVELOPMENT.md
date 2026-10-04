@@ -22,10 +22,14 @@ my-plugin/
     my-plugin__tile.xml
 ```
 
-The plugin runs in its own sandboxed Lua state (`src/plugin/lua_runtime.cpp#LuaRuntime`).
+The plugin runs in its own sandboxed Lua 5.4 state (`src/plugin/lua_runtime.cpp#LuaRuntime`).
 It cannot freeze or crash the screen: each Lua entry gets a time budget, the state has a
 memory cap, and repeated errors disable the plugin while the app keeps running
 (§10 Limits and faults).
+
+Deliberately out of scope: plugin-implemented capability backends (the binding design
+leaves room; none is built), multi-instance plugin widgets, plugin-to-plugin calls, raw
+`lv_obj` access, nav bar panels, and a plugin catalog, signing or install-from-URL.
 
 ## 2. Quick start
 
@@ -168,6 +172,7 @@ Allowed elements (`src/plugin/plugin_xml_policy.cpp#is_allowed_element`):
 - `event_cb`
 - the app chrome widgets `overlay_panel`, `icon`, `text_heading`, `text_body`,
   `text_muted`, `text_small`, `text_xs`, `text_tiny`
+- `plugin_canvas`, the plugin drawing surface (below)
 - the plugin's own components, by name
 
 A `view` may `extends` only another allowed name. `screen_load_event` and
@@ -196,8 +201,26 @@ rejected: a plugin-supplied printf format bound to a subject is a format-string 
 Format in Lua and set a string subject.
 
 Styling uses the app's design tokens, for example `style_pad_all="#space_sm"`,
-`style_text_color="#text"`, `style_text_font="#font_heading_medium"`
+`style_text_color="#text"`, `style_text_font="#font_heading"`
 (`docs/devel/UI_CONTRIBUTOR_GUIDE.md` has the full token list).
+
+**Font tokens are base tokens only**: `font_xs`, `font_small`, `font_body`,
+`font_body_bold`, `font_heading`, `font_xl`, `font_display`, `font_mono`. A size-suffixed
+variant (`font_heading_medium`, `font_body_large`) names a face the theme registers only
+from its breakpoint tier upward, so on most screens the XML engine silently substitutes the
+default font - a trap an author cannot see on an oversized dev display. The policy rejects
+a suffixed token on `style_text_font`, and `helix.canvas` text enforces the same rule
+(`src/ui/theme_manager.cpp#theme_manager_font_token_is_base`).
+
+### plugin_canvas
+
+`<plugin_canvas name="<id>__<name>" .../>` is the plugin drawing surface
+(`src/plugin/plugin_canvas.cpp#canvas_xml_create`): an empty object that replays whatever
+display list Lua last committed under that name (§8). Its `name=` follows the owned-name
+rule and is the registry key the drawing publishes under. It defaults to 100% width and
+100% height of its parent, is not scrollable, and is not clickable, so a canvas inside a
+clickable tile does not swallow the tile's tap; set `width`/`flex_grow` to shape it like
+any other child. A canvas with no committed list draws nothing.
 
 ## 8. The Lua API
 
@@ -250,6 +273,60 @@ optional:
 | `on_size(cols, rows, w, h)` | `cols`/`rows` in whole cells, `w`/`h` in pixels |
 | `on_activate()` / `on_deactivate()` | the page holding the tile is shown / hidden |
 
+### helix.canvas (`src/plugin/lua_bind_canvas.cpp`)
+
+`helix.canvas(name)` returns a handle for one drawing surface. `name` is the short name
+after `<id>__` (like a subject name) and must match a `plugin_canvas` element's `name=` in
+the plugin's XML (§7). One canvas name is one drawing: every live `plugin_canvas` with
+that name shows the same committed list, so give a tile canvas and an overlay canvas
+different names. Calling `helix.canvas("x")` again returns a handle onto the same canvas.
+A plugin holds at most 8 canvases; an empty name is an error.
+
+Drawing is staged, then published:
+
+- The draw methods append to a list being built. `c:commit()` publishes that list to every
+  live widget with the name and starts a new empty list; committing an empty list blanks
+  the canvas. `c:clear()` discards the list being built without publishing.
+- Coordinates are content-box pixels with the origin at the widget's top-left corner:
+  finite numbers within +-16384. Stroke widths and `border_width` are 0 to
+  64. Angles are degrees.
+- Colors are the XML color tokens without the `#` (`"primary"`, `"text_muted"`, ...); an
+  unknown color token is an error. Fonts are base tokens without the `font_` prefix
+  (`"body"`, `"heading"`, ...); the base-token rule in §7 applies and is enforced by the
+  same check.
+- Every options table accepts only the keys listed for its call; an unknown key is an
+  error. Omitted options use the defaults in the table.
+- Each staged primitive charges the plugin's memory cap for the exact bytes it adds
+  (`include/plugin_canvas.h#DisplayList/bytes`). A call that would cross the cap raises
+  "list would exceed the plugin memory cap" and adds nothing. `commit()` moves the charge
+  onto the published list and releases the bytes of the list it replaces; `clear()`
+  releases the pending charge.
+
+| Call | Options | Defaults |
+|---|---|---|
+| `c:line(x1, y1, x2, y2[, opts])` | `color`, `width` | `"text"`, 1 |
+| `c:polyline(points[, opts])` | `color`, `width` | `"text"`, 1 |
+| `c:rect(x, y, w, h[, opts])` | `fill`, `border`, `border_width`, `radius` | -, -, 1, 0 |
+| `c:circle(cx, cy, r[, opts])` | `fill`, `border`, `border_width` | -, -, 1 |
+| `c:arc(cx, cy, r, a1, a2[, opts])` | `color`, `width` | `"text"`, 1 |
+| `c:text(x, y, str[, opts])` | `font`, `color` | `"body"`, `"text"` |
+
+`points` is one flat array `{x1, y1, x2, y2, ...}`: an even-length array of at least two
+points. A polyline counts each of its points toward the list's 4096-unit cap (§10); every
+other primitive counts one. `rect` and `circle` need `fill` or `border` (either alone is
+enough), and `radius` rounds a rect's corners. `str` is at most 256 bytes.
+
+`c:size()` returns the content size as two values `w, h`, both `0` before the widget is
+laid out. `c:on_size(fn)` registers `fn(w, h)` for each size the handler has not been
+told: once after first layout and again on every real resize, coalesced when resizes
+arrive faster than the main loop drains them. `c:on_size(nil)` removes the handler.
+Rebuild the drawing for the new size inside the handler.
+
+A commit publishes a retained list: the widget replays it in its own draw event, so Lua
+never runs during rendering, and tokens resolve at draw time, so a theme switch is just
+the next repaint. Rebuild the whole list for a new state; a list cannot be patched in
+place.
+
 ### helix.printer (`src/plugin/lua_bind_printer.cpp`)
 
 | Call | Returns | Notes |
@@ -269,7 +346,8 @@ Fields (`src/plugin/lua_bind_printer.cpp#printer_fields`):
 | `bed_temp`, `bed_target` | degrees C |
 | `chamber_temp`, `chamber_target` | degrees C |
 
-No permission is needed for either call.
+The table is the contract: these Lua names stay stable while the subjects behind them can
+change. No permission is needed for either call.
 
 ### helix.moonraker and helix.gcode (`src/plugin/lua_bind_moonraker.cpp`)
 
@@ -279,7 +357,7 @@ No permission is needed for either call.
 | `helix.moonraker.call(method[, params])` | none for the seven read-only methods below, else `moonraker_write` | value or `nil, err` | |
 | `helix.moonraker.upload(root, path, content)` | `moonraker_write` | `true` or `nil, err` | writes a file through Moonraker; `root` is `"gcodes"` or `"config"` |
 | `helix.moonraker.download(root, path)` | `moonraker_write` | string or `nil, err` | `root` is `"gcodes"` or `"config"`; a body over the memory cap comes back as an error, not a fault |
-| `helix.moonraker.on_agent_event(event, fn)` | none | | `fn(agent, data)` when Moonraker posts that agent event; at most 16 handlers per plugin |
+| `helix.moonraker.on_agent_event(event, fn)` | none | | `fn(agent, data)` when Moonraker posts that agent event; the channel to a companion process on the printer (a slicer-side calibration wizard, an OrcaSlicer plugin); at most 16 handlers per plugin |
 | `helix.moonraker.subscribe(objects, fn)` | none | handle | live status, see below |
 | `helix.gcode(script)` | `gcode` | `true` or `nil, err` | runs one G-code script |
 
@@ -306,7 +384,9 @@ at most 64 bytes of printable ASCII.
 `opts` is a table: `body` (string), `headers` (table of strings), `timeout_ms` (default
 10000, clamped to 1-60000). Only `http://` and `https://` URLs. At most 2 requests in
 flight per plugin. Requests do not follow redirects and refuse the printer's own host
-and local interface addresses. A response over the memory cap comes back as an error.
+and local interface addresses, which carry the control the `gcode` and `moonraker_write`
+permissions gate (`include/plugin_backend.h#plan_http_target`). A response over the
+memory cap comes back as an error.
 
 ### helix.storage (`src/plugin/lua_bind_io.cpp`)
 
@@ -343,8 +423,9 @@ Libraries: `base`, `string`, `table`, `math`, `utf8`, `coroutine`. There is no `
 `package` or `debug`. `load` and `require` accept text chunks only; `dofile`, `loadfile`
 and `string.dump` are nil; `collectgarbage` accepts only `count`, `collect` and `step`
 (`src/plugin/lua_runtime.cpp#install_sandbox`). `require("name")` loads
-`<plugin>/name.lua` or `<plugin>/lib/name.lua`, with dotted names mapping to folders, and
-caches the result (`src/plugin/lua_runtime.cpp#lua_require`).
+`<plugin>/name.lua` or `<plugin>/lib/name.lua`, with dotted names mapping to folders,
+rejects `..` and absolute paths, and caches the result
+(`src/plugin/lua_runtime.cpp#lua_require`).
 
 Define a global `on_unload` function to run once before the plugin closes, on reload,
 disable, removal and shutdown. A faulted plugin's `on_unload` does not run, so never keep
@@ -388,6 +469,12 @@ approval* instead of loading; enabling it again approves only the new lines.
 | Memory, all plugins | min(RAM / 16, 64 MB); a plugin that does not fit stays *over memory budget* | `src/plugin/plugin_host.cpp#plugin_memory_budget` |
 | Errors | the third within 60 s faults the plugin | `src/plugin/lua_runtime.cpp#report_error` |
 | Async results | a body that would cross the memory cap arrives as an error, not a fault | `include/lua_bindings.h#push_rpc_capped_body` |
+| Canvases per plugin | 8 | `src/plugin/lua_bind_canvas.cpp` |
+| Canvas list units | 4096 per list; a polyline counts each point | `include/plugin_canvas.h#kMaxCanvasUnits` |
+| Canvas tokens | 32 distinct color and font tokens per list | `include/plugin_canvas.h#kMaxCanvasTokens` |
+| Canvas coordinates | finite, within +-16384; stroke and border widths 0 to 64 | `include/plugin_canvas.h#kMaxCanvasCoord` |
+| Canvas text | at most 256 bytes per string | `src/plugin/lua_bind_canvas.cpp` |
+| Canvas list bytes | charged against the plugin memory cap as staged | `include/plugin_canvas.h#DisplayList/bytes` |
 
 A fault (time budget, memory, error count, or `main.lua` failing to load) unloads the
 plugin, marks it *faulted* with the reason in Settings > Plugins, and shows a "Plugin
@@ -414,8 +501,9 @@ traceback and the reason a load or a fault happened. `helix.log.debug` shows at 
 
 ## 12. Worked examples
 
-**temp-spark** (`examples/plugins/temp-spark`) - no permissions. Subjects are the whole
-output, and the sample timer drives them:
+**temp-spark** (`examples/plugins/temp-spark`) - no permissions, and the canvas worked
+example: subjects carry the tile's text, `helix.canvas` carries the sparkline, and the
+sample timer drives both:
 
 ```lua
 local value_text = helix.subject.string("value", "--")
@@ -430,6 +518,36 @@ seeded from Moonraker's own history through the read-only
 ```lua
 local ok, e = pcall(helix.printer.watch, h.temp, function(v) ... end)
 local store, err = helix.moonraker.call("server.temperature_store", {include_monitors = false})
+```
+
+The sparkline is one `draw()` that rebuilds a canvas's whole list from the window and
+commits it, quoted verbatim from `main.lua`; `render()` calls it for the tile's `spark`
+canvas and the overlay's `graph` (with the target line), and `on_size` re-renders on
+every resize:
+
+```lua
+local function draw(c, scale, with_target)
+    local w, h = c:size()
+    if w > 1 and h > 1 and #samples >= 2 then
+        local pts = {}
+        for i, t in ipairs(samples) do
+            pts[#pts + 1] = (N - #samples + i - 1) * (w - 1) / (N - 1)
+            pts[#pts + 1] = (h - 1) * (1 - t / scale)
+        end
+        c:polyline(pts, {color = "primary", width = 2})
+        if with_target and target_now and target_now > 0 and
+            helix.settings.get("show_target") then
+            local y = (h - 1) * (1 - target_now / scale)
+            c:line(0, y, w - 1, y, {color = "text_muted"})
+        end
+    end
+    c:commit()
+end
+```
+
+```lua
+spark:on_size(render)
+graph:on_size(render)
 ```
 
 The tile's tap is one `event_cb` in XML and one handler in Lua:
