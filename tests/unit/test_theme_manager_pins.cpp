@@ -301,3 +301,33 @@ TEST_CASE("size suffix ladder agrees across its users", "[theme_pins][theme]") {
     CHECK(helix::theme_detail::tier_for_suffix("_light") == -1);
     CHECK(helix::theme_detail::tier_for_suffix("") == -1);
 }
+
+namespace {
+int g_changed_fires = 0;
+void count_cb(lv_observer_t*, lv_subject_t*) {
+    ++g_changed_fires;
+}
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture, "a repeat init keeps the theme_changed generation",
+                 "[theme_pins][theme]") {
+    RestoreTheme restore;
+    const auto theme = helix::get_builtin_fallback_theme();
+    theme_manager_apply_theme(theme, true);
+    theme_manager_toggle_dark_mode();
+    const int g = generation();
+    REQUIRE(g > 0);
+
+    lv_observer_t* obs =
+        lv_subject_add_observer(theme_manager_get_changed_subject(), count_cb, nullptr);
+    g_changed_fires = 0; // add_observer notifies once with the current value
+
+    // A different mode forces a full rebuild without a deinit in between.
+    const int rebuilds = theme_manager_full_init_count();
+    theme_manager_init(lv_display_get_default(), !theme_manager_is_dark_mode());
+    REQUIRE(theme_manager_full_init_count() == rebuilds + 1);
+
+    CHECK(generation() == g);
+    CHECK(g_changed_fires == 0);
+    lv_observer_remove(obs);
+}
