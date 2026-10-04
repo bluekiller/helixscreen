@@ -23,9 +23,12 @@
 # a RAM-constrained target); it is not a substitute for this.
 #
 # WHAT COUNTS AS A VIOLATION
-#   Two shapes, both of which move a document out of the process:
+#   Three shapes, all of which move a document out of the process:
 #     1. Stream insertion — `ofs << doc.dump(2)`, the file-write idiom.
 #     2. An HTTP body — `req->body = batch.dump()`, `std::string body = p.dump()`.
+#     3. A socket send — `ws.send(rpc.dump())`. A JSON-RPC request is already
+#        registered as pending when it is serialized, so a throw there strands
+#        the entry as well as escaping the caller.
 #
 # NOT FLAGGED
 #   - `.dump()` as a log or error-message argument. spdlog formats it into a
@@ -53,6 +56,7 @@ OPT_OUT = "JSON_DUMP_OK:"
 PATTERNS = [
     (re.compile(r"<<[^;]*?\.dump\s*\("), "serialized into a stream"),
     (re.compile(r"\bbody\s*=\s*[^;]*?\.dump\s*\("), "serialized into an HTTP body"),
+    (re.compile(r"\bsend\s*\([^;]*?\.dump\s*\("), "serialized into a socket send"),
 ]
 
 # `//` opens a comment unless it is the `//` of a URL scheme.
