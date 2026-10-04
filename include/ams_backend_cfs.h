@@ -290,8 +290,11 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     [[nodiscard]] bool manages_active_spool() const override {
         return false;
     }
+    /// Native via BOX_MODIFY_TN, except on the Fork dialect: box.py registers
+    /// no such command and exposes no tool->slot table to write.
     [[nodiscard]] RemapStrategy get_remap_strategy() const override {
-        return RemapStrategy::Native;
+        return macro_variant_ == CfsMacroVariant::Fork ? RemapStrategy::None
+                                                       : RemapStrategy::Native;
     }
 
     /// The CFS owns its own tool->slot table and get_tool_mapping() returns it.

@@ -5803,6 +5803,46 @@ TEST_CASE("CFS fork: commands name the firmware slot, not the bay position",
     }
 }
 
+// A Fork bay with no published slot number is refused, not sent as a guess.
+// Fork latched over a stock frame is the one way to hold a valid bay with no
+// flat frame behind it.
+TEST_CASE("CFS fork: a bay with no firmware slot is refused with its own error",
+          "[ams][cfs][fork][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(1)));
+    CfsTestAccess::set_macro_variant_fork(backend);
+
+    SECTION("load") {
+        const auto err = backend.load_filament(2);
+        CHECK(err.result == AmsResult::INVALID_SLOT);
+        CHECK(err.technical_msg == "Slot 2 not known to the box firmware");
+        CHECK(backend.dispatched.empty());
+    }
+
+    SECTION("tool change") {
+        const auto err = backend.change_tool(1);
+        CHECK(err.result == AmsResult::INVALID_SLOT);
+        CHECK(err.technical_msg == "Slot 1 not known to the box firmware");
+        CHECK(backend.dispatched.empty());
+    }
+}
+
+// box.py registers no BOX_MODIFY_TN, so a remap on Fork would error and move
+// nothing. The UI asks can_remap() before offering the pick.
+TEST_CASE("CFS fork: tool remapping is not offered", "[ams][cfs][fork][1464]") {
+    CfsRemapHelper stock;
+    CfsTestAccess::handle_status(stock, make_cfs_notification(make_multi_unit_box(1)));
+    CHECK(helix::printer::can_remap(stock));
+
+    CfsRemapHelper fork;
+    fork.mark_running();
+    CfsTestAccess::handle_status(fork, make_cfs_notification(make_flat_fork_box()));
+    CHECK_FALSE(helix::printer::can_remap(fork));
+    CHECK(fork.set_tool_mapping(0, 1).result == AmsResult::NOT_SUPPORTED);
+    CHECK(fork.captured.empty());
+}
+
 // ============================================================================
 // Pre-dispatch failure does not fire the envelope unwind
 // ============================================================================

@@ -509,6 +509,15 @@ static int flat_payload_index(const std::unordered_map<int, int>& positions, int
     return -1;
 }
 
+// A Fork bay the last flat frame published no slot number for. Sending a guess
+// would move filament in whatever bay the firmware numbers that way.
+static AmsError firmware_slot_unknown(int bay) {
+    return AmsError(AmsResult::INVALID_SLOT,
+                    "Slot " + std::to_string(bay) + " not known to the box firmware",
+                    lv_tr("Invalid tool/slot"),
+                    lv_tr("It has not reported its slots yet. Try again in a moment."), bay);
+}
+
 int AmsBackendCfs::firmware_slot_locked(int bay) const {
     return macro_variant_ == CfsMacroVariant::Fork ? flat_payload_index(flat_bay_positions_, bay)
                                                    : bay;
@@ -2092,6 +2101,9 @@ AmsError AmsBackendCfs::do_load_filament(int slot_index) {
     }
 
     if (gcode.empty()) {
+        if (!bypass && firmware_slot < 0) {
+            return firmware_slot_unknown(slot_index);
+        }
         return AmsErrorHelper::invalid_slot(lane_noun(), slot_index, max_slot);
     }
 
@@ -2204,6 +2216,9 @@ AmsError AmsBackendCfs::do_change_tool(int tool) {
     std::string gcode = needs_unload ? swap_gcode(firmware_slot, macro_variant_)
                                      : load_gcode(firmware_slot, macro_variant_);
     if (gcode.empty()) {
+        if (firmware_slot < 0) {
+            return firmware_slot_unknown(tool);
+        }
         // 15 = the last encodable TNN index; slot_to_tnn refuses anything past it.
         return AmsErrorHelper::invalid_slot(lane_noun(), tool, 15);
     }
@@ -2684,6 +2699,9 @@ AmsError AmsBackendCfs::can_set_tool_mapping(int tool_number, int slot_index) co
     // exists wherever firmware's map says it does — a slicer-driven remap or
     // Creality's own UI can hold a high key while fewer units are attached —
     // so its bound is the TNN alphabet.
+    if (get_remap_strategy() == RemapStrategy::None) {
+        return AmsErrorHelper::not_supported("Tool remapping on this firmware's CFS module");
+    }
     constexpr int CFS_MAX_SLOTS = 16; // 4 units × 4 slots
     if (tool_number < 0 || tool_number >= CFS_MAX_SLOTS) {
         return AmsErrorHelper::tool_out_of_range(tool_number);
