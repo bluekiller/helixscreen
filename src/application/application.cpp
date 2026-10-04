@@ -2707,36 +2707,9 @@ void Application::setup_discovery_callbacks() {
             app->m_splash_manager.on_discovery_complete();
             spdlog::info("[Application] Moonraker discovery complete, splash can exit");
 
-            // Clean up self-update sentinel — the app started successfully,
-            // so helixscreen-update.service no longer needs to be suppressed.
-            {
-                namespace fs = std::filesystem;
-                std::error_code ec;
-                std::string sentinel =
-                    AppConstants::Update::backup_fallback_dir() + "/self_restart_sentinel";
-                if (fs::remove(sentinel, ec)) {
-                    spdlog::info("[Application] Cleaned up self-restart sentinel");
-                    // Moonraker re-reads release_info.json only on a refresh, and its
-                    // own schedule can be a week apart, so Mainsail keeps showing the
-                    // version we just replaced. "helixscreen" is the update_manager
-                    // section the installer writes; a missing or renamed section, or a
-                    // print in progress, just gets an error back.
-                    client->send_jsonrpc(
-                        "machine.update.refresh", json{{"name", "helixscreen"}},
-                        [](const json&) {
-                            spdlog::info("[Application] Moonraker refreshed its HelixScreen "
-                                         "version after the update");
-                        },
-                        [](const MoonrakerError& err) {
-                            spdlog::debug("[Application] Moonraker update refresh declined: {}",
-                                          err.message);
-                        },
-                        0, /*silent=*/true);
-                }
-                // Legacy: best-effort under PrivateTmp (sees private /tmp,
-                // not real /tmp — stale real sentinels cleaned on reboot)
-                fs::remove("/tmp/helixscreen_self_restart", ec);
-            }
+            // The app started successfully: clear the self-update sentinel and
+            // listen for Moonraker finishing an update of HelixScreen.
+            UpdateChecker::instance().on_connected(*client);
 
             // Move snapshot into set_hardware (by-value param) so no hash-table
             // copy iterates against a live, potentially-mutated api->hardware_ (#799).
@@ -2835,55 +2808,10 @@ void Application::setup_discovery_callbacks() {
             crash_handler::breadcrumb::note("disc", "post_led_chips", n);
 
             // Fetch print hours now that connection is live, and refresh on job changes
-            helix::settings::get_about_settings_overlay().fetch_print_hours();
-            client->register_method_callback(
-                "notify_history_changed", "AboutOverlay_print_hours",
-                [](const nlohmann::json& data) {
-                    // Moonraker accumulates its job totals only when a job
-                    // finishes, so the "added" half of this notification cannot
-                    // move print hours and must not cost a round-trip.
-                    if (helix::json_util::notification_action(data) != "finished") {
-                        return;
-                    }
-                    helix::ui::queue_update([]() {
-                        helix::settings::get_about_settings_overlay().fetch_print_hours();
-                    });
-                });
+            helix::settings::get_about_settings_overlay().attach_print_hours(*client);
 
             // Register for timelapse events when timelapse is detected
-            client->register_method_callback(
-                "notify_timelapse_event", "timelapse_state", [](const nlohmann::json& data) {
-                    helix::TimelapseState::instance().handle_timelapse_event(data);
-                });
-
-            // Detect when Moonraker finishes updating HelixScreen (e.g. via Mainsail).
-            // On SysV platforms (AD5X, AD5M, K1) there is no systemd path watcher,
-            // so this WebSocket-based detection is the only restart trigger.
-            client->register_method_callback(
-                "notify_update_response", "external_update_restart", [](const nlohmann::json& msg) {
-                    // notify_update_response params: [{"application":"helixscreen",
-                    //   "proc_id":N, "message":"...", "complete":true/false}]
-                    // Method callbacks always receive the full JSON-RPC message
-                    if (!msg.contains("params") || !msg["params"].is_array() ||
-                        msg["params"].empty())
-                        return;
-                    const auto& p = msg["params"][0];
-                    if (!p.contains("application") || !p.contains("complete"))
-                        return;
-                    std::string app = p["application"].get<std::string>();
-                    bool complete = p["complete"].get<bool>();
-                    if (app != "helixscreen")
-                        return;
-                    if (!complete) {
-                        spdlog::debug("[Application] Moonraker updating helixscreen: {}",
-                                      p.value("message", ""));
-                        return;
-                    }
-                    // Defer to main thread — _exit(0) from a WebSocket callback
-                    // would skip flush and leave the display frozen.
-                    helix::ui::queue_update(
-                        []() { UpdateChecker::handle_external_update_complete(); });
-                });
+            helix::TimelapseState::instance().attach(*client);
 
             // Subscribe to power device and sensor state change notifications
             if (api) {
@@ -4425,12 +4353,9 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     // dereferences a raw IMoonrakerAPI* that the manager owns, straight from the WebSocket
     // thread.
     if (m_moonraker && m_moonraker->client()) {
-        m_moonraker->client()->unregister_method_callback("notify_timelapse_event",
-                                                          "timelapse_state");
-        m_moonraker->client()->unregister_method_callback("notify_update_response",
-                                                          "external_update_restart");
-        m_moonraker->client()->unregister_method_callback("notify_history_changed",
-                                                          "AboutOverlay_print_hours");
+        helix::TimelapseState::instance().detach(*m_moonraker->client());
+        UpdateChecker::instance().detach(*m_moonraker->client());
+        helix::settings::get_about_settings_overlay().detach_print_hours(*m_moonraker->client());
         m_moonraker->client()->unregister_method_callback("notify_active_spool_set",
                                                           "external_spool_sync");
         m_moonraker->client()->unregister_method_callback("notify_gcode_response", "layer_tracker");
