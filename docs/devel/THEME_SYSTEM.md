@@ -82,12 +82,32 @@ lv_obj_report_style_change(nullptr)      ← CRITICAL: invalidates LVGL style ca
     ↓
 Re-register XML color/property consts; update screen bg
     ↓
+lv_xml_reapply_token_styles()            ← every screen and layer: inline #token colors re-resolve
+    ↓
 theme_manager_refresh_widget_tree()      ← lv_obj_refresh_style() on every widget (picks up inline styles)
     ↓
 theme_apply_current_palette_to_tree()    ← re-colors widgets with baked XML inline colors
     ↓
 theme_manager_notify_change()            ← bumps the theme-changed subject (generation counter)
 ```
+
+### Authored Inline Colors
+
+helix-xml records every inline `style_*` color an XML author writes, per object, property
+and selector: a global token (`style_text_color="#text_muted"`) with its name, a literal
+(`style_bg_color="0x000000"`, `"#FFFFFF"`) without one. Two things follow on a theme switch:
+
+- `lv_xml_reapply_token_styles()` rewrites each token color with its const's new value, unless
+  C++ has changed that color since the XML wrote it (an error-red label, a selection
+  highlight keeps its value).
+- The palette walker (`src/ui/theme_live_recolor.cpp`) writes every local color through one
+  helper that skips a property+selector `lv_xml_obj_has_authored_style()` reports. A token
+  is already right after the re-apply, and a literal such as the QR scanner's white status
+  text stays as written. Widgets with no inline color are themed by the walker as before.
+
+Not recorded, so still the walker's to theme: colors passed through a component `$prop`
+(resolved at the instance tag, where the token name is lost), named `<style>` definitions,
+and colors set from C++.
 
 ---
 

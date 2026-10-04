@@ -343,10 +343,6 @@ static void ui_text_apply(lv_xml_parser_state_t* state, const char** attrs) {
 
     bind_long_mode_to_animations_pref(state, label);
 
-    if (lv_xml_get_value_of(attrs, "style_text_color")) {
-        lv_obj_add_flag(label, helix::ui::AUTHORED_TEXT_COLOR_FLAG);
-    }
-
     // Apply stroke attributes (stroke_width, stroke_color, stroke_opa)
     apply_stroke_attrs(label, attrs);
 

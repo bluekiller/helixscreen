@@ -12,6 +12,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "layout_manager.h"
 #include "lvgl/lvgl.h"
+#include "lvgl/src/display/lv_display_private.h" // screens[]: LVGL has no screen iterator
 #include "theme_loader.h"
 #include "theme_manager_internal.h"
 #include "theme_token_table.h"
@@ -406,6 +407,16 @@ void theme_manager_deinit() {
     spdlog::trace("[Theme] Deinitialized theme subjects");
 }
 
+/// Every tree on the display that can hold XML-built widgets: each screen,
+/// loaded or not. The bottom, top and sys layers are screens[] entries too.
+static void reapply_xml_token_colors(lv_display_t* disp) {
+    if (!disp)
+        return;
+    for (uint32_t i = 0; i < disp->screen_cnt; i++) {
+        lv_xml_reapply_token_styles(disp->screens[i]);
+    }
+}
+
 void theme_manager_apply_theme(const helix::ThemeData& theme, bool dark_mode) {
     if (!runtime().display) {
         spdlog::error("[Theme] Cannot apply theme: theme not initialized");
@@ -478,6 +489,10 @@ void theme_manager_apply_theme(const helix::ThemeData& theme, bool dark_mode) {
     // Sync Android window background so area behind transparent system bars matches
     android_set_window_bg_color(screen_bg);
 #endif
+
+    // XML token colors re-resolve against the consts registered above before the
+    // walker runs, so it sees the new values and leaves authored colors alone.
+    reapply_xml_token_colors(lv_display_get_default());
 
     // Refresh widget tree: shared styles + local/inline styles + palette-styled widgets
     theme_manager_refresh_widget_tree(lv_screen_active());
@@ -553,53 +568,6 @@ void theme_apply_current_palette_to_tree(lv_obj_t* root) {
     spdlog::debug("[Theme] Applying current palette to tree root={}",
                   root_name ? root_name : "(screen)");
     theme_apply_palette_to_tree(root, palette);
-}
-
-void theme_apply_palette_to_screen_dropdowns(const helix::ModePalette& palette) {
-    // Style any screen-level popups (dropdown lists, modals, etc.)
-    // These are direct children of the screen, not part of the overlay tree
-    lv_color_t elevated_bg = theme_manager_parse_hex_color(palette.elevated_bg.c_str());
-    lv_color_t text_color = theme_manager_parse_hex_color(palette.text.c_str());
-    lv_color_t border = theme_manager_parse_hex_color(palette.border.c_str());
-    lv_color_t primary = theme_manager_parse_hex_color(palette.primary.c_str());
-    lv_color_t secondary = theme_manager_parse_hex_color(palette.secondary.c_str());
-
-    // Use more saturated of primary/secondary for highlight (avoids white/gray primaries)
-    lv_color_t dropdown_accent = theme_compute_more_saturated(primary, secondary);
-
-    // Text color for selected based on accent luminance
-    uint8_t lum = lv_color_luminance(dropdown_accent);
-    lv_color_t selected_text = (lum > 140) ? lv_color_black() : lv_color_white();
-
-    lv_obj_t* screen = lv_screen_active();
-    uint32_t child_count = lv_obj_get_child_count(screen);
-    spdlog::debug("[Theme] Screen has {} children", child_count);
-    for (uint32_t i = 0; i < child_count; i++) {
-        lv_obj_t* child = lv_obj_get_child(screen, i);
-
-        // Dropdown lists get special treatment for selection highlighting
-        if (lv_obj_check_type(child, &lv_dropdownlist_class)) {
-            lv_obj_set_style_bg_color(child, elevated_bg, LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(child, LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_text_color(child, text_color, LV_PART_MAIN);
-            lv_obj_set_style_border_color(child, border, LV_PART_MAIN);
-            lv_obj_set_style_bg_color(child, dropdown_accent, LV_PART_SELECTED);
-            lv_obj_set_style_bg_opa(child, LV_OPA_COVER, LV_PART_SELECTED);
-            lv_obj_set_style_text_color(child, selected_text, LV_PART_SELECTED);
-            continue;
-        }
-
-        // Other screen-level children (modals, etc.) - apply palette to entire tree
-        // Skip the main app layout (it's handled separately by the overlay system)
-        const char* name = lv_obj_get_name(child);
-        if (name && strcmp(name, "app_layout") == 0) {
-            continue;
-        }
-
-        // Apply palette to this popup and all its children
-        spdlog::debug("[Theme] Applying palette to screen popup: {}", name ? name : "(unnamed)");
-        theme_apply_palette_to_tree(child, palette);
-    }
 }
 
 /**
