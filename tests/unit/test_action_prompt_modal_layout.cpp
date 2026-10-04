@@ -1,17 +1,13 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Layout regression tests for ActionPromptModal's regular-button row.
+// Layout tests for ActionPromptModal's regular-button rows.
 //
-// R2 / prestonbrown/helixscreen#1043: the Klipper action:prompt modal lays its
-// regular (non-footer) buttons into a fixed-width (320px) "button_container"
-// with flex_flow=row_wrap and content-sized buttons. AFC's lane-picker prompt
-// supplies 4 lane buttons ("Lane 1".."Lane 4"); they overflow the ~288px usable
-// width and the 4th wraps to a second line.
-//
-// Fix: when there are >= 4 regular buttons, lay them out as an equal-width
-// non-wrapping row (flex grow=1) so they all fit on ONE line. With <= 3 regular
-// buttons the legacy content-sized row_wrap behaviour is kept byte-for-byte.
+// Each prompt_button_group gets its own row, and a run of ungrouped buttons
+// shares one. A row of content-sized buttons wraps inside the fixed-width
+// (320px) dialog, so a row of >= 4 (AFC's "Lane 1".."Lane 4", #1043) becomes an
+// equal-width non-wrapping row instead. With <= 3 buttons a row stays
+// content-sized.
 //
 // The count alone is not the rule, though. An equal-width row splits the
 // container evenly, so it only holds while the labels fit their share: a
@@ -239,6 +235,48 @@ TEST_CASE_METHOD(ActionPromptLayoutFixture,
         }
     }
     REQUIRE(any_wrapped);
+
+    modal_.hide();
+}
+
+// ----------------------------------------------------------------------------
+// prompt_button_group_start/end: each group is a row of its own, and the
+// ungrouped buttons around it are not pulled into it.
+// ----------------------------------------------------------------------------
+namespace {
+int32_t screen_y(lv_obj_t* obj) {
+    lv_area_t a;
+    lv_obj_get_coords(obj, &a);
+    return a.y1;
+}
+} // namespace
+
+TEST_CASE_METHOD(ActionPromptLayoutFixture, "ActionPromptModal: each button group is its own row",
+                 "[action_prompt][layout][ui_integration]") {
+    // Two short ungrouped buttons, then a Yes/No group, then a lone grouped
+    // button. Without rows, all five short labels would share one wrapping row.
+    helix::PromptData data;
+    data.title = "Groups";
+    data.buttons = {
+        {"A", "A", "", "", false, -1},  {"B", "B", "", "", false, -1},
+        {"Yes", "Y", "", "", false, 0}, {"No", "N", "", "", false, 0},
+        {"Z", "Z", "", "", false, 1},   {"Cancel", "C", "error", "", true, -1},
+    };
+
+    REQUIRE(modal_.show_prompt(test_screen(), data));
+    lv_obj_update_layout(test_screen());
+
+    const auto& btns = ActionPromptModalTestAccess::buttons(modal_);
+    REQUIRE(btns.size() == 6);
+    const int32_t row_a = screen_y(btns[0]);
+    const int32_t row_yes = screen_y(btns[2]);
+    const int32_t row_z = screen_y(btns[4]);
+    INFO("ungrouped y=" << row_a << " group0 y=" << row_yes << " group1 y=" << row_z);
+
+    CHECK(screen_y(btns[1]) == row_a);   // ungrouped run shares a row
+    CHECK(screen_y(btns[3]) == row_yes); // the group shares a row
+    CHECK(row_yes > row_a);              // ...below the ungrouped one
+    CHECK(row_z > row_yes);              // and the next group is below that
 
     modal_.hide();
 }

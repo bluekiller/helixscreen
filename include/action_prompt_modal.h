@@ -141,8 +141,8 @@ class ActionPromptModal : public Modal {
     /**
      * @brief Create a single button inside @p container.
      *
-     * @param equal_width When true (>= 4 regular buttons whose labels all fit an
-     *        even share of the row) the button is laid out as an equal-width flex
+     * @param equal_width When true (>= 4 buttons in the row whose labels all fit
+     *        an even share of it) the button is laid out as an equal-width flex
      *        cell (grow=1, width 0) so several short labels share one
      *        non-wrapping row. When false the legacy content-sized layout is
      *        used, which row_wrap then spreads over as many lines as the labels
