@@ -5992,6 +5992,59 @@ TEST_CASE("CFS fork: lane records stay on their bays when a box drops",
     }
 }
 
+// Stock numbers bays by box address too: with T2 off the bus, T3's bays are
+// global 8-11 and must stay reachable (#1464).
+TEST_CASE("CFS stock: a unit behind a disconnected one is still addressable", "[ams][cfs][1464]") {
+    json box = make_multi_unit_box(3);
+    box["T2"] = json{{"state", "None"}};
+    box["T3"]["filament"] = "B";
+
+    const auto info = AmsBackendCfs::parse_box_status(box);
+    REQUIRE(info.get_slot_global(8) != nullptr);
+    CHECK(info.current_slot == 9);
+    CHECK(info.total_slots >= 12);
+
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(box));
+    CHECK(backend.load_filament(5).result == AmsResult::INVALID_SLOT);
+    CHECK(backend.dispatched.empty());
+    REQUIRE(backend.load_filament(11).result == AmsResult::SUCCESS);
+    REQUIRE(backend.dispatched.size() == 1);
+    CHECK(backend.dispatched[0].find("TNN=T3D") != std::string::npos);
+}
+
+// The shared state layer publishes per-slot subjects over 0..total_slots, so
+// T3 behind a missing T2 is only visible when total_slots spans it (#1464).
+TEST_CASE_METHOD(LVGLTestFixture, "CFS stock: AmsState publishes a unit behind a missing one",
+                 "[ams][cfs][1464]") {
+    auto& ams = helix::AmsState::instance();
+    ams.clear_backends();
+    ams.deinit_subjects();
+    get_printer_state().init_subjects(false);
+    ams.init_subjects(false);
+
+    auto owned = std::make_unique<CfsRemapHelper>();
+    CfsRemapHelper* backend = owned.get();
+    ams.set_backend(std::move(owned));
+
+    json box = make_multi_unit_box(3);
+    box["T2"] = json{{"state", "None"}};
+    box["T3"]["vender"] = json::array({"Creality", "Creality", "none", "none"});
+    box["T3"]["remain_len"] = json::array({"300", "300", "-1", "-1"});
+    box["T3"]["color_value"] = json::array({"0FFFFFF", "0FF5500", "-1", "-1"});
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(box));
+    ams.sync_from_backend();
+
+    CHECK(lv_subject_get_int(ams.get_slot_count_subject()) == 12);
+    CHECK(lv_subject_get_int(ams.get_slot_color_subject(9)) == 0xFF5500);
+    CHECK(backend->get_system_info().present_slot_count() == 8);
+
+    ams.clear_backends();
+    helix::ui::UpdateQueue::instance().drain();
+    ams.deinit_subjects();
+}
+
 // ============================================================================
 // Pre-dispatch failure does not fire the envelope unwind
 // ============================================================================

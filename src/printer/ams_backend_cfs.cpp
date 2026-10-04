@@ -940,8 +940,8 @@ AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
         }
 
         info.units.push_back(std::move(unit));
-        info.total_slots += 4;
     }
+    reserve_address_gaps(info);
 
     // Publish both directions from the one source the box actually states —
     // box.map. identity_fallback=true keeps the historical 1:1 default for
@@ -949,6 +949,7 @@ AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
     // `map` key at all), so a box that has never been remapped parses exactly
     // as it always did.
     sync_tool_map_from_forward(info, /*identity_fallback=*/true);
+    unmap_absent_bays(info);
 
     // current_tool must name the tool that ROUTES THROUGH the seated lane, not
     // the lane index: with T0 remapped onto lane 2 the print-status color dot
