@@ -170,8 +170,8 @@ Allowed elements (`src/plugin/plugin_xml_policy.cpp#is_allowed_element`):
 - the structural `component`, `view`, `api`, `prop`
 - `style`, `remove_style*`, `play_timeline_event`, `bind_*` elements
 - `event_cb`
-- the app chrome widgets `overlay_panel`, `icon`, `text_heading`, `text_body`,
-  `text_muted`, `text_small`, `text_xs`, `text_tiny`
+- the app chrome widgets `overlay_panel`, `ui_card`, `icon`, `text_heading`,
+  `text_body`, `text_muted`, `text_small`, `text_xs`, `text_tiny`
 - `plugin_canvas`, the plugin drawing surface (below)
 - the plugin's own components, by name
 
@@ -305,15 +305,20 @@ Drawing is staged, then published:
 | Call | Options | Defaults |
 |---|---|---|
 | `c:line(x1, y1, x2, y2[, opts])` | `color`, `width`, `opa` | `"text"`, 1, 100 |
-| `c:polyline(points[, opts])` | `color`, `width`, `opa` | `"text"`, 1, 100 |
+| `c:polyline(points[, opts])` | `color`, `width`, `opa`, `fill`, `fill_opa`, `baseline` | `"text"`, 1, 100, -, 100, - |
 | `c:rect(x, y, w, h[, opts])` | `fill`, `border`, `border_width`, `radius`, `opa` | -, -, 1, 0, 100 |
 | `c:circle(cx, cy, r[, opts])` | `fill`, `border`, `border_width`, `opa` | -, -, 1, 100 |
 | `c:arc(cx, cy, r, a1, a2[, opts])` | `color`, `width`, `opa` | `"text"`, 1, 100 |
 | `c:text(x, y, str[, opts])` | `font`, `color` | `"body"`, `"text"` |
 
 `opa` is the primitive's alpha as a percent, 0 to 100 (default 100, fully opaque); it
-covers a stroke, a fill and a border alike. A translucent area fill under a polyline is
-the canonical use: draw the fill as `rect`s at a low `opa` and the line itself opaque.
+covers a stroke, a fill and a border alike.
+
+`polyline` fills the area between the line and `baseline` (a y coordinate, drawn with
+`fill` at `fill_opa` percent) as one continuous shape: the fill's edge follows the line
+instead of stepping at the samples. `fill` and `baseline` are one option in practice and
+neither is accepted alone. The fill's triangles are derived at draw time from the
+polyline's own points, so it adds no units to the cap.
 
 `points` is one flat array `{x1, y1, x2, y2, ...}`: an even-length array of at least two
 points. A polyline counts each of its points toward the list's 4096-unit cap (§10); every
@@ -474,10 +479,10 @@ approval* instead of loading; enabling it again approves only the new lines.
 | Errors | the third within 60 s faults the plugin | `src/plugin/lua_runtime.cpp#report_error` |
 | Async results | a body that would cross the memory cap arrives as an error, not a fault | `include/lua_bindings.h#push_rpc_capped_body` |
 | Canvases per plugin | 8 | `src/plugin/lua_bind_canvas.cpp` |
-| Canvas list units | 4096 per list; a polyline counts each point | `include/plugin_canvas.h#kMaxCanvasUnits` |
+| Canvas list units | 4096 per list; a polyline counts each point, its area fill none | `include/plugin_canvas.h#kMaxCanvasUnits` |
 | Canvas tokens | 32 distinct color and font tokens per list | `include/plugin_canvas.h#kMaxCanvasTokens` |
 | Canvas coordinates | finite, within +-16384; stroke and border widths 0 to 64 | `include/plugin_canvas.h#kMaxCanvasCoord` |
-| Canvas opa | 0 to 100 percent on line/polyline/arc/rect/circle | `src/plugin/lua_bind_canvas.cpp` |
+| Canvas opa | 0 to 100 percent on line/polyline/arc/rect/circle, and fill_opa on polyline | `src/plugin/lua_bind_canvas.cpp` |
 | Canvas text | at most 256 bytes per string | `src/plugin/lua_bind_canvas.cpp` |
 | Canvas list bytes | charged against the plugin memory cap as staged | `include/plugin_canvas.h#DisplayList/bytes` |
 
@@ -535,26 +540,17 @@ local function draw(c, detail)
     local w, h = c:size()
     if w > 4 and h > 4 and #samples >= 2 then
         local lo, hi = stats()
-        lo, hi = range(lo, hi)
+        lo, hi = range(lo, hi, detail)
         -- The newest dot needs its radius clear of the right edge, so the line
         -- stops a little short of it instead of touching the canvas border.
         local xmax = w - 1 - (detail and 4 or 3)
         local pts = {}
         for i, t in ipairs(samples) do
-            pts[#pts + 1] = (N - #samples + i - 1) * xmax / (N - 1)
+            pts[#pts + 1] = (i - 1) * xmax / (#samples - 1)
             pts[#pts + 1] = (h - 1) * (1 - (t - lo) / (hi - lo))
         end
 
-        -- The area fill is one 1px column per sample at low opacity; the
-        -- polyline drawn on top at full strength gives the fill its top edge.
-        for i = 1, #samples - 1 do
-            local x0, y0 = pts[i * 2 - 1], pts[i * 2]
-            local w0 = math.max(pts[i * 2 + 1] - x0, 1)
-            if y0 < h - 1 then
-                c:rect(x0, y0, w0, h - 1 - y0, {fill = "primary", opa = FILL_OPA})
-            end
-        end
-
+        local labels = {}
         if detail then
             -- Gridlines at a whole-degree step (1, 2, 5, 10, 25, 50) labelled
             -- at the left edge; the built-in graph picks its step the same way.
@@ -573,12 +569,22 @@ local function draw(c, detail)
                     -- math.ceil yields a float, so the label goes through %d
                     -- to read "100°" instead of "100.0°".
                     c:text(2, y - 13, ("%d\u{00B0}"):format(v), {font = "xs", color = "text_muted"})
+                    labels[#labels + 1] = y
                 end
                 v = v + step
             end
         end
 
-        c:polyline(pts, {color = "primary", width = 2})
+        -- One polyline carries the stroke and the area fill down to the plot's
+        -- floor; the fill's edge follows the line instead of stepping at the
+        -- samples.
+        c:polyline(pts, {
+            color = "primary",
+            width = 2,
+            fill = "primary",
+            fill_opa = FILL_OPA,
+            baseline = h - 1,
+        })
 
         -- A dot marks the newest sample.
         c:circle(pts[#pts - 1], pts[#pts], detail and 3 or 2, {fill = "primary"})
@@ -591,10 +597,21 @@ local function draw(c, detail)
                 c:line(x, y, math.min(x + 6, w - 1), y, {color = "text_muted"})
                 x = x + 10
             end
-            -- Labelled at the right end, clear of the degree labels on the
-            -- left and of the newest dot; near the top it goes below the line.
-            local ty = y >= 15 and y - 15 or y + 4
-            c:text(w - 56, ty, "Target", {font = "xs", color = "text_muted"})
+            -- "Target" sits on the left, above the dashed line, in the first
+            -- band clear of the degree labels; the newest data rides the right
+            -- edge, so the label never meets the dot.
+            for _, ty in ipairs({y - 15, y + 4, y - 29, y + 18}) do
+                local free = ty >= 0 and ty + 13 <= h
+                for _, gy in ipairs(labels) do
+                    if ty < gy and ty + 13 > gy - 13 then
+                        free = false
+                    end
+                end
+                if free then
+                    c:text(2, ty, "Target", {font = "xs", color = "text_muted"})
+                    break
+                end
+            end
         end
     end
     c:commit()

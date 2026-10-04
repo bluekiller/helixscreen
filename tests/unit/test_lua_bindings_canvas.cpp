@@ -151,6 +151,30 @@ TEST_CASE_METHOD(XMLTestFixture, "opa sets a primitive's alpha percent", "[plugi
     CHECK(list->prims[3].opa == 255);
 }
 
+TEST_CASE_METHOD(XMLTestFixture, "a polyline fill carries its own color, alpha and baseline",
+                 "[plugin][lua][canvas]") {
+    BoundRuntime b({&install_canvas_bindings});
+    REQUIRE(b.t.run(R"(
+        local c = helix.canvas("c")
+        c:polyline({0, 0, 5, 5, 10, 0}, {fill = "primary", fill_opa = 40, baseline = 42})
+        c:polyline({0, 0, 5, 5})
+        c:commit()
+    )"));
+    const DisplayList* list = canvas_committed("test-plugin__c");
+    REQUIRE(list);
+    REQUIRE(list->prims.size() == 2);
+    const CanvasPrim& filled = list->prims[0];
+    CHECK(list->tokens[filled.border] == "primary");
+    CHECK(filled.a == 42);         // the baseline y rides in a
+    CHECK(filled.fill_opa == 102); // 40 percent on the 0-255 scale
+    const CanvasPrim& plain = list->prims[1];
+    CHECK(plain.border == kNoToken); // no fill staged
+    CHECK(plain.fill_opa == LV_OPA_COVER);
+    // The fill's triangles are derived at draw time, so units are unchanged:
+    // each polyline charges its point count, fill or not.
+    CHECK(list->units == 3 + 2);
+}
+
 TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
                  "[plugin][lua][canvas]") {
     BoundRuntime b({&install_canvas_bindings});
@@ -175,6 +199,13 @@ TEST_CASE_METHOD(XMLTestFixture, "each primitive validates its arguments",
         {"c:polyline('xy')", "even-length"},
         {"c:polyline({0, 0, 0/0, 5})", "finite"},
         {"c:polyline({0, 0, 'x', 5})", "number"},
+        {"c:polyline({0, 0, 5, 5}, {fill = 'nope', baseline = 9})", "color token"},
+        {"c:polyline({0, 0, 5, 5}, {fill = 'text', fill_opa = 101, baseline = 9})", "fill_opa"},
+        {"c:polyline({0, 0, 5, 5}, {fill = 'text', baseline = 0/0})", "finite"},
+        {"c:polyline({0, 0, 5, 5}, {fill = 'text', baseline = 1e9})", "within"},
+        {"c:polyline({0, 0, 5, 5}, {fill = 'text'})", "needs a baseline"},
+        {"c:polyline({0, 0, 5, 5}, {baseline = 9})", "needs a fill"},
+        {"c:polyline({0, 0, 5, 5}, {filled = 'text', baseline = 9})", "unknown option"},
         {"c:rect(0, 0, 10, 10, {})", "fill or border"},
         {"c:rect(0, 0, 10, 10, {border = 'text', radius = -1})", "radius"},
         {"c:circle(5, 5, -1, {fill = 'text'})", "radius"},

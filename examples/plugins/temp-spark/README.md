@@ -46,4 +46,5 @@ The 2x1 tile needs room: remove or shrink a stock widget first, then add it from
 
 The plot autoscales to the window's own span, widened to at least 10 degrees
 and padded 20%, so idle jitter stays a wiggle and a heating curve fills the
-height. A nonzero target joins the range, keeping its dashed line inside.
+height. The overlay's plot also folds a nonzero target into the range, keeping
+its dashed line inside; the tile's does not, so its span is the data's own.

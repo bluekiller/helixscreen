@@ -64,16 +64,18 @@ uint32_t as_rgb(lv_color_t c) {
     return lv_color_to_u32(c) & 0xFFFFFF;
 }
 
-uint32_t center_pixel_rgb(lv_obj_t* obj) {
+uint32_t pixel_rgb(lv_obj_t* obj, int x, int y) {
     lv_draw_buf_t* snap = lv_snapshot_take(obj, LV_COLOR_FORMAT_ARGB8888);
     REQUIRE(snap != nullptr);
-    const uint32_t w = snap->header.w;
-    const uint32_t h = snap->header.h;
-    const uint8_t* row = snap->data + (h / 2) * snap->header.stride;
-    const uint32_t rgb = (uint32_t(row[(w / 2) * 4 + 2]) << 16) |
-                         (uint32_t(row[(w / 2) * 4 + 1]) << 8) | uint32_t(row[(w / 2) * 4]);
+    const uint8_t* row = snap->data + y * snap->header.stride;
+    const uint32_t rgb =
+        (uint32_t(row[x * 4 + 2]) << 16) | (uint32_t(row[x * 4 + 1]) << 8) | uint32_t(row[x * 4]);
     lv_draw_buf_destroy(snap);
     return rgb;
+}
+
+uint32_t center_pixel_rgb(lv_obj_t* obj) {
+    return pixel_rgb(obj, 100, 50); // the rig's canvas is 200x100
 }
 
 /// A list with one of every primitive kind: Line, Polyline, Rect, Arc, Circle,
@@ -292,6 +294,50 @@ TEST_CASE_METHOD(CanvasRig, "a committed fill paints its pixels", "[plugin][canv
     canvas_commit("t__c", nullptr);
     lv_refr_now(nullptr);
     CHECK(center_pixel_rgb(canvas) != primary);
+}
+
+TEST_CASE_METHOD(CanvasRig, "a polyline area fill is continuous under a diagonal",
+                 "[plugin][canvas]") {
+    lv_obj_t* root = make();
+    lv_obj_update_layout(root);
+    lv_obj_t* canvas = canvas_of(root);
+    REQUIRE(canvas != nullptr);
+
+    auto list = std::make_unique<DisplayList>();
+    list->tokens = {"primary"};
+    CanvasPrim poly;
+    poly.op = CanvasOp::Polyline;
+    poly.color = 0; // stroke, transparent so only the fill can paint
+    poly.opa = 0;
+    poly.border = 0; // the area fill
+    poly.fill_opa = LV_OPA_COVER;
+    poly.width = 1;
+    poly.a = 98; // baseline y
+    poly.first = 0;
+    poly.count = 2;
+    list->points = {{2, 2}, {198, 98}};
+    list->prims.push_back(poly);
+    canvas_commit("t__c", std::move(list));
+    lv_refr_now(nullptr);
+
+    // The unit-test snapshot rasterizes masked primitives over their whole
+    // bounding box, so pixels above the line cannot be asserted here; the
+    // running app is where the fill's upper edge is verified by eye. What this
+    // fixture can pin: with the stroke transparent, every column under the
+    // diagonal is painted, so a fill that stepped at the samples (leaving the
+    // just-under-line pixels bare) or was removed entirely goes red.
+    const uint32_t primary = as_rgb(theme_manager_get_color("primary"));
+    REQUIRE(primary != 0); // a black primary would make the checks below vacuous
+    for (int x = 10; x <= 190; x += 8) {
+        const double ideal = 2.0 + (x - 2) * 96.0 / 196.0;
+        const int y_in = static_cast<int>(ideal) + 2;
+        CAPTURE(x, y_in);
+        CHECK(pixel_rgb(canvas, x, y_in) == primary);
+    }
+    // The baseline row is painted across the span: the fill reaches the
+    // baseline at every column, not only under the samples.
+    for (int x = 10; x <= 190; x += 8)
+        CHECK(pixel_rgb(canvas, x, 97) == primary);
 }
 
 TEST_CASE_METHOD(CanvasRig, "tokens resolve at draw time", "[plugin][canvas]") {

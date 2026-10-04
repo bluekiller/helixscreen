@@ -102,9 +102,9 @@ TEST_CASE("plugin XML may use only its own components and the app allowlist",
     CHECK(check_plugin_xml("ab", {}, view_with(R"(<overlay_panel title="Demo"/>)")).empty());
 }
 
-TEST_CASE("plugin XML may use the app's icon and text widgets", "[plugin][xml_policy]") {
-    for (const char* el : {"icon", "text_heading", "text_body", "text_muted", "text_small",
-                           "text_xs", "text_tiny"}) {
+TEST_CASE("plugin XML may use the app's icon, text and card widgets", "[plugin][xml_policy]") {
+    for (const char* el : {"icon", "ui_card", "text_heading", "text_body", "text_muted",
+                           "text_small", "text_xs", "text_tiny"}) {
         std::string xml = view_with(std::string("<") + el + " name=\"demo__x\"/>");
         CHECK(check_plugin_xml("demo", {"demo__w"}, xml) == std::string());
     }

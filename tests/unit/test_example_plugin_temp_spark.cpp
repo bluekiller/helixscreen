@@ -188,23 +188,28 @@ TEST_CASE_METHOD(TempSparkFx, "temp-spark backfills the window from the store",
     REQUIRE(h > 1);
     const std::vector<lv_point_precise_t> pts = spark_points();
     REQUIRE(pts.size() == 30);
-    // The plot's range is the window 25..54 widened for the 200 target, span
-    // 175 centered on 112.5 and padded 20%: 7.5 to 217.5.
-    const double lo = 112.5 - 175 * 0.6, hi = 112.5 + 175 * 0.6;
+    // The tile's range is the window's own: 25..54 is span 29 centered on
+    // 39.5 and padded 20%, 22.1 to 56.9. The 200 target is not folded in; the
+    // tile draws no target line, so folding it would flatten the data.
+    const double lo = 39.5 - 29 * 0.6, hi = 39.5 + 29 * 0.6;
     // A full window spans the whole width: 25 degrees at x 0, 54 at xmax,
     // which keeps the 2px dot clear of the canvas's right edge.
     CHECK(pts[0].x == Approx(0.0).margin(0.01));
     CHECK(pts[0].y == Approx((h - 1) * (1 - (25.0 - lo) / (hi - lo))).margin(0.01));
     CHECK(pts[29].x == Approx(w - 4).margin(0.01));
     CHECK(pts[29].y == Approx((h - 1) * (1 - (54.0 - lo) / (hi - lo))).margin(0.01));
-    // One 1px fill column per sample gap, one dot on the newest sample.
-    CHECK(count_op("temp-spark__spark", CanvasOp::Rect) == 29);
+    // The area fill rides on the polyline itself, so no Rect columns; the one
+    // dot marks the newest sample.
+    CHECK(count_op("temp-spark__spark", CanvasOp::Rect) == 0);
     CHECK(count_op("temp-spark__spark", CanvasOp::Circle) == 1);
     const DisplayList* spark = canvas_committed("temp-spark__spark");
     REQUIRE(spark);
     for (const CanvasPrim& p : spark->prims)
-        if (p.op == CanvasOp::Rect)
-            CHECK(p.opa == 38); // FILL_OPA 15 percent on the 0-255 scale
+        if (p.op == CanvasOp::Polyline) {
+            CHECK(spark->tokens[p.border] == "primary"); // the fill token
+            CHECK(p.fill_opa == 38);                     // FILL_OPA 15 percent, 0-255 scale
+            CHECK(p.a == h - 1);                         // baseline at the plot's floor
+        }
     CHECK(text_subject("temp-spark__value") == "54");
     CHECK(text_subject("temp-spark__target_beside") == "/ 200");
     CHECK(text_subject("temp-spark__min_text") == "25°");
@@ -235,11 +240,12 @@ TEST_CASE_METHOD(TempSparkFx, "a live reading shifts the window on the timer",
     process_lvgl(1200);
 
     // Window 26..54, 60: the oldest point rose, the newest sits at xmax.
-    // Range: 26..200 is span 174 centered on 113, padded to 8.6..217.4.
+    // The tile's own range: 26..60 is span 34 centered on 43, padded to
+    // 22.6..63.4 (no target folding on the tile).
     const auto [w, h] = canvas_size("temp-spark__spark");
     const std::vector<lv_point_precise_t> pts = spark_points();
     REQUIRE(pts.size() == 30);
-    const double lo = 113.0 - 174 * 0.6, hi = 113.0 + 174 * 0.6;
+    const double lo = 43.0 - 34 * 0.6, hi = 43.0 + 34 * 0.6;
     CHECK(pts[0].x == Approx(0.0).margin(0.01));
     CHECK(pts[0].y == Approx((h - 1) * (1 - (26.0 - lo) / (hi - lo))).margin(0.01));
     CHECK(pts[29].x == Approx(w - 4).margin(0.01));
@@ -262,9 +268,8 @@ TEST_CASE_METHOD(TempSparkFx, "a failed backfill leaves the plugin loaded and em
     CHECK((spark == nullptr || spark->prims.empty()));
     CHECK(text_subject("temp-spark__value") == "--");
 
-    // Live sampling fills the window from the right: two ticks give a
-    // two-point line, the newest at xmax and the first where sample 29 of
-    // 30 belongs.
+    // Live sampling fills the window: two ticks give a two-point line that
+    // already spans the full width, oldest at 0, newest at xmax.
     set_deci("extruder_temp", 300);
     process_lvgl(1200);
     set_deci("extruder_temp", 310);
@@ -274,7 +279,7 @@ TEST_CASE_METHOD(TempSparkFx, "a failed backfill leaves the plugin loaded and em
     REQUIRE(h > 1);
     const std::vector<lv_point_precise_t> pts = spark_points();
     REQUIRE(pts.size() == 2);
-    CHECK(pts[0].x == Approx(28.0 * (w - 4) / 29).margin(0.01));
+    CHECK(pts[0].x == Approx(0.0).margin(0.01));
     CHECK(pts[1].x == Approx(w - 4).margin(0.01));
     // A 1-degree window (30, 31) still gets the 10-degree minimum span,
     // centered on 30.5: 24.5 to 36.5.
@@ -334,7 +339,7 @@ TEST_CASE_METHOD(TempSparkFx, "the detail graph draws gridlines and the target",
     // 117.5, padded to 6.5..228.5.
     const double lo = 117.5 - 185 * 0.6, hi = 117.5 + 185 * 0.6;
     CHECK(count_op("temp-spark__graph", CanvasOp::Polyline) == 1);
-    CHECK(count_op("temp-spark__graph", CanvasOp::Rect) == 29);
+    CHECK(count_op("temp-spark__graph", CanvasOp::Rect) == 0); // the fill rides on the polyline
     CHECK(count_op("temp-spark__graph", CanvasOp::Circle) == 1);
     // Gridlines every 50 degrees: 50, 100, 150, 200, each with a degree label;
     // the target trace is a second line of dashes at 210 plus a Target label.
@@ -346,8 +351,8 @@ TEST_CASE_METHOD(TempSparkFx, "the detail graph draws gridlines and the target",
     const double target_y = (h - 1) * (1 - (210.0 - lo) / (hi - lo));
     REQUIRE(hline_at("temp-spark__graph", "text_muted", target_y));
     CHECK(count_op("temp-spark__graph", CanvasOp::Text) == 5);
-    // Degree labels read as whole numbers and the Target label sits clear of
-    // the degree column at the left edge.
+    // Degree labels read as whole numbers and the Target label sits on the
+    // left, above the dashed line, clear of the newest dot at the right edge.
     const DisplayList* list = canvas_committed("temp-spark__graph");
     REQUIRE(list);
     bool seen_50 = false, seen_200 = false, seen_target_beside = false;
@@ -357,7 +362,7 @@ TEST_CASE_METHOD(TempSparkFx, "the detail graph draws gridlines and the target",
         const std::string s = list->text.substr(p.first, p.count);
         seen_50 |= s == "50°";
         seen_200 |= s == "200°";
-        seen_target_beside |= s == "Target" && p.a >= w - 60;
+        seen_target_beside |= s == "Target" && p.a <= 60;
     }
     CHECK(seen_50);
     CHECK(seen_200);

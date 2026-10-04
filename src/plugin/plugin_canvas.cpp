@@ -269,6 +269,35 @@ void draw_display_list(lv_layer_t* layer, const lv_area_t& content, const Displa
             }
             if (!finite)
                 break;
+            // An area fill is two triangles per segment down to the baseline,
+            // rasterized from the same points as the stroke, so the fill's
+            // edge follows the line instead of stepping at the samples.
+            if (p.border != kNoToken && std::isfinite(p.a)) {
+                const lv_value_precise_t base = oy + p.a;
+                lv_draw_triangle_dsc_t fdsc;
+                lv_draw_triangle_dsc_init(&fdsc);
+                fdsc.color = color_of(p.border);
+                fdsc.opa = p.fill_opa;
+                for (uint32_t i = 0; i + 1 < p.count; ++i) {
+                    const lv_point_precise_t& p1 = pts[i];
+                    const lv_point_precise_t& p2 = pts[i + 1];
+                    // A segment end sitting on the baseline yields a triangle
+                    // with two identical vertices: geometrically empty, so it
+                    // is skipped rather than handed to the rasterizer.
+                    if (p2.y != base) {
+                        fdsc.p[0] = p1;
+                        fdsc.p[1] = p2;
+                        fdsc.p[2] = {p2.x, base};
+                        lv_draw_triangle(layer, &fdsc);
+                    }
+                    if (p1.y != base) {
+                        fdsc.p[0] = p1;
+                        fdsc.p[1] = {p2.x, base};
+                        fdsc.p[2] = {p1.x, base};
+                        lv_draw_triangle(layer, &fdsc);
+                    }
+                }
+            }
             lv_draw_line_dsc_t dsc;
             lv_draw_line_dsc_init(&dsc);
             dsc.points = pts.data();

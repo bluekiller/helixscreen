@@ -194,11 +194,11 @@ int32_t opt_width(lua_State* L, int idx, const char* name, int32_t fallback) {
     return static_cast<int32_t>(v); // unreachable; luaL_error raises
 }
 
-// Reads the opa field, a percent, and returns LVGL's 0-255 alpha scale.
-uint8_t opt_opa(lua_State* L, int idx) {
+// Reads a named percent field and returns LVGL's 0-255 alpha scale.
+uint8_t opt_percent(lua_State* L, int idx, const char* name) {
     if (!idx)
         return LV_OPA_COVER;
-    lua_getfield(L, idx, "opa");
+    lua_getfield(L, idx, name);
     if (lua_isnil(L, -1)) {
         lua_pop(L, 1);
         return LV_OPA_COVER;
@@ -207,8 +207,13 @@ uint8_t opt_opa(lua_State* L, int idx) {
     lua_Number v = lua_tonumberx(L, -1, &ok);
     lua_pop(L, 1);
     if (!ok || !std::isfinite(v) || v < 0 || v > kMaxOpaPercent)
-        luaL_error(L, "helix.canvas: opa must be 0 to %d", static_cast<int>(kMaxOpaPercent));
+        luaL_error(L, "helix.canvas: %s must be 0 to %d", name, static_cast<int>(kMaxOpaPercent));
     return static_cast<uint8_t>(v * LV_OPA_COVER / kMaxOpaPercent + 0.5);
+}
+
+// Reads the opa field, a percent, and returns LVGL's 0-255 alpha scale.
+uint8_t opt_opa(lua_State* L, int idx) {
+    return opt_percent(L, idx, "opa");
 }
 
 int32_t opt_radius(lua_State* L, int idx) {
@@ -383,13 +388,44 @@ int m_polyline(lua_State* L) {
     }
     st.prim.count = static_cast<uint32_t>(n / 2);
     int opts = opts_index(L, 3);
-    check_opts(L, opts, {"color", "width", "opa"});
+    check_opts(L, opts, {"color", "width", "opa", "fill", "fill_opa", "baseline"});
     const char* color = "text";
     opt_str(L, opts, "color", &color);
     check_color(L, color);
+    const char* fill = nullptr;
+    opt_str(L, opts, "fill", &fill);
+    if (fill)
+        check_color(L, fill);
+    // An area fill runs from the line down to a baseline y; the pair is one
+    // option in practice, so neither half is accepted alone.
+    lua_Number baseline = 0;
+    bool has_baseline = false;
+    if (opts) {
+        lua_getfield(L, opts, "baseline");
+        if (!lua_isnil(L, -1)) {
+            int ok = 0;
+            baseline = lua_tonumberx(L, -1, &ok);
+            if (!ok)
+                return luaL_error(L,
+                                  "helix.canvas: baseline must be a finite number within "
+                                  "+-%d",
+                                  static_cast<int>(kMaxCanvasCoord));
+            checked_coord(L, baseline, "baseline");
+            has_baseline = true;
+        }
+        lua_pop(L, 1);
+    }
+    if (fill && !has_baseline)
+        return luaL_error(L, "helix.canvas: polyline fill needs a baseline");
+    if (has_baseline && !fill)
+        return luaL_error(L, "helix.canvas: polyline baseline needs a fill");
+    st.prim.a = static_cast<lv_value_precise_t>(baseline);
+    st.prim.fill_opa = opt_percent(L, opts, "fill_opa");
     st.prim.width = opt_width(L, opts, "width", 1);
     st.prim.opa = opt_opa(L, opts);
-    plan_tokens(e->pending, color, nullptr, nullptr, st);
+    // The fill token rides in the border slot; the triangles are derived at
+    // draw time from the same points, so the fill adds no units.
+    plan_tokens(e->pending, color, fill, nullptr, st);
     add_staged(L, e, st, static_cast<size_t>(n / 2));
     return 0;
 }

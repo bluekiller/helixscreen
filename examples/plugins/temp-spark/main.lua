@@ -97,10 +97,11 @@ local function stats()
 end
 
 -- The plot's vertical range: the window's own span widened to at least
--- MIN_SPAN, then padded 20% so the line never touches an edge. A drawn target
--- joins the range so the dashed line always lands inside the plot.
-local function range(lo, hi)
-    if target_on() then
+-- MIN_SPAN, then padded 20% so the line never touches an edge. The detail plot
+-- folds a drawn target in so the dashed line lands inside it; the tile draws
+-- no target, so its span is the data's own and small swings still show.
+local function range(lo, hi, detail)
+    if detail and target_on() then
         lo = math.min(lo, target_now)
         hi = math.max(hi, target_now)
     end
@@ -111,32 +112,24 @@ end
 
 -- One drawing for both surfaces: the tile sparkline and the detail plot show
 -- the same window, so draw() takes the canvas plus a detail flag for the
--- gridlines and the target trace. X is the sample's slot in the N-slot window,
--- so the line hugs the right edge while the window is still filling.
+-- gridlines and the target trace. X spreads the samples evenly across the
+-- full width, so a partly filled window still spans the tile; only a full
+-- window is even time spacing.
 local function draw(c, detail)
     local w, h = c:size()
     if w > 4 and h > 4 and #samples >= 2 then
         local lo, hi = stats()
-        lo, hi = range(lo, hi)
+        lo, hi = range(lo, hi, detail)
         -- The newest dot needs its radius clear of the right edge, so the line
         -- stops a little short of it instead of touching the canvas border.
         local xmax = w - 1 - (detail and 4 or 3)
         local pts = {}
         for i, t in ipairs(samples) do
-            pts[#pts + 1] = (N - #samples + i - 1) * xmax / (N - 1)
+            pts[#pts + 1] = (i - 1) * xmax / (#samples - 1)
             pts[#pts + 1] = (h - 1) * (1 - (t - lo) / (hi - lo))
         end
 
-        -- The area fill is one 1px column per sample at low opacity; the
-        -- polyline drawn on top at full strength gives the fill its top edge.
-        for i = 1, #samples - 1 do
-            local x0, y0 = pts[i * 2 - 1], pts[i * 2]
-            local w0 = math.max(pts[i * 2 + 1] - x0, 1)
-            if y0 < h - 1 then
-                c:rect(x0, y0, w0, h - 1 - y0, {fill = "primary", opa = FILL_OPA})
-            end
-        end
-
+        local labels = {}
         if detail then
             -- Gridlines at a whole-degree step (1, 2, 5, 10, 25, 50) labelled
             -- at the left edge; the built-in graph picks its step the same way.
@@ -155,12 +148,22 @@ local function draw(c, detail)
                     -- math.ceil yields a float, so the label goes through %d
                     -- to read "100°" instead of "100.0°".
                     c:text(2, y - 13, ("%d\u{00B0}"):format(v), {font = "xs", color = "text_muted"})
+                    labels[#labels + 1] = y
                 end
                 v = v + step
             end
         end
 
-        c:polyline(pts, {color = "primary", width = 2})
+        -- One polyline carries the stroke and the area fill down to the plot's
+        -- floor; the fill's edge follows the line instead of stepping at the
+        -- samples.
+        c:polyline(pts, {
+            color = "primary",
+            width = 2,
+            fill = "primary",
+            fill_opa = FILL_OPA,
+            baseline = h - 1,
+        })
 
         -- A dot marks the newest sample.
         c:circle(pts[#pts - 1], pts[#pts], detail and 3 or 2, {fill = "primary"})
@@ -173,10 +176,21 @@ local function draw(c, detail)
                 c:line(x, y, math.min(x + 6, w - 1), y, {color = "text_muted"})
                 x = x + 10
             end
-            -- Labelled at the right end, clear of the degree labels on the
-            -- left and of the newest dot; near the top it goes below the line.
-            local ty = y >= 15 and y - 15 or y + 4
-            c:text(w - 56, ty, "Target", {font = "xs", color = "text_muted"})
+            -- "Target" sits on the left, above the dashed line, in the first
+            -- band clear of the degree labels; the newest data rides the right
+            -- edge, so the label never meets the dot.
+            for _, ty in ipairs({y - 15, y + 4, y - 29, y + 18}) do
+                local free = ty >= 0 and ty + 13 <= h
+                for _, gy in ipairs(labels) do
+                    if ty < gy and ty + 13 > gy - 13 then
+                        free = false
+                    end
+                end
+                if free then
+                    c:text(2, ty, "Target", {font = "xs", color = "text_muted"})
+                    break
+                end
+            end
         end
     end
     c:commit()
