@@ -1546,24 +1546,22 @@ void MotionPanel::refresh_bed_readout() {
     if (!dragging && !helix::toolhead_is_homed(get_printer_state())) {
         text = lv_tr("Home all axes to use the map");
     } else {
-        // The target under a dragging finger, else where the head is, from
-        // the same source the header coordinates show.
-        const float z = show_actual_ ? live_z_ : current_z_;
-        text = dragging
-                   ? fmt::format("X {:.1f}  Y {:.1f}", *bed_drag_target_->x, *bed_drag_target_->y)
-                   : fmt::format("X {:.1f}  Y {:.1f}", show_actual_ ? live_x_ : current_x_,
-                                 show_actual_ ? live_y_ : current_y_);
-        char z_buf[16];
-        format_axis_value(z_buf, sizeof(z_buf), z);
+        // The target under a dragging finger; at rest the header already
+        // shows where the head is, so only a pending lift is worth saying.
+        if (dragging) {
+            text = fmt::format("X {:.1f}  Y {:.1f}", *bed_drag_target_->x, *bed_drag_target_->y);
+        }
         // Announced before the tap: an unrequested Z move is acceptable only
         // when the user was told about it first.
         if (const auto lift = bed_lift_z()) {
+            char z_buf[16];
             char lift_buf[16];
+            format_axis_value(z_buf, sizeof(z_buf), show_actual_ ? live_z_ : current_z_);
             format_distance_label(lift_buf, sizeof(lift_buf), static_cast<float>(*lift));
-            text += "  ";
+            if (!text.empty()) {
+                text += "  ";
+            }
             text += fmt::format(fmt::runtime(lv_tr("Z {}, will lift to {}mm")), z_buf, lift_buf);
-        } else if (!dragging) {
-            text += fmt::format("  Z {}", z_buf);
         }
     }
     // Position frames arrive many times a second; most change nothing shown.

@@ -439,10 +439,9 @@ std::string bed_readout() {
     return lv_subject_get_string(lv_xml_get_subject(nullptr, "motion_bed_readout"));
 }
 
-/// At rest the readout names the head's position, Z included; a drag target
-/// (with no lift pending) has no Z.
+/// At rest the readout shows no drag target (the header carries the position).
 bool readout_at_rest() {
-    return bed_readout().find("  Z ") != std::string::npos;
+    return bed_readout().find("X ") == std::string::npos;
 }
 
 } // namespace
@@ -743,7 +742,7 @@ TEST_CASE_METHOD(MoveTabFixture,
     panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
     drain();
     // The finger is not tracked at all: no target under it, nothing sent.
-    CHECK(bed_readout() == "X 10.0  Y 10.0  Z 10.00");
+    CHECK(bed_readout().empty());
     panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
     lv_subject_set_int(probe, 0);
     drain();
@@ -899,17 +898,20 @@ TEST_CASE_METHOD(MoveTabFixture, "motion: a Z frame landing before its ack is no
     set_moonraker_api(&api_);
 }
 
-TEST_CASE_METHOD(MoveTabFixture, "bed tab: at rest the readout shows where the head is",
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: at rest the readout repeats no position",
                  "[motion][bed-tab]") {
     auto& ps = get_printer_state();
     get_global_motion_panel().set_motion_tab(2);
     drain();
-    CHECK(bed_readout() == "X 10.0  Y 10.0  Z 10.00");
+    // The header shows where the head is; above clearance there is nothing to say.
+    CHECK(bed_readout().empty());
+    // The empty label still holds its line, so the plate does not jump.
+    lv_obj_update_layout(lv_screen_active());
+    CHECK(lv_obj_get_height(panel_widget("bed_map_readout")) > 0);
 
     ps.update_from_status({{"gcode_move", {{"gcode_position", {158.6, 104.0, 0.2, 0.0}}}}});
     drain();
-    // Below clearance the Z part becomes the lift announcement.
-    CHECK(bed_readout() == "X 158.6  Y 104.0  Z 0.20, will lift to 5mm");
+    CHECK(bed_readout() == "Z 0.20, will lift to 5mm");
 
     ps.update_from_status(ready_status("xy"));
     drain();
