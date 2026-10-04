@@ -36,7 +36,7 @@
 // Mirrors android_set_navbar_always_visible() in display_settings_manager.cpp —
 // same guard shape, same ExceptionClear() on every failure path, and the same
 // shared helix_activity_class() for class resolution. It lives HERE rather than
-// being exported from display_settings_manager.h because DisplayManager is the
+// being exported from display_settings_manager.h because DisplaySleepController is the
 // only caller: which mechanism cuts the panel is display-output policy, not a
 // persisted setting.
 // Putting an Android-only declaration in the settings header to reach it would
