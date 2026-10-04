@@ -49,6 +49,12 @@ struct helix_bt_context {
     std::string last_error;
     std::atomic<bool> discovering{false};
     sd_bus_slot* discovery_slot = nullptr;
+    // One discover() at a time per context: the slot, the flag and the adapter's
+    // StartDiscovery/StopDiscovery pair all belong to a single scan.
+    std::mutex discover_mutex;
+    // Bumped by stop_discovery(). A scan ends when it changes, including a stop issued
+    // while that scan was still waiting for discover_mutex.
+    std::atomic<unsigned> discover_stop_gen{0};
     sd_bus_slot* agent_slot = nullptr;
     std::unique_ptr<helix::bluetooth::BusThread> bus_thread;
 

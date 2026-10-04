@@ -3,18 +3,15 @@
 #pragma once
 
 #include "async_lifetime_guard.h"
+#include "bt_discovery_run.h"
 #include "input_device_scanner.h"
 #include "overlay_base.h"
 #include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 
-#include <atomic>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
-
-struct helix_bt_context;
 
 namespace helix::ui {
 
@@ -83,14 +80,9 @@ class BarcodeScannerSettingsOverlay : public OverlayBase {
         bool is_ble = false;
     };
 
-    struct BtDiscoveryContext {
-        std::atomic<bool> alive{true};
-        BarcodeScannerSettingsOverlay* overlay = nullptr;
-        std::optional<LifetimeToken> token;
-    };
-
-    helix_bt_context* bt_ctx_ = nullptr;
-    std::shared_ptr<BtDiscoveryContext> bt_discovery_ctx_;
+    std::shared_ptr<helix::bluetooth::SharedContext> bt_ctx_ =
+        std::make_shared<helix::bluetooth::SharedContext>();
+    helix::bluetooth::DiscoveryRun bt_discovery_;
     std::vector<BtDeviceInfo> bt_devices_;
     bool bt_discovering_ = false;
 

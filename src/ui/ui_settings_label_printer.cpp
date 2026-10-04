@@ -14,6 +14,7 @@
 #include "bluetooth_loader.h"
 #include "brother_pt_bt_printer.h"
 #include "brother_ql_printer.h"
+#include "bt_discovery_run.h"
 #include "bt_discovery_utils.h"
 #include "ipp_printer.h"
 #include "label_printer_settings.h"
@@ -128,15 +129,6 @@ LabelPrinterSettingsOverlay::~LabelPrinterSettingsOverlay() {
     stop_label_printer_discovery();
     stop_usb_detection();
     stop_bt_discovery();
-
-    // Deinit BT context only in destructor, not in stop_bt_discovery()
-    if (bt_ctx_) {
-        auto& loader = helix::bluetooth::BluetoothLoader::instance();
-        if (loader.deinit) {
-            loader.deinit(bt_ctx_);
-        }
-        bt_ctx_ = nullptr;
-    }
 }
 
 // ============================================================================
@@ -1047,17 +1039,17 @@ void LabelPrinterSettingsOverlay::init_bt_printer_dropdown() {
         // Check actual paired/connected state asynchronously to avoid
         // blocking the UI thread on D-Bus calls (25-second default timeout)
         auto& loader = helix::bluetooth::BluetoothLoader::instance();
-        if (!bt_ctx_ && loader.is_available() && loader.init) {
-            bt_ctx_ = loader.init();
-        }
-        if (bt_ctx_ && loader.is_paired) {
+        if (loader.is_available() && loader.is_paired) {
             auto bt_token = lifetime_.token();
-            auto* ctx = bt_ctx_;
+            auto shared_ctx = bt_ctx_;
             std::string addr = saved_addr;
             // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
             try {
-                std::thread([bt_token, ctx, addr]() {
+                std::thread([bt_token, shared_ctx, addr]() {
                     auto& ldr = helix::bluetooth::BluetoothLoader::instance();
+                    auto* ctx = shared_ctx->get();
+                    if (!ctx)
+                        return;
                     int paired_r = ldr.is_paired ? ldr.is_paired(ctx, addr.c_str()) : -1;
                     bool connected = check_bt_connected(ctx, addr);
                     spdlog::debug("[Label Printer] Async BT state: is_paired={} connected={}",
@@ -1132,17 +1124,6 @@ void LabelPrinterSettingsOverlay::start_bt_discovery() {
         return;
     }
 
-    // Initialize BT context if needed
-    if (!bt_ctx_ && loader.init) {
-        bt_ctx_ = loader.init();
-        if (!bt_ctx_) {
-            spdlog::error("[{}] Failed to init BT context", get_name());
-            ToastManager::instance().show(ToastSeverity::ERROR,
-                                          lv_tr("Bluetooth initialization failed"));
-            return;
-        }
-    }
-
     bt_discovering_ = true;
     // Keep saved paired device so it stays visible during scan
     bt_devices_.erase(std::remove_if(bt_devices_.begin(), bt_devices_.end(),
@@ -1161,202 +1142,151 @@ void LabelPrinterSettingsOverlay::start_bt_discovery() {
         }
     }
 
-    // Set up C callback safety context
-    bt_discovery_ctx_ = std::make_unique<BtDiscoveryContext>();
-    bt_discovery_ctx_->alive.store(true);
-    bt_discovery_ctx_->overlay = this;
+    helix::bluetooth::DiscoveryRun::Callbacks callbacks;
+    callbacks.accept = [](const helix_bt_device& dev) {
+        if (!dev.is_scanner)
+            return true;
+        spdlog::debug("[Label Printer] Skipping scanner: {} ({})", dev.name ? dev.name : "",
+                      helix::redact::mac(dev.mac ? dev.mac : ""));
+        return false;
+    };
+    callbacks.on_device = [this](const helix::bluetooth::DiscoveredDevice& found) {
+        BtDeviceInfo info;
+        info.mac = found.mac;
+        info.name = found.name;
+        info.paired = found.paired;
+        info.is_ble = found.is_ble;
+        info.is_scanner = found.is_scanner;
 
-    auto* disc_ctx = bt_discovery_ctx_.get();
-    auto* ctx = bt_ctx_;
-    auto token = lifetime_.token();
+        // Exact-MAC dedup: ignore if BlueZ repeats the same device.
+        for (const auto& existing : bt_devices_) {
+            if (existing.mac == info.mac)
+                return;
+        }
 
-    // Run discovery on a detached thread
-    // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
-    try {
-        std::thread([ctx, disc_ctx, token, &loader]() {
-            loader.discover(
-                ctx, 15000,
-                [](const helix_bt_device* dev, void* user_data) {
-                    auto* dctx = static_cast<BtDiscoveryContext*>(user_data);
-                    if (!dctx->alive.load())
-                        return;
-
-                    // Copy device info to avoid dangling pointers
-                    BtDeviceInfo info;
-                    info.mac = dev->mac ? dev->mac : "";
-                    info.name = dev->name ? dev->name : "Unknown";
-                    info.paired = dev->paired;
-                    info.connected = false; // updated on UI thread below
-                    info.is_ble = dev->is_ble;
-                    info.is_scanner = dev->is_scanner;
-
-                    // Skip barcode scanners before marshaling to UI thread
-                    if (info.is_scanner) {
-                        spdlog::debug("[Label Printer] Skipping scanner: {} ({})", info.name,
-                                      helix::redact::mac(info.mac));
-                        return;
+        // Name-based transport resolution. Dual-mode printers (e.g.
+        // Niimbot D110) enumerate as two BlueZ entries with the same
+        // name: one BR/EDR half exposing only SPP/PnP, one BLE half
+        // exposing the vendor GATT service. The brand table knows
+        // which transport actually prints; drop the mismatched half.
+        bool replaced = false;
+        if (!info.name.empty() && helix::bluetooth::find_brand(info.name.c_str()) != nullptr) {
+            const bool brand_prefers_ble = helix::bluetooth::name_suggests_ble(info.name.c_str());
+            const bool new_matches_brand = (info.is_ble == brand_prefers_ble);
+            for (auto it = bt_devices_.begin(); it != bt_devices_.end(); ++it) {
+                if (it->name != info.name)
+                    continue;
+                const bool existing_matches_brand = (it->is_ble == brand_prefers_ble);
+                if (new_matches_brand && !existing_matches_brand) {
+                    // Genuine transport migration: the existing entry was
+                    // the wrong-transport half of a dual-mode device.
+                    // Replace it and clear the saved address so the user
+                    // re-pairs on the correct transport.
+                    spdlog::info("[Label Printer] Migrating {} from {} {} "
+                                 "to brand-preferred {} {}",
+                                 it->name, helix::redact::mac(it->mac),
+                                 it->is_ble ? "BLE" : "Classic", helix::redact::mac(info.mac),
+                                 info.is_ble ? "BLE" : "Classic");
+                    auto& settings_mgr = LabelPrinterSettingsManager::instance();
+                    if (settings_mgr.get_bt_address() == it->mac && it->mac != info.mac) {
+                        spdlog::warn("[Label Printer] Saved BT address {} is the "
+                                     "wrong transport for {}; clearing so user "
+                                     "re-pairs with {}",
+                                     helix::redact::mac(it->mac), it->name,
+                                     helix::redact::mac(info.mac));
+                        settings_mgr.set_bt_address("");
                     }
-
-                    // Marshal to UI thread
-                    helix::ui::queue_update(
-                        "LabelPrinterSettingsOverlay::start_bt_discovery", [dctx, info]() {
-                            if (!dctx->alive.load())
-                                return;
-                            auto* overlay = dctx->overlay;
-
-                            // Exact-MAC dedup: ignore if BlueZ repeats the same device.
-                            for (const auto& existing : overlay->bt_devices_) {
-                                if (existing.mac == info.mac)
-                                    return;
-                            }
-
-                            // Name-based transport resolution. Dual-mode printers (e.g.
-                            // Niimbot D110) enumerate as two BlueZ entries with the same
-                            // name: one BR/EDR half exposing only SPP/PnP, one BLE half
-                            // exposing the vendor GATT service. The brand table knows
-                            // which transport actually prints; drop the mismatched half.
-                            bool replaced = false;
-                            if (!info.name.empty() &&
-                                helix::bluetooth::find_brand(info.name.c_str()) != nullptr) {
-                                const bool brand_prefers_ble =
-                                    helix::bluetooth::name_suggests_ble(info.name.c_str());
-                                const bool new_matches_brand = (info.is_ble == brand_prefers_ble);
-                                for (auto it = overlay->bt_devices_.begin();
-                                     it != overlay->bt_devices_.end(); ++it) {
-                                    if (it->name != info.name)
-                                        continue;
-                                    const bool existing_matches_brand =
-                                        (it->is_ble == brand_prefers_ble);
-                                    if (new_matches_brand && !existing_matches_brand) {
-                                        // Genuine transport migration: the existing entry was
-                                        // the wrong-transport half of a dual-mode device.
-                                        // Replace it and clear the saved address so the user
-                                        // re-pairs on the correct transport.
-                                        spdlog::info("[Label Printer] Migrating {} from {} {} "
-                                                     "to brand-preferred {} {}",
-                                                     it->name, helix::redact::mac(it->mac),
-                                                     it->is_ble ? "BLE" : "Classic",
-                                                     helix::redact::mac(info.mac),
-                                                     info.is_ble ? "BLE" : "Classic");
-                                        auto& settings_mgr =
-                                            LabelPrinterSettingsManager::instance();
-                                        if (settings_mgr.get_bt_address() == it->mac &&
-                                            it->mac != info.mac) {
-                                            spdlog::warn(
-                                                "[Label Printer] Saved BT address {} is the "
-                                                "wrong transport for {}; clearing so user "
-                                                "re-pairs with {}",
-                                                helix::redact::mac(it->mac), it->name,
-                                                helix::redact::mac(info.mac));
-                                            settings_mgr.set_bt_address("");
-                                        }
-                                        *it = info;
-                                        replaced = true;
-                                    } else if (new_matches_brand && existing_matches_brand) {
-                                        // Same name, same transport, different MAC — same
-                                        // device re-advertising with a different address
-                                        // (BLE random-address rotation, e.g. Niimbot B1).
-                                        // Keep the existing entry so the user's saved
-                                        // pairing sticks; drop the duplicate.
-                                        spdlog::debug("[Label Printer] Ignoring duplicate {} "
-                                                      "advertisement for {} (existing {}, new {}) "
-                                                      "— same transport, treating as RPA rotation",
-                                                      info.is_ble ? "BLE" : "Classic", info.name,
-                                                      helix::redact::mac(it->mac),
-                                                      helix::redact::mac(info.mac));
-                                        return;
-                                    } else {
-                                        // New entry is on the non-preferred transport; drop.
-                                        spdlog::debug("[Label Printer] Ignoring {} ({} {}): "
-                                                      "brand prefers {} transport already present",
-                                                      info.name, helix::redact::mac(info.mac),
-                                                      info.is_ble ? "BLE" : "Classic",
-                                                      brand_prefers_ble ? "BLE" : "Classic");
-                                        return;
-                                    }
-                                    break;
-                                }
-                            }
-
-                            if (!replaced) {
-                                overlay->bt_devices_.push_back(info);
-                                spdlog::debug("[Label Printer] BT discovered: {} ({})", info.name,
-                                              helix::redact::mac(info.mac));
-                            }
-
-                            // Update dropdown
-                            if (overlay->overlay_root_) {
-                                lv_obj_t* row =
-                                    lv_obj_find_by_name(overlay->overlay_root_, "row_bt_printers");
-                                if (row) {
-                                    lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
-                                    if (dropdown) {
-                                        std::string options;
-                                        for (const auto& d : overlay->bt_devices_) {
-                                            if (!options.empty())
-                                                options += "\n";
-                                            options += bt_device_label(d.name, d.paired,
-                                                                       !d.mac.empty(), d.connected);
-                                        }
-                                        lv_dropdown_close(dropdown);
-                                        lv_dropdown_set_options(dropdown, options.c_str());
-                                    }
-                                }
-                            }
-                        });
-                },
-                disc_ctx);
-
-            // Discovery completed (timeout or stopped)
-            helix::ui::queue_update("LabelPrinterSettingsOverlay::start_bt_discovery", [disc_ctx,
-                                                                                        token]() {
-                if (token.expired())
+                    *it = info;
+                    replaced = true;
+                } else if (new_matches_brand && existing_matches_brand) {
+                    // Same name, same transport, different MAC — same
+                    // device re-advertising with a different address
+                    // (BLE random-address rotation, e.g. Niimbot B1).
+                    // Keep the existing entry so the user's saved
+                    // pairing sticks; drop the duplicate.
+                    spdlog::debug("[Label Printer] Ignoring duplicate {} "
+                                  "advertisement for {} (existing {}, new {}) "
+                                  "— same transport, treating as RPA rotation",
+                                  info.is_ble ? "BLE" : "Classic", info.name,
+                                  helix::redact::mac(it->mac), helix::redact::mac(info.mac));
                     return;
-                if (!disc_ctx->alive.load())
+                } else {
+                    // New entry is on the non-preferred transport; drop.
+                    spdlog::debug("[Label Printer] Ignoring {} ({} {}): "
+                                  "brand prefers {} transport already present",
+                                  info.name, helix::redact::mac(info.mac),
+                                  info.is_ble ? "BLE" : "Classic",
+                                  brand_prefers_ble ? "BLE" : "Classic");
                     return;
+                }
+                break;
+            }
+        }
 
-                auto* overlay = disc_ctx->overlay;
-                overlay->bt_discovering_ = false;
-                lv_subject_set_int(&overlay->bt_scanning_subject_, 0);
+        if (!replaced) {
+            bt_devices_.push_back(info);
+            spdlog::debug("[Label Printer] BT discovered: {} ({})", info.name,
+                          helix::redact::mac(info.mac));
+        }
 
-                if (overlay->overlay_root_) {
-                    lv_obj_t* row = lv_obj_find_by_name(overlay->overlay_root_, "row_bt_printers");
-                    if (row) {
-                        lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
-                        if (dropdown) {
-                            lv_dropdown_close(dropdown);
-                            if (overlay->bt_devices_.empty()) {
-                                lv_dropdown_set_options(dropdown,
-                                                        lv_tr("No Bluetooth printers found"));
-                            } else {
-                                // Refresh dropdown with final device list (handles case where
-                                // all discovered devices were already known — dropdown still
-                                // shows "Scanning..." without this)
-                                std::string options;
-                                for (const auto& d : overlay->bt_devices_) {
-                                    if (!options.empty())
-                                        options += "\n";
-                                    options += bt_device_label(
-                                        d.name, d.paired,
-                                        d.mac == LabelPrinterSettingsManager::instance()
-                                                     .get_bt_address(),
-                                        d.connected);
-                                }
-                                lv_dropdown_set_options(dropdown, options.c_str());
-                            }
+        // Update dropdown
+        if (overlay_root_) {
+            lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_bt_printers");
+            if (row) {
+                lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
+                if (dropdown) {
+                    std::string options;
+                    for (const auto& d : bt_devices_) {
+                        if (!options.empty())
+                            options += "\n";
+                        options += bt_device_label(d.name, d.paired, !d.mac.empty(), d.connected);
+                    }
+                    lv_dropdown_close(dropdown);
+                    lv_dropdown_set_options(dropdown, options.c_str());
+                }
+            }
+        }
+    };
+    callbacks.on_finished = [this](bool context_ok) {
+        if (!context_ok) {
+            spdlog::error("[{}] Failed to init BT context", get_name());
+            ToastManager::instance().show(ToastSeverity::ERROR,
+                                          lv_tr("Bluetooth initialization failed"));
+        }
+        bt_discovering_ = false;
+        lv_subject_set_int(&bt_scanning_subject_, 0);
+
+        if (overlay_root_) {
+            lv_obj_t* row = lv_obj_find_by_name(overlay_root_, "row_bt_printers");
+            if (row) {
+                lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
+                if (dropdown) {
+                    lv_dropdown_close(dropdown);
+                    if (bt_devices_.empty()) {
+                        lv_dropdown_set_options(dropdown, lv_tr("No Bluetooth printers found"));
+                    } else {
+                        // Refresh dropdown with final device list (handles case where
+                        // all discovered devices were already known — dropdown still
+                        // shows "Scanning..." without this)
+                        std::string options;
+                        for (const auto& d : bt_devices_) {
+                            if (!options.empty())
+                                options += "\n";
+                            options += bt_device_label(
+                                d.name, d.paired,
+                                d.mac == LabelPrinterSettingsManager::instance().get_bt_address(),
+                                d.connected);
                         }
+                        lv_dropdown_set_options(dropdown, options.c_str());
                     }
                 }
-
-                spdlog::info("[Label Printer] BT discovery finished, {} devices found",
-                             overlay->bt_devices_.size());
-            });
-        }).detach();
-    } catch (const std::system_error& e) {
-        spdlog::error("[{}] Failed to spawn BT discovery thread: {}", get_name(), e.what());
-        if (bt_discovery_ctx_) {
-            bt_discovery_ctx_->alive.store(false);
+            }
         }
+
+        spdlog::info("[Label Printer] BT discovery finished, {} devices found", bt_devices_.size());
+    };
+
+    if (!bt_discovery_.start(bt_ctx_, 15000, lifetime_.token(), std::move(callbacks))) {
         bt_discovering_ = false;
         lv_subject_set_int(&bt_scanning_subject_, 0);
         ToastManager::instance().show(ToastSeverity::ERROR,
@@ -1371,16 +1301,7 @@ void LabelPrinterSettingsOverlay::stop_bt_discovery() {
     if (!bt_discovering_)
         return;
 
-    // Invalidate the discovery context to prevent callbacks
-    if (bt_discovery_ctx_) {
-        bt_discovery_ctx_->alive.store(false);
-    }
-
-    auto& loader = helix::bluetooth::BluetoothLoader::instance();
-    if (bt_ctx_ && loader.stop_discovery) {
-        loader.stop_discovery(bt_ctx_);
-    }
-
+    bt_discovery_.cancel();
     bt_discovering_ = false;
     lv_subject_set_int(&bt_scanning_subject_, 0);
     spdlog::debug("[{}] Stopped Bluetooth discovery", get_name());
@@ -1421,23 +1342,22 @@ void LabelPrinterSettingsOverlay::handle_bt_printer_selected(int index) {
                     return;
                 }
 
-                if (!bt_ctx_) {
-                    ToastManager::instance().show(ToastSeverity::ERROR,
-                                                  lv_tr("Bluetooth not initialized"));
-                    return;
-                }
-
                 ToastManager::instance().show(ToastSeverity::INFO, lv_tr("Pairing..."), 5000);
 
                 auto token = lifetime_.token();
-                auto* bt_ctx = bt_ctx_;
+                auto shared_ctx = bt_ctx_;
 
                 // Pair on a detached thread
                 // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
                 try {
-                    std::thread([mac, bt_ctx, token]() {
+                    std::thread([mac, shared_ctx, token]() {
                         auto& ldr = helix::bluetooth::BluetoothLoader::instance();
-                        int ret = ldr.pair(bt_ctx, mac.c_str());
+                        auto* bt_ctx = shared_ctx->get();
+                        int ret = bt_ctx ? ldr.pair(bt_ctx, mac.c_str()) : -ENODEV;
+                        std::string err;
+                        if (ret != 0)
+                            err = bt_ctx && ldr.last_error ? ldr.last_error(bt_ctx)
+                                                           : "Bluetooth not initialized";
 
                         // Check paired/connected state on this worker thread (D-Bus
                         // calls can take seconds - must not block the UI thread)
@@ -1453,7 +1373,7 @@ void LabelPrinterSettingsOverlay::handle_bt_printer_selected(int index) {
 
                         helix::ui::queue_update(
                             "LabelPrinterSettingsOverlay::handle_bt_printer_selected",
-                            [ret, mac, token, bt_ctx, paired_r, connected]() {
+                            [ret, mac, token, err, paired_r, connected]() {
                                 if (token.expired())
                                     return;
 
@@ -1502,9 +1422,6 @@ void LabelPrinterSettingsOverlay::handle_bt_printer_selected(int index) {
                                         }
                                     }
                                 } else {
-                                    auto& ldr = helix::bluetooth::BluetoothLoader::instance();
-                                    const char* err =
-                                        ldr.last_error ? ldr.last_error(bt_ctx) : "Unknown error";
                                     spdlog::error("[LabelPrinterSettings] Pairing failed: {}", err);
                                     ToastManager::instance().show(ToastSeverity::ERROR,
                                                                   lv_tr("Pairing failed"), 3000);
@@ -1566,13 +1483,6 @@ void LabelPrinterSettingsOverlay::handle_bt_connect() {
     if (!loader.is_available())
         return;
 
-    // Ensure BT context
-    if (!bt_ctx_ && loader.init) {
-        bt_ctx_ = loader.init();
-    }
-    if (!bt_ctx_)
-        return;
-
     // Disable button while connecting
     if (overlay_root_) {
         lv_obj_t* btn = find_required(overlay_root_, "btn_bt_connect", get_name());
@@ -1581,22 +1491,22 @@ void LabelPrinterSettingsOverlay::handle_bt_connect() {
     }
 
     auto token = lifetime_.token();
-    auto* ctx = bt_ctx_;
+    auto shared_ctx = bt_ctx_;
 
     // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
     try {
-        std::thread([mac, ctx, token]() {
+        std::thread([mac, shared_ctx, token]() {
             auto& ldr = helix::bluetooth::BluetoothLoader::instance();
-            auto* init_ctx = ctx;
+            auto* init_ctx = shared_ctx->get();
             int ret = -1;
 
-            if (ldr.pair) {
+            if (init_ctx && ldr.pair) {
                 ret = ldr.pair(init_ctx, mac.c_str());
             }
 
             // If pair failed (device may have been removed from BlueZ cache),
             // try a brief scan to rediscover, then retry
-            if (ret < 0 && ldr.discover && ldr.pair) {
+            if (init_ctx && ret < 0 && ldr.discover && ldr.pair) {
                 spdlog::info("[LabelPrinterSettings] Pair failed, scanning to rediscover {}...",
                              helix::redact::mac(mac));
                 struct ScanCtx {

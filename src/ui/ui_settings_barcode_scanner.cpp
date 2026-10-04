@@ -41,21 +41,7 @@ struct RowData {
 // ============================================================================
 
 BarcodeScannerSettingsOverlay::~BarcodeScannerSettingsOverlay() {
-    // Singleton lifetime: this runs only at app shutdown via StaticPanelRegistry.
-    // stop_bt_discovery() signals the detached discovery thread to exit; the
-    // thread may still be inside loader.discover(bt_ctx_) when we reach
-    // loader.deinit(bt_ctx_) below. At process exit this is acceptable
-    // (kernel tears down); for any future path that destroys the singleton
-    // while the process continues, promote the discovery thread to joinable.
     stop_bt_discovery();
-
-    if (bt_ctx_) {
-        auto& loader = helix::bluetooth::BluetoothLoader::instance();
-        if (loader.deinit) {
-            loader.deinit(bt_ctx_);
-        }
-        bt_ctx_ = nullptr;
-    }
 }
 
 // ============================================================================
@@ -202,11 +188,9 @@ void BarcodeScannerSettingsOverlay::on_activate() {
     bt_devices_.clear();
     auto& loader = helix::bluetooth::BluetoothLoader::instance();
     if (loader.is_available() && loader.enumerate_known) {
-        if (!bt_ctx_ && loader.init)
-            bt_ctx_ = loader.init();
-        if (bt_ctx_) {
+        if (auto* ctx = bt_ctx_->get()) {
             loader.enumerate_known(
-                bt_ctx_,
+                ctx,
                 [](const helix_bt_device* dev, void* ud) {
                     if (!dev)
                         return;
@@ -473,17 +457,6 @@ void BarcodeScannerSettingsOverlay::start_bt_discovery() {
         return;
     }
 
-    // Initialize BT context if needed
-    if (!bt_ctx_ && loader.init) {
-        bt_ctx_ = loader.init();
-        if (!bt_ctx_) {
-            spdlog::error("[{}] Failed to init BT context", get_name());
-            ToastManager::instance().show(ToastSeverity::ERROR,
-                                          lv_tr("Bluetooth initialization failed"));
-            return;
-        }
-    }
-
     bt_discovering_ = true;
 
     // Keep already-paired devices; remove unpaired (stale discovery results)
@@ -498,79 +471,37 @@ void BarcodeScannerSettingsOverlay::start_bt_discovery() {
     populate_device_list();
     populate_bt_dropdown();
 
-    // Set up discovery context (shared_ptr so the detached thread keeps it alive)
-    bt_discovery_ctx_ = std::make_shared<BtDiscoveryContext>();
-    bt_discovery_ctx_->alive.store(true);
-    bt_discovery_ctx_->overlay = this;
-    bt_discovery_ctx_->token = lifetime_.token();
+    helix::bluetooth::DiscoveryRun::Callbacks callbacks;
+    callbacks.accept = [](const helix_bt_device& dev) { return dev.is_scanner; };
+    callbacks.on_device = [this](const helix::bluetooth::DiscoveredDevice& found) {
+        for (const auto& existing : bt_devices_) {
+            if (existing.mac == found.mac)
+                return;
+        }
+        BtDeviceInfo info;
+        info.mac = found.mac;
+        info.name = found.name;
+        info.paired = found.paired;
+        info.is_ble = found.is_ble;
+        bt_devices_.push_back(info);
+        spdlog::debug("[BarcodeScannerSettings] BT discovered: {} ({})", info.name,
+                      helix::redact::mac(info.mac));
+        populate_bt_dropdown();
+    };
+    callbacks.on_finished = [this](bool context_ok) {
+        if (!context_ok) {
+            spdlog::error("[{}] Failed to init BT context", get_name());
+            ToastManager::instance().show(ToastSeverity::ERROR,
+                                          lv_tr("Bluetooth initialization failed"));
+        }
+        bt_discovering_ = false;
+        lv_subject_set_int(&bt_discovering_subject_, 0);
+        spdlog::info("[BarcodeScannerSettings] BT discovery finished, {} scanner(s) found",
+                     bt_devices_.size());
+        populate_bt_dropdown();
+    };
 
-    auto disc_ctx = bt_discovery_ctx_; // shared_ptr copy for thread
-    auto* ctx = bt_ctx_;
-
-    // Wrap spawn in try/catch per feedback_no_bare_threads_arm.md (#724) —
-    // thread creation can fail on memory-constrained ARM targets.
-    try {
-        std::thread([ctx, disc_ctx]() {
-            auto& ldr = helix::bluetooth::BluetoothLoader::instance();
-            ldr.discover(
-                ctx, 15000,
-                [](const helix_bt_device* dev, void* user_data) {
-                    auto* dctx = static_cast<BtDiscoveryContext*>(user_data);
-                    if (!dctx->alive.load())
-                        return;
-
-                    if (!dev->is_scanner) {
-                        spdlog::trace("[BarcodeScannerSettings] Skipping non-scanner BT: {}",
-                                      dev->name ? dev->name : "(null)");
-                        return;
-                    }
-
-                    BtDeviceInfo info;
-                    info.mac = dev->mac ? dev->mac : "";
-                    info.name = dev->name ? dev->name : "Unknown";
-                    info.paired = dev->paired;
-                    info.is_ble = dev->is_ble;
-
-                    // Use tok.defer() — token holds its own shared_ptr; safe if
-                    // overlay is destroyed before the callback fires (#707).
-                    dctx->token->defer([dctx, info]() {
-                        if (!dctx->alive.load())
-                            return;
-                        auto* overlay = dctx->overlay;
-
-                        // Avoid duplicates by MAC
-                        bool found = false;
-                        for (const auto& existing : overlay->bt_devices_) {
-                            if (existing.mac == info.mac) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (!found) {
-                            overlay->bt_devices_.push_back(info);
-                            spdlog::debug("[BarcodeScannerSettings] BT discovered: {} ({})",
-                                          info.name, helix::redact::mac(info.mac));
-                            overlay->populate_bt_dropdown();
-                        }
-                    });
-                },
-                disc_ctx.get());
-
-            // Discovery completed (timeout or stopped)
-            disc_ctx->token->defer([disc_ctx]() {
-                if (!disc_ctx->alive.load())
-                    return;
-                auto* overlay = disc_ctx->overlay;
-                overlay->bt_discovering_ = false;
-                lv_subject_set_int(&overlay->bt_discovering_subject_, 0);
-                spdlog::info("[BarcodeScannerSettings] BT discovery finished, {} scanner(s) found",
-                             overlay->bt_devices_.size());
-                overlay->populate_bt_dropdown();
-            });
-        }).detach();
-    } catch (const std::system_error& e) {
-        spdlog::error("[{}] Failed to spawn BT discovery thread: {}", get_name(), e.what());
-        bt_discovery_ctx_->alive.store(false);
+    if (!bt_discovery_.start(bt_ctx_, 15000, lifetime_.token(), std::move(callbacks))) {
         bt_discovering_ = false;
         lv_subject_set_int(&bt_discovering_subject_, 0);
         ToastManager::instance().show(ToastSeverity::ERROR,
@@ -585,13 +516,7 @@ void BarcodeScannerSettingsOverlay::stop_bt_discovery() {
     if (!bt_discovering_)
         return;
 
-    if (bt_discovery_ctx_)
-        bt_discovery_ctx_->alive.store(false);
-
-    auto& loader = helix::bluetooth::BluetoothLoader::instance();
-    if (bt_ctx_ && loader.stop_discovery)
-        loader.stop_discovery(bt_ctx_);
-
+    bt_discovery_.cancel();
     bt_discovering_ = false;
     lv_subject_set_int(&bt_discovering_subject_, 0);
 
@@ -612,20 +537,25 @@ void BarcodeScannerSettingsOverlay::pair_bt_device(const std::string& mac,
             if (!loader.is_available() || !loader.pair) {
                 ToastManager::instance().show(ToastSeverity::ERROR,
                                               lv_tr("Bluetooth not available"));
-            } else if (!s_active_instance_ || !s_active_instance_->bt_ctx_) {
+            } else if (!s_active_instance_) {
                 ToastManager::instance().show(ToastSeverity::ERROR,
                                               lv_tr("Bluetooth not initialized"));
             } else {
                 ToastManager::instance().show(ToastSeverity::INFO, lv_tr("Pairing..."), 5000);
 
-                auto* bt_ctx = s_active_instance_->bt_ctx_;
+                auto shared_ctx = s_active_instance_->bt_ctx_;
                 auto token = s_active_instance_->lifetime_.token();
 
                 // Wrap spawn in try/catch per feedback_no_bare_threads_arm.md (#724).
                 try {
-                    std::thread([mac, name, bt_ctx, token]() {
+                    std::thread([mac, name, shared_ctx, token]() {
                         auto& ldr = helix::bluetooth::BluetoothLoader::instance();
-                        int ret = ldr.pair(bt_ctx, mac.c_str());
+                        auto* bt_ctx = shared_ctx->get();
+                        int ret = bt_ctx ? ldr.pair(bt_ctx, mac.c_str()) : -ENODEV;
+                        std::string err;
+                        if (ret < 0)
+                            err = bt_ctx && ldr.last_error ? ldr.last_error(bt_ctx)
+                                                           : "Bluetooth not initialized";
                         int paired_r = -1;
                         int bonded_r = -1;
                         // sd_bus_call_method returns any non-negative integer on success.
@@ -672,7 +602,7 @@ void BarcodeScannerSettingsOverlay::pair_bt_device(const std::string& mac,
 
                         helix::ui::queue_update(
                             "BarcodeScannerSettingsOverlay::pair_bt_device",
-                            [ret, mac, name, token, bt_ctx, paired_r, bonded_r, hid_ok]() {
+                            [ret, mac, name, token, err, paired_r, bonded_r, hid_ok]() {
                                 if (token.expired())
                                     return;
 
@@ -735,9 +665,6 @@ void BarcodeScannerSettingsOverlay::pair_bt_device(const std::string& mac,
                                         s_active_instance_->populate_bt_dropdown();
                                     }
                                 } else {
-                                    auto& ldr2 = helix::bluetooth::BluetoothLoader::instance();
-                                    const char* err =
-                                        ldr2.last_error ? ldr2.last_error(bt_ctx) : "Unknown error";
                                     spdlog::error("[BarcodeScannerSettings] Pairing failed: {}",
                                                   err);
                                     ToastManager::instance().show(ToastSeverity::ERROR,
