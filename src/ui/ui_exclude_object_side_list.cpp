@@ -4,8 +4,10 @@
 
 #include "ui_gcode_viewer.h"
 #include "ui_print_exclude_object_manager.h"
+#include "ui_row_text.h"
 #include "ui_utils.h"
 
+#include "color_utils.h"
 #include "display_numbering.h"
 #include "observer_factory.h"
 #include "printer_state.h"
@@ -220,74 +222,42 @@ void ExcludeObjectSideList::populate_rows() {
 
 void ExcludeObjectSideList::create_row(lv_obj_t* parent, int index, const std::string& name,
                                        bool is_excluded, bool is_current) {
-    lv_obj_t* row = lv_obj_create(parent);
-    lv_obj_set_width(row, lv_pct(100));
-    lv_obj_set_height(row, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(row, theme_manager_get_spacing("space_sm"), 0);
-    lv_obj_set_style_pad_gap(row, theme_manager_get_spacing("space_sm"), 0);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_radius(row, 6, 0);
-    lv_obj_set_style_bg_color(row, theme_manager_get_color("card_bg"), 0);
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(row, 0, 0);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    const bool clickable = !is_excluded && manager_;
 
-    // Numbered badge matching the map's index/coloring.
-    lv_obj_t* badge = lv_obj_create(row);
-    lv_obj_set_size(badge, 24, 24);
-    lv_obj_set_style_radius(badge, 12, 0);
-    lv_obj_set_style_bg_color(badge, color_for_index(index), 0);
-    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(badge, 0, 0);
-    lv_obj_set_style_pad_all(badge, 0, 0);
-    lv_obj_remove_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_remove_flag(badge, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(badge, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-    lv_obj_t* badge_label = lv_label_create(badge);
     char num_buf[8];
     snprintf(num_buf, sizeof(num_buf), "%d", lane_number(index));
-    lv_label_set_text(badge_label, num_buf);
-    lv_obj_set_style_text_color(badge_label, lv_color_white(), 0);
-    lv_obj_set_style_text_font(badge_label, theme_manager_get_font("font_small"), 0);
-    lv_obj_align(badge_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_flag(badge_label, LV_OBJ_FLAG_EVENT_BUBBLE);
+    const std::string badge_color =
+        helix::color_to_hex_string(lv_color_to_u32(color_for_index(index)));
 
-    lv_obj_t* label = lv_label_create(row);
-    lv_label_set_text(label, name.c_str());
-    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
-    lv_obj_set_flex_grow(label, 1);
-    lv_obj_set_style_text_font(label, theme_manager_get_font("font_body"), 0);
-    lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-    lv_obj_t* status = lv_label_create(row);
-    lv_obj_set_style_text_font(status, theme_manager_get_font("font_small"), 0);
-    lv_obj_add_flag(status, LV_OBJ_FLAG_EVENT_BUBBLE);
+    const char* status_text = "";
+    const char* status_color = "#text_muted";
     if (is_excluded) {
-        lv_label_set_text(status, lv_tr("Excluded"));
-        lv_obj_set_style_text_color(status, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_text_color(label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_opa(row, 150, 0);
+        status_text = lv_tr("Excluded");
     } else if (is_current) {
-        lv_label_set_text(status, lv_tr("Printing now"));
-        lv_obj_set_style_text_color(status, theme_manager_get_color("success"), 0);
-    } else {
-        lv_label_set_text(status, "");
+        status_text = lv_tr("Printing now");
+        status_color = "#success";
     }
 
-    if (!is_excluded && manager_) {
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    const char* attrs[] = {
+        "badge_text",    num_buf,
+        "badge_color",   badge_color.c_str(),
+        "name_color",    is_excluded ? "#text_muted" : "#text",
+        "status_text",   status_text,
+        "status_color",  status_color,
+        "row_opa",       is_excluded ? "150" : "255",
+        "row_clickable", clickable ? "true" : "false",
+        nullptr,
+    };
+    lv_obj_t* row = static_cast<lv_obj_t*>(lv_xml_create(parent, "exclude_object_row", attrs));
+    if (!row) {
+        return;
+    }
+    helix::ui::set_row_label_text(row, "object_name", name.c_str());
 
-        // L069: row was created via lv_obj_create (not lv_xml_create) so the
-        // user_data slot is ours to use. The helper owns the copy and frees it
-        // on LV_EVENT_DELETE.
-        if (helix::ui::set_owned_user_string(row, name)) {
-            lv_obj_add_event_cb(row, on_row_clicked, LV_EVENT_CLICKED, this);
-        }
-
-        lv_obj_set_style_bg_color(row, theme_manager_get_color("primary"), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, 80, LV_STATE_PRESSED);
+    // L069: the row is a plain lv_obj, so the user_data slot is ours. The
+    // helper owns the copy and frees it on LV_EVENT_DELETE.
+    if (clickable && helix::ui::set_owned_user_string(row, name)) {
+        lv_obj_add_event_cb(row, on_row_clicked, LV_EVENT_CLICKED, this);
     }
 }
 
