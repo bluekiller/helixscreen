@@ -325,12 +325,10 @@ class GCodeLayerRenderer {
     }
 
     /**
-     * @brief Get progress of streaming ghost build
+     * @brief Progress of the background ghost build
      *
-     * In streaming mode, ghost is built progressively in background.
-     * Returns 0.0 to 1.0 indicating build progress.
-     *
-     * @return Progress fraction, or 1.0 if complete/not applicable
+     * @return Layers the worker has drawn over the layers its pass visits,
+     *         0.0 to 1.0; 1.0 when no build is running
      */
     float get_ghost_build_progress() const;
 
@@ -786,7 +784,6 @@ class GCodeLayerRenderer {
     int ghost_cached_height_ = 0;
     bool ghost_cache_valid_ = false;
     std::atomic<bool> ghost_mode_enabled_{true}; // Enable ghost mode by default
-    int ghost_rendered_up_to_ = -1;              // Progress tracker for progressive ghost rendering
 
     // Progressive rendering - render N layers per frame to avoid blocking UI
     // These are defaults; actual values come from config or adaptive adjustment
@@ -882,6 +879,10 @@ class GCodeLayerRenderer {
     std::atomic<bool> ghost_thread_cancel_{false};
     std::atomic<bool> ghost_thread_running_{false};
     std::atomic<bool> ghost_thread_ready_{false}; // True when raw buffer is complete
+    /// Written by the worker: layers drawn so far, and the layers its pass
+    /// visits (the sampled count when streaming). 0 total = not planned yet.
+    std::atomic<int> ghost_layers_done_{0};
+    std::atomic<int> ghost_layers_total_{0};
 
     /// Start background ghost rendering (called when new gcode loaded)
     void start_background_ghost_render();

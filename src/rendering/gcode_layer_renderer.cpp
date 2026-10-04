@@ -660,7 +660,6 @@ void GCodeLayerRenderer::invalidate_cache() {
         lv_draw_buf_clear(ghost_buf_, nullptr);
     }
     ghost_cache_valid_ = false;
-    ghost_rendered_up_to_ = -1;
 }
 
 // ============================================================================
@@ -1052,7 +1051,6 @@ void GCodeLayerRenderer::destroy_ghost_cache() {
     ghost_cached_width_ = 0;
     ghost_cached_height_ = 0;
     ghost_cache_valid_ = false;
-    ghost_rendered_up_to_ = -1;
 }
 
 void GCodeLayerRenderer::ensure_ghost_cache(int width, int height) {
@@ -1945,6 +1943,8 @@ void GCodeLayerRenderer::start_background_ghost_render() {
     // Reset flags
     ghost_thread_cancel_.store(false);
     ghost_thread_ready_.store(false);
+    ghost_layers_done_.store(0);
+    ghost_layers_total_.store(0);
 
     // Claim the running flag BEFORE the worker can exist, never after. The
     // worker clears this same flag when it finishes, and std::thread's
@@ -1992,10 +1992,15 @@ void GCodeLayerRenderer::cancel_background_ghost_render() {
 // =============================================================================
 
 float GCodeLayerRenderer::get_ghost_build_progress() const {
-    // Background thread running: return 0.5 (in progress)
-    // Background thread ready: return 1.0 (complete)
-    // Otherwise: return 1.0 (nothing to do or already done)
-    return ghost_thread_ready_.load() ? 1.0f : (ghost_thread_running_.load() ? 0.5f : 1.0f);
+    if (ghost_thread_ready_.load() || !ghost_thread_running_.load()) {
+        return 1.0f;
+    }
+    const int total = ghost_layers_total_.load();
+    if (total <= 0) {
+        return 0.0f;
+    }
+    return std::clamp(static_cast<float>(ghost_layers_done_.load()) / static_cast<float>(total),
+                      0.0f, 1.0f);
 }
 
 bool GCodeLayerRenderer::is_ghost_build_complete() const {
@@ -2068,16 +2073,14 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
     // capture_ghost_snapshot() on the MAIN thread before the thread was spawned.
     // Read it from `snap`, never from a member.
     //
-    // The members that remain legal to touch below are exactly three, and all of
-    // them are safe by construction:
-    //   - ghost_thread_cancel_ / ghost_thread_ready_ / ghost_thread_running_,
-    //     which are atomics
+    // The members that remain legal to touch below are all safe by construction:
+    //   - ghost_thread_cancel_ / ghost_thread_ready_ / ghost_thread_running_ and
+    //     the ghost_layers_done_ / ghost_layers_total_ progress counters, which
+    //     are atomics
     //   - ghost_raw_buffer_ and its dimensions, which are only reallocated by
     //     start_background_ghost_render() after it has joined this thread
-    // Anything else is a data race, and this file used to have several: the
-    // capture block that lived here read color_extrusion_, tool_palette_, and
-    // the whole transform straight off the object, on this thread, while the
-    // main thread was free to be writing them.
+    // Anything else is a data race: the main thread is free to write the
+    // colors, palette and transform while this runs.
     // =========================================================================
     const TransformParams& transform = snap.transform;
     const bool local_show_travels = snap.show_travels;
@@ -2160,6 +2163,7 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
         spdlog::debug("[GCodeLayerRenderer] Ghost sampling {} of {} layers (every {})",
                       ghost_plan.count, total_layers, ghost_plan.step);
     }
+    ghost_layers_total_.store(ghost_plan.count);
 
     for (int sample = 0; sample < ghost_plan.count; ++sample) {
         const int layer_idx = sample * ghost_plan.step;
@@ -2266,6 +2270,7 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
         if (local_streaming) {
             std::this_thread::sleep_for(std::chrono::milliseconds(GHOST_STREAM_YIELD_MS));
         }
+        ghost_layers_done_.store(sample + 1);
     }
 
     // The ghost buffer is rendered whole on every pass, so the rim can be stamped

@@ -23,7 +23,7 @@
  *    lookup, with no string and no lock.
  *
  * 2. Invalidation scope. A highlight change used to call invalidate_cache(),
- *    which also clears the ghost cache and resets ghost_rendered_up_to_,
+ *    which also clears the ghost cache,
  *    restarting a multi-second background ghost render -- despite the ghost pass
  *    never rendering highlight at all. Exclusion must still invalidate ghost,
  *    because the ghost pass does dim excluded objects.

@@ -93,7 +93,7 @@ TEST_CASE("selection applied after the index map is built still classifies",
 
 // ---------------------------------------------------------------------------
 // Invalidation scope. A highlight change currently calls invalidate_cache(),
-// which also clears the ghost cache and resets ghost_rendered_up_to_, restarting
+// which also clears the ghost cache, restarting
 // a multi-second background ghost render — even though the ghost pass never
 // renders highlight at all (it handles exclusion only). Exclusion must still
 // invalidate ghost, because the ghost pass does dim excluded objects.
