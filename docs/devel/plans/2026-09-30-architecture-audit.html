@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 106 done, 12 in progress, 18 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 107 done, 11 in progress, 18 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -2106,9 +2106,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-4" data-tag="yagni" data-size="1.1" data-status="progress">
-<summary><span class="fid">TB-4</span><span class="chip t-yagni">yagni</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">chore/esp32-link-gate-detector-table</code><span class="ftitle">test_printer_detector.cpp is a 7,514-line data table written as code</span><span class="fimpact">adding a printer costs ~20 lines of C++</span></summary>
+<details class="f" id="TB-4" data-tag="yagni" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-4</span><span class="chip t-yagni">yagni</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">pending</code><span class="ftitle">test_printer_detector.cpp is a 7,514-line data table written as code</span><span class="fimpact">adding a printer costs ~20 lines of C++</span></summary>
 <div class="fbody">
+<p class="branch">note</p>
 <dl>
 <dt>Locations</dt><dd><code>tests/unit/test_printer_detector.cpp</code>, <code>tests/fixtures/printers/</code></dd>
 <dt>Evidence</dt><dd>223 <code>PrinterDetector::detect(</code> calls, 171 inline <code>PrinterHardwareData</code>, 169 identical <code>CAPTURE(result.type_name, result.confidence, ...)</code> lines, 136 <code>REQUIRE(result.type_name == "...")</code>; each case ~20 lines of the same frame. A corpus already exists: 12 JSON files in <code>tests/fixtures/printers/</code> consumed by the same test file. 63 commits since June.</dd>
