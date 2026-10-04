@@ -82,6 +82,12 @@ class BeltPanelFixture : public XMLTestFixture {
         panel_->init_subjects();
         panel_->set_api(&client_, &api_);
         panel_->set_render_tier_for_test(tier, true);
+        // The panel is a process-wide singleton, so a memory reading one case
+        // injected would otherwise make the next case's Start ask about low RAM.
+        helix::MemoryInfo roomy;
+        roomy.total_kb = 4 * 1024 * 1024;
+        roomy.available_kb = 3 * 1024 * 1024;
+        panel_->set_memory_for_test(roomy);
 
         helix::ui::register_belt_path_sketch_widget();
         REQUIRE(register_component("header_bar"));
