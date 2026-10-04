@@ -340,20 +340,3 @@ class Application {
     /// Display invalidation suppressed while the launcher's splash owns the framebuffer
     helix::InvalidationSuppression m_splash_invalidation_suppression;
 };
-
-namespace helix {
-
-/// Snapshot @p path into a fixed static buffer so the SIGTERM handler can
-/// unlink(2) the crash-restart marker without constructing anything. Must be
-/// called on the main thread at startup, before the handler can fire. A path
-/// that does not fit is rejected (the handler then does nothing).
-/// @return true if the path was cached.
-bool cache_crash_marker_path_for_signal(const std::string& path);
-
-/// Delete the crash-restart marker using only async-signal-safe calls.
-/// Callable from a signal handler: no allocation, no std::filesystem, no
-/// locking — just unlink(2) on the pre-cached path. A no-op when the path was
-/// never cached.
-void clear_crash_marker_signal_safe();
-
-} // namespace helix
