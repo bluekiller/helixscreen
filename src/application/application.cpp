@@ -14,6 +14,7 @@
 #include "application.h"
 
 #include "detect_printer_cmd.h"
+#include "discovery_steps.h"
 #include "env_knobs.h"
 
 // Private LVGL header needed to read display->flush_cb for splash no-op swap
@@ -2449,296 +2450,27 @@ void Application::setup_discovery_callbacks() {
             app->m_splash_manager.on_discovery_complete();
             spdlog::info("[Application] Moonraker discovery complete, splash can exit");
 
-            // The app started successfully: clear the self-update sentinel and
-            // listen for Moonraker finishing an update of HelixScreen.
-            UpdateChecker::instance().on_connected(*client);
-
-            // Move snapshot into set_hardware (by-value param) so no hash-table
-            // copy iterates against a live, potentially-mutated api->hardware_ (#799).
-            // After this point *snapshot is empty — use api->hardware() for reads.
-            const auto& hw = api->hardware();
-            crash_handler::breadcrumb::note("disc", "pre_set_hw",
-                                            static_cast<long>(snapshot->macros().size()));
-            get_printer_state().set_hardware(std::move(*snapshot));
-            crash_handler::breadcrumb::note("disc", "post_set_hw", n);
-            const auto& fans = hw.fans();
-            get_printer_state().init_fans(
-                fans, helix::FanRoleConfig::from_config(Config::get_instance(), fans),
-                hw.fan_max_power());
-            crash_handler::breadcrumb::note("disc", "post_init_fans",
-                                            static_cast<long>(hw.fans().size()));
-
-            // Turn on the firmware's own z-offset persistence, at most once per
-            // printer and only when idle. Some firmwares store the offset
-            // themselves and re-apply it at print start only when their own
-            // setting says to, so with that setting off an adjustment made here
-            // does not survive. Whether to send, what to send, and recording that
-            // it went out all live behind claim_persistence_enable() in
-            // include/z_offset_persistence.h.
-            //
-            // The print_active subject is not yet applied from this discovery's
-            // status (see the reconfig-wizard gate below), so consult
-            // status_snapshot directly to avoid injecting gcode over a live print.
-            {
-                bool print_active =
-                    lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0;
-                if (status_snapshot &&
-                    helix::PrinterPrintState::status_indicates_active_print(*status_snapshot)) {
-                    print_active = true;
-                }
-                const std::string enable_gcode =
-                    helix::zoffset::persistence_enable_gcode(api->hardware());
-                if (!enable_gcode.empty() && helix::zoffset::claim_persistence_enable(
-                                                 Config::get_instance(), api->hardware(),
-                                                 status_snapshot.get(), print_active)) {
-                    spdlog::info("[ZOffset] Enabling firmware z-offset persistence ({})",
-                                 helix::zoffset::persistence_provider_name(api->hardware()));
-                    // Fire-and-forget: callbacks are LOG-ONLY and capture nothing that
-                    // can dangle, so the background response thread is lifetime-safe.
-                    api->execute_gcode(
-                        enable_gcode,
-                        []() { spdlog::info("[ZOffset] Firmware z-offset persistence enabled"); },
-                        [](const MoonrakerError& err) {
-                            spdlog::warn("[ZOffset] Failed to enable z-offset persistence: {}",
-                                         err.message);
-                            // The claim was recorded before the send so a second
-                            // discovery could not inject the same gcode. It did not
-                            // land, so hand the one shot back or this printer is
-                            // never told for the life of the install. Marshalled:
-                            // this runs on the response thread and Config is not
-                            // synchronised.
-                            helix::ui::queue_update("zoffset_release_claim", []() {
-                                helix::zoffset::release_persistence_enable(Config::get_instance());
-                            });
-                        },
-                        0, /*silent=*/true, /*on_queued=*/nullptr,
-                        /*caller_surfaces_errors=*/false);
-                }
-            }
-
-            // Seed temperature graphs from Moonraker's cached history. Fired after
-            // init_fans so heater/sensor subjects exist.
-            helix::TempGraphController::seed_from_moonraker(*client);
-
-            // Dispatch initial subscription status AFTER init_fans so fan/sensor subjects
-            // exist when the status data is processed. The initial status is passed from the
-            // discovery sequence rather than dispatched separately to guarantee ordering.
-            // Flagged as a cached snapshot: it was captured on the background
-            // thread when the subscribe response landed and has been carried
-            // through the rest of discovery, so it can be seconds stale by the
-            // time it lands here. Live WebSocket frames have been updating the
-            // same state the whole time — this replay must not walk a liveness
-            // signal (klippy state) backwards.
-            if (!(*status_snapshot).empty()) {
-                client->dispatch_status_update((*status_snapshot), /*from_cached_snapshot=*/true);
-            }
-            crash_handler::breadcrumb::note("disc", "post_status_dispatch", n);
-
-            get_printer_state().set_klipper_version(hw.software_version());
-            get_printer_state().set_moonraker_version(hw.moonraker_version());
-            if (!hw.os_version().empty()) {
-                get_printer_state().set_os_version(hw.os_version());
-            }
-
-            // Populate LED chips now that hardware is discovered.
-            // Gated on hw_changed — LED chip topology doesn't change reconnect-to-
-            // reconnect unless the hardware shape changed, and populate_led_chips
-            // fires LED capability subjects that cascade into panel rebuilds.
-            if (hw_changed) {
-                get_global_settings_panel().populate_led_chips();
-            }
-            crash_handler::breadcrumb::note("disc", "post_led_chips", n);
-
-            // Fetch print hours now that connection is live, and refresh on job changes
-            helix::settings::get_about_settings_overlay().attach_print_hours(*client);
-
-            // Register for timelapse events when timelapse is detected
-            helix::TimelapseState::instance().attach(*client);
-
-            // Subscribe to power device and sensor state change notifications
-            if (api) {
-                helix::PowerDeviceState::instance().subscribe(*api);
-                helix::SensorState::instance().subscribe(*api);
-            }
-            crash_handler::breadcrumb::note("disc", "post_subscribe", n);
-
-            // Auto-detect printer type if not already set (e.g., fresh install with preset).
-            // MUST run BEFORE HardwareValidator::validate — otherwise the validator checks
-            // the scaffolded defaults (fans/part="fan", fans/hotend="heater_fan hotend_fan")
-            // against the discovered hardware and flags them as missing, even though the
-            // preset that's about to be applied would map those slots to the correct
-            // device-specific names. Runs even while the wizard is active so the preset
-            // lands BEFORE the wizard hits its connection / printer-identify steps —
-            // that's the only path for preset_mode to become true on a fresh install of
-            // a known printer like the ForgeX AD5M Pro. auto_detect_and_save self-guards
-            // on PRINTER_TYPE already being set, so a user's manual pick in the identify
-            // step (which writes PRINTER_TYPE on cleanup) won't be overwritten by a later
-            // discovery callback.
-            //
-            // Gated on hw_changed — printer type detection is purely a function of the
-            // hardware shape, so re-running on a reconnect with unchanged hardware would
-            // produce the same result (and trigger config writes + subjects).
-            // NOTE: use api->hardware() — snapshot was std::move'd into it above (#789).
-            // Reading *snapshot here would pass an empty/moved-from PrinterDiscovery and
-            // detection would fail with "0 sensors, 0 fans, hostname ''" (#802).
-            if (hw_changed) {
-                PrinterDetector::auto_detect_and_save(api->hardware(), Config::get_instance());
-            }
-
-            // Auto-heal + persist heater roles (batched single save, symmetry with fan roles
-            // above). Ensures the validator sees resolved heater names so it does not emit a
-            // toast every boot for a stale saved role that has a confident replacement.
-            // Gated on hw_changed — healing is purely a function of heater hardware shape.
-            if (hw_changed) {
-                helix::heal_heater_roles(Config::get_instance(), hw.heaters());
-            }
-
-            // Pay off a hardware snapshot the wizard deferred because Klipper was
-            // down during setup (#1160). Everything discovered now was present all
-            // along, so accepting it BEFORE validate() keeps this first successful
-            // discovery clean instead of reporting every fan, filament sensor and
-            // LED as newly appeared. The marker itself is cleared only once the
-            // user answers the offer below, so a session killed before answering
-            // still gets asked next boot.
-            const bool hardware_setup_deferred =
-                helix::wizard_hardware_setup_deferred(Config::get_instance());
-            if (hardware_setup_deferred && !Config::get_instance()->is_wizard_required() &&
-                !is_wizard_active()) {
-                size_t accepted = HardwareValidator::acknowledge_discovered_hardware(
-                    Config::get_instance(), api->hardware());
-                spdlog::info("[Application] Deferred wizard hardware snapshot written "
-                             "({} object(s) accepted)",
-                             accepted);
-            }
-
-            // Hardware validation: check config expectations vs discovered hardware.
-            // Now uses the post-preset config so preset-mapped fan/heater names are
-            // checked against discovery, not the pre-preset scaffolded defaults.
-            HardwareValidator validator;
-            auto validation_result = validator.validate(Config::get_instance(), api->hardware());
-            get_printer_state().set_hardware_validation_result(validation_result);
-
-            // Gated on hw_changed — without this guard, any hardware issue toast
-            // (e.g. "expected fan not found") would re-fire on every reconnect even
-            // when nothing has changed. validate() still runs (cheap, caches result,
-            // updates the validation_result subject for the UI); only the user-facing
-            // notify is suppressed on unchanged hardware. The validator's session
-            // snapshot below tracks state across runs regardless.
-            if (validation_result.has_issues() && hw_changed &&
-                !Config::get_instance()->is_wizard_required() && !is_wizard_active()) {
-                validator.notify_user(validation_result);
-            }
-
-            // The print_active subject is NOT yet updated from this discovery's initial
-            // status — dispatch_status_update() above only QUEUES the status
-            // (m_notification_queue); print_active_ is applied a tick later in
-            // process_notifications, AFTER this queue_update returns. On a fresh
-            // connection mid-print (app/panel restart during a print) the subject
-            // still reads its initialized 0. Consult the just-arrived status directly
-            // so a wizard never launches over a live print.
-            bool print_active =
-                lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0;
-            if (status_snapshot &&
-                helix::PrinterPrintState::status_indicates_active_print(*status_snapshot)) {
-                print_active = true;
-            }
-            app->m_prompter.run_discovery_prompts(hw, hw_changed, print_active,
-                                                  hardware_setup_deferred);
-
-            // Save session snapshot for next comparison (even if no issues)
-            validator.save_session_snapshot(Config::get_instance(), api->hardware());
-            crash_handler::breadcrumb::note("disc", "post_validate", n);
-
-            // Record telemetry session event now that hardware data is available
-            // (hardware_profile is deferred until after build volume is fetched below).
-            // record_session always runs (counts sessions, including reconnects).
-            // settings_snapshot + memory_snapshot are gated on hw_changed — they
-            // capture a fingerprint of the current config + heap state for telemetry,
-            // and would just re-record identical data on a reconnect with unchanged
-            // hardware.
-            TelemetryManager::instance().record_session();
-            if (hw_changed) {
-                TelemetryManager::instance().record_settings_snapshot();
-                TelemetryManager::instance().record_memory_snapshot("session_start");
-            }
-            crash_handler::breadcrumb::note("disc", "post_telemetry", n);
-
-            // Fetch safety limits and build volume from Klipper config (stepper ranges,
-            // min_extrude_temp, max_temp, etc.) — runs for ALL discovery completions
-            // (normal startup AND post-wizard) so we don't duplicate this in callers
-            if (api) {
-                IMoonrakerAPI* api_ptr = api;
-                api_ptr->update_safety_limits_from_printer(
-                    [api_ptr]() {
-                        // A copy: the panel reads it later, on the main thread.
-                        const SafetyLimits limits = api_ptr->get_safety_limits();
-
-                        helix::ui::queue_update([limits]() {
-                            get_global_filament_panel().set_limits(limits);
-                            spdlog::debug("[Application] Safety limits propagated to panels");
-                        });
-
-                        // Apply archetype-based thermal rate defaults using build volume
-                        // Must marshal to main thread — runs in JSONRPC response callback
-                        float bed_x_max = api_ptr->hardware().build_volume().x_max;
-                        helix::ui::queue_update([bed_x_max]() {
-                            ThermalRateManager::instance().apply_archetype_defaults(
-                                bed_x_max, get_printer_state().get_printer_type());
-                        });
-
-                        // Record hardware profile after build volume is populated
-                        TelemetryManager::instance().record_hardware_profile();
-                    },
-                    [](const MoonrakerError& err) {
-                        spdlog::warn("[Application] Failed to fetch safety limits: {}",
-                                     err.message);
-                        // Record hardware profile anyway, just without build volume
-                        TelemetryManager::instance().record_hardware_profile();
-                    });
-            }
-
-            // Detect helix_print plugin during discovery (not UI-initiated)
-            // This ensures plugin status is known early for UI gating
-            api->job().check_helix_plugin(
-                [](bool available) { get_printer_state().set_helix_plugin_installed(available); },
-                [](const MoonrakerError&) {
-                    // Silently treat errors as "plugin not installed"
-                    get_printer_state().set_helix_plugin_installed(false);
-                });
-
-            // Mirror Moonraker's active Spoolman spool onto the external slot and the
-            // active tool, now and whenever it changes.
-            helix::spoolman_sync::attach(*client, api->spoolman());
-
-            // Fetch job queue now that WebSocket is actually connected
-            if (app->m_job_queue_state) {
-                app->m_job_queue_state->fetch();
-            }
-
-            helix::settle_light_buttons();
-
-            // Start automatic update checks (15s initial delay, then every 24h)
-            UpdateChecker::instance().start_auto_check();
-
-            // Auto-navigate to Z-Offset Calibration if manual probe is already active
-            // (e.g., PROBE_CALIBRATE started from Mainsail or console before HelixScreen launched)
-            // Deferred one tick: status updates from the subscription response are queued
-            // via ui_queue_update and may not have landed yet at this point.
-            IMoonrakerAPI* api_ptr_zoffset = api;
-            lv_obj_t* screen = app->m_screen;
-            helix::ui::queue_update([api_ptr_zoffset, screen]() {
-                auto& ps = get_printer_state();
-                int probe_active = lv_subject_get_int(ps.get_manual_probe_active_subject());
-                spdlog::info("[Application] Checking manual_probe at startup: is_active={}",
-                             probe_active);
-                if (probe_active == 1) {
-                    spdlog::info("[Application] Manual probe active at startup, auto-opening "
-                                 "Z-Offset Calibration");
-                    auto& overlay = get_global_zoffset_cal_panel();
-                    overlay.set_api(api_ptr_zoffset);
-                    overlay.show(screen);
-                }
-            });
+            // Everything below reads the hardware from api->hardware(): the snapshot is
+            // moved into PrinterState by the set_hardware step and is empty afterwards.
+            // The print_active subject is not yet updated from this discovery's initial
+            // status (dispatch_status_update only queues it), so the status itself decides
+            // whether a print is running: a wizard or a gcode send must never land over a
+            // live print on a mid-print reconnect.
+            helix::DiscoveryContext ctx{
+                *api,
+                *client,
+                api->hardware(),
+                *snapshot,
+                *status_snapshot,
+                app->m_prompter,
+                app->m_job_queue_state.get(),
+                app->m_screen,
+                n,
+                hw_changed,
+                helix::discovery_print_active(
+                    lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0,
+                    *status_snapshot)};
+            helix::run_discovery_steps(ctx);
         });
     });
 }
