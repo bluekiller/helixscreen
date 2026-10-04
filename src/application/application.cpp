@@ -65,7 +65,7 @@
 #include "screenshot.h"
 #include "sensor_state.h"
 #include "sound_manager.h"
-#include "spoolman_manager.h"
+#include "spoolman_active_spool_sync.h"
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
 #include "subject_initializer.h"
@@ -3067,200 +3067,9 @@ void Application::setup_discovery_callbacks() {
                     get_printer_state().set_helix_plugin_installed(false);
                 });
 
-            // Auto-assign a Spoolman spool to the active toolchanger tool when
-            // no per-tool assignment has been persisted (Moonraker DB or local
-            // JSON). Must run on the UI thread (called from queue_update lambdas).
-            auto try_assign_active_spool_to_tool = [](const SpoolInfo& spool) {
-                auto* backend = AmsState::instance().get_backend();
-                if (!backend || !backend->supports_per_tool_spool_assignment())
-                    return;
-
-                auto& tool_state = helix::ToolState::instance();
-                if (!tool_state.spool_assignments_loaded())
-                    return; // assignments haven't loaded yet — can't safely auto-assign
-
-                int tool_idx = tool_state.active_tool_index();
-                if (tool_idx < 0)
-                    return;
-
-                const auto& tools = tool_state.tools();
-                if (tool_idx >= static_cast<int>(tools.size()))
-                    return;
-
-                if (tools[tool_idx].spoolman_id > 0)
-                    return; // already has an assignment
-
-                tool_state.assign_spool(tool_idx, spool.id, spool.display_name(),
-                                        static_cast<float>(spool.remaining_weight_g),
-                                        static_cast<float>(spool.initial_weight_g));
-                AmsState::instance().sync_from_backend();
-                spdlog::info("[Application] Auto-assigned Spoolman spool {} to "
-                             "toolchanger tool {}",
-                             spool.id, tool_idx);
-            };
-
-            // Populate the external spool slot from a SpoolInfo and queue the
-            // result to the UI thread. Used by both startup sync and live
-            // notification paths.
-            auto sync_external_spool = [try_assign_active_spool_to_tool](const SpoolInfo& spool,
-                                                                         std::string log_context) {
-                helix::ui::queue_update([spool, try_assign_active_spool_to_tool,
-                                         log_context = std::move(log_context)]() {
-                    // Tool-changer auto-assign runs BEFORE the bypass gate, not
-                    // after it. The gate passes only when
-                    // active_spool_describes_bypass() is true, which is
-                    // `no backend || any_bypass_active()` — and every backend that
-                    // answers supports_per_tool_spool_assignment() (TOOL_CHANGER,
-                    // SNAPMAKER) hardcodes is_bypass_active() to false. Downstream
-                    // of the gate the assign therefore required "a backend exists"
-                    // and "no backend exists" at once, so it never ran on a real
-                    // changer. The two concerns are independent: the gate is about
-                    // which slot owns the EXTERNAL spool record, this is about
-                    // which spool is mounted on the active TOOL. Its own guards
-                    // (per-tool support, assignments loaded, valid index, not
-                    // already assigned) are what decide whether it acts.
-                    try_assign_active_spool_to_tool(spool);
-
-                    // An AMS slot assignment sets Moonraker's global active spool
-                    // too, so mirroring it onto the bypass unconditionally used to
-                    // overwrite the bypass with whichever lane was assigned last.
-                    if (!AmsState::instance().active_spool_describes_bypass()) {
-                        spdlog::debug("[Application] Active spool {} belongs to a lane, not the "
-                                      "bypass — not syncing external spool",
-                                      spool.id);
-                        return;
-                    }
-                    // This record is the freshest view of the spool we will get
-                    // — it arrives from the startup sync and from every
-                    // notify_active_spool_set. Refresh the identity side
-                    // channel from it (invalidate first: cache_identity() is
-                    // insert-if-absent, so a stale entry would win otherwise).
-                    SpoolmanManager::invalidate_identity(spool.id);
-                    if (SpoolmanManager::cache_identity(spool)) {
-                        // Tell the label consumers a name they could not resolve
-                        // before is available now (#1264).
-                        AmsState::instance().bump_slots_version();
-                    }
-
-                    SlotInfo slot;
-                    slot.slot_index = -2;
-                    slot.global_index = -2;
-                    // apply_spool_to_slot() owns the whole identity copy,
-                    // multi-colour included. Overwriting spool_name with
-                    // display_name() here used to put "Polymaker PLA - Jet
-                    // Black" on a field the lane_data schema, AFC and Happy
-                    // Hare all read as the bare filament name.
-                    apply_spool_to_slot(slot, spool);
-                    AmsState::instance().set_external_spool_info(slot);
-                    spdlog::info("[Application] External spool {}: {} (id={})", log_context,
-                                 slot.spool_name, slot.spoolman_id);
-                });
-            };
-
-            // Sync external spool from Moonraker's active Spoolman spool
-            // This ensures the filament panel shows the correct spool on startup,
-            // even if the active spool was changed via Spoolman's web UI or another client
-            {
-                IMoonrakerAPI* api_for_spool = api;
-                api_for_spool->spoolman().get_spoolman_status(
-                    [api_for_spool, sync_external_spool](bool connected, int active_spool_id) {
-                        if (!connected || active_spool_id <= 0) {
-                            spdlog::debug("[Application] No active Spoolman spool to sync "
-                                          "(connected={}, spool_id={})",
-                                          connected, active_spool_id);
-                            return;
-                        }
-
-                        // Check if existing external spool already matches
-                        auto existing = AmsState::instance().get_external_spool_info();
-                        if (existing && existing->spoolman_id == active_spool_id) {
-                            spdlog::debug("[Application] External spool already matches active "
-                                          "Spoolman spool {}",
-                                          active_spool_id);
-                            return;
-                        }
-
-                        // Fetch spool details and populate external spool
-                        spdlog::info("[Application] Syncing external spool from Moonraker active "
-                                     "spool {}",
-                                     active_spool_id);
-                        api_for_spool->spoolman().get_spoolman_spool(
-                            active_spool_id,
-                            [active_spool_id,
-                             sync_external_spool](const std::optional<SpoolInfo>& spool_opt) {
-                                if (!spool_opt) {
-                                    spdlog::warn("[Application] Active spool {} not found in "
-                                                 "Spoolman",
-                                                 active_spool_id);
-                                    return;
-                                }
-                                sync_external_spool(*spool_opt, "synced");
-                            },
-                            [active_spool_id](const MoonrakerError& err) {
-                                spdlog::warn("[Application] Failed to fetch active spool {}: {}",
-                                             active_spool_id, err.message);
-                            });
-                    },
-                    [](const MoonrakerError& err) {
-                        spdlog::debug("[Application] Spoolman status unavailable: {}", err.message);
-                    },
-                    true); // silent: Spoolman not configured is normal
-            }
-
-            // Listen for Moonraker active spool changes (user changes spool in
-            // Spoolman web UI or another client while HelixScreen is running)
-            {
-                IMoonrakerAPI* api_for_notify = api;
-                client->register_method_callback(
-                    "notify_active_spool_set", "external_spool_sync",
-                    [api_for_notify, sync_external_spool](const nlohmann::json& data) {
-                        // Callback receives full JSON-RPC message — extract params
-                        const auto& params_arr = data.contains("params") ? data["params"] : data;
-                        int spool_id = 0;
-                        if (params_arr.is_array() && !params_arr.empty()) {
-                            const auto& params = params_arr[0];
-                            if (params.contains("spool_id") && !params["spool_id"].is_null()) {
-                                spool_id = params["spool_id"].get<int>();
-                            }
-                        }
-
-                        if (spool_id <= 0) {
-                            // Same global-vs-bypass confusion as the sync arm, with
-                            // a worse blast radius: clearing an AMS lane makes
-                            // commit_slot_edit post set_active_spool(0), which comes
-                            // straight back as this notification. Taken at face
-                            // value it erased the whole bypass record — one tap on a
-                            // lane's "Clear Spool" and the user's bypass assignment
-                            // was gone.
-                            helix::ui::queue_update([]() {
-                                auto& ams = AmsState::instance();
-                                if (!ams.active_spool_describes_bypass()) {
-                                    spdlog::debug("[Application] Active spool cleared for a lane, "
-                                                  "not the bypass — keeping external spool");
-                                    return;
-                                }
-                                spdlog::info("[Application] Active spool cleared via notification");
-                                ams.clear_external_spool_info();
-                            });
-                            return;
-                        }
-
-                        spdlog::info("[Application] Active spool changed to {} via notification",
-                                     spool_id);
-                        api_for_notify->spoolman().get_spoolman_spool(
-                            spool_id,
-                            [spool_id,
-                             sync_external_spool](const std::optional<SpoolInfo>& spool_opt) {
-                                if (!spool_opt)
-                                    return;
-                                sync_external_spool(*spool_opt, "updated via notification");
-                            },
-                            [spool_id](const MoonrakerError& err) {
-                                spdlog::warn("[Application] Failed to fetch notified spool {}: {}",
-                                             spool_id, err.message);
-                            });
-                    });
-            }
+            // Mirror Moonraker's active Spoolman spool onto the external slot and the
+            // active tool, now and whenever it changes.
+            helix::spoolman_sync::attach(*client, api->spoolman());
 
             // Fetch job queue now that WebSocket is actually connected
             if (app->m_job_queue_state) {
@@ -4356,8 +4165,7 @@ void Application::teardown_printer_scope(TeardownScope scope) {
         helix::TimelapseState::instance().detach(*m_moonraker->client());
         UpdateChecker::instance().detach(*m_moonraker->client());
         helix::settings::get_about_settings_overlay().detach_print_hours(*m_moonraker->client());
-        m_moonraker->client()->unregister_method_callback("notify_active_spool_set",
-                                                          "external_spool_sync");
+        helix::spoolman_sync::detach(*m_moonraker->client());
         m_moonraker->client()->unregister_method_callback("notify_gcode_response", "layer_tracker");
     }
 

@@ -681,7 +681,6 @@ std::set<MethodHandler> extract_method_callback_pairs(const std::string& body, b
 // teardown calls each one.
 const std::vector<MethodHandler>& handlers_requiring_teardown() {
     static const std::vector<MethodHandler> handlers = {
-        {"notify_active_spool_set", "external_spool_sync"},
         {"notify_gcode_response", "layer_tracker"},
     };
     return handlers;
@@ -693,6 +692,7 @@ const std::vector<std::string>& detach_calls_required_in_teardown() {
         "TimelapseState::instance().detach(",
         "UpdateChecker::instance().detach(",
         "detach_print_hours(",
+        "spoolman_sync::detach(",
     };
     return calls;
 }
