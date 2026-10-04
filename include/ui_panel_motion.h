@@ -333,14 +333,6 @@ class MotionPanel : public OverlayBase {
     /// Stop tracking the finger: no press, no drag target, readout at rest.
     void end_bed_gesture();
 
-    /// Commanded Z as the acks have moved it, until a status frame reports
-    /// the new position: an ack lands before the frame that carries its Z.
-    std::optional<double> acked_z_;
-    /// Best known commanded Z: the acked one while a frame is outstanding.
-    double commanded_z() const;
-    /// Advance acked_z_ by a move the printer just acknowledged.
-    void note_acked_z(const helix::JogCoalescer::CoalescedMove& move);
-
     /// Send one of the current gesture's targets, lifting only on the first.
     void send_bed_gesture_target(const helix::AxisTarget& target);
 

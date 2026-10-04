@@ -665,8 +665,6 @@ void MotionPanel::register_position_observers() {
             if (!self->subjects_initialized_)
                 return;
             self->gcode_z_centimm_ = centimm;
-            // A fresh frame supersedes whatever the acks predicted.
-            self->acked_z_.reset();
             self->current_z_ = static_cast<float>(helix::units::from_centimm(centimm));
             self->refresh_position_display();
             self->update_z_button_blocked();
@@ -1095,7 +1093,7 @@ bool MotionPanel::dispatch_target(const helix::AxisTarget& target) {
         target, static_cast<double>(bounds.x_min), static_cast<double>(bounds.x_max),
         static_cast<double>(bounds.y_min), static_cast<double>(bounds.y_max), z_range);
 
-    target_start_z_ = jog_coalescer_.target_start_z(commanded_z());
+    target_start_z_ = jog_coalescer_.target_start_z(current_z_);
     if (auto immediate = jog_coalescer_.on_target(clamped)) {
         return send_jog_move(*immediate);
     }
@@ -1120,12 +1118,12 @@ bool MotionPanel::send_jog_move(const helix::JogCoalescer::CoalescedMove& move) 
     const double z_feedrate = static_cast<double>(helix::effective_jog_speed_mm_min(
         settings.get_jog_speed_z(), limits.min_feedrate_mm_min, limits.max_feedrate_mm_min));
 
-    auto on_ack = lifetime_.bg_cb("MotionPanel::on_jog_ack", [this, move]() {
-        note_acked_z(move);
+    auto on_ack = lifetime_.bg_cb("MotionPanel::on_jog_ack", [this]() {
         if (auto flush = jog_coalescer_.on_ack()) {
             send_jog_move(*flush);
         }
-        // The lift the Bed tab announces follows the commanded Z just acked.
+        // An ack changes where the next target starts (target_start_z), and
+        // with it the lift the Bed tab announces.
         refresh_bed_readout();
     });
     auto on_error = lifetime_.bg_cb("MotionPanel::on_jog_error", [this](const MoonrakerError& err) {
@@ -1396,7 +1394,8 @@ void MotionPanel::park_over_plate(bool lift_z) {
         return;
     }
     if (lift_z && gcode.has_z) {
-        target->z = std::min(commanded_z() + PARK_Z_LIFT_MM, static_cast<double>(gcode.z_max));
+        target->z = std::min(static_cast<double>(current_z_) + PARK_Z_LIFT_MM,
+                             static_cast<double>(gcode.z_max));
     }
     dispatch_target(*target);
 }
@@ -1453,7 +1452,7 @@ std::optional<double> MotionPanel::bed_lift_z() {
         return std::nullopt;
     }
     return helix::bed_map_lift_z(
-        jog_coalescer_.target_start_z(commanded_z()),
+        jog_coalescer_.target_start_z(current_z_),
         static_cast<double>(SettingsManager::instance().get_bed_map_clearance_mm()),
         static_cast<double>(bounds.z_max));
 }
@@ -1510,7 +1509,7 @@ void MotionPanel::refresh_bed_readout() {
     if (const auto lift = bed_lift_z()) {
         char z_buf[16];
         char lift_buf[16];
-        format_axis_value(z_buf, sizeof(z_buf), static_cast<float>(commanded_z()));
+        format_axis_value(z_buf, sizeof(z_buf), current_z_);
         format_distance_label(lift_buf, sizeof(lift_buf), static_cast<float>(*lift));
         if (!text.empty()) {
             text += "  ";
@@ -1626,20 +1625,6 @@ void MotionPanel::commit_bed_target(helix::AxisTarget target, std::optional<doub
                  target.y.value_or(0.0),
                  target.z ? fmt::format(" (lift Z{:.2f})", *target.z) : std::string());
     dispatch_target(target);
-}
-
-double MotionPanel::commanded_z() const {
-    return acked_z_.value_or(static_cast<double>(current_z_));
-}
-
-void MotionPanel::note_acked_z(const helix::JogCoalescer::CoalescedMove& move) {
-    if (const auto* target = std::get_if<helix::AxisTarget>(&move)) {
-        if (target->z) {
-            acked_z_ = *target->z;
-        }
-    } else if (const double dz = std::get<helix::AxisMove>(move).dz; dz != 0.0) {
-        acked_z_ = commanded_z() + dz;
-    }
 }
 
 void MotionPanel::handle_motors_off() {

@@ -71,7 +71,17 @@ class HoldingMotionAPI : public MoonrakerMotionAPI {
                  ErrorCallback on_error, std::optional<double>) override {
         held.push_back({target, std::move(on_success), std::move(on_error)});
     }
+    void move_relative(double, double, double dz, double, double, SuccessCallback on_success,
+                       ErrorCallback on_error) override {
+        held_relative.push_back({dz, std::move(on_success), std::move(on_error)});
+    }
+    struct HeldRelative {
+        double dz;
+        SuccessCallback on_success;
+        ErrorCallback on_error;
+    };
     std::vector<Held> held;
+    std::vector<HeldRelative> held_relative;
 };
 
 class HoldingAPI : public MoonrakerAPI {
@@ -769,40 +779,6 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag sample replacing a pending one
     set_moonraker_api(&api_);
 }
 
-TEST_CASE_METHOD(MoveTabFixture, "bed tab: a lift is never computed below an acked commanded Z",
-                 "[motion][bed-tab]") {
-    HoldingAPI held_api{client_, get_printer_state()};
-    set_moonraker_api(&held_api);
-    auto& moves = held_api.holding_.held;
-    auto& panel = get_global_motion_panel();
-    panel.set_motion_tab(2);
-    get_printer_state().update_from_status(
-        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 0.2, 0.0}}}}});
-    drain();
-
-    // The keypad raises Z to 10; the ack lands before any status frame does,
-    // so the panel's commanded Z still reads 0.2.
-    panel.request_axis_target('z', 10.0);
-    REQUIRE(moves.size() == 1);
-    moves[0].on_success();
-    drain();
-    CHECK(bed_readout().find("lift") == std::string::npos);
-
-    lv_obj_t* area = panel_widget("bed_map_area");
-    bed_tap(area, far_point(area, true, true));
-    REQUIRE(moves.size() == 2);
-    // A "lift" to 5mm from a head at 10 would be a descent across the plate.
-    CHECK_FALSE(moves[1].target.z.has_value());
-
-    // A frame reporting Z again is the truth from then on, even one lower
-    // than the ack predicted (moved from another client).
-    get_printer_state().update_from_status(
-        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 1.0, 0.0}}}}});
-    drain();
-    CHECK(bed_readout().find("Z 1.00, will lift to 5mm") != std::string::npos);
-    set_moonraker_api(&api_);
-}
-
 TEST_CASE_METHOD(MoveTabFixture, "bed tab: Z unhomed counts as unhomed, like Park",
                  "[motion][bed-tab]") {
     auto& panel = get_global_motion_panel();
@@ -883,4 +859,36 @@ TEST_CASE_METHOD(MoveTabFixture, "bed tab: leaving the panel ends the gesture in
     panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
     drain();
     CHECK(xy_moves(client_) == 1);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "motion: a Z frame landing before its ack is not counted twice",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& motion = held_api.holding_;
+    auto& panel = get_global_motion_panel();
+    panel.set_jog_mode(helix::JogMode::Coarse);
+    panel.set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 12.0, 0.0}}}}});
+    drain();
+
+    // Z down 10. Klipper can report the new position before acking the G0
+    // (a move that waits on a full lookahead buffer), so the frame comes first.
+    REQUIRE(panel.handle_z_button("z_down_large"));
+    REQUIRE(motion.held_relative.size() == 1);
+    REQUIRE(motion.held_relative[0].dz == Catch::Approx(-10.0));
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 2.0, 0.0}}}}});
+    drain();
+    motion.held_relative[0].on_success();
+    drain();
+
+    // The head is at 2: the readout and every lift start from there.
+    CHECK(bed_readout().find("Z 2.00, will lift to 5mm") != std::string::npos);
+    panel.park_over_plate(/*lift_z=*/true);
+    REQUIRE(motion.held.size() == 1);
+    REQUIRE(motion.held[0].target.z.has_value());
+    CHECK(*motion.held[0].target.z == Catch::Approx(12.0));
+    set_moonraker_api(&api_);
 }
