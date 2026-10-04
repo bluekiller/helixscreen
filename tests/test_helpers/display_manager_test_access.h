@@ -19,6 +19,10 @@ class DisplayManagerTestAccess {
         dm.m_backend = std::move(backend);
     }
 
+    static bool try_drm_to_fbdev_fallback(DisplayManager& dm, lv_display_rotation_t rot) {
+        return dm.try_drm_to_fbdev_fallback(rot, false);
+    }
+
     static void set_use_hardware_blank(DisplayManager& dm, bool use_hw) {
         dm.m_use_hardware_blank = use_hw;
     }

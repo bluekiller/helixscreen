@@ -1875,8 +1875,14 @@ bool DisplayManager::try_drm_to_fbdev_fallback(lv_display_rotation_t rot, bool s
         return true; // No fallback needed
     }
 
-    // Runs only from init(), before the input devices exist: nothing yet is bound
-    // to the DRM backend or the display freed below.
+    // Input devices are bound to the DRM backend and the display freed below, so
+    // the swap is only safe before init() creates them.
+    if (m_pointer || m_keyboard) {
+        spdlog::error("[DisplayManager] fbdev fallback requested after input devices exist; "
+                      "continuing without rotation");
+        return false;
+    }
+
     spdlog::warn("[DisplayManager] DRM lacks hardware rotation for {}°, "
                  "falling back to fbdev (flicker-free software rotation)",
                  static_cast<int>(rot) * 90);

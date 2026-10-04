@@ -523,7 +523,39 @@ class MockPointerBackend : public DisplayBackend {
     }
 };
 
+/// A DRM backend with no rotation plane, so any non-zero rotation asks for the
+/// fbdev fallback.
+class MockDrmPointerBackend : public MockPointerBackend {
+  public:
+    DisplayBackendType type() const override {
+        return DisplayBackendType::DRM;
+    }
+    bool supports_hardware_rotation(lv_display_rotation_t) const override {
+        return false;
+    }
+};
+
 } // namespace
+
+TEST_CASE_METHOD(ApplicationTestFixture,
+                 "The DRM-to-fbdev fallback refuses once input devices exist",
+                 "[application][display][indev][rotation]") {
+    DisplayManager mgr;
+    DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockDrmPointerBackend>());
+    DisplayManagerTestAccess::create_input_devices(mgr);
+    REQUIRE(mgr.pointer_input() != nullptr);
+    const DisplayBackend* backend = mgr.backend();
+
+    CHECK_FALSE(DisplayManagerTestAccess::try_drm_to_fbdev_fallback(mgr, LV_DISPLAY_ROTATION_90));
+    // The swap would free the backend the live devices read through.
+    CHECK(mgr.backend() == backend);
+    CHECK(mgr.pointer_input() != nullptr);
+
+    lv_indev_delete(mgr.pointer_input());
+    if (mgr.keyboard_input()) {
+        lv_indev_delete(mgr.keyboard_input());
+    }
+}
 
 TEST_CASE_METHOD(ApplicationTestFixture,
                  "DisplayManager clears its own pointer when LVGL deletes the device",
