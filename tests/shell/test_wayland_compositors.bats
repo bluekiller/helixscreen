@@ -77,7 +77,7 @@ EOF
     export MOCK_ACTIVE_SVC="weston"
     found_any=false
     stop_wayland_compositors >/dev/null
-    grep -q "^systemd-mask:weston$" "$INSTALL_DIR/config/.disabled_services"
+    grep -q "^systemd-dropin:weston$" "$INSTALL_DIR/config/.disabled_services"
 }
 
 @test "wayland: kills a lingering compositor process (no systemd unit)" {

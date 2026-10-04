@@ -179,9 +179,13 @@ reenable_disabled_services() {
         local target="${entry#*:}"
 
         case "$type" in
-            systemd|systemd-mask)
-                if [ "$type" = "systemd-mask" ]; then
-                    $SUDO systemctl unmask "$target" 2>/dev/null || true
+            systemd|systemd-dropin)
+                if [ "$type" = "systemd-dropin" ]; then
+                    local dropin
+                    dropin=$(competing_ui_dropin "$target")
+                    $SUDO rm -f "$dropin"
+                    $SUDO rmdir "$(dirname "$dropin")" 2>/dev/null || true
+                    $SUDO systemctl daemon-reload 2>/dev/null || true
                 fi
                 log_info "Re-enabling systemd service: $target"
                 enable_unit_or_warn "$target"

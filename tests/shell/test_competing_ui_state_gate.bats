@@ -61,6 +61,8 @@ setup() {
     K1_FIRMWARE=""
     HOST_OWNS_COMPETING_UIS=0
     platform="pi"
+    # The developer's own desktop session must not leak into the DM tests.
+    unset DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE
     PREVIOUS_UI_SCRIPT=""
     SERVICE_NAME="helixscreen"
     SUDO=""
@@ -68,11 +70,9 @@ setup() {
 
 # Mock systemctl reporting one unit in one state and every other unit absent.
 # Logs each invocation so a test can assert on stop/disable/enable.
-# Args: $1 = unit name, $2 = is-active exit (0 running), $3 = is-enabled word,
-#       $4 = mask exit (default 0; systemd refuses to mask a unit whose file
-#            lives in /etc/systemd/system)
+# Args: $1 = unit name, $2 = is-active exit (0 running), $3 = is-enabled word
 mock_unit_state() {
-    local unit="$1" active_exit="$2" enabled_word="$3" mask_exit="${4:-0}"
+    local unit="$1" active_exit="$2" enabled_word="$3"
     local enabled_exit=1
     # systemd exits 0 for `static`, `indirect` and `alias` as well as the enabled
     # words, which is the trap the word match exists to avoid.
@@ -90,9 +90,6 @@ case \"\$1\" in
     is-enabled)
         case \"\$*\" in *'$unit'*) echo '$enabled_word'; exit $enabled_exit ;; esac
         echo 'not-found'; exit 4
-        ;;
-    mask)
-        exit $mask_exit
         ;;
 esac
 exit 0
@@ -168,8 +165,7 @@ exit 0
 
     grep -q "stop KlipperScreen" "$SYSTEMCTL_LOG"
     grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -q "mask KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-mask:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:KlipperScreen" "$DISABLED_SERVICES_FILE"
 }
 
 @test "pi: an enabled but stopped KlipperScreen is disabled and recorded" {
@@ -180,19 +176,46 @@ exit 0
     [ "$status" -eq 0 ]
 
     grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-mask:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:KlipperScreen" "$DISABLED_SERVICES_FILE"
 }
 
-@test "pi: a unit systemd refuses to mask is recorded as disabled only" {
-    # Uninstall must not unmask what was never masked.
-    mock_unit_state "KlipperScreen" 0 "enabled" 1
+@test "pi: a taken-down unit gets a drop-in that keeps it down while HelixScreen is installed" {
+    # A KIAUH KlipperScreen unit lives in /etc/systemd/system, where mask is
+    # refused; the drop-in survives a re-enable and a rewrite of the unit file.
+    mock_unit_state "KlipperScreen" 0 "enabled"
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
 
-    grep -q "disable KlipperScreen" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd:KlipperScreen" "$DISABLED_SERVICES_FILE"
-    refute_grep "systemd-mask:" "$DISABLED_SERVICES_FILE"
+    local dropin
+    dropin=$(competing_ui_dropin KlipperScreen)
+    grep -qxF "[Unit]" "$dropin"
+    grep -qxF "ConditionPathExists=!$INSTALL_DIR/bin/helix-screen" "$dropin"
+    grep -q "daemon-reload" "$SYSTEMCTL_LOG"
+    refute_grep "mask" "$SYSTEMCTL_LOG"
+}
+
+@test "pi: a unit name is resolved to its Id and taken down once" {
+    # gdm3 is an alias of gdm.service on Debian; both names must land on one
+    # record and one drop-in, on the real unit.
+    platform="k2"
+    mock_command_script "systemctl" "
+echo \"\$@\" >> '$SYSTEMCTL_LOG'
+case \"\$1\" in
+    show) case \"\$*\" in *gdm*) echo gdm.service ;; *) echo \"\${5}.service\" ;; esac; exit 0 ;;
+    is-active) exit 3 ;;
+    is-enabled) case \"\$*\" in *gdm*) echo enabled; exit 0 ;; esac; echo not-found; exit 4 ;;
+esac
+exit 0
+"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    [ "$(grep -c "^disable " "$SYSTEMCTL_LOG")" -eq 1 ]
+    grep -q "^disable gdm.service" "$SYSTEMCTL_LOG"
+    grep -qxF "systemd-dropin:gdm.service" "$DISABLED_SERVICES_FILE"
+    [ -f "$(competing_ui_dropin gdm.service)" ]
 }
 
 @test "pi: a KlipperScreen the user already disabled is left alone" {
@@ -236,7 +259,7 @@ exit 0
     [ "$status" -eq 0 ]
 
     grep -q "disable cage@tty1" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-mask:cage@tty1" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:cage@tty1" "$DISABLED_SERVICES_FILE"
 }
 
 @test "compositor: a stopped, disabled weston is left alone" {
@@ -251,67 +274,111 @@ exit 0
 }
 
 # --- display managers (#1693): a DM starts a session that takes the display ---
+# Only on hosts whose firmware ships a screen of its own: a desktop Pi keeps
+# its desktop.
 
-@test "display manager: an enabled, failed lightdm is masked, reset and recorded" {
+@test "display manager: an enabled, failed lightdm on a vendor printer is taken down" {
     # QIDI Q2 firmware 1.1.1: lightdm enabled under graphical.target, failing.
+    platform="k2"
     mock_unit_state "lightdm" 3 "enabled"
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
 
+    grep -q "stop lightdm" "$SYSTEMCTL_LOG"
     grep -q "disable lightdm" "$SYSTEMCTL_LOG"
-    grep -q "mask lightdm" "$SYSTEMCTL_LOG"
     grep -q "reset-failed lightdm" "$SYSTEMCTL_LOG"
-    grep -qxF "systemd-mask:lightdm" "$DISABLED_SERVICES_FILE"
-    # The default target is the user's: masking the DM is enough.
+    grep -qxF "systemd-dropin:lightdm" "$DISABLED_SERVICES_FILE"
+    [ -f "$(competing_ui_dropin lightdm)" ]
+    # The default target is the user's: keeping the DM down is enough.
     refute_grep "set-default" "$SYSTEMCTL_LOG"
 }
 
+@test "display manager: a generic pi keeps its desktop" {
+    platform="pi"
+    mock_unit_state "lightdm" 0 "enabled"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    refute_grep "lightdm" "$SYSTEMCTL_LOG"
+    [ ! -f "$DISABLED_SERVICES_FILE" ] || refute_grep "lightdm" "$DISABLED_SERVICES_FILE"
+}
+
+@test "display manager: inside a graphical session it is disabled but not stopped" {
+    # Stopping the DM would take down the terminal running this installer.
+    platform="k2"
+    mock_unit_state "lightdm" 0 "enabled"
+    DISPLAY=":0"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    refute_grep "^stop lightdm" "$SYSTEMCTL_LOG"
+    grep -q "disable lightdm" "$SYSTEMCTL_LOG"
+    grep -qxF "systemd-dropin:lightdm" "$DISABLED_SERVICES_FILE"
+    [ -f "$(competing_ui_dropin lightdm)" ]
+}
+
+@test "display manager: XDG_SESSION_TYPE=wayland alone marks a graphical session" {
+    platform="k2"
+    mock_unit_state "lightdm" 0 "enabled"
+    XDG_SESSION_TYPE="wayland"
+
+    run stop_competing_uis
+    [ "$status" -eq 0 ]
+
+    refute_grep "^stop lightdm" "$SYSTEMCTL_LOG"
+}
+
 @test "display manager: a disabled sddm is left alone" {
+    platform="k2"
     mock_unit_state "sddm" 3 "disabled"
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
 
     refute_grep "disable sddm" "$SYSTEMCTL_LOG"
-    refute_grep "mask sddm" "$SYSTEMCTL_LOG"
 }
 
 # --- round trip: what the sweep records, uninstall re-enables ---
 
-@test "round trip: a masked unit is unmasked before it is re-enabled" {
-    mock_unit_state "lightdm" 3 "enabled"
+@test "round trip: the drop-in is removed and reloaded before the unit is re-enabled" {
+    mock_unit_state "KlipperScreen" 3 "enabled"
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
+    local dropin
+    dropin=$(competing_ui_dropin KlipperScreen)
+    [ -f "$dropin" ]
 
     : > "$SYSTEMCTL_LOG"
     run reenable_disabled_services
     [ "$status" -eq 0 ]
 
-    [ "$(grep -n "unmask lightdm" "$SYSTEMCTL_LOG" | cut -d: -f1)" -lt \
-      "$(grep -n "^enable lightdm" "$SYSTEMCTL_LOG" | cut -d: -f1)" ]
+    [ ! -e "$dropin" ]
+    [ ! -e "$(dirname "$dropin")" ]
+    [ "$(grep -n "^daemon-reload" "$SYSTEMCTL_LOG" | cut -d: -f1)" -lt \
+      "$(grep -n "^enable KlipperScreen" "$SYSTEMCTL_LOG" | cut -d: -f1)" ]
 }
 
-@test "round trip: a disable-only record never unmasks" {
-    # A unit masked by the user after install stays masked.
+@test "round trip: an old disable-only record replays as a plain enable" {
     echo "systemd:KlipperScreen" > "$DISABLED_SERVICES_FILE"
-    mock_unit_state "KlipperScreen" 3 "masked"
+    mock_unit_state "KlipperScreen" 3 "disabled"
 
     run reenable_disabled_services
     [ "$status" -eq 0 ]
 
     grep -q "^enable KlipperScreen" "$SYSTEMCTL_LOG"
-    refute_grep "unmask" "$SYSTEMCTL_LOG"
+    refute_grep "daemon-reload" "$SYSTEMCTL_LOG"
 }
-
 
 @test "round trip: an enabled but stopped KlipperScreen is re-enabled on uninstall" {
     mock_unit_state "KlipperScreen" 3 "enabled"
 
     run stop_competing_uis
     [ "$status" -eq 0 ]
-    grep -qxF "systemd-mask:KlipperScreen" "$DISABLED_SERVICES_FILE"
+    grep -qxF "systemd-dropin:KlipperScreen" "$DISABLED_SERVICES_FILE"
 
     : > "$SYSTEMCTL_LOG"
     run reenable_disabled_services

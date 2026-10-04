@@ -15,6 +15,10 @@ if [ -z "$BATS_TEST_TMPDIR" ]; then
     BATS_TEST_TMPDIR=$(mktemp -d "${BATS_TMPDIR:-/tmp}/bats-test-XXXXXX")
 fi
 
+# Where the installer writes systemd drop-ins. A test run as root (the CI and
+# zeus containers) would otherwise write into the real /etc/systemd/system.
+export HELIX_SYSTEMD_UNIT_DIR="$BATS_TEST_TMPDIR/etc/systemd/system"
+
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # Release-target derivation from mk/cross.mk

@@ -26,7 +26,7 @@ trap 'error_handler $LINENO' ERR 2>/dev/null || true
 # cleanup_on_success is idempotent (it tests for the directory first) so the
 # explicit call on the success path is unaffected, and it routes through
 # _safe_remove_tmp_dir, which is what refuses to rm -rf a mountpoint.
-trap 'cleanup_on_success' EXIT INT TERM
+trap 'cleanup_on_success' EXIT HUP INT TERM
 
 # Print usage
 usage() {
