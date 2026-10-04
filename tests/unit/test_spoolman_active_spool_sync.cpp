@@ -245,7 +245,7 @@ TEST_CASE_METHOD(SyncFixture, "a toolchanger tool with no spool adopts the activ
     mounted.backend_index = tools.tools()[0].backend_index;
     tools.set_ams_topology(mounted);
     REQUIRE(tools.active_tool_index() == 0);
-    // The gate that used to sit in front of this assign never passes for a changer.
+    // A changer never reads as bypass, so the bypass gate cannot be what admits this assign.
     REQUIRE_FALSE(AmsState::instance().active_spool_describes_bypass());
 
     notify_active_spool(42);
