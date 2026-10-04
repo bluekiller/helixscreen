@@ -1228,7 +1228,7 @@ struct AmsUnit {
     std::vector<SlotInfo> slots; ///< Slot information
 
     // Unit-level status
-    bool connected = false;                     ///< Unit communication status
+    bool connected = false; ///< Unit communication status
     /// An address no unit answers from, below one that does. Firmware that
     /// numbers bays by box address keeps the gap's indices reserved, so this
     /// stands in for the missing box: its bays are EMPTY, nothing may be sent

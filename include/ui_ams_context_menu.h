@@ -10,10 +10,10 @@
 #include "i_moonraker_api.h"
 
 #include <functional>
-#include <vector>
 #include <lvgl.h>
 #include <optional>
 #include <string>
+#include <vector>
 
 // Forward declaration
 namespace helix {

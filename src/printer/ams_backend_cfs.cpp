@@ -144,6 +144,61 @@ int slot_index_ceiling(int total_slots) {
     return total_slots > 0 ? total_slots : 16;
 }
 
+/// Bays per CFS box. Both firmwares number a bay (box address - 1) * 4 + local.
+constexpr int kBaysPerBox = 4;
+
+/// Order @p info's units by address and stand an absent unit in for every
+/// address below the highest one that reported nothing, so a bay's global
+/// index stays its firmware slot number whichever boxes are on the bus, and
+/// state keyed by it stays on that bay. total_slots becomes the index span.
+void reserve_address_gaps(AmsSystemInfo& info) {
+    std::sort(info.units.begin(), info.units.end(), [](const AmsUnit& a, const AmsUnit& b) {
+        return a.first_slot_global_index < b.first_slot_global_index;
+    });
+    std::vector<AmsUnit> units;
+    for (auto& unit : info.units) {
+        for (int address = static_cast<int>(units.size()); address < unit.unit_index; ++address) {
+            AmsUnit gap;
+            gap.unit_index = address;
+            gap.name = "T" + std::to_string(address + 1);
+            gap.display_name = "CFS Unit " + std::to_string(address + 1);
+            gap.slot_count = kBaysPerBox;
+            gap.first_slot_global_index = address * kBaysPerBox;
+            gap.topology = PathTopology::HUB;
+            gap.absent = true;
+            for (int local = 0; local < kBaysPerBox; ++local) {
+                SlotInfo bay;
+                bay.slot_index = local;
+                bay.global_index = gap.first_slot_global_index + local;
+                bay.status = SlotStatus::EMPTY;
+                gap.slots.push_back(std::move(bay));
+            }
+            units.push_back(std::move(gap));
+        }
+        units.push_back(std::move(unit));
+    }
+    info.units = std::move(units);
+    info.total_slots = info.units.empty() ? 0
+                                          : info.units.back().first_slot_global_index +
+                                                info.units.back().slot_count;
+}
+
+/// No tool routes through an absent unit's bay: the box is not there to feed it.
+void unmap_absent_bays(AmsSystemInfo& info) {
+    for (auto& unit : info.units) {
+        if (!unit.absent) {
+            continue;
+        }
+        for (auto& bay : unit.slots) {
+            if (bay.mapped_tool >= 0 &&
+                bay.mapped_tool < static_cast<int>(info.tool_to_slot_map.size())) {
+                info.tool_to_slot_map[static_cast<size_t>(bay.mapped_tool)] = -1;
+            }
+            bay.mapped_tool = -1;
+        }
+    }
+}
+
 /// Harvest the material_type codes a box status actually reported, keyed three
 /// ways for push_slot_identity_to_firmware's lookup chain (catalog id, then
 /// "brand|type", then type). Values are the FULL 6-char codes exactly as the
@@ -471,46 +526,36 @@ static int find_external_slot_index(const nlohmann::json& box_json) {
     return -1;
 }
 
-// Flat payload slot index -> bay position. The fork numbers slots globally,
-// (box address - 1) * 4 + local, so with a box missing from the chain the
-// indices skip; our bays are the kept slots[] entries by vector position, the
-// numbering parse_flat_box_status gives them. loaded_slot and runout.chain use
-// the payload's numbering and go through this map; an index it lacks names no
-// bay.
-static std::unordered_map<int, int> flat_bay_positions(const nlohmann::json& box_json) {
-    std::unordered_map<int, int> positions;
+// The firmware slot number of every bay a Flat payload lists, in payload
+// order. The fork numbers slots globally, (box address - 1) * 4 + local, and
+// that number IS our bay's global index, so a box missing from the chain
+// leaves its indices unused rather than shifting the boxes behind it. An entry
+// without an index takes the count of bays before it.
+static std::vector<int> flat_bay_indices(const nlohmann::json& box_json) {
+    std::vector<int> indices;
     auto it = box_json.find("slots");
     if (it == box_json.end() || !it->is_array()) {
-        return positions;
+        return indices;
     }
-    int position = 0;
     for (const auto& slot_json : *it) {
         if (!slot_json.is_object() || helix::json_util::safe_bool(slot_json, "external", false)) {
             continue;
         }
-        positions.emplace(helix::json_util::safe_int(slot_json, "index", position), position);
-        ++position;
-    }
-    return positions;
-}
-
-static int flat_bay_position(const std::unordered_map<int, int>& positions, int payload_index) {
-    auto it = positions.find(payload_index);
-    return it == positions.end() ? -1 : it->second;
-}
-
-// The inverse: the payload index a bay was published under, -1 when unknown.
-static int flat_payload_index(const std::unordered_map<int, int>& positions, int bay) {
-    for (const auto& [payload_index, position] : positions) {
-        if (position == bay) {
-            return payload_index;
+        const int index =
+            helix::json_util::safe_int(slot_json, "index", static_cast<int>(indices.size()));
+        if (index >= 0) {
+            indices.push_back(index);
         }
     }
-    return -1;
+    return indices;
 }
 
-// A Fork bay the last flat frame published no slot number for. Sending a guess
-// would move filament in whatever bay the firmware numbers that way.
+static bool is_flat_bay(const std::vector<int>& bays, int index) {
+    return index >= 0 && std::find(bays.begin(), bays.end(), index) != bays.end();
+}
+
+// A Fork bay no box reported. Sending it would name a slot box.py has not
+// registered.
 static AmsError firmware_slot_unknown(int bay) {
     return AmsError(AmsResult::INVALID_SLOT,
                     "Slot " + std::to_string(bay) + " not known to the box firmware",
@@ -519,8 +564,7 @@ static AmsError firmware_slot_unknown(int bay) {
 }
 
 int AmsBackendCfs::firmware_slot_locked(int bay) const {
-    return macro_variant_ == CfsMacroVariant::Fork ? flat_payload_index(flat_bay_positions_, bay)
-                                                   : bay;
+    return macro_variant_ != CfsMacroVariant::Fork || system_info_.slot_exists(bay) ? bay : -1;
 }
 
 AmsSystemInfo
@@ -1044,13 +1088,12 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
         }
     }
 
+    // What every box shares: the payload states one driver, one environment
+    // reading and one feed path for the whole chain.
     AmsUnit unit;
-    unit.unit_index = 0;
-    unit.name = "CFS";
-    unit.display_name = "CFS Unit 1";
-    unit.first_slot_global_index = 0;
     unit.connected = helix::json_util::safe_bool(box_json, "driver_ready", true);
     unit.topology = PathTopology::HUB;
+    unit.slot_count = kBaysPerBox;
 
     // Environment. Unlike the stock schema these are JSON numbers, not strings,
     // but safe_float accepts either — so a firmware revision that switches
@@ -1093,9 +1136,14 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     }
 
     // Slots. Each entry is self-describing — no parallel arrays, no material
-    // code table, no TNN letter math.
+    // code table, no TNN letter math. Each bay is filed under the payload's own
+    // index, the firmware slot number, in the unit for its box address; a bay
+    // a present box did not list reads EMPTY.
+    std::map<int, AmsUnit> boxes;
+    const auto bay_indices = flat_bay_indices(box_json);
     auto slots_it = box_json.find("slots");
     if (slots_it != box_json.end() && slots_it->is_array()) {
+        size_t bay_ordinal = 0;
         for (const auto& slot_json : *slots_it) {
             // A non-object entry (a "-1" sentinel, say) is skipped rather than
             // aborting the frame — same discipline as the stock array_field
@@ -1108,25 +1156,34 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
             if (helix::json_util::safe_bool(slot_json, "external", false)) {
                 continue;
             }
-
-            SlotInfo slot;
-            // Index by VECTOR POSITION, not the payload's `index`. Downstream
-            // slot-widget creation walks this vector and treats position as the
-            // bay, so a sparse or out-of-order payload must not leave holes. The
-            // two differ when a box is missing from the chain; payload indices
-            // are translated through flat_bay_positions().
-            slot.slot_index = static_cast<int>(unit.slots.size());
-            slot.global_index = slot.slot_index;
-            if (int reported = helix::json_util::safe_int(slot_json, "index", slot.slot_index);
-                reported != slot.slot_index) {
-                spdlog::warn("[AMS CFS] Flat slot reports index {} at position {} — "
-                             "using position; check for sparse or reordered slots",
-                             reported, slot.slot_index);
+            // flat_bay_indices() walked these same entries with the same skips.
+            if (bay_ordinal >= bay_indices.size()) {
+                break;
             }
+            const int index = bay_indices[bay_ordinal++];
+            const int address = index / kBaysPerBox;
+
+            auto [box_it, created] = boxes.try_emplace(address, unit);
+            AmsUnit& box = box_it->second;
+            if (created) {
+                box.unit_index = address;
+                box.name = "T" + std::to_string(address + 1);
+                box.display_name = "CFS Unit " + std::to_string(address + 1);
+                box.first_slot_global_index = address * kBaysPerBox;
+                for (int local = 0; local < kBaysPerBox; ++local) {
+                    SlotInfo empty;
+                    empty.slot_index = local;
+                    empty.global_index = box.first_slot_global_index + local;
+                    empty.status = SlotStatus::EMPTY;
+                    box.slots.push_back(std::move(empty));
+                }
+            }
+
+            SlotInfo& slot = box.slots[static_cast<size_t>(index % kBaysPerBox)];
             // mapped_tool comes from the sync pass at the end of this function,
             // as in the stock parse — one writer for both directions. The flat
             // schema states no map of its own, so that pass hands every lane
-            // the 1:1 default this line used to write.
+            // the 1:1 default, which is box.py's own T<n> = slot n.
 
             // text fields: flat_text_field above owns the "None"-means-absent
             // rule this module's null-to-"None" stringification creates.
@@ -1151,34 +1208,39 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
             const bool loaded = helix::json_util::safe_bool(slot_json, "loaded", false);
             slot.status =
                 loaded ? SlotStatus::LOADED : (present ? SlotStatus::AVAILABLE : SlotStatus::EMPTY);
-
-            unit.slots.push_back(std::move(slot));
         }
     }
 
-    unit.slot_count = static_cast<int>(unit.slots.size());
-    info.total_slots = unit.slot_count;
+    // One environment reading covers the chain; giving it to every box would
+    // show the same sensor as several zones.
+    bool environment_placed = false;
+    for (auto& [address, box] : boxes) {
+        if (environment_placed) {
+            box.environment.reset();
+        }
+        environment_placed = environment_placed || box.environment.has_value();
+        info.units.push_back(std::move(box));
+    }
+    reserve_address_gaps(info);
 
-    // loaded_slot is -1 when nothing is loaded. It is a payload index, and can
-    // name the external entry, which is not in our vector. A bay index maps to
-    // its position; the external index maps to the -2 bypass sentinel (the same
-    // convention AFC and Happy Hare use, and what AmsState's bypass subjects key
-    // off).
+    // loaded_slot is -1 when nothing is loaded. It is a firmware slot number,
+    // so a listed bay is its own index; the external entry, which is not a
+    // bay, maps to the -2 bypass sentinel (the same convention AFC and Happy
+    // Hare use, and what AmsState's bypass subjects key off).
     int loaded_slot = helix::json_util::safe_int(box_json, "loaded_slot", -1);
-    if (int bay = flat_bay_position(flat_bay_positions(box_json), loaded_slot); bay >= 0) {
-        info.current_slot = bay;
-        info.current_tool = bay;
+    if (is_flat_bay(bay_indices, loaded_slot)) {
+        info.current_slot = loaded_slot;
+        info.current_tool = loaded_slot;
     } else if (loaded_slot >= 0 && loaded_slot == find_external_slot_index(box_json)) {
         info.current_slot = -2;
         info.current_tool = -2;
     }
 
-    info.units.push_back(std::move(unit));
-
     // Same single-writer pass as the stock parse. The flat payload carries no
     // `map`, so tool_to_slot_map is empty here and identity_fallback supplies
     // the 1:1 default in BOTH directions rather than in one of them.
     sync_tool_map_from_forward(info, /*identity_fallback=*/true);
+    unmap_absent_bays(info);
 
     return info;
 }
@@ -1197,17 +1259,15 @@ AmsBackendCfs::parse_flat_runout_edges(const nlohmann::json& box_json) {
     if (chain_it == runout_it->end() || !chain_it->is_array()) {
         return std::nullopt;
     }
-    const auto positions = flat_bay_positions(box_json);
-    std::vector<int> edges(positions.size(), -1);
+    const auto bays = flat_bay_indices(box_json);
+    const int span = bays.empty() ? 0 : (*std::max_element(bays.begin(), bays.end()) + 1);
+    std::vector<int> edges(static_cast<size_t>(span), -1);
     if (chain_it->empty()) {
         return edges;
     }
-    const int source =
-        flat_bay_position(positions, helix::json_util::safe_int(*runout_it, "loaded_slot", -1));
-    const int target = chain_it->front().is_number_integer()
-                           ? flat_bay_position(positions, chain_it->front().get<int>())
-                           : -1;
-    if (source < 0 || target < 0 || target == source) {
+    const int source = helix::json_util::safe_int(*runout_it, "loaded_slot", -1);
+    const int target = chain_it->front().is_number_integer() ? chain_it->front().get<int>() : -1;
+    if (!is_flat_bay(bays, source) || !is_flat_bay(bays, target) || target == source) {
         return std::nullopt;
     }
     edges[static_cast<size_t>(source)] = target;
@@ -1430,6 +1490,10 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                 // unaffected, taking only the lane store's own lock.
                 std::lock_guard<std::mutex> lock(mutex_);
                 for (const auto& unit : new_info.units) {
+                    // A box off the bus said nothing about its bays.
+                    if (unit.absent) {
+                        continue;
+                    }
                     for (const auto& slot : unit.slots) {
                         const helix::ams::LaneId lane = lane_id(slot.global_index);
 
@@ -1586,7 +1650,6 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                     if (box.contains("runout")) {
                         flat_backup_edges_ = parse_flat_runout_edges(box);
                     }
-                    flat_bay_positions_ = flat_bay_positions(box);
                 } else {
                     flat_backup_edges_.reset();
                     if (new_info.endless_spool_groups_reported) {
@@ -1769,6 +1832,11 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
             // apply_resolved_lane AFTER (so the final SlotInfo visible via
             // get_slot_info reflects the lane's declared values).
             for (auto& unit : system_info_.units) {
+                // An absent box's bays keep every record they had until it
+                // reports again; its placeholder EMPTY is not a removal.
+                if (unit.absent) {
+                    continue;
+                }
                 for (size_t j = 0; j < unit.slots.size(); ++j) {
                     auto& slot = unit.slots[j];
                     int global_idx = unit.first_slot_global_index + static_cast<int>(j);
@@ -2274,7 +2342,7 @@ SlotInfo* AmsBackendCfs::bay_locked(int slot_index) {
         int first = unit.first_slot_global_index;
         int last = first + static_cast<int>(unit.slots.size()) - 1;
         if (slot_index >= first && slot_index <= last) {
-            return &unit.slots[slot_index - first];
+            return unit.absent ? nullptr : &unit.slots[slot_index - first];
         }
     }
     return nullptr;

@@ -242,7 +242,8 @@ TEST_CASE("CFS flat schema: loaded_slot vs the external entry", "[ams][cfs][flat
         slots[8]["external"] = true;
         two_units["loaded_slot"] = 8;
         auto info = AmsBackendCfs::parse_box_status(two_units);
-        REQUIRE(info.units[0].slot_count == 8);
+        REQUIRE(info.units.size() == 2);
+        REQUIRE(info.total_slots == 8);
         REQUIRE(info.current_slot == -2);
     }
 }

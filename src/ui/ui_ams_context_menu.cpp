@@ -26,10 +26,10 @@
 #include "printer_state.h"
 #include "spoolman_types.h"
 
-#include <algorithm>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <optional>
 
 namespace helix::ui {

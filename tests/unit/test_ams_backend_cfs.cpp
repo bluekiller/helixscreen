@@ -3,11 +3,14 @@
 
 #include "ui_update_queue.h"
 
+#include "../lvgl_test_fixture.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_cfs.h"
 #include "ams_remap.h"
+#include "ams_state.h"
 #include "ams_types.h"
+#include "app_globals.h"
 #include "config.h"
 #include "filament_catalog.h"
 #include "filament_database.h"
@@ -5722,8 +5725,8 @@ TEST_CASE("CFS flat: runout.chain is the loaded slot's backup edge",
 namespace {
 
 // The fork numbers slots globally, (box address - 1) * 4 + local. With boxes 2
-// and 3 on the bus, slots[].index runs 4..11 (external holder 12) while our
-// bays are 0..7; payload 6 is loaded and is our bay 2.
+// and 3 on the bus, slots[].index runs 4..11 (external holder 12), and those
+// are our bays' global indices too; box 1's range 0..3 is reserved, absent.
 json make_gapped_fork_box() {
     json box = make_flat_fork_box();
     json slots = json::array();
@@ -5749,17 +5752,16 @@ json make_gapped_fork_box() {
 
 } // namespace
 
-TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
+TEST_CASE("CFS flat: payload slot indices are the bays across a box gap",
           "[ams][cfs][flat][endless_spool][1464]") {
     const json box = make_gapped_fork_box();
     CfsRemapHelper backend;
     CfsTestAccess::handle_status(backend, make_cfs_notification(box));
 
-    // Payload 6 is our bay 2, payload 8 is bay 4.
-    CHECK(backend.get_system_info().current_slot == 2);
+    CHECK(backend.get_system_info().current_slot == 6);
     const auto cfg = backend.get_endless_spool_config();
-    CHECK(endless_spool_backup_for(cfg, 2) == 4);
-    CHECK(endless_spool_backup_for(cfg, 6) == -1);
+    CHECK(endless_spool_backup_for(cfg, 6) == 8);
+    CHECK(endless_spool_backup_for(cfg, 2) == -1);
 
     SECTION("the external entry still reads as bypass") {
         json bypass = box;
@@ -5771,9 +5773,7 @@ TEST_CASE("CFS flat: payload slot indices map to bays across a box gap",
 }
 
 // Commands go the other way: box.py registers T<n> and takes SLOT= in its own
-// global numbering, so a bay must be sent as the payload index it was
-// published under. Bay 2 is firmware slot 6 here; sending 2 moves filament in a
-// bay that is not on the bus.
+// global numbering, which is the bay's own index, so bay 6 is sent as 6.
 TEST_CASE("CFS fork: commands name the firmware slot, not the bay position",
           "[ams][cfs][fork][1464]") {
     CfsRemapHelper backend;
@@ -5781,42 +5781,38 @@ TEST_CASE("CFS fork: commands name the firmware slot, not the bay position",
     CfsTestAccess::handle_status(backend, make_cfs_notification(make_gapped_fork_box()));
 
     SECTION("load") {
-        REQUIRE(backend.load_filament(3).result == AmsResult::SUCCESS);
+        REQUIRE(backend.load_filament(7).result == AmsResult::SUCCESS);
         REQUIRE(backend.dispatched == std::vector<std::string>{"T7"});
     }
 
     SECTION("tool change with a spool loaded swaps through T<n>") {
-        REQUIRE(backend.change_tool(4).result == AmsResult::SUCCESS);
+        REQUIRE(backend.change_tool(8).result == AmsResult::SUCCESS);
         REQUIRE(backend.dispatched == std::vector<std::string>{"T8"});
     }
 
     SECTION("slot identity write") {
-        backend.push_slot_identity_to_firmware(2, "PETG", "eSUN", "", 0x0A2989);
+        backend.push_slot_identity_to_firmware(6, "PETG", "eSUN", "", 0x0A2989);
         REQUIRE(backend.captured.size() == 1);
         CHECK(backend.captured[0].rfind("_BOX_SLOT_SET SLOT=6 ", 0) == 0);
     }
 
     SECTION("slot clear") {
         helix::AmsBackend& base = backend;
-        base.clear_slot_override(2);
+        base.clear_slot_override(6);
         CHECK(backend.captured == std::vector<std::string>{"_BOX_SLOT_CLEAR SLOT=6"});
     }
 }
 
-// A Fork bay with no published slot number is refused, not sent as a guess.
-// Fork latched over a stock frame is the one way to hold a valid bay with no
-// flat frame behind it.
-TEST_CASE("CFS fork: a bay with no firmware slot is refused with its own error",
-          "[ams][cfs][fork][1464]") {
+// A bay in a box missing from the chain is refused, not sent: box.py registers
+// no T<n> for a slot it has not found.
+TEST_CASE("CFS fork: a bay no box reported is refused", "[ams][cfs][fork][1464]") {
     CfsRemapHelper backend;
     backend.mark_running();
-    CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(1)));
-    CfsTestAccess::set_macro_variant_fork(backend);
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_gapped_fork_box()));
 
     SECTION("load") {
         const auto err = backend.load_filament(2);
         CHECK(err.result == AmsResult::INVALID_SLOT);
-        CHECK(err.technical_msg == "Slot 2 not known to the box firmware");
         CHECK(backend.dispatched.empty());
     }
 
@@ -5825,6 +5821,12 @@ TEST_CASE("CFS fork: a bay with no firmware slot is refused with its own error",
         CHECK(err.result == AmsResult::INVALID_SLOT);
         CHECK(err.technical_msg == "Slot 1 not known to the box firmware");
         CHECK(backend.dispatched.empty());
+    }
+
+    SECTION("slot clear") {
+        helix::AmsBackend& base = backend;
+        base.clear_slot_override(2);
+        CHECK(backend.captured.empty());
     }
 }
 
@@ -5841,6 +5843,153 @@ TEST_CASE("CFS fork: tool remapping is not offered", "[ams][cfs][fork][1464]") {
     CHECK_FALSE(helix::printer::can_remap(fork));
     CHECK(fork.set_tool_mapping(0, 1).result == AmsResult::NOT_SUPPORTED);
     CHECK(fork.captured.empty());
+}
+
+namespace {
+
+// A fork box with the given box addresses on the bus. box.py numbers slots
+// (address - 1) * 4 + local, so each bay is named by where it physically is;
+// every bay gets its own colour, name and Spoolman id so state that lands on
+// the wrong bay is visible.
+json make_fork_box_with_boxes(const std::vector<int>& addresses, int loaded_slot = -1) {
+    json box = make_flat_fork_box();
+    json slots = json::array();
+    int highest = -1;
+    for (int address : addresses) {
+        for (int local = 0; local < 4; ++local) {
+            const int index = (address - 1) * 4 + local;
+            highest = std::max(highest, index);
+            slots.push_back({{"index", index},
+                             {"external", false},
+                             {"present", true},
+                             {"loaded", index == loaded_slot},
+                             {"material", "PLA"},
+                             {"color", fmt::format("#{:06X}", 0x101010 * (index + 1))},
+                             {"name", fmt::format("Box {} {}", address, char('A' + local))},
+                             {"spoolman_id", 100 + index}});
+        }
+    }
+    slots.push_back({{"index", highest + 1},
+                     {"external", true},
+                     {"present", false},
+                     {"loaded", false},
+                     {"material", ""},
+                     {"color", ""}});
+    box["slots"] = slots;
+    box["loaded_slot"] = loaded_slot;
+    box["runout"] = nullptr;
+    return box;
+}
+
+} // namespace
+
+// Per-bay state is keyed by the firmware slot, so a box leaving the chain does
+// not hand its bays' state to the box behind it, and a box coming back finds
+// its own (#1464).
+TEST_CASE("CFS fork: per-bay state stays on its physical slot when a box drops",
+          "[ams][cfs][fork][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend,
+                                 make_cfs_notification(make_fork_box_with_boxes({1, 2, 3})));
+
+    SECTION("a Spoolman-linked override survives its box dropping out") {
+        helix::ams::FilamentSlotOverride box2a;
+        box2a.spool_name = "Box 2 A spool";
+        box2a.spoolman_id = 104;
+        CfsTestAccess::seed_override(backend, 4, box2a);
+        helix::ams::FilamentSlotOverride box3a;
+        box3a.spool_name = "Box 3 A spool";
+        box3a.spoolman_id = 108;
+        CfsTestAccess::seed_override(backend, 8, box3a);
+
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes({1, 3})));
+        REQUIRE(CfsTestAccess::get_override(backend, 4).has_value());
+        CHECK(CfsTestAccess::get_override(backend, 4)->spool_name == "Box 2 A spool");
+        REQUIRE(CfsTestAccess::get_override(backend, 8).has_value());
+        CHECK(CfsTestAccess::get_override(backend, 8)->spool_name == "Box 3 A spool");
+
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes({1, 2, 3})));
+        REQUIRE(CfsTestAccess::get_override(backend, 4).has_value());
+        CHECK(CfsTestAccess::get_override(backend, 4)->spool_name == "Box 2 A spool");
+        CHECK(CfsTestAccess::get_override(backend, 8)->spool_name == "Box 3 A spool");
+    }
+
+    SECTION("an unlinked override is not read as a spool swap") {
+        helix::ams::FilamentSlotOverride box2a;
+        box2a.spool_name = "Box 2 A spool";
+        CfsTestAccess::seed_override(backend, 4, box2a);
+
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes({1, 3})));
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes({1, 2, 3})));
+        REQUIRE(CfsTestAccess::get_override(backend, 4).has_value());
+        CHECK(CfsTestAccess::get_override(backend, 4)->spool_name == "Box 2 A spool");
+    }
+
+    SECTION("bays report the firmware's slot numbers and its tools") {
+        CfsTestAccess::handle_status(
+            backend, make_cfs_notification(make_fork_box_with_boxes({1, 3}, /*loaded_slot=*/9)));
+        const auto info = backend.get_system_info();
+        CHECK(info.current_slot == 9);
+        CHECK(info.current_tool == 9);
+        for (int bay : {0, 3, 8, 11}) {
+            INFO("bay " << bay);
+            CHECK(backend.get_slot_info(bay).color_rgb == 0x101010u * (bay + 1));
+            CHECK(backend.get_slot_info(bay).mapped_tool == bay);
+        }
+        REQUIRE(info.tool_to_slot_map.size() > 8);
+        CHECK(info.tool_to_slot_map[8] == 8);
+    }
+
+    SECTION("a bay in the gap is refused, not sent") {
+        CfsTestAccess::handle_status(backend,
+                                     make_cfs_notification(make_fork_box_with_boxes({1, 3})));
+        CHECK(backend.load_filament(5).result == AmsResult::INVALID_SLOT);
+        CHECK(backend.dispatched.empty());
+        REQUIRE(backend.load_filament(9).result == AmsResult::SUCCESS);
+        CHECK(backend.dispatched == std::vector<std::string>{"T9"});
+    }
+}
+
+// The lane store is keyed by the same index, so what the box last said about a
+// bay stays on that bay's lane while its box is gone, and the shared views
+// built from it neither show nor offer the missing box's bays as real ones.
+TEST_CASE("CFS fork: lane records stay on their bays when a box drops",
+          "[ams][cfs][fork][lane][1464]") {
+    helix::test::RegisteredBackend<CfsRemapHelper> backend;
+    CfsTestAccess::handle_status(*backend,
+                                 make_cfs_notification(make_fork_box_with_boxes({1, 2, 3})));
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(make_fork_box_with_boxes({1, 3})));
+
+    const auto box2a = helix::ams::lane_sources(backend.lane(4));
+    REQUIRE(box2a.vendor_cache.has_value());
+    CHECK(box2a.vendor_cache->product_name == std::optional<std::string>("Box 2 A"));
+    CHECK(box2a.vendor_cache->spoolman_id == std::optional<int>(104));
+    const auto box3a = helix::ams::lane_sources(backend.lane(8));
+    REQUIRE(box3a.vendor_cache.has_value());
+    CHECK(box3a.vendor_cache->product_name == std::optional<std::string>("Box 3 A"));
+
+    SECTION("the missing box's bays are not offered as lanes") {
+        const auto slots = helix::AmsState::instance().collect_available_slots();
+        CHECK(slots.size() == 8);
+        for (const auto& slot : slots) {
+            INFO("slot " << slot.slot_index);
+            CHECK((slot.slot_index < 4 || slot.slot_index >= 8));
+        }
+    }
+
+    SECTION("counts shown to the user are the bays that exist") {
+        const auto info = backend->get_system_info();
+        CHECK(info.total_slots == 12);
+        CHECK(info.present_slot_count() == 8);
+        CHECK(info.slot_absent(5));
+        CHECK_FALSE(info.slot_exists(5));
+        CHECK(info.slot_exists(9));
+    }
 }
 
 // ============================================================================
@@ -6549,12 +6698,6 @@ TEST_CASE("CFS clear_slot_override clears the Box profile on Fork only", "[ams][
                                               {"0FF5500", "0FFFFFF", "00A2989", "0C12E1F"})));
     helix::AmsBackend& base = backend;
 
-    base.clear_slot_override(2);
-    REQUIRE(backend.captured.empty());
-
-    // Fork with no flat frame has no firmware slot for the bay: refuse, never
-    // guess (#1464).
-    CfsTestAccess::set_macro_variant_fork(backend);
     base.clear_slot_override(2);
     REQUIRE(backend.captured.empty());
 
