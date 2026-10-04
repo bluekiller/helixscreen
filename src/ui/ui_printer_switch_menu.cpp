@@ -121,7 +121,8 @@ void PrinterSwitchMenu::dispatch_switch_action(MenuAction action, const std::str
     hide(); // Safe: uses lv_obj_delete_async internally
 
     if (callback) {
-        helix::ui::queue_update([callback, action, printer_id]() { callback(action, printer_id); });
+        helix::ui::queue_update("PrinterSwitchMenu::dispatch_switch_action",
+                                [callback, action, printer_id]() { callback(action, printer_id); });
     }
 }
 

@@ -133,7 +133,7 @@ void retire_overlay(lv_obj_t* overlay, const char* tag) {
         return;
     }
     NavigationManager::instance().unregister_overlay_instance(overlay);
-    helix::ui::queue_update(tag, [overlay]() {
+    helix::ui::queue_update(tag, [overlay]() { // QUEUE_TAG_OK: callers pass literals
         lv_obj_t* condemned = overlay;
         helix::ui::safe_delete_deferred(condemned);
     });

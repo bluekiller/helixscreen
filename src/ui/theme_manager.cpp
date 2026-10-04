@@ -943,7 +943,9 @@ static void theme_manager_register_color_pairs(lv_xml_component_scope_t* scope, 
         if (dark_it != dark_tokens.end()) {
             const char* selected = dark_mode ? dark_it->second.c_str() : light_val.c_str();
             spdlog::trace("[Theme] Registering color {}: selected={}", base_name, selected);
-            lv_xml_register_const(scope, base_name.c_str(), selected);
+            // set, not register: register is first-write-wins, and a live mode
+            // switch must reach the base token every later XML resolves.
+            lv_xml_set_const(scope, base_name.c_str(), selected);
             registered++;
         }
     }
@@ -1715,16 +1717,18 @@ static void theme_manager_register_semantic_colors(lv_xml_component_scope_t* sco
         snprintf(dark_name, sizeof(dark_name), "%s_dark", name);
         snprintf(light_name, sizeof(light_name), "%s_light", name);
 
-        // Register base name with current mode's value
+        // Base name takes the current mode's value. set, not register: register
+        // is first-write-wins, and a mode or theme switch must reach every XML
+        // built afterwards.
         if (!current_val.empty()) {
-            lv_xml_register_const(scope, name, current_val.c_str());
+            lv_xml_set_const(scope, name, current_val.c_str());
         }
 
         // Register _dark variant if dark palette is available
         if (has_dark) {
             const std::string& dark_val = theme.dark.at(index);
             if (!dark_val.empty()) {
-                lv_xml_register_const(scope, dark_name, dark_val.c_str());
+                lv_xml_set_const(scope, dark_name, dark_val.c_str());
             }
         }
 
@@ -1732,7 +1736,7 @@ static void theme_manager_register_semantic_colors(lv_xml_component_scope_t* sco
         if (has_light) {
             const std::string& light_val = theme.light.at(index);
             if (!light_val.empty()) {
-                lv_xml_register_const(scope, light_name, light_val.c_str());
+                lv_xml_set_const(scope, light_name, light_val.c_str());
             }
         }
     };

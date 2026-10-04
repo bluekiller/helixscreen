@@ -3,7 +3,7 @@
 #
 # Meta-tests for scripts/check_rotation_cache_order.py — the source-order gate
 # keeping DisplayManager's resolution cache behind set_display_rotation().
-# apply_rotation's body is #ifdef'd out of the test binary (HELIX_DISPLAY_SDL),
+# init()'s rotation block is #ifdef'd out of the test binary (HELIX_DISPLAY_SDL),
 # so a lint is the only thing that makes a wrong-order revert fail.
 #
 # Every case here mutates one thing in a source the gate otherwise accepts, so
@@ -25,9 +25,9 @@ teardown() {
     rm -rf "$TMP_DIR"
 }
 
-# Write a source holding everything the gate's census requires: init and
-# apply_rotation with one settle/cache pair each, run_rotation_probe with two.
-# Any argument after the output path replaces apply_rotation's body.
+# Write a source holding everything the gate's census requires: init with one
+# settle/cache pair, run_rotation_probe with two. Any argument after the output
+# path replaces init's rotation block.
 #
 # init carries the `#ifndef HELIX_DISPLAY_SDL` guard the real file has and
 # run_rotation_probe a format string with braces in it, so every case here
@@ -39,15 +39,7 @@ write_source() {
     {
         printf '%s\n' \
             'bool DisplayManager::init(const Config& config) {' \
-            '#ifndef HELIX_DISPLAY_SDL' \
-            '    m_backend->set_display_rotation(lv_rot, phys_w, phys_h);' \
-            '    m_width = lv_display_get_horizontal_resolution(m_display);' \
-            '    m_height = lv_display_get_vertical_resolution(m_display);' \
-            '#endif' \
-            '    return true;' \
-            '}' \
-            '' \
-            'void DisplayManager::apply_rotation(int degrees) {'
+            '#ifndef HELIX_DISPLAY_SDL'
         if [ "$#" -eq 0 ]; then
             printf '%s\n' \
                 '    m_backend->set_display_rotation(lv_rot, phys_w, phys_h);' \
@@ -57,6 +49,8 @@ write_source() {
             printf '    %s\n' "$@"
         fi
         printf '%s\n' \
+            '#endif' \
+            '    return true;' \
             '}' \
             '' \
             'void DisplayManager::run_rotation_probe() {' \
@@ -77,7 +71,7 @@ write_source() {
     run python3 "$SCRIPT"
     [ "$status" -eq 0 ]
     # The count is the difference between a pass and a gate looking at nothing.
-    contains "4 guarded set_display_rotation()/cache pair(s)" "$output"
+    contains "3 guarded set_display_rotation()/cache pair(s)" "$output"
 }
 
 @test "the synthetic source every other case mutates passes unmutated" {
@@ -95,17 +89,17 @@ write_source() {
     run python3 "$SCRIPT" --file "$SRC"
     [ "$status" -eq 1 ]
     contains "before set_display_rotation()" "$output"
-    contains "apply_rotation()" "$output"
+    contains "DisplayManager::init()" "$output"
 }
 
 @test "gate fails when the guarded function is renamed away" {
     write_source "$TMP_DIR/base.cpp"
-    sed 's/DisplayManager::apply_rotation/DisplayManager::apply_display_rotation/' \
+    sed 's/DisplayManager::init(/DisplayManager::init_display(/' \
         "$TMP_DIR/base.cpp" > "$SRC"
     refute cmp -s "$TMP_DIR/base.cpp" "$SRC"
     run python3 "$SCRIPT" --file "$SRC"
     [ "$status" -eq 1 ]
-    contains "DisplayManager::apply_rotation() is not defined here" "$output"
+    contains "DisplayManager::init() is not defined here" "$output"
 }
 
 @test "gate fails when the guarded pair is extracted into a helper" {
@@ -119,7 +113,7 @@ write_source() {
         'm_height = lv_display_get_vertical_resolution(m_display);'
     run python3 "$SCRIPT" --file "$SRC"
     [ "$status" -eq 1 ]
-    contains "DisplayManager::apply_rotation() performs 0 set_display_rotation()/cache pair(s)" "$output"
+    contains "DisplayManager::init() performs 0 set_display_rotation()/cache pair(s)" "$output"
 }
 
 @test "gate fails when the settle call is routed through a wrapper" {
@@ -132,7 +126,7 @@ write_source() {
         'settle_backend_rotation(lv_rot, phys_w, phys_h);'
     run python3 "$SCRIPT" --file "$SRC"
     [ "$status" -eq 1 ]
-    contains "DisplayManager::apply_rotation() performs 0 set_display_rotation()/cache pair(s)" "$output"
+    contains "DisplayManager::init() performs 0 set_display_rotation()/cache pair(s)" "$output"
     lacks "OK:" "$output"
 }
 
@@ -143,7 +137,7 @@ write_source() {
         'm_height = lv_display_get_vertical_resolution(m_display);'
     run python3 "$SCRIPT" --file "$SRC"
     [ "$status" -eq 1 ]
-    contains "DisplayManager::apply_rotation() performs 0 set_display_rotation()/cache pair(s)" "$output"
+    contains "DisplayManager::init() performs 0 set_display_rotation()/cache pair(s)" "$output"
 }
 
 @test "a block comment naming set_display_rotation does not satisfy the order" {
@@ -155,7 +149,7 @@ write_source() {
     run python3 "$SCRIPT" --file "$SRC"
     [ "$status" -eq 1 ]
     contains "before set_display_rotation()" "$output"
-    contains "apply_rotation()" "$output"
+    contains "DisplayManager::init()" "$output"
 }
 
 @test "a cache write wrapped onto two lines is still seen" {

@@ -37,7 +37,7 @@ void PhomemoBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
     auto& loader = helix::bluetooth::BluetoothLoader::instance();
     if (!loader.is_available()) {
         spdlog::error("Phomemo BT: Bluetooth not available");
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("PhomemoBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, lv_tr("Bluetooth not available"));
         });
@@ -46,7 +46,7 @@ void PhomemoBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
 
     if (mac_.empty()) {
         spdlog::error("Phomemo BT: No device configured");
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("PhomemoBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, lv_tr("Bluetooth device not configured"));
         });
@@ -104,14 +104,14 @@ void PhomemoBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
                 }
             }
 
-            helix::ui::queue_update([callback, success, error]() {
+            helix::ui::queue_update("PhomemoBluetoothPrinter::print", [callback, success, error]() {
                 if (callback)
                     callback(success, error);
             });
         }).detach();
     } catch (const std::system_error& e) {
         spdlog::error("Phomemo BT: failed to spawn print thread: {}", e.what());
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("PhomemoBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, lv_tr("System busy — please try again"));
         });

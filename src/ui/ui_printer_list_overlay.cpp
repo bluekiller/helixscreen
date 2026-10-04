@@ -171,7 +171,7 @@ void PrinterListOverlay::handle_switch_printer(const std::string& printer_id) {
     spdlog::info("[{}] Switching to printer '{}'", get_name(), printer_id);
 
     // Defer dismiss + switch — we're inside a click event on a child widget
-    helix::ui::queue_update([printer_id]() {
+    helix::ui::queue_update("PrinterListOverlay::handle_switch_printer", [printer_id]() {
         NavigationManager::instance().go_back();
         NavigationManager::instance().trigger_printer_switch(printer_id);
     });
@@ -201,7 +201,7 @@ void PrinterListOverlay::handle_delete_printer(const std::string& printer_id) {
             auto remaining = cfg->get_printer_ids();
             if (!remaining.empty()) {
                 std::string next_id = remaining.front();
-                helix::ui::queue_update([next_id]() {
+                helix::ui::queue_update("PrinterListOverlay::handle_delete_printer", [next_id]() {
                     NavigationManager::instance().go_back(); // dismiss overlay
                     NavigationManager::instance().trigger_printer_switch(next_id);
                 });
@@ -209,7 +209,8 @@ void PrinterListOverlay::handle_delete_printer(const std::string& printer_id) {
         } else {
             // Defer repopulation out of modal callback to avoid widget
             // mutation mid-event
-            helix::ui::queue_update([]() { get_printer_list_overlay().populate_printer_list(); });
+            helix::ui::queue_update("PrinterListOverlay::handle_delete_printer",
+                                    []() { get_printer_list_overlay().populate_printer_list(); });
         }
     });
 }
@@ -218,7 +219,7 @@ void PrinterListOverlay::handle_add_printer() {
     spdlog::info("[{}] Add printer requested", get_name());
 
     // Defer dismiss + wizard launch — we're inside a click event on a child widget
-    helix::ui::queue_update([]() {
+    helix::ui::queue_update("PrinterListOverlay::handle_add_printer", []() {
         NavigationManager::instance().go_back();
         NavigationManager::instance().trigger_add_printer();
     });

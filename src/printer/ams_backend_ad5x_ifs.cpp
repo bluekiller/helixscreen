@@ -1129,8 +1129,9 @@ void AmsBackendAd5xIfs::note_presence_transition_locked(int slot_index, bool was
         // own memory of the last write. An insert therefore carries no
         // evidence under the slot spec's insert rule and the user is asked
         // instead (docs/specs/filament_slots.md §6).
-        helix::ui::queue_update(
-            [slot_index] { helix::ui::offer_clear_after_unverified_insert(slot_index); });
+        helix::ui::queue_update("AmsBackendAd5xIfs::note_presence_transition_locked", [slot_index] {
+            helix::ui::offer_clear_after_unverified_insert(slot_index);
+        });
     }
 }
 

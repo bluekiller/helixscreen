@@ -106,9 +106,10 @@ Bluetooth support is a separate shared library, `libhelix-bluetooth.so`, built f
 (sd-bus) and libbluetooth (RFCOMM). It is silently skipped when either library is missing, and `BluetoothLoader`
 ([`include/bluetooth_loader.h#BluetoothLoader`](../../../include/bluetooth_loader.h#L13)) makes absence a non-event: `is_available()` returns false and every operation
 is a no-op, so a BT-less device loads no library and starts no threads. The loader resolves a C-ABI
-function-pointer table (discover, pair, trust, RFCOMM connect, BLE GATT read/write, SDP, LZO compress) and hands
-out one shared context via `get_or_create_context()` — a second `init()` would register a second BlueZ agent and
-conflict. Before any of that, `helix_bt_get_info()` reports an `api_version` ([`src/bluetooth/bt_plugin.cpp`](../../../src/bluetooth/bt_plugin.cpp)) the loader
+function-pointer table (discover, pair, trust, RFCOMM connect, BLE GATT read/write, SDP, LZO compress) and offers
+a shared context via `get_or_create_context()`, used by the print paths; the settings overlays and the Phomemo BLE
+and Niimbot transports still call `init()` for a context of their own, each with its own bus thread and BlueZ agent
+([`../BLUETOOTH_SYSTEM.md`](../BLUETOOTH_SYSTEM.md) has the ownership table). Before any of that, `helix_bt_get_info()` reports an `api_version` ([`src/bluetooth/bt_plugin.cpp`](../../../src/bluetooth/bt_plugin.cpp)) the loader
 checks, so a plugin built against a different function-table generation refuses politely instead of crashing on
 a stale pointer.
 
@@ -127,8 +128,9 @@ both printers and HID barcode scanners — [`bt_scanner_discovery_utils.h`](../.
 HID (`0x1124`) or HID-over-GATT (`0x1812`) the same way [`bt_discovery_utils.h`](../../../include/bt_discovery_utils.h) classifies printer brands. The
 plugin's own files split cleanly by concern: [`bt_discovery.cpp`](../../../src/bluetooth/bt_discovery.cpp) and [`bt_pairing.cpp`](../../../src/bluetooth/bt_pairing.cpp)/[`bt_agent.cpp`](../../../src/bluetooth/bt_agent.cpp) speak D-Bus
 to BlueZ, [`bt_ble.cpp`](../../../src/bluetooth/bt_ble.cpp) and [`bt_rfcomm.cpp`](../../../src/bluetooth/bt_rfcomm.cpp) are the two data paths, [`bt_sdp.cpp`](../../../src/bluetooth/bt_sdp.cpp) resolves RFCOMM channels, and
-[`bt_lzo.cpp`](../../../src/bluetooth/bt_lzo.cpp) wraps miniLZO (public domain, compiled into the plugin only) for the MakeID protocol. Note the
-plugin logs with `fprintf(stderr)`, not spdlog — it is a standalone `.so` with no logging dependency by design.
+[`bt_lzo.cpp`](../../../src/bluetooth/bt_lzo.cpp) wraps miniLZO (public domain, compiled into the plugin only) for the MakeID protocol. The
+plugin logs mostly with `fprintf(stderr)`; the one spdlog call in `BusThread::start` goes to the plugin's own default
+logger, not the app's sinks.
 
 ### Label printing: one interface, six protocol families, three transports
 
@@ -141,7 +143,7 @@ edit overlay. It renders once — `LabelRenderer::render()` produces a 1bpp `Lab
 |--------|---------------|-----------|------------|
 | Brother QL | ESC/P raster | TCP 9100 or RFCOMM | 300 |
 | Brother PT | PT command stream | RFCOMM | 180 |
-| Phomemo | ESC/POS raster | USB (libusb), RFCOMM, or BLE GATT | 203 |
+| Phomemo | ESC/POS raster | USB (kernel `usblp` node; libusb only detects), RFCOMM, or BLE GATT | 203 |
 | Niimbot | Custom BLE packets (`0x55 0x55 …`) | BLE GATT only | 203 |
 | MakeID/Wewin | `0x66` frames, LZO1X-compressed | RFCOMM | 203 |
 | IPP | IPP 2.0 + PWG Raster | HTTP POST (inkjet/laser sheet labels) | printer's |
@@ -245,6 +247,7 @@ swept before the decision ([`src/remote/remote_control_server.cpp#resolve_socket
 
 ## Going deeper
 
+- [`../BLUETOOTH_SYSTEM.md`](../BLUETOOTH_SYSTEM.md) - the Bluetooth plugin in full: C ABI and versioning, which consumer owns which context, the thread each call runs on, discovery filtering, the pairing and bonding sequence, RFCOMM/BLE data paths, failure modes, and how to extend the ABI.
 - [`../LABEL_PRINTER_SYSTEM.md`](../LABEL_PRINTER_SYSTEM.md) — per-protocol packet formats and print sequences in full, label-size tables, brand-detection helpers, and the checklist for adding a new printer family.
 - [`../HELIXCTL.md`](../HELIXCTL.md) — the complete helixctl command reference: transports, `--json` output, headless/CI recipes, synthetic pointer gestures, and the isolated-second-instance workflow.
 - [`03-threading-lifetime.md`](03-threading-lifetime.md) — owns the `BusThread`/`HttpExecutor` submit/run_sync contract and the detached-thread rules this chapter's peripherals follow.

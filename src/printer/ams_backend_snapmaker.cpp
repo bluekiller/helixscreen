@@ -2377,7 +2377,8 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     // re-checks its own guards (print-feeding lane, lane with nothing to
     // clear) on the UI thread.
     for (int lane : unverified_insert_lanes) {
-        helix::ui::queue_update([lane] { helix::ui::offer_clear_after_unverified_insert(lane); });
+        helix::ui::queue_update("AmsBackendSnapmaker::handle_status",
+                                [lane] { helix::ui::offer_clear_after_unverified_insert(lane); });
     }
 
     if (batch_failed_head >= 0) {

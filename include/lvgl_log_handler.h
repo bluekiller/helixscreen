@@ -48,5 +48,15 @@ void retire_lvgl_log_handler();
  */
 void set_suppress_translation_warnings(bool suppress);
 
+/**
+ * @brief Forget every message the repeat dedupe has seen.
+ *
+ * The cache holds at most 256 bodies and wipes itself when full, so a process
+ * that has already logged many distinct warnings can lose "first occurrence"
+ * state at an arbitrary later point. A test that asserts on first-occurrence
+ * level starts from an empty cache instead.
+ */
+void reset_lvgl_log_dedupe();
+
 } // namespace logging
 } // namespace helix
