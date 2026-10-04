@@ -210,6 +210,11 @@ void reset_config_singleton() {
         filament::reload_materials();
     }
 
+    // FilamentSlotOverrideStore's offline fallback reads this file when the
+    // Moonraker DB round-trip never answers, so a record an earlier backend case
+    // cached would come back as the "offline" overrides of an unrelated store.
+    std::filesystem::remove(config_sandbox_dir() + "/filament_slot_overrides.json", overlay_ec);
+
     helix::Config* cfg = helix::Config::get_instance();
     helix::ConfigTestAccess::path(*cfg) = config_sandbox_dir() + "/settings.json";
     helix::ConfigTestAccess::data(*cfg) = nlohmann::json::object();
