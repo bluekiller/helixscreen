@@ -12,6 +12,7 @@
 #include "invalidation_suppression.h"
 #include "lvgl/lvgl.h"
 #include "main_loop_handler.h"
+#include "printer_session.h"
 #include "splash_screen_manager.h"
 #include "wizard_step.h" // helix::wizard::StepId
 #include "xml_hot_reloader.h"
@@ -125,10 +126,7 @@ class Application {
     // Shutdown
     void shutdown();
 
-    // Soft restart (printer switching)
-    void switch_printer(const std::string& printer_id);
-    void add_printer_via_wizard();
-    void cancel_add_printer_wizard();
+    // Soft restart (printer switching): the session sequences these two
     void tear_down_printer_state();
 
     /// What survives the teardown: a printer switch keeps the process and LVGL alive,
@@ -258,10 +256,10 @@ class Application {
     size_t m_last_hardware_fingerprint = 0;
     bool m_first_discovery_complete = true;
     bool m_shutdown_complete = false;
-    bool m_soft_restart_in_progress = false;
 
-    // Tracks previous printer when adding a new one via wizard (for cancel recovery)
-    std::string m_wizard_previous_printer_id;
+    /// Switching to, adding and abandoning printers; sequences tear_down_printer_state() and
+    /// init_printer_state().
+    helix::PrinterSession m_session;
 
     // Splash screen lifecycle manager
     helix::application::SplashScreenManager m_splash_manager;

@@ -27,15 +27,13 @@ class Config;
  *
  * ## What a test may and may not drive
  *
- * The three soft-restart entry points all end in tear_down_printer_state() +
- * init_printer_state(): a teardown (teardown_printer_scope) that runs
- * StaticSubjectRegistry::deinit_all(), StaticPanelRegistry::destroy_all() and
- * update_queue_shutdown(), followed by a full subject/Moonraker/XML rebuild.
- * That is the whole application, and running it inside a shared Catch2 process
- * would leave every later test in the shard on rebuilt global state. Tests here
- * therefore exercise the branches that return BEFORE teardown (the re-entrancy
- * latch, config validation) and the synchronous config surgery that
- * cancel_add_printer_wizard() performs before deferring its teardown.
+ * The three soft-restart entry points (PrinterSession) end in the Application's
+ * tear_down_printer_state() + init_printer_state(): a teardown (teardown_printer_scope)
+ * that runs StaticSubjectRegistry::deinit_all(), StaticPanelRegistry::destroy_all() and
+ * update_queue_shutdown(), followed by a full subject/Moonraker/XML rebuild. That is the
+ * whole application, and running it inside a shared Catch2 process would leave every later
+ * test in the shard on rebuilt global state. Tests here therefore replace that work with
+ * recorders through set_restart_hooks() and drive the state machine around it.
  *
  * neutralize_destructor() is mandatory for the same reason: ~Application() calls
  * shutdown() unconditionally, and shutdown() tears down TelemetryManager,
@@ -56,11 +54,20 @@ class ApplicationTestAccess {
     }
 
     static bool& soft_restart_in_progress(Application& app) {
-        return app.m_soft_restart_in_progress;
+        return app.m_session.m_soft_restart_in_progress;
     }
 
     static std::string& wizard_previous_printer_id(Application& app) {
-        return app.m_wizard_previous_printer_id;
+        return app.m_session.m_wizard_previous_printer_id;
+    }
+
+    /// Swaps the session's teardown / rebuild / land-home work for test doubles.
+    static void set_restart_hooks(Application& app, helix::PrinterSession::Restart hooks) {
+        app.m_session.m_restart = std::move(hooks);
+    }
+
+    static void add_printer_via_wizard(Application& app) {
+        app.m_session.add_printer_via_wizard();
     }
 
     static bool note_hardware_fingerprint(Application& app, size_t fingerprint) {
@@ -84,11 +91,11 @@ class ApplicationTestAccess {
     }
 
     static void switch_printer(Application& app, const std::string& printer_id) {
-        app.switch_printer(printer_id);
+        app.m_session.switch_printer(printer_id);
     }
 
     static void cancel_add_printer_wizard(Application& app) {
-        app.cancel_add_printer_wizard();
+        app.m_session.cancel_add_printer_wizard();
     }
 
     /// Android pause/resume hooks. Production reaches these only from inside

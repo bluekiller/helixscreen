@@ -88,6 +88,7 @@ src/application/discovery_steps.cpp  # not in the v1 Core+AMS cut
 src/application/display_manager.cpp  # not in the v1 Core+AMS cut
 src/application/process_guards.cpp  # not in the v1 Core+AMS cut
 src/application/probe_egl_cmd.cpp  # DRM/EGL probe, no meaning on the firmware
+src/application/printer_session.cpp  # not in the v1 Core+AMS cut
 src/application/error_classify.cpp  # not in the v1 Core+AMS cut
 src/application/fault_surface_correlation.cpp  # not in the v1 Core+AMS cut
 src/application/gcode_error_router.cpp  # not in the v1 Core+AMS cut

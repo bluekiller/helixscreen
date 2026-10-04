@@ -90,7 +90,7 @@ void Application::handle_keyboard_shortcuts() {
                     auto next = (it != ids.end() && std::next(it) != ids.end()) ? *std::next(it)
                                                                                 : ids.front();
                     spdlog::info("[Application] P key - switching to printer '{}'", next);
-                    switch_printer(next);
+                    m_session.switch_printer(next);
                 } else {
                     // Create a second test printer so we can test switching
                     spdlog::info(
