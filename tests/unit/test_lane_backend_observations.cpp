@@ -4708,6 +4708,29 @@ TEST_CASE_METHOD(LVGLTestFixture, "a resync reaches the backend's own block, not
     CHECK_FALSE(lane_sources(helix::ams::lane_id_for(0, 1)).local_user.has_value());
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "a second backend paints its own lane, not backend 0's",
+                 "[lane][ingest][snapmaker]") {
+    // Both backends' slot 0 hold different identities, so a backend that read
+    // its lane from the slot index alone would paint backend 0's (#1643).
+    MockHarness filler(4);
+    auto owned = std::make_unique<AmsBackendSnapmaker>(nullptr, nullptr);
+    auto* backend = owned.get();
+    REQUIRE(helix::AmsState::instance().add_backend(std::move(owned)) == 1);
+
+    helix::ams::Observation other(helix::ams::ObservationSource::LocalUser);
+    other.material = "ABS";
+    helix::ams::commit_slot_edit(helix::ams::lane_id_for(0, 0), other);
+
+    feed_filament_detect(*backend, nlohmann::json{
+                                       {"info", nlohmann::json::array({nlohmann::json{
+                                                    {"MAIN_TYPE", "PETG"},
+                                                    {"ARGB_COLOR", 0xFFED2C2C},
+                                                }})},
+                                   });
+
+    CHECK(backend->get_slot_info(0).material == "PETG");
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "a resync files no declaration for a record naming a spool",
                  "[lane][ingest][resync]") {
     ToolChangerHarness harness(nullptr, nullptr);
