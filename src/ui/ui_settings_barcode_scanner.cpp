@@ -10,7 +10,6 @@
 #include "ui_utils.h"
 
 #include "bluetooth_loader.h"
-#include "bt_scanner_discovery_utils.h"
 #include "input_device_scanner.h"
 #include "log_redact.h"
 #include "settings_manager.h"
@@ -212,10 +211,7 @@ void BarcodeScannerSettingsOverlay::on_activate() {
                     if (!dev)
                         return;
                     auto* self = static_cast<BarcodeScannerSettingsOverlay*>(ud);
-                    bool looks_like_scanner =
-                        helix::bluetooth::is_hid_scanner_uuid(dev->service_uuid) ||
-                        helix::bluetooth::is_likely_bt_scanner(dev->name);
-                    if (!looks_like_scanner)
+                    if (!dev->is_scanner)
                         return;
                     BtDeviceInfo info;
                     info.mac = dev->mac ? dev->mac : "";
@@ -523,12 +519,7 @@ void BarcodeScannerSettingsOverlay::start_bt_discovery() {
                     if (!dctx->alive.load())
                         return;
 
-                    // Filter: only include devices that look like HID scanners
-                    bool looks_like_scanner =
-                        helix::bluetooth::is_hid_scanner_uuid(dev->service_uuid) ||
-                        helix::bluetooth::is_likely_bt_scanner(dev->name);
-
-                    if (!looks_like_scanner) {
+                    if (!dev->is_scanner) {
                         spdlog::trace("[BarcodeScannerSettings] Skipping non-scanner BT: {}",
                                       dev->name ? dev->name : "(null)");
                         return;
