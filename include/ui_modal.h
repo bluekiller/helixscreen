@@ -667,4 +667,13 @@ lv_obj_t* show_low_ram_resonance_warning(size_t total_mb, lv_obj_t** dialog_hand
                                          std::function<void()> on_confirm,
                                          const ConfirmOptions& options = {});
 
+/**
+ * @brief Tell the user a resonance sweep is refused for lack of memory.
+ *
+ * Shown instead of starting when resonance_memory_check() says REFUSE.
+ * @p on_close runs on OK and on dismissal alike.
+ */
+lv_obj_t* show_resonance_memory_refusal(size_t headroom_mb, std::function<void()> on_close = {},
+                                        const AlertOptions& options = {});
+
 } // namespace helix::ui

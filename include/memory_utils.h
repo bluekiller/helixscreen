@@ -58,6 +58,7 @@ struct MemoryInfo {
     size_t total_kb = 0;     ///< Total system memory in KB
     size_t available_kb = 0; ///< Available memory in KB (free + buffers/cache)
     size_t free_kb = 0;      ///< Strictly free memory in KB
+    size_t swap_free_kb = 0; ///< Unused swap in KB
 
     // RAM tier thresholds (total system RAM).
     //
@@ -109,6 +110,11 @@ struct MemoryInfo {
     size_t available_mb() const {
         return available_kb / 1024;
     }
+
+    /// What a new allocation can still get: available RAM plus unused swap, in MB
+    size_t headroom_mb() const {
+        return (available_kb + swap_free_kb) / 1024;
+    }
 };
 
 /**
@@ -126,6 +132,34 @@ MemoryInfo get_system_memory_info();
 // (e.g. the 128 MB Elegoo CC1) into swap thrash, surfacing as klippy
 // "Timer Too Close" errors. Threshold chosen by the maintainer (200 MB).
 inline constexpr size_t RESONANCE_LOW_RAM_WARN_MB = 200;
+
+// Klipper's resonance analysis child needs about 45-50 MB on armv7. Below this
+// headroom the kernel OOM-kills it and klippy wedges until a host-side restart
+// or power cycle, so the check is refused rather than warned. Measured: an AD5M
+// with 74 MB headroom survived; a CC1 with 25-30 MB did not. Headroom, not
+// total RAM, decides it: the AD5M has less RAM than the CC1 but has swap.
+inline constexpr size_t RESONANCE_MIN_HEADROOM_MB = 64;
+
+enum class ResonanceMemory {
+    OK,     ///< enough memory; start without asking
+    WARN,   ///< small board; ask before starting
+    REFUSE, ///< the analysis would be OOM-killed and wedge klippy
+};
+
+/// Decide whether a resonance sweep (input shaper, belt tension) may start on
+/// this host. Unreadable memory info (total 0) never blocks.
+inline ResonanceMemory resonance_memory_check(const MemoryInfo& mem) {
+    if (mem.total_kb == 0) {
+        return ResonanceMemory::OK;
+    }
+    if (mem.headroom_mb() < RESONANCE_MIN_HEADROOM_MB) {
+        return ResonanceMemory::REFUSE;
+    }
+    if (mem.total_mb() < RESONANCE_LOW_RAM_WARN_MB) {
+        return ResonanceMemory::WARN;
+    }
+    return ResonanceMemory::OK;
+}
 
 /**
  * @brief Memory thresholds for G-code 3D rendering decisions

@@ -601,6 +601,7 @@ translations:
   Checking for webcam...: Recherche d'une webcam...
   Checking plugin: Vérification du plugin
   Checking slots...: Vérification des slots...
+  Checking the printer...: "Vérification de l'imprimante..."
   Checking timelapse plugin...: Vérification du plugin timelapse...
   Checking webcam: Vérification de la webcam
   Checking...: Vérification...
@@ -1712,8 +1713,8 @@ translations:
     thermique ou à une erreur de configuration.
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper réserve 'default' aux nouvelles calibrations. Choisissez un autre nom."
   Klipper restarting - macros activating: 'Redémarrage de Klipper - activation des macros'
-  ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Restart the Klipper service from Mainsail or Fluidd, or power-cycle the printer, then try again.
-  : "Klipper ne signale plus la progression. Son analyse peut manquer de mémoire sur les petites imprimantes et bloquer Klipper, qu'un redémarrage firmware ne peut alors plus atteindre. Redémarrez le service Klipper depuis Mainsail ou Fluidd, ou éteignez puis rallumez l'imprimante, puis réessayez."
+  ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
+  : "Klipper ne signale plus la progression. Son analyse peut manquer de mémoire sur les petites imprimantes et bloquer Klipper, qu'un redémarrage firmware ne peut alors plus atteindre. Éteignez puis rallumez l'imprimante (ou redémarrez Klipper via SSH), puis réessayez."
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper ne signale plus la progression. Son analyse peut manquer de mémoire sur les petites imprimantes ; redémarrez Klipper puis réessayez."
   Klipper will restart to apply changes: Klipper redémarrera pour appliquer les modifications
   Klipper will restart to apply changes.: Klipper redémarrera pour appliquer les modifications.
@@ -2143,6 +2144,7 @@ translations:
   Normal: Normal
   Not Connected: 'Non connecté'
   Not Enough Filament: Filament insuffisant
+  Not Enough Memory: "Mémoire insuffisante"
   Not Initialized: 'Non initialisé'
   Not Now: Pas maintenant
   Not Supported: 'Non pris en charge'
@@ -2216,6 +2218,8 @@ translations:
   One tap runs this macro. Dangerous macros still ask.: 'Un appui exécute cette macro. Les macros dangereuses demandent toujours confirmation.'
   'Only on A: {} Hz': "Seulement sur A : {} Hz"
   'Only on B: {} Hz': "Seulement sur B : {} Hz"
+  ? Only {} MB of memory is free, and Klipper's analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled.
+  : "Seulement {} Mo de mémoire sont libres, et l'analyse de Klipper a besoin d'environ {} Mo. Le test bloquerait l'imprimante jusqu'à ce qu'elle soit éteinte puis rallumée."
   Ooze Reduction: 'Réduction du suintement'
   Open: Ouvrir
   Open Source Licenses: Licences open source
@@ -3385,6 +3389,8 @@ translations:
     redémarrage.
   Theme reset to defaults: Thème réinitialisé par défaut
   'Theme: ': 'Thème : '
+  ? There is not enough free memory to run this test. Klipper's analysis would run out of memory and leave the printer stuck until it is power-cycled.
+  : "Il n'y a pas assez de mémoire libre pour ce test. L'analyse de Klipper manquerait de mémoire et bloquerait l'imprimante jusqu'à ce qu'elle soit éteinte puis rallumée."
   'These tools have a different filament grade loaded:': 'Ces outils ont un grade de filament différent chargé :'
   'These tools have incompatible materials loaded:': 'Ces outils ont des matériaux
     incompatibles chargés :'

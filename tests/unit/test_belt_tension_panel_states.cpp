@@ -357,8 +357,8 @@ TEST_CASE("a stall trips the stall guard", "[belt][panel]") {
     CHECK(fx.state_int("belt_tension_state") ==
           static_cast<int>(BeltTensionPanel::ViewState::ERROR));
     CHECK(fx.text("bt_error_message").find("stopped reporting progress") != std::string::npos);
-    CHECK(fx.text("bt_error_message").find("power-cycle") != std::string::npos);
-    CHECK(fx.text("bt_error_message").find("Restart the Klipper service") != std::string::npos);
+    CHECK(fx.text("bt_error_message").find("Power-cycle the printer") != std::string::npos);
+    CHECK(fx.text("bt_error_message").find("SSH") != std::string::npos);
 }
 
 TEST_CASE("closing mid-run stops listening", "[belt][panel]") {
@@ -467,7 +467,10 @@ TEST_CASE("low RAM asks before the sweep starts", "[belt][panel]") {
     helix::ui::modal_init_subjects();
     REQUIRE(fx.register_component("modal_dialog"));
     REQUIRE(fx.wait_gate_open());
-    fx.panel().set_total_ram_mb_for_test(128);
+    helix::MemoryInfo small;
+    small.total_kb = 128 * 1024;
+    small.available_kb = 80 * 1024;
+    fx.panel().set_memory_for_test(small);
 
     fx.panel().handle_start_clicked();
     fx.pump_ms(500);
@@ -492,10 +495,39 @@ TEST_CASE("low RAM asks before the sweep starts", "[belt][panel]") {
 TEST_CASE("enough RAM starts the sweep without asking", "[belt][panel]") {
     BeltPanelFixture fx;
     REQUIRE(fx.wait_gate_open());
-    fx.panel().set_total_ram_mb_for_test(1024);
+    helix::MemoryInfo big;
+    big.total_kb = 1024 * 1024;
+    big.available_kb = 600 * 1024;
+    fx.panel().set_memory_for_test(big);
 
     fx.panel().handle_start_clicked();
     CHECK(fx.panel_low_ram_dialog() == nullptr);
     CHECK(fx.state_int("belt_tension_state") ==
           static_cast<int>(BeltTensionPanel::ViewState::RUNNING));
+}
+
+TEST_CASE("too little headroom refuses the sweep", "[belt][panel]") {
+    BeltPanelFixture fx;
+    helix::ui::modal_init_subjects();
+    REQUIRE(fx.register_component("modal_dialog"));
+    REQUIRE(fx.wait_gate_open());
+    // The CC1 as measured: Klipper's analysis is OOM-killed and klippy wedges.
+    helix::MemoryInfo cc1;
+    cc1.total_kb = 114 * 1024;
+    cc1.available_kb = 25 * 1024;
+    fx.panel().set_memory_for_test(cc1);
+
+    fx.panel().handle_start_clicked();
+    fx.pump_ms(500);
+    lv_obj_t* dialog = ModalStack::instance().top_dialog();
+    REQUIRE(dialog != nullptr);
+    // Not the continue-anyway warning: there is no way to start from here.
+    CHECK(fx.panel_low_ram_dialog() == nullptr);
+
+    lv_obj_t* ok = lv_obj_find_by_name(dialog, "btn_primary");
+    REQUIRE(ok != nullptr);
+    lv_obj_send_event(ok, LV_EVENT_CLICKED, nullptr);
+    fx.pump_ms(500);
+    CHECK(fx.state_int("belt_tension_state") ==
+          static_cast<int>(BeltTensionPanel::ViewState::START));
 }

@@ -331,7 +331,12 @@ static void on_start_calibration_clicked(lv_event_t* e) {
     // On memory-constrained hosts, warn before entering the calibrating state so
     // the wizard doesn't flip its visuals if the user cancels.
     auto mem = helix::get_system_memory_info();
-    if (mem.total_mb() < helix::RESONANCE_LOW_RAM_WARN_MB) {
+    const auto verdict = helix::resonance_memory_check(mem);
+    if (verdict == helix::ResonanceMemory::REFUSE) {
+        helix::ui::show_resonance_memory_refusal(mem.headroom_mb());
+        return; // the Start button stays, as after declining the warning
+    }
+    if (verdict == helix::ResonanceMemory::WARN) {
         // Re-entry guard: a second entry while the warning modal is open is a no-op.
         if (step->low_ram_warn_dialog_)
             return;
