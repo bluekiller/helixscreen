@@ -445,7 +445,7 @@ class FilamentSensorManager {
     [[nodiscard]] lv_subject_t* get_runout_detected_subject();
 
     /**
-     * @brief Get subject for the print-scoped runout state (FIX B).
+     * @brief Get subject for the print-scoped runout state.
      *
      * Same -1/0/1/2 encoding as get_runout_detected_subject(), but scoped to the
      * active print's used tools using AMS lane truth. The in-print runout badge
@@ -681,7 +681,7 @@ class FilamentSensorManager {
     // Expires deferred subject updates when the subjects are torn down.
     helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t runout_detected_{};
-    lv_subject_t scoped_runout_{}; ///< Print-scoped runout (FIX B); driven by PrintStatusPanel
+    lv_subject_t scoped_runout_{}; ///< Print-scoped runout; driven by PrintStatusPanel
     lv_subject_t toolhead_detected_{};
     lv_subject_t entry_detected_{};
     lv_subject_t probe_triggered_{};

@@ -130,7 +130,7 @@ void FilamentSensorManager::init_subjects() {
     //        runout protection is inactive instead of mistaking a hidden
     //        indicator for "everything is fine".
     UI_MANAGED_SUBJECT_INT(runout_detected_, -1, "filament_runout_detected", subjects_);
-    // Print-scoped runout (FIX B): same encoding as filament_runout_detected but
+    // Print-scoped runout: same encoding as filament_runout_detected but
     // considers only the active print's used tools (lane truth). Driven by
     // PrintStatusPanel via set_scoped_runout(); the in-print badge binds this.
     UI_MANAGED_SUBJECT_INT(scoped_runout_, -1, "filament_runout_scoped", subjects_);
@@ -762,11 +762,8 @@ namespace {
 // otherwise the backend's own firmware default map.
 //
 // @p routing must be the SAME map PrintSelectDetailView::get_effective_remap()
-// filtered against, or the lanes scanned here are not the lanes routed to. That
-// used to be a shared four-head constant, which was right for a U1 and wrong for
-// every lane-per-tool AMS - and the error was masked, because the filter's
-// matching mistake kept an entry in @p remap that sent this lookup to the right
-// lane anyway. Correcting one without the other silently scans lane 0.
+// filtered against, or the lanes scanned here are not the lanes routed to: a
+// mismatch silently scans lane 0.
 int slot_for_tool(int tool, const std::map<int, int>& remap,
                   const helix::FirmwareRouting& routing) {
     auto it = remap.find(tool);
