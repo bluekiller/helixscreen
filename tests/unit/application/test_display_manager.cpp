@@ -523,7 +523,39 @@ class MockPointerBackend : public DisplayBackend {
     }
 };
 
+/// A DRM backend with no rotation plane, so any non-zero rotation asks for the
+/// fbdev fallback.
+class MockDrmPointerBackend : public MockPointerBackend {
+  public:
+    DisplayBackendType type() const override {
+        return DisplayBackendType::DRM;
+    }
+    bool supports_hardware_rotation(lv_display_rotation_t) const override {
+        return false;
+    }
+};
+
 } // namespace
+
+TEST_CASE_METHOD(ApplicationTestFixture,
+                 "The DRM-to-fbdev fallback refuses once input devices exist",
+                 "[application][display][indev][rotation]") {
+    DisplayManager mgr;
+    DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockDrmPointerBackend>());
+    DisplayManagerTestAccess::create_input_devices(mgr);
+    REQUIRE(mgr.pointer_input() != nullptr);
+    const DisplayBackend* backend = mgr.backend();
+
+    CHECK_FALSE(DisplayManagerTestAccess::try_drm_to_fbdev_fallback(mgr, LV_DISPLAY_ROTATION_90));
+    // The swap would free the backend the live devices read through.
+    CHECK(mgr.backend() == backend);
+    CHECK(mgr.pointer_input() != nullptr);
+
+    lv_indev_delete(mgr.pointer_input());
+    if (mgr.keyboard_input()) {
+        lv_indev_delete(mgr.keyboard_input());
+    }
+}
 
 TEST_CASE_METHOD(ApplicationTestFixture,
                  "DisplayManager clears its own pointer when LVGL deletes the device",
@@ -531,7 +563,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     DisplayManager mgr;
     DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockPointerBackend>());
 
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    DisplayManagerTestAccess::create_input_devices(mgr);
     lv_indev_t* pointer = mgr.pointer_input();
     REQUIRE(pointer != nullptr);
 
@@ -547,10 +579,9 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     DisplayManager mgr;
     DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockPointerBackend>());
 
-    // rebuild_input_after_backend_swap() calls watch_pointer()/watch_keyboard()
-    // right after creating each device - the same two calls init() makes in
-    // the same order, so this proves init()'s keyboard watch too.
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    // finish_input_setup() is init()'s own input path, so this proves init()'s
+    // keyboard watch.
+    DisplayManagerTestAccess::create_input_devices(mgr);
     lv_indev_t* keyboard = mgr.keyboard_input();
     REQUIRE(keyboard != nullptr);
 
@@ -840,8 +871,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     }
 }
 
-TEST_CASE_METHOD(ApplicationTestFixture,
-                 "Rebuilding input after a backend swap reports the new keyboard's presence",
+TEST_CASE_METHOD(ApplicationTestFixture, "Input setup reports the new keyboard's presence",
                  "[application][display][indev][1572]") {
     ScopedKeyboardPresence restore;
     auto& settings = helix::DisplaySettingsManager::instance();
@@ -849,7 +879,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
 
     DisplayManager mgr;
     DisplayManagerTestAccess::set_backend(mgr, std::make_unique<KeyboardBackend>(true));
-    DisplayManagerTestAccess::rebuild_input_after_backend_swap(mgr);
+    DisplayManagerTestAccess::create_input_devices(mgr);
 
     CHECK(settings.hardware_keyboard_present());
 }

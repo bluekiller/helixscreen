@@ -1295,7 +1295,14 @@ bool Application::init_display() {
     DisplayManager::Config config;
     config.width = m_screen_width;
     config.height = m_screen_height;
-    config.rotation = m_args.rotation;
+    // The first-boot probe's kernel panel_orientation is applied here, as the
+    // configured rotation, so it is in place before the backends create their
+    // input devices and gate the stored touch range on it (#1428).
+    m_rotation_probe_wanted = rotation_probe_wanted();
+    m_kernel_orientation =
+        m_rotation_probe_wanted ? DisplayBackend::detect_panel_orientation() : -1;
+    config.rotation =
+        helix::startup_rotation(m_args.rotation, m_rotation_probe_wanted, m_kernel_orientation);
     config.size_was_explicit = m_args.size_was_explicit;
 
     // Get scroll config from settings.json
@@ -1586,55 +1593,54 @@ bool Application::init_assets() {
     return true;
 }
 
-void Application::run_rotation_probe_and_layout() {
+bool Application::rotation_probe_wanted() const {
     // Run rotation probe on first boot if no rotation is configured.
     // Skip if: CLI rotation set, env var set, already probed, or config already
     // has a /display/rotate key (even if 0 — means user already configured it).
     // HELIX_FORCE_ROTATION_PROBE=1 bypasses all guards (for testing on SDL).
-    {
-        bool force_probe = (std::getenv("HELIX_FORCE_ROTATION_PROBE") != nullptr);
-        bool should_probe = false;
-
-        if (force_probe) {
-            should_probe = true;
-            spdlog::info("[Application] Rotation probe forced via HELIX_FORCE_ROTATION_PROBE");
-        }
+    if (std::getenv("HELIX_FORCE_ROTATION_PROBE") != nullptr) {
+        spdlog::info("[Application] Rotation probe forced via HELIX_FORCE_ROTATION_PROBE");
+        return true;
+    }
 #if defined(HELIX_DISPLAY_FBDEV) || defined(HELIX_DISPLAY_DRM)
-        else if (m_args.rotation == 0 && !std::getenv("HELIX_DISPLAY_ROTATION")) {
-            bool probed = m_config->get<bool>("/display/rotation_probed", false);
-            bool has_rotate_key = m_config->exists("/display/rotate");
-            should_probe = !probed && !has_rotate_key;
-            if (!should_probe) {
-                spdlog::info("[Application] Rotation probe skipped: probed={}, has_rotate_key={}",
-                             probed, has_rotate_key);
-            }
-        } else {
-            spdlog::info(
-                "[Application] Rotation probe skipped: cli_rotation={}, env={}", m_args.rotation,
-                std::getenv("HELIX_DISPLAY_ROTATION") ? std::getenv("HELIX_DISPLAY_ROTATION")
-                                                      : "unset");
+    if (m_args.rotation == 0 && !std::getenv("HELIX_DISPLAY_ROTATION")) {
+        bool probed = m_config->get<bool>("/display/rotation_probed", false);
+        bool has_rotate_key = m_config->exists("/display/rotate");
+        if (probed || has_rotate_key) {
+            spdlog::info("[Application] Rotation probe skipped: probed={}, has_rotate_key={}",
+                         probed, has_rotate_key);
+            return false;
         }
+        return true;
+    }
+    spdlog::info("[Application] Rotation probe skipped: cli_rotation={}, env={}", m_args.rotation,
+                 std::getenv("HELIX_DISPLAY_ROTATION") ? std::getenv("HELIX_DISPLAY_ROTATION")
+                                                       : "unset");
+    return false;
 #else
-        spdlog::debug("[Application] Rotation probe skipped: not embedded build");
+    spdlog::debug("[Application] Rotation probe skipped: not embedded build");
+    return false;
 #endif
+}
+
+void Application::run_rotation_probe_and_layout() {
+    {
+        const bool should_probe = m_rotation_probe_wanted;
 
         if (should_probe) {
             int32_t pre_w = m_screen_width;
             int32_t pre_h = m_screen_height;
 
-            // Try auto-detecting panel orientation from kernel first.
-            // panel_orientation is informational — the kernel does NOT rotate
-            // the framebuffer for us. We must apply the rotation ourselves.
-            int kernel_orientation = DisplayBackend::detect_panel_orientation();
+            // Kernel panel_orientation first. It is informational — the kernel
+            // does NOT rotate the framebuffer — and init_display() has already
+            // applied it, so only the config write remains.
+            const int kernel_orientation = m_kernel_orientation;
             if (kernel_orientation >= 0) {
                 // Orientation detected (0=Normal, 90, 180, 270).
                 if (kernel_orientation > 0) {
                     spdlog::info("[Application] Auto-detected panel orientation: {}° — "
-                                 "applying now and saving to config",
+                                 "applied at display init, saving to config",
                                  kernel_orientation);
-                    m_display->apply_rotation(kernel_orientation);
-                    m_screen_width = m_display->width();
-                    m_screen_height = m_display->height();
                 } else {
                     spdlog::info("[Application] Auto-detected panel orientation: Normal (0°) — "
                                  "no rotation needed, saving to config");

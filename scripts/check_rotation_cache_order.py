@@ -9,7 +9,7 @@ The DRM backend may take rotation over itself (a scanout plane advertising
 taken before set_display_rotation() returns records a value the display no
 longer has (prestonbrown/helixscreen#1275, #1587).
 
-Why a lint and not a unit test: apply_rotation's body lives behind
+Why a lint and not a unit test: init()'s rotation block lives behind
 `#ifndef HELIX_DISPLAY_SDL`, and the test binary compiles with
 HELIX_DISPLAY_SDL, so the path cannot run headless. The dormant path goes
 live the moment a plane owns rotation on i915/amdgpu (x86 targets).
@@ -66,7 +66,6 @@ DEFAULT_FILE = "src/application/display_manager.cpp"
 # settle call and an extracted cache helper each change a number here.
 GUARDED_FUNCTIONS = {
     "DisplayManager::init": 1,
-    "DisplayManager::apply_rotation": 1,
     "DisplayManager::run_rotation_probe": 2,
 }
 
