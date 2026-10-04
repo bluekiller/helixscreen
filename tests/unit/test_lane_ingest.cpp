@@ -15,26 +15,28 @@
 using helix::ams::classify_declaration;
 using helix::ams::declared_from_record;
 using helix::ams::ingest;
+using helix::ams::lane_id_value;
 using helix::ams::lane_sources;
+using helix::ams::LaneId;
 using helix::ams::LegacyLockKeys;
 using helix::ams::Observation;
 using helix::ams::ObservationSource;
 using helix::ams::sources_from_record;
 
-// The store treats a lane id as an opaque key, so these cases use bare
-// integers. Everything that produces an id goes through lane_id_for().
+// The store treats a lane id as an opaque key, so these cases name lanes by
+// raw value. Everything that produces an id goes through lane_id_for().
 TEST_CASE_METHOD(HelixTestFixture, "ingest writes one source and leaves the rest alone",
                  "[lane][ingest]") {
     Observation sensed(ObservationSource::Sensed);
     sensed.present = true;
-    ingest(2, sensed);
+    ingest(LaneId{2}, sensed);
 
     Observation cache(ObservationSource::VendorCache);
     cache.color_rgb = 0xED2C2C;
     cache.material = "PETG";
-    ingest(2, cache);
+    ingest(LaneId{2}, cache);
 
-    const auto lane = lane_sources(2);
+    const auto lane = lane_sources(LaneId{2});
     REQUIRE(lane.sensed.has_value());
     CHECK(lane.sensed->present == true);
     REQUIRE(lane.vendor_cache.has_value());
@@ -48,16 +50,16 @@ TEST_CASE_METHOD(HelixTestFixture, "ingest replaces a source's record whole", "[
     Observation first(ObservationSource::VendorCache);
     first.color_rgb = 0xED2C2C;
     first.material = "PETG";
-    ingest(0, first);
+    ingest(LaneId{0}, first);
 
     // The vendor store stops reporting a material. Whole-record replacement is
     // what makes that stop contributing: a field the source has stopped
     // observing must not keep standing from an earlier frame.
     Observation second(ObservationSource::VendorCache);
     second.color_rgb = 0xED2C2C;
-    ingest(0, second);
+    ingest(LaneId{0}, second);
 
-    const auto lane = lane_sources(0);
+    const auto lane = lane_sources(LaneId{0});
     REQUIRE(lane.vendor_cache.has_value());
     CHECK(lane.vendor_cache->color_rgb == 0xED2C2C);
     CHECK_FALSE(lane.vendor_cache->material.has_value());
@@ -66,14 +68,14 @@ TEST_CASE_METHOD(HelixTestFixture, "ingest replaces a source's record whole", "[
 TEST_CASE_METHOD(HelixTestFixture, "lanes are independent destinations", "[lane][ingest]") {
     Observation a(ObservationSource::Sensed);
     a.present = true;
-    ingest(0, a);
+    ingest(LaneId{0}, a);
 
     Observation b(ObservationSource::Sensed);
     b.present = false;
-    ingest(1, b);
+    ingest(LaneId{1}, b);
 
-    const auto lane0 = lane_sources(0);
-    const auto lane1 = lane_sources(1);
+    const auto lane0 = lane_sources(LaneId{0});
+    const auto lane1 = lane_sources(LaneId{1});
     REQUIRE(lane0.sensed.has_value());
     REQUIRE(lane1.sensed.has_value());
     CHECK(lane0.sensed->present == true);
@@ -81,7 +83,7 @@ TEST_CASE_METHOD(HelixTestFixture, "lanes are independent destinations", "[lane]
 }
 
 TEST_CASE_METHOD(HelixTestFixture, "an unseen lane reads as nothing observed", "[lane][ingest]") {
-    const auto lane = lane_sources(7);
+    const auto lane = lane_sources(LaneId{7});
     CHECK_FALSE(lane.sensed.has_value());
     CHECK_FALSE(lane.vendor_cache.has_value());
     CHECK(helix::ams::known_lanes().empty());
@@ -93,10 +95,10 @@ TEST_CASE("a lane id names one backend's slot and nothing else", "[lane][ingest]
 
     // Two backends is the ordinary case, not an exotic one: a tool changer
     // beside a filament system is what makes a bare slot index wrong.
-    CHECK(lane_id_for(0, 0) == 0);
-    CHECK(lane_id_for(0, 3) == 3);
+    CHECK(lane_id_for(0, 0) == LaneId{0});
+    CHECK(lane_id_for(0, 3) == LaneId{3});
     CHECK(lane_id_for(1, 0) != lane_id_for(0, 0));
-    CHECK(lane_id_for(1, 0) == LANES_PER_BACKEND);
+    CHECK(lane_id_for(1, 0) == LaneId{LANES_PER_BACKEND});
 
     // The last slot of one block never collides with the first of the next.
     CHECK(lane_id_for(0, LANES_PER_BACKEND - 1) < lane_id_for(1, 0));
@@ -136,7 +138,7 @@ TEST_CASE("a pair that names no lane yields no id", "[lane][ingest]") {
     CHECK(lane_id_for(0, helix::ams::LANES_PER_BACKEND) == INVALID_LANE_ID);
 
     CHECK_FALSE(helix::ams::is_lane_id(INVALID_LANE_ID));
-    CHECK(helix::ams::is_lane_id(0));
+    CHECK(helix::ams::is_lane_id(LaneId{0}));
 }
 
 TEST_CASE("only an id the scheme assigns is a lane", "[lane][ingest]") {
@@ -147,27 +149,28 @@ TEST_CASE("only an id the scheme assigns is a lane", "[lane][ingest]") {
     using helix::ams::LANES_PER_BACKEND;
     using helix::ams::MAX_BACKENDS;
 
-    constexpr helix::ams::LaneId END_OF_BLOCKS = MAX_BACKENDS * LANES_PER_BACKEND;
+    constexpr int END_OF_BLOCKS = MAX_BACKENDS * LANES_PER_BACKEND;
+    const auto plus = [](LaneId lane, int n) { return LaneId{lane_id_value(lane) + n}; };
 
     // Both ends of each of the three ranges the scheme assigns.
-    CHECK(is_lane_id(0));
-    CHECK(is_lane_id(END_OF_BLOCKS - 1));
+    CHECK(is_lane_id(LaneId{0}));
+    CHECK(is_lane_id(LaneId{END_OF_BLOCKS - 1}));
     CHECK(is_lane_id(BYPASS_LANE_ID));
     CHECK(is_lane_id(FIRST_TOOL_LANE_ID));
-    CHECK(is_lane_id(END_LANE_ID - 1));
+    CHECK(is_lane_id(plus(END_LANE_ID, -1)));
 
     // One past each end, both ends of the gap between the last backend block
     // and the bypass, and an arbitrary large integer. A positive value is not
     // a lane merely for being positive: no backend, bypass or tool owns any
     // of these, so a record filed on one would describe nothing at all.
-    CHECK_FALSE(is_lane_id(-1));
+    CHECK_FALSE(is_lane_id(LaneId{-1}));
     CHECK_FALSE(is_lane_id(helix::ams::INVALID_LANE_ID));
-    CHECK_FALSE(is_lane_id(END_OF_BLOCKS));
-    CHECK_FALSE(is_lane_id(BYPASS_LANE_ID - 1));
-    CHECK_FALSE(is_lane_id(BYPASS_LANE_ID + 1));
-    CHECK_FALSE(is_lane_id(FIRST_TOOL_LANE_ID - 1));
+    CHECK_FALSE(is_lane_id(LaneId{END_OF_BLOCKS}));
+    CHECK_FALSE(is_lane_id(plus(BYPASS_LANE_ID, -1)));
+    CHECK_FALSE(is_lane_id(plus(BYPASS_LANE_ID, 1)));
+    CHECK_FALSE(is_lane_id(plus(FIRST_TOOL_LANE_ID, -1)));
     CHECK_FALSE(is_lane_id(END_LANE_ID));
-    CHECK_FALSE(is_lane_id(1000000));
+    CHECK_FALSE(is_lane_id(LaneId{1000000}));
 
     // Everything lane_id_for produces is an id this admits, at the far corner.
     CHECK(is_lane_id(helix::ams::lane_id_for(MAX_BACKENDS - 1, LANES_PER_BACKEND - 1)));
@@ -185,16 +188,16 @@ TEST_CASE_METHOD(HelixTestFixture, "the store cannot grow past the ids the schem
     // Ids no backend, bypass or tool can own. "Bounded by construction" is
     // only true if the funnels refuse these: a backend deriving an id wrongly
     // in a later plan would otherwise grow the map for as long as it polls.
-    for (helix::ams::LaneId lane = helix::ams::END_LANE_ID; lane < helix::ams::END_LANE_ID + 200000;
-         ++lane) {
-        ingest(lane, obs);
+    const int end = lane_id_value(helix::ams::END_LANE_ID);
+    for (int lane = end; lane < end + 200000; ++lane) {
+        ingest(LaneId{lane}, obs);
     }
 
     // The gap between the last backend block and the bypass is the same
     // question in the range a miscomputed backend id would land in.
-    for (helix::ams::LaneId lane = helix::ams::MAX_BACKENDS * helix::ams::LANES_PER_BACKEND;
-         lane < helix::ams::BYPASS_LANE_ID; ++lane) {
-        ingest(lane, obs);
+    for (int lane = helix::ams::MAX_BACKENDS * helix::ams::LANES_PER_BACKEND;
+         lane < lane_id_value(helix::ams::BYPASS_LANE_ID); ++lane) {
+        ingest(LaneId{lane}, obs);
     }
 
     spdlog::set_level(restore_level);
@@ -203,7 +206,7 @@ TEST_CASE_METHOD(HelixTestFixture, "the store cannot grow past the ids the schem
 
     // The three ranges that are lanes still write, so the refusal above is
     // selective rather than a funnel that stopped working.
-    ingest(0, obs);
+    ingest(LaneId{0}, obs);
     ingest(helix::ams::BYPASS_LANE_ID, obs);
     ingest(helix::ams::FIRST_TOOL_LANE_ID, obs);
     CHECK(helix::ams::known_lanes().size() == 3);
@@ -221,8 +224,8 @@ TEST_CASE_METHOD(HelixTestFixture, "a funnel handed no lane writes nothing", "[l
 
     // Not a clamp onto lane 0, and not a record filed under the id itself.
     CHECK(helix::ams::known_lanes().empty());
-    CHECK_FALSE(lane_sources(0).sensed.has_value());
-    CHECK_FALSE(lane_sources(0).local_user.has_value());
+    CHECK_FALSE(lane_sources(LaneId{0}).sensed.has_value());
+    CHECK_FALSE(lane_sources(LaneId{0}).local_user.has_value());
     CHECK_FALSE(lane_sources(helix::ams::INVALID_LANE_ID).sensed.has_value());
 }
 
@@ -312,25 +315,28 @@ TEST_CASE("the blocks are adjacent, which is why a slot index is bounded", "[lan
     // defensive: a slot index one past a block is not an unused id, it is the
     // neighbouring backend's slot 0, and every index past that is one of its
     // real slots.
-    CHECK(lane_id_for(0, LANES_PER_BACKEND - 1) + 1 == lane_id_for(1, 0));
-    CHECK(lane_id_for(3, LANES_PER_BACKEND - 1) + 1 == lane_id_for(4, 0));
+    CHECK(lane_id_value(lane_id_for(0, LANES_PER_BACKEND - 1)) + 1 ==
+          lane_id_value(lane_id_for(1, 0)));
+    CHECK(lane_id_value(lane_id_for(3, LANES_PER_BACKEND - 1)) + 1 ==
+          lane_id_value(lane_id_for(4, 0)));
 
     // The id a bounds violation would have produced belongs to a real slot on
     // a real backend, so nothing downstream could tell it apart.
-    CHECK(lane_id_for(0, 0) + (6 * LANES_PER_BACKEND + 3) == lane_id_for(6, 3));
+    CHECK(lane_id_value(lane_id_for(0, 0)) + (6 * LANES_PER_BACKEND + 3) ==
+          lane_id_value(lane_id_for(6, 3)));
 }
 
 TEST_CASE_METHOD(HelixTestFixture, "commit_slot_edit refuses a source that is not the user",
                  "[lane][ingest]") {
     Observation cache(ObservationSource::VendorCache);
     cache.color_rgb = 0xED2C2C;
-    helix::ams::commit_slot_edit(5, cache);
+    helix::ams::commit_slot_edit(LaneId{5}, cache);
 
     // The two funnels take the same arguments and mean opposite things, so the
     // source check is what stops a backend reaching for the amending one and
     // becoming a third writer of a record the user owns. It returns void, so a
     // caller cannot tell a drop from a write; the lane is where that shows.
-    const auto lane = lane_sources(5);
+    const auto lane = lane_sources(LaneId{5});
     CHECK_FALSE(lane.vendor_cache.has_value());
     CHECK_FALSE(lane.local_user.has_value());
     CHECK(helix::ams::known_lanes().empty());
@@ -341,9 +347,9 @@ TEST_CASE_METHOD(HelixTestFixture,
                  "[lane][ingest]") {
     Observation declared(ObservationSource::LocalUser);
     declared.color_rgb = 0xBCBCBC;
-    helix::ams::commit_slot_edit(6, declared);
+    helix::ams::commit_slot_edit(LaneId{6}, declared);
 
-    const auto before = lane_sources(6);
+    const auto before = lane_sources(LaneId{6});
     REQUIRE(before.local_user.has_value());
     CHECK(before.local_user->color_rgb == 0xBCBCBC);
 
@@ -353,9 +359,9 @@ TEST_CASE_METHOD(HelixTestFixture,
     // shows up as a changed value, not a coincidental match.
     Observation impostor(ObservationSource::LocalUser);
     impostor.color_rgb = 0x000000;
-    ingest(6, impostor);
+    ingest(LaneId{6}, impostor);
 
-    const auto after = lane_sources(6);
+    const auto after = lane_sources(LaneId{6});
     REQUIRE(after.local_user.has_value());
     CHECK(after.local_user->color_rgb == 0xBCBCBC);
 }
@@ -364,13 +370,13 @@ TEST_CASE_METHOD(HelixTestFixture, "known_lanes lists every lane that has been w
                  "[lane][ingest]") {
     Observation obs(ObservationSource::Sensed);
     obs.present = true;
-    ingest(3, obs);
-    ingest(0, obs);
+    ingest(LaneId{3}, obs);
+    ingest(LaneId{0}, obs);
 
     const auto lanes = helix::ams::known_lanes();
     REQUIRE(lanes.size() == 2);
-    CHECK(lanes[0] == 0);
-    CHECK(lanes[1] == 3);
+    CHECK(lanes[0] == LaneId{0});
+    CHECK(lanes[1] == LaneId{3});
 }
 
 TEST_CASE("every ObservationSource round-trips to its own LaneSources member", "[lane]") {

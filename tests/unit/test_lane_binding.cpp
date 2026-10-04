@@ -308,7 +308,7 @@ TEST_CASE("an unlinked lane is never ejected, whatever the setting says", "[lane
 
 TEST_CASE_METHOD(HelixTestFixture, "a broken binding takes both declaring records with it",
                  "[lane][binding]") {
-    constexpr helix::ams::LaneId kLane = 3;
+    constexpr helix::ams::LaneId kLane = helix::ams::lane_id_for(0, 3);
 
     Observation server(ObservationSource::Spoolman);
     server.spoolman_id = 42;
@@ -362,7 +362,7 @@ TEST_CASE_METHOD(HelixTestFixture, "a user's hand-typed colour goes with the bin
     // The judgment this pins: a colour says what is loaded RIGHT NOW, and
     // firmware has just said what is loaded is a different spool. Keeping the
     // colour would paint the old spool's shade onto the new one.
-    constexpr helix::ams::LaneId kLane = 4;
+    constexpr helix::ams::LaneId kLane = helix::ams::lane_id_for(0, 4);
 
     user_links(kLane, 42);
     Observation tint(ObservationSource::LocalUser);
@@ -380,7 +380,7 @@ TEST_CASE_METHOD(HelixTestFixture, "a colour on a lane bound to nothing survives
                  "[lane][binding]") {
     // The other half of the same judgment: with no declared binding there is
     // nothing for firmware to contradict, so the person's pick stands.
-    constexpr helix::ams::LaneId kLane = 5;
+    constexpr helix::ams::LaneId kLane = helix::ams::lane_id_for(0, 5);
 
     Observation tint(ObservationSource::LocalUser);
     tint.color_rgb = 0x00FF00u;
@@ -393,7 +393,7 @@ TEST_CASE_METHOD(HelixTestFixture, "a colour on a lane bound to nothing survives
 
 TEST_CASE_METHOD(HelixTestFixture, "an ejected lane drops the same two records a re-bind does",
                  "[lane][binding]") {
-    constexpr helix::ams::LaneId kLane = 6;
+    constexpr helix::ams::LaneId kLane = helix::ams::lane_id_for(0, 6);
 
     Observation server(ObservationSource::Spoolman);
     server.spoolman_id = 42;
@@ -408,7 +408,7 @@ TEST_CASE_METHOD(HelixTestFixture, "an ejected lane drops the same two records a
 
 TEST_CASE_METHOD(HelixTestFixture, "a binding that holds costs the lane nothing",
                  "[lane][binding]") {
-    constexpr helix::ams::LaneId kLane = 7;
+    constexpr helix::ams::LaneId kLane = helix::ams::lane_id_for(0, 7);
 
     Observation server(ObservationSource::Spoolman);
     server.spoolman_id = 42;
@@ -424,7 +424,7 @@ TEST_CASE_METHOD(HelixTestFixture, "a binding that holds costs the lane nothing"
 
 TEST_CASE_METHOD(HelixTestFixture, "dropping a source leaves every other source standing",
                  "[lane][binding]") {
-    constexpr helix::ams::LaneId kLane = 8;
+    constexpr helix::ams::LaneId kLane = helix::ams::lane_id_for(0, 8);
 
     Observation cache(ObservationSource::VendorCache);
     cache.material = "PETG";
@@ -445,7 +445,7 @@ TEST_CASE_METHOD(HelixTestFixture, "a drop that names no lane writes no lane", "
     // The funnels refuse an id the scheme does not assign; a drop must not
     // create the entry they refused to write.
     drop_lane_source(helix::ams::INVALID_LANE_ID, ObservationSource::Spoolman);
-    drop_lane_source(9, ObservationSource::Spoolman);
+    drop_lane_source(helix::ams::lane_id_for(0, 9), ObservationSource::Spoolman);
 
     CHECK(helix::ams::known_lanes().empty());
 }
