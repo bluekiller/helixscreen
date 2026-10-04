@@ -15,10 +15,6 @@ struct VirtualWindow {
     int last = 0;
     int leading_px = 0;
     int trailing_px = 0;
-
-    bool operator==(const VirtualWindow& o) const {
-        return first == o.first && last == o.last;
-    }
 };
 
 /// Which rows to materialise for a list scrolled to `scroll_y` in a `viewport_h` tall viewport.
