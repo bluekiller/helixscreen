@@ -153,8 +153,8 @@ tell you something else broke, and that question is not interesting until you ar
 
 `make t` takes a tag, an exact case name, or any Catch2 expression, so one variable covers
 every way of naming what you want. With no `F` it refuses rather than running everything.
-`make test-run` runs nothing at all now: it prints this choice and exits non-zero, because
-the shortest name that ran anything is the one people type.
+`make test-run` runs nothing: it prints this choice and exits non-zero, because the
+shortest target name is the one people type, so it must not start a full run.
 
 Rows four through seven are the evidence ladder below. "Proving a test can fail" is where
 each one's cost and blind spot is set out; read it there rather than picking from this
@@ -286,7 +286,7 @@ Stop a run with **Ctrl-C**, never `kill`. Each mutant is put back by a `finally:
 that needs the interpreter to keep running; SIGINT unwinds it, SIGTERM does not
 and leaves that hunk reverted in your working tree.
 
-Four outcomes, and they are not interchangeable:
+The verdicts are not interchangeable:
 
 | Verdict | Means |
 |---------|-------|
