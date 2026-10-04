@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>7af4d565f</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>ca984533b</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 100 done, 12 in progress, 24 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 101 done, 11 in progress, 24 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -2027,9 +2027,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="progress">
-<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god10-display-sleep</code><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
+<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="done">
+<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">ca984533b</code><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/god10-display-sleep</code>, merged to main at <code>ca984533b</code>. The idle tick is a pure <code>decide_idle()</code> pinned by a 47-row truth table; sleep, dim, screensaver and wake live in <code>DisplaySleepController</code>; <code>user_brightness()</code> replaces four clamps; <code>RotationProbe</code> is XML plus a class. display_manager.cpp 2,580 -&gt; ~1,470 lines. On-device dim/sleep/wake checks (AD5M, Pi DRM/DSI, K1) are still to do.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/display_manager.cpp#DisplayManager::run_rotation_probe</code>, <code>#DisplayManager::enter_sleep</code>, <code>#DisplayManager::init</code>, <code>include/display_manager.h#DisplayManager</code></dd>
 <dt>Evidence</dt><dd>2,580 lines, 146 commits, 969-line header, ~60 members. Jobs: platform preamble ~220; init/shutdown ~535; input ~325; sleep/dim/screensaver ~770; rotation ~455 (probe alone 345, builds labels imperatively with hardcoded colors); resize fan-out ~120; color transform ~100. External use: 34 call sites, 14 methods. <code>scripts/check_rotation_cache_order.py</code> (390) + 295 lines of bats exist because the class cannot be unit-tested (#1593).</dd>
