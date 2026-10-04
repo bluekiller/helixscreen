@@ -19,6 +19,9 @@ The author guide is [docs/devel/PLUGIN_DEVELOPMENT.md](../../docs/devel/PLUGIN_D
   show_target, declared in the manifest's settings schema.
 - `helix.ui.on` + `helix.ui.overlay`: the tile's `plugin_event` opens the
   detail overlay; unload closes it automatically.
+- `helix.canvas`: `polyline`, `line`, `commit`, `on_size` — the sparkline on the
+  tile and the graph plus target line in the overlay are retained drawings
+  rebuilt on every sample.
 - `helix.log.warn`: failures degrade to an empty window instead of faulting.
 
 ## Run it
@@ -35,8 +38,9 @@ The 2x1 tile needs room: remove or shrink a stock widget first, then add it from
 
 - `manifest.json` id, one 2x1 widget, empty permissions, three settings.
 - `main.lua` subjects, backfill, sampling timer, heater switching.
-- `ui/temp-spark__tile.xml` value label plus 30 bound `lv_bar`s.
-- `ui/temp-spark__detail.xml` overlay with the same bars, min/max and target.
+- `ui/temp-spark__tile.xml` value label above a canvas sparkline.
+- `ui/temp-spark__detail.xml` overlay with a larger canvas carrying the target
+  line, plus min/max and target labels.
 
-Bar heights are percent of `max(50, window peak, target) * 1.1`, so a reading
+Point heights are percent of `max(50, window peak, target) * 1.1`, so a reading
 keeps its height while the window slides and an idle printer stays quiet.

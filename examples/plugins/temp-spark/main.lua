@@ -34,7 +34,7 @@ local function selected()
     return HEATERS[helix.settings.get("heater")] or HEATERS.extruder
 end
 
--- Subjects are the plugin's whole output: XML binds to them, Lua only sets
+-- Subjects carry the plugin's text output: XML binds to them, Lua only sets
 -- them. A name given here registers as temp-spark__<name>.
 local value_text = helix.subject.string("value", "--")
 local min_text = helix.subject.string("min_text", "--")
@@ -42,10 +42,11 @@ local max_text = helix.subject.string("max_text", "--")
 local target_text = helix.subject.string("target_text", "--")
 local heater_label = helix.subject.string("heater_label", "Extruder")
 local show_target = helix.subject.int("show_target", 1)
-local bars = {}
-for i = 1, N do
-    bars[i] = helix.subject.int("bar" .. i, 0)
-end
+
+-- Each canvas is a retained drawing: draw() rebuilds its list from the window
+-- and commits it, and the widget replays it until the next commit.
+local spark = helix.canvas("spark")
+local graph = helix.canvas("graph")
 
 -- The window holds the sampled temperatures, oldest first. `latest` and
 -- `target_now` are the live readings waiting for the next sample tick.
@@ -61,25 +62,39 @@ local function fmt(t)
     return math.floor(t + 0.5) .. "\u{00B0}"
 end
 
+-- Points are percent of an absolute-temperature scale, so a reading keeps its
+-- height while the window slides. The window fills from the right edge.
+local function draw(c, scale, with_target)
+    local w, h = c:size()
+    if w > 1 and h > 1 and #samples >= 2 then
+        local pts = {}
+        for i, t in ipairs(samples) do
+            pts[#pts + 1] = (N - #samples + i - 1) * (w - 1) / (N - 1)
+            pts[#pts + 1] = (h - 1) * (1 - t / scale)
+        end
+        c:polyline(pts, {color = "primary", width = 2})
+        if with_target and target_now and helix.settings.get("show_target") then
+            local y = (h - 1) * (1 - target_now / scale)
+            c:line(0, y, w - 1, y, {color = "text_muted"})
+        end
+    end
+    c:commit()
+end
+
 local function render()
     heater_label:set(selected().label)
 
-    -- Bar heights are percent of an absolute-temperature scale, so a reading
-    -- keeps its height while the window slides: 10% headroom over the larger
-    -- of the target and the window peak, floored at 50 degrees so an idle
-    -- printer near ambient does not fill the tile with noise.
+    -- The vertical scale is an absolute-temperature range: 10% headroom over
+    -- the larger of the target and the window peak, floored at 50 degrees so
+    -- an idle printer near ambient does not fill the tile with noise.
     local lo, hi = samples[1], samples[1]
     for _, t in ipairs(samples) do
         lo, hi = math.min(lo, t), math.max(hi, t)
     end
     local scale = math.max(50, hi or 0, target_now or 0) * 1.1
 
-    -- The window fills from the right edge: while fewer than N samples exist,
-    -- the left bars stay at zero and the newest sample always sits at bar N.
-    for i = 1, N do
-        local t = samples[i + #samples - N]
-        bars[i]:set(t and math.floor(t / scale * 100 + 0.5) or 0)
-    end
+    draw(spark, scale)
+    draw(graph, scale, true)
 
     value_text:set(fmt(samples[#samples]))
     min_text:set(fmt(lo))
@@ -159,6 +174,11 @@ end
 helix.settings.on_change("heater", adopt_heater)
 helix.settings.on_change("interval_s", arm_timer)
 helix.settings.on_change("show_target", render)
+
+-- A canvas reports its size once laid out and again on every resize; the
+-- drawing is rebuilt for the new size.
+spark:on_size(render)
+graph:on_size(render)
 
 -- The tile's only event opens the detail overlay. The XML addresses it as
 -- plugin_event with user_data temp-spark__open; unload closes it.
