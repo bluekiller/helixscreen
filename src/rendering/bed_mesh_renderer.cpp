@@ -1660,7 +1660,7 @@ static void render_2d_heatmap(lv_layer_t* layer, bed_mesh_renderer_t* renderer, 
         // Draw tooltip text
         lv_draw_label_dsc_t label_dsc;
         lv_draw_label_dsc_init(&label_dsc);
-        label_dsc.color = lv_color_white();
+        label_dsc.color = theme_manager_get_color("text");
         label_dsc.font = &noto_sans_14;
         label_dsc.text = z_text;
         label_dsc.align = LV_TEXT_ALIGN_CENTER;

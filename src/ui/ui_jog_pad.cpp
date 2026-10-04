@@ -95,6 +95,7 @@ typedef struct {
     lv_color_t jog_color_home_text_unhomed;
     lv_color_t jog_color_boundary_lines;
     lv_color_t jog_color_distance_labels;
+    lv_color_t jog_color_inner_distance_label;
     lv_color_t jog_color_axis_labels;
     lv_color_t jog_color_highlight;
 } jog_pad_state_t;
@@ -140,6 +141,9 @@ static void load_colors(jog_pad_state_t* state, const char* /*component_scope_na
     state->jog_color_axis_labels = ring_contrast;
     state->jog_color_distance_labels = ring_contrast;
     state->jog_color_highlight = ring_contrast;
+    // The inner distance label sits on the inner circle, a different fill
+    state->jog_color_inner_distance_label = theme_manager_get_contrast_adjusted_text(
+        theme_manager_get_color("text"), state->jog_color_inner_circle);
 
     spdlog::debug("[JogPad] Colors loaded from theme tokens ({} mode)",
                   theme_manager_is_dark_mode() ? "dark" : "light");
@@ -413,7 +417,6 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // On threaded builds the draw task outlives this callback and reads the
     // text on the render thread, so the task must own a copy of the string.
     label_dsc.text_local = 1;
-    label_dsc.color = state->jog_color_distance_labels;
     label_dsc.font = get_distance_font(radius);
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
 
@@ -430,6 +433,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     const char* outer_label = mode_dist.outer_label;
 
     label_dsc.text = inner_label;
+    label_dsc.color = state->jog_color_inner_distance_label;
     lv_coord_t inner_label_radius = (lv_coord_t)((home_radius + inner_boundary) * 0.5f);
     label_area.x1 = center_x + (lv_coord_t)(inner_label_radius * 0.707f);
     label_area.y1 = center_y - (lv_coord_t)(inner_label_radius * 0.707f) + dist_offset_y;
@@ -439,6 +443,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
 
     // Outer ring distance label
     label_dsc.text = outer_label;
+    label_dsc.color = state->jog_color_distance_labels;
     lv_coord_t outer_label_radius = (lv_coord_t)((radius + inner_boundary) * 0.5f);
     label_area.x1 = center_x + (lv_coord_t)(outer_label_radius * 0.707f);
     label_area.y1 = center_y - (lv_coord_t)(outer_label_radius * 0.707f) + dist_offset_y;
