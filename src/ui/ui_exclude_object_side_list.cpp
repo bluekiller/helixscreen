@@ -4,6 +4,7 @@
 
 #include "ui_gcode_viewer.h"
 #include "ui_print_exclude_object_manager.h"
+#include "ui_row_text.h"
 #include "ui_utils.h"
 
 #include "color_utils.h"
@@ -251,10 +252,7 @@ void ExcludeObjectSideList::create_row(lv_obj_t* parent, int index, const std::s
     if (!row) {
         return;
     }
-    if (auto* label = lv_obj_find_by_name(row, "object_name")) {
-        // DECLARATIVE_OK: slicer text; as a prop a leading '#' reads as a const
-        lv_label_set_text(label, name.c_str());
-    }
+    helix::ui::set_row_label_text(row, "object_name", name.c_str());
 
     // L069: the row is a plain lv_obj, so the user_data slot is ours. The
     // helper owns the copy and frees it on LV_EVENT_DELETE.

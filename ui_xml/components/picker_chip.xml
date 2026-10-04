@@ -5,9 +5,10 @@
   <!-- A pill-shaped choice in a picker's wrap-flow chip row (the power device
        widget's energy sensor). Outlined at rest, primary-outlined and tinted
        while it is the current choice; `selected` maps to LV_STATE_CHECKED.
-       C++ hangs the choice's value on user_data and wires the click. -->
+       C++ hangs the choice's value on user_data, sets the label (sensor names are
+       user text, and as a prop a leading '#' would read as a const) and wires
+       the click. -->
   <api>
-    <prop name="label" type="string" default=""/>
     <prop name="selected" type="boolean" default="false"/>
   </api>
   <styles>
@@ -20,7 +21,6 @@
     <style name="selected" selector="checked"/>
     <style name="styles.press_wash" selector="pressed"/>
     <lv_label name="chip_label"
-              text="$label" style_text_font="noto_sans_14" style_text_color="#text" clickable="false"
-              event_bubble="true"/>
+              text="" style_text_font="noto_sans_14" style_text_color="#text" clickable="false" event_bubble="true"/>
   </view>
 </component>

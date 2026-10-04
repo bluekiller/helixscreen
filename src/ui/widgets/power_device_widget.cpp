@@ -11,6 +11,7 @@
 #include "ui_icon_codepoints.h"
 #include "ui_icon_picker.h"
 #include "ui_panel_power.h"
+#include "ui_row_text.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -461,12 +462,15 @@ void PowerDeviceWidget::show_device_picker() {
     auto create_device_row = [&](const std::string& device_id, const std::string& display,
                                  bool is_selected) {
         const char* attrs[] = {
-            "label", display.c_str(), "selected", is_selected ? "true" : "false", nullptr,
+            "selected",
+            is_selected ? "true" : "false",
+            nullptr,
         };
         lv_obj_t* row = static_cast<lv_obj_t*>(lv_xml_create(list, "picker_option_row", attrs));
         if (!row) {
             return;
         }
+        helix::ui::set_row_label_text(row, "option_label", display.c_str());
 
         // Store device name for click handler
         auto* name_copy = new std::string(device_id);
@@ -584,13 +588,16 @@ void PowerDeviceWidget::show_device_picker() {
         // Helper to create a sensor chip
         auto make_chip = [&](const char* label_text, const std::string& sensor_id, bool selected) {
             const char* attrs[] = {
-                "label", label_text, "selected", selected ? "true" : "false", nullptr,
+                "selected",
+                selected ? "true" : "false",
+                nullptr,
             };
             lv_obj_t* chip =
                 static_cast<lv_obj_t*>(lv_xml_create(sensor_grid, "picker_chip", attrs));
             if (!chip) {
                 return;
             }
+            helix::ui::set_row_label_text(chip, "chip_label", label_text);
 
             // Store sensor ID as user_data (heap-allocated string)
             auto* id_copy = new std::string(sensor_id);

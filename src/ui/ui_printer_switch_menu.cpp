@@ -6,6 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
 #include "ui_icon_codepoints.h"
+#include "ui_row_text.h"
 #include "ui_update_queue.h"
 
 #include "config.h"
@@ -87,10 +88,7 @@ void PrinterSwitchMenu::populate_printer_list() {
         if (!row) {
             continue;
         }
-        if (auto* label = lv_obj_find_by_name(row, "printer_name")) {
-            // DECLARATIVE_OK: user text; as a prop a leading '#' reads as a const
-            lv_label_set_text(label, name.c_str());
-        }
+        helix::ui::set_row_label_text(row, "printer_name", name.c_str());
 
         // Store printer ID for click handler
         lv_obj_set_name(row, id.c_str());

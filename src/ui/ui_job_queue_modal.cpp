@@ -6,6 +6,7 @@
 #include "ui_button.h"
 #include "ui_error_reporting.h"
 #include "ui_panel_print_select.h"
+#include "ui_row_text.h"
 #include "ui_utils.h"
 
 #include "app_globals.h"
@@ -242,22 +243,24 @@ void JobQueueModal::populate_job_list() {
         if (!row) {
             continue;
         }
-        if (auto* name_label = lv_obj_find_by_name(row, "job_filename")) {
-            // DECLARATIVE_OK: user text; as a prop a leading '#' reads as a const
-            lv_label_set_text(name_label, display_name.c_str());
-        }
+        helix::ui::set_row_label_text(row, "job_filename", display_name.c_str());
 
-        // Job data for the row's start and delete callbacks, freed with the row.
-        auto* row_data = make_row_data(job.job_id, job.filename);
-        lv_obj_set_user_data(row, row_data);
-        lv_obj_add_event_cb(
-            row,
-            [](lv_event_t* e) {
-                auto* rd = static_cast<RowData*>(lv_event_get_user_data(e));
-                free_row_data(rd);
-            },
-            LV_EVENT_DELETE, row_data);
+        attach_row_data(row, job.job_id, job.filename);
     }
+}
+
+void JobQueueModal::attach_row_data(lv_obj_t* row, const std::string& job_id,
+                                    const std::string& filename) {
+    // Job data for the row's start and delete callbacks, freed with the row.
+    auto* row_data = make_row_data(job_id, filename);
+    lv_obj_set_user_data(row, row_data);
+    lv_obj_add_event_cb(
+        row,
+        [](lv_event_t* e) {
+            auto* rd = static_cast<RowData*>(lv_event_get_user_data(e));
+            free_row_data(rd);
+        },
+        LV_EVENT_DELETE, row_data);
 }
 
 void JobQueueModal::toggle_queue() {

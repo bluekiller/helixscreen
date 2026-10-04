@@ -343,6 +343,72 @@ TEST_CASE_METHOD(QueuedStartFixture,
     StaticPanelRegistry::instance().destroy_all();
 }
 
+namespace {
+
+/// A job_queue_row carrying @p job_id, its callbacks acting on @p modal.
+lv_obj_t* make_queue_row(JobQueueModal& modal, const std::string& job_id,
+                         const std::string& filename) {
+    JobQueueModalTestAccess::register_callbacks();
+    REQUIRE(lv_xml_register_component_from_file("A:ui_xml/components/job_queue_row.xml") ==
+            LV_RESULT_OK);
+    auto* row = static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), "job_queue_row", nullptr));
+    REQUIRE(row != nullptr);
+    JobQueueModalTestAccess::attach_row_data(row, job_id, filename);
+    JobQueueModalTestAccess::set_active(&modal);
+    return row;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(QueuedStartFixture, "tapping a job queue row starts that row's job",
+                 "[job_queue][queue_start][press_wash][1297]") {
+    PlantedGcode file("queue_row_tap.gcode");
+    StaticPanelRegistry::instance().destroy_all();
+
+    const size_t panels_before = StaticPanelRegistry::instance().count();
+
+    JobQueueModal modal;
+    lv_obj_t* row = make_queue_row(modal, "0002", file.name());
+    lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+    drain();
+
+    // The start created the global panel: the trash test's "nothing started"
+    // probe below reads exactly this.
+    CHECK(StaticPanelRegistry::instance().count() > panels_before);
+
+    const std::string* pending =
+        ::PrintSelectPanelTestAccess::pending_queued_job_id(get_global_print_select_panel());
+    REQUIRE(pending != nullptr);
+    CHECK(*pending == "0002");
+    CHECK(queue_has("0002"));
+
+    StaticPanelRegistry::instance().destroy_all();
+}
+
+TEST_CASE_METHOD(QueuedStartFixture,
+                 "tapping a job queue row's trash icon removes that job and starts nothing",
+                 "[job_queue][queue_start][press_wash][1297]") {
+    StaticPanelRegistry::instance().destroy_all();
+    REQUIRE(queue_has("0001"));
+
+    // A start routes through the global print select panel, which is created
+    // on first use and registers itself; with it retired above, a start would
+    // show up as a new registry entry.
+    const size_t panels_before = StaticPanelRegistry::instance().count();
+
+    JobQueueModal modal;
+    lv_obj_t* row = make_queue_row(modal, "0001", "3DBenchy.gcode");
+    lv_obj_t* trash = lv_obj_find_by_name(row, "job_delete");
+    REQUIRE(trash != nullptr);
+    lv_obj_send_event(trash, LV_EVENT_CLICKED, nullptr);
+    drain();
+
+    CHECK_FALSE(queue_has("0001"));
+    CHECK(StaticPanelRegistry::instance().count() == panels_before);
+
+    StaticPanelRegistry::instance().destroy_all();
+}
+
 TEST_CASE_METHOD(QueuedStartFixture,
                  "start next routes the queue's front job through the panel entry point",
                  "[job_queue][queue_start]") {

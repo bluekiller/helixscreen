@@ -12,6 +12,7 @@
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
 #include "ui_icon_picker.h"
+#include "ui_row_text.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -969,13 +970,16 @@ void FanStackWidget::ConfigurePicker::on_created(lv_obj_t* backdrop) {
         bool is_selected = (i == 0) ? !is_carousel : is_carousel;
 
         const char* attrs[] = {
-            "label", lv_tr(mode_labels[i]), "selected", is_selected ? "true" : "false", nullptr,
+            "selected",
+            is_selected ? "true" : "false",
+            nullptr,
         };
         lv_obj_t* row =
             static_cast<lv_obj_t*>(lv_xml_create(mode_list, "picker_option_row", attrs));
         if (!row) {
             continue;
         }
+        helix::ui::set_row_label_text(row, "option_label", lv_tr(mode_labels[i]));
 
         lv_obj_set_user_data(row, new RowPayload{this, mode_values[i]});
 

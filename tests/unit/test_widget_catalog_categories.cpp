@@ -1391,3 +1391,28 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     deliver_defs_change();
     settle();
 }
+
+TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
+                 "Widget catalog: a plugin name and description starting with '#' render verbatim",
+                 "[widget_catalog][widget_registry][press_wash][1297]") {
+    // A Lua plugin supplies both strings. Through an XML prop a leading '#'
+    // resolves as a const reference and the label comes up blank.
+    RuntimeWidgetDef d = make_runtime_def("rt-hash-tile", "#1 Hash Tile");
+    d.description = "#tag description";
+    helix::test::ScopeExit cleanup([] { unregister_runtime_widget_def("rt-hash-tile"); });
+    REQUIRE(register_runtime_widget_def(d));
+    open_catalog();
+    lv_obj_t* results = search_results();
+    REQUIRE(results != nullptr);
+    lv_obj_t* row = lv_obj_find_by_name(results, "rt-hash-tile");
+    REQUIRE(row != nullptr);
+
+    std::vector<std::string> labels;
+    collect_labels(row, labels);
+    CHECK(std::find(labels.begin(), labels.end(), "#1 Hash Tile") != labels.end());
+    CHECK(std::find(labels.begin(), labels.end(), "#tag description") != labels.end());
+
+    unregister_runtime_widget_def("rt-hash-tile");
+    deliver_defs_change();
+    settle();
+}

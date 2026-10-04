@@ -6,6 +6,7 @@
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
 #include "ui_icon_picker.h"
+#include "ui_row_text.h"
 
 #include "app_globals.h"
 #include "device_display_name.h"
@@ -248,8 +249,9 @@ void FavoriteMacroConfigModal::populate_macro_list() {
         std::string display = helix::get_display_name(macro, helix::DeviceType::MACRO);
 
         const char* attrs[] = {
-            "label",   display.c_str(), "selected", is_selected ? "true" : "false",
-            "pad_all", "#space_xs",     "pad_gap",  "#space_xxs",
+            "selected", is_selected ? "true" : "false",
+            "pad_all",  "#space_xs",
+            "pad_gap",  "#space_xxs",
             nullptr,
         };
         lv_obj_t* row =
@@ -257,6 +259,7 @@ void FavoriteMacroConfigModal::populate_macro_list() {
         if (!row) {
             continue;
         }
+        helix::ui::set_row_label_text(row, "option_label", display.c_str());
 
         auto* macro_name_copy = new std::string(macro);
         lv_obj_set_user_data(row, macro_name_copy);

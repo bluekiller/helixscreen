@@ -6,6 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
 #include "ui_nav_manager.h"
+#include "ui_row_text.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
 
@@ -169,10 +170,7 @@ void MaterialTempsOverlay::populate_material_list() {
             continue;
         }
         lv_obj_set_name(row, mat.name);
-        if (auto* name_label = lv_obj_find_by_name(row, "material_name")) {
-            // DECLARATIVE_OK: user text; as a prop a leading '#' reads as a const
-            lv_label_set_text(name_label, mat.name);
-        }
+        helix::ui::set_row_label_text(row, "material_name", mat.name);
         lv_obj_add_event_cb(row, on_material_row_clicked, LV_EVENT_CLICKED, nullptr);
     }
 

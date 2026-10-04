@@ -5,6 +5,7 @@
 #include "ui_effects.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
+#include "ui_row_text.h"
 #include "ui_selector_model.h"
 #include "ui_subject_registry.h"
 #include "ui_update_queue.h"
@@ -257,8 +258,6 @@ lv_obj_t* WidgetCatalogOverlay::create_row(lv_obj_t* parent, const char* name, c
              format_track_span(rowspan).c_str());
 
     const char* attrs[] = {
-        "row_name",      name,
-        "row_desc",      has_desc ? description : "",
         "hide_desc",     has_desc ? "false" : "true",
         "icon_src",      has_icon ? icon : "",
         "icon_variant",  dimmed ? "muted" : "secondary",
@@ -270,7 +269,14 @@ lv_obj_t* WidgetCatalogOverlay::create_row(lv_obj_t* parent, const char* name, c
         "row_clickable", dimmed ? "false" : "true",
         nullptr,
     };
-    return static_cast<lv_obj_t*>(lv_xml_create(parent, "widget_catalog_row", attrs));
+    auto* row = static_cast<lv_obj_t*>(lv_xml_create(parent, "widget_catalog_row", attrs));
+    if (!row) {
+        return nullptr;
+    }
+    // Widget names and descriptions can come from a Lua plugin.
+    helix::ui::set_row_label_text(row, "row_name", name);
+    helix::ui::set_row_label_text(row, "row_desc", has_desc ? description : "");
+    return row;
 }
 
 /// True when this widget's hardware gate subject exists and reads 0.

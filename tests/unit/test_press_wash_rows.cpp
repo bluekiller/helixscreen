@@ -17,6 +17,7 @@
 #include "../test_helpers/job_queue_modal_test_access.h"
 #include "../test_helpers/power_device_widget_test_access.h"
 #include "../test_helpers/press_wash_probe.h"
+#include "device_display_name.h"
 #include "moonraker_types.h"
 #include "power_device_state.h"
 #include "power_device_widget.h"
@@ -79,7 +80,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     for (const char* component : {"picker_option_row", "picker_chip"}) {
         INFO("component: " << component);
-        const char* selected_attrs[] = {"label", "Choice", "selected", "true", nullptr};
+        const char* selected_attrs[] = {"selected", "true", nullptr};
         lv_obj_t* selected = create_row(test_screen(), component, selected_attrs);
         REQUIRE(selected != nullptr);
         REQUIRE(lv_obj_has_state(selected, LV_STATE_CHECKED));
@@ -87,7 +88,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         CHECK(lv_obj_get_style_bg_opa(selected, LV_PART_MAIN) > LV_OPA_TRANSP);
         CHECK(paints_press_wash(selected));
 
-        const char* plain_attrs[] = {"label", "Choice", "selected", "false", nullptr};
+        const char* plain_attrs[] = {"selected", "false", nullptr};
         lv_obj_t* plain = create_row(test_screen(), component, plain_attrs);
         REQUIRE(plain != nullptr);
         CHECK_FALSE(lv_obj_has_state(plain, LV_STATE_CHECKED));
@@ -133,6 +134,7 @@ class PowerPickerRowsFixture : public LVGLUITestFixture {
     PowerPickerRowsFixture() {
         PowerDeviceState::instance().set_devices({
             PowerDevice{"printer_psu", "gpio", "off", false},
+            PowerDevice{"#2_psu", "gpio", "off", false},
         });
     }
 
@@ -156,6 +158,12 @@ TEST_CASE_METHOD(PowerPickerRowsFixture,
     lv_obj_t* row = row_with_label(backdrop, "All Devices");
     REQUIRE(row != nullptr);
     CHECK(paints_press_wash(row));
+
+    // A device name is user text: through an XML prop a leading '#' resolves
+    // as a const reference and the label comes up blank.
+    const std::string hashed = get_display_name("#2_psu", DeviceType::POWER_DEVICE);
+    REQUIRE(hashed.rfind('#', 0) == 0);
+    CHECK(row_with_label(backdrop, hashed.c_str()) != nullptr);
 
     lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
     CHECK(Access::picker_backdrop(*widget) == nullptr);
