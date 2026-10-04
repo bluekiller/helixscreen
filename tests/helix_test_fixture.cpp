@@ -41,6 +41,7 @@
 #include "test_helpers/ams_state_test_access.h"
 #include "test_helpers/config_test_access.h"
 #include "test_helpers/emergency_stop_test_access.h"
+#include "test_helpers/layout_manager_test_access.h"
 #include "test_helpers/print_control_buttons_test_access.h"
 #include "test_helpers/printer_state_test_access.h"
 #include "tool_state.h"
@@ -571,6 +572,11 @@ void HelixTestFixture::reset_all() {
     // bodies; a case asserting "first occurrence logs at its usual level" would
     // otherwise depend on how many distinct warnings earlier cases emitted.
     helix::logging::reset_lvgl_log_dedupe();
+
+    // Once initialized, LayoutManager decides ui_is_portrait and the layout tier
+    // for every refresh, so a case that initialized it would make a later case's
+    // display resize invisible to the theme.
+    LayoutManagerTestAccess::reset(helix::LayoutManager::instance());
 
     restore_default_logger();
 
