@@ -30,6 +30,7 @@
 #include "safety_settings_manager.h"
 #include "screensaver_canvas.h"
 #include "screensaver_registry.h"
+#include "settings_manager.h"
 #include "sound_manager.h"
 #include "standard_macros.h"
 #include "system/crash_error_log_sink.h"
@@ -531,6 +532,10 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // SettingsManager::init_subjects() is one-shot, so a setting a test changed
+    // (jog speeds, jog distances) would otherwise outlive the Config reset above.
+    helix::SettingsManager::instance().reload_from_config();
 
     // MoonrakerManager::init() hands SoundManager a pointer to its client, and
     // nothing takes it back when a test destroys the manager. A set client lets
