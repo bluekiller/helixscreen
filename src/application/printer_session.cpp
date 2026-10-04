@@ -47,8 +47,24 @@ class SoftRestartLatch {
 
 } // namespace
 
-PrinterSession::PrinterSession(Config*& config, AsyncLifetimeGuard& async, Restart restart)
-    : m_config(config), m_async(async), m_restart(std::move(restart)) {}
+PrinterSession::PrinterSession(Config*& config, AsyncLifetimeGuard& async, Restart restart,
+                               std::function<lv_obj_t*()> screen,
+                               std::function<IMoonrakerAPI*()> api)
+    : m_config(config), m_async(async), m_restart(std::move(restart)),
+      m_prompter(async, std::move(screen), std::move(api)) {}
+
+bool PrinterSession::note_hardware_fingerprint(size_t fingerprint) {
+    const bool changed = m_first_discovery_complete || fingerprint != m_last_hardware_fingerprint;
+    m_last_hardware_fingerprint = fingerprint;
+    m_first_discovery_complete = false;
+    return changed;
+}
+
+void PrinterSession::reset_discovery_session() {
+    m_first_discovery_complete = true;
+    m_last_hardware_fingerprint = 0;
+    m_prompter.reset_for_new_connection();
+}
 
 void PrinterSession::switch_printer(const std::string& printer_id) {
     if (m_soft_restart_in_progress) {

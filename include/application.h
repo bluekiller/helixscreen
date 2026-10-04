@@ -8,7 +8,6 @@
 #include "async_lifetime_guard.h"
 #include "cli_args.h"
 #include "gcode_response_routing.h"
-#include "hardware_setup_prompter.h"
 #include "invalidation_suppression.h"
 #include "lvgl/lvgl.h"
 #include "main_loop_handler.h"
@@ -134,14 +133,6 @@ class Application {
     enum class TeardownScope { PrinterSwitch, ProcessExit };
     void teardown_printer_scope(TeardownScope scope);
 
-    /// Records a discovery's hardware fingerprint; true when the hardware shape differs from
-    /// the previous discovery of this printer session (always true for the first one).
-    bool note_hardware_fingerprint(size_t fingerprint);
-
-    /// Re-arms the per-printer discovery state: the fingerprint comparison and the
-    /// once-per-connection prompt guards. Runs when a printer scope is torn down for a
-    /// switch or soft restart, so the next printer's first discovery runs the full pipeline.
-    void reset_discovery_session();
     void init_printer_state();
 
     // Helper functions
@@ -245,16 +236,6 @@ class Application {
     // State
     bool m_running = false;
     bool m_wizard_active = false;
-    // The hardware prompts a discovery pass can raise, and their once-per-session guards.
-    helix::HardwareSetupPrompter m_prompter;
-    // Hardware-shape fingerprint from the most recent on_discovery_complete.
-    // When a reconnect's fingerprint matches (hardware unchanged), expensive
-    // user-facing side-effects (LED chip population, hardware validation
-    // toasts, targeted reconfig wizard, telemetry snapshots) are skipped —
-    // only the subject-restoring work that the UI needs to rebind runs.
-    // See on_discovery_complete in application.cpp.
-    size_t m_last_hardware_fingerprint = 0;
-    bool m_first_discovery_complete = true;
     bool m_shutdown_complete = false;
 
     /// Switching to, adding and abandoning printers; sequences tear_down_printer_state() and

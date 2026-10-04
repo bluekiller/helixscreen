@@ -393,12 +393,12 @@ void Application::release_instance_lock() {
 }
 
 Application::Application()
-    : m_prompter(
-          m_async_lifetime, [this] { return m_screen; },
-          [this] { return m_moonraker ? m_moonraker->api() : nullptr; }),
-      m_session(m_config, m_async_lifetime,
-                {[this] { tear_down_printer_state(); }, [this] { init_printer_state(); },
-                 [] { NavigationManager::instance().set_active(PanelId::Home); }}) {}
+    : m_session(
+          m_config, m_async_lifetime,
+          {[this] { tear_down_printer_state(); }, [this] { init_printer_state(); },
+           [] { NavigationManager::instance().set_active(PanelId::Home); }},
+          [this] { return m_screen; },
+          [this] { return m_moonraker ? m_moonraker->api() : nullptr; }) {}
 
 Application::~Application() {
     shutdown();
@@ -2382,7 +2382,7 @@ void Application::setup_discovery_callbacks() {
                 return;
             // A new discovery cycle is starting — re-arm the once-per-connection
             // targeted hardware-reconfig wizard guard so a reconnect can re-offer it.
-            app->m_prompter.begin_discovery_cycle();
+            app->m_session.prompter().begin_discovery_cycle();
             api->hardware() = std::move(*snapshot);
             helix::init_subsystems_from_hardware(api->hardware(), api, client);
         });
@@ -2434,7 +2434,7 @@ void Application::setup_discovery_callbacks() {
             // Computed from api->hardware() (post-copy) — *snapshot is moved
             // into set_hardware below and is empty after that point.
             const size_t new_fingerprint = helix::compute_hardware_fingerprint(api->hardware());
-            const bool hw_changed = app->note_hardware_fingerprint(new_fingerprint);
+            const bool hw_changed = app->m_session.note_hardware_fingerprint(new_fingerprint);
             crash_handler::breadcrumb::note("disc", "hw_changed", hw_changed ? 1L : 0L);
             if (hw_changed) {
                 spdlog::info("[Application] on_discovery_complete #{} — hardware shape changed "
@@ -2462,7 +2462,7 @@ void Application::setup_discovery_callbacks() {
                 api->hardware(),
                 *snapshot,
                 *status_snapshot,
-                app->m_prompter,
+                app->m_session.prompter(),
                 app->m_job_queue_state.get(),
                 app->m_screen,
                 n,
@@ -3055,19 +3055,6 @@ void Application::check_timeouts() {
 // SOFT RESTART (printer switching)
 // ============================================================================
 
-bool Application::note_hardware_fingerprint(size_t fingerprint) {
-    const bool changed = m_first_discovery_complete || fingerprint != m_last_hardware_fingerprint;
-    m_last_hardware_fingerprint = fingerprint;
-    m_first_discovery_complete = false;
-    return changed;
-}
-
-void Application::reset_discovery_session() {
-    m_first_discovery_complete = true;
-    m_last_hardware_fingerprint = 0;
-    m_prompter.reset_for_new_connection();
-}
-
 void Application::tear_down_printer_state() {
     spdlog::info("[Application] Tearing down printer state...");
     teardown_printer_scope(TeardownScope::PrinterSwitch);
@@ -3094,7 +3081,7 @@ void Application::teardown_printer_scope(TeardownScope scope) {
     set_wizard_cancel_callback(nullptr);
 
     // The next printer's discovery is a first discovery with its own prompts to show.
-    reset_discovery_session();
+    m_session.reset_discovery_session();
 
     // A switch freezes the UpdateQueue before the disconnect: work the WebSocket thread
     // enqueues from here on is buffered, and update_queue_shutdown() below discards the

@@ -71,23 +71,23 @@ class ApplicationTestAccess {
     }
 
     static bool note_hardware_fingerprint(Application& app, size_t fingerprint) {
-        return app.note_hardware_fingerprint(fingerprint);
+        return app.m_session.note_hardware_fingerprint(fingerprint);
     }
 
     static void reset_discovery_session(Application& app) {
-        app.reset_discovery_session();
+        app.m_session.reset_discovery_session();
     }
 
     static bool& type_mismatch_shown(Application& app) {
-        return app.m_prompter.guards.type_mismatch_shown;
+        return app.m_session.m_prompter.guards.type_mismatch_shown;
     }
 
     static bool& hardware_setup_prompt_shown(Application& app) {
-        return app.m_prompter.guards.deferred_prompt_shown;
+        return app.m_session.m_prompter.guards.deferred_prompt_shown;
     }
 
     static bool& targeted_reconfig_shown(Application& app) {
-        return app.m_prompter.guards.reconfig_shown;
+        return app.m_session.m_prompter.guards.reconfig_shown;
     }
 
     static void switch_printer(Application& app, const std::string& printer_id) {
