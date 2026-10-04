@@ -369,7 +369,7 @@ lv_color_t ActionPromptModal::get_button_color(const std::string& color_name) {
     if (color_name == "primary" || color_name.empty()) {
         return theme_manager_get_color("primary");
     } else if (color_name == "secondary") {
-        return theme_manager_get_color("success");
+        return theme_manager_get_color("secondary");
     } else if (color_name == "info") {
         return theme_manager_get_color("info");
     } else if (color_name == "warning") {

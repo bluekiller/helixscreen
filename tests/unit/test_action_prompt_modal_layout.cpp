@@ -24,6 +24,7 @@
 #include "action_prompt_manager.h"
 #include "action_prompt_modal.h"
 #include "display_settings_manager.h"
+#include "theme_manager.h"
 
 #include <vector>
 
@@ -277,6 +278,24 @@ TEST_CASE_METHOD(ActionPromptLayoutFixture, "ActionPromptModal: each button grou
     CHECK(screen_y(btns[3]) == row_yes); // the group shares a row
     CHECK(row_yes > row_a);              // ...below the ungrouped one
     CHECK(row_z > row_yes);              // and the next group is below that
+
+    modal_.hide();
+}
+
+// Klipper's secondary is the neutral button, not a success-green one.
+TEST_CASE_METHOD(ActionPromptLayoutFixture, "ActionPromptModal: secondary uses the secondary token",
+                 "[action_prompt][layout][ui_integration]") {
+    helix::PromptData data;
+    data.title = "Colors";
+    data.buttons = {{"Later", "LATER", "secondary", "", false, -1}};
+
+    REQUIRE(modal_.show_prompt(test_screen(), data));
+    const auto& btns = ActionPromptModalTestAccess::buttons(modal_);
+    REQUIRE(btns.size() == 1);
+
+    const lv_color_t bg = lv_obj_get_style_bg_color(btns[0], LV_PART_MAIN);
+    CHECK(lv_color_eq(bg, theme_manager_get_color("secondary")));
+    CHECK_FALSE(lv_color_eq(bg, theme_manager_get_color("success")));
 
     modal_.hide();
 }
