@@ -64,19 +64,6 @@ void register_color_pairs(lv_xml_component_scope_t* scope, bool dark_mode) {
  * These static constants are registered first so dynamic variants can override them.
  */
 void register_static_constants(lv_xml_component_scope_t* scope) {
-    const std::vector<std::string> skip_suffixes = {
-        "_light", "_dark", "_micro", "_tiny", "_small", "_medium", "_large", "_xlarge", "_xxlarge"};
-
-    auto has_dynamic_suffix = [&](const std::string& name) {
-        for (const auto& suffix : skip_suffixes) {
-            if (name.size() > suffix.size() &&
-                name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
-                return true;
-            }
-        }
-        return false;
-    };
-
     int color_count = 0, px_count = 0, string_count = 0;
 
     auto color_tokens =

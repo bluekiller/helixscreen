@@ -29,26 +29,6 @@
 using namespace helix;
 using helix::theme_detail::runtime;
 
-// Maps a value-suffix (e.g. "_large") to its tier number. Same ordering as the
-// UiBreakpoint tiers and fonts.mk FONT_TIERS. Returns -1 on unknown suffix.
-static int tier_num_for_suffix(const char* suffix) {
-    if (strcmp(suffix, "_micro") == 0)
-        return 0;
-    if (strcmp(suffix, "_tiny") == 0)
-        return 1;
-    if (strcmp(suffix, "_small") == 0)
-        return 2;
-    if (strcmp(suffix, "_medium") == 0)
-        return 3;
-    if (strcmp(suffix, "_large") == 0)
-        return 4;
-    if (strcmp(suffix, "_xlarge") == 0)
-        return 5;
-    if (strcmp(suffix, "_xxlarge") == 0)
-        return 6;
-    return -1;
-}
-
 /**
  * Register responsive font tokens from all XML files
  *
@@ -193,7 +173,7 @@ void theme_manager_register_responsive_fonts(lv_display_t* display) {
             // platform's compiled tier range (build bug), stay silent when it's
             // above the max tier (expected pruning).
             if (is_font_constant && lv_xml_get_font_silent(scope, value) == nullptr) {
-                int tier = tier_num_for_suffix(selected_suffix);
+                int tier = helix::theme_detail::tier_for_suffix(selected_suffix);
                 if (tier >= 0 && tier <= HELIX_MAX_FONT_TIER) {
                     spdlog::warn("[Theme] Font '{}' expected for tier '{}' but not linked "
                                  "(build bug?) — falling back to _large",

@@ -275,3 +275,29 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // A second deinit is a no-op rather than a double free.
     subs.deinit();
 }
+
+// Every size-suffix site must agree on the ladder: the breakpoint suffix, the
+// tier number, and the "has a variant-selected base name" test.
+TEST_CASE("size suffix ladder agrees across its users", "[theme_pins][theme]") {
+    struct Row {
+        const char* suffix;
+        int tier;
+        int32_t resolution; // a cramped-axis size that classifies into the tier
+    };
+    const Row rows[] = {{"_micro", 0, 272},   {"_tiny", 1, 390},  {"_small", 2, 460},
+                        {"_medium", 3, 550},  {"_large", 4, 700}, {"_xlarge", 5, 1000},
+                        {"_xxlarge", 6, 1001}};
+    for (const Row& r : rows) {
+        INFO(r.suffix);
+        CHECK(helix::theme_detail::tier_for_suffix(r.suffix) == r.tier);
+        CHECK(std::string(theme_manager_get_breakpoint_suffix(r.resolution)) == r.suffix);
+        CHECK(helix::theme_detail::has_dynamic_suffix(std::string("space_md") + r.suffix));
+        CHECK_FALSE(helix::theme_detail::has_dynamic_suffix(r.suffix));
+    }
+    CHECK(helix::theme_detail::has_dynamic_suffix("screen_bg_light"));
+    CHECK(helix::theme_detail::has_dynamic_suffix("screen_bg_dark"));
+    CHECK_FALSE(helix::theme_detail::has_dynamic_suffix("space_md"));
+    CHECK_FALSE(helix::theme_detail::has_dynamic_suffix("space_md_larger"));
+    CHECK(helix::theme_detail::tier_for_suffix("_light") == -1);
+    CHECK(helix::theme_detail::tier_for_suffix("") == -1);
+}

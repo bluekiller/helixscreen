@@ -111,9 +111,34 @@ std::string scale_px_token(const std::string& name, const std::string& value, do
  * @return One of the seven suffix strings above (valid for lv_xml_get_const lookups).
  */
 const char* theme_manager_get_breakpoint_suffix(int32_t resolution) {
-    return responsive_pick(breakpoint_for(resolution), "_micro", "_tiny", "_small", "_medium",
-                           "_large", "_xlarge", "_xxlarge");
+    return theme_detail::kSizeSuffixes[to_int(breakpoint_for(resolution))];
 }
+
+namespace helix::theme_detail {
+
+int tier_for_suffix(const char* suffix) {
+    for (int tier = 0; tier < kSizeSuffixCount; ++tier) {
+        if (strcmp(suffix, kSizeSuffixes[tier]) == 0)
+            return tier;
+    }
+    return -1;
+}
+
+bool has_dynamic_suffix(const std::string& name) {
+    auto ends_with = [&](const char* suffix) {
+        const size_t len = strlen(suffix);
+        return name.size() > len && name.compare(name.size() - len, len, suffix) == 0;
+    };
+    if (ends_with("_light") || ends_with("_dark"))
+        return true;
+    for (const char* suffix : kSizeSuffixes) {
+        if (ends_with(suffix))
+            return true;
+    }
+    return false;
+}
+
+} // namespace helix::theme_detail
 
 // ============================================================================
 // Responsive px token resolution — one implementation, two callers

@@ -22,6 +22,20 @@ namespace helix::theme_detail {
 /// under the mount the firmware configured via helix::set_asset_root().
 const char* ui_xml_dir();
 
+/// The size ladder in tier order (index == UiBreakpoint tier, Micro..XXLarge).
+/// Every place that names a tier suffix derives from this one list.
+inline constexpr const char* kSizeSuffixes[] = {"_micro", "_tiny",   "_small",  "_medium",
+                                                "_large", "_xlarge", "_xxlarge"};
+inline constexpr int kSizeSuffixCount = sizeof(kSizeSuffixes) / sizeof(kSizeSuffixes[0]);
+
+/// Tier number of a size suffix, or -1 when `suffix` is not on the ladder.
+int tier_for_suffix(const char* suffix);
+
+/// True when `name` ends in a size suffix, `_light` or `_dark`: a token that has
+/// a variant-selected base name, so it is not registered as a static constant.
+/// A name that is only the suffix does not count.
+bool has_dynamic_suffix(const std::string& name);
+
 /// Apply the high-DPI UI scale to one authored px token. Opacities (`*_opacity`)
 /// and anything that is not a bare positive integer pass through unchanged.
 /// Shared by the responsive resolver and the static-constant registration so a
