@@ -127,35 +127,20 @@ static void parse_device_properties(sd_bus_message* msg, discover_ctx* dctx) {
         }
     }
 
-    // Filter: show device if any of these are true:
-    //  1. Has a known printer UUID (SPP or Phomemo BLE)
-    //  2. Name matches a known label printer brand/pattern
-    //  3. Previously paired (user explicitly set it up)
-    //  4. Has a HID scanner UUID or name matches barcode scanner pattern
-    bool dominated_by_uuid = has_printer_uuid;
-    bool dominated_by_name =
-        has_real_name && helix::bluetooth::is_likely_label_printer(name.c_str());
+    // Show a device that looks like a printer or a scanner, or that the user already paired.
+    const auto traits =
+        helix::bluetooth::classify_device(has_real_name ? name.c_str() : nullptr, uuids);
     bool dominated_by_paired = paired && has_real_name;
-    bool dominated_by_scanner = false;
-    for (const auto& uuid : uuids) {
-        if (helix::bluetooth::is_hid_scanner_uuid(uuid.c_str())) {
-            dominated_by_scanner = true;
-            break;
-        }
-    }
-    if (!dominated_by_scanner && has_real_name) {
-        dominated_by_scanner = helix::bluetooth::is_likely_bt_scanner(name.c_str());
-    }
 
-    if (!dominated_by_uuid && !dominated_by_name && !dominated_by_paired && !dominated_by_scanner) {
+    if (!traits.printer_uuid && !traits.printer_name && !dominated_by_paired && !traits.scanner) {
         fprintf(stderr, "[bt] filtered: %s '%s' (not a likely printer or scanner)\n",
                 address.c_str(), name.c_str());
         return;
     }
 
     fprintf(stderr, "[bt] accept: %s '%s' (uuid=%d name=%d paired=%d scanner=%d)\n",
-            address.c_str(), name.c_str(), dominated_by_uuid, dominated_by_name,
-            dominated_by_paired, dominated_by_scanner);
+            address.c_str(), name.c_str(), traits.printer_uuid, traits.printer_name,
+            dominated_by_paired, traits.scanner);
 
     // Name-based BLE override: some BLE printers (e.g. MakeID/YichipFPGA) also
     // advertise SPP UUID but actually communicate via BLE GATT. The brand table
@@ -172,8 +157,7 @@ static void parse_device_properties(sd_bus_message* msg, discover_ctx* dctx) {
     dev.paired = paired;
     dev.is_ble = is_ble;
     dev.service_uuid = matching_uuid.empty() ? nullptr : matching_uuid.c_str();
-    // Classification mirrored in tests/unit/test_bt_device_classification.cpp
-    dev.is_scanner = dominated_by_scanner && !dominated_by_uuid && !dominated_by_name;
+    dev.is_scanner = traits.is_scanner();
 
     if (dctx->cb) {
         dctx->cb(&dev, dctx->user_data);
