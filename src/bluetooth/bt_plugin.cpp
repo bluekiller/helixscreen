@@ -94,7 +94,7 @@ extern "C" void helix_bt_deinit(helix_bt_context* ctx) {
             ctx->bus_thread->run_sync([ctx](sd_bus* /*bus*/) {
                 std::lock_guard<std::mutex> lock(ctx->ble_mutex);
                 for (auto& conn : ctx->ble_connections) {
-                    if (conn->notify_slot) {
+                    if (conn && conn->notify_slot) {
                         sd_bus_slot_unref(conn->notify_slot);
                         conn->notify_slot = nullptr;
                     }
@@ -125,6 +125,8 @@ extern "C" void helix_bt_deinit(helix_bt_context* ctx) {
     {
         std::lock_guard<std::mutex> lock(ctx->ble_mutex);
         for (auto& conn : ctx->ble_connections) {
+            if (!conn)
+                continue;
             if (conn->acquired_fd >= 0) {
                 close(conn->acquired_fd);
                 conn->acquired_fd = -1;

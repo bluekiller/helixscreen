@@ -28,11 +28,9 @@ namespace {
 
 /// Puts an active, fd-less connection in the table the way connect_ble does.
 int add_test_connection(helix_bt_context& ctx) {
-    auto conn = std::make_unique<helix_bt_context::BleConnection>();
+    auto conn = std::make_shared<helix_bt_context::BleConnection>();
     conn->active = true;
-    std::lock_guard<std::mutex> lock(ctx.ble_mutex);
-    ctx.ble_connections.push_back(std::move(conn));
-    return BLE_HANDLE_OFFSET + static_cast<int>(ctx.ble_connections.size()) - 1;
+    return ble_store_connection(&ctx, std::move(conn));
 }
 
 } // namespace
@@ -52,6 +50,43 @@ TEST_CASE("BLE read blocked on the notify queue wakes when the handle is disconn
 
     REQUIRE(reader.wait_for(1s) == std::future_status::ready);
     REQUIRE(reader.get() == -ENOTCONN);
+}
+
+TEST_CASE("A disconnected BLE slot is reused by the next connection", "[bt][ble]") {
+    helix_bt_context ctx;
+    int first = add_test_connection(ctx);
+    helix_bt_disconnect(&ctx, first);
+
+    int second = add_test_connection(ctx);
+
+    CHECK(second == first);
+    CHECK(ctx.ble_connections.size() == 1);
+}
+
+TEST_CASE("A disconnected BLE handle reports not connected", "[bt][ble]") {
+    helix_bt_context ctx;
+    int handle = add_test_connection(ctx);
+    helix_bt_disconnect(&ctx, handle);
+
+    uint8_t buf[4] = {};
+    CHECK(helix_bt_ble_write(&ctx, handle, buf, sizeof(buf)) == -ENOTCONN);
+    CHECK(helix_bt_ble_read(&ctx, handle, buf, sizeof(buf), 0) == -ENOTCONN);
+}
+
+TEST_CASE("An RFCOMM fd numbered like a BLE handle disconnects as RFCOMM", "[bt][ble]") {
+    helix_bt_context ctx;
+    int fd = fcntl(STDERR_FILENO, F_DUPFD_CLOEXEC, 1000);
+    if (fd < 0)
+        SKIP("cannot open an fd numbered 1000 or higher here");
+    ctx.rfcomm_fds.insert(fd);
+
+    helix_bt_disconnect(&ctx, fd);
+
+    CHECK(ctx.rfcomm_fds.count(fd) == 0);
+    bool closed = fcntl(fd, F_GETFD) == -1;
+    if (!closed)
+        close(fd);
+    CHECK(closed);
 }
 
 #endif // __has_include(<systemd/sd-bus.h>)

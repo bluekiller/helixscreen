@@ -26,8 +26,17 @@
 /// "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
 std::string mac_to_dbus_path(const char* mac);
 
-/// BLE handle offset — handles >= this value are BLE connections, below are RFCOMM fds
-static constexpr int BLE_HANDLE_OFFSET = 1000;
+namespace helix::bluetooth {
+
+/// Bit set in every BLE handle. connect_rfcomm refuses an fd that carries it, so an RFCOMM
+/// fd and a BLE handle can never share a value.
+inline constexpr int BLE_HANDLE_TAG = 0x40000000;
+
+inline bool is_ble_handle(int handle) {
+    return handle >= 0 && (handle & BLE_HANDLE_TAG) != 0;
+}
+
+} // namespace helix::bluetooth
 
 struct helix_bt_context {
     sd_bus* bus = nullptr;
@@ -59,9 +68,10 @@ struct helix_bt_context {
         std::deque<std::vector<uint8_t>> rx_queue;
     };
     std::mutex ble_mutex;
-    // unique_ptr because BleConnection holds mutex/condition_variable which
-    // are non-movable — the vector must store pointers, not the objects.
-    std::vector<std::unique_ptr<BleConnection>> ble_connections;
+    // Indexed by handle & ~BLE_HANDLE_TAG. A disconnected slot is null and the next
+    // connection reuses it. shared_ptr so a reader or writer that looked a connection up
+    // keeps it alive while disconnect frees the slot.
+    std::vector<std::shared_ptr<BleConnection>> ble_connections;
 };
 
 /// Register/unregister the BlueZ Agent1 for "Just Works" pairing.
