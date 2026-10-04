@@ -559,6 +559,13 @@ void AmsState::init_subjects(bool register_xml) {
             snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_humidity", i);
             lv_xml_register_subject(nullptr, name_buf, &unit_humidity_[i]);
         }
+
+        lv_subject_init_int(&unit_absent_[i], 0);
+        subjects_.register_subject(&unit_absent_[i]);
+        if (register_xml) {
+            snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_absent", i);
+            lv_xml_register_subject(nullptr, name_buf, &unit_absent_[i]);
+        }
     }
 
     // Per-unit environment indicator display subjects (formatted text for XML binding)
@@ -870,6 +877,8 @@ void AmsState::register_xml_subject_names() {
         lv_xml_register_subject(nullptr, name_buf, &unit_temp_[i]);
         snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_humidity", i);
         lv_xml_register_subject(nullptr, name_buf, &unit_humidity_[i]);
+        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_absent", i);
+        lv_xml_register_subject(nullptr, name_buf, &unit_absent_[i]);
     }
 
     // Per-unit environment indicator display subjects
@@ -1506,6 +1515,15 @@ AmsState::EnvIndicatorSubjectNames AmsState::env_indicator_subject_names(int uni
     names.drying_active = expand("drying_active");
     names.drying_text = expand("drying_text");
     return names;
+}
+
+std::string AmsState::unit_absent_subject_name(int unit_index) {
+    if (unit_index < 0 || unit_index >= MAX_UNITS) {
+        return ENV_IND_OFF_FLAG_SUBJECT;
+    }
+    char buf[32];
+    snprintf(buf, sizeof(buf), "ams_unit_%d_absent", unit_index);
+    return buf;
 }
 
 lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index) {
@@ -2153,6 +2171,7 @@ void AmsState::sync_from_backend() {
     for (const auto& unit : info.units) {
         int idx = unit.unit_index;
         if (idx >= 0 && idx < MAX_UNITS) {
+            lv_subject_set_int(&unit_absent_[idx], unit.absent ? 1 : 0);
             if (unit.environment.has_value()) {
                 int temp_tenths = static_cast<int>(unit.environment->temperature_c * 10.0f);
                 int humidity = static_cast<int>(unit.environment->humidity_pct);
@@ -2169,6 +2188,7 @@ void AmsState::sync_from_backend() {
     for (int i = static_cast<int>(info.units.size()); i < MAX_UNITS; ++i) {
         lv_subject_set_int(&unit_temp_[i], 0);
         lv_subject_set_int(&unit_humidity_[i], 0);
+        lv_subject_set_int(&unit_absent_[i], 0);
     }
 
     // Update per-unit environment indicator display subjects (formatted text for XML).

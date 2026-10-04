@@ -6100,7 +6100,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "CFS stock: AmsState publishes a unit behind a
     ams.clear_backends();
     ams.deinit_subjects();
     get_printer_state().init_subjects(false);
-    ams.init_subjects(false);
+    ams.init_subjects(true);
 
     auto owned = std::make_unique<CfsRemapHelper>();
     CfsRemapHelper* backend = owned.get();
@@ -6117,6 +6117,17 @@ TEST_CASE_METHOD(LVGLTestFixture, "CFS stock: AmsState publishes a unit behind a
     CHECK(lv_subject_get_int(ams.get_slot_count_subject()) == 12);
     CHECK(lv_subject_get_int(ams.get_slot_color_subject(9)) == 0xFF5500);
     CHECK(backend->get_system_info().present_slot_count() == 8);
+
+    // The unit card binds this to show the missing box disabled and labelled.
+    const auto absent = [](int unit) {
+        lv_subject_t* subject =
+            lv_xml_get_subject(nullptr, helix::AmsState::unit_absent_subject_name(unit).c_str());
+        REQUIRE(subject != nullptr);
+        return lv_subject_get_int(subject);
+    };
+    CHECK(absent(0) == 0);
+    CHECK(absent(1) == 1);
+    CHECK(absent(2) == 0);
 
     ams.clear_backends();
     helix::ui::UpdateQueue::instance().drain();

@@ -389,7 +389,10 @@ void AmsOverviewPanel::create_unit_cards(const AmsSystemInfo& info, helix::ui::L
         // past MAX_UNITS get the always-off placeholders — AmsState owns which is
         // which, since it owns the cap and the registrations.
         const AmsState::EnvIndicatorSubjectNames s = AmsState::env_indicator_subject_names(i);
-        const char* attrs[] = {"temp_text",
+        const std::string absent = AmsState::unit_absent_subject_name(i);
+        const char* attrs[] = {"absent",
+                               absent.c_str(),
+                               "temp_text",
                                s.temp_text.c_str(),
                                "humidity_text",
                                s.humidity_text.c_str(),
