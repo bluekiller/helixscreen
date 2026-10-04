@@ -503,6 +503,38 @@ TEST_CASE("MoonrakerClientMock initial state dispatch", "[connection][slow][init
     }
 }
 
+TEST_CASE("MoonrakerClientMock status frames report the persona's kinematics after a rebuild",
+          "[connection][kinematics]") {
+    // A hardware-list rebuild re-parses the object list, which carries no
+    // kinematics. The toolhead status must still agree with configfile, or
+    // PrinterState flips every kinematics-derived capability off after boot.
+    MockBehaviorTestFixture fixture;
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+    mock.set_fans(mock.hardware().fans());
+    mock.register_notify_update(fixture.create_capture_callback());
+    mock.connect("ws://mock/websocket", []() {}, []() {});
+
+    std::string kinematics = "<none>";
+    REQUIRE(fixture.wait_for_matching(
+        [&kinematics](const json& n) {
+            if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                return false;
+            }
+            const json& status = n["params"][0];
+            if (!status.is_object() || !status.contains("toolhead") ||
+                !status["toolhead"].contains("kinematics")) {
+                return false;
+            }
+            kinematics = status["toolhead"]["kinematics"].get<std::string>();
+            return true;
+        },
+        2000));
+    mock.stop_temperature_simulation();
+    mock.disconnect();
+
+    CHECK(kinematics == "corexy");
+}
+
 // ============================================================================
 // Notification Format Tests
 // ============================================================================
