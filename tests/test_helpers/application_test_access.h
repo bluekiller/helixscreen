@@ -72,15 +72,15 @@ class ApplicationTestAccess {
     }
 
     static bool& type_mismatch_shown(Application& app) {
-        return app.m_type_mismatch_shown;
+        return app.m_prompter.guards.type_mismatch_shown;
     }
 
     static bool& hardware_setup_prompt_shown(Application& app) {
-        return app.m_hardware_setup_prompt_shown;
+        return app.m_prompter.guards.deferred_prompt_shown;
     }
 
     static bool& targeted_reconfig_shown(Application& app) {
-        return app.m_targeted_reconfig_shown;
+        return app.m_prompter.guards.reconfig_shown;
     }
 
     static void switch_printer(Application& app, const std::string& printer_id) {

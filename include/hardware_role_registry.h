@@ -67,6 +67,13 @@ std::string resolve_role_from_config(HardwareRoleId id, Config* config,
                                      const std::vector<std::string>& discovered,
                                      bool persist_autoheal);
 
+/// Re-resolve the hotend and bed heater roles against `heaters` and persist every
+/// AutoHealed replacement in ONE config save, so the validator that follows sees the
+/// resolved names instead of toasting a stale saved role every boot. A role with no
+/// confident replacement is left as saved.
+/// @return true if any role changed.
+bool heal_heater_roles(Config* config, const std::vector<std::string>& heaters);
+
 /// Collect the deduped, registry-ordered set of wizard steps whose guided
 /// hardware roles cannot be confidently resolved against discovered hardware.
 ///

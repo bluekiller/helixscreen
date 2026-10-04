@@ -59,6 +59,10 @@ enum class ChannelVersionRelation {
 ChannelVersionRelation compare_channel_version(const std::string& installed,
                                                const std::string& channel_version);
 
+namespace helix {
+class IMoonrakerClient;
+}
+
 /**
  * @brief Async update checker for HelixScreen
  *
@@ -472,6 +476,20 @@ class UpdateChecker {
      * replacement for the systemd-only helixscreen-update.path watcher.
      */
     static void handle_external_update_complete();
+
+    /**
+     * @brief React to a (re)connected Moonraker: finish a self-restart and listen for updates
+     *
+     * Clears the self-restart sentinel (the app came back up, so
+     * helixscreen-update.service no longer needs to be suppressed) and asks Moonraker to
+     * re-read the version it reports for HelixScreen. Subscribes to
+     * notify_update_response to catch an update finished from Mainsail. Idempotent:
+     * every discovery calls it, and a repeat replaces the earlier subscription.
+     */
+    void on_connected(helix::IMoonrakerClient& client);
+
+    /** @brief Drop the subscription on_connected() made. Safe when never attached. */
+    void detach(helix::IMoonrakerClient& client);
 
     /** @brief Start automatic update checking (15s initial, then 24h periodic) */
     void start_auto_check();

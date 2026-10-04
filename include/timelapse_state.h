@@ -16,6 +16,8 @@
 
 namespace helix {
 
+class IMoonrakerClient;
+
 /**
  * @brief Manages timelapse recording state and render progress
  *
@@ -56,6 +58,13 @@ class TimelapseState {
      * @param event JSON event from notify_timelapse_event
      */
     void handle_timelapse_event(const nlohmann::json& event);
+
+    /// Route notify_timelapse_event from @p client into handle_timelapse_event().
+    /// Idempotent: a repeat call (every discovery) replaces the earlier subscription.
+    void attach(IMoonrakerClient& client);
+
+    /// Drop the subscription attach() made. Safe when never attached.
+    void detach(IMoonrakerClient& client);
 
     /**
      * @brief Reset all state (on disconnect or new print)
