@@ -119,6 +119,26 @@ void ui_frequency_response_chart_show_series(ui_frequency_response_chart_t* char
                                              bool visible);
 
 /**
+ * @brief Change a series' color, for callers whose colors are theme tokens
+ *
+ * @param chart Chart instance
+ * @param series_id Series ID
+ * @param color New line color
+ */
+// NAMESPACE_OK: matches this file's C-style chart API
+void ui_frequency_response_chart_set_series_color(ui_frequency_response_chart_t* chart,
+                                                  int series_id, lv_color_t color);
+
+/**
+ * @brief Report a series' color
+ *
+ * @return The series color, or black for an unknown series
+ */
+// NAMESPACE_OK: matches this file's C-style chart API
+lv_color_t ui_frequency_response_chart_get_series_color(ui_frequency_response_chart_t* chart,
+                                                        int series_id);
+
+/**
  * @brief Render a series as a muted background curve
  *
  * The chart's built-in renderer draws every series at the same line width and
@@ -208,7 +228,8 @@ struct FrChartSeriesStyle {
  *
  * Stores fr_chart_effective_style(style, tier, supports_animations) where the
  * tier and animation support are those captured at configure_for_platform()
- * time. A series whose effective style has glow or fill switches to the
+ * time; a later configure_for_platform() re-derives it from the requested
+ * style. A series whose effective style has glow or fill switches to the
  * chart's custom draw pass; the default style keeps the built-in LVGL series.
  *
  * @param chart Chart instance
@@ -343,6 +364,15 @@ struct FrChartMarker {
 // NAMESPACE_OK: joins this header's global ui_frequency_response_chart_* API
 void ui_frequency_response_chart_set_markers(ui_frequency_response_chart_t* chart, int series_id,
                                              const FrChartMarker* markers, size_t count);
+
+/**
+ * @brief Amplitudes the series currently draws, after any downsampling
+ *        (empty for an unknown series)
+ */
+// NAMESPACE_OK: joins this header's global ui_frequency_response_chart_* API
+[[nodiscard]] std::vector<float>
+ui_frequency_response_chart_get_series_amplitudes(ui_frequency_response_chart_t* chart,
+                                                  int series_id);
 
 /**
  * @brief Markers currently set on a series (empty for an unknown series)
