@@ -24,9 +24,10 @@ std::optional<ConfigKey> ConfigStructure::find_key(const std::string& section,
     if (it == sections.end())
         return std::nullopt;
 
-    for (const auto& k : it->second.keys) {
-        if (k.name == key)
-            return k;
+    // Klipper keeps the last of a repeated key, so that is the line an edit must reach.
+    for (auto k = it->second.keys.rbegin(); k != it->second.keys.rend(); ++k) {
+        if (k->name == key)
+            return *k;
     }
     return std::nullopt;
 }
@@ -92,7 +93,7 @@ void KlipperConfigEditor::cancel_restart_monitors() {
     }
 }
 
-ConfigStructure KlipperConfigEditor::parse_structure(const std::string& content) const {
+ConfigStructure KlipperConfigEditor::parse_structure(const std::string& content) {
     ConfigStructure result;
 
     if (content.empty()) {
@@ -164,8 +165,10 @@ ConfigStructure KlipperConfigEditor::parse_structure(const std::string& content)
 
                 current_section = section_name;
                 auto& sec = result.sections[current_section];
-                sec.name = current_section;
-                sec.line_start = i;
+                if (sec.name.empty()) {
+                    sec.name = current_section;
+                    sec.line_start = i;
+                }
                 continue;
             }
         }
@@ -201,11 +204,7 @@ ConfigStructure KlipperConfigEditor::parse_structure(const std::string& content)
 
         // Extract key name and lowercase it
         std::string key_name = raw_line.substr(0, delim_pos);
-        // Trim trailing whitespace from key
-        while (!key_name.empty() && (key_name.back() == ' ' || key_name.back() == '\t')) {
-            key_name.pop_back();
-        }
-        key_name = helix::text_io::to_lower(key_name);
+        key_name = helix::text_io::to_lower(std::string(helix::text_io::trim(key_name)));
 
         // Extract value (after delimiter, trimming leading whitespace)
         std::string value;
@@ -245,6 +244,16 @@ ConfigStructure KlipperConfigEditor::parse_structure(const std::string& content)
         int last_line =
             result.save_config_line >= 0 ? result.save_config_line - 1 : result.total_lines - 1;
         result.sections[current_section].line_end = last_line;
+    }
+
+    // Blank lines after a value separate it from what follows; they are not part of it.
+    for (auto& [name, sec] : result.sections) {
+        for (auto& key : sec.keys) {
+            while (key.end_line > key.line_number &&
+                   helix::text_io::trim(lines[key.end_line]).empty()) {
+                --key.end_line;
+            }
+        }
     }
 
     return result;
@@ -290,7 +299,7 @@ std::string join_lines(const std::vector<std::string>& lines, bool trailing_newl
 std::optional<std::string> KlipperConfigEditor::set_value(const std::string& content,
                                                           const std::string& section,
                                                           const std::string& key,
-                                                          const std::string& new_value) const {
+                                                          const std::string& new_value) {
     auto structure = parse_structure(content);
     auto found = structure.find_key(section, key);
     if (!found.has_value())
@@ -329,6 +338,9 @@ std::optional<std::string> KlipperConfigEditor::set_value(const std::string& con
     std::string prefix = raw_line.substr(0, delim_pos + 1);
     // Restore the original spacing between delimiter and old value
     std::string spacing = raw_line.substr(delim_pos + 1, value_start - (delim_pos + 1));
+    // A bare `key:` has no spacing to preserve.
+    if (spacing.empty() && !new_value.empty())
+        spacing = " ";
     lines[target] = prefix + spacing + new_value;
 
     bool trailing = !content.empty() && content.back() == '\n';
@@ -339,7 +351,7 @@ std::optional<std::string> KlipperConfigEditor::add_key(const std::string& conte
                                                         const std::string& section,
                                                         const std::string& key,
                                                         const std::string& value,
-                                                        const std::string& delimiter) const {
+                                                        const std::string& delimiter) {
     auto structure = parse_structure(content);
     auto sec_it = structure.sections.find(section);
     if (sec_it == structure.sections.end())
