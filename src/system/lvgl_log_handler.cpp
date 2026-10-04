@@ -493,5 +493,10 @@ void set_suppress_translation_warnings(bool suppress) {
     s_suppress_translation_warnings = suppress;
 }
 
+void reset_lvgl_log_dedupe() {
+    std::lock_guard<std::mutex> lock(s_dedupe_mutex);
+    s_seen_messages.clear();
+}
+
 } // namespace logging
 } // namespace helix

@@ -24,6 +24,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "http_executor.h"
 #include "lane_source_store.h"
+#include "lvgl_log_handler.h"
 #include "panel_widget_manager.h"
 #include "rpc_error_correlation.h"
 #include "runtime_config.h"
@@ -522,6 +523,9 @@ void HelixTestFixture::reset_all() {
     // settings_audio_device_available to 0 and leaves the real value to
     // refresh_audio_device_available(), which only Application calls.
     helix::AudioSettingsManager::instance().init_subjects();
+    // init_subjects() is a no-op while the subjects are alive, so a value a test
+    // set without tearing the manager down (sounds_enabled) is reloaded here.
+    helix::AudioSettingsManager::instance().reload_from_config();
     helix::SafetySettingsManager::instance().init_subjects();
 
     // fault_surface_correlation entries live for 3s of wall clock, which spans
@@ -533,6 +537,11 @@ void HelixTestFixture::reset_all() {
     // message left by one test suppresses the same message's router toast in
     // the next.
     helix::rpc_error_correlation::clear_for_test();
+
+    // The LVGL warning dedupe is a process-wide cache that wipes itself at 256
+    // bodies; a case asserting "first occurrence logs at its usual level" would
+    // otherwise depend on how many distinct warnings earlier cases emitted.
+    helix::logging::reset_lvgl_log_dedupe();
 
     // SettingsManager::init_subjects() is one-shot, so a setting a test changed
     // (jog speeds, jog distances) would otherwise outlive the Config reset above.
