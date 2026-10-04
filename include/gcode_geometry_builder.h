@@ -566,17 +566,13 @@ class GeometryBuilder {
     }
 
     /**
-     * @brief Enable/disable Z-height color gradient
-     */
-    void set_use_height_gradient(bool enable) {
-        use_height_gradient_ = enable;
-    }
-
-    /**
-     * @brief Set solid filament color (disables height gradient)
+     * @brief Set the color of every segment the tool palette does not cover
      * @param hex_color Color in hex format (e.g., "#26A69A" or "26A69A")
      */
     void set_filament_color(const std::string& hex_color);
+
+    /// Same as set_filament_color(), from a 0xRRGGBB value.
+    void set_filament_rgb(uint32_t rgb);
 
     /**
      * @brief Set layer height for tube geometry (default: 0.2mm)
@@ -677,9 +673,6 @@ class GeometryBuilder {
 
     glm::vec3 compute_perpendicular(const glm::vec3& direction, float width) const;
 
-    // Color assignment
-    uint32_t compute_color_rgb(float z_height, float z_min, float z_max) const;
-
     /**
      * @brief Parse hex color string to RGB integer
      * @param hex_color Hex color string (e.g., "#ED1C24" or "ED1C24")
@@ -690,22 +683,15 @@ class GeometryBuilder {
     /**
      * @brief Compute color for a segment with multi-color support
      * @param segment Toolpath segment with tool_index
-     * @param z_min Minimum Z height of model
-     * @param z_max Maximum Z height of model
-     * @return RGB color as 32-bit integer (0xRRGGBB)
-     *
-     * Priority:
-     * 1. Tool-specific color from palette (if tool_index valid and palette not empty)
-     * 2. Z-height gradient (if use_height_gradient_ enabled)
-     * 3. Default filament color
+     * @return RGB color as 32-bit integer (0xRRGGBB): the tool's palette color
+     *         when it has one, else the filament color
      */
-    uint32_t compute_segment_color(const ToolpathSegment& segment, float z_min, float z_max) const;
+    uint32_t compute_segment_color(const ToolpathSegment& segment) const;
 
     // Configuration
     float extrusion_width_mm_ = 0.42f;              ///< Default for 0.4mm nozzle
     float travel_width_mm_ = 0.1f;                  ///< Thin for travels
     float layer_height_mm_ = 0.2f;                  ///< Layer height for tube vertical dimension
-    bool use_height_gradient_ = true;               ///< Rainbow Z-gradient
     uint8_t filament_r_ = 0x26;                     ///< Filament color red component
     uint8_t filament_g_ = 0xA6;                     ///< Filament color green component
     uint8_t filament_b_ = 0x9A;                     ///< Filament color blue component

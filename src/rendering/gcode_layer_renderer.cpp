@@ -301,14 +301,17 @@ void GCodeLayerRenderer::set_tool_color_overrides(const std::vector<uint32_t>& a
                   applied);
 }
 
+lv_color_t GCodeLayerRenderer::default_extrusion_color() {
+    // Info blue reads against the dark preview background.
+    return theme_manager_get_color("info");
+}
+
 void GCodeLayerRenderer::reset_colors() {
     // Join the background ghost-render worker before clearing tool_palette_ below: the worker
     // copy-reads this member without a lock, so freeing its backing vector here would race.
     cancel_background_ghost_render();
 
-    // Use theme colors for default appearance
-    // Extrusion: info blue for visibility against dark background
-    color_extrusion_ = theme_manager_get_color("info");
+    color_extrusion_ = default_extrusion_color();
 
     // Travel: subtle secondary color (grey)
     color_travel_ = theme_manager_get_color("text_muted");

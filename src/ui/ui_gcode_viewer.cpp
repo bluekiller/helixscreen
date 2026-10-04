@@ -483,6 +483,12 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
     return st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
 }
 
+/// The 2D renderer's default extrusion color as 0xRRGGBB. Reads the theme, so
+/// call it on the main thread and hand the value to the build thread.
+static uint32_t default_3d_extrusion_rgb() {
+    return lv_color_to_int(helix::gcode::GCodeLayerRenderer::default_extrusion_color());
+}
+
 #ifdef ENABLE_3D_RENDERER
 /// Segments a banded build keeps: shells are strided by the band depth;
 /// surfaces (skins, and the whole first layer so the model keeps its bottom)
@@ -517,9 +523,12 @@ static BandSegmentCounts count_band_segments(const helix::gcode::ParsedGCodeFile
 /// system. Returns nullptr if the budget tier forces 2D or the build exceeds
 /// the budget. Shared between the initial async-load path and the on-demand
 /// path that fires when the user switches to 3D mode after starting in 2D.
+///
+/// @p default_rgb colors every segment the file's tool palette does not cover.
+/// Pass default_3d_extrusion_rgb(), resolved on the main thread.
 static std::unique_ptr<helix::gcode::RibbonGeometry>
 build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const char* context_tag,
-                            const std::function<bool()>& should_cancel = {}) {
+                            uint32_t default_rgb, const std::function<bool()>& should_cancel = {}) {
     helix::gcode::GeometryBudgetManager budget_mgr;
     size_t available_kb = budget_mgr.read_system_available_kb();
     size_t budget = budget_mgr.calculate_budget(available_kb);
@@ -567,7 +576,8 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     helix::gcode::GeometryBuilder builder;
     // Palette, width and layer height describe the file, so the moving mesh
     // builds with the same values as the main geometry.
-    auto configure = [&file](helix::gcode::GeometryBuilder& b) {
+    auto configure = [&file, default_rgb](helix::gcode::GeometryBuilder& b) {
+        b.set_filament_rgb(default_rgb);
         if (!file.tool_color_palette.empty()) {
             b.set_tool_color_palette(file.tool_color_palette);
         }
@@ -1971,7 +1981,8 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
     // Launch worker thread via RAII-managed start_build()
     // Automatically cancels any existing build and joins the thread
-    st->start_build([st, obj, path = std::string(file_path), gen]() {
+    const uint32_t default_rgb = default_3d_extrusion_rgb();
+    st->start_build([st, obj, path = std::string(file_path), gen, default_rgb]() {
         auto result = std::make_unique<AsyncBuildResult>();
 
         try {
@@ -2042,7 +2053,8 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                 // renderer can walk them when the user switches back.
                 if (!st->is_using_2d_mode()) {
                     result->geometry = build_3d_geometry_in_budget(
-                        *result->gcode_file, "Initial load", [st]() { return st->is_cancelled(); });
+                        *result->gcode_file, "Initial load", default_rgb,
+                        [st]() { return st->is_cancelled(); });
                     if (!result->geometry) {
                         result->force_2d = true;
                     }
@@ -2050,6 +2062,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     spdlog::debug("[GCode Viewer] 2D mode - skipping 3D geometry build");
                 }
 #else
+                (void)default_rgb;
                 spdlog::debug("[GCode Viewer] 2D renderer - skipping geometry build");
 #endif
             }
@@ -2397,7 +2410,8 @@ void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode) 
     // the 3D viewer paints an empty background after a live 2D→3D switch.
     if (!st->is_using_2d_mode() && st->gcode_file && st->renderer_ &&
         !st->renderer_->has_geometry()) {
-        auto geometry = build_3d_geometry_in_budget(*st->gcode_file, "On-demand 3D switch");
+        auto geometry = build_3d_geometry_in_budget(*st->gcode_file, "On-demand 3D switch",
+                                                    default_3d_extrusion_rgb());
         if (geometry) {
             st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
             if (st->camera_) {

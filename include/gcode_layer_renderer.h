@@ -439,6 +439,11 @@ class GCodeLayerRenderer {
      */
     void reset_colors();
 
+    /// The extrusion color a preview shows when the file names none and nothing
+    /// overrides it. Reads the theme, so main thread only. The 3D build bakes
+    /// the same color, so both renderers agree on an uncolored file.
+    static lv_color_t default_extrusion_color();
+
     // =========================================================================
     // Object Selection & Exclusion
     // =========================================================================

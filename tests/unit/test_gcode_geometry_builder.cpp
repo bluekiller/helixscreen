@@ -405,52 +405,43 @@ TEST_CASE("Geometry Builder: Color computation - hex parsing", "[gcode][geometry
     }
 }
 
-TEST_CASE("Geometry Builder: Color computation - Z-height gradient", "[gcode][geometry][color]") {
+TEST_CASE("Geometry Builder: Color computation - no palette or color is one color at every Z",
+          "[gcode][geometry][color]") {
+    // The 2D renderer paints a file with no palette and no filament color in one
+    // color, so the 3D mesh must not shade it by height.
     GeometryBuilder builder;
-    builder.set_use_height_gradient(true);
 
-    // Create a simple G-code file with two layers
     ParsedGCodeFile gcode;
     gcode.global_bounding_box.min = glm::vec3(0, 0, 0);
     gcode.global_bounding_box.max = glm::vec3(100, 100, 10);
 
-    Layer layer1;
-    layer1.z_height = 0.2f;
-    ToolpathSegment seg1;
-    seg1.start = glm::vec3(0, 0, 0.2f);
-    seg1.end = glm::vec3(10, 0, 0.2f);
-    seg1.is_extrusion = true;
-    seg1.extrusion_amount = 1.0f;
-    seg1.width = 0.4f;
-    layer1.segments.push_back(seg1);
-    gcode.layers.push_back(layer1);
-
-    Layer layer2;
-    layer2.z_height = 5.0f;
-    ToolpathSegment seg2;
-    seg2.start = glm::vec3(0, 0, 5.0f);
-    seg2.end = glm::vec3(10, 0, 5.0f);
-    seg2.is_extrusion = true;
-    seg2.extrusion_amount = 1.0f;
-    seg2.width = 0.4f;
-    layer2.segments.push_back(seg2);
-    gcode.layers.push_back(layer2);
+    for (float z : {0.2f, 5.0f, 10.0f}) {
+        Layer layer;
+        layer.z_height = z;
+        ToolpathSegment seg;
+        seg.start = glm::vec3(0, 0, z);
+        seg.end = glm::vec3(10, 0, z);
+        seg.is_extrusion = true;
+        seg.extrusion_amount = 1.0f;
+        seg.width = 0.4f;
+        layer.segments.push_back(seg);
+        gcode.layers.push_back(layer);
+    }
 
     SimplificationOptions options;
     options.enable_merging = false;
 
     RibbonGeometry geometry = builder.build(gcode, options);
 
-    // Should have generated geometry
     REQUIRE(geometry.vertices.size() > 0);
-    REQUIRE(geometry.color_palette.size() > 0);
+    REQUIRE(geometry.color_palette.size() == 1);
+    CHECK((geometry.color_palette[0] & 0xFFFFFFu) == 0x26A69Au);
 }
 
 TEST_CASE("Geometry Builder: Color computation - solid filament color",
           "[gcode][geometry][color]") {
     GeometryBuilder builder;
     builder.set_filament_color("#ED1C24"); // Red
-    builder.set_use_height_gradient(false);
 
     ParsedGCodeFile gcode;
     gcode.global_bounding_box.min = glm::vec3(0, 0, 0);

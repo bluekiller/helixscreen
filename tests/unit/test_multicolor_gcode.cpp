@@ -213,7 +213,6 @@ TEST_CASE("MultiColor - Build geometry with tool colors", "[gcode][multicolor][g
 
         GeometryBuilder builder;
         builder.set_tool_color_palette(gcode.tool_color_palette);
-        builder.set_use_height_gradient(false); // Use tool colors, not gradient
 
         SimplificationOptions opts;
         opts.enable_merging = false;
@@ -382,7 +381,6 @@ TEST_CASE("MultiColor - Synthetic multi-layer multi-tool file",
     SECTION("Geometry builds with tool colors") {
         GeometryBuilder builder;
         builder.set_tool_color_palette(result.tool_color_palette);
-        builder.set_use_height_gradient(false);
 
         SimplificationOptions opts;
         opts.enable_merging = false;
@@ -432,7 +430,6 @@ TEST_CASE("MultiColor - Benchbin MMU3 real file", "[gcode][multicolor][integrati
     SECTION("Geometry builds from real file") {
         GeometryBuilder builder;
         builder.set_tool_color_palette(result.tool_color_palette);
-        builder.set_use_height_gradient(false);
 
         SimplificationOptions opts;
         auto geometry = builder.build(result, opts);
