@@ -308,17 +308,17 @@ void AmsState::init_subjects(bool register_xml) {
     INIT_SUBJECT_INT(ams_current_tool, -1, subjects_, register_xml);
     // These subjects need ams_ prefix for XML but member vars don't have it
     lv_subject_init_int(&filament_loaded_, 0);
-    subjects_.register_subject(&filament_loaded_);
+    subjects_.register_subject(&filament_loaded_, "ams_filament_loaded");
     if (register_xml)
         lv_xml_register_subject(nullptr, "ams_filament_loaded", &filament_loaded_);
 
     lv_subject_init_int(&filament_runout_, 0);
-    subjects_.register_subject(&filament_runout_);
+    subjects_.register_subject(&filament_runout_, "ams_filament_runout");
     if (register_xml)
         lv_xml_register_subject(nullptr, "ams_filament_runout", &filament_runout_);
 
     lv_subject_init_int(&bypass_active_, 0);
-    subjects_.register_subject(&bypass_active_);
+    subjects_.register_subject(&bypass_active_, "ams_bypass_active");
     if (register_xml)
         lv_xml_register_subject(nullptr, "ams_bypass_active", &bypass_active_);
 
@@ -327,7 +327,7 @@ void AmsState::init_subjects(bool register_xml) {
         auto ext_spool = helix::SettingsManager::instance().get_external_spool_info();
         int initial_color = ext_spool.has_value() ? static_cast<int>(ext_spool->color_rgb) : 0;
         lv_subject_init_int(&external_spool_color_, initial_color);
-        subjects_.register_subject(&external_spool_color_);
+        subjects_.register_subject(&external_spool_color_, "ams_external_spool_color");
         if (register_xml)
             lv_xml_register_subject(nullptr, "ams_external_spool_color", &external_spool_color_);
 
@@ -336,14 +336,14 @@ void AmsState::init_subjects(bool register_xml) {
         lv_subject_init_string(&external_spool_material_, external_spool_material_buf_, nullptr,
                                sizeof(external_spool_material_buf_),
                                ext_spool.has_value() ? ext_spool->material.c_str() : "");
-        subjects_.register_subject(&external_spool_material_);
+        subjects_.register_subject(&external_spool_material_, "ams_external_spool_material");
         if (register_xml)
             lv_xml_register_subject(nullptr, "ams_external_spool_material",
                                     &external_spool_material_);
     }
 
     lv_subject_init_int(&supports_bypass_, 0);
-    subjects_.register_subject(&supports_bypass_);
+    subjects_.register_subject(&supports_bypass_, "ams_supports_bypass");
     if (register_xml)
         lv_xml_register_subject(nullptr, "ams_supports_bypass", &supports_bypass_);
     INIT_SUBJECT_INT(ams_slot_count, 0, subjects_, register_xml);
