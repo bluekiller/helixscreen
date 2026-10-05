@@ -166,21 +166,6 @@ void reset_overlay_transform(lv_obj_t* obj) {
     lv_obj_set_style_transform_scale(obj, 256, LV_PART_MAIN);
     lv_obj_set_style_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
 }
-
-/// The colors the navbar is painted in right now.
-std::string active_palette_key() {
-    const helix::ThemeData& theme = theme_manager_get_active_theme();
-    const helix::ModePalette& palette = theme_manager_is_dark_mode() ? theme.dark : theme.light;
-    std::string key;
-    for (size_t i = 0; i < helix::ModePalette::color_names().size(); i++)
-        key += palette.at(i);
-    return key;
-}
-
-/// A snapshot backdrop is an image; a dim layer is a translucent plain object.
-bool is_snapshot_backdrop(lv_obj_t* backdrop) {
-    return backdrop && lv_obj_check_type(backdrop, &lv_image_class);
-}
 } // namespace
 
 void NavigationManager::set_overlay_registration_strict(bool enabled) noexcept {
@@ -236,11 +221,7 @@ bool NavigationManager::is_klippy_ready() const {
 void NavigationManager::retire_overlay(lv_obj_t* overlay) {
     // Both run inside UpdateQueue drains or LVGL animation callbacks, where a
     // synchronous delete corrupts LVGL's event list (#637, #620).
-    auto backdrop_it = overlay_backdrops_.find(overlay);
-    if (backdrop_it != overlay_backdrops_.end()) {
-        helix::ui::safe_delete_deferred(backdrop_it->second);
-        overlay_backdrops_.erase(backdrop_it);
-    }
+    backdrop_.retire(overlay);
 
     auto callback_it = overlay_close_callbacks_.find(overlay);
     if (callback_it != overlay_close_callbacks_.end()) {
@@ -285,11 +266,7 @@ void NavigationManager::clear_overlay_stack() {
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
 
-    // Destroy primary backdrop snapshot
-    if (overlay_backdrop_) {
-        helix::ui::safe_delete_deferred(overlay_backdrop_);
-        overlay_backdrop_ = nullptr;
-    }
+    backdrop_.release_primary();
 
     spdlog::trace("[NavigationManager] Overlay stack cleared (connection gating)");
 }
@@ -591,14 +568,14 @@ void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
         // Capture keyboard visibility at PRESS time. LVGL's indev_proc_press
         // sends PRESSED before indev_click_focus, whose DEFOCUS hides the
         // keyboard — so by CLICKED, is_visible() would already read false.
-        mgr.backdrop_press_keyboard_visible_ = KeyboardManager::instance().is_visible();
+        mgr.backdrop_.note_press(KeyboardManager::instance().is_visible());
         return;
     }
 
     // LV_EVENT_CLICKED — a tap that dismissed the on-screen keyboard must not
     // also dismiss (or navigate away from) the overlay behind it. Consume this
     // tap for the keyboard dismiss only; a second tap dismisses the overlay.
-    if (mgr.take_backdrop_keyboard_dismiss()) {
+    if (mgr.backdrop_.take_keyboard_dismiss()) {
         spdlog::trace(
             "[NavigationManager] Backdrop tap dismissed on-screen keyboard; overlay kept");
         return;
@@ -645,11 +622,7 @@ void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
 }
 
 bool NavigationManager::take_backdrop_keyboard_dismiss() {
-    if (!backdrop_press_keyboard_visible_) {
-        return false;
-    }
-    backdrop_press_keyboard_visible_ = false;
-    return true;
+    return backdrop_.take_keyboard_dismiss();
 }
 
 void NavigationManager::nav_button_clicked_cb(lv_event_t* event) {
@@ -804,18 +777,12 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
     }
     overlay_close_callbacks_.clear();
     // Delete any remaining dynamic backdrops the loop above didn't reach
-    // (orphaned entries not in panel_stack_), then clear the map.
-    for (auto& [_, backdrop] : overlay_backdrops_) {
-        helix::ui::safe_delete_deferred(backdrop);
-    }
-    overlay_backdrops_.clear();
+    // (orphaned entries not in panel_stack_).
+    backdrop_.retire_all();
     spdlog::trace("[NavigationManager] Panel stack and overlay maps cleared (nav button clicked)");
 
-    // Destroy primary backdrop snapshot since all overlays are being cleared
-    if (overlay_backdrop_) {
-        helix::ui::safe_delete_deferred(overlay_backdrop_);
-        overlay_backdrop_ = nullptr;
-    }
+    // The primary snapshot goes too: every overlay is being cleared
+    backdrop_.release_primary();
 
     // Show the clicked panel
     lv_obj_t* new_panel = panels_.widget(static_cast<int>(panel_id));
@@ -961,7 +928,7 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
     theme_observer_ = observe<int>(
         theme_manager_get_changed_subject(), this,
         [](NavigationManager* mgr, int /* generation */) {
-            if (active_palette_key() != mgr->backdrop_palette_key_)
+            if (mgr->backdrop_.palette_changed())
                 mgr->refresh_overlay_backdrop();
         },
         subject_never_freed());
@@ -1179,12 +1146,7 @@ void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new
     rekey_life(overlay_instances_);
     rekey_life(persistent_overlay_instances_);
 
-    auto bd_it = overlay_backdrops_.find(old_widget);
-    if (bd_it != overlay_backdrops_.end()) {
-        auto* backdrop = bd_it->second;
-        overlay_backdrops_.erase(bd_it);
-        overlay_backdrops_[new_widget] = backdrop;
-    }
+    backdrop_.rekey(old_widget, new_widget);
 
     auto cb_it = overlay_close_callbacks_.find(old_widget);
     if (cb_it != overlay_close_callbacks_.end()) {
@@ -1328,7 +1290,7 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
     overlay_instances_.erase(widget);
     persistent_overlay_instances_.erase(widget);
     // Drop the backdrop map entry only — out of scope to delete the backdrop here.
-    overlay_backdrops_.erase(widget);
+    backdrop_.scrub(widget);
     overlay_close_callbacks_.erase(widget);
     overlay_is_destination_.erase(widget);
     overlay_width_unmanaged_.erase(widget);
@@ -1358,30 +1320,7 @@ void NavigationManager::overlay_delete_event_cb(lv_event_t* e) {
 }
 
 void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriving) {
-    // Keep the live E-stop and the arriving overlay out of the snapshot: both
-    // stay above the backdrop, and a dimmed copy baked into the image would
-    // show wherever the page shifts (the keyboard lifts the layout, backdrop
-    // included) or wherever the live overlay has not covered it yet.
-    {
-        helix::ui::RailEstop::ScopedHide estop_hidden(rail_estop_);
-        const bool arriving_shown = arriving && !lv_obj_has_flag(arriving, LV_OBJ_FLAG_HIDDEN);
-        if (arriving_shown) {
-            lv_obj_add_flag(arriving, LV_OBJ_FLAG_HIDDEN);
-        }
-        overlay_backdrop_ = helix::ui::create_darkened_backdrop(screen, 40);
-        backdrop_palette_key_ = active_palette_key();
-        if (arriving_shown) {
-            lv_obj_remove_flag(arriving, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-    if (!overlay_backdrop_)
-        return;
-
-    helix::ui::bring_to_front(overlay_backdrop_);
-    // PRESSED latches keyboard visibility before LVGL's click-focus
-    // hides it; CLICKED consumes the tap for the keyboard dismiss.
-    lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_PRESSED, nullptr);
-    lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_CLICKED, nullptr);
+    backdrop_.adopt(screen, arriving, rail_estop_, backdrop_click_event_cb);
 }
 
 void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
@@ -1389,64 +1328,9 @@ void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
 }
 
 void NavigationManager::refresh_overlay_backdrop() {
-    if (shutting_down_ || !overlay_backdrop_ || !lv_obj_is_valid(overlay_backdrop_))
+    if (shutting_down_)
         return;
-    // A dim layer is translucent over the live navbar, so it is never stale.
-    if (!is_snapshot_backdrop(overlay_backdrop_))
-        return;
-
-    lv_obj_t* screen = lv_obj_get_screen(overlay_backdrop_);
-    if (!screen || screen != lv_screen_active())
-        return;
-
-    // Everything the snapshot must not contain: the overlays it sits under, the
-    // backdrop itself, the printer-switch menu, anything else parked on
-    // the screen. Hide them all and restore the exact flags afterwards — the
-    // snapshot has to reproduce what the screen looked like at push time, not
-    // what it looks like now.
-    std::vector<std::pair<lv_obj_t*, bool>> saved;
-    uint32_t child_count = lv_obj_get_child_count(screen);
-    saved.reserve(child_count);
-    for (uint32_t i = 0; i < child_count; i++) {
-        lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-        if (!child || child == app_layout_widget_)
-            continue;
-        saved.emplace_back(child, lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN));
-        lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    // push_overlay(hide_previous) hid the base panel behind the backdrop. It has
-    // to be visible again for the snapshot or a narrower overlay (#1178) would
-    // expose dimmed emptiness where the panel used to show through.
-    lv_obj_t* base_panel = panel_stack_.empty() ? nullptr : panel_stack_.front();
-    bool base_was_hidden = false;
-    if (base_panel && lv_obj_is_valid(base_panel)) {
-        base_was_hidden = lv_obj_has_flag(base_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(base_panel, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        base_panel = nullptr;
-    }
-
-    // Into the buffer the backdrop already owns: a second full frame is 768KB
-    // on an 800x480 RGB565 panel.
-    const bool retaken = helix::ui::retake_darkened_backdrop(overlay_backdrop_, 40);
-
-    if (base_panel && base_was_hidden)
-        lv_obj_add_flag(base_panel, LV_OBJ_FLAG_HIDDEN);
-    for (auto& [child, was_hidden] : saved) {
-        if (was_hidden)
-            lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_remove_flag(child, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    if (!retaken) {
-        spdlog::warn("[NavigationManager] Backdrop refresh failed — keeping stale snapshot");
-        return;
-    }
-    backdrop_palette_key_ = active_palette_key();
-
-    spdlog::debug("[NavigationManager] Overlay backdrop re-snapshotted");
+    backdrop_.refresh(app_layout_widget_, panel_stack_.empty() ? nullptr : panel_stack_.front());
 }
 
 void NavigationManager::ensure_delete_hook(lv_obj_t* widget) {
@@ -1710,9 +1594,8 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         // translucent, so beside a transient overlay the base panel stays drawn
         // through it; a destination overlay covers it, and drawing it there
         // would cost frames for nothing.
-        const bool base_shows_through = is_first_overlay && !is_destination &&
-                                        mgr.overlay_backdrop_ &&
-                                        !is_snapshot_backdrop(mgr.overlay_backdrop_);
+        const bool base_shows_through =
+            is_first_overlay && !is_destination && mgr.backdrop_.primary_is_dim_layer();
         if (hide_previous && !mgr.panel_stack_.empty() && !base_shows_through) {
             lv_obj_t* current_top = mgr.panel_stack_.back();
             lv_obj_add_flag(current_top, LV_OBJ_FLAG_HIDDEN);
@@ -1868,11 +1751,7 @@ void NavigationManager::go_back_now() {
         if (!mgr.panel_stack_.empty()) {
             lv_obj_t* popped = mgr.panel_stack_.back();
             mgr.panel_stack_.pop_back();
-            auto it = mgr.overlay_backdrops_.find(popped);
-            if (it != mgr.overlay_backdrops_.end()) {
-                helix::ui::safe_delete_deferred(it->second);
-                mgr.overlay_backdrops_.erase(it);
-            }
+            mgr.backdrop_.retire(popped);
         }
 
         // Determine the previous panel (what will be visible after pop)
@@ -1889,7 +1768,7 @@ void NavigationManager::go_back_now() {
         if (screen) {
             for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++) {
                 lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-                if (child == mgr.app_layout_widget_ || child == mgr.overlay_backdrop_ ||
+                if (child == mgr.app_layout_widget_ || child == mgr.backdrop_.primary() ||
                     child == current_top || child == previous_panel ||
                     helix::ui::is_screen_chrome(child)) {
                     continue;
@@ -1903,9 +1782,8 @@ void NavigationManager::go_back_now() {
         }
 
         // Destroy backdrop if no more overlays
-        if (mgr.panel_stack_.size() <= 1 && mgr.overlay_backdrop_) {
-            helix::ui::safe_delete_deferred(mgr.overlay_backdrop_);
-            mgr.overlay_backdrop_ = nullptr;
+        if (mgr.panel_stack_.size() <= 1) {
+            mgr.backdrop_.release_primary();
         }
 
         // Fallback to home if empty
@@ -2042,7 +1920,6 @@ void NavigationManager::deinit_subjects() {
     overlay_instances_.clear();
     persistent_overlay_instances_.clear();
     overlay_close_callbacks_.clear();
-    overlay_backdrops_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
     delete_hooked_.clear();
@@ -2050,10 +1927,7 @@ void NavigationManager::deinit_subjects() {
     condemned_roots_.clear();
     panel_stack_.clear();
     app_layout_widget_ = nullptr;
-    if (overlay_backdrop_) {
-        lv_obj_del(overlay_backdrop_);
-        overlay_backdrop_ = nullptr;
-    }
+    backdrop_.reset();
     navbar_widget_ = nullptr;
     // The E-stop lives on the screen, not in the app layout a printer switch
     // rebuilds, so it goes explicitly or the rebuild leaves an orphan behind.

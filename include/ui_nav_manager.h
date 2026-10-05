@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ui_nav.h"
+#include "ui_nav_backdrop.h"
 #include "ui_nav_panel_registry.h"
 #include "ui_nav_printer_badge.h"
 #include "ui_nav_rail_estop.h"
@@ -239,7 +240,7 @@ class NavigationManager {
      * @brief Re-key overlay maps: swap old_widget → new_widget for the same lifecycle.
      *
      * Used by hot-reload overlay rebuild. Touches overlay_instances_,
-     * persistent_overlay_instances_, overlay_backdrops_, overlay_close_callbacks_,
+     * persistent_overlay_instances_, the nested backdrops, overlay_close_callbacks_,
      * and panel_stack_. Does NOT free either widget —
      * caller handles old widget teardown.
      */
@@ -648,19 +649,19 @@ class NavigationManager {
     // memory is freed. scrub_deleted_widget() erases the widget from every
     // widget-keyed bookkeeping container, so panel_stack_.back() on the next
     // push_overlay() cannot dereference freed memory. The scalars
-    // (overlay_backdrop_, app_layout_widget_, the panel slots) are WidgetRefs
+    // (app_layout_widget_, the panel slots) are WidgetRefs
     // and clear themselves.
     void scrub_deleted_widget(lv_obj_t* widget);
     // Attach the LV_EVENT_DELETE scrub callback to a widget exactly once.
     void ensure_delete_hook(lv_obj_t* widget);
     static void overlay_delete_event_cb(lv_event_t* e);
     // Create the darkened backdrop over `screen` and adopt it as
-    // overlay_backdrop_, wiring its click handlers. `arriving` (the overlay
+    // the primary backdrop, wiring its click handlers. `arriving` (the overlay
     // being pushed) and the rail E-stop are hidden for the snapshot: both sit
     // above the backdrop, and a dimmed copy baked into the image would trail
     // the live overlay wherever it does not cover it. The backdrop is a child
     // of `screen`, so any path that deletes the screen frees it without going
-    // through go_back(); overlay_backdrop_ clears itself when that happens.
+    // through go_back(); the backdrop clears itself when that happens.
     void adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriving);
     /**
      * @brief Re-take the overlay backdrop snapshot from the live widget tree
@@ -735,22 +736,8 @@ class NavigationManager {
     // Overlay close callbacks (called when overlay is popped from stack)
     std::unordered_map<lv_obj_t*, helix::OverlayCloseCallback> overlay_close_callbacks_;
 
-    // Shared overlay backdrop widget (for first overlay)
-    helix::ui::WidgetRef overlay_backdrop_;
-    // The theme palette the backdrop's snapshot was taken under.
-    std::string backdrop_palette_key_;
-
-    // Latched at the dismiss-backdrop's LV_EVENT_PRESSED with the on-screen
-    // keyboard's visibility. LVGL's click-focus DEFOCUS (which hides the
-    // keyboard) fires between PRESSED and CLICKED, so is_visible() is already
-    // false by the time backdrop_click_event_cb handles CLICKED — the visibility
-    // must be captured at press time. Consumed one-shot by
-    // take_backdrop_keyboard_dismiss(): a tap that hides the keyboard must not
-    // also dismiss the overlay behind it.
-    bool backdrop_press_keyboard_visible_ = false;
-
-    // Dynamic backdrops for nested overlays (overlay → its backdrop)
-    std::unordered_map<lv_obj_t*, lv_obj_t*> overlay_backdrops_;
+    // The dismiss backdrop behind the overlay stack, and its bookkeeping
+    helix::ui::OverlayBackdrop backdrop_;
 
     // Resolved width class per overlay (overlay → is_destination). Written by
     // apply_overlay_width() on every push, read by the next push to inherit and

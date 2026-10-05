@@ -13,18 +13,24 @@ class NavigationManagerTestAccess {
     /// consults. The latch is normally set at LV_EVENT_PRESSED from live keyboard
     /// state; setting it directly keeps dismiss tests deterministic.
     static void set_backdrop_press_keyboard_visible(NavigationManager& nav, bool visible) {
-        nav.backdrop_press_keyboard_visible_ = visible;
+        nav.backdrop_.note_press(visible);
+    }
+
+    /// Track a nested-overlay backdrop on a standalone OverlayBackdrop.
+    static void track_nested_backdrop(helix::ui::OverlayBackdrop& backdrop, lv_obj_t* overlay,
+                                      lv_obj_t* nested) {
+        backdrop.nested_[overlay] = nested;
     }
 
     /// Read the raw backdrop pointer, to assert it does not outlive the widget.
     static lv_obj_t* overlay_backdrop(NavigationManager& nav) {
-        return nav.overlay_backdrop_;
+        return nav.backdrop_.primary();
     }
 
     /// Give @p overlay a nested-overlay backdrop, as a stacked push does.
     static void set_overlay_backdrop_for(NavigationManager& nav, lv_obj_t* overlay,
                                          lv_obj_t* backdrop) {
-        nav.overlay_backdrops_[overlay] = backdrop;
+        nav.backdrop_.nested_[overlay] = backdrop;
     }
 
     /// Create the darkened snapshot backdrop, as the first push_overlay() does.
