@@ -76,7 +76,7 @@ Otherwise the build prints `Bluetooth plugin: skipped (missing libbluetooth-dev 
 
 A separate gate, `HELIX_HAS_LABEL_PRINTER` (default `1`, forced to `0` on AD5M-class targets in `mk/cross.mk`), compiles out `bt_print_utils.cpp` and the label printer backends. It does not affect the plugin build.
 
-**Plugin location at runtime.** The loader looks for `libhelix-bluetooth.so` in the same directory as the running executable (`/proc/self/exe`). Every build puts it there, so a native dev run on a machine with an adapter loads it the same way a device does. The loader first requires an `hci*` entry under `/sys/class/bluetooth/`, and `HELIX_BLUETOOTH=0` skips loading altogether; `helix-tests` pins that, so the unit suite never opens the host's system bus or registers a BlueZ agent ([ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)).
+**Plugin location at runtime.** The loader looks for `libhelix-bluetooth.so` in the same directory as the running executable (`/proc/self/exe`). Every build puts it there. The loader first requires an `hci*` entry under `/sys/class/bluetooth/`, then asks `bluetooth_enabled()` (`src/system/bluetooth_loader.cpp#bluetooth_enabled`): `HELIX_BLUETOOTH=0` never loads it, `1` always does, and otherwise production loads it while a `--test` run does not, so a mock run never opens the developer's system bus or registers a BlueZ agent there. `helix-tests` pins `0` ([ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)).
 
 ---
 
@@ -337,7 +337,7 @@ All label-printer paths enter through `print_spool_label()`; the dispatch from c
 
 | Symptom | Where to look |
 |---------|---------------|
-| No Bluetooth rows in settings | Log line `[BluetoothLoader] No Bluetooth hardware detected` (no `hci*` under `/sys/class/bluetooth`), `Disabled by HELIX_BLUETOOTH=0`, or `Plugin not available` (`.so` missing next to the binary, or a platform that does not build it). At debug level `dlopen failed: ...` names the reason |
+| No Bluetooth rows in settings | Log line `[BluetoothLoader] No Bluetooth hardware detected` (no `hci*` under `/sys/class/bluetooth`), `Disabled (HELIX_BLUETOOTH=0, or --test without HELIX_BLUETOOTH=1)`, or `Plugin not available` (`.so` missing next to the binary, or a platform that does not build it). At debug level `dlopen failed: ...` names the reason |
 | `API version mismatch: expected N, got M` | The `.so` in `bin/` is from a different build than the binary. Redeploy both |
 | Toast "Bluetooth initialization failed" | `init()` returned null: `[bt] failed to open system bus` on stderr means no D-Bus system bus or no permission to it |
 | Pairing succeeds but the device does not stay paired | Check stderr for `[bt] agent: RegisterAgent failed`. Without an agent the bond never stores. Another agent (a running `bluetoothctl`) can also hold default-agent status |
@@ -351,7 +351,7 @@ All label-printer paths enter through `print_spool_label()`; the dispatch from c
 
 ## Testing and Mocking
 
-There is no mock Bluetooth backend and no `HELIX_MOCK_*` variable for it: a `--test` run loads the real plugin when the machine has an adapter, and `HELIX_BLUETOOTH=0` turns that off. What is tested:
+There is no mock Bluetooth backend and no `HELIX_MOCK_*` variable for it: a `--test` run leaves the plugin unloaded, and `HELIX_BLUETOOTH=1` loads the real one on a machine with an adapter. What is tested:
 
 | Test | Covers | Tag |
 |------|--------|-----|
@@ -367,7 +367,7 @@ The `[slow]` cases run in nightly CI, not in `make unit-sweep`; run them with `m
 
 `BluetoothLoader`'s function pointers are public members, so a test can swap one for a fake and restore it afterwards. `test_bt_channel_resolver.cpp` does exactly that for `sdp_find_rfcomm_channel` (`tests/unit/test_bt_channel_resolver.cpp#"struct LoaderMock"`), and `test_bt_discovery_run.cpp` for `init`, `deinit`, `discover` and `stop_discovery`. Use the same scoped-swap pattern to test consumer logic without hardware.
 
-Anything that touches BlueZ (discovery, pairing, BLE connect) has to be verified on hardware: a Pi with the plugin deployed, or a Linux desktop whose BlueZ exposes an adapter, running a native build.
+Anything that touches BlueZ (discovery, pairing, BLE connect) has to be verified on hardware: a Pi with the plugin deployed, or a Linux desktop whose BlueZ exposes an adapter, running a native build (with `HELIX_BLUETOOTH=1` under `--test`).
 
 ---
 

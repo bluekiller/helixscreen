@@ -2,6 +2,8 @@
 
 #include "bluetooth_loader.h"
 
+#include "runtime_config.h"
+
 #include <spdlog/spdlog.h>
 
 #include <climits>
@@ -14,15 +16,24 @@
 
 namespace helix::bluetooth {
 
+bool bluetooth_enabled(const char* env_value, bool test_mode) {
+    if (env_value && std::strcmp(env_value, "0") == 0)
+        return false;
+    if (env_value && std::strcmp(env_value, "1") == 0)
+        return true;
+    return !test_mode;
+}
+
 BluetoothLoader& BluetoothLoader::instance() {
     static BluetoothLoader instance;
     return instance;
 }
 
 BluetoothLoader::BluetoothLoader() {
-    const char* enabled = ::getenv("HELIX_BLUETOOTH");
-    if (enabled != nullptr && enabled[0] == '0' && enabled[1] == '\0') {
-        spdlog::info("[BluetoothLoader] Disabled by HELIX_BLUETOOTH=0");
+    const auto* rc = get_runtime_config();
+    if (!bluetooth_enabled(::getenv("HELIX_BLUETOOTH"), rc && rc->test_mode)) {
+        spdlog::info("[BluetoothLoader] Disabled (HELIX_BLUETOOTH=0, or --test without "
+                     "HELIX_BLUETOOTH=1)");
         return;
     }
     if (!has_bt_hardware()) {

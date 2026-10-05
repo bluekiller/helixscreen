@@ -1373,22 +1373,22 @@ HELIX_USB_AUTOMOUNT=0 ./build/bin/helix-screen -vv
 
 ### `HELIX_BLUETOOTH`
 
-Skip loading the Bluetooth plugin. `0` leaves `BluetoothLoader` unavailable, as on a device
-with no adapter, so no system-bus connection is opened and no BlueZ pairing agent is
+Whether to load the Bluetooth plugin. Unloaded, `BluetoothLoader` reports unavailable as on
+a device with no adapter: no system-bus connection is opened and no BlueZ pairing agent is
 registered. A native build puts `libhelix-bluetooth.so` beside `helix-screen` and
-`helix-tests`, so a dev run on a machine with an adapter loads it by default; the unit-test
-binary pins this to `0` in its startup constructor so the suite never touches the host's
-BlueZ.
+`helix-tests`, so a `--test` run leaves it unloaded unless this is `1`, and a desktop opening
+the Bluetooth settings never has its default agent taken. The unit-test binary pins `0` in
+its startup constructor. Decision: `src/system/bluetooth_loader.cpp#bluetooth_enabled`.
 
 | Property | Value |
 |----------|-------|
-| **Values** | `0` (plugin not loaded), anything else or unset (loaded when an adapter and the plugin exist) |
-| **Default** | Loaded |
+| **Values** | `0` (never load), `1` (load, `--test` included), anything else or unset (load except under `--test`) |
+| **Default** | Loaded in production, not loaded under `--test` |
 | **File** | `src/system/bluetooth_loader.cpp` |
 
 ```bash
-# Run a dev build without touching this machine's Bluetooth stack.
-HELIX_BLUETOOTH=0 ./build/bin/helix-screen --test -vv
+# Exercise the real plugin from a mock run on a machine with an adapter.
+HELIX_BLUETOOTH=1 ./build/bin/helix-screen --test -vv
 ```
 
 ### `HELIX_TEMP_GRAPH_GRAD_SKIP`
