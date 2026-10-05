@@ -10,6 +10,7 @@
 #include "ams_fault_event.h"
 #include "ams_state.h"
 #include "config.h"
+#include "happy_hare_status_parse.h"
 #include "hh_defaults.h"
 #include "humidity_sensor_types.h"
 #include "i_moonraker_api.h"
@@ -212,7 +213,7 @@ AmsSystemInfo AmsBackendHappyHare::get_system_info() const {
     // (EMU) list maps each unit to the object at its first gate, so multi-MMU rigs
     // with distinct box sensors read correctly. Per-gate *drying control*
     // (start/stop/countdown) still uses the global dryer model — true per-gate
-    // drying is a separate gap (drying_state array; see parse_mmu_state).
+    // drying is a separate gap (drying_state array; see apply_mmu_drying_locked).
     // Environment is independent of dryer support: a passive enclosure has a sensor and
     // no heater, and a heater reports a temperature with no sensor configured. Each unit
     // below is skipped on its own when it has neither, so no outer gate is needed.
@@ -377,8 +378,20 @@ void AmsBackendHappyHare::handle_status(const nlohmann::json& params) {
     // Parse MMU core state if present.
     const bool mmu_present = params.contains("mmu") && params["mmu"].is_object();
     if (mmu_present) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        parse_mmu_state(params["mmu"]);
+        const happy_hare::MmuStatusDelta delta = happy_hare::parse_mmu_status(params["mmu"]);
+        MmuFrame frame;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            apply_mmu_status_locked(delta, frame);
+        }
+        // An insert nothing vouches for asks whether the stored record still
+        // describes the spool that went in. The notice re-checks its own guards
+        // on the UI thread.
+        for (const int gate : frame.unverified_insert_gates) {
+            helix::ui::queue_update("AmsBackendHappyHare::handle_status", [gate] {
+                helix::ui::offer_clear_after_unverified_insert(gate);
+            });
+        }
     }
 
     // Parse live heater_generic temp/target even when mmu key is absent —
@@ -396,77 +409,90 @@ void AmsBackendHappyHare::handle_status(const nlohmann::json& params) {
     }
 }
 
-void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
-    // One gate's standing identity record, created on first mention. Every
-    // block below amends a record that outlives the frame and the tail files
-    // it once, because one ingest replaces that source's record whole.
-    auto reading_for = [this](int gate) -> ams::Observation& {
-        auto it = gate_readings_.find(gate);
-        if (it == gate_readings_.end()) {
-            it = gate_readings_.emplace(gate, ams::Observation(ams::ObservationSource::VendorCache))
-                     .first;
-        }
-        return it->second;
-    };
+void AmsBackendHappyHare::apply_mmu_status_locked(const happy_hare::MmuStatusDelta& delta,
+                                                  MmuFrame& frame) {
+    // reason_for_pause is empty exactly when no fault stands, so the fault edge
+    // at the tail needs the state this frame started from, before the selector
+    // step rewrites it.
+    frame.was_faulted = !reason_for_pause_.empty();
 
-    // Parse current gate: printer.mmu.gate
-    // -1 = no gate selected, -2 = bypass
-    if (mmu_data.contains("gate") && mmu_data["gate"].is_number_integer()) {
-        system_info_.current_slot = mmu_data["gate"].get<int>();
+    apply_mmu_selector_locked(delta.core);
+    apply_mmu_path_locked(delta.core);
+    apply_mmu_topology_locked(delta.topology);
+    apply_gate_status_locked(delta.identity);
+    apply_gate_appearance_locked(delta.identity, frame);
+    apply_gate_binding_locked(delta, frame);
+    apply_mmu_telemetry_locked(delta.telemetry);
+    apply_mmu_sensors_locked(delta);
+    converge_mmu_locked(frame);
+}
+
+ams::Observation& AmsBackendHappyHare::gate_reading_locked(int gate) {
+    // One gate's standing identity record, created on first mention. Every
+    // block of the parse amends a record that outlives the frame and the tail
+    // files it once, because one ingest replaces that source's record whole.
+    auto it = gate_readings_.find(gate);
+    if (it == gate_readings_.end()) {
+        it = gate_readings_.emplace(gate, ams::Observation(ams::ObservationSource::VendorCache))
+                 .first;
+    }
+    return it->second;
+}
+
+void AmsBackendHappyHare::apply_mmu_selector_locked(const happy_hare::MmuCoreDelta& core) {
+    // printer.mmu.gate: -1 = no gate selected, -2 = bypass
+    if (core.gate) {
+        system_info_.current_slot = *core.gate;
         spdlog::trace("[AMS HappyHare] Current slot: {}", system_info_.current_slot);
     }
 
-    // Parse current tool: printer.mmu.tool
-    if (mmu_data.contains("tool") && mmu_data["tool"].is_number_integer()) {
-        system_info_.current_tool = mmu_data["tool"].get<int>();
+    if (core.tool) {
+        system_info_.current_tool = *core.tool;
         spdlog::trace("[AMS HappyHare] Current tool: {}", system_info_.current_tool);
     }
 
-    // Parse filament loaded state: printer.mmu.filament
-    // Values: "Loaded", "Unloaded"
-    if (mmu_data.contains("filament") && mmu_data["filament"].is_string()) {
-        std::string filament_state = mmu_data["filament"].get<std::string>();
-        system_info_.filament_loaded = (filament_state == "Loaded");
+    // printer.mmu.filament: "Loaded" or "Unloaded"
+    if (core.filament_loaded) {
+        system_info_.filament_loaded = *core.filament_loaded;
         spdlog::trace("[AMS HappyHare] Filament loaded: {}", system_info_.filament_loaded);
     }
 
-    // Parse reason_for_pause: descriptive error message from Happy Hare. HH
-    // publishes it only while print_state is pause_locked or paused and "" once
-    // the pause ends (resume or cancel), so its emptiness is the fault state.
-    const bool was_faulted = !reason_for_pause_.empty();
-    if (mmu_data.contains("reason_for_pause") && mmu_data["reason_for_pause"].is_string()) {
-        reason_for_pause_ = mmu_data["reason_for_pause"].get<std::string>();
+    // reason_for_pause: descriptive error message from Happy Hare. HH publishes
+    // it only while print_state is pause_locked or paused and "" once the pause
+    // ends (resume or cancel), so its emptiness is the fault state.
+    if (core.reason_for_pause) {
+        reason_for_pause_ = *core.reason_for_pause;
         spdlog::trace("[AMS HappyHare] Reason for pause: {}", reason_for_pause_);
     }
 
-    // Parse action: printer.mmu.action
-    // Values: "Idle", "Loading", "Unloading", "Forming Tip", "Heating", "Checking", etc.
-    if (mmu_data.contains("action") && mmu_data["action"].is_string()) {
-        std::string action_str = mmu_data["action"].get<std::string>();
-        system_info_.action = ams_action_from_string(action_str);
-        system_info_.operation_detail = action_str;
+    // printer.mmu.action: "Idle", "Loading", "Unloading", "Forming Tip",
+    // "Heating", "Checking", etc.
+    if (core.action) {
+        system_info_.action = ams_action_from_string(*core.action);
+        system_info_.operation_detail = *core.action;
         spdlog::trace("[AMS HappyHare] Action: {} ({})", ams_action_to_string(system_info_.action),
-                      action_str);
+                      *core.action);
 
         // Drive the toolchange step bar from the action transition (HH has no
         // // narration). Deferred to main thread inside the helper.
         sync_narration_step();
     }
+}
 
-    // Parse filament_pos: printer.mmu.filament_pos
-    // Values: 0=unloaded, 1-2=gate area, 3=in bowden, 4=end bowden, 5=homed extruder,
-    //         6=extruder entry, 7-8=loaded
-    if (mmu_data.contains("filament_pos") && mmu_data["filament_pos"].is_number_integer()) {
-        filament_pos_ = mmu_data["filament_pos"].get<int>();
+void AmsBackendHappyHare::apply_mmu_path_locked(const happy_hare::MmuCoreDelta& core) {
+    // filament_pos: 0=unloaded, 1-2=gate area, 3=in bowden, 4=end bowden,
+    // 5=homed extruder, 6=extruder entry, 7-8=loaded
+    if (core.filament_pos) {
+        filament_pos_ = *core.filament_pos;
         spdlog::trace("[AMS HappyHare] Filament pos: {} -> {}", filament_pos_,
                       path_segment_to_string(path_segment_from_happy_hare_pos(filament_pos_)));
 
         // Update hub_sensor_triggered on units based on filament position
         // pos >= 3 means filament is in bowden or further (past the selector/hub)
-        bool past_hub = (filament_pos_ >= 3);
+        const bool past_hub = (filament_pos_ >= 3);
         for (auto& unit : system_info_.units) {
             // Active unit: determined by current_slot falling within this unit's range
-            int slot = system_info_.current_slot;
+            const int slot = system_info_.current_slot;
             if (slot >= unit.first_slot_global_index &&
                 slot < unit.first_slot_global_index + unit.slot_count) {
                 unit.hub_sensor_triggered = past_hub;
@@ -476,15 +502,15 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         }
     }
 
-    // Parse bowden_progress: printer.mmu.bowden_progress (v4)
-    // 0-100 = loading progress percentage, -1 = not applicable
-    if (mmu_data.contains("bowden_progress") && mmu_data["bowden_progress"].is_number_integer()) {
-        bowden_progress_ = std::clamp(mmu_data["bowden_progress"].get<int>(), -1, 100);
+    // bowden_progress (v4): 0-100 = loading progress percentage, -1 = not
+    // applicable
+    if (core.bowden_progress) {
+        bowden_progress_ = *core.bowden_progress;
         spdlog::trace("[AMS HappyHare] Bowden progress: {}%", bowden_progress_);
     }
 
-    // Parse has_bypass: printer.mmu.has_bypass
-    // Not all MMU types support bypass (e.g., ERCF/Tradrack do, BoxTurtle does not)
+    // has_bypass: not all MMU types support bypass (e.g., ERCF/Tradrack do,
+    // BoxTurtle does not)
     //
     // Logged at info rather than trace, and on every change rather than never:
     // false here removes the entire bypass UI (sidebar toggle, Device Operations
@@ -493,8 +519,8 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
     // and on type-A selectors ANDs it with the calibrated bypass offset — so an
     // owner with a physical bypass can legitimately see false and have no way to
     // tell that from a bug in us.
-    if (mmu_data.contains("has_bypass") && mmu_data["has_bypass"].is_boolean()) {
-        const bool has_bypass = mmu_data["has_bypass"].get<bool>();
+    if (core.has_bypass) {
+        const bool has_bypass = *core.has_bypass;
         if (!bypass_support_seen_ || has_bypass != system_info_.supports_bypass) {
             spdlog::info("[AMS HappyHare] Bypass supported: {}", has_bypass);
             bypass_support_seen_ = true;
@@ -510,397 +536,142 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         system_info_.supports_bypass = true;
         spdlog::warn("[AMS HappyHare] No has_bypass field in mmu status; assuming supported");
     }
+}
 
-    // Parse num_units if available (multi-unit Happy Hare setups)
-    if (mmu_data.contains("num_units") && mmu_data["num_units"].is_number_integer()) {
-        num_units_ = mmu_data["num_units"].get<int>();
-        if (num_units_ < 1)
-            num_units_ = 1;
+void AmsBackendHappyHare::apply_mmu_topology_locked(const happy_hare::MmuTopologyDelta& topology) {
+    // num_units, for multi-unit Happy Hare setups
+    if (topology.num_units) {
+        num_units_ = *topology.num_units;
         spdlog::trace("[AMS HappyHare] Number of units: {}", num_units_);
     }
 
-    // Parse num_gates for dissimilar multi-unit (v4)
-    // Can be a string like "6,4" for 6-gate ERCF + 4-gate Box Turtle, or plain int
-    if (mmu_data.contains("num_gates")) {
-        const auto& ng = mmu_data["num_gates"];
-        if (ng.is_string()) {
-            // Parse comma-separated per-unit gate counts (v4 dissimilar multi-MMU)
-            std::string ng_str = ng.get<std::string>();
-            std::vector<int> counts;
-            for (std::string_view sv : tio::lines(ng_str, ',')) {
-                std::string token(sv);
-                const auto count = tio::parse_leading<int>(token);
-                if (!count) {
-                    spdlog::warn("[AMS HappyHare] Ignoring invalid token in num_gates string");
-                } else if (*count > 0) {
-                    counts.push_back(*count);
-                } else {
-                    spdlog::warn("[AMS HappyHare] Ignoring non-positive gate count {} in "
-                                 "num_gates string",
-                                 *count);
-                }
-            }
-            if (!counts.empty()) {
-                per_unit_gate_counts_ = counts;
-                spdlog::debug("[AMS HappyHare] Per-unit gate counts from num_gates string: {}",
-                              ng_str);
-            }
-        } else if (ng.is_number_integer()) {
-            // EMU sends plain integer (single unit)
-            int count = ng.get<int>();
-            if (count > 0) {
-                per_unit_gate_counts_ = {count};
-                spdlog::debug("[AMS HappyHare] Single-unit gate count from num_gates int: {}",
-                              count);
-            }
-        } else if (ng.is_array()) {
-            // Config format: [8] or [6, 4]
-            std::vector<int> counts;
-            for (const auto& c : ng) {
-                if (c.is_number_integer()) {
-                    int count = c.get<int>();
-                    if (count > 0)
-                        counts.push_back(count);
-                }
-            }
-            if (!counts.empty()) {
-                per_unit_gate_counts_ = counts;
-                spdlog::debug("[AMS HappyHare] Per-unit gate counts from num_gates array");
-            }
-        }
+    // Per-unit gate counts: a dissimilar multi-unit setup such as a 6-gate ERCF
+    // plus a 4-gate Box Turtle names them as a "6,4" string, a single unit as an
+    // integer, the config format as an array.
+    if (topology.gate_counts) {
+        per_unit_gate_counts_ = *topology.gate_counts;
+        spdlog::debug("[AMS HappyHare] Per-unit gate counts: {}", per_unit_gate_counts_.size());
     }
 
-    // Parse unit_gate_counts array if present (future-proof for v4)
-    if (mmu_data.contains("unit_gate_counts") && mmu_data["unit_gate_counts"].is_array()) {
-        std::vector<int> counts;
-        for (const auto& c : mmu_data["unit_gate_counts"]) {
-            if (c.is_number_integer()) {
-                counts.push_back(c.get<int>());
-            }
-        }
-        if (!counts.empty()) {
-            per_unit_gate_counts_ = counts;
-            spdlog::debug("[AMS HappyHare] Per-unit gate counts from unit_gate_counts array");
-        }
-    }
-
-    // Parse active unit: printer.mmu.unit (v4)
-    if (mmu_data.contains("unit") && mmu_data["unit"].is_number_integer()) {
-        active_unit_ = mmu_data["unit"].get<int>();
+    // Active unit (v4)
+    if (topology.active_unit) {
+        active_unit_ = *topology.active_unit;
         spdlog::trace("[AMS HappyHare] Active unit: {}", active_unit_);
     }
+}
 
-    // Parse gate_status array: printer.mmu.gate_status
-    // Values: -1 = unknown, 0 = empty, 1 = available, 2 = from_buffer
-    if (mmu_data.contains("gate_status") && mmu_data["gate_status"].is_array()) {
-        const auto& gate_status = mmu_data["gate_status"];
-        int gate_count = static_cast<int>(gate_status.size());
+void AmsBackendHappyHare::apply_gate_status_locked(const happy_hare::GateIdentityDelta& identity) {
+    // gate_status: -1 = unknown, 0 = empty, 1 = available, 2 = from_buffer
+    if (!identity.gate_status) {
+        return;
+    }
+    const auto& gate_status = *identity.gate_status;
+    const int gate_count = static_cast<int>(gate_status.size());
 
-        // Initialize gates if this is the first time we see gate_status
-        if (!slots_.is_initialized() && gate_count > 0) {
-            initialize_slots(gate_count);
-        }
-
-        // Cache the raw values. The LOADED stamp is applied by
-        // refresh_gate_statuses_locked() at the end of this function rather than
-        // here, because it depends on gate/filament — which arrive in their own
-        // deltas, without gate_status (#1199).
-        if (gate_status_raw_.size() != gate_status.size()) {
-            gate_status_raw_.assign(gate_status.size(), -1);
-        }
-        for (size_t i = 0; i < gate_status.size(); ++i) {
-            if (gate_status[i].is_number_integer()) {
-                gate_status_raw_[i] = gate_status[i].get<int>();
-            }
-        }
+    // Initialize gates if this is the first time we see gate_status
+    if (!slots_.is_initialized() && gate_count > 0) {
+        initialize_slots(gate_count);
     }
 
-    // What this frame itself stated about each gate's identity, and the keys
-    // it carried and read as a clear, both gathered as the blocks below amend
-    // the accumulator. The echo guard at the filing tail judges these rather
-    // than gate_readings_: the accumulator carries the gate map's last word on
-    // every key, so a frame silent about material would otherwise offer the
-    // pre-edit material as this frame's statement and release the material
-    // declaration before its echo lands.
-    std::map<int, ams::Observation> frame_stated;
-    std::map<int, ams::Observation> frame_cleared;
-    // Observation has no default constructor, so every entry is created
-    // through this with a definite source.
-    const auto word = [](std::map<int, ams::Observation>& words, int gate) -> ams::Observation& {
-        return words.try_emplace(gate, ams::Observation{ams::ObservationSource::VendorCache})
-            .first->second;
-    };
+    // Cache the raw values. The LOADED stamp is applied by
+    // refresh_gate_statuses_locked() at the end of the frame rather than here,
+    // because it depends on gate/filament — which arrive in their own deltas,
+    // without gate_status (#1199).
+    if (gate_status_raw_.size() != gate_status.size()) {
+        gate_status_raw_.assign(gate_status.size(), -1);
+    }
+    for (size_t i = 0; i < gate_status.size(); ++i) {
+        if (gate_status[i]) {
+            gate_status_raw_[i] = *gate_status[i];
+        }
+    }
+}
 
-    // Parse gate_color_rgb: integer array [0xRRGGBB, ...] or float array [[R,G,B], ...]
+void AmsBackendHappyHare::apply_gate_appearance_locked(
+    const happy_hare::GateIdentityDelta& identity, MmuFrame& frame) {
+    // gate_color_rgb wins over the gate_color hex fallback whenever it painted
+    // a gate.
     bool colors_parsed = false;
-    if (mmu_data.contains("gate_color_rgb") && mmu_data["gate_color_rgb"].is_array()) {
-        const auto& colors = mmu_data["gate_color_rgb"];
+    if (identity.color_rgb) {
+        const auto& colors = *identity.color_rgb;
         for (size_t i = 0; i < colors.size(); ++i) {
             auto* entry = slots_.get_mut(static_cast<int>(i));
-            if (!entry)
+            if (!entry || !colors[i]) {
                 continue;
-
-            if (colors[i].is_number_integer()) {
-                // Traditional format: 0xRRGGBB integer
-                const auto rgb = static_cast<uint32_t>(colors[i].get<int>());
-                entry->info.color_rgb = rgb;
-                reading_for(static_cast<int>(i)).color_rgb = rgb;
-                word(frame_stated, static_cast<int>(i)).color_rgb = rgb;
-                colors_parsed = true;
-            } else if (colors[i].is_array() && colors[i].size() >= 3 && colors[i][0].is_number() &&
-                       colors[i][1].is_number() && colors[i][2].is_number()) {
-                // EMU format: [R, G, B] floats 0.0-1.0
-                auto r = static_cast<uint8_t>(
-                    std::clamp(colors[i][0].get<double>(), 0.0, 1.0) * 255.0 + 0.5);
-                auto g = static_cast<uint8_t>(
-                    std::clamp(colors[i][1].get<double>(), 0.0, 1.0) * 255.0 + 0.5);
-                auto b = static_cast<uint8_t>(
-                    std::clamp(colors[i][2].get<double>(), 0.0, 1.0) * 255.0 + 0.5);
-                const uint32_t rgb = (static_cast<uint32_t>(r) << 16) |
-                                     (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
-                entry->info.color_rgb = rgb;
-                reading_for(static_cast<int>(i)).color_rgb = rgb;
-                word(frame_stated, static_cast<int>(i)).color_rgb = rgb;
-                colors_parsed = true;
             }
+            const uint32_t rgb = *colors[i];
+            entry->info.color_rgb = rgb;
+            gate_reading_locked(static_cast<int>(i)).color_rgb = rgb;
+            frame.stated_for(static_cast<int>(i)).color_rgb = rgb;
+            colors_parsed = true;
         }
     }
 
-    // Fallback: parse gate_color hex strings ["ffffff", "000000", ...]
+    // Fallback: gate_color hex strings ["ffffff", "000000", ...]
     //
     // An empty entry is Happy Hare stating this gate has no colour. Anything
     // else that will not read is a value we cannot make sense of rather than a
     // gate with nothing in it, so the last readable word stands.
-    if (!colors_parsed && mmu_data.contains("gate_color") && mmu_data["gate_color"].is_array()) {
-        const auto& colors = mmu_data["gate_color"];
+    if (!colors_parsed && identity.color) {
+        const auto& colors = *identity.color;
         for (size_t i = 0; i < colors.size(); ++i) {
-            if (!colors[i].is_string()) {
-                continue;
-            }
             auto* entry = slots_.get_mut(static_cast<int>(i));
-            if (!entry) {
+            if (!entry || !colors[i]) {
                 continue;
             }
-            const auto color = ams::read_lane_color(colors[i].get<std::string>());
+            const auto& color = *colors[i];
+            const int gate = static_cast<int>(i);
             if (color.kind == ams::ColorReadingKind::Observed) {
                 entry->info.color_rgb = color.rgb;
-                reading_for(static_cast<int>(i)).color_rgb = color.rgb;
-                word(frame_stated, static_cast<int>(i)).color_rgb = color.rgb;
+                gate_reading_locked(gate).color_rgb = color.rgb;
+                frame.stated_for(gate).color_rgb = color.rgb;
             } else if (color.kind == ams::ColorReadingKind::Cleared) {
                 entry->info.color_rgb = AMS_DEFAULT_SLOT_COLOR;
-                reading_for(static_cast<int>(i)).color_rgb.reset();
-                word(frame_cleared, static_cast<int>(i)).color_rgb = 0u;
+                gate_reading_locked(gate).color_rgb.reset();
+                frame.cleared_for(gate).color_rgb = 0u;
             }
         }
     }
 
-    // Parse gate_material array: printer.mmu.gate_material
-    // Values are strings like "PLA", "PETG", "ABS"
-    if (mmu_data.contains("gate_material") && mmu_data["gate_material"].is_array()) {
-        const auto& materials = mmu_data["gate_material"];
+    // gate_material: strings like "PLA", "PETG", "ABS"
+    if (identity.material) {
+        const auto& materials = *identity.material;
         for (size_t i = 0; i < materials.size(); ++i) {
-            if (!materials[i].is_string()) {
-                continue;
-            }
             auto* entry = slots_.get_mut(static_cast<int>(i));
-            if (!entry) {
+            if (!entry || !materials[i]) {
                 continue;
             }
-            const std::string material = materials[i].get<std::string>();
+            const std::string& material = *materials[i];
+            const int gate = static_cast<int>(i);
             entry->info.material = material;
-            auto& reading = reading_for(static_cast<int>(i));
+            auto& reading = gate_reading_locked(gate);
             if (material.empty()) {
                 reading.material.reset();
-                word(frame_cleared, static_cast<int>(i)).material = std::string{};
+                frame.cleared_for(gate).material = std::string{};
             } else {
                 reading.material = material;
-                word(frame_stated, static_cast<int>(i)).material = material;
+                frame.stated_for(gate).material = material;
             }
         }
     }
+}
 
-    // === Happy Hare v4 extended status fields ===
+void AmsBackendHappyHare::apply_gate_binding_locked(const happy_hare::MmuStatusDelta& delta,
+                                                    MmuFrame& frame) {
+    const auto& identity = delta.identity;
 
-    // Parse espooler_active: printer.mmu.espooler_active (v4)
-    if (mmu_data.contains("espooler_active") && mmu_data["espooler_active"].is_string()) {
-        system_info_.espooler_state = mmu_data["espooler_active"].get<std::string>();
-        espooler_active_ = system_info_.espooler_state;
-        spdlog::trace("[AMS HappyHare] eSpooler state: {}", system_info_.espooler_state);
-    }
-
-    // Parse sync_feedback_state: printer.mmu.sync_feedback_state (v4)
-    if (mmu_data.contains("sync_feedback_state") && mmu_data["sync_feedback_state"].is_string()) {
-        system_info_.sync_feedback_state = mmu_data["sync_feedback_state"].get<std::string>();
-        spdlog::trace("[AMS HappyHare] Sync feedback: {}", system_info_.sync_feedback_state);
-    }
-
-    // Parse sync_feedback_bias_modelled: printer.mmu.sync_feedback_bias_modelled (v4)
-    if (mmu_data.contains("sync_feedback_bias_modelled") &&
-        mmu_data["sync_feedback_bias_modelled"].is_number()) {
-        system_info_.sync_feedback_bias = mmu_data["sync_feedback_bias_modelled"].get<float>();
-        spdlog::trace("[AMS HappyHare] Sync feedback bias (modelled): {:.3f}",
-                      system_info_.sync_feedback_bias);
-    }
-
-    // Parse sync_feedback_bias_raw: printer.mmu.sync_feedback_bias_raw (v4)
-    if (mmu_data.contains("sync_feedback_bias_raw") &&
-        mmu_data["sync_feedback_bias_raw"].is_number()) {
-        system_info_.sync_feedback_bias_raw = mmu_data["sync_feedback_bias_raw"].get<float>();
-        spdlog::trace("[AMS HappyHare] Sync feedback bias (raw): {:.3f}",
-                      system_info_.sync_feedback_bias_raw);
-    }
-
-    // Parse sync_drive: printer.mmu.sync_drive (v4)
-    if (mmu_data.contains("sync_drive") && mmu_data["sync_drive"].is_boolean()) {
-        system_info_.sync_drive = mmu_data["sync_drive"].get<bool>();
-        spdlog::trace("[AMS HappyHare] Sync drive: {}", system_info_.sync_drive);
-    }
-
-    // Parse clog_detection_enabled: printer.mmu.clog_detection_enabled (v4)
-    // 0=off, 1=manual, 2=auto
-    if (mmu_data.contains("clog_detection_enabled") &&
-        mmu_data["clog_detection_enabled"].is_number_integer()) {
-        system_info_.clog_detection = mmu_data["clog_detection_enabled"].get<int>();
-        system_info_.encoder_info.detection_mode = system_info_.clog_detection;
-        system_info_.encoder_info.enabled = (system_info_.clog_detection > 0);
-        spdlog::trace("[AMS HappyHare] Clog detection: {}", system_info_.clog_detection);
-    }
-
-    // Parse encoder: printer.mmu.encoder (v4, nested)
-    if (mmu_data.contains("encoder") && mmu_data["encoder"].is_object()) {
-        const auto& encoder = mmu_data["encoder"];
-        if (encoder.contains("flow_rate") && encoder["flow_rate"].is_number()) {
-            system_info_.encoder_info.flow_rate = encoder["flow_rate"].get<int>();
-            // Keep legacy field in sync
-            system_info_.encoder_flow_rate = system_info_.encoder_info.flow_rate;
-            spdlog::trace("[AMS HappyHare] Encoder flow rate: {}", system_info_.encoder_flow_rate);
-        }
-        if (encoder.contains("desired_headroom") && encoder["desired_headroom"].is_number()) {
-            system_info_.encoder_info.desired_headroom = encoder["desired_headroom"].get<float>();
-        }
-        if (encoder.contains("detection_length") && encoder["detection_length"].is_number()) {
-            system_info_.encoder_info.detection_length = encoder["detection_length"].get<float>();
-        }
-        if (encoder.contains("headroom") && encoder["headroom"].is_number()) {
-            system_info_.encoder_info.headroom = encoder["headroom"].get<float>();
-        }
-        if (encoder.contains("min_headroom") && encoder["min_headroom"].is_number()) {
-            system_info_.encoder_info.min_headroom = encoder["min_headroom"].get<float>();
-        }
-        spdlog::trace("[AMS HappyHare] Encoder: headroom={:.1f}/{:.1f} min={:.1f}",
-                      system_info_.encoder_info.headroom,
-                      system_info_.encoder_info.detection_length,
-                      system_info_.encoder_info.min_headroom);
-    }
-
-    // Parse flowguard: printer.mmu.flowguard (v4, nested)
-    if (mmu_data.contains("flowguard") && mmu_data["flowguard"].is_object()) {
-        const auto& fg = mmu_data["flowguard"];
-        if (fg.contains("enabled") && fg["enabled"].is_boolean()) {
-            system_info_.flowguard_info.enabled = fg["enabled"].get<bool>();
-        }
-        if (fg.contains("active") && fg["active"].is_boolean()) {
-            system_info_.flowguard_info.active = fg["active"].get<bool>();
-        }
-        if (fg.contains("trigger") && fg["trigger"].is_string()) {
-            system_info_.flowguard_info.trigger = fg["trigger"].get<std::string>();
-        }
-        if (fg.contains("level") && fg["level"].is_number()) {
-            system_info_.flowguard_info.level = fg["level"].get<float>();
-        }
-        if (fg.contains("max_clog") && fg["max_clog"].is_number()) {
-            system_info_.flowguard_info.max_clog = fg["max_clog"].get<float>();
-        }
-        if (fg.contains("max_tangle") && fg["max_tangle"].is_number()) {
-            system_info_.flowguard_info.max_tangle = fg["max_tangle"].get<float>();
-        }
-        if (fg.contains("encoder_mode") && fg["encoder_mode"].is_number()) {
-            flowguard_encoder_mode_ = fg["encoder_mode"].get<int>();
-        }
-        spdlog::trace("[AMS HappyHare] Flowguard: enabled={} active={} trigger={} level={:.2f}",
-                      system_info_.flowguard_info.enabled, system_info_.flowguard_info.active,
-                      system_info_.flowguard_info.trigger, system_info_.flowguard_info.level);
-    }
-
-    // Parse LED state: printer.mmu.leds.unit0.exit_effect (v4)
-    if (mmu_data.contains("leds") && mmu_data["leds"].is_object()) {
-        const auto& leds = mmu_data["leds"];
-        if (leds.contains("unit0") && leds["unit0"].is_object()) {
-            const auto& u0 = leds["unit0"];
-            if (u0.contains("exit_effect") && u0["exit_effect"].is_string()) {
-                led_exit_effect_ = u0["exit_effect"].get<std::string>();
-                spdlog::trace("[AMS HappyHare] LED exit effect: {}", led_exit_effect_);
-            }
-        }
-    }
-
-    // Parse sync_feedback_flow_rate: printer.mmu.sync_feedback_flow_rate (top-level)
-    if (mmu_data.contains("sync_feedback_flow_rate") &&
-        mmu_data["sync_feedback_flow_rate"].is_number()) {
-        system_info_.sync_feedback_flow_rate = mmu_data["sync_feedback_flow_rate"].get<float>();
-        spdlog::trace("[AMS HappyHare] Sync feedback flow rate: {:.1f}",
-                      system_info_.sync_feedback_flow_rate);
-    }
-
-    // Parse toolchange_purge_volume: printer.mmu.toolchange_purge_volume (v4)
-    if (mmu_data.contains("toolchange_purge_volume") &&
-        mmu_data["toolchange_purge_volume"].is_number()) {
-        system_info_.toolchange_purge_volume = mmu_data["toolchange_purge_volume"].get<float>();
-        spdlog::trace("[AMS HappyHare] Toolchange purge volume: {:.1f}",
-                      system_info_.toolchange_purge_volume);
-    }
-
-    // Parse num_toolchanges: printer.mmu.num_toolchanges
-    // Count of completed tool changes (1 = first swap done). Convert to 0-based index.
-    if (mmu_data.contains("num_toolchanges") && mmu_data["num_toolchanges"].is_number_integer()) {
-        int count = mmu_data["num_toolchanges"].get<int>();
-        system_info_.current_toolchange = (count > 0) ? (count - 1) : -1;
-        spdlog::trace("[AMS HappyHare] Toolchange count: {} -> index: {}", count,
-                      system_info_.current_toolchange);
-    }
-
-    // Parse slicer_tool_map.total_toolchanges: printer.mmu.slicer_tool_map
-    // Contains total_toolchanges (int or null) from slicer metadata
-    if (mmu_data.contains("slicer_tool_map") && mmu_data["slicer_tool_map"].is_object()) {
-        const auto& stm = mmu_data["slicer_tool_map"];
-        if (stm.contains("total_toolchanges") && stm["total_toolchanges"].is_number_integer()) {
-            system_info_.number_of_toolchanges = stm["total_toolchanges"].get<int>();
-            spdlog::trace("[AMS HappyHare] Total toolchanges from slicer: {}",
-                          system_info_.number_of_toolchanges);
-        } else {
-            system_info_.number_of_toolchanges = 0;
-        }
-    }
-
-    // Parse spoolman_support: printer.mmu.spoolman_support (v4)
-    if (mmu_data.contains("spoolman_support") && mmu_data["spoolman_support"].is_string()) {
-        system_info_.spoolman_mode =
-            spoolman_mode_from_string(mmu_data["spoolman_support"].get<std::string>());
-        spdlog::trace("[AMS HappyHare] Spoolman mode: {}",
-                      spoolman_mode_to_string(system_info_.spoolman_mode));
-    }
-
-    // Parse pending_spool_id: printer.mmu.pending_spool_id (v4)
-    if (mmu_data.contains("pending_spool_id") && mmu_data["pending_spool_id"].is_number_integer()) {
-        system_info_.pending_spool_id = mmu_data["pending_spool_id"].get<int>();
-        spdlog::trace("[AMS HappyHare] Pending spool ID: {}", system_info_.pending_spool_id);
-    }
-
-    // Parse gate_spool_id array: printer.mmu.gate_spool_id (v4)
-    // Per-gate Spoolman spool IDs — enables weight polling and fill gauges
-    if (mmu_data.contains("gate_spool_id") && mmu_data["gate_spool_id"].is_array()) {
-        const auto& spool_ids = mmu_data["gate_spool_id"];
+    // gate_spool_id (v4): per-gate Spoolman spool IDs, which enable weight
+    // polling and fill gauges
+    if (identity.spool_id) {
+        const auto& spool_ids = *identity.spool_id;
         for (size_t i = 0; i < spool_ids.size(); ++i) {
-            if (!spool_ids[i].is_number_integer()) {
-                continue;
-            }
             auto* entry = slots_.get_mut(static_cast<int>(i));
-            if (!entry) {
+            if (!entry || !spool_ids[i]) {
                 continue;
             }
-            const int id = spool_ids[i].get<int>();
+            const int id = *spool_ids[i];
             entry->info.spoolman_id = (id > 0) ? id : 0;
-            auto& reading = reading_for(static_cast<int>(i));
+            auto& reading = gate_reading_locked(static_cast<int>(i));
             // Happy Hare writes 0 for a gate with no spool, which unlinks the
             // gate rather than naming a spool numbered zero.
             if (id > 0) {
@@ -914,16 +685,16 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         // found. The id compared is the gate's own accumulated reading rather
         // than entry->info, which carries the resolved record's id back.
         //
-        // Runs BEFORE the lane is painted below: a binding this drops must be
-        // gone from the model before anything reads it, or the gate paints the
-        // spool that just stopped describing it for one more frame.
+        // Runs BEFORE the lane is painted at the tail: a binding this drops must
+        // be gone from the model before anything reads it, or the gate paints
+        // the spool that just stopped describing it for one more frame.
         for (size_t i = 0; i < spool_ids.size(); ++i) {
             const int gate = static_cast<int>(i);
             if (!slots_.get(gate)) {
                 continue;
             }
-            // find(), not reading_for(): looking a gate up must not create a
-            // cache record for one that has none.
+            // find(), not gate_reading_locked(): looking a gate up must not
+            // create a cache record for one that has none.
             auto it = gate_readings_.find(gate);
             const int firmware_id =
                 it != gate_readings_.end() ? it->second.spoolman_id.value_or(0) : 0;
@@ -940,38 +711,30 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         spdlog::trace("[AMS HappyHare] Parsed gate_spool_id for {} gates", spool_ids.size());
     }
 
-    // Parse gate_temperature array: printer.mmu.gate_temperature (v4)
-    // Per-gate nozzle temperature recommendations
-    if (mmu_data.contains("gate_temperature") && mmu_data["gate_temperature"].is_array()) {
-        const auto& gate_temps = mmu_data["gate_temperature"];
+    // gate_temperature (v4): per-gate nozzle temperature recommendations
+    if (identity.temperature) {
+        const auto& gate_temps = *identity.temperature;
         for (size_t i = 0; i < gate_temps.size(); ++i) {
-            if (gate_temps[i].is_number()) {
-                auto* entry = slots_.get_mut(static_cast<int>(i));
-                if (entry) {
-                    int temp = gate_temps[i].get<int>();
-                    entry->info.nozzle_temp_min = temp;
-                    entry->info.nozzle_temp_max = temp;
-                }
+            auto* entry = slots_.get_mut(static_cast<int>(i));
+            if (entry && gate_temps[i]) {
+                entry->info.nozzle_temp_min = *gate_temps[i];
+                entry->info.nozzle_temp_max = *gate_temps[i];
             }
         }
         spdlog::trace("[AMS HappyHare] Parsed gate_temperature for {} gates", gate_temps.size());
     }
 
-    // Parse gate_name array: printer.mmu.gate_name (v4)
-    // Per-gate filament names
-    if (mmu_data.contains("gate_name") && mmu_data["gate_name"].is_array()) {
-        const auto& gate_names = mmu_data["gate_name"];
+    // gate_name (v4): per-gate filament names
+    if (identity.name) {
+        const auto& gate_names = *identity.name;
         for (size_t i = 0; i < gate_names.size(); ++i) {
-            if (!gate_names[i].is_string()) {
-                continue;
-            }
             auto* entry = slots_.get_mut(static_cast<int>(i));
-            if (!entry) {
+            if (!entry || !gate_names[i]) {
                 continue;
             }
-            const std::string name = gate_names[i].get<std::string>();
+            const std::string& name = *gate_names[i];
             entry->info.color_name = name;
-            auto& reading = reading_for(static_cast<int>(i));
+            auto& reading = gate_reading_locked(static_cast<int>(i));
             if (name.empty()) {
                 reading.spool_name.reset();
             } else {
@@ -981,27 +744,24 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         spdlog::trace("[AMS HappyHare] Parsed gate_name for {} gates", gate_names.size());
     }
 
-    // Fallback: parse gate_filament_name (EMU uses this instead of gate_name)
+    // Fallback: gate_filament_name (EMU uses this instead of gate_name)
     //
     // The record's precedence is decided on what this parse has read, never on
     // SlotInfo::color_name: a user's own name is merged into that field, so
     // asking it would let a person's edit choose which of the MMU's two keys
     // the vendor-cache record believes.
-    if (mmu_data.contains("gate_filament_name") && mmu_data["gate_filament_name"].is_array()) {
-        const auto& names = mmu_data["gate_filament_name"];
+    if (identity.filament_name) {
+        const auto& names = *identity.filament_name;
         for (size_t i = 0; i < names.size(); ++i) {
-            if (!names[i].is_string()) {
-                continue;
-            }
             auto* entry = slots_.get_mut(static_cast<int>(i));
-            if (!entry) {
+            if (!entry || !names[i]) {
                 continue;
             }
-            const std::string name = names[i].get<std::string>();
+            const std::string& name = *names[i];
             if (entry->info.color_name.empty()) {
                 entry->info.color_name = name;
             }
-            auto& reading = reading_for(static_cast<int>(i));
+            auto& reading = gate_reading_locked(static_cast<int>(i));
             if (!reading.spool_name.has_value() && !name.empty()) {
                 reading.spool_name = name;
             }
@@ -1009,60 +769,179 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         spdlog::trace("[AMS HappyHare] Parsed gate_filament_name for {} gates", names.size());
     }
 
-    // Parse ttg_map (tool-to-gate mapping) if available
-    if (mmu_data.contains("ttg_map") && mmu_data["ttg_map"].is_array()) {
-        const auto& ttg_map = mmu_data["ttg_map"];
-        std::vector<int> ttg_vec;
-        ttg_vec.reserve(ttg_map.size());
-
-        for (const auto& mapping : ttg_map) {
-            if (mapping.is_number_integer()) {
-                ttg_vec.push_back(mapping.get<int>());
-            }
-        }
-
-        // Update both legacy and registry tool maps. Firmware-sourced: HH
-        // publishes the whole ttg_map in get_status() (mmu.py get_status), so
-        // this array IS what the MMU currently believes, not our intent. The
-        // optimistic counterpart is set_tool_mapping()'s own write below, which
-        // precedes the MMU_TTG_MAP send (#1270).
-        system_info_.tool_to_slot_map = ttg_vec;
-        slots_.set_tool_map(ttg_vec, helix::printer::SlotRegistry::MappingSource::Firmware);
+    // ttg_map (tool-to-gate mapping): update both legacy and registry tool maps.
+    // Firmware-sourced: HH publishes the whole ttg_map in get_status() (mmu.py
+    // get_status), so this array IS what the MMU currently believes, not our
+    // intent. The optimistic counterpart is set_tool_mapping()'s own write below,
+    // which precedes the MMU_TTG_MAP send (#1270).
+    if (delta.topology.ttg_map) {
+        system_info_.tool_to_slot_map = *delta.topology.ttg_map;
+        slots_.set_tool_map(*delta.topology.ttg_map,
+                            helix::printer::SlotRegistry::MappingSource::Firmware);
     }
 
-    // Parse sensors dict: printer.mmu.sensors
-    // Keys matching "mmu_pre_gate_X" indicate pre-gate sensors per gate.
-    // Values: true (triggered/filament present), false (not triggered), null (error/unknown)
-    if (mmu_data.contains("sensors") && mmu_data["sensors"].is_object()) {
-        const auto& sensors = mmu_data["sensors"];
-        const std::string prefix = "mmu_pre_gate_";
+    // endless_spool_groups, when the MMU names them
+    if (identity.endless_spool_group) {
+        const auto& groups = *identity.endless_spool_group;
+        for (size_t i = 0; i < groups.size(); ++i) {
+            auto* entry = slots_.get_mut(static_cast<int>(i));
+            if (entry && groups[i]) {
+                entry->info.endless_spool_group = *groups[i];
+            }
+        }
+    }
+}
+
+void AmsBackendHappyHare::apply_mmu_telemetry_locked(const happy_hare::MmuTelemetryDelta& t) {
+    // === Happy Hare v4 extended status fields ===
+
+    if (t.espooler_active) {
+        system_info_.espooler_state = *t.espooler_active;
+        espooler_active_ = system_info_.espooler_state;
+        spdlog::trace("[AMS HappyHare] eSpooler state: {}", system_info_.espooler_state);
+    }
+
+    if (t.sync_feedback_state) {
+        system_info_.sync_feedback_state = *t.sync_feedback_state;
+        spdlog::trace("[AMS HappyHare] Sync feedback: {}", system_info_.sync_feedback_state);
+    }
+
+    if (t.sync_feedback_bias) {
+        system_info_.sync_feedback_bias = *t.sync_feedback_bias;
+        spdlog::trace("[AMS HappyHare] Sync feedback bias (modelled): {:.3f}",
+                      system_info_.sync_feedback_bias);
+    }
+
+    if (t.sync_feedback_bias_raw) {
+        system_info_.sync_feedback_bias_raw = *t.sync_feedback_bias_raw;
+        spdlog::trace("[AMS HappyHare] Sync feedback bias (raw): {:.3f}",
+                      system_info_.sync_feedback_bias_raw);
+    }
+
+    if (t.sync_drive) {
+        system_info_.sync_drive = *t.sync_drive;
+        spdlog::trace("[AMS HappyHare] Sync drive: {}", system_info_.sync_drive);
+    }
+
+    // clog_detection_enabled: 0=off, 1=manual, 2=auto
+    if (t.clog_detection_enabled) {
+        system_info_.clog_detection = *t.clog_detection_enabled;
+        system_info_.encoder_info.detection_mode = system_info_.clog_detection;
+        system_info_.encoder_info.enabled = (system_info_.clog_detection > 0);
+        spdlog::trace("[AMS HappyHare] Clog detection: {}", system_info_.clog_detection);
+    }
+
+    if (t.encoder) {
+        const auto& encoder = *t.encoder;
+        if (encoder.flow_rate) {
+            system_info_.encoder_info.flow_rate = *encoder.flow_rate;
+            // Keep legacy field in sync
+            system_info_.encoder_flow_rate = system_info_.encoder_info.flow_rate;
+            spdlog::trace("[AMS HappyHare] Encoder flow rate: {}", system_info_.encoder_flow_rate);
+        }
+        if (encoder.desired_headroom) {
+            system_info_.encoder_info.desired_headroom = *encoder.desired_headroom;
+        }
+        if (encoder.detection_length) {
+            system_info_.encoder_info.detection_length = *encoder.detection_length;
+        }
+        if (encoder.headroom) {
+            system_info_.encoder_info.headroom = *encoder.headroom;
+        }
+        if (encoder.min_headroom) {
+            system_info_.encoder_info.min_headroom = *encoder.min_headroom;
+        }
+        spdlog::trace("[AMS HappyHare] Encoder: headroom={:.1f}/{:.1f} min={:.1f}",
+                      system_info_.encoder_info.headroom,
+                      system_info_.encoder_info.detection_length,
+                      system_info_.encoder_info.min_headroom);
+    }
+
+    if (t.flowguard) {
+        const auto& fg = *t.flowguard;
+        auto& info = system_info_.flowguard_info;
+        if (fg.enabled) {
+            info.enabled = *fg.enabled;
+        }
+        if (fg.active) {
+            info.active = *fg.active;
+        }
+        if (fg.trigger) {
+            info.trigger = *fg.trigger;
+        }
+        if (fg.level) {
+            info.level = *fg.level;
+        }
+        if (fg.max_clog) {
+            info.max_clog = *fg.max_clog;
+        }
+        if (fg.max_tangle) {
+            info.max_tangle = *fg.max_tangle;
+        }
+        if (fg.encoder_mode) {
+            flowguard_encoder_mode_ = *fg.encoder_mode;
+        }
+        spdlog::trace("[AMS HappyHare] Flowguard: enabled={} active={} trigger={} level={:.2f}",
+                      info.enabled, info.active, info.trigger, info.level);
+    }
+
+    // leds.unit0.exit_effect (v4)
+    if (t.led_exit_effect) {
+        led_exit_effect_ = *t.led_exit_effect;
+        spdlog::trace("[AMS HappyHare] LED exit effect: {}", led_exit_effect_);
+    }
+
+    if (t.sync_feedback_flow_rate) {
+        system_info_.sync_feedback_flow_rate = *t.sync_feedback_flow_rate;
+        spdlog::trace("[AMS HappyHare] Sync feedback flow rate: {:.1f}",
+                      system_info_.sync_feedback_flow_rate);
+    }
+
+    if (t.toolchange_purge_volume) {
+        system_info_.toolchange_purge_volume = *t.toolchange_purge_volume;
+        spdlog::trace("[AMS HappyHare] Toolchange purge volume: {:.1f}",
+                      system_info_.toolchange_purge_volume);
+    }
+
+    if (t.current_toolchange) {
+        system_info_.current_toolchange = *t.current_toolchange;
+        spdlog::trace("[AMS HappyHare] Toolchange index: {}", system_info_.current_toolchange);
+    }
+
+    // The slicer's total, from the metadata the MMU parsed for the print
+    if (t.number_of_toolchanges) {
+        system_info_.number_of_toolchanges = *t.number_of_toolchanges;
+        spdlog::trace("[AMS HappyHare] Total toolchanges from slicer: {}",
+                      system_info_.number_of_toolchanges);
+    }
+
+    if (t.spoolman_mode) {
+        system_info_.spoolman_mode = *t.spoolman_mode;
+        spdlog::trace("[AMS HappyHare] Spoolman mode: {}",
+                      spoolman_mode_to_string(system_info_.spoolman_mode));
+    }
+
+    if (t.pending_spool_id) {
+        system_info_.pending_spool_id = *t.pending_spool_id;
+        spdlog::trace("[AMS HappyHare] Pending spool ID: {}", system_info_.pending_spool_id);
+    }
+}
+
+void AmsBackendHappyHare::apply_mmu_sensors_locked(const happy_hare::MmuStatusDelta& delta) {
+    // sensors: keys "mmu_pre_gate_X" are the pre-gate sensors per gate; values
+    // are true (triggered/filament present), false (not triggered), null
+    // (error/unknown)
+    if (delta.sensors) {
+        const auto& sensors = *delta.sensors;
         bool any_sensor = false;
 
-        for (auto it = sensors.begin(); it != sensors.end(); ++it) {
-            const std::string& key = it.key();
-            if (key.rfind(prefix, 0) != 0) {
-                continue; // Not a pre-gate sensor key
-            }
-
-            // Extract gate index from key suffix
-            std::string index_str = key.substr(prefix.size());
-            const auto parsed_idx = tio::parse_leading<int>(index_str);
-            if (!parsed_idx) {
-                continue; // Not a valid integer suffix
-            }
-            const int gate_idx = *parsed_idx;
-
-            if (gate_idx < 0) {
-                continue;
-            }
-
+        for (const auto& [gate_idx, triggered] : sensors.pre_gate) {
             auto* gate = gate_sensor_mut(gate_idx);
             if (!gate) {
                 continue;
             }
-
             gate->has_pre_gate_sensor = true;
-            gate->pre_gate_triggered = it.value().is_boolean() && it.value().get<bool>();
+            gate->pre_gate_triggered = triggered;
             any_sensor = true;
 
             spdlog::trace("[AMS HappyHare] Pre-gate sensor {}: present=true, triggered={}",
@@ -1071,9 +950,8 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
 
         // If no per-gate sensors found, check for aggregate format (EMU)
         // EMU reports "mmu_pre_gate" (bool) and "mmu_gear" (bool) for the active gate
-        if (!any_sensor && sensors.contains("mmu_pre_gate")) {
-            bool pre_gate_val =
-                sensors["mmu_pre_gate"].is_boolean() && sensors["mmu_pre_gate"].get<bool>();
+        if (!any_sensor && sensors.aggregate_pre_gate) {
+            const bool pre_gate_val = *sensors.aggregate_pre_gate;
             // Note: mmu_gear sensor reading is available but not stored — UI only
             // displays pre-gate sensor status. Add to HappyHareGateSensor if needed later.
 
@@ -1105,80 +983,90 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         }
     }
 
-    // Parse drying_state: object (KMS/traditional) or array of strings (EMU per-gate)
-    if (mmu_data.contains("drying_state")) {
-        const auto& drying = mmu_data["drying_state"];
-        if (drying.is_object()) {
-            // Traditional object format: {active, current_temp, target_temp, ...}
-            dryer_info_.supported = true;
-            if (drying.contains("active") && drying["active"].is_boolean()) {
-                dryer_info_.active = drying["active"].get<bool>();
+    if (delta.drying) {
+        apply_mmu_drying_locked(*delta.drying);
+    }
+
+    // The endless-spool ENABLE bit gates apply_endless_spool_backup(), because
+    // cmd_MMU_ENDLESS_SPOOL ignores GROUPS while disabled. A future HH that drops
+    // both keys leaves the flag at its last value rather than silently flipping
+    // to off.
+    if (delta.endless_spool_enabled) {
+        system_info_.endless_spool_enabled = *delta.endless_spool_enabled;
+    }
+}
+
+void AmsBackendHappyHare::apply_mmu_drying_locked(const happy_hare::DryingDelta& drying) {
+    if (drying.object) {
+        // Traditional object format: {active, current_temp, target_temp, ...}
+        const auto& d = *drying.object;
+        dryer_info_.supported = true;
+        if (d.active) {
+            dryer_info_.active = *d.active;
+        }
+        if (d.current_temp_c) {
+            dryer_info_.current_temp_c = *d.current_temp_c;
+        }
+        if (d.target_temp_c) {
+            dryer_info_.target_temp_c = *d.target_temp_c;
+        }
+        if (d.remaining_min) {
+            dryer_info_.remaining_min = *d.remaining_min;
+        }
+        if (d.duration_min) {
+            dryer_info_.duration_min = *d.duration_min;
+        }
+        if (d.fan_pct) {
+            dryer_info_.fan_pct = *d.fan_pct;
+        }
+        spdlog::trace("[AMS HappyHare] Dryer state (object): active={}, temp={:.1f}°C",
+                      dryer_info_.active, dryer_info_.current_temp_c);
+    } else if (drying.per_gate) {
+        // EMU per-gate array format: ["", "", ...] or ["active", "", ...]
+        // Values: "active", "queued" = heater on; "complete", "canceled", "" = off.
+        // Presence says the environment manager is loaded, which it always is, so it
+        // does NOT imply a heater exists. Only a configured heater sets `supported`.
+        bool any_active = false;
+        for (const auto& state : *drying.per_gate) {
+            if (state == "active" || state == "queued") {
+                any_active = true;
             }
-            if (drying.contains("current_temp") && drying["current_temp"].is_number()) {
-                dryer_info_.current_temp_c = drying["current_temp"].get<float>();
-            }
-            if (drying.contains("target_temp") && drying["target_temp"].is_number()) {
-                dryer_info_.target_temp_c = drying["target_temp"].get<float>();
-            }
-            if (drying.contains("remaining_min") && drying["remaining_min"].is_number_integer()) {
-                dryer_info_.remaining_min = drying["remaining_min"].get<int>();
-            }
-            if (drying.contains("duration_min") && drying["duration_min"].is_number_integer()) {
-                dryer_info_.duration_min = drying["duration_min"].get<int>();
-            }
-            if (drying.contains("fan_pct") && drying["fan_pct"].is_number_integer()) {
-                dryer_info_.fan_pct = drying["fan_pct"].get<int>();
-            }
-            spdlog::trace("[AMS HappyHare] Dryer state (object): active={}, temp={:.1f}°C",
-                          dryer_info_.active, dryer_info_.current_temp_c);
-        } else if (drying.is_array()) {
-            // EMU per-gate array format: ["", "", ...] or ["active", "", ...]
-            // Values: "active", "queued" = heater on; "complete", "canceled", "" = off.
-            // Presence says the environment manager is loaded, which it always is, so it
-            // does NOT imply a heater exists. Only a configured heater sets `supported`.
-            bool any_active = false;
-            gate_drying_states_.clear();
-            gate_drying_states_.reserve(drying.size());
-            for (const auto& entry : drying) {
-                // Every gate keeps a slot even when the firmware sends a non-string, so
-                // the vector stays indexable by global gate number.
-                std::string s = entry.is_string() ? entry.get<std::string>() : std::string{};
-                if (s == "active" || s == "queued") {
-                    any_active = true;
-                }
-                gate_drying_states_.push_back(std::move(s));
-            }
-            dryer_info_.active = any_active;
-            spdlog::trace("[AMS HappyHare] Dryer state (array): active={}", any_active);
+        }
+        gate_drying_states_ = *drying.per_gate;
+        dryer_info_.active = any_active;
+        spdlog::trace("[AMS HappyHare] Dryer state (array): active={}", any_active);
+    }
+}
+
+void AmsBackendHappyHare::converge_mmu_locked(MmuFrame& frame) {
+    file_gate_readings_locked(frame);
+
+    // Paint every gate from the lane, after the filing above has put this
+    // frame's readings on it. The gate map is the only thing Happy Hare states
+    // about a binding, and what it cannot carry - a user's own identity - comes
+    // from the lane, so this has to read a model that already holds both. Every
+    // gate rather than the ones one key happened to mention: a lane a key is
+    // silent about still resolves, and a gate with no records at all resolves
+    // to nothing observed and keeps every value the parse set. The clear runs
+    // first because the struct persists across frames: without it a field an
+    // earlier paint wrote outlives the record that stated it, and the paint
+    // below faithfully keeps it there.
+    for (int gate = 0; gate < slots_.slot_count(); ++gate) {
+        if (auto* entry = slots_.get_mut(gate)) {
+            prepare_lane_repaint_locked(gate, entry->info);
+            apply_resolved_lane(entry->info, gate);
         }
     }
 
-    // Parse the endless-spool ENABLE bit. Happy Hare publishes it under two
-    // keys, both tagged DEPRECATED in mmu.py's get_status() with no replacement
-    // shipped, so read the newer spelling and fall back to the older one; a
-    // future HH that drops both leaves the flag at its last value rather than
-    // silently flipping to off. The bit gates apply_endless_spool_backup(),
-    // because cmd_MMU_ENDLESS_SPOOL ignores GROUPS while disabled.
-    for (const char* key : {"endless_spool_enabled", "endless_spool"}) {
-        if (mmu_data.contains(key) && !mmu_data[key].is_null()) {
-            system_info_.endless_spool_enabled = helix::json_util::safe_bool(mmu_data, key, false);
-            break;
-        }
-    }
+    // Re-derive every gate's status from the cached gate_status array plus the
+    // gate/filament pair this frame may have moved. Unconditional, and last, so
+    // no ordering between the three keys can leave a stale stamp behind.
+    refresh_gate_statuses_locked();
 
-    // Parse endless_spool_groups if available
-    if (mmu_data.contains("endless_spool_groups") && mmu_data["endless_spool_groups"].is_array()) {
-        const auto& es_groups = mmu_data["endless_spool_groups"];
-        for (size_t i = 0; i < es_groups.size(); ++i) {
-            if (es_groups[i].is_number_integer()) {
-                auto* entry = slots_.get_mut(static_cast<int>(i));
-                if (entry) {
-                    entry->info.endless_spool_group = es_groups[i].get<int>();
-                }
-            }
-        }
-    }
+    apply_fault_edge_locked(frame);
+}
 
+void AmsBackendHappyHare::file_gate_readings_locked(MmuFrame& frame) {
     // Gate status is the only thing Happy Hare senses. Everything else in the
     // gate map is mmu_vars.cfg remembering a declaration somebody made once,
     // which is a cache and not a reading, so the two are filed apart.
@@ -1215,10 +1103,7 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
             const bool binding_names_spool =
                 binding != gate_readings_.end() && binding->second.spoolman_id.value_or(0) > 0;
             if (entry->info.status == SlotStatus::EMPTY && !binding_names_spool) {
-                const int gate = static_cast<int>(i);
-                helix::ui::queue_update("AmsBackendHappyHare::parse_mmu_state", [gate] {
-                    helix::ui::offer_clear_after_unverified_insert(gate);
-                });
+                frame.unverified_insert_gates.push_back(static_cast<int>(i));
             }
         }
     }
@@ -1235,10 +1120,10 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         // key published empty, or the re-bind verdict ends the suppression.
         ams::Observation stated{ams::ObservationSource::VendorCache};
         ams::Observation cleared{ams::ObservationSource::VendorCache};
-        if (const auto it = frame_stated.find(gate); it != frame_stated.end()) {
+        if (const auto it = frame.stated.find(gate); it != frame.stated.end()) {
             stated = it->second;
         }
-        if (const auto it = frame_cleared.find(gate); it != frame_cleared.end()) {
+        if (const auto it = frame.cleared.find(gate); it != frame.cleared.end()) {
             cleared = it->second;
         }
         const ams::Observation judged = stated;
@@ -1253,39 +1138,19 @@ void AmsBackendHappyHare::parse_mmu_state(const nlohmann::json& mmu_data) {
         own_write_echoes_.strip_standing(gate, filed);
         ams::ingest(lane_id(gate), filed);
     }
+}
 
-    // Paint every gate from the lane, after the two loops above have filed this
-    // frame's readings on it. The gate map is the only thing Happy Hare states
-    // about a binding, and what it cannot carry - a user's own identity - comes
-    // from the lane, so this has to read a model that already holds both. Every
-    // gate rather than the ones one key happened to mention: a lane a key is
-    // silent about still resolves, and a gate with no records at all resolves
-    // to nothing observed and keeps every value the parse set. The clear runs
-    // first because the struct persists across frames: without it a field an
-    // earlier paint wrote outlives the record that stated it, and the paint
-    // below faithfully keeps it there.
-    for (int gate = 0; gate < slots_.slot_count(); ++gate) {
-        if (auto* entry = slots_.get_mut(gate)) {
-            prepare_lane_repaint_locked(gate, entry->info);
-            apply_resolved_lane(entry->info, gate);
-        }
-    }
-
-    // Re-derive every gate's status from the cached gate_status array plus the
-    // gate/filament pair this frame may have moved. Unconditional, and last, so
-    // no ordering between the three keys can leave a stale stamp behind.
-    refresh_gate_statuses_locked();
-
+void AmsBackendHappyHare::apply_fault_edge_locked(const MmuFrame& frame) {
     // After gate and filament_pos, so the marks land where this frame says.
     const bool faulted = !reason_for_pause_.empty();
-    if (faulted && !was_faulted) {
+    if (faulted && !frame.was_faulted) {
         error_segment_ = path_segment_from_happy_hare_pos(filament_pos_);
         if (auto* entry = slots_.get_mut(system_info_.current_slot)) {
             entry->info.error = SlotError{display_reason(reason_for_pause_), SlotError::ERROR};
             spdlog::debug("[AMS HappyHare] Error on slot {}: {}", system_info_.current_slot,
                           reason_for_pause_);
         }
-    } else if (!faulted && was_faulted) {
+    } else if (!faulted && frame.was_faulted) {
         error_segment_ = PathSegment::NONE;
         for (int i = 0; i < slots_.slot_count(); ++i) {
             if (auto* entry = slots_.get_mut(i)) {
@@ -1559,7 +1424,8 @@ void AmsBackendHappyHare::initialize_slots(int gate_count) {
         unit.has_encoder = !is_type_b();
         unit.has_toolhead_sensor = true;
         unit.topology = is_type_b() ? PathTopology::HUB : PathTopology::LINEAR;
-        // has_slot_sensors starts false; updated when sensor data arrives in parse_mmu_state()
+        // has_slot_sensors starts false; updated when sensor data arrives in
+        // apply_mmu_sensors_locked()
         unit.has_slot_sensors = false;
         unit.has_hub_sensor = true; // HH selector functions as hub equivalent
 
