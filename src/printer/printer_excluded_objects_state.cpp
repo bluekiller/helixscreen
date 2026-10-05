@@ -15,6 +15,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <limits>
+
 namespace helix {
 
 void PrinterExcludedObjectsState::init_subjects(bool register_xml) {
@@ -33,6 +36,82 @@ void PrinterExcludedObjectsState::init_subjects(bool register_xml) {
 
     subjects_initialized_ = true;
     spdlog::trace("[PrinterExcludedObjectsState] Subjects initialized successfully");
+}
+
+void PrinterExcludedObjectsState::update_from_status(const nlohmann::json& status) {
+    // The inner setters (set_excluded_objects / set_defined_objects_with_geometry /
+    // set_current_object) log on actual change.
+    auto it = status.find("exclude_object");
+    if (it == status.end()) {
+        return;
+    }
+    const auto& eo = *it;
+
+    if (eo.contains("excluded_objects") && eo["excluded_objects"].is_array()) {
+        std::unordered_set<std::string> excluded;
+        for (const auto& obj : eo["excluded_objects"]) {
+            if (obj.is_string()) {
+                excluded.insert(obj.get<std::string>());
+            }
+        }
+        // set_excluded_objects handles change detection and notification
+        set_excluded_objects(excluded);
+    }
+
+    // Parse defined objects list with geometry (center + polygon bounding box)
+    if (eo.contains("objects") && eo["objects"].is_array()) {
+        std::vector<ObjectInfo> objects;
+        for (const auto& obj : eo["objects"]) {
+            if (!obj.is_object() || !obj.contains("name") || !obj["name"].is_string())
+                continue;
+
+            ObjectInfo info;
+            info.name = obj["name"].get<std::string>();
+
+            if (obj.contains("center") && obj["center"].is_array() && obj["center"].size() >= 2 &&
+                obj["center"][0].is_number() && obj["center"][1].is_number()) {
+                info.center.x = obj["center"][0].get<float>();
+                info.center.y = obj["center"][1].get<float>();
+                info.has_center = true;
+            } else {
+                info.has_center = false;
+            }
+
+            if (obj.contains("polygon") && obj["polygon"].is_array() && !obj["polygon"].empty()) {
+                float min_x = std::numeric_limits<float>::max();
+                float min_y = min_x;
+                float max_x = std::numeric_limits<float>::lowest();
+                float max_y = max_x;
+                for (const auto& pt : obj["polygon"]) {
+                    if (pt.is_array() && pt.size() >= 2 && pt[0].is_number() && pt[1].is_number()) {
+                        float x = pt[0].get<float>(), y = pt[1].get<float>();
+                        info.polygon.push_back({x, y});
+                        min_x = std::min(min_x, x);
+                        min_y = std::min(min_y, y);
+                        max_x = std::max(max_x, x);
+                        max_y = std::max(max_y, y);
+                    }
+                }
+                info.bbox_min = {min_x, min_y};
+                info.bbox_max = {max_x, max_y};
+                info.has_bbox = true;
+            } else {
+                info.has_bbox = false;
+            }
+
+            objects.push_back(std::move(info));
+        }
+        set_defined_objects_with_geometry(objects);
+    }
+
+    // Parse current object
+    if (eo.contains("current_object")) {
+        if (eo["current_object"].is_string()) {
+            set_current_object(eo["current_object"].get<std::string>());
+        } else if (eo["current_object"].is_null()) {
+            set_current_object("");
+        }
+    }
 }
 
 void PrinterExcludedObjectsState::deinit_subjects() {
