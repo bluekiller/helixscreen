@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace helix::ui {
 
@@ -41,6 +42,9 @@ class GcodePreviewFetcher {
 
     /// @p path is a complete local copy, safe to load.
     using ReadyCb = std::function<void(const std::string& path)>;
+    /// Where a local copy came from.
+    enum class Source { Cache, Download };
+    using LocalReadyCb = std::function<void(const std::string& path, Source source)>;
     using UnavailableCb = std::function<void(Unavailable why)>;
 
     /// @p log_tag prefixes this object's log lines.
@@ -66,6 +70,21 @@ class GcodePreviewFetcher {
     /// the running transfer's callbacks.
     void fetch(const std::string& filename, ReadyCb on_ready, UnavailableCb on_unavailable);
 
+    /// Put @p remote_path of @p root at @p local_path and call back with it.
+    /// An existing copy is used when it is non-empty and, when @p expected_bytes
+    /// is known (non-zero), exactly that size; any other copy is deleted and
+    /// downloaded again. A download already running to @p local_path is joined
+    /// rather than repeated, so every caller waiting on it is told when it lands.
+    /// @p local_path must be a cache file this fetcher may delete.
+    void ensure_local(const std::string& root, const std::string& remote_path,
+                      const std::string& local_path, uint64_t expected_bytes, LocalReadyCb on_ready,
+                      UnavailableCb on_unavailable);
+
+    /// Is a download to @p local_path still running?
+    bool is_downloading(const std::string& local_path) const {
+        return in_flight_.count(local_path) != 0;
+    }
+
     /// Drop every fetch still waiting on the network. A running transfer is not
     /// aborted and may finish writing its file; a later fetch of that file
     /// joins it.
@@ -86,7 +105,7 @@ class GcodePreviewFetcher {
         uint64_t generation = 0;
         std::string filename;
         std::string temp_path;
-        ReadyCb on_ready;
+        LocalReadyCb on_ready;
         UnavailableCb on_unavailable;
     };
     using RequestPtr = std::shared_ptr<Request>;
@@ -101,11 +120,11 @@ class GcodePreviewFetcher {
                          const std::string& root, const std::string& download_target);
     void stream_if_safe(const RequestPtr& req, const std::string& root,
                         const std::string& download_target, uint64_t size);
-    void download(const RequestPtr& req, const std::string& root,
-                  const std::string& download_target);
-    /// Remove and return the request waiting on the download to @p temp_path.
-    RequestPtr take_waiter(const std::string& temp_path);
-    void hand_over(const RequestPtr& req, const std::string& path);
+    void ensure_local(const RequestPtr& req, const std::string& root,
+                      const std::string& remote_path, uint64_t expected_bytes);
+    /// Remove and return the requests waiting on the download to @p temp_path.
+    std::vector<RequestPtr> take_waiters(const std::string& temp_path);
+    void hand_over(const RequestPtr& req, const std::string& path, Source source);
     void give_up(const RequestPtr& req, Unavailable why);
 
     std::string log_tag_;
@@ -114,9 +133,9 @@ class GcodePreviewFetcher {
     /// The copy handed to the owner, deleted when replaced or discarded.
     std::string owned_path_;
     uint64_t generation_ = 0;
-    /// Downloads still running, by local path, each with the request its
+    /// Downloads still running, by local path, each with the requests its
     /// completion is delivered to.
-    std::map<std::string, RequestPtr> in_flight_;
+    std::map<std::string, std::vector<RequestPtr>> in_flight_;
     AsyncLifetimeGuard lifetime_;
 };
 
