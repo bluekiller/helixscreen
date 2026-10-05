@@ -705,7 +705,9 @@
   <translation tag="Could not check webcam status.&#10;Check printer connection." zh="无法检查摄像头状态。&#10;请检查打印机连接。"/>
   <translation tag="Could not confirm cancel" zh="无法确认取消"/>
   <translation tag="Could not copy {} from USB: {}" zh="无法从 USB 复制 {}：{}"/>
+  <translation tag="Could not disconnect from WiFi" zh="无法断开 WiFi 连接"/>
   <translation tag="Could not forget device" zh="无法忘记设备"/>
+  <translation tag="Could not initialize WiFi hardware. Check system configuration." zh="无法初始化 WiFi 硬件。请检查系统配置。"/>
   <translation tag="Could not load printer database" zh="无法加载打印机数据库"/>
   <translation tag="Could not move the plate" zh="无法移动热床"/>
   <translation tag="Could not parse tips database" zh="无法解析提示数据库"/>
@@ -1036,7 +1038,10 @@
   <translation tag="Failed to build raster data" zh="构建栅格数据失败"/>
   <translation tag="Failed to cancel: {}" zh="取消失败: {}"/>
   <translation tag="Failed to clear print state: {}" zh="无法清除打印状态：{}"/>
+  <translation tag="Failed to connect to &apos;{}&apos;" zh="无法连接到 &apos;{}&apos;"/>
+  <translation tag="Failed to connect to &apos;{}&apos;. Check password." zh="无法连接到 &apos;{}&apos;。请检查密码。"/>
   <translation tag="Failed to connect to &apos;{}&apos;: {}" zh="无法连接到 &apos;{}&apos;: {}"/>
+  <translation tag="Failed to connect to WiFi network &apos;{}&apos;: {}" zh="无法连接到 WiFi 网络 &apos;{}&apos;: {}"/>
   <translation tag="Failed to connect: %s" zh="连接失败：%s"/>
   <translation tag="Failed to cool down: {}" zh="冷却失败: {}"/>
   <translation tag="Failed to create filament:" zh="创建耗材失败:"/>
@@ -1045,14 +1050,17 @@
   <translation tag="Failed to delete file" zh="删除文件失败"/>
   <translation tag="Failed to delete profile" zh="删除配置文件失败"/>
   <translation tag="Failed to delete spool" zh="删除料盘失败"/>
+  <translation tag="Failed to disable WiFi: {}" zh="无法关闭 WiFi: {}"/>
   <translation tag="Failed to discard recovery data: {}" zh="放弃恢复数据失败: {}"/>
   <translation tag="Failed to download G-code for modification: {}" zh="下载 G-code 进行修改失败: {}"/>
   <translation tag="Failed to download G-code for remap: {}" zh="下载用于重新映射的 G-code 失败：{}"/>
   <translation tag="Failed to download helixscreen.conf.&#10;Check printer connection." zh="下载 helixscreen.conf 失败。&#10;请检查打印机连接。"/>
   <translation tag="Failed to download moonraker.conf.&#10;Check printer connection." zh="下载 moonraker.conf 失败。&#10;请检查打印机连接。"/>
   <translation tag="Failed to duplicate spool" zh="复制线轴失败"/>
+  <translation tag="Failed to enable WiFi: {}" zh="无法开启 WiFi: {}"/>
   <translation tag="Failed to enable tuning tower" zh="启用调优塔失败"/>
   <translation tag="Failed to exclude &apos;{}&apos;: {}" zh="排除 &apos;{}&apos; 失败: {}"/>
+  <translation tag="Failed to forget WiFi network &apos;{}&apos;" zh="无法忘记 WiFi 网络 &apos;{}&apos;"/>
   <translation tag="Failed to get limits" zh="获取限制失败"/>
   <translation tag="Failed to initialize Bluetooth" zh="初始化蓝牙失败"/>
   <translation tag="Failed to initialize Bluetooth context" zh="初始化蓝牙上下文失败"/>
@@ -1090,6 +1098,7 @@
   <translation tag="Failed to restart: {}" zh="重启失败：{}"/>
   <translation tag="Failed to resume: {}" zh="恢复失败: {}"/>
   <translation tag="Failed to save LED configuration" zh="保存 LED 配置失败"/>
+  <translation tag="Failed to save WiFi network" zh="无法保存 WiFi 网络"/>
   <translation tag="Failed to save config." zh="保存配置失败。"/>
   <translation tag="Failed to save configuration" zh="保存配置失败"/>
   <translation tag="Failed to save fan configuration" zh="保存风扇配置失败"/>
@@ -3041,6 +3050,8 @@
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." zh="此打印机的通道信息来自 Spoolman。HelixScreen 已清除本地副本；请在 Spoolman 中移除该线轴。"/>
   <translation tag="This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman." zh="此打印机的通道信息来自 Spoolman。请在 Spoolman 中更改颜色、材料和线轴。"/>
   <translation tag="This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets." zh="此打印机看起来是 {}（置信度 {}%），但当前设置为 {}。错误的类型会应用不正确的打印前选项和预设。"/>
+  <translation tag="This printer&apos;s network service controls the WiFi radio" zh="此打印机的网络服务控制 WiFi 无线模块"/>
+  <translation tag="This printer&apos;s network service manages saved WiFi networks" zh="此打印机的网络服务管理已保存的 WiFi 网络"/>
   <translation tag="This removes the plugin&apos;s Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that." zh="这会移除插件的 Moonraker 组件并重启 Moonraker。打印机将短暂断开连接。如果 PRINT_START 中仍有旧的阶段跟踪行，它们也会被移除，但会保留备份。重启 Klipper 后生效。"/>
   <translation tag="This replaces the printer&apos;s helper macros with the current version and restarts Klipper." zh="这会将打印机的帮助宏替换为当前版本并重启 Klipper。"/>
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." zh="这会将打印机的帮助宏替换为当前版本。当前正在打印，Klipper 将在打印结束后重启。"/>
@@ -3320,12 +3331,19 @@
   <translation tag="WiFi Disabled" zh="WiFi 已禁用"/>
   <translation tag="WiFi Enabled" zh="WiFi 已启用"/>
   <translation tag="WiFi Network" zh="WiFi 网络"/>
+  <translation tag="WiFi Permission Denied" zh="WiFi 权限被拒绝"/>
+  <translation tag="WiFi Service Not Running" zh="WiFi 服务未运行"/>
   <translation tag="WiFi Unavailable" zh="WiFi 不可用"/>
   <translation tag="WiFi and Ethernet configuration" zh="WiFi 和以太网配置"/>
   <translation tag="WiFi control unavailable" zh="WiFi 控制不可用"/>
   <translation tag="WiFi hardware unavailable" zh="WiFi 硬件不可用"/>
+  <translation tag="WiFi initialization failed: {}" zh="WiFi 初始化失败: {}"/>
   <translation tag="WiFi radio did not change state" zh="WiFi 状态未改变"/>
+  <translation tag="WiFi scan failed. Try again." zh="WiFi 扫描失败。请重试。"/>
   <translation tag="WiFi unavailable" zh="WiFi 不可用"/>
+  <translation tag="WiFi unavailable. Cannot connect to network." zh="WiFi 不可用。无法连接到网络。"/>
+  <translation tag="WiFi unavailable. Cannot forget network." zh="WiFi 不可用。无法忘记网络。"/>
+  <translation tag="WiFi unavailable. Cannot scan for networks." zh="WiFi 不可用。无法扫描网络。"/>
   <translation tag="WiFi was configured but hardware is not available. Check system configuration." zh="已配置 WiFi 但硬件不可用。请检查系统配置。"/>
   <translation tag="Widget Labels" zh="小组件标签"/>
   <translation tag="Width" zh="宽度"/>
@@ -3471,6 +3489,7 @@
   <translation tag="v%s available" zh="v%s 可用"/>
   <translation tag="v{} installed! Restarting..." zh="已安装 v{}！正在重启..."/>
   <translation tag="v{} is available. Tap to update." zh="v{} 可用。点击以更新。"/>
+  <translation tag="wpa_supplicant is not running. WiFi features unavailable." zh="wpa_supplicant 未运行。WiFi 功能不可用。"/>
   <translation tag="you have" zh="您有"/>
   <translation tag="{:.0f}-{:.0f} Hz · about {} min" zh="{:.0f}-{:.0f} Hz · 约 {} 分钟"/>
   <translation tag="{} Hardware Issues" zh="{} 个硬件问题"/>

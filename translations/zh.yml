@@ -722,7 +722,9 @@ translations:
   : "无法检查摄像头状态。\n请检查打印机连接。"
   Could not confirm cancel: 无法确认取消
   'Could not copy {} from USB: {}': '无法从 USB 复制 {}：{}'
+  Could not disconnect from WiFi: 无法断开 WiFi 连接
   Could not forget device: 无法忘记设备
+  Could not initialize WiFi hardware. Check system configuration.: 无法初始化 WiFi 硬件。请检查系统配置。
   Could not load printer database: 无法加载打印机数据库
   Could not move the plate: 无法移动热床
 
@@ -1066,7 +1068,10 @@ translations:
   Failed to build raster data: 构建栅格数据失败
   'Failed to cancel: {}': '取消失败: {}'
   'Failed to clear print state: {}': 无法清除打印状态：{}
+  Failed to connect to '{}': 无法连接到 '{}'
+  Failed to connect to '{}'. Check password.: 无法连接到 '{}'。请检查密码。
   'Failed to connect to ''{}'': {}': '无法连接到 ''{}'': {}'
+  'Failed to connect to WiFi network ''{}'': {}': '无法连接到 WiFi 网络 ''{}'': {}'
   'Failed to connect: %s': 连接失败：%s
   'Failed to cool down: {}': '冷却失败: {}'
   'Failed to create filament:': '创建耗材失败:'
@@ -1075,6 +1080,7 @@ translations:
   Failed to delete file: 删除文件失败
   Failed to delete profile: 删除配置文件失败
   Failed to delete spool: 删除料盘失败
+  'Failed to disable WiFi: {}': '无法关闭 WiFi: {}'
   'Failed to discard recovery data: {}': '放弃恢复数据失败: {}'
   'Failed to download G-code for modification: {}': '下载 G-code 进行修改失败: {}'
   'Failed to download G-code for remap: {}': 下载用于重新映射的 G-code 失败：{}
@@ -1083,8 +1089,10 @@ translations:
   ? "Failed to download moonraker.conf.\nCheck printer connection."
   : "下载 moonraker.conf 失败。\n请检查打印机连接。"
   Failed to duplicate spool: 复制线轴失败
+  'Failed to enable WiFi: {}': '无法开启 WiFi: {}'
   Failed to enable tuning tower: 启用调优塔失败
   'Failed to exclude ''{}'': {}': '排除 ''{}'' 失败: {}'
+  Failed to forget WiFi network '{}': 无法忘记 WiFi 网络 '{}'
   Failed to get limits: 获取限制失败
   Failed to initialize Bluetooth: 初始化蓝牙失败
   Failed to initialize Bluetooth context: 初始化蓝牙上下文失败
@@ -1122,6 +1130,7 @@ translations:
   'Failed to restart: {}': 重启失败：{}
   'Failed to resume: {}': '恢复失败: {}'
   Failed to save LED configuration: 保存 LED 配置失败
+  Failed to save WiFi network: 无法保存 WiFi 网络
   Failed to save config.: 保存配置失败。
   Failed to save configuration: 保存配置失败
   Failed to save fan configuration: 保存风扇配置失败
@@ -3179,6 +3188,8 @@ translations:
   This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman.: 此打印机的通道信息来自 Spoolman。请在 Spoolman 中更改颜色、材料和线轴。
   ? This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets.
   : 此打印机看起来是 {}（置信度 {}%），但当前设置为 {}。错误的类型会应用不正确的打印前选项和预设。
+  This printer's network service controls the WiFi radio: 此打印机的网络服务控制 WiFi 无线模块
+  This printer's network service manages saved WiFi networks: 此打印机的网络服务管理已保存的 WiFi 网络
   ? This removes the plugin's Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that.
   : 这会移除插件的 Moonraker 组件并重启 Moonraker。打印机将短暂断开连接。如果 PRINT_START 中仍有旧的阶段跟踪行，它们也会被移除，但会保留备份。重启 Klipper 后生效。
   This replaces the printer's helper macros with the current version and restarts Klipper.: '这会将打印机的帮助宏替换为当前版本并重启 Klipper。'
@@ -3472,12 +3483,19 @@ translations:
   WiFi Disabled: WiFi 已禁用
   WiFi Enabled: WiFi 已启用
   WiFi Network: WiFi 网络
+  WiFi Permission Denied: WiFi 权限被拒绝
+  WiFi Service Not Running: WiFi 服务未运行
   WiFi Unavailable: WiFi 不可用
   WiFi and Ethernet configuration: WiFi 和以太网配置
   WiFi control unavailable: WiFi 控制不可用
   WiFi hardware unavailable: WiFi 硬件不可用
+  'WiFi initialization failed: {}': 'WiFi 初始化失败: {}'
   WiFi radio did not change state: WiFi 状态未改变
+  WiFi scan failed. Try again.: WiFi 扫描失败。请重试。
   WiFi unavailable: WiFi 不可用
+  WiFi unavailable. Cannot connect to network.: WiFi 不可用。无法连接到网络。
+  WiFi unavailable. Cannot forget network.: WiFi 不可用。无法忘记网络。
+  WiFi unavailable. Cannot scan for networks.: WiFi 不可用。无法扫描网络。
   WiFi was configured but hardware is not available. Check system configuration.: 已配置
     WiFi 但硬件不可用。请检查系统配置。
   Widget Labels: 小组件标签
@@ -3631,6 +3649,7 @@ translations:
   v%s available: v%s 可用
   v{} installed! Restarting...: 已安装 v{}！正在重启...
   v{} is available. Tap to update.: v{} 可用。点击以更新。
+  wpa_supplicant is not running. WiFi features unavailable.: wpa_supplicant 未运行。WiFi 功能不可用。
   you have: 您有
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · 约 {} 分钟'
   '{} Hardware Issues': '{} 个硬件问题'

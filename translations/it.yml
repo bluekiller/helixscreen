@@ -787,7 +787,9 @@ translations:
   : "Impossibile verificare stato webcam.\nControllare la connessione della stampante."
   Could not confirm cancel: Impossibile confermare l'annullamento
   'Could not copy {} from USB: {}': 'Impossibile copiare {} da USB: {}'
+  Could not disconnect from WiFi: Impossibile disconnettersi dal WiFi
   Could not forget device: Impossibile dimenticare il dispositivo
+  Could not initialize WiFi hardware. Check system configuration.: Impossibile inizializzare l'hardware WiFi. Controlla la configurazione di sistema.
   Could not load printer database: Impossibile caricare il database della stampante
   Could not move the plate: Impossibile spostare il piano
 
@@ -1147,7 +1149,10 @@ translations:
   Failed to build raster data: Costruzione dei dati raster non riuscita
   'Failed to cancel: {}': 'Impossibile annullare: {}'
   'Failed to clear print state: {}': 'Impossibile cancellare lo stato di stampa: {}'
+  Failed to connect to '{}': Connessione a '{}' non riuscita
+  Failed to connect to '{}'. Check password.: Connessione a '{}' non riuscita. Controlla la password.
   'Failed to connect to ''{}'': {}': 'Impossibile connettersi a ''{}'': {}'
+  'Failed to connect to WiFi network ''{}'': {}': 'Connessione alla rete WiFi ''{}'' non riuscita: {}'
   'Failed to connect: %s': 'Connessione fallita: %s'
   'Failed to cool down: {}': 'Impossibile raffreddare: {}'
   'Failed to create filament:': 'Creazione del filamento non riuscita:'
@@ -1156,6 +1161,7 @@ translations:
   Failed to delete file: Impossibile eliminare il file
   Failed to delete profile: Impossibile eliminare il profilo
   Failed to delete spool: Eliminazione bobina fallita
+  'Failed to disable WiFi: {}': 'Impossibile disattivare il WiFi: {}'
   'Failed to discard recovery data: {}': 'Impossibile scartare i dati di recupero: {}'
   'Failed to download G-code for modification: {}': 'Impossibile scaricare G-code
     per modifica: {}'
@@ -1166,8 +1172,10 @@ translations:
   ? "Failed to download moonraker.conf.\nCheck printer connection."
   : "Download moonraker.conf fallito.\nControllare la connessione della stampante."
   Failed to duplicate spool: Duplicazione bobina fallita
+  'Failed to enable WiFi: {}': 'Impossibile attivare il WiFi: {}'
   Failed to enable tuning tower: Abilitazione torre di regolazione fallita
   'Failed to exclude ''{}'': {}': 'Impossibile escludere ''{}'': {}'
+  Failed to forget WiFi network '{}': Impossibile dimenticare la rete WiFi '{}'
   Failed to get limits: Recupero limiti fallito
   Failed to initialize Bluetooth: Inizializzazione Bluetooth fallita
   Failed to initialize Bluetooth context: Inizializzazione del contesto Bluetooth
@@ -1209,6 +1217,7 @@ translations:
   'Failed to restart: {}': 'Riavvio non riuscito: {}'
   'Failed to resume: {}': 'Impossibile riprendere: {}'
   Failed to save LED configuration: Impossibile salvare configurazione LED
+  Failed to save WiFi network: Impossibile salvare la rete WiFi
   Failed to save config.: Salvataggio configurazione fallito.
   Failed to save configuration: Salvataggio configurazione fallito
   Failed to save fan configuration: Impossibile salvare configurazione ventola
@@ -3415,6 +3424,8 @@ translations:
   This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman.: Questa stampante riempie i suoi gate da Spoolman. Modifica colore, materiale e bobina in Spoolman.
   ? This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets.
   : Questa stampante sembra una {} (affidabilità {}%), ma è configurata come {}. Un tipo errato applica opzioni pre-stampa e preset errati.
+  This printer's network service controls the WiFi radio: Il servizio di rete di questa stampante controlla la radio WiFi
+  This printer's network service manages saved WiFi networks: Il servizio di rete di questa stampante gestisce le reti WiFi salvate
   ? This removes the plugin's Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that.
   : Questo rimuove il componente Moonraker del plugin e riavvia Moonraker. La stampante si disconnetterà brevemente. Se sono ancora presenti vecchie righe di tracciamento delle fasi in PRINT_START, vengono rimosse anch'esse, mantenendo i backup. Un riavvio di Klipper applica ciò.
   This replaces the printer's helper macros with the current version and restarts Klipper.: 'Sostituisce le macro di ausilio della stampante con la versione attuale e riavvia Klipper.'
@@ -3733,12 +3744,19 @@ translations:
   WiFi Disabled: WiFi disabilitato
   WiFi Enabled: WiFi abilitato
   WiFi Network: Rete WiFi
+  WiFi Permission Denied: Permesso WiFi negato
+  WiFi Service Not Running: Il servizio WiFi non è in esecuzione
   WiFi Unavailable: WiFi non disponibile
   WiFi and Ethernet configuration: Configurazione WiFi ed Ethernet
   WiFi control unavailable: Controllo WiFi non disponibile
   WiFi hardware unavailable: Hardware WiFi non disponibile
+  'WiFi initialization failed: {}': 'Inizializzazione WiFi non riuscita: {}'
   WiFi radio did not change state: Il modulo WiFi non ha cambiato stato
+  WiFi scan failed. Try again.: Ricerca WiFi non riuscita. Riprova.
   WiFi unavailable: WiFi non disponibile
+  WiFi unavailable. Cannot connect to network.: WiFi non disponibile. Impossibile connettersi alla rete.
+  WiFi unavailable. Cannot forget network.: WiFi non disponibile. Impossibile dimenticare la rete.
+  WiFi unavailable. Cannot scan for networks.: WiFi non disponibile. Impossibile cercare reti.
   WiFi was configured but hardware is not available. Check system configuration.: Il
     WiFi è stato configurato ma l'hardware non è disponibile. Controlla la configurazione
     del sistema.
@@ -3899,6 +3917,7 @@ translations:
   v%s available: v%s disponibile
   v{} installed! Restarting...: v{} installata! Riavvio in corso...
   v{} is available. Tap to update.: v{} disponibile. Tocca per aggiornare.
+  wpa_supplicant is not running. WiFi features unavailable.: wpa_supplicant non è in esecuzione. Le funzioni WiFi non sono disponibili.
   you have: hai
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · circa {} min'
   '{} Hardware Issues': '{} problemi hardware'

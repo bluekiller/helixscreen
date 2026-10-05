@@ -780,7 +780,9 @@ translations:
   : "Не удалось проверить статус веб-камеры.\nПроверьте подключение принтера."
   Could not confirm cancel: Не удалось подтвердить отмену
   'Could not copy {} from USB: {}': 'Не удалось скопировать {} с USB: {}'
+  Could not disconnect from WiFi: Не удалось отключиться от WiFi
   Could not forget device: Не удалось забыть устройство
+  Could not initialize WiFi hardware. Check system configuration.: Не удалось инициализировать оборудование WiFi. Проверьте конфигурацию системы.
   Could not load printer database: Не удалось загрузить базу данных принтеров
   Could not move the plate: Не удалось переместить стол
 
@@ -1135,7 +1137,10 @@ translations:
   Failed to build raster data: Не удалось построить растровые данные
   'Failed to cancel: {}': 'Не удалось отменить: {}'
   'Failed to clear print state: {}': 'Не удалось очистить состояние печати: {}'
+  Failed to connect to '{}': Не удалось подключиться к '{}'
+  Failed to connect to '{}'. Check password.: Не удалось подключиться к '{}'. Проверьте пароль.
   'Failed to connect to ''{}'': {}': 'Не удалось подключиться к ''{}'': {}'
+  'Failed to connect to WiFi network ''{}'': {}': 'Не удалось подключиться к сети WiFi ''{}'': {}'
   'Failed to connect: %s': 'Не удалось подключиться: %s'
   'Failed to cool down: {}': 'Не удалось охладить: {}'
   'Failed to create filament:': 'Не удалось создать филамент:'
@@ -1144,6 +1149,7 @@ translations:
   Failed to delete file: Не удалось удалить файл
   Failed to delete profile: Не удалось удалить профиль
   Failed to delete spool: Не удалось удалить катушку
+  'Failed to disable WiFi: {}': 'Не удалось выключить WiFi: {}'
   'Failed to discard recovery data: {}': 'Не удалось удалить данные восстановления: {}'
   'Failed to download G-code for modification: {}': 'Не удалось скачать G-code для
     изменения: {}'
@@ -1154,8 +1160,10 @@ translations:
   ? "Failed to download moonraker.conf.\nCheck printer connection."
   : "Не удалось скачать moonraker.conf.\nПроверьте подключение принтера."
   Failed to duplicate spool: Не удалось дублировать катушку
+  'Failed to enable WiFi: {}': 'Не удалось включить WiFi: {}'
   Failed to enable tuning tower: Не удалось включить башню настройки
   'Failed to exclude ''{}'': {}': 'Не удалось исключить ''{}'': {}'
+  Failed to forget WiFi network '{}': Не удалось забыть сеть WiFi '{}'
   Failed to get limits: Не удалось получить ограничения
   Failed to initialize Bluetooth: Не удалось инициализировать Bluetooth
   Failed to initialize Bluetooth context: Не удалось инициализировать контекст Bluetooth
@@ -1195,6 +1203,7 @@ translations:
   'Failed to restart: {}': 'Не удалось перезапустить: {}'
   'Failed to resume: {}': 'Не удалось возобновить: {}'
   Failed to save LED configuration: Не удалось сохранить настройки LED
+  Failed to save WiFi network: Не удалось сохранить сеть WiFi
   Failed to save config.: Не удалось сохранить конфигурацию.
   Failed to save configuration: Не удалось сохранить конфигурацию
   Failed to save fan configuration: Не удалось сохранить настройки вентилятора
@@ -3380,6 +3389,8 @@ translations:
   This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman.: Этот принтер берёт данные шлюзов из Spoolman. Меняйте цвет, материал и катушку в Spoolman.
   ? This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets.
   : Этот принтер похож на {} (уверенность {}%), но настроен как {}. Неверный тип применяет неправильные параметры перед печатью и пресеты.
+  This printer's network service controls the WiFi radio: WiFi-модулем управляет сетевая служба этого принтера
+  This printer's network service manages saved WiFi networks: Сохранёнными сетями WiFi управляет сетевая служба этого принтера
   ? This removes the plugin's Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that.
   : Это удаляет компонент Moonraker плагина и перезапускает Moonraker. Принтер ненадолго отключится. Если в PRINT_START всё ещё остались старые строки отслеживания фаз, они также удаляются, при этом резервные копии сохраняются. Перезапуск Klipper применяет эти изменения.
   This replaces the printer's helper macros with the current version and restarts Klipper.: 'Это заменит вспомогательные макросы принтера текущей версией и перезапустит Klipper.'
@@ -3691,12 +3702,19 @@ translations:
   WiFi Disabled: WiFi отключён
   WiFi Enabled: WiFi включён
   WiFi Network: Сеть WiFi
+  WiFi Permission Denied: Нет доступа к WiFi
+  WiFi Service Not Running: Служба WiFi не запущена
   WiFi Unavailable: WiFi недоступен
   WiFi and Ethernet configuration: Настройка WiFi и Ethernet
   WiFi control unavailable: Управление WiFi недоступно
   WiFi hardware unavailable: Оборудование WiFi недоступно
+  'WiFi initialization failed: {}': 'Ошибка инициализации WiFi: {}'
   WiFi radio did not change state: Состояние модуля WiFi не изменилось
+  WiFi scan failed. Try again.: Поиск сетей WiFi не удался. Повторите попытку.
   WiFi unavailable: WiFi недоступен
+  WiFi unavailable. Cannot connect to network.: WiFi недоступен. Невозможно подключиться к сети.
+  WiFi unavailable. Cannot forget network.: WiFi недоступен. Невозможно забыть сеть.
+  WiFi unavailable. Cannot scan for networks.: WiFi недоступен. Невозможно выполнить поиск сетей.
   WiFi was configured but hardware is not available. Check system configuration.: WiFi
     был настроен, но оборудование недоступно. Проверьте конфигурацию системы.
   Widget Labels: Подписи виджетов
@@ -3856,6 +3874,7 @@ translations:
   v%s available: Доступна v%s
   v{} installed! Restarting...: v{} установлена! Перезапуск...
   v{} is available. Tap to update.: v{} доступна. Нажмите для обновления.
+  wpa_supplicant is not running. WiFi features unavailable.: wpa_supplicant не запущен. Функции WiFi недоступны.
   you have: у вас
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Гц · примерно {} мин'
   '{} Hardware Issues': 'Проблем с оборудованием: {}'

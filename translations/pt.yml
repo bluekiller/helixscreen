@@ -792,7 +792,9 @@ translations:
   : "Não foi possível verificar status da webcam.\nVerifique a conexão da impressora."
   Could not confirm cancel: Não foi possível confirmar o cancelamento
   'Could not copy {} from USB: {}': 'Não foi possível copiar {} do USB: {}'
+  Could not disconnect from WiFi: Não foi possível desconectar do WiFi
   Could not forget device: Não foi possível esquecer o dispositivo
+  Could not initialize WiFi hardware. Check system configuration.: Não foi possível inicializar o hardware WiFi. Verifique a configuração do sistema.
   Could not load printer database: Não foi possível carregar o banco de dados de impressoras
   Could not move the plate: Não foi possível mover a mesa
 
@@ -1149,7 +1151,10 @@ translations:
   Failed to build raster data: Falha ao construir os dados raster
   'Failed to cancel: {}': 'Falha ao cancelar: {}'
   'Failed to clear print state: {}': 'Falha ao limpar estado de impressão: {}'
+  Failed to connect to '{}': Falha ao conectar a '{}'
+  Failed to connect to '{}'. Check password.: Falha ao conectar a '{}'. Verifique a senha.
   'Failed to connect to ''{}'': {}': 'Falha ao conectar a ''{}'': {}'
+  'Failed to connect to WiFi network ''{}'': {}': 'Falha ao conectar à rede WiFi ''{}'': {}'
   'Failed to connect: %s': 'Falha ao conectar: %s'
   'Failed to cool down: {}': 'Falha ao resfriar: {}'
   'Failed to create filament:': 'Falha ao criar filamento:'
@@ -1158,6 +1163,7 @@ translations:
   Failed to delete file: Falha ao excluir arquivo
   Failed to delete profile: Falha ao excluir perfil
   Failed to delete spool: Falha ao excluir carretel
+  'Failed to disable WiFi: {}': 'Falha ao desativar o WiFi: {}'
   'Failed to discard recovery data: {}': 'Falha ao descartar dados de recuperação: {}'
   'Failed to download G-code for modification: {}': 'Falha ao baixar G-code para modificação:
     {}'
@@ -1168,8 +1174,10 @@ translations:
   ? "Failed to download moonraker.conf.\nCheck printer connection."
   : "Falha ao baixar moonraker.conf.\nVerifique a conexão da impressora."
   Failed to duplicate spool: Falha ao duplicar carretel
+  'Failed to enable WiFi: {}': 'Falha ao ativar o WiFi: {}'
   Failed to enable tuning tower: Falha ao habilitar torre de ajuste
   'Failed to exclude ''{}'': {}': 'Falha ao excluir ''{}'': {}'
+  Failed to forget WiFi network '{}': Falha ao esquecer a rede WiFi '{}'
   Failed to get limits: Falha ao obter limites
   Failed to initialize Bluetooth: Falha ao inicializar o Bluetooth
   Failed to initialize Bluetooth context: Falha ao inicializar o contexto Bluetooth
@@ -1210,6 +1218,7 @@ translations:
   'Failed to restart: {}': 'Falha ao reiniciar: {}'
   'Failed to resume: {}': 'Falha ao retomar: {}'
   Failed to save LED configuration: Falha ao salvar configuração de LED
+  Failed to save WiFi network: Falha ao salvar a rede WiFi
   Failed to save config.: Falha ao salvar configuração.
   Failed to save configuration: Falha ao salvar configuração
   Failed to save fan configuration: Falha ao salvar configuração da ventoinha
@@ -3421,6 +3430,8 @@ translations:
   This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman.: Esta impressora preenche seus gates a partir do Spoolman. Faça alterações de cor, material e bobina no Spoolman.
   ? This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets.
   : Esta impressora parece ser uma {} ({}% de confiança), mas está configurada como {}. Um tipo errado aplica opções de pré-impressão e predefinições incorretas.
+  This printer's network service controls the WiFi radio: O serviço de rede desta impressora controla o rádio WiFi
+  This printer's network service manages saved WiFi networks: O serviço de rede desta impressora gerencia as redes WiFi salvas
   ? This removes the plugin's Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that.
   : Isso remove o componente do Moonraker do plugin e reinicia o Moonraker. A impressora será brevemente desconectada. Se ainda houver linhas antigas de rastreamento de fase no PRINT_START, elas também são removidas, mantendo os backups. Um reinício do Klipper aplica isso.
   This replaces the printer's helper macros with the current version and restarts Klipper.: 'Isto substitui as macros de ajuda da impressora pela versão atual e reinicia o Klipper.'
@@ -3736,12 +3747,19 @@ translations:
   WiFi Disabled: WiFi Desativado
   WiFi Enabled: WiFi Ativado
   WiFi Network: Rede WiFi
+  WiFi Permission Denied: Permissão de WiFi negada
+  WiFi Service Not Running: O serviço WiFi não está em execução
   WiFi Unavailable: WiFi Indisponível
   WiFi and Ethernet configuration: Configuração de WiFi e Ethernet
   WiFi control unavailable: Controle WiFi indisponível
   WiFi hardware unavailable: Hardware WiFi indisponível
+  'WiFi initialization failed: {}': 'Falha ao inicializar o WiFi: {}'
   WiFi radio did not change state: O rádio WiFi não mudou de estado
+  WiFi scan failed. Try again.: A busca de WiFi falhou. Tente novamente.
   WiFi unavailable: WiFi indisponível
+  WiFi unavailable. Cannot connect to network.: WiFi indisponível. Não é possível conectar à rede.
+  WiFi unavailable. Cannot forget network.: WiFi indisponível. Não é possível esquecer a rede.
+  WiFi unavailable. Cannot scan for networks.: WiFi indisponível. Não é possível buscar redes.
   WiFi was configured but hardware is not available. Check system configuration.: O
     WiFi foi configurado mas o hardware não está disponível. Verifique a configuração
     do sistema.
@@ -3902,6 +3920,7 @@ translations:
   v%s available: v%s disponível
   v{} installed! Restarting...: v{} instalado! Reiniciando...
   v{} is available. Tap to update.: v{} disponível. Toque para atualizar.
+  wpa_supplicant is not running. WiFi features unavailable.: wpa_supplicant não está em execução. Os recursos de WiFi estão indisponíveis.
   you have: você tem
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · cerca de {} min'
   '{} Hardware Issues': '{} problemas de hardware'

@@ -705,7 +705,9 @@
   <translation tag="Could not check webcam status.&#10;Check printer connection." ja="ウェブカメラの状態を確認できませんでした。&#10;プリンター接続を確認してください。"/>
   <translation tag="Could not confirm cancel" ja="キャンセルを確認できませんでした"/>
   <translation tag="Could not copy {} from USB: {}" ja="{} を USB からコピーできませんでした: {}"/>
+  <translation tag="Could not disconnect from WiFi" ja="WiFi から切断できませんでした"/>
   <translation tag="Could not forget device" ja="デバイスの登録を解除できませんでした"/>
+  <translation tag="Could not initialize WiFi hardware. Check system configuration." ja="WiFi ハードウェアを初期化できませんでした。システム設定を確認してください。"/>
   <translation tag="Could not load printer database" ja="プリンターデータベースを読み込めませんでした"/>
   <translation tag="Could not move the plate" ja="ベッドを動かせませんでした"/>
   <translation tag="Could not parse tips database" ja="ヒントデータベースを解析できませんでした"/>
@@ -1036,7 +1038,10 @@
   <translation tag="Failed to build raster data" ja="ラスターデータの構築に失敗しました"/>
   <translation tag="Failed to cancel: {}" ja="キャンセルに失敗しました: {}"/>
   <translation tag="Failed to clear print state: {}" ja="印刷状態をクリアできませんでした: {}"/>
+  <translation tag="Failed to connect to &apos;{}&apos;" ja="&apos;{}&apos; に接続できませんでした"/>
+  <translation tag="Failed to connect to &apos;{}&apos;. Check password." ja="&apos;{}&apos; に接続できませんでした。パスワードを確認してください。"/>
   <translation tag="Failed to connect to &apos;{}&apos;: {}" ja="&apos;{}&apos; への接続に失敗しました: {}"/>
+  <translation tag="Failed to connect to WiFi network &apos;{}&apos;: {}" ja="WiFi ネットワーク &apos;{}&apos; に接続できませんでした: {}"/>
   <translation tag="Failed to connect: %s" ja="接続に失敗: %s"/>
   <translation tag="Failed to cool down: {}" ja="冷却に失敗しました: {}"/>
   <translation tag="Failed to create filament:" ja="フィラメントの作成に失敗:"/>
@@ -1045,14 +1050,17 @@
   <translation tag="Failed to delete file" ja="ファイルの削除に失敗しました"/>
   <translation tag="Failed to delete profile" ja="プロファイルの削除に失敗しました"/>
   <translation tag="Failed to delete spool" ja="スプールの削除に失敗しました"/>
+  <translation tag="Failed to disable WiFi: {}" ja="WiFi を無効にできませんでした: {}"/>
   <translation tag="Failed to discard recovery data: {}" ja="復旧データの破棄に失敗しました: {}"/>
   <translation tag="Failed to download G-code for modification: {}" ja="G-code の変更用ダウンロードに失敗しました: {}"/>
   <translation tag="Failed to download G-code for remap: {}" ja="リマップ用のG-codeのダウンロードに失敗しました: {}"/>
   <translation tag="Failed to download helixscreen.conf.&#10;Check printer connection." ja="helixscreen.confのダウンロードに失敗しました。&#10;プリンター接続を確認してください。"/>
   <translation tag="Failed to download moonraker.conf.&#10;Check printer connection." ja="moonraker.confのダウンロードに失敗しました。&#10;プリンター接続を確認してください。"/>
   <translation tag="Failed to duplicate spool" ja="スプールの複製に失敗しました"/>
+  <translation tag="Failed to enable WiFi: {}" ja="WiFi を有効にできませんでした: {}"/>
   <translation tag="Failed to enable tuning tower" ja="チューニングタワーの有効化に失敗しました"/>
   <translation tag="Failed to exclude &apos;{}&apos;: {}" ja="&apos;{}&apos; の除外に失敗しました: {}"/>
+  <translation tag="Failed to forget WiFi network &apos;{}&apos;" ja="WiFi ネットワーク &apos;{}&apos; を削除できませんでした"/>
   <translation tag="Failed to get limits" ja="制限の取得に失敗しました"/>
   <translation tag="Failed to initialize Bluetooth" ja="Bluetooth の初期化に失敗しました"/>
   <translation tag="Failed to initialize Bluetooth context" ja="Bluetooth コンテキストの初期化に失敗しました"/>
@@ -1090,6 +1098,7 @@
   <translation tag="Failed to restart: {}" ja="再起動に失敗しました: {}"/>
   <translation tag="Failed to resume: {}" ja="再開に失敗しました: {}"/>
   <translation tag="Failed to save LED configuration" ja="LED設定の保存に失敗しました"/>
+  <translation tag="Failed to save WiFi network" ja="WiFi ネットワークを保存できませんでした"/>
   <translation tag="Failed to save config." ja="設定の保存に失敗しました。"/>
   <translation tag="Failed to save configuration" ja="設定の保存に失敗しました"/>
   <translation tag="Failed to save fan configuration" ja="ファン設定の保存に失敗しました"/>
@@ -3041,6 +3050,8 @@
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." ja="このプリンターのゲートは Spoolman から設定されます。HelixScreen 側のコピーはクリアしました。Spoolman でスプールを削除してください。"/>
   <translation tag="This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman." ja="このプリンターのゲートは Spoolman から設定されます。色・素材・スプールの変更は Spoolman で行ってください。"/>
   <translation tag="This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets." ja="このプリンターは {} のようです（信頼度 {}%）が、{} として設定されています。誤ったタイプでは不正確な印刷前オプションとプリセットが適用されます。"/>
+  <translation tag="This printer&apos;s network service controls the WiFi radio" ja="このプリンターのネットワークサービスが WiFi 無線を制御しています"/>
+  <translation tag="This printer&apos;s network service manages saved WiFi networks" ja="このプリンターのネットワークサービスが保存済みの WiFi ネットワークを管理しています"/>
   <translation tag="This removes the plugin&apos;s Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that." ja="プラグインの Moonraker コンポーネントを削除し、Moonraker を再起動します。プリンターは一時的に切断されます。PRINT_START に古いフェーズトラッキングの行が残っている場合、それらも削除されますが、バックアップは保持されます。Klipper を再起動すると、その変更が適用されます。"/>
   <translation tag="This replaces the printer&apos;s helper macros with the current version and restarts Klipper." ja="プリンターのヘルパーマクロを現在のバージョンに置き換え、Klipper を再起動します。"/>
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." ja="プリンターのヘルパーマクロを現在のバージョンに置き換えます。印刷中のため、Klipper は印刷完了後に再起動されます。"/>
@@ -3320,12 +3331,19 @@
   <translation tag="WiFi Disabled" ja="WiFi 無効"/>
   <translation tag="WiFi Enabled" ja="WiFi 有効"/>
   <translation tag="WiFi Network" ja="WiFi ネットワーク"/>
+  <translation tag="WiFi Permission Denied" ja="WiFi の権限がありません"/>
+  <translation tag="WiFi Service Not Running" ja="WiFi サービスが動作していません"/>
   <translation tag="WiFi Unavailable" ja="WiFi を利用できません"/>
   <translation tag="WiFi and Ethernet configuration" ja="WiFi とイーサネットの設定"/>
   <translation tag="WiFi control unavailable" ja="WiFi 制御は利用できません"/>
   <translation tag="WiFi hardware unavailable" ja="WiFi ハードウェアが利用できません"/>
+  <translation tag="WiFi initialization failed: {}" ja="WiFi の初期化に失敗しました: {}"/>
   <translation tag="WiFi radio did not change state" ja="WiFiの状態が変わりませんでした"/>
+  <translation tag="WiFi scan failed. Try again." ja="WiFi のスキャンに失敗しました。もう一度お試しください。"/>
   <translation tag="WiFi unavailable" ja="WiFi が利用できません"/>
+  <translation tag="WiFi unavailable. Cannot connect to network." ja="WiFi を利用できません。ネットワークに接続できません。"/>
+  <translation tag="WiFi unavailable. Cannot forget network." ja="WiFi を利用できません。ネットワークを削除できません。"/>
+  <translation tag="WiFi unavailable. Cannot scan for networks." ja="WiFi を利用できません。ネットワークをスキャンできません。"/>
   <translation tag="WiFi was configured but hardware is not available. Check system configuration." ja="WiFi は設定されていますが、ハードウェアが利用できません。システム設定を確認してください。"/>
   <translation tag="Widget Labels" ja="ウィジェットラベル"/>
   <translation tag="Width" ja="幅"/>
@@ -3471,6 +3489,7 @@
   <translation tag="v%s available" ja="v%s が利用可能です"/>
   <translation tag="v{} installed! Restarting..." ja="v{} をインストールしました！再起動中..."/>
   <translation tag="v{} is available. Tap to update." ja="v{} が利用可能です。タップして更新してください。"/>
+  <translation tag="wpa_supplicant is not running. WiFi features unavailable." ja="wpa_supplicant が動作していません。WiFi 機能は利用できません。"/>
   <translation tag="you have" ja="現在は"/>
   <translation tag="{:.0f}-{:.0f} Hz · about {} min" ja="{:.0f}-{:.0f} Hz · 約{}分"/>
   <translation tag="{} Hardware Issues" ja="ハードウェアの問題 {} 件"/>

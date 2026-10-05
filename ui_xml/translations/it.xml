@@ -705,7 +705,9 @@
   <translation tag="Could not check webcam status.&#10;Check printer connection." it="Impossibile verificare stato webcam.&#10;Controllare la connessione della stampante."/>
   <translation tag="Could not confirm cancel" it="Impossibile confermare l&apos;annullamento"/>
   <translation tag="Could not copy {} from USB: {}" it="Impossibile copiare {} da USB: {}"/>
+  <translation tag="Could not disconnect from WiFi" it="Impossibile disconnettersi dal WiFi"/>
   <translation tag="Could not forget device" it="Impossibile dimenticare il dispositivo"/>
+  <translation tag="Could not initialize WiFi hardware. Check system configuration." it="Impossibile inizializzare l&apos;hardware WiFi. Controlla la configurazione di sistema."/>
   <translation tag="Could not load printer database" it="Impossibile caricare il database della stampante"/>
   <translation tag="Could not move the plate" it="Impossibile spostare il piano"/>
   <translation tag="Could not parse tips database" it="Impossibile analizzare il database dei suggerimenti"/>
@@ -1036,7 +1038,10 @@
   <translation tag="Failed to build raster data" it="Costruzione dei dati raster non riuscita"/>
   <translation tag="Failed to cancel: {}" it="Impossibile annullare: {}"/>
   <translation tag="Failed to clear print state: {}" it="Impossibile cancellare lo stato di stampa: {}"/>
+  <translation tag="Failed to connect to &apos;{}&apos;" it="Connessione a &apos;{}&apos; non riuscita"/>
+  <translation tag="Failed to connect to &apos;{}&apos;. Check password." it="Connessione a &apos;{}&apos; non riuscita. Controlla la password."/>
   <translation tag="Failed to connect to &apos;{}&apos;: {}" it="Impossibile connettersi a &apos;{}&apos;: {}"/>
+  <translation tag="Failed to connect to WiFi network &apos;{}&apos;: {}" it="Connessione alla rete WiFi &apos;{}&apos; non riuscita: {}"/>
   <translation tag="Failed to connect: %s" it="Connessione fallita: %s"/>
   <translation tag="Failed to cool down: {}" it="Impossibile raffreddare: {}"/>
   <translation tag="Failed to create filament:" it="Creazione del filamento non riuscita:"/>
@@ -1045,14 +1050,17 @@
   <translation tag="Failed to delete file" it="Impossibile eliminare il file"/>
   <translation tag="Failed to delete profile" it="Impossibile eliminare il profilo"/>
   <translation tag="Failed to delete spool" it="Eliminazione bobina fallita"/>
+  <translation tag="Failed to disable WiFi: {}" it="Impossibile disattivare il WiFi: {}"/>
   <translation tag="Failed to discard recovery data: {}" it="Impossibile scartare i dati di recupero: {}"/>
   <translation tag="Failed to download G-code for modification: {}" it="Impossibile scaricare G-code per modifica: {}"/>
   <translation tag="Failed to download G-code for remap: {}" it="Impossibile scaricare G-code per rimappatura: {}"/>
   <translation tag="Failed to download helixscreen.conf.&#10;Check printer connection." it="Download helixscreen.conf fallito.&#10;Controllare la connessione della stampante."/>
   <translation tag="Failed to download moonraker.conf.&#10;Check printer connection." it="Download moonraker.conf fallito.&#10;Controllare la connessione della stampante."/>
   <translation tag="Failed to duplicate spool" it="Duplicazione bobina fallita"/>
+  <translation tag="Failed to enable WiFi: {}" it="Impossibile attivare il WiFi: {}"/>
   <translation tag="Failed to enable tuning tower" it="Abilitazione torre di regolazione fallita"/>
   <translation tag="Failed to exclude &apos;{}&apos;: {}" it="Impossibile escludere &apos;{}&apos;: {}"/>
+  <translation tag="Failed to forget WiFi network &apos;{}&apos;" it="Impossibile dimenticare la rete WiFi &apos;{}&apos;"/>
   <translation tag="Failed to get limits" it="Recupero limiti fallito"/>
   <translation tag="Failed to initialize Bluetooth" it="Inizializzazione Bluetooth fallita"/>
   <translation tag="Failed to initialize Bluetooth context" it="Inizializzazione del contesto Bluetooth fallita"/>
@@ -1090,6 +1098,7 @@
   <translation tag="Failed to restart: {}" it="Riavvio non riuscito: {}"/>
   <translation tag="Failed to resume: {}" it="Impossibile riprendere: {}"/>
   <translation tag="Failed to save LED configuration" it="Impossibile salvare configurazione LED"/>
+  <translation tag="Failed to save WiFi network" it="Impossibile salvare la rete WiFi"/>
   <translation tag="Failed to save config." it="Salvataggio configurazione fallito."/>
   <translation tag="Failed to save configuration" it="Salvataggio configurazione fallito"/>
   <translation tag="Failed to save fan configuration" it="Impossibile salvare configurazione ventola"/>
@@ -3041,6 +3050,8 @@
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." it="Questa stampante riempie i suoi gate da Spoolman. HelixScreen ha svuotato la propria copia; rimuovi la bobina in Spoolman."/>
   <translation tag="This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman." it="Questa stampante riempie i suoi gate da Spoolman. Modifica colore, materiale e bobina in Spoolman."/>
   <translation tag="This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets." it="Questa stampante sembra una {} (affidabilità {}%), ma è configurata come {}. Un tipo errato applica opzioni pre-stampa e preset errati."/>
+  <translation tag="This printer&apos;s network service controls the WiFi radio" it="Il servizio di rete di questa stampante controlla la radio WiFi"/>
+  <translation tag="This printer&apos;s network service manages saved WiFi networks" it="Il servizio di rete di questa stampante gestisce le reti WiFi salvate"/>
   <translation tag="This removes the plugin&apos;s Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that." it="Questo rimuove il componente Moonraker del plugin e riavvia Moonraker. La stampante si disconnetterà brevemente. Se sono ancora presenti vecchie righe di tracciamento delle fasi in PRINT_START, vengono rimosse anch&apos;esse, mantenendo i backup. Un riavvio di Klipper applica ciò."/>
   <translation tag="This replaces the printer&apos;s helper macros with the current version and restarts Klipper." it="Sostituisce le macro di ausilio della stampante con la versione attuale e riavvia Klipper."/>
   <translation tag="This replaces the printer&apos;s helper macros with the current version. A print is running, so Klipper restarts after it finishes." it="Sostituisce le macro di ausilio della stampante con la versione attuale. Una stampa è in corso, quindi Klipper verrà riavviato al termine."/>
@@ -3320,12 +3331,19 @@
   <translation tag="WiFi Disabled" it="WiFi disabilitato"/>
   <translation tag="WiFi Enabled" it="WiFi abilitato"/>
   <translation tag="WiFi Network" it="Rete WiFi"/>
+  <translation tag="WiFi Permission Denied" it="Permesso WiFi negato"/>
+  <translation tag="WiFi Service Not Running" it="Il servizio WiFi non è in esecuzione"/>
   <translation tag="WiFi Unavailable" it="WiFi non disponibile"/>
   <translation tag="WiFi and Ethernet configuration" it="Configurazione WiFi ed Ethernet"/>
   <translation tag="WiFi control unavailable" it="Controllo WiFi non disponibile"/>
   <translation tag="WiFi hardware unavailable" it="Hardware WiFi non disponibile"/>
+  <translation tag="WiFi initialization failed: {}" it="Inizializzazione WiFi non riuscita: {}"/>
   <translation tag="WiFi radio did not change state" it="Il modulo WiFi non ha cambiato stato"/>
+  <translation tag="WiFi scan failed. Try again." it="Ricerca WiFi non riuscita. Riprova."/>
   <translation tag="WiFi unavailable" it="WiFi non disponibile"/>
+  <translation tag="WiFi unavailable. Cannot connect to network." it="WiFi non disponibile. Impossibile connettersi alla rete."/>
+  <translation tag="WiFi unavailable. Cannot forget network." it="WiFi non disponibile. Impossibile dimenticare la rete."/>
+  <translation tag="WiFi unavailable. Cannot scan for networks." it="WiFi non disponibile. Impossibile cercare reti."/>
   <translation tag="WiFi was configured but hardware is not available. Check system configuration." it="Il WiFi è stato configurato ma l&apos;hardware non è disponibile. Controlla la configurazione del sistema."/>
   <translation tag="Widget Labels" it="Etichette widget"/>
   <translation tag="Width" it="Larghezza"/>
@@ -3471,6 +3489,7 @@
   <translation tag="v%s available" it="v%s disponibile"/>
   <translation tag="v{} installed! Restarting..." it="v{} installata! Riavvio in corso..."/>
   <translation tag="v{} is available. Tap to update." it="v{} disponibile. Tocca per aggiornare."/>
+  <translation tag="wpa_supplicant is not running. WiFi features unavailable." it="wpa_supplicant non è in esecuzione. Le funzioni WiFi non sono disponibili."/>
   <translation tag="you have" it="hai"/>
   <translation tag="{:.0f}-{:.0f} Hz · about {} min" it="{:.0f}-{:.0f} Hz · circa {} min"/>
   <translation tag="{} Hardware Issues" it="{} problemi hardware"/>

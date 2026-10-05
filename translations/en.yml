@@ -763,7 +763,9 @@ translations:
   : "Could not check webcam status.\nCheck printer connection."
   Could not confirm cancel: Could not confirm cancel
   'Could not copy {} from USB: {}': 'Could not copy {} from USB: {}'
+  Could not disconnect from WiFi: Could not disconnect from WiFi
   Could not forget device: Could not forget device
+  Could not initialize WiFi hardware. Check system configuration.: Could not initialize WiFi hardware. Check system configuration.
   Could not load printer database: Could not load printer database
   Could not move the plate: Could not move the plate
   Could not parse tips database: Could not parse tips database
@@ -1107,7 +1109,10 @@ translations:
   Failed to build raster data: Failed to build raster data
   'Failed to cancel: {}': 'Failed to cancel: {}'
   'Failed to clear print state: {}': 'Failed to clear print state: {}'
+  Failed to connect to '{}': Failed to connect to '{}'
+  Failed to connect to '{}'. Check password.: Failed to connect to '{}'. Check password.
   'Failed to connect to ''{}'': {}': 'Failed to connect to ''{}'': {}'
+  "Failed to connect to WiFi network '{}': {}": "Failed to connect to WiFi network '{}': {}"
   'Failed to connect: %s': 'Failed to connect: %s'
   'Failed to cool down: {}': 'Failed to cool down: {}'
   'Failed to create filament:': 'Failed to create filament:'
@@ -1116,6 +1121,7 @@ translations:
   Failed to delete file: Failed to delete file
   Failed to delete profile: Failed to delete profile
   Failed to delete spool: Failed to delete spool
+  'Failed to disable WiFi: {}': 'Failed to disable WiFi: {}'
   'Failed to discard recovery data: {}': 'Failed to discard recovery data: {}'
   'Failed to download G-code for modification: {}': 'Failed to download G-code for
     modification: {}'
@@ -1126,8 +1132,10 @@ translations:
   ? "Failed to download moonraker.conf.\nCheck printer connection."
   : "Failed to download moonraker.conf.\nCheck printer connection."
   Failed to duplicate spool: Failed to duplicate spool
+  'Failed to enable WiFi: {}': 'Failed to enable WiFi: {}'
   Failed to enable tuning tower: Failed to enable tuning tower
   'Failed to exclude ''{}'': {}': 'Failed to exclude ''{}'': {}'
+  Failed to forget WiFi network '{}': Failed to forget WiFi network '{}'
   Failed to get limits: Failed to get limits
   Failed to initialize Bluetooth: Failed to initialize Bluetooth
   Failed to initialize Bluetooth context: Failed to initialize Bluetooth context
@@ -1166,6 +1174,7 @@ translations:
   'Failed to restart: {}': 'Failed to restart: {}'
   'Failed to resume: {}': 'Failed to resume: {}'
   Failed to save LED configuration: Failed to save LED configuration
+  Failed to save WiFi network: Failed to save WiFi network
   Failed to save config.: Failed to save config.
   Failed to save configuration: Failed to save configuration
   Failed to save fan configuration: Failed to save fan configuration
@@ -3307,6 +3316,8 @@ translations:
   This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman.: This printer fills its gates from Spoolman. Make colour, material and spool changes in Spoolman.
   ? This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets.
   : This printer looks like a {} ({}% confidence), but it is set up as a {}. A wrong type applies incorrect pre-print options and presets.
+  This printer's network service controls the WiFi radio: This printer's network service controls the WiFi radio
+  This printer's network service manages saved WiFi networks: This printer's network service manages saved WiFi networks
   ? This removes the plugin's Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that.
   : This removes the plugin's Moonraker component and restarts Moonraker. The printer will briefly disconnect. If old phase-tracking lines are still in PRINT_START, they are removed too, with backups kept. A Klipper restart applies that.
   This replaces the printer's helper macros with the current version and restarts Klipper.: This replaces the printer's helper macros with the current version and restarts Klipper.
@@ -3620,12 +3631,19 @@ translations:
   WiFi Disabled: WiFi Disabled
   WiFi Enabled: WiFi Enabled
   WiFi Network: WiFi Network
+  WiFi Permission Denied: WiFi Permission Denied
+  WiFi Service Not Running: WiFi Service Not Running
   WiFi Unavailable: WiFi Unavailable
   WiFi and Ethernet configuration: WiFi and Ethernet configuration
   WiFi control unavailable: WiFi control unavailable
   WiFi hardware unavailable: WiFi hardware unavailable
+  'WiFi initialization failed: {}': 'WiFi initialization failed: {}'
   WiFi radio did not change state: WiFi radio did not change state
+  WiFi scan failed. Try again.: WiFi scan failed. Try again.
   WiFi unavailable: WiFi unavailable
+  WiFi unavailable. Cannot connect to network.: WiFi unavailable. Cannot connect to network.
+  WiFi unavailable. Cannot forget network.: WiFi unavailable. Cannot forget network.
+  WiFi unavailable. Cannot scan for networks.: WiFi unavailable. Cannot scan for networks.
   WiFi was configured but hardware is not available. Check system configuration.: WiFi
     was configured but hardware is not available. Check system configuration.
   Widget Labels: Widget Labels
@@ -3779,6 +3797,7 @@ translations:
   v%s available: v%s available
   v{} installed! Restarting...: v{} installed! Restarting...
   v{} is available. Tap to update.: v{} is available. Tap to update.
+  wpa_supplicant is not running. WiFi features unavailable.: wpa_supplicant is not running. WiFi features unavailable.
   you have: you have
   '{:.0f}-{:.0f} Hz · about {} min': '{:.0f}-{:.0f} Hz · about {} min'
   '{} Hardware Issues': '{} Hardware Issues'
