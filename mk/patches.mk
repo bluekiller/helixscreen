@@ -574,6 +574,7 @@ $(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl-sw-draw-wait-for-finish.patch "LVGL SW draw wait_for_finish + NULL guard patch (#739)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl-image-cache-oversize-uncached.patch "LVGL oversize-image uncached-draw patch (image larger than the cache draws instead of vanishing)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_lodepng_variable_sniff_guard.patch "LVGL lodepng variable-source sniff guard (#1673)"
+	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_lodepng_inflate_slack.patch "LVGL lodepng inflate slack patch (no 1.5x realloc at the end of a PNG decode)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_crash_hook.patch "LVGL event crash-diagnostic hook patch"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_mark_deleted_defensive.patch "LVGL lv_event_mark_deleted defensive bail patch"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_pop_unwind_safe.patch "LVGL event-pop unwind-safe patch (RPHAV9T7 / L081 root cause)"
