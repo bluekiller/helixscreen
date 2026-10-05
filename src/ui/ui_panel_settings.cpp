@@ -378,12 +378,6 @@ void SettingsPanel::render_connection_status() {
                                .c_str());
 }
 
-void SettingsPanel::populate_led_chips() {
-    // LED chip selection has been moved to LedSettingsOverlay.
-    // This method is kept as a no-op stub for callers that haven't been updated yet.
-    spdlog::trace("[{}] populate_led_chips() is now handled by LedSettingsOverlay", get_name());
-}
-
 // ============================================================================
 // EVENT HANDLERS
 // ============================================================================

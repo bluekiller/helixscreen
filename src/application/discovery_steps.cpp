@@ -9,7 +9,6 @@
 
 #include "ui_panel_calibration_zoffset.h"
 #include "ui_panel_filament.h"
-#include "ui_panel_settings.h"
 #include "ui_settings_about.h"
 #include "ui_update_queue.h"
 #include "ui_wizard.h"
@@ -124,13 +123,6 @@ void software_versions_step(DiscoveryContext& ctx) {
     if (!ctx.hw.os_version().empty()) {
         get_printer_state().set_os_version(ctx.hw.os_version());
     }
-}
-
-// LED chip topology doesn't change reconnect-to-reconnect unless the hardware shape
-// changed, and populate_led_chips fires LED capability subjects that cascade into panel
-// rebuilds.
-void led_chips_step(DiscoveryContext&) {
-    get_global_settings_panel().populate_led_chips();
 }
 
 // Fetch print hours now that connection is live, and refresh on job changes.
@@ -320,7 +312,6 @@ constexpr DiscoveryStep kSteps[] = {
     {"temp_graph_seed", false, temp_graph_seed_step, nullptr},
     {"status_dispatch", false, status_dispatch_step, "post_status_dispatch"},
     {"software_versions", false, software_versions_step, nullptr},
-    {"led_chips", true, led_chips_step, "post_led_chips"},
     {"about_print_hours", false, about_print_hours_step, nullptr},
     {"timelapse_events", false, timelapse_events_step, nullptr},
     {"power_sensor_subscribe", false, power_sensor_subscribe_step, "post_subscribe"},

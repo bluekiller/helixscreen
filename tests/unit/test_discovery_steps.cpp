@@ -96,7 +96,6 @@ TEST_CASE("the discovery steps run in this order", "[discovery_steps]") {
         "temp_graph_seed",
         "status_dispatch",
         "software_versions",
-        "led_chips",
         "about_print_hours",
         "timelapse_events",
         "power_sensor_subscribe",
@@ -127,8 +126,7 @@ TEST_CASE("only the steps that are pure functions of the hardware shape are gate
             gated.emplace_back(step.name);
         }
     }
-    CHECK(gated ==
-          std::vector<std::string>{"led_chips", "auto_detect_printer", "heal_heater_roles"});
+    CHECK(gated == std::vector<std::string>{"auto_detect_printer", "heal_heater_roles"});
 }
 
 TEST_CASE("the discovery breadcrumbs keep their keys", "[discovery_steps]") {
@@ -140,8 +138,8 @@ TEST_CASE("the discovery breadcrumbs keep their keys", "[discovery_steps]") {
     }
     // The in-step crumbs (pre_set_hw, post_set_hw, post_init_fans) are recorded by
     // set_hardware itself; these are the table's.
-    CHECK(crumbs == std::vector<std::string>{"post_status_dispatch", "post_led_chips",
-                                             "post_subscribe", "post_validate", "post_telemetry"});
+    CHECK(crumbs == std::vector<std::string>{"post_status_dispatch", "post_subscribe",
+                                             "post_validate", "post_telemetry"});
 }
 
 TEST_CASE_METHOD(StepFixture, "a changed hardware shape runs every step", "[discovery_steps]") {

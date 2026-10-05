@@ -198,13 +198,6 @@ class SettingsPanel : public PanelBase {
     /// Shown after any "requires restart" setting changes.
     void show_restart_prompt();
 
-    /**
-     * @brief Populate LED chips from discovered hardware
-     *
-     * Called after discovery completes. Creates chips for each discovered LED.
-     */
-    void populate_led_chips();
-
   private:
     //
     // === Event Handlers ===
