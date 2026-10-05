@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
 #include "lvgl.h"
 #include "probe_sensor_types.h"
 #include "subject_managed_panel.h"
@@ -74,6 +75,17 @@ class ProbeSensorManager {
 
     /// @brief Update state from Moonraker status JSON
     void update_from_status(const nlohmann::json& status);
+
+    /**
+     * @brief Status subscription for every probe object in an objects list
+     *
+     * Maps each probe probes_in() keeps to the fields
+     * update_from_status() reads. Mainline Klipper publishes last_z_result but
+     * not z_offset; Moonraker answers the missing field with null, which the
+     * parser skips, so the config-seeded offset survives.
+     */
+    [[nodiscard]] static nlohmann::json
+    required_status_objects(const std::vector<std::string>& klipper_objects);
 
     /// @brief Seed initial state from Klipper configfile (e.g., z_offset from [probe])
     void discover_from_config(const nlohmann::json& config_keys);
@@ -249,8 +261,13 @@ class ProbeSensorManager {
      * @param[out] type Detected sensor type
      * @return true if successfully parsed as probe sensor
      */
-    bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
-                            ProbeSensorType& type) const;
+    /// Probe configs for an objects list, one per physical probe: alias objects
+    /// ([probe], a Cartographer/Beacon probe_eddy_current companion) are dropped.
+    static std::vector<ProbeSensorConfig>
+    probes_in(const std::vector<std::string>& klipper_objects);
+
+    static bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
+                                   ProbeSensorType& type);
 
     /**
      * @brief Find config by Klipper name
@@ -286,6 +303,8 @@ class ProbeSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t probe_triggered_{};
     lv_subject_t probe_last_z_{};
     lv_subject_t probe_z_offset_{};

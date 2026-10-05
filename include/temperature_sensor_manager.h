@@ -59,7 +59,7 @@ class TemperatureSensorManager {
      *
      * Wraps an lv_subject_t with lifecycle management. These are NOT registered
      * with the XML system since they are created dynamically per-sensor.
-     * Values stored as decidegrees (temperature * 100).
+     * Values stored as decidegrees (temperature * 10).
      */
     struct DynamicIntSubject {
         lv_subject_t subject{};

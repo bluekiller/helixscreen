@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
 #include "humidity_sensor_types.h"
 #include "lvgl.h"
 #include "subject_managed_panel.h"
@@ -270,6 +271,8 @@ class HumiditySensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t chamber_humidity_{};
     lv_subject_t chamber_pressure_{};
     lv_subject_t dryer_humidity_{};

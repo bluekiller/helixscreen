@@ -26,9 +26,9 @@
 
 // CRITICAL: Subject updates trigger lv_obj_invalidate() which asserts if called
 // during LVGL rendering. WebSocket callbacks run on libhv's event loop thread,
-// not the main LVGL thread. We must defer subject updates to the main thread
-// via ui_queue_update() to avoid the "Invalidate area not allowed during rendering"
-// assertion.
+// not the main LVGL thread. Subject updates are deferred to the main thread
+// through lifetime_.token().defer() to avoid the "Invalidate area not allowed
+// during rendering" assertion, and dropped once deinit_subjects() runs.
 
 namespace helix {
 
@@ -121,7 +121,7 @@ void FilamentSensorManager::init_subjects() {
 
     // Initialize all subjects with SubjectManager for automatic cleanup
     // Role-state encoding (filament_runout_detected, filament_toolhead_detected,
-    // filament_entry_detected, probe_triggered):
+    // filament_entry_detected, filament_probe_triggered):
     //   -1 = no sensor configured for this role (hide indicator entirely)
     //    0 = sensor enabled, no filament / not triggered (empty/red)
     //    1 = sensor enabled, filament present / triggered (loaded/green)
@@ -130,13 +130,13 @@ void FilamentSensorManager::init_subjects() {
     //        runout protection is inactive instead of mistaking a hidden
     //        indicator for "everything is fine".
     UI_MANAGED_SUBJECT_INT(runout_detected_, -1, "filament_runout_detected", subjects_);
-    // Print-scoped runout (FIX B): same encoding as filament_runout_detected but
+    // Print-scoped runout: same encoding as filament_runout_detected but
     // considers only the active print's used tools (lane truth). Driven by
     // PrintStatusPanel via set_scoped_runout(); the in-print badge binds this.
     UI_MANAGED_SUBJECT_INT(scoped_runout_, -1, "filament_runout_scoped", subjects_);
     UI_MANAGED_SUBJECT_INT(toolhead_detected_, -1, "filament_toolhead_detected", subjects_);
     UI_MANAGED_SUBJECT_INT(entry_detected_, -1, "filament_entry_detected", subjects_);
-    UI_MANAGED_SUBJECT_INT(probe_triggered_, -1, "probe_triggered", subjects_);
+    UI_MANAGED_SUBJECT_INT(probe_triggered_, -1, "filament_probe_triggered", subjects_);
     UI_MANAGED_SUBJECT_INT(any_runout_, 0, "filament_any_runout", subjects_);
     UI_MANAGED_SUBJECT_INT(motion_active_, 0, "filament_motion_active", subjects_);
     UI_MANAGED_SUBJECT_INT(master_enabled_subject_, master_enabled_ ? 1 : 0,
@@ -156,6 +156,8 @@ void FilamentSensorManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
+
+    lifetime_.invalidate();
 
     spdlog::trace("[FilamentSensorManager] Deinitializing subjects");
 
@@ -760,11 +762,8 @@ namespace {
 // otherwise the backend's own firmware default map.
 //
 // @p routing must be the SAME map PrintSelectDetailView::get_effective_remap()
-// filtered against, or the lanes scanned here are not the lanes routed to. That
-// used to be a shared four-head constant, which was right for a U1 and wrong for
-// every lane-per-tool AMS - and the error was masked, because the filter's
-// matching mistake kept an entry in @p remap that sent this lookup to the right
-// lane anyway. Correcting one without the other silently scans lane 0.
+// filtered against, or the lanes scanned here are not the lanes routed to: a
+// mismatch silently scans lane 0.
 int slot_for_tool(int tool, const std::map<int, int>& remap,
                   const helix::FirmwareRouting& routing) {
     auto it = remap.find(tool);
@@ -1051,10 +1050,8 @@ void FilamentSensorManager::update_from_status(const json& status) {
             // Build the Klipper object key (e.g., "filament_switch_sensor fsensor")
             std::string key = sensor.klipper_name;
 
-            // Check if this sensor has an update
-            // Moonraker sends updates with the full object name as key
+            // Moonraker keys status by the full object name
             if (!status.contains(key)) {
-                // Also try without the prefix for older Moonraker versions
                 continue;
             }
 
@@ -1293,7 +1290,7 @@ void FilamentSensorManager::update_from_status(const json& status) {
 
         // Always update subjects on first status (initial_status_received_ handles this)
         // and on any state change. Without this, subjects stay at -1 ("no sensor")
-        // when the initial Moonraker status matches the default state (filament_detected=false).
+        // when the initial Moonraker status matches the default state (filament_detected=true).
         bool need_subject_update = any_changed || !initial_status_received_;
         initial_status_received_ = true;
 
@@ -1303,11 +1300,9 @@ void FilamentSensorManager::update_from_status(const json& status) {
                 spdlog::info("[FilamentSensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                // Defer subject updates to main LVGL thread via helix::ui::queue_update()
-                // This avoids the "Invalidate area not allowed during rendering" assertion
-                // and provides exception safety (try-catch wrapping)
-                spdlog::debug("[FilamentSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("FilamentSensorManager::update_subjects", [] {
+                // Deferred to the main LVGL thread; dropped after deinit_subjects().
+                spdlog::debug("[FilamentSensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("FilamentSensorManager::update_subjects", [] {
                     FilamentSensorManager::instance().update_subjects_on_main_thread();
                 });
             }
@@ -1565,7 +1560,7 @@ void FilamentSensorManager::set_sync_mode(bool enabled) {
 }
 
 void FilamentSensorManager::update_subjects_on_main_thread() {
-    // Called from a queue_update callback on the main LVGL thread
+    // Called from the deferred update on the main LVGL thread
     // It's safe to update subjects here without causing render-phase assertions
     update_subjects();
 }

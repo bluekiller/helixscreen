@@ -14,7 +14,9 @@
  * - Config persistence
  */
 
+#include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
+#include "config.h"
 #include "probe_sensor_manager.h"
 #include "probe_sensor_types.h"
 
@@ -633,22 +635,17 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - discovery of new 
     }
 
     SECTION("Cartographer with eddy current deduplicates to single sensor") {
-        // When both cartographer and probe_eddy_current are present,
-        // the eddy current gets upgraded - we should not double-count
-        std::vector<std::string> objects = {"probe_eddy_current carto", "cartographer"};
+        std::vector<std::string> objects = {"probe_eddy_current carto", "cartographer", "probe"};
         mgr().discover(objects);
-        auto configs = mgr().get_sensors();
-        // Both are discovered but eddy current is upgraded to CARTOGRAPHER
-        REQUIRE(mgr().sensor_count() == 2);
-        // The eddy current entry should be upgraded
-        bool eddy_upgraded = false;
-        for (const auto& c : configs) {
-            if (c.klipper_name == "probe_eddy_current carto") {
-                REQUIRE(c.type == ProbeSensorType::CARTOGRAPHER);
-                eddy_upgraded = true;
-            }
-        }
-        REQUIRE(eddy_upgraded);
+        REQUIRE(mgr().sensor_count() == 1);
+        REQUIRE(mgr().get_sensors()[0].klipper_name == "cartographer");
+    }
+
+    SECTION("Beacon with eddy current deduplicates to single sensor") {
+        std::vector<std::string> objects = {"beacon", "probe_eddy_current beacon_probe", "probe"};
+        mgr().discover(objects);
+        REQUIRE(mgr().sensor_count() == 1);
+        REQUIRE(mgr().get_sensors()[0].klipper_name == "beacon");
     }
 }
 
@@ -806,4 +803,72 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - discover_from_con
         auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
         REQUIRE(state->z_offset == Catch::Approx(-0.25f));
     }
+}
+
+// A deferral queued before deinit_subjects() must not land on the subjects a
+// later init_subjects() creates.
+TEST_CASE_METHOD(ProbeSensorTestFixture,
+                 "ProbeSensorManager - deferred update dropped after deinit", "[probe][lifetime]") {
+    discover_test_sensors();
+    mgr().set_sensor_role("bltouch", ProbeSensorRole::Z_PROBE);
+    mgr().set_sync_mode(false);
+
+    update_sensor_state("bltouch", 0.25f, -1.5f);
+    mgr().deinit_subjects();
+    mgr().init_subjects();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == -1);
+
+    update_sensor_state("bltouch", 0.5f, -1.5f);
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 500);
+    mgr().set_sync_mode(true);
+}
+
+// Klipper registers a [probe] alias, and Cartographer/Beacon a probe_eddy_current
+// companion, beside the specific probe object. The pair is one probe, so a fresh
+// install gets Z_PROBE without anyone picking it.
+TEST_CASE_METHOD(ProbeSensorTestFixture,
+                 "ProbeSensorManager - alias objects still auto-assign Z_PROBE", "[probe][roles]") {
+    Config::get_instance()->get_json(Config::get_instance()->df() + "probe_sensors") =
+        nlohmann::json::object();
+
+    SECTION("bltouch plus its probe alias") {
+        mgr().discover({"bltouch", "probe"});
+        mgr().load_config_from_file();
+        REQUIRE(mgr().get_sensors()[0].klipper_name == "bltouch");
+        update_sensor_state("bltouch", 0.1f, -1.85f);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -1850);
+    }
+
+    SECTION("cartographer plus its eddy companion and probe alias") {
+        mgr().discover({"probe", "probe_eddy_current carto", "cartographer"});
+        mgr().load_config_from_file();
+        update_sensor_state("cartographer", -0.4f, 0.0f);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == -400);
+    }
+
+    SECTION("plain probe alone") {
+        mgr().discover({"probe"});
+        mgr().load_config_from_file();
+        update_sensor_state("probe", 0.0f, -0.25f);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -250);
+    }
+
+    SECTION("a saved explicit role still wins") {
+        Config::get_instance()->get_json(Config::get_instance()->df() + "probe_sensors") =
+            nlohmann::json{{"sensors", nlohmann::json::array({{{"klipper_name", "smart_effector"},
+                                                               {"role", "z_probe"}}})}};
+        mgr().discover({"bltouch", "smart_effector", "probe"});
+        mgr().load_config_from_file();
+        auto configs = mgr().get_sensors();
+        REQUIRE(configs.size() == 2);
+        for (const auto& c : configs) {
+            CAPTURE(c.klipper_name);
+            REQUIRE((c.role == ProbeSensorRole::Z_PROBE) == (c.klipper_name == "smart_effector"));
+        }
+    }
+
+    Config::get_instance()->get_json(Config::get_instance()->df() + "probe_sensors") =
+        nlohmann::json::object();
 }

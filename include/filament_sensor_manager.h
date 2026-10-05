@@ -5,6 +5,7 @@
 
 #include "ui_observer_guard.h"
 
+#include "async_lifetime_guard.h"
 #include "filament_sensor_types.h"
 #include "json_fwd.h"
 #include "lvgl.h"
@@ -30,8 +31,8 @@ class IMoonrakerAPI;
 namespace helix {
 
 // Test-only friend (defined in tests/unit/test_runout_empty_lane_scope.cpp) used
-// to set per-sensor roles directly, bypassing the single-RUNOUT exclusivity in
-// set_sensor_role() so multi-lane (Snapmaker) runout scenarios can be exercised.
+// to set per-sensor roles directly, the way a settings.json restore does, without
+// going through set_sensor_role().
 class RunoutScopeTestAccess;
 class BypassArmingTestAccess;
 // Test-only friend (defined in tests/test_helpers/post_unload_grace_test_access.h)
@@ -444,7 +445,7 @@ class FilamentSensorManager {
     [[nodiscard]] lv_subject_t* get_runout_detected_subject();
 
     /**
-     * @brief Get subject for the print-scoped runout state (FIX B).
+     * @brief Get subject for the print-scoped runout state.
      *
      * Same -1/0/1/2 encoding as get_runout_detected_subject(), but scoped to the
      * active print's used tools using AMS lane truth. The in-print runout badge
@@ -515,7 +516,7 @@ class FilamentSensorManager {
      * Used to suppress notifications and modals while sensor states
      * are being synchronized after Moonraker connection.
      *
-     * @return true if within grace period (first 2 seconds after sensor discovery)
+     * @return true within AppConstants::Startup::SENSOR_STABILIZATION_PERIOD of sensor discovery
      */
     [[nodiscard]] bool is_in_startup_grace_period() const;
 
@@ -667,7 +668,7 @@ class FilamentSensorManager {
 
     // Tracks whether we've received the first status update from Moonraker.
     // Ensures update_subjects() fires on initial status even when sensor state
-    // matches defaults (filament_detected=false), which wouldn't trigger any_changed.
+    // matches defaults (filament_detected=true), which wouldn't trigger any_changed.
     bool initial_status_received_ = false;
 
     // Discovery time for suppressing initial state notifications
@@ -677,8 +678,10 @@ class FilamentSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t runout_detected_{};
-    lv_subject_t scoped_runout_{}; ///< Print-scoped runout (FIX B); driven by PrintStatusPanel
+    lv_subject_t scoped_runout_{}; ///< Print-scoped runout; driven by PrintStatusPanel
     lv_subject_t toolhead_detected_{};
     lv_subject_t entry_detected_{};
     lv_subject_t probe_triggered_{};
