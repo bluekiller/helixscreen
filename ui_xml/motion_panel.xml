@@ -64,16 +64,16 @@
           <zone_tab label_subject="motion_tab_label_0"
                     active_subject="motion_tab_active_0" tab_index="0" icon="cursor_move" hide_label="true"
                     ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle"/>
+                    content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
           <zone_tab label_subject="motion_tab_label_1"
                     active_subject="motion_tab_active_1" tab_index="1" icon="crosshairs_gps" hide_label="true"
                     ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle"/>
+                    content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
           <!-- The Bed tab arrives with its content in a later step. -->
           <zone_tab label_subject="motion_tab_label_2"
                     active_subject="motion_tab_active_2" tab_index="2" icon="grid_large" hide_label="true"
                     ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle" hidden="true"/>
+                    content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle" hidden="true"/>
         </lv_obj>
         <lv_obj name="header_coords"
                 width="content" height="100%" style_pad_all="0" style_pad_left="#space_sm" style_bg_opa="0"
@@ -382,17 +382,17 @@
             <zone_tab label_subject="motion_tab_label_0"
                       active_subject="motion_tab_active_0" tab_index="0" icon="cursor_move" layout="column"
                       cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle"/>
+                      content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
             <zone_tab label_subject="motion_tab_label_1"
                       active_subject="motion_tab_active_1" tab_index="1" icon="crosshairs_gps" layout="column"
                       cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle"/>
+                      content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
             <!-- The Bed tab arrives with its content in a later step; its pill
                  stays out of the rail until then. -->
             <zone_tab label_subject="motion_tab_label_2"
                       active_subject="motion_tab_active_2" tab_index="2" icon="grid_large" layout="column"
                       cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle" hidden="true"/>
+                      content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle" hidden="true"/>
           </lv_obj>
           <lv_obj name="tab_content"
                   width="0" height="100%" flex_grow="1" style_pad_all="0" scrollable="false" style_border_opa="0"

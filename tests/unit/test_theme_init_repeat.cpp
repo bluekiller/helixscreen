@@ -174,3 +174,41 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a mode switch updates the color tokens new 
     check_built_after_switch(true);
     check_built_after_switch(false); // and back, which also restores the fixture's light mode
 }
+
+// #text_on_primary is what an XML style puts on a solid #primary fill when no
+// ui_button is there to run the contrast pass. Light palettes pair dark text
+// with a dark primary, so the palette text colour alone is not readable there.
+TEST_CASE_METHOD(LVGLUITestFixture, "text_on_primary reads on the primary fill in both modes",
+                 "[theme]") {
+    REQUIRE(lv_xml_register_component_from_data(
+                "text_on_primary_probe",
+                "<component><view extends=\"lv_obj\" style_text_color=\"#text_on_primary\""
+                " style_bg_color=\"#primary\"/></component>") == LV_RESULT_OK);
+
+    // The token tracks the palette in force, so a live mode switch has to
+    // reach it: each check follows an apply in the other mode.
+    auto check_mode = [&](bool dark) -> uint32_t {
+        theme_manager_apply_theme(theme_manager_get_active_theme(), dark);
+        helix::ui::UpdateQueue::instance().drain();
+
+        lv_obj_t* probe = static_cast<lv_obj_t*>(
+            lv_xml_create(lv_screen_active(), "text_on_primary_probe", nullptr));
+        REQUIRE(probe != nullptr);
+        const lv_color_t fg = lv_obj_get_style_text_color(probe, LV_PART_MAIN);
+        const lv_color_t bg = lv_obj_get_style_bg_color(probe, LV_PART_MAIN);
+        const lv_color_t want = theme_manager_get_contrast_adjusted_text(
+            theme_manager_get_color("text"), theme_manager_get_color("primary"));
+        CHECK(lv_color_to_u32(bg) == lv_color_to_u32(theme_manager_get_color("primary")));
+        CHECK(lv_color_to_u32(fg) == lv_color_to_u32(want));
+        CHECK(helix::contrast_ratio(fg, bg) >= kThemeTextContrastThreshold);
+        lv_obj_delete(probe);
+        return lv_color_to_u32(want);
+    };
+
+    const uint32_t light = check_mode(false);
+    const uint32_t dark = check_mode(true);
+    // Precondition: the two modes want different colours, so a token stuck at
+    // either one fails the other.
+    REQUIRE(light != dark);
+    check_mode(false); // and back, which also restores the fixture's light mode
+}
