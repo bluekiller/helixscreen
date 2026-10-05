@@ -397,7 +397,7 @@ TEST_CASE_METHOD(XMLTestFixture, "Card merge: an in-place relayout replaces only
 
     // lock moves one cell down: shutdown's card is unchanged, lock's moves.
     REQUIRE(mgr.get_widget_config(panel_id).place_entry("lock", 1, 2 * TPC, TPC, TPC, TPC) >= 0);
-    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held).has_value());
+    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held));
     lv_obj_update_layout(container);
 
     CHECK(lv_obj_find_by_name(container, "shutdown") == shutdown);
@@ -409,7 +409,7 @@ TEST_CASE_METHOD(XMLTestFixture, "Card merge: an in-place relayout replaces only
 
     // lock beside shutdown: the two fuse into one card behind both.
     REQUIRE(mgr.get_widget_config(panel_id).place_entry("lock", 1, TPC, 0, TPC, TPC) >= 0);
-    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held).has_value());
+    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held));
     lv_obj_update_layout(container);
     REQUIRE(card_backgrounds(container, ids).size() == 1);
     CHECK(card_behind(shutdown) == card_behind(lock));
@@ -419,7 +419,7 @@ TEST_CASE_METHOD(XMLTestFixture, "Card merge: an in-place relayout replaces only
     lv_obj_t* condemned = card_behind(shutdown);
     REQUIRE(condemned != nullptr);
     lv_obj_add_flag(condemned, LV_OBJ_FLAG_HIDDEN);
-    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held).has_value());
+    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held));
     lv_obj_update_layout(container);
     bool live_card_behind_shutdown = false;
     {
@@ -439,7 +439,7 @@ TEST_CASE_METHOD(XMLTestFixture, "Card merge: an in-place relayout replaces only
     // and did not write that back), refuses the in-place path: re-seating it at
     // its entry could land it on another tile.
     lv_obj_set_grid_cell(shutdown, LV_GRID_ALIGN_STRETCH, 0, TPC, LV_GRID_ALIGN_STRETCH, TPC, TPC);
-    CHECK_FALSE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held).has_value());
+    CHECK_FALSE(mgr.relayout_tiles(panel_id, container, 1, {"lock"}, "", held));
     CHECK(lv_obj_get_style_grid_cell_row_pos(shutdown, LV_PART_MAIN) == TPC);
 
     mgr.clear_panel_config(panel_id);

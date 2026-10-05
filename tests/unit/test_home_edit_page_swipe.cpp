@@ -325,7 +325,14 @@ class StandInWidget : public helix::PanelWidget {
     void on_edit_mode_exited() override {
         ++edit_mode_exits;
     }
+    void on_size_changed(int colspan, int rowspan, int /*width_px*/, int /*height_px*/) override {
+        last_colspan = colspan;
+        last_rowspan = rowspan;
+    }
 
+    /// The span the last on_size_changed() carried.
+    int last_colspan = 0;
+    int last_rowspan = 0;
     /// Times on_edit_mode_exited() ran.
     int edit_mode_exits = 0;
     std::string get_component_name() const override {
@@ -1774,11 +1781,14 @@ TEST_CASE_METHOD(EditHomeFixture, "a multi-frame resize commits and tears down i
     CHECK_FALSE(lv_obj_is_valid(preview)); // nothing it drew is left
     CHECK(GridEditModeTestAccess::snap_preview(grid()) == nullptr);
 
-    // Only the resized tile is built again, at its new span, disarmed like the
-    // rest of the page while the session lasts, and selected.
+    // The resized tile keeps its tree: it moves to its new span, its widget
+    // hears the span through on_size_changed(), and it is selected again.
     lv_obj_t* resized = widget_on(0, "temperature");
-    CHECK(resized != widget);
+    CHECK(resized == widget);
     CHECK(lv_obj_get_style_grid_cell_row_span(resized, LV_PART_MAIN) == committed.rowspan);
+    auto* stand_in = static_cast<StandInWidget*>(lv_obj_get_user_data(resized));
+    REQUIRE(stand_in != nullptr);
+    CHECK(stand_in->last_rowspan == committed.rowspan);
     CHECK_FALSE(is_clickable(resized));
     CHECK(grid().selected_widget() == resized);
 }

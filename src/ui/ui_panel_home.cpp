@@ -654,28 +654,18 @@ bool HomePanel::relayout_edit_page(const std::vector<std::string>& changed_ids,
         return false;
     }
     auto& entry = pages_[static_cast<size_t>(page)];
-    auto fresh = helix::PanelWidgetManager::instance().relayout_tiles(
-        "home", entry.container, page, changed_ids, resized_id, entry.widgets);
-    if (!fresh) {
+    if (!helix::PanelWidgetManager::instance().relayout_tiles(
+            "home", entry.container, page, changed_ids, resized_id, entry.widgets)) {
         return false;
     }
-    for (PanelWidget* w : *fresh) {
-        // As populate_page() treats a built page: bubbling for edit mode's
-        // handlers, and disarmed, since a session is live. The tile root is the
-        // page container's child, so the recursive helpers, which start below
-        // the object they are given, do not reach it.
-        if (lv_obj_t* tile = w->root()) {
-            lv_obj_add_flag(tile, LV_OBJ_FLAG_EVENT_BUBBLE);
-            set_event_bubble_recursive(tile);
-            if (lv_obj_has_flag(tile, LV_OBJ_FLAG_CLICKABLE)) {
-                lv_obj_remove_flag(tile, LV_OBJ_FLAG_CLICKABLE);
-                lv_obj_add_flag(tile, helix::ui::EDIT_CLICK_SUPPRESSED_FLAG);
-            }
-            disable_widget_clicks_recursive(tile);
-        }
-        if (panel_active_ && page == active_page_index_) {
-            w->on_activate();
-        }
+    // A resize can make a widget build children of its own. As populate_page()
+    // treats a built page: bubbling for edit mode's handlers, and disarmed,
+    // since a session is live.
+    if (lv_obj_t* tile = resized_id.empty()
+                             ? nullptr
+                             : lv_obj_get_child_by_name(entry.container, resized_id.c_str())) {
+        set_event_bubble_recursive(tile);
+        disable_widget_clicks_recursive(tile);
     }
     return true;
 }

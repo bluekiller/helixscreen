@@ -1532,8 +1532,8 @@ void GridEditMode::begin_press() {
         end_gesture_uncommitted();
     }
     clear_gesture_state();
-    // A resize still easing into its cell owes the relayout that re-creates
-    // the resized tile, and when the relayout falls back to a full rebuild
+    // A resize still easing into its cell owes the relayout that gives the
+    // widget its new span, and when the relayout falls back to a full rebuild
     // that replaces the objects this press lands on, its target among them.
     // The press finishes the snap, which schedules the relayout for the next
     // tick, and takes no grid action, so no gesture owns the pointer when it
@@ -2267,7 +2267,7 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
     clear_gesture_state();
 
     // Animate the outline to its final grid position, then re-seat the page on
-    // completion, which re-creates the resized tile at its new span.
+    // completion, which gives the resized widget its new span.
     if (resize_outline_[0] && DisplaySettingsManager::instance().get_animations_enabled()) {
         struct SnapData {
             int target_x, target_y, target_w, target_h;
@@ -2503,7 +2503,7 @@ void GridEditMode::relayout_then_select(std::string widget_id, std::vector<std::
             ensure_shield();
         }
         // Layout first: the selection chrome is placed from the widget's
-        // coordinates, and a re-created tile has none until it runs.
+        // coordinates, which the new cell changes only once it runs.
         lv_obj_update_layout(container_);
         if (lv_obj_t* widget = lv_obj_get_child_by_name(container_, widget_id.c_str())) {
             select_widget(widget);

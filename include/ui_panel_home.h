@@ -200,10 +200,9 @@ class HomePanel : public PanelBase {
     void update_arrow_visibility(int page);
     void populate_page(int page_index, bool force);
     /// Re-seat the edit session's page in place after a move or resize placed
-    /// @p changed_ids (PanelWidgetManager::relayout_tiles), re-creating the tile named
-    /// @p resized_id (empty for none). A re-created tile is disarmed for edit
-    /// mode and activated like a populate's. False when the page needs a full
-    /// populate instead.
+    /// @p changed_ids (PanelWidgetManager::relayout_tiles), giving the tile
+    /// named @p resized_id (empty for none) its new span. False when the page
+    /// needs a full populate instead.
     bool relayout_edit_page(const std::vector<std::string>& changed_ids,
                             const std::string& resized_id);
 

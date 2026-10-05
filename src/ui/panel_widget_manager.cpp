@@ -512,6 +512,27 @@ struct TileCell {
     int col, row, colspan, rowspan;
 };
 
+// Tell a tile the cell it holds: its attached instance (if any) through
+// notify_size_changed(), which records the grant first so a widget that
+// rebuilds its contents later lays them out against the same cell, and the AMS
+// mini status (a pure XML widget) its width.
+void announce_tile_size(lv_obj_t* tile, const std::string& widget_id, PanelWidget* instance,
+                        const TileCell& cell, const CellMetrics& metrics) {
+    const int width =
+        static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan));
+    if (instance) {
+        instance->notify_size_changed(
+            cell.colspan, cell.rowspan, width,
+            static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, cell.rowspan)));
+    }
+    if (widget_id == "ams") {
+        lv_obj_t* ams_child = lv_obj_get_child(tile, 0);
+        if (ams_child && ui_ams_mini_status_is_valid(ams_child)) {
+            ui_ams_mini_status_set_width(ams_child, width);
+        }
+    }
+}
+
 // Create one tile in its grid cell: the XML component, its name and tile flag,
 // the gated treatment or the attached PanelWidget (moved into @p result), and
 // the size notification. Returns the tile root, or nullptr if creation failed.
@@ -594,33 +615,17 @@ lv_obj_t* create_tile(lv_obj_t* container, WidgetSlot& slot, const TileCell& cel
     }
 
     // Attach the pre-created PanelWidget instance if present and NOT gated
+    PanelWidget* attached = nullptr;
     if (slot.instance && !slot.hardware_gated) {
         if (auto* sizing = slot.instance->tile_sizing()) {
             sizing->set_content_root(widget);
         }
         slot.instance->attach_tile(widget, lv_scr_act());
-
-        // Notify widget of its grid allocation and approximate pixel size.
-        // notify_size_changed() records it first, so a widget that rebuilds
-        // its contents later can lay them out against the same cell.
-        slot.instance->notify_size_changed(
-            cell.colspan, cell.rowspan,
-            static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan)),
-            static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, cell.rowspan)));
-
+        attached = slot.instance.get();
         result.push_back(std::move(slot.instance));
     }
+    announce_tile_size(widget, slot.widget_id, attached, cell, metrics);
     log_if_slow_build(slot.widget_id.c_str(), t_create, t_attach);
-
-    // Propagate width to AMS mini status (pure XML widget, no PanelWidget)
-    if (slot.widget_id == "ams") {
-        lv_obj_t* ams_child = lv_obj_get_child(widget, 0);
-        if (ams_child && ui_ams_mini_status_is_valid(ams_child)) {
-            ui_ams_mini_status_set_width(
-                ams_child,
-                static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan)));
-        }
-    }
     return widget;
 }
 } // namespace
@@ -1531,20 +1536,19 @@ PanelWidgetManager::swap_gated_tiles(const std::string& panel_id, lv_obj_t* cont
     return fresh;
 }
 
-std::optional<std::vector<PanelWidget*>>
-PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
-                                   const std::vector<std::string>& changed_ids,
-                                   const std::string& resized_id,
-                                   std::vector<std::unique_ptr<PanelWidget>>& widgets) {
+bool PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* container,
+                                        int page_index, const std::vector<std::string>& changed_ids,
+                                        const std::string& resized_id,
+                                        std::vector<std::unique_ptr<PanelWidget>>& widgets) {
     if (!container || populating_) {
-        return std::nullopt;
+        return false;
     }
     const int cols =
         grid_count_tracks(lv_obj_get_style_grid_column_dsc_array(container, LV_PART_MAIN));
     const int rows =
         grid_count_tracks(lv_obj_get_style_grid_row_dsc_array(container, LV_PART_MAIN));
     if (cols <= 0 || rows <= 0) {
-        return std::nullopt;
+        return false;
     }
     const CellMetrics metrics =
         grid_cell_metrics(lv_obj_get_content_width(container), lv_obj_get_content_height(container),
@@ -1589,7 +1593,7 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
             return name && e.enabled && e.id == name;
         });
         if (entry == entries.end() || !entry->is_placed()) {
-            return std::nullopt;
+            return false;
         }
         // A tile the edit did not touch must already sit where its entry says.
         // Populate can seat one elsewhere (auto-placement, a span reduced or
@@ -1603,7 +1607,7 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
              lv_obj_get_style_grid_cell_row_pos(child, LV_PART_MAIN) != cell.row ||
              lv_obj_get_style_grid_cell_column_span(child, LV_PART_MAIN) != cell.colspan ||
              lv_obj_get_style_grid_cell_row_span(child, LV_PART_MAIN) != cell.rowspan)) {
-            return std::nullopt;
+            return false;
         }
         seats.push_back({child, &*entry, cell});
     }
@@ -1613,7 +1617,7 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
         }
     }
     if (!resized_id.empty() && !resized) {
-        return std::nullopt;
+        return false;
     }
     auto instance = std::find_if(widgets.begin(), widgets.end(),
                                  [&](const auto& w) { return w && resized_id == w->id(); });
@@ -1622,42 +1626,22 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
                                                                  resized->cell.colspan)),
                               static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter,
                                                                  resized->cell.rowspan)))) {
-        return std::nullopt;
+        return false;
     }
 
     populating_ = true;
     for (const auto& seat : seats) {
-        if (&seat != resized) {
-            lv_obj_set_grid_cell(seat.tile, LV_GRID_ALIGN_STRETCH, seat.cell.col, seat.cell.colspan,
-                                 LV_GRID_ALIGN_STRETCH, seat.cell.row, seat.cell.rowspan);
-        }
+        lv_obj_set_grid_cell(seat.tile, LV_GRID_ALIGN_STRETCH, seat.cell.col, seat.cell.colspan,
+                             LV_GRID_ALIGN_STRETCH, seat.cell.row, seat.cell.rowspan);
     }
 
-    // The resized tile is created fresh at its index, below edit mode's
-    // objects, the way a populate would build it at this span.
-    std::vector<std::unique_ptr<PanelWidget>> attached;
+    // The resized tile keeps its tree: what a widget builds depends on its
+    // config, never its span, so the new size reaches it the way a populate's
+    // does, through on_size_changed().
     if (resized) {
-        const auto index = static_cast<int32_t>(lv_obj_get_index(resized->tile));
-        WidgetReuseMap reuse;
-        if (instance != widgets.end()) {
-            (*instance)->detach_tile();
-            if ((*instance)->supports_reuse()) {
-                reuse[resized_id] = std::move(*instance);
-            }
-            widgets.erase(instance);
-        }
-        lv_obj_t* old_tile = resized->tile;
-        helix::ui::safe_delete_deferred(old_tile);
-        if (auto slot = resolve_slot(panel_id, *resized->entry, reuse)) {
-            if (slot->instance) {
-                if (TileSizing* sizing = slot->instance->tile_sizing()) {
-                    sizing->set_cell_metrics(metrics);
-                }
-            }
-            if (lv_obj_t* tile = create_tile(container, *slot, resized->cell, metrics, attached)) {
-                lv_obj_move_to_index(tile, index);
-            }
-        }
+        announce_tile_size(resized->tile, resized_id,
+                           instance != widgets.end() ? instance->get() : nullptr, resized->cell,
+                           metrics);
     }
 
     // Cards: keep the ones the new arrangement still has, replace the rest.
@@ -1690,14 +1674,9 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
     lv_obj_update_layout(container);
     populating_ = false;
 
-    std::vector<PanelWidget*> fresh;
-    for (auto& w : attached) {
-        fresh.push_back(w.get());
-        widgets.push_back(std::move(w));
-    }
     spdlog::debug("[PanelWidgetManager] Relaid out {} tile(s) in place for '{}:{}'{}", seats.size(),
                   panel_id, page_index, resized ? " (one resized)" : "");
-    return fresh;
+    return true;
 }
 
 std::vector<std::string> PanelWidgetManager::compute_visible_widget_ids(const std::string& panel_id,
