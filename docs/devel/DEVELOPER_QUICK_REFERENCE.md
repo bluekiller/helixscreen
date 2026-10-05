@@ -154,7 +154,7 @@ add_observer(observe<int>(
 
 // String observer
 add_observer(observe<const char*>(
-    get_printer_state().get_print_filename_subject(),
+    get_printer_state().print_state().get_print_filename_subject(),
     this,
     [](MyPanel* self, const char* name) {
         lv_label_set_text(self->filename_label_, name);
@@ -334,7 +334,7 @@ One singleton manager per sensor category, called directly (`Manager::instance()
 - `HumiditySensorManager` - Chamber humidity
 - `TemperatureSensorManager` - `temperature_sensor` / `temperature_fan` objects
 
-**Wiring:** discovery calls each manager's `discover()` / `discover_from_config()` from `src/printer/printer_discovery.cpp#init_subsystems_from_hardware` and the configfile discovery step; status frames reach every manager from `PrinterState::update_from_status()`.
+**Wiring:** discovery calls each manager's `discover()` / `discover_from_config()` from `src/printer/printer_discovery.cpp#init_subsystems_from_hardware` and the configfile discovery step; status frames reach every manager from `dispatch_status_frame()` (`src/application/moonraker_manager.cpp`).
 
 **Accessing state:** Sensors expose LVGL subjects for reactive binding.
 
