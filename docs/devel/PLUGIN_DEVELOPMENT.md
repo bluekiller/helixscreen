@@ -626,7 +626,7 @@ graph:on_size(render)
 The tile's tap is one `event_cb` in XML and one handler in Lua:
 
 ```lua
-helix.ui.on("open", function() helix.ui.overlay("temp-spark__detail") end)
+helix.ui.on("open", function() helix.ui.overlay("temp-spark__detail", {title = selected().label}) end)
 ```
 
 **led-effects** (`examples/plugins/led-effects`) - the `gcode` permission. The user-typed

@@ -123,6 +123,58 @@ TEST_CASE_METHOD(OverlayFx, "a second open of a showing overlay is a no-op", "[p
     CHECK_FALSE(rt->faulted());
 }
 
+TEST_CASE_METHOD(OverlayFx, "a re-open inside the close window builds a fresh overlay",
+                 "[plugin][overlay]") {
+    DisplaySettingsManager::instance().set_animations_enabled(true);
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(
+        first_closes = 0
+        second_closes = 0
+        a = helix.ui.overlay("widget-demo__panel", {on_close = function() first_closes = first_closes + 1 end}))",
+                           "t"));
+    drain();
+    process_lvgl(500); // slide-in complete
+    auto& nav = NavigationManager::instance();
+    REQUIRE(rig.host->overlays().open_count("widget-demo") == 1);
+
+    nav.go_back();
+    drain(); // popped; the record lives until the slide-out completes
+
+    // Inside the close window the old root is off the nav stack but the record
+    // still matches by (plugin, component): a fresh open must not get the
+    // dying handle.
+    REQUIRE(rt->run_string(R"(
+        b = helix.ui.overlay("widget-demo__panel", {on_close = function() second_closes = second_closes + 1 end}))",
+                           "t"));
+    CHECK(rig.host->overlays().open_count("widget-demo") == 2); // dying + fresh
+    drain();                                                    // the fresh push lands
+
+    process_lvgl(500); // the old root's slide-out completes and its close runs
+    drain();
+    process_lvgl(100); // the deferred root delete is itself an async timer
+    CHECK(rig.host->overlays().open_count("widget-demo") == 1); // only the fresh one
+    CHECK(nav.has_open_overlays());
+    lua_getglobal(rt->state(), "first_closes");
+    CHECK(lua_tointeger(rt->state(), -1) == 1); // the closing one finished cleanly
+    lua_pop(rt->state(), 1);
+
+    // The fresh handle owns a live overlay with its own on_close.
+    REQUIRE(rt->run_string("b:close()", "t"));
+    drain();
+    process_lvgl(500);
+    drain();
+    process_lvgl(100);
+    CHECK(rig.host->overlays().open_count("widget-demo") == 0);
+    CHECK_FALSE(nav.has_open_overlays());
+    lua_getglobal(rt->state(), "second_closes");
+    CHECK(lua_tointeger(rt->state(), -1) == 1);
+    lua_pop(rt->state(), 1);
+    CHECK_FALSE(rt->faulted());
+}
+
 TEST_CASE_METHOD(OverlayFx, "an opened overlay stays hidden until the push shows it",
                  "[plugin][overlay]") {
     HostRig rig(enabled("widget-demo", {}));

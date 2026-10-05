@@ -26,9 +26,13 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
     // One live overlay per component: a re-fired open handler gets the overlay
     // it already opened rather than a buried twin with a second same-named
     // canvas. The showing overlay keeps the attributes and on_closed it was
-    // opened with.
+    // opened with. A record whose root left the nav stack is mid-close (its
+    // callback runs after the slide-out), so a re-open in that window builds a
+    // fresh overlay instead of the dying handle.
+    auto& nav = NavigationManager::instance();
     for (const auto& rec : records_) {
-        if (rec.plugin_id == plugin_id && rec.component == component)
+        if (rec.plugin_id == plugin_id && rec.component == component &&
+            nav.is_panel_in_stack(rec.root))
             return rec.handle;
     }
 

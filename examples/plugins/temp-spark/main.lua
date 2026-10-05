@@ -77,8 +77,9 @@ local function fmt(t)
     return num(t) .. "\u{00B0}"
 end
 
--- A target of 0 means "off"; every target display (the beside text, the dashed
--- line, the stat chip) keys off this one rule.
+-- A target of 0 means "off"; the beside text and the dashed target line key off
+-- this one rule. The stat chip answers to the show_target setting alone, so it
+-- can read "Target 0" while the rule says off.
 local function target_on()
     return target_now and target_now > 0 and helix.settings.get("show_target")
 end
