@@ -4,7 +4,6 @@
 #include "ui_panel_history_dashboard.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
 #include "ui_panel_common.h"
 #include "ui_panel_history_list.h"
 #include "ui_toast_manager.h"

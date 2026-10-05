@@ -6,7 +6,6 @@
 #include "ui_error_reporting.h"
 #include "ui_fan_arc_resize.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_notification.h"
 #include "ui_settings_fans.h"
 #include "ui_utils.h"

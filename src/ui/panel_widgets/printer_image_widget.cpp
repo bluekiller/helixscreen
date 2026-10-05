@@ -6,7 +6,6 @@
 #include "ui_event_safety.h"
 #include "ui_fan_control_overlay.h"
 #include "ui_icon_codepoints.h"
-#include "ui_nav_manager.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_printer_manager_overlay.h"
 #include "ui_temperature_utils.h"

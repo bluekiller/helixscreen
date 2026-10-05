@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_temperature_utils.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"

@@ -11,7 +11,6 @@
  * - Cleanup on widget deletion
  */
 
-#include "ui_nav_manager.h"
 #include "ui_observer_guard.h"
 #include "ui_panel_ams.h"
 #include "ui_panel_ams_overview.h"

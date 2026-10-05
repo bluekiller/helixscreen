@@ -4,7 +4,6 @@
 #include "network_widget.h"
 
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
 #include "ui_overlay_network_settings.h"
 #include "ui_timer_guard.h"
 

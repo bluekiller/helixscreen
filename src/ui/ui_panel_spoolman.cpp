@@ -5,7 +5,6 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_panel_common.h"
 #include "ui_spool_canvas.h"
 #include "ui_subject_registry.h"

@@ -6,7 +6,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_color_picker.h"
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
 
 #include "app_globals.h"
 #include "helix-xml/src/xml/lv_xml.h"

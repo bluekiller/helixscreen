@@ -42,7 +42,6 @@
 #include "screen_hide_hold.h"
 #include "tap_latch.h"
 #ifdef HELIX_ENABLE_SCREENSAVER
-#include "ui_nav_manager.h"
 
 #include "screensaver.h"
 #endif
