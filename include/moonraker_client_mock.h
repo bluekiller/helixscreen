@@ -449,6 +449,17 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     }
 
     /**
+     * @brief Kinematics the mock reports, in configfile and toolhead status
+     * alike, so every consumer that asks sees the same machine.
+     *
+     * HELIX_MOCK_KINEMATICS overrides the printer type's default, so a test can
+     * flip the persona without a new printer type. It is read once, at
+     * construction: the simulation thread reports kinematics every tick, and a
+     * getenv() there races a test's setenv() on the main thread.
+     */
+    std::string kinematics() const;
+
+    /**
      * @brief Whether the mock should present a tool changer.
      *
      * Single source of truth for the two places that need the answer: this
@@ -1734,6 +1745,7 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
 
   private:
     PrinterType printer_type_;
+    std::string kinematics_override_; ///< HELIX_MOCK_KINEMATICS at construction
 
     // Test inspection: ordered history of every gcode script handled.
     std::vector<std::string> gcode_script_history_;

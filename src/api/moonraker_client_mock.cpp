@@ -145,6 +145,10 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type) : MoonrakerClientMock
 
 MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor)
     : printer_type_(type) {
+    if (const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS"); kin_env && kin_env[0]) {
+        kinematics_override_ = kin_env;
+    }
+
     // Initialize idle timeout tracking
     last_activity_time_ = std::chrono::steady_clock::now();
 
@@ -807,10 +811,6 @@ namespace mock_internal {
 
 // NAMESPACE_OK: mock_internal sits at global scope with the mock's other helpers
 std::string mock_kinematics(MoonrakerClientMock::PrinterType type) {
-    // HELIX_MOCK_KINEMATICS overrides; otherwise the default matches the type.
-    const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS");
-    if (kin_env && kin_env[0])
-        return kin_env;
     switch (type) {
     case MoonrakerClientMock::PrinterType::VORON_24:
     case MoonrakerClientMock::PrinterType::VORON_TRIDENT:
@@ -828,6 +828,11 @@ std::string mock_kinematics(MoonrakerClientMock::PrinterType type) {
 }
 
 } // namespace mock_internal
+
+std::string MoonrakerClientMock::kinematics() const {
+    return kinematics_override_.empty() ? mock_internal::mock_kinematics(printer_type_)
+                                        : kinematics_override_;
+}
 
 void MoonrakerClientMock::populate_capabilities() {
     // Held for the whole body: the simulation thread may already be running (connect()
@@ -1206,7 +1211,7 @@ void MoonrakerClientMock::populate_capabilities() {
                                          {"speed", "50"},
                                          {"horizontal_move_z", "10"}};
     // Provide kinematics so bed_moves detection works
-    mock_config["printer"] = {{"kinematics", mock_internal::mock_kinematics(printer_type_)}};
+    mock_config["printer"] = {{"kinematics", kinematics()}};
     // Add gcode_macro entries for param detection (shared with configfile.config response)
     mock_config.merge_patch(mock_internal::get_mock_gcode_macro_config());
     // Probe section — shared with the configfile.config query/subscribe responses
@@ -1234,7 +1239,7 @@ void MoonrakerClientMock::populate_capabilities() {
     helix::MacroParamCache::instance().populate_from_configfile(mock_config, macros_snapshot);
 
     spdlog::debug("[MoonrakerClientMock] Mock config: adxl345, resonance_tester, kinematics={}",
-                  mock_internal::mock_kinematics(printer_type_));
+                  kinematics());
 
     // Populate printer objects for hardware discovery
     std::vector<std::string> all_objects;
@@ -3334,7 +3339,7 @@ void MoonrakerClientMock::dispatch_initial_state() {
           {"axis_maximum",
            {persona_axis_maximum(printer_type_)[0], persona_axis_maximum(printer_type_)[1],
             persona_axis_maximum(printer_type_)[2], 0.0}},
-          {"kinematics", mock_internal::mock_kinematics(printer_type_)}}},
+          {"kinematics", kinematics()}}},
         {"gcode_move",
          {{"gcode_position", {x, y, z, 0.0}}, // Commanded position (same as toolhead in mock)
           {"speed_factor", speed / 100.0},
@@ -4156,7 +4161,7 @@ void MoonrakerClientMock::temperature_simulation_loop() {
               {"axis_maximum",
                {persona_axis_maximum(printer_type_)[0], persona_axis_maximum(printer_type_)[1],
                 persona_axis_maximum(printer_type_)[2], 0.0}},
-              {"kinematics", mock_internal::mock_kinematics(printer_type_)}}},
+              {"kinematics", kinematics()}}},
             {"gcode_move",
              {{"gcode_position", {x, y, z, 0.0}}, // Commanded position (same as toolhead in mock)
               {"speed", feed_mm_s},
