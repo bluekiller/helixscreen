@@ -196,7 +196,7 @@ callbacks.on_finished = [this](bool context_ok) { ... };  // UI thread
 bt_discovery_.start(bt_ctx_, 15000, lifetime_.token(), std::move(callbacks));
 ```
 
-`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and calls `stop_discovery()`; a later `start()` gets fresh state. `on_finished(false)` means `SharedContext::get()` could not create a context.
+`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and sets that scan's own cancel flag, which the plugin reads even before the scan has started; other scans on the context (the label printer's rediscover-before-pair, say) keep running. A later `start()` gets fresh state. `on_finished(false)` means `SharedContext::get()` could not create a context.
 
 The barcode scanner overlay seeds its list from `enumerate_known()` the same way: the saved scanner shows at once, and BlueZ's known scanners merge in from a worker (`src/ui/ui_settings_barcode_scanner.cpp#seed_known_bt_devices`).
 
@@ -211,7 +211,7 @@ The barcode scanner overlay seeds its list from `enumerate_known()` the same way
 `helix_bt_discover()` (`src/bluetooth/bt_discovery.cpp#"helix_bt_discover(helix_bt_context* ctx"`) holds the context's `discover_mutex` for the whole scan, so two scans on one context run one after the other instead of sharing its slot and flag. It runs in four steps:
 
 1. On the bus thread, find the adapter (first object exposing `org.bluez.Adapter1` in `GetManagedObjects`), report every device BlueZ already knows, add an `InterfacesAdded` match, and call `Adapter1.StartDiscovery` (`InProgress` counts as success).
-2. On the caller's thread, sleep in 100 ms steps until `timeout_ms` elapses or `helix_bt_stop_discovery()` bumps `ctx->discover_stop_gen`. The generation is read before waiting for the mutex, so a stop issued while a scan is still queued behind another ends that scan too.
+2. On the caller's thread, sleep in 100 ms steps until `timeout_ms` elapses, the caller's `cancel` flag goes nonzero (that scan only), or `helix_bt_stop_discovery()` bumps `ctx->discover_stop_gen` (every scan on the context). Both are checked again once the mutex is taken, so a scan cancelled or stopped while it was queued ends at once.
 3. On the bus thread, `StopDiscovery` and unref the match.
 4. Return `0`.
 
@@ -323,7 +323,7 @@ if (channel_was_cached && attempt == 0) {
 
 | Consumer | Uses | Notes |
 |----------|------|-------|
-| `LabelPrinterSettingsOverlay` | `discover`, `stop_discovery`, `pair`, `is_paired`, `is_connected`, `remove_device` | Skips devices flagged `is_scanner`. See LABEL_PRINTER_SYSTEM.md for the settings it writes |
+| `LabelPrinterSettingsOverlay` | `discover`, `pair`, `is_paired`, `is_connected`, `remove_device` | Skips devices flagged `is_scanner`. See LABEL_PRINTER_SYSTEM.md for the settings it writes |
 | `BarcodeScannerSettingsOverlay` | `enumerate_known`, `discover`, `pair`, `is_paired`, `is_bonded`, `remove_device` | Keeps only devices flagged `is_scanner`; the bonded HID device then feeds `UsbScannerMonitor` as an ordinary input device |
 | Brother QL, Phomemo SPP | `rfcomm_send()` | |
 | Brother PT, MakeID | Shared context + `connect_rfcomm` / `rfcomm_send_receive()`; MakeID also `lzo_compress` | |
@@ -365,7 +365,7 @@ There is no mock Bluetooth backend and no `HELIX_MOCK_*` variable for it: a `--t
 
 The `[slow]` cases run in nightly CI, not in `make unit-sweep`; run them with `make t F='[bt]'`.
 
-`BluetoothLoader`'s function pointers are public members, so a test can swap one for a fake and restore it afterwards. `test_bt_channel_resolver.cpp` does exactly that for `sdp_find_rfcomm_channel` (`tests/unit/test_bt_channel_resolver.cpp#"struct LoaderMock"`), and `test_bt_discovery_run.cpp` for `init`, `deinit`, `discover` and `stop_discovery`. Use the same scoped-swap pattern to test consumer logic without hardware.
+`BluetoothLoader`'s function pointers are public members, so a test can swap one for a fake and restore it afterwards. `test_bt_channel_resolver.cpp` does exactly that for `sdp_find_rfcomm_channel` (`tests/unit/test_bt_channel_resolver.cpp#"struct LoaderMock"`), and `test_bt_discovery_run.cpp` for `init`, `deinit` and `discover`. Use the same scoped-swap pattern to test consumer logic without hardware.
 
 Anything that touches BlueZ (discovery, pairing, BLE connect) has to be verified on hardware: a Pi with the plugin deployed, or a Linux desktop whose BlueZ exposes an adapter, running a native build (with `HELIX_BLUETOOTH=1` under `--test`).
 

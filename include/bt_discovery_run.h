@@ -72,7 +72,8 @@ class DiscoveryRun {
     bool start(std::shared_ptr<SharedContext> ctx, int timeout_ms, LifetimeToken token,
                Callbacks callbacks);
 
-    /// Drops the current scan's remaining callbacks and asks the plugin to end it.
+    /// Drops the current scan's remaining callbacks and ends that scan in the plugin, even one
+    /// not started yet. Other scans on the same context keep running.
     void cancel();
 
   private:

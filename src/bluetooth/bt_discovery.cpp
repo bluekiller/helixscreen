@@ -316,13 +316,17 @@ done:
 // ---------------------------------------------------------------------------
 
 extern "C" int helix_bt_discover(helix_bt_context* ctx, int timeout_ms, helix_bt_discover_cb cb,
-                                 void* user_data) {
+                                 void* user_data, const int* cancel) {
     if (!ctx || !ctx->bus_thread)
         return -EINVAL;
 
     const unsigned stop_gen = ctx->discover_stop_gen.load();
+    auto stopped = [&] {
+        return (cancel && __atomic_load_n(cancel, __ATOMIC_ACQUIRE) != 0) ||
+               ctx->discover_stop_gen.load() != stop_gen;
+    };
     std::lock_guard<std::mutex> one_scan(ctx->discover_mutex);
-    if (ctx->discover_stop_gen.load() != stop_gen)
+    if (stopped())
         return 0; // stopped before it started
 
     auto* dctx = new (std::nothrow) discover_ctx{ctx, cb, user_data};
@@ -387,7 +391,7 @@ extern "C" int helix_bt_discover(helix_bt_context* ctx, int timeout_ms, helix_bt
     // Wait on the UI-side caller thread while the bus thread processes events.
     struct timespec start;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    while (ctx->discover_stop_gen.load() == stop_gen) {
+    while (!stopped()) {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         long elapsed_ms =

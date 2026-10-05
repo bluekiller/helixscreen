@@ -39,6 +39,7 @@ struct FakePlugin {
     int discovers_released = 0; // discover call N returns once this exceeds N
     bool init_fails = false;
     std::vector<std::string> names_per_call; // device name reported by call N on release
+    std::vector<int> cancel_seen;            // *cancel when call N was released
 };
 
 FakePlugin* g_fake = nullptr;
@@ -59,7 +60,8 @@ extern "C" void fake_stop(helix_bt_context*) {
     ++g_fake->stops;
 }
 
-extern "C" int fake_discover(helix_bt_context*, int, helix_bt_discover_cb cb, void* user_data) {
+extern "C" int fake_discover(helix_bt_context*, int, helix_bt_discover_cb cb, void* user_data,
+                             const int* cancel) {
     std::string name;
     {
         std::unique_lock<std::mutex> lock(g_fake->mu);
@@ -67,6 +69,10 @@ extern "C" int fake_discover(helix_bt_context*, int, helix_bt_discover_cb cb, vo
         g_fake->cv.notify_all();
         g_fake->cv.wait(lock, [&] { return g_fake->discovers_released > call; });
         name = g_fake->names_per_call.at(static_cast<size_t>(call));
+        if (g_fake->cancel_seen.size() <= static_cast<size_t>(call))
+            g_fake->cancel_seen.resize(static_cast<size_t>(call) + 1, -2);
+        g_fake->cancel_seen[static_cast<size_t>(call)] =
+            cancel ? __atomic_load_n(cancel, __ATOMIC_ACQUIRE) : -1;
     }
     helix_bt_device dev = {};
     dev.mac = "AA:BB:CC:DD:EE:FF";
@@ -167,7 +173,6 @@ TEST_CASE("A cancelled scan stays silent while the next scan reports its own dev
     plugin.wait_entered(1);
 
     run.cancel();
-    CHECK(plugin.count(&FakePlugin::stops) == 1);
     REQUIRE(run.start(ctx, 15000, owner.token(), record_into(seen)));
     plugin.wait_entered(2);
     REQUIRE(plugin.count(&FakePlugin::discovers_entered) == 2);
@@ -179,6 +184,14 @@ TEST_CASE("A cancelled scan stays silent while the next scan reports its own dev
 
     CHECK(seen.devices == std::vector<std::string>{"New Scanner"});
     CHECK(seen.finished == std::vector<bool>{true});
+    // The cancel reached the old scan only, and no context-wide stop was issued.
+    std::vector<int> cancel_seen;
+    {
+        std::lock_guard<std::mutex> lock(plugin.fake.mu);
+        cancel_seen = plugin.fake.cancel_seen;
+    }
+    CHECK(cancel_seen == std::vector<int>{1, 0});
+    CHECK(plugin.count(&FakePlugin::stops) == 0);
 }
 
 TEST_CASE("SharedContext is created once and deinited only after the last worker lets go",

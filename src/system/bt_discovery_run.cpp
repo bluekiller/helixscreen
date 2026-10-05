@@ -33,6 +33,7 @@ helix_bt_context* SharedContext::get() {
 
 struct DiscoveryRun::State {
     std::atomic<bool> alive{true};
+    int cancel = 0; // the plugin reads it atomically; ends this scan only
     std::shared_ptr<SharedContext> ctx;
     LifetimeToken token;
     Callbacks callbacks;
@@ -72,8 +73,9 @@ bool DiscoveryRun::start(std::shared_ptr<SharedContext> ctx, int timeout_ms, Lif
         std::thread([state, timeout_ms]() mutable {
             auto& loader = BluetoothLoader::instance();
             helix_bt_context* bt = state->ctx->get();
-            if (bt && loader.discover && state->alive.load())
-                loader.discover(bt, timeout_ms, &DiscoveryRun::report_device, &state);
+            if (bt && loader.discover)
+                loader.discover(bt, timeout_ms, &DiscoveryRun::report_device, &state,
+                                &state->cancel);
 
             const bool context_ok = bt != nullptr;
             state->token.defer("DiscoveryRun::finished", [state, context_ok] {
@@ -94,9 +96,7 @@ void DiscoveryRun::cancel() {
     if (!state_)
         return;
     state_->alive.store(false);
-    auto& loader = BluetoothLoader::instance();
-    if (auto* bt = state_->ctx->peek(); bt && loader.stop_discovery)
-        loader.stop_discovery(bt);
+    __atomic_store_n(&state_->cancel, 1, __ATOMIC_RELEASE);
     state_.reset();
 }
 

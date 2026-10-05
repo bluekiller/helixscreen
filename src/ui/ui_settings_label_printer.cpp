@@ -1522,7 +1522,7 @@ void LabelPrinterSettingsOverlay::handle_bt_connect() {
                             sc->found = true;
                         }
                     },
-                    &scan_ctx);
+                    &scan_ctx, nullptr);
 
                 if (scan_ctx.found) {
                     spdlog::info("[LabelPrinterSettings] Rediscovered {}, retrying pair",
