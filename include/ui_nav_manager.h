@@ -841,6 +841,7 @@ class NavigationManager {
     ObserverGuard klippy_state_observer_;
     ObserverGuard printer_dot_observer_;
     ObserverGuard printer_switcher_observer_;
+    ObserverGuard theme_observer_;
 
     // Printer connection status dot widget
     lv_obj_t* printer_dot_widget_ = nullptr;
