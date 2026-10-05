@@ -43,6 +43,7 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/planted_gcode.h"
 #include "gcode_ops_detector.h"
+#include "gcode_preview_fetcher.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "http_executor.h"
 #include "macro_param_cache.h"
@@ -302,11 +303,11 @@ class DetailDownloadFixture : public LVGLUITestFixture {
         helix::ui::UpdateQueue::instance().drain();
     }
 
-    /// Canonical shared-download path for `key` — mirrors
-    /// PrintSelectDetailView::canonical_gcode_path() (full-path hash).
+    /// Canonical shared-download path for `key`, as
+    /// PrintSelectDetailView::canonical_gcode_path() names it.
     std::filesystem::path canonical_path_for(const std::string& key) const {
         return std::filesystem::path(::getenv("HELIX_CACHE_DIR")) / "gcode_temp" /
-               ("detail_" + std::to_string(std::hash<std::string>{}(key)) + ".gcode");
+               helix::ui::GcodePreviewFetcher::cache_file_name("detail_", key);
     }
 
     bool ready() const {
