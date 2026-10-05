@@ -364,14 +364,6 @@ class PrinterState {
         return profile_state_;
     }
 
-    //
-    // Subject accessors for XML binding
-    //
-
-    // Temperature subjects (decidegrees: value * 10 for 0.1C resolution)
-    // Example: 205.3C is stored as 2053. Divide by 10 for display.
-    // Delegated to PrinterTemperatureState component.
-
     /// Duty for one heater, so every surface renders the same number rather
     /// than each mapping heater type to subject on its own.
     lv_subject_t* get_heater_power_subject(helix::HeaterType type) {
@@ -436,21 +428,11 @@ class PrinterState {
      */
     void reset_for_new_print();
 
-    // ========================================================================
-    // PRINT START PROGRESS (detected from G-code response during PRINT_START)
-    // ========================================================================
-
-    // Note: Derived subjects (xy_homed, z_homed, all_homed) are panel-local in ControlsPanel
-
-    // ========================================================================
-    // MULTI-FAN API - Delegated to PrinterFanState component
-    // ========================================================================
-
     /**
      * @brief Firmware-persisted Z-offset in microns, or nullopt when unknown
      *
-     * Convenience wrapper over the two subjects above for the display/adjust
-     * helpers in helix::zoffset.
+     * Convenience wrapper over the motion domain's persisted z-offset subjects for the
+     * display/adjust helpers in helix::zoffset.
      */
     std::optional<int> get_persisted_z_offset_microns() {
         if (lv_subject_get_int(motion_state_.get_persisted_z_offset_valid_subject()) == 0) {
@@ -458,11 +440,6 @@ class PrinterState {
         }
         return lv_subject_get_int(motion_state_.get_persisted_z_offset_subject());
     }
-
-    // ========================================================================
-    // PENDING Z-OFFSET DELTA (for tracking adjustments made during print)
-    // Delegated to PrinterMotionState component.
-    // ========================================================================
 
     /**
      * @brief Set printer connection state (Moonraker WebSocket)
@@ -651,8 +628,6 @@ class PrinterState {
      */
     void set_helix_plugin_installed(bool installed);
 
-    // === Visibility Subject Getters (pre-print options card aggregate) ===
-
     /**
      * @brief Set printer kinematics type and update has_individual_xyz_homing and
      *        bed_moves subjects.
@@ -757,11 +732,7 @@ class PrinterState {
     int get_configured_z_offset_microns();
 
     // ========================================================================
-    // HARDWARE VALIDATION API
-    // ========================================================================
-
-    // ========================================================================
-    // PRINTER TYPE AND PRINT START CAPABILITIES
+    // PRINTER TYPE
     // ========================================================================
 
     /**
@@ -873,62 +844,6 @@ class PrinterState {
     /// Printer type, its pre-print option set and z-offset calibration strategy
     helix::PrinterProfileState profile_state_;
 
-    // Note: Print subjects are now managed by print_domain_ component
-    // (print_progress_, print_filename_, print_state_, print_state_enum_,
-    //  print_outcome_, print_active_, print_show_progress_, print_display_filename_,
-    //  print_thumbnail_path_, print_layer_current_, print_layer_total_,
-    //  print_duration_, print_time_left_, print_start_phase_, print_start_message_,
-    //  print_start_progress_, print_in_progress_)
-
-    // Note: Motion subjects (position_x_, position_y_, position_z_, homed_axes_,
-    // speed_factor_, flow_factor_, gcode_z_offset_, pending_z_offset_delta_)
-    // are now managed by motion_state_ component
-
-    // Note: Fan subjects (fan_speed_, fans_, fans_version_, fan_speed_subjects_)
-    // are now managed by fan_state_ component
-
-    // Note: Network subjects (printer_connection_state_, printer_connection_message_,
-    // network_status_, klippy_state_, nav_buttons_enabled_, was_ever_connected_)
-    // are now managed by network_state_ component
-
-    // Note: Excluded objects subjects (excluded_objects_version_, excluded_objects_)
-    // are now managed by excluded_objects_state_ component
-
-    // Note: Printer capability subjects (printer_has_qgl_, printer_has_z_tilt_,
-    // printer_has_bed_mesh_, printer_has_nozzle_clean_, printer_has_probe_,
-    // printer_has_heater_bed_, printer_has_led_, printer_has_accelerometer_,
-    // printer_has_spoolman_, printer_has_speaker_, printer_has_timelapse_,
-    // printer_has_purge_line_, printer_has_firmware_retraction_, printer_bed_moves_)
-    // are now managed by capabilities_state_ component
-
-    // Note: Plugin status subjects (helix_plugin_installed_, helix_macros_status_)
-    // are now managed by plugin_status_state_ component
-
-    // Note: Aggregate visibility subject (has_any_preprint_options_) is managed
-    // by composite_visibility_state_ component. The legacy per-op can_show_*
-    // subjects were retired — nothing in XML or production C++ ever read them.
-
-    // Note: Firmware retraction, manual probe, and motor state subjects
-    // (retract_length_, retract_speed_, unretract_extra_length_, unretract_speed_,
-    //  manual_probe_active_, manual_probe_z_position_, motors_enabled_)
-    // are now managed by calibration_state_ component
-
-    // Note: Version subjects (klipper_version_, moonraker_version_) are now managed
-    // by versions_state_ component
-
-    // Note: Hardware validation subjects (hardware_status_level_,
-    // hardware_critical_count_, hardware_warning_count_, hardware_info_count_,
-    // hardware_session_count_, hardware_status_title_, hardware_status_detail_,
-    // hardware_issues_label_, hardware_validation_result_) are managed by the
-    // hardware_validation_state_ component
-
-    // Note: String buffers are now managed by their respective component classes
-    // - homed_axes_buf_ is now in motion_state_ component
-    // - print-related buffers are now in print_domain_ component
-    // - hardware validation buffers are now in hardware_validation_state_ component
-    // - printer_connection_message_buf_ is now in network_state_ component
-    // - klipper_version_buf_, moonraker_version_buf_ are now in versions_state_ component
-
     // Multi-printer subjects (owned directly by PrinterState)
     lv_subject_t active_printer_name_{};
     char active_printer_name_buf_[128];
@@ -946,8 +861,6 @@ class PrinterState {
 
     // Cached display pointer to detect LVGL reinitialization (for test isolation)
     lv_display_t* cached_display_ = nullptr;
-
-    // Note: was_ever_connected_ is now managed by network_state_ component
 
     // Capability override layer (user config overrides for auto-detected capabilities)
     CapabilityOverrides capability_overrides_;

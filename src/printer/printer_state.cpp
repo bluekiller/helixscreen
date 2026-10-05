@@ -105,12 +105,6 @@ using namespace helix;
 // ============================================================================
 
 PrinterState::PrinterState() {
-    // Note: String buffer initialization is now handled by component classes:
-    // - homed_axes_buf_ is now in motion_state_ component
-    // - print-related buffers are now in print_domain_ component
-    // - printer_connection_message_buf_ is now in network_state_ component
-    // - klipper_version_buf_, moonraker_version_buf_ are now in versions_state_ component
-
     // Load user-configured capability overrides from settings.json
     capability_overrides_.load_from_config();
 }
@@ -227,18 +221,6 @@ void PrinterState::init_subjects(bool register_xml) {
     // Initialize capabilities state component (hardware capabilities, feature availability)
     capabilities_state_.init_subjects(register_xml);
 
-    // Note: Print subjects are now initialized by print_domain_.init_subjects() above
-
-    // Note: Motion subjects (position_x_, position_y_, position_z_, homed_axes_,
-    // speed_factor_, flow_factor_, gcode_z_offset_, pending_z_offset_delta_)
-    // are now initialized by motion_state_.init_subjects() above
-
-    // Note: Fan subjects (fan_speed_, fans_version_) are now initialized by
-    // fan_state_.init_subjects() above
-
-    // Note: Capability subjects (printer_has_qgl_, printer_has_z_tilt_, etc.)
-    // are now initialized by capabilities_state_.init_subjects() above
-
     // Initialize network state component (connection, klippy, nav buttons)
     network_state_.init_subjects(register_xml);
 
@@ -257,29 +239,8 @@ void PrinterState::init_subjects(bool register_xml) {
     // has_any_preprint_options aggregate (per-op can_show_* subjects retired)
     composite_visibility_state_.init_subjects(register_xml);
 
-    // Note: Hardware validation subjects are now initialized by
-    // hardware_validation_state_.init_subjects() above
-
-    // Note: Firmware retraction, manual probe, and motor state subjects
-    // are now initialized by calibration_state_.init_subjects() above
-
     // Version subjects (for About section) - delegated to versions_state_ component
     versions_state_.init_subjects(register_xml);
-
-    // Register all subjects with SubjectManager for automatic cleanup
-    // Note: Temperature subjects are managed by temperature_state_ component
-    // Note: Print subjects are managed by print_domain_ component
-    // Note: Motion subjects are registered by motion_state_ component
-    // Note: Fan subjects are registered by fan_state_ component
-    // Note: Capability subjects are managed by capabilities_state_ component
-    // Note: Network subjects are registered by network_state_.init_subjects()
-    // Note: Excluded objects subjects are registered by excluded_objects_state_.init_subjects()
-    // Note: Plugin status subjects are registered by plugin_status_state_.init_subjects()
-    // Note: Composite visibility subjects are registered by
-    // composite_visibility_state_.init_subjects() Note: Hardware validation subjects are registered
-    // by hardware_validation_state_.init_subjects() Note: Firmware retraction, manual probe, and
-    // motor state subjects are registered by calibration_state_.init_subjects()
-    // Note: Version subjects are registered by versions_state_.init_subjects()
 
     // Printer type, its pre-print options and z-offset strategy
     profile_state_.init_subjects(register_xml);
@@ -289,20 +250,6 @@ void PrinterState::init_subjects(bool register_xml) {
 
     spdlog::trace("[PrinterState] Registered {} subjects with SubjectManager", subjects_.count());
 
-    // Register all subjects with LVGL XML system (CRITICAL for XML bindings)
-    // Note: Temperature subjects are registered by temperature_state_ component
-    // Note: Print subjects are registered by print_domain_ component
-    // Note: Motion subjects are registered by motion_state_ component
-    // Note: Fan subjects are registered by fan_state_ component
-    // Note: Capability subjects are registered by capabilities_state_ component
-    // Note: Network subjects are registered by network_state_.init_subjects()
-    // Note: Plugin status subjects are registered by plugin_status_state_.init_subjects()
-    // Note: Composite visibility subjects are registered by
-    // composite_visibility_state_.init_subjects() Note: Hardware validation subjects are registered
-    // by hardware_validation_state_.init_subjects() Note: Firmware retraction, manual probe, and
-    // motor state subjects are registered by calibration_state_.init_subjects()
-    // Note: Version subjects are registered by versions_state_.init_subjects()
-    // Note: Excluded objects subjects are registered by excluded_objects_state_.init_subjects()
     // All component subjects handle their own XML registration in init_subjects(register_xml)
 
     subjects_initialized_ = true;
@@ -386,9 +333,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // Delegate print updates to print state component
     print_domain_.update_from_status(state);
 
-    // Note: Toolhead position, homed_axes, speed_factor, flow_factor, and gcode_z_offset
-    // are now updated by motion_state_.update_from_status() above
-
     // Extract kinematics type (determines if bed moves on Z or gantry moves)
     // This is not part of motion_state_ as it affects printer_bed_moves_ subject
     if (state.contains("toolhead")) {
@@ -449,9 +393,6 @@ void PrinterState::reset_for_new_print() {
     print_domain_.reset_for_new_print();
     helix::TimelapseState::instance().reset();
 }
-
-// Note: Multi-fan tracking (init_fans, update_fan_speed, get_fan_speed_subject) is now
-// delegated to fan_state_ component. See printer_fan_state.cpp.
 
 void PrinterState::set_printer_connection_state(int state, const char* message) {
     // Thread-safe wrapper: defer LVGL subject updates to main thread
@@ -677,8 +618,6 @@ void PrinterState::update_gcode_modification_visibility() {
         plugin, capabilities_state_, profile_state_.pre_print_option_set().options.size());
 }
 
-// Note: update_print_show_progress() is now in print_domain_ component
-
 bool PrinterState::is_blocking_operation_active() {
     // Interactive manual probe (PROBE_CALIBRATE / Z_ENDSTOP_CALIBRATE): always
     // blocking. idle_timeout may bounce to Ready between TESTZ commands, so this
@@ -805,19 +744,8 @@ void PrinterState::apply_effective_bed_moves() {
                   static_cast<int>(style), auto_detected_bed_moves_, effective);
 }
 
-// Note: Pending Z-offset delta methods are now delegated to motion_state_
-// component in the header file.
-
 // ============================================================================
-// PRINT START PROGRESS TRACKING - Delegated to print_domain_
-// ============================================================================
-
-// ============================================================================
-// HARDWARE VALIDATION - Delegated to hardware_validation_state_
-// ============================================================================
-
-// ============================================================================
-// PRINTER TYPE AND PRINT START CAPABILITIES
+// PRINTER TYPE
 // ============================================================================
 
 void PrinterState::set_printer_type_sync(const std::string& type) {
