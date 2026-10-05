@@ -134,7 +134,7 @@ fi
 BUSY=""
 for p in $(pgrep -x -d' ' 'make|cc1plus|helix-tests|helix-screen|git' 2>/dev/null || true); do
     cwd="$(readlink "/proc/$p/cwd" 2>/dev/null || true)"
-    [[ "$cwd" == "$WT_ABS"* ]] && BUSY+=" $p"
+    path_is_within "$cwd" "$WT_ABS" && BUSY+=" $p"
 done
 if [[ -n "$BUSY" ]]; then
     say "${RED}Error: processes are running inside that worktree:${RESET}$BUSY"
