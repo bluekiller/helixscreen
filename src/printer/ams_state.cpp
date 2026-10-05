@@ -16,6 +16,7 @@
 #include "ui_color_picker.h"
 #include "ui_update_queue.h"
 
+#include "ams_backend_registry.h"
 #include "ams_bypass_policy.h"
 #include "ams_lane_state.h"
 #include "ams_remap.h"
@@ -251,12 +252,7 @@ AmsState::~AmsState() {
     // During static destruction, the MoonrakerClient may already be destroyed.
     // Release subscriptions without unsubscribing to avoid calling into dead objects.
     // SubscriptionGuard::release() abandons the subscription — no mutex access needed.
-    for (auto& b : backends_) {
-        if (b) {
-            b->release_subscriptions();
-        }
-    }
-    backends_.clear();
+    registry_.release_all();
 }
 
 void AmsState::init_subjects(bool register_xml) {
@@ -692,7 +688,7 @@ void AmsState::init_subjects(bool register_xml) {
     // Ask the factory for a backend. In mock mode, it returns a mock backend.
     // In real mode with no printer connected, it returns nullptr.
     // This keeps mock/real decision entirely in the factory.
-    if (backends_.empty()) {
+    if (registry_.count() == 0) {
         auto backend = AmsBackend::create(AmsType::NONE, nullptr, nullptr);
         if (backend) {
             // Register first, start second, as init_backends_from_hardware()
@@ -980,7 +976,7 @@ void AmsState::init_backends_from_hardware(const helix::PrinterDiscovery& hardwa
 
     {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!backends_.empty()) {
+        if (registry_.count() > 0) {
             spdlog::debug("[AMS State] Backends already initialized, skipping");
             return;
         }
@@ -1033,102 +1029,44 @@ void AmsState::set_backend(std::unique_ptr<AmsBackend> backend) {
 int AmsState::add_backend(std::unique_ptr<AmsBackend> backend) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    int index = static_cast<int>(backends_.size());
-    backends_.push_back(std::move(backend));
+    const int index = registry_.add(
+        std::move(backend), [this](int i, const std::string& event, const std::string& data) {
+            on_backend_event(i, event, data);
+        });
 
-    if (backends_[index]) {
-        backends_[index]->set_backend_index(index);
-
-        // Register event callback with captured index
-        backends_[index]->set_event_callback(
-            [this, index](const std::string& event, const std::string& data) {
-                on_backend_event(index, event, data);
-            });
-
-        // Apply stored gcode response callback (no-op for real backends)
-        if (gcode_response_callback_) {
-            backends_[index]->set_gcode_response_callback(gcode_response_callback_);
-        }
-
-        // Allocate per-backend slot subjects for secondary backends
-        if (index > 0) {
-            auto info = backends_[index]->get_system_info();
+    // Per-backend slot subjects for secondary backends
+    if (index > 0) {
+        if (auto* b = registry_.get(index)) {
             BackendSlotSubjects subs;
-            subs.init(info.total_slots);
+            subs.init(b->get_system_info().total_slots);
             secondary_slot_subjects_.push_back(std::move(subs));
         }
-
-        // Register one FilamentConsumptionTracker sink per slot. The tracker's
-        // gating (unknown weight / Spoolman-linked / native-tracking backend)
-        // decides per-tick whether each sink actually consumes deltas.
-        const int slot_count = backends_[index]->get_system_info().total_slots;
-        auto& handles = consumption_sinks_[index];
-        handles.reserve(slot_count);
-        auto& tracker = helix::FilamentConsumptionTracker::instance();
-        for (int slot = 0; slot < slot_count; ++slot) {
-            auto sink = std::make_unique<helix::AmsSlotSink>(index, slot);
-            handles.push_back(tracker.register_sink(std::move(sink)));
-        }
-        spdlog::debug("[AMS State] Registered {} consumption sinks for backend {}", slot_count,
-                      index);
     }
 
-    // Update backend count subject for UI binding
-    int new_count = static_cast<int>(backends_.size());
-    lv_subject_set_int(&backend_count_, new_count);
-
+    lv_subject_set_int(&backend_count_, registry_.count());
     return index;
 }
 
 AmsBackend* AmsState::get_backend(int index) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (index < 0 || index >= static_cast<int>(backends_.size())) {
-        return nullptr;
-    }
-    return backends_[index].get();
+    return registry_.get(index);
 }
 
 std::optional<AmsType> AmsState::primary_type() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backends_.empty() || !backends_[0]) {
-        return std::nullopt;
-    }
-    return backends_[0]->get_type();
+    return registry_.primary_type();
 }
 
 int AmsState::backend_count() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return static_cast<int>(backends_.size());
+    return registry_.count();
 }
 
 bool AmsState::any_filament_batch_in_flight() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return std::any_of(backends_.begin(), backends_.end(), [](const auto& backend) {
-        return backend && backend->filament_batch_in_flight();
-    });
+    return registry_.any_filament_batch_in_flight();
 }
 
 void AmsState::clear_backends() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    // Unregister all FilamentConsumptionTracker sinks tied to these backends
-    // BEFORE tearing down the backends themselves — the sinks will read each
-    // backend one last time on flush().
-    auto& tracker = helix::FilamentConsumptionTracker::instance();
-    for (auto& [idx, handles] : consumption_sinks_) {
-        for (auto* h : handles) {
-            tracker.unregister_sink(h);
-        }
-    }
-    consumption_sinks_.clear();
-
-    // Stop all backends
-    for (auto& b : backends_) {
-        if (b) {
-            b->stop();
-        }
-    }
-    backends_.clear();
+    registry_.clear();
 
     // Registration stamps indices from 0 again, so the next set of backends
     // takes these blocks of lane ids. A declaration left behind would be
@@ -1197,8 +1135,9 @@ std::vector<helix::AvailableSlot> AmsState::collect_available_slots() const {
     std::vector<helix::AvailableSlot> slots;
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    for (size_t bi = 0; bi < backends_.size(); ++bi) {
-        const auto& backend = backends_[bi];
+    const auto& backends = registry_.backends();
+    for (size_t bi = 0; bi < backends.size(); ++bi) {
+        const auto& backend = backends[bi];
         if (!backend) {
             continue;
         }
@@ -1234,7 +1173,7 @@ std::vector<helix::AvailableSlot> AmsState::collect_available_slots() const {
     }
 
     spdlog::debug("[AmsState] Collected {} available slots from {} backends", slots.size(),
-                  backends_.size());
+                  backends.size());
     return slots;
 }
 
@@ -1262,7 +1201,7 @@ helix::FirmwareRouting AmsState::collect_firmware_routing() const {
 
 bool AmsState::any_bypass_active() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    for (const auto& backend : backends_) {
+    for (const auto& backend : registry_.backends()) {
         if (backend && backend->is_bypass_active()) {
             return true;
         }
@@ -1313,7 +1252,7 @@ int AmsState::active_backend_index() const {
 
 void AmsState::set_active_backend(int index) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (index >= 0 && index < static_cast<int>(backends_.size())) {
+    if (index >= 0 && index < registry_.count()) {
         lv_subject_set_int(&active_backend_, index);
     }
 }
@@ -1332,16 +1271,7 @@ void AmsState::set_moonraker_api(IMoonrakerAPI* api) {
 }
 
 void AmsState::set_gcode_response_callback(std::function<void(const std::string&)> callback) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    gcode_response_callback_ = std::move(callback);
-
-    // Apply to any existing backends (no-op for real backends)
-    for (auto& backend : backends_) {
-        backend->set_gcode_response_callback(gcode_response_callback_);
-    }
-
-    spdlog::debug("[AMS State] Gcode response callback {}",
-                  gcode_response_callback_ ? "set" : "cleared");
+    registry_.set_gcode_response_callback(std::move(callback));
 }
 
 lv_subject_t* AmsState::get_slot_color_subject(int slot_index) {
@@ -1960,7 +1890,7 @@ void AmsState::sync_from_backend() {
         // support bypass answer; AmsState names no system.
         if (bypass_now) {
             const auto spool = get_external_spool_info();
-            for (auto& backend : backends_) {
+            for (auto& backend : registry_.backends()) {
                 if (backend) {
                     backend->publish_external_spool_lane(spool.has_value() ? &spool.value()
                                                                            : nullptr);
@@ -3045,7 +2975,7 @@ void AmsState::set_current_loaded_defaults(bool write_header) {
 void AmsState::sync_current_loaded_from_backend() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    if (backends_.empty()) {
+    if (registry_.count() == 0) {
         set_current_loaded_defaults();
         return;
     }
@@ -3092,7 +3022,7 @@ void AmsState::set_current_slot_header(AmsBackend& backend, int slot_index) {
 void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_info) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    if (backends_.empty()) {
+    if (registry_.count() == 0) {
         set_current_loaded_defaults();
         return;
     }
@@ -3111,8 +3041,9 @@ void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_inf
     AmsBackend* working_backend = nullptr;
     int working_slot = -1;
 
-    for (size_t idx = 0; idx < backends_.size(); ++idx) {
-        auto& b = backends_[idx];
+    const auto& backends = registry_.backends();
+    for (size_t idx = 0; idx < backends.size(); ++idx) {
+        auto& b = backends[idx];
         if (!b)
             continue;
         AmsSystemInfo secondary_info;
@@ -3141,7 +3072,7 @@ void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_inf
 
     // Fallback to primary backend for bypass check if no loaded backend found
     if (!loaded_backend) {
-        loaded_backend = backends_[0].get();
+        loaded_backend = backends[0].get();
         if (loaded_backend) {
             slot_index = primary_info.current_slot;
             filament_loaded = primary_info.filament_loaded;
@@ -3507,7 +3438,7 @@ void AmsState::apply_external_spool_store(const SlotInfo& info) {
 
     // Keep the slicer-sync lane (OrcaSlicer lane_data mirror) fresh on every
     // identity change — same capability dispatch as the bypass-engage hook.
-    for (auto& backend : backends_) {
+    for (auto& backend : registry_.backends()) {
         if (backend) {
             backend->publish_external_spool_lane(&info);
         }

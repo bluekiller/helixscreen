@@ -6,6 +6,7 @@
 #include "ui_observer_guard.h"
 
 #include "ams_backend.h"
+#include "ams_backend_registry.h"
 #include "ams_runout_grace.h"
 #include "ams_step_operation.h"
 #include "ams_types.h"
@@ -1787,12 +1788,8 @@ class AmsState {
                                        lv_subject_t (&primary)[MAX_SLOTS]);
 
     mutable std::recursive_mutex mutex_;
-    std::vector<std::unique_ptr<AmsBackend>> backends_;
+    AmsBackendRegistry registry_;
     std::vector<BackendSlotSubjects> secondary_slot_subjects_;
-    /// FilamentConsumptionTracker sink handles, keyed by backend index. One
-    /// AmsSlotSink per slot is registered when a backend is added and removed
-    /// in clear_backends().
-    std::map<int, std::vector<helix::FilamentConsumptionTracker::SinkHandle>> consumption_sinks_;
     bool initialized_ = false;
 
     // Moonraker API for Spoolman integration
@@ -2114,9 +2111,6 @@ class AmsState {
     /// dedicated ams_env_ind_detail_* subjects consumed by the statically
     /// embedded detail-view indicator (see Task 9 brief).
     void mirror_detail_env_subjects();
-
-    // Stored callback for mock gcode response injection
-    std::function<void(const std::string&)> gcode_response_callback_;
 };
 
 } // namespace helix

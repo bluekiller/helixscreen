@@ -122,6 +122,7 @@ src/printer/afc_config_manager.cpp
 src/printer/afc_defaults.cpp
 src/printer/afc_fault_position.cpp
 src/printer/ams_backend.cpp
+src/printer/ams_backend_registry.cpp
 src/printer/ams_backend_ace.cpp
 src/printer/ams_backend_ad5x_ifs.cpp
 src/printer/ams_backend_afc.cpp
