@@ -15,6 +15,7 @@
 #include "app_globals.h"
 #include "gcode_tool_remapper.h"
 #include "helix_fs.h"
+#include "http_executor.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "macro_param_cache.h"
 #include "memory_monitor.h"
@@ -462,6 +463,7 @@ void PrintPreparationManager::set_cached_scan_result(const gcode::ScanResult& sc
                                                      const std::string& filename) {
     cached_scan_result_ = scan;
     cached_scan_filename_ = filename;
+    cached_scan_key_ = filename;
 }
 
 // ============================================================================
@@ -469,15 +471,26 @@ void PrintPreparationManager::set_cached_scan_result(const gcode::ScanResult& sc
 // ============================================================================
 
 void PrintPreparationManager::scan_file_for_operations(const std::string& filename,
-                                                       const std::string& current_path) {
+                                                       const std::string& current_path,
+                                                       const std::string& local_path) {
     // The cached result is reusable only while its printer-stopping command
     // answer still holds. An answer computed before the printer's macros were
     // read, or against a macro set it has since replaced, says nothing about
     // this printer, so the file is scanned again.
-    if (cached_scan_filename_ == filename && cached_scan_result_.has_value() &&
-        has_printer_stop_answer_for(filename)) {
-        spdlog::debug("[PrintPreparationManager] Using cached scan result for {}", filename);
+    const std::string file_path = current_path.empty() ? filename : current_path + "/" + filename;
+    const std::string key = local_path.empty() ? file_path : local_path;
+    if (cached_scan_key_ == key && cached_scan_filename_ == filename &&
+        cached_scan_result_.has_value() && has_printer_stop_answer_for(filename)) {
+        spdlog::debug("[PrintPreparationManager] Using cached scan result for {}", key);
         return;
+    }
+    // Every answer below belongs to this key; a same-named file's answer must
+    // not stand in for it while this one is pending.
+    requested_scan_key_ = key;
+    if (cached_scan_key_ != key) {
+        cached_scan_result_.reset();
+        cached_scan_filename_.clear();
+        printer_stop_check_filename_.clear();
     }
 
     if (!api_) {
@@ -491,78 +504,94 @@ void PrintPreparationManager::scan_file_for_operations(const std::string& filena
         // previously opened file's operations.
         cached_scan_result_ = gcode::ScanResult{};
         cached_scan_filename_ = filename;
+        cached_scan_key_ = key;
         answer_printer_stop_check(filename,
                                   printer_stop_not_run("a .3mf project holds no G-code to scan"));
         return;
     }
 
-    // Build path for download
-    std::string file_path = current_path.empty() ? filename : current_path + "/" + filename;
-
     spdlog::info("[PrintPreparationManager] Scanning G-code for embedded operations: {}",
-                 file_path);
+                 local_path.empty() ? file_path : local_path);
 
     auto token = lifetime_.token();
 
     // Only the file's head is needed for preamble scanning (thumbnails + slicer
     // metadata + START_PRINT call + any early G-code ops), which avoids
     // downloading multi-MB files just to scan the first few hundred lines.
-    api_->transfers().download_file_partial(
-        "gcodes", file_path, helix::PRINTER_STOP_SCAN_BYTES,
-        // Success: parse content and cache result
-        // NOTE: This callback runs on a background HTTP thread, so we must defer
-        // shared state updates and LVGL calls to the main thread via token.defer (queue_update)
-        [this, token, filename](const std::string& content) {
-            // Parse on background thread (safe - no shared state access)
-            gcode::GCodeOpsDetector detector;
-            auto scan_result = detector.scan_content(content);
+    // Both callbacks run on a background thread: parse there, then defer the
+    // shared state updates to the main thread.
+    auto on_content = [this, token, filename, key](const std::string& content) {
+        gcode::GCodeOpsDetector detector;
+        auto scan_result = detector.scan_content(content);
 
-            // Log on background thread (spdlog is thread-safe)
-            if (scan_result.operations.empty()) {
-                spdlog::debug("[PrintPreparationManager] No embedded operations found in {}",
-                              filename);
-            } else {
-                spdlog::info("[PrintPreparationManager] Found {} embedded operations in {}:",
-                             scan_result.operations.size(), filename);
-                for (const auto& op : scan_result.operations) {
-                    spdlog::info("[PrintPreparationManager]   - {} at line {} ({})",
-                                 op.display_name(), op.line_number, op.raw_line.substr(0, 50));
-                }
+        if (scan_result.operations.empty()) {
+            spdlog::debug("[PrintPreparationManager] No embedded operations found in {}", filename);
+        } else {
+            spdlog::info("[PrintPreparationManager] Found {} embedded operations in {}:",
+                         scan_result.operations.size(), filename);
+            for (const auto& op : scan_result.operations) {
+                spdlog::info("[PrintPreparationManager]   - {} at line {} ({})", op.display_name(),
+                             op.line_number, op.raw_line.substr(0, 50));
             }
+        }
 
-            helix::PrinterStopCheck stop_check =
-                helix::printer_stop_check_in(content, helix::PRINTER_STOP_SCAN_BYTES);
-            if (stop_check.state == helix::PrinterStopCheck::State::Stops) {
-                spdlog::warn(
-                    "[PrintPreparationManager] {} line {} calls {}, which stops this printer",
-                    filename, stop_check.line_number, stop_check.command);
+        helix::PrinterStopCheck stop_check =
+            helix::printer_stop_check_in(content, helix::PRINTER_STOP_SCAN_BYTES);
+        if (stop_check.state == helix::PrinterStopCheck::State::Stops) {
+            spdlog::warn("[PrintPreparationManager] {} line {} calls {}, which stops this printer",
+                         filename, stop_check.line_number, stop_check.command);
+        }
+
+        token.defer("PrintPreparationManager::scan_success",
+                    [this, filename, key, scan_result, stop_check]() {
+                        if (key != requested_scan_key_) {
+                            return;
+                        }
+                        cached_scan_result_ = scan_result;
+                        cached_scan_filename_ = filename;
+                        cached_scan_key_ = key;
+                        answer_printer_stop_check(filename, stop_check);
+                    });
+    };
+    // A failed read just logs; it never blocks the UI.
+    auto on_failure = [this, token, filename, key](const std::string& message) {
+        spdlog::warn("[PrintPreparationManager] Failed to scan G-code {}: {}", filename, message);
+        std::string reason = "the file could not be read: " + message;
+        token.defer("PrintPreparationManager::scan_error", [this, filename, key, reason]() {
+            if (key != requested_scan_key_) {
+                return;
             }
-
-            token.defer("PrintPreparationManager::scan_success",
-                        [this, filename, scan_result, stop_check]() {
-                            cached_scan_result_ = scan_result;
-                            cached_scan_filename_ = filename;
-                            answer_printer_stop_check(filename, stop_check);
-                        });
-        },
-        // Error: just log, don't block the UI
-        // NOTE: Also runs on background thread
-        [this, token, filename](const MoonrakerError& error) {
-            spdlog::warn("[PrintPreparationManager] Failed to scan G-code {}: {}", filename,
-                         error.message);
-
-            std::string reason = "the file could not be read: " + error.message;
-            token.defer("PrintPreparationManager::scan_error", [this, filename, reason]() {
-                cached_scan_result_.reset();
-                cached_scan_filename_.clear();
-                answer_printer_stop_check(filename, helix::printer_stop_not_run(reason));
-            });
+            cached_scan_result_.reset();
+            cached_scan_filename_.clear();
+            cached_scan_key_.clear();
+            answer_printer_stop_check(filename, helix::printer_stop_not_run(reason));
         });
+    };
+
+    // A bounded read, on the fast lane: the slow lane's one worker can sit
+    // behind a multi-minute upload.
+    if (!local_path.empty()) {
+        helix::http::HttpExecutor::fast().submit([local_path, on_content, on_failure]() {
+            auto head = helix::text_io::read_file(local_path, helix::PRINTER_STOP_SCAN_BYTES);
+            if (!head) {
+                on_failure("cannot read " + local_path);
+                return;
+            }
+            on_content(*head);
+        });
+        return;
+    }
+
+    api_->transfers().download_file_partial(
+        "gcodes", file_path, helix::PRINTER_STOP_SCAN_BYTES, on_content,
+        [on_failure](const MoonrakerError& error) { on_failure(error.message); });
 }
 
 void PrintPreparationManager::clear_scan_cache() {
     cached_scan_result_.reset();
     cached_scan_filename_.clear();
+    cached_scan_key_.clear();
+    requested_scan_key_.clear();
     cached_file_size_.reset();
     printer_stop_check_ = {};
     printer_stop_check_filename_.clear();

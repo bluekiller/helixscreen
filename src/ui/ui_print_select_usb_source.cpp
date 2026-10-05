@@ -178,7 +178,7 @@ void PrintSelectUsbSource::select_printer_source() {
     spdlog::debug("[UsbSource] Switching to Printer source");
     current_source_ = FileSource::PRINTER;
     usb_files_.clear();
-    ++*scan_generation_; // stops a walk whose result nothing will show
+    walk_.cancel(); // its result has nowhere to show
     update_button_states();
 
     if (on_source_changed_) {
@@ -266,28 +266,11 @@ void PrintSelectUsbSource::on_drive_removed() {
 // File Operations
 // ============================================================================
 
-PrintSelectUsbSource::~PrintSelectUsbSource() {
-    ++*scan_generation_;
-}
-
 void PrintSelectUsbSource::refresh_files() {
     usb_files_.clear();
-    ++*scan_generation_;
-    if (scan_in_flight_) {
-        return; // on_scan_done() starts the next walk
-    }
-    start_scan();
-}
-
-void PrintSelectUsbSource::deliver_empty() {
-    if (on_files_ready_) {
-        on_files_ready_(std::vector<PrintFileData>{});
-    }
-}
-
-void PrintSelectUsbSource::start_scan() {
     if (!usb_manager_) {
         spdlog::warn("[UsbSource] UsbManager not available");
+        walk_.cancel();
         deliver_empty();
         return;
     }
@@ -298,6 +281,7 @@ void PrintSelectUsbSource::start_scan() {
     auto backend = usb_manager_->backend_snapshot();
     if (drives.empty() || !backend) {
         spdlog::debug("[UsbSource] No USB drives detected");
+        walk_.cancel();
         deliver_empty();
         return;
     }
@@ -305,31 +289,21 @@ void PrintSelectUsbSource::start_scan() {
     // The fast lane, one walk at a time: it holds at most one of the four
     // workers, while the slow lane's single worker would queue the listing
     // behind any large G-code transfer.
-    scan_in_flight_ = true;
-    const uint64_t generation = scan_generation_->load();
-    helix::http::HttpExecutor::fast().submit([this, tok = scan_lifetime_.token(), backend,
-                                              drives = std::move(drives), generation,
-                                              current = scan_generation_]() {
-        auto scan =
-            scan_usb_drives(*backend, drives, [&]() { return current->load() != generation; });
-        tok.defer("PrintSelectUsbSource::scan_done",
-                  [this, generation, scan = std::move(scan)]() mutable {
-                      on_scan_done(generation, std::move(scan));
-                  });
+    walk_.run([this, backend, drives = std::move(drives)](
+                  const helix::SingleFlightWalk::Cancelled& cancelled) -> std::function<void()> {
+        auto scan = scan_usb_drives(*backend, drives, cancelled);
+        return [this, scan = std::move(scan)]() mutable {
+            usb_files_ = std::move(scan.files);
+            if (on_files_ready_) {
+                on_files_ready_(convert_to_print_file_data(scan.thumbnails));
+            }
+        };
     });
 }
 
-void PrintSelectUsbSource::on_scan_done(uint64_t generation, UsbScan scan) {
-    scan_in_flight_ = false;
-    if (generation != scan_generation_->load()) {
-        if (current_source_ == FileSource::USB) {
-            start_scan();
-        }
-        return;
-    }
-    usb_files_ = std::move(scan.files);
+void PrintSelectUsbSource::deliver_empty() {
     if (on_files_ready_) {
-        on_files_ready_(convert_to_print_file_data(scan.thumbnails));
+        on_files_ready_(std::vector<PrintFileData>{});
     }
 }
 

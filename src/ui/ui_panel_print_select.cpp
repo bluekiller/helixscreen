@@ -2151,7 +2151,7 @@ void PrintSelectPanel::show_detail_view() {
         detail_view_->show(filename, current_path_, selected_filament_type_,
                            selected_filament_colors_, selected_filament_materials_,
                            selected_file_size_bytes_, selected_modified_timestamp_,
-                           selected_gcode_end_byte_);
+                           selected_gcode_end_byte_, selected_local_path_);
         // Update history status display in detail view
         detail_view_->update_history_status(selected_history_status_, selected_success_count_);
     }
@@ -2200,6 +2200,11 @@ void PrintSelectPanel::show_delete_confirmation() {
     if (!detail_view_) {
         spdlog::warn("[{}] Cannot show delete confirmation: detail_view_ not initialized",
                      get_name());
+        return;
+    }
+    // A USB file has no Moonraker path to delete.
+    if (!selected_local_path_.empty()) {
+        spdlog::debug("[{}] Delete refused for USB file {}", get_name(), selected_local_path_);
         return;
     }
     std::string filename(selected_filename_buffer_);
@@ -2816,6 +2821,11 @@ void PrintSelectPanel::on_file_long_pressed(size_t file_index) {
         // Card view already filters directories, but double-check in case the
         // list mutated between the long-press timer starting and firing.
         spdlog::trace("[{}] long-press on directory ignored: {}", get_name(), file.filename);
+        return;
+    }
+    if (!file.local_path.empty()) {
+        // No delete for a USB file, the same as its hidden detail-view button.
+        spdlog::trace("[{}] long-press on USB file ignored: {}", get_name(), file.filename);
         return;
     }
 
@@ -3471,6 +3481,10 @@ void PrintSelectPanel::apply_remap(const std::vector<helix::ToolMapping>& update
 }
 
 void PrintSelectPanel::delete_file() {
+    if (!selected_local_path_.empty()) {
+        hide_delete_confirmation();
+        return;
+    }
     std::string filename_to_delete(selected_filename_buffer_);
     auto* self = this;
     auto token = object_lifetime_.token();
