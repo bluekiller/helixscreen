@@ -165,10 +165,11 @@ manager's `current_index` is the only seat signal.
 | Field | Meaning |
 |-------|---------|
 | `current_index` | **The loaded-tool signal.** Global tool index across every unit (`tool = instance*4 + local_slot` for 4-slot units); `-1` = nothing loaded. This is the fourth and last explicit seat signal `src/printer/ams_backend_ace.cpp#parse_ace_object` arbitrates, via `seat_from_global_index_locked` |
-| `target_index` | Tool being changed *toward* mid-swap (`-1` when idle) |
+| `target_index` | Tool being changed *toward* mid-swap (`-1` when idle). While it names an unseated tool it is `pending_target_slot` and an idle hub reads as a driver-raised action: LOADING from an empty head; swapping out a seated tool, UNLOADING (path on the outgoing lane) until `rdm_sensor` clears, then LOADING on the target lane. The sensor is made again by the incoming strand, so a per-swap latch, not the sensor alone, holds the phase (`src/printer/ams_backend_ace.cpp#apply_target_index_locked`) |
 | `ace_instances` | Unit count (1 on the captured rig) |
 | `endless_spool_enabled`, `endless_spool_match_mode` | Endless-spool config (`false` / `"exact"` captured) |
-| `ace_pro_enabled`, `toolhead_sensor`, `rdm_sensor` | Hardware capability flags |
+| `ace_pro_enabled` | Master switch; presence is the capability |
+| `toolhead_sensor`, `rdm_sensor` | Path sensors (toolhead, hub). With nothing seated, or during a driver-started swap, they place the strand: toolhead made = `TOOLHEAD`, hub only = `OUTPUT` (`#get_filament_segment`). A seated tool outside a swap answers `NOZZLE` |
 
 **Unit — `ace_instance_N.get_status()`** (the captured rig exposes `ace_instance_0`):
 
