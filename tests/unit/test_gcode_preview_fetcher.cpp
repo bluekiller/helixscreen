@@ -162,3 +162,43 @@ TEST_CASE_METHOD(FetcherFixture, "Fetcher: a cancelled caller is not told, a lat
 
     CHECK(ready.size() == 1);
 }
+
+TEST_CASE_METHOD(FetcherFixture,
+                 "Fetcher: a fetch during a download never trusts the partial file on disk",
+                 "[gcode_preview_fetcher]") {
+    std::vector<std::string> first_ready;
+    std::vector<std::string> second_ready;
+    int unavailable = 0;
+    auto ready_into = [](std::vector<std::string>& into) {
+        return [&into](const std::string& path) { into.push_back(path); };
+    };
+
+    fetcher_.fetch(REMOTE, ready_into(first_ready),
+                   [&](GcodePreviewFetcher::Unavailable) { ++unavailable; });
+    drain();
+    REQUIRE(transfers_.held_count() == 1);
+
+    // The running transfer has written part of the file.
+    const auto partial =
+        cache_.dir / "gcode_temp" / GcodePreviewFetcher::cache_file_name("print_view_", REMOTE);
+    {
+        std::ofstream copy(partial, std::ios::binary);
+        copy << "partial";
+    }
+
+    // With the size lookup failing, a cached copy would be the fallback; the
+    // partial file must not pass for one.
+    helix::ScopedEnv metadata_fails("HELIX_MOCK_METADATA_404", "1");
+    fetcher_.fetch(REMOTE, ready_into(second_ready),
+                   [&](GcodePreviewFetcher::Unavailable) { ++unavailable; });
+    drain();
+
+    CHECK(second_ready.empty());
+    CHECK(unavailable == 0);
+    CHECK(transfers_.held_count() == 1);
+
+    REQUIRE(transfers_.release(REMOTE));
+    drain();
+    CHECK(first_ready.empty());
+    CHECK(second_ready.size() == 1);
+}
