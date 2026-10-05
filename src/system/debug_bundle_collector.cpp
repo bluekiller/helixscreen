@@ -559,8 +559,8 @@ PrinterSnapshot DebugBundleCollector::snapshot_printer_state() {
         // placeholder versions ("?"/"unknown" from some vendor forks) into a
         // translated label, which tells a bundle reader nothing about what
         // the host actually reported.
-        if (!ps.get_klipper_version_raw().empty()) {
-            snap.klipper_version = ps.get_klipper_version_raw();
+        if (!ps.versions_state().get_klipper_version_raw().empty()) {
+            snap.klipper_version = ps.versions_state().get_klipper_version_raw();
         }
         if (auto* conn_subj = ps.get_printer_connection_state_subject())
             snap.connection_state = lv_subject_get_int(conn_subj);

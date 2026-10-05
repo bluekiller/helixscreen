@@ -233,7 +233,7 @@ void PrintSelectDetailView::init_subjects() {
         [](PrintSelectDetailView* self, int /*state*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
     moonraker_degraded_observer_ = observe<int>(
-        get_printer_state().get_moonraker_history_degraded_subject(), this,
+        get_printer_state().versions_state().get_moonraker_history_degraded_subject(), this,
         [](PrintSelectDetailView* self, int /*degraded*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
 
@@ -1642,7 +1642,8 @@ void PrintSelectDetailView::publish_card_visibility() {
         backend->get_remap_strategy() == AmsBackend::RemapStrategy::GcodeRewrite;
     const bool degraded =
         available && rewrites_job_file &&
-        lv_subject_get_int(get_printer_state().get_moonraker_history_degraded_subject()) == 1;
+        lv_subject_get_int(
+            get_printer_state().versions_state().get_moonraker_history_degraded_subject()) == 1;
 
     lv_subject_set_int(&color_card_remap_help_visible_,
                        card_visible && (needs_setup || degraded) ? 1 : 0);

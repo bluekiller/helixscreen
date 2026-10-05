@@ -1719,32 +1719,6 @@ class PrinterState {
     void set_os_version(const std::string& version);
 
     /**
-     * @brief Get Klipper version subject for XML binding
-     */
-    lv_subject_t* get_klipper_version_subject() {
-        return versions_state_.get_klipper_version_subject();
-    }
-
-    /// Raw klipper version as the host reported it, for data consumers
-    /// (debug bundle); the subject carries the localized display form.
-    const std::string& get_klipper_version_raw() const {
-        return versions_state_.get_klipper_version_raw();
-    }
-
-    /**
-     * @brief Get Moonraker version subject for XML binding
-     */
-    /// 1 when this Moonraker is too old for the HelixPrint plugin to restore a
-    /// rewritten job's original filename. See moonraker_history_is_degraded().
-    lv_subject_t* get_moonraker_history_degraded_subject() {
-        return versions_state_.get_moonraker_history_degraded_subject();
-    }
-
-    lv_subject_t* get_moonraker_version_subject() {
-        return versions_state_.get_moonraker_version_subject();
-    }
-
-    /**
      * @brief Get the capability overrides for external access
      *
      * Allows other components to check effective capability availability
