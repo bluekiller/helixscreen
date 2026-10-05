@@ -701,6 +701,14 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// and that was logged. Reset once the key is ours again. Guarded by mutex_.
     bool external_key_conflict_logged_ = false;
 
+    /// Lane the external-spool mirror was last published at, -1 for none.
+    /// Guarded by mutex_.
+    int external_lane_published_ = -1;
+
+    /// Loaded external-spool mirrors have been sorted into bay records and
+    /// strays against the first frame of this session. Guarded by mutex_.
+    bool mirrors_sorted_ = false;
+
     /// SUCCESS for stock schemas and the identified Fork dialect; returns
     /// not_supported for an unidentified Flat implementation.
     [[nodiscard]] AmsError reject_if_flat_schema(const char* operation) const;

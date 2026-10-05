@@ -2303,9 +2303,12 @@ itself:
 | Happy Hare | `lane{N+1}` via a dedicated shared-namespace store | HH's plugin publishes gates only (`push_lane_data` in its Moonraker component), and its **boot-time cleanup deletes records with `lane >= num_gates`**; same die-at-restart, re-publish-on-trigger cycle |
 | ACE / Snapmaker / QIDI / Tool Changer | no (default no-op) | `supports_bypass` is false — there is no external spool to publish |
 
-Every mirror `publish_external_lane()` writes carries `helix_external: true`. A load drops
-those records from the bay overrides and from lane classification: the mirror is republished
-from settings and is no bay's record, even when a later box puts a bay on its key.
+Every mirror `publish_external_lane()` writes carries `helix_external: true`. CFS sorts the
+loaded mirrors against the first box frame of a session: one whose key is a bay the box reports
+stays as that bay's record (an adopted mirror may have been one), and any other is dropped from
+the bay overrides. An unmarked record at the external key is adopted when it names the spool
+being published (`record_describes_spool()`), and left alone otherwise. When the Fork key moves
+(the top box returns), the mirror at the old key is cleared if it is still ours.
 
 The identity rule is shared in `publish_external_lane()`: a null or identity-less record
 (no Spoolman id, no material, default-gray color) **clears** the lane rather than

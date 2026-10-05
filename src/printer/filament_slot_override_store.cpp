@@ -2011,11 +2011,6 @@ LoadedOverrideStore make_loaded_override_store(IMoonrakerAPI* api, std::string b
     result.store = std::make_unique<FilamentSlotOverrideStore>(
         api, std::move(backend_id), lane_key_style_for(type), std::move(ns));
     result.overrides = result.store->load_blocking();
-    // The external-spool mirror is republished from settings and is no bay's
-    // record, so a key it shares with a bay must not hand that bay its identity.
-    for (auto it = result.overrides.begin(); it != result.overrides.end();) {
-        it = it->second.external_mirror ? result.overrides.erase(it) : std::next(it);
-    }
     spdlog::info("{} Loaded {} slot overrides from filament_slot store", log_tag,
                  result.overrides.size());
     return result;

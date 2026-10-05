@@ -392,6 +392,14 @@ bool AmsBackendCfs::owns_filament_sensor(const std::string& bare_name,
 void AmsBackendCfs::on_started() {
     spdlog::info("[AMS CFS] Backend started — querying initial box state");
 
+    // A start is a new session: the merged stock frames and the first-frame
+    // mirror sort describe the last one.
+    stock_box_state_ = nlohmann::json::object();
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        mirrors_sorted_ = false;
+    }
+
     // Restore the persisted stock-dialect bypass declaration. The
     // BOX_ENABLE_CFS_PRINT ENABLE=0 sent when it was made survives in the
     // box's own tn_data.json, but nothing firmware-side records that
@@ -1640,6 +1648,18 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
             if (!new_info.units.empty()) {
                 system_info_.units = std::move(new_info.units);
                 system_info_.total_slots = new_info.total_slots;
+                // A loaded external-spool mirror is a bay's record where its
+                // key is a bay the box reports (an adopted mirror may have been
+                // that bay's record), and no one's anywhere else. Decided once,
+                // on the first frame: a bay whose box later leaves keeps it.
+                if (!mirrors_sorted_) {
+                    mirrors_sorted_ = true;
+                    for (auto it = overrides_.begin(); it != overrides_.end();) {
+                        it = it->second.external_mirror && !system_info_.slot_exists(it->first)
+                                 ? overrides_.erase(it)
+                                 : std::next(it);
+                    }
+                }
                 // Presence-gated like filament_runout below. Moonraker
                 // subscribes `box: null`, so a frame that changed only a slot
                 // carries no enable bit at all, and both parsers default it to
@@ -4971,6 +4991,29 @@ void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
     }
     if (!supported || lane_index < 0 || foreign) {
         return;
+    }
+    // The Fork key follows the chain (the top box returning moves it), and the
+    // mirror left at the old key would read as a second external tray. Ours
+    // to clear unless a record that is not ours has arrived there since.
+    int stale_key = -1;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (external_lane_published_ >= 0 && external_lane_published_ != lane_index) {
+            auto old = overrides_.find(external_lane_published_);
+            if (old == overrides_.end() || old->second.external_mirror) {
+                stale_key = external_lane_published_;
+            }
+        }
+        external_lane_published_ = lane_index;
+    }
+    if (stale_key >= 0) {
+        override_store_->clear_async(
+            stale_key, [tag = backend_log_tag(), stale_key](bool ok, const std::string& err) {
+                if (!ok) {
+                    spdlog::warn("{} clearing the moved external lane {} failed: {}", tag,
+                                 stale_key, err);
+                }
+            });
     }
     helix::ams::publish_external_lane(override_store_.get(), lane_index, spool, backend_log_tag());
 }

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "ui_ams_context_menu.h"
+#include "ui_ams_detail.h"
+#include "ui_ams_slot.h"
+#include "ui_spool_canvas.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
@@ -6123,6 +6126,21 @@ TEST_CASE("CFS stock: a delta frame naming one unit leaves the others as they we
     }
 }
 
+// The merged stock state is a picture of one session: a restart starts over,
+// so a unit its first frame omits does not come back from before (#1464).
+TEST_CASE("CFS stock: a restart does not resurrect a unit from the previous session",
+          "[ams][cfs][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(3)));
+    REQUIRE(backend.get_system_info().units.size() == 3);
+
+    CfsTestAccess::call_on_started(backend);
+    CfsTestAccess::handle_status(backend, make_cfs_notification(make_multi_unit_box(1)));
+    CHECK(backend.get_system_info().units.size() == 1);
+    CHECK(backend.get_system_info().total_slots == 4);
+}
+
 // A stock tool whose bay sits in a box off the bus is refused, and so is
 // clearing that bay's spool (#1464).
 TEST_CASE("CFS stock: tool change and Clear Spool refuse an absent bay", "[ams][cfs][1464]") {
@@ -6142,6 +6160,44 @@ TEST_CASE("CFS stock: tool change and Clear Spool refuse an absent bay", "[ams][
     base.clear_slot_override(5);
     REQUIRE(CfsTestAccess::get_override(backend, 5).has_value());
     CHECK(CfsTestAccess::get_override(backend, 5)->spool_name == "T2B spool");
+}
+
+// The all-units slot row keeps an absent box's bays in place but disabled, the
+// card's treatment: dimmed, and a tap reaches nothing (#1464).
+TEST_CASE_METHOD(LVGLUITestFixture, "CFS: the all-units slot row disables an absent unit's bays",
+                 "[ams][cfs][1464]") {
+    ui_spool_canvas_register();
+    ui_ams_slot_register();
+    auto& ams = helix::AmsState::instance();
+    ams.clear_backends();
+    ams.deinit_subjects();
+    ams.init_subjects(true);
+    auto owned = std::make_unique<CfsRemapHelper>();
+    CfsRemapHelper* backend = owned.get();
+    ams.set_backend(std::move(owned));
+    json box = make_multi_unit_box(3);
+    box["T2"] = json{{"state", "None"}};
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(box));
+
+    lv_obj_t* area = lv_obj_create(test_screen());
+    lv_obj_set_size(area, 800, 200);
+    AmsDetailWidgets w;
+    w.slot_grid = lv_obj_create(area);
+    lv_obj_t* slots[16] = {};
+    const auto result =
+        ams_detail_create_slots(w, slots, 16, /*unit_index=*/-1, [](lv_event_t*) {}, nullptr);
+    REQUIRE(result.slot_count == 12);
+    for (int bay = 0; bay < 12; ++bay) {
+        INFO("bay " << bay);
+        REQUIRE(slots[bay] != nullptr);
+        CHECK(lv_obj_has_state(slots[bay], LV_STATE_DISABLED) == (bay >= 4 && bay < 8));
+    }
+
+    int count = result.slot_count;
+    ams_detail_destroy_slots(w, slots, count);
+    ams.clear_backends();
+    helix::ui::UpdateQueue::instance().drain();
+    ams.deinit_subjects();
 }
 
 // Tapping a bay of a box that is not on the bus opens no menu (#1464).

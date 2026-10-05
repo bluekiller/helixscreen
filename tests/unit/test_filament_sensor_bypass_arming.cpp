@@ -556,23 +556,59 @@ TEST_CASE("CFS external spool lane: our marked mirror is updated, an unmarked re
     }
 }
 
-// The mirror is republished from settings and describes no bay, so a load must
-// not hand it to the bay that shares its key once another box joins (#1464).
-TEST_CASE("External spool mirror: a load never files it as a bay's record",
+// A marked mirror is no bay's record where no bay is, but where its key is a
+// bay the box reports, it is that bay's record: an adopted record may have been
+// a real bay's before it was marked (#1464).
+TEST_CASE("External spool mirror: kept as a bay's record only where the key is a present bay",
           "[ams][cfs][bypass-arming][1464]") {
     CfsPublishFixture fx;
     helix::ams::FilamentSlotOverride mirror;
     mirror.material = "ASA";
+    mirror.spool_name = "Box 2 A spool";
     mirror.external_mirror = true;
-    fx.api->mock_set_db_value("lane_data", "lane5", helix::ams::to_lane_data_record(4, mirror));
-    helix::ams::FilamentSlotOverride bay;
-    bay.material = "PLA";
-    fx.api->mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, bay));
+    CfsTestAccess::seed_override(*fx.backend, 4, mirror);
 
-    const auto loaded =
-        helix::ams::make_loaded_override_store(fx.api.get(), "cfs", helix::AmsType::CFS, "[test]");
-    CHECK(loaded.overrides.count(4) == 0);
-    CHECK(loaded.overrides.count(0) == 1);
+    SECTION("box 2 present: bay 4 keeps it") {
+        fx.send_fork_frame(8);
+        CHECK(CfsTestAccess::get_override(*fx.backend, 4).has_value());
+    }
+    SECTION("one box: index 4 is the external slot, not a bay") {
+        fx.send_fork_frame(4);
+        CHECK_FALSE(CfsTestAccess::get_override(*fx.backend, 4).has_value());
+    }
+}
+
+// When the fork's external slot moves (the top box returns), the mirror at the
+// old key would stay behind as a phantom tray. It is cleared there, but only if
+// the record is still ours (#1464).
+TEST_CASE("CFS external spool lane: a moved external slot clears our old mirror only",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.send_fork_frame(8);
+    const SlotInfo spool = CfsPublishFixture::asa();
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE_FALSE(fx.api->mock_get_db_value("lane_data", "lane9").is_null());
+
+    SECTION("our mirror at the old key is cleared") {
+        fx.send_fork_frame(12);
+        fx.backend->publish_external_spool_lane(&spool);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fx.api->mock_get_db_value("lane_data", "lane9").is_null());
+        CHECK_FALSE(fx.api->mock_get_db_value("lane_data", "lane13").is_null());
+    }
+
+    SECTION("a record that is not ours at the old key is untouched") {
+        helix::ams::FilamentSlotOverride box3a;
+        box3a.material = "PETG";
+        box3a.spool_name = "Box 3 A spool";
+        fx.seed_record(8, box3a);
+        const json before = fx.api->mock_get_db_value("lane_data", "lane9");
+        fx.send_fork_frame(12);
+        fx.backend->publish_external_spool_lane(&spool);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
+    }
 }
 
 TEST_CASE("CFS external spool lane: never publishes without bypass support",
