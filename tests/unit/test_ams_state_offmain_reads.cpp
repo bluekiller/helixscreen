@@ -14,10 +14,10 @@
 #include "ams_state.h"
 #include "ams_types.h"
 
+#include "../catch_amalgamated.hpp"
+
 #include <atomic>
 #include <thread>
-
-#include "../catch_amalgamated.hpp"
 
 using namespace helix;
 

@@ -1824,6 +1824,9 @@ class AmsState {
     lv_subject_t ams_is_tool_changer_{};
     lv_subject_t ams_is_filament_system_{};
     lv_subject_t ams_action_{};
+    /// Copy of ams_action_ for readers off the main thread. Every write to the
+    /// subject updates it.
+    std::atomic<AmsAction> action_mirror_{AmsAction::IDLE};
     /// Granular load/unload sub-phase (-1=none, 0=Home, 1=Select, 2=Heat,
     /// 3=Move). Snapmaker U1 only; registered with subjects_.
     lv_subject_t ams_operation_phase_{};
