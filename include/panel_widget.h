@@ -22,7 +22,7 @@ class TileSizing;
 /// LVGL gives us four user flag bits and this repo has now claimed three of
 /// them. Check this ledger before taking another:
 ///   USER_1  ui_dialog.cpp        "inside a dialog" elevated-surface marker
-///   USER_2  free
+///   USER_2  ui_utils.h           EDIT_CLICK_SUPPRESSED_FLAG, clicks edit mode took
 ///   USER_3  here                 home panel widget tile
 ///   USER_4  ui_sound_preview_*   suppress the button tap sound
 /// USER_3 deliberately over USER_2: helix-xml's flag_to_enum() maps user_1 and
@@ -81,6 +81,12 @@ class PanelWidget {
 
     /// Called when the owning panel goes offscreen.
     virtual void on_deactivate() {}
+
+    /// Called when home edit mode ends, after it gave back CLICKABLE to every
+    /// object it took it from. A widget that turns its own controls clickable
+    /// or not at runtime re-applies that here: a change it made during the
+    /// session is overwritten by the restore.
+    virtual void on_edit_mode_exited() {}
 
     /// Called after grid cell placement and whenever the widget is resized.
     /// Widgets can adapt their content layout based on available space.

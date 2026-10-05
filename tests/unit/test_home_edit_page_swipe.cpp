@@ -322,6 +322,12 @@ class StandInWidget : public helix::PanelWidget {
     const char* id() const override {
         return id_.c_str();
     }
+    void on_edit_mode_exited() override {
+        ++edit_mode_exits;
+    }
+
+    /// Times on_edit_mode_exited() ran.
+    int edit_mode_exits = 0;
     std::string get_component_name() const override {
         return component_;
     }
@@ -1655,6 +1661,55 @@ TEST_CASE_METHOD(EditHomeFixture, "leaving edit mode re-arms every page without 
     CHECK(is_clickable(widget));
     CHECK(is_clickable(far_widget));
     CHECK_FALSE(lv_obj_is_valid(shield));
+    // Every page's widgets get to re-apply interactivity the restore overwrote.
+    for (lv_obj_t* tile : {widget, far_widget}) {
+        auto* stand_in = static_cast<StandInWidget*>(lv_obj_get_user_data(tile));
+        REQUIRE(stand_in != nullptr);
+        CHECK(stand_in->edit_mode_exits == 1);
+    }
+}
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "a widget's own config change during edit mode rebuilds the pages at exit",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    HomePanelTestAccess::register_config_rebuild_callback(panel());
+    lv_obj_t* widget = widget_on(0, "temperature");
+    enter_edit_mode();
+
+    // A thermistor switching between single and carousel: the widget list is
+    // unchanged, but the tile needs a different component.
+    config().set_widget_config("temperature", {{"mode", "carousel"}});
+    config().save();
+    helix::PanelWidgetManager::instance().notify_config_changed("home");
+    settle();
+    REQUIRE(widget_on(0, "temperature") == widget); // waits out the session
+
+    panel().exit_grid_edit_mode();
+    settle();
+    CHECK(widget_on(0, "temperature") != widget);
+}
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "a layout reset during edit mode that keeps the widget list applies at exit",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    HomePanelTestAccess::register_config_rebuild_callback(panel());
+    enter_edit_mode();
+
+    // The catalog's reset with defaults naming the same widgets: positions move,
+    // the page's id list does not.
+    const int new_col = 2 * CELL_TRACKS;
+    REQUIRE(config().place_entry("temperature", 0, new_col, 0, CELL_TRACKS, CELL_TRACKS) >= 0);
+    config().save();
+    helix::PanelWidgetManager::instance().notify_config_changed("home");
+    settle();
+
+    panel().exit_grid_edit_mode();
+    settle();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    REQUIRE(widget != nullptr);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(widget, LV_PART_MAIN) == new_col);
 }
 
 TEST_CASE_METHOD(EditHomeFixture, "entering edit mode disarms clicks on every page",

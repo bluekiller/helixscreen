@@ -166,18 +166,19 @@ class PanelWidgetManager {
                      std::vector<std::unique_ptr<PanelWidget>>& widgets);
 
     /// Re-seat a populated page's tiles at their entries' cells in place, after
-    /// edit mode moved, swapped or resized widgets on it, and replace only the
-    /// card backgrounds that changed. The tile named @p resized_id (empty for
-    /// none) is re-created at its new span, its instance reused as a populate
-    /// reuses it; every other tile keeps its objects. Returns the re-attached
-    /// instances for the caller to activate, or nullopt (having changed nothing)
-    /// when the page needs a full populate instead: a tile with no placed entry,
-    /// a tile laid out at a span other than its entry's (one this grid reduced
-    /// or grew), a resized widget that cannot draw at its new size, or a
-    /// container that is not a live grid.
+    /// edit mode moved, swapped or resized the widgets named in @p changed_ids
+    /// on it, and replace only the card backgrounds that changed. The tile
+    /// named @p resized_id (empty for none) is re-created at its new span, its
+    /// instance reused as a populate reuses it; every other tile keeps its
+    /// objects. Returns the re-attached instances for the caller to activate,
+    /// or nullopt (having changed nothing) when the page needs a full populate
+    /// instead: a tile with no placed entry, a tile outside @p changed_ids laid
+    /// out anywhere but its entry's cell (placement moved it, or this grid
+    /// reduced or grew its span), a resized widget that cannot draw at its new
+    /// size, or a container that is not a live grid.
     std::optional<std::vector<PanelWidget*>>
     relayout_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
-                   const std::string& resized_id,
+                   const std::vector<std::string>& changed_ids, const std::string& resized_id,
                    std::vector<std::unique_ptr<PanelWidget>>& widgets);
 
     // -- Gate observers --

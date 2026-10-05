@@ -1533,6 +1533,7 @@ PanelWidgetManager::swap_gated_tiles(const std::string& panel_id, lv_obj_t* cont
 
 std::optional<std::vector<PanelWidget*>>
 PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
+                                   const std::vector<std::string>& changed_ids,
                                    const std::string& resized_id,
                                    std::vector<std::unique_ptr<PanelWidget>>& widgets) {
     if (!container || populating_) {
@@ -1570,6 +1571,11 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
     const uint32_t count = lv_obj_get_child_count(container);
     for (uint32_t i = 0; i < count; ++i) {
         lv_obj_t* child = lv_obj_get_child(container, static_cast<int32_t>(i));
+        // A hidden child is condemned: safe_delete_deferred() hides what it
+        // queues for deletion.
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+            continue;
+        }
         const char* name = lv_obj_get_name(child);
         if (!lv_obj_has_flag(child, PANEL_WIDGET_TILE_FLAG)) {
             // Card backgrounds are the unnamed grid children; edit mode's own
@@ -1585,9 +1591,17 @@ PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* contai
         if (entry == entries.end() || !entry->is_placed()) {
             return std::nullopt;
         }
+        // A tile the edit did not touch must already sit where its entry says.
+        // Populate can seat one elsewhere (auto-placement, a span reduced or
+        // grown for this grid) and does not always write that back, and moving
+        // it to its entry here could land it on another tile.
         const TileCell cell = entry_cell(*entry);
-        if (entry->id != resized_id &&
-            (lv_obj_get_style_grid_cell_column_span(child, LV_PART_MAIN) != cell.colspan ||
+        const bool changed =
+            std::find(changed_ids.begin(), changed_ids.end(), entry->id) != changed_ids.end();
+        if (!changed &&
+            (lv_obj_get_style_grid_cell_column_pos(child, LV_PART_MAIN) != cell.col ||
+             lv_obj_get_style_grid_cell_row_pos(child, LV_PART_MAIN) != cell.row ||
+             lv_obj_get_style_grid_cell_column_span(child, LV_PART_MAIN) != cell.colspan ||
              lv_obj_get_style_grid_cell_row_span(child, LV_PART_MAIN) != cell.rowspan)) {
             return std::nullopt;
         }

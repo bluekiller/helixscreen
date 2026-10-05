@@ -1036,6 +1036,12 @@ void PrintStatusWidget::set_thumb_on_widgets(const char* src) {
     lv_subject_copy_string(&idle_thumb_path_subject_, src);
 }
 
+void PrintStatusWidget::on_edit_mode_exited() {
+    // The Print Last rows' clickability follows history, which can change while
+    // edit mode holds every control unclickable.
+    update_last_print_availability();
+}
+
 void PrintStatusWidget::update_last_print_availability() {
     auto* history = get_print_history_manager();
     last_print_available_ = history && history->get_newest_existing_job() != nullptr;

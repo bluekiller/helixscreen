@@ -118,7 +118,8 @@ void GridEditMode::finish_resize_snap() {
     // Copied first: the cancel clears it.
     std::string widget_id = snap_anim_widget_id_;
     cancel_snap_animation();
-    relayout_then_select(std::move(widget_id), /*resized=*/true);
+    std::vector<std::string> changed{widget_id};
+    relayout_then_select(std::move(widget_id), std::move(changed), /*resized=*/true);
 }
 
 void GridEditMode::stop_page_flip_timers() {
@@ -1908,7 +1909,11 @@ void GridEditMode::handle_drag_end(lv_event_t* /*e*/) {
     // its own page only cells changed; a move onto another page takes the
     // widget out of its origin page too, which the full rebuild restores.
     if (landed_page == origin_page) {
-        relayout_then_select(moved_id, /*resized=*/false);
+        std::vector<std::string> changed{moved_id};
+        if (drop.outcome == helix::DropOutcome::Swap) {
+            changed.push_back(drop.swapped.widget_id);
+        }
+        relayout_then_select(moved_id, std::move(changed), /*resized=*/false);
         return;
     }
     forget_container_children();
@@ -2329,7 +2334,9 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
             // this returns. The span was saved at commit.
             std::string widget_id = d->self->snap_anim_widget_id_;
             delete_resize_outline(d->outline);
-            d->self->relayout_then_select(std::move(widget_id), /*resized=*/true);
+            std::vector<std::string> changed{widget_id};
+            d->self->relayout_then_select(std::move(widget_id), std::move(changed),
+                                          /*resized=*/true);
         });
         lv_anim_start(&anim);
         // The exec callback writes every bar, so the death of any bar ends the
@@ -2352,7 +2359,7 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
         resize_outline_ = {};
     } else {
         delete_resize_outline(resize_outline_);
-        relayout_then_select(resized_id, /*resized=*/true);
+        relayout_then_select(resized_id, {resized_id}, /*resized=*/true);
     }
 }
 
@@ -2476,31 +2483,32 @@ void GridEditMode::rebuild_then_select(std::string widget_id) {
     });
 }
 
-void GridEditMode::relayout_then_select(std::string widget_id, bool resized) {
+void GridEditMode::relayout_then_select(std::string widget_id, std::vector<std::string> changed_ids,
+                                        bool resized) {
     // The chrome outlines the widget where it was; it is drawn again around
     // where the relayout leaves it.
     destroy_selection_chrome();
     selected_ = nullptr;
-    helix::ui::run_next_tick(
-        lifetime_.token(), [this, widget_id = std::move(widget_id), resized]() {
-            if (!active_ || !container_) {
-                return;
-            }
-            if (!relayout_cb_ || !relayout_cb_(resized ? widget_id : std::string{})) {
-                forget_container_children();
-                rebuild_then_select(widget_id);
-                return;
-            }
-            if (!shield_) {
-                ensure_shield();
-            }
-            // Layout first: the selection chrome is placed from the widget's
-            // coordinates, and a re-created tile has none until it runs.
-            lv_obj_update_layout(container_);
-            if (lv_obj_t* widget = lv_obj_get_child_by_name(container_, widget_id.c_str())) {
-                select_widget(widget);
-            }
-        });
+    helix::ui::run_next_tick(lifetime_.token(), [this, widget_id = std::move(widget_id),
+                                                 changed_ids = std::move(changed_ids), resized]() {
+        if (!active_ || !container_) {
+            return;
+        }
+        if (!relayout_cb_ || !relayout_cb_(changed_ids, resized ? widget_id : std::string{})) {
+            forget_container_children();
+            rebuild_then_select(widget_id);
+            return;
+        }
+        if (!shield_) {
+            ensure_shield();
+        }
+        // Layout first: the selection chrome is placed from the widget's
+        // coordinates, and a re-created tile has none until it runs.
+        lv_obj_update_layout(container_);
+        if (lv_obj_t* widget = lv_obj_get_child_by_name(container_, widget_id.c_str())) {
+            select_widget(widget);
+        }
+    });
 }
 
 void GridEditMode::ensure_shield() {

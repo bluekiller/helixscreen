@@ -85,10 +85,12 @@ class GridEditMode {
 
     /// Asked, on the tick after a move or resize committed on the scoped page,
     /// to re-seat that page's tiles at their config cells in place
-    /// (PanelWidgetManager::relayout_tiles), re-creating the tile named by the
-    /// argument (empty for none) at its new span. Returns false when the page
-    /// needs the full rebuild instead, which then runs.
-    using RelayoutCallback = std::function<bool(const std::string& resized_id)>;
+    /// (PanelWidgetManager::relayout_tiles): the first argument names the
+    /// widgets the commit placed, the second (empty for none) the one whose
+    /// tile is re-created at its new span. Returns false when the page needs
+    /// the full rebuild instead, which then runs.
+    using RelayoutCallback = std::function<bool(const std::vector<std::string>& changed_ids,
+                                                const std::string& resized_id)>;
 
     GridEditMode() = default;
     ~GridEditMode();
@@ -495,12 +497,14 @@ class GridEditMode {
     /// before the rebuild ran.
     void rebuild_then_select(std::string widget_id);
 
-    /// After a commit that changed only cells on the scoped page: drop the
-    /// selection now, then on the next tick ask relayout_cb_ to re-seat the
-    /// page in place (re-creating @p widget_id's tile when @p resized) and
-    /// select @p widget_id again. Falls back to rebuild_then_select() when the
-    /// relayout is refused or there is no callback.
-    void relayout_then_select(std::string widget_id, bool resized);
+    /// After a commit that placed @p changed_ids on the scoped page and changed
+    /// nothing else: drop the selection now, then on the next tick ask
+    /// relayout_cb_ to re-seat the page in place (re-creating @p widget_id's
+    /// tile when @p resized) and select @p widget_id again. Falls back to
+    /// rebuild_then_select() when the relayout is refused or there is no
+    /// callback.
+    void relayout_then_select(std::string widget_id, std::vector<std::string> changed_ids,
+                              bool resized);
 
     // Resize helpers
     bool is_selected_widget_resizable() const;
