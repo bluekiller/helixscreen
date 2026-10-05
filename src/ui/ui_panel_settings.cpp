@@ -34,7 +34,6 @@
 #include "ui_severity_card.h"
 #include "ui_snake_game.h"
 #include "ui_toast_manager.h"
-#include "ui_touch_calibration_overlay.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 #include "ui_wizard_hardware_selector.h"
@@ -42,8 +41,6 @@
 #include "app_globals.h"
 #include "config.h"
 #include "device_display_name.h"
-#include "display_manager.h"
-#include "display_settings_manager.h"
 #include "ethernet_manager.h"
 #include "filament_sensor_manager.h"
 #include "format_utils.h"
@@ -54,11 +51,9 @@
 #include "input_settings_manager.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_manager.h"
-#include "page_scroll_auto_inject.h"
 #include "platform_info.h"
 #include "printer_hardware.h"
 #include "printer_state.h"
-#include "runtime_config.h"
 #include "settings_manager.h"
 #include "settings_root_status.h"
 #include "sound_manager.h"
@@ -106,48 +101,17 @@ SettingsPanel::~SettingsPanel() {
 // PANELBASE IMPLEMENTATION
 // ============================================================================
 
-// The slider rows nest as: row > slider_container > slider, so the row is
-// the slider's grandparent. Used by both drag-time syncs (here) and the
-// activation-time refresh in TouchSettingsOverlay::init_input_sliders.
-static void sync_slider_value_label(lv_obj_t* slider, int value) {
-    lv_obj_t* row = lv_obj_get_parent(lv_obj_get_parent(slider));
-    if (!row)
-        return;
-    if (lv_obj_t* value_label = lv_obj_find_by_name(row, "value_label")) {
-        lv_label_set_text_fmt(value_label, "%d", value);
-    }
-}
-
 void SettingsPanel::init_subjects() {
     if (subjects_initialized_) {
         spdlog::warn("[{}] init_subjects() called twice - ignoring", get_name());
         return;
     }
 
-    // Note: LED config loading moved to MoonrakerManager::create_api() for centralized init
-
     // Initialize info row subjects that remain in SettingsPanel
     UI_MANAGED_SUBJECT_STRING(printer_host_value_subject_, printer_host_value_buf_, "\xe2\x80\x94",
                               "printer_host_value", subjects_);
 
-    // LED chip selection (no subject needed - chips handle their own state)
-
     // Initialize visibility subjects (controls which settings are shown)
-    // Touch calibration: show on touch displays (non-SDL) OR in test mode (for testing on desktop)
-#ifdef HELIX_DISPLAY_SDL
-    bool show_touch_cal = get_runtime_config()->is_test_mode();
-#else
-    // supports_ (any real touch panel), NOT needs_ (auto-fire the first-run
-    // wizard). The auto-fire heuristic keys off controller name and ABS range,
-    // and neither can see a touch panel mounted 90° from the display — so
-    // gating the manual entry point on it left those users with no way in
-    // (prestonbrown/helixscreen#1259).
-    DisplayManager* dm = DisplayManager::instance();
-    bool show_touch_cal = dm && dm->supports_touch_calibration();
-#endif
-    UI_MANAGED_SUBJECT_INT(show_touch_calibration_subject_, show_touch_cal ? 1 : 0,
-                           "show_touch_calibration", subjects_);
-
     // Note: show_beta_features subject is initialized globally in app_globals.cpp
 
     // Platform visibility subjects — hidden on Android where OS manages these
@@ -186,10 +150,6 @@ void SettingsPanel::init_subjects() {
     // 0 until Application::init_plugins loads at least one plugin, so the row
     // stays hidden until there is something to show
     UI_MANAGED_SUBJECT_INT(plugins_available_subject_, 0, "settings_plugins_available", subjects_);
-
-    // Touch calibration status, filled by refresh_status_lines().
-    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, "",
-                              "touch_cal_status", subjects_);
 
     // Live status line under each stateful root row; refresh_status_lines()
     // fills these in, first from setup() and then on every return to the root.
@@ -291,11 +251,6 @@ void SettingsPanel::refresh_status_lines() {
 
     // Formatted here rather than once at init, so it is in the language of the
     // latest return to the settings root.
-    Config* config = Config::get_instance();
-    const bool is_calibrated = config->get<bool>(config->df() + "input/calibration/valid", false);
-    lv_subject_copy_string(&touch_cal_status_subject_,
-                           is_calibrated ? lv_tr("Calibrated") : lv_tr("Not calibrated"));
-
     lv_subject_copy_string(&settings_status_display_subject_,
                            display(status_int_subject("settings_brightness", 0),
                                    status_int_subject("settings_display_sleep", 0),
@@ -412,26 +367,6 @@ void SettingsPanel::handle_change_host_clicked() {
         const int port = config->get<int>(config->df() + "moonraker_port", 7125);
         const std::string host_display = host + ":" + std::to_string(port);
         lv_subject_copy_string(&printer_host_value_subject_, host_display.c_str());
-    });
-}
-
-void SettingsPanel::handle_touch_calibration_clicked() {
-    DisplayManager* dm = DisplayManager::instance();
-    if (dm && !dm->supports_touch_calibration()) {
-        spdlog::debug("[{}] No calibratable touch device", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Touch Calibration clicked", get_name());
-
-    auto& overlay = helix::ui::get_touch_calibration_overlay();
-
-    overlay.show(parent_screen_, [this](bool success) {
-        if (success) {
-            // Update status when calibration completes successfully
-            lv_subject_copy_string(&touch_cal_status_subject_, lv_tr("Calibrated"));
-            spdlog::info("[{}] Touch calibration completed - updated status", get_name());
-        }
     });
 }
 
@@ -619,60 +554,6 @@ void register_settings_panel_callbacks() {
          [](lv_event_t*) { get_global_settings_panel().handle_restart_helix_clicked(); }},
         {"on_factory_reset_clicked",
          [](lv_event_t*) { get_global_settings_panel().handle_factory_reset_clicked(); }},
-
-        // Touch page
-        {"on_touch_calibration_clicked",
-         [](lv_event_t*) { get_global_settings_panel().handle_touch_calibration_clicked(); }},
-        {"on_debug_touches_changed",
-         [](lv_event_t* e) {
-             InputSettingsManager::instance().set_debug_touches(event_checked(e));
-         }},
-        {"on_scroll_limit_changed",
-         [](lv_event_t* e) {
-             lv_obj_t* slider = lv_event_get_current_target_obj(e);
-             int value = static_cast<int>(lv_slider_get_value(slider));
-             sync_slider_value_label(slider, value);
-             InputSettingsManager::instance().set_scroll_limit(value);
-             get_global_settings_panel().show_restart_prompt();
-         }},
-        {"on_long_press_time_changed",
-         [](lv_event_t* e) {
-             lv_obj_t* slider = lv_event_get_current_target_obj(e);
-             int value = static_cast<int>(lv_slider_get_value(slider));
-             sync_slider_value_label(slider, value);
-             // set_long_press_time live-applies, so no restart prompt.
-             InputSettingsManager::instance().set_long_press_time(value);
-         }},
-        {"on_home_edit_mode_changed",
-         [](lv_event_t* e) {
-             // should_suppress_edit_mode checks this live, so no restart prompt.
-             InputSettingsManager::instance().set_home_edit_mode_enabled(event_checked(e));
-         }},
-        {"on_scroll_guard_changed",
-         [](lv_event_t* e) {
-             InputSettingsManager::instance().set_scroll_guard(event_checked(e));
-             get_global_settings_panel().show_restart_prompt();
-         }},
-        {"on_system_keyboard_changed",
-         [](lv_event_t* e) {
-             DisplaySettingsManager::instance().set_use_system_keyboard(event_checked(e));
-         }},
-        {"on_hide_keyboard_with_hardware_changed",
-         [](lv_event_t* e) {
-             DisplaySettingsManager::instance().set_hide_keyboard_with_hardware(event_checked(e));
-         }},
-        {"on_keep_navbar_changed",
-         [](lv_event_t* e) {
-             DisplaySettingsManager::instance().set_keep_navbar_visible(event_checked(e));
-         }},
-        {"on_page_scroll_buttons_changed",
-         [](lv_event_t* e) {
-             bool on = event_checked(e);
-             DisplaySettingsManager::instance().set_page_scroll_buttons(on);
-             // The callback is the authoritative user-toggle signal; a subject observer
-             // cannot be used (see PageScrollAutoInject::init).
-             helix::ui::PageScrollAutoInject::instance().on_setting_toggled(on);
-         }},
 
         // Restart prompt, factory reset modal and the shared header back button
         {"on_restart_later_clicked",

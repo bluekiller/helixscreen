@@ -32,6 +32,7 @@ struct TouchCallbacksFixture : LVGLUITestFixture {
         SettingsManager::instance().init_subjects();
         helix_test::reset_input_settings_to_defaults();
         get_global_settings_panel().init_subjects();
+        helix::settings::get_touch_settings_overlay().init_subjects();
         helix::settings::get_touch_settings_overlay().register_callbacks();
         root_ =
             static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "settings_touch_overlay", nullptr));
@@ -45,6 +46,7 @@ struct TouchCallbacksFixture : LVGLUITestFixture {
             lv_obj_delete(root_);
         }
         helix::ui::UpdateQueue::instance().drain();
+        helix::settings::get_touch_settings_overlay().deinit_subjects();
         get_global_settings_panel().deinit_subjects();
         helix::ui::UpdateQueue::instance().drain();
     }

@@ -125,9 +125,6 @@ class SettingsPanel : public PanelBase {
     // Info row subjects
     lv_subject_t printer_host_value_subject_{};
 
-    // Visibility subjects (controls which settings are shown)
-    lv_subject_t show_touch_calibration_subject_{};
-
     // Platform visibility subjects (Android hides these)
     lv_subject_t show_network_settings_subject_{};
     lv_subject_t show_update_settings_subject_{};
@@ -141,10 +138,6 @@ class SettingsPanel : public PanelBase {
     lv_subject_t updates_unavailable_subject_{};
     // 1 once a plugin host exists: unhides the Plugins row (settings_panel.xml)
     lv_subject_t plugins_available_subject_{};
-
-    // Touch calibration status subject
-    lv_subject_t touch_cal_status_subject_{};
-    char touch_cal_status_buf_[48]; // e.g., "Calibrated" or "Not calibrated"
 
     // Static buffers for string subjects
     char printer_host_value_buf_[96]; // e.g., "192.168.1.100:7125"
@@ -204,7 +197,6 @@ class SettingsPanel : public PanelBase {
     //
 
     void handle_change_host_clicked();
-    void handle_touch_calibration_clicked();
     void handle_restart_helix_clicked();
     void handle_factory_reset_clicked();
     // Note: populate_sensor_list() moved to SensorSettingsOverlay
