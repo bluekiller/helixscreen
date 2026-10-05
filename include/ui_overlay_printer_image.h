@@ -4,9 +4,11 @@
 #pragma once
 
 #include "overlay_base.h"
+#include "single_flight_walk.h"
 #include "static_panel_registry.h"
 
 #include <string>
+#include <vector>
 
 class UsbManager;
 
@@ -68,7 +70,7 @@ class PrinterImageOverlay : public OverlayBase {
     void populate_shipped_images();
     void populate_custom_images();
     void scan_usb_drives();
-    void populate_usb_images(const std::string& mount_path);
+    void populate_usb_images(const std::vector<std::string>& image_paths);
     void handle_usb_import(const std::string& source_path);
     lv_obj_t* create_list_row(lv_obj_t* parent, const std::string& image_id,
                               const std::string& display_name, const char* callback_name);
@@ -88,6 +90,8 @@ class PrinterImageOverlay : public OverlayBase {
     //
 
     UsbManager* usb_manager_ = nullptr;
+    /// Walks the stick for images off the UI thread.
+    helix::SingleFlightWalk usb_walk_;
 
     // RAII subject manager for automatic cleanup
     SubjectManager subjects_;
