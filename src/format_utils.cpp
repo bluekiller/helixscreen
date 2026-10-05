@@ -5,7 +5,9 @@
 
 #include "translation_loader.h"
 
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 
 namespace helix::format {
@@ -219,6 +221,41 @@ std::string format_filament_length(double mm) {
 // =============================================================================
 // Clock Time Formatting
 // =============================================================================
+
+bool parse_http_date(const char* value, std::time_t& epoch_s) {
+    static const char* const MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    if (value == nullptr) {
+        return false;
+    }
+    char mon[4] = {};
+    char zone[4] = {};
+    int day = 0, year = 0, hour = 0, minute = 0, second = 0;
+    if (std::sscanf(value, "%*[A-Za-z], %2d %3s %4d %2d:%2d:%2d %3s", &day, mon, &year, &hour,
+                    &minute, &second, zone) != 7 ||
+        std::strcmp(zone, "GMT") != 0) {
+        return false;
+    }
+    int month = 0;
+    while (month < 12 && std::strcmp(mon, MONTHS[month]) != 0) {
+        ++month;
+    }
+    if (month == 12 || day < 1 || day > 31 || year < 1970 || hour < 0 || hour > 23 || minute < 0 ||
+        minute > 59 || second < 0 || second > 60) {
+        return false;
+    }
+    // Days since the epoch for a proleptic Gregorian date (Hinnant's days_from_civil):
+    // newlib has no timegm(), and mktime() would apply the local zone.
+    const int y = year - (month < 2 ? 1 : 0); // March-based year
+    const int era = y / 400;
+    const int yoe = y - era * 400;
+    const int mp = (month + 10) % 12;
+    const int doy = (153 * mp + 2) / 5 + day - 1;
+    const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    const int64_t days = static_cast<int64_t>(era) * 146097 + doe - 719468;
+    epoch_s = static_cast<std::time_t>(days * 86400 + hour * 3600 + minute * 60 + second);
+    return true;
+}
 
 std::string eta_clock_time(int remaining_seconds, std::time_t now, bool use_24h) {
     if (remaining_seconds <= 0) {

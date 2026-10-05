@@ -40,13 +40,13 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
-#include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "log_redact.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
+#include "wall_clock_esp.h"
 #include "wifi_backend.h"
 
 #include <spdlog/spdlog.h>
@@ -278,15 +278,7 @@ class WifiBackendEsp : public WifiBackend {
                                                        &WifiBackendEsp::ip_event_handler, this));
             handlers_registered_ = true;
 
-            // Nothing else sets the clock: until SNTP answers, time() counts from
-            // 1970 and every wall-clock display (ETA, graph axis, clock) is wrong.
-            // lwIP polls once the interface is up and retries on its own.
-            esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
-            esp_err_t sntp_rc = esp_netif_sntp_init(&sntp_cfg);
-            if (sntp_rc != ESP_OK) {
-                spdlog::warn("[WifiBackend] esp32: esp_netif_sntp_init: {}",
-                             esp_err_to_name(sntp_rc));
-            }
+            helix::wall_clock_esp::start();
         }
 
         if (!assoc_timeout_timer_) {

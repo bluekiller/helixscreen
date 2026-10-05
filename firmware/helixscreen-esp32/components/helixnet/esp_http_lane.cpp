@@ -9,7 +9,9 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 
+#include <atomic>
 #include <pthread.h>
+#include <strings.h>
 #include <utility>
 
 namespace helix::http {
@@ -27,7 +29,22 @@ constexpr int HTTP_TIMEOUT_MS = 15000;
 // run_one() below needs to be PSRAM; that's the buffer the R3 "PSRAM buffer,
 // capped" requirement is about.
 constexpr size_t CLIENT_BUFFER_BYTES = 4096;
+
+std::atomic<EspHttpLane::DateHeaderHook> s_date_hook{nullptr};
+
+esp_err_t on_http_event(esp_http_client_event_t* evt) {
+    if (evt->event_id == HTTP_EVENT_ON_HEADER && strcasecmp(evt->header_key, "Date") == 0) {
+        if (auto hook = s_date_hook.load()) {
+            hook(evt->header_value);
+        }
+    }
+    return ESP_OK;
+}
 } // namespace
+
+void EspHttpLane::set_date_header_hook(DateHeaderHook hook) {
+    s_date_hook.store(hook);
+}
 
 EspHttpLane& EspHttpLane::instance() {
     static EspHttpLane lane;
@@ -116,6 +133,7 @@ void EspHttpLane::run_one(const Job& job) {
     config.timeout_ms = HTTP_TIMEOUT_MS;
     config.buffer_size = CLIENT_BUFFER_BYTES;
     config.method = HTTP_METHOD_GET;
+    config.event_handler = &on_http_event;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {

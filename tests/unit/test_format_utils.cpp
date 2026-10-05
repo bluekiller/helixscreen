@@ -535,3 +535,27 @@ TEST_CASE("Every duration formatter looks its unit format up", "[format_utils][d
     CHECK(duration_padded(600) == "[10 m]");
     CHECK(duration_padded(3900) == "[1 h 05 m]");
 }
+
+TEST_CASE("parse_http_date reads an IMF-fixdate as UTC", "[format_utils][http_date]") {
+    std::time_t t = 0;
+    REQUIRE(helix::format::parse_http_date("Sun, 06 Nov 1994 08:49:37 GMT", t));
+    CHECK(t == 784111777);
+    REQUIRE(helix::format::parse_http_date("Mon, 05 Oct 2026 05:30:40 GMT", t));
+    CHECK(t == 1791178240);
+    // Leap day, and the first second of a year (January is the March-based year's tail).
+    REQUIRE(helix::format::parse_http_date("Thu, 29 Feb 2024 00:00:00 GMT", t));
+    CHECK(t == 1709164800);
+    REQUIRE(helix::format::parse_http_date("Thu, 01 Jan 1970 00:00:00 GMT", t));
+    CHECK(t == 0);
+}
+
+TEST_CASE("parse_http_date rejects what is not an IMF-fixdate", "[format_utils][http_date]") {
+    std::time_t t = 42;
+    CHECK_FALSE(helix::format::parse_http_date(nullptr, t));
+    CHECK_FALSE(helix::format::parse_http_date("", t));
+    CHECK_FALSE(helix::format::parse_http_date("Sun, 06 Nov 1994 08:49:37 PST", t));
+    CHECK_FALSE(helix::format::parse_http_date("Sun, 06 Foo 1994 08:49:37 GMT", t));
+    CHECK_FALSE(helix::format::parse_http_date("Sun, 06 Nov 1994 25:49:37 GMT", t));
+    CHECK_FALSE(helix::format::parse_http_date("Sunday, 06-Nov-94 08:49:37 GMT", t));
+    CHECK(t == 42);
+}
