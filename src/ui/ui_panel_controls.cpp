@@ -7,8 +7,6 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_fan_control_overlay.h"
-#include "ui_fonts.h"
-#include "ui_icon_codepoints.h"
 #include "ui_modal.h"
 #include "ui_motors_off.h"
 #include "ui_nav_manager.h"
@@ -66,6 +64,19 @@ using helix::ui::temperature::deci_to_degrees;
 class MotionPanel;
 
 using helix::ui::position::format_position;
+
+namespace {
+
+/// "Off" at zero, otherwise "N%": how every fan speed on this panel reads.
+void format_fan_speed(int pct, char* buf, size_t size) {
+    if (pct > 0) {
+        helix::format::format_percent(pct, buf, size);
+    } else {
+        std::snprintf(buf, size, "%s", lv_tr("Off"));
+    }
+}
+
+} // namespace
 
 // ============================================================================
 // CONSTRUCTOR
@@ -271,6 +282,7 @@ void ControlsPanel::init_subjects() {
         {"on_chamber_temp_clicked", on_chamber_temp_clicked},
         {"on_controls_cooling", on_cooling_clicked},
         {"on_controls_more_sensors", on_secondary_temps_clicked},
+        {"on_controls_secondary_fans", on_secondary_fans_clicked},
         // Pencil icon edit handlers (open temperature keypad)
         {"on_nozzle_target_edit", on_nozzle_target_edit},
         {"on_bed_target_edit", on_bed_target_edit},
@@ -306,12 +318,6 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Cache dynamic container for secondary fans
     FIND_WIDGET(secondary_fans_list_, panel_, "secondary_fans_list", get_name());
-    if (secondary_fans_list_) {
-        // Make the secondary fans list clickable to open the fan control overlay
-        lv_obj_add_flag(secondary_fans_list_, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(secondary_fans_list_, on_secondary_fans_clicked, LV_EVENT_CLICKED,
-                            this);
-    }
 
     // Wire up card click handlers (cards need manual wiring for navigation)
     setup_card_handlers();
@@ -734,11 +740,7 @@ void ControlsPanel::update_fan_display() {
                       ? lv_subject_get_int(printer_state_.get_fan_speed_subject())
                       : 0;
 
-    if (fan_pct > 0) {
-        helix::format::format_percent(fan_pct, fan_speed_buf_, sizeof(fan_speed_buf_));
-    } else {
-        std::snprintf(fan_speed_buf_, sizeof(fan_speed_buf_), "%s", lv_tr("Off"));
-    }
+    format_fan_speed(fan_pct, fan_speed_buf_, sizeof(fan_speed_buf_));
     lv_subject_copy_string(&fan_speed_subject_, fan_speed_buf_);
     lv_subject_set_int(&fan_pct_subject_, fan_pct);
 }
@@ -807,89 +809,35 @@ void ControlsPanel::populate_secondary_fans() {
             break;
         }
 
-        // Create a row for this fan: [Name] [Speed%] [Icon]
-        lv_obj_t* row = lv_obj_create(secondary_fans_list_);
-        lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        lv_obj_set_style_pad_all(row, 0, 0);
-        lv_obj_set_style_pad_row(row, 0, 0);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-
-        // Fan name label - 60% width, truncate with ellipsis if needed
-        lv_obj_t* name_label = lv_label_create(row);
-        lv_label_set_text(name_label, fan->display_name.c_str());
-        lv_obj_set_width(name_label, LV_PCT(60));
-        lv_obj_set_style_text_color(name_label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_text_font(name_label, theme_manager_get_font("font_small"), 0);
-        lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
-
-        // Speed percentage label - right-aligned
         char speed_buf[16];
-        if (fan->speed_percent > 0) {
-            helix::format::format_percent(fan->speed_percent, speed_buf, sizeof(speed_buf));
-        } else {
-            std::snprintf(speed_buf, sizeof(speed_buf), "%s", lv_tr("Off"));
+        format_fan_speed(fan->speed_percent, speed_buf, sizeof(speed_buf));
+        // A controllable fan shows a chevron, an automatic one an "A" badge.
+        const char* attrs[] = {
+            "fan_name",       fan->display_name.c_str(),
+            "fan_speed",      speed_buf,
+            "indicator_icon", fan->is_controllable ? "chevron_right" : "alpha_a_circle",
+            nullptr};
+        auto* row =
+            static_cast<lv_obj_t*>(lv_xml_create(secondary_fans_list_, "controls_fan_row", attrs));
+        if (!row) {
+            spdlog::warn("[{}] Failed to create row for fan '{}'", get_name(), fan->object_name);
+            continue;
         }
-        lv_obj_t* speed_label = lv_label_create(row);
-        lv_label_set_text(speed_label, speed_buf);
-        lv_obj_set_style_text_color(speed_label, theme_manager_get_color("text"), 0);
-        lv_obj_set_style_text_font(speed_label, theme_manager_get_font("font_small"), 0);
 
         // Track this row for reactive speed updates
-        secondary_fan_rows_.push_back({fan->object_name, speed_label});
-
-        // Indicator icon: "A" circle for auto-controlled, › for controllable
-        lv_obj_t* indicator = lv_label_create(row);
-        if (fan->is_controllable) {
-            lv_label_set_text(indicator, LV_SYMBOL_RIGHT);
-        } else {
-            lv_label_set_text(indicator, helix::ui::icon::lookup_codepoint("alpha_a_circle"));
-        }
-        lv_obj_set_style_text_color(indicator, theme_manager_get_color("secondary"), 0);
-        lv_obj_set_style_text_font(indicator, &mdi_icons_16, 0);
-
+        secondary_fan_rows_.push_back(
+            {fan->object_name, lv_obj_find_by_name(row, "fan_speed_label")});
         visible_count++;
     }
 
     // Show "N additional fans >" row if there are more fans than visible
     int additional = static_cast<int>(secondary_fans.size()) - visible_count;
     if (additional > 0) {
-        lv_obj_t* more_row = lv_obj_create(secondary_fans_list_);
-        lv_obj_set_width(more_row, LV_PCT(100));
-        lv_obj_set_height(more_row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(more_row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(more_row, 0, 0);
-        lv_obj_set_style_pad_all(more_row, 0, 0);
-        lv_obj_remove_flag(more_row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(more_row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(more_row, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_set_flex_flow(more_row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(more_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-
-        // "N additional fans" label
         char more_buf[32];
         std::snprintf(more_buf, sizeof(more_buf), lv_tr("%d additional fan%s"), additional,
                       additional == 1 ? "" : "s");
-        lv_obj_t* more_label = lv_label_create(more_row);
-        lv_label_set_text(more_label, more_buf);
-        lv_obj_set_style_text_color(more_label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_text_font(more_label, theme_manager_get_font("font_small"), 0);
-
-        // Chevron right indicator
-        lv_obj_t* chevron = lv_label_create(more_row);
-        lv_label_set_text(chevron, helix::ui::icon::lookup_codepoint("chevron_right"));
-        lv_obj_set_style_text_color(chevron, theme_manager_get_color("secondary"), 0);
-        lv_obj_set_style_text_font(chevron, &mdi_icons_16, 0);
-
-        // Click is handled by the parent container's on_secondary_fans_clicked trampoline
-        // (registered once in setup()). No per-child event callback needed.
+        const char* attrs[] = {"caption", more_buf, nullptr};
+        lv_xml_create(secondary_fans_list_, "controls_fan_more_row", attrs);
     }
 
     // Subscribe to per-fan speed subjects for reactive updates
@@ -1171,11 +1119,7 @@ void ControlsPanel::handle_fan_slider_changed(int value) {
     spdlog::debug("[{}] Fan slider changed to {}%", get_name(), value);
 
     // Optimistic update - show new value immediately without waiting for Moonraker
-    if (value > 0) {
-        helix::format::format_percent(value, fan_speed_buf_, sizeof(fan_speed_buf_));
-    } else {
-        std::snprintf(fan_speed_buf_, sizeof(fan_speed_buf_), "%s", lv_tr("Off"));
-    }
+    format_fan_speed(value, fan_speed_buf_, sizeof(fan_speed_buf_));
     lv_subject_copy_string(&fan_speed_subject_, fan_speed_buf_);
     lv_subject_set_int(&fan_pct_subject_, value);
 
@@ -1356,11 +1300,7 @@ void ControlsPanel::update_secondary_fan_speed(const std::string& object_name, i
                 break;
             }
             char speed_buf[16];
-            if (speed_pct > 0) {
-                helix::format::format_percent(speed_pct, speed_buf, sizeof(speed_buf));
-            } else {
-                std::snprintf(speed_buf, sizeof(speed_buf), "%s", lv_tr("Off"));
-            }
+            format_fan_speed(speed_pct, speed_buf, sizeof(speed_buf));
             lv_label_set_text(row.speed_label, speed_buf);
             spdlog::trace("[{}] Updated secondary fan '{}' speed to {}", get_name(), object_name,
                           speed_buf);
