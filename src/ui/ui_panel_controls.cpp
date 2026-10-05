@@ -30,17 +30,12 @@
 
 #include "app_globals.h"
 #include "format_utils.h"
-#include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "macro_executor.h"
-#include "macro_param_defaults.h"
 #include "moonraker_api.h"
 #include "observer_factory.h"
 #include "operation_timeout_guard.h"
-#include "panel_widgets/led_widget.h"
 #include "printer_state.h"
 #include "quick_action_slots.h"
-#include "safety_settings_manager.h"
 #include "standard_macros.h"
 #include "static_panel_registry.h"
 #include "subject_managed_panel.h"
@@ -83,11 +78,7 @@ ControlsPanel::ControlsPanel(PrinterState& printer_state, IMoonrakerAPI* api)
 }
 
 ControlsPanel::~ControlsPanel() {
-    // Detach the LED widgets while LVGL is still valid (their dtor calls
-    // detach(), but do it explicitly first so observers go before subjects).
-    for (auto& w : led_widgets_) {
-        w.reset();
-    }
+    quick_actions_.release_widgets();
 
     deinit_subjects();
 
@@ -158,13 +149,7 @@ void ControlsPanel::init_subjects() {
                               "controls_fan_speed", subjects_);
     UI_MANAGED_SUBJECT_INT(fan_pct_subject_, 0, "controls_fan_pct", subjects_);
 
-    // Macro button visibility and names (for declarative binding)
-    UI_MANAGED_SUBJECT_INT(macro_1_visible_, 0, "macro_1_visible", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_2_visible_, 0, "macro_2_visible", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_1_available_, 0, "macro_1_available", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_2_available_, 0, "macro_2_available", subjects_);
-    UI_MANAGED_SUBJECT_STRING(macro_1_name_, macro_1_name_buf_, "", "macro_1_name", subjects_);
-    UI_MANAGED_SUBJECT_STRING(macro_2_name_, macro_2_name_buf_, "", "macro_2_name", subjects_);
+    quick_actions_.init_subjects(subjects_);
 
     // Z-Offset delta display (for banner showing unsaved adjustment)
     UI_MANAGED_SUBJECT_STRING(z_offset_delta_display_subject_, z_offset_delta_display_buf_, "",
@@ -193,19 +178,6 @@ void ControlsPanel::init_subjects() {
     std::strcpy(speed_override_buf_, "100%");
     UI_MANAGED_SUBJECT_STRING(speed_override_subject_, speed_override_buf_, "100%",
                               "controls_speed_pct", subjects_);
-
-    // Macro buttons 3 & 4 visibility and names
-    UI_MANAGED_SUBJECT_INT(macro_3_visible_, 0, "macro_3_visible", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_4_visible_, 0, "macro_4_visible", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_3_available_, 0, "macro_3_available", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_4_available_, 0, "macro_4_available", subjects_);
-    UI_MANAGED_SUBJECT_STRING(macro_3_name_, macro_3_name_buf_, "", "macro_3_name", subjects_);
-    UI_MANAGED_SUBJECT_STRING(macro_4_name_, macro_4_name_buf_, "", "macro_4_name", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_header_visible_, 1, "macro_header_visible", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_light_[0], 0, "macro_1_light", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_light_[1], 0, "macro_2_light", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_light_[2], 0, "macro_3_light", subjects_);
-    UI_MANAGED_SUBJECT_INT(macro_light_[3], 0, "macro_4_light", subjects_);
 
     // Operation timeout guard (disables buttons while homing/QGL/Z-tilt in progress)
     operation_guard_.init_subject("controls_operation_in_progress", subjects_);
@@ -330,10 +302,7 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         return;
     }
 
-    load_quick_button_config();
-
-    // Refresh button labels and visibility based on current StandardMacros state
-    refresh_macro_buttons();
+    quick_actions_.setup(panel_, parent_screen, printer_state_, api_);
 
     // Cache dynamic container for secondary fans
     FIND_WIDGET(secondary_fans_list_, panel_, "secondary_fans_list", get_name());
@@ -342,20 +311,6 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         lv_obj_add_flag(secondary_fans_list_, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(secondary_fans_list_, on_secondary_fans_clicked, LV_EVENT_CLICKED,
                             this);
-    }
-
-    // A Quick Actions slot can hold the light toggle. Each slot's light cell
-    // reuses LedWidget, the class behind the home light tile, so the bulb shows
-    // on/off, brightness and colour, and a tap toggles the chamber light; the
-    // XML wires the click, and attach() finds light_icon inside the cell by name.
-    for (size_t i = 0; i < led_widgets_.size(); ++i) {
-        const std::string slot = "macro_" + std::to_string(i + 1);
-        const std::string cell = slot + "_light_cell";
-        if (lv_obj_t* led_cell = lv_obj_find_by_name(panel_, cell.c_str())) {
-            led_widgets_[i] =
-                std::make_unique<helix::LedWidget>("controls_" + slot, printer_state_, api_);
-            led_widgets_[i]->attach_tile(led_cell, parent_screen);
-        }
     }
 
     // Wire up card click handlers (cards need manual wiring for navigation)
@@ -395,13 +350,10 @@ void ControlsPanel::on_activate() {
     // 3. Observer callback was missed due to timing
     populate_secondary_fans();
 
-    // Re-read quick button slot config — user may have changed settings
-    load_quick_button_config();
+    // Re-read the slot config: the user may have changed settings
+    quick_actions_.reload();
 
-    // Refresh macro buttons — picks up config changes and auto-detected macros
-    refresh_macro_buttons();
-
-    spdlog::trace("[{}] Panel activated, refreshed macro buttons", get_name());
+    spdlog::trace("[{}] Panel activated", get_name());
 }
 
 void ControlsPanel::on_deactivating(DeactivateReason) {
@@ -593,23 +545,6 @@ void ControlsPanel::register_observers() {
             }
         },
         printer_state_.get_subjects_lifetime());
-
-    // Which macros a printer defines is not fixed for the life of a session: a
-    // Klipper restart or a config change re-runs discovery, and StandardMacros
-    // re-resolves every slot against the new list. Sampling once at setup() left
-    // a button enabled for a macro that had gone away (and hidden for one that
-    // had arrived) until the panel next deactivated.
-    macros_version_observer_ = observe<int>(
-        StandardMacros::instance().get_macros_version_subject(), this,
-        [](ControlsPanel* self, int /* version */) { self->refresh_macro_buttons(); },
-        StandardMacros::instance().get_subjects_lifetime());
-
-    // The light toggle's slot depends on whether an LED is controllable, which
-    // discovery settles after setup.
-    led_controllable_observer_ = observe<int>(
-        helix::led::LedController::instance().get_led_controllable_subject(), this,
-        [](ControlsPanel* self, int /* controllable */) { self->refresh_macro_buttons(); },
-        helix::led::LedController::instance().get_subjects_lifetime());
 
     // Subscribe to active tool changes for dynamic nozzle label
     active_tool_observer_ = observe<int>(
@@ -806,92 +741,6 @@ void ControlsPanel::update_fan_display() {
     }
     lv_subject_copy_string(&fan_speed_subject_, fan_speed_buf_);
     lv_subject_set_int(&fan_pct_subject_, fan_pct);
-}
-
-void ControlsPanel::update_macro_button(StandardMacros& macros,
-                                        const std::optional<StandardMacroSlot>& slot,
-                                        lv_subject_t& visible_subject,
-                                        lv_subject_t& available_subject, lv_subject_t& name_subject,
-                                        int button_num) {
-    if (!slot) {
-        lv_subject_set_int(&visible_subject, 0);
-        lv_subject_set_int(&available_subject, 0);
-        return;
-    }
-
-    const auto& info = macros.get(*slot);
-
-    if (!info.is_empty()) {
-        lv_subject_set_int(&visible_subject, 1);
-        lv_subject_set_int(&available_subject, 1);
-        lv_subject_copy_string(&name_subject, info.translated_name());
-        spdlog::trace("[{}] Macro {}: '{}' → {}", get_name(), button_num, info.display_name,
-                      info.get_macro());
-        return;
-    }
-
-    if (info.has_missing_macro()) {
-        // The user assigned this slot and the printer does not answer for it (a
-        // preset can seed a macro name the machine never defined, and a Klipper
-        // config change can retire one). Keep the button where they left it and
-        // grey it out: a button that disappears reads as a bug in the screen,
-        // while a disabled one points at the assignment that needs fixing.
-        lv_subject_set_int(&visible_subject, 1);
-        lv_subject_set_int(&available_subject, 0);
-        lv_subject_copy_string(&name_subject, info.translated_name());
-        spdlog::debug("[{}] Macro {} slot '{}' disabled: '{}' is not defined on this printer",
-                      get_name(), button_num, info.slot_name, info.missing_macro);
-        return;
-    }
-
-    lv_subject_set_int(&visible_subject, 0);
-    lv_subject_set_int(&available_subject, 0);
-    spdlog::trace("[{}] Macro {} slot '{}' is empty, hiding button", get_name(), button_num,
-                  info.slot_name);
-}
-
-void ControlsPanel::refresh_macro_buttons() {
-    auto& macros = StandardMacros::instance();
-
-    const std::optional<StandardMacroSlot>* slots[] = {&macro_1_slot_, &macro_2_slot_,
-                                                       &macro_3_slot_, &macro_4_slot_};
-    lv_subject_t* visible_subjects[] = {&macro_1_visible_, &macro_2_visible_, &macro_3_visible_,
-                                        &macro_4_visible_};
-    lv_subject_t* available_subjects[] = {&macro_1_available_, &macro_2_available_,
-                                          &macro_3_available_, &macro_4_available_};
-    lv_subject_t* name_subjects[] = {&macro_1_name_, &macro_2_name_, &macro_3_name_,
-                                     &macro_4_name_};
-
-    const auto kinds = helix::resolve_current_quick_slots(stored_quick_slots_);
-
-    for (size_t i = 0; i < 4; ++i) {
-        const bool light = kinds[i] == helix::QuickSlotKind::Light;
-        lv_subject_set_int(&macro_light_[i], light ? 1 : 0);
-        if (kinds[i] == helix::QuickSlotKind::Macro) {
-            update_macro_button(macros, *slots[i], *visible_subjects[i], *available_subjects[i],
-                                *name_subjects[i], static_cast<int>(i + 1));
-        } else {
-            lv_subject_set_int(visible_subjects[i], 0);
-            lv_subject_set_int(available_subjects[i], 0);
-        }
-    }
-
-    // Hide the Quick Actions header when row 2 shows anything, to save space
-    const bool row2_visible =
-        kinds[2] != helix::QuickSlotKind::Empty || kinds[3] != helix::QuickSlotKind::Empty;
-    lv_subject_set_int(&macro_header_visible_, row2_visible ? 0 : 1);
-}
-
-void ControlsPanel::load_quick_button_config() {
-    std::optional<StandardMacroSlot>* slots[] = {&macro_1_slot_, &macro_2_slot_, &macro_3_slot_,
-                                                 &macro_4_slot_};
-    stored_quick_slots_ = helix::read_stored_quick_slots();
-    for (size_t i = 0; i < 4; ++i) {
-        const std::string& name = stored_quick_slots_.value[i];
-        *slots[i] = name.empty() || name == helix::kQuickSlotLight
-                        ? std::nullopt
-                        : StandardMacros::slot_from_name(name);
-    }
 }
 
 /// @brief Priority score for fan display ordering on the cooling card.
@@ -1298,94 +1147,6 @@ void ControlsPanel::handle_z_tilt() {
                      });
 }
 
-void ControlsPanel::execute_macro(size_t index) {
-    const std::optional<StandardMacroSlot>* slots[] = {&macro_1_slot_, &macro_2_slot_,
-                                                       &macro_3_slot_, &macro_4_slot_};
-    if (index >= 4) {
-        spdlog::warn("[{}] Invalid macro index: {}", get_name(), index);
-        return;
-    }
-
-    const auto& slot = *slots[index];
-    if (!slot) {
-        spdlog::debug("[{}] Macro {} clicked but no slot configured", get_name(),
-                      static_cast<int>(index + 1));
-        return;
-    }
-
-    // Backstop for the XML disabled binding. LVGL suppresses CLICKED on a
-    // LV_STATE_DISABLED object, so this normally cannot be reached from touch —
-    // but execute_macro() is also the entry point for the remote-control server
-    // and any future caller, and dispatching a macro the printer does not define
-    // is exactly the silent failure this gate exists to stop.
-    const auto& gate_info = StandardMacros::instance().get(*slot);
-    if (gate_info.is_empty() && gate_info.has_missing_macro()) {
-        spdlog::warn("[{}] Macro {} slot '{}' names '{}', which this printer does not define",
-                     get_name(), static_cast<int>(index + 1), gate_info.slot_name,
-                     gate_info.missing_macro);
-        NOTIFY_WARNING(lv_tr("{} is not set up on this printer"), gate_info.translated_name());
-        return;
-    }
-
-    // Quick buttons never raise the param modal, so the decision weighs the
-    // Safety setting and the macro's saved defaults: a saved record rides along
-    // on the run, filtered to the declared names.
-    const auto& info = StandardMacros::instance().get(*slot);
-    const helix::CachedMacroInfo cached = helix::MacroParamCache::instance().get(info.get_macro());
-    helix::MacroRunRequest run_req;
-    run_req.prompt_for_params = false;
-    run_req.confirm_plain_run =
-        helix::SafetySettingsManager::instance().get_macro_require_confirmation();
-    run_req.saved_values = helix::MacroParamDefaults::instance().get(info.get_macro()).values;
-    const helix::MacroRunDecision decision = helix::decide_macro_run(cached, run_req);
-    if (decision.action != helix::MacroRunAction::ConfirmRun) {
-        do_execute_macro(index, decision.params);
-        return;
-    }
-
-    std::string msg = fmt::format(lv_tr("Run {}?"), info.translated_name());
-    helix::ui::ConfirmOptions opts;
-    opts.on_dismiss = [this] { macro_run_confirmation_dialog_.release(); };
-    opts.owner_token = object_lifetime_.token();
-    macro_run_confirmation_dialog_ = helix::ui::modal_confirm(
-        lv_tr("Run Macro?"), msg.c_str(), ModalSeverity::Info, lv_tr("Run"),
-        [this, index, params = decision.params] {
-            macro_run_confirmation_dialog_.release(); // the dialog closes itself
-            do_execute_macro(index, params);
-        },
-        opts);
-}
-
-void ControlsPanel::do_execute_macro(size_t index,
-                                     const std::map<std::string, std::string>& params) {
-    const std::optional<StandardMacroSlot>* slots[] = {&macro_1_slot_, &macro_2_slot_,
-                                                       &macro_3_slot_, &macro_4_slot_};
-    if (index >= 4) {
-        return;
-    }
-    const auto& slot = *slots[index];
-    if (!slot) {
-        return;
-    }
-
-    const auto& info = StandardMacros::instance().get(*slot);
-    int button_num = static_cast<int>(index + 1);
-    spdlog::debug("[{}] Macro {} clicked, executing slot '{}' → {}", get_name(), button_num,
-                  info.slot_name, info.get_macro());
-
-    NOTIFY_INFO(lv_tr("Running {}..."), info.translated_name());
-    if (!StandardMacros::instance().execute(
-            *slot, api_, params,
-            [name = std::string(info.translated_name())]() {
-                NOTIFY_SUCCESS(lv_tr("{} complete"), name);
-            },
-            [](const MoonrakerError& err) {
-                NOTIFY_ERROR(lv_tr("Macro failed: {}"), err.user_message());
-            })) {
-        NOTIFY_WARNING(lv_tr("{} macro not configured"), info.translated_name());
-    }
-}
-
 // ============================================================================
 // SPEED/FLOW OVERRIDE HANDLERS
 // ============================================================================
@@ -1530,7 +1291,8 @@ void ControlsPanel::on_macro(lv_event_t* e) {
     const char* index_str = static_cast<const char*>(lv_event_get_user_data(e));
     if (index_str) {
         size_t index = strtoul(index_str, nullptr, 10);
-        get_global_controls_panel().execute_macro(index);
+        auto& panel = get_global_controls_panel();
+        panel.quick_actions_.execute(index, panel.api_, panel.object_lifetime_.token());
     }
     LVGL_SAFE_EVENT_CB_END();
 }

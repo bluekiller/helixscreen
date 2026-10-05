@@ -81,7 +81,7 @@ struct ControlsPanelTestAccess {
     /// Invoke the macro quick button's dispatch, the same entry the touch
     /// handler and the remote-control server use.
     static void execute_macro(ControlsPanel& p, size_t index) {
-        p.execute_macro(index);
+        p.quick_actions_.execute(index, p.api_, p.object_lifetime_.token());
     }
 
     /// Open Bed Mesh the way its calibration card does, on @p screen.

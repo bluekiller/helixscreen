@@ -14,7 +14,7 @@
 #include "config.h"
 #include "i_moonraker_api.h"
 #include "operation_timeout_guard.h"
-#include "quick_action_slots.h"
+#include "quick_action_buttons.h"
 #include "standard_macros.h"
 #include "subject_managed_panel.h"
 #include "ui/position_observer_bundle.h"
@@ -31,7 +31,6 @@
 class TemperatureService;
 namespace helix {
 class TemperatureController;
-class LedWidget;
 namespace ui {
 struct ControlsPanelTestAccess; // test-only friend (tests/test_helpers/)
 } // namespace ui
@@ -154,21 +153,6 @@ class ControlsPanel : public PanelBase {
     helix::TemperatureController* controller() const;
 
     //
-    // === Configurable Macro Buttons (StandardMacros integration) ===
-    //
-
-    std::optional<StandardMacroSlot> macro_1_slot_; ///< Slot for macro button 1
-    std::optional<StandardMacroSlot> macro_2_slot_; ///< Slot for macro button 2
-
-    /**
-     * @brief Refresh macro button labels and visibility
-     *
-     * Called after StandardMacros config changes to update button text
-     * and hide buttons for empty slots.
-     */
-    void refresh_macro_buttons();
-
-    //
     // === Subject Manager (RAII cleanup) ===
     //
 
@@ -224,24 +208,6 @@ class ControlsPanel : public PanelBase {
     lv_subject_t fan_pct_subject_{};
     uint32_t last_fan_slider_input_ = 0; // Tick of last slider interaction (suppression window)
 
-    // Macro button subjects for declarative binding.
-    //
-    // Two independent gates, because a macro button has three states, not two:
-    //   *_visible   0 = nothing is assigned to this slot, do not render it
-    //   *_available 0 = rendered but not usable — the slot resolves to a macro
-    //                   the connected printer does not define
-    // A slot the user configured against a macro this printer lacks stays
-    // visible and goes disabled, so the button that stopped working is still
-    // where they left it instead of silently vanishing.
-    lv_subject_t macro_1_visible_{};
-    lv_subject_t macro_2_visible_{};
-    lv_subject_t macro_1_available_{};
-    lv_subject_t macro_2_available_{};
-    lv_subject_t macro_1_name_{};
-    lv_subject_t macro_2_name_{};
-    char macro_1_name_buf_[64] = {};
-    char macro_2_name_buf_[64] = {};
-
     //
     // === Cached Values (for display update efficiency) ===
     //
@@ -268,7 +234,6 @@ class ControlsPanel : public PanelBase {
 
     /// @brief Temperature observer bundle (nozzle + bed temps)
     helix::ui::TemperatureObserverBundle<ControlsPanel> temp_observers_;
-    ObserverGuard macros_version_observer_; // Macro slot resolution changed
     ObserverGuard fan_observer_;
     ObserverGuard fans_version_observer_;      // Multi-fan list changes
     ObserverGuard temp_sensor_count_observer_; // Temp sensor list changes
@@ -288,18 +253,11 @@ class ControlsPanel : public PanelBase {
     // === Lazily-Created Child Panels ===
     //
 
-    /// LED quick-toggle for the Calibration & Tools grid cell. Reuses the same
-    /// LedWidget that drives the home-dashboard light widget (stateful bulb icon
-    /// reflecting on/off + brightness + LED color; tap toggles). Present only
-    /// when an LED strip is controllable (cell hidden via led_controllable).
-    std::array<std::unique_ptr<helix::LedWidget>, 4> led_widgets_;
-
     //
     // === Modal Dialog State ===
     //
 
     helix::ui::ModalGuard motors_confirmation_dialog_;
-    helix::ui::ModalGuard macro_run_confirmation_dialog_;
     OperationTimeoutGuard operation_guard_;
 
     //
@@ -377,28 +335,7 @@ class ControlsPanel : public PanelBase {
     char speed_override_buf_[16] = {};
     ObserverGuard speed_factor_observer_;
 
-    //
-    // === Macro Slots 3 & 4 ===
-    //
-
-    std::optional<StandardMacroSlot> macro_3_slot_;
-    std::optional<StandardMacroSlot> macro_4_slot_;
-    lv_subject_t macro_3_visible_{};
-    lv_subject_t macro_4_visible_{};
-    lv_subject_t macro_3_available_{};
-    lv_subject_t macro_4_available_{};
-    lv_subject_t macro_3_name_{};
-    lv_subject_t macro_4_name_{};
-    char macro_3_name_buf_[64] = {};
-    char macro_4_name_buf_[64] = {};
-    lv_subject_t macro_header_visible_{};
-    /// 1 while a Quick Actions slot shows the light toggle instead of a macro
-    std::array<lv_subject_t, 4> macro_light_{};
-    /// The slots as stored; a never-written slot may take the light by
-    /// default (see resolve_quick_slots).
-    helix::StoredQuickSlots stored_quick_slots_;
-    ObserverGuard led_controllable_observer_;
-    void load_quick_button_config();
+    helix::QuickActionButtons quick_actions_; ///< The four Quick Actions slots
 
   public:
     // === Leveling Commands (shared with MotionPanel) ===
@@ -515,37 +452,6 @@ class ControlsPanel : public PanelBase {
     void handle_home_y();
     void handle_home_xy();
     void handle_home_z();
-
-    /**
-     * @brief Execute a macro by slot index (0-3)
-     *
-     * Consolidates duplicate logic from handle_macro_1/2/3/4.
-     * @param index Macro button index (0=macro_1, 1=macro_2, etc.)
-     */
-    void execute_macro(size_t index);
-
-    /**
-     * @brief Actually run a configured macro slot (bypasses confirmation)
-     *
-     * Called by execute_macro() directly or from the confirmation callback.
-     * @param params Saved parameter defaults to send with the macro (may be empty).
-     */
-    void do_execute_macro(size_t index, const std::map<std::string, std::string>& params = {});
-
-    /**
-     * @brief Update a single macro button's visibility and label
-     *
-     * Used by refresh_macro_buttons() to update each button.
-     * @param macros Reference to StandardMacros instance
-     * @param slot Optional slot for this button (nullopt = hide)
-     * @param visible_subject Subject controlling visibility binding
-     * @param available_subject Subject controlling the disabled-state binding
-     * @param name_subject Subject controlling label text binding
-     * @param button_num Button number for debug logging (1-4)
-     */
-    void update_macro_button(StandardMacros& macros, const std::optional<StandardMacroSlot>& slot,
-                             lv_subject_t& visible_subject, lv_subject_t& available_subject,
-                             lv_subject_t& name_subject, int button_num);
 
     //
     // === Speed/Flow Override Handlers ===
