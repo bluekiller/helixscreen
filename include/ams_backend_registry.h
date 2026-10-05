@@ -21,10 +21,11 @@ namespace helix {
  * @brief The registered AMS backends, their consumption sinks and the stored
  *        gcode-response callback.
  *
- * add() and clear() run on the main thread. get(), count(), primary_type() and
- * any_filament_batch_in_flight() may run anywhere: they hold mutex_ for as long
- * as they touch a backend, so a caller off the main thread never keeps a
- * pointer past clear().
+ * add(), clear() and get() run on the main thread: get() hands back a raw
+ * pointer after unlocking, which only stays valid on the thread that alone can
+ * call clear(). count(), primary_type() and any_filament_batch_in_flight() may
+ * run anywhere: they hold mutex_ for as long as they touch a backend and return
+ * no pointer, so nothing they answer outlives clear().
  */
 class AmsBackendRegistry {
   public:
@@ -44,6 +45,7 @@ class AmsBackendRegistry {
     /// static destruction, when the client they would unsubscribe from may be gone.
     void release_all();
 
+    /// Main thread only; see the class comment.
     [[nodiscard]] AmsBackend* get(int index) const;
     [[nodiscard]] int count() const;
     [[nodiscard]] std::optional<AmsType> primary_type() const;
