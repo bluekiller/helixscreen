@@ -123,6 +123,34 @@ TEST_CASE_METHOD(OverlayFx, "a second open of a showing overlay is a no-op", "[p
     CHECK_FALSE(rt->faulted());
 }
 
+TEST_CASE_METHOD(OverlayFx, "repeated no-op opens do not leak on_close refs", "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string("a = helix.ui.overlay(\"widget-demo__panel\")", "t"));
+    drain();
+    REQUIRE(rig.host->overlays().open_count("widget-demo") == 1);
+    REQUIRE(rt->run_string("collectgarbage()", "t"));
+    const size_t before = rt->memory_used();
+
+    // Every tap on a tile whose overlay is already showing drops that call's
+    // on_close; neither its registry ref nor the closure may survive.
+    REQUIRE(rt->run_string(R"(
+        for i = 1, 500 do
+            local payload = string.rep("x", 64)
+            helix.ui.overlay("widget-demo__panel", {on_close = function() return payload end})
+        end
+        collectgarbage()
+    )",
+                           "t"));
+    drain();
+    CHECK(rig.host->overlays().open_count("widget-demo") == 1);
+    const size_t after = rt->memory_used();
+    CAPTURE(before, after);
+    CHECK(after <= before + 2048);
+}
+
 TEST_CASE_METHOD(OverlayFx, "a re-open inside the close window builds a fresh overlay",
                  "[plugin][overlay]") {
     DisplaySettingsManager::instance().set_animations_enabled(true);
