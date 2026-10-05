@@ -1,0 +1,108 @@
+// Copyright (C) 2025-2026 356C LLC
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "thumbnail_downscale.h"
+
+#include <cstring>
+#include <vector>
+
+#include "../catch_amalgamated.hpp"
+
+using helix::ThumbnailDims;
+
+namespace {
+
+std::vector<uint8_t> solid(int w, int h, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    std::vector<uint8_t> px(static_cast<size_t>(w) * h * 4);
+    for (size_t i = 0; i < px.size(); i += 4) {
+        px[i] = r;
+        px[i + 1] = g;
+        px[i + 2] = b;
+        px[i + 3] = a;
+    }
+    return px;
+}
+
+uint16_t colour_at(const std::vector<uint8_t>& out, ThumbnailDims d, int x, int y) {
+    uint16_t c;
+    std::memcpy(&c, out.data() + (static_cast<size_t>(y) * d.w + x) * 2, 2);
+    return c;
+}
+
+uint8_t alpha_at(const std::vector<uint8_t>& out, ThumbnailDims d, int x, int y) {
+    return out[static_cast<size_t>(d.w) * d.h * 2 + static_cast<size_t>(y) * d.w + x];
+}
+
+} // namespace
+
+TEST_CASE("fit_thumbnail keeps aspect inside the box and never upscales",
+          "[thumbnail][downscale]") {
+    CHECK(helix::fit_thumbnail(300, 300, 260).w == 260);
+    CHECK(helix::fit_thumbnail(300, 300, 260).h == 260);
+    const ThumbnailDims wide = helix::fit_thumbnail(400, 200, 260);
+    CHECK(wide.w == 260);
+    CHECK(wide.h == 130);
+    const ThumbnailDims tall = helix::fit_thumbnail(200, 400, 260);
+    CHECK(tall.w == 130);
+    CHECK(tall.h == 260);
+    const ThumbnailDims small = helix::fit_thumbnail(48, 48, 260);
+    CHECK(small.w == 48);
+    CHECK(small.h == 48);
+    CHECK(helix::fit_thumbnail(1000, 1, 260).h == 1);
+    CHECK(helix::fit_thumbnail(0, 300, 260).w == 0);
+    CHECK(helix::rgb565a8_size({260, 260}) == 202800);
+}
+
+TEST_CASE("downscale packs RGB565 then an alpha plane", "[thumbnail][downscale]") {
+    const auto src = solid(4, 4, 255, 0, 0, 255);
+    const ThumbnailDims d{2, 2};
+    std::vector<uint8_t> out(helix::rgb565a8_size(d), 0xAA);
+    helix::downscale_rgba_to_rgb565a8(src.data(), 4, 4, d, out.data());
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 2; ++x) {
+            CHECK(colour_at(out, d, x, y) == 0xF800);
+            CHECK(alpha_at(out, d, x, y) == 255);
+        }
+    }
+
+    const auto green = solid(2, 2, 0, 255, 0, 255);
+    std::vector<uint8_t> g_out(helix::rgb565a8_size({2, 2}));
+    helix::downscale_rgba_to_rgb565a8(green.data(), 2, 2, {2, 2}, g_out.data());
+    CHECK(colour_at(g_out, {2, 2}, 1, 1) == 0x07E0);
+
+    const auto blue = solid(2, 2, 0, 0, 255, 128);
+    std::vector<uint8_t> b_out(helix::rgb565a8_size({1, 1}));
+    helix::downscale_rgba_to_rgb565a8(blue.data(), 2, 2, {1, 1}, b_out.data());
+    CHECK(colour_at(b_out, {1, 1}, 0, 0) == 0x001F);
+    CHECK(alpha_at(b_out, {1, 1}, 0, 0) == 128);
+}
+
+TEST_CASE("downscale averages each box, weighting colour by alpha", "[thumbnail][downscale]") {
+    // 2x1 source: an opaque white pixel next to a fully transparent black one.
+    const std::vector<uint8_t> src = {255, 255, 255, 255, 0, 0, 0, 0};
+    std::vector<uint8_t> out(helix::rgb565a8_size({1, 1}));
+    helix::downscale_rgba_to_rgb565a8(src.data(), 2, 1, {1, 1}, out.data());
+    // Colour stays white rather than greying toward the transparent neighbour.
+    CHECK(colour_at(out, {1, 1}, 0, 0) == 0xFFFF);
+    CHECK(alpha_at(out, {1, 1}, 0, 0) == 127);
+
+    // Fully transparent box.
+    const std::vector<uint8_t> clear = {10, 20, 30, 0, 40, 50, 60, 0};
+    helix::downscale_rgba_to_rgb565a8(clear.data(), 2, 1, {1, 1}, out.data());
+    CHECK(alpha_at(out, {1, 1}, 0, 0) == 0);
+
+    // Each output pixel reads only its own box: left half black, right half white.
+    std::vector<uint8_t> halves(4 * 2 * 4);
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 4; ++x) {
+            uint8_t* p = halves.data() + (y * 4 + x) * 4;
+            const uint8_t v = x < 2 ? 0 : 255;
+            p[0] = p[1] = p[2] = v;
+            p[3] = 255;
+        }
+    }
+    std::vector<uint8_t> h_out(helix::rgb565a8_size({2, 1}));
+    helix::downscale_rgba_to_rgb565a8(halves.data(), 4, 2, {2, 1}, h_out.data());
+    CHECK(colour_at(h_out, {2, 1}, 0, 0) == 0x0000);
+    CHECK(colour_at(h_out, {2, 1}, 1, 0) == 0xFFFF);
+}

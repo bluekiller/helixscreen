@@ -18,6 +18,7 @@
 
 #if defined(HELIX_PLATFORM_ESP32)
 #include "esp_psram_thumbnail.h"
+#include "memory_utils.h"
 #endif
 
 #include <spdlog/spdlog.h>
@@ -583,6 +584,11 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                 const std::string resolved_thumb_path =
                     resolve_thumbnail_path(thumbnail_rel_path, gcode_dir);
                 constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
+                // The print-status panel draws its thumbnail in a 377x260 box
+                // (contain) at 800x480 and the home print card in 119x84, so
+                // one image fitted to 260px serves both; LVGL scales it down
+                // for the card.
+                constexpr int ESP32_THUMBNAIL_DRAW_PX = 260;
 
                 // MANDATORY threading: EspHttpLane invokes on_success/on_error
                 // directly on its own worker thread with no marshaling. Both
@@ -592,14 +598,28 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                 // dereferenced on the worker.
                 api_->transfers().download_file_partial(
                     "gcodes", resolved_thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-                    [this, tok = lifetime_.token(), ctx,
+                    [this, tok = lifetime_.token(), ctx, filename,
                      resolved_thumb_path](const std::string& png_bytes) {
-                        // lane worker: PSRAM copy only, no LVGL, no members.
-                        auto thumb = helix::ui::EspPsramThumbnail::create(png_bytes);
+                        // lane worker: decode + PSRAM copy only, no widgets, no
+                        // members.
+                        auto thumb = helix::ui::EspPsramThumbnail::create_decoded(
+                            png_bytes, ESP32_THUMBNAIL_DRAW_PX);
                         if (!thumb) {
-                            spdlog::warn("[ActivePrintMediaManager] PSRAM alloc failed for "
-                                         "thumbnail: {}",
-                                         resolved_thumb_path);
+                            // Usually a transient PSRAM shortage while the UI
+                            // builds; one later attempt, never one per draw.
+                            tok.defer("ActivePrintMediaManager::on_thumbnail_decode_failed",
+                                      [this, ctx, filename, resolved_thumb_path]() {
+                                          if (!ctx.is_valid()) {
+                                              return;
+                                          }
+                                          spdlog::warn(
+                                              "[ActivePrintMediaManager] Could not "
+                                              "decode thumbnail {} (largest free "
+                                              "PSRAM block {}KB)",
+                                              resolved_thumb_path,
+                                              helix::get_system_memory_info().largest_free_kb);
+                                          schedule_thumbnail_retry(filename, MAX_DECODE_RETRIES);
+                                      });
                             return;
                         }
                         // The last shared_ptr release must happen on the UI
