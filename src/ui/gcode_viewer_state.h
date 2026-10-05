@@ -436,6 +436,24 @@ inline gcode_viewer_state_t* get_state(lv_obj_t* obj) {
     return static_cast<gcode_viewer_state_t*>(lv_obj_get_user_data(obj));
 }
 
+/// The loading spinner card, shown while the viewer has nothing to draw yet.
+void create_loading_ui(gcode_viewer_state_t* st, lv_obj_t* obj, const char* text);
+/// Take down the loading spinner, deferred (callers run inside queued callbacks).
+void remove_loading_ui(gcode_viewer_state_t* st);
+/// Apply the color priority chain to the 2D renderer from the loaded file.
+void apply_2d_renderer_colors(gcode_viewer_state_t* st);
+/// Canvas, framing and shading tier for a freshly created 2D renderer.
+void seed_2d_renderer_view(gcode_viewer_state_t* st, int width, int height);
+/// Route the current file to the 2D renderer because the memory budget refused 3D.
+void apply_budget_forced_2d(gcode_viewer_state_t* st, lv_obj_t* obj);
+/// Forget what the stall watchdog has observed.
+void gcode_viewer_watchdog_restart(gcode_viewer_state_t* st);
+
+#ifdef ENABLE_3D_RENDERER
+/// Build 3D geometry for the file already loaded, on the viewer's build thread.
+void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj);
+#endif
+
 } // namespace helix::gcode_viewer
 
 #endif // HELIX_HAS_GCODE_VIEWER
