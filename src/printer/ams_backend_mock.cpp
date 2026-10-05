@@ -7,7 +7,10 @@
 #if HELIX_HAS_SNAPMAKER
 #include "ams_backend_snapmaker.h"
 #endif
+#include "ams_backend_ad5x_ifs.h"
+#include "ams_backend_afc.h"
 #include "ams_backend_happy_hare.h"
+#include "ams_backend_toolchanger.h"
 #include "ams_bypass_policy.h"
 #include "display_numbering.h"
 #include "filament_database.h"
@@ -721,25 +724,41 @@ AmsError AmsBackendMock::unload_filament(int slot_index) {
     return AmsErrorHelper::success();
 }
 
-bool AmsBackendMock::supports_batch_filament_ops() const {
+BackendTraits AmsBackendMock::traits() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return snapmaker_mode_;
-}
-
-bool AmsBackendMock::has_physical_tray() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    // The U1's feeders sit behind the machine, not in a pull-out tray.
-    return !snapmaker_mode_;
-}
-
-bool AmsBackendMock::recovers_filament_on_resume() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return snapmaker_mode_;
-}
-
-bool AmsBackendMock::should_suppress_idle_runout_modal() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return snapmaker_mode_;
+    BackendTraits t;
+    switch (system_info_.type) {
+    case AmsType::HAPPY_HARE:
+        t = AmsBackendHappyHare::kTraits;
+        break;
+    case AmsType::AFC:
+        t = AmsBackendAfc::kTraits;
+        break;
+    case AmsType::TOOL_CHANGER:
+        t = AmsBackendToolChanger::kTraits;
+        break;
+    case AmsType::AD5X_IFS:
+        t = AmsBackendAd5xIfs::kTraits;
+        break;
+#if HELIX_HAS_SNAPMAKER
+    case AmsType::SNAPMAKER:
+        t = AmsBackendSnapmaker::kTraits;
+        break;
+#endif
+    default:
+        break;
+    }
+    // A test hook: no real backend tracks consumption natively, and the paths
+    // that do need a backend that says so.
+    t.tracks_consumption_natively = tracks_consumption_natively_;
+    // No firmware stands behind the mock's slot table, so nothing it is told
+    // survives a restart: ToolState has to save the assignments itself.
+    t.has_firmware_spool_persistence = false;
+    // Environment data is faked for every persona (HELIX_MOCK_AMS_ENV) so the
+    // environment UI is drivable in --test whatever the emulated firmware has.
+    const std::string mode = resolve_environment_mode();
+    t.has_environment_sensors = mode == "passive" || mode == "dryer" || mode == "slot";
+    return t;
 }
 
 AmsError AmsBackendMock::load_filament_batch(const std::vector<int>& slots) {
@@ -1537,12 +1556,6 @@ void AmsBackendMock::set_environment_mode(const std::string& mode) {
         pending_drying_duration_min_ = kCycleDurationMin;
         pending_drying_elapsed_min_ = kCycleElapsedMin;
     }
-}
-
-bool AmsBackendMock::has_environment_sensors() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto mode = resolve_environment_mode();
-    return mode == "passive" || mode == "dryer" || mode == "slot";
 }
 
 std::string AmsBackendMock::resolve_environment_mode() const {
@@ -3738,11 +3751,6 @@ void AmsBackendMock::set_remap_strategy(RemapStrategy strategy) {
 void AmsBackendMock::set_remap_ready(bool ready) {
     std::lock_guard<std::mutex> lock(mutex_);
     remap_ready_ = ready;
-}
-
-bool AmsBackendMock::requires_preprint_send() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return snapmaker_mode_;
 }
 
 std::string AmsBackendMock::build_preprint_gcode(const std::set<int>& tools_used,

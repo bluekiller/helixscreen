@@ -50,9 +50,15 @@ class AmsBackendOpenAms : public AmsSubscriptionBackend {
     [[nodiscard]] PathSegment get_slot_filament_segment(int slot_index) const override;
     [[nodiscard]] PathSegment infer_error_segment() const override;
 
-    /// `units[].slots[].loaded` is reported per slot.
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // `units[].slots[].loaded` is reported per slot.
+        t.has_per_slot_loaded_authority = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
 
     /// Unload is offered only where the manager advertises a command for it.

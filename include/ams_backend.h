@@ -43,6 +43,7 @@ typedef struct _lv_subject_t lv_subject_t;
 #include <any>
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <memory>
@@ -50,11 +51,65 @@ typedef struct _lv_subject_t lv_subject_t;
 #include <optional>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace helix {
+
+/**
+ * @brief The capability answers a backend gives the same way for its whole life.
+ *
+ * Each backend declares one `static constexpr BackendTraits kTraits` and returns
+ * it from AmsBackend::traits(); the public predicates of the same name read it.
+ * Every field is documented at its accessor on AmsBackend. The defaults are what
+ * a backend that sets nothing answers. A capability that depends on discovery,
+ * configuration that arrives later, or live status is not a trait: it stays a
+ * virtual on AmsBackend.
+ *
+ * AmsBackendMock copies the kTraits of the backend each persona stands in for,
+ * so the mock cannot drift from the hardware it emulates.
+ */
+struct BackendTraits {
+    bool load_mounts_tool = false;
+    bool tracks_consumption_natively = false;
+    bool hub_on_toolhead = false;
+    bool has_per_slot_loaded_authority = false;
+    bool filament_ops_self_home = false;
+    bool supports_batch_filament_ops = false;
+    bool reset_moves_filament = false;
+    bool supports_recover_with_state = false;
+    bool supports_lane_preload = false;
+    bool supports_force_eject = false;
+    bool cold_lane_ops_refused_during_print = false;
+    bool can_clear_unaccounted_toolhead = false;
+    bool supports_gate_select = false;
+    bool supports_gate_check = false;
+    bool should_suppress_idle_runout_modal = false;
+    bool bypass_is_virtual = false;
+    bool supports_configurable_unload_after_print = false;
+    bool supports_configurable_eject_params = false;
+    bool allows_implicit_chaining = true;
+    bool has_physical_tray = true;
+    bool slot_status_tracks_filament = true;
+    bool should_hide_slot_tool_badge = false;
+    bool requires_preprint_send = false;
+    bool supports_auto_heat_on_load = false;
+    bool has_firmware_spool_persistence = false;
+    bool printer_reports_spool_ids = false;
+    bool recovers_filament_on_resume = false;
+    bool has_environment_sensors = false;
+
+    // All-bool with no padding, so the bytes are the value.
+    bool operator==(const BackendTraits& o) const {
+        static_assert(std::has_unique_object_representations_v<BackendTraits>);
+        return std::memcmp(this, &o, sizeof(BackendTraits)) == 0;
+    }
+    bool operator!=(const BackendTraits& o) const {
+        return !(*this == o);
+    }
+};
 
 /**
  * @brief Abstract interface for AMS/MMU backend implementations
@@ -230,6 +285,16 @@ class AmsBackend {
      * @return AmsType enum value
      */
     [[nodiscard]] virtual AmsType get_type() const = 0;
+
+    /**
+     * @brief The constant capability answers; see BackendTraits.
+     *
+     * A backend overrides this to return its own `kTraits`. Callers use the
+     * named predicates (has_physical_tray(), ...), which read this.
+     */
+    [[nodiscard]] virtual BackendTraits traits() const {
+        return {};
+    }
 
     /**
      * @brief Whether this backend manages the Spoolman active spool itself
@@ -567,8 +632,8 @@ class AmsBackend {
      * changer whose load really does feed filament through the selected
      * toolhead, so it stays false here and keeps the filament wording.
      */
-    [[nodiscard]] virtual bool load_mounts_tool() const {
-        return false;
+    [[nodiscard]] bool load_mounts_tool() const {
+        return traits().load_mounts_tool;
     }
 
     /**
@@ -588,8 +653,8 @@ class AmsBackend {
      * printer-side source. FilamentConsumptionTracker skips slots on such backends
      * to avoid double-counting.
      */
-    [[nodiscard]] virtual bool tracks_consumption_natively() const {
-        return false;
+    [[nodiscard]] bool tracks_consumption_natively() const {
+        return traits().tracks_consumption_natively;
     }
 
     /**
@@ -640,8 +705,8 @@ class AmsBackend {
      * the full height into a hub box hugging the toolhead, instead of a
      * selector's single output line or a mid-machine merge unit.
      */
-    [[nodiscard]] virtual bool hub_on_toolhead() const {
-        return false;
+    [[nodiscard]] bool hub_on_toolhead() const {
+        return traits().hub_on_toolhead;
     }
 
     /**
@@ -730,8 +795,8 @@ class AmsBackend {
      *
      * @return true if get_slot_info(i).status is authoritative for "loaded"
      */
-    [[nodiscard]] virtual bool has_per_slot_loaded_authority() const {
-        return false;
+    [[nodiscard]] bool has_per_slot_loaded_authority() const {
+        return traits().has_per_slot_loaded_authority;
     }
 
     /**
@@ -865,8 +930,8 @@ class AmsBackend {
      * Distinct from delegates_homing_to_printer() (load/unload homing
      * delegation); the two must stay separate.
      */
-    [[nodiscard]] virtual bool filament_ops_self_home() const {
-        return false;
+    [[nodiscard]] bool filament_ops_self_home() const {
+        return traits().filament_ops_self_home;
     }
 
     /**
@@ -1056,8 +1121,8 @@ class AmsBackend {
      * Gates the UI affordance only. A backend that answers true must implement
      * load_filament_batch() / unload_filament_batch().
      */
-    [[nodiscard]] virtual bool supports_batch_filament_ops() const {
-        return false;
+    [[nodiscard]] bool supports_batch_filament_ops() const {
+        return traits().supports_batch_filament_ops;
     }
 
     /**
@@ -1222,8 +1287,8 @@ class AmsBackend {
      * Distinct from filament_ops_self_home(), which asks whether a load/unload
      * macro homes the printer's own toolhead.
      */
-    [[nodiscard]] virtual bool reset_moves_filament() const {
-        return false;
+    [[nodiscard]] bool reset_moves_filament() const {
+        return traits().reset_moves_filament;
     }
 
     /**
@@ -1263,8 +1328,8 @@ class AmsBackend {
     }
 
     /// @return true if recover_with_state() is implemented
-    [[nodiscard]] virtual bool supports_recover_with_state() const {
-        return false;
+    [[nodiscard]] bool supports_recover_with_state() const {
+        return traits().supports_recover_with_state;
     }
 
     /**
@@ -1364,8 +1429,8 @@ class AmsBackend {
     }
 
     /// @return true if preload_lane() is implemented
-    [[nodiscard]] virtual bool supports_lane_preload() const {
-        return false;
+    [[nodiscard]] bool supports_lane_preload() const {
+        return traits().supports_lane_preload;
     }
 
     /**
@@ -1378,8 +1443,8 @@ class AmsBackend {
      *
      * @return true if a cold, sensor-ignoring eject is available
      */
-    [[nodiscard]] virtual bool supports_force_eject() const {
-        return false;
+    [[nodiscard]] bool supports_force_eject() const {
+        return traits().supports_force_eject;
     }
 
     /**
@@ -1410,8 +1475,8 @@ class AmsBackend {
      *
      * @return true if a print blocks this backend's cold lane ops too
      */
-    [[nodiscard]] virtual bool cold_lane_ops_refused_during_print() const {
-        return false;
+    [[nodiscard]] bool cold_lane_ops_refused_during_print() const {
+        return traits().cold_lane_ops_refused_during_print;
     }
 
     /**
@@ -1467,8 +1532,8 @@ class AmsBackend {
      * Default false: a backend that has not been shown to manage this must not
      * imply the printer will handle it.
      */
-    [[nodiscard]] virtual bool can_clear_unaccounted_toolhead() const {
-        return false;
+    [[nodiscard]] bool can_clear_unaccounted_toolhead() const {
+        return traits().can_clear_unaccounted_toolhead;
     }
 
     [[nodiscard]] virtual bool can_unload_from_toolhead(int slot_index) const {
@@ -1503,8 +1568,8 @@ class AmsBackend {
      * @brief Whether the backend can position the selector at a gate without loading.
      * @return true if select_gate() is implemented (selector-based systems only).
      */
-    [[nodiscard]] virtual bool supports_gate_select() const {
-        return false;
+    [[nodiscard]] bool supports_gate_select() const {
+        return traits().supports_gate_select;
     }
 
     /**
@@ -1542,8 +1607,8 @@ class AmsBackend {
      * @brief Whether the backend can probe gate sensors (MMU_CHECK_GATE).
      * @return true if check_gate()/check_all_gates() are implemented.
      */
-    [[nodiscard]] virtual bool supports_gate_check() const {
-        return false;
+    [[nodiscard]] bool supports_gate_check() const {
+        return traits().supports_gate_check;
     }
 
     /**
@@ -2546,8 +2611,8 @@ class AmsBackend {
      *
      * @return true to suppress the idle runout modal for this backend
      */
-    [[nodiscard]] virtual bool should_suppress_idle_runout_modal() const {
-        return false;
+    [[nodiscard]] bool should_suppress_idle_runout_modal() const {
+        return traits().should_suppress_idle_runout_modal;
     }
 
     /**
@@ -2562,8 +2627,8 @@ class AmsBackend {
      *
      * @return true if bypass support is reported even with no bypass hardware
      */
-    [[nodiscard]] virtual bool bypass_is_virtual() const {
-        return false;
+    [[nodiscard]] bool bypass_is_virtual() const {
+        return traits().bypass_is_virtual;
     }
 
     /**
@@ -2578,8 +2643,8 @@ class AmsBackend {
      *
      * @return true if the post-print toolhead unload is a user setting here
      */
-    [[nodiscard]] virtual bool supports_configurable_unload_after_print() const {
-        return false;
+    [[nodiscard]] bool supports_configurable_unload_after_print() const {
+        return traits().supports_configurable_unload_after_print;
     }
 
     /**
@@ -2591,8 +2656,8 @@ class AmsBackend {
      *
      * @return true if eject distance/velocity are configurable for this backend
      */
-    [[nodiscard]] virtual bool supports_configurable_eject_params() const {
-        return false;
+    [[nodiscard]] bool supports_configurable_eject_params() const {
+        return traits().supports_configurable_eject_params;
     }
 
     /**
@@ -2613,8 +2678,8 @@ class AmsBackend {
      *
      * @return true if the UI may issue an implicit prerequisite command
      */
-    [[nodiscard]] virtual bool allows_implicit_chaining() const {
-        return true;
+    [[nodiscard]] bool allows_implicit_chaining() const {
+        return traits().allows_implicit_chaining;
     }
 
     /**
@@ -2626,8 +2691,8 @@ class AmsBackend {
      *
      * @return true if a physical tray should be drawn
      */
-    [[nodiscard]] virtual bool has_physical_tray() const {
-        return true;
+    [[nodiscard]] bool has_physical_tray() const {
+        return traits().has_physical_tray;
     }
 
     /**
@@ -2637,8 +2702,8 @@ class AmsBackend {
      * state) answers false, and the pre-print check then takes a RUNOUT sensor
      * mapped to that slot as the slot's filament reading.
      */
-    [[nodiscard]] virtual bool slot_status_tracks_filament() const {
-        return true;
+    [[nodiscard]] bool slot_status_tracks_filament() const {
+        return traits().slot_status_tracks_filament;
     }
 
     /**
@@ -2662,8 +2727,8 @@ class AmsBackend {
      *
      * @return true to hide the per-slot tool badge
      */
-    [[nodiscard]] virtual bool should_hide_slot_tool_badge() const {
-        return false;
+    [[nodiscard]] bool should_hide_slot_tool_badge() const {
+        return traits().should_hide_slot_tool_badge;
     }
 
     /**
@@ -2770,8 +2835,8 @@ class AmsBackend {
      *
      * @return true if a pre-print send is required
      */
-    [[nodiscard]] virtual bool requires_preprint_send() const {
-        return false;
+    [[nodiscard]] bool requires_preprint_send() const {
+        return traits().requires_preprint_send;
     }
 
     /**
@@ -2804,8 +2869,8 @@ class AmsBackend {
      *
      * @return true if backend handles preheat automatically, false if UI should manage it
      */
-    [[nodiscard]] virtual bool supports_auto_heat_on_load() const {
-        return false;
+    [[nodiscard]] bool supports_auto_heat_on_load() const {
+        return traits().supports_auto_heat_on_load;
     }
 
     /**
@@ -2820,8 +2885,8 @@ class AmsBackend {
      *
      * @return true if firmware handles spool persistence, false if ToolState should
      */
-    [[nodiscard]] virtual bool has_firmware_spool_persistence() const {
-        return false;
+    [[nodiscard]] bool has_firmware_spool_persistence() const {
+        return traits().has_firmware_spool_persistence;
     }
 
     /// Whether this backend's firmware reports a Spoolman spool id per slot
@@ -2833,8 +2898,8 @@ class AmsBackend {
     /// reports a positive spool id that disagrees with the declared one (AFC,
     /// Happy Hare, and flat-schema CFS, whose per-slot spoolman_id parse
     /// feeds it today).
-    [[nodiscard]] virtual bool printer_reports_spool_ids() const {
-        return false;
+    [[nodiscard]] bool printer_reports_spool_ids() const {
+        return traits().printer_reports_spool_ids;
     }
 
     /// Whether the firmware is CURRENTLY retaining spool identity across
@@ -2983,8 +3048,8 @@ class AmsBackend {
      * Backends without this (basic runout sensors, most MMUs) need a manual Load
      * before resume, so they keep Load prominent. Default false (conservative).
      */
-    [[nodiscard]] virtual bool recovers_filament_on_resume() const {
-        return false;
+    [[nodiscard]] bool recovers_filament_on_resume() const {
+        return traits().recovers_filament_on_resume;
     }
 
     /**
@@ -2995,8 +3060,8 @@ class AmsBackend {
      *
      * @return true if backend provides environment sensor data per unit
      */
-    [[nodiscard]] virtual bool has_environment_sensors() const {
-        return false;
+    [[nodiscard]] bool has_environment_sensors() const {
+        return traits().has_environment_sensors;
     }
 
     /**

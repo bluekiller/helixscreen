@@ -67,11 +67,36 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
     [[nodiscard]] AmsType get_type() const override {
         return AmsType::QIDI_BOX;
     }
-    // QIDI Box exposes user-tunable per-lane eject distance + velocity, which the
-    // device-operations overlay surfaces as slider rows.
-    [[nodiscard]] bool supports_configurable_eject_params() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // QIDI Box exposes user-tunable per-lane eject distance + velocity, which the
+        // device-operations overlay surfaces as slider rows.
+        t.supports_configurable_eject_params = true;
+        // The Box publishes a per-slot state word (save_variables slot<N>, where 2
+        // means loaded), which is its own statement about that slot and needs no
+        // active-slot pointer to interpret. The aggregate pair by contrast is
+        // written only from last_load_slot, so on a Box that never writes that
+        // variable nothing would ever read as loaded despite slot<N>: 2 on the
+        // wire. parse_save_variables() reconciles the two at the end of every pass
+        // so the stamp cannot fall behind the aggregate either
+        // (prestonbrown/helixscreen#1199).
+        t.has_per_slot_loaded_authority = true;
+        // The box exposes a PTC dryer heater (heater_generic heater_box<N>) plus an
+        // aht20_f humidity/temperature chip, so the per-unit environment indicator
+        // (temp/humidity + drying controls) must be reachable. Without this override
+        // the indicator widget is hard-hidden in ams_detail_pre_show_env_indicator().
+        t.has_environment_sensors = true;
+        // load_filament() drives the stock EXTRUDER_LOAD primitive directly and
+        // manages hotend temperature itself (heat → load → clear → cool), so the UI
+        // must not run its own preheat for QIDI loads.
+        t.supports_auto_heat_on_load = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
+
     [[nodiscard]] PathTopology get_topology() const override {
         return PathTopology::HUB;
     }
@@ -103,33 +128,6 @@ class AmsBackendQidi : public AmsSubscriptionBackend {
         return true;
     }
     [[nodiscard]] bool is_bypass_active() const override;
-
-    /// The Box publishes a per-slot state word (save_variables slot<N>, where 2
-    /// means loaded), which is its own statement about that slot and needs no
-    /// active-slot pointer to interpret. The aggregate pair by contrast is
-    /// written only from last_load_slot, so on a Box that never writes that
-    /// variable nothing would ever read as loaded despite slot<N>: 2 on the
-    /// wire. parse_save_variables() reconciles the two at the end of every pass
-    /// so the stamp cannot fall behind the aggregate either
-    /// (prestonbrown/helixscreen#1199).
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return true;
-    }
-
-    // The box exposes a PTC dryer heater (heater_generic heater_box<N>) plus an
-    // aht20_f humidity/temperature chip, so the per-unit environment indicator
-    // (temp/humidity + drying controls) must be reachable. Without this override
-    // the indicator widget is hard-hidden in ams_detail_pre_show_env_indicator().
-    [[nodiscard]] bool has_environment_sensors() const override {
-        return true;
-    }
-
-    // load_filament() drives the stock EXTRUDER_LOAD primitive directly and
-    // manages hotend temperature itself (heat → load → clear → cool), so the UI
-    // must not run its own preheat for QIDI loads.
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
-        return true;
-    }
 
   protected:
     // The Box's slots are painted SlotInfo state that persists between

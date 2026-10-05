@@ -84,13 +84,25 @@ class ActionRecorder {
     ObserverGuard guard_;
 };
 
+/// The unload-first chain runs only on a backend that chains implicitly, as
+/// AD5X IFS does; the mock's default Happy Hare persona does not.
+class ChainingMock : public AmsBackendMock {
+  public:
+    using AmsBackendMock::AmsBackendMock;
+    [[nodiscard]] BackendTraits traits() const override {
+        BackendTraits t = AmsBackendMock::traits();
+        t.allows_implicit_chaining = true;
+        return t;
+    }
+};
+
 /// Install a started, zero-delay mock as AmsState's primary backend and hand
 /// back the raw pointer — the controller resolves its backend through
 /// AmsState::instance().get_backend(), so the mock must live there, not beside
 /// the fixture. Same idiom as test_ams_bypass_preflight_wiring.cpp.
 class BypassToggleFixture : public LVGLTestFixture {
   public:
-    AmsBackendMock* backend = nullptr;
+    ChainingMock* backend = nullptr;
     BypassToggleController controller;
 
     BypassToggleFixture() {
@@ -101,7 +113,7 @@ class BypassToggleFixture : public LVGLTestFixture {
         auto& ams = AmsState::instance();
         ams.init_subjects(false);
 
-        auto owned = std::make_unique<AmsBackendMock>(4);
+        auto owned = std::make_unique<ChainingMock>(4);
         backend = owned.get();
         backend->set_operation_delay(0);
         ams.set_backend(std::move(owned));

@@ -201,13 +201,70 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
         return PathTopology::LINEAR;
     }
 
-    // The convergence the selector does NOT do is delegated to a combiner
-    // bolted just above the toolhead: four tubes run the whole way there and
-    // the shared path below it is centimetres. The canvas composes the two
-    // facts into one drawing.
-    [[nodiscard]] bool hub_on_toolhead() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // The convergence the selector does NOT do is delegated to a combiner
+        // bolted just above the toolhead: four tubes run the whole way there and
+        // the shared path below it is centimetres. The canvas composes the two
+        // facts into one drawing.
+        t.hub_on_toolhead = true;
+        // update_slot_from_state() stamps SlotStatus::LOADED on the seated lane
+        // from the firmware's own active-lane pointer plus the head sensor — the
+        // same two inputs system_info_.filament_loaded is assigned from — and it
+        // re-runs on every path that moves either one, including the
+        // FFMInfo.channel adoption in parse_adventurer_json. Reading that stamp
+        // therefore never contradicts the aggregate pair, and it survives the #995
+        // runout that drops a lane's port sensor while its filament is still at the
+        // toolhead (prestonbrown/helixscreen#1199).
+        t.has_per_slot_loaded_authority = true;
+        // AD5X IFS is the one backend whose filament macros home inside firmware.
+        //
+        // Both toolhead macros open with `_G28`: `_IFS_REMOVE_CURRENT_PRUTOK` (the
+        // unload HelixScreen dispatches for a loaded toolhead) and
+        // `_INSERT_PRUTOK_IFS` (behind the `INSERT_PRUTOK_IFS` load), the latter
+        // being `_G28` -> heat -> feed -> purge.
+        //
+        // `_G28` is CONDITIONAL, not an unconditional home. Its whole body is
+        // `{% if "xyz" not in printer.toolhead.homed_axes %} _HOME {% endif %}`
+        // (ZMOD 1.7.1 `mod/_mod/translate/*/base.cfg`, identical in all 12 language
+        // copies). So it homes an unhomed toolhead and no-ops on a homed one, and
+        // pairing it with ensure_homed_then() does NOT home twice: our `G28`
+        // (itself `_HOME`, via ZMOD's `G28` override in the same base.cfg) leaves
+        // `homed_axes` == "xyz", and the macro's `_G28` then falls through
+        // (prestonbrown/helixscreen#1248).
+        //
+        // What this flag is about is the rest of the macro, not the home. The AD5X
+        // has a loadcell Z, and the macros drive the toolhead across the bed on
+        // their own authority (`_GOTO_TRASH`, `_SBROS_TRASH`, `_CLEAR_REZINA`
+        // nozzle wipe) with a `_G28` in front that WILL fire whenever `homed_axes`
+        // has been cleared - a Klipper error, an `M84`, a cold resume. Issued while
+        // a job owns the toolhead, that motion reaches the part, tripping ZMOD's
+        // ZCONTROL_AUTO force trip and shutting Klipper down - recoverable only by
+        // a firmware restart (bundle XWPBR2DX). Layer 1
+        // (reject_homing_during_active_print) cannot help: the `_G28` is buried in
+        // the firmware macro and never crosses our gcode API.
+        //
+        // So this backend keeps refusing load/unload/change_tool while PAUSED as
+        // well as while PRINTING. That protection was earned on a real shutdown and
+        // must not be relaxed on the strength of the `homed_axes` guard alone.
+        t.filament_ops_self_home = true;
+        // INSERT_PRUTOK_IFS resolves the target lane's configured material temp
+        // (get_prutok_config(prutok)['temp']) and _INSERT_PRUTOK_IFS does its own
+        // M104 + TEMPERATURE_WAIT, so the UI preheat poll is unnecessary. The
+        // backend phase tracker synthesizes the Heat-nozzle step from extruder temp
+        // frames, so heat progress still renders in the sidebar.
+        t.supports_auto_heat_on_load = true;
+        t.supports_force_eject = true;
+        // IFS firmware persists color + material type but NOT spoolman_id,
+        // so ToolState must handle spool assignment persistence via Moonraker DB.
+        t.has_firmware_spool_persistence = false;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
+
     [[nodiscard]] PathSegment get_filament_segment() const override;
     [[nodiscard]] PathSegment get_slot_filament_segment(int slot_index) const override;
     [[nodiscard]] PathSegment infer_error_segment() const override;
@@ -227,53 +284,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // hidden on the active slot, which is intended: don't offer Load on a slot
     // the firmware still considers seated.
     [[nodiscard]] bool can_unload_from_toolhead(int slot_index) const override;
-
-    /// update_slot_from_state() stamps SlotStatus::LOADED on the seated lane
-    /// from the firmware's own active-lane pointer plus the head sensor — the
-    /// same two inputs system_info_.filament_loaded is assigned from — and it
-    /// re-runs on every path that moves either one, including the
-    /// FFMInfo.channel adoption in parse_adventurer_json. Reading that stamp
-    /// therefore never contradicts the aggregate pair, and it survives the #995
-    /// runout that drops a lane's port sensor while its filament is still at the
-    /// toolhead (prestonbrown/helixscreen#1199).
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return true;
-    }
-
-    /// AD5X IFS is the one backend whose filament macros home inside firmware.
-    ///
-    /// Both toolhead macros open with `_G28`: `_IFS_REMOVE_CURRENT_PRUTOK` (the
-    /// unload HelixScreen dispatches for a loaded toolhead) and
-    /// `_INSERT_PRUTOK_IFS` (behind the `INSERT_PRUTOK_IFS` load), the latter
-    /// being `_G28` -> heat -> feed -> purge.
-    ///
-    /// `_G28` is CONDITIONAL, not an unconditional home. Its whole body is
-    /// `{% if "xyz" not in printer.toolhead.homed_axes %} _HOME {% endif %}`
-    /// (ZMOD 1.7.1 `mod/_mod/translate/*/base.cfg`, identical in all 12 language
-    /// copies). So it homes an unhomed toolhead and no-ops on a homed one, and
-    /// pairing it with ensure_homed_then() does NOT home twice: our `G28`
-    /// (itself `_HOME`, via ZMOD's `G28` override in the same base.cfg) leaves
-    /// `homed_axes` == "xyz", and the macro's `_G28` then falls through. See
-    /// prestonbrown/helixscreen#1248, which read the macro as an unconditional
-    /// home and reported a double home that does not occur.
-    ///
-    /// What this flag is about is the rest of the macro, not the home. The AD5X
-    /// has a loadcell Z, and the macros drive the toolhead across the bed on
-    /// their own authority (`_GOTO_TRASH`, `_SBROS_TRASH`, `_CLEAR_REZINA`
-    /// nozzle wipe) with a `_G28` in front that WILL fire whenever `homed_axes`
-    /// has been cleared - a Klipper error, an `M84`, a cold resume. Issued while
-    /// a job owns the toolhead, that motion reaches the part, tripping ZMOD's
-    /// ZCONTROL_AUTO force trip and shutting Klipper down - recoverable only by
-    /// a firmware restart (bundle XWPBR2DX, commit 329e731e9). Layer 1
-    /// (reject_homing_during_active_print) cannot help: the `_G28` is buried in
-    /// the firmware macro and never crosses our gcode API.
-    ///
-    /// So this backend keeps refusing load/unload/change_tool while PAUSED as
-    /// well as while PRINTING. That protection was earned on a real shutdown and
-    /// must not be relaxed on the strength of the `homed_axes` guard alone.
-    [[nodiscard]] bool filament_ops_self_home() const override {
-        return true;
-    }
 
     // Seated-channel-aware: a non-seated lane cold-ejects, so the menu reads
     // "Eject" even when the firmware dropped its active pointer. Mirrors
@@ -306,15 +316,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
         return false;
     }
 
-    // INSERT_PRUTOK_IFS resolves the target lane's configured material temp
-    // (get_prutok_config(prutok)['temp']) and _INSERT_PRUTOK_IFS does its own
-    // M104 + TEMPERATURE_WAIT, so the UI preheat poll is unnecessary. The
-    // backend phase tracker synthesizes the Heat-nozzle step from extruder temp
-    // frames, so heat progress still renders in the sidebar.
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
-        return true;
-    }
-
     // Cold per-lane eject / recover (#996). Issues `IFS_F11 PRUTOK={port}
     // CHECK=0` — a cold retract that drives one idle lane's feed motor backward
     // toward the spool. It does NOT heat the hotend and (CHECK=0) ignores the
@@ -323,9 +324,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
     // first). Not routed through ensure_homed_then() — no toolhead move.
     AmsError eject_lane(int slot_index) override;
     [[nodiscard]] bool supports_lane_eject() const override {
-        return true;
-    }
-    [[nodiscard]] bool supports_force_eject() const override {
         return true;
     }
 
@@ -487,12 +485,6 @@ class AmsBackendAd5xIfs : public AmsSubscriptionBackend {
 
     AmsError enable_bypass() override;
     AmsError disable_bypass() override;
-
-    // IFS firmware persists color + material type but NOT spoolman_id,
-    // so ToolState must handle spool assignment persistence via Moonraker DB.
-    [[nodiscard]] bool has_firmware_spool_persistence() const override {
-        return false;
-    }
 
     // Match the AFC/Happy Hare pattern: HelixScreen must NOT auto-call
     // server.spoolman.post_spool_id for AD5X. AD5X has no per-spool identity

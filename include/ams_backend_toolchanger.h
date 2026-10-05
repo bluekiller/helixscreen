@@ -96,21 +96,27 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
     /// tool changer.
     [[nodiscard]] bool firmware_stores_color_and_material(int slot_index) const override;
 
-    // Tool changers give each tool its own independent toolhead with no shared
-    // physical tray/housing, so the AMS detail view's tray graphic is hidden.
-    [[nodiscard]] bool has_physical_tray() const override {
-        return false;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // Tool changers give each tool its own independent toolhead with no shared
+        // physical tray/housing, so the AMS detail view's tray graphic is hidden.
+        t.has_physical_tray = false;
+        // A slot's status is where its tool sits (carriage, dock, removed); nothing
+        // here senses filament.
+        t.slot_status_tracks_filament = false;
+        // The per-slot tool badge ("T0", "T1", ...) is redundant with the toolhead
+        // label shown below each slot on a tool changer.
+        t.should_hide_slot_tool_badge = true;
+        // Load is SELECT_TOOL and unload is UNSELECT_TOOL: a mount and an unmount,
+        // with no filament motion of any kind. See do_load_filament().
+        t.load_mounts_tool = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
-    // A slot's status is where its tool sits (carriage, dock, removed); nothing
-    // here senses filament.
-    [[nodiscard]] bool slot_status_tracks_filament() const override {
-        return false;
-    }
-    // The per-slot tool badge ("T0", "T1", ...) is redundant with the toolhead
-    // label shown below each slot on a tool changer.
-    [[nodiscard]] bool should_hide_slot_tool_badge() const override {
-        return true;
-    }
+
     // Marker for tool-changer expected-hardware recording during wizard setup.
     [[nodiscard]] const char* get_klipper_object_name() const override {
         return "toolchanger";
@@ -231,12 +237,6 @@ class AmsBackendToolChanger : public AmsSubscriptionBackend {
      * dock sensors to get the right answer.
      */
     [[nodiscard]] bool slot_is_actively_loaded(int slot_index) const override;
-
-    /// Load is SELECT_TOOL and unload is UNSELECT_TOOL: a mount and an unmount,
-    /// with no filament motion of any kind. See do_load_filament().
-    [[nodiscard]] bool load_mounts_tool() const override {
-        return true;
-    }
 
     /// A swap is SELECTING for its whole duration on a controller that names no
     /// direction, and UNLOADING then SELECTING on one that does. Nothing heats,

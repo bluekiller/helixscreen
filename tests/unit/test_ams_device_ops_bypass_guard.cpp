@@ -67,6 +67,15 @@ class GatedBackendMock : public AmsBackendMock {
   public:
     explicit GatedBackendMock(int slot_count) : AmsBackendMock(slot_count) {}
 
+    /// The unload-before-bypass chain runs only on a backend that chains
+    /// implicitly, as AD5X IFS does; the mock's default Happy Hare persona
+    /// does not.
+    [[nodiscard]] BackendTraits traits() const override {
+        BackendTraits t = AmsBackendMock::traits();
+        t.allows_implicit_chaining = true;
+        return t;
+    }
+
     ~GatedBackendMock() override {
         // The wrapper below captures this object; nothing may still be parked
         // in it when the base destructor joins the thread.
