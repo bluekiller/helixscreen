@@ -4921,23 +4921,41 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
 }
 
 void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
-    // The external spool as an extra OrcaSlicer-selectable lane. Index is the
-    // 0-based slot count → format_lane_key emits lane{N+1}, one past the last
-    // physical bay — no collision with real lanes (16 on a 4-unit CFS), and a
-    // stable key however many units are attached.
+    // The external spool as an extra OrcaSlicer-selectable lane. OrcaSlicer
+    // sends the lane as the tool, so on Fork the key is the firmware's own
+    // external slot (box.py registers T<that>); stock has no external T
+    // command, so it takes 16 (lane17), past the highest bay a chain numbers.
+    //
+    // The Fork key can be a real bay: with box 3 off the bus the external
+    // index is 8, box 3 bay A's key. overrides_ holds every lane_data record
+    // this backend loaded or wrote, so a record there without the mirror mark
+    // belongs to a bay and is neither overwritten nor cleared.
     //
     // Deliberately NOT routed through overrides_ (the per-bay override map):
     // hardware-event clearing and stale-override logic walk that map by real
     // slot index, and the external spool is not a bay. A one-shot record built
     // by the shared helper keeps the mirror map untouched.
-    int lane_index = 0;
+    constexpr int kStockExternalLane = 16;
+    int lane_index = -1;
     bool supported = false;
+    bool foreign = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         supported = system_info_.supports_bypass && override_store_ != nullptr;
-        lane_index = system_info_.total_slots;
+        lane_index =
+            macro_variant_ == CfsMacroVariant::Fork ? external_slot_index_ : kStockExternalLane;
+        auto it = overrides_.find(lane_index);
+        foreign = it != overrides_.end() && !it->second.external_mirror;
+        if (!foreign) {
+            external_key_conflict_logged_ = false;
+        } else if (!external_key_conflict_logged_) {
+            external_key_conflict_logged_ = true;
+            spdlog::warn("{} External spool lane {} holds a record that is not ours - not "
+                         "publishing over it",
+                         backend_log_tag(), lane_index);
+        }
     }
-    if (!supported || lane_index <= 0) {
+    if (!supported || lane_index < 0 || foreign) {
         return;
     }
     helix::ams::publish_external_lane(override_store_.get(), lane_index, spool, backend_log_tag());

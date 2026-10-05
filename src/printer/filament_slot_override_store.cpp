@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -447,6 +448,8 @@ nlohmann::json to_lane_data_record(int slot_index, const FilamentSlotOverride& o
     // namespace.
     if (!o.fingerprint.empty())
         j["helix_fingerprint"] = o.fingerprint;
+    if (o.external_mirror)
+        j["helix_external"] = true;
     return j;
 }
 
@@ -531,6 +534,7 @@ std::optional<std::pair<int, FilamentSlotOverride>> from_lane_data_record(const 
     // existed, which is the "first observation is a baseline" compatibility
     // rule, so the default empty string is the correct reading of its absence.
     o.fingerprint = helix::json_util::safe_string(j, "helix_fingerprint");
+    o.external_mirror = helix::json_util::safe_bool(j, "helix_external", false);
     // Last, because the rule reads what was parsed above: a lock key counts
     // only on an unlinked record, and a colour or material declaration only
     // over a value. The legacy rule for a record with no helix_declared key
@@ -2007,6 +2011,11 @@ LoadedOverrideStore make_loaded_override_store(IMoonrakerAPI* api, std::string b
     result.store = std::make_unique<FilamentSlotOverrideStore>(
         api, std::move(backend_id), lane_key_style_for(type), std::move(ns));
     result.overrides = result.store->load_blocking();
+    // The external-spool mirror is republished from settings and is no bay's
+    // record, so a key it shares with a bay must not hand that bay its identity.
+    for (auto it = result.overrides.begin(); it != result.overrides.end();) {
+        it = it->second.external_mirror ? result.overrides.erase(it) : std::next(it);
+    }
     spdlog::info("{} Loaded {} slot overrides from filament_slot store", log_tag,
                  result.overrides.size());
     return result;
@@ -2160,6 +2169,7 @@ bool publish_external_lane(FilamentSlotOverrideStore* store, int lane_index, con
     }
 
     FilamentSlotOverride ovr;
+    ovr.external_mirror = true;
     ovr.material = spool->material;
     ovr.brand = spool->brand;
     ovr.spool_name = spool->spool_name;

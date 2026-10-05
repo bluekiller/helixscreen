@@ -2297,11 +2297,15 @@ itself:
 
 | Backend | Publishes | Namespace owner / source-verified caveat |
 |---------|-----------|------------------------------------------|
-| CFS | `lane{N+1}` via its own mirror store | ZMOD/stock never writes lane_data; the namespace is ours |
+| CFS | Fork: the payload's external slot (`T<that>` is what box.py registers), so `lane5` on one box. Stock: `lane17` (index 16, past every bay) | The Fork key can be a real bay of a box off the bus, so CFS writes or clears it only when it is empty or holds our `helix_external: true` mirror |
 | AD5X IFS | `lane{NUM_PORTS+1}` via its own mirror store | same — ours alone |
 | AFC | `T{N}` via a dedicated shared-namespace store (lazy, from `api_`) | AFC's plugin never publishes extern (`AFC_lane.send_lane_data` runs only for lanes with a tool mapping) and **deletes the whole namespace at boot** (its `delete_lane_data()`); our entry dies at AFC restart and is re-published on the next trigger |
 | Happy Hare | `lane{N+1}` via a dedicated shared-namespace store | HH's plugin publishes gates only (`push_lane_data` in its Moonraker component), and its **boot-time cleanup deletes records with `lane >= num_gates`**; same die-at-restart, re-publish-on-trigger cycle |
 | ACE / Snapmaker / QIDI / Tool Changer | no (default no-op) | `supports_bypass` is false — there is no external spool to publish |
+
+Every mirror `publish_external_lane()` writes carries `helix_external: true`. A load drops
+those records from the bay overrides and from lane classification: the mirror is republished
+from settings and is no bay's record, even when a later box puts a bay on its key.
 
 The identity rule is shared in `publish_external_lane()`: a null or identity-less record
 (no Spoolman id, no material, default-gray color) **clears** the lane rather than

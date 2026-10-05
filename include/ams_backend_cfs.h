@@ -697,6 +697,10 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// never sets it — its firmware owns the external slot natively.
     bool bypass_declared_ = false;
 
+    /// The external-spool lane key last held a record that is not our mirror,
+    /// and that was logged. Reset once the key is ours again. Guarded by mutex_.
+    bool external_key_conflict_logged_ = false;
+
     /// SUCCESS for stock schemas and the identified Fork dialect; returns
     /// not_supported for an unidentified Flat implementation.
     [[nodiscard]] AmsError reject_if_flat_schema(const char* operation) const;

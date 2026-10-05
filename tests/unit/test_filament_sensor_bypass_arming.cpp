@@ -315,8 +315,7 @@ class CfsPublishFixture : public HelixTestFixture {
 
     /// Stock full box frame wrapped as a notify_status_update payload (same
     /// shape as make_cfs_notification in test_ams_backend_cfs.cpp): flips
-    /// supports_bypass and sets total_slots (4 units x 4 lanes = 16 bays ->
-    /// external lane index 16 -> "lane17").
+    /// supports_bypass.
     void seed_stock_box() {
         const json box = json::parse(R"({
             "state": "connect", "filament": 0, "enable": 1, "filament_useup": 0,
@@ -324,19 +323,49 @@ class CfsPublishFixture : public HelixTestFixture {
             "T1": {"state": "connect", "filament": "None",
                    "vender": ["none"], "remain_len": ["-1"],
                    "color_value": ["-1"], "material_type": ["-1"]}})");
+        send(box);
+    }
+
+    void send(const json& box) {
         CfsTestAccess::handle_status(*backend,
                                      json{{"params", json::array({json{{"box", box}}, 0})}});
+    }
+
+    /// A fork box frame listing @p bays bays (0..bays-1) and the external
+    /// holder at index @p bays, the way box.py numbers it.
+    void send_fork_frame(int bays) {
+        json slots = json::array();
+        for (int i = 0; i < bays; ++i) {
+            slots.push_back({{"index", i}, {"external", false}, {"present", false}});
+        }
+        slots.push_back({{"index", bays}, {"external", true}, {"present", true}});
+        send(json{{"api_version", 1}, {"loaded_slot", -1}, {"slots", slots}});
+    }
+
+    /// A record at @p index that both the backend and the database hold, as a
+    /// load would have left it.
+    void seed_record(int index, const helix::ams::FilamentSlotOverride& ovr) {
+        CfsTestAccess::seed_override(*backend, index, ovr);
+        api->mock_set_db_value("lane_data", "lane" + std::to_string(index + 1),
+                               helix::ams::to_lane_data_record(index, ovr));
+    }
+
+    static SlotInfo asa() {
+        SlotInfo spool;
+        spool.material = "ASA";
+        spool.color_rgb = 0x1A2B3C;
+        return spool;
     }
 };
 } // namespace
 
-TEST_CASE("CFS external spool lane: publishes one past the last bay", "[ams][cfs][bypass-arming]") {
+TEST_CASE("CFS external spool lane: stock publishes past the highest bay any chain has",
+          "[ams][cfs][bypass-arming]") {
     CfsPublishFixture fx;
     fx.seed_stock_box();
     REQUIRE(fx.backend->get_system_info().supports_bypass);
-    REQUIRE(fx.backend->get_system_info().total_slots > 0);
-    const std::string lane_key =
-        "lane" + std::to_string(fx.backend->get_system_info().total_slots + 1);
+    // Index 16, whatever the attached span: 4 boxes x 4 bays is 0..15.
+    const std::string lane_key = "lane17";
 
     SlotInfo spool;
     spool.material = "ASA";
@@ -348,6 +377,7 @@ TEST_CASE("CFS external spool lane: publishes one past the last bay", "[ams][cfs
 
     auto rec = fx.api->mock_get_db_value("lane_data", lane_key);
     REQUIRE_FALSE(rec.is_null());
+    CHECK(rec["helix_external"] == true);
     CHECK(rec["helix_material"] == "ASA");
     CHECK(rec["color"] == "#1A2B3C");
     CHECK(rec["vendor"] == "Polymaker");
@@ -375,6 +405,100 @@ TEST_CASE("CFS external spool lane: publishes one past the last bay", "[ams][cfs
         helix::ui::UpdateQueue::instance().drain();
         CHECK(fx.api->mock_get_db_value("lane_data", lane_key).is_null());
     }
+}
+
+// OrcaSlicer sends the lane as the tool, so on Fork the external lane is the
+// firmware's own external slot: T4 on a one-box chain (#1464).
+TEST_CASE("CFS external spool lane: fork publishes at the firmware's external slot",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.send_fork_frame(4);
+    REQUIRE(fx.backend->get_system_info().supports_bypass);
+
+    const SlotInfo spool = CfsPublishFixture::asa();
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    const auto rec = fx.api->mock_get_db_value("lane_data", "lane5");
+    REQUIRE_FALSE(rec.is_null());
+    CHECK(rec["lane"] == "4");
+    CHECK(rec["helix_external"] == true);
+    CHECK(fx.api->mock_get_db_value("lane_data", "lane17").is_null());
+}
+
+// With box 3 off the bus the fork's external slot is 8, box 3 bay A's key. That
+// bay's record is not ours: publishing neither overwrites nor clears it (#1464).
+TEST_CASE("CFS external spool lane: a bay record on the fork's external key is left alone",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.send_fork_frame(12);
+    helix::ams::FilamentSlotOverride box3a;
+    box3a.material = "PETG";
+    box3a.spool_name = "Box 3 A spool";
+    fx.seed_record(8, box3a);
+    const json before = fx.api->mock_get_db_value("lane_data", "lane9");
+    REQUIRE_FALSE(before.is_null());
+
+    fx.send_fork_frame(8);
+    const SlotInfo spool = CfsPublishFixture::asa();
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
+
+    fx.backend->publish_external_spool_lane(nullptr);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
+}
+
+TEST_CASE("CFS external spool lane: our marked mirror is updated, an unmarked record is not",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.seed_stock_box();
+    const SlotInfo spool = CfsPublishFixture::asa();
+
+    SECTION("a marked mirror is ours to update") {
+        helix::ams::FilamentSlotOverride old_mirror;
+        old_mirror.material = "PLA";
+        old_mirror.external_mirror = true;
+        fx.seed_record(16, old_mirror);
+        fx.backend->publish_external_spool_lane(&spool);
+        helix::ui::UpdateQueue::instance().drain();
+        const auto rec = fx.api->mock_get_db_value("lane_data", "lane17");
+        REQUIRE_FALSE(rec.is_null());
+        CHECK(rec["helix_material"] == "ASA");
+        CHECK(rec["helix_external"] == true);
+    }
+
+    SECTION("an unmarked record at the key is untouched") {
+        helix::ams::FilamentSlotOverride other;
+        other.material = "PLA";
+        fx.seed_record(16, other);
+        const json before = fx.api->mock_get_db_value("lane_data", "lane17");
+        fx.backend->publish_external_spool_lane(&spool);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fx.api->mock_get_db_value("lane_data", "lane17") == before);
+        fx.backend->publish_external_spool_lane(nullptr);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fx.api->mock_get_db_value("lane_data", "lane17") == before);
+    }
+}
+
+// The mirror is republished from settings and describes no bay, so a load must
+// not hand it to the bay that shares its key once another box joins (#1464).
+TEST_CASE("External spool mirror: a load never files it as a bay's record",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    helix::ams::FilamentSlotOverride mirror;
+    mirror.material = "ASA";
+    mirror.external_mirror = true;
+    fx.api->mock_set_db_value("lane_data", "lane5", helix::ams::to_lane_data_record(4, mirror));
+    helix::ams::FilamentSlotOverride bay;
+    bay.material = "PLA";
+    fx.api->mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, bay));
+
+    const auto loaded =
+        helix::ams::make_loaded_override_store(fx.api.get(), "cfs", helix::AmsType::CFS, "[test]");
+    CHECK(loaded.overrides.count(4) == 0);
+    CHECK(loaded.overrides.count(0) == 1);
 }
 
 TEST_CASE("CFS external spool lane: never publishes without bypass support",

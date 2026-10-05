@@ -41,6 +41,10 @@ int ingest_legacy_records(const FilamentSlotOverrideStore& store, LegacyLockKeys
                           int backend_index) {
     int populated = 0;
     for (const auto& [slot_index, entry] : store.last_lane_data_records()) {
+        // The external-spool mirror describes the bypass spool, not a lane.
+        if (entry.record.external_mirror) {
+            continue;
+        }
         const LaneSources sources = sources_from_record(entry.record, entry.wire, keys);
         const LaneId lane = lane_id_for(backend_index, slot_index);
         if (file_lane_sources(lane, sources)) {
