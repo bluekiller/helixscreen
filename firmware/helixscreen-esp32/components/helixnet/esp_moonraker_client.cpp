@@ -438,9 +438,13 @@ void EspMoonrakerClient::on_ws_disconnected() {
         // esp_timer + main-thread app_boot_tick pump — never this task).
         arm_reconnect_intent();
         set_state(ConnectionState::RECONNECTING);
-        if (!lost_notified_) {
+        // A suppressed outage stays silent to its end, even if a failed
+        // reconnect attempt lands after the suppression window closes.
+        if (was_connected_ && !lost_notified_) {
             lost_notified_ = true;
-            emit_event(moonraker_event::connection_lost_reconnecting());
+            if (!is_disconnect_modal_suppressed()) {
+                emit_event(moonraker_event::connection_lost_reconnecting());
+            }
         }
     } else {
         // Reconnection suspended (probe flow or an intentional disconnect):
