@@ -68,7 +68,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "print_status active thumbnail write escapes
         widget.attach(comp, test_screen());
         process_lvgl(30);
 
-        get_printer_state().set_print_thumbnail("a.gcode", kThumbA);
+        get_printer_state().print_state().set_print_thumbnail("a.gcode", kThumbA);
         helix::ui::UpdateQueue::instance().drain();
         // Still inside what a real publish would call the batch: only the LVGL
         // timer tick below may apply the src.
@@ -97,7 +97,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         widget.attach(comp, test_screen());
         process_lvgl(30);
 
-        get_printer_state().set_print_thumbnail("a.gcode", kThumbA);
+        get_printer_state().print_state().set_print_thumbnail("a.gcode", kThumbA);
         helix::ui::UpdateQueue::instance().drain();
         process_lvgl(30);
         on_screen = active_thumb_src(comp);
@@ -106,7 +106,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         // the next async tick — exactly where a queued thumbnail can still land.
         lv_obj_set_parent(comp, lv_layer_top());
 
-        get_printer_state().set_print_thumbnail("b.gcode", kThumbB);
+        get_printer_state().print_state().set_print_thumbnail("b.gcode", kThumbB);
         helix::ui::UpdateQueue::instance().drain();
         process_lvgl(30);
         after_reparent = active_thumb_src(comp);

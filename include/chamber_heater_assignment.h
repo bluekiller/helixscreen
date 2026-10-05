@@ -12,8 +12,11 @@
 #include <string>
 
 namespace helix {
+class PrinterCapabilitiesState;
 class PrinterDiscovery;
-}
+class PrinterTemperatureState;
+class TemperatureController;
+} // namespace helix
 
 namespace helix::chamber {
 
@@ -57,5 +60,19 @@ std::string resolve_heater(const std::string& assignment, const PrinterDiscovery
  * @return Full Klipper object name, or empty when the printer has no chamber sensor
  */
 std::string resolve_sensor(const std::string& assignment, const PrinterDiscovery& discovery);
+
+/**
+ * @brief Resolve the chamber sensor and heater and publish them to their domains
+ *
+ * Sets the resolved names, the cooling fan and its resting target on @p temps;
+ * attaches the matched backend's diagnostics source, actions and dryer (to
+ * @p tc when there is one) only while the resolved heater is discovery's own
+ * pick, so a manual override to another heater or "none" detaches them; sets
+ * the chamber capability flags on @p caps; and promotes the resolved sensor to
+ * the CHAMBER role in the temperature sensor manager. Main thread only.
+ */
+void apply_resolution(const PrinterDiscovery& discovery, const std::string& sensor_assignment,
+                      const std::string& heater_assignment, PrinterTemperatureState& temps,
+                      PrinterCapabilitiesState& caps, TemperatureController* tc);
 
 } // namespace helix::chamber

@@ -24,7 +24,7 @@ void PrinterBadgeMenu::wire(lv_obj_t* navbar) {
     dot_ = lv_obj_find_by_name(navbar, "nav_printer_dot");
     if (dot_) {
         dot_observer_ = observe<int>(
-            get_printer_state().get_printer_connection_state_subject(), this,
+            get_printer_state().network_state().get_printer_connection_state_subject(), this,
             [](PrinterBadgeMenu* self, int state) {
                 if (!self->dot_)
                     return;

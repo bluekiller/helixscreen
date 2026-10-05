@@ -42,12 +42,12 @@ bool HeaterIconBinder::bind(lv_obj_t* root, PrinterState& state, HeaterType heat
     switch (heater) {
     case HeaterType::Nozzle:
         // Active-extruder subjects are singleton-lifetime; no tokens needed.
-        current_subject_ = state.get_active_extruder_temp_subject();
-        target_subject_ = state.get_active_extruder_target_subject();
+        current_subject_ = state.temperature_state().get_active_extruder_temp_subject();
+        target_subject_ = state.temperature_state().get_active_extruder_target_subject();
         break;
     case HeaterType::Bed:
-        current_subject_ = state.get_bed_temp_subject(current_lifetime_);
-        target_subject_ = state.get_bed_target_subject(target_lifetime_);
+        current_subject_ = state.temperature_state().get_bed_temp_subject(current_lifetime_);
+        target_subject_ = state.temperature_state().get_bed_target_subject(target_lifetime_);
         break;
     case HeaterType::Chamber:
         // Effective target, not the raw heater target: in Maintaining mode the
@@ -55,9 +55,10 @@ bool HeaterIconBinder::bind(lv_obj_t* root, PrinterState& state, HeaterType heat
         // Mode subject makes Maintaining resolve to Cooling/Neutral instead of
         // the plain classifier's Off/Heating/AtTemp — same as the temp_display
         // label chamber binds (see classify_heat_state_with_mode()).
-        current_subject_ = state.get_chamber_temp_subject(current_lifetime_);
-        target_subject_ = state.get_chamber_effective_target_subject(target_lifetime_);
-        mode_subject_ = state.get_chamber_mode_subject(mode_lifetime_);
+        current_subject_ = state.temperature_state().get_chamber_temp_subject(current_lifetime_);
+        target_subject_ =
+            state.temperature_state().get_chamber_effective_target_subject(target_lifetime_);
+        mode_subject_ = state.temperature_state().get_chamber_mode_subject(mode_lifetime_);
         break;
     }
 

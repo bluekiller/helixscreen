@@ -54,7 +54,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(status);
 
     // Slicer says 30%, file says 50% -- slicer should win
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 30);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 30);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
@@ -76,7 +76,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(status1);
 
     // With display_status at 0, file progress should be used
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 10);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 10);
 
     // Second update: display_status becomes non-zero -- switch to slicer
     json status2 = {{"virtual_sdcard", {{"progress", 0.15}}},
@@ -84,7 +84,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(status2);
 
     // Slicer activated: 8% from slicer, not 15% from file
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 8);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 8);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
@@ -104,7 +104,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     json activate = {{"virtual_sdcard", {{"progress", 0.2}}},
                      {"display_status", {{"progress", 0.15}}}};
     state.update_from_status(activate);
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 15);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 15);
 
     // Now send only virtual_sdcard update (no display_status)
     // Slicer is authoritative -- progress should NOT change to file value
@@ -112,7 +112,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(file_only);
 
     // Should still show slicer value (15%), not file value (60%)
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 15);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 15);
 }
 
 TEST_CASE_METHOD(HelixTestFixture, "Slicer progress: slicer-only update advances progress",
@@ -131,13 +131,13 @@ TEST_CASE_METHOD(HelixTestFixture, "Slicer progress: slicer-only update advances
     json activate = {{"virtual_sdcard", {{"progress", 0.2}}},
                      {"display_status", {{"progress", 0.15}}}};
     state.update_from_status(activate);
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 15);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 15);
 
     // New display_status update advances progress
     json slicer_update = {{"display_status", {{"progress", 0.25}}}};
     state.update_from_status(slicer_update);
 
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 25);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 25);
 }
 
 // ============================================================================
@@ -162,7 +162,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(status);
 
     // File progress should be used as fallback
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 45);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 45);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
@@ -184,7 +184,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(status);
 
     // File progress should be used since slicer never activated
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 35);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 35);
 }
 
 // ============================================================================
@@ -206,7 +206,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Slicer progress: slicer active flag resets o
     json activate = {{"virtual_sdcard", {{"progress", 0.3}}},
                      {"display_status", {{"progress", 0.2}}}};
     state.update_from_status(activate);
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 20);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 20);
 
     // Print completes
     json complete = {{"print_stats", {{"state", "complete"}}}};
@@ -225,7 +225,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Slicer progress: slicer active flag resets o
     state.update_from_status(file_only);
 
     // Slicer flag was reset, so file progress should be used
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 40);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 40);
 }
 
 // ============================================================================
@@ -245,7 +245,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Slicer progress: cannot go backward in COMPL
                      {"virtual_sdcard", {{"progress", 0.95}}},
                      {"display_status", {{"progress", 0.98}}}};
     state.update_from_status(printing);
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 98);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 98);
 
     // Complete the print
     json complete = {{"print_stats", {{"state", "complete"}}}};
@@ -256,7 +256,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Slicer progress: cannot go backward in COMPL
     state.update_from_status(reset);
 
     // Progress should stay at 98 (terminal guard)
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 98);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 98);
 }
 
 // ============================================================================
@@ -287,7 +287,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     // remaining = print_duration * (100 - progress) / progress
     // With slicer at 50%: 600 * (100 - 50) / 50 = 600
     // NOT with file at 80%: 600 * (100 - 80) / 80 = 150
-    REQUIRE(lv_subject_get_int(state.get_print_time_left_subject()) == 600);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_time_left_subject()) == 600);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
@@ -310,7 +310,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     state.update_from_status(time);
 
     // remaining = 600 * (100 - 80) / 80 = 150
-    REQUIRE(lv_subject_get_int(state.get_print_time_left_subject()) == 150);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_time_left_subject()) == 150);
 }
 
 // ============================================================================
@@ -338,16 +338,16 @@ TEST_CASE("Paused progress: a differing payload cannot move the bar",
     json printing = {{"print_stats", {{"state", "printing"}}}};
     state.update_from_status(printing);
     state.update_from_status(json{{"display_status", {{"progress", 0.11}}}});
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 
     state.update_from_status(json{{"print_stats", {{"state", "paused"}}}});
 
     // The same field now carries byte position instead of the slicer estimate.
     state.update_from_status(json{{"display_status", {{"progress", 0.25}}}});
-    CHECK(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    CHECK(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 
     // The bar the user watches binds the display subject, so it has to hold too.
-    CHECK(lv_subject_get_int(state.get_print_progress_display_subject()) == 11);
+    CHECK(lv_subject_get_int(state.print_state().get_print_progress_display_subject()) == 11);
 }
 
 TEST_CASE("Paused progress: file position cannot move the bar either",
@@ -361,13 +361,13 @@ TEST_CASE("Paused progress: file position cannot move the bar either",
     json printing = {{"print_stats", {{"state", "printing"}}}};
     state.update_from_status(printing);
     state.update_from_status(json{{"virtual_sdcard", {{"progress", 0.11}}}});
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 
     state.update_from_status(json{{"print_stats", {{"state", "paused"}}}});
     state.update_from_status(json{{"virtual_sdcard", {{"progress", 0.25}}}});
 
     // Both writers are judged by the same rules, so neither gets a free pass.
-    CHECK(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    CHECK(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 }
 
 TEST_CASE("Paused progress: tracking resumes once the print does",
@@ -384,13 +384,13 @@ TEST_CASE("Paused progress: tracking resumes once the print does",
 
     state.update_from_status(json{{"print_stats", {{"state", "paused"}}}});
     state.update_from_status(json{{"display_status", {{"progress", 0.25}}}});
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 
     // Holding while paused must not latch. A pause that permanently froze the
     // bar would trade a bouncing number for a dead one.
     state.update_from_status(printing);
     state.update_from_status(json{{"display_status", {{"progress", 0.12}}}});
-    CHECK(lv_subject_get_int(state.get_print_progress_subject()) == 12);
+    CHECK(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 12);
 }
 
 TEST_CASE("Paused progress: a message-only payload after resume cannot publish the paused value",
@@ -404,12 +404,12 @@ TEST_CASE("Paused progress: a message-only payload after resume cannot publish t
     json printing = {{"print_stats", {{"state", "printing"}}}};
     state.update_from_status(printing);
     state.update_from_status(json{{"display_status", {{"progress", 0.11}}}});
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 
     // Paused, and the field starts carrying byte position instead of M73.
     state.update_from_status(json{{"print_stats", {{"state", "paused"}}}});
     state.update_from_status(json{{"display_status", {{"progress", 0.25}}}});
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 
     state.update_from_status(printing);
 
@@ -417,5 +417,5 @@ TEST_CASE("Paused progress: a message-only payload after resume cannot publish t
     // refreshes nothing yet still reaches the publish. Declining to record the
     // paused reading in the first place is what stops it arriving here.
     state.update_from_status(json{{"display_status", {{"message", "Resuming"}}}});
-    CHECK(lv_subject_get_int(state.get_print_progress_subject()) == 11);
+    CHECK(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 11);
 }

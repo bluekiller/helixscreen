@@ -115,7 +115,8 @@ void show_restart_required_modal(IMoonrakerAPI* api, const std::string& filename
     // taught to author copy still tells the user why restart is needed.
     std::string reason = authored_reason;
     if (reason.empty()) {
-        const char* fw_msg = lv_subject_get_string(get_printer_state().get_print_message_subject());
+        const char* fw_msg =
+            lv_subject_get_string(get_printer_state().print_state().get_print_message_subject());
         if (fw_msg && *fw_msg) {
             reason = fw_msg;
         }
@@ -202,8 +203,8 @@ void dispatch_prepared_resume(IMoonrakerAPI* api, std::string log_prefix,
             // Surface the restart-from-beginning modal instead of
             // firing the resume macro chain. Filename comes from
             // PrinterState (subscribed via print_stats.filename).
-            std::string filename =
-                lv_subject_get_string(get_printer_state().get_print_filename_subject());
+            std::string filename = lv_subject_get_string(
+                get_printer_state().print_state().get_print_filename_subject());
             spdlog::warn("{} RESUME_REQUIRES_RESTART — showing restart modal (file: {})",
                          log_prefix, filename);
             show_restart_required_modal(api, filename, err.user_msg, log_prefix,

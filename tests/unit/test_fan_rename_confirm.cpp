@@ -91,7 +91,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "fan rename confirm reads the input of the m
     overlay.register_callbacks();
     overlay.cancel_rename(); // no pending rename carried in from another test
 
-    get_printer_state().init_fans({kFanObject});
+    get_printer_state().fan_state().init_fans({kFanObject});
 
     // A textarea carrying the modal's input name, placed on the active screen
     // ahead of the modal. lv_obj_find_by_name walks depth-first from its root
@@ -127,9 +127,9 @@ TEST_CASE_METHOD(LVGLUITestFixture, "clearing the fan rename input reverts the d
     // With no custom name persisted, init_fans derives the name the revert path
     // has to restore. Reading it here beats hardcoding a spelling this test does
     // not own.
-    get_printer_state().init_fans({kFanObject});
-    REQUIRE(get_printer_state().get_fans().size() == 1);
-    const std::string auto_name = get_printer_state().get_fans()[0].display_name;
+    get_printer_state().fan_state().init_fans({kFanObject});
+    REQUIRE(get_printer_state().fan_state().get_fans().size() == 1);
+    const std::string auto_name = get_printer_state().fan_state().get_fans()[0].display_name;
     REQUIRE_FALSE(auto_name.empty());
 
     overlay.handle_fan_rename(kFanObject, auto_name);
@@ -139,7 +139,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "clearing the fan rename input reverts the d
     overlay.confirm_rename();
 
     REQUIRE(persisted_fan_name() == "Custom SoC Fan");
-    REQUIRE(get_printer_state().get_fans()[0].display_name == "Custom SoC Fan");
+    REQUIRE(get_printer_state().fan_state().get_fans()[0].display_name == "Custom SoC Fan");
 
     // Let the first modal's deferred delete run so the revert below is about the
     // empty name and not about which modal a lookup found.
@@ -154,7 +154,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "clearing the fan rename input reverts the d
     // The display name is the honest observable for the revert: rename_fan
     // recomputes it from the role/auto-name rules, while the config entry only
     // records that no custom name is set.
-    REQUIRE(get_printer_state().get_fans()[0].display_name == auto_name);
+    REQUIRE(get_printer_state().fan_state().get_fans()[0].display_name == auto_name);
     REQUIRE(persisted_fan_name().empty());
 
     process_lvgl(100);
@@ -169,7 +169,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "fan rename confirm with no pending fan pers
     overlay.register_callbacks();
     overlay.cancel_rename(); // clears any pending object
 
-    get_printer_state().init_fans({kFanObject});
+    get_printer_state().fan_state().init_fans({kFanObject});
 
     // An input is reachable on the active screen, so a confirm that ignored the
     // pending-object guard would have a name to write.
@@ -198,7 +198,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "fan rename bail-outs name themselves in the
     overlay.register_callbacks();
     overlay.cancel_rename();
 
-    get_printer_state().init_fans({kFanObject});
+    get_printer_state().fan_state().init_fans({kFanObject});
 
     SECTION("a confirm with nothing pending is distinguishable from a rename") {
         helix::LogCapture log;
@@ -240,7 +240,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "fan rename logs the persist step and unknow
     overlay.register_callbacks();
     overlay.cancel_rename();
 
-    get_printer_state().init_fans({kFanObject});
+    get_printer_state().fan_state().init_fans({kFanObject});
 
     SECTION("a rename that reaches config says so independently of the fan list") {
         overlay.handle_fan_rename(kFanObject, "Soc Fan");

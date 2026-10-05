@@ -243,14 +243,14 @@ TEST_CASE_METHOD(LVGLTestFixture, "PrinterState drops queued setters once subjec
     PrinterState state;
     state.init_subjects(false);
 
-    REQUIRE_FALSE(state.service_has_helix_plugin());
+    REQUIRE_FALSE(state.plugin_status_state().service_has_helix_plugin());
 
     state.set_helix_plugin_installed(true);
     state.set_timelapse_available(true);
     state.set_timelapse_default_enabled(true);
 
     REQUIRE(UpdateQueue::instance().pending_count() > 0);
-    REQUIRE_FALSE(state.service_has_helix_plugin());
+    REQUIRE_FALSE(state.plugin_status_state().service_has_helix_plugin());
 
     state.deinit_subjects();
     state.init_subjects(false);
@@ -260,7 +260,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "PrinterState drops queued setters once subjec
     // The plugin flag is the readable proxy: the queued body calls
     // plugin_status_state_.set_installed(true) plus the aggregate recompute,
     // all against subjects that no longer exist in the generation that queued it.
-    CHECK_FALSE(state.service_has_helix_plugin());
+    CHECK_FALSE(state.plugin_status_state().service_has_helix_plugin());
     CHECK(UpdateQueue::instance().pending_count() == 0);
 }
 
@@ -274,7 +274,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "PrinterState applies setters while subjects a
     state.set_helix_plugin_installed(true);
     UpdateQueue::instance().drain();
 
-    CHECK(state.service_has_helix_plugin());
+    CHECK(state.plugin_status_state().service_has_helix_plugin());
 }
 
 // ============================================================================

@@ -71,21 +71,21 @@ void PostOpCooldownManager::schedule() {
                 // Skip while a job owns the toolhead. Preparing counts: a
                 // print that is starting will heat the nozzle itself, so cooling
                 // it down now is work the pre-start block immediately undoes.
-                const auto lifecycle = state.get_print_lifecycle();
+                const auto lifecycle = state.print_state().get_print_lifecycle();
                 if (job_holds_machine(lifecycle)) {
                     spdlog::info("[PostOpCooldown] Skipping cooldown — print active");
                     return;
                 }
 
                 // Check extruder target (decidegrees, > 0 means heater is on)
-                auto* target_subj = state.get_active_extruder_target_subject();
+                auto* target_subj = state.temperature_state().get_active_extruder_target_subject();
                 if (!target_subj || lv_subject_get_int(target_subj) == 0) {
                     spdlog::debug("[PostOpCooldown] Skipping cooldown — extruder already off");
                     return;
                 }
 
                 spdlog::info("[PostOpCooldown] Turning off extruder heater ({})",
-                             state.active_extruder_name());
+                             state.temperature_state().active_extruder_name());
                 if (auto* c = get_temperature_controller()) {
                     c->set_target(helix::HeaterType::Nozzle, 0, {.toast = false});
                 }

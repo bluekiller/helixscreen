@@ -424,7 +424,8 @@ void TempGraphController::setup_series() {
         state.show_target = spec.show_target;
 
         // Determine if this uses a dynamic subject
-        if (spec.klipper_name.find("extruder") == 0 && ps.extruder_count() > 1) {
+        if (spec.klipper_name.find("extruder") == 0 &&
+            ps.temperature_state().extruder_count() > 1) {
             state.is_dynamic = true;
         } else if (spec.klipper_name.find("temperature_sensor") == 0 ||
                    spec.klipper_name.find("temperature_fan") == 0) {
@@ -494,7 +495,7 @@ void TempGraphController::setup_observers() {
                       unresolved, series_.size());
 
         if (unresolved_extruder > 0) {
-            if (auto* extruder_version = ps.get_extruder_version_subject()) {
+            if (auto* extruder_version = ps.temperature_state().get_extruder_version_subject()) {
                 discovery_observer_ = observe<int>(
                     extruder_version, this,
                     [token = lifetime_.token(), gen = generation_](TempGraphController* self, int) {
@@ -568,13 +569,13 @@ bool TempGraphController::attach_series_observers(size_t i) {
         lv_subject_t* target_subj = nullptr;
 
         if (s.klipper_name == "heater_bed") {
-            temp_subj = ps.get_bed_temp_subject(s.lifetime);
-            target_subj = ps.get_bed_target_subject(s.lifetime);
+            temp_subj = ps.temperature_state().get_bed_temp_subject(s.lifetime);
+            target_subj = ps.temperature_state().get_bed_target_subject(s.lifetime);
         } else if (s.klipper_name.find("heater_generic") == 0 ||
                    s.klipper_name.find("temperature_fan") == 0) {
             // Chamber (or other heater/fan-based heaters)
-            temp_subj = ps.get_chamber_temp_subject(s.lifetime);
-            target_subj = ps.get_chamber_target_subject(s.lifetime);
+            temp_subj = ps.temperature_state().get_chamber_temp_subject(s.lifetime);
+            target_subj = ps.temperature_state().get_chamber_target_subject(s.lifetime);
         } else if (s.klipper_name.find("extruder") == 0) {
             // Always prefer this extruder's OWN subject — update_from_status
             // publishes one per discovered head, single-tool printers included.
@@ -582,15 +583,18 @@ bool TempGraphController::attach_series_observers(size_t i) {
             // binding a named series to it plots the active tool's trace under
             // another tool's label (a changer printing on T4 showed 230°C under
             // "Nozzle 1").
-            temp_subj = ps.get_extruder_temp_subject(s.klipper_name, s.lifetime);
-            target_subj = ps.get_extruder_target_subject(s.klipper_name, s.lifetime);
+            temp_subj =
+                ps.temperature_state().get_extruder_temp_subject(s.klipper_name, s.lifetime);
+            target_subj =
+                ps.temperature_state().get_extruder_target_subject(s.klipper_name, s.lifetime);
 
             // Nothing discovered yet: the generic "extruder" series can ride the
             // active subject until init_extruders() runs. A numbered head cannot
             // — it stays unresolved so the discovery watcher retries it.
-            if (!temp_subj && s.klipper_name == "extruder" && ps.extruder_count() == 0) {
-                temp_subj = ps.get_active_extruder_temp_subject();
-                target_subj = ps.get_active_extruder_target_subject();
+            if (!temp_subj && s.klipper_name == "extruder" &&
+                ps.temperature_state().extruder_count() == 0) {
+                temp_subj = ps.temperature_state().get_active_extruder_temp_subject();
+                target_subj = ps.temperature_state().get_active_extruder_target_subject();
                 s.lifetime = ps.get_subjects_lifetime();
                 s.provisional = (temp_subj != nullptr);
             }
@@ -713,7 +717,7 @@ void TempGraphController::setup_connection_observer() {
     // triggers another re-attach — an infinite loop. By tracking prev_state,
     // only ACTUAL state changes (disconnect → reconnect) trigger re-attach.
     // This ensures ALL controllers re-attach, not just the first one (#1245).
-    auto* conn_subj = ps.get_printer_connection_state_subject();
+    auto* conn_subj = ps.network_state().get_printer_connection_state_subject();
     if (conn_subj) {
         auto conn_token = lifetime_.token();
         uint32_t conn_gen = generation_;

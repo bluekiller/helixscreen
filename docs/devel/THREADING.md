@@ -651,7 +651,7 @@ lifetime slot so the two vectors stay aligned.
 ### Read-only access
 
 If you only need to read a value once, use the no-token overload —
-`tsm.get_temp_subject(name)` and `ps.get_extruder_temp_subject(name)` exist for exactly that, and
+`tsm.get_temp_subject(name)` and `ps.temperature_state().get_extruder_temp_subject(name)` exist for exactly that, and
 they make the intent obvious at the call site. Taking a token and never observing is harmless,
 just misleading.
 

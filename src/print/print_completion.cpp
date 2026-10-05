@@ -242,10 +242,12 @@ static void show_rich_completion_modal(PrintJobState state, const char* filename
     auto& printer_state = get_printer_state();
 
     // Get print stats (wall-clock elapsed including prep time)
-    int duration_secs = lv_subject_get_int(printer_state.get_print_elapsed_subject());
-    int total_layers = lv_subject_get_int(printer_state.get_print_layer_total_subject());
-    int estimated_secs = printer_state.get_estimated_print_time();
-    int filament_mm = lv_subject_get_int(printer_state.get_print_filament_used_subject());
+    int duration_secs = lv_subject_get_int(printer_state.print_state().get_print_elapsed_subject());
+    int total_layers =
+        lv_subject_get_int(printer_state.print_state().get_print_layer_total_subject());
+    int estimated_secs = printer_state.print_state().get_estimated_print_time();
+    int filament_mm =
+        lv_subject_get_int(printer_state.print_state().get_print_filament_used_subject());
 
     spdlog::info("[PrintComplete] Stats: duration={}s, estimated={}s, layers={}, filament={}mm",
                  duration_secs, estimated_secs, total_layers, filament_mm);
@@ -337,18 +339,18 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
     // value starts at Idle, so booting straight into a terminal state reads as
     // Idle -> Complete and correctly does not notify.
     (void)subject; // the lifecycle subject; read through the typed accessor
-    const auto lifecycle = get_printer_state().get_print_lifecycle();
+    const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
     // PRINT_STATE_CAST_OK: the PREVIOUS lifecycle has no typed accessor, and
     // this transition check needs the prior value; the prev subject is
     // PrintState-typed by construction, so the pairing is not in question.
     const auto prev_lifecycle = static_cast<PrintState>(
-        lv_subject_get_int(get_printer_state().get_print_lifecycle_prev_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_lifecycle_prev_subject()));
 
     spdlog::debug("[PrintComplete] Lifecycle: {} -> {}", static_cast<int>(prev_lifecycle),
                   static_cast<int>(lifecycle));
 
     const auto outcome = static_cast<PrintOutcome>(
-        lv_subject_get_int(get_printer_state().get_print_outcome_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_outcome_subject()));
 
     // Take the previous job's result down as soon as a new one is committed.
     // Level, not edge, is deliberate: the handle is cleared on the dialog's
@@ -361,10 +363,10 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
         // The terminal job state still drives which message and sound are used.
         // RAW_PRINT_STATE_OK: terminal-outcome formatting is about what the
         // printer reported, and the outcome enum derives from it directly.
-        const auto current = get_printer_state().get_print_job_state();
+        const auto current = get_printer_state().print_state().get_print_job_state();
         // Get filename from PrinterState and format for display
         const char* raw_filename =
-            lv_subject_get_string(get_printer_state().get_print_filename_subject());
+            lv_subject_get_string(get_printer_state().print_state().get_print_filename_subject());
         std::string resolved_filename =
             (raw_filename && raw_filename[0]) ? resolve_gcode_filename(raw_filename) : "";
         std::string display_name =
@@ -464,7 +466,7 @@ ObserverGuard init_print_completion_observer() {
     init_completion_subjects();
 
     spdlog::debug("[PrintComplete] Observer registered, awaiting first Moonraker update");
-    return ObserverGuard(get_printer_state().get_print_lifecycle_subject(),
+    return ObserverGuard(get_printer_state().print_state().get_print_lifecycle_subject(),
                          on_print_state_changed_for_notification, nullptr);
 }
 
@@ -508,13 +510,13 @@ void on_preparing_epoch_changed(lv_observer_t*, lv_subject_t* subject) {
     if (epoch != 0 || prev == 0) {
         return;
     }
-    apply_preparing_exit(get_printer_state().last_preparing_exit());
+    apply_preparing_exit(get_printer_state().print_state().last_preparing_exit());
 }
 
 } // namespace
 
 ObserverGuard init_preparing_exit_observer() {
-    return ObserverGuard(get_printer_state().get_preparing_epoch_subject(),
+    return ObserverGuard(get_printer_state().print_state().get_preparing_epoch_subject(),
                          on_preparing_epoch_changed, nullptr);
 }
 

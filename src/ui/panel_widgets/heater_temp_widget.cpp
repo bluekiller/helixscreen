@@ -27,8 +27,8 @@ const HeaterTempWidget::Config& nozzle_temp_config() {
         "nozzle_icon_glyph",
         "[NozzleTempWidget]",
         TempGraphOverlay::Mode::Nozzle,
-        [](PrinterState& p) { return p.get_active_extruder_temp_subject(); },
-        [](PrinterState& p) { return p.get_active_extruder_target_subject(); },
+        [](PrinterState& p) { return p.temperature_state().get_active_extruder_temp_subject(); },
+        [](PrinterState& p) { return p.temperature_state().get_active_extruder_target_subject(); },
         HeaterType::Nozzle};
     return cfg;
 }
@@ -40,8 +40,8 @@ const HeaterTempWidget::Config& bed_temp_config() {
         "bed_icon_glyph",
         "[BedTempWidget]",
         TempGraphOverlay::Mode::Bed,
-        [](PrinterState& p) { return p.get_bed_temp_subject(); },
-        [](PrinterState& p) { return p.get_bed_target_subject(); },
+        [](PrinterState& p) { return p.temperature_state().get_bed_temp_subject(); },
+        [](PrinterState& p) { return p.temperature_state().get_bed_target_subject(); },
         HeaterType::Bed};
     return cfg;
 }
@@ -53,8 +53,8 @@ const HeaterTempWidget::Config& chamber_temp_config() {
         "chamber_icon_glyph",
         "[ChamberTempWidget]",
         TempGraphOverlay::Mode::Chamber,
-        [](PrinterState& p) { return p.get_chamber_temp_subject(); },
-        [](PrinterState& p) { return p.get_chamber_target_subject(); },
+        [](PrinterState& p) { return p.temperature_state().get_chamber_temp_subject(); },
+        [](PrinterState& p) { return p.temperature_state().get_chamber_target_subject(); },
         HeaterType::Chamber};
     return cfg;
 }

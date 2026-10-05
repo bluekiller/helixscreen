@@ -696,7 +696,7 @@ void AmsState::sync_filament_runout(const AmsSystemInfo& info) {
     // RAW_PRINT_STATE_OK: the edge must be witnessed while the printer is
     // actually running the job. Arming it during Preparing would light the
     // warning for a latch raised before any material moved.
-    const PrintJobState job_state = get_printer_state().get_print_job_state();
+    const PrintJobState job_state = get_printer_state().print_state().get_print_job_state();
     const bool paused = job_state == PrintJobState::PAUSED;
     const bool job_running = paused || job_state == PrintJobState::PRINTING;
 
@@ -1386,7 +1386,7 @@ void AmsState::recompute_action_detail() {
         // is no such translation key yet and this is the lowest-priority
         // fallback in the chain - the AmsAction string wins whenever the AMS is
         // doing anything at all.
-        auto print_state = get_printer_state().get_print_job_state();
+        auto print_state = get_printer_state().print_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
             new_detail = lv_tr("Printing now");

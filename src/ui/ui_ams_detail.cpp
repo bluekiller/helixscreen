@@ -827,8 +827,9 @@ bool ams_dispatch_backend_action(AmsContextMenu::MenuAction action, int slot,
         // started, so the guard here is the authority: the lane a job is
         // drawing from is the lane whose material and colour the print's own
         // surfaces are displaying (prestonbrown/helixscreen#1661).
-        if (helix::ui::clear_spool_blocked_by_print(get_printer_state().get_print_lifecycle(),
-                                                    backend->slot_is_actively_loaded(slot))) {
+        if (helix::ui::clear_spool_blocked_by_print(
+                get_printer_state().print_state().get_print_lifecycle(),
+                backend->slot_is_actively_loaded(slot))) {
             NOTIFY_WARNING("{}", helix::ui::clear_spool_blocked_hint(backend->lane_noun(), slot));
             break;
         }
@@ -943,8 +944,9 @@ void reset_insert_offers_for_test() {
 
 void offer_clear_after_unverified_insert(int slot) {
     AmsBackend* backend = AmsState::instance().get_backend();
-    if (!backend || clear_spool_blocked_by_print(get_printer_state().get_print_lifecycle(),
-                                                 backend->slot_is_actively_loaded(slot))) {
+    if (!backend ||
+        clear_spool_blocked_by_print(get_printer_state().print_state().get_print_lifecycle(),
+                                     backend->slot_is_actively_loaded(slot))) {
         return;
     }
     // A lane with no details has nothing the new spool could contradict.

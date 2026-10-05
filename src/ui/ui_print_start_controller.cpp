@@ -138,10 +138,10 @@ void PrintStartController::initiate() {
     }
 
     // Check if a print is already active before allowing a new one to start
-    if (!printer_state_.can_start_new_print()) {
+    if (!printer_state_.print_state().can_start_new_print()) {
         // RAW_PRINT_STATE_OK: the preparing axis is carried separately here by
         // can_start_new_print(); this arm asks only what the printer reports.
-        PrintJobState current_state = printer_state_.get_print_job_state();
+        PrintJobState current_state = printer_state_.print_state().get_print_job_state();
         const char* state_str = print_job_state_to_string(current_state);
         NOTIFY_ERROR(lv_tr("Cannot start print: printer is {}"), state_str);
         spdlog::warn("[PrintStartController] Attempted to start print while printer is in {} state",
@@ -225,7 +225,8 @@ void PrintStartController::execute_print_start() {
         // panel answers "which job is this?" from the preparing job rather than
         // from print_stats, which still describes the PREVIOUS job for the whole
         // duration of a host-side pre-start block.
-        printer_state_.begin_preparing(helix::PrintJobRef{filename_to_print, path, ""});
+        printer_state_.print_state().begin_preparing(
+            helix::PrintJobRef{filename_to_print, path, ""});
 
         if (navigate_to_print_status_) {
             spdlog::info("[PrintStartController] Navigating to print status panel (preparing...)");
@@ -251,7 +252,7 @@ void PrintStartController::execute_print_start() {
                         // begin_preparing() already recorded this job's identity, but a
                         // start that never opened a preparing window still needs it, and
                         // re-stating it is idempotent.
-                        get_printer_state().set_print_identity_override(full_path);
+                        get_printer_state().print_state().set_print_identity_override(full_path);
 
                         // If we have a pre-extracted thumbnail (USB/embedded), set it directly
                         // This bypasses Moonraker metadata lookup which doesn't have USB file info
@@ -291,7 +292,7 @@ void PrintStartController::execute_print_start() {
                         NOTIFY_ERROR(lv_tr("Print preparation failed: {}"), error);
                         LOG_ERROR_INTERNAL("[PrintStartController] Print preparation failed: {}",
                                            error);
-                        ps->retire_preparing(helix::PreparingExit::Failed);
+                        ps->print_state().retire_preparing(helix::PreparingExit::Failed);
 
                         // Only unwind the optimistic navigation if the print
                         // status overlay is still what the user is looking at.
@@ -437,7 +438,7 @@ void PrintStartController::initiate_reprint(const std::string& filename, const s
 
     // The reprint path skips the preparation manager, so it records the job
     // identity itself rather than running with the previous print's override.
-    printer_state_.begin_preparing(helix::PrintJobRef{filename, path, ""});
+    printer_state_.print_state().begin_preparing(helix::PrintJobRef{filename, path, ""});
 
     // Lightweight start — the file is already on the printer; no upload/prep.
     auto start = [this, filename, on_started, on_error]() {
@@ -453,7 +454,7 @@ void PrintStartController::initiate_reprint(const std::string& filename, const s
             },
             [tok, on_error, ps = &printer_state_](const MoonrakerError& err) mutable {
                 tok.defer("PrintStartController::reprint.err", [err, on_error, ps]() {
-                    ps->retire_preparing(helix::PreparingExit::Failed);
+                    ps->print_state().retire_preparing(helix::PreparingExit::Failed);
                     NOTIFY_ERROR(lv_tr("Failed to reprint: {}"), err.localized_message());
                     if (on_error) {
                         on_error();
@@ -504,7 +505,7 @@ void PrintStartController::initiate_reprint(const std::string& filename, const s
         // print_in_progress is published from it - so can_start_new_print()
         // would refuse every later print until the watchdog fired.
         auto abort = [this, on_error]() {
-            printer_state_.retire_preparing(helix::PreparingExit::Failed);
+            printer_state_.print_state().retire_preparing(helix::PreparingExit::Failed);
             if (on_error) {
                 on_error();
             }
@@ -817,7 +818,7 @@ bool PrintStartController::apply_filament_remaps() {
 }
 
 void PrintStartController::observe_lifecycle_for_restore() {
-    auto* subject = printer_state_.get_print_lifecycle_subject();
+    auto* subject = printer_state_.print_state().get_print_lifecycle_subject();
     if (!subject) {
         spdlog::warn("[PrintStartController] No print lifecycle subject, cannot auto-restore "
                      "mapping");
@@ -857,7 +858,7 @@ void PrintStartController::observe_klippy_state_for_restore() {
         return; // Already waiting — a second deferral must not stack observers
     }
 
-    auto* subject = printer_state_.get_klippy_state_subject();
+    auto* subject = printer_state_.network_state().get_klippy_state_subject();
     if (!subject) {
         spdlog::warn("[PrintStartController] No klippy state subject — deferred restore cannot "
                      "self-resolve; pending_remap.json will replay on next startup");
@@ -898,8 +899,8 @@ void PrintStartController::restore_filament_mapping() {
     // the recovery record deleted (#1270), and a halted Klipper at print end is
     // the normal shape of a cancelled or errored print — precisely when restore
     // runs.
-    const auto klippy =
-        static_cast<KlippyState>(lv_subject_get_int(printer_state_.get_klippy_state_subject()));
+    const auto klippy = static_cast<KlippyState>(
+        lv_subject_get_int(printer_state_.network_state().get_klippy_state_subject()));
     if (klippy != KlippyState::READY) {
         spdlog::info("[PrintStartController] Klipper not ready (state={}) — deferring restore of "
                      "{} mapping(s); snapshot and pending_remap.json retained",
@@ -1042,7 +1043,7 @@ void PrintStartController::observe_backend_for_retry() {
         subject, this,
         [](PrintStartController* self, int) {
             // A remap mid-job re-routes the tools of the print in progress.
-            if (job_holds_machine(self->printer_state_.get_print_lifecycle()) ||
+            if (job_holds_machine(self->printer_state_.print_state().get_print_lifecycle()) ||
                 !self->retained_restore_sendable()) {
                 return;
             }
@@ -1227,7 +1228,7 @@ void PrintStartController::recover_pending_remap() {
     // PRINTING/PAUSED value arms it rather than firing early.
     // RAW_PRINT_STATE_OK: suppresses the observer's registration-fire
     // while a job runs; a preparing job has no mapping to restore.
-    auto current_state = printer_state_.get_print_job_state();
+    auto current_state = printer_state_.print_state().get_print_job_state();
     // The mapping is restored on a TERMINAL state; this only suppresses the
     // observer's immediate registration-fire while a job is running. The wire
     // question is the right one: a preparing job has no mapping to restore.

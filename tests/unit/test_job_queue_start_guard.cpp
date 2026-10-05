@@ -98,8 +98,8 @@ class QueuedStartFixture : private helix::PrintSelectGlobalStateReset,
         // With the panel and its api still alive: settle the state, then hand
         // the global api pointer back before the bases tear anything down.
         auto& ps = get_printer_state();
-        if (ps.has_preparing_job()) {
-            ps.retire_preparing(helix::PreparingExit::Superseded);
+        if (ps.print_state().has_preparing_job()) {
+            ps.print_state().retire_preparing(helix::PreparingExit::Superseded);
         }
         set_wire_state(ps, PrintJobState::STANDBY);
         drain();
@@ -225,10 +225,10 @@ TEST_CASE_METHOD(QueuedStartFixture, "a queued job refuses to start while the pr
     SECTION("host-side pre-print block") {
         // The wire still reads standby here: the guard must consult the app's
         // committed start too, or the entry is deleted into a failed start.
-        ps.begin_preparing(helix::PrintJobRef{"other.gcode", "", ""});
+        ps.print_state().begin_preparing(helix::PrintJobRef{"other.gcode", "", ""});
         drain();
-        REQUIRE(ps.get_print_job_state() == PrintJobState::STANDBY);
-        REQUIRE(ps.is_print_in_progress());
+        REQUIRE(ps.print_state().get_print_job_state() == PrintJobState::STANDBY);
+        REQUIRE(ps.print_state().is_print_in_progress());
     }
     drain();
 

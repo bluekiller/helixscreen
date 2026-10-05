@@ -143,7 +143,7 @@ void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api) 
             // RAW_PRINT_STATE_OK: layer tracking. There are no layers during a
             // preparing window, and admitting one would derive a layer number
             // from the pre-print block's own Z moves.
-            auto job_state = get_printer_state().get_print_job_state();
+            auto job_state = get_printer_state().print_state().get_print_job_state();
             if (job_state != PrintJobState::PRINTING && job_state != PrintJobState::PAUSED) {
                 return;
             }
@@ -153,12 +153,12 @@ void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api) 
                 if (parsed.current >= 0) {
                     spdlog::debug("[LayerTracker] Layer {} from gcode response: {}", parsed.current,
                                   line);
-                    get_printer_state().set_print_layer_current(parsed.current);
+                    get_printer_state().print_state().set_print_layer_current(parsed.current);
                 }
                 if (parsed.total >= 0) {
                     spdlog::debug("[LayerTracker] Total layers {} from gcode response",
                                   parsed.total);
-                    get_printer_state().set_print_layer_total(parsed.total);
+                    get_printer_state().print_state().set_print_layer_total(parsed.total);
                 }
             });
         });

@@ -40,7 +40,6 @@
 // AD5X IFS is feature-gated (HELIX_HAS_IFS=0 on the space-constrained cross
 // builds, mk/cross.mk), so every self-homing assertion below is guarded. The
 // non-self-homing half of the table is unconditional.
-#include "test_helpers/afc_test_access.h"
 #include "ams_backend_ad5x_ifs.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_happy_hare.h"
@@ -50,6 +49,7 @@
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
+#include "test_helpers/afc_test_access.h"
 
 #include <memory>
 #include <string>
@@ -98,7 +98,7 @@ struct PausedGateFixture : public LVGLTestFixture {
 
     /// A host-side pre-print block: the wire still reads standby.
     void set_preprint_phase(helix::PrintStartPhase phase) {
-        state.set_print_start_state(phase, "", 0);
+        state.print_state().set_print_start_state(phase, "", 0);
         helix::ui::UpdateQueue::instance().drain();
     }
 

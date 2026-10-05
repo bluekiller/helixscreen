@@ -124,7 +124,7 @@ void SpoolmanManager::init_subjects() {
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - weights change when
     // filament moves, which is the printer's own transition.
     print_state_observer_ = observe_print_state<SpoolmanManager>(
-        get_printer_state().get_print_state_enum_subject(), this,
+        get_printer_state().print_state().get_print_state_enum_subject(), this,
         [](SpoolmanManager* self, PrintJobState print_state) {
             // RAW_PRINT_STATE_OK: Spoolman weights only change when filament
             // actually moves, so this refreshes on the printer's own reported
@@ -145,7 +145,7 @@ void SpoolmanManager::init_subjects() {
     // whenever subjects were initialised without XML registration, and the miss
     // is silent, which left the manager with no availability observer at all.
     spoolman_availability_observer_ = observe<int>(
-        get_printer_state().get_printer_has_spoolman_subject(), this,
+        get_printer_state().capabilities_state().subject(Capability::HasSpoolman), this,
         [](SpoolmanManager* self, int value) {
             if (value == 0) {
                 std::lock_guard<std::recursive_mutex> lock(self->mutex_);

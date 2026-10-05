@@ -463,7 +463,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE_FALSE(cd.has_pending_timer());
 
     set_wire_state(state(), "standby");
-    state().set_print_start_state(helix::PrintStartPhase::BED_MESH, "", 0);
+    state().print_state().set_print_start_state(helix::PrintStartPhase::BED_MESH, "", 0);
     process_lvgl(10);
 
     TA::restore_heater_after_preheat(*h.panel);
@@ -471,7 +471,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK_FALSE(cd.has_pending_timer());
 
     // The block ending hands the behaviour back, so the guard cannot latch.
-    state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
+    state().print_state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
     process_lvgl(10);
     TA::restore_heater_after_preheat(*h.panel);
     process_lvgl(30);
@@ -657,7 +657,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // pre-start G-code homes and probes. Raising the phase is what makes the
     // lifecycle Preparing.
     auto set_preprint_phase = [this](helix::PrintStartPhase phase) {
-        state().set_print_start_state(phase, "", 0);
+        state().print_state().set_print_start_state(phase, "", 0);
         process_lvgl(10);
     };
 

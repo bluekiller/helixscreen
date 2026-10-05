@@ -107,7 +107,8 @@ TEST_CASE_METHOD(HardwareHealthRowFixture, "hardware health row: label reports t
     lv_obj_t* label = find("label");
 
     SECTION("a clean result reads as no issues") {
-        get_printer_state().set_hardware_validation_result(HardwareValidationResult{});
+        get_printer_state().hardware_validation_state().set_hardware_validation_result(
+            HardwareValidationResult{});
         process_lvgl(5);
 
         REQUIRE(std::string(lv_label_get_text(label)) == "No Hardware Issues");
@@ -119,7 +120,7 @@ TEST_CASE_METHOD(HardwareHealthRowFixture, "hardware health row: label reports t
             HardwareIssue::info("neopixel chamber", HardwareType::LED, "Detected"));
         result.newly_discovered.push_back(
             HardwareIssue::info("fan_generic exhaust", HardwareType::FAN, "Detected"));
-        get_printer_state().set_hardware_validation_result(result);
+        get_printer_state().hardware_validation_state().set_hardware_validation_result(result);
         process_lvgl(5);
 
         REQUIRE(std::string(lv_label_get_text(label)) == "2 Hardware Issues");
@@ -143,7 +144,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "hardware health row: create() performs the 
     HardwareValidationResult result;
     result.newly_discovered.push_back(
         HardwareIssue::info("neopixel chamber", HardwareType::LED, "Detected"));
-    get_printer_state().set_hardware_validation_result(result);
+    get_printer_state().hardware_validation_state().set_hardware_validation_result(result);
     process_lvgl(5);
 
     REQUIRE(std::string(lv_label_get_text(label)) == "1 Hardware Issue");

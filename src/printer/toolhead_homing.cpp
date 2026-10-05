@@ -23,8 +23,8 @@ bool toolhead_is_homed(const PrinterState& ps) {
     // Klipper reports homed_axes as a subset of "xyz". Anything short of all
     // three is not homed for our purposes: every caller needs full XYZ before
     // it can move the toolhead safely.
-    const char* axes =
-        lv_subject_get_string(const_cast<PrinterState&>(ps).get_homed_axes_subject());
+    const char* axes = lv_subject_get_string(
+        const_cast<PrinterState&>(ps).motion_state().get_homed_axes_subject());
     if (axes == nullptr) {
         return false;
     }
@@ -36,8 +36,8 @@ bool toolhead_is_homed(const PrinterState& ps) {
 bool axis_is_homed(const PrinterState& ps, Axis axis) {
     // Same const_cast as toolhead_is_homed() directly above: the subject
     // accessors are all non-const, but this only reads the string value.
-    const char* axes =
-        lv_subject_get_string(const_cast<PrinterState&>(ps).get_homed_axes_subject());
+    const char* axes = lv_subject_get_string(
+        const_cast<PrinterState&>(ps).motion_state().get_homed_axes_subject());
     if (axes == nullptr) {
         return false;
     }

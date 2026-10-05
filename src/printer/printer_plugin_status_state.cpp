@@ -12,6 +12,7 @@
 
 #include "printer_plugin_status_state.h"
 
+#include "macro_manager.h"
 #include "state/subject_macros.h"
 
 #include <spdlog/spdlog.h>
@@ -70,6 +71,23 @@ void PrinterPluginStatusState::set_helix_macros_base_status(HelixMacrosStatus ba
     }
     publish_helix_macros_status();
     spdlog::info("[PrinterPluginStatusState] Helper macros base status: {}", macros_base_status_);
+}
+
+void PrinterPluginStatusState::set_helix_macros_base_status(MacroInstallStatus install) {
+    switch (install) {
+    case MacroInstallStatus::NOT_INSTALLED:
+        set_helix_macros_base_status(HelixMacrosStatus::NotInstalled);
+        break;
+    case MacroInstallStatus::INSTALLED:
+        set_helix_macros_base_status(HelixMacrosStatus::Installed);
+        break;
+    case MacroInstallStatus::OUTDATED:
+        set_helix_macros_base_status(HelixMacrosStatus::Outdated);
+        break;
+    case MacroInstallStatus::UNKNOWN:
+        set_helix_macros_base_status(HelixMacrosStatus::Unknown);
+        break;
+    }
 }
 
 void PrinterPluginStatusState::set_helix_macros_restart_pending(bool pending) {
