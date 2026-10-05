@@ -1133,67 +1133,6 @@ AmsError AmsBackendSnapmaker::disable_bypass() {
 }
 
 // ============================================================================
-// Static Parsers
-// ============================================================================
-
-SnapmakerRfidInfo AmsBackendSnapmaker::parse_rfid_info(const nlohmann::json& json) {
-    SnapmakerRfidInfo info;
-
-    if (json.contains("MAIN_TYPE") && json["MAIN_TYPE"].is_string()) {
-        info.main_type = json["MAIN_TYPE"].get<std::string>();
-    }
-    if (json.contains("SUB_TYPE") && json["SUB_TYPE"].is_string()) {
-        info.sub_type = json["SUB_TYPE"].get<std::string>();
-    }
-    if (json.contains("MANUFACTURER") && json["MANUFACTURER"].is_string()) {
-        info.manufacturer = json["MANUFACTURER"].get<std::string>();
-    }
-    if (json.contains("VENDOR") && json["VENDOR"].is_string()) {
-        info.vendor = json["VENDOR"].get<std::string>();
-    }
-    if (json.contains("ARGB_COLOR") && json["ARGB_COLOR"].is_number()) {
-        // ARGB -> RGB: mask off the alpha byte
-        uint32_t argb = json["ARGB_COLOR"].get<uint32_t>();
-        info.color_rgb = argb & 0x00FFFFFF;
-    }
-    if (json.contains("HOTEND_MIN_TEMP") && json["HOTEND_MIN_TEMP"].is_number()) {
-        info.hotend_min_temp = json["HOTEND_MIN_TEMP"].get<int>();
-    }
-    if (json.contains("HOTEND_MAX_TEMP") && json["HOTEND_MAX_TEMP"].is_number()) {
-        info.hotend_max_temp = json["HOTEND_MAX_TEMP"].get<int>();
-    }
-    if (json.contains("BED_TEMP") && json["BED_TEMP"].is_number()) {
-        info.bed_temp = json["BED_TEMP"].get<int>();
-    }
-    if (json.contains("WEIGHT") && json["WEIGHT"].is_number()) {
-        info.weight_g = json["WEIGHT"].get<int>();
-    }
-    // CARD_UID is a 4-byte array like [144, 32, 196, 2]. Canonicalize to a
-    // comma-joined string so the override system's baseline comparison is a
-    // simple string == string check. Empty / missing array stays as empty
-    // string (treated as "no tag / unread" by check_hardware_event_clear).
-    if (json.contains("CARD_UID") && json["CARD_UID"].is_array()) {
-        const auto& arr = json["CARD_UID"];
-        std::string uid;
-        for (size_t i = 0; i < arr.size(); ++i) {
-            if (!arr[i].is_number()) {
-                // If any byte isn't a number, bail out — partial UIDs aren't
-                // safe to compare. Leave info.uid empty so the check is a
-                // no-op for this parse.
-                uid.clear();
-                break;
-            }
-            if (!uid.empty())
-                uid.push_back(',');
-            uid += std::to_string(arr[i].get<int>());
-        }
-        info.uid = std::move(uid);
-    }
-
-    return info;
-}
-
-// ============================================================================
 namespace {
 
 /// The tracker fingerprint for one RFID reading, built from exactly the fields
@@ -1316,6 +1255,171 @@ void AmsBackendSnapmaker::apply_active_tool_locked(const snapmaker::StatusDelta&
     }
 }
 
+void AmsBackendSnapmaker::apply_filament_detect_locked(const snapmaker::StatusDelta& delta,
+                                                       FrameEffects& fx) {
+    if (!delta.filament_detect) {
+        return;
+    }
+    const auto& detect = *delta.filament_detect;
+
+    // RFID info per channel. Only apply it when it carries real values (not
+    // "NONE"): print_task_config is the authoritative source, and RFID
+    // supplements it when tags are present.
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (detect.info[i]) {
+            apply_rfid_entry_locked(i, *detect.info[i], fx);
+        }
+    }
+
+    // Filament state per channel: [int, int, int, int], the entrance/tag reader
+    // per channel. It reads 0 once filament has been fed THROUGH it to the
+    // toolhead, so a 0 is not "no filament": lane presence is declared at the
+    // parse convergence point from the port sensor and the loaded-at-toolhead
+    // latch, and this array only seeds a status for slots nothing better has
+    // spoken for.
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (!detect.state[i]) {
+            continue;
+        }
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot) {
+            // Only set from filament_detect if extruder state hasn't already
+            // provided a more authoritative status (LOADED/AVAILABLE via
+            // park_pin/active_pin)
+            if (slot->status == SlotStatus::UNKNOWN) {
+                slot->status = (*detect.state[i] != 0) ? SlotStatus::AVAILABLE : SlotStatus::EMPTY;
+            }
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_rfid_entry_locked(int i, const SnapmakerRfidInfo& rfid,
+                                                  FrameEffects& fx) {
+    // Capture what this reading physically got off the spool,
+    // before any early exit, so the insert rule sees it
+    // regardless of whether the rest of the RFID fields apply.
+    // A read is finished only when it named a tag: a UID names
+    // it, and a decoded MAIN_TYPE with no UID leaves the UID
+    // the one part still outstanding (material and colour
+    // stand as evidence without it). A NONE entry with no UID
+    // is three indistinguishable states - reader disabled,
+    // untagged spool, empty channel - so it files no evidence
+    // at all and the fingerprint comes out empty (no signal).
+    helix::ams::SpoolEvidence& evidence = fx.observed_evidence[i];
+    evidence.tag_uid = rfid.uid;
+    if (!rfid.uid.empty()) {
+        evidence.tag_read_complete = true;
+    }
+    // A pending insert is judged HERE: this entry is the
+    // reader's answer for the spool that just went in, which
+    // the port edge could not know. A UID or a decoded
+    // MAIN_TYPE verifies it - the tail's
+    // check_hardware_event_clear judges any swap from this
+    // very reading - and an entry that files nothing is the
+    // reader saying no tag is behind the insert, so the stored
+    // record could describe a spool that left (#1710).
+    if (pending_insert_passes_[i] > 0) {
+        pending_insert_passes_[i] = 0;
+        if (rfid.uid.empty() && rfid.main_type == "NONE") {
+            fx.unverified_insert_lanes.push_back(i);
+        }
+    }
+    if (rfid.main_type != "NONE") {
+        evidence.material = rfid.main_type;
+        if (helix::ams::is_declarable_color(rfid.color_rgb)) {
+            evidence.color_rgb = rfid.color_rgb;
+        }
+    }
+
+    // Skip entirely if RFID reader is disabled or no tag present
+    if (rfid.main_type == "NONE")
+        return;
+
+    auto* slot = system_info_.units[0].get_slot(i);
+    if (slot) {
+        slot->material = rfid.main_type;
+        auto brand = !rfid.manufacturer.empty() ? rfid.manufacturer : rfid.vendor;
+        if (brand != "NONE")
+            slot->brand = brand;
+        slot->color_rgb = rfid.color_rgb;
+        // SUB_TYPE is Snapmaker's filament product-line name (e.g.
+        // "SnapSpeed" for their PLA line — akin to Polymaker's
+        // "PolyLite"). Maps to spool_name, NOT color_name. The
+        // Snapmaker RFID doesn't expose a dedicated color-name
+        // field — color_name stays unset here and is user-editable
+        // via the edit modal's color picker.
+        if (rfid.sub_type != "NONE")
+            slot->spool_name = rfid.sub_type;
+        slot->nozzle_temp_min = rfid.hotend_min_temp;
+        slot->nozzle_temp_max = rfid.hotend_max_temp;
+        slot->bed_temp = rfid.bed_temp;
+        slot->total_weight_g = static_cast<float>(rfid.weight_g);
+
+        // A tag read is a cache of what a vendor printed, not a
+        // sensor of identity: it survives the spool leaving the
+        // channel, so it never carries presence.
+        //
+        // Every value here is this parse's own, never slot->*.
+        // SlotInfo persists across frames and
+        // apply_resolved_lane rewrites it in place at the tail
+        // of every one, so
+        // reading the struct back would file a user's edit as
+        // something the tag says.
+        //
+        helix::ams::Observation cache(helix::ams::ObservationSource::VendorCache);
+        if (!rfid.main_type.empty())
+            cache.material = rfid.main_type;
+        // Both spellings of "the tag named no vendor" retract
+        // the brand here: whole-record replacement means this
+        // record states what THIS read said, and a field the
+        // read is silent about is not one it still stands
+        // behind. SlotInfo above tests only the literal "NONE",
+        // so it blanks on an absent key and KEEPS its last
+        // value on the literal. That one input is the only
+        // place the two layers disagree.
+        if (!brand.empty() && brand != "NONE")
+            cache.brand = brand;
+        // SnapmakerRfidInfo::color_rgb rests on
+        // AMS_DEFAULT_SLOT_COLOR when the tag carried no
+        // ARGB_COLOR, which is that struct's "no reading" and
+        // not a grey anybody chose.
+        if (helix::ams::is_declarable_color(rfid.color_rgb))
+            cache.color_rgb = rfid.color_rgb;
+        // SUB_TYPE names the product line inside MAIN_TYPE
+        // ("Silk" inside "PLA"), so it is the branded product
+        // and routing it to material would destroy the
+        // material. The SlotInfo field above keeps its own
+        // spelling, and splits from this record on the
+        // literal "NONE" for the same reason the brand guard
+        // does.
+        if (!rfid.sub_type.empty() && rfid.sub_type != "NONE")
+            cache.product_name = rfid.sub_type;
+        if (rfid.weight_g > 0)
+            cache.total_weight_g = static_cast<float>(rfid.weight_g);
+        // What this backend POSTed to filament_detect/set
+        // lands in this same object, spelled the same way, so
+        // a field repeating our own write is not a reading.
+        // Withholding it matters most AFTER the user clears
+        // their override: resolve() would otherwise fall
+        // through to a VendorCache record still holding the
+        // abandoned edit, and the lane could never get back to
+        // what the machine says. WEIGHT is nobody's
+        // declaration and passes through. The boundary rides
+        // the fingerprint spelling, the same one arm() takes
+        // from the tracker baseline, so a reading whose UID
+        // did not decode still names a spool boundary.
+        const int withheld = own_write_echoes_.withhold(
+            i, fingerprint_from_evidence(fx.observed_evidence[i]), cache);
+        if (withheld > 0) {
+            spdlog::debug("{} Slot {} withheld {} field(s) echoing our own write",
+                          backend_log_tag(), i, withheld);
+        }
+        helix::ams::ingest(lane_id(i), cache);
+    }
+    fx.changed = true;
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
     const snapmaker::StatusDelta delta = snapmaker::parse_status(status);
@@ -1327,174 +1431,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         apply_extruders_locked(delta, fx);
         apply_active_tool_locked(delta, fx);
 
-        // Parse filament_detect info (RFID data per channel)
-        if (status.contains("filament_detect") && status["filament_detect"].is_object()) {
-            const auto& fd = status["filament_detect"];
-
-            // Parse RFID info per channel — filament_detect.info is a JSON array [ch0, ch1, ch2,
-            // ch3] Only apply RFID data when it contains real values (not "NONE").
-            // print_task_config is the authoritative source; RFID supplements it when tags are
-            // present.
-            if (fd.contains("info") && fd["info"].is_array()) {
-                const auto& info_arr = fd["info"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(info_arr.size()); i++) {
-                    if (!info_arr[i].is_object())
-                        continue;
-                    auto rfid = parse_rfid_info(info_arr[i]);
-
-                    // Capture what this reading physically got off the spool,
-                    // before any early exit, so the insert rule sees it
-                    // regardless of whether the rest of the RFID fields apply.
-                    // A read is finished only when it named a tag: a UID names
-                    // it, and a decoded MAIN_TYPE with no UID leaves the UID
-                    // the one part still outstanding (material and colour
-                    // stand as evidence without it). A NONE entry with no UID
-                    // is three indistinguishable states - reader disabled,
-                    // untagged spool, empty channel - so it files no evidence
-                    // at all and the fingerprint comes out empty (no signal).
-                    helix::ams::SpoolEvidence& evidence = fx.observed_evidence[i];
-                    evidence.tag_uid = rfid.uid;
-                    if (!rfid.uid.empty()) {
-                        evidence.tag_read_complete = true;
-                    }
-                    // A pending insert is judged HERE: this entry is the
-                    // reader's answer for the spool that just went in, which
-                    // the port edge could not know. A UID or a decoded
-                    // MAIN_TYPE verifies it - the tail's
-                    // check_hardware_event_clear judges any swap from this
-                    // very reading - and an entry that files nothing is the
-                    // reader saying no tag is behind the insert, so the stored
-                    // record could describe a spool that left (#1710).
-                    if (pending_insert_passes_[i] > 0) {
-                        pending_insert_passes_[i] = 0;
-                        if (rfid.uid.empty() && rfid.main_type == "NONE") {
-                            fx.unverified_insert_lanes.push_back(i);
-                        }
-                    }
-                    if (rfid.main_type != "NONE") {
-                        evidence.material = rfid.main_type;
-                        if (helix::ams::is_declarable_color(rfid.color_rgb)) {
-                            evidence.color_rgb = rfid.color_rgb;
-                        }
-                    }
-
-                    // Skip entirely if RFID reader is disabled or no tag present
-                    if (rfid.main_type == "NONE")
-                        continue;
-
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        slot->material = rfid.main_type;
-                        auto brand = !rfid.manufacturer.empty() ? rfid.manufacturer : rfid.vendor;
-                        if (brand != "NONE")
-                            slot->brand = brand;
-                        slot->color_rgb = rfid.color_rgb;
-                        // SUB_TYPE is Snapmaker's filament product-line name (e.g.
-                        // "SnapSpeed" for their PLA line — akin to Polymaker's
-                        // "PolyLite"). Maps to spool_name, NOT color_name. The
-                        // Snapmaker RFID doesn't expose a dedicated color-name
-                        // field — color_name stays unset here and is user-editable
-                        // via the edit modal's color picker.
-                        if (rfid.sub_type != "NONE")
-                            slot->spool_name = rfid.sub_type;
-                        slot->nozzle_temp_min = rfid.hotend_min_temp;
-                        slot->nozzle_temp_max = rfid.hotend_max_temp;
-                        slot->bed_temp = rfid.bed_temp;
-                        slot->total_weight_g = static_cast<float>(rfid.weight_g);
-
-                        // A tag read is a cache of what a vendor printed, not a
-                        // sensor of identity: it survives the spool leaving the
-                        // channel, so it never carries presence.
-                        //
-                        // Every value here is this parse's own, never slot->*.
-                        // SlotInfo persists across frames and
-                        // apply_resolved_lane rewrites it in place at the tail
-                        // of every one, so
-                        // reading the struct back would file a user's edit as
-                        // something the tag says.
-                        //
-                        helix::ams::Observation cache(helix::ams::ObservationSource::VendorCache);
-                        if (!rfid.main_type.empty())
-                            cache.material = rfid.main_type;
-                        // Both spellings of "the tag named no vendor" retract
-                        // the brand here: whole-record replacement means this
-                        // record states what THIS read said, and a field the
-                        // read is silent about is not one it still stands
-                        // behind. SlotInfo above tests only the literal "NONE",
-                        // so it blanks on an absent key and KEEPS its last
-                        // value on the literal. That one input is the only
-                        // place the two layers disagree.
-                        if (!brand.empty() && brand != "NONE")
-                            cache.brand = brand;
-                        // SnapmakerRfidInfo::color_rgb rests on
-                        // AMS_DEFAULT_SLOT_COLOR when the tag carried no
-                        // ARGB_COLOR, which is that struct's "no reading" and
-                        // not a grey anybody chose.
-                        if (helix::ams::is_declarable_color(rfid.color_rgb))
-                            cache.color_rgb = rfid.color_rgb;
-                        // SUB_TYPE names the product line inside MAIN_TYPE
-                        // ("Silk" inside "PLA"), so it is the branded product
-                        // and routing it to material would destroy the
-                        // material. The SlotInfo field above keeps its own
-                        // spelling, and splits from this record on the
-                        // literal "NONE" for the same reason the brand guard
-                        // does.
-                        if (!rfid.sub_type.empty() && rfid.sub_type != "NONE")
-                            cache.product_name = rfid.sub_type;
-                        if (rfid.weight_g > 0)
-                            cache.total_weight_g = static_cast<float>(rfid.weight_g);
-                        // What this backend POSTed to filament_detect/set
-                        // lands in this same object, spelled the same way, so
-                        // a field repeating our own write is not a reading.
-                        // Withholding it matters most AFTER the user clears
-                        // their override: resolve() would otherwise fall
-                        // through to a VendorCache record still holding the
-                        // abandoned edit, and the lane could never get back to
-                        // what the machine says. WEIGHT is nobody's
-                        // declaration and passes through. The boundary rides
-                        // the fingerprint spelling, the same one arm() takes
-                        // from the tracker baseline, so a reading whose UID
-                        // did not decode still names a spool boundary.
-                        const int withheld = own_write_echoes_.withhold(
-                            i, fingerprint_from_evidence(fx.observed_evidence[i]), cache);
-                        if (withheld > 0) {
-                            spdlog::debug("{} Slot {} withheld {} field(s) echoing our own write",
-                                          backend_log_tag(), i, withheld);
-                        }
-                        helix::ams::ingest(lane_id(i), cache);
-                    }
-                    fx.changed = true;
-                }
-            }
-
-            // Parse filament state per channel — filament_detect.state is
-            // [int, int, int, int], the entrance/tag reader per channel. It
-            // reads 0 once filament has been fed THROUGH it to the toolhead,
-            // so a 0 is not "no filament": lane presence is declared at the
-            // parse convergence point from the port sensor and the
-            // loaded-at-toolhead latch, and this array only seeds a status
-            // for slots nothing better has spoken for.
-            if (fd.contains("state") && fd["state"].is_array()) {
-                const auto& state_arr = fd["state"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(state_arr.size()); i++) {
-                    if (!state_arr[i].is_number())
-                        continue;
-                    int state_val = state_arr[i].get<int>();
-
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        // Only set from filament_detect if extruder state hasn't already
-                        // provided a more authoritative status (LOADED/AVAILABLE via
-                        // park_pin/active_pin)
-                        if (slot->status == SlotStatus::UNKNOWN) {
-                            slot->status =
-                                (state_val != 0) ? SlotStatus::AVAILABLE : SlotStatus::EMPTY;
-                        }
-                        fx.changed = true;
-                    }
-                }
-            }
-        }
+        apply_filament_detect_locked(delta, fx);
 
         // Parse filament_feed left/right — top-level Klipper objects (not nested in
         // filament_detect) Each contains per-extruder state: filament_detected, channel_state,

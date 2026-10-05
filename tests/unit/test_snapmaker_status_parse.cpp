@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ams_status_json.h"
 #include "snapmaker_status_parse.h"
 
 #include "../catch_amalgamated.hpp"
@@ -50,4 +51,53 @@ TEST_CASE("Snapmaker status parse files each extruder object under its tool",
     CHECK(d.toolhead_extruder == "extruder2");
 
     CHECK_FALSE(snapmaker::parse_status(json::object()).toolhead_extruder);
+}
+
+TEST_CASE("read_indexed leaves an entry empty unless the array holds a matching value there",
+          "[snapmaker][status_parse]") {
+    const json obj{{"flags", json::array({true, 1, false})},
+                   {"names", json::array({"a", "b"})},
+                   {"nums", json::array({1, 2.5, "x"})},
+                   {"scalar", 5}};
+
+    const auto flags = ams::read_indexed<bool, 4>(obj, "flags");
+    CHECK(flags[0] == true);
+    CHECK_FALSE(flags[1]); // a number is not a bool
+    CHECK(flags[2] == false);
+    CHECK_FALSE(flags[3]); // shorter than the index
+
+    const auto names = ams::read_indexed<std::string, 4>(obj, "names");
+    CHECK(names[1] == "b");
+    CHECK_FALSE(names[2]);
+
+    const auto nums = ams::read_indexed<int, 4>(obj, "nums");
+    CHECK(nums[0] == 1);
+    CHECK(nums[1] == 2);
+    CHECK_FALSE(nums[2]);
+
+    for (const char* key : {"scalar", "missing"}) {
+        const auto none = ams::read_indexed<int, 4>(obj, key);
+        for (const auto& v : none) {
+            CHECK_FALSE(v);
+        }
+    }
+}
+
+TEST_CASE("Snapmaker status parse reads filament_detect entries independently",
+          "[snapmaker][status_parse]") {
+    const auto d = snapmaker::parse_status(
+        json{{"filament_detect",
+              json{{"info", json::array({json{{"MAIN_TYPE", "PLA"}}, "junk", json::object()})},
+                   {"state", json::array({1, "no", 0})}}}});
+    REQUIRE(d.filament_detect);
+    REQUIRE(d.filament_detect->info[0]);
+    CHECK(d.filament_detect->info[0]->main_type == "PLA");
+    CHECK_FALSE(d.filament_detect->info[1]);
+    CHECK(d.filament_detect->info[2]);
+    CHECK_FALSE(d.filament_detect->info[3]);
+    CHECK(d.filament_detect->state[0] == 1);
+    CHECK_FALSE(d.filament_detect->state[1]);
+    CHECK(d.filament_detect->state[2] == 0);
+
+    CHECK_FALSE(snapmaker::parse_status(json{{"filament_detect", 3}}).filament_detect);
 }

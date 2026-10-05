@@ -44,24 +44,6 @@ class RunoutScopeTestAccess;
  * Path topology is PARALLEL (each tool has its own independent path).
  */
 
-/// RFID tag data parsed from filament_detect info
-struct SnapmakerRfidInfo {
-    std::string main_type;         ///< e.g., "PLA", "PETG"
-    std::string sub_type;          ///< e.g., "SnapSpeed", "Basic"
-    std::string manufacturer;      ///< e.g., "Polymaker"
-    std::string vendor;            ///< e.g., "Snapmaker"
-    uint32_t color_rgb = 0x808080; ///< RGB color (ARGB masked to 0x00FFFFFF)
-    int hotend_min_temp = 0;
-    int hotend_max_temp = 0;
-    int bed_temp = 0;
-    int weight_g = 0; ///< Spool weight in grams
-    /// Canonical string form of CARD_UID (e.g. "144,32,196,2"). Empty when no
-    /// tag is present, the RFID reader is disabled, or the field is missing.
-    /// Used by the override system as the hardware-event signal: a change
-    /// means the physical spool was swapped.
-    std::string uid;
-};
-
 class AmsBackendSnapmaker : public AmsSubscriptionBackend {
   public:
     AmsBackendSnapmaker(IMoonrakerAPI* api, helix::IMoonrakerClient* client);
@@ -476,7 +458,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                                                      const std::any& value) const;
 
     // Static parsers (public for testing)
-    static SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
 
   protected:
     void on_started() override;
@@ -530,6 +511,8 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     // earlier frames.
     void apply_extruders_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     void apply_active_tool_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_filament_detect_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_rfid_entry_locked(int slot_index, const SnapmakerRfidInfo& rfid, FrameEffects& fx);
 
     /// RPC timeout budget for ONE batch feed op. AUTO_FEEDING heats from cold +
     /// feeds + flushes; measured ~86s live (see prepare_for_resume), so 150s is

@@ -1820,7 +1820,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "BED_TEMP": 60,
             "OFFICIAL": true
         })");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.main_type == "PLA");
         REQUIRE(info.sub_type == "SnapSpeed");
         REQUIRE(info.manufacturer == "Polymaker");
@@ -1836,7 +1836,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
     SECTION("ARGB alpha byte is masked to produce RGB") {
         // 0xFF0000FF (opaque blue) -> 0x0000FF
         auto j = nlohmann::json::parse(R"({"ARGB_COLOR": 4278190335})");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.color_rgb == 0x0000FFu);
     }
 
@@ -1846,7 +1846,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "MANUFACTURER": "",
             "MAIN_TYPE": "PETG"
         })");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         // Parser stores fields as-is; brand fallback logic is in handle_status
         REQUIRE(info.vendor == "Generic");
         REQUIRE(info.manufacturer.empty());
@@ -1855,7 +1855,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
 
     SECTION("handles missing RFID fields with safe defaults") {
         auto j = nlohmann::json::parse("{}");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.main_type.empty());
         REQUIRE(info.sub_type.empty());
         REQUIRE(info.manufacturer.empty());
@@ -1878,7 +1878,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "BED_TEMP": 80,
             "WEIGHT": 1000
         })");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.main_type == "PETG");
         REQUIRE(info.sub_type == "Basic");
         REQUIRE(info.manufacturer == "Generic3D");
@@ -1890,13 +1890,13 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
 
     SECTION("parses CARD_UID array as comma-joined string") {
         auto j = json::parse(R"({"CARD_UID": [144, 32, 196, 2]})");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.uid == "144,32,196,2");
     }
 
     SECTION("missing CARD_UID leaves uid empty") {
         auto j = json::parse(R"({"MAIN_TYPE": "PLA"})");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.uid.empty());
     }
 }

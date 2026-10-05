@@ -3,7 +3,10 @@
 
 #include "snapmaker_status_parse.h"
 
+#include "ams_status_json.h"
+
 #include <algorithm>
+#include <optional>
 
 namespace helix {
 
@@ -72,6 +75,76 @@ ExtruderDelta parse_extruder_delta(const nlohmann::json& json) {
     return d;
 }
 
+SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json) {
+    SnapmakerRfidInfo info;
+
+    if (json.contains("MAIN_TYPE") && json["MAIN_TYPE"].is_string()) {
+        info.main_type = json["MAIN_TYPE"].get<std::string>();
+    }
+    if (json.contains("SUB_TYPE") && json["SUB_TYPE"].is_string()) {
+        info.sub_type = json["SUB_TYPE"].get<std::string>();
+    }
+    if (json.contains("MANUFACTURER") && json["MANUFACTURER"].is_string()) {
+        info.manufacturer = json["MANUFACTURER"].get<std::string>();
+    }
+    if (json.contains("VENDOR") && json["VENDOR"].is_string()) {
+        info.vendor = json["VENDOR"].get<std::string>();
+    }
+    if (json.contains("ARGB_COLOR") && json["ARGB_COLOR"].is_number()) {
+        // ARGB -> RGB: mask off the alpha byte
+        uint32_t argb = json["ARGB_COLOR"].get<uint32_t>();
+        info.color_rgb = argb & 0x00FFFFFF;
+    }
+    if (json.contains("HOTEND_MIN_TEMP") && json["HOTEND_MIN_TEMP"].is_number()) {
+        info.hotend_min_temp = json["HOTEND_MIN_TEMP"].get<int>();
+    }
+    if (json.contains("HOTEND_MAX_TEMP") && json["HOTEND_MAX_TEMP"].is_number()) {
+        info.hotend_max_temp = json["HOTEND_MAX_TEMP"].get<int>();
+    }
+    if (json.contains("BED_TEMP") && json["BED_TEMP"].is_number()) {
+        info.bed_temp = json["BED_TEMP"].get<int>();
+    }
+    if (json.contains("WEIGHT") && json["WEIGHT"].is_number()) {
+        info.weight_g = json["WEIGHT"].get<int>();
+    }
+    // CARD_UID is a 4-byte array like [144, 32, 196, 2]. Canonicalize to a
+    // comma-joined string so the override system's baseline comparison is a
+    // simple string == string check. Empty / missing array stays as empty
+    // string (treated as "no tag / unread" by check_hardware_event_clear).
+    if (json.contains("CARD_UID") && json["CARD_UID"].is_array()) {
+        const auto& arr = json["CARD_UID"];
+        std::string uid;
+        for (size_t i = 0; i < arr.size(); ++i) {
+            if (!arr[i].is_number()) {
+                // If any byte isn't a number, bail out — partial UIDs aren't
+                // safe to compare. Leave info.uid empty so the check is a
+                // no-op for this parse.
+                uid.clear();
+                break;
+            }
+            if (!uid.empty())
+                uid.push_back(',');
+            uid += std::to_string(arr[i].get<int>());
+        }
+        info.uid = std::move(uid);
+    }
+
+    return info;
+}
+
+FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect) {
+    FilamentDetectDelta d;
+    d.info = ams::read_indexed<SnapmakerRfidInfo, kToolCount>(
+        detect, "info", [](const nlohmann::json& entry) -> std::optional<SnapmakerRfidInfo> {
+            if (!entry.is_object()) {
+                return std::nullopt;
+            }
+            return parse_rfid_info(entry);
+        });
+    d.state = ams::read_indexed<int, kToolCount>(detect, "state");
+    return d;
+}
+
 StatusDelta parse_status(const nlohmann::json& status) {
     StatusDelta d;
 
@@ -89,6 +162,10 @@ StatusDelta parse_status(const nlohmann::json& status) {
         if (th.contains("extruder") && th["extruder"].is_string()) {
             d.toolhead_extruder = th["extruder"].get<std::string>();
         }
+    }
+
+    if (status.contains("filament_detect") && status["filament_detect"].is_object()) {
+        d.filament_detect = parse_filament_detect(status["filament_detect"]);
     }
 
     return d;
