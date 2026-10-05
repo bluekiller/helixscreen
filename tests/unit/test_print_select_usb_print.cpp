@@ -284,3 +284,43 @@ TEST_CASE_METHOD(UsbPrintFixture, "a USB copy that stops making progress is aban
     CHECK(transfers().path_uploads().size() == 2);
     CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first == "part.gcode");
 }
+
+TEST_CASE_METHOD(UsbPrintFixture, "a double tap on Print copies the USB file once",
+                 "[usb][usb_print]") {
+    panel_->start_print(/*force=*/true);
+    panel_->start_print(/*force=*/true);
+    drain();
+    CHECK(transfers().path_uploads().size() == 1);
+
+    // A tap while the upload itself is running is ignored too.
+    transfers().mock_hold_path_uploads();
+    panel_->start_print(/*force=*/true);
+    drain();
+    panel_->start_print(/*force=*/true);
+    drain();
+    CHECK(transfers().path_uploads().size() == 2);
+    transfers().release_held_path_uploads();
+    drain();
+}
+
+TEST_CASE_METHOD(UsbPrintFixture, "a double tap on Add to Queue copies the USB file once",
+                 "[usb][usb_print]") {
+    JobQueueState* previous = get_job_queue_state();
+    auto jqs = std::make_unique<JobQueueState>(api_.get(), &mock_client_);
+    set_job_queue_state(jqs.get());
+    drain();
+
+    transfers().mock_hold_path_uploads();
+    PrintSelectPanelTestAccess::add_to_queue(*panel_);
+    PrintSelectPanelTestAccess::add_to_queue(*panel_);
+    drain();
+    PrintSelectPanelTestAccess::add_to_queue(*panel_);
+    drain();
+    CHECK(transfers().path_uploads().size() == 1);
+    transfers().release_held_path_uploads();
+    drain();
+
+    set_job_queue_state(previous);
+    jqs.reset();
+    drain();
+}
