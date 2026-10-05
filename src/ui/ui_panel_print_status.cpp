@@ -215,6 +215,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
       preview_(get_name(), printer_state, lifecycle_,
                {[this](bool show) { show_gcode_viewer(show); },
                 [this]() { recompute_scoped_runout(); }, [this]() { return is_active_; }}),
+      progress_text_(printer_state, lifecycle_),
       layout_fitter_(
           get_name(), printer_state,
           {&fan_row_density_subject_, &aux_icon_visible_subject_, &aux_full_visible_subject_,
@@ -539,14 +540,7 @@ void PrintStatusPanel::init_subjects() {
 
     // Initialize all subjects with default values
     // Note: Display filename is now handled by ActivePrintMediaManager via print_display_filename
-    UI_MANAGED_SUBJECT_STRING(layer_text_subject_, layer_text_buf_, "0 / 0", "print_layer_text",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(filament_used_text_subject_, filament_used_text_buf_, "",
-                              "print_filament_used_text", subjects_);
-    UI_MANAGED_SUBJECT_STRING(elapsed_subject_, elapsed_buf_, "0h 00m", "print_elapsed", subjects_);
-    UI_MANAGED_SUBJECT_STRING(remaining_subject_, remaining_buf_, "0h 00m", "print_remaining",
-                              subjects_);
-    UI_MANAGED_SUBJECT_STRING(eta_subject_, eta_buf_, "", "print_eta", subjects_);
+    progress_text_.init_subjects(subjects_);
     UI_MANAGED_SUBJECT_STRING(nozzle_status_subject_, nozzle_status_buf_, "", "print_nozzle_status",
                               subjects_);
     UI_MANAGED_SUBJECT_STRING(bed_status_subject_, bed_status_buf_, "", "print_bed_status",
@@ -557,8 +551,6 @@ void PrintStatusPanel::init_subjects() {
     UI_MANAGED_SUBJECT_INT(bed_status_state_subject_, 0, "print_bed_status_state", subjects_);
     UI_MANAGED_SUBJECT_INT(chamber_status_state_subject_, 0, "print_chamber_status_state",
                            subjects_);
-    UI_MANAGED_SUBJECT_STRING(speed_subject_, speed_buf_, "100%", "print_speed_text", subjects_);
-    UI_MANAGED_SUBJECT_STRING(flow_subject_, flow_buf_, "100%", "print_flow_text", subjects_);
     UI_MANAGED_SUBJECT_STRING(objects_text_subject_, objects_text_buf_, "", "print_objects_text",
                               subjects_);
     // View toggle icon: starts as cube (progress view), flips to layers on complete view.
@@ -1575,11 +1567,6 @@ bool PrintStatusPanel::push_overlay(lv_obj_t* parent_screen) {
 // PRIVATE HELPERS
 // ============================================================================
 
-void PrintStatusPanel::format_time(int seconds, char* buf, size_t buf_size) {
-    std::string formatted = helix::format::duration_padded(seconds);
-    std::snprintf(buf, buf_size, "%s", formatted.c_str());
-}
-
 void PrintStatusPanel::show_gcode_viewer(bool show) {
     // Update viewer mode subject - XML bindings handle visibility reactively
     // Mode 0 = thumbnail (gradient + thumbnail visible, gcode viewer hidden)
@@ -1748,27 +1735,6 @@ void PrintStatusPanel::hide_exclude_map_view() {
     lv_subject_set_int(&exclude_map_active_subject_, 0);
 }
 
-void PrintStatusPanel::update_layer_text() {
-    std::string text = helix::ui::format_layer_progress_compact(
-        lifecycle_.current_layer(), lifecycle_.total_layers(), printer_state_.layer_is_accurate(),
-        lv_subject_get_int(printer_state_.get_gcode_position_z_subject()));
-    std::snprintf(layer_text_buf_, sizeof(layer_text_buf_), "%s", text.c_str());
-    lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
-}
-
-void PrintStatusPanel::update_filament_used_text() {
-    int filament_mm = lv_subject_get_int(get_printer_state().get_print_filament_used_subject());
-    if (filament_mm > 0) {
-        std::string fil_str =
-            helix::format::format_filament_length(static_cast<double>(filament_mm));
-        std::strncpy(filament_used_text_buf_, fil_str.c_str(), sizeof(filament_used_text_buf_) - 1);
-        filament_used_text_buf_[sizeof(filament_used_text_buf_) - 1] = '\0';
-    } else {
-        filament_used_text_buf_[0] = '\0';
-    }
-    lv_subject_copy_string(&filament_used_text_subject_, filament_used_text_buf_);
-}
-
 void PrintStatusPanel::update_heater_status_rows() {
     // Glyph state + duty text come from the one shared classifier; the XML row
     // maps the state int to the flame/check/snowflake glyph pair.
@@ -1795,20 +1761,18 @@ void PrintStatusPanel::update_all_displays() {
 
     // Progress text
 
-    update_layer_text();
+    progress_text_.refresh_layer();
 
     // Filament used text
-    update_filament_used_text();
+    progress_text_.refresh_filament_used();
 
     // Time displays - Preparing: preprint observers own these.
     // Complete: on_print_state_changed sets frozen final values, don't overwrite.
     if (lifecycle_.state() != PrintState::Preparing && lifecycle_.state() != PrintState::Complete) {
         // elapsed_seconds is wall-clock time from Moonraker total_duration (includes prep)
-        format_time(lifecycle_.elapsed_seconds(), elapsed_buf_, sizeof(elapsed_buf_));
-        lv_subject_copy_string(&elapsed_subject_, elapsed_buf_);
+        progress_text_.show_elapsed(lifecycle_.elapsed_seconds());
 
-        format_time(lifecycle_.remaining_seconds(), remaining_buf_, sizeof(remaining_buf_));
-        lv_subject_copy_string(&remaining_subject_, remaining_buf_);
+        progress_text_.show_remaining(lifecycle_.remaining_seconds());
     }
 
     // Heater status (state glyph + duty)
@@ -2323,7 +2287,7 @@ void PrintStatusPanel::on_print_progress_changed(int progress) {
     }
 
     // Update filament used text (evolves during active printing)
-    update_filament_used_text();
+    progress_text_.refresh_filament_used();
 
     spdlog::trace("[{}] Progress updated: {}%", get_name(), lifecycle_.progress());
 }
@@ -2450,8 +2414,7 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
 
     // Transition remaining display from preprint observer back to Moonraker's time_left
     if (result.new_state == PrintState::Printing) {
-        format_time(lifecycle_.remaining_seconds(), remaining_buf_, sizeof(remaining_buf_));
-        lv_subject_copy_string(&remaining_subject_, remaining_buf_);
+        progress_text_.show_remaining(lifecycle_.remaining_seconds());
     }
 
     // Freeze display values on Complete (lifecycle already froze the state values)
@@ -2461,13 +2424,11 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
         }
 
         if (lifecycle_.total_layers() > 0) {
-            update_layer_text();
+            progress_text_.refresh_layer();
         }
 
-        format_time(lifecycle_.elapsed_seconds(), elapsed_buf_, sizeof(elapsed_buf_));
-        lv_subject_copy_string(&elapsed_subject_, elapsed_buf_);
-        format_time(0, remaining_buf_, sizeof(remaining_buf_));
-        lv_subject_copy_string(&remaining_subject_, remaining_buf_);
+        progress_text_.show_elapsed(lifecycle_.elapsed_seconds());
+        progress_text_.show_remaining(0);
 
         animate_print_complete();
 
@@ -2532,22 +2493,7 @@ void PrintStatusPanel::update_speed_flow_text() {
     if (!subjects_initialized_) {
         return;
     }
-    auto text = helix::tune::status_speed_flow_text(
-        DisplaySettingsManager::instance().get_speed_flow_physical_units(),
-        lifecycle_.speed_percent(), lifecycle_.flow_percent(),
-        lv_subject_get_int(printer_state_.get_live_velocity_subject()),
-        lv_subject_get_int(printer_state_.get_live_extruder_velocity_subject()),
-        printer_state_.get_discovery().filament_diameter_mm());
-    // The extruder velocity observer fires several times a second; only a
-    // changed string is worth a relabel.
-    if (text.speed != speed_buf_) {
-        std::snprintf(speed_buf_, sizeof(speed_buf_), "%s", text.speed.c_str());
-        lv_subject_copy_string(&speed_subject_, speed_buf_);
-    }
-    if (text.flow != flow_buf_) {
-        std::snprintf(flow_buf_, sizeof(flow_buf_), "%s", text.flow.c_str());
-        lv_subject_copy_string(&flow_subject_, flow_buf_);
-    }
+    progress_text_.refresh_speed_flow();
 }
 
 void PrintStatusPanel::on_gcode_z_offset_changed(int /* microns */) {
@@ -2574,7 +2520,7 @@ void PrintStatusPanel::on_print_layer_changed(int current_layer) {
         return;
     }
 
-    update_layer_text();
+    progress_text_.refresh_layer();
 
     // Update G-code viewer ghost layer if panel is active and viewer is visible
     if (is_active_ && gcode_viewer_ && !lv_obj_has_flag(gcode_viewer_, LV_OBJ_FLAG_HIDDEN) &&
@@ -2619,8 +2565,7 @@ void PrintStatusPanel::on_print_duration_changed(int seconds) {
     }
 
     // total_duration from Moonraker already includes prep time (wall-clock elapsed)
-    format_time(lifecycle_.elapsed_seconds(), elapsed_buf_, sizeof(elapsed_buf_));
-    lv_subject_copy_string(&elapsed_subject_, elapsed_buf_);
+    progress_text_.show_elapsed(lifecycle_.elapsed_seconds());
     spdlog::trace("[{}] Elapsed updated: {}s (wall-clock from Moonraker)", get_name(), seconds);
 }
 
@@ -2639,15 +2584,7 @@ void PrintStatusPanel::on_print_time_left_changed(int seconds) {
         return;
     }
 
-    format_time(lifecycle_.remaining_seconds(), remaining_buf_, sizeof(remaining_buf_));
-    lv_subject_copy_string(&remaining_subject_, remaining_buf_);
-
-    bool use_24h = DisplaySettingsManager::instance().get_time_format() == TimeFormat::HOUR_24;
-    auto eta_str = helix::format::eta_clock_time(lifecycle_.remaining_seconds(), 0, use_24h);
-    std::snprintf(eta_buf_, sizeof(eta_buf_), "%s", eta_str.c_str());
-    lv_subject_copy_string(&eta_subject_, eta_buf_);
-
-    spdlog::trace("[{}] Time remaining updated: {}s, ETA: {}", get_name(), seconds, eta_buf_);
+    progress_text_.show_time_left(lifecycle_.remaining_seconds());
 }
 
 void PrintStatusPanel::cancel_preparing_show_timer() {
@@ -2714,19 +2651,16 @@ void PrintStatusPanel::on_print_start_phase_changed(int phase) {
         if (progress_bar_) {
             lv_bar_set_value(progress_bar_, 0, LV_ANIM_OFF);
         }
-        std::snprintf(layer_text_buf_, sizeof(layer_text_buf_), " ");
-        lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
+        progress_text_.clear_layer();
 
         // Initialize elapsed display to 0m (preprint observer will update it)
-        format_time(0, elapsed_buf_, sizeof(elapsed_buf_));
-        lv_subject_copy_string(&elapsed_subject_, elapsed_buf_);
+        progress_text_.show_elapsed(0);
 
         // Show predicted total as initial remaining estimate (preprint observer refines it)
         int predicted = helix::PreprintPredictor::predicted_total_from_config();
         if (predicted > 0) {
             int total_remaining = lifecycle_.remaining_seconds() + predicted;
-            format_time(total_remaining, remaining_buf_, sizeof(remaining_buf_));
-            lv_subject_copy_string(&remaining_subject_, remaining_buf_);
+            progress_text_.show_remaining(total_remaining);
         }
     } else if (!preparing && state_changed) {
         // Preparation complete - lifecycle restored state from current job state
@@ -2799,8 +2733,7 @@ void PrintStatusPanel::on_preprint_remaining_changed(int seconds) {
 
     // Combine preprint prediction with slicer estimate for total remaining time
     int total_remaining = slicer_time + seconds;
-    format_time(total_remaining, remaining_buf_, sizeof(remaining_buf_));
-    lv_subject_copy_string(&remaining_subject_, remaining_buf_);
+    progress_text_.show_remaining(total_remaining);
     spdlog::trace("[{}] Preprint remaining: {}s preprint + {}s slicer = {}s", get_name(), seconds,
                   slicer_time, total_remaining);
 }
@@ -2818,8 +2751,7 @@ void PrintStatusPanel::on_preprint_elapsed_changed(int seconds) {
         return;
     }
 
-    format_time(lifecycle_.preprint_elapsed_seconds(), elapsed_buf_, sizeof(elapsed_buf_));
-    lv_subject_copy_string(&elapsed_subject_, elapsed_buf_);
+    progress_text_.show_elapsed(lifecycle_.preprint_elapsed_seconds());
 }
 
 void PrintStatusPanel::update_view_toggle_position(bool objects_visible) {

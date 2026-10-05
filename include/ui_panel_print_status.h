@@ -30,6 +30,7 @@ struct MemoryInfo;
 
 #include "filament_mapper.h" // helix::GcodeToolInfo
 #include "print_preview_controller.h"
+#include "print_progress_text.h"
 #include "print_status_layout_fitter.h"
 
 #include <functional>
@@ -341,19 +342,12 @@ class PrintStatusPanel : public OverlayBase {
 
     SubjectManager subjects_; ///< RAII manager for automatic subject cleanup
 
-    lv_subject_t layer_text_subject_{};
-    lv_subject_t filament_used_text_subject_{};
-    lv_subject_t elapsed_subject_{};
-    lv_subject_t remaining_subject_{};
-    lv_subject_t eta_subject_{};
     lv_subject_t nozzle_status_subject_{};        ///< duty text ("" = none)
     lv_subject_t bed_status_subject_{};           ///< duty text ("" = none)
     lv_subject_t chamber_status_subject_{};       ///< duty text ("" = none)
     lv_subject_t nozzle_status_state_subject_{};  ///< HeaterStatusState int
     lv_subject_t bed_status_state_subject_{};     ///< HeaterStatusState int
     lv_subject_t chamber_status_state_subject_{}; ///< HeaterStatusState int
-    lv_subject_t speed_subject_{};
-    lv_subject_t flow_subject_{};
     lv_subject_t
         view_toggle_icon_subject_{}; ///< MDI codepoint for btn_view_toggle_icon (cube/layers)
     lv_subject_t
@@ -433,16 +427,9 @@ class PrintStatusPanel : public OverlayBase {
     lv_subject_t print_controls_enabled_subject_{}; ///< 1 when lifecycle.is_active()
 
     // Subject storage buffers
-    char layer_text_buf_[80] = "Layer 0 / 0";
-    char filament_used_text_buf_[32] = "";
-    char elapsed_buf_[32] = "0h 00m";
-    char remaining_buf_[32] = "0h 00m";
-    char eta_buf_[32] = "";
     char nozzle_status_buf_[helix::ui::temperature::HEATER_STATUS_BUF_BYTES] = "Off";
     char bed_status_buf_[helix::ui::temperature::HEATER_STATUS_BUF_BYTES] = "Off";
     char chamber_status_buf_[helix::ui::temperature::HEATER_STATUS_BUF_BYTES] = "";
-    char speed_buf_[32] = "100%";
-    char flow_buf_[32] = "100%";
     char objects_text_buf_[32] = "";        ///< "X of Y obj" buffer
     char view_toggle_icon_buf_[8] = "";     ///< View toggle icon codepoint (cube/layers)
     char camera_button_label_buf_[16] = ""; ///< Short/long camera label per ui_breakpoint
@@ -468,6 +455,9 @@ class PrintStatusPanel : public OverlayBase {
 
     /// What the thumbnail and G-code viewer show for the running print.
     helix::ui::PrintPreviewController preview_;
+
+    /// The progress card's text subjects and their formatting.
+    helix::ui::PrintProgressText progress_text_;
 
     /// Measured layout: fan row fit, preview height cap, temperature mini-graph.
     helix::ui::PrintStatusLayoutFitter layout_fitter_;
@@ -543,12 +533,6 @@ class PrintStatusPanel : public OverlayBase {
     void update_fan_speed_display(const char* label_name, const char* icon_name, int speed);
     void refresh_fan_animations();
 
-    /// Render print_layer_text from the lifecycle's layer counters.
-    void update_layer_text();
-
-    /// Render print_filament_used_text from the current filament_used subject.
-    void update_filament_used_text();
-
     void update_all_displays();
     void update_heater_status_rows();
     void show_gcode_viewer(bool show);
@@ -571,8 +555,6 @@ class PrintStatusPanel : public OverlayBase {
     void animate_print_error();     ///< Error animation when print fails
     void show_exclude_map_view();   ///< Show overhead map view of print objects
     void hide_exclude_map_view();   ///< Destroy map view and restore thumbnail/gradient
-
-    static void format_time(int seconds, char* buf, size_t buf_size);
 
     //
     // === Instance Handlers ===
