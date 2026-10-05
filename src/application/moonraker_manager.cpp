@@ -595,10 +595,10 @@ void MoonrakerManager::present_event(const MoonrakerEvent& evt) {
         return;
 
     case helix::MoonrakerEventRoute::SuccessToast:
-        // Direct ToastManager call: every ui_notification_* severity writes a
-        // history row, and a restored connection is not history.
+        // Not ui_notification_*: every severity there writes a history row,
+        // and a restored connection is not history.
         spdlog::info("[MoonrakerManager] {}", evt.message);
-        ToastManager::instance().show(ToastSeverity::SUCCESS, text.c_str(), 3000);
+        helix::ui::notifications::show_transient_success(text.c_str(), 3000);
         return;
     }
 }
