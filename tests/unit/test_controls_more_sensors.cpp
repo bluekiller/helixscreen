@@ -1,8 +1,8 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The Controls temperature card's "N more sensors" row: the one live output of
-// what used to be a dynamic secondary-sensor list. The count is every enabled
+// The Controls temperature card's "N more sensors" row, its only sensor output.
+// The count is every enabled
 // sensor except the chamber one (which has its own row), and tapping the row
 // opens the sensors overlay.
 
