@@ -35,13 +35,15 @@ void AmsBackendNewfw::parse(const json& lane) {
     backend_cpp newfw 'void AmsBackendNewfw::parse() {}'
     backend_h newfw '
 class AmsBackendNewfw : public AmsBackend {
-    [[nodiscard]] bool printer_reports_spool_ids() const override {
-        return true;
-    }
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        t.printer_reports_spool_ids = true;
+        return t;
+    }();
 };'
     run python3 "$GATE" --root "$FIXTURE"
     [ "$status" -eq 1 ] || fail "expected exit 1, got $status: $output"
-    [[ "$output" == *"printer_reports_spool_ids() returns true"* ]] || fail "$output"
+    [[ "$output" == *"kTraits sets printer_reports_spool_ids"* ]] || fail "$output"
 }
 
 @test "passes a backend that reconciles beside the parse" {
