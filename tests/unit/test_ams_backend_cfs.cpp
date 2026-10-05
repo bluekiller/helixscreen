@@ -36,6 +36,7 @@
 #include "test_helpers/print_state_test_drivers.h"
 #include "test_helpers/registered_backend.h"
 #include "test_helpers/seeded_override.h"
+#include "ui/ams_drawing_utils.h"
 
 #include <algorithm>
 #include <atomic>
@@ -1282,6 +1283,42 @@ TEST_CASE("CFS disconnected unit handling", "[ams][cfs]") {
     SECTION("T2 is disconnected — not in units list") {
         for (const auto& unit : info.units) {
             REQUIRE(unit.name != "T2");
+        }
+    }
+}
+
+// Every CFS box feeds the printer's one extruder, so the overview draws one
+// toolhead and routes each box on the bus into it; an absent box routes nowhere.
+TEST_CASE("CFS boxes converge on one toolhead in the system path layout",
+          "[ams][cfs][tool_layout][ams_draw]") {
+    auto [boxes, gap] = GENERATE(std::pair{1, 0}, std::pair{2, 0}, std::pair{4, 0}, std::pair{2, 1},
+                                 std::pair{4, 2}, std::pair{4, 3});
+    INFO(boxes << " boxes, absent address " << gap);
+    json box = make_multi_unit_box(boxes);
+    if (gap > 0) {
+        box["T" + std::to_string(gap)]["state"] = "None";
+    }
+    const auto info = AmsBackendCfs::parse_box_status(box);
+    const auto layout = ams_draw::compute_system_tool_layout(info, nullptr);
+
+    CHECK(layout.total_physical_tools == 1);
+    REQUIRE(layout.units.size() == info.units.size());
+    int routed = 0;
+    for (size_t u = 0; u < info.units.size(); ++u) {
+        INFO("unit " << u);
+        CHECK(layout.units[u].tool_count == (info.units[u].absent ? 0 : 1));
+        if (!info.units[u].absent) {
+            CHECK(layout.units[u].first_physical_tool == 0);
+            ++routed;
+        }
+    }
+    CHECK(routed == boxes - (gap > 0 ? 1 : 0));
+    // The active-route highlight resolves every bay's tool to that toolhead.
+    for (const auto& unit : info.units) {
+        for (const auto& slot : unit.slots) {
+            if (slot.mapped_tool >= 0) {
+                CHECK(layout.virtual_to_physical.at(slot.mapped_tool) == 0);
+            }
         }
     }
 }
