@@ -449,6 +449,9 @@ void apply_budget_forced_2d(gcode_viewer_state_t* st, lv_obj_t* obj);
 /// Forget what the stall watchdog has observed.
 void gcode_viewer_watchdog_restart(gcode_viewer_state_t* st);
 
+/// Register the touch handlers (press, drag, release, two-finger gesture) on a viewer.
+void install_input_handlers(lv_obj_t* obj);
+
 #ifdef ENABLE_3D_RENDERER
 /// Build 3D geometry for the file already loaded, on the viewer's build thread.
 void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj);
