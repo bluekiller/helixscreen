@@ -11,8 +11,14 @@
 namespace helix::ams_state_detail {
 
 /// Everything AmsState holds outside the registry, RunoutGrace and its atomics
-/// is main-thread state with no lock; an off-main caller is a bug.
-void assert_main_thread();
+/// is main-thread state with no lock; an off-main caller is a bug. Under strict
+/// UI checks (unit tests, --test) it aborts. Otherwise the first hit logs at
+/// error and files an "ams_off_main" anomaly, and the call carries on: a
+/// shipped printer keeps running on a race rather than crashing on one.
+void assert_main_thread(const char* caller = __builtin_FUNCTION());
+
+/// The off-main report itself, for assert_main_thread() and its tests.
+void report_off_main(const char* caller);
 
 /// True once the singleton is being destroyed. Work queued to the main thread
 /// checks it before touching AmsState.

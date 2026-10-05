@@ -28,6 +28,7 @@
 #include "filament_database.h"
 #include "filament_display_name.h"
 #include "filament_sensor_manager.h"
+#include "helix_lvgl_anomaly.h"
 #include "helix_psram_attr.h"
 #include "i_moonraker_api.h"
 #include "lane_source_store.h"
@@ -39,13 +40,14 @@
 #include "spoolman_manager.h"
 #include "text_io.h"
 #include "tool_state.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <atomic>
-#include <cassert>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <optional>
 #include <unordered_map>
@@ -62,8 +64,25 @@ namespace {
 std::atomic<bool> s_shutdown_flag{false};
 } // namespace
 
-void assert_main_thread() {
-    assert(ui::is_main_thread());
+void assert_main_thread(const char* caller) {
+    if (!ui::is_main_thread()) {
+        report_off_main(caller);
+    }
+}
+
+void report_off_main(const char* caller) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "[AMS State] %s called off the main thread", caller);
+    if (ui::strict_ui_checks()) {
+        ui::report_ui_contract_breach(msg);
+    }
+    // Once per process: an off-main caller usually repeats on every frame.
+    static std::atomic<bool> reported{false};
+    if (reported.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    spdlog::error("{}", msg);
+    helix_lvgl_anomaly("ams_off_main", msg);
 }
 
 bool shutting_down() {

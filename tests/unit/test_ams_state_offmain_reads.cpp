@@ -9,10 +9,13 @@
  * Plain builds rarely fail these; they exist to go red under ASAN/TSAN.
  */
 
+#include "../../src/printer/ams_state_internal.h"
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/log_capture.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "ams_types.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <atomic>
 #include <thread>
@@ -124,4 +127,22 @@ TEST_CASE_METHOD(OffMainFixture, "AmsState off-main queries survive action and b
     ams.clear_backends();
     CHECK_FALSE(ams.primary_type().has_value());
     CHECK_FALSE(ams.was_slot_recently_unloaded(1));
+}
+
+// Off the test build, an off-main call into main-thread state must not take
+// the printer down: it reports once and carries on.
+TEST_CASE_METHOD(OffMainFixture,
+                 "lenient checks report an off-main AmsState call instead of aborting",
+                 "[ams][threading]") {
+    helix::ui::set_strict_ui_checks(false);
+    {
+        ExclusiveLogCapture log;
+        for (int i = 0; i < 2; ++i) {
+            std::thread([] { ams_state_detail::assert_main_thread("offmain_probe"); }).join();
+        }
+        ams_state_detail::assert_main_thread("onmain_probe");
+        CHECK(log.count_containing("offmain_probe called off the main thread") == 1);
+        CHECK(log.count_containing("onmain_probe") == 0);
+    }
+    helix::ui::set_strict_ui_checks(true);
 }
