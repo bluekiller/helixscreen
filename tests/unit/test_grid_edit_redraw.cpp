@@ -122,7 +122,7 @@ TEST_CASE_METHOD(XMLTestFixture,
 }
 
 TEST_CASE_METHOD(XMLTestFixture,
-                 "GridEditMode: a drag step moves the widget and its chrome without a layout pass",
+                 "GridEditMode: a dragged widget moves on the top layer and settles back",
                  "[grid_edit][grid_edit_redraw]") {
     GridEditScene scene(test_screen(), "test_grid_edit_redraw_drag");
     GridEditMode em;
@@ -130,33 +130,89 @@ TEST_CASE_METHOD(XMLTestFixture,
     em.select_widget(scene.widget);
     lv_obj_t* overlay = GridEditModeTestAccess::selection_overlay(em);
     REQUIRE(overlay != nullptr);
-    lv_obj_add_flag(scene.widget, LV_OBJ_FLAG_FLOATING);
     lv_obj_update_layout(scene.container);
-
     lv_area_t before;
     lv_obj_get_coords(scene.widget, &before);
+    const int32_t index_before = lv_obj_get_index(scene.widget);
+
+    GridEditModeTestAccess::lift_dragged_widget(em);
+    lv_obj_t* layer = lv_display_get_layer_top(lv_obj_get_display(scene.container));
+    REQUIRE(lv_obj_get_parent(scene.widget) == layer);
+    CHECK(lv_obj_get_parent(overlay) == layer);
+    flush_invalidation();
+    lv_obj_t* screen = lv_obj_get_screen(scene.container);
+    REQUIRE_FALSE(screen->scr_layout_inv);
+
+    // Each pointer move runs this. Inside the page it dirties the page's grid,
+    // and the next refresh lays out every object on the screen for it.
     const lv_point_t to = {before.x1 + 37, before.y1 + 21};
     GridEditModeTestAccess::place_dragged_widget(em, to);
-
-    // Each pointer move runs this, and a forced layout pass there costs the
-    // whole screen's layout per move; the next refresh lays it out once. Until
-    // then the widget's coordinates are the ones it had.
-    lv_area_t unlaid;
-    lv_obj_get_coords(scene.widget, &unlaid);
-    CHECK(unlaid.x1 == before.x1);
-    CHECK(lv_obj_get_screen(scene.container)->scr_layout_inv);
-
-    lv_obj_update_layout(scene.container);
+    CHECK_FALSE(screen->scr_layout_inv);
+    lv_obj_update_layout(layer);
     lv_area_t widget_area;
     lv_area_t overlay_area;
     lv_obj_get_coords(scene.widget, &widget_area);
     lv_obj_get_coords(overlay, &overlay_area);
     CHECK(widget_area.x1 == to.x);
     CHECK(widget_area.y1 == to.y);
+    CHECK(lv_area_get_width(&widget_area) == lv_area_get_width(&before));
+    CHECK(lv_area_get_height(&widget_area) == lv_area_get_height(&before));
     CHECK(overlay_area.x1 == widget_area.x1);
     CHECK(overlay_area.y1 == widget_area.y1);
 
-    lv_obj_remove_flag(scene.widget, LV_OBJ_FLAG_FLOATING);
+    // Settling returns it to the page, below the shield, in its cell.
+    GridEditModeTestAccess::settle_dragged_widget(em);
+    REQUIRE(lv_obj_get_parent(scene.widget) == scene.container);
+    lv_obj_t* shield = GridEditModeTestAccess::shield(em);
+    REQUIRE(shield != nullptr);
+    CHECK(lv_obj_get_index(scene.widget) < lv_obj_get_index(shield));
+    CHECK(lv_obj_get_index(scene.widget) == index_before);
+    CHECK_FALSE(lv_obj_has_flag(scene.widget, LV_OBJ_FLAG_FLOATING));
+    lv_obj_update_layout(scene.container);
+    lv_area_t after;
+    lv_obj_get_coords(scene.widget, &after);
+    CHECK(after.x1 == before.x1);
+    CHECK(after.y1 == before.y1);
+    CHECK(lv_area_get_width(&after) == lv_area_get_width(&before));
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: leaving edit mode mid-drag puts the widget back in its page",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_drag_exit");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    em.select_widget(scene.widget);
+    GridEditModeTestAccess::lift_dragged_widget(em);
+    REQUIRE(lv_obj_get_parent(scene.widget) != scene.container);
+
+    em.exit();
+    CHECK(lv_obj_get_parent(scene.widget) == scene.container);
+    CHECK_FALSE(lv_obj_has_flag(scene.widget, LV_OBJ_FLAG_FLOATING));
+
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: a rebuild mid-drag takes the lifted widget off the top layer",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_drag_forget");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    em.select_widget(scene.widget);
+    GridEditModeTestAccess::lift_dragged_widget(em);
+    lv_obj_t* lifted = scene.widget;
+
+    // The owner rebuilds its pages and forgets them first.
+    em.forget_scope();
+    process_lvgl(50);
+    CHECK_FALSE(lv_obj_is_valid(lifted));
+
     em.exit();
     process_lvgl(50);
     lv_obj_delete(scene.container);

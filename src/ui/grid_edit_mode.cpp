@@ -294,18 +294,13 @@ void GridEditMode::attach_to_current_page(bool sync_config) {
     // and the chrome buttons' CLICKABLE too.
     disable_widget_clicks_recursive(container_);
 
-    // A carried drag's widget goes in below the shield, as it sat on its own
-    // page, so the shield stays the press target over it.
-    if (selected_ && lv_obj_get_parent(selected_) != container_) {
-        lv_obj_set_parent(selected_, container_);
-    }
-
     // The event shield and its lattice
     ensure_shield();
 
     // Carried chrome goes in above the shield, where its buttons take presses
-    // before the shield does (see select_widget()).
-    for (lv_obj_t* chrome : {selection_overlay_, remove_btn_, configure_btn_}) {
+    // before the shield does (see select_widget()). A carried drag's widget
+    // and its outline stay on the top layer until the drop.
+    for (lv_obj_t* chrome : {lifted_ ? nullptr : selection_overlay_, remove_btn_, configure_btn_}) {
         if (chrome && lv_obj_get_parent(chrome) != container_) {
             lv_obj_set_parent(chrome, container_);
         }
@@ -344,10 +339,10 @@ void GridEditMode::switch_page(lv_obj_t* container, int page_index) {
     }
     const bool carry = dragging_;
     if (carry) {
-        // The dragged widget is FLOATING (drag positioning ignores layout) and
-        // the viewport-aligned pages share coordinates, so moving it keeps its
-        // screen position. The origin page's preview goes; the landing page
-        // draws its own once the session is scoped there.
+        // The dragged widget is on the top layer and stays under the pointer;
+        // the drop puts it into the page the session is scoped to then. The
+        // origin page's preview goes; the landing page draws its own once the
+        // session is scoped there.
         destroy_snap_preview();
     } else {
         // Outside a drag no widget floats: an armed press's widget is still
@@ -393,10 +388,8 @@ void GridEditMode::exit() {
 
     // The owner ends a live gesture before exiting
     // (HomePanel::exit_grid_edit_mode), so what is left of one here is its
-    // state and the dragged widget's float.
-    if (dragging_ && selected_) {
-        lv_obj_remove_flag(selected_, LV_OBJ_FLAG_FLOATING);
-    }
+    // state and a dragged widget still on the top layer.
+    settle_dragged_widget();
     clear_gesture_state();
     // Before config_ is nulled below: the snap animation's completion callback
     // dereferences it unconditionally.
@@ -1658,12 +1651,9 @@ void GridEditMode::handle_drag_start(lv_event_t* /*e*/) {
     drag_offset_.x = point.x - sel_area.x1;
     drag_offset_.y = point.y - sel_area.y1;
 
-    // Keep selection chrome visible during drag — it moves with the widget
-    // in handle_drag_move(). No ghost outline at the origin needed.
-
-    // Float the widget above the grid, out of the layout, at the screen
-    // position it was laid out at.
-    lv_obj_add_flag(selected_, LV_OBJ_FLAG_FLOATING);
+    // The widget, and the selection outline that moves with it, leave the page
+    // for the top layer at the screen position they were laid out at.
+    lift_dragged_widget();
     drag_widget_pos_ = {sel_area.x1, sel_area.y1};
     place_dragged_widget(drag_widget_pos_);
 
@@ -1736,21 +1726,76 @@ void GridEditMode::handle_drag_move(lv_event_t* /*e*/) {
 }
 
 void GridEditMode::place_dragged_widget(lv_point_t widget_pos) {
-    // LVGL positions a child from its parent's content box, inside the
-    // container's padding, and widget_pos is the screen position the snap
-    // target and the drop measure. Relative to the live container, so the
-    // widget stays under the finger while its page slides.
-    lv_area_t content;
-    lv_obj_get_content_coords(container_, &content);
-    const int32_t x = widget_pos.x - content.x1;
-    const int32_t y = widget_pos.y - content.y1;
-    lv_obj_set_pos(selected_, x, y);
+    // On the top layer, whose origin is the screen's, widget_pos is the
+    // position itself: the screen position the snap target and the drop
+    // measure, so the widget stays under the finger while a page slides.
+    lv_obj_set_pos(selected_, widget_pos.x, widget_pos.y);
+    if (selection_overlay_ && lifted_) {
+        lv_obj_set_pos(selection_overlay_, widget_pos.x, widget_pos.y);
+    }
+}
 
-    // The selection chrome is a floating sibling positioned the same way, so it
-    // takes the same position. Reading the widget's coords back instead would
-    // need a layout pass over the whole screen on every pointer move.
+void GridEditMode::lift_dragged_widget() {
+    if (!selected_ || lifted_) {
+        return;
+    }
+    // A child of the page dirties the page's grid each time it moves, and the
+    // next refresh lays out the whole screen for it; on the top layer it lays
+    // out only itself. Its laid-out size is pinned, since outside the grid
+    // nothing stretches it to its cell.
+    lv_area_t area;
+    lv_obj_get_coords(selected_, &area);
+    lifted_had_w_ = lv_obj_get_local_style_prop(selected_, LV_STYLE_WIDTH, &lifted_w_,
+                                                LV_PART_MAIN) == LV_STYLE_RES_FOUND;
+    lifted_had_h_ = lv_obj_get_local_style_prop(selected_, LV_STYLE_HEIGHT, &lifted_h_,
+                                                LV_PART_MAIN) == LV_STYLE_RES_FOUND;
+    lv_obj_t* layer = lv_display_get_layer_top(lv_obj_get_display(selected_));
+    lv_obj_add_flag(selected_, LV_OBJ_FLAG_FLOATING);
+    lv_obj_set_parent(selected_, layer);
+    lv_obj_set_size(selected_, lv_area_get_width(&area), lv_area_get_height(&area));
     if (selection_overlay_) {
-        lv_obj_set_pos(selection_overlay_, x, y);
+        lv_obj_set_parent(selection_overlay_, layer);
+    }
+    lifted_ = true;
+}
+
+void GridEditMode::settle_dragged_widget() {
+    if (!lifted_) {
+        return;
+    }
+    lifted_ = false;
+    if (!selected_) {
+        return;
+    }
+    // Back into the scoped page, just below the shield as it sat in its own
+    // page, so the shield stays the press target over it; its grid cell, which
+    // never changed, lays it out. The outline goes back with it until the
+    // selection redraws it.
+    lv_obj_t* page = container_;
+    if (page) {
+        lv_obj_set_parent(selected_, page);
+        if (shield_ && lv_obj_get_parent(shield_) == page) {
+            lv_obj_move_to_index(selected_, static_cast<int32_t>(lv_obj_get_index(shield_)));
+        }
+        if (selection_overlay_) {
+            lv_obj_set_parent(selection_overlay_, page);
+        }
+    }
+    if (lifted_had_w_) {
+        lv_obj_set_local_style_prop(selected_, LV_STYLE_WIDTH, lifted_w_, LV_PART_MAIN);
+    } else {
+        lv_obj_remove_local_style_prop(selected_, LV_STYLE_WIDTH, LV_PART_MAIN);
+    }
+    if (lifted_had_h_) {
+        lv_obj_set_local_style_prop(selected_, LV_STYLE_HEIGHT, lifted_h_, LV_PART_MAIN);
+    } else {
+        lv_obj_remove_local_style_prop(selected_, LV_STYLE_HEIGHT, LV_PART_MAIN);
+    }
+    lv_obj_remove_flag(selected_, LV_OBJ_FLAG_FLOATING);
+    if (!page) {
+        // No page left to take it back: the one it came from was deleted.
+        helix::ui::safe_delete_deferred(selection_overlay_);
+        helix::ui::safe_delete_deferred(selected_);
     }
 }
 
@@ -2429,10 +2474,7 @@ void GridEditMode::destroy_snap_preview() {
 }
 
 void GridEditMode::tear_down_gesture() {
-    // Remove floating flag from the widget (only for drag, not resize)
-    if (dragging_ && selected_) {
-        lv_obj_remove_flag(selected_, LV_OBJ_FLAG_FLOATING);
-    }
+    settle_dragged_widget();
     if (dragging_ || resizing_) {
         destroy_snap_preview();
         delete_outline(resize_outline_);
@@ -2463,6 +2505,13 @@ void GridEditMode::clear_gesture_state() {
 }
 
 void GridEditMode::forget_container_children() {
+    if (lifted_) {
+        // A dragged widget on the top layer belongs to a page this rebuild
+        // replaces, and the top layer would keep it on screen.
+        lifted_ = false;
+        helix::ui::safe_delete_deferred(selection_overlay_);
+        helix::ui::safe_delete_deferred(selected_);
+    }
     selected_ = nullptr;
     selection_overlay_ = nullptr;
     remove_btn_ = nullptr;

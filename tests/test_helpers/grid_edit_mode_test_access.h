@@ -155,6 +155,15 @@ struct GridEditModeTestAccess {
         return em.snap_preview_;
     }
 
+    /// Lift the selected widget for a drag, and settle it back, as a drag's
+    /// start and end do.
+    static void lift_dragged_widget(GridEditMode& em) {
+        em.lift_dragged_widget();
+    }
+    static void settle_dragged_widget(GridEditMode& em) {
+        em.settle_dragged_widget();
+    }
+
     /// Move the dragged widget and its chrome the way a drag step does.
     static void place_dragged_widget(GridEditMode& em, lv_point_t widget_pos) {
         em.place_dragged_widget(widget_pos);

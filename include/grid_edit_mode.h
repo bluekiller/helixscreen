@@ -449,8 +449,15 @@ class GridEditMode {
     void handle_drag_start(lv_event_t* e);
     void handle_drag_move(lv_event_t* e);
     /// Put the dragged widget, and its selection outline, at screen point
-    /// @p widget_pos, relative to the scoped container where it is now.
+    /// @p widget_pos on the top layer.
     void place_dragged_widget(lv_point_t widget_pos);
+    /// Move the selected widget and its selection outline from the page to the
+    /// top layer at the screen position they hold, for a drag.
+    void lift_dragged_widget();
+    /// Put a lifted widget back into the scoped page, in its grid cell below the
+    /// shield, as it was before the lift; with no page to return to, delete it.
+    /// Nothing when no widget is lifted. Every end of a drag runs this.
+    void settle_dragged_widget();
     /// Resolve the release with helix::resolve_drop(), commit it, prune the
     /// page it emptied, and save once.
     void handle_drag_end(lv_event_t* e);
@@ -643,6 +650,14 @@ class GridEditMode {
     int drag_orig_colspan_ = 1;
     int drag_orig_rowspan_ = 1;
     lv_point_t drag_offset_ = {0, 0};
+    /// The selected widget is on the top layer for a drag
+    /// (lift_dragged_widget()), and the local width and height it had before
+    /// the lift pinned its size, restored when it settles.
+    bool lifted_ = false;
+    bool lifted_had_w_ = false;
+    bool lifted_had_h_ = false;
+    lv_style_value_t lifted_w_{};
+    lv_style_value_t lifted_h_{};
     int snap_preview_col_ = -1;
     int snap_preview_row_ = -1;
     /// The cell, span and validity snap_preview_ is drawn for: {col, row,

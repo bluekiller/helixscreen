@@ -620,6 +620,12 @@ class EditHomeFixture : public LVGLTestFixture {
 
     /// The next-page slot's page container, or nullptr at the page cap. Its tile
     /// sits at index page_count().
+    /// Where a dragged widget and its selection outline live while the drag
+    /// lasts: the top layer, outside every page's grid.
+    lv_obj_t* drag_layer() {
+        return lv_display_get_layer_top(lv_obj_get_display(root_));
+    }
+
     lv_obj_t* slot_container() {
         return HomePanelTestAccess::next_page_container(panel());
     }
@@ -894,11 +900,13 @@ class EditHomeFixture : public LVGLTestFixture {
         // Before anything reads it: a shield the session outlived is freed.
         REQUIRE(lv_obj_is_valid(shield));
         CHECK(lv_obj_get_parent(shield) == container);
+        lv_obj_t* selection_home =
+            GridEditModeTestAccess::dragging(grid()) ? drag_layer() : container;
         for (lv_obj_t* obj :
              {grid().selected_widget(), GridEditModeTestAccess::selection_overlay(grid())}) {
             if (obj) {
                 REQUIRE(lv_obj_is_valid(obj));
-                CHECK(lv_obj_get_parent(obj) == container);
+                CHECK(lv_obj_get_parent(obj) == selection_home);
             }
         }
         if (slot_container()) {
@@ -1492,7 +1500,7 @@ TEST_CASE_METHOD(
     enter_edit_mode();
 
     const SlotDrag drag = drag_onto_slot(widget);
-    REQUIRE(lv_obj_get_parent(widget) == slot_container());
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
 
     lv_indev_reset(nullptr, nullptr);
     CHECK_FALSE(GridEditModeTestAccess::dragging(grid()));
@@ -2454,7 +2462,7 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(drag.session_flips == 1);
     CHECK(current_page() == 1);
     CHECK(config().page_count() == 1); // nothing is created mid-drag
-    CHECK(lv_obj_get_parent(widget) == slot_container());
+    CHECK(lv_obj_get_parent(widget) == drag_layer());
     CHECK(slot_in_reach());
     check_session_on_screen();
 
@@ -2589,7 +2597,7 @@ TEST_CASE_METHOD(EditHomeFixture,
     enter_edit_mode();
 
     const SlotDrag drag = drag_onto_slot(widget);
-    REQUIRE(lv_obj_get_parent(widget) == slot_container());
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
 
     SECTION("Done") {
         panel().exit_grid_edit_mode();
@@ -3112,8 +3120,8 @@ TEST_CASE_METHOD(EditHomeFixture,
     REQUIRE(GridEditModeTestAccess::dragging(grid()));
     check_session_on_screen();
 
-    CHECK(lv_obj_get_parent(widget) == page(1));
-    CHECK(lv_obj_get_parent(overlay) == page(1));
+    CHECK(lv_obj_get_parent(widget) == drag_layer());
+    CHECK(lv_obj_get_parent(overlay) == drag_layer());
     CHECK(lv_obj_get_parent(remove_btn) == page(1));
     CHECK(lv_obj_get_parent(configure_btn) == page(1));
     CHECK(is_clickable(remove_btn));
@@ -3179,17 +3187,25 @@ TEST_CASE_METHOD(EditHomeFixture,
     REQUIRE(measured.y == at_rest.y1 + (carried.y - start.y));
     check_drawn_where_measured("after a drag move");
 
-    // A page switch carries the drag into another page's container, a page to
-    // the right with the carousel unmoved, and places the widget there too.
+    // A page switch carries the drag onto another page, a page to the right
+    // with the carousel unmoved, and the widget stays where the pointer holds it.
     grid().switch_page(page(1), 1);
-    REQUIRE(lv_obj_get_parent(widget) == page(1));
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
     check_drawn_where_measured("carried onto page 1");
     grid().switch_page(page(0), 0);
-    REQUIRE(lv_obj_get_parent(widget) == page(0));
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
     check_drawn_where_measured("carried back onto page 0");
 
+    // The drop puts it back into the page the session is scoped to, at its
+    // laid-out size.
     indev.release(carried.x, carried.y);
     settle();
+    REQUIRE(lv_obj_is_valid(widget));
+    CHECK(lv_obj_get_parent(widget) == page(0));
+    lv_obj_update_layout(widget);
+    const lv_area_t landed = area_of(widget);
+    CHECK(lv_area_get_width(&landed) == lv_area_get_width(&at_rest));
+    CHECK(lv_area_get_height(&landed) == lv_area_get_height(&at_rest));
 }
 
 TEST_CASE_METHOD(EditHomeFixture,
@@ -3217,7 +3233,7 @@ TEST_CASE_METHOD(EditHomeFixture,
         waited += STEP_MS;
     }
     REQUIRE(grid().page_index() == 1);
-    REQUIRE(lv_obj_get_parent(widget) == page(1));
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
     REQUIRE(lv_anim_count_running() > 0); // the landing page is still sliding in
 
     // Before the next read the widget is where the last read put it, give or
