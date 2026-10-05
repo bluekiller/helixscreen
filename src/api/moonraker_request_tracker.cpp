@@ -6,7 +6,6 @@
 #include "hv/WebSocketClient.h"
 #include "json_utils.h"
 #include "rpc_error_correlation.h"
-#include "translation_loader.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -231,9 +230,7 @@ bool MoonrakerRequestTracker::route_response(const json& msg,
             spdlog::error("[Request Tracker] Request {} failed: {}", method_name, error.message);
 
             // Emit RPC error event only when no caller will surface it
-            emit_event(MoonrakerEvent::translatable(
-                MoonrakerEventType::RPC_ERROR, TR_NOOP("Printer command '{}' failed: {}"),
-                {method_name, error.message}, true, method_name));
+            emit_event(moonraker_event::rpc_failed(method_name, error.message));
         } else if (suppress_toast) {
             spdlog::debug("[Request Tracker] Request {} failed during shutdown (suppressed): {}",
                           method_name, error.message);
@@ -440,10 +437,7 @@ void MoonrakerRequestTracker::check_timeouts(helix::MoonrakerEventCallback emit_
         // into silent mode (e.g. EXCLUDE_OBJECT, which can legitimately sit queued for
         // minutes during pre-print heating) handle their own error UX via the error callback.
         if (!info.silent) {
-            emit_event(MoonrakerEvent::translatable(
-                MoonrakerEventType::REQUEST_TIMEOUT,
-                TR_NOOP("Printer command '{}' timed out after {}ms"),
-                {info.method_name, std::to_string(info.timeout_ms)}, false, info.method_name));
+            emit_event(moonraker_event::request_timed_out(info.method_name, info.timeout_ms));
         }
 
         if (info.error_callback) {

@@ -123,10 +123,7 @@ void MoonrakerClient::start_health_timer() {
                 spdlog::error("[Moonraker Client] Reconnection stalled for {}ms, giving up",
                               elapsed);
                 set_connection_state(ConnectionState::FAILED);
-                emit_event(MoonrakerEvent::translatable(
-                    MoonrakerEventType::CONNECTION_FAILED,
-                    TR_NOOP("Unable to reach printer. Check power and network connection."), {},
-                    true));
+                emit_event(moonraker_event::reconnect_stalled());
             }
         }
     });
@@ -525,8 +522,7 @@ void MoonrakerClient::on_ws_open() {
     // Check if this is a reconnection (was_connected_ is true from previous session)
     // Emit RECONNECTED event BEFORE updating was_connected_
     if (was_connected_.load()) {
-        emit_event(MoonrakerEvent::translatable(MoonrakerEventType::RECONNECTED,
-                                                TR_NOOP("Connection restored"), {}, false));
+        emit_event(moonraker_event::reconnected());
     }
 
     was_connected_ = true;
@@ -814,10 +810,7 @@ void MoonrakerClient::on_ws_close() {
             if (!suppressed) {
                 // Emit event with rate limiting to prevent spam during reconnect loop
                 if (!g_already_notified_disconnect.load()) {
-                    emit_event(MoonrakerEvent::translatable(
-                        MoonrakerEventType::CONNECTION_LOST,
-                        TR_NOOP("Connection to printer lost - attempting to reconnect..."), {},
-                        false));
+                    emit_event(moonraker_event::connection_lost_reconnecting());
                     g_already_notified_disconnect.store(true);
                 }
 

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "translation_loader.h"
+
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -70,6 +73,49 @@ struct MoonrakerEvent {
         return evt;
     }
 };
+
+/// Events every Moonraker client emits for the same condition, so the desktop and
+/// ESP32 clients present identical, translatable text.
+namespace helix::moonraker_event {
+
+inline MoonrakerEvent reconnected() {
+    return MoonrakerEvent::translatable(MoonrakerEventType::RECONNECTED,
+                                        TR_NOOP("Connection restored"), {}, false);
+}
+
+inline MoonrakerEvent connection_lost_reconnecting() {
+    return MoonrakerEvent::translatable(
+        MoonrakerEventType::CONNECTION_LOST,
+        TR_NOOP("Connection to printer lost - attempting to reconnect..."), {}, false);
+}
+
+/// Reconnection has been stalled past the client's limit.
+inline MoonrakerEvent reconnect_stalled() {
+    return MoonrakerEvent::translatable(
+        MoonrakerEventType::CONNECTION_FAILED,
+        TR_NOOP("Unable to reach printer. Check power and network connection."), {}, true);
+}
+
+inline MoonrakerEvent rpc_failed(const std::string& method, const std::string& error) {
+    return MoonrakerEvent::translatable(MoonrakerEventType::RPC_ERROR,
+                                        TR_NOOP("Printer command '{}' failed: {}"), {method, error},
+                                        true, method);
+}
+
+inline MoonrakerEvent request_timed_out(const std::string& method, uint32_t timeout_ms) {
+    return MoonrakerEvent::translatable(MoonrakerEventType::REQUEST_TIMEOUT,
+                                        TR_NOOP("Printer command '{}' timed out after {}ms"),
+                                        {method, std::to_string(timeout_ms)}, false, method);
+}
+
+/// A warning, not an error: discovery still completes without the subscription.
+inline MoonrakerEvent subscribe_failed(const std::string& error) {
+    return MoonrakerEvent::translatable(MoonrakerEventType::DISCOVERY_FAILED,
+                                        TR_NOOP("Failed to subscribe to printer updates: {}"),
+                                        {error}, false);
+}
+
+} // namespace helix::moonraker_event
 
 namespace helix {
 /**
