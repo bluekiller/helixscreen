@@ -552,7 +552,7 @@ PrinterSnapshot DebugBundleCollector::snapshot_printer_state() {
         auto& ps = get_printer_state();
 
         // Copy, do not bind: get_printer_type() returns a reference to a member
-        // that set_printer_type() reassigns without a mutex.
+        // that a printer-type change reassigns without a mutex.
         snap.model = ps.get_printer_type();
 
         // The raw string, not the display subject: the subject localizes

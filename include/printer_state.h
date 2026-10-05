@@ -321,9 +321,9 @@ class PrinterState {
     lv_subject_t* get_heater_power_subject(helix::HeaterType type) {
         switch (type) {
         case helix::HeaterType::Bed:
-            return get_bed_power_subject();
+            return temperature_state_.get_bed_power_subject();
         case helix::HeaterType::Chamber:
-            return get_chamber_power_subject();
+            return temperature_state_.get_chamber_power_subject();
         case helix::HeaterType::Nozzle:
         default:
             return get_extruder_power_subject();
@@ -339,12 +339,6 @@ class PrinterState {
     /// extruder's mirror.
     lv_subject_t* get_extruder_power_subject(const std::string& name, SubjectLifetime& lifetime) {
         return temperature_state_.get_extruder_power_subject(name, lifetime);
-    }
-    lv_subject_t* get_bed_power_subject() {
-        return temperature_state_.get_bed_power_subject();
-    }
-    lv_subject_t* get_chamber_power_subject() {
-        return temperature_state_.get_chamber_power_subject();
     }
 
     // Multi-extruder discovery
@@ -433,9 +427,6 @@ class PrinterState {
     }
     lv_subject_t* get_chamber_target_subject(SubjectLifetime& lifetime) {
         return temperature_state_.get_chamber_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_fan_target_subject() {
-        return temperature_state_.get_chamber_fan_target_subject();
     }
     lv_subject_t* get_chamber_fan_target_subject(SubjectLifetime& lifetime) {
         return temperature_state_.get_chamber_fan_target_subject(lifetime);
@@ -832,11 +823,6 @@ class PrinterState {
         return print_domain_.is_plr_resume_macro_present();
     }
 
-    /// Set from the discovery snapshot; main-thread only.
-    void set_plr_resume_macro_present(bool capable) {
-        print_domain_.set_plr_resume_macro_present(capable);
-    }
-
     lv_subject_t* get_plr_interrupted_flag_subject() {
         return print_domain_.get_plr_interrupted_flag_subject();
     }
@@ -1012,9 +998,6 @@ class PrinterState {
     [[nodiscard]] bool has_preparing_job() const {
         return print_domain_.has_preparing_job();
     }
-    [[nodiscard]] const PrintJobRef& preparing_job() const {
-        return print_domain_.preparing_job();
-    }
     lv_subject_t* get_preparing_epoch_subject() {
         return print_domain_.get_preparing_epoch_subject();
     }
@@ -1039,9 +1022,6 @@ class PrinterState {
     /// PrinterPrintState::get_machine_motion_blocked_subject().
     lv_subject_t* get_machine_motion_blocked_subject() {
         return print_domain_.get_machine_motion_blocked_subject();
-    }
-    lv_subject_t* get_spool_latch_subject() {
-        return print_domain_.get_spool_latch_subject();
     }
     void set_spool_latch(bool on, std::vector<std::string> extra_tokens = {}) {
         print_domain_.set_spool_latch(on, std::move(extra_tokens));
@@ -1075,16 +1055,6 @@ class PrinterState {
      */
     lv_subject_t* get_print_start_progress_subject() {
         return print_domain_.get_print_start_progress_subject();
-    }
-
-    /**
-     * @brief Get predicted pre-print time remaining subject for UI binding
-     *
-     * String subject with formatted remaining time (e.g., "~2 min left").
-     * Empty when no prediction is available.
-     */
-    lv_subject_t* get_print_start_time_left_subject() {
-        return print_domain_.get_print_start_time_left_subject();
     }
 
     /**
@@ -1487,11 +1457,6 @@ class PrinterState {
         return network_state_.get_nav_buttons_enabled_subject();
     } // 1=enabled (connected AND klippy ready), 0=disabled
 
-    // Remote-screen verdict - delegated to PrinterNetworkState
-    lv_subject_t* get_moonraker_is_remote_subject() {
-        return network_state_.get_moonraker_is_remote_subject();
-    } // 1=connected Moonraker is not this host, 0=local/unknown
-
     /**
      * @brief Get excluded objects version subject
      *
@@ -1546,15 +1511,6 @@ class PrinterState {
      */
     lv_subject_t* get_defined_objects_version_subject() {
         return excluded_objects_state_.get_defined_objects_version_subject();
-    }
-
-    /**
-     * @brief Check if any objects are defined for exclude_object
-     *
-     * @return true if the print has defined objects available for exclusion
-     */
-    bool has_exclude_objects() const {
-        return excluded_objects_state_.has_objects();
     }
 
     /**
@@ -1743,13 +1699,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Get OS version subject for XML binding
-     */
-    lv_subject_t* get_os_version_subject() {
-        return versions_state_.get_os_version_subject();
-    }
-
-    /**
      * @brief Get the capability overrides for external access
      *
      * Allows other components to check effective capability availability
@@ -1760,16 +1709,6 @@ class PrinterState {
     [[nodiscard]] const CapabilityOverrides& get_capability_overrides() const {
         return capability_overrides_;
     }
-
-    /**
-     * @brief Re-read the user capability overrides from the ACTIVE printer's config
-     *
-     * capability_overrides_ is populated from `Config::df() + "capability_overrides/…"` in
-     * the constructor, and PrinterState is a process-lifetime singleton — so without this
-     * the map keeps whatever the printer that was active at startup had configured.
-     * Registered with PrinterCacheRegistry from init_subjects().
-     */
-    void reload_capability_overrides();
 
     /**
      * @brief Get cached hardware discovery result
@@ -1811,16 +1750,6 @@ class PrinterState {
      * @param count Number of discovered Moonraker sensors
      */
     void set_sensor_count(int count);
-
-    /**
-     * @brief Get Moonraker sensor count subject for XML binding
-     *
-     * Integer subject holding the number of discovered Moonraker sensors.
-     * 0 = no sensors, used to hide/show sensor-related UI elements.
-     */
-    lv_subject_t* get_sensor_count_subject() {
-        return capabilities_state_.subject(Capability::SensorCount);
-    }
 
     /**
      * @brief Set Spoolman availability status
@@ -1908,11 +1837,6 @@ class PrinterState {
         return capabilities_state_.get_webcams();
     }
 
-    /// Number of named webcams in the list (what a picker can offer)
-    lv_subject_t* get_webcam_count_subject() const {
-        return capabilities_state_.subject(Capability::WebcamCount);
-    }
-
     /// True if at least one enabled webcam has been detected
     bool has_webcam() const {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasWebcam)) == 1;
@@ -1968,13 +1892,6 @@ class PrinterState {
      * @param enabled Global moonraker-timelapse `enabled` value
      */
     void set_timelapse_default_enabled(bool enabled);
-
-    /// Merge the settings a self-storing firmware currently holds into the
-    /// pre-print option defaults, keyed by option id, and resynthesise if any
-    /// changed. Safe from any thread. Merges rather than replaces: Moonraker
-    /// sends deltas, so a frame mentioning one setting is silent about the
-    /// rest, not a report that they are off.
-    void merge_firmware_option_defaults(std::map<std::string, bool> defaults);
 
     /**
      * @brief Set HelixPrint plugin installation status
@@ -2393,19 +2310,6 @@ class PrinterState {
     // ========================================================================
 
     /**
-     * @brief Set the printer type and fetch the pre-print option set (async)
-     *
-     * Stores the type name and fetches the PrePrintOptionSet from the printer
-     * database via PrinterDetector::get_pre_print_option_set().
-     *
-     * Thread-safe: defers LVGL subject updates to the main thread. Safe to call from WebSocket
-     * callbacks.
-     *
-     * @param type Printer type name (e.g., "FlashForge Adventurer 5M Pro")
-     */
-    void set_printer_type(const std::string& type);
-
-    /**
      * @brief Set the printer type synchronously (main-thread only)
      *
      * Directly updates printer type without async deferral.
@@ -2710,15 +2614,19 @@ class PrinterState {
 
     friend class PrinterStateTestAccess;
     friend class PrinterTemperatureStateTestAccess;
-    friend void async_klipper_version_callback(void* user_data);
-    friend void async_moonraker_version_callback(void* user_data);
-    friend void async_klippy_state_callback(void* user_data);
 
     void set_klipper_version_internal(const std::string& version);
     void set_moonraker_version_internal(const std::string& version);
     void set_os_version_internal(const std::string& version);
     void set_klippy_state_internal(KlippyState state);
     void set_printer_type_internal(const std::string& type);
+
+    /// Merge the settings a self-storing firmware currently holds into the
+    /// pre-print option defaults, keyed by option id, and resynthesise if any
+    /// changed. Safe from any thread. Merges rather than replaces: Moonraker
+    /// sends deltas, so a frame mentioning one setting is silent about the
+    /// rest, not a report that they are off.
+    void merge_firmware_option_defaults(std::map<std::string, bool> defaults);
 
     /// Main-thread half of set_klippy_state_if_unseeded(): re-checks the guard in
     /// the same serialized order as the webhooks parse, then applies.

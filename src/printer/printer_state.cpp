@@ -330,19 +330,15 @@ void PrinterState::init_subjects(bool register_xml) {
     //    printer reports an "exclude_object" object, so switching to a printer without
     //    [exclude_object] configured would keep the previous printer's objects on screen.
     helix::PrinterCacheRegistry::instance().register_invalidator("PrinterState", [this]() {
-        reload_capability_overrides();
+        // Only the override map is refreshed. The effective capability subjects are
+        // re-derived from set_hardware(discovery_, capability_overrides_) when the new
+        // printer's discovery lands; deriving them here would pair the new printer's
+        // overrides with the OLD printer's still-cached discovery_.
+        capability_overrides_.load_from_config();
         excluded_objects_state_.clear_objects();
     });
 
     spdlog::trace("[PrinterState] Subjects initialized and registered successfully");
-}
-
-void PrinterState::reload_capability_overrides() {
-    // Only the override map is refreshed. The effective capability subjects are re-derived
-    // from set_hardware(discovery_, capability_overrides_) when the new printer's discovery
-    // lands; deriving them here would pair the new printer's overrides with the OLD
-    // printer's still-cached discovery_.
-    capability_overrides_.load_from_config();
 }
 
 std::optional<StatusFrame> helix::parse_status_notification(const json& notification) {
@@ -1222,12 +1218,6 @@ void PrinterState::set_print_outcome(PrintOutcome outcome) {
 // ============================================================================
 // PRINTER TYPE AND PRINT START CAPABILITIES
 // ============================================================================
-
-void PrinterState::set_printer_type(const std::string& type) {
-    // Thread-safe wrapper: defer updates to main thread
-    async_lifetime_.defer("PrinterState::set_printer_type",
-                          [this, type]() { set_printer_type_internal(type); });
-}
 
 void PrinterState::set_printer_type_sync(const std::string& type) {
     // Direct call for main-thread use (testing, or when already on main thread)
