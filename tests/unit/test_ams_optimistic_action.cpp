@@ -28,6 +28,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lib/lvgl/src/misc/lv_timer_private.h"
 #include "moonraker_client_mock.h"
+#include "post_op_cooldown_manager.h"
 #include "test_helpers/afc_test_access.h"
 #include "test_helpers/ams_sidebar_xml.h"
 #include "test_helpers/ams_state_test_access.h"
@@ -446,4 +447,24 @@ TEST_CASE_METHOD(OptimisticSidebarFixture, "Happy Hare: a backend swap ends the 
 
     AmsState::instance().clear_backends();
     CHECK_FALSE(held());
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture,
+                 "Happy Hare: a sidebar preheat cancels a cooldown left from the last op",
+                 "[ams][optimistic_action][happy_hare]") {
+    build_hh();
+    // The previous load or unload armed a cooldown that would zero the nozzle
+    // target mid-preheat.
+    auto& cd = PostOpCooldownManager::instance();
+    cd.init();
+    cd.schedule();
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(cd.has_pending_timer());
+
+    sidebar_->handle_load_with_preheat(1);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(cd.has_pending_timer());
+    CHECK(held());
+    cd.cancel();
+    helix::ui::UpdateQueue::instance().drain();
 }

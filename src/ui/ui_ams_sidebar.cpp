@@ -1038,9 +1038,10 @@ void AmsOperationSidebar::abandon_preheat_if_target_dropped(int target_deci) {
     if (!pending_load_target_seen_) {
         return;
     }
-    spdlog::info("[AmsSidebar] Nozzle target fell to {}C during the preheat for slot {} — "
+    spdlog::info("[AmsSidebar] Nozzle target fell to {}C during the preheat for slot {}, "
                  "not loading",
                  target, pending_load_slot_);
+    NOTIFY_WARNING(lv_tr("Load cancelled: nozzle target dropped"));
     pending_load_slot_ = -1;
     pending_load_target_temp_ = 0;
     pending_load_target_seen_ = false;
@@ -1612,6 +1613,10 @@ void AmsOperationSidebar::handle_load_with_preheat(int slot_index) {
     pending_load_target_temp_ = effective_target;
     pending_load_target_seen_ = false;
     ui_initiated_heat_ = true;
+
+    // A cooldown left over from the previous operation would zero this target
+    // mid-preheat and abandon the load.
+    PostOpCooldownManager::instance().cancel();
 
     if (auto* c = get_temperature_controller()) {
         c->set_target(helix::HeaterType::Nozzle, static_cast<double>(target),
