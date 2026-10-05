@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -27,7 +28,7 @@ class DismissFixture : public LVGLUITestFixture {
         helix::DisplaySettingsManager::instance().set_animations_enabled(false);
         modal_.set_gcode_callback([this](const std::string& g) { sent_.push_back(g); });
         modal_.set_dismiss_callback(
-            [this](bool button_sent_gcode) { dismissals_.push_back(button_sent_gcode); });
+            [this](helix::PromptCloseKind kind) { dismissals_.push_back(kind); });
     }
     ~DismissFixture() override {
         helix::DisplaySettingsManager::instance().set_animations_enabled(prev_animations_);
@@ -52,7 +53,7 @@ class DismissFixture : public LVGLUITestFixture {
 
     helix::ui::ActionPromptModal modal_;
     std::vector<std::string> sent_;
-    std::vector<bool> dismissals_; ///< One entry per dismiss callback: button_sent_gcode
+    std::vector<helix::PromptCloseKind> dismissals_; ///< One entry per dismiss callback
     bool prev_animations_ = true;
 };
 
@@ -110,12 +111,14 @@ TEST_CASE_METHOD(DismissFixture, "a button with a gcode still sends it",
 
 TEST_CASE_METHOD(DismissFixture, "closes the owner did not ask for reach the dismiss callback",
                  "[action_prompt][dismiss][ui_integration]") {
+    using helix::PromptCloseKind;
+
     SECTION("a button with a gcode reports that it sent one") {
         REQUIRE(modal_.show_prompt(test_screen(), two_button_prompt()));
         lv_obj_send_event(nth_button(0), LV_EVENT_CLICKED, nullptr);
         process_lvgl(40);
         REQUIRE(dismissals_.size() == 1);
-        CHECK(dismissals_[0]);
+        CHECK(dismissals_[0] == PromptCloseKind::ButtonWithGcode);
     }
 
     SECTION("a button without a gcode reports that it sent none") {
@@ -123,19 +126,24 @@ TEST_CASE_METHOD(DismissFixture, "closes the owner did not ask for reach the dis
         lv_obj_send_event(nth_button(1), LV_EVENT_CLICKED, nullptr);
         process_lvgl(40);
         REQUIRE(dismissals_.size() == 1);
-        CHECK_FALSE(dismissals_[0]);
+        CHECK(dismissals_[0] == PromptCloseKind::ButtonWithoutGcode);
     }
 
-    SECTION("a backdrop tap or ESC reports that nothing was sent") {
-        REQUIRE(modal_.show_prompt(test_screen(), two_button_prompt()));
-        modal_.hide(ModalCloseReason::BackdropTap);
-        process_lvgl(40);
-        REQUIRE(modal_.show_prompt(test_screen(), two_button_prompt()));
-        modal_.hide(ModalCloseReason::EscKey);
-        process_lvgl(40);
-        REQUIRE(dismissals_.size() == 2);
-        CHECK_FALSE(dismissals_[0]);
-        CHECK_FALSE(dismissals_[1]);
+    SECTION("each other close reason maps to its kind") {
+        const std::pair<ModalCloseReason, PromptCloseKind> cases[] = {
+            {ModalCloseReason::BackdropTap, PromptCloseKind::UserDismiss},
+            {ModalCloseReason::EscKey, PromptCloseKind::UserDismiss},
+            {ModalCloseReason::HotReload, PromptCloseKind::HotReload},
+            {ModalCloseReason::External, PromptCloseKind::External},
+        };
+        for (const auto& [reason, kind] : cases) {
+            dismissals_.clear();
+            REQUIRE(modal_.show_prompt(test_screen(), two_button_prompt()));
+            modal_.hide(reason);
+            process_lvgl(40);
+            REQUIRE(dismissals_.size() == 1);
+            CHECK(dismissals_[0] == kind);
+        }
     }
 
     SECTION("the owner's own hide is not a dismissal") {
@@ -155,9 +163,9 @@ TEST_CASE_METHOD(DismissFixture, "closes the owner did not ask for reach the dis
         lv_obj_send_event(nth_button(0), LV_EVENT_CLICKED, nullptr);
         process_lvgl(40);
         REQUIRE(modal_.show_prompt(test_screen(), two_button_prompt()));
-        modal_.hide(ModalCloseReason::BackdropTap);
+        lv_obj_send_event(nth_button(1), LV_EVENT_CLICKED, nullptr);
         process_lvgl(40);
         REQUIRE(dismissals_.size() == 2);
-        CHECK_FALSE(dismissals_[1]);
+        CHECK(dismissals_[1] == PromptCloseKind::ButtonWithoutGcode);
     }
 }

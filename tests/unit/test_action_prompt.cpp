@@ -1305,41 +1305,74 @@ TEST_CASE("ActionPromptManager: Static current_prompt_name() accessor", "[action
 }
 
 // ============================================================================
-// Closing on screen (end_locally)
+// Closing on screen (closed_on_screen)
 // ============================================================================
 
-TEST_CASE("ActionPromptManager: end_locally ends a showing prompt without on_close",
-          "[action_prompt][state]") {
+namespace {
+/// A manager whose prompt "AFC Lane Error" is SHOWING, registered as the instance.
+struct ShowingPrompt {
     ActionPromptManager manager;
-    ActionPromptManager::set_instance(&manager);
     int close_count = 0;
-    manager.set_on_close([&close_count]() { close_count++; });
+    int show_count = 0;
+    ShowingPrompt() {
+        ActionPromptManager::set_instance(&manager);
+        manager.set_on_close([this]() { close_count++; });
+        manager.set_on_show([this](const PromptData&) { show_count++; });
+        manager.process_line("// action:prompt_begin AFC Lane Error");
+        manager.process_line("// action:prompt_show");
+    }
+    ~ShowingPrompt() {
+        ActionPromptManager::set_instance(nullptr);
+    }
+    bool ended() const {
+        return manager.get_state() == ActionPromptManager::State::IDLE &&
+               !ActionPromptManager::is_showing() &&
+               ActionPromptManager::current_prompt_name().empty();
+    }
+};
+} // namespace
 
-    manager.process_line("// action:prompt_begin AFC Lane Error");
-    manager.process_line("// action:prompt_show");
+TEST_CASE("ActionPromptManager: closed_on_screen per close kind", "[action_prompt][state]") {
+    ShowingPrompt p;
     REQUIRE(ActionPromptManager::is_showing());
 
-    REQUIRE(manager.end_locally());
-    CHECK(manager.get_state() == ActionPromptManager::State::IDLE);
-    CHECK_FALSE(ActionPromptManager::is_showing());
-    CHECK(ActionPromptManager::current_prompt_name().empty());
-    // The dialog is already closing; firing on_close would hide it a second time.
-    CHECK(close_count == 0);
+    SECTION("a button that sent its gcode ends locally and sends nothing more") {
+        CHECK_FALSE(p.manager.closed_on_screen(PromptCloseKind::ButtonWithGcode));
+        CHECK(p.ended());
+    }
+    SECTION("a button without a gcode ends and asks for prompt_end") {
+        CHECK(p.manager.closed_on_screen(PromptCloseKind::ButtonWithoutGcode));
+        CHECK(p.ended());
+    }
+    SECTION("a backdrop tap or ESC ends and asks for prompt_end") {
+        CHECK(p.manager.closed_on_screen(PromptCloseKind::UserDismiss));
+        CHECK(p.ended());
+    }
+    SECTION("hot reload ends and asks for prompt_end") {
+        CHECK(p.manager.closed_on_screen(PromptCloseKind::HotReload));
+        CHECK(p.ended());
+    }
+    SECTION("an external sweep ends and asks for prompt_end") {
+        CHECK(p.manager.closed_on_screen(PromptCloseKind::External));
+        CHECK(p.ended());
+    }
 
+    // The dialog is already closing; firing on_close would hide it a second time.
+    CHECK(p.close_count == 0);
     // The prompt_end Klipper echoes back is then a no-op.
-    manager.process_line("// action:prompt_end");
-    CHECK(close_count == 0);
-    ActionPromptManager::set_instance(nullptr);
+    p.manager.process_line("// action:prompt_end");
+    CHECK(p.close_count == 0);
 }
 
-TEST_CASE("ActionPromptManager: end_locally leaves a prompt that is not showing alone",
+TEST_CASE("ActionPromptManager: closed_on_screen leaves a prompt that is not showing alone",
           "[action_prompt][state]") {
     ActionPromptManager manager;
-    REQUIRE_FALSE(manager.end_locally());
+    REQUIRE_FALSE(manager.closed_on_screen(PromptCloseKind::UserDismiss));
+    REQUIRE(manager.get_state() == ActionPromptManager::State::IDLE);
 
     // A follow-up prompt still being built must survive a stale close.
     manager.process_line("// action:prompt_begin Next Step");
-    REQUIRE_FALSE(manager.end_locally());
+    REQUIRE_FALSE(manager.closed_on_screen(PromptCloseKind::UserDismiss));
     REQUIRE(manager.get_state() == ActionPromptManager::State::BUILDING);
     manager.process_line("// action:prompt_show");
     CHECK(manager.has_active_prompt());

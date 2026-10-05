@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <optional>
 
 namespace helix::ui {
 
@@ -67,6 +68,27 @@ bool equal_width_row_fits(lv_obj_t* container, const std::vector<PromptButton>& 
         }
     }
     return true;
+}
+
+/**
+ * @brief Classify a close for the dismiss callback; nullopt for the owner's own hide().
+ */
+std::optional<PromptCloseKind> close_kind(ModalCloseReason reason, bool button_sent_gcode) {
+    switch (reason) {
+    case ModalCloseReason::Programmatic:
+        return std::nullopt;
+    case ModalCloseReason::ButtonPress:
+        return button_sent_gcode ? PromptCloseKind::ButtonWithGcode
+                                 : PromptCloseKind::ButtonWithoutGcode;
+    case ModalCloseReason::BackdropTap:
+    case ModalCloseReason::EscKey:
+        return PromptCloseKind::UserDismiss;
+    case ModalCloseReason::HotReload:
+        return PromptCloseKind::HotReload;
+    case ModalCloseReason::External:
+        return PromptCloseKind::External;
+    }
+    return std::nullopt;
 }
 
 /**
@@ -141,8 +163,11 @@ void ActionPromptModal::on_show() {
 void ActionPromptModal::on_hide() {
     clear_dynamic_content();
     spdlog::debug("[ActionPromptModal] on_hide()");
-    if (close_reason_ != ModalCloseReason::Programmatic && dismiss_callback_) {
-        dismiss_callback_(button_sent_gcode_);
+    if (!dismiss_callback_) {
+        return;
+    }
+    if (auto kind = close_kind(close_reason_, button_sent_gcode_)) {
+        dismiss_callback_(*kind);
     }
 }
 

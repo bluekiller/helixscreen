@@ -87,6 +87,17 @@ struct PromptData {
 };
 
 /**
+ * @brief How a prompt's dialog was closed on this screen
+ */
+enum class PromptCloseKind {
+    ButtonWithGcode,    ///< A button tap that sent its own gcode
+    ButtonWithoutGcode, ///< A button with no gcode: a plain dismiss
+    UserDismiss,        ///< Backdrop tap or ESC
+    HotReload,          ///< XML hot reload rebuilt the dialog (dev builds)
+    External,           ///< A system sweep closed it (ctl reset, fault-modal dismissal)
+};
+
+/**
  * @brief Parsed result from an action line
  */
 struct ActionLineResult {
@@ -269,15 +280,15 @@ class ActionPromptManager {
     [[nodiscard]] std::function<void(const std::string&)> make_line_sink();
 
     /**
-     * @brief End the showing prompt because the user closed it on this screen
+     * @brief The showing prompt's dialog was closed on this screen
      *
-     * Returns to IDLE without firing on_close: the dialog is already going
-     * away. Telling the firmware is the caller's job (PROMPT_END_GCODE).
-     * Main thread only.
+     * Brings the state in line with the screen without firing on_close: the
+     * dialog is already going away. Does nothing unless a prompt is SHOWING.
+     * Telling the firmware is the caller's job. Main thread only.
      *
-     * @return true if a prompt was showing and is now ended
+     * @return true when the caller should send PROMPT_END_GCODE to Klipper
      */
-    bool end_locally();
+    bool closed_on_screen(PromptCloseKind kind);
 
     // ========================================================================
     // Callbacks
@@ -363,6 +374,7 @@ class ActionPromptManager {
     // ========================================================================
 
     void set_state(State state);
+    void end_showing();
     void handle_prompt_begin(const std::string& payload);
     void handle_prompt_text(const std::string& payload);
     void handle_prompt_button(const std::string& payload, bool is_footer);

@@ -84,10 +84,9 @@ class ActionPromptModal : public Modal {
      * @brief Callback for a close the owner did not ask for
      *
      * Fires from on_hide() for a button tap, backdrop tap, ESC or any other
-     * close that is not the owner's own hide(). @p button_sent_gcode is true
-     * when a button tap already passed its gcode to the gcode callback.
+     * close that is not the owner's own hide(), saying which kind it was.
      */
-    using DismissCallback = std::function<void(bool button_sent_gcode)>;
+    using DismissCallback = std::function<void(PromptCloseKind kind)>;
     void set_dismiss_callback(DismissCallback callback);
 
     // Modal interface

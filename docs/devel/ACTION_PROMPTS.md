@@ -32,7 +32,7 @@ protocol itself is Klipper's: [G-Codes: action commands](https://www.klipper3d.o
 | `src/application/application_sdl_shortcuts.cpp` | `A` and `N` keys raise a test prompt and a test notification in `--test` |
 | `src/application/demo_overlays.cpp` | `ctl demo action-prompt-worst` and `action-prompt-many` |
 | `src/printer/ams_backend_mock.cpp#execute_device_action` | Mock AFC calibration wizard that injects a full prompt sequence |
-| `tests/unit/test_action_prompt.cpp` | Parser, button spec, state machine, callbacks, static accessors, line sink, `end_locally()` |
+| `tests/unit/test_action_prompt.cpp` | Parser, button spec, state machine, callbacks, static accessors, line sink, `closed_on_screen()` for every close kind |
 | `tests/unit/test_action_prompt_dismiss.cpp` | Empty-gcode button closes without sending; which closes reach the dismiss callback |
 | `tests/unit/test_action_prompt_modal_layout.cpp` | One-row vs wrapping button layout, a row per button group, color tokens |
 | `tests/unit/test_action_prompt_modal_stress.cpp` | Rapid show/hide, reuse across prompt shapes (hidden tag) |
@@ -76,8 +76,8 @@ ActionPromptManager::process_line()
                           any close but the manager's own (button, backdrop, ESC)
                                          |  dismiss callback
                                          v
-                          ActionPromptManager::end_locally(), and prompt_end to Klipper
-                          unless a button already sent its gcode
+                          ActionPromptManager::closed_on_screen(PromptCloseKind)
+                          -> true: Application sends prompt_end to Klipper
 ```
 
 ### Protocol lines to the manager
@@ -151,8 +151,8 @@ only of `_`, `-` and spaces is cleared so the swatch is not painted with a place
 | `BUILDING` | After `prompt_begin`. Text, buttons and groups accumulate |
 | `SHOWING` | After `prompt_show`. `on_show` has fired |
 
-`end_locally()` takes `SHOWING` back to `IDLE` without firing `on_close`; it is how a close on
-the screen reaches the manager (see below). From any other state it does nothing.
+`closed_on_screen()` is how a close on the screen reaches the manager (see below). It never fires
+`on_close`, and from any state but `SHOWING` it does nothing.
 
 Rules worth knowing before writing a macro or a test:
 
@@ -246,13 +246,15 @@ caller-handled, so the `!!` GcodeError toast for the same rejection is suppresse
 
 The modal closes on every tap. Any close that is not the owner's own `hide()` (a button tap,
 backdrop tap, ESC, a hot-reload rebuild, a `ctl reset`) calls the modal's dismiss callback from
-`on_hide()`, with `button_sent_gcode` saying whether a button already handed its gcode to the
-gcode callback. `init_action_prompt` answers it the way Mainsail does:
+`on_hide()` with a `PromptCloseKind`. `init_action_prompt` passes it to
+`ActionPromptManager::closed_on_screen()`, which updates the state and returns whether to send
+`prompt_end`, the way Mainsail does:
 
 | Close | Manager | Sent to Klipper |
 |-------|---------|-----------------|
-| Button with a gcode | `end_locally()` | The button's gcode only |
-| Backdrop tap, ESC, other dismissal | `end_locally()` | `RESPOND TYPE=command MSG="action:prompt_end"` (`ActionPromptManager::PROMPT_END_GCODE`) |
+| Button with a gcode (`ButtonWithGcode`) | ends | The button's gcode only |
+| Button without a gcode, backdrop tap, ESC (`ButtonWithoutGcode`, `UserDismiss`) | ends | `RESPOND TYPE=command MSG="action:prompt_end"` (`ActionPromptManager::PROMPT_END_GCODE`) |
+| Hot reload, `ctl reset` or another sweep (`HotReload`, `External`) | ends | `prompt_end` |
 | Firmware `prompt_end` or next `prompt_begin` | already `IDLE`/`BUILDING`; `on_close` hid the modal | nothing |
 
 A button's macro is expected to end or replace the prompt itself, as with Mainsail. Sending
@@ -263,7 +265,7 @@ the same way and also closes the prompt on any other connected client. Its send 
 (`caller_surfaces_errors=false`), so a rejection reaches the user through Klipper's `!!` line and
 `GcodeErrorRouter`; see [RPC_ERROR_OWNERSHIP.md](RPC_ERROR_OWNERSHIP.md).
 
-`end_locally()` only acts from `SHOWING`, so a close that loses a race with the next firmware
+`closed_on_screen()` only acts from `SHOWING`, so a close that loses a race with the next firmware
 prompt cannot discard the prompt being built.
 
 ### Other code that reads prompt state

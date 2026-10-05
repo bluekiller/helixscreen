@@ -201,14 +201,20 @@ std::function<void(const std::string&)> ActionPromptManager::make_line_sink() {
     };
 }
 
-bool ActionPromptManager::end_locally() {
-    if (m_state != State::SHOWING) {
-        return false;
-    }
+void ActionPromptManager::end_showing() {
     m_current_prompt.reset();
     m_in_group = false;
     set_state(State::IDLE);
-    return true;
+}
+
+bool ActionPromptManager::closed_on_screen(PromptCloseKind kind) {
+    if (m_state != State::SHOWING) {
+        return false;
+    }
+    end_showing();
+    // A button's own macro is expected to end or replace the prompt; a
+    // prompt_end sent after it could close the dialog that macro raises next.
+    return kind != PromptCloseKind::ButtonWithGcode;
 }
 
 void ActionPromptManager::process_line(const std::string& line) {
