@@ -1890,18 +1890,21 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
             mgr.adopt_overlay_backdrop(screen);
         }
 
-        // Optionally hide current top panel (after snapshot). A dim layer shows
-        // the base panel live through it, so that one stays drawn.
-        const bool base_shows_through = is_first_overlay && mgr.overlay_backdrop_ &&
+        // Resolve and apply the width class before the overlay becomes visible,
+        // while panel_stack_.back() is still the widget beneath it. #1178
+        const bool is_destination = mgr.apply_overlay_width(overlay_panel, is_first_overlay);
+
+        // Optionally hide current top panel (after snapshot). A dim layer is
+        // translucent, so beside a transient overlay the base panel stays drawn
+        // through it; a destination overlay covers it, and drawing it there
+        // would cost frames for nothing.
+        const bool base_shows_through = is_first_overlay && !is_destination &&
+                                        mgr.overlay_backdrop_ &&
                                         !is_snapshot_backdrop(mgr.overlay_backdrop_);
         if (hide_previous && !mgr.panel_stack_.empty() && !base_shows_through) {
             lv_obj_t* current_top = mgr.panel_stack_.back();
             lv_obj_add_flag(current_top, LV_OBJ_FLAG_HIDDEN);
         }
-
-        // Resolve and apply the width class before the overlay becomes visible,
-        // while panel_stack_.back() is still the widget beneath it. #1178
-        mgr.apply_overlay_width(overlay_panel, is_first_overlay);
 
         // Show overlay
         lv_obj_remove_flag(overlay_panel, LV_OBJ_FLAG_HIDDEN);

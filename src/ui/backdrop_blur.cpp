@@ -869,7 +869,8 @@ lv_obj_t* create_darkened_backdrop(lv_obj_t* parent, lv_opa_t dim_opacity) {
     if (!snapshot) {
         // A full frame that did not fit once will not fit on the next overlay
         // either, and every attempt fragments the heap a little more.
-        spdlog::warn("[Backdrop Darken] Snapshot failed; dim layers from now on");
+        spdlog::warn("[Backdrop Darken] Snapshot failed: every later backdrop is a plain dim "
+                     "layer until restart");
         s_snapshot_backdrops = false;
         return create_dim_layer(parent, dim_opacity);
     }
