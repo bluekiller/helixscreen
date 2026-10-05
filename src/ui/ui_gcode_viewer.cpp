@@ -392,12 +392,13 @@ class GCodeViewerState {
     bool ssao_enabled_at_init_{false};
     bool antialias_enabled_at_init_{false};
 
-    /// Render mode setting - set by constructor based on HELIX_GCODE_MODE env var
-    /// Render mode setting - configurable via HELIX_GCODE_MODE env var
-    GcodeViewerRenderMode render_mode_{GcodeViewerRenderMode::Layer2D};
+    /// Render mode setting, seeded from HELIX_GCODE_MODE by the constructor.
+    /// Atomic, like budget_forced_2d_: the load worker reads both through
+    /// is_using_2d_mode() while the main thread may be setting them.
+    std::atomic<GcodeViewerRenderMode> render_mode_{GcodeViewerRenderMode::Layer2D};
 
     /// Budget system forced 2D for current file (reset on each new load)
-    bool budget_forced_2d_{false};
+    std::atomic<bool> budget_forced_2d_{false};
 
     /// GPU 3D path persistently blocked after a driver crash-loop (issues
     /// #966 / #1084 / #1085). Read once at construction from
@@ -3316,7 +3317,7 @@ std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer) {
 
 helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer) {
     gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
-    return st ? st->render_mode_ : helix::GcodeViewerRenderMode::Auto;
+    return st ? st->render_mode_.load() : helix::GcodeViewerRenderMode::Auto;
 }
 
 GcodeViewerWatchdogTrack gcode_viewer_watchdog_track(lv_obj_t* viewer) {
