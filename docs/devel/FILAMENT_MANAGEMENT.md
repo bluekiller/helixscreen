@@ -263,6 +263,16 @@ no owning lane reads `false` rather than being blamed on an arbitrary lane.
 
 RPC response callbacks arrive on a libhv background thread, and backends marshal them to the main thread before touching state. `notify_status_update` frames are marshalled the same way: `AmsSubscriptionBackend` defers every one through its lifetime token, so `handle_status` runs on the main thread, under the backend mutex. `AmsState` posts subject updates to the LVGL thread via `helix::ui::queue_update()`. The UI never directly accesses backend state.
 
+### Status Frame Shape: Parse, Apply, Dispatch
+
+Moonraker status frames are deltas: a frame names only the fields that changed. The Snapmaker, Happy Hare and CFS backends therefore split `handle_status` into three steps:
+
+1. **Parse** (`snapmaker_status_parse`, `happy_hare_status_parse`, `cfs_status_parse`): pure functions over the frame that return structs of `std::optional` fields. An omitted, null or mistyped field reads as `nullopt`, so a parse can never reset state. Per-lane arrays read through `ams::read_indexed` / `ams::read_array` (`include/ams_status_json.h`). The parse runs before the backend mutex is taken.
+2. **Apply**: named `apply_*_locked` steps run under `mutex_` in a fixed order, each overlaying only what its slice of the frame carried onto the state the backend holds. The order is load-bearing (for example the Snapmaker RFID step runs before the feed step, and the Happy Hare fault edge reads `reason_for_pause` before the selector step rewrites it); the golden-sequence tests (`[golden]`) pin it.
+3. **Dispatch**: anything that reaches outside the backend mutex (`AmsState` calls, `queue_update`, gcode, `emit_event`) is collected in a `FrameEffects` / `MmuFrame` struct while locked and run after the lock is released.
+
+A new status field means a new optional in the parse struct, an overlay in the owning apply step, and a line in the golden sequence if it changes what the frame leaves behind.
+
 ---
 
 ## Multi-Backend Architecture
