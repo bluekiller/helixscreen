@@ -679,76 +679,80 @@ void BarcodeScannerSettingsOverlay::pair_bt_device(const std::string& mac,
                             }
                         }
 
-                        helix::ui::queue_update([ret, mac, name, token, bt_ctx, paired_r, bonded_r,
-                                                 hid_ok]() {
-                            if (token.expired())
-                                return;
+                        helix::ui::queue_update(
+                            "BarcodeScannerSettingsOverlay::pair_bt_device",
+                            [ret, mac, name, token, bt_ctx, paired_r, bonded_r, hid_ok]() {
+                                if (token.expired())
+                                    return;
 
-                            if (ret >= 0 && hid_ok) {
-                                ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                              lv_tr("Paired successfully"), 2000);
-                            } else if (ret >= 0 && bonded_r != 1) {
-                                // Paired but not bonded - Just-Works SSP left no
-                                // persistent key, so BlueZ's input plugin will
-                                // refuse HID. Almost always means the scanner
-                                // wasn't in pairing mode when Pair ran.
-                                spdlog::warn("[BarcodeScannerSettings] Paired but not bonded - "
-                                             "scanner needs to be in pairing mode");
-                                ToastManager::instance().show(
-                                    ToastSeverity::WARNING,
-                                    lv_tr("Pairing did not complete — the scanner did not bond. "
-                                          "Try turning it off and on, then tap Pair again."),
-                                    10000);
-                            } else if (ret >= 0) {
-                                // Bonded but HID profile still never came up.
-                                // Rarer - device-specific firmware quirk or HID
-                                // descriptor rejected by the kernel. Keep the
-                                // technical escape hatch here for operators who
-                                // can edit system config.
-                                spdlog::warn("[BarcodeScannerSettings] Bonded but HID profile "
-                                             "did not connect within 5s - scanner will not be "
-                                             "usable");
-                                ToastManager::instance().show(
-                                    ToastSeverity::WARNING,
-                                    lv_tr("Scanner bonded but didn't attach as a keyboard. Try "
-                                          "turning the scanner off and on, then tap Pair again. "
-                                          "If that fails, add ClassicBondedOnly=false to "
-                                          "/etc/bluetooth/input.conf."),
-                                    10000);
-                            }
-
-                            if (ret >= 0) {
-                                if (s_active_instance_) {
-                                    for (auto& dev : s_active_instance_->bt_devices_) {
-                                        if (dev.mac == mac) {
-                                            dev.paired = (paired_r == 1);
-                                            break;
-                                        }
-                                    }
-
-                                    // Only adopt this scanner as the active one when
-                                    // the HID link actually came up. Persisting a
-                                    // broken bond means the app would keep "using" a
-                                    // scanner that can't send any input.
-                                    if (hid_ok) {
-                                        helix::SettingsManager::instance().set_scanner_bt_address(
-                                            mac);
-                                        helix::SettingsManager::instance().set_scanner_device_name(
-                                            name);
-                                        s_active_instance_->refresh_current_selection_label();
-                                    }
-                                    s_active_instance_->populate_device_list();
-                                    s_active_instance_->populate_bt_dropdown();
+                                if (ret >= 0 && hid_ok) {
+                                    ToastManager::instance().show(
+                                        ToastSeverity::SUCCESS, lv_tr("Paired successfully"), 2000);
+                                } else if (ret >= 0 && bonded_r != 1) {
+                                    // Paired but not bonded - Just-Works SSP left no
+                                    // persistent key, so BlueZ's input plugin will
+                                    // refuse HID. Almost always means the scanner
+                                    // wasn't in pairing mode when Pair ran.
+                                    spdlog::warn("[BarcodeScannerSettings] Paired but not bonded - "
+                                                 "scanner needs to be in pairing mode");
+                                    ToastManager::instance().show(
+                                        ToastSeverity::WARNING,
+                                        lv_tr(
+                                            "Pairing did not complete — the scanner did not bond. "
+                                            "Try turning it off and on, then tap Pair again."),
+                                        10000);
+                                } else if (ret >= 0) {
+                                    // Bonded but HID profile still never came up.
+                                    // Rarer - device-specific firmware quirk or HID
+                                    // descriptor rejected by the kernel. Keep the
+                                    // technical escape hatch here for operators who
+                                    // can edit system config.
+                                    spdlog::warn("[BarcodeScannerSettings] Bonded but HID profile "
+                                                 "did not connect within 5s - scanner will not be "
+                                                 "usable");
+                                    ToastManager::instance().show(
+                                        ToastSeverity::WARNING,
+                                        lv_tr(
+                                            "Scanner bonded but didn't attach as a keyboard. Try "
+                                            "turning the scanner off and on, then tap Pair again. "
+                                            "If that fails, add ClassicBondedOnly=false to "
+                                            "/etc/bluetooth/input.conf."),
+                                        10000);
                                 }
-                            } else {
-                                auto& ldr2 = helix::bluetooth::BluetoothLoader::instance();
-                                const char* err =
-                                    ldr2.last_error ? ldr2.last_error(bt_ctx) : "Unknown error";
-                                spdlog::error("[BarcodeScannerSettings] Pairing failed: {}", err);
-                                ToastManager::instance().show(ToastSeverity::ERROR,
-                                                              lv_tr("Pairing failed"), 3000);
-                            }
-                        });
+
+                                if (ret >= 0) {
+                                    if (s_active_instance_) {
+                                        for (auto& dev : s_active_instance_->bt_devices_) {
+                                            if (dev.mac == mac) {
+                                                dev.paired = (paired_r == 1);
+                                                break;
+                                            }
+                                        }
+
+                                        // Only adopt this scanner as the active one when
+                                        // the HID link actually came up. Persisting a
+                                        // broken bond means the app would keep "using" a
+                                        // scanner that can't send any input.
+                                        if (hid_ok) {
+                                            helix::SettingsManager::instance()
+                                                .set_scanner_bt_address(mac);
+                                            helix::SettingsManager::instance()
+                                                .set_scanner_device_name(name);
+                                            s_active_instance_->refresh_current_selection_label();
+                                        }
+                                        s_active_instance_->populate_device_list();
+                                        s_active_instance_->populate_bt_dropdown();
+                                    }
+                                } else {
+                                    auto& ldr2 = helix::bluetooth::BluetoothLoader::instance();
+                                    const char* err =
+                                        ldr2.last_error ? ldr2.last_error(bt_ctx) : "Unknown error";
+                                    spdlog::error("[BarcodeScannerSettings] Pairing failed: {}",
+                                                  err);
+                                    ToastManager::instance().show(ToastSeverity::ERROR,
+                                                                  lv_tr("Pairing failed"), 3000);
+                                }
+                            });
                     }).detach();
                 } catch (const std::system_error& ex) {
                     spdlog::error("[BarcodeScannerSettings] Failed to spawn BT pair thread: {}",

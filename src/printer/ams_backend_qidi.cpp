@@ -941,7 +941,8 @@ void AmsBackendQidi::parse_save_variables(const nlohmann::json& variables) {
         // main thread; this loop holds mutex_.
         if (was_empty[i] && stated_slot[i] && slot_status_reports_filament(slot->status) &&
             verdict == helix::ams::InsertVerdict::NoEvidence) {
-            helix::ui::queue_update([i] { helix::ui::offer_clear_after_unverified_insert(i); });
+            helix::ui::queue_update("AmsBackendQidi::parse_save_variables",
+                                    [i] { helix::ui::offer_clear_after_unverified_insert(i); });
         }
     }
 

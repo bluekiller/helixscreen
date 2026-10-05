@@ -45,10 +45,6 @@ static void on_belt_tension_row_clicked(lv_event_t* e);
 BeltTensionPanel::~BeltTensionPanel() {
     // lifetime_'s destructor auto-invalidates all outstanding tokens.
 
-    // A raw lv_timer cancelled in cleanup() must also be cancelled here:
-    // StaticPanelRegistry::destroy_all() runs before lv_deinit(), so teardown
-    // that skips this leaves the elapsed timer armed on a freed this (#1173).
-    cancel_elapsed_timer();
     stall_guard_.end();
 
     accel_observer_.reset();
@@ -273,6 +269,10 @@ void BeltTensionPanel::on_activate() {
     // change and a connect() syscall per change would be waste.
     ensure_gate_observers();
     refresh_gate();
+    // theme_changed is a file-static theme global, deinited only after LVGL is gone.
+    theme_observer_ = helix::ui::observe<int>(
+        theme_manager_get_changed_subject(), this,
+        [](BeltTensionPanel* self, int) { self->apply_path_colors(); }, subject_never_freed());
     probe_klippy_socket();
     query_hw_facts();
 
@@ -308,6 +308,7 @@ void BeltTensionPanel::on_deactivating(DeactivateReason reason) {
     if (reason == DeactivateReason::Suspended) {
         return;
     }
+    theme_observer_.reset();
 
     // A rebuild frees the whole widget tree without firing on_ui_destroyed(),
     // and the chart's object is a child of a host inside that tree. Drop it
@@ -339,6 +340,7 @@ void BeltTensionPanel::cleanup() {
     print_active_observer_.reset();
     connected_observer_.reset();
     klippy_observer_.reset();
+    theme_observer_.reset();
     gate_observers_wired_ = false;
 
     destroy_chart();
@@ -645,7 +647,7 @@ void BeltTensionPanel::on_stall() {
 }
 
 void BeltTensionPanel::finish_run() {
-    cancel_elapsed_timer();
+    elapsed_timer_.reset();
 
     auto& a = runs_[0];
     auto& b = runs_[1];
@@ -777,7 +779,7 @@ void BeltTensionPanel::cancel_run() {
     }
     queue_.clear();
     stall_guard_.end();
-    cancel_elapsed_timer();
+    elapsed_timer_.reset();
     if (chart_) {
         ui_frequency_response_chart_clear_cursor(chart_);
     }
@@ -840,20 +842,12 @@ void BeltTensionPanel::refresh_run_detail() {
 }
 
 void BeltTensionPanel::start_elapsed_timer() {
-    cancel_elapsed_timer();
-    elapsed_timer_ = lv_timer_create(
+    elapsed_timer_.reset(lv_timer_create(
         [](lv_timer_t* t) {
             auto* self = static_cast<BeltTensionPanel*>(lv_timer_get_user_data(t));
             self->refresh_run_detail();
         },
-        1000, this);
-}
-
-void BeltTensionPanel::cancel_elapsed_timer() {
-    if (elapsed_timer_) {
-        helix::ui::lv_timer_cancel_safe(elapsed_timer_);
-        elapsed_timer_ = nullptr;
-    }
+        1000, this));
 }
 
 // ============================================================================
@@ -1059,6 +1053,18 @@ ui_frequency_response_chart_t* BeltTensionPanel::ensure_chart() {
     lv_subject_set_int(&chart_available_subject_, 1);
     spdlog::debug("[BeltTension] Chart created (tier {})", helix::platform_tier_to_string(tier));
     return chart_;
+}
+
+void BeltTensionPanel::apply_path_colors() {
+    if (!chart_) {
+        return;
+    }
+    for (int idx = 0; idx < 2; ++idx) {
+        const lv_color_t color = path_color(idx == 0 ? helix::calibration::BeltPath::PATH_A
+                                                     : helix::calibration::BeltPath::PATH_B);
+        ui_frequency_response_chart_set_series_color(chart_, series_[idx], color);
+        ui_frequency_response_chart_set_series_color(chart_, ghost_series_[idx], color);
+    }
 }
 
 void BeltTensionPanel::push_chart_data() {

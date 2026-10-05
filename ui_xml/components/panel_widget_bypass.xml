@@ -17,7 +17,7 @@
   </api>
   <view name="panel_widget_bypass"
         extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" scrollable="false" style_pad_gap="#space_xxs"
-        clickable="true" moves_machine="true">
+        clickable="true" moves_machine="true" style_radius="#border_radius">
     <style name="styles.tile_column"/>
     <bind_style_if_eq name="styles.tile_row" subject="$tile_dir_subject" ref_value="1"/>
     <style name="styles.press_wash" selector="pressed"/>

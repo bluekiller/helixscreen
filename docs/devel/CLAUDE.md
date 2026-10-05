@@ -86,6 +86,10 @@ All developer documentation lives here. When working on features, look up the re
 | `SOUND_SYSTEM.md` | Audio architecture, JSON themes, backends (SDL, ALSA, PWM, M300). User guide: `../user/guide/settings/sound.md` |
 | `SCREENSAVERS.md` | Screensavers: the registry, shared overlay/canvas/timer/pixel writer, the CPU gate and stored levels, color depth in builds, adding a saver |
 | `LED_CONTROL.md` | LED control system: 5 backends, auto-state lighting, control/settings overlays, home panel widget |
+| `SENSOR_MANAGEMENT.md` | Sensor managers (filament, temperature, humidity, probe, accel, width, load cell): discovery inputs, the `for_each_sensor_manager` fan-out, subject encodings, runout vs presence, toast suppression, bypass arming, config persistence, `SensorState`, adding a sensor |
+| `ACTION_PROMPTS.md` | Klipper `action:prompt_*` / `action:notify` macros: parser and state machine, the ActionPromptModal layout and colors, how button gcode reaches the printer, unsupported directives, mock/demo knobs, adding a directive |
+| `BLUETOOTH_SYSTEM.md` | Bluetooth plugin internals: dlopen loader and C ABI versioning, BusThread and which thread each call runs on, context ownership, discovery filtering, pairing/bonding, RFCOMM/SDP and BLE GATT data paths, failure modes, adding an ABI function |
+| `USB_MANAGEMENT.md` | USB drives (mount-table detection, classification, the root-only fallback automounter), the print-select USB source and its subjects, USB label printer detection/transport, HID scanner choice, the `--test` mock drive |
 | `CHAMBER_HEATER.md` | Chamber heaters: backend registry (generic/dragonbreath/panda_breath), discovery, diagnostics subjects + card, ceiling rules, arbitration, verification logs |
 | `BED_DRYING.md` | Drying filament on the heated bed: the enclosure capability, the flow, the spools-on-the-bed latch and its five send-layer choke points, persistence across restarts and power loss |
 | `PRINTER_MANAGER.md` | Printer overlay, custom images, inline name editing |

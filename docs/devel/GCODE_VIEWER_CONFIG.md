@@ -76,9 +76,12 @@ antialiasing off.
 
 ### `tube_sides`
 **Type:** int **Default:** 4 **Values:** 4, 8, 16
-Cross-section of the extruded tube. 4 is a diamond and the cheapest; 16 is
-circular and matches OrcaSlicer. Anything else logs a warning and falls back to
-16. The geometry budget tier can override this downward on constrained devices.
+Cross-section of the extruded tube. 4 is a rectangle and the cheapest; 8 and 16
+are elliptical, 16 matching OrcaSlicer. Anything else logs a warning and falls
+back to 16. In practice the geometry budget tier decides: the viewer's 3D build
+always hands the builder the tier's side count (16, 8 or 4, see
+[the G-code pipeline chapter](architecture/16-gcode-pipeline.md)), which
+replaces this value whatever it is.
 
 The tier ladder gates on memory first, and on slow GPUs also on triangle count:
 `select_tier()` (`src/rendering/geometry_budget_manager.cpp#select_tier`)

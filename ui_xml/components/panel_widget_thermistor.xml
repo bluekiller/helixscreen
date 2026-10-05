@@ -13,7 +13,7 @@
   </api>
   <view name="panel_widget_thermistor"
         extends="lv_obj" height="100%" flex_grow="1" style_pad_ver="0" style_pad_gap="#space_xxs" scrollable="false"
-        clickable="true">
+        clickable="true" style_radius="#border_radius">
     <style name="styles.press_wash" selector="pressed"/>
     <bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
     <event_cb trigger="clicked" callback="thermistor_clicked_cb"/>

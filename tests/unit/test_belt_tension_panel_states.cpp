@@ -31,6 +31,7 @@
 #include "../test_fixtures.h"
 #include "../test_helpers/mock_kinematics_env.h"
 #include "../test_helpers/printer_state_test_access.h"
+#include "../test_helpers/scoped_env.h"
 #include "app_globals.h"
 #include "belt_tension_types.h"
 #include "lvgl/lvgl.h"
@@ -38,9 +39,12 @@
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <string>
+#include <unistd.h>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -453,6 +457,105 @@ TEST_CASE("a rebuild drops the chart with the tree it lives in", "[belt][panel][
     // The rebuilt tree still carries both hosts, and a fresh run rebuilds the
     // chart into the re-cached one.
     CHECK(lv_obj_find_by_name(fx.panel().get_root(), "chart_host_results") != nullptr);
+}
+
+TEST_CASE("both curves share one percent scale set by the taller", "[belt][panel][chart]") {
+    // Path A replays a capture whose peak is half the height of B's synthetic
+    // one, so a shared scale puts A near 50% and B at 100%.
+    const std::string csv_a = "/tmp/helix-belt-half-height-" + std::to_string(getpid()) + ".csv";
+    {
+        std::ofstream out(csv_a);
+        out << "freq,psd_x,psd_y,psd_z,psd_xyz\n";
+        for (double freq = 5.0; freq <= 135.0; freq += 3200.0 / 4096.0) {
+            const double df = freq - 104.0;
+            const double psd = 150.0 + 1.5e4 / (1.0 + df * df / 100.0);
+            out << freq << ',' << psd * 0.45 << ',' << psd * 0.45 << ',' << psd * 0.1 << ',' << psd
+                << '\n';
+        }
+    }
+    helix::ScopedEnv replay("HELIX_MOCK_BELT_CSV_A", csv_a.c_str());
+
+    BeltPanelFixture fx;
+    REQUIRE(fx.wait_gate_open());
+    fx.panel().handle_start_clicked();
+    REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
+    std::remove(csv_a.c_str());
+
+    auto* chart = fx.panel_chart();
+    REQUIRE(chart != nullptr);
+    const auto peak = [chart](int id) {
+        const auto amps = ui_frequency_response_chart_get_series_amplitudes(chart, id);
+        REQUIRE_FALSE(amps.empty());
+        return *std::max_element(amps.begin(), amps.end());
+    };
+    CHECK(peak(fx.panel_series_id(1)) == Catch::Approx(100.0f).margin(0.5f));
+    CHECK(peak(fx.panel_series_id(0)) == Catch::Approx(50.0f).margin(5.0f));
+}
+
+/// Renders @p obj and returns the RGB of every label it drew, the chart's
+/// axis labels among them.
+static std::vector<uint32_t> drawn_label_colors(lv_obj_t* obj) {
+    std::vector<uint32_t> colors;
+    const auto capture = [](lv_event_t* e) {
+        auto* out = static_cast<std::vector<uint32_t>*>(lv_event_get_user_data(e));
+        lv_draw_task_t* task = lv_event_get_draw_task(e);
+        if (const auto* dsc = lv_draw_task_get_label_dsc(task)) {
+            out->push_back(lv_color_to_u32(dsc->color) & 0xFFFFFF);
+        }
+    };
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_add_event_cb(obj, capture, LV_EVENT_DRAW_TASK_ADDED, &colors);
+    // A snapshot renders the object whether or not the overlay is on screen.
+    if (lv_draw_buf_t* snap = lv_snapshot_take(obj, LV_COLOR_FORMAT_ARGB8888)) {
+        lv_draw_buf_destroy(snap);
+    }
+    lv_obj_remove_event_cb_with_user_data(obj, capture, &colors);
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    return colors;
+}
+
+TEST_CASE("a theme toggle recolors the open chart's curves", "[belt][panel][chart]") {
+    BeltPanelFixture fx;
+    REQUIRE(fx.wait_gate_open());
+    fx.panel().handle_start_clicked();
+    REQUIRE(fx.pump_until_state(static_cast<int>(BeltTensionPanel::ViewState::RESULTS)));
+    auto* chart = fx.panel_chart();
+    REQUIRE(chart != nullptr);
+    const auto rgb = [chart](int id) {
+        return lv_color_to_u32(ui_frequency_response_chart_get_series_color(chart, id)) & 0xFFFFFF;
+    };
+    const uint32_t before = rgb(fx.panel_series_id(0));
+    // The axis labels are drawn by the chart's own draw pass, not styled.
+    lv_obj_t* plot = lv_obj_get_child(ui_frequency_response_chart_get_obj(chart), 0);
+    REQUIRE(plot != nullptr);
+    const uint32_t muted_before = lv_color_to_u32(theme_manager_get_color("text_muted")) & 0xFFFFFF;
+    const auto labels_before = drawn_label_colors(plot);
+
+    theme_manager_toggle_dark_mode();
+    UpdateQueue::instance().drain();
+    const uint32_t muted_after = lv_color_to_u32(theme_manager_get_color("text_muted")) & 0xFFFFFF;
+    const auto labels_after = drawn_label_colors(plot);
+    const uint32_t want_a = lv_color_to_u32(theme_manager_get_color("belt_path_a")) & 0xFFFFFF;
+    const uint32_t want_b = lv_color_to_u32(theme_manager_get_color("belt_path_b")) & 0xFFFFFF;
+    const uint32_t a = rgb(fx.panel_series_id(0));
+    const uint32_t ghost_a = rgb(fx.panel_ghost_id(0));
+    const uint32_t b = rgb(fx.panel_series_id(1));
+    theme_manager_toggle_dark_mode();
+    UpdateQueue::instance().drain();
+
+    REQUIRE(want_a != before);
+    CHECK(a == want_a);
+    CHECK(ghost_a == want_a);
+    CHECK(b == want_b);
+
+    // Axis labels repaint in the new mode's text_muted.
+    REQUIRE(muted_after != muted_before);
+    const auto count = [](const std::vector<uint32_t>& v, uint32_t c) {
+        return std::count(v.begin(), v.end(), c);
+    };
+    CHECK(count(labels_before, muted_before) > 0);
+    CHECK(count(labels_after, muted_after) > 0);
+    CHECK(count(labels_after, muted_before) == 0);
 }
 
 TEST_CASE("sweep fact line comes from the printer's resonance_tester config", "[belt][panel]") {

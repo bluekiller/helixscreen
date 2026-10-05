@@ -7,6 +7,7 @@
 // loaded from a mock Moonraker DB, the same shape every backend's on_started()
 // hands it.
 
+#include "../test_helpers/mock_printer.h"
 #include "ams_types.h"
 #include "filament_slot_override_store.h"
 #include "helix_test_fixture.h"
@@ -34,10 +35,8 @@ using helix::ams::resolved_lane;
 
 TEST_CASE_METHOD(HelixTestFixture, "Loading a namespace populates each lane's sources",
                  "[lane][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value(
         "lane_data", "lane1",
         nlohmann::json{
@@ -82,10 +81,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     // LocalUser observation, so a record with a lock key set must be routed
     // through commit_slot_edit() or the user's declaration never reaches the
     // store at all.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value(
         "lane_data", "lane1",
         nlohmann::json{{"lane", 0}, {"color", "#3355FF"}, {"helix_locked_color", true}});
@@ -105,10 +102,8 @@ TEST_CASE_METHOD(HelixTestFixture,
 
 TEST_CASE_METHOD(HelixTestFixture, "Ingesting the same namespace twice changes nothing",
                  "[lane][migration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value("lane_data", "lane1",
                           nlohmann::json{{"lane", 0},
                                          {"color", "#BCBCBC"},
@@ -136,10 +131,8 @@ TEST_CASE_METHOD(HelixTestFixture, "Classification reads the document the store 
     // a missing key is never the user's declaration, whatever value it sits
     // beside. With no helix_ key of any kind on the document, what wrote it
     // is another tool (#1632), and its colour is that tool's statement.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value("lane_data", "lane1", nlohmann::json{{"lane", 0}, {"color", "#ED2C2C"}});
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
@@ -160,10 +153,8 @@ TEST_CASE_METHOD(HelixTestFixture, "A load that falls back to the on-disk cache 
     // The cache-fallback path (load_blocking's offline branch) never populates
     // last_lane_data_records(): there is no wire document to classify a cached
     // record against, so ingesting it would be a guess rather than a reading.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_reject_next_db_get();
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
@@ -188,10 +179,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     // stored brand can be the user's own word. Filing it as merely remembered
     // would put it below the machine, and the next frame carrying any brand
     // would take the lane back.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     // The edit is a brand and nothing else: every other SlotInfo field rests
@@ -227,10 +216,8 @@ TEST_CASE_METHOD(HelixTestFixture, "A brand nobody declared yields to the next f
     // namespace writes vendor_name, and our own emit mirrors what firmware
     // said. Declaring none of them keeps the weakest rung, where a machine
     // stating the field corrects it.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     api.mock_set_db_value("lane_data", "lane1",
                           nlohmann::json{{"lane", 0},
                                          {"vendor_name", "Firmware Brand"},
@@ -265,10 +252,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     // auto-mirror declares nothing and can populate no brand of its own. The
     // helix_material key is what keeps the document ours: without a helix_
     // key of any kind it would be another tool's write outright (#1632).
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     nlohmann::json record{
         {"lane", 0}, {"vendor", "Hatchbox"}, {"color", "#3355FF"}, {"helix_material", "PLA"}};
@@ -790,10 +775,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     // colour and material all come back on the commit untouched. A record
     // claiming them would outrank the machine that supplied them, and no later
     // firmware correction could ever land.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     const helix::SlotInfo before = firmware_lane();
@@ -833,10 +816,8 @@ TEST_CASE_METHOD(HelixTestFixture, "An edit that moves the brand claims the bran
     // One record, three fields whose authorship rides the declared set, and
     // exactly one of them moved. The record carries all three, so the routing
     // has to split them rather than answer once for the record.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     const helix::SlotInfo before = firmware_lane();
@@ -879,10 +860,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     // frame states lands on the lane again after a reload. Material rides the
     // same test to pin the half that already behaved this way
     // (prestonbrown/helixscreen#1661).
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     const helix::SlotInfo before = firmware_lane();
@@ -951,10 +930,8 @@ TEST_CASE_METHOD(HelixTestFixture, "An edit that moves the material locks it aga
                  "[lane][migration]") {
     // The #965 protection: a material the person moved is theirs, and no
     // firmware frame may take it back.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     const helix::SlotInfo before = firmware_lane();
@@ -982,10 +959,8 @@ TEST_CASE_METHOD(HelixTestFixture, "A later edit keeps what an earlier edit decl
     // rest. The colour below was chosen in the first edit and never mentioned
     // again, so a record built from the second edit alone would hand it back
     // to the machine while the lane still calls it the user's.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     const helix::SlotInfo before = firmware_lane();
@@ -1027,10 +1002,8 @@ TEST_CASE_METHOD(HelixTestFixture, "Linking a spool declares the binding, not wh
                  "[lane][migration]") {
     // Picking a spool fills the editor with the server's brand, name and
     // colour. The person chose a spool, not any of those values.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
 
     const helix::SlotInfo before;

@@ -4,6 +4,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "ams_backend_qidi.h"
 #include "ams_error.h"
@@ -892,10 +893,9 @@ TEST_CASE("QIDI Box Max 4 dialect still rejects an out-of-range slot",
 
 TEST_CASE("QIDI Box on_started dispatches printer.objects.query (integration)",
           "[ams][qidi_box][integration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     AmsBackendQidi backend(&api, &client);
     REQUIRE(client.last_send_method().empty());
@@ -2058,10 +2058,8 @@ struct QidiTmpCacheDir {
 
 TEST_CASE("QIDI Box tag fingerprint change clears a prior user edit", "[ams][qidi_box]") {
     QidiTmpCacheDir tmp("swap_clears");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendQidi> harness(&api, nullptr);
     AmsBackendQidi& backend = *harness;
@@ -2105,10 +2103,8 @@ TEST_CASE("QIDI Box tag fingerprint change clears a prior user edit", "[ams][qid
 }
 
 TEST_CASE("QIDI Box unchanged tag fingerprint keeps a user edit", "[ams][qidi_box]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendQidi> harness(&api, nullptr);
     AmsBackendQidi& backend = *harness;
@@ -2130,10 +2126,8 @@ TEST_CASE("QIDI Box unchanged tag fingerprint keeps a user edit", "[ams][qidi_bo
 }
 
 TEST_CASE("QIDI Box first tag observation is a baseline, not a clear", "[ams][qidi_box]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendQidi> harness(&api, nullptr);
     AmsBackendQidi& backend = *harness;
@@ -2303,10 +2297,8 @@ TEST_CASE("QIDI Box a failed dispatch drops only its own echo expectations", "[a
 
 TEST_CASE("QIDI Box a user edit persists its override to the lane_data record", "[ams][qidi_box]") {
     QidiTmpCacheDir tmp("edit_persists");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendQidi> harness(&api, nullptr);
     AmsBackendQidi& backend = *harness;
@@ -2334,10 +2326,8 @@ TEST_CASE("QIDI Box a user edit persists its override to the lane_data record", 
 }
 
 TEST_CASE("QIDI Box startup loads persisted overrides from the database", "[ams][qidi_box]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendQidi> harness(&api, nullptr);
     AmsBackendQidi& backend = *harness;
@@ -2358,10 +2348,8 @@ TEST_CASE("QIDI Box startup loads persisted overrides from the database", "[ams]
 TEST_CASE("QIDI Box clear_slot_override erases the edit, its lane record and the persisted copy",
           "[ams][qidi_box]") {
     QidiTmpCacheDir tmp("clear_request");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendQidi> harness(&api, nullptr);
     AmsBackendQidi& backend = *harness;
@@ -2422,10 +2410,8 @@ TEST_CASE("QIDI Box a poll between the edit and its echo keeps the edit on scree
 
 TEST_CASE("QIDI Box a stored edit shows again after a restart", "[ams][qidi_box]") {
     QidiTmpCacheDir tmp("restart_shows");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // First run: the user edits slot 0 and the record lands in the database.
     {
@@ -2559,10 +2545,9 @@ TEST_CASE("QIDI Box an edit racing the clear's zero echoes survives them", "[ams
 }
 
 TEST_CASE("QIDI Box clear writes the firmware zeros while a print is active", "[ams][qidi_box]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<RecordingQidiBackend> harness(&api);
     RecordingQidiBackend& backend = *harness;
@@ -2638,10 +2623,8 @@ TEST_CASE("QIDI Box a non-integer slot id keeps the last stated id", "[ams][qidi
 }
 TEST_CASE("QIDI Box a restart compares against the fingerprint the record carried",
           "[ams][qidi_box]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // A record as a session running older code left it: a user override with
     // no fingerprint. Session 1 boots on it, observes the tag, and the
@@ -2695,10 +2678,8 @@ TEST_CASE("QIDI Box a restart compares against the fingerprint the record carrie
 
 TEST_CASE("clearing a QIDI Box slot takes the linked spool's brand off it",
           "[ams][qidi_box][lane]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<RecordingQidiBackend> harness(&api);
     RecordingQidiBackend& backend = *harness;

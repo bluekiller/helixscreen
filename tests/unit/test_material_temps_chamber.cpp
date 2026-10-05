@@ -25,6 +25,7 @@
 #include "panel_widget_manager.h"
 #include "static_panel_registry.h"
 #include "temperature_controller.h"
+#include "test_helpers/press_wash_probe.h"
 #include "test_helpers/scoped_shared_resource.h"
 #include "test_helpers/temperature_controller_test_access.h"
 
@@ -653,4 +654,31 @@ TEST_CASE("fr nozzle range key carries its intended value in the loaded catalog"
               "La température de la buse doit être entre 100 et %d°C");
     }
     REQUIRE(found);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "A material row presses with the shared wash and a tap opens its editor",
+                 "[material_temps][press_wash][1297]") {
+    reset_material_temps_singleton();
+    REQUIRE(register_component("header_bar"));
+    REQUIRE(register_component("overlay_panel"));
+    REQUIRE(register_component("components/material_temps_row"));
+    REQUIRE(register_component("material_temps_overlay"));
+
+    auto& overlay = helix::settings::get_material_temps_overlay();
+    overlay.show(lv_screen_active());
+    helix::ui::UpdateQueue::instance().drain();
+
+    // Rows are named for their material.
+    lv_obj_t* row = find_widget("PLA");
+    REQUIRE(row != nullptr);
+    CHECK(helix::test::paints_press_wash(row));
+
+    lv_subject_t* editing = lv_xml_get_subject(nullptr, "material_editing");
+    REQUIRE(editing != nullptr);
+    REQUIRE(lv_subject_get_int(editing) == 0);
+    lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+    CHECK(lv_subject_get_int(editing) == 1);
+
+    reset_material_temps_singleton();
 }

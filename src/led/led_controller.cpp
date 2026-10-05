@@ -1985,7 +1985,8 @@ void LedController::query_led_state() {
             const auto& status = response["result"]["status"];
             spdlog::debug("[LedController] query_led_state: got {}",
                           helix::json_util::safe_dump(status).substr(0, 200));
-            helix::ui::queue_update([status]() { get_printer_state().update_from_status(status); });
+            helix::ui::queue_update("LedController::query_led_state",
+                                    [status]() { get_printer_state().update_from_status(status); });
         });
 }
 

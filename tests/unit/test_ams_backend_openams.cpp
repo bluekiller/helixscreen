@@ -6,6 +6,7 @@
 
 #include "../helix_test_fixture.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_backend_openams.h"
 #include "ams_error.h"
 #include "ams_types.h"
@@ -608,10 +609,8 @@ TEST_CASE_METHOD(HelixTestFixture, "OpenAMS repaints a slot from the lane, not t
 TEST_CASE_METHOD(HelixTestFixture, "OpenAMS persists metered weight and clears slot metadata",
                  "[ams][openams][filament_slot_override]") {
     TmpCacheDir tmp("persist");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     OpenAmsHarness backend(&api);
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "openams");
@@ -656,10 +655,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // OpenAMS reads nothing off a spool, so an insert has no evidence either
     // way: the record stays and the user is asked. Tapping Clear clears it.
     TmpCacheDir tmp("insert_notice");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<OpenAmsHarness> backend_reg(&api);
     OpenAmsHarness& backend = *backend_reg;
@@ -714,10 +711,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 TEST_CASE_METHOD(LVGLUITestFixture,
                  "OpenAMS judges no insert from bays an offline unit or unready manager reports",
                  "[ams][openams][filament_slot_override][1710]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<OpenAmsHarness> backend_reg(&api);
     OpenAmsHarness& backend = *backend_reg;

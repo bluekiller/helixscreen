@@ -309,6 +309,15 @@ class SettingsManager {
     /** @brief Set the jog step distance in mm (clamped 0.01-200, persisted) */
     void set_jog_distance(JogMode mode, bool outer, float mm);
 
+    /**
+     * @brief Re-read every persisted setting and the jog distance cache from Config.
+     *
+     * init_subjects() is one-shot for the process, so a Config replaced under it
+     * (printer switch, test reset) is picked up here without rebinding observers.
+     * No-op before init_subjects().
+     */
+    void reload_from_config();
+
     /** @brief Restore all six jog distances to the shipped defaults (persisted) */
     void reset_jog_distances();
 
@@ -800,8 +809,9 @@ class SettingsManager {
 
     // Jog step distances in mm, [static_cast<int>(JogMode)][outer]. Cached
     // config values rather than subjects: read on every jog, not widget-bound.
-    // Sized for the three JogMode values; static_assert in init_subjects().
+    // Sized for the three JogMode values; static_assert in load_jog_distances().
     float jog_distances_[3][2]{};
+    void load_jog_distances();
 
     // External references
     IMoonrakerClient* moonraker_client_ = nullptr;

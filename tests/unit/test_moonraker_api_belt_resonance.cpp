@@ -186,6 +186,37 @@ TEST_CASE_METHOD(BeltApiFixture, "cancel suppresses every later callback", "[bel
     CHECK_FALSE(called);
 }
 
+TEST_CASE_METHOD(BeltApiFixture, "cancel holds against a line already being dispatched",
+                 "[belt][api]") {
+    // The client snapshots its handlers before invoking them, so a line can
+    // still reach a collector that cancel() has just unregistered. This
+    // handler sorts ahead of the collector's and cancels mid-dispatch of the
+    // terminal line, the order a WebSocket-thread delivery racing a UI cancel
+    // produces.
+    bool called = false;
+    bool cancelled = false;
+    std::function<void()> cancel;
+    mock_client_.register_method_callback(
+        "notify_gcode_response", "a_cancels_first", [&](const json& msg) {
+            if (cancel && msg["params"][0].get<std::string>().find("Resonances data written") !=
+                              std::string::npos) {
+                cancel();
+                cancelled = true;
+            }
+        });
+    cancel = api_->advanced().test_belt_resonance(
+        "1,-1", "helix_belt_a", [](int, float) {},
+        [&](const calibration::BeltCurve&) { called = true; },
+        [&](const MoonrakerError&) { called = true; });
+    for (int i = 0; i < 2000; ++i) {
+        lv_tick_inc(2);
+        lv_timer_handler_safe();
+    }
+    mock_client_.unregister_method_callback("notify_gcode_response", "a_cancels_first");
+    REQUIRE(cancelled);
+    CHECK_FALSE(called);
+}
+
 TEST_CASE_METHOD(BeltApiFixture, "progress follows the printer's configured range", "[belt][api]") {
     mock_client_.set_resonance_sweep_range(10.0, 60.0, 2.0);
     std::vector<float> freqs;

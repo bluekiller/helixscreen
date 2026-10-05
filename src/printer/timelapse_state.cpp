@@ -53,6 +53,11 @@ void TimelapseState::init_subjects(bool register_xml) {
     std::strncpy(timelapse_render_status_buf_, lv_tr("idle"),
                  sizeof(timelapse_render_status_buf_) - 1);
     std::memset(timelapse_capture_info_buf_, 0, sizeof(timelapse_capture_info_buf_));
+    {
+        // A fresh subject set starts with no finished render, like the subjects it pairs with.
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        last_rendered_filename_.clear();
+    }
 
     INIT_SUBJECT_INT(timelapse_render_progress, 0, subjects_, register_xml);
     INIT_SUBJECT_STRING(timelapse_render_status, lv_tr("idle"), subjects_, register_xml);

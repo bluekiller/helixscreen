@@ -6,6 +6,7 @@
 #include "../helix_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "../test_helpers/printer_state_test_access.h"
 #include "../test_helpers/snapmaker_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
@@ -1911,10 +1912,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // while firmware wins for hardware-truth fields (color is present on
     // both, but the override's color_rgb is non-zero and wins per policy).
     SnapmakerTmpCacheDir tmp("task12_override_applied");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -1950,10 +1949,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
 TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker clear_slot_override drops the Spoolman handles",
                  "[ams][snapmaker][filament_slot_override][1625]") {
     SnapmakerTmpCacheDir tmp("clear_spoolman_link");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -1986,10 +1983,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // The next firmware status update wipes an edit kept only in memory, so the
     // override has to survive subsequent parses.
     SnapmakerTmpCacheDir tmp("task12_persist_survives");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2046,10 +2041,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
 TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker sync_external_identity does NOT write store",
                  "[ams][snapmaker][filament_slot_override]") {
     SnapmakerTmpCacheDir tmp("task12_no_persist");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2081,10 +2074,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
                  "Snapmaker RFID UID change clears override (hardware swap detected)",
                  "[ams][snapmaker][filament_slot_override]") {
     SnapmakerTmpCacheDir tmp("task12_uid_swap_clears");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2143,10 +2134,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker first RFID UID observation does NO
     // Even when the override was saved against a different (now-stale) UID,
     // the very first observation is a BASELINE and must never fire a clear.
     SnapmakerTmpCacheDir tmp("task12_first_uid_baseline");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2188,10 +2177,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker first RFID UID observation does NO
 TEST_CASE_METHOD(SnapmakerFixture,
                  "Snapmaker restart compares against the fingerprint the record carried",
                  "[ams][snapmaker][filament_slot_override]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     const json uid_f1 = json::array({1, 2, 3, 4});
     const json uid_f2 = json::array({5, 6, 7, 8});
@@ -2274,10 +2261,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // no UID on the new side, nothing contradicts the spool the baseline
     // names, so a transient read glitch clears nothing.
     SnapmakerTmpCacheDir tmp("task12_empty_uid_noop");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2330,10 +2315,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // tracker reports no signal, no baseline moves and nothing clears.
     // Unloading a tagged spool therefore leaves the record describing it.
     SnapmakerTmpCacheDir tmp("1710_untagged_clears");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2430,10 +2413,8 @@ TEST_CASE_METHOD(
     // decidable when both sides read a tag (UID, or material and colour off a
     // tag whose UID never decoded).
     SnapmakerTmpCacheDir tmp("1710_tag_appears");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2471,10 +2452,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // so they decide: a PETG tag following a PLA one is a different spool,
     // and the same reading repeated is not an event at all.
     SnapmakerTmpCacheDir tmp("1710_broken_uid_material");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2521,10 +2500,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
                  "Snapmaker apply_user_edit POSTs to /printer/filament_detect/set",
                  "[ams][snapmaker][firmware_writeback]") {
     SnapmakerTmpCacheDir tmp("firmware_writeback_post");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2576,10 +2553,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker firmware POST omits unknown SUB_TY
     // and let firmware keep whatever it had. The free-form string still
     // lives in lane_data via the override store.
     SnapmakerTmpCacheDir tmp("firmware_writeback_unknown_subtype");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2616,10 +2591,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // real filament name ("Ambrosia Pink") is not one of the eight known
     // product lines, so SUB_TYPE is omitted and firmware keeps what it had.
     SnapmakerTmpCacheDir tmp("firmware_writeback_spoolman_name");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2655,10 +2628,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
 TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker firmware POST omits zero temperatures",
                  "[ams][snapmaker][firmware_writeback]") {
     SnapmakerTmpCacheDir tmp("firmware_writeback_zero_temps");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2692,10 +2663,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker sync_external_identity does NOT PO
     // firmware OR the override store. Mirrors the existing "no DB write" test
     // for the override-store path.
     SnapmakerTmpCacheDir tmp("firmware_writeback_no_persist");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2724,10 +2693,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // endpoint. The override is still persisted to lane_data, so the user's
     // edit isn't lost, so apply_user_edit must report success regardless.
     SnapmakerTmpCacheDir tmp("firmware_writeback_404");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -2772,10 +2739,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     // a stale color, then firing a status update with a different firmware
     // color, and verifying lane_data was overwritten.
     SnapmakerTmpCacheDir tmp("firmware_writeback_overwrite");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(&api, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
