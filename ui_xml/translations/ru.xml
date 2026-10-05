@@ -687,6 +687,7 @@
   <translation tag="Copy failed - use SSH manually" ru="Ошибка копирования - используйте SSH вручную"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." ru="Перепишите его в профиль слайсера для этого филамента. Принтер ничего не сохраняет."/>
   <translation tag="Copying from USB" ru="Копирование с USB"/>
+  <translation tag="Copying from USB stopped responding" ru="Копирование с USB перестало отвечать"/>
   <translation tag="Copying from USB..." ru="Копирование с USB..."/>
   <translation tag="Corner roundness" ru="Скругление углов"/>
   <translation tag="Correction (Ki)" ru="Коррекция (Ki)"/>

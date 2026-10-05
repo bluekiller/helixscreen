@@ -15,6 +15,7 @@
 #include "ui_print_select_path_navigator.h"
 #include "ui_print_select_usb_source.h"
 #include "ui_print_start_controller.h"
+#include "ui_timer_guard.h"
 
 #include "ams_backend.h"
 #include "async_lifetime_guard.h"
@@ -544,6 +545,9 @@ class PrintSelectPanel : public PanelBase {
     /// images create, which check_moonraker_usb_symlink() looks for.
     static constexpr const char* kUsbCopyDir = "usb_prints";
 
+    /// A USB copy whose transfer reports no progress for this long is abandoned.
+    static constexpr uint32_t kUsbCopyStallMs = 30000;
+
     /**
      * @brief Queue the selected file instead of starting it.
      *
@@ -950,8 +954,22 @@ class PrintSelectPanel : public PanelBase {
         std::string filename;
         std::string local_path;
         uint64_t size = 0;
+        uint64_t generation = 0; ///< usb_copy_generation_ when the copy began
         std::function<void(const std::string& dest)> then;
     };
+
+    /// Bumped per copy and on abandon; an answer for another value is stale.
+    uint64_t usb_copy_generation_ = 0;
+    helix::ui::LvglTimerGuard usb_copy_watchdog_;
+
+    /// The copy started under @p generation is still the one in flight.
+    [[nodiscard]] bool usb_copy_current(uint64_t generation) const;
+
+    /// Release the in-flight guard, the watchdog and the overlay.
+    void end_usb_copy();
+
+    /// Watchdog expiry: drop the copy and say so.
+    void abandon_stalled_usb_copy();
 
     /**
      * @brief Get the selected USB file into Moonraker's gcodes root.
@@ -966,9 +984,6 @@ class PrintSelectPanel : public PanelBase {
 
     /// Name the copy from what kUsbCopyDir holds, then upload or reuse.
     void upload_usb_copy(UsbCopyRequest req, const std::map<std::string, uint64_t>& existing);
-
-    /// End an in-flight copy with a toast.
-    void finish_usb_copy_failed(const std::string& filename, const std::string& reason);
 
     /// Hand the controller @p filename in Moonraker directory @p dir, with the
     /// tool colors and thumbnail read when Print was tapped, and start.

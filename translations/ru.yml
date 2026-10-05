@@ -759,6 +759,7 @@ translations:
   Copy failed - use SSH manually: Ошибка копирования - используйте SSH вручную
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Перепишите его в профиль слайсера для этого филамента. Принтер ничего не сохраняет.'
   Copying from USB: 'Копирование с USB'
+  Copying from USB stopped responding: 'Копирование с USB перестало отвечать'
   Copying from USB...: 'Копирование с USB...'
   Corner roundness: Скругление углов
   Correction (Ki): Коррекция (Ki)

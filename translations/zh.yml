@@ -702,6 +702,7 @@ translations:
   Copy failed - use SSH manually: 复制失败 - 请手动使用 SSH
   Copy it into this filament's slicer profile. The printer keeps nothing.: '请把它复制到该耗材的切片软件配置中。打印机不会保存任何内容。'
   Copying from USB: '正在从 USB 复制'
+  Copying from USB stopped responding: '从 USB 复制已停止响应'
   Copying from USB...: '正在从 USB 复制...'
   Corner roundness: 圆角程度
   Correction (Ki): 校正 (Ki)

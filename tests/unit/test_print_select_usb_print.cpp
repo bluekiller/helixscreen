@@ -259,3 +259,28 @@ TEST_CASE_METHOD(UsbPrintFixture, "an unreadable copy folder stops the copy rath
     CHECK(errors.messages.size() == 1);
     CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first.empty());
 }
+
+TEST_CASE_METHOD(UsbPrintFixture, "a USB copy that stops making progress is abandoned",
+                 "[usb][usb_print]") {
+    ErrorLog errors;
+    transfers().mock_hold_path_uploads();
+    panel_->start_print(/*force=*/true);
+    drain();
+    REQUIRE(transfers().path_uploads().size() == 1);
+
+    process_lvgl(PrintSelectPanel::kUsbCopyStallMs + 2000);
+    drain();
+    CHECK(errors.messages.size() == 1);
+
+    // The answer that finally arrives belongs to the abandoned copy.
+    transfers().release_held_path_uploads();
+    drain();
+    CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first.empty());
+
+    // Print works again.
+    transfers().mock_hold_path_uploads(false);
+    panel_->start_print(/*force=*/true);
+    drain();
+    CHECK(transfers().path_uploads().size() == 2);
+    CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first == "part.gcode");
+}

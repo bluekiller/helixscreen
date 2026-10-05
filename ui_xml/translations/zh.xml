@@ -687,6 +687,7 @@
   <translation tag="Copy failed - use SSH manually" zh="复制失败 - 请手动使用 SSH"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." zh="请把它复制到该耗材的切片软件配置中。打印机不会保存任何内容。"/>
   <translation tag="Copying from USB" zh="正在从 USB 复制"/>
+  <translation tag="Copying from USB stopped responding" zh="从 USB 复制已停止响应"/>
   <translation tag="Copying from USB..." zh="正在从 USB 复制..."/>
   <translation tag="Corner roundness" zh="圆角程度"/>
   <translation tag="Correction (Ki)" zh="校正 (Ki)"/>

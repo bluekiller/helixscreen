@@ -743,6 +743,7 @@ translations:
   Copy failed - use SSH manually: Copy failed - use SSH manually
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Copy it into this filament''s slicer profile. The printer keeps nothing.'
   Copying from USB: Copying from USB
+  Copying from USB stopped responding: Copying from USB stopped responding
   Copying from USB...: Copying from USB...
   Corner roundness: Corner roundness
   Correction (Ki): Correction (Ki)

@@ -687,6 +687,7 @@
   <translation tag="Copy failed - use SSH manually" de="Kopieren fehlgeschlagen – SSH verwenden"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." de="Trage ihn ins Slicer-Profil dieses Filaments ein. Der Drucker speichert nichts."/>
   <translation tag="Copying from USB" de="Kopieren von USB"/>
+  <translation tag="Copying from USB stopped responding" de="Kopieren von USB reagiert nicht mehr"/>
   <translation tag="Copying from USB..." de="Kopieren von USB..."/>
   <translation tag="Corner roundness" de="Eckenrundung"/>
   <translation tag="Correction (Ki)" de="Korrektur (Ki)"/>

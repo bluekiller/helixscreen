@@ -771,6 +771,7 @@ translations:
   Copy failed - use SSH manually: Error al copiar - use SSH manualmente
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Cópialo en el perfil del laminador de este filamento. La impresora no guarda nada.'
   Copying from USB: 'Copiando desde USB'
+  Copying from USB stopped responding: 'La copia desde USB dejó de responder'
   Copying from USB...: 'Copiando desde USB...'
   Corner roundness: Redondeo de esquinas
   Correction (Ki): Corrección (Ki)

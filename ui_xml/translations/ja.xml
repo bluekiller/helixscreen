@@ -687,6 +687,7 @@
   <translation tag="Copy failed - use SSH manually" ja="コピー失敗 - SSHを手動で使用してください"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." ja="この値をこのフィラメントのスライサー プロファイルに転記してください。プリンターには保存されません。"/>
   <translation tag="Copying from USB" ja="USB からコピー中"/>
+  <translation tag="Copying from USB stopped responding" ja="USB からのコピーが応答しなくなりました"/>
   <translation tag="Copying from USB..." ja="USB からコピー中..."/>
   <translation tag="Corner roundness" ja="角の丸み"/>
   <translation tag="Correction (Ki)" ja="補正 (Ki)"/>

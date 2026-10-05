@@ -704,6 +704,7 @@ translations:
   Copy failed - use SSH manually: コピー失敗 - SSHを手動で使用してください
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'この値をこのフィラメントのスライサー プロファイルに転記してください。プリンターには保存されません。'
   Copying from USB: 'USB からコピー中'
+  Copying from USB stopped responding: 'USB からのコピーが応答しなくなりました'
   Copying from USB...: 'USB からコピー中...'
   Corner roundness: 角の丸み
   Correction (Ki): 補正 (Ki)
