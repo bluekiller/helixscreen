@@ -62,7 +62,7 @@ lv_obj_t* arm_resize(GridEditMode& em, GridEditScene& scene) {
 }
 
 /// Run the commit that starts the snap animation. It hands the preview over to
-/// the animation and nulls resize_preview_, which is asserted here so that a
+/// the animation and nulls resize_outline_, which is asserted here so that a
 /// refactor which stops doing so cannot quietly make these tests vacuous.
 void commit_snap_resize(GridEditMode& em) {
     // Grow the widget by one whole cell — any changed span reaches the animated
@@ -111,6 +111,34 @@ TEST_CASE_METHOD(XMLTestFixture,
     // no longer exists. Cancellation must suppress that.
     process_lvgl(300);
     CHECK_FALSE(rebuilt);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: snap animation is cancelled when any outline bar dies",
+                 "[grid_edit][grid_edit_snap_anim]") {
+    helix::ui::ScopedAnimationsEnabled animations_on;
+    REQUIRE(DisplaySettingsManager::instance().get_animations_enabled());
+
+    GridEditScene scene(test_screen(), "test_grid_edit_snap_anim_bar_death");
+
+    GridEditMode em;
+    lv_obj_t* preview = arm_resize(em, scene);
+    lv_obj_t* other_bar = GridEditModeTestAccess::resize_outline(em)[2];
+    REQUIRE(other_bar != nullptr);
+    REQUIRE(other_bar != preview);
+    const uint16_t anims_before = lv_anim_count_running();
+    commit_snap_resize(em);
+    REQUIRE(lv_anim_get(preview, nullptr) != nullptr);
+
+    // The exec callback writes every bar, so a bar that is not the animation's
+    // var dying first must end it too, or the next frame writes freed memory.
+    lv_obj_delete(other_bar);
+    CHECK(lv_anim_get(preview, nullptr) == nullptr);
+    CHECK(lv_anim_count_running() == anims_before);
 
     em.exit();
     process_lvgl(50);

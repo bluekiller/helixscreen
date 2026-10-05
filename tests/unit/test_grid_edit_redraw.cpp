@@ -73,3 +73,36 @@ TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: an unchanged snap preview repain
     process_lvgl(50);
     lv_obj_delete(scene.container);
 }
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: a resize step repaints the outline's edges, not its box",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_outline");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+
+    GridEditModeTestAccess::make_resize_preview(em, 0, 0, 200, 150);
+    flush_invalidation();
+
+    // The right edge follows the pointer 60px outward.
+    constexpr int W = 260;
+    constexpr int H = 150;
+    GridEditModeTestAccess::make_resize_preview(em, 0, 0, W, H);
+    const int32_t repainted = invalidated_px();
+    INFO("repainted " << repainted << " px for a " << W << "x" << H << " outline");
+    CHECK(repainted > 0);
+    // A box outline repaints its old and new areas, more than W*H. The bars
+    // repaint strips a few pixels thick.
+    CHECK(repainted < W * H / 8);
+
+    // Still drawn where asked: the right bar sits on the box's right edge.
+    lv_obj_update_layout(scene.container);
+    lv_obj_t* right = GridEditModeTestAccess::resize_outline(em)[3];
+    REQUIRE(right != nullptr);
+    CHECK(lv_obj_get_x(right) + lv_obj_get_width(right) == W);
+    CHECK(lv_obj_get_height(right) == H);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}

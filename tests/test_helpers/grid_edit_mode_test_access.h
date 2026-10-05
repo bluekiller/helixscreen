@@ -29,14 +29,20 @@ struct GridEditModeTestAccess {
         return em.shield_;
     }
 
-    /// The pixel-tracking resize overlay a live resize drag creates. Reads as
-    /// nullptr once commit_resize_with_snap() has handed it to the snap
-    /// animation, so a lifetime test has to latch it before committing.
+    /// The pixel-tracking resize outline a live resize drag creates, by its
+    /// first bar, the one the snap animation is keyed on. Reads as nullptr once
+    /// commit_resize_with_snap() has handed it to the snap animation, so a
+    /// lifetime test has to latch it before committing.
     static lv_obj_t* resize_preview(const GridEditMode& em) {
-        return em.resize_preview_;
+        return em.resize_outline_[0];
     }
 
-    /// Create resize_preview_ the way handle_resize_move() does. A full drag
+    /// All four bars of the resize outline.
+    static std::array<lv_obj_t*, 4> resize_outline(const GridEditMode& em) {
+        return em.resize_outline_;
+    }
+
+    /// Create the resize outline the way handle_resize_move() does. A full drag
     /// would reach the same call through the indev, but the snap animation's
     /// lifetime does not depend on how the preview came to exist.
     static void make_resize_preview(GridEditMode& em, int x, int y, int w, int h) {
@@ -99,7 +105,7 @@ struct GridEditModeTestAccess {
     /// Which drag lifecycle handle_drag_start() committed the gesture to.
     ///
     /// resizing_ + resize_edge_ together are the direct witness that the resize
-    /// branch was taken AND which edge it classified — resize_preview_ only
+    /// branch was taken AND which edge it classified — resize_outline_ only
     /// proves the branch ran, and dragging_ separates "went down the move path"
     /// from "was dropped at the guard", which both leave resizing_ false.
     static bool resizing(const GridEditMode& em) {
@@ -170,7 +176,7 @@ struct GridEditModeTestAccess {
     /// A committed resize is still easing into its cell: the rebuild that lays
     /// the resized widget out has not been scheduled yet.
     static bool snap_animating(const GridEditMode& em) {
-        return em.snap_anim_preview_ != nullptr;
+        return em.snap_anim_outline_[0] != nullptr;
     }
 };
 

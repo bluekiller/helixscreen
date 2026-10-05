@@ -9,6 +9,7 @@
 #include "grid_layout.h"
 #include "lvgl/lvgl.h"
 
+#include <array>
 #include <functional>
 #include <optional>
 #include <string>
@@ -496,7 +497,7 @@ class GridEditMode {
     /// Its completion callback holds a raw `this` and dereferences config_, so
     /// both exit() (which nulls config_) and the destructor must run this. The
     /// animation's deleted_cb frees the heap context and clears
-    /// snap_anim_preview_, so this is also the leak-free cancel path. The
+    /// snap_anim_outline_, so this is also the leak-free cancel path. The
     /// in-place layout is a grid cell write that creates and deletes nothing,
     /// so a stop no rebuild follows (switch_page) still shows the committed
     /// span, from inside input dispatch or under a live gesture alike.
@@ -626,12 +627,22 @@ class GridEditMode {
     // Resize state
     bool resizing_ = false;
     ResizeEdge resize_edge_ = ResizeEdge::None;
-    lv_obj_t* resize_preview_ = nullptr; // Pixel-tracking preview overlay
+    /// The pixel-tracking resize outline: four edge bars (top, bottom, left,
+    /// right), children of the scoped container. Bars rather than one bordered
+    /// box, because LVGL repaints an object's whole area when it moves or
+    /// resizes: a box repaints everything it outlines on every pointer step, a
+    /// bar only its own strip. All null, or all live.
+    using ResizeOutline = std::array<lv_obj_t*, 4>;
+    ResizeOutline resize_outline_{};
+    /// The box resize_outline_ is drawn around, relative to the container's
+    /// content area.
+    lv_area_t resize_outline_box_{};
 
-    // Widget the resize snap animation is driving, or nullptr when none is in
-    // flight. It is the animation's `var`, which is what lets LVGL auto-cancel
-    // on widget deletion and what cancel_snap_animation() cancels by.
-    lv_obj_t* snap_anim_preview_ = nullptr;
+    // Outline the resize snap animation is driving, all null when none is in
+    // flight. Bar 0 is the animation's `var`, which is what lets LVGL
+    // auto-cancel on its deletion and what cancel_snap_animation() cancels by;
+    // deleting any other bar cancels it too.
+    ResizeOutline snap_anim_outline_{};
     /// The widget that snap animation resized, which the rebuild after it
     /// selects again. Empty when no snap is in flight.
     std::string snap_anim_widget_id_;

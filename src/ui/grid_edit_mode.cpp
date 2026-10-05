@@ -30,6 +30,26 @@ namespace helix {
 
 // Drag visual constants
 static constexpr int PREVIEW_BORDER_WIDTH = 3;
+static constexpr int RESIZE_OUTLINE_WIDTH = 2;
+
+/// Lay the four bars of a resize outline around the box at (@p x, @p y),
+/// @p w by @p h, in container-content coordinates.
+static void place_resize_outline(const std::array<lv_obj_t*, 4>& bars, int x, int y, int w, int h) {
+    constexpr int t = RESIZE_OUTLINE_WIDTH;
+    const int rects[4][4] = {
+        {x, y, w, t}, {x, y + h - t, w, t}, {x, y, t, h}, {x + w - t, y, t, h}};
+    for (size_t i = 0; i < bars.size(); ++i) {
+        lv_obj_set_pos(bars[i], rects[i][0], rects[i][1]);
+        lv_obj_set_size(bars[i], rects[i][2], rects[i][3]);
+    }
+}
+
+/// Retire every bar of @p bars, leaving it all null.
+static void delete_resize_outline(std::array<lv_obj_t*, 4>& bars) {
+    for (lv_obj_t*& bar : bars) {
+        helix::ui::safe_delete_deferred(bar);
+    }
+}
 
 // Resize edge detection. The grab band is derived from the grid's cell size in
 // edge_hit_band_for_cell() so the target scales with the panel. The fallback
@@ -56,10 +76,11 @@ void GridEditMode::cancel_snap_animation() {
     // Drop our handle BEFORE cancelling. lv_anim_delete() runs the animation's
     // deleted_cb synchronously and that callback writes this same member, so
     // the order keeps it from racing us back to a stale value.
-    lv_obj_t* target = snap_anim_preview_;
+    ResizeOutline outline = snap_anim_outline_;
+    lv_obj_t* target = outline[0];
     const std::string widget_id = snap_anim_widget_id_;
     const ResizeResult cell = snap_anim_cell_;
-    snap_anim_preview_ = nullptr;
+    snap_anim_outline_ = {};
     snap_anim_widget_id_.clear();
     if (target && lv_is_initialized()) {
         // The resize committed at its release, and the rebuild the snap's
@@ -81,15 +102,15 @@ void GridEditMode::cancel_snap_animation() {
                                  LV_GRID_ALIGN_STRETCH, cell.row, cell.rowspan);
         }
         lv_anim_delete(target, nullptr);
-        // The animating preview was handed off from resize_preview_ and no
-        // other owner remains; retire the object itself or it stays drawn
-        // wherever the interruption left it.
-        helix::ui::safe_delete_deferred(target);
+        // The animating outline was handed off from resize_outline_ and no
+        // other owner remains; retire it or it stays drawn wherever the
+        // interruption left it.
+        delete_resize_outline(outline);
     }
 }
 
 void GridEditMode::finish_resize_snap() {
-    if (!snap_anim_preview_) {
+    if (!snap_anim_outline_[0]) {
         return;
     }
     // Copied first: the cancel clears it.
@@ -1501,7 +1522,7 @@ void GridEditMode::begin_press() {
     // lands on, its target among them. The press finishes the snap, which
     // schedules the rebuild for the next tick, and takes no grid action, so no
     // gesture owns the pointer when the rebuild runs.
-    if (snap_anim_preview_) {
+    if (snap_anim_outline_[0]) {
         finish_resize_snap();
         gesture_inert_ = true;
     }
@@ -2053,7 +2074,7 @@ void GridEditMode::handle_resize_move(lv_event_t* /*e*/) {
 
 void GridEditMode::handle_resize_end(lv_event_t* /*e*/) {
     if (!selected_ || !container_ || !config_) {
-        helix::ui::safe_delete_deferred(resize_preview_);
+        delete_resize_outline(resize_outline_);
         clear_gesture_state();
         return;
     }
@@ -2138,7 +2159,7 @@ void GridEditMode::handle_resize_end(lv_event_t* /*e*/) {
     } else {
         // Snap back: clean up previews and restore selection
         lv_obj_t* was_selected = selected_;
-        helix::ui::safe_delete_deferred(resize_preview_);
+        delete_resize_outline(resize_outline_);
         destroy_snap_preview();
         clear_gesture_state();
         reselect_in_place(was_selected);
@@ -2150,26 +2171,31 @@ void GridEditMode::update_resize_preview_px(int x, int y, int w, int h, bool val
         return;
     }
 
-    if (!resize_preview_) {
-        // Pixel-following preview: thin border, no fill. The grid-snapped
-        // snap_preview_ provides the primary visual indicator of landing position.
-        resize_preview_ = lv_obj_create(container_);
-        lv_obj_add_flag(resize_preview_, LV_OBJ_FLAG_FLOATING);
-        lv_obj_remove_flag(resize_preview_, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(resize_preview_, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_border_width(resize_preview_, 2, 0);
-        lv_obj_set_style_radius(resize_preview_, 8, 0);
-        lv_obj_set_style_pad_all(resize_preview_, 0, 0);
-        lv_obj_set_style_bg_opa(resize_preview_, LV_OPA_TRANSP, 0);
+    if (!resize_outline_[0]) {
+        // Pixel-following outline, no fill. The grid-snapped snap_preview_
+        // provides the primary visual indicator of landing position.
+        for (lv_obj_t*& bar : resize_outline_) {
+            bar = lv_obj_create(container_);
+            lv_obj_add_flag(bar, LV_OBJ_FLAG_FLOATING);
+            lv_obj_remove_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_border_width(bar, 0, 0);
+            lv_obj_set_style_radius(bar, 0, 0);
+            lv_obj_set_style_pad_all(bar, 0, 0);
+            lv_obj_set_style_bg_opa(bar, LV_OPA_40, 0);
+        }
     }
 
-    lv_obj_set_pos(resize_preview_, x, y);
-    lv_obj_set_size(resize_preview_, w, h);
+    place_resize_outline(resize_outline_, x, y, w, h);
+    lv_area_set(&resize_outline_box_, x, y, x + w - 1, y + h - 1);
 
-    lv_color_t color =
+    const lv_color_t color =
         valid ? theme_get_accent_color() : ThemeManager::instance().get_color("danger");
-    lv_obj_set_style_border_color(resize_preview_, color, 0);
-    lv_obj_set_style_border_opa(resize_preview_, LV_OPA_40, 0);
+    for (lv_obj_t* bar : resize_outline_) {
+        if (!lv_color_eq(lv_obj_get_style_bg_color(bar, LV_PART_MAIN), color)) {
+            lv_obj_set_style_bg_color(bar, color, 0);
+        }
+    }
 }
 
 void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
@@ -2220,24 +2246,26 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
     // Animate preview to final grid position, then rebuild on completion.
     // The rebuild destroys all container children, so it MUST NOT run while
     // the animation is still in flight (the preview is a container child).
-    if (resize_preview_ && DisplaySettingsManager::instance().get_animations_enabled()) {
+    if (resize_outline_[0] && DisplaySettingsManager::instance().get_animations_enabled()) {
         struct SnapData {
             int target_x, target_y, target_w, target_h;
             int start_x, start_y, start_w, start_h;
+            ResizeOutline outline;
             GridEditMode* self;
         };
 
-        lv_obj_t* preview = resize_preview_;
+        lv_obj_t* preview = resize_outline_[0];
 
         auto* data = new SnapData();
         data->target_x = target_x;
         data->target_y = target_y;
         data->target_w = target_w;
         data->target_h = target_h;
-        data->start_x = lv_obj_get_x(resize_preview_);
-        data->start_y = lv_obj_get_y(resize_preview_);
-        data->start_w = lv_obj_get_width(resize_preview_);
-        data->start_h = lv_obj_get_height(resize_preview_);
+        data->start_x = resize_outline_box_.x1;
+        data->start_y = resize_outline_box_.y1;
+        data->start_w = lv_area_get_width(&resize_outline_box_);
+        data->start_h = lv_area_get_height(&resize_outline_box_);
+        data->outline = resize_outline_;
         data->self = this;
 
         lv_anim_t anim;
@@ -2255,14 +2283,12 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
         lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
         lv_anim_set_custom_exec_cb(&anim, [](lv_anim_t* a, int32_t val) {
             auto* d = static_cast<SnapData*>(a->user_data);
-            auto* obj = static_cast<lv_obj_t*>(a->var);
             int t = val; // 0..255
             int x = d->start_x + (d->target_x - d->start_x) * t / 255;
             int y = d->start_y + (d->target_y - d->start_y) * t / 255;
             int w = d->start_w + (d->target_w - d->start_w) * t / 255;
             int h = d->start_h + (d->target_h - d->start_h) * t / 255;
-            lv_obj_set_pos(obj, x, y);
-            lv_obj_set_size(obj, w, h);
+            place_resize_outline(d->outline, x, y, w, h);
         });
         // Frees SnapData on EVERY exit path. anim_completed_handler() and
         // remove_anim() both call deleted_cb (lib/lvgl/src/misc/lv_anim.c), so
@@ -2274,8 +2300,8 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
             if (!d) {
                 return;
             }
-            if (d->self && d->self->snap_anim_preview_ == a->var) {
-                d->self->snap_anim_preview_ = nullptr;
+            if (d->self && d->self->snap_anim_outline_[0] == a->var) {
+                d->self->snap_anim_outline_ = {};
                 d->self->snap_anim_widget_id_.clear();
             }
             delete d;
@@ -2289,17 +2315,27 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
             self->rebuild_then_select(self->snap_anim_widget_id_);
         });
         lv_anim_start(&anim);
-        snap_anim_preview_ = preview;
+        // The exec callback writes every bar, so the death of any bar ends the
+        // animation, not only that of bar 0, its `var`. LVGL cancels by var
+        // pointer without dereferencing it, so the order the bars die in does
+        // not matter. DECLARATIVE_OK: LV_EVENT_DELETE cleanup.
+        for (size_t i = 1; i < resize_outline_.size(); ++i) {
+            lv_obj_add_event_cb(
+                resize_outline_[i],
+                [](lv_event_t* e) { lv_anim_delete(lv_event_get_user_data(e), nullptr); },
+                LV_EVENT_DELETE, preview);
+        }
+        snap_anim_outline_ = resize_outline_;
         snap_anim_widget_id_ = resized_id;
         snap_anim_cell_ = result;
 
-        // The animation drives the preview from here on; snap_anim_preview_ is
-        // the handle now. The widget itself stays owned by the container and
-        // dies with the rebuild.
-        resize_preview_ = nullptr;
+        // The animation drives the outline from here on; snap_anim_outline_ is
+        // the handle now. The bars stay owned by the container and die with the
+        // rebuild.
+        resize_outline_ = {};
     } else {
         // No animation: clean up and rebuild immediately
-        helix::ui::safe_delete_deferred(resize_preview_);
+        delete_resize_outline(resize_outline_);
         do_rebuild();
     }
 }
@@ -2366,7 +2402,7 @@ void GridEditMode::tear_down_gesture() {
     }
     if (dragging_ || resizing_) {
         destroy_snap_preview();
-        helix::ui::safe_delete_deferred(resize_preview_);
+        delete_resize_outline(resize_outline_);
     }
     clear_gesture_state();
 }
@@ -2403,6 +2439,7 @@ void GridEditMode::forget_container_children() {
     snap_preview_ = nullptr;
     snap_preview_col_ = -1;
     snap_preview_row_ = -1;
+    resize_outline_ = {};
 }
 
 void GridEditMode::rebuild_then_select(std::string widget_id) {
