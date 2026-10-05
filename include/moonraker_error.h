@@ -5,7 +5,6 @@
 
 #include "format_utils.h"
 #include "json_fwd.h"
-#include "lvgl/src/others/translation/lv_translation.h"
 #include "translation_loader.h"
 
 #include <string>
@@ -145,10 +144,7 @@ struct MoonrakerError {
      * thread (#1219). Error callbacks often run on the WebSocket thread: capture
      * the error by value and call this from the deferred main-thread body.
      */
-    std::string localized_message() const {
-        const char* tag = display_tag();
-        return tag ? std::string(lv_tr(tag)) : message;
-    }
+    std::string localized_message() const;
 
     /**
      * @brief Extract a human-readable message from Moonraker/Klipper error strings.
