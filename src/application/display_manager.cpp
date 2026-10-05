@@ -358,13 +358,8 @@ bool DisplayManager::init(const Config& config) {
                              "/boot/firmware/cmdline.txt instead.");
                 rotation_degrees = 0;
             } else {
-                // The backend is the only writer of the rotation, and may leave
-                // LVGL's at zero when a scanout plane rotates instead, so read
-                // the resolution it settles on.
-                m_backend->set_display_rotation(m_display, lv_rot, phys_w, phys_h);
-
-                m_width = lv_display_get_horizontal_resolution(m_display);
-                m_height = lv_display_get_vertical_resolution(m_display);
+                // After the fallback, which may have swapped m_backend.
+                settle_display_rotation(lv_rot, phys_w, phys_h);
             }
 
             spdlog::info("[DisplayManager] Display rotated {}° — effective resolution: {}x{}",

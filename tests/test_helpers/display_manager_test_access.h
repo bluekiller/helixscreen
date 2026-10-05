@@ -130,6 +130,13 @@ class DisplayManagerTestAccess {
         dm.run_rotation_probe();
     }
 
+    // The rotate-then-cache step init() and the rotation probe both route
+    // through, against the manager's current backend and display.
+    static void settle_display_rotation(DisplayManager& dm, lv_display_rotation_t rot, int phys_w,
+                                        int phys_h) {
+        dm.settle_display_rotation(rot, phys_w, phys_h);
+    }
+
     // Which branch the last enter_sleep() actually took (#1245). Not the same as
     // re-running select_sleep_mechanism(): the power-off branch can degrade to the
     // overlay at runtime, so this is the only way to prove enter_sleep() honored
