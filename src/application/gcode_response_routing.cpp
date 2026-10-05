@@ -172,7 +172,6 @@ void GcodeResponseRouting::detach_handlers(IMoonrakerClient* client) {
     // AmsState outlives the bundle: its mock gcode injection callback would dangle.
     AmsState::instance().set_gcode_response_callback(nullptr);
     m_action_prompt_modal.reset();
-    ActionPromptManager::set_instance(nullptr);
     m_action_prompt_manager.reset();
 }
 
