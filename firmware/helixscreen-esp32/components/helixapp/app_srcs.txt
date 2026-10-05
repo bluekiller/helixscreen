@@ -474,6 +474,7 @@ src/ui/ui_panel_common.cpp
 src/ui/ui_panel_console.cpp
 src/ui/ui_panel_controls.cpp
 src/ui/quick_action_slots.cpp
+src/ui/quick_action_buttons.cpp
 src/ui/ui_motors_off.cpp
 src/ui/ui_panel_filament.cpp
 src/ui/ui_panel_history_dashboard.cpp
