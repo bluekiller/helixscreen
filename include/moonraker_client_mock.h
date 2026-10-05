@@ -234,6 +234,13 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
         return motors_enabled_.load();
     }
 
+    /// Klipper's toolhead.homed_axes as this mock currently reports it. Every
+    /// status source (query, subscribe, notifications) reads it from here.
+    std::string get_homed_axes() const {
+        std::lock_guard<std::mutex> lock(homed_axes_mutex_);
+        return homed_axes_;
+    }
+
     /**
      * @brief Set idle timeout duration in seconds
      * @param seconds Timeout duration (default 600 = 10 minutes)
