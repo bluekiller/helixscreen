@@ -239,7 +239,7 @@ void safety_limits_step(DiscoveryContext& ctx) {
             float bed_x_max = api_ptr->hardware().build_volume().x_max;
             ui::queue_update("discovery_steps::safety_limits_step", [bed_x_max]() {
                 ThermalRateManager::instance().apply_archetype_defaults(
-                    bed_x_max, get_printer_state().get_printer_type());
+                    bed_x_max, get_printer_state().profile_state().printer_type());
             });
 
             // Record hardware profile after build volume is populated

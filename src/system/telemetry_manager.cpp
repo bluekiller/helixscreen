@@ -1322,7 +1322,7 @@ nlohmann::json TelemetryManager::build_session_event() const {
 
         // Detected printer type (generic model name, not PII)
         {
-            const auto& ptype = get_printer_state().get_printer_type();
+            const auto& ptype = get_printer_state().profile_state().printer_type();
             if (!ptype.empty()) {
                 printer["detected_model"] = ptype;
             }
@@ -1757,7 +1757,7 @@ nlohmann::json TelemetryManager::build_hardware_profile_event() const {
         // ---- printer section ----
         json printer;
         {
-            const auto& ptype = get_printer_state().get_printer_type();
+            const auto& ptype = get_printer_state().profile_state().printer_type();
             if (!ptype.empty()) {
                 printer["detected_model"] = ptype;
             }

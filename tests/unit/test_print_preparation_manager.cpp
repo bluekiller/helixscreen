@@ -580,7 +580,7 @@ TEST_CASE_METHOD(HelixTestFixture, "PrintPreparationManager: capabilities come f
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
         // Verify PrinterState has the option set
-        const auto& state_caps = printer_state.get_pre_print_option_set();
+        const auto& state_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(state_caps.empty());
         REQUIRE(state_caps.macro_name == "START_PRINT");
 
@@ -593,7 +593,7 @@ TEST_CASE_METHOD(HelixTestFixture, "PrintPreparationManager: capabilities come f
 
     SECTION("Manager sees empty capabilities when PrinterState has no type") {
         // Don't set any printer type - should have empty capabilities
-        const auto& state_caps = printer_state.get_pre_print_option_set();
+        const auto& state_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE(state_caps.empty());
         REQUIRE(state_caps.macro_name.empty());
     }
@@ -603,7 +603,7 @@ TEST_CASE_METHOD(HelixTestFixture, "PrintPreparationManager: capabilities come f
         printer_state.set_printer_type_sync("Unknown Printer That Does Not Exist");
 
         // Should return empty capabilities, not crash
-        const auto& state_caps = printer_state.get_pre_print_option_set();
+        const auto& state_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE(state_caps.empty());
     }
 
@@ -692,7 +692,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
         // Verify AD5M Pro options
-        const auto& caps_v1 = printer_state.get_pre_print_option_set();
+        const auto& caps_v1 = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_v1.empty());
         REQUIRE(caps_v1.macro_name == "START_PRINT");
         size_t v1_option_count = caps_v1.options.size();
@@ -701,7 +701,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M");
 
         // Verify options updated
-        const auto& caps_v2 = printer_state.get_pre_print_option_set();
+        const auto& caps_v2 = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_v2.empty());
         // Both have START_PRINT but this confirms the lookup happened
         REQUIRE(caps_v2.macro_name == "START_PRINT");
@@ -714,14 +714,14 @@ TEST_CASE_METHOD(HelixTestFixture,
         // Start with known printer
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
-        const auto& caps_known = printer_state.get_pre_print_option_set();
+        const auto& caps_known = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_known.empty());
 
         // Switch to unknown printer
         printer_state.set_printer_type_sync("Generic Unknown Printer XYZ");
 
         // Capabilities should now be empty (no stale cache)
-        const auto& caps_unknown = printer_state.get_pre_print_option_set();
+        const auto& caps_unknown = printer_state.profile_state().pre_print_option_set();
         REQUIRE(caps_unknown.empty());
         REQUIRE(caps_unknown.macro_name.empty());
     }
@@ -730,34 +730,34 @@ TEST_CASE_METHOD(HelixTestFixture,
         // Start with known printer
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
-        const auto& caps_before = printer_state.get_pre_print_option_set();
+        const auto& caps_before = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_before.empty());
 
         // Clear printer type
         printer_state.set_printer_type_sync("");
 
         // Capabilities should be empty
-        const auto& caps_after = printer_state.get_pre_print_option_set();
+        const auto& caps_after = printer_state.profile_state().pre_print_option_set();
         REQUIRE(caps_after.empty());
     }
 
     SECTION("No stale cache when rapidly switching printer types") {
         // Rapidly switch between multiple printer types
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
-        REQUIRE_FALSE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE_FALSE(printer_state.profile_state().pre_print_option_set().empty());
 
         printer_state.set_printer_type_sync("Unknown Printer 1");
-        REQUIRE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE(printer_state.profile_state().pre_print_option_set().empty());
 
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M");
-        REQUIRE_FALSE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE_FALSE(printer_state.profile_state().pre_print_option_set().empty());
 
         printer_state.set_printer_type_sync("");
-        REQUIRE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE(printer_state.profile_state().pre_print_option_set().empty());
 
         // Final state: set back to known printer
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
-        const auto& final_caps = printer_state.get_pre_print_option_set();
+        const auto& final_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(final_caps.empty());
         REQUIRE(final_caps.find("bed_mesh") != nullptr);
     }
@@ -2729,7 +2729,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     printer_state.set_printer_type_sync("Creality K2 Plus");
 
     SECTION("Without timelapse: option set has NO timelapse entry") {
-        const auto& set = printer_state.get_pre_print_option_set();
+        const auto& set = printer_state.profile_state().pre_print_option_set();
         const PrePrintOption* tl = set.find("timelapse");
         REQUIRE(tl == nullptr);
     }
@@ -2738,7 +2738,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         printer_state.set_timelapse_available(true);
         helix::ui::UpdateQueue::instance().drain();
 
-        const auto& set = printer_state.get_pre_print_option_set();
+        const auto& set = printer_state.profile_state().pre_print_option_set();
         const PrePrintOption* tl = set.find("timelapse");
         REQUIRE(tl != nullptr);
         CHECK(tl->category == PrePrintCategory::Monitoring);
@@ -2754,11 +2754,11 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("Toggle off: timelapse option is removed when capability lost") {
         printer_state.set_timelapse_available(true);
         helix::ui::UpdateQueue::instance().drain();
-        REQUIRE(printer_state.get_pre_print_option_set().find("timelapse") != nullptr);
+        REQUIRE(printer_state.profile_state().pre_print_option_set().find("timelapse") != nullptr);
 
         printer_state.set_timelapse_available(false);
         helix::ui::UpdateQueue::instance().drain();
-        REQUIRE(printer_state.get_pre_print_option_set().find("timelapse") == nullptr);
+        REQUIRE(printer_state.profile_state().pre_print_option_set().find("timelapse") == nullptr);
     }
 
     SECTION("Provider drives ENABLED state for timelapse") {
@@ -3122,7 +3122,7 @@ struct GateFixture {
     }
 
     bool requires_plugin(const std::string& id) {
-        const PrePrintOption* opt = ps.get_pre_print_option_set().find(id);
+        const PrePrintOption* opt = ps.profile_state().pre_print_option_set().find(id);
         REQUIRE(opt != nullptr);
         return manager.disabling_option_requires_plugin(*opt);
     }

@@ -1133,18 +1133,6 @@ class PrinterState {
     // ========================================================================
 
     /**
-     * @brief Get subject indicating whether Z-offset can be manually saved
-     *
-     * Returns 1 when the printer's Z-offset calibration strategy requires
-     * HelixScreen to save (PROBE_CALIBRATE or ENDSTOP), 0 when the
-     * firmware/macros handle persistence automatically (FIRMWARE_MANAGED).
-     * Used in XML to hide the "Save Z-Offset" button for auto-saved printers.
-     */
-    lv_subject_t* get_z_offset_can_save_subject() {
-        return profile_state_.get_z_offset_can_save_subject();
-    }
-
-    /**
      * @brief Set printer connection state (Moonraker WebSocket)
      *
      * Updates both printer_connection_state and printer_connection_message subjects.
@@ -1478,35 +1466,6 @@ class PrinterState {
     void set_z_offset_external_persistence_internal(const std::string& provider_name);
     void clear_z_offset_external_persistence_internal();
 
-    /**
-     * @brief Get the current printer type name
-     *
-     * @return Const reference to the stored printer type string
-     */
-    const std::string& get_printer_type() const {
-        return profile_state_.printer_type();
-    }
-
-    /**
-     * @brief Get the pre-print option set for the current printer type
-     *
-     * Returns the option set fetched from the database when set_printer_type()
-     * was called. If the printer type is unknown or not set, returns an empty
-     * option set.
-     *
-     * @return Const reference to the PrePrintOptionSet
-     */
-    const PrePrintOptionSet& get_pre_print_option_set() const {
-        return profile_state_.pre_print_option_set();
-    }
-
-    /**
-     * @brief Get the Z-offset calibration strategy for this printer
-     */
-    ZOffsetCalibrationStrategy get_z_offset_calibration_strategy() const {
-        return profile_state_.z_offset_calibration_strategy();
-    }
-
     // ========================================================================
     // MULTI-PRINTER SUBJECTS
     // ========================================================================
@@ -1519,24 +1478,6 @@ class PrinterState {
      */
     lv_subject_t* get_active_printer_name_subject() {
         return &active_printer_name_;
-    }
-
-    /**
-     * @brief Get the printer type subject
-     *
-     * String subject updated on every change to the resolved printer type
-     * (detection, wizard, printer manager). Consumers that resolved state
-     * from the type at attach time — printer artwork, for one — re-resolve
-     * by observing it, since auto-detection settles after the home panel
-     * is built on a fresh install.
-     *
-     * The subject resets to "" on deinit_subjects()/re-init, and the
-     * setter's no-change early return means a soft restart repopulates it
-     * only on the next real type change. Treat it as a change signal and
-     * read the value from Config or get_printer_type().
-     */
-    lv_subject_t* get_printer_type_subject() {
-        return profile_state_.get_printer_type_subject();
     }
 
     /**

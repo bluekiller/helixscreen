@@ -65,7 +65,7 @@ PrintPreparationManager::~PrintPreparationManager() {
 const PrePrintOptionSet& PrintPreparationManager::get_cached_options() const {
     // Delegate to PrinterState which owns the cache
     if (printer_state_) {
-        return printer_state_->get_pre_print_option_set();
+        return printer_state_->profile_state().pre_print_option_set();
     }
 
     // Return empty set if PrinterState not set

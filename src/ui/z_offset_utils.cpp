@@ -309,7 +309,8 @@ SaveAvailability current_save_availability() {
     SaveAvailability facts;
     // The published form of "the strategy is not FIRMWARE_MANAGED", so the C++
     // answer and the XML bindings are computed from the same input.
-    facts.manual_save_supported = lv_subject_get_int(ps.get_z_offset_can_save_subject()) != 0;
+    facts.manual_save_supported =
+        lv_subject_get_int(ps.profile_state().get_z_offset_can_save_subject()) != 0;
     facts.global_dirty = lv_subject_get_int(ps.motion_state().get_gcode_z_offset_subject()) != 0;
     facts.tools_dirty =
         lv_subject_get_int(helix::ToolState::instance().get_any_tool_offset_dirty_subject()) == 1;
@@ -349,7 +350,8 @@ struct SaveAvailabilityPublisher {
         auto& ts = helix::ToolState::instance();
         observe(global_offset_obs, ps.motion_state().get_gcode_z_offset_subject(),
                 ps.get_subjects_lifetime());
-        observe(can_save_obs, ps.get_z_offset_can_save_subject(), ps.get_subjects_lifetime());
+        observe(can_save_obs, ps.profile_state().get_z_offset_can_save_subject(),
+                ps.get_subjects_lifetime());
         observe(tools_dirty_obs, ts.get_any_tool_offset_dirty_subject(),
                 ts.get_subjects_lifetime());
     }
@@ -492,8 +494,8 @@ void run_shared_save() {
     g_shared_save_running = true;
     NOTIFY_INFO(lv_tr("Saving Z-offset..."));
     save_dirty_offsets(
-        api, shared_save_watch(), ps.get_z_offset_calibration_strategy(), ps.get_discovery(),
-        current_save_availability().global_dirty,
+        api, shared_save_watch(), ps.profile_state().z_offset_calibration_strategy(),
+        ps.get_discovery(), current_save_availability().global_dirty,
         []() {
             end_shared_save();
             NOTIFY_SUCCESS("{}", lv_tr("Z-offset saved"));

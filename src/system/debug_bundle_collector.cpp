@@ -553,7 +553,7 @@ PrinterSnapshot DebugBundleCollector::snapshot_printer_state() {
 
         // Copy, do not bind: get_printer_type() returns a reference to a member
         // that a printer-type change reassigns without a mutex.
-        snap.model = ps.get_printer_type();
+        snap.model = ps.profile_state().printer_type();
 
         // The raw string, not the display subject: the subject localizes
         // placeholder versions ("?"/"unknown" from some vendor forks) into a

@@ -62,7 +62,7 @@ void require_clean_printer_state() {
     CHECK(ps.excluded_objects_state().get_current_object().empty());
     CHECK_FALSE(ps.excluded_objects_state().has_objects());
     CHECK_FALSE(ps.hardware_validation_state().get_hardware_validation_result().has_issues());
-    CHECK(ps.get_printer_type().empty());
+    CHECK(ps.profile_state().printer_type().empty());
 }
 
 } // namespace
@@ -86,7 +86,7 @@ TEST_CASE("PrinterState plain data does not survive a fixture boundary",
                     .hardware_validation_state()
                     .get_hardware_validation_result()
                     .has_issues());
-        REQUIRE(get_printer_state().get_printer_type() == "Voron 2.4");
+        REQUIRE(get_printer_state().profile_state().printer_type() == "Voron 2.4");
     }
 
     {

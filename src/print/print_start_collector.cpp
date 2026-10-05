@@ -193,7 +193,7 @@ void PrintStartCollector::start() {
     // Ensure we have a profile for pattern matching
     if (!profile_) {
         // Try printer-specific profile first (printer type may not have been known at init time)
-        std::string printer_type = state_.get_printer_type();
+        std::string printer_type = state_.profile_state().printer_type();
         if (!printer_type.empty()) {
             std::string profile_name = PrinterDetector::get_print_start_profile(printer_type);
             if (!profile_name.empty()) {

@@ -724,7 +724,7 @@ void MoonrakerManager::init_print_start_collector() {
     m_print_start_collector = std::make_shared<PrintStartCollector>(*m_client, get_printer_state());
 
     // Load print start profile based on detected printer type
-    std::string printer_type = get_printer_state().get_printer_type();
+    std::string printer_type = get_printer_state().profile_state().printer_type();
     if (!printer_type.empty()) {
         std::string profile_name = PrinterDetector::get_print_start_profile(printer_type);
         if (!profile_name.empty()) {

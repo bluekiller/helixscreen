@@ -1568,7 +1568,7 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
     // firmware that publishes its phases that way needs a JSON edit, not a
     // code change.
     {
-        const std::string printer_type = get_printer_state().get_printer_type();
+        const std::string printer_type = get_printer_state().profile_state().printer_type();
         if (!printer_type.empty()) {
             const std::string profile_name = PrinterDetector::get_print_start_profile(printer_type);
             if (!profile_name.empty()) {

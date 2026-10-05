@@ -232,7 +232,7 @@ void PrinterImageWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // attach() runs on every rebuild of a recycled instance, so re-arming here
     // keeps the observer alive across home-panel rebuilds.
     printer_type_observer_ = helix::ui::observe<const char*>(
-        get_printer_state().get_printer_type_subject(), this,
+        get_printer_state().profile_state().get_printer_type_subject(), this,
         [](PrinterImageWidget* w, const char* /*type*/) { w->schedule_image_refresh(); },
         get_printer_state().get_subjects_lifetime());
 

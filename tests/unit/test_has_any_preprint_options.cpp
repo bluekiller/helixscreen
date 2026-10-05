@@ -161,7 +161,7 @@ TEST_CASE("has_any_preprint_options: framework option count drives card alone",
 
 const PrePrintOption* find_timelapse_option(PrinterState& state) {
     UpdateQueueTestAccess::drain(UpdateQueue::instance());
-    return state.get_pre_print_option_set().find("timelapse");
+    return state.profile_state().pre_print_option_set().find("timelapse");
 }
 
 TEST_CASE("timelapse pre-print default reflects global enabled=true (#1094)",
@@ -252,7 +252,7 @@ TEST_CASE("a database option owning the timelapse capability suppresses the synt
     state.set_timelapse_default_enabled(true);
     UpdateQueueTestAccess::drain(UpdateQueue::instance());
 
-    const PrePrintOptionSet& set = state.get_pre_print_option_set();
+    const PrePrintOptionSet& set = state.profile_state().pre_print_option_set();
     REQUIRE(set.declares_capability("timelapse"));
     REQUIRE(set.find("u1_timelapse") != nullptr);
     REQUIRE(set.find("timelapse") == nullptr);
@@ -278,7 +278,7 @@ TEST_CASE("a printer with no database timelapse option still gets the synthesize
     // The synthesized row carries id "timelapse", so it declares that
     // capability itself - what distinguishes the two cases is WHICH row
     // provides it, and that there is still exactly one.
-    const PrePrintOptionSet& set = state.get_pre_print_option_set();
+    const PrePrintOptionSet& set = state.profile_state().pre_print_option_set();
     REQUIRE(set.find("timelapse") != nullptr);
     REQUIRE(set.find("u1_timelapse") == nullptr);
 
