@@ -17,6 +17,7 @@
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
 #include "ui_modal.h"
+#include "ui_toast_manager.h"
 
 #include "abort_manager.h"
 #include "ams_state.h"
@@ -591,6 +592,13 @@ void MoonrakerManager::present_event(const MoonrakerEvent& evt) {
 
     case helix::MoonrakerEventRoute::WarningToast:
         NOTIFY_WARNING("{}", text);
+        return;
+
+    case helix::MoonrakerEventRoute::SuccessToast:
+        // Direct ToastManager call: every ui_notification_* severity writes a
+        // history row, and a restored connection is not history.
+        spdlog::info("[MoonrakerManager] {}", evt.message);
+        ToastManager::instance().show(ToastSeverity::SUCCESS, text.c_str(), 3000);
         return;
     }
 }
