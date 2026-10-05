@@ -40,6 +40,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cerrno>
 #include <climits>
@@ -82,13 +83,16 @@ static lv_subject_t g_platform_extras_subject;
 static lv_subject_t g_host_power_supported_subject;
 static lv_subject_t g_wizard_active_subject;
 
-// Application quit flag (volatile sig_atomic_t for async-signal-safety)
-static volatile sig_atomic_t g_quit_requested = 0;
+// Application quit flag. Set from signal handlers and from worker threads
+// (remote control, update checks) and read by the main loop, so it must be a
+// lock-free atomic: only those are async-signal-safe.
+static std::atomic<bool> g_quit_requested{false};
+static_assert(std::atomic<bool>::is_always_lock_free, "quit flag must be async-signal-safe");
 
 // When set, main() will execv() the stored argv after normal cleanup runs.
 // Used to implement in-place restart without forking a second instance that
 // would race the parent's cleanup and collide on the .helix-screen.lock file.
-static bool g_restart_after_quit = false;
+static std::atomic<bool> g_restart_after_quit{false};
 
 // Wizard active flag
 static bool g_wizard_active = false;
@@ -315,11 +319,11 @@ void app_store_argv(int argc, char** argv) {
 
 void app_request_quit() {
     spdlog::info("[App Globals] Application quit requested");
-    g_quit_requested = 1;
+    g_quit_requested.store(true, std::memory_order_release);
 }
 
 void app_request_quit_signal_safe() {
-    g_quit_requested = 1;
+    g_quit_requested.store(true, std::memory_order_release);
 }
 
 void app_request_restart() {
@@ -328,7 +332,7 @@ void app_request_restart() {
     if (g_stored_argv.empty() || g_executable_path.empty()) {
         spdlog::error(
             "[App Globals] Cannot restart: argv not stored. Call app_store_argv() at startup.");
-        g_quit_requested = 1; // Fall back to quit
+        g_quit_requested.store(true, std::memory_order_release); // Fall back to quit
         return;
     }
 
@@ -339,8 +343,8 @@ void app_request_restart() {
     // aborted ("Another instance is already running") and lingered as a
     // zombie while the parent's own cleanup sometimes hung.  A single-process
     // restart avoids the lock collision entirely.
-    g_restart_after_quit = true;
-    g_quit_requested = 1;
+    g_restart_after_quit.store(true, std::memory_order_release);
+    g_quit_requested.store(true, std::memory_order_release);
 }
 
 void app_request_restart_service() {
@@ -374,11 +378,11 @@ const char* app_get_executable_path() {
 }
 
 bool app_restart_after_quit_requested() {
-    return g_restart_after_quit;
+    return g_restart_after_quit.load(std::memory_order_acquire);
 }
 
 bool app_quit_requested() {
-    return g_quit_requested != 0;
+    return g_quit_requested.load(std::memory_order_acquire);
 }
 
 bool is_wizard_active() {
