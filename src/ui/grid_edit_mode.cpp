@@ -2309,10 +2309,18 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
 // ---------------------------------------------------------------------------
 
 void GridEditMode::update_snap_preview(int col, int row, int colspan, int rowspan, bool valid) {
-    destroy_snap_preview();
     if (!container_) {
+        destroy_snap_preview();
         return;
     }
+    // A resize asks on every pointer step, while the snapped cell changes only
+    // at a cell boundary. Every restyle repaints the whole rect, so an unchanged
+    // rect is left alone, and a changed one is moved rather than recreated.
+    const auto rect = std::make_tuple(col, row, colspan, rowspan, valid);
+    if (snap_preview_ && rect == snap_preview_rect_) {
+        return;
+    }
+    snap_preview_rect_ = rect;
 
     helix::CellMetrics m = current_metrics();
 
@@ -2321,28 +2329,24 @@ void GridEditMode::update_snap_preview(int col, int row, int colspan, int rowspa
     int pw = static_cast<int>(grid_track_extent(m.cell_w, m.gutter, colspan));
     int ph = static_cast<int>(grid_track_extent(m.cell_h, m.gutter, rowspan));
 
-    snap_preview_ = lv_obj_create(container_);
+    if (!snap_preview_) {
+        snap_preview_ = lv_obj_create(container_);
+        lv_obj_add_flag(snap_preview_, LV_OBJ_FLAG_FLOATING);
+        lv_obj_remove_flag(snap_preview_, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(snap_preview_, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_border_width(snap_preview_, PREVIEW_BORDER_WIDTH, 0);
+        lv_obj_set_style_radius(snap_preview_, 8, 0);
+        lv_obj_set_style_pad_all(snap_preview_, 0, 0);
+        lv_obj_set_style_bg_opa(snap_preview_, LV_OPA_10, 0);
+    }
     lv_obj_set_pos(snap_preview_, px, py);
     lv_obj_set_size(snap_preview_, pw, ph);
-    lv_obj_add_flag(snap_preview_, LV_OBJ_FLAG_FLOATING);
-    lv_obj_remove_flag(snap_preview_, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(snap_preview_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_border_width(snap_preview_, PREVIEW_BORDER_WIDTH, 0);
-    lv_obj_set_style_radius(snap_preview_, 8, 0);
-    lv_obj_set_style_pad_all(snap_preview_, 0, 0);
 
-    if (valid) {
-        lv_obj_set_style_bg_color(snap_preview_, theme_get_accent_color(), 0);
-        lv_obj_set_style_bg_opa(snap_preview_, LV_OPA_10, 0);
-        lv_obj_set_style_border_color(snap_preview_, theme_get_accent_color(), 0);
-        lv_obj_set_style_border_opa(snap_preview_, LV_OPA_70, 0);
-    } else {
-        lv_obj_set_style_bg_color(snap_preview_, ThemeManager::instance().get_color("danger"), 0);
-        lv_obj_set_style_bg_opa(snap_preview_, LV_OPA_10, 0);
-        lv_obj_set_style_border_color(snap_preview_, ThemeManager::instance().get_color("danger"),
-                                      0);
-        lv_obj_set_style_border_opa(snap_preview_, LV_OPA_50, 0);
-    }
+    const lv_color_t color =
+        valid ? theme_get_accent_color() : ThemeManager::instance().get_color("danger");
+    lv_obj_set_style_bg_color(snap_preview_, color, 0);
+    lv_obj_set_style_border_color(snap_preview_, color, 0);
+    lv_obj_set_style_border_opa(snap_preview_, valid ? LV_OPA_70 : LV_OPA_50, 0);
 }
 
 void GridEditMode::destroy_snap_preview() {

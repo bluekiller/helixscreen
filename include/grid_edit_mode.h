@@ -619,6 +619,9 @@ class GridEditMode {
     lv_obj_t* snap_preview_ = nullptr;
     int snap_preview_col_ = -1;
     int snap_preview_row_ = -1;
+    /// The cell, span and validity snap_preview_ is drawn for: {col, row,
+    /// colspan, rowspan, valid}. Meaningful only while snap_preview_ exists.
+    std::tuple<int, int, int, int, bool> snap_preview_rect_{};
 
     // Resize state
     bool resizing_ = false;

@@ -144,6 +144,12 @@ struct GridEditModeTestAccess {
         return em.snap_preview_;
     }
 
+    /// Draw the snap preview the way a drag or resize step does.
+    static void update_snap_preview(GridEditMode& em, int col, int row, int colspan, int rowspan,
+                                    bool valid) {
+        em.update_snap_preview(col, row, colspan, rowspan, valid);
+    }
+
     /// Whether a release now would create the page past the last one: the
     /// live drag resolved as its release resolves it.
     static bool drop_wants_new_page(const GridEditMode& em) {
