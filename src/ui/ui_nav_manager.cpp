@@ -969,7 +969,7 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         [](NavigationManager* mgr, int /* generation */) { mgr->refresh_overlay_backdrop(); },
         subject_never_freed());
 
-    create_rail_estop(navbar);
+    rail_estop_.create(navbar);
 
     spdlog::trace(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");
@@ -1400,13 +1400,9 @@ void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen) {
     // Keep the live E-stop out of the snapshot: it stays above the backdrop,
     // and a dimmed copy baked into the image would show wherever the page
     // shifts (the keyboard lifts the layout, backdrop included).
-    const bool estop_shown = rail_estop_ && !lv_obj_has_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
-    if (estop_shown) {
-        lv_obj_add_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
-    }
-    overlay_backdrop_ = helix::ui::create_darkened_backdrop(screen, 40);
-    if (estop_shown) {
-        lv_obj_remove_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
+    {
+        helix::ui::RailEstop::ScopedHide estop_hidden(rail_estop_);
+        overlay_backdrop_ = helix::ui::create_darkened_backdrop(screen, 40);
     }
     if (!overlay_backdrop_)
         return;
@@ -1418,88 +1414,8 @@ void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen) {
     lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_CLICKED, nullptr);
 }
 
-void NavigationManager::create_rail_estop(lv_obj_t* navbar) {
-    lv_obj_t* slot = lv_obj_find_by_name(navbar, "nav_estop_slot");
-    lv_obj_t* screen = lv_obj_get_screen(navbar);
-    if (!slot || !screen) {
-        spdlog::debug("[NavigationManager] No nav_estop_slot in this navbar; no rail E-stop");
-        return;
-    }
-    rail_estop_ = static_cast<lv_obj_t*>(lv_xml_create(screen, "rail_estop", nullptr));
-    if (!rail_estop_) {
-        spdlog::error("[NavigationManager] rail_estop component would not build");
-        return;
-    }
-    lv_obj_set_name(rail_estop_, "nav_btn_estop");
-    helix::ui::set_always_on_top(rail_estop_);
-    spdlog::debug("[NavigationManager] Rail E-stop created over nav_estop_slot");
-    // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
-    lv_obj_add_event_cb(
-        rail_estop_,
-        [](lv_event_t* e) {
-            // Only the current E-stop: a replaced one dying late must not
-            // clear its successor.
-            auto& mgr = NavigationManager::instance();
-            if (lv_event_get_target_obj(e) == mgr.rail_estop_) {
-                mgr.rail_estop_ = nullptr;
-                helix::ui::set_always_on_top(nullptr);
-            }
-        },
-        LV_EVENT_DELETE, nullptr);
-    // The slot moves whenever the rail lays out (it appears, the orientation
-    // flips), and the button has to follow it there.
-    lv_obj_add_event_cb(
-        navbar, [](lv_event_t* /*e*/) { NavigationManager::instance().sync_rail_estop(); },
-        LV_EVENT_LAYOUT_CHANGED, nullptr);
-    sync_rail_estop();
-}
-
-void NavigationManager::sync_rail_estop() {
-    if (!rail_estop_ || !navbar_widget_) {
-        return;
-    }
-    lv_obj_t* slot = lv_obj_find_by_name(navbar_widget_, "nav_estop_slot");
-    if (!slot) {
-        return;
-    }
-    lv_area_t area;
-    lv_obj_get_coords(slot, &area);
-
-    // The keyboard can shift the whole layout up while it is open; the slot's
-    // home position is its offset within that layout, which rests at y=0.
-    lv_obj_t* layout_root = navbar_widget_;
-    while (lv_obj_get_parent(layout_root) &&
-           lv_obj_get_parent(layout_root) != lv_obj_get_screen(layout_root)) {
-        layout_root = lv_obj_get_parent(layout_root);
-    }
-    lv_area_t root_area;
-    lv_obj_get_coords(layout_root, &root_area);
-    int32_t y = area.y1 - root_area.y1;
-
-    // With the keyboard open over the bottom of a side rail, the E-stop rides
-    // in the rail column just above the keyboard's top edge, never over a key.
-    // A portrait bottom bar has no column above the keyboard: everything there
-    // is the overlay's own content, the text field first.
-    const bool side_rail = lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_);
-    if (rail_estop_keyboard_top_ >= 0 && side_rail) {
-        const int32_t size = lv_obj_get_height(rail_estop_);
-        const int32_t above =
-            rail_estop_keyboard_top_ - size - theme_manager_get_spacing("space_xs");
-        y = std::min(y, above);
-    }
-    // Screen children are positioned in screen coordinates.
-    lv_obj_set_pos(rail_estop_, area.x1, y);
-}
-
 void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
-    rail_estop_keyboard_top_ = top;
-    sync_rail_estop();
-    // Only a side rail leaves room above the keyboard. A portrait bottom bar is
-    // under it, and an E-stop raised there would sit on the keyboard's keys.
-    if (top >= 0 && rail_estop_ && navbar_widget_ &&
-        lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_)) {
-        lv_obj_move_foreground(rail_estop_);
-    }
+    rail_estop_.set_keyboard_top(top);
 }
 
 void NavigationManager::refresh_overlay_backdrop() {
@@ -2190,11 +2106,7 @@ void NavigationManager::deinit_subjects() {
     navbar_widget_ = nullptr;
     // The E-stop lives on the screen, not in the app layout a printer switch
     // rebuilds, so it goes explicitly or the rebuild leaves an orphan behind.
-    if (rail_estop_) {
-        helix::ui::set_always_on_top(nullptr);
-        helix::ui::safe_delete_deferred(rail_estop_);
-    }
-    rail_estop_keyboard_top_ = -1;
+    rail_estop_.destroy();
     active_panel_ = PanelId::Home;
     previous_connection_state_ = -1;
     previous_klippy_state_ = -1;

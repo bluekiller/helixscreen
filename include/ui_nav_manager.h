@@ -5,6 +5,7 @@
 
 #include "ui_nav.h"
 #include "ui_nav_printer_badge.h"
+#include "ui_nav_rail_estop.h"
 #include "ui_observer_guard.h"
 #include "ui_widget_ref.h"
 
@@ -118,7 +119,7 @@ class NavigationManager {
 
     /// The E-stop kept over the rail's nav_estop_slot, or nullptr.
     [[nodiscard]] lv_obj_t* rail_estop() const {
-        return rail_estop_;
+        return rail_estop_.widget();
     }
 
     /**
@@ -678,12 +679,7 @@ class NavigationManager {
      */
     void refresh_overlay_backdrop();
 
-    /// Build the screen-level E-stop over @p navbar's nav_estop_slot.
-    void create_rail_estop(lv_obj_t* navbar);
-    /// Move the E-stop onto the slot's current position.
-    void sync_rail_estop();
-    lv_obj_t* rail_estop_ = nullptr;
-    int32_t rail_estop_keyboard_top_ = -1;
+    helix::ui::RailEstop rail_estop_;
 
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);
