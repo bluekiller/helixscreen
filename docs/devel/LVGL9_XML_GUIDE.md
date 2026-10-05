@@ -265,6 +265,26 @@ LVGL XML uses prefix sigils to distinguish different value types:
 | `${expr}` | Embedded composition / integer expression | `bind_text="slot_${i + 1}_label"`, `style_translate_x="${i * 84}"` | Splices a bare name (`${i}`, `${grp}`) or evaluates an integer expression and splices the result. See [Repeating fragments](#repeating-fragments-with-repeat) |
 | `@` | Subject binding | `text="@my_subject"` | Reactive data on `ui_button` |
 
+A value that starts with `#` is always read as a const, including a value passed through a
+component prop. An unknown name resolves to nothing, so a user or plugin string that happens
+to begin with `#` (a device name, a macro, a plugin widget title) passed as a prop renders as
+an empty label. Set such text from C++ instead (`helix::ui::set_row_label_text`,
+`include/ui_row_text.h`).
+
+**Colors and theme switches.** helix-xml records every inline `style_*` color the XML sets.
+On a live dark/light or theme switch:
+
+| Written as | Follows the switch | Kept from the live recolor pass |
+|------------|-------------------|---------------------------------|
+| Global token, inline (`style_text_color="#text_muted"`) | yes, re-resolved by name | yes |
+| Global token in a named `<style>` | yes | yes (a bound or component style beats the pass's text color) |
+| Literal (`style_bg_color="0x000000"`) | no, it is fixed by design | yes |
+| `$prop` value, or a component-local `<const>` | no | yes |
+| Nothing set (theme default) | via the shared theme styles and the recolor pass | no |
+
+A color C++ changed after creation is left alone by the re-apply. Details:
+`THEME_SYSTEM.md` § Authored Inline Colors.
+
 The `@` prefix on `ui_button`'s `text` attribute marks a value as a subject reference (reactive) vs. a literal string (static). Alternatively, `bind_text` always treats its value as a subject name (no `@` needed). See [ui_button](#ui_button) for details.
 
 #### Simple Attribute Bindings
