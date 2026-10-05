@@ -6,6 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_nav.h"
 #include "ui_overlay_performance.h"
+#include "ui_panel_common.h"
 #include "ui_settings_security.h"
 #include "ui_settings_telemetry_data.h"
 #include "ui_toast_manager.h"
@@ -108,13 +109,9 @@ void SystemSettingsOverlay::handle_factory_reset_clicked() {
 
         // Create self-contained factory_reset_modal component
         // Callbacks are already wired via XML event_cb elements
-        factory_reset_dialog_ =
-            static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "factory_reset_modal", nullptr));
+        factory_reset_dialog_ = helix::ui::create_xml_hidden(parent_screen_, "factory_reset_modal");
 
         if (factory_reset_dialog_) {
-            // Start hidden
-            lv_obj_add_flag(factory_reset_dialog_, LV_OBJ_FLAG_HIDDEN);
-
             // Register as a function-based (nullptr-lifecycle) overlay so
             // crash crumbs show "anon" instead of "unreg".
             helix::nav::register_overlay(factory_reset_dialog_, nullptr);

@@ -88,4 +88,7 @@ bool is_on_top(lv_obj_t* panel);
 /// True when @p panel is anywhere in the overlay stack.
 bool is_in_stack(lv_obj_t* panel);
 
+/// True from push_overlay(@p panel) until its queued push runs.
+bool is_push_pending(lv_obj_t* panel);
+
 } // namespace helix::nav
