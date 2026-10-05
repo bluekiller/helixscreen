@@ -44,8 +44,8 @@ PrinterDiscovery printer_with_macros(std::initializer_list<const char*> macros) 
     return hw;
 }
 
-// TEST_MIRROR_OK: contains() is vector membership for assertions, not a copy of a shipped
-// contains()
+// TEST_MIRROR_OK: contains() is a one-line assertion utility (vector membership), not logic
+// under test
 bool contains(const std::vector<std::string>& v, const std::string& s) {
     return std::find(v.begin(), v.end(), s) != v.end();
 }
