@@ -61,31 +61,6 @@ struct ControlsPanelTestAccess {
         p.populate_secondary_fans();
     }
 
-    // --- Secondary temperature rows -----------------------------------------
-    //
-    // Subject temperatures are DECIdegrees (x10). update_secondary_temp() is the
-    // observer-side formatter for the overflow temperature list; these accessors
-    // let a test seed a row with a real label and assert the rendered string.
-    using SecondaryTempRow = ControlsPanel::SecondaryTempRow;
-
-    static std::vector<SecondaryTempRow>& temp_rows(ControlsPanel& p) {
-        return p.secondary_temp_rows_;
-    }
-
-    /// Seed one tracked temperature row bound to a caller-owned label.
-    static void set_temp_rows(ControlsPanel& p,
-                              const std::vector<std::pair<std::string, lv_obj_t*>>& rows) {
-        p.secondary_temp_rows_.clear();
-        for (const auto& [name, label] : rows) {
-            p.secondary_temp_rows_.push_back({name, label});
-        }
-    }
-
-    /// Invoke the private observer-side temperature formatter under test.
-    static void update_temp(ControlsPanel& p, const std::string& klipper_name, int decidegrees) {
-        p.update_secondary_temp(klipper_name, decidegrees);
-    }
-
     // --- Quick actions (homing, QGL, Z-Tilt) ---------------------------------
     //
     // The seven quick-action buttons share one guarded body. These accessors let

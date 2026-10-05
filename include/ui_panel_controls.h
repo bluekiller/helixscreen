@@ -213,6 +213,12 @@ class ControlsPanel : public PanelBase {
     helix::ui::HeaterIconBinder bed_icon_binder_;
     helix::ui::HeaterIconBinder chamber_icon_binder_;
 
+    // "N more sensors" link: caption plus the count that hides it at zero
+    lv_subject_t more_sensors_subject_{};
+    char more_sensors_buf_[48] = {};
+    lv_subject_t more_sensors_count_{};
+    void update_more_sensors();
+
     // Fan speed display
     lv_subject_t fan_speed_subject_{};
     char fan_speed_buf_[16] = {};
@@ -278,8 +284,6 @@ class ControlsPanel : public PanelBase {
     ObserverGuard chamber_mode_observer_;             // Chamber M141 control mode observer
 
     bool fans_rebuild_pending_ = false; ///< Coalesces rapid fans_version observer notifications
-    bool temps_rebuild_pending_ =
-        false; ///< Coalesces rapid temp_sensor_count observer notifications
 
     //
     // === Lazily-Created Child Panels ===
@@ -340,17 +344,6 @@ class ControlsPanel : public PanelBase {
     /// secondary_fan_observers_. See docs/devel/THREADING.md § 5.
     std::vector<SubjectLifetime> secondary_fan_lifetimes_;
     uint32_t fan_populate_gen_ = 0; ///< Incremented on each populate; stale callbacks skip
-
-    lv_obj_t* secondary_temps_list_ = nullptr; // Container for dynamic temp sensor rows
-
-    /// @brief Info for a secondary temperature sensor row for reactive temp updates
-    struct SecondaryTempRow {
-        std::string klipper_name; // e.g., "temperature_sensor mcu_temp"
-        lv_obj_t* temp_label = nullptr;
-    };
-    std::vector<SecondaryTempRow> secondary_temp_rows_;   ///< Tracked for reactive updates
-    std::vector<ObserverGuard> secondary_temp_observers_; ///< Per-sensor temp observers
-    uint32_t temp_populate_gen_ = 0; ///< Incremented on each populate; stale callbacks skip
 
     //
     // === Z-Offset Banner (reactive binding - no widget caching needed) ===
@@ -445,8 +438,7 @@ class ControlsPanel : public PanelBase {
     void update_bed_temp_display();
     void update_chamber_temp_display();
     void update_fan_display();
-    void populate_secondary_fans();  // Build fan list from helix::PrinterState
-    void populate_secondary_temps(); // Build temp sensor list from TemperatureSensorManager
+    void populate_secondary_fans(); // Build fan list from helix::PrinterState
     void update_z_offset_delta_display(int delta_microns); // Format delta for banner
 
     // Z-Offset save handler
@@ -662,9 +654,6 @@ class ControlsPanel : public PanelBase {
 
     void subscribe_to_secondary_fan_speeds();
     void update_secondary_fan_speed(const std::string& object_name, int speed_pct);
-
-    void subscribe_to_secondary_temp_subjects();
-    void update_secondary_temp(const std::string& klipper_name, int decidegrees);
 };
 
 // ============================================================================

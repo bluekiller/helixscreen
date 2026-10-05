@@ -148,6 +148,11 @@ void ControlsPanel::init_subjects() {
     UI_MANAGED_SUBJECT_INT(chamber_status_state_subject_, 0, "controls_chamber_status_state",
                            subjects_);
 
+    // Sensors beyond the dedicated rows ("N more sensors" link on the temperature card)
+    UI_MANAGED_SUBJECT_STRING(more_sensors_subject_, more_sensors_buf_, "", "controls_more_sensors",
+                              subjects_);
+    UI_MANAGED_SUBJECT_INT(more_sensors_count_, 0, "controls_more_sensors_count", subjects_);
+
     // Fan speed display
     UI_MANAGED_SUBJECT_STRING(fan_speed_subject_, fan_speed_buf_, lv_tr("Off"),
                               "controls_fan_speed", subjects_);
@@ -293,6 +298,7 @@ void ControlsPanel::init_subjects() {
         {"on_bed_temp_clicked", on_bed_temp_clicked},
         {"on_chamber_temp_clicked", on_chamber_temp_clicked},
         {"on_controls_cooling", on_cooling_clicked},
+        {"on_controls_more_sensors", on_secondary_temps_clicked},
         // Pencil icon edit handlers (open temperature keypad)
         {"on_nozzle_target_edit", on_nozzle_target_edit},
         {"on_bed_target_edit", on_bed_target_edit},
@@ -338,15 +344,6 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                             this);
     }
 
-    // Cache dynamic container for secondary temperature sensors
-    FIND_WIDGET(secondary_temps_list_, panel_, "secondary_temps_list", get_name());
-    if (secondary_temps_list_) {
-        // Make the secondary temps list clickable to open the sensor settings overlay
-        lv_obj_add_flag(secondary_temps_list_, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(secondary_temps_list_, on_secondary_temps_clicked, LV_EVENT_CLICKED,
-                            this);
-    }
-
     // A Quick Actions slot can hold the light toggle. Each slot's light cell
     // reuses LedWidget, the class behind the home light tile, so the bulb shows
     // on/off, brightness and colour, and a tap toggles the chamber light; the
@@ -377,8 +374,7 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Populate secondary fans on initial setup (will be empty until discovery)
     populate_secondary_fans();
 
-    // Populate secondary temperature sensors on initial setup
-    populate_secondary_temps();
+    update_more_sensors();
 
     spdlog::debug("[{}] Setup complete", get_name());
 }
@@ -388,7 +384,6 @@ void ControlsPanel::on_activate() {
 
     // Reset coalescing flags to prevent stale state from a previous deactivation
     fans_rebuild_pending_ = false;
-    temps_rebuild_pending_ = false;
 
     // Force-refresh all displays so UI catches up on state changes missed while hidden
     refresh_all_displays();
@@ -626,25 +621,12 @@ void ControlsPanel::register_observers() {
         helix::ToolState::instance().get_subjects_lifetime());
     update_nozzle_label(); // Set initial value
 
-    // Subscribe to temperature sensor count changes
-    // Skip widget rebuilds when hidden; on_activate() calls populate_secondary_temps()
+    // Sensor discovery can land off the main thread; the link's subjects are touched there.
     temp_sensor_count_observer_ = observe<int>(
         helix::sensors::TemperatureSensorManager::instance().get_sensor_count_subject(), this,
         [](ControlsPanel* self, int /* count */) {
-            if (!self->active_)
-                return;
-            // Defer rebuild (#80) AND use safe_clean_children (#776): object_lifetime_.defer
-            // moves the rebuild off the observer callback's stack, and
-            // safe_clean_children escapes UpdateQueue::process_pending() so sync
-            // lv_obj_clean() can't corrupt LVGL's event linked list.
-            if (!self->temps_rebuild_pending_) {
-                self->temps_rebuild_pending_ = true;
-                self->object_lifetime_.defer("ControlsPanel::populate_secondary_temps", [self]() {
-                    self->temps_rebuild_pending_ = false;
-                    if (self->active_ && self->secondary_temps_list_)
-                        self->populate_secondary_temps();
-                });
-            }
+            self->object_lifetime_.defer("ControlsPanel::update_more_sensors",
+                                         [self]() { self->update_more_sensors(); });
         },
         helix::sensors::TemperatureSensorManager::instance().get_subjects_lifetime());
 
@@ -737,6 +719,23 @@ void ControlsPanel::update_nozzle_label() {
     if (subjects_initialized_) {
         lv_subject_copy_string(&nozzle_label_subject_, nozzle_label_buf_);
     }
+}
+
+void ControlsPanel::update_more_sensors() {
+    if (!subjects_initialized_) {
+        return;
+    }
+    // The chamber sensor has its own row on the card, so it is not counted.
+    int count = 0;
+    for (const auto& sensor :
+         helix::sensors::TemperatureSensorManager::instance().get_sensors_sorted()) {
+        if (sensor.enabled && sensor.role != helix::sensors::TemperatureSensorRole::CHAMBER) {
+            ++count;
+        }
+    }
+    std::snprintf(more_sensors_buf_, sizeof(more_sensors_buf_), lv_tr("%d more sensors"), count);
+    lv_subject_copy_string(&more_sensors_subject_, more_sensors_buf_);
+    lv_subject_set_int(&more_sensors_count_, count);
 }
 
 void ControlsPanel::update_nozzle_temp_display() {
@@ -1716,181 +1715,13 @@ void ControlsPanel::update_secondary_fan_speed(const std::string& object_name, i
 }
 
 // ============================================================================
-// SECONDARY TEMPERATURE SENSORS (overflow list on temperature card)
+// MORE-SENSORS LINK
 // ============================================================================
-
-void ControlsPanel::populate_secondary_temps() {
-    if (!secondary_temps_list_) {
-        return;
-    }
-
-    // Bump generation counter FIRST — stale deferred callbacks will skip
-    ++temp_populate_gen_;
-
-    // Cleanup order: observers first, then tracking, then widgets.
-    // Use reset() not release() — subjects are alive, must properly unsubscribe
-    for (auto& obs : secondary_temp_observers_) {
-        obs.reset();
-    }
-    secondary_temp_observers_.clear();
-    secondary_temp_rows_.clear();
-    lv_obj_add_flag(secondary_temps_list_, LV_OBJ_FLAG_HIDDEN);
-    helix::ui::safe_clean_children(secondary_temps_list_);
-
-    auto& tsm = helix::sensors::TemperatureSensorManager::instance();
-    auto sensors = tsm.get_sensors_sorted();
-
-    // Filter to only enabled sensors (chamber is already shown as a dedicated row)
-    std::vector<helix::sensors::TemperatureSensorConfig> visible;
-    for (const auto& s : sensors) {
-        if (s.enabled && s.role != helix::sensors::TemperatureSensorRole::CHAMBER) {
-            visible.push_back(s);
-        }
-    }
-
-    // Dashboard shows only the overflow link - full list is on the temp panel
-    constexpr int max_visible = 0;
-    int visible_count = 0;
-
-    for (const auto& sensor : visible) {
-        if (visible_count >= max_visible) {
-            break;
-        }
-
-        // Create a row: [Name] [Temp C] [thermometer icon]
-        lv_obj_t* row = lv_obj_create(secondary_temps_list_);
-        lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        lv_obj_set_style_pad_all(row, 0, 0);
-        lv_obj_set_style_pad_row(row, 0, 0);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-
-        // Sensor name label - 60% width, truncate with ellipsis
-        lv_obj_t* name_label = lv_label_create(row);
-        lv_label_set_text(name_label, sensor.display_name.c_str());
-        lv_obj_set_width(name_label, LV_PCT(60));
-        lv_obj_set_style_text_color(name_label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_text_font(name_label, theme_manager_get_font("font_small"), 0);
-        lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
-
-        // Temperature value label - read initial value from subject.
-        // SubjectLifetime is local — valid for one-shot read only, not observation.
-        SubjectLifetime lt;
-        auto* subj = tsm.get_temp_subject(sensor.klipper_name, lt);
-        int decidegrees = subj ? lv_subject_get_int(subj) : 0;
-        char temp_buf[16];
-        helix::ui::temperature::format_temperature(
-            helix::ui::temperature::deci_to_degrees(decidegrees), temp_buf, sizeof(temp_buf));
-        lv_obj_t* temp_label = lv_label_create(row);
-        lv_label_set_text(temp_label, temp_buf);
-        lv_obj_set_style_text_color(temp_label, theme_manager_get_color("text"), 0);
-        lv_obj_set_style_text_font(temp_label, theme_manager_get_font("font_small"), 0);
-
-        // Track for reactive updates
-        secondary_temp_rows_.push_back({sensor.klipper_name, temp_label});
-
-        // Thermometer icon
-        lv_obj_t* icon = lv_label_create(row);
-        lv_label_set_text(icon, helix::ui::icon::lookup_codepoint("thermometer"));
-        lv_obj_set_style_text_color(icon, theme_manager_get_color("secondary"), 0);
-        lv_obj_set_style_text_font(icon, &mdi_icons_16, 0);
-
-        visible_count++;
-    }
-
-    // "N additional sensors >" overflow row
-    int additional = static_cast<int>(visible.size()) - visible_count;
-    if (additional > 0) {
-        lv_obj_t* more_row = lv_obj_create(secondary_temps_list_);
-        lv_obj_set_width(more_row, LV_PCT(100));
-        lv_obj_set_height(more_row, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(more_row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(more_row, 0, 0);
-        lv_obj_set_style_pad_all(more_row, 0, 0);
-        lv_obj_remove_flag(more_row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(more_row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(more_row, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_set_flex_flow(more_row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(more_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-
-        char more_buf[48];
-        std::snprintf(more_buf, sizeof(more_buf), lv_tr("%d more sensors"), additional);
-        lv_obj_t* more_label = lv_label_create(more_row);
-        lv_label_set_text(more_label, more_buf);
-        lv_obj_set_style_text_color(more_label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_text_font(more_label, theme_manager_get_font("font_small"), 0);
-
-        lv_obj_t* chevron = lv_label_create(more_row);
-        lv_label_set_text(chevron, helix::ui::icon::lookup_codepoint("chevron_right"));
-        lv_obj_set_style_text_color(chevron, theme_manager_get_color("secondary"), 0);
-        lv_obj_set_style_text_font(chevron, &mdi_icons_16, 0);
-
-        // Click is handled by the parent container's on_secondary_temps_clicked trampoline
-        // (registered once in setup()). No per-child event callback needed.
-    }
-
-    subscribe_to_secondary_temp_subjects();
-
-    // Unhide container now that repopulation is complete
-    lv_obj_remove_flag(secondary_temps_list_, LV_OBJ_FLAG_HIDDEN);
-
-    spdlog::trace("[{}] Populated {} secondary temp sensors ({} visible, {} additional)",
-                  get_name(), visible.size(), visible_count, additional);
-}
 
 void ControlsPanel::handle_secondary_temps_clicked() {
     spdlog::debug("[{}] Secondary temps overflow clicked - opening sensors overlay", get_name());
     auto& overlay = helix::settings::get_sensor_settings_overlay();
     overlay.show(parent_screen_);
-}
-
-void ControlsPanel::subscribe_to_secondary_temp_subjects() {
-    using helix::ui::observe;
-    secondary_temp_observers_.reserve(secondary_temp_rows_.size());
-
-    const uint32_t gen = temp_populate_gen_;
-    auto& tsm = helix::sensors::TemperatureSensorManager::instance();
-    for (const auto& row : secondary_temp_rows_) {
-        SubjectLifetime lifetime;
-        if (auto* subject = tsm.get_temp_subject(row.klipper_name, lifetime)) {
-            secondary_temp_observers_.push_back(observe<int>(
-                subject, this,
-                [name = row.klipper_name, gen](ControlsPanel* self, int decidegrees) {
-                    if (gen != self->temp_populate_gen_)
-                        return; // stale callback — widgets gone
-                    if (!self->active_)
-                        return; // skip label update when hidden
-                    self->update_secondary_temp(name, decidegrees);
-                },
-                lifetime));
-            spdlog::trace("[{}] Subscribed to temp subject for sensor '{}'", get_name(),
-                          row.klipper_name);
-        }
-    }
-
-    spdlog::trace("[{}] Subscribed to {} secondary temp sensor subjects", get_name(),
-                  secondary_temp_observers_.size());
-}
-
-void ControlsPanel::update_secondary_temp(const std::string& klipper_name, int decidegrees) {
-    for (const auto& row : secondary_temp_rows_) {
-        if (row.klipper_name == klipper_name && row.temp_label) {
-            char temp_buf[16];
-            helix::ui::temperature::format_temperature(
-                helix::ui::temperature::deci_to_degrees(decidegrees), temp_buf, sizeof(temp_buf));
-            lv_label_set_text(row.temp_label, temp_buf);
-            spdlog::trace("[{}] Updated secondary temp '{}' to {}", get_name(), klipper_name,
-                          temp_buf);
-            break;
-        }
-    }
 }
 
 // ============================================================================

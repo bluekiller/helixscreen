@@ -77,9 +77,12 @@ class ControlsMoreSensorsFixture : public LVGLUITestFixture {
         return l;
     }
 
-    /// The row's caption, or "" when the row shows none (the chevron glyph is
-    /// not a caption).
+    /// The row's caption, or "" when the row is not shown (the chevron glyph
+    /// is not a caption).
     std::string caption() {
+        if (lv_obj_has_flag(list(), LV_OBJ_FLAG_HIDDEN)) {
+            return "";
+        }
         std::vector<std::string> labels;
         collect_label_text(list(), labels);
         for (const auto& t : labels) {
