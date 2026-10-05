@@ -16,6 +16,7 @@
 
 #include "ams_backend_cfs.h"
 #include "ams_types.h"
+#include "ui/ams_drawing_utils.h"
 
 #include <fstream>
 #include <string>
@@ -706,4 +707,19 @@ TEST_CASE("CFS flat: a real four-box payload parses as four boxes, three of them
     // The external holder at 16 is not a bay.
     CHECK(info.get_slot_global(16) == nullptr);
     CHECK(info.current_slot == -1);
+}
+
+TEST_CASE("CFS flat: four boxes converge on one toolhead in the system path layout",
+          "[ams][cfs][flat][tool_layout][ams_draw]") {
+    const auto info =
+        AmsBackendCfs::parse_box_status(load_box_fixture("cfs_fork_four_box_L8MMBCCK.json"));
+    const auto layout = ams_draw::compute_system_tool_layout(info, nullptr);
+
+    CHECK(layout.total_physical_tools == 1);
+    REQUIRE(layout.units.size() == 4);
+    for (int u = 0; u < 4; ++u) {
+        INFO("unit " << u);
+        CHECK(layout.units[u].tool_count == 1);
+        CHECK(layout.units[u].first_physical_tool == 0);
+    }
 }

@@ -1450,7 +1450,7 @@ nlohmann::json MoonrakerClientMock::cfs_box_status_json() const {
     // Stock K1 `box` frame: T1 = unit 1, one array entry per bay. Bay A
     // carries a spool; the others report the "none"/-1 sentinels. Same shape
     // the unit-test fixtures feed parse_stock_box_status().
-    return nlohmann::json::parse(R"({
+    auto box = nlohmann::json::parse(R"({
         "state": "connect", "filament": 0, "auto_refill": 0, "enable": 1,
         "same_material": 0,
         "map": {"T1A": "T1A", "T1B": "T1B", "T1C": "T1C", "T1D": "T1D"},
@@ -1460,6 +1460,25 @@ nlohmann::json MoonrakerClientMock::cfs_box_status_json() const {
                "color_value": ["0E8E4F", "-1", "-1", "-1"],
                "material_type": ["000003", "-1", "-1", "-1"]}
     })");
+    // HELIX_MOCK_CFS_BOXES lists the box addresses on the bus ("1,2,4"); box 1
+    // is always present, every other listed box is empty.
+    const char* boxes = std::getenv("HELIX_MOCK_CFS_BOXES");
+    for (const char* c = boxes; c && *c; ++c) {
+        if (*c < '2' || *c > '4') {
+            continue;
+        }
+        const std::string unit = std::string("T") + *c;
+        box[unit] = {{"state", "connect"},
+                     {"filament", "None"},
+                     {"vender", {"none", "none", "none", "none"}},
+                     {"remain_len", {"-1", "-1", "-1", "-1"}},
+                     {"color_value", {"-1", "-1", "-1", "-1"}},
+                     {"material_type", {"-1", "-1", "-1", "-1"}}};
+        for (char bay : {'A', 'B', 'C', 'D'}) {
+            box["map"][unit + bay] = unit + bay;
+        }
+    }
+    return box;
 }
 
 void MoonrakerClientMock::simulate_cfs_find_cut_pos() {

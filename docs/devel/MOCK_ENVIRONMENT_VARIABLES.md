@@ -470,6 +470,10 @@ live Y readout moves as the overlay jogs.
 HELIX_MOCK_PRINTER=k1 HELIX_MOCK_AMS=cfs ./build/bin/helix-screen --test -vv
 ```
 
+`HELIX_MOCK_CFS_BOXES` lists the box addresses on the bus, e.g. `1,2,3,4` for a full chain
+or `1,3` for a chain with box 2 off the bus (it shows as an absent unit). Box 1 is always
+present and carries the one spool; the others are empty. Default: box 1 only.
+
 **Multi-extruder and tool testing:** Setting `HELIX_MOCK_AMS=toolchanger` also creates multiple tool definitions and extruders in the mock environment. Multiple extruders (extruder, extruder1, etc.) and tools are auto-discovered from Klipper objects at runtime, so no separate env var is needed to control extruder count. The toolchanger mock provides a complete multi-tool, multi-extruder test environment.
 
 **Per-tool offsets:** each `tool T{n}` serves live `gcode_x_offset` / `gcode_y_offset` / `gcode_z_offset`, seeded distinct per tool *and* per axis (T{n}: x = 0.100·n, y = −0.050·n, z = −0.025·n; T0 is zero everywhere) so a display that shows every tool the same number, or X where Z belongs, cannot look right. `SET_TOOL_PARAMETER T=<n> PARAMETER=gcode_{x,y,z}_offset VALUE=<mm>` moves one axis live and republishes only that field; `SAVE_TOOL_PARAMETER` stages it under `configfile.save_config_pending_items["tool T<n>"]`; `SAVE_CONFIG` commits and restarts; a restart (`RESTART` or `printer.restart`) reverts anything not committed. `tests/unit/test_mock_save_config.cpp` pins all of it.

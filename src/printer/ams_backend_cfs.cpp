@@ -740,6 +740,9 @@ AmsBackendCfs::parse_stock_box_status(const nlohmann::json& box_json,
         unit.first_slot_global_index = (n - 1) * 4;
         unit.connected = true;
         unit.topology = PathTopology::HUB;
+        // Every box feeds the printer's one extruder through the CFS hub, so all
+        // of them share toolhead 0; the T<n> numbers are routes into it.
+        unit.hub_tool_label = 0;
 
         // Firmware version and serial
         std::string ver = helix::json_util::safe_string(unit_json, "version", "-1");
@@ -1118,6 +1121,7 @@ AmsSystemInfo AmsBackendCfs::parse_flat_box_status(const nlohmann::json& box_jso
     AmsUnit unit;
     unit.connected = helix::json_util::safe_bool(box_json, "driver_ready", true);
     unit.topology = PathTopology::HUB;
+    unit.hub_tool_label = 0; // every box feeds the one extruder
     unit.slot_count = kBaysPerBox;
 
     // Environment. Unlike the stock schema these are JSON numbers, not strings,
