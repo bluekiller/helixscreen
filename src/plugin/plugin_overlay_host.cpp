@@ -6,6 +6,7 @@
 #include "plugin_overlay_host.h"
 
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_utils.h"
 
 #include "helix-xml/src/xml/lv_xml.h"
@@ -42,16 +43,14 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
         pairs.push_back(value.c_str());
     }
     pairs.push_back(nullptr);
-    auto* root =
-        static_cast<lv_obj_t*>(lv_xml_create(lv_screen_active(), component.c_str(), pairs.data()));
+    // Hidden until the queued push shows it: a visible root would render a
+    // frame on the bare screen and land in the backdrop snapshot as a dimmed
+    // ghost of itself.
+    auto* root = helix::ui::create_xml_hidden(lv_screen_active(), component.c_str(), pairs.data());
     if (!root) {
         spdlog::warn("[PluginOverlayHost] {}: cannot create component '{}'", plugin_id, component);
         return 0;
     }
-    // Hidden until the queued push shows it: a visible root would render a
-    // frame on the bare screen and land in the backdrop snapshot as a dimmed
-    // ghost of itself.
-    lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN);
 
     auto& rec = records_.emplace_back();
     rec.handle = next_handle_++;

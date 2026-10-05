@@ -3,6 +3,7 @@
 
 #include "system/crash_handler.h"
 
+#include "helix_thread.h"
 #include "helix_version.h"
 
 #include <spdlog/spdlog.h>
@@ -57,6 +58,7 @@
 #endif
 
 #ifdef __linux__
+#include <sys/syscall.h>
 #include <sys/uio.h> // process_vm_readv() for fault-free stack reads
 #endif
 
@@ -566,7 +568,10 @@ HELIX_NO_SANITIZE_ADDRESS static uintptr_t read_stack_word(uintptr_t base, size_
     if (n >= 0 || readv_errno == EFAULT) {
         readable = false;
     } else if (s_probe_pipe[1] >= 0) {
-        const ssize_t w = write(s_probe_pipe[1], reinterpret_cast<const void*>(addr), word_size);
+        // Raw syscall: the kernel answers EFAULT for an unmapped source, while
+        // a sanitizer's write() interceptor would check the source itself.
+        const ssize_t w =
+            syscall(SYS_write, s_probe_pipe[1], reinterpret_cast<const void*>(addr), word_size);
         if (w > 0) {
             char sink[8];
             (void)!read(s_probe_pipe[0], sink, static_cast<size_t>(w));
@@ -1739,19 +1744,14 @@ void crash_handler::install(const std::string& crash_file_path) {
 
     // A stack overflow leaves no room to run the handler on the faulting stack,
     // so it runs on its own. sigaltstack is per thread: this covers the
-    // installing (main) thread only, and an overflow on any other thread still
-    // dies without a crash file.
+    // installing (main) thread, and helix::make_thread covers the rest.
 #ifdef __linux__
     if (s_probe_pipe[0] < 0 && pipe2(s_probe_pipe, O_NONBLOCK | O_CLOEXEC) != 0) {
         s_probe_pipe[0] = s_probe_pipe[1] = -1;
     }
 #endif
 
-    static char s_alt_stack[64 * 1024];
-    stack_t ss{};
-    ss.ss_sp = s_alt_stack;
-    ss.ss_size = sizeof(s_alt_stack);
-    if (sigaltstack(&ss, nullptr) != 0) {
+    if (!helix::install_thread_altstack()) {
         spdlog::warn(
             "[CrashHandler] sigaltstack failed; a stack overflow will leave no crash file");
     }

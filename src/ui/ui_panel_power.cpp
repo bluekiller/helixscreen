@@ -530,8 +530,7 @@ lv_obj_t* PowerPanel::get_or_create_overlay(lv_obj_t* parent_screen) {
         init_subjects();
     }
 
-    auto* obj =
-        static_cast<lv_obj_t*>(lv_xml_create(parent_screen, get_xml_component_name(), nullptr));
+    auto* obj = helix::ui::create_xml_hidden(parent_screen, get_xml_component_name());
     if (!obj) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;

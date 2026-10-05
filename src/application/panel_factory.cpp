@@ -6,6 +6,7 @@
 #include "ui_component_keypad.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_advanced.h"
+#include "ui_panel_common.h"
 #include "ui_panel_controls.h"
 #include "ui_panel_filament.h"
 #include "ui_panel_home.h"
@@ -105,10 +106,9 @@ void PanelFactory::build_deferred_panel(int panel_id) {
     // NavTransitionScrim guard, which wraps the whole nav transition (this build
     // runs under it). One scrim mechanism for all transitions, not two.
     auto build_start = std::chrono::steady_clock::now();
-    lv_obj_t* obj =
-        static_cast<lv_obj_t*>(lv_xml_create(m_panel_container, PANEL_NAMES[panel_id], nullptr));
+    // Hidden: nav un-hides it after we return
+    lv_obj_t* obj = helix::ui::create_xml_hidden(m_panel_container, PANEL_NAMES[panel_id]);
     if (obj) {
-        lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN); // nav un-hides after we return
         m_panels[panel_id] = obj;
         NavigationManager::instance().replace_panel_widget(static_cast<PanelId>(panel_id), obj);
         setup_one_panel(panel_id);

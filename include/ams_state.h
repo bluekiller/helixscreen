@@ -49,13 +49,15 @@ class PrinterDiscovery;
  * 3. Subjects auto-update when backend emits events
  *
  * Thread Safety:
- * Main thread only, asserted, except where a method says otherwise. The
+ * Main thread only, checked, except where a method says otherwise. The
  * exceptions answer from state with its own guard: the backend registry
  * (backend_count, primary_type, any_filament_batch_in_flight; get_backend
  * returns a raw pointer and is main-thread only),
  * RunoutGrace (the unload grace and per-slot unload stamps), the action and
  * step-operation atomics, and the setters that marshal themselves to the main
- * thread (set_pending_target_slot, set_active_tool_port_present).
+ * thread (set_pending_target_slot, set_active_tool_port_present). An off-main
+ * call aborts under strict UI checks (unit tests, --test) and otherwise logs
+ * and files an "ams_off_main" anomaly once.
  */
 /**
  * @brief Does a pre-print-send backend's SEED follow the persisted auto-color

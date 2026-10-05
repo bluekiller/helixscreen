@@ -1449,7 +1449,7 @@ AmsPanel& get_global_ams_panel() {
 
         // Create the panel on the active screen
         lv_obj_t* screen = lv_scr_act();
-        s_ams_panel_obj = static_cast<lv_obj_t*>(lv_xml_create(screen, "ams_panel", nullptr));
+        s_ams_panel_obj = helix::ui::create_xml_hidden(screen, "ams_panel");
 
         if (s_ams_panel_obj) {
             // Initialize panel observers (AmsState already initialized above)

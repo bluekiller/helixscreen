@@ -5,6 +5,7 @@
 
 #include "ui_update_queue.h"
 
+#include "helix_thread.h"
 #include "spdlog/spdlog.h"
 #include "text_io.h"
 
@@ -75,7 +76,7 @@ void NetworkTester::start_test(Callback callback) {
     result_ = TestResult{};
 
     // Spawn worker thread
-    worker_thread_ = std::thread(&NetworkTester::run_test, this);
+    worker_thread_ = helix::make_thread(&NetworkTester::run_test, this);
 }
 
 void NetworkTester::cancel() {

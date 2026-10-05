@@ -5,6 +5,220 @@ All notable changes to HelixScreen will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.4] - 2026-10-05
+
+<!-- whatsnew
+The fourth beta of 1.1.
+
+- Lua plugins: home tiles, screens and settings from the printer's config folder
+- Motion Bed tab: tap or drag the plate to move the toolhead
+- Belt Tension rebuilt to compare both belts with resonance sweeps
+- Android APK for 32-bit devices like the Echo Show 5 and Fire tablets
+- Alpha firmware for the BTT K-Touch
+- CFS with a box switched off, ACE toolchanges, USB printing fixed
+- Screens free their memory when closed
+-->
+
+The fourth beta of 1.1. It adds Lua plugins, which put their own tiles, screens and
+settings on the printer's screen, a Bed tab on the Motion screen, and a 32-bit Android
+build. Belt Tension is rebuilt to compare both belts the way Shake&Tune
+does. Most of the rest is fixes: CFS chains with a box switched off, ACE toolchanges,
+printing from a USB stick, touch on rotated screens, and a long list of rare crashes. Many
+screens now give their memory back when you close them.
+
+**Upgrading from beta.3?**
+
+- **Configure PRINT_START is gone from Advanced.** The beta macro rewrite is removed. The
+  pre-print skip options on the print file screen work as before.
+- **Printing from a USB stick copies the file first.** Print and Add to Queue upload the file
+  to `usb_prints/` in your G-code folder, with progress, then print that copy. Files on the
+  stick can no longer be deleted from the screen.
+- **Screens slide in from the right in portrait too**, with a left back arrow, the same as
+  landscape.
+
+### Added
+
+**Plugins**
+
+- **Lua plugins** - drop a plugin into `helixscreen/plugins` in your printer's config folder
+  and HelixScreen picks it up, on every printer you connect to. A plugin can add home screen
+  tiles, its own screens and a settings page, and draw charts. Each one runs in a sandbox with
+  its own memory and time limits, and asks before it gets access to G-code, Moonraker or the
+  network. Settings > Plugins lists them, and nothing runs until you enable it there. A
+  plugin that changes on the printer reloads in place. Two example plugins (a temperature
+  sparkline and an LED effects tile) and an author guide are in the HelixScreen repository.
+  Not available on Android yet.
+
+**Motion**
+
+- **Bed tab** - tap the plate to send the toolhead there, or drag and it follows your finger.
+  Below the new Bed Map Clearance setting (5mm by default) the first move lifts Z first, and
+  the readout says so before you tap. The tab is disabled during a print and offers Home when
+  the printer is not homed.
+
+**Calibration**
+
+- **Belt Tension is rebuilt around resonance sweeps** (#1721) - still a beta, under Advanced >
+  Calibration on CoreXY printers with an accelerometer. Instead of listening to a plucked belt,
+  it runs a resonance sweep on each belt path and compares the two curves, leading with how
+  similar they are and pairing up the peaks, the way Shake&Tune compares belts.
+
+**Android**
+
+- **A 32-bit Android APK** - devices that refused the app with "no matching ABIs" can install
+  `helixscreen-android-armv7`: the Echo Show 5 (2nd gen) on LineageOS, Fire tablets and older
+  phones. Low-density screens like the Echo Show's are drawn at full size instead of at half.
+
+**BTT K-Touch (alpha)**
+
+- **HelixScreen firmware for the BigTreeTech K-Touch** - the release now carries
+  `helixscreen-esp32-ktouch` firmware for the standalone ESP32 touchscreen. It joins your
+  Wi-Fi and talks to your printer's Moonraker like a remote screen. This is an alpha with
+  rough edges; the [install guide](https://github.com/prestonbrown/helixscreen/blob/main/docs/user/guide/install-esp32.md) covers flashing from the
+  browser or with esptool, first-boot setup and recovery.
+
+**Filament systems**
+
+- **ACE shows a toolchange as it happens** (#1678) - the path draws the outgoing lane
+  retracting until the hub clears, then the lane being loaded.
+- **A CFS box that is switched off shows as Not connected** (#1464) - its card is dimmed, its
+  bays are left out of counts and lane choices, and tool changes and Clear Spool refuse them.
+
+**Other**
+
+- **The widget catalog says why a widget will not fit** - a widget with no free space on the
+  page shows how much room it needs instead of failing when you tap it.
+- **Pressed feedback** on more rows, chips, value fields, camera source rows and filament
+  temperature rows (#1297).
+
+### Fixed
+
+**Filament systems**
+
+- **CFS chains keep each bay's state when a box drops out** (#1464) - bays are numbered the way
+  the firmware numbers them, so a Klipper restart with one box off no longer shifts spools and
+  colours onto the wrong bays, and a box behind a switched-off one still works.
+- **CFS and QIDI Box chains draw one toolhead** in the filament overview, since every box feeds
+  the same extruder.
+- **QIDI Box follows live updates** - after startup, changes on the box never reached the
+  screen.
+- **ACE reads the right slots**, and French "Currently Loaded" no longer shows garbled
+  characters (#1678).
+- **Snapmaker U1 tool changer state survives a temperature update**, and a malformed slot colour
+  leaves the slot's colour alone.
+- **A gate sensor that flickers raises one "Same spool?" notice**, not a stack of them.
+- **AFC and Happy Hare show the right Spoolman vendor** right after a spool is relinked.
+- **A loaded black or grey spool shows on the nozzle** instead of the bare metal tip.
+
+**Printing**
+
+- **Temperature changes during an AD5X print start no longer fail** - a temperature, fan or
+  light change during the start macro's bed mesh is sent once the macro finishes instead of
+  timing out with "Failed to set temperature", and a jog in that window is refused instead of
+  queued for minutes.
+- **The bed mesh countdown moves** - during the pre-print bed mesh the time left no longer sits
+  at a few seconds for minutes on end.
+- **Pre-print timing history is kept** when a new start is recorded, instead of losing or
+  duplicating earlier entries.
+- **Park and the Bed tab lift never drive into the plate** when the printer reports a Z move
+  before confirming it.
+- **Action prompts behave like Mainsail's** - closing one on screen ends it on the printer, each
+  button group gets its own row, and secondary buttons use the secondary colour.
+- **Belt Tension and input shaper refuse to start with too little free memory** (#1738), which
+  could wedge Klipper on the CC1. When Klipper stalls, the message says to power-cycle.
+
+**USB sticks**
+
+- **A USB print prints the file you picked** - Moonraker used to receive only the file name, so
+  a print found the file only if a same-named one was already on the printer.
+- **USB file details load from the stick** - preview, pre-print checks and thumbnails read the
+  file in place instead of waiting out a timeout, Cura's JPEG thumbnails show, and listing the
+  stick no longer freezes the screen.
+
+**G-code preview**
+
+- **Two printers with a same-named file no longer share a preview**, and a preview whose size
+  no longer matches the file on the printer is fetched again.
+- **Closing and reopening the print status screen mid-download** joins the running download
+  instead of starting a second one into the same file.
+- **The 3D preview uses the theme colour** for a file with no colour information, matching 2D,
+  instead of a rainbow height gradient, and filament colours survive switching to 3D while
+  printing.
+- **The Building preview label shows real progress** and is translated; the loading spinner
+  shows while a 3D switch builds.
+
+**Touch and display**
+
+- **Touch calibration on a rotated screen** (#1714) - cancelling or retrying no longer
+  reinstalls an old touch range, and the preview uses the range it just solved.
+- **Panels whose touch range looks swapped correct themselves** (Waveshare 2.8in DSI and
+  similar) from the first touch past the screen edge, and stay correct on a rotated screen.
+- **Screens rotated by the kernel get touch right on first boot** (#1428).
+- **No crash at startup with background blur on some Allwinner boards** (#1742) - blur reuses
+  the display's graphics context instead of loading the driver a second time.
+- **K2: the camera stays available** (#1670) when the stock camera app starts late.
+
+**Look and theme**
+
+- **Colours set in a screen's layout survive a theme or dark/light switch** (#1735).
+- **Light mode text is readable** on Motion's selected tab, the jog pad and the bed mesh labels.
+- **Print file cards fit** under the Recently Printed banner instead of clipping the bottom row.
+- **Stacked confirm dialogs keep their own buttons and text** instead of taking the top one's.
+- **A grey picked in a Spoolman colour picker is saved** instead of reading as no colour.
+
+**Bluetooth and accessories**
+
+- **Bluetooth scans** - starting a new scan no longer crashes the settings screens or waits out
+  the old one, a scan that could not run says so instead of "0 found", and pairing works on
+  systems whose adapter is not hci0.
+- **Barcode scanners with a generic name are listed**, and opening the scanner screen no longer
+  freezes it for up to 5 seconds.
+- **A USB label printer with an unreadable ID no longer crashes the app.**
+
+**Stability**
+
+- **Raspberry Pi OS 32-bit: no crash when a screen deletes itself** (#1601) - the 32-bit stack
+  layout made an internal safety check fail.
+- **Raspberry Pi OS 32-bit no longer crashes with heap corruption** (#1732) - pi32 builds carry
+  their own C++ runtime, about 1 MB more.
+- **A crash on a background thread leaves a crash report**, where before the app exited with
+  nothing recorded.
+- **A G-code command, file name or network name with invalid characters** no longer leaves a
+  request hanging (#1493).
+- **Rare crashes fixed** when switching printers, closing screens with animations off, closing
+  the G-code viewer while it loads, starting a sound at startup, and when Moonraker, history and
+  Spoolman replies arrive after a screen is gone.
+- **The file list no longer floods slow printers with rescans** - one metadata scan runs at a
+  time, and a file that keeps failing waits before it is tried again.
+
+**Other**
+
+- **Error messages and toasts from the printer connection are translated**, including Wi-Fi
+  failures.
+- **Connection restored is a success toast** and no longer adds a second row to the bell.
+- **Cartographer and Beacon probes are found** as one probe, and the probe's state shows; K1,
+  K2 and QIDI printers keep their probe Z offset live.
+- **Editing a setting that appears twice in printer.cfg** changes the copy Klipper actually
+  reads.
+- **Debug bundles redact anything they cannot check** before upload.
+- **Installer** (#1534, #1693) - a vendor screen or KIAUH service that re-enables itself stays
+  off, and installing from a desktop session no longer takes down your desktop.
+
+### Changed
+
+- **Less memory** - Motion, temperature graph, theme editor, calibration, PID, Z offset, touch
+  calibration, printer manager, LED and filament system screens free their memory when you
+  close them. The print file list loads on first open instead of at startup, and bed mesh
+  holds 0.75 to 1.5 MB less.
+- **Screens open with one redraw** - a settings or overlay screen used to redraw the whole
+  display once before it appeared and again as it slid in. It is now built off screen, which
+  saves a full-screen draw on every open on slower printers.
+- **Updates, crash reports and debug bundles verify the server's certificate** - every release
+  package ships its own certificate bundle, so printers with outdated system certificates
+  still connect. Printers and other devices on your network are unaffected.
+- **Settings from releases before 0.99.4 start fresh** - the setup wizard runs again, your
+  printer connection is kept, and the old file is saved as `settings.json.pre-migration`.
+
 ## [1.0.3] - 2026-10-04
 
 ### Changed
@@ -8046,6 +8260,7 @@ Initial tagged release. Foundation for all subsequent development.
 - Automated GitHub Actions release pipeline
 - One-liner installation script with platform auto-detection
 
+[1.1.0-beta.4]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.3...v1.1.0-beta.4
 [1.1.0-beta.3]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.2...v1.1.0-beta.3
 [1.1.0-beta.2]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.1...v1.1.0-beta.2
 [1.1.0-beta.1]: https://github.com/prestonbrown/helixscreen/compare/v1.0.2...v1.1.0-beta.1

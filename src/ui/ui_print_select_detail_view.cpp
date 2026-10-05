@@ -10,6 +10,7 @@
 #include "ui_icon.h"
 #include "ui_modal.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_print_preparation_manager.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
@@ -254,8 +255,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
 
     parent_screen_ = parent_screen;
 
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "print_file_detail", nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent_screen_, "print_file_detail");
 
     if (!overlay_root_) {
         LOG_ERROR_INTERNAL("[DetailView] Failed to create detail view from XML");
@@ -269,8 +269,6 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
         lv_coord_t padding = ui_get_header_content_padding();
         lv_obj_set_style_pad_all(content_container, padding, 0);
     }
-
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     // Store reference to print button for enable/disable state management
     print_button_ = find_required(overlay_root_, "print_button", get_name());

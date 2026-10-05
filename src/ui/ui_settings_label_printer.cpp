@@ -16,6 +16,7 @@
 #include "brother_ql_printer.h"
 #include "bt_discovery_run.h"
 #include "bt_discovery_utils.h"
+#include "helix_thread.h"
 #include "ipp_printer.h"
 #include "label_printer_settings.h"
 #include "label_printer_utils.h"
@@ -1045,7 +1046,7 @@ void LabelPrinterSettingsOverlay::init_bt_printer_dropdown() {
             std::string addr = saved_addr;
             // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
             try {
-                std::thread([bt_token, shared_ctx, addr]() {
+                helix::make_thread([bt_token, shared_ctx, addr]() {
                     auto& ldr = helix::bluetooth::BluetoothLoader::instance();
                     auto* ctx = shared_ctx->get();
                     if (!ctx)
@@ -1348,7 +1349,7 @@ void LabelPrinterSettingsOverlay::handle_bt_printer_selected(int index) {
                 // Pair on a detached thread
                 // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
                 try {
-                    std::thread([mac, shared_ctx, token]() {
+                    helix::make_thread([mac, shared_ctx, token]() {
                         auto& ldr = helix::bluetooth::BluetoothLoader::instance();
                         auto* bt_ctx = shared_ctx->get();
                         int ret = bt_ctx ? ldr.pair(bt_ctx, mac.c_str()) : -ENODEV;
@@ -1493,7 +1494,7 @@ void LabelPrinterSettingsOverlay::handle_bt_connect() {
 
     // Wrap spawn per feedback_no_bare_threads_arm.md (#724, #837, [L083]).
     try {
-        std::thread([mac, shared_ctx, token]() {
+        helix::make_thread([mac, shared_ctx, token]() {
             auto& ldr = helix::bluetooth::BluetoothLoader::instance();
             auto* init_ctx = shared_ctx->get();
             int ret = -1;
@@ -1633,7 +1634,7 @@ void LabelPrinterSettingsOverlay::handle_bt_forget() {
     // Wrap the std::thread spawn in try/catch per feedback_no_bare_threads_arm.md
     // (#724) — thread creation can fail on AD5M/CC1 due to tight thread limits.
     try {
-        std::thread([this, tok, mac]() {
+        helix::make_thread([this, tok, mac]() {
             bool bluez_ok = false;
             auto& loader = helix::bluetooth::BluetoothLoader::instance();
             if (!loader.is_available() || !loader.remove_device) {
