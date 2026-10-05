@@ -25,27 +25,30 @@ class AmsStateTestAccess {
     /// about what CONSUMES the grace; the arming logic itself is driven through
     /// sync_from_backend() so it stays covered by real code.
     static void arm_post_unload_runout_grace(AmsState& ams) {
-        std::lock_guard<std::recursive_mutex> lock(ams.mutex_);
-        ams.post_unload_runout_grace_ = true;
-        ams.post_unload_runout_grace_at_ = std::chrono::steady_clock::now();
+        auto& g = ams.runout_grace_;
+        std::lock_guard<std::mutex> lock(g.mutex_);
+        g.armed_ = true;
+        g.armed_at_ = RunoutGrace::Clock::now();
     }
 
     /// Move the arm stamp back in time so the grace reads as older than it is.
     static void age_post_unload_runout_grace(AmsState& ams, std::chrono::seconds by) {
-        std::lock_guard<std::recursive_mutex> lock(ams.mutex_);
-        ams.post_unload_runout_grace_at_ -= by;
+        auto& g = ams.runout_grace_;
+        std::lock_guard<std::mutex> lock(g.mutex_);
+        g.armed_at_ -= by;
     }
 
     /// Peek at the flag without consuming it.
     [[nodiscard]] static bool post_unload_runout_grace_armed(AmsState& ams) {
-        std::lock_guard<std::recursive_mutex> lock(ams.mutex_);
-        return ams.post_unload_runout_grace_;
+        auto& g = ams.runout_grace_;
+        std::lock_guard<std::mutex> lock(g.mutex_);
+        return g.armed_;
     }
 
     /// The production window, so tests express "just inside" / "just outside"
     /// against the real constant instead of a hardcoded copy of it.
     static constexpr std::chrono::seconds grace_window() {
-        return AmsState::POST_UNLOAD_RUNOUT_GRACE;
+        return RunoutGrace::WINDOW;
     }
 
     /// Drive the clog-meter subject sync with a hand-built AmsSystemInfo, so

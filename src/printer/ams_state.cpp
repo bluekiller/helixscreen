@@ -19,6 +19,7 @@
 #include "ams_bypass_policy.h"
 #include "ams_lane_state.h"
 #include "ams_remap.h"
+#include "ams_runout_grace.h"
 #include "ams_tool_topology.h"
 #include "app_globals.h"
 #include "clog_meter_geometry.h"
@@ -58,6 +59,8 @@
 #include <vector>
 
 namespace helix {
+
+static_assert(RunoutGrace::MAX_SLOTS == AmsState::MAX_SLOTS, "one unload stamp per slot subject");
 
 // Async callback data for thread-safe LVGL updates
 namespace {
@@ -1138,14 +1141,11 @@ void AmsState::clear_backends() {
     runout_edge_armed_ = false;
     runout_prev_paused_ = false;
     runout_level_seeded_ = false;
-    // Same reasoning for the post-unload grace: it was armed for a removal on
-    // the backend going away, and nothing the next one reports can be that.
-    post_unload_runout_grace_ = false;
-    post_unload_runout_grace_at_ = {};
-    saw_unload_in_op_ = false;
-    // Per-slot unload times index the departing backend's slots; kept, they
-    // would suppress a real runout on the same index of the next backend.
-    last_unload_time_ = {};
+    // Same reasoning for the unload grace: it was armed for a removal on the
+    // backend going away, and nothing the next one reports can be that. The
+    // per-slot stamps index the departing backend's slots; kept, they would
+    // suppress a real runout on the same index of the next backend.
+    runout_grace_.reset();
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().
@@ -1788,20 +1788,8 @@ void AmsState::sync_from_backend() {
     // edge, because apply_synthesized_action_locked() overwrites the action
     // with a sub-phase as physical signals arrive: that K2 unload actually
     // ended CUTTING -> IDLE, which such an edge would have missed entirely.
-    {
-        const auto action = static_cast<AmsAction>(new_action);
-        const auto prev = static_cast<AmsAction>(lv_subject_get_int(&ams_action_));
-        if (action == AmsAction::UNLOADING) {
-            saw_unload_in_op_ = true;
-        }
-        if (action == AmsAction::IDLE && prev != AmsAction::IDLE) {
-            post_unload_runout_grace_ = saw_unload_in_op_;
-            if (post_unload_runout_grace_) {
-                post_unload_runout_grace_at_ = std::chrono::steady_clock::now();
-            }
-            saw_unload_in_op_ = false;
-        }
-    }
+    runout_grace_.on_action(static_cast<AmsAction>(lv_subject_get_int(&ams_action_)),
+                            static_cast<AmsAction>(new_action));
     if (lv_subject_get_int(&ams_action_) != new_action) {
         spdlog::debug("[AmsState] sync_from_backend: action changed to {} ({})", new_action,
                       ams_action_to_string(info.action));
@@ -1934,9 +1922,8 @@ void AmsState::sync_from_backend() {
     // user could not see or clear. Display and action now read one value.
     // Filament back at the toolhead retires the grace: it was armed for the
     // removal this unload caused, and anything after a reload is a new event.
-    if (info.filament_loaded && post_unload_runout_grace_) {
-        post_unload_runout_grace_ = false;
-        spdlog::debug("[AmsState] Post-unload runout grace retired — filament loaded again");
+    if (info.filament_loaded) {
+        runout_grace_.on_filament_loaded();
     }
 
     const int new_bypass = backend->is_bypass_active() ? 1 : 0;
@@ -3005,29 +2992,11 @@ void AmsState::set_active_tool_port_present(bool present) {
 }
 
 bool AmsState::consume_post_unload_runout_grace() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (!post_unload_runout_grace_) {
-        return false;
-    }
-    post_unload_runout_grace_ = false;
-    const auto age = std::chrono::steady_clock::now() - post_unload_runout_grace_at_;
-    if (age >= POST_UNLOAD_RUNOUT_GRACE) {
-        spdlog::debug("[AmsState] Post-unload runout grace expired unused after {}s",
-                      std::chrono::duration_cast<std::chrono::seconds>(age).count());
-        return false;
-    }
-    return true;
+    return runout_grace_.consume();
 }
 
 bool AmsState::post_unload_runout_grace_armed() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (!post_unload_runout_grace_) {
-        return false;
-    }
-    // Deliberately does NOT clear on expiry: only the consumer spends the shot,
-    // so a peek that also disarmed would be a second consumer by another name.
-    return (std::chrono::steady_clock::now() - post_unload_runout_grace_at_) <
-           POST_UNLOAD_RUNOUT_GRACE;
+    return runout_grace_.armed();
 }
 
 bool AmsState::is_filament_operation_active() {
@@ -3047,25 +3016,11 @@ bool AmsState::is_filament_operation_active() {
 }
 
 void AmsState::mark_slot_unloaded(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return;
-    }
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    last_unload_time_[slot_index] = std::chrono::steady_clock::now();
-    spdlog::debug("[AmsState] marked slot {} as recently unloaded (runout grace started)",
-                  slot_index);
+    runout_grace_.mark_slot_unloaded(slot_index);
 }
 
 bool AmsState::was_slot_recently_unloaded(int slot_index) const {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return false;
-    }
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const auto t = last_unload_time_[slot_index];
-    if (t.time_since_epoch().count() == 0) {
-        return false; // never unloaded
-    }
-    return (std::chrono::steady_clock::now() - t) < RECENT_UNLOAD_GRACE;
+    return runout_grace_.was_slot_recently_unloaded(slot_index);
 }
 
 void AmsState::set_current_loaded_defaults(bool write_header) {

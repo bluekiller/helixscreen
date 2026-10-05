@@ -6,6 +6,7 @@
 #include "ui_observer_guard.h"
 
 #include "ams_backend.h"
+#include "ams_runout_grace.h"
 #include "ams_step_operation.h"
 #include "ams_types.h"
 #include "async_lifetime_guard.h"
@@ -1672,7 +1673,7 @@ class AmsState {
      *
      * @param slot_index Slot index (0 to MAX_SLOTS-1)
      * @return true if mark_slot_unloaded(slot_index) was called within the last
-     *         RECENT_UNLOAD_GRACE window
+     *         RunoutGrace::WINDOW
      */
     bool was_slot_recently_unloaded(int slot_index) const;
 
@@ -1882,19 +1883,8 @@ class AmsState {
     /// slot-delta scan notices it, and the pre-print filament check would keep
     /// serving a stale result.
     bool last_bypass_active_{false};
-    /// How long after an unload completes its removal edge is still credited to
-    /// that unload. Same 30s window as RECENT_UNLOAD_GRACE below and as the
-    /// AD5X IFS runout suppression: past it, an empty sensor is a real runout.
-    static constexpr std::chrono::seconds POST_UNLOAD_RUNOUT_GRACE{30};
-    /// One-shot: an unload completed and its removal edge has not arrived yet.
-    bool post_unload_runout_grace_{false};
-    /// When post_unload_runout_grace_ was armed. Without it the flag has no time
-    /// bound, and an unload that leaves nothing loaded never reaches the
-    /// filament-back retirement — the next genuine idle runout, days later,
-    /// would be swallowed.
-    std::chrono::steady_clock::time_point post_unload_runout_grace_at_{};
-    /// Whether the operation currently in flight has passed through UNLOADING.
-    bool saw_unload_in_op_{false};
+    /// Unload grace and per-slot unload stamps, behind their own leaf mutex.
+    RunoutGrace runout_grace_;
     /// prev_backend_runout_ has no meaning yet, so the first sample seeds it
     /// instead of counting as an edge — a flag that was already true when we
     /// connected (or when a backend was swapped in) describes no transition we
@@ -2127,18 +2117,6 @@ class AmsState {
 
     // Stored callback for mock gcode response injection
     std::function<void(const std::string&)> gcode_response_callback_;
-
-    /// Grace window after an unload during which a runout on that lane's sensor
-    /// is expected (the user pulls the just-unloaded filament out) and must NOT
-    /// pop the runout-guidance modal. Auto-expires.
-    static constexpr std::chrono::seconds RECENT_UNLOAD_GRACE{30};
-
-    /// Per-slot timestamp of the last completed unload (unload_finish). A
-    /// non-subject plain field guarded by mutex_ — written from the backend's
-    /// background-thread status parse, read from FilamentSensorManager. Default
-    /// time_point{} (epoch) means "never unloaded" and is always outside the
-    /// grace window.
-    std::array<std::chrono::steady_clock::time_point, MAX_SLOTS> last_unload_time_{};
 };
 
 } // namespace helix
