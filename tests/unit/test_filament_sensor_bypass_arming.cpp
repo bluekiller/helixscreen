@@ -449,6 +449,80 @@ TEST_CASE("CFS external spool lane: a bay record on the fork's external key is l
     CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
 }
 
+// A mirror written before the mark existed carries no mark. When it names the
+// external spool saved in settings it is ours: adopted, marked and kept current,
+// so an existing user's OrcaSlicer tray does not freeze (#1464).
+TEST_CASE("CFS external spool lane: an old unmarked mirror naming the saved spool is adopted",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.send_fork_frame(4);
+    const SlotInfo spool = CfsPublishFixture::asa();
+
+    SECTION("the same filament is adopted, then kept current") {
+        helix::ams::FilamentSlotOverride old_mirror;
+        old_mirror.material = spool.material;
+        old_mirror.color_rgb = spool.color_rgb;
+        old_mirror.color_set = true;
+        fx.seed_record(4, old_mirror);
+
+        fx.backend->publish_external_spool_lane(&spool);
+        helix::ui::UpdateQueue::instance().drain();
+        auto rec = fx.api->mock_get_db_value("lane_data", "lane5");
+        REQUIRE_FALSE(rec.is_null());
+        CHECK(rec["helix_external"] == true);
+
+        SlotInfo next;
+        next.material = "PETG";
+        next.color_rgb = 0x0A2989;
+        fx.backend->publish_external_spool_lane(&next);
+        helix::ui::UpdateQueue::instance().drain();
+        rec = fx.api->mock_get_db_value("lane_data", "lane5");
+        REQUIRE_FALSE(rec.is_null());
+        CHECK(rec["helix_material"] == "PETG");
+    }
+
+    SECTION("a different filament is not ours: untouched by publish and clear") {
+        helix::ams::FilamentSlotOverride other;
+        other.material = "PLA";
+        other.color_rgb = 0xFFFFFF;
+        other.color_set = true;
+        fx.seed_record(4, other);
+        const json before = fx.api->mock_get_db_value("lane_data", "lane5");
+
+        fx.backend->publish_external_spool_lane(&spool);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fx.api->mock_get_db_value("lane_data", "lane5") == before);
+        fx.backend->publish_external_spool_lane(nullptr);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(fx.api->mock_get_db_value("lane_data", "lane5") == before);
+    }
+}
+
+TEST_CASE("record_describes_spool: Spoolman id decides when either side has one",
+          "[ams][bypass-arming][1464]") {
+    helix::ams::FilamentSlotOverride rec;
+    rec.material = "ASA";
+    rec.color_rgb = 0x1A2B3C;
+    rec.color_set = true;
+    SlotInfo spool = CfsPublishFixture::asa();
+    CHECK(helix::ams::record_describes_spool(rec, spool));
+
+    spool.spoolman_id = 7;
+    CHECK_FALSE(helix::ams::record_describes_spool(rec, spool));
+    rec.spoolman_id = 7;
+    CHECK(helix::ams::record_describes_spool(rec, spool));
+
+    rec.spoolman_id = 0;
+    spool.spoolman_id = 0;
+    rec.brand = "Polymaker";
+    spool.brand = "eSUN";
+    CHECK_FALSE(helix::ams::record_describes_spool(rec, spool));
+    spool.brand.clear();
+    CHECK(helix::ams::record_describes_spool(rec, spool));
+    rec.color_rgb = 0x000000;
+    CHECK_FALSE(helix::ams::record_describes_spool(rec, spool));
+}
+
 TEST_CASE("CFS external spool lane: our marked mirror is updated, an unmarked record is not",
           "[ams][cfs][bypass-arming][1464]") {
     CfsPublishFixture fx;

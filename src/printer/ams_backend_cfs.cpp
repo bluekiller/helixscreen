@@ -4945,7 +4945,21 @@ void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
         lane_index =
             macro_variant_ == CfsMacroVariant::Fork ? external_slot_index_ : kStockExternalLane;
         auto it = overrides_.find(lane_index);
-        foreign = it != overrides_.end() && !it->second.external_mirror;
+        if (it != overrides_.end() && !it->second.external_mirror) {
+            // An unmarked record that names the spool being published is a
+            // mirror written before the mark existed: adopt it, and from here
+            // on it is ours to update. A bay record matches only when the bay
+            // holds the identical filament, and then the overwrite says what
+            // it already said. `spool` is the external spool saved in settings
+            // (AmsState::get_external_spool_info() at both call sites).
+            if (spool != nullptr && helix::ams::record_describes_spool(it->second, *spool)) {
+                spdlog::info("{} Adopting the unmarked external spool mirror at lane {}",
+                             backend_log_tag(), lane_index);
+                overrides_.erase(it);
+            } else {
+                foreign = true;
+            }
+        }
         if (!foreign) {
             external_key_conflict_logged_ = false;
         } else if (!external_key_conflict_logged_) {

@@ -2143,6 +2143,19 @@ void persist_override_weight(FilamentSlotOverrideStore* store,
     }
 }
 
+bool record_describes_spool(const FilamentSlotOverride& record, const SlotInfo& spool) {
+    if (record.spoolman_id > 0 || spool.spoolman_id > 0) {
+        return record.spoolman_id == spool.spoolman_id;
+    }
+    if (record.material.empty() || record.material != spool.material) {
+        return false;
+    }
+    if (!record.color_set || record.color_rgb != spool.color_rgb) {
+        return false;
+    }
+    return record.brand.empty() || spool.brand.empty() || record.brand == spool.brand;
+}
+
 bool publish_external_lane(FilamentSlotOverrideStore* store, int lane_index, const SlotInfo* spool,
                            const std::string& log_tag) {
     if (!store || lane_index < 0) {
