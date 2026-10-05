@@ -147,6 +147,21 @@ void ui_panel_setup_resize_callback(ui_panel_resize_context_t* context) {
 // OVERLAY PANEL SETUP (For panels using overlay_panel.xml wrapper)
 // ============================================================================
 
+namespace helix::ui {
+lv_obj_t* create_xml_hidden(lv_obj_t* parent, const char* component, const char** attrs) {
+    // A child of parent, so the tree sees the same screen while it is built.
+    lv_obj_t* holder = lv_obj_create(parent);
+    lv_obj_add_flag(holder, LV_OBJ_FLAG_HIDDEN);
+    auto* root = static_cast<lv_obj_t*>(lv_xml_create(holder, component, attrs));
+    if (root) {
+        lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_parent(root, parent);
+    }
+    lv_obj_delete(holder);
+    return root;
+}
+} // namespace helix::ui
+
 void ui_overlay_panel_setup_standard(lv_obj_t* panel, lv_obj_t* parent_screen,
                                      const char* header_name, const char* content_name) {
     if (!panel || !parent_screen) {

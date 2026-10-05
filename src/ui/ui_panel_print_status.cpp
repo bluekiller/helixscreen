@@ -945,7 +945,7 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     parent_screen_ = parent;
 
     // Create overlay root from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, xml_component(), nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, xml_component());
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;

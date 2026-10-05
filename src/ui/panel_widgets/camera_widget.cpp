@@ -2,6 +2,8 @@
 
 #include "camera_widget.h"
 
+#include "ui_panel_common.h"
+
 #include "lvgl.h"
 #include "observe_language.h"
 
@@ -648,14 +650,12 @@ void CameraWidget::show_fullscreen_overlay() {
         return;
     }
 
-    auto* overlay = static_cast<lv_obj_t*>(lv_xml_create(screen, "camera_fullscreen", nullptr));
+    // Hidden until push_overlay shows it
+    auto* overlay = helix::ui::create_xml_hidden(screen, "camera_fullscreen");
     if (!overlay) {
         spdlog::warn("[CameraWidget] Failed to create camera_fullscreen component");
         return;
     }
-
-    // Start hidden — push_overlay handles showing it
-    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
 
     fullscreen_overlay_ = overlay;
     fullscreen_image_ = lv_obj_find_by_name(overlay, "fullscreen_camera_image");
@@ -872,12 +872,11 @@ void open_standalone_camera_fullscreen(lv_obj_t* parent_screen) {
         return;
     }
 
-    auto* overlay = static_cast<lv_obj_t*>(lv_xml_create(screen, "camera_fullscreen", nullptr));
+    auto* overlay = helix::ui::create_xml_hidden(screen, "camera_fullscreen");
     if (!overlay) {
         spdlog::warn("[CameraWidget] Standalone: failed to create camera_fullscreen component");
         return;
     }
-    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
 
     state->overlay = overlay;
     state->image = lv_obj_find_by_name(overlay, "fullscreen_camera_image");

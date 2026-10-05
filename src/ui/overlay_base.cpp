@@ -216,7 +216,7 @@ lv_obj_t* OverlayBase::create_overlay_from_xml(lv_obj_t* parent, const char* com
     parent_screen_ = parent;
     cleanup_called_ = false;
 
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, component_name, nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, component_name);
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create from XML", get_name());
         return nullptr;
@@ -224,7 +224,6 @@ lv_obj_t* OverlayBase::create_overlay_from_xml(lv_obj_t* parent, const char* com
 
     ui_overlay_panel_setup_standard(overlay_root_, parent_screen_, "overlay_header",
                                     "overlay_content");
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     return overlay_root_;
 }

@@ -4,6 +4,7 @@
 
 #include "ui_nav_manager.h"
 #include "ui_notification_history.h"
+#include "ui_panel_common.h"
 #include "ui_panel_notification_history.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
@@ -69,8 +70,7 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
     }
 
     // Now create XML component
-    lv_obj_t* panel_obj =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "notification_history_panel", nullptr));
+    lv_obj_t* panel_obj = helix::ui::create_xml_hidden(parent, "notification_history_panel");
     if (!panel_obj) {
         spdlog::error("[NotificationManager] Failed to create notification_history_panel from XML");
         return;

@@ -904,8 +904,7 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
 
     // Create overlay if not exists (lazy init)
     if (!detail_overlay_) {
-        detail_overlay_ = static_cast<lv_obj_t*>(
-            lv_xml_create(parent_screen_, "history_detail_overlay", nullptr));
+        detail_overlay_ = helix::ui::create_xml_hidden(parent_screen_, "history_detail_overlay");
 
         if (detail_overlay_) {
             spdlog::debug("[{}] Detail overlay created", get_name());

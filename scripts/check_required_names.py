@@ -10,7 +10,7 @@ statically. For each C++ unit (a src/ .cpp plus the header of the same stem
 under include/) it collects:
 
   - the components the unit creates: the component literal passed to
-    lv_xml_create() or create_overlay_from_xml(), and the literal an
+    lv_xml_create(), create_overlay_from_xml() or create_xml_hidden(), and the literal an
     xml_component() override returns;
   - the literal names it passes to find_required() (a non-literal name is left
     to the runtime check).
@@ -223,7 +223,7 @@ def check(root: Path) -> list[tuple[str, str, str]]:
         created: set[str] = set()
         for f, text in raw.items():
             code = strip_comments(text)
-            for func in ("lv_xml_create", "create_overlay_from_xml"):
+            for func in ("lv_xml_create", "create_overlay_from_xml", "create_xml_hidden"):
                 for _, args in calls(code, func):
                     if len(args) > 1 and literal(args[1]):
                         created.add(literal(args[1]))

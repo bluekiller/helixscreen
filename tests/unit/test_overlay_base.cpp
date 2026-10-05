@@ -366,3 +366,68 @@ TEST_CASE_METHOD(ShowFixture,
 
     NavigationManager::instance().unregister_overlay_close_callback(overlay.get_root());
 }
+
+namespace {
+
+/// Sums the pixels every invalidation adds to the display while installed.
+struct InvalidationMeter {
+    int64_t pixels = 0;
+    lv_display_t* disp = lv_display_get_default();
+
+    InvalidationMeter() {
+        lv_display_add_event_cb(disp, on_invalidate, LV_EVENT_INVALIDATE_AREA, this);
+    }
+    ~InvalidationMeter() {
+        lv_display_remove_event_cb_with_user_data(disp, on_invalidate, this);
+    }
+
+    static void on_invalidate(lv_event_t* e) {
+        auto* self = static_cast<InvalidationMeter*>(lv_event_get_user_data(e));
+        auto* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
+        self->pixels += static_cast<int64_t>(lv_area_get_width(a)) * lv_area_get_height(a);
+    }
+};
+
+// A full-size root whose construction runs a layout pass: a dropdown with a
+// selection positions its list, which reads a scroll offset and so updates
+// the screen's layout before lv_xml_create() returns.
+constexpr const char* kLayoutDuringCreate =
+    "<component><view extends=\"lv_obj\" width=\"100%\" height=\"100%\">"
+    "<lv_dropdown options=\"a&#10;b&#10;c\" selected=\"2\"/>"
+    "</view></component>";
+
+} // namespace
+
+TEST_CASE_METHOD(ShowFixture, "show() leaves the screen undrawn until the queued push shows it",
+                 "[overlay_base][overlay_show][render]") {
+    lv_xml_register_component_from_data("test_overlay_layout_during_create", kLayoutDuringCreate);
+    settle();
+    lv_refr_now(lv_display_get_default());
+
+    // The component really does lay out mid-create: built visible, its whole
+    // area is already queued for redraw by the time the caller could hide it.
+    {
+        InvalidationMeter meter;
+        lv_obj_t* visible = static_cast<lv_obj_t*>(
+            lv_xml_create(test_screen(), "test_overlay_layout_during_create", nullptr));
+        REQUIRE(visible != nullptr);
+        CHECK(meter.pixels >= lv_obj_get_width(visible) * lv_obj_get_height(visible));
+        lv_obj_delete(visible);
+    }
+    lv_refr_now(lv_display_get_default());
+
+    ShowOverlay overlay("test_overlay_layout_during_create");
+    {
+        // The frame between show() and the queued push would draw only this.
+        InvalidationMeter meter;
+        REQUIRE(overlay.show(test_screen()));
+        lv_obj_update_layout(test_screen());
+        CHECK(meter.pixels == 0);
+        CHECK(lv_obj_has_flag(overlay.get_root(), LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_get_parent(overlay.get_root()) == test_screen());
+    }
+    settle();
+    CHECK_FALSE(lv_obj_has_flag(overlay.get_root(), LV_OBJ_FLAG_HIDDEN));
+    CHECK(NavigationManager::instance().is_panel_on_top(overlay.get_root()));
+    pop(overlay);
+}
