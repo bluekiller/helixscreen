@@ -16,7 +16,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from esp32_stage_assets import minify_xml, stage_config, stage_translations  # noqa: E402
+import esp32_printer_images  # noqa: E402
+from esp32_stage_assets import (minify_xml, stage_config, stage_printer_images,  # noqa: E402
+                                stage_translations)
 
 
 def test_strips_single_line_comment():
@@ -161,3 +163,50 @@ def test_stage_config_ships_the_default_print_start_profile(tmp_path):
 
     staged = tmp_path / "out" / "assets" / "config" / "print_start_profiles"
     assert sorted(p.name for p in staged.iterdir()) == ["default.json"]
+
+
+def test_stage_printer_images_generates_absent_renditions(tmp_path):
+    pytest.importorskip("PIL")
+    renditions = tmp_path / "renditions"
+
+    stage_printer_images(tmp_path / "out", renditions)
+
+    staged = tmp_path / "out" / "assets" / "images" / "printers"
+    expected = {f"{name}.png" for name in esp32_printer_images.ESP32_PRINTERS}
+    assert expected <= {p.name for p in staged.iterdir()}
+    assert esp32_printer_images.is_fresh(renditions)
+
+
+def test_stage_printer_images_reuses_fresh_renditions(tmp_path, monkeypatch):
+    renditions = tmp_path / "renditions"
+    renditions.mkdir()
+    for name in esp32_printer_images.ESP32_PRINTERS:
+        (renditions / f"{name}.png").write_bytes(b"png")
+    monkeypatch.setattr(esp32_printer_images, "generate",
+                        lambda out: pytest.fail("fresh renditions were regenerated"))
+
+    stage_printer_images(tmp_path / "out", renditions)
+
+    assert (tmp_path / "out" / "assets" / "images" / "printers" / "generic-corexy.png").read_bytes() == b"png"
+
+
+def test_stage_printer_images_regenerates_when_a_rendition_is_missing(tmp_path, monkeypatch):
+    renditions = tmp_path / "renditions"
+    renditions.mkdir()
+    (renditions / "generic-corexy.png").write_bytes(b"png")
+    calls = []
+    monkeypatch.setattr(esp32_printer_images, "generate", lambda out: calls.append(out) or 1)
+
+    with pytest.raises(SystemExit):
+        stage_printer_images(tmp_path / "out", renditions)
+    assert calls == [renditions]
+
+
+def test_stage_printer_images_fails_without_pillow(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "PIL", None)
+
+    with pytest.raises(SystemExit) as exc:
+        stage_printer_images(tmp_path / "out", tmp_path / "renditions")
+
+    assert exc.value.code not in (0, None)
+    assert not (tmp_path / "out" / "assets" / "images" / "printers").exists()
