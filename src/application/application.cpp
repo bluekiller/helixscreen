@@ -1945,17 +1945,6 @@ void Application::apply_startup_cli_actions() {
     }
 }
 
-lv_obj_t* Application::create_overlay_panel(lv_obj_t* screen, const char* component_name,
-                                            const char* display_name) {
-    spdlog::debug("[Application] Opening {} overlay", display_name);
-    lv_obj_t* panel = static_cast<lv_obj_t*>(lv_xml_create(screen, component_name, nullptr));
-    if (!panel) {
-        spdlog::error("[Application] Failed to create {} overlay from '{}'", display_name,
-                      component_name);
-    }
-    return panel;
-}
-
 void Application::restore_flush_callback() {
     if (m_original_flush_cb) {
         if (m_display) {
