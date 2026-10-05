@@ -46,10 +46,11 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
 
     auto& mgr = NotificationManager::instance();
 
-    // Prevent multiple panel instances - if panel already exists and is visible, ignore click
-    if (mgr.notification_panel_obj_ &&
-        !lv_obj_has_flag(mgr.notification_panel_obj_, LV_OBJ_FLAG_HIDDEN)) {
-        spdlog::debug("[NotificationManager] Notification panel already visible, ignoring click");
+    // One panel at a time: open, or built with its push still queued (hidden until then)
+    auto& nav = NavigationManager::instance();
+    if (mgr.notification_panel_obj_ && (nav.is_panel_in_stack(mgr.notification_panel_obj_) ||
+                                        nav.is_push_pending(mgr.notification_panel_obj_))) {
+        spdlog::debug("[NotificationManager] Notification panel already open, ignoring click");
         return;
     }
 

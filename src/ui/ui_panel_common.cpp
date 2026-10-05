@@ -149,9 +149,15 @@ void ui_panel_setup_resize_callback(ui_panel_resize_context_t* context) {
 
 namespace helix::ui {
 lv_obj_t* create_xml_hidden(lv_obj_t* parent, const char* component, const char** attrs) {
-    // A child of parent, so the tree sees the same screen while it is built.
+    if (!parent) {
+        return nullptr;
+    }
+    // A child of parent filling its content box, so the tree sees the same
+    // screen and resolves percentages and layout as it will once reparented.
     lv_obj_t* holder = lv_obj_create(parent);
     lv_obj_add_flag(holder, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_style_all(holder);
+    lv_obj_set_size(holder, lv_pct(100), lv_pct(100));
     auto* root = static_cast<lv_obj_t*>(lv_xml_create(holder, component, attrs));
     if (root) {
         lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN);

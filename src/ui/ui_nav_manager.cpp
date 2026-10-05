@@ -1794,10 +1794,16 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         return;
     }
 
+    pending_pushes_.push_back(overlay_panel);
     // Always queue - this is the safest pattern for overlay operations
     // which can be triggered from various contexts (events, observers, etc.)
     helix::ui::queue_update("NavigationManager::push_overlay", [overlay_panel,
                                                                 hide_previous]() mutable {
+        auto& pending = NavigationManager::instance().pending_pushes_;
+        if (auto it = std::find(pending.begin(), pending.end(), overlay_panel);
+            it != pending.end()) {
+            pending.erase(it);
+        }
         // Resolved when the push runs, on the UI thread: a rebuild can land
         // between the queueing and now.
         overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
@@ -2183,6 +2189,11 @@ void NavigationManager::go_back_now() {
     }
 }
 
+bool NavigationManager::is_push_pending(lv_obj_t* panel) const {
+    return std::find(pending_pushes_.begin(), pending_pushes_.end(), panel) !=
+           pending_pushes_.end();
+}
+
 bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
     panel = resolve_rebuilt(panel);
     if (!panel) {
@@ -2240,6 +2251,7 @@ void NavigationManager::shutdown() {
 
     // Clear panel stack
     panel_stack_.clear();
+    pending_pushes_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
 
@@ -2348,6 +2360,7 @@ void NavigationManager::deinit_subjects() {
     rebuilt_overlays_.clear();
     condemned_roots_.clear();
     panel_stack_.clear();
+    pending_pushes_.clear();
     app_layout_widget_ = nullptr;
     if (overlay_backdrop_) {
         lv_obj_del(overlay_backdrop_);

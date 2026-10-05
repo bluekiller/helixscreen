@@ -16,6 +16,7 @@
  */
 
 #include "ui_nav_manager.h"
+#include "ui_panel_common.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
@@ -430,4 +431,45 @@ TEST_CASE_METHOD(ShowFixture, "show() leaves the screen undrawn until the queued
     CHECK_FALSE(lv_obj_has_flag(overlay.get_root(), LV_OBJ_FLAG_HIDDEN));
     CHECK(NavigationManager::instance().is_panel_on_top(overlay.get_root()));
     pop(overlay);
+}
+
+TEST_CASE_METHOD(ShowFixture, "create_xml_hidden() lays the tree out at the parent's size",
+                 "[overlay_base][overlay_show][render]") {
+    lv_xml_register_component_from_data("test_overlay_layout_during_create", kLayoutDuringCreate);
+    settle();
+
+    // No layout pass after the call: what a caller reading sizes synchronously
+    // sees is what the build-time layout computed.
+    lv_obj_t* root =
+        helix::ui::create_xml_hidden(test_screen(), "test_overlay_layout_during_create");
+    REQUIRE(root != nullptr);
+    CHECK(lv_obj_get_width(root) == lv_obj_get_content_width(test_screen()));
+    CHECK(lv_obj_get_height(root) == lv_obj_get_content_height(test_screen()));
+    lv_obj_delete(root);
+}
+
+TEST_CASE_METHOD(ShowFixture, "create_xml_hidden() refuses a null parent",
+                 "[overlay_base][overlay_show]") {
+    lv_xml_register_component_from_data("test_overlay_layout_during_create", kLayoutDuringCreate);
+    CHECK(helix::ui::create_xml_hidden(nullptr, "test_overlay_layout_during_create") == nullptr);
+}
+
+TEST_CASE_METHOD(ShowFixture, "is_push_pending() spans push_overlay() to its queued push",
+                 "[overlay_base][overlay_show][nav]") {
+    auto& nav = NavigationManager::instance();
+    lv_obj_t* overlay = lv_obj_create(test_screen());
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    nav.register_overlay_instance(overlay, nullptr);
+
+    CHECK_FALSE(nav.is_push_pending(overlay));
+    nav.push_overlay(overlay);
+    // Neither visible nor stacked yet: only this says an open is under way.
+    CHECK(nav.is_push_pending(overlay));
+    CHECK_FALSE(nav.is_panel_in_stack(overlay));
+
+    settle();
+    CHECK_FALSE(nav.is_push_pending(overlay));
+    CHECK(nav.is_panel_on_top(overlay));
+    nav.go_back();
+    settle();
 }

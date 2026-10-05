@@ -515,6 +515,11 @@ class NavigationManager {
      */
     bool is_panel_in_stack(lv_obj_t* panel) const;
 
+    /// True from push_overlay(panel) until its queued push runs. A caller that
+    /// guards against opening twice must ask this too: until then the panel is
+    /// neither visible nor in the stack.
+    bool is_push_pending(lv_obj_t* panel) const;
+
     /**
      * @brief Check if a panel is the top of the overlay stack
      *
@@ -786,6 +791,7 @@ class NavigationManager {
 
     // Panel stack: tracks ALL visible panels in z-order
     std::vector<lv_obj_t*> panel_stack_;
+    std::vector<lv_obj_t*> pending_pushes_; // push_overlay() targets not yet pushed
 
     // Overlay close callbacks (called when overlay is popped from stack)
     std::unordered_map<lv_obj_t*, helix::OverlayCloseCallback> overlay_close_callbacks_;
