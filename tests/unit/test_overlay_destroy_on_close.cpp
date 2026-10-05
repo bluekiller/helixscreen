@@ -220,10 +220,10 @@ TEST_CASE_METHOD(DestroyOnCloseFixture,
     // The probe observers die with the tree: a Klipper-side probe starting
     // while the overlay is closed must not move a closed panel to ADJUSTING.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_manual_probe_active_subject(), 1);
+    lv_subject_set_int(ps.calibration_state().get_manual_probe_active_subject(), 1);
     settle();
     CHECK(p.get_state() == ZOffsetCalibrationPanel::State::IDLE);
-    lv_subject_set_int(ps.get_manual_probe_active_subject(), 0);
+    lv_subject_set_int(ps.calibration_state().get_manual_probe_active_subject(), 0);
     settle();
 
     p.update_z_position(0.2f);

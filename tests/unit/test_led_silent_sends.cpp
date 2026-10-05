@@ -123,8 +123,8 @@ TEST_CASE_METHOD(SilentSendFixture,
                        static_cast<int>(helix::PrintJobState::PRINTING));
     drain();
 
-    REQUIRE(sent_gcode_containing("SET_LED")); // the theme send reached Klipper
-    CHECK(state.claim_busy_queue_toast());     // silent chain claimed nothing
+    REQUIRE(sent_gcode_containing("SET_LED"));                 // the theme send reached Klipper
+    CHECK(state.calibration_state().claim_busy_queue_toast()); // silent chain claimed nothing
 }
 
 TEST_CASE_METHOD(SilentSendFixture,
@@ -148,7 +148,7 @@ TEST_CASE_METHOD(SilentSendFixture,
     REQUIRE(sent_gcode_containing("SET_LED_EFFECT"));
     REQUIRE(sent_gcode_containing("SET_LED"));
     REQUIRE(sent_gcode_containing("SET_PIN"));
-    CHECK(state.claim_busy_queue_toast());
+    CHECK(state.calibration_state().claim_busy_queue_toast());
 }
 
 TEST_CASE_METHOD(SilentSendFixture,
@@ -165,5 +165,5 @@ TEST_CASE_METHOD(SilentSendFixture,
     drain();
 
     REQUIRE(sent_gcode_containing("SET_LED"));
-    CHECK(state.claim_busy_queue_toast());
+    CHECK(state.calibration_state().claim_busy_queue_toast());
 }

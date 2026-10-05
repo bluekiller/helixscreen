@@ -333,7 +333,7 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
         // predicates deliberately do not read it — narrowing them would let a
         // late jog through during a filament op (#1108).
         if (!silent && !state_.app_macro_activity().recently_active() &&
-            state_.claim_busy_queue_toast()) {
+            state_.calibration_state().claim_busy_queue_toast()) {
             NOTIFY_INFO("Printer is busy — your {} will run when it's ready.",
                         helix::discretionary_gcode_noun(gcode));
         }

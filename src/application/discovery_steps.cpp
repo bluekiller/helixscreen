@@ -294,7 +294,8 @@ void manual_probe_autoopen_step(DiscoveryContext& ctx) {
     lv_obj_t* screen = ctx.screen;
     ui::queue_update("discovery_steps::manual_probe_autoopen_step", [api, screen]() {
         auto& ps = get_printer_state();
-        int probe_active = lv_subject_get_int(ps.get_manual_probe_active_subject());
+        int probe_active =
+            lv_subject_get_int(ps.calibration_state().get_manual_probe_active_subject());
         spdlog::info("[Application] Checking manual_probe at startup: is_active={}", probe_active);
         if (probe_active == 1) {
             spdlog::info("[Application] Manual probe active at startup, auto-opening "

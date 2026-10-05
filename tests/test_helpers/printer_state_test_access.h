@@ -355,9 +355,9 @@ class PrinterStateTestAccess {
      * test_idle_timeout_busy.cpp.
      */
     static void set_sustained_idle_timeout_printing(PrinterState& ps, bool on) {
-        lv_subject_set_int(ps.get_idle_timeout_printing_subject(), on ? 1 : 0);
-        ps.idle_timeout_busy().set_printing(on, IdleTimeoutBusy::clock::now() -
-                                                    IdleTimeoutBusy::SETTLE);
+        lv_subject_set_int(ps.calibration_state().get_idle_timeout_printing_subject(), on ? 1 : 0);
+        ps.calibration_state().idle_timeout_busy().set_printing(on, IdleTimeoutBusy::clock::now() -
+                                                                        IdleTimeoutBusy::SETTLE);
     }
 };
 

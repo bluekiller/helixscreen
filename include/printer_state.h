@@ -2090,69 +2090,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Get manual probe active subject for Z-offset calibration
-     *
-     * Returns 1 when Klipper is in manual probe mode (PROBE_CALIBRATE,
-     * Z_ENDSTOP_CALIBRATE), 0 otherwise. Used by ZOffsetCalibrationPanel
-     * to transition from PROBING to ADJUSTING state.
-     */
-    lv_subject_t* get_manual_probe_active_subject() {
-        return calibration_state_.get_manual_probe_active_subject();
-    }
-
-    /**
-     * @brief Get manual probe Z position subject
-     *
-     * Returns current Z position during manual probe (in microns, multiply
-     * by 0.001 to get mm). Updated in real-time by Klipper as TESTZ
-     * commands are executed.
-     */
-    lv_subject_t* get_manual_probe_z_position_subject() {
-        return calibration_state_.get_manual_probe_z_position_subject();
-    }
-
-    /**
-     * @brief Get motors enabled subject for UI binding
-     *
-     * Returns 1 when stepper motors are enabled (idle_timeout.state is "Ready" or "Printing"),
-     * 0 when motors are disabled (idle_timeout.state is "Idle").
-     * Used to reflect motor state in the UI (e.g., disable motion controls when motors off).
-     */
-    lv_subject_t* get_motors_enabled_subject() {
-        return calibration_state_.get_motors_enabled_subject();
-    }
-
-    /**
-     * @brief Get idle_timeout "Printing" busy subject
-     *
-     * Returns 1 when Klipper's idle_timeout.state == "Printing" (its canonical
-     * busy flag — true for the whole duration of any blocking op or file print),
-     * 0 otherwise. This is the literal Klipper state; is_blocking_operation_active()
-     * reads the debounced view below instead.
-     */
-    lv_subject_t* get_idle_timeout_printing_subject() {
-        return calibration_state_.get_idle_timeout_printing_subject();
-    }
-
-    /// Lifetime-token overload — observers on the idle subject must take it:
-    /// PrinterCalibrationState frees the subject on deinit (printer switch,
-    /// test re-init) and the token is how a pending guard knows the node is
-    /// gone.
-    lv_subject_t* get_idle_timeout_printing_subject(std::shared_ptr<bool>& lifetime) {
-        return calibration_state_.get_idle_timeout_printing_subject(lifetime);
-    }
-
-    /**
-     * @brief Debounced idle_timeout busy flag backing is_blocking_operation_active()
-     *
-     * Exposed so tests can drive the guard the way the parse path does. See
-     * IdleTimeoutBusy for why the raw subject cannot be used as a gate.
-     */
-    helix::IdleTimeoutBusy& idle_timeout_busy() {
-        return calibration_state_.idle_timeout_busy();
-    }
-
-    /**
      * @brief Whether a blocking non-print operation is currently in progress
      *
      * True while the printer is executing a blocking operation that holds
@@ -2205,14 +2142,6 @@ class PrinterState {
     /// through during a filament op — a toolhead-collision hazard (#1108).
     helix::AppMacroActivity& app_macro_activity() {
         return app_macro_activity_;
-    }
-
-    /// Claim the once-per-episode "busy — your change will queue" toast. True for
-    /// the first benign discretionary command queued behind a blocking op, false
-    /// thereafter until the op ends. Delegates to the calibration state, which
-    /// re-arms it on the op's falling edge. See PrinterCalibrationState.
-    bool claim_busy_queue_toast() {
-        return calibration_state_.claim_busy_queue_toast();
     }
 
     /**

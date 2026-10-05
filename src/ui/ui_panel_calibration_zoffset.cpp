@@ -159,7 +159,7 @@ void ZOffsetCalibrationPanel::setup_widgets() {
     PrinterState& ps = get_printer_state();
 
     manual_probe_active_observer_ = observe<int>(
-        ps.get_manual_probe_active_subject(), this,
+        ps.calibration_state().get_manual_probe_active_subject(), this,
         [](ZOffsetCalibrationPanel* self, int is_active) {
             spdlog::debug("[ZOffsetCal] manual_probe_active changed: {}", is_active);
 
@@ -193,7 +193,7 @@ void ZOffsetCalibrationPanel::setup_widgets() {
         ps.get_subjects_lifetime());
 
     manual_probe_z_observer_ = observe<int>(
-        ps.get_manual_probe_z_position_subject(), this,
+        ps.calibration_state().get_manual_probe_z_position_subject(), this,
         [](ZOffsetCalibrationPanel* self, int z_microns) {
             // Only update Z display when in ADJUSTING state
             if (self->state_ != State::ADJUSTING)
@@ -223,9 +223,10 @@ void ZOffsetCalibrationPanel::on_activate() {
     // If manual probe is already active (e.g., started from Mainsail before HelixScreen
     // launched), skip to ADJUSTING with the current Z position instead of resetting to IDLE
     auto& ps = get_printer_state();
-    if (lv_subject_get_int(ps.get_manual_probe_active_subject()) == 1) {
+    if (lv_subject_get_int(ps.calibration_state().get_manual_probe_active_subject()) == 1) {
         spdlog::info("[ZOffsetCal] Manual probe already active, resuming in ADJUSTING state");
-        int z_microns = lv_subject_get_int(ps.get_manual_probe_z_position_subject());
+        int z_microns =
+            lv_subject_get_int(ps.calibration_state().get_manual_probe_z_position_subject());
         current_z_ = z_microns / 1000.0f;
         set_state(State::ADJUSTING);
         update_z_position(current_z_);

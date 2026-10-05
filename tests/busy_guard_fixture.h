@@ -73,7 +73,7 @@ class BusyGuardFixture : public LVGLTestFixture {
     }
 
     void set_manual_probe(bool on) {
-        lv_subject_set_int(state.get_manual_probe_active_subject(), on ? 1 : 0);
+        lv_subject_set_int(state.calibration_state().get_manual_probe_active_subject(), on ? 1 : 0);
     }
 
     /// Make an external blocking op (calibration / console macro) look active.

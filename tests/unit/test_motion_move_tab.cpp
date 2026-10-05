@@ -755,7 +755,7 @@ TEST_CASE_METHOD(MoveTabFixture,
 
     // A manual probe session holds the head absolutely: no recent app motion
     // can excuse it the way it excuses idle_timeout.
-    lv_subject_t* probe = get_printer_state().get_manual_probe_active_subject();
+    lv_subject_t* probe = get_printer_state().calibration_state().get_manual_probe_active_subject();
     lv_subject_set_int(probe, 1);
     REQUIRE(get_printer_state().is_external_blocking_operation_active());
     auto& panel = get_global_motion_panel();

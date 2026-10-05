@@ -277,7 +277,8 @@ void ToolOffsetCalibrationPanel::on_run_rpc_error(const MoonrakerError& err) {
     // Complete on the busy->idle edge instead, as PrintPreparationManager does
     // for a pre-start macro that outlives its ceiling.
     if (err.type == MoonrakerErrorType::TIMEOUT &&
-        lv_subject_get_int(get_printer_state().get_idle_timeout_printing_subject()) == 1) {
+        lv_subject_get_int(
+            get_printer_state().calibration_state().get_idle_timeout_printing_subject()) == 1) {
         begin_idle_wait();
         return;
     }
@@ -300,7 +301,8 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
     // timer is a finished run.
     idle_wait_backstop_.begin(CALIBRATION_TIMEOUT_MS, [this]() {
         const bool still_busy =
-            lv_subject_get_int(get_printer_state().get_idle_timeout_printing_subject()) == 1;
+            lv_subject_get_int(
+                get_printer_state().calibration_state().get_idle_timeout_printing_subject()) == 1;
         finish_idle_wait();
         if (still_busy) {
             spdlog::error(
@@ -314,7 +316,7 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
     // through the UpdateQueue, so the observer can be torn down from inside it.
     helix::PrinterState& ps = get_printer_state();
     idle_wait_observer_ = helix::ui::observe<int>(
-        ps.get_idle_timeout_printing_subject(), this,
+        ps.calibration_state().get_idle_timeout_printing_subject(), this,
         [](ToolOffsetCalibrationPanel* self, int busy) {
             if (!self->idle_wait_active_ || busy == 1) {
                 return;
@@ -324,7 +326,9 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
             // runs is still working through the macro, and completing the run
             // here would re-enable Save under a queue it still blocks. Read the
             // subject now, as the backstop does when it fires.
-            if (lv_subject_get_int(get_printer_state().get_idle_timeout_printing_subject()) == 1) {
+            if (lv_subject_get_int(
+                    get_printer_state().calibration_state().get_idle_timeout_printing_subject()) ==
+                1) {
                 return;
             }
             self->finish_idle_wait();

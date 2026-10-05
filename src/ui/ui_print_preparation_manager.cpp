@@ -1380,7 +1380,8 @@ void PrintPreparationManager::handle_pre_start_gcode_error(
     if ((error.type == MoonrakerErrorType::TIMEOUT ||
          error.type == MoonrakerErrorType::CONNECTION_LOST) &&
         printer_state_ &&
-        lv_subject_get_int(printer_state_->get_idle_timeout_printing_subject()) == 1) {
+        lv_subject_get_int(
+            printer_state_->calibration_state().get_idle_timeout_printing_subject()) == 1) {
         begin_pre_start_completion_wait(error, filename, ops_to_disable, on_navigate_to_status,
                                         on_completion);
         return;
@@ -1417,7 +1418,8 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
         [this, filename, ops_to_disable, on_navigate_to_status, on_completion, timeout_error]() {
             const bool still_busy =
                 printer_state_ &&
-                lv_subject_get_int(printer_state_->get_idle_timeout_printing_subject()) == 1;
+                lv_subject_get_int(
+                    printer_state_->calibration_state().get_idle_timeout_printing_subject()) == 1;
             finish_pre_start_wait();
             if (!still_busy) {
                 spdlog::info("[PrintPreparationManager] Pre-start macro finished "
@@ -1439,7 +1441,7 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
     // defers the handler through UpdateQueue, so the observer can be torn down
     // from inside the handler without re-entrancy.
     pre_start_wait_observer_ = helix::ui::observe<int>(
-        printer_state_->get_idle_timeout_printing_subject(), this,
+        printer_state_->calibration_state().get_idle_timeout_printing_subject(), this,
         [this, filename, ops_to_disable, on_navigate_to_status,
          on_completion](PrintPreparationManager* self, int busy) {
             if (!self->pre_start_wait_active_ || busy == 1) {

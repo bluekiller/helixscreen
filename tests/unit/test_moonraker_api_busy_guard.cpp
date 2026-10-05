@@ -296,7 +296,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     REQUIRE(mock_client.gcode_script_history().size() == 2);
 
     // One toast per episode: the first send claimed it, the second claims nothing.
-    CHECK_FALSE(state.claim_busy_queue_toast());
+    CHECK_FALSE(state.calibration_state().claim_busy_queue_toast());
 }
 
 TEST_CASE_METHOD(BusyGuardApiFixture,
@@ -308,7 +308,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // First benign command of the episode claims the once-per-episode toast.
     api->execute_gcode("M106 S128", nullptr, [this](const MoonrakerError& err) { error_cb(err); });
     CHECK_FALSE(error_called);
-    CHECK_FALSE(state.claim_busy_queue_toast());
+    CHECK_FALSE(state.calibration_state().claim_busy_queue_toast());
 
     // Status keeps flowing while the START macro is still inside the gcode lock.
     // print_stats PRINTING keeps the composite blocking predicate clear, so the
@@ -316,14 +316,14 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // every status tick buys back a toast.
     state.update_from_status(nlohmann::json{{"idle_timeout", {{"state", "Printing"}}}});
     CHECK(state.is_in_print_start());
-    CHECK_FALSE(state.claim_busy_queue_toast());
+    CHECK_FALSE(state.calibration_state().claim_busy_queue_toast());
 
     // The collector stops, the phase returns to IDLE, and the next status update
     // re-arms the latch so a later episode can announce itself again.
     set_print_start_phase(state, PrintStartPhase::IDLE);
     state.update_from_status(nlohmann::json{{"idle_timeout", {{"state", "Printing"}}}});
     CHECK_FALSE(state.is_in_print_start());
-    CHECK(state.claim_busy_queue_toast());
+    CHECK(state.calibration_state().claim_busy_queue_toast());
 }
 
 TEST_CASE_METHOD(BusyGuardApiFixture,
@@ -456,7 +456,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // Fire-and-forget to Klipper, but the toast latch is still armed: this claim
     // succeeds only because the silent send took nothing.
     REQUIRE(mock_client.last_send_method() == "printer.gcode.script");
-    CHECK(state.claim_busy_queue_toast());
+    CHECK(state.calibration_state().claim_busy_queue_toast());
 }
 
 // ============================================================================

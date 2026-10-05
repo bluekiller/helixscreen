@@ -105,7 +105,8 @@ class PreStartGateFixture : public LVGLTestFixture {
     }
 
     void set_busy(bool busy) {
-        lv_subject_set_int(state.get_idle_timeout_printing_subject(), busy ? 1 : 0);
+        lv_subject_set_int(state.calibration_state().get_idle_timeout_printing_subject(),
+                           busy ? 1 : 0);
     }
 
     MoonrakerClientMock mock_client;
