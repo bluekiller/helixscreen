@@ -57,6 +57,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <string_view>
 #include <unordered_set>
 
@@ -470,10 +471,8 @@ void PrintStatusWidget::detach() {
     // recycled, so the lv_image outlives this detach, and for a variable source
     // lv_image stores the raw pointer (it only strdups paths). Ours can be the
     // last reference — PrinterState drops its own on the next filename change.
-    if (esp_thumbnail_ && print_card_active_thumb_ &&
-        lv_image_get_src(print_card_active_thumb_) == esp_thumbnail_->dsc()) {
-        lv_image_set_src(print_card_active_thumb_,
-                         helix::PrinterPrintState::no_thumbnail_placeholder());
+    if (esp_thumbnail_) {
+        unpoint_thumbs_from(esp_thumbnail_->dsc());
     }
     esp_thumbnail_.reset();
 #endif
@@ -816,8 +815,74 @@ void PrintStatusWidget::apply_esp_psram_thumbnail() {
     // which is what EspPsramThumbnail's destructor requires.
     auto previous = std::move(esp_thumbnail_);
     esp_thumbnail_ = std::move(thumb);
+    if (previous && previous != esp_thumbnail_) {
+        unpoint_thumbs_from(previous->dsc());
+    }
     lv_image_set_src(print_card_active_thumb_, esp_thumbnail_->dsc());
     spdlog::info("[PrintStatusWidget] Active print PSRAM thumbnail applied");
+}
+
+void PrintStatusWidget::unpoint_thumbs_from(const void* dsc) {
+    lv_obj_t* thumbs[] = {print_card_active_thumb_, print_card_thumb_, print_card_thumb_compact_,
+                          idle_hero_thumb()};
+    for (auto* img : thumbs) {
+        if (img && lv_obj_is_valid(img) && lv_image_get_src(img) == dsc) {
+            lv_image_set_src(img, helix::PrinterPrintState::no_thumbnail_placeholder());
+        }
+    }
+}
+#endif
+
+bool PrintStatusWidget::show_finished_print_image() {
+    // The active-print media keeps the last print's image until another print
+    // starts, so a history head naming that file is the print that just ended.
+    // Its image needs no fetch, and on the ESP32 it is the only one there is:
+    // the history fetch has no disk cache to land in.
+    auto* history = get_print_history_manager();
+    const PrintHistoryJob* newest = history ? history->get_newest_existing_job() : nullptr;
+    if (!newest || newest->filename != printer_state_.get_print_thumbnail_file()) {
+        return false;
+    }
+#if defined(HELIX_PLATFORM_ESP32)
+    auto thumb = printer_state_.get_print_psram_thumbnail();
+    if (!thumb) {
+        return false;
+    }
+    if (thumb != esp_thumbnail_) {
+        apply_esp_psram_thumbnail();
+    }
+    if (esp_thumbnail_ != thumb) {
+        return false; // no active thumb to apply it to; this tree is incomplete
+    }
+    // idle_thumb_path_subject_ is a string and cannot carry a descriptor, so
+    // the hero is written directly; set_thumb_on_widgets() writes it back.
+    shown_idle_thumb_ = {};
+    lv_obj_t* thumbs[] = {print_card_thumb_, print_card_thumb_compact_, idle_hero_thumb()};
+    for (auto* img : thumbs) {
+        if (img && lv_obj_is_valid(img)) {
+            lv_image_set_src(img, esp_thumbnail_->dsc());
+        }
+    }
+    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}' (PSRAM)",
+                  newest->filename);
+    return true;
+#else
+    const char* path = lv_subject_get_string(printer_state_.get_print_thumbnail_path_subject());
+    if (!path || !*path ||
+        strcmp(path, helix::PrinterPrintState::no_thumbnail_placeholder()) == 0) {
+        return false;
+    }
+    shown_idle_thumb_ = {};
+    set_thumb_on_widgets(path);
+    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}': {}", newest->filename,
+                  path);
+    return true;
+#endif
+}
+
+#if defined(HELIX_PLATFORM_ESP32)
+lv_obj_t* PrintStatusWidget::idle_hero_thumb() const {
+    return widget_obj_ ? lv_obj_find_by_name(widget_obj_, "idle_thumb") : nullptr;
 }
 #endif
 
@@ -947,6 +1012,10 @@ void PrintStatusWidget::reset_print_card_to_idle() {
         return;
     }
 
+    if (show_finished_print_image()) {
+        return;
+    }
+
     // Compute pre-scale target from actual widget size (not hardcoded breakpoints)
     int widget_w = lv_obj_get_width(print_card_thumb_);
     int widget_h = lv_obj_get_height(print_card_thumb_);
@@ -1033,6 +1102,13 @@ void PrintStatusWidget::set_thumb_on_widgets(const char* src) {
     if (print_card_thumb_compact_ && lv_obj_is_valid(print_card_thumb_compact_)) {
         lv_image_set_src(print_card_thumb_compact_, src);
     }
+#if defined(HELIX_PLATFORM_ESP32)
+    // The subject only notifies on a change, and the hero may have been
+    // written directly (show_finished_print_image) while it held this value.
+    if (lv_obj_t* hero = idle_hero_thumb(); hero && lv_obj_is_valid(hero)) {
+        lv_image_set_src(hero, src);
+    }
+#endif
     lv_subject_copy_string(&idle_thumb_path_subject_, src);
 }
 

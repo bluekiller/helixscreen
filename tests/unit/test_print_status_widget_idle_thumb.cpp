@@ -921,3 +921,37 @@ TEST_CASE_METHOD(PrintStatusIdleThumbFixture,
         widget.detach();
     }
 }
+
+// A finished print leaves the card in its idle view with the print as the
+// history head. Its image is the one the active-print media already holds, and
+// the history fetch is not always able to produce it: the ESP32 has no disk
+// cache, so there the fetch never succeeds. With no API installed this fixture
+// has the same shape.
+TEST_CASE_METHOD(PrintStatusIdleThumbFixture,
+                 "PrintStatusWidget: a finished print keeps its own thumbnail on the idle card",
+                 "[print_status_widget][idle_thumb][finished]") {
+    static constexpr const char* ACTIVE_THUMB = "A:assets/images/printer_200.png";
+    // The thumbnail subject must be live for the active image to be readable.
+    get_printer_state().init_subjects(false);
+    ScopedIdleThumbHistory history({thumb_job("einsy.gcode", true, ".thumbs/einsy.png", 1.0)});
+
+    const char* active_file = GENERATE("einsy.gcode", "other.gcode");
+    get_printer_state().set_print_thumbnail(active_file, ACTIVE_THUMB);
+
+    PrintStatusWidget widget;
+    lv_obj_t* container = create_mock_print_card(test_screen());
+    widget.attach(container, test_screen());
+    process_lvgl(200);
+    PrintStatusWidgetTestAccess::reset_to_idle(widget);
+
+    auto* subj = PrintStatusWidgetTestAccess::idle_thumb_path_subject();
+    const std::string subject = static_cast<const char*>(subj->value.pointer);
+    // The active image describes another file: the history resolve stands.
+    const std::string expected =
+        std::string(active_file) == "einsy.gcode" ? ACTIVE_THUMB : BENCHY_PATH;
+    CHECK(get_idle_thumb_src(container) == expected);
+    CHECK(subject == expected);
+
+    widget.detach();
+    get_printer_state().set_print_thumbnail("", PrinterPrintState::no_thumbnail_placeholder());
+}

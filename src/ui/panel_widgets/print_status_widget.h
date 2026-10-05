@@ -359,10 +359,11 @@ class PrintStatusWidget : public PanelWidget {
     ObserverGuard print_thumbnail_path_observer_;
 #if defined(HELIX_PLATFORM_ESP32)
     ObserverGuard print_psram_thumb_observer_; ///< Ditto, via the PSRAM generation counter
-    /// PSRAM-resident thumbnail currently shown in print_card_active_thumb_.
-    /// There is no cache file on this platform, so this shared_ptr is what keeps
-    /// the image src's buffer alive. Main-thread only (its destructor drops the
-    /// LVGL image cache entry).
+    /// PSRAM-resident thumbnail currently shown in print_card_active_thumb_,
+    /// and in the idle thumbs while they show the finished print. There is no
+    /// cache file on this platform, so this shared_ptr is what keeps the image
+    /// src's buffer alive. Main-thread only (its destructor drops the LVGL image
+    /// cache entry).
     std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail_;
 #endif
     ObserverGuard filament_runout_observer_;
@@ -541,8 +542,18 @@ class PrintStatusWidget : public PanelWidget {
     /// Called from the generation observer AND from attach(), because widget
     /// instances are recycled and a fresh attach must re-apply the image.
     void apply_esp_psram_thumbnail();
+    /// Point every thumb still showing @p dsc back at the placeholder, so the
+    /// buffer behind it can be released. lv_image stores a variable source as
+    /// the raw pointer.
+    void unpoint_thumbs_from(const void* dsc);
+    /// The detailed-idle hero image, or nullptr outside that layout.
+    [[nodiscard]] lv_obj_t* idle_hero_thumb() const;
 #endif
     void reset_print_card_to_idle();
+    /// Show the active print's image on the idle thumbs when the history head
+    /// is the file it was loaded for, which is how a finished print looks.
+    /// False when that image is not available, leaving the history resolve.
+    bool show_finished_print_image();
     // Publish one resolved idle thumbnail everywhere it is shown: the two
     // imperative Library-mode thumbs and idle_thumb_path_subject_, which the
     // detailed-idle hero reads through bind_src. A member rather than a lambda
