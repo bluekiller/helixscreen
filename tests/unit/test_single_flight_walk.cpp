@@ -72,3 +72,21 @@ TEST_CASE_METHOD(LVGLTestFixture, "SingleFlightWalk runs one job at a time, newe
         CHECK(delivered.empty());
     }
 }
+
+TEST_CASE_METHOD(LVGLTestFixture, "SingleFlightWalk runs inline when its lane is not running",
+                 "[usb][usb_async]") {
+    helix::http::HttpExecutor stopped("stopped-lane", 1);
+    SingleFlightWalk walk(stopped);
+    std::vector<int> delivered;
+    std::promise<void> open_now;
+    open_now.set_value();
+    std::shared_future<void> open = open_now.get_future().share();
+
+    walk.run(job(1, delivered, open));
+    CHECK_FALSE(walk.in_flight());
+    CHECK(delivered == std::vector<int>{1});
+
+    // A walk that never wedged takes the next request too.
+    walk.run(job(2, delivered, open));
+    CHECK(delivered == std::vector<int>{1, 2});
+}

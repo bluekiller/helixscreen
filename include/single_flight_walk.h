@@ -27,7 +27,9 @@ class SingleFlightWalk {
     /// Runs on a worker; returns what to do with its result on the UI thread.
     using Job = std::function<std::function<void()>(const Cancelled& cancelled)>;
 
-    SingleFlightWalk() = default;
+    /// @p lane is where jobs run; with no workers running they run inline.
+    explicit SingleFlightWalk(helix::http::HttpExecutor& lane = helix::http::HttpExecutor::fast())
+        : lane_(lane) {}
     ~SingleFlightWalk() {
         cancel();
     }
@@ -56,11 +58,18 @@ class SingleFlightWalk {
     void start_pending() {
         Job job = std::move(pending_);
         pending_ = nullptr;
+        if (!lane_.running()) {
+            // submit() would drop the job, leaving in_flight_ set forever.
+            auto deliver = job([]() { return false; });
+            if (deliver) {
+                deliver();
+            }
+            return;
+        }
         in_flight_ = true;
         const uint64_t generation = generation_->load();
-        helix::http::HttpExecutor::fast().submit([this, tok = lifetime_.token(),
-                                                  job = std::move(job), generation,
-                                                  current = generation_]() {
+        lane_.submit([this, tok = lifetime_.token(), job = std::move(job), generation,
+                      current = generation_]() {
             auto deliver = job([&]() { return current->load() != generation; });
             tok.defer("SingleFlightWalk::done", [this, generation, deliver = std::move(deliver)]() {
                 in_flight_ = false;
@@ -75,6 +84,7 @@ class SingleFlightWalk {
         });
     }
 
+    helix::http::HttpExecutor& lane_;
     helix::AsyncLifetimeGuard lifetime_;
     std::shared_ptr<std::atomic<uint64_t>> generation_ = std::make_shared<std::atomic<uint64_t>>(0);
     bool in_flight_ = false;
