@@ -703,6 +703,9 @@ translations:
   Copy Command: 复制命令
   Copy failed - use SSH manually: 复制失败 - 请手动使用 SSH
   Copy it into this filament's slicer profile. The printer keeps nothing.: '请把它复制到该耗材的切片软件配置中。打印机不会保存任何内容。'
+  Copying from USB: '正在从 USB 复制'
+  Copying from USB stopped responding: '从 USB 复制已停止响应'
+  Copying from USB...: '正在从 USB 复制...'
   Corner roundness: 圆角程度
   Correction (Ki): 校正 (Ki)
   Could not add to queue: 无法添加到队列
@@ -712,6 +715,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "无法检查摄像头状态。\n请检查打印机连接。"
   Could not confirm cancel: 无法确认取消
+  'Could not copy {} from USB: {}': '无法从 USB 复制 {}：{}'
   Could not forget device: 无法忘记设备
   Could not load printer database: 无法加载打印机数据库
   Could not move the plate: 无法移动热床
@@ -1453,6 +1457,7 @@ translations:
   Ignore the click that fires when you lift after scrolling: 忽略滚动后抬起手指时触发的点击
   'Import failed: {}': '导入失败: {}'
   Imported {}: 已导入 {}
+  Importing {}...: '正在导入 {}...'
   In Progress: 进行中
   Inactive: 未激活
   Include Klipper/Moonraker logs: 包含 Klipper/Moonraker 日志

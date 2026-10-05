@@ -38,13 +38,15 @@ constexpr bool reveal_ready_2d(bool ghost_output, bool solid_incomplete, bool gh
 }
 
 /**
- * @brief 2D orthographic layer renderer for G-code visualization
+ * @brief 2D software-rasterized G-code preview
  *
- * Renders a single layer from a top-down view using direct X/Y → pixel
- * mapping. Optimized for low-power hardware (AD5M) without 3D matrix transforms.
+ * Draws every layer up to the current one in the orthographic FRONT corner
+ * view (see gcode_projection.h), into its own ARGB8888 buffers rather than
+ * through the LVGL draw API. Built for low-power hardware (AD5M) with no GPU.
  *
  * Features:
- * - Single layer rendering (fast, no depth sorting)
+ * - Progressive solid cache, painted in layer order with no depth buffer
+ * - Background-built ghost of the whole model under it
  * - Auto-fit to canvas bounds
  * - Toggle visibility of travels/supports
  * - Print progress integration (auto-follow current layer)
@@ -257,16 +259,6 @@ class GCodeLayerRenderer {
         return depth_shading_.load(std::memory_order_relaxed);
     }
 
-    /**
-     * @brief Enable/disable screen-space ambient occlusion post-processing
-     * @param enable true to enable SSAO (default: OFF)
-     *
-     * When enabled in FRONT view, applies a post-processing pass to the solid
-     * cache buffer that darkens pixels in concavities (corners, crevices) for
-     * improved depth perception. Only applied when the cache is fully rendered.
-     *
-     * Toggle via HELIX_SSAO=1 environment variable for testing.
-     */
     /// Enable/disable antialiased strokes, independently of the outline pass.
     /// Invalidates the cache: the geometry has to be redrawn to change.
     void set_antialias_enabled(bool enable) {
@@ -282,6 +274,12 @@ class GCodeLayerRenderer {
         return antialias_enabled_.load(std::memory_order_relaxed);
     }
 
+    /**
+     * @brief Enable/disable the silhouette outline pass (called SSAO in code)
+     *
+     * Once the solid cache is complete, darkens every filled pixel that borders
+     * an empty one. HELIX_SSAO and the device tier pick the default.
+     */
     void set_ssao_enabled(bool enable) {
         ssao_enabled_.store(enable, std::memory_order_relaxed);
         // Undo the shading before dropping the record of it, or the darkened
@@ -325,12 +323,10 @@ class GCodeLayerRenderer {
     }
 
     /**
-     * @brief Get progress of streaming ghost build
+     * @brief Progress of the background ghost build
      *
-     * In streaming mode, ghost is built progressively in background.
-     * Returns 0.0 to 1.0 indicating build progress.
-     *
-     * @return Progress fraction, or 1.0 if complete/not applicable
+     * @return Layers the worker has drawn over the layers its pass visits,
+     *         0.0 to 1.0; 1.0 when no build is running
      */
     float get_ghost_build_progress() const;
 
@@ -385,16 +381,7 @@ class GCodeLayerRenderer {
     /// View mode alias — uses shared enum from gcode_projection.h
     using ViewMode = helix::gcode::ViewMode;
 
-    /**
-     * @brief Set view mode
-     * @param mode View mode (TOP_DOWN, FRONT, or ISOMETRIC)
-     */
-    void set_view_mode(ViewMode mode) {
-        view_mode_.store(static_cast<int>(mode), std::memory_order_relaxed);
-        bounds_valid_ = false; // Recompute scale for new projection
-    }
-
-    /** @brief Get current view mode */
+    /** @brief Projection the renderer draws and picks in; FRONT outside tests */
     ViewMode get_view_mode() const {
         return static_cast<ViewMode>(view_mode_.load(std::memory_order_relaxed));
     }
@@ -441,6 +428,11 @@ class GCodeLayerRenderer {
      */
     void reset_colors();
 
+    /// The extrusion color a preview shows when the file names none and nothing
+    /// overrides it. Reads the theme, so main thread only. The 3D build bakes
+    /// the same color, so both renderers agree on an uncolored file.
+    static lv_color_t default_extrusion_color();
+
     // =========================================================================
     // Object Selection & Exclusion
     // =========================================================================
@@ -476,13 +468,6 @@ class GCodeLayerRenderer {
      * within the canvas with 5% padding.
      */
     void auto_fit();
-
-    /**
-     * @brief Fit current layer to canvas
-     *
-     * Computes scale and offset to fit only the current layer's bounding box.
-     */
-    void fit_layer();
 
     /**
      * @brief Set zoom scale manually
@@ -541,14 +526,6 @@ class GCodeLayerRenderer {
     // =========================================================================
     // Internal Rendering
     // =========================================================================
-
-    /**
-     * @brief Render a single segment
-     * @param layer LVGL draw layer
-     * @param seg Toolpath segment to render
-     * @param ghost If true, render in ghost style (grey, for preview)
-     */
-    void render_segment(lv_layer_t* layer, const ToolpathSegment& seg, bool ghost = false);
 
     /**
      * @brief Render L-shaped corner brackets around highlighted objects' bounding boxes
@@ -617,15 +594,6 @@ class GCodeLayerRenderer {
      * @return true if segment should be rendered
      */
     bool should_render_segment(const ToolpathSegment& seg) const;
-
-    /// Panels at or below this width get the narrower selection halo. A 2px-per-side
-    /// halo swallows small objects whole at 480x272, so the delta halves there.
-    static constexpr int SMALL_PANEL_WIDTH_PX = 320;
-
-    /// True when the render target is small enough to need the narrow halo.
-    bool is_small_panel() const {
-        return canvas_width_ <= SMALL_PANEL_WIDTH_PX;
-    }
 
     /**
      * @brief Get line color for a segment
@@ -786,7 +754,6 @@ class GCodeLayerRenderer {
     int ghost_cached_height_ = 0;
     bool ghost_cache_valid_ = false;
     std::atomic<bool> ghost_mode_enabled_{true}; // Enable ghost mode by default
-    int ghost_rendered_up_to_ = -1;              // Progress tracker for progressive ghost rendering
 
     // Progressive rendering - render N layers per frame to avoid blocking UI
     // These are defaults; actual values come from config or adaptive adjustment
@@ -860,7 +827,6 @@ class GCodeLayerRenderer {
 
     // Ghost cache methods (LVGL-based, for main thread progressive rendering)
     void ensure_ghost_cache(int width, int height);
-    void render_ghost_layers(int from_layer, int to_layer);
     void blit_ghost_cache(lv_layer_t* target);
     void destroy_ghost_cache();
 
@@ -882,6 +848,10 @@ class GCodeLayerRenderer {
     std::atomic<bool> ghost_thread_cancel_{false};
     std::atomic<bool> ghost_thread_running_{false};
     std::atomic<bool> ghost_thread_ready_{false}; // True when raw buffer is complete
+    /// Written by the worker: layers drawn so far, and the layers its pass
+    /// visits (the sampled count when streaming). 0 total = not planned yet.
+    std::atomic<int> ghost_layers_done_{0};
+    std::atomic<int> ghost_layers_total_{0};
 
     /// Start background ghost rendering (called when new gcode loaded)
     void start_background_ghost_render();
@@ -894,20 +864,14 @@ class GCodeLayerRenderer {
      *
      * The worker runs on a background thread while the main thread keeps using
      * the renderer, so every non-atomic member it touches has to be captured
-     * before it starts. It used to capture them ITSELF, in a block headed
-     * "capture ALL shared state at thread start" - but "thread start" is on the
-     * worker, which is exactly the window in which the main thread is free to be
-     * writing. `selection_` was the one field already handled correctly, copied
-     * at std::thread construction; its neighbours were not.
+     * before it starts. The capture has to happen on the SPAWNING thread: once
+     * the worker is running, the main thread is free to write the colors, the
+     * transform (set_scale(), set_offset(), set_content_offset_y(),
+     * set_canvas_size()) and the selection, and a copy taken on the worker
+     * races those writes.
      *
-     * Unsynchronized against the worker's capture, before this struct existed:
-     * set_extrusion_color(), set_scale(), set_offset(), set_content_offset_y()
-     * and set_canvas_size(). set_tool_color_palette() had already been hardened
-     * by joining the worker first, and its comment names this exact hazard.
-     *
-     * Building the snapshot on the SPAWNING thread fixes the whole family at
-     * once, and passing it by value means the worker body has nothing to read a
-     * member through even by accident.
+     * Passed by value, so the worker body has nothing to read a member through
+     * even by accident.
      */
     struct GhostSnapshot {
         TransformParams transform{};

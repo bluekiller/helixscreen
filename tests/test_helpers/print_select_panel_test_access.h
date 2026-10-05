@@ -114,6 +114,23 @@ struct PrintSelectPanelTestAccess {
         PrintStartControllerTestAccess::fire_print_started(*panel.print_controller_);
     }
 
+    /// The file the print controller was last told to start: {filename, dir}.
+    static std::pair<std::string, std::string> controller_file(const PrintSelectPanel& panel) {
+        REQUIRE(panel.print_controller_ != nullptr);
+        return PrintStartControllerTestAccess::file(*panel.print_controller_);
+    }
+
+    /// The tool colors the print controller was last handed.
+    static std::vector<std::string> controller_colors(const PrintSelectPanel& panel) {
+        REQUIRE(panel.print_controller_ != nullptr);
+        return PrintStartControllerTestAccess::filament_colors(*panel.print_controller_);
+    }
+
+    /// Overwrite the selected file's tool colors, as opening another file does.
+    static void set_selected_colors(PrintSelectPanel& panel, std::vector<std::string> colors) {
+        panel.selected_filament_colors_ = std::move(colors);
+    }
+
     /// The detail view's current option-row states (id -> on).
     static std::map<std::string, bool> collect_option_states(const PrintSelectPanel& panel) {
         if (!panel.detail_view_) {

@@ -403,7 +403,7 @@ void PrinterImageOverlay::handle_usb_import(const std::string& source_path) {
     spdlog::info("[{}] Importing USB image: {}", get_name(), filename);
 
     // Update status via subject binding
-    std::string msg = "Importing " + filename + "...";
+    std::string msg = fmt::format(fmt::runtime(lv_tr("Importing {}...")), filename);
     lv_subject_copy_string(&usb_status_subject_, msg.c_str());
 
     // import_image_async() currently runs synchronously, but the callback is wrapped

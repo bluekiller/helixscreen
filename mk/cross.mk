@@ -1801,10 +1801,9 @@ define deploy-common
 	@if [ -f $(3)/helix-screen-egl ]; then rsync -avzz $(3)/helix-screen-egl $(1):$(2)/bin/; \
 	else ssh $(1) "rm -f $(2)/bin/helix-screen-egl"; fi
 	@# Sync Bluetooth plugin if built (runtime-loaded via dlopen, same dir as binary)
-	@BT_SO_DIR=$$(dirname $(3))"/lib/libhelix-bluetooth.so"; \
-	if [ -f "$$BT_SO_DIR" ]; then \
+	@if [ -f $(3)/libhelix-bluetooth.so ]; then \
 		echo "$(DIM)Deploying Bluetooth plugin...$(RESET)"; \
-		rsync -avzz "$$BT_SO_DIR" $(1):$(2)/bin/; \
+		rsync -avzz $(3)/libhelix-bluetooth.so $(1):$(2)/bin/; \
 	fi
 	rsync -avzz scripts/helix-launcher.sh $(1):$(2)/bin/
 	@# Sync installer script (needed for auto-updates)
@@ -3048,7 +3047,7 @@ define release-package
 	@cp build/$(1)/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/
 	@if [ -f build/$(1)/bin/helix-splash ]; then cp build/$(1)/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/; fi
 	@if [ -f build/$(1)/bin/helix-watchdog ]; then cp build/$(1)/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/$(1)/lib/libhelix-bluetooth.so ]; then cp build/$(1)/lib/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
+	@if [ -f build/$(1)/bin/libhelix-bluetooth.so ]; then cp build/$(1)/bin/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
 	@if [ -f build/$(1)/bin/helix-screen-egl ]; then cp build/$(1)/bin/helix-screen-egl $(RELEASE_DIR)/helixscreen/bin/; fi
 	$(if $(filter $(1),$(REL_FBDEV)),@if [ -f build/$(1)-fbdev/bin/helix-screen ]; then cp build/$(1)-fbdev/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/helix-screen-fbdev; fi)
 	$(release-bin-extra-$(1))

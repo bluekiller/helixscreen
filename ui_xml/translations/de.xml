@@ -688,6 +688,9 @@
   <translation tag="Copy Command" de="Befehl kopieren"/>
   <translation tag="Copy failed - use SSH manually" de="Kopieren fehlgeschlagen – SSH verwenden"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." de="Trage ihn ins Slicer-Profil dieses Filaments ein. Der Drucker speichert nichts."/>
+  <translation tag="Copying from USB" de="Kopieren von USB"/>
+  <translation tag="Copying from USB stopped responding" de="Kopieren von USB reagiert nicht mehr"/>
+  <translation tag="Copying from USB..." de="Kopieren von USB..."/>
   <translation tag="Corner roundness" de="Eckenrundung"/>
   <translation tag="Correction (Ki)" de="Korrektur (Ki)"/>
   <translation tag="Could not add to queue" de="Konnte nicht zur Warteschlange hinzufügen"/>
@@ -695,6 +698,7 @@
   <translation tag="Could not answer the connection request" de="Verbindungsanfrage konnte nicht beantwortet werden"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." de="Webcam-Status konnte nicht geprüft werden.&#10;Druckerverbindung prüfen."/>
   <translation tag="Could not confirm cancel" de="Abbruch konnte nicht bestätigt werden"/>
+  <translation tag="Could not copy {} from USB: {}" de="{} konnte nicht von USB kopiert werden: {}"/>
   <translation tag="Could not forget device" de="Gerät konnte nicht vergessen werden"/>
   <translation tag="Could not load printer database" de="Druckerdatenbank konnte nicht geladen werden"/>
   <translation tag="Could not move the plate" de="Heizbett konnte nicht bewegt werden"/>
@@ -1405,6 +1409,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" de="Klick ignorieren, der nach dem Scrollen beim Loslassen ausgelöst wird"/>
   <translation tag="Import failed: {}" de="Import fehlgeschlagen: {}"/>
   <translation tag="Imported {}" de="{} importiert"/>
+  <translation tag="Importing {}..." de="{} wird importiert..."/>
   <translation tag="In Progress" de="In Bearbeitung"/>
   <translation tag="Inactive" de="Inaktiv"/>
   <translation tag="Include Klipper/Moonraker logs" de="Klipper/Moonraker-Protokolle einschließen"/>

@@ -425,7 +425,7 @@ Per-slot (`slots[i]`):
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `index` | int | Bay number. HelixScreen indexes by **vector position** instead, so a sparse payload cannot leave holes; a mismatch logs a warning. |
+| `index` | int | Firmware slot number, `(box address - 1) * 4 + local`. HelixScreen uses it as the bay's global index, so per-bay state stays on the physical bay when a box drops out; an address below the highest present one becomes an absent placeholder unit (`AmsUnit::absent`) that is neither counted nor commanded. |
 | `name` | string | Spool name, e.g. `"2026_PETG"` |
 | `material` | string | Plain material name — **no code table**, unlike stock's `101001` |
 | `color` | string | Conventional `"#RRGGBB"` — **not** stock's leading-zero `"0RRGGBB"` |

@@ -883,3 +883,57 @@ TEST_CASE_METHOD(ApplicationTestFixture, "Input setup reports the new keyboard's
 
     CHECK(settings.hardware_keyboard_present());
 }
+
+// ============================================================================
+// Rotation settle (#1587, #1593)
+// ============================================================================
+
+namespace {
+
+/// A scanout plane that owns every rotation: it takes the angle itself and
+/// leaves LVGL unrotated, which un-swaps the resolution LVGL reports.
+class PlaneRotationBackend : public MockPointerBackend {
+  public:
+    void set_display_rotation(lv_display_t* disp, lv_display_rotation_t, int, int) override {
+        lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_0);
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(ApplicationTestFixture,
+                 "settle_display_rotation caches the resolution the backend settled on",
+                 "[application][display][rotation]") {
+    lv_display_t* disp = lv_display_get_default();
+    REQUIRE(disp != nullptr);
+    const lv_display_rotation_t prev = lv_display_get_rotation(disp);
+    lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_0);
+    const int phys_w = lv_display_get_horizontal_resolution(disp);
+    const int phys_h = lv_display_get_vertical_resolution(disp);
+    // A square display reads the same either side of a swap and would prove nothing.
+    REQUIRE(phys_w != phys_h);
+
+    DisplayManager mgr;
+    DisplayManagerTestAccess::set_display(mgr, disp);
+
+    SECTION("a backend rotating through LVGL swaps the cached resolution") {
+        DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockPointerBackend>());
+        DisplayManagerTestAccess::settle_display_rotation(mgr, LV_DISPLAY_ROTATION_90, phys_w,
+                                                          phys_h);
+        CHECK(mgr.width() == phys_h);
+        CHECK(mgr.height() == phys_w);
+    }
+
+    SECTION("a plane taking the rotation over leaves the cache unswapped") {
+        // LVGL is mid-rotation, as on a probe's second candidate, until the plane takes over.
+        lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_90);
+        DisplayManagerTestAccess::set_backend(mgr, std::make_unique<PlaneRotationBackend>());
+        DisplayManagerTestAccess::settle_display_rotation(mgr, LV_DISPLAY_ROTATION_270, phys_w,
+                                                          phys_h);
+        CHECK(mgr.width() == phys_w);
+        CHECK(mgr.height() == phys_h);
+    }
+
+    DisplayManagerTestAccess::set_display(mgr, nullptr);
+    lv_display_set_rotation(disp, prev);
+}

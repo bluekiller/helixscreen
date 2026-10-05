@@ -1185,7 +1185,7 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
     const glm::vec3 perp_up = glm::normalize(glm::cross(right, dir));
 
     // Compute color
-    uint32_t rgb = compute_segment_color(segment, quant.min_bounds.z, quant.max_bounds.z);
+    uint32_t rgb = compute_segment_color(segment);
 
     uint8_t color_idx = add_to_color_palette(geometry, rgb);
 
@@ -1465,74 +1465,7 @@ glm::vec3 GeometryBuilder::compute_perpendicular(const glm::vec3& direction, flo
     return perp * width;
 }
 
-uint32_t GeometryBuilder::compute_color_rgb(float z_height, float z_min, float z_max) const {
-    if (!use_height_gradient_) {
-        // Use solid filament color
-        uint32_t color = (static_cast<uint32_t>(filament_r_) << 16) |
-                         (static_cast<uint32_t>(filament_g_) << 8) |
-                         static_cast<uint32_t>(filament_b_);
-        static bool logged_once = false;
-        if (!logged_once) {
-            spdlog::debug("[GCode Geometry] compute_color_rgb: R={}, G={}, B={} -> 0x{:06X}",
-                          filament_r_, filament_g_, filament_b_, color);
-            logged_once = true;
-        }
-        return color;
-    }
-
-    // Rainbow gradient from blue (bottom) to red (top)
-    // Normalize Z to [0, 1]
-    float range = z_max - z_min;
-    float t = (range > 0.0f) ? (z_height - z_min) / range : 0.5f;
-    t = std::max(0.0f, std::min(1.0f, t)); // Clamp to [0, 1]
-
-    // Rainbow spectrum: Blue → Cyan → Green → Yellow → Red
-    // Using HSV color space converted to RGB
-    float hue = (1.0f - t) * 240.0f; // 240° (blue) to 0° (red)
-
-    // Simple HSV to RGB conversion (assuming S=1.0, V=1.0)
-    float c = 1.0f; // Chroma (full saturation)
-    float h_prime = hue / 60.0f;
-    float x = c * (1.0f - std::abs(std::fmod(h_prime, 2.0f) - 1.0f));
-
-    float r, g, b;
-    if (h_prime < 1.0f) {
-        r = c;
-        g = x;
-        b = 0.0f;
-    } else if (h_prime < 2.0f) {
-        r = x;
-        g = c;
-        b = 0.0f;
-    } else if (h_prime < 3.0f) {
-        r = 0.0f;
-        g = c;
-        b = x;
-    } else if (h_prime < 4.0f) {
-        r = 0.0f;
-        g = x;
-        b = c;
-    } else if (h_prime < 5.0f) {
-        r = x;
-        g = 0.0f;
-        b = c;
-    } else {
-        r = c;
-        g = 0.0f;
-        b = x;
-    }
-
-    uint8_t r8 = static_cast<uint8_t>(r * 255.0f);
-    uint8_t g8 = static_cast<uint8_t>(g * 255.0f);
-    uint8_t b8 = static_cast<uint8_t>(b * 255.0f);
-
-    return (static_cast<uint32_t>(r8) << 16) | (static_cast<uint32_t>(g8) << 8) |
-           static_cast<uint32_t>(b8);
-}
-
 void GeometryBuilder::set_filament_color(const std::string& hex_color) {
-    use_height_gradient_ = false; // Disable gradient
-
     // Same parser as every other color decision: it owns the '#'/0x prefixes,
     // the accepted digit counts, and the #RRGGBBAA alpha drop. The hand-rolled
     // strtol this replaced read an 8-digit token one byte to the left, and
@@ -1544,12 +1477,16 @@ void GeometryBuilder::set_filament_color(const std::string& hex_color) {
         return;
     }
 
+    set_filament_rgb(rgb);
+}
+
+void GeometryBuilder::set_filament_rgb(uint32_t rgb) {
     filament_r_ = (rgb >> 16) & 0xFF;
     filament_g_ = (rgb >> 8) & 0xFF;
     filament_b_ = rgb & 0xFF;
 
-    spdlog::info("[GCode Geometry] Filament color set to #{:02X}{:02X}{:02X} (R={}, G={}, B={})",
-                 filament_r_, filament_g_, filament_b_, filament_r_, filament_g_, filament_b_);
+    spdlog::debug("[GCode Geometry] Filament color set to #{:02X}{:02X}{:02X} (R={}, G={}, B={})",
+                  filament_r_, filament_g_, filament_b_, filament_r_, filament_g_, filament_b_);
 }
 
 uint32_t GeometryBuilder::parse_hex_color(const std::string& hex_color) const {
@@ -1557,8 +1494,7 @@ uint32_t GeometryBuilder::parse_hex_color(const std::string& hex_color) const {
     return parsed.value_or(0x808080); // Default gray for invalid input
 }
 
-uint32_t GeometryBuilder::compute_segment_color(const ToolpathSegment& segment, float z_min,
-                                                float z_max) const {
+uint32_t GeometryBuilder::compute_segment_color(const ToolpathSegment& segment) const {
     // Priority 1: Tool-specific color from palette (multi-color prints)
     if (!tool_color_palette_.empty() && segment.tool_index >= 0 &&
         segment.tool_index < static_cast<int>(tool_color_palette_.size())) {
@@ -1568,13 +1504,7 @@ uint32_t GeometryBuilder::compute_segment_color(const ToolpathSegment& segment, 
         }
     }
 
-    // Priority 2: Z-height gradient (if enabled)
-    if (use_height_gradient_) {
-        float mid_z = (segment.start.z + segment.end.z) * 0.5f;
-        return compute_color_rgb(mid_z, z_min, z_max);
-    }
-
-    // Priority 3: Default filament color
+    // Priority 2: Filament color
     return (static_cast<uint32_t>(filament_r_) << 16) | (static_cast<uint32_t>(filament_g_) << 8) |
            static_cast<uint32_t>(filament_b_);
 }

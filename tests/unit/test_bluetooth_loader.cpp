@@ -30,3 +30,17 @@ TEST_CASE("BluetoothLoader - function pointers null when unavailable", "[bluetoo
     }
     // If available, function pointers should be non-null (tested on BT-capable machines)
 }
+
+TEST_CASE("bluetooth_enabled - production loads unless HELIX_BLUETOOTH=0", "[bluetooth]") {
+    CHECK(bluetooth_enabled(nullptr, false));
+    CHECK(bluetooth_enabled("1", false));
+    CHECK(bluetooth_enabled("", false));
+    CHECK_FALSE(bluetooth_enabled("0", false));
+}
+
+TEST_CASE("bluetooth_enabled - a --test run loads only with HELIX_BLUETOOTH=1", "[bluetooth]") {
+    CHECK_FALSE(bluetooth_enabled(nullptr, true));
+    CHECK_FALSE(bluetooth_enabled("", true));
+    CHECK_FALSE(bluetooth_enabled("0", true));
+    CHECK(bluetooth_enabled("1", true));
+}

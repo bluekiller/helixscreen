@@ -688,6 +688,9 @@
   <translation tag="Copy Command" pt="Copiar Comando"/>
   <translation tag="Copy failed - use SSH manually" pt="Falha ao copiar - use SSH manualmente"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." pt="Copie-o para o perfil do fatiador deste filamento. A impressora não guarda nada."/>
+  <translation tag="Copying from USB" pt="Copiando do USB"/>
+  <translation tag="Copying from USB stopped responding" pt="A cópia do USB parou de responder"/>
+  <translation tag="Copying from USB..." pt="Copiando do USB..."/>
   <translation tag="Corner roundness" pt="Arredondamento dos cantos"/>
   <translation tag="Correction (Ki)" pt="Correção (Ki)"/>
   <translation tag="Could not add to queue" pt="Não foi possível adicionar à fila"/>
@@ -695,6 +698,7 @@
   <translation tag="Could not answer the connection request" pt="Não foi possível responder à solicitação de conexão"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." pt="Não foi possível verificar status da webcam.&#10;Verifique a conexão da impressora."/>
   <translation tag="Could not confirm cancel" pt="Não foi possível confirmar o cancelamento"/>
+  <translation tag="Could not copy {} from USB: {}" pt="Não foi possível copiar {} do USB: {}"/>
   <translation tag="Could not forget device" pt="Não foi possível esquecer o dispositivo"/>
   <translation tag="Could not load printer database" pt="Não foi possível carregar o banco de dados de impressoras"/>
   <translation tag="Could not move the plate" pt="Não foi possível mover a mesa"/>
@@ -1405,6 +1409,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" pt="Ignora o clique que ocorre ao soltar após rolagem"/>
   <translation tag="Import failed: {}" pt="Falha ao importar: {}"/>
   <translation tag="Imported {}" pt="{} importado"/>
+  <translation tag="Importing {}..." pt="Importando {}..."/>
   <translation tag="In Progress" pt="Em Andamento"/>
   <translation tag="Inactive" pt="Inativo"/>
   <translation tag="Include Klipper/Moonraker logs" pt="Incluir logs do Klipper/Moonraker"/>

@@ -6,6 +6,7 @@
 #include "ams_types.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace helix {
 class AmsBackend;
@@ -20,10 +21,11 @@ namespace helix::ui {
 /// this dialog's.
 class AmsRecoverStateModal : public Modal {
   public:
-    /// What the two dropdowns offer. Slot: Keep current, each slot, then
-    /// Bypass when the system has one. Filament: detect, Loaded, Unloaded.
+    /// What the two dropdowns offer. Slot: Keep current, each slot in
+    /// @c slots (the bays that exist, ascending), then Bypass when the system
+    /// has one. Filament: detect, Loaded, Unloaded.
     struct Choices {
-        int slot_count = 0;
+        std::vector<int> slots;
         bool has_bypass = false;
     };
 

@@ -27,7 +27,7 @@ enum class GcodeViewerState {
  * - Auto: Uses GLES 3D if available, falls back to 2D layer view.
  *         Can be overridden via HELIX_GCODE_MODE env var.
  * - Render3D: Forces 3D GLES renderer (isometric ribbon view with full camera control).
- * - Layer2D: Forces 2D orthographic layer view (front/top view, single layer at a time)
+ * - Layer2D: Forces the 2D software renderer (orthographic corner view)
  *
  * Environment variable override (checked at widget creation):
  * - HELIX_GCODE_MODE=3D  -> Use 3D GLES renderer
@@ -257,7 +257,7 @@ void ui_gcode_viewer_force_redraw(lv_obj_t* obj);
  *
  * - AUTO: Uses GLES 3D if available, falls back to 2D layer view
  * - 3D: Forces 3D GLES renderer with full camera control
- * - 2D_LAYER: Forces top-down orthographic single-layer view (fast on AD5M)
+ * - 2D_LAYER: Forces the 2D software renderer (orthographic corner view, fast on AD5M)
  *
  * Default is AUTO. Settings are persisted in SettingsManager.
  */
@@ -776,6 +776,21 @@ namespace helix::test_access {
  */
 const helix::gcode::GCodeLayerRenderer*
 gcode_viewer_budget_force_2d(lv_obj_t* viewer, std::unique_ptr<helix::gcode::ParsedGCodeFile> file);
+
+/// Hand @p file to the viewer as a completed full load that built no 3D
+/// geometry, the state a file loaded in 2D is in.
+void gcode_viewer_install_loaded_file(lv_obj_t* viewer,
+                                      std::unique_ptr<helix::gcode::ParsedGCodeFile> file);
+
+/// Wait for the viewer's build thread to finish without cancelling it, so the
+/// result it queued is still delivered.
+void gcode_viewer_wait_for_build(lv_obj_t* viewer);
+
+/// The 3D renderer's geometry palette; empty with no geometry or no 3D renderer.
+std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer);
+
+/// The render mode last set on the viewer, before per-file fallbacks.
+helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer);
 
 /// What the stall watchdog carries between ticks (-2 = never sampled).
 struct GcodeViewerWatchdogTrack {

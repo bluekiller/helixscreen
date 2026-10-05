@@ -760,6 +760,9 @@ translations:
   Copy Command: Копировать команду
   Copy failed - use SSH manually: Ошибка копирования - используйте SSH вручную
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Перепишите его в профиль слайсера для этого филамента. Принтер ничего не сохраняет.'
+  Copying from USB: 'Копирование с USB'
+  Copying from USB stopped responding: 'Копирование с USB перестало отвечать'
+  Copying from USB...: 'Копирование с USB...'
   Corner roundness: Скругление углов
   Correction (Ki): Коррекция (Ki)
   Could not add to queue: Не удалось добавить в очередь
@@ -770,6 +773,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Не удалось проверить статус веб-камеры.\nПроверьте подключение принтера."
   Could not confirm cancel: Не удалось подтвердить отмену
+  'Could not copy {} from USB: {}': 'Не удалось скопировать {} с USB: {}'
   Could not forget device: Не удалось забыть устройство
   Could not load printer database: Не удалось загрузить базу данных принтеров
   Could not move the plate: Не удалось переместить стол
@@ -1542,6 +1546,7 @@ translations:
     при отпускании после прокрутки
   'Import failed: {}': 'Ошибка импорта: {}'
   Imported {}: Импортировано {}
+  Importing {}...: 'Импорт {}...'
   In Progress: В процессе
   Inactive: Неактивно
   Include Klipper/Moonraker logs: Включить логи Klipper/Moonraker

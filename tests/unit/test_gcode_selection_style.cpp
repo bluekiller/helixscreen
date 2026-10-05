@@ -34,7 +34,6 @@ TEST_CASE("plain extrusion keeps the caller's color at full opacity", "[gcode_se
     REQUIRE(s.override_color == false);
     REQUIRE(s.opa == 255);
     REQUIRE(s.tagged == false);
-    REQUIRE(s.fallback_halo == false);
 }
 
 TEST_CASE("excluded segments are recolored and translucent", "[gcode_selection_style]") {
@@ -77,7 +76,6 @@ TEST_CASE("travel moves are never tagged", "[gcode_selection_style]") {
     // the object.
     auto s = selection::resolve(kTestPalette, false, true, /*is_extrusion=*/false);
     REQUIRE(s.tagged == false);
-    REQUIRE(s.fallback_halo == false);
     REQUIRE(s.opa != kSelectedAlpha);
 }
 
@@ -120,34 +118,6 @@ TEST_CASE("a half-resolution readback never rounds the rim away", "[gcode_select
     // An odd small-panel widget at half res: the 1px rim times 159/319 is 0.498,
     // which rounds to 0, and stroke_selection_rim ignores a rim below 1px.
     REQUIRE(selection::outline_width_px_scaled(319, 159) >= 1);
-}
-
-// ---------------------------------------------------------------------------
-// halo_width(): the draw-API fallback for TOP_DOWN / ISOMETRIC, which paint
-// straight into the LVGL layer and so have no pixel buffer for the rim scan to
-// read. Dilate-and-overpaint is sound there because those modes draw ONE layer:
-// there is nothing stacked above to punch through the white.
-// ---------------------------------------------------------------------------
-
-TEST_CASE("halo is wider than the core line it outlines", "[gcode_selection_style]") {
-    for (int base = 1; base <= 8; ++base) {
-        REQUIRE(selection::halo_width(base, /*small_panel=*/false) > base);
-        REQUIRE(selection::halo_width(base, /*small_panel=*/true) > base);
-    }
-}
-
-TEST_CASE("halo is thinner on small panels", "[gcode_selection_style]") {
-    // At 480x272 a 2px-per-side halo swallows small objects whole.
-    REQUIRE(selection::halo_width(2, true) < selection::halo_width(2, false));
-}
-
-TEST_CASE("halo adds an even total so it is symmetric about the core", "[gcode_selection_style]") {
-    // An odd delta puts more halo on one side than the other, which reads as a
-    // drop shadow rather than an outline.
-    for (int base = 1; base <= 8; ++base) {
-        REQUIRE((selection::halo_width(base, false) - base) % 2 == 0);
-        REQUIRE((selection::halo_width(base, true) - base) % 2 == 0);
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -202,54 +172,6 @@ TEST_CASE("to_vec4 round-trips the bracket color exactly", "[gcode_selection_sty
 TEST_CASE("to_vec4 carries alpha through", "[gcode_selection_style]") {
     auto v = selection::to_vec4(selection::Palette{}.excluded, selection::kExcludedOpa);
     REQUIRE(v.a == Catch::Approx(153.0f / 255.0f));
-}
-
-// ---------------------------------------------------------------------------
-// halo_feature(): which features trace the silhouette.
-//
-// This exists because of a defect the pixel tests below could not see. The halo
-// was drawn for every extrusion of the selected object, so each INFILL line got
-// its own white band and the object rendered as white stripes across a dark
-// middle with a correct-looking ring around it. The outer wall is the contour;
-// infill never is.
-// ---------------------------------------------------------------------------
-
-TEST_CASE("only walls contribute to the fallback halo", "[gcode_selection_style]") {
-    REQUIRE(selection::halo_feature(FeatureType::OuterWall));
-    REQUIRE(selection::halo_feature(FeatureType::OverhangWall));
-
-    // Infill is what produced the stripes.
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::SparseInfill));
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::SolidInfill));
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::GapInfill));
-
-    // Inner walls sit behind the outer one, so they would draw a second rim
-    // inside the object.
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::InnerWall));
-
-    // Skins and supports are not the object's outline either.
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::TopSurface));
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::BottomSurface));
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::Support));
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::Skirt));
-    REQUIRE_FALSE(selection::halo_feature(FeatureType::Brim));
-}
-
-TEST_CASE("a file without feature annotations still gets a halo", "[gcode_selection_style]") {
-    // Not every slicer emits ;TYPE comments. Treating Unknown as ineligible
-    // would silently leave those files with no selection cue at all, which is a
-    // worse failure than a slightly generous one.
-    REQUIRE(selection::halo_feature(FeatureType::Unknown));
-}
-
-TEST_CASE("only the fallback path is offered a halo", "[gcode_selection_style]") {
-    // The cached path must NOT be told to paint white: it derives the rim from
-    // where the object actually landed, and a white pre-pass would move the
-    // boundary outward so the rim stopped tracing the real contour.
-    auto s = selection::resolve(kTestPalette, false, true, true);
-    REQUIRE(s.fallback_halo == true);
-    REQUIRE(s.tagged == true);
-    REQUIRE(selection::resolve(kTestPalette, false, false, true).fallback_halo == false);
 }
 
 // ---------------------------------------------------------------------------

@@ -275,6 +275,8 @@ class GCodeGLESRenderer {
         return triangles_rendered_ / 2;
     }
     size_t get_geometry_color_count() const;
+    /// The loaded geometry's color palette, overrides included (empty with no geometry).
+    std::vector<uint32_t> get_geometry_color_palette() const;
     /// Itemized heap and VRAM this renderer holds, for A/B measurement. Replaces
     /// a get_memory_usage() that returned a bare total, had no caller anywhere,
     /// and silently omitted the readback buffer.
@@ -530,7 +532,7 @@ class GCodeGLESRenderer {
     /// The defaults cover a frame drawn before that first refresh, and the
     /// headless tests, which register no tokens.
     selection::Palette sel_palette_;
-    std::mutex palette_mutex_; ///< Guards geometry color palette reads/writes
+    mutable std::mutex palette_mutex_; ///< Guards geometry color palette reads/writes
     glm::vec4 filament_color_{DEFAULT_FILAMENT_COLOR};
     float specular_intensity_ = DEFAULT_SPECULAR_INTENSITY;
     float specular_shininess_ = DEFAULT_SPECULAR_SHININESS;

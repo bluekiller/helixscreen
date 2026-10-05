@@ -1018,6 +1018,7 @@ void AmsPanel::refresh_slots() {
     }
 
     update_slot_colors();
+    helix::ui::ams_detail_sync_slot_states(slot_widgets_, current_slot_count_);
 
     int current_slot = lv_subject_get_int(AmsState::instance().get_current_slot_subject());
     update_current_slot_highlight(current_slot);

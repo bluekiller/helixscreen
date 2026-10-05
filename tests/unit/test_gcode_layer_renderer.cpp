@@ -190,7 +190,8 @@ TEST_CASE("the ghost silhouette skips auxiliary geometry too", "[layer_renderer]
         auto gcode = make_gcode(with_tower);
         renderer.set_gcode(&gcode);
         renderer.set_canvas_size(200, 200);
-        renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+        GCodeLayerRendererTestAccess::set_view_mode(renderer,
+                                                    GCodeLayerRenderer::ViewMode::TOP_DOWN);
         renderer.auto_fit();
         renderer.set_current_layer(0);
 
@@ -223,7 +224,7 @@ TEST_CASE("set_excluded_objects stores names and can be cleared", "[layer_render
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -256,7 +257,7 @@ TEST_CASE("set_highlighted_objects stores names and can be cleared",
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -288,7 +289,7 @@ TEST_CASE("pick_object_at returns object name for segment under cursor", "[layer
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -325,7 +326,7 @@ TEST_CASE("pick_object_at returns nullopt for empty space", "[layer_renderer][pi
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -343,7 +344,7 @@ TEST_CASE("pick_object_at skips segments without object_name", "[layer_renderer]
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -359,7 +360,7 @@ TEST_CASE("pick_object_at with multiple objects picks closest", "[layer_renderer
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -380,7 +381,7 @@ TEST_CASE("pick_object_at with multiple objects picks closest", "[layer_renderer
 TEST_CASE("pick_object_at with no gcode returns nullopt", "[layer_renderer][pick]") {
     GCodeLayerRenderer renderer;
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
 
     // No gcode set - should return nullopt
     auto result = renderer.pick_object_at(100, 100);
@@ -397,7 +398,7 @@ TEST_CASE("pick_object_at with empty layer returns nullopt", "[layer_renderer][p
 
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.set_current_layer(0);
 
     auto result = renderer.pick_object_at(100, 100);
@@ -415,7 +416,7 @@ TEST_CASE("excluded objects are still pickable", "[layer_renderer][exclude][pick
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -464,7 +465,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "render_layers_to_cache emits gcode breadcrumb
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false); // deterministic: no background ghost thread
     renderer.set_canvas_size(200, 200);
     renderer.set_current_layer(0);
@@ -671,7 +671,7 @@ void configure(GCodeLayerRenderer& renderer, const ParsedGCodeFile& gcode, int l
                GCodeLayerRenderer::ViewMode view = GCodeLayerRenderer::ViewMode::TOP_DOWN) {
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(PICK_CANVAS, PICK_CANVAS);
-    renderer.set_view_mode(view);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, view);
     renderer.auto_fit();
     renderer.set_current_layer(layer);
 }
@@ -846,7 +846,7 @@ TEST_CASE("pick_object_at in streaming mode walks past uncached layers",
     GCodeLayerRenderer renderer;
     renderer.set_streaming_controller(&controller);
     renderer.set_canvas_size(PICK_CANVAS, PICK_CANVAS);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
 
     // Cache only the bottom of the file. DEFAULT_PREFETCH_RADIUS is 3, so
@@ -1166,7 +1166,6 @@ RenderCounts render_and_count(const std::unordered_set<std::string>& highlighted
                               ParsedGCodeFile& gcode, uint8_t* buf, lv_obj_t* canvas) {
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);   // no background thread: deterministic
     renderer.set_ssao_enabled(false); // the outline pass would add white of its own
     // Antialiasing is a separate flag now, and it has to be pinned too. A tagged
@@ -1280,7 +1279,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing the selection removes the halo",
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);
     renderer.set_ssao_enabled(false);
     renderer.set_canvas_size(200, 200);
@@ -1301,11 +1299,100 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing the selection removes the halo",
     };
 
     REQUIRE(draw() > 0);
-    // Deselecting must invalidate the solid cache, or the halo would persist as a
-    // stale cached image -- the exact bug the InvalidationScope split could cause
-    // if SolidCache were mishandled.
+    // Deselecting must invalidate the solid cache, or the rim would persist as
+    // stale cached pixels.
     renderer.set_highlighted_objects({});
     REQUIRE(draw() == 0);
+}
+
+// ===========================================================================
+// Recoloring a built preview.
+//
+// Both caches hold pixels, so a color change that does not drop them leaves the
+// old color on screen until something unrelated invalidates.
+// ===========================================================================
+
+TEST_CASE_METHOD(LVGLTestFixture, "a new extrusion color repaints a completed solid cache",
+                 "[layer_renderer][color]") {
+    auto gcode = make_test_gcode();
+    lv_obj_t* canvas = lv_canvas_create(test_screen());
+    REQUIRE(canvas != nullptr);
+    static uint8_t buf[200 * 200 * 4];
+    lv_canvas_set_buffer(canvas, buf, 200, 200, LV_COLOR_FORMAT_ARGB8888);
+
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+    renderer.set_ghost_mode(false);
+    renderer.set_ssao_enabled(false);
+    renderer.set_antialias_enabled(false);
+    renderer.set_canvas_size(200, 200);
+    renderer.set_current_layer(0);
+
+    // Painted pixels whose dominant channel is red vs blue (ARGB8888 is BGRA).
+    auto count = [&]() {
+        std::fill(buf, buf + 200 * 200 * 4, uint8_t{0});
+        drive_until_cached(renderer, canvas);
+        std::pair<int, int> red_blue{0, 0};
+        for (int i = 0; i < 200 * 200; ++i) {
+            const uint8_t b = buf[i * 4 + 0];
+            const uint8_t r = buf[i * 4 + 2];
+            if (buf[i * 4 + 3] == 0) {
+                continue;
+            }
+            if (r > b) {
+                ++red_blue.first;
+            } else if (b > r) {
+                ++red_blue.second;
+            }
+        }
+        return red_blue;
+    };
+
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+    const auto first = count();
+    REQUIRE(first.first > 0);
+    REQUIRE(first.second == 0);
+
+    renderer.set_extrusion_color(lv_color_hex(0x0000FF));
+    const auto second = count();
+    INFO("red=" << second.first << " blue=" << second.second);
+    CHECK(second.first == 0);
+    CHECK(second.second > 0);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a new extrusion color drops the built ghost",
+                 "[layer_renderer][color][ghost]") {
+    auto gcode = make_test_gcode();
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+
+    renderer.pump_offscreen_build(200, 200);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    renderer.pump_offscreen_build(200, 200);
+    REQUIRE(renderer.has_ghost_output());
+
+    // The same color is not a change, so a healthy ghost survives it.
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+    CHECK(renderer.has_ghost_output());
+
+    renderer.set_extrusion_color(lv_color_hex(0x0000FF));
+    CHECK_FALSE(renderer.has_ghost_output());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "installing a tool palette drops the built ghost",
+                 "[layer_renderer][color][ghost]") {
+    auto gcode = make_test_gcode();
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+
+    renderer.pump_offscreen_build(200, 200);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    renderer.pump_offscreen_build(200, 200);
+    REQUIRE(renderer.has_ghost_output());
+
+    renderer.set_tool_color_palette({"#112233", "#445566"});
+    CHECK_FALSE(renderer.has_ghost_output());
 }
 
 // ===========================================================================
@@ -1375,7 +1462,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "scrubbing back down the stack keeps the selec
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);   // no background thread: deterministic
     renderer.set_ssao_enabled(false); // the shading pass would add white of its own
     renderer.set_antialias_enabled(false);
@@ -1446,7 +1532,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     // Ghost mode left ON (the default): the ghost build is the first real
     // content, so the reveal gate has to key off it.
     renderer.set_canvas_size(200, 200);
@@ -1507,7 +1592,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_canvas_size(200, 200);
     renderer.set_current_layer(119);
 
@@ -1615,7 +1699,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "solid-cache batches are time-boxed against sl
 
     GCodeLayerRenderer renderer;
     renderer.set_streaming_controller(&controller);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);
     renderer.set_canvas_size(200, 200);
 

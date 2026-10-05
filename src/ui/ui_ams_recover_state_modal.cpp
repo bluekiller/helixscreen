@@ -10,6 +10,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <lvgl.h>
 #include <memory>
 #include <string>
@@ -66,10 +67,12 @@ RecoverStateRequest AmsRecoverStateModal::prefill(const AmsSystemInfo& info, boo
 AmsRecoverStateModal::Selection
 AmsRecoverStateModal::selection_for(const RecoverStateRequest& request, const Choices& choices) {
     Selection s;
+    const auto& slots = choices.slots;
     if (request.bypass && choices.has_bypass) {
-        s.slot = static_cast<uint32_t>(choices.slot_count) + 1;
-    } else if (request.slot >= 0 && request.slot < choices.slot_count) {
-        s.slot = static_cast<uint32_t>(request.slot) + 1;
+        s.slot = static_cast<uint32_t>(slots.size()) + 1;
+    } else if (auto it = std::find(slots.begin(), slots.end(), request.slot);
+               request.slot >= 0 && it != slots.end()) {
+        s.slot = static_cast<uint32_t>(it - slots.begin()) + 1;
     }
     if (request.loaded.has_value()) {
         s.loaded = *request.loaded ? kLoadedYes : kLoadedNo;
@@ -80,11 +83,13 @@ AmsRecoverStateModal::selection_for(const RecoverStateRequest& request, const Ch
 RecoverStateRequest AmsRecoverStateModal::request_for(const Selection& selection,
                                                       const Choices& choices) {
     RecoverStateRequest request;
-    const auto slot_count = static_cast<uint32_t>(choices.slot_count);
+    const auto slot_count = static_cast<uint32_t>(choices.slots.size());
     if (choices.has_bypass && selection.slot == slot_count + 1) {
         request.bypass = true;
+    } else if (selection.slot >= 1 && selection.slot <= slot_count) {
+        request.slot = choices.slots[selection.slot - 1];
     } else {
-        request.slot = selection.slot <= slot_count ? static_cast<int>(selection.slot) - 1 : -1;
+        request.slot = -1;
     }
     if (selection.loaded == kLoadedYes) {
         request.loaded = true;
@@ -104,14 +109,14 @@ void AmsRecoverStateModal::on_show() {
     }
     const AmsSystemInfo info = backend->get_system_info();
     shown_backend_ = backend;
-    choices_.slot_count = info.total_slots;
+    choices_.slots = info.present_slots();
     choices_.has_bypass = info.supports_bypass;
 
     const LaneNoun noun = backend->lane_noun();
     const Selection selected = selection_for(prefill(info, backend->is_bypass_active()), choices_);
 
     std::string slots = lv_tr("Keep current");
-    for (int i = 0; i < choices_.slot_count; ++i) {
+    for (int i : choices_.slots) {
         slots += "\n" + lane_label(noun, i);
     }
     if (choices_.has_bypass) {
@@ -139,7 +144,7 @@ void AmsRecoverStateModal::on_ok() {
     if (!backend) {
         return;
     }
-    if (backend != shown_backend || backend->get_system_info().total_slots != shown.slot_count) {
+    if (backend != shown_backend || backend->get_system_info().present_slots() != shown.slots) {
         spdlog::info("[AmsRecoverStateModal] Backend changed while open; recover not sent");
         return;
     }

@@ -129,6 +129,13 @@ void ams_detail_pre_show_env_indicator(AmsDetailWidgets& w, int unit_index);
 
 namespace helix {
 namespace ui {
+/**
+ * @brief Disable the slot widgets of bays in an absent unit, enable the rest
+ *
+ * Runs on every slot refresh: a box leaving or rejoining the chain changes no
+ * slot count, so no rebuild would otherwise pick it up.
+ */
+void ams_detail_sync_slot_states(lv_obj_t* slot_widgets[], int slot_count);
 
 /**
  * @brief Dispatch the context-menu actions that are pure backend calls
