@@ -1080,6 +1080,14 @@ AmsBackend* AmsState::get_backend(int index) const {
     return backends_[index].get();
 }
 
+std::optional<AmsType> AmsState::primary_type() const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (backends_.empty() || !backends_[0]) {
+        return std::nullopt;
+    }
+    return backends_[0]->get_type();
+}
+
 int AmsState::backend_count() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     return static_cast<int>(backends_.size());

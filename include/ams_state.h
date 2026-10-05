@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -283,6 +284,15 @@ class AmsState {
      * @return Pointer to backend (may be nullptr)
      */
     [[nodiscard]] AmsBackend* get_backend() const;
+
+    /**
+     * @brief Type of the primary backend, read under mutex_
+     *
+     * For callers off the main thread: they cannot keep get_backend()'s pointer
+     * past the lock, since clear_backends() frees it.
+     * @return nullopt when no backend is registered
+     */
+    [[nodiscard]] std::optional<AmsType> primary_type() const;
 
     /**
      * @brief Add a backend to the multi-backend list

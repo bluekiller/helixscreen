@@ -14,10 +14,10 @@
 #include "ams_state.h"
 #include "ams_types.h"
 
-#include "../catch_amalgamated.hpp"
-
 #include <atomic>
 #include <thread>
+
+#include "../catch_amalgamated.hpp"
 
 using namespace helix;
 
@@ -68,9 +68,7 @@ TEST_CASE_METHOD(OffMainFixture, "AmsState backend type query is safe against cl
 
     std::thread ws([&] {
         while (!stop.load()) {
-            if (auto* b = ams.get_backend()) {
-                (void)b->get_type();
-            }
+            (void)ams.primary_type();
         }
     });
 
@@ -80,4 +78,8 @@ TEST_CASE_METHOD(OffMainFixture, "AmsState backend type query is safe against cl
     }
     stop = true;
     ws.join();
+
+    CHECK(ams.primary_type() == ams.get_backend()->get_type());
+    ams.clear_backends();
+    CHECK_FALSE(ams.primary_type().has_value());
 }
