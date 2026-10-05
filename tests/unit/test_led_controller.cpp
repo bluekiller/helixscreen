@@ -404,13 +404,15 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(false);
+    // set_startup_brightness() also moves last_brightness, so move it back after.
     ctrl.set_startup_brightness(40);
     ctrl.set_last_brightness(100);
+    const int before = ctrl.last_brightness();
 
     ctrl.apply_startup_preference({"neopixel a"});
 
     // Disabled: the startup brightness is not applied.
-    REQUIRE(ctrl.last_brightness() == 100);
+    REQUIRE(ctrl.last_brightness() == before);
 
     ctrl.deinit();
 }
@@ -423,13 +425,15 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(true);
+    // set_startup_brightness() also moves last_brightness, so move it back after.
     ctrl.set_startup_brightness(40);
     ctrl.set_last_brightness(100);
+    const int before = ctrl.last_brightness();
 
     ctrl.apply_startup_preference({});
 
     // Nothing to light: the startup brightness is not applied.
-    REQUIRE(ctrl.last_brightness() == 100);
+    REQUIRE(ctrl.last_brightness() == before);
 
     ctrl.deinit();
 }
