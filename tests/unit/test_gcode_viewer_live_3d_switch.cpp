@@ -12,6 +12,7 @@
 #include "gcode_parser.h"
 
 #include <glm/glm.hpp>
+#include <limits>
 #include <memory>
 
 #include "../catch_amalgamated.hpp"
@@ -42,7 +43,7 @@ std::unique_ptr<ParsedGCodeFile> make_over_budget_file() {
 
     file->layers.push_back(std::move(layer));
     file->total_segments = 1;
-    file->drawable_segments = size_t{1} << 40;
+    file->drawable_segments = std::numeric_limits<size_t>::max() / 2;
     file->global_bounding_box.expand(seg.start);
     file->global_bounding_box.expand(seg.end);
     return file;
@@ -156,6 +157,43 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // Refused: this file draws in 2D, and the user's choice of 3D survives it.
     CHECK(ui_gcode_viewer_is_using_2d_mode(viewer));
     CHECK(helix::test_access::gcode_viewer_render_mode(viewer) == GcodeViewerRenderMode::Render3D);
+
+    lv_obj_delete(parent);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a live 3D switch installs the geometry it built",
+                 "[gcode_viewer][gcode][render_mode]") {
+    lv_obj_t* parent = lv_obj_create(lv_screen_active());
+    lv_obj_t* viewer = make_2d_viewer_with(parent, make_two_tool_file());
+
+    ui_gcode_viewer_set_render_mode(viewer, GcodeViewerRenderMode::Render3D);
+    helix::test_access::gcode_viewer_wait_for_build(viewer);
+    helix::ui::UpdateQueue::instance().drain();
+
+    CHECK_FALSE(ui_gcode_viewer_is_using_2d_mode(viewer));
+    CHECK_FALSE(helix::test_access::gcode_viewer_3d_palette(viewer).empty());
+
+    lv_obj_delete(parent);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a live 3D build result for a replaced file is dropped",
+                 "[gcode_viewer][gcode][render_mode]") {
+    lv_obj_t* parent = lv_obj_create(lv_screen_active());
+    lv_obj_t* viewer = make_2d_viewer_with(parent, make_two_tool_file());
+
+    ui_gcode_viewer_set_render_mode(viewer, GcodeViewerRenderMode::Render3D);
+    // The result is built and queued before the file it describes goes away.
+    helix::test_access::gcode_viewer_wait_for_build(viewer);
+
+    SECTION("by a clear") {
+        ui_gcode_viewer_clear(viewer);
+    }
+    SECTION("by another file") {
+        helix::test_access::gcode_viewer_install_loaded_file(viewer, make_two_tool_file());
+    }
+    helix::ui::UpdateQueue::instance().drain();
+
+    CHECK(helix::test_access::gcode_viewer_3d_palette(viewer).empty());
 
     lv_obj_delete(parent);
 }
