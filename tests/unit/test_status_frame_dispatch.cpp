@@ -6,9 +6,9 @@
 #include "app_globals.h"
 #include "config.h"
 #include "led/led_controller.h"
-#include "moonraker_manager.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
+#include "status_dispatch.h"
 #include "temperature_sensor_manager.h"
 
 #include "../catch_amalgamated.hpp"
@@ -71,4 +71,31 @@ TEST_CASE_METHOD(DispatchFixture, "dispatch_status_frame reaches every status co
     auto cabinet = sensors.get_sensor_state("temperature_sensor cabinet");
     REQUIRE(cabinet.has_value());
     CHECK(cabinet->temperature == Catch::Approx(31.5f));
+}
+
+// A query response carries no notification, so it must reach the same consumers
+// a notification does: the LED colour cache reads back STOP_LED_EFFECTS and a
+// same-colour SET_LED only through this path.
+TEST_CASE_METHOD(DispatchFixture, "an LED query response reaches the LED colour cache",
+                 "[printer_state][dispatch][led]") {
+    get_printer_state().init_subjects(false);
+
+    PrinterDiscovery discovery;
+    discovery.parse_objects(nlohmann::json::array({"neopixel chamber"}));
+    auto& led = helix::led::LedController::instance();
+    led.deinit();
+    led.init(nullptr, nullptr);
+    led.discover_from_hardware(discovery);
+
+    helix::led::LedController::apply_query_response(
+        nlohmann::json{{"result",
+                        {{"status",
+                          {{"neopixel chamber",
+                            {{"color_data", nlohmann::json::array({{0.1, 0.5, 0.9, 0.0}})}}}}}}}});
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    auto color = led.native().get_strip_color("neopixel chamber");
+    CHECK(color.r == Catch::Approx(0.1));
+    CHECK(color.g == Catch::Approx(0.5));
+    CHECK(color.b == Catch::Approx(0.9));
 }

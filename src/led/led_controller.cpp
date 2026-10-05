@@ -21,6 +21,7 @@
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "static_subject_registry.h"
+#include "status_dispatch.h"
 #include "text_io.h"
 
 #include <spdlog/spdlog.h>
@@ -1976,18 +1977,20 @@ void LedController::query_led_state() {
     if (!client_) {
         return;
     }
-    client_->send_jsonrpc(
-        "printer.objects.query", {{"objects", query_objects}}, [](const nlohmann::json& response) {
-            if (!response.contains("result") || !response["result"].contains("status")) {
-                spdlog::warn("[LedController] query_led_state: no result/status in response");
-                return;
-            }
-            const auto& status = response["result"]["status"];
-            spdlog::debug("[LedController] query_led_state: got {}",
-                          helix::json_util::safe_dump(status).substr(0, 200));
-            helix::ui::queue_update("LedController::query_led_state",
-                                    [status]() { get_printer_state().update_from_status(status); });
-        });
+    client_->send_jsonrpc("printer.objects.query", {{"objects", query_objects}},
+                          [](const nlohmann::json& response) { apply_query_response(response); });
+}
+
+void LedController::apply_query_response(const nlohmann::json& response) {
+    if (!response.contains("result") || !response["result"].contains("status")) {
+        spdlog::warn("[LedController] query_led_state: no result/status in response");
+        return;
+    }
+    const auto& status = response["result"]["status"];
+    spdlog::debug("[LedController] query_led_state: got {}",
+                  helix::json_util::safe_dump(status).substr(0, 200));
+    helix::ui::queue_update("LedController::query_led_state",
+                            [status]() { helix::dispatch_status(status); });
 }
 
 void LedController::set_look(const std::vector<std::string>& ids, uint32_t rgb, double w,

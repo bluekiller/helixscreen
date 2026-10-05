@@ -85,6 +85,7 @@
 #include "sdkconfig.h"
 #include "setting_group.h"
 #include "src/xml/lv_xml.h"
+#include "status_dispatch.h"
 #include "subject_initializer.h"
 #include "system/afc_message_dedup.h"
 #include "temp_graph_controller.h"
@@ -307,7 +308,7 @@ void mock_push_temps() {
         {"extruder", {{"temperature", nozzle}, {"target", 215.0}}},
         {"heater_bed", {{"temperature", bed}, {"target", 60.0}}},
     };
-    get_printer_state().update_from_status(status);
+    helix::dispatch_status(status);
 }
 #endif // CONFIG_HELIX_MOCK_PRINTER
 

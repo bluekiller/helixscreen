@@ -28,10 +28,10 @@
 #include "config.h"
 #include "filament_sensor_manager.h"
 #include "filament_sensor_types.h"
-#include "moonraker_manager.h"
 #include "print_start_checks.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
+#include "status_dispatch.h"
 #include "test_helpers/registered_backend.h"
 #include "toolchanger_addon.h"
 
