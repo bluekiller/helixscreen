@@ -139,6 +139,11 @@ class PrintStatusPanelTestAccess {
         panel.load_gcode_for_viewing(filename);
     }
 
+    /// The tree teardown the overlay's destroy-on-close runs.
+    static void ui_destroyed(PrintStatusPanel& panel) {
+        panel.on_ui_destroyed();
+    }
+
     /// The file whose geometry the panel records as loaded in the viewer.
     static const std::string& gcode_displayed_file(const PrintStatusPanel& panel) {
         return panel.gcode_displayed_file_;
