@@ -28,6 +28,7 @@
 
 #include "app_globals.h"
 #include "format_utils.h"
+#include "hardware_role_registry.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "moonraker_api.h"
 #include "observer_factory.h"
@@ -748,9 +749,10 @@ void ControlsPanel::update_fan_display() {
 /// @brief Priority score for fan display ordering on the cooling card.
 /// Lower score = higher priority (shown first).
 static int fan_display_priority(const helix::FanInfo& fan) {
-    // Chamber fans are most interesting to users (enclosure management)
-    // Use object_name (Moonraker identifier) rather than display_name to avoid localization issues
-    if (fan.object_name.find("chamber") != std::string::npos) {
+    // Chamber-role fans are most interesting to users (enclosure management), by the
+    // same rule the hardware role registry applies. Matches the Moonraker object name,
+    // never the localized display name.
+    if (helix::role_descriptor(helix::HardwareRoleId::ChamberFan)->is_candidate(fan.object_name)) {
         return 0;
     }
     // Controllable generic fans next (user can interact)

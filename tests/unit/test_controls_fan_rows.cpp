@@ -189,3 +189,29 @@ TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows rebuild when fans ar
     // A tap anywhere on the list opens the fan overlay.
     CHECK(lv_obj_has_flag(list(), LV_OBJ_FLAG_CLICKABLE));
 }
+
+TEST_CASE_METHOD(ControlsFanRowsFixture,
+                 "Controls fan rows rank a chamber-role fan first, by the role registry's rule",
+                 "[controls][fans][fan-rows]") {
+    // A filter or nevermore fan is the enclosure's air handling even when its
+    // name does not say "chamber"; a temperature_fan is chamber-role too.
+    state().init_fans({"fan", "fan_generic exhaust", "fan_generic nevermore"});
+    build_and_activate();
+
+    const auto r = rows();
+    REQUIRE(r.size() == 2);
+    CHECK(r[0][0] == display_name("fan_generic nevermore"));
+    CHECK(r[1][0] == display_name("fan_generic exhaust"));
+}
+
+TEST_CASE_METHOD(ControlsFanRowsFixture,
+                 "Controls fan rows rank a temperature fan ahead of a heater fan",
+                 "[controls][fans][fan-rows]") {
+    state().init_fans({"fan", "heater_fan hotend_fan", "temperature_fan enclosure"});
+    build_and_activate();
+
+    const auto r = rows();
+    REQUIRE(r.size() == 2);
+    CHECK(r[0][0] == display_name("temperature_fan enclosure"));
+    CHECK(r[1][0] == display_name("heater_fan hotend_fan"));
+}
