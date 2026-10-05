@@ -585,24 +585,8 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
     // decision reads both, so the capability must land first.
     print_domain_.set_plr_resume_macro_present(helix::plr_resume_macro_present(discovery_));
 
-    // Fold the helper-macro install status in with the same snapshot. An
-    // Installed base also clears any restart-pending flag held for a staged
-    // install or update (PrinterPluginStatusState); Outdated keeps it, since
-    // the staged pack is not loaded until the restart.
-    switch (MacroManager::evaluate_status(discovery_)) {
-    case MacroInstallStatus::NOT_INSTALLED:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::NotInstalled);
-        break;
-    case MacroInstallStatus::INSTALLED:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::Installed);
-        break;
-    case MacroInstallStatus::OUTDATED:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::Outdated);
-        break;
-    case MacroInstallStatus::UNKNOWN:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::Unknown);
-        break;
-    }
+    // Fold the helper-macro install status in with the same snapshot.
+    plugin_status_state_.set_helix_macros_base_status(MacroManager::evaluate_status(discovery_));
 
     // Re-synthesize dynamic pre-print options now that hardware capabilities are
     // known. The bed_mesh option's adaptive_active flag (which relabels it to
