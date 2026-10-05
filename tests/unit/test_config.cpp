@@ -3510,6 +3510,8 @@ json below_floor_backup() {
                 {"wizard_completed", true}}}}}};
 }
 
+// TEST_MIRROR_OK: read_json_file() parses a fixture file; it shares only its name with the filament
+// catalog loader
 json read_json_file(const std::string& file) {
     return json::parse(helix::text_io::read_file(file).value_or(""), nullptr, false);
 }
