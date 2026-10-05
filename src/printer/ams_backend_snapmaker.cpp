@@ -457,9 +457,8 @@ AmsError AmsBackendSnapmaker::do_filament_batch(const std::vector<int>& slots, b
                 ams_action_to_string(batch_.load ? AmsAction::LOADING : AmsAction::UNLOADING));
         }
         use_batch_macro = use_batch_macro_;
-        // Resolve the progress words here on the caller's (main) thread: the
-        // cursor-advance parse reads them from the WebSocket thread, which
-        // must not call lv_tr into LVGL's pack list.
+        // Resolve the progress words here, at dispatch: the cursor-advance
+        // parse only formats them and makes no LVGL calls.
         batch_ = BatchPlan{slots,           load,
                            /*cursor=*/0,
                            /*active=*/true, load ? lv_tr("Load") : lv_tr("Unload"),
@@ -2482,7 +2481,7 @@ std::vector<helix::printer::DeviceAction> AmsBackendSnapmaker::get_device_action
     using helix::printer::ActionType;
     using helix::printer::DeviceAction;
 
-    // A copy taken under mutex_: the member is written on the WebSocket thread.
+    // A copy taken under mutex_: every status frame rewrites the member.
     const auto p = print_preferences();
     std::vector<DeviceAction> out;
 

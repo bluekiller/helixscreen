@@ -379,9 +379,9 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
         bool load{false};
         size_t cursor{0}; ///< how many heads have reached their terminal state
         bool active{false};
-        /// Progress-line words, translated at dispatch time (main thread): the
-        /// cursor-advance parse that renders them runs on the WebSocket
-        /// thread, which must not call lv_tr into LVGL's pack list.
+        /// Progress-line words, translated at dispatch time: the
+        /// cursor-advance parse that renders them only formats them and makes
+        /// no LVGL calls.
         std::string direction_label; ///< "Load" / "Unload"
         std::string of_label;        ///< "of", as in "Load 2 of 4"
         /// Identifies THIS dispatch. The deferred RPC-failure recovery
@@ -431,8 +431,8 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
 
     /// What the firmware last reported for its stored print preferences
     /// (print_task_config). Empty until a frame carrying one arrives.
-    /// Returns a copy under mutex_: the member is written on the WebSocket
-    /// thread, so a reference would hand a UI-thread caller a torn read.
+    /// Returns a copy under mutex_: every status frame rewrites the member, so
+    /// a reference would hand a caller a torn read.
     [[nodiscard]] snapmaker::PrintPreferences print_preferences() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return print_preferences_;
@@ -656,7 +656,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// Last value published to AmsState::set_active_tool_port_present for the
     /// active tool (#991). Tracks the active-tool port flag so we only push to
     /// the UI subject on an actual change. -1 = nothing published yet. Written
-    /// only from handle_status (the single WS-thread writer).
+    /// only from handle_status (the single writer).
     int last_published_port_present_ = -1;
 
     /// Per-slot "filament is loaded to THIS tool's nozzle" latch, driven
@@ -694,7 +694,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// parses (reader disabled, read never landed) asks too. Presence dropping
     /// cancels it: the spool left before any read. A feed the firmware itself
     /// drives (tool-change load/unload, one of our batch ops) never arms it.
-    /// Written only from handle_status (the single WS-thread writer).
+    /// Written only from handle_status (the single writer).
     std::array<int, NUM_TOOLS> pending_insert_passes_{{0, 0, 0, 0}};
 
     /// Last filament_feed frame's raw per-channel fields (channel_state,
