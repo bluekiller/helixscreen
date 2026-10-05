@@ -406,3 +406,54 @@ TEST_CASE_METHOD(TimelapsePrintFixture, "TimelapseState: resuming a paused print
     CHECK(frame_count() == 2);
     CHECK(capture_info() == info);
 }
+
+TEST_CASE_METHOD(TimelapsePrintFixture,
+                 "TimelapseState: joining a print already running keeps its frames",
+                 "[timelapse_state][new_print]") {
+    // App start mid-print: frames arrive before the first status frame reports
+    // PRINTING. Nothing has been seen to end, so this is not a new print.
+    frames(2);
+    const std::string info = capture_info();
+    REQUIRE_FALSE(info.empty());
+
+    wire(PrintJobState::PRINTING);
+    CHECK(frame_count() == 2);
+    CHECK(capture_info() == info);
+
+    // A reconnect replays the same state: still the same print.
+    wire(PrintJobState::PRINTING);
+    frames(1);
+    CHECK(frame_count() == 3);
+
+    // The print that follows it does start over.
+    wire(PrintJobState::COMPLETE);
+    wire(PrintJobState::PRINTING);
+    CHECK(frame_count() == 0);
+}
+
+TEST_CASE("TimelapseState: subscribing while a print runs keeps its frames",
+          "[timelapse_state][new_print]") {
+    // Subjects re-initialised mid-print: the observer's first value is PRINTING
+    // with no prior state.
+    lv_init_safe();
+    auto& ps = get_printer_state();
+    ps.init_subjects(false);
+    test::set_wire_state(ps, PrintJobState::PRINTING);
+    UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    auto& tl = TimelapseState::instance();
+    tl.deinit_subjects();
+    tl.init_subjects(false);
+    UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    tl.handle_timelapse_event(json{{"action", "newframe"}, {"framefile", "f.jpg"}});
+    UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    test::set_wire_state(ps, PrintJobState::PAUSED);
+    test::set_wire_state(ps, PrintJobState::PRINTING);
+    UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    CHECK(lv_subject_get_int(tl.get_frame_count_subject()) == 1);
+
+    test::set_wire_state(ps, PrintJobState::STANDBY);
+    UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    tl.deinit_subjects();
+}

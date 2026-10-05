@@ -71,6 +71,7 @@ void TimelapseState::init_subjects(bool register_xml) {
     // runs a job, so the wire state is what decides where one print ends.
     PrinterState& printer = get_printer_state();
     print_in_progress_ = false;
+    print_ended_ = false;
     print_state_obs_ = helix::ui::observe_print_state<TimelapseState>(
         printer.print_state().get_print_state_enum_subject(), this,
         [](TimelapseState* self, PrintJobState state) { self->on_print_state_changed(state); },
@@ -104,16 +105,25 @@ void TimelapseState::on_print_state_changed(PrintJobState state) {
     // RAW_PRINT_STATE_OK: wire state by design, see init_subjects().
     switch (state) {
     case PrintJobState::PRINTING:
-        // PAUSED -> PRINTING is the same print resuming; only a print that
-        // was not already running starts the count over.
-        if (!print_in_progress_) {
-            print_in_progress_ = true;
+        // PAUSED -> PRINTING is the same print resuming, and a print running
+        // before anything was seen to end is one this app joined; only a print
+        // that follows an ended one starts the count over.
+        if (!print_in_progress_ && print_ended_) {
             reset();
         }
+        print_in_progress_ = true;
+        print_ended_ = false;
         break;
     case PrintJobState::PAUSED:
+        print_in_progress_ = true;
+        break;
+    // RAW_PRINT_STATE_OK: STANDBY after a job is the wire's report that it ended.
+    case PrintJobState::STANDBY:
+        print_ended_ = print_ended_ || print_in_progress_;
+        print_in_progress_ = false;
         break;
     default:
+        print_ended_ = true;
         print_in_progress_ = false;
         break;
     }
