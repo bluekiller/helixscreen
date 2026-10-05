@@ -11,6 +11,7 @@
 #if defined(__linux__) || defined(__APPLE__)
 #include <signal.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #define HELIX_THREAD_ALTSTACK 1
 #endif
 
@@ -25,35 +26,44 @@ inline constexpr std::size_t kAltStackSize = 64 * 1024;
 
 /// Give the calling thread its own signal stack.
 ///
-/// sigaltstack is per thread, and crash_handler::install() covers only the
-/// thread that calls it. Without one, a stack overflow on any other thread
-/// leaves the handler no stack to run on and the process dies with no crash
-/// file. Allocated once per thread and released at thread exit; repeat calls,
-/// and calls on a thread that already has a signal stack, do nothing.
-inline void install_thread_altstack() noexcept {
+/// sigaltstack is per thread. Without one, a stack overflow leaves the crash
+/// handler no stack to run on and the process dies with no crash file.
+/// Allocated once per thread and released at thread exit; repeat calls, and
+/// calls on a thread that already has a signal stack, do nothing. Returns
+/// whether the thread now has one.
+inline bool install_thread_altstack() noexcept {
 #ifdef HELIX_THREAD_ALTSTACK
     struct ThreadAltStack {
         void* mem = nullptr;
+        std::size_t len = 0;
+        bool active = false;
         ThreadAltStack() {
             stack_t current{};
             if (sigaltstack(nullptr, &current) == 0 && !(current.ss_flags & SS_DISABLE)) {
+                active = true;
                 return;
             }
             // mmap rather than the heap: pages stay unbacked until a crash
-            // touches them, so an idle thread costs no RSS.
-            void* p = mmap(nullptr, kAltStackSize, PROT_READ | PROT_WRITE,
-                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            // touches them, so an idle thread costs no RSS. The lowest page is
+            // a guard, so a handler that overruns its stack faults instead of
+            // writing over whatever is mapped below.
+            const auto page = static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
+            const std::size_t total = kAltStackSize + page;
+            void* p =
+                mmap(nullptr, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
             if (p == MAP_FAILED) {
                 return;
             }
             stack_t ss{};
-            ss.ss_sp = p;
+            ss.ss_sp = static_cast<char*>(p) + page;
             ss.ss_size = kAltStackSize;
-            if (sigaltstack(&ss, nullptr) != 0) {
-                munmap(p, kAltStackSize);
+            if (mprotect(p, page, PROT_NONE) != 0 || sigaltstack(&ss, nullptr) != 0) {
+                munmap(p, total);
                 return;
             }
             mem = p;
+            len = total;
+            active = true;
         }
         ~ThreadAltStack() {
             if (mem == nullptr) {
@@ -64,11 +74,13 @@ inline void install_thread_altstack() noexcept {
             stack_t ss{};
             ss.ss_flags = SS_DISABLE;
             sigaltstack(&ss, nullptr);
-            munmap(mem, kAltStackSize);
+            munmap(mem, len);
         }
     };
     thread_local ThreadAltStack s_thread_alt_stack;
-    (void)s_thread_alt_stack;
+    return s_thread_alt_stack.active;
+#else
+    return false;
 #endif
 }
 

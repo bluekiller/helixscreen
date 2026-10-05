@@ -634,7 +634,7 @@ SHAPES
 # stack dies on a stack overflow without writing a crash file. helix::make_thread
 # (include/helix_thread.h) installs one before running the thread's body.
 raw_thread_pattern() {
-    printf '%s' 'std::thread[[:space:]]*[({]|std::thread[[:space:]]+[A-Za-z_][A-Za-z_0-9]*[[:space:]]*[({]|std::async[[:space:]]*\('
+    printf '%s' 'std::j?thread[[:space:]]*[({]|std::j?thread[[:space:]]+[A-Za-z_][A-Za-z_0-9]*[[:space:]]*[({]|std::async[[:space:]]*\(|pthread_create[[:space:]]*\('
 }
 
 raw_thread_lint_files() {
@@ -666,7 +666,10 @@ worker_ = std::thread([this] { run(); });
 std::thread t(&Foo::run, this);
 std::thread{fn}.detach();
 auto fut = std::async(std::launch::async, fn);
+std::jthread j([] {});
+pthread_create(&tid, nullptr, run, this);
 std::thread worker_;
+std::jthread jworker_;
 std::thread::id owner_;
 std::vector<std::thread> pool_;
 // Joined in the destructor: std::thread(...) must not outlive us.
@@ -675,8 +678,9 @@ worker_ = helix::make_thread([this] { run(); });
 SHAPES
     run code_offenders "$(raw_thread_pattern)" THREAD_OK "$f"
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 4 ]
+    [ "${#lines[@]}" -eq 6 ]
     lacks "std::thread worker_;" "$output"
+    lacks "jworker_" "$output"
     lacks "THREAD_OK" "$output"
     lacks "make_thread" "$output"
 }

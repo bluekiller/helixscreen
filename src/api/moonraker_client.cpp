@@ -454,7 +454,8 @@ void MoonrakerClient::install_ws_callbacks() {
     // destructor (after destruction_guard_.reset()) bails without touching destroyed members.
     onopen = [this, dg = std::weak_ptr<bool>(destruction_guard_)]() {
         // libhv owns this loop thread, so its signal stack is installed from
-        // the first callback that runs on it.
+        // the first callback that runs on it: onopen, or onclose when the
+        // connection never comes up.
         helix::install_thread_altstack();
         // Liveness check that never dereferences `this`: a null lock() means the destructor
         // already ran (it resets destruction_guard_ before the base-class dtor). See above.
@@ -492,6 +493,7 @@ void MoonrakerClient::install_ws_callbacks() {
     };
 
     onclose = [this, dg = std::weak_ptr<bool>(destruction_guard_)]() {
+        helix::install_thread_altstack();
         // Liveness check that never dereferences `this`: a null lock() means the destructor
         // already ran (it resets destruction_guard_ before the base-class dtor). See above.
         auto live = dg.lock();
