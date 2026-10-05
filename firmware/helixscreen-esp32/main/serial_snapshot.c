@@ -101,8 +101,11 @@ static void print_line(size_t seq) {
     unsigned char b64[80];
     size_t n = 0;
     mbedtls_base64_encode(b64, sizeof(b64), &n, raw, len);
-    printf("SNAP:%u %08lx %.*s\n", (unsigned)seq, (unsigned long)mz_crc32(0, raw, len), (int)n,
-           b64);
+    // The crc covers "<seq> " too, so a damaged sequence number fails the line.
+    char seq_text[12];
+    const int seq_len = snprintf(seq_text, sizeof(seq_text), "%u ", (unsigned)seq);
+    const mz_ulong crc = mz_crc32(mz_crc32(0, (const unsigned char*)seq_text, seq_len), raw, len);
+    printf("SNAP:%s%08lx %.*s\n", seq_text, (unsigned long)crc, (int)n, b64);
 }
 
 static size_t line_count(void) {

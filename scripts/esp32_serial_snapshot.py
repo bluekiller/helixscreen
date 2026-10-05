@@ -85,7 +85,7 @@ def parse_line(line: str) -> tuple[int | None, bytes]:
     try:
         seq, crc, b64 = line[line.index("SNAP:") + 5:].strip().split(" ")
         chunk = base64.b64decode(b64, validate=True)
-        if zlib.crc32(chunk) == int(crc, 16):
+        if zlib.crc32(chunk, zlib.crc32(f"{seq} ".encode())) == int(crc, 16):
             return int(seq), chunk
     except ValueError:
         pass
@@ -103,6 +103,68 @@ def read_lines(port, buf: bytes) -> tuple[list[str], bytes]:
     buf += port.read(4096)
     *done, buf = buf.split(b"\n")
     return [d.decode("ascii", "replace").rstrip("\r") for d in done], buf
+
+
+def request_dump(port, timeout: float) -> list[str]:
+    """Ask for a snap, repeating until one starts, and read until it ends."""
+    lines, buf, next_ask, deadline = [], b"", time.time(), time.time() + timeout
+    while time.time() < deadline:
+        started = any(l.startswith("=====HELIX-SNAP") for l in lines)
+        if not started and time.time() >= next_ask:
+            port.write(b"\nsnap\n")
+            next_ask = time.time() + 2.0
+        got, buf = read_lines(port, buf)
+        lines += got
+        if any(l.startswith(("=====HELIX-SNAP-END", "=====HELIX-SNAP-ERROR")) for l in got):
+            break
+    return lines
+
+
+def resend(port, seq: int, wait: float, lines: list[str]) -> bool:
+    """Ask for line seq again; True once it arrives intact. Appends what is read."""
+    port.write(f"\nsnapline {seq}\n".encode())
+    buf, until = b"", time.time() + wait
+    while time.time() < until:
+        got, buf = read_lines(port, buf)
+        lines += got
+        if any(parse_line(l)[0] == seq for l in got if "SNAP:" in l):
+            return True
+    return False
+
+
+def capture(port, timeout: float, line_wait: float = 2.0, max_resends: int = 10,
+            resend_window: float = 30.0) -> tuple[int, int, bytes]:
+    """(width, height, deflated payload) of one verified dump; raises ValueError.
+
+    An unreadable dump (no or damaged header, bad payload) is asked for once more.
+    Damaged lines are asked for again by number from the dump the board kept, up
+    to 3 times each and max_resends requests or resend_window seconds in all."""
+    for attempt in (1, 2):
+        lines = request_dump(port, timeout)
+        try:
+            width, height, data, missing = parse_dump(lines)
+            break
+        except ValueError as e:
+            if attempt == 2 or str(e).startswith("=====HELIX-SNAP-ERROR"):
+                raise
+            print(f"unreadable dump ({e}); asking for a fresh one", file=sys.stderr)
+    sent, failed, stop = 0, [], time.time() + resend_window
+    for seq in missing:
+        for _ in range(3):
+            if sent >= max_resends or time.time() >= stop:
+                failed.append(seq)
+                break
+            sent += 1
+            if resend(port, seq, line_wait, lines):
+                break
+        else:
+            failed.append(seq)
+    if failed:
+        raise ValueError(f"SNAP line(s) {failed} stayed damaged or missing after {sent} resend(s)")
+    if missing:
+        print(f"resent SNAP line(s) {missing}", file=sys.stderr)
+        width, height, data, _ = parse_dump(lines)
+    return width, height, data
 
 
 def main() -> int:
@@ -138,8 +200,7 @@ def main() -> int:
         x, y = (int(v) for v in tap.split(","))
         port.write(f"\ntap {x} {y}\n".encode())
         time.sleep(args.tap_wait)
-    next_ask = time.time()
-    lines, buf, deadline = [], b"", next_ask + args.timeout
+    lines, buf, deadline = [], b"", time.time() + args.timeout
     if args.notes:
         port.write(b"\nnotes\n")
         while time.time() < deadline:
@@ -151,34 +212,10 @@ def main() -> int:
         notes = [l[len("NOTE: "):] for l in lines if l.startswith("NOTE: ")]
         print("\n".join(notes) if notes else "(no notifications)")
         return 0
-    while time.time() < deadline:
-        started = any(l.startswith("=====HELIX-SNAP") for l in lines)
-        if not started and time.time() >= next_ask:
-            port.write(b"\nsnap\n")
-            next_ask = time.time() + 2.0
-        got, buf = read_lines(port, buf)
-        lines += got
-        if any(l.startswith(("=====HELIX-SNAP-END", "=====HELIX-SNAP-ERROR")) for l in lines):
-            break
-    width, height, data, missing = parse_dump(lines)
-    # A damaged line is asked for again, by number, from the dump the board kept.
-    for seq in missing:
-        for _ in range(3):
-            port.write(f"\nsnapline {seq}\n".encode())
-            until = time.time() + 2.0
-            while time.time() < until:
-                got, buf = read_lines(port, buf)
-                lines += got
-                if any(parse_line(l)[0] == seq for l in got if "SNAP:" in l):
-                    break
-            else:
-                continue
-            break
-        else:
-            raise SystemExit(f"SNAP line {seq} stayed damaged or missing after 3 resends")
-    if missing:
-        print(f"resent SNAP line(s) {missing}", file=sys.stderr)
-        width, height, data, _ = parse_dump(lines)
+    try:
+        width, height, data = capture(port, args.timeout)
+    except ValueError as e:
+        raise SystemExit(str(e))
     raw = decode_pixels(width, height, data)
     with open(args.out, "wb") as f:
         f.write(rgb565_to_png(raw, width, height))

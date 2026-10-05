@@ -29,7 +29,8 @@ def dump_lines(pixels: bytes, w: int, h: int, noise: bool = True) -> list[str]:
 
 
 def snap_line(seq: int, chunk: bytes) -> str:
-    return f"SNAP:{seq} {zlib.crc32(chunk):08x} {base64.b64encode(chunk).decode()}"
+    crc = zlib.crc32(chunk, zlib.crc32(f"{seq} ".encode()))
+    return f"SNAP:{seq} {crc:08x} {base64.b64encode(chunk).decode()}"
 
 
 def decode(lines: list[str]) -> tuple[int, int, bytes]:
@@ -72,6 +73,12 @@ def test_a_line_corrupted_into_valid_base64_fails_its_crc():
     assert snap.parse_dump(lines)[3] == [3]
 
 
+def test_a_damaged_sequence_number_fails_the_line():
+    lines = dump_lines(NOISY, 80, 64, noise=False)
+    lines[4] = lines[4].replace("SNAP:2 ", "SNAP:7 ", 1)  # line 2 now claims to be line 7
+    assert snap.parse_dump(lines)[3] == [2]
+
+
 def test_a_resent_line_fills_the_gap():
     lines = dump_lines(NOISY, 80, 64, noise=False)
     good = lines[4]
@@ -105,3 +112,78 @@ def test_an_old_firmware_header_is_refused_by_name():
 def test_a_firmware_error_is_reported():
     with pytest.raises(ValueError, match="no memory"):
         snap.parse_dump(["=====HELIX-SNAP-ERROR no memory for the snapshot"])
+
+
+class FakePort:
+    """Answers "snap" with the next scripted dump and "snapline N" from replies[N]."""
+
+    def __init__(self, dumps, replies=None):
+        self.dumps, self.replies, self.out, self.writes = list(dumps), replies or {}, b"", []
+
+    def write(self, data):
+        cmd = data.decode().strip()
+        self.writes.append(cmd)
+        if cmd == "snap" and self.dumps:
+            self.out += ("\n".join(self.dumps.pop(0)) + "\n").encode()
+        elif cmd.startswith("snapline "):
+            queue = self.replies.get(int(cmd.split()[1]), [])
+            if queue and (reply := queue.pop(0)):
+                self.out += (reply + "\n").encode()
+
+    def read(self, n):
+        data, self.out = self.out[:n], self.out[n:]
+        return data
+
+
+def capture(port, **kw):
+    return snap.capture(port, timeout=1.0, line_wait=0.05, **kw)
+
+
+def test_a_damaged_header_gets_one_fresh_snap():
+    good = dump_lines(NOISY, 80, 64)
+    bad = list(good)
+    bad[1] = bad[1][:25] + "E (1) task_wdt: Task watchdog got triggered."
+    port = FakePort([bad, good])
+    w, h, data = capture(port)
+    assert snap.decode_pixels(w, h, data) == NOISY
+    assert port.writes.count("snap") == 2
+
+
+def test_a_second_unreadable_dump_fails():
+    bad = dump_lines(NOISY, 80, 64)[2:]  # no header at all
+    port = FakePort([bad, bad, dump_lines(NOISY, 80, 64)])
+    with pytest.raises(ValueError, match="no dump header"):
+        capture(port)
+    assert port.writes.count("snap") == 2
+
+
+def test_a_damaged_line_is_resent_and_the_dump_decodes():
+    lines = dump_lines(NOISY, 80, 64, noise=False)
+    good = lines[5]
+    lines[5] = good[:30] + "I (1) wifi: noise"
+    port = FakePort([lines], {3: [None, good]})  # first resend lost, second arrives
+    w, h, data = capture(port)
+    assert snap.decode_pixels(w, h, data) == NOISY
+    assert port.writes.count("snapline 3") == 2
+
+
+def test_resends_stop_at_the_overall_cap_and_name_the_lines():
+    lines = dump_lines(NOISY, 80, 64, noise=False)
+    count = int(lines[1].split()[-1])
+    damaged = list(range(count))
+    for seq in damaged:
+        lines[2 + seq] = "SNAP:garbage"
+    port = FakePort([lines])
+    with pytest.raises(ValueError, match=r"SNAP line\(s\) \[0, 1, 2, .*after 10 resend"):
+        capture(port)
+    assert sum(w.startswith("snapline") for w in port.writes) == 10
+
+
+def test_resends_stop_when_the_window_closes():
+    lines = dump_lines(NOISY, 80, 64, noise=False)
+    lines[2] = "SNAP:garbage"
+    lines[3] = "SNAP:garbage"
+    port = FakePort([lines])
+    with pytest.raises(ValueError, match=r"\[0, 1\]"):
+        capture(port, resend_window=0.0)
+    assert not any(w.startswith("snapline") for w in port.writes)
