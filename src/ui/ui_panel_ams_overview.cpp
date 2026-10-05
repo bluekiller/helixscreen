@@ -389,7 +389,10 @@ void AmsOverviewPanel::create_unit_cards(const AmsSystemInfo& info, helix::ui::L
         // past MAX_UNITS get the always-off placeholders — AmsState owns which is
         // which, since it owns the cap and the registrations.
         const AmsState::EnvIndicatorSubjectNames s = AmsState::env_indicator_subject_names(i);
-        const char* attrs[] = {"temp_text",
+        const std::string absent = AmsState::unit_absent_subject_name(i);
+        const char* attrs[] = {"absent",
+                               absent.c_str(),
+                               "temp_text",
                                s.temp_text.c_str(),
                                "humidity_text",
                                s.humidity_text.c_str(),
@@ -699,6 +702,7 @@ void AmsOverviewPanel::refresh_system_path(const AmsSystemInfo& info, int curren
             topo = backend->get_unit_topology(i);
         }
         ui_system_path_canvas_set_unit_topology(system_path_, i, static_cast<int>(topo));
+        helix::ui::ui_system_path_canvas_set_unit_absent(system_path_, i, unit.absent);
 
         if (i < static_cast<int>(tool_layout.units.size())) {
             const auto& utl = tool_layout.units[i];
@@ -826,6 +830,7 @@ void AmsOverviewPanel::refresh_detail_if_needed() {
         create_detail_slots(unit);
         update_detail_header(unit, info);
     }
+    helix::ui::ams_detail_sync_slot_states(detail_slot_widgets_, detail_slot_count_);
 
     // Always update path canvas — segment/action changes need to propagate
     // even when slot count hasn't changed (e.g., load/unload animations)

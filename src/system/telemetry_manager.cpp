@@ -1709,7 +1709,10 @@ nlohmann::json TelemetryManager::build_hw_ams_section(const helix::PrinterDiscov
         break;
     }
     ams["unit_count"] = lv_subject_get_int(AmsState::instance().get_backend_count_subject());
-    ams["total_slots"] = lv_subject_get_int(AmsState::instance().get_slot_count_subject());
+    // Bays that exist: the slot-count subject is the index span, which counts a
+    // box held at its address while off the bus.
+    AmsBackend* ams_backend = AmsState::instance().get_backend();
+    ams["total_slots"] = ams_backend ? ams_backend->get_system_info().present_slot_count() : 0;
     return ams;
 }
 

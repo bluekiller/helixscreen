@@ -172,6 +172,11 @@ class AmsState {
      */
     [[nodiscard]] static EnvIndicatorSubjectNames env_indicator_subject_names(int unit_index);
 
+    /// The int subject a unit card binds to say its unit is absent (1) - an
+    /// address gap held for a box that is not on the bus. Past MAX_UNITS it is
+    /// the always-0 placeholder.
+    [[nodiscard]] static std::string unit_absent_subject_name(int unit_index);
+
     /// @name Dryer Constants
     /// @{
     static constexpr int DEFAULT_DRYER_TEMP_C = 55;        ///< Default dryer temp (PETG)
@@ -2065,6 +2070,7 @@ class AmsState {
     // Per-unit environment subjects (CFS temp/humidity)
     lv_subject_t unit_temp_[MAX_UNITS]{};     // int: tenths of C (270 = 27.0C), 0 = no data
     lv_subject_t unit_humidity_[MAX_UNITS]{}; // int: percentage, 0 = no data
+    lv_subject_t unit_absent_[MAX_UNITS]{};   // int: 1 = AmsUnit::absent
 
     // Per-unit environment indicator display subjects (formatted text for XML binding)
     static constexpr int ENV_IND_TEXT_BUF_SIZE = 16;

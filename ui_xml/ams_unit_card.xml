@@ -8,6 +8,9 @@
     <px name="status_line_gap" value="2"/>
   </consts>
   <api>
+    <!-- 1 while the unit is an absent placeholder: a box address held for a box
+         that is not on the bus. The card shows disabled and says so. -->
+    <prop name="absent" type="subject" default="ams_env_ind_off_flag"/>
     <prop name="temp_text" type="subject" default="ams_env_ind_0_temp_text"/>
     <prop name="humidity_text" type="subject" default="ams_env_ind_0_humidity_text"/>
     <prop name="humidity_status" type="subject" default="ams_env_ind_0_humidity_status"/>
@@ -23,6 +26,7 @@
         style_border_opa="80" style_min_width="#ams_card_min_width" style_max_width="#ams_card_max_width"
         clickable="true">
     <style name="styles.press_wash" selector="pressed"/>
+    <bind_state_if_eq subject="$absent" state="disabled" ref_value="1"/>
     <!-- Unit header: logo + name (clickable=false + event_bubble so clicks reach card) -->
     <lv_obj width="100%"
             height="content" scrollable="false" clickable="false" event_bubble="true" flex_flow="row"
@@ -63,7 +67,12 @@
                 flex_flow="row" style_flex_main_place="center" style_flex_cross_place="end" style_pad_all="0"
                 style_pad_column="#space_xxs" style_bg_opa="0" style_border_width="0"/>
         <!-- Slot count label -->
-        <text_small name="slot_count" text="0 slots" translation_tag="0 slots" event_bubble="true"/>
+        <text_small name="slot_count" text="0 slots" translation_tag="0 slots" event_bubble="true">
+          <bind_flag_if_eq subject="$absent" flag="hidden" ref_value="1"/>
+        </text_small>
+        <text_small name="unit_absent_label" text="Not connected" translation_tag="Not connected" event_bubble="true">
+          <bind_flag_if_eq subject="$absent" flag="hidden" ref_value="0"/>
+        </text_small>
         <!-- Filament runout indicator — only shown on a real runout (print paused).
              ams_filament_runout is gated on PAUSED state in ams_state.cpp so the
              pre-load filament_useup assertion at print start never lights it. -->

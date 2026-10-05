@@ -17,6 +17,7 @@
 #include "ams_backend_cfs.h"
 #include "ams_types.h"
 
+#include <fstream>
 #include <string>
 
 #include "../catch_amalgamated.hpp"
@@ -242,7 +243,8 @@ TEST_CASE("CFS flat schema: loaded_slot vs the external entry", "[ams][cfs][flat
         slots[8]["external"] = true;
         two_units["loaded_slot"] = 8;
         auto info = AmsBackendCfs::parse_box_status(two_units);
-        REQUIRE(info.units[0].slot_count == 8);
+        REQUIRE(info.units.size() == 2);
+        REQUIRE(info.total_slots == 8);
         REQUIRE(info.current_slot == -2);
     }
 }
@@ -649,4 +651,59 @@ TEST_CASE("CFS stock schema still parses after the flat split", "[ams][cfs][flat
     REQUIRE(info.units[0].slots[1].color_rgb == 0xFFFFFF);
     // The fork spells the ENABLE bit runout_swap_enabled.
     REQUIRE(info.endless_spool_enabled == true);
+}
+
+// ============================================================================
+// Real four-box payload (debug bundle L8MMBCCK, K2 Plus, box_count 4)
+// ============================================================================
+
+namespace {
+
+json load_box_fixture(const std::string& name) {
+    const std::string src = __FILE__;
+    const auto pos = src.rfind("tests/unit/");
+    const std::string dir =
+        (pos == std::string::npos ? std::string() : src.substr(0, pos)) + "tests/fixtures/";
+    std::ifstream f(dir + name);
+    INFO("fixture missing or unreadable: " << dir + name);
+    REQUIRE(f.is_open());
+    json j;
+    f >> j;
+    return j;
+}
+
+} // namespace
+
+// Four boxes on the bus with spools only in box 1. A box is absent only when
+// none of its slot indices are listed; an empty box is still a box. The payload
+// carries no per-slot box address (load_path.box_addr is null), so nothing may
+// depend on one.
+TEST_CASE("CFS flat: a real four-box payload parses as four boxes, three of them empty",
+          "[ams][cfs][flat][fork][1464]") {
+    const auto info =
+        AmsBackendCfs::parse_box_status(load_box_fixture("cfs_fork_four_box_L8MMBCCK.json"));
+
+    REQUIRE(info.units.size() == 4);
+    CHECK(info.total_slots == 16);
+    CHECK(info.present_slot_count() == 16);
+    for (int u = 0; u < 4; ++u) {
+        INFO("unit " << u);
+        CHECK_FALSE(info.units[u].absent);
+        CHECK(info.units[u].unit_index == u);
+        CHECK(info.units[u].first_slot_global_index == u * 4);
+        CHECK(info.units[u].slot_count == 4);
+    }
+    for (int bay = 0; bay < 16; ++bay) {
+        INFO("bay " << bay);
+        REQUIRE(info.get_slot_global(bay) != nullptr);
+        CHECK(info.slot_exists(bay));
+        CHECK(info.get_slot_global(bay)->status ==
+              (bay < 4 ? SlotStatus::AVAILABLE : SlotStatus::EMPTY));
+        CHECK(info.get_slot_global(bay)->mapped_tool == bay);
+    }
+    CHECK(info.get_slot_global(0)->material == "PLA");
+    CHECK(info.get_slot_global(0)->brand == "Sunlu");
+    // The external holder at 16 is not a bay.
+    CHECK(info.get_slot_global(16) == nullptr);
+    CHECK(info.current_slot == -1);
 }

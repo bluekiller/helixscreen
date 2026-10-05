@@ -79,7 +79,22 @@ class AmsContextMenuTestAccess {
     static std::string build_backup_options_for(int total_slots, int item_index,
                                                 const BackupEligibleFn& eligible,
                                                 LaneNoun noun = LaneNoun::Slot) {
-        return AmsContextMenu::build_backup_options_for(noun, total_slots, item_index, eligible);
+        std::vector<int> bays;
+        for (int i = 0; i < total_slots; ++i) {
+            bays.push_back(i);
+        }
+        return AmsContextMenu::build_backup_options_for(
+            noun, AmsContextMenu::backup_candidates_for(bays, item_index), item_index, eligible);
+    }
+
+    static std::string build_backup_options_from(const std::vector<int>& candidates,
+                                                 int item_index) {
+        return AmsContextMenu::build_backup_options_for(LaneNoun::Slot, candidates, item_index,
+                                                        nullptr);
+    }
+
+    static std::vector<int> backup_candidates_for(const std::vector<int>& bays, int item_index) {
+        return AmsContextMenu::backup_candidates_for(bays, item_index);
     }
 
     static bool decide_backup_refused(int item_index, int backup_slot,
@@ -517,6 +532,17 @@ TEST_CASE("Backup options are tagged by the backend's eligibility rule",
         return filament::grades_match(a, b) ? BackupEligibility::Eligible
                                             : BackupEligibility::GradeDiffers;
     };
+
+    SECTION("a bay of a box that is not there is not offered") {
+        // Bays 0-3 and 8-11 exist; 4-7 belong to an absent box.
+        const std::vector<int> bays = {0, 1, 2, 3, 8, 9, 10, 11};
+        const auto candidates = Access::backup_candidates_for(bays, 9);
+        CHECK(candidates == std::vector<int>{0, 1, 2, 3, 8, 10, 11});
+        const auto opts = Access::build_backup_options_from(candidates, 9);
+        CHECK(opts.find("Slot 5") == std::string::npos);
+        CHECK(opts.find("Slot 9") != std::string::npos);
+        CHECK(opts.find("Slot 12") != std::string::npos);
+    }
 
     SECTION("the current slot is skipped and None leads") {
         const auto opts = Access::build_backup_options_for(4, 1, default_rule);

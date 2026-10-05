@@ -114,6 +114,14 @@ present on both families and are now emitted on both.
 
 `AmsBackendCfs::macro_variant_` is latched in the constructor by querying `PrinterDetector::is_creality_k1()`. All member operations (`load_filament`, `unload_filament`, `change_tool`) thread `macro_variant_` into the gcode helpers. Static call sites without an explicit variant default to `K2` to preserve existing test behavior.
 
+**A bay's global index is the firmware's slot number on both schemas,** `(box address - 1) * 4
++ local`, so every per-bay store (lane_data overrides, lane records, RFID baselines, insert
+bookkeeping) stays on the physical bay whichever boxes are on the bus. An address below the
+highest reporting box gets an absent placeholder unit (`AmsUnit::absent`): its bays read
+EMPTY, validation refuses them, no tool maps to them, and `AmsSystemInfo::present_slot_count()`
+/ `slot_exists()` leave them out of anything counted or offered to the user. `total_slots` is
+the index span (#1464).
+
 **`total_slots == 0` means the box size is unknown, not "no bays" (#1623).** The count is
 committed only by the first unit-bearing box frame, and the print-start slot-mapping
 restore fires on klippy READY, unordered against that frame - its recovery record is

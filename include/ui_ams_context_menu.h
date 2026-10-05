@@ -13,6 +13,7 @@
 #include <lvgl.h>
 #include <optional>
 #include <string>
+#include <vector>
 
 // Forward declaration
 namespace helix {
@@ -205,6 +206,8 @@ class AmsContextMenu : public ContextMenu {
     // === Backend reference for dropdown operations ===
     AmsBackend* backend_ = nullptr;
     int total_slots_ = 0;
+    /// Slot indices that are bays some unit reported, ascending.
+    std::vector<int> bays_;
 
     // === Dropdown widget pointers ===
     lv_obj_t* tool_dropdown_ = nullptr;
@@ -298,12 +301,17 @@ class AmsContextMenu : public ContextMenu {
     // are byte-identical to before.
     //
     // @param noun        The word this backend spells a position with.
-    // @param total_slots Number of slots to offer.
-    // @param item_index  The slot the menu is open on; skipped in the list.
+    // @param candidates  The slots to offer, from backup_candidates_for().
+    // @param item_index  The slot the menu is open on.
     // @param eligible    The backend's rule.
     // @return Newline-separated dropdown options, starting with "None".
-    static std::string build_backup_options_for(LaneNoun noun, int total_slots, int item_index,
-                                                const BackupEligibleFn& eligible);
+    static std::string build_backup_options_for(LaneNoun noun, const std::vector<int>& candidates,
+                                                int item_index, const BackupEligibleFn& eligible);
+
+    // The backup dropdown's slots after "None", in order: every bay that
+    // exists except the one the menu is open on. The option labels, the
+    // preselection and the change handler all index this one list.
+    static std::vector<int> backup_candidates_for(const std::vector<int>& bays, int item_index);
 
     // Pure: should the change-handler refuse this selection?
     //

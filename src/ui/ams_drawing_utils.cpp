@@ -381,7 +381,12 @@ SystemToolLayout compute_system_tool_layout(const helix::AmsSystemInfo& info,
         utl.min_virtual_tool = min_tool;
         utl.hub_tool_label = unit.hub_tool_label;
 
-        if (topo == helix::PathTopology::MIXED) {
+        if (unit.absent) {
+            // A box that is not on the bus feeds no nozzle, so the units around
+            // it number their nozzles as if it were not there.
+            utl.first_physical_tool = total_physical;
+            utl.tool_count = 0;
+        } else if (topo == helix::PathTopology::MIXED) {
             // MIXED: direct lanes each get their own nozzle position,
             // hub lanes share one nozzle position regardless of mapped_tool.
             // Count = number of direct lanes + 1 per hub group.

@@ -178,6 +178,13 @@ struct FilamentSlotOverride {
     // lane without swap detection squats no names), bare `fingerprint` in the
     // local cache.
     std::string fingerprint;
+    // This record is the external-spool mirror published for slicers, not a
+    // bay's record. The publisher writes or clears a key only when it is empty
+    // or carries this mark, so a bay that shares the key keeps its record.
+    // Persistence: `helix_external: true` in the lane_data record, omitted
+    // otherwise. Not in the local cache: the mirror is republished from
+    // settings, never read back as a bay.
+    bool external_mirror = false;
     // Conflict avoidance for third-party writers.
     // ISO-8601 UTC on the wire. Second precision only — sub-second fractions
     // are truncated on format/parse.
