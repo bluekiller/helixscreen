@@ -211,10 +211,33 @@ bool ActionPromptManager::closed_on_screen(PromptCloseKind kind) {
     if (m_state != State::SHOWING) {
         return false;
     }
-    end_showing();
-    // A button's own macro is expected to end or replace the prompt; a
-    // prompt_end sent after it could close the dialog that macro raises next.
-    return kind != PromptCloseKind::ButtonWithGcode;
+    switch (kind) {
+    case PromptCloseKind::HotReload: {
+        // The prompt is still live on the printer; show it again in the rebuilt
+        // XML. Deferred because this runs inside Modal::hide(), which must not
+        // show a modal. A prompt shown in the meantime has had its own on_show.
+        const uint64_t shown = m_show_count;
+        m_lifetime.defer("ActionPromptManager::reshow", [this, shown]() {
+            if (m_state == State::SHOWING && m_show_count == shown && m_on_show) {
+                m_on_show(*m_current_prompt);
+            }
+        });
+        return false;
+    }
+    case PromptCloseKind::ButtonWithGcode:
+        // The button's own macro is expected to end or replace the prompt; a
+        // prompt_end sent after it could close the dialog that macro raises next.
+    case PromptCloseKind::External:
+        // A sweep (ctl reset, fault-modal dismissal) clears the screen; the user
+        // did not answer the printer, so nothing is sent.
+        end_showing();
+        return false;
+    case PromptCloseKind::ButtonWithoutGcode:
+    case PromptCloseKind::UserDismiss:
+        end_showing();
+        return true;
+    }
+    return false;
 }
 
 void ActionPromptManager::process_line(const std::string& line) {
@@ -324,6 +347,7 @@ void ActionPromptManager::handle_prompt_show() {
     }
 
     set_state(State::SHOWING);
+    ++m_show_count;
 
     if (m_on_show) {
         m_on_show(*m_current_prompt);

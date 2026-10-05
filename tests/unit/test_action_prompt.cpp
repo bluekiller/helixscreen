@@ -1348,12 +1348,8 @@ TEST_CASE("ActionPromptManager: closed_on_screen per close kind", "[action_promp
         CHECK(p.manager.closed_on_screen(PromptCloseKind::UserDismiss));
         CHECK(p.ended());
     }
-    SECTION("hot reload ends and asks for prompt_end") {
-        CHECK(p.manager.closed_on_screen(PromptCloseKind::HotReload));
-        CHECK(p.ended());
-    }
-    SECTION("an external sweep ends and asks for prompt_end") {
-        CHECK(p.manager.closed_on_screen(PromptCloseKind::External));
+    SECTION("an external sweep ends locally and sends nothing") {
+        CHECK_FALSE(p.manager.closed_on_screen(PromptCloseKind::External));
         CHECK(p.ended());
     }
 
@@ -1362,6 +1358,38 @@ TEST_CASE("ActionPromptManager: closed_on_screen per close kind", "[action_promp
     // The prompt_end Klipper echoes back is then a no-op.
     p.manager.process_line("// action:prompt_end");
     CHECK(p.close_count == 0);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "ActionPromptManager: hot reload keeps the prompt and re-shows it",
+                 "[action_prompt][state]") {
+    ShowingPrompt p;
+    REQUIRE(p.show_count == 1);
+
+    SECTION("re-shown on the next drain, nothing sent") {
+        CHECK_FALSE(p.manager.closed_on_screen(PromptCloseKind::HotReload));
+        CHECK(ActionPromptManager::is_showing());
+        CHECK(p.show_count == 1); // never from inside the hide
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(p.show_count == 2);
+        CHECK(ActionPromptManager::current_prompt_name() == "AFC Lane Error");
+    }
+
+    SECTION("not re-shown once the firmware ended it") {
+        CHECK_FALSE(p.manager.closed_on_screen(PromptCloseKind::HotReload));
+        p.manager.process_line("// action:prompt_end");
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(p.show_count == 1);
+    }
+
+    SECTION("not re-shown over a newer prompt") {
+        CHECK_FALSE(p.manager.closed_on_screen(PromptCloseKind::HotReload));
+        p.manager.process_line("// action:prompt_begin Next");
+        p.manager.process_line("// action:prompt_show");
+        REQUIRE(p.show_count == 2);
+        helix::ui::UpdateQueue::instance().drain();
+        CHECK(p.show_count == 2);
+    }
 }
 
 TEST_CASE("ActionPromptManager: closed_on_screen leaves a prompt that is not showing alone",

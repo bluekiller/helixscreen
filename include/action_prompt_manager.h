@@ -6,6 +6,7 @@
 #include "async_lifetime_guard.h"
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -283,8 +284,10 @@ class ActionPromptManager {
      * @brief The showing prompt's dialog was closed on this screen
      *
      * Brings the state in line with the screen without firing on_close: the
-     * dialog is already going away. Does nothing unless a prompt is SHOWING.
-     * Telling the firmware is the caller's job. Main thread only.
+     * dialog is already going away. A user close and an External sweep end the
+     * prompt; HotReload keeps it and re-shows it on a later tick. Does nothing
+     * unless a prompt is SHOWING. Telling the firmware is the caller's job.
+     * Main thread only.
      *
      * @return true when the caller should send PROMPT_END_GCODE to Klipper
      */
@@ -354,7 +357,11 @@ class ActionPromptManager {
     // SHOWING. Accessed only through std::atomic_load/std::atomic_store.
     std::shared_ptr<const std::string> m_showing_title;
 
-    // Expires the deferred lines of make_line_sink() when this manager dies.
+    // Counts prompt_show transitions, so a deferred re-show can tell its prompt
+    // is still the one on screen.
+    uint64_t m_show_count = 0;
+
+    // Expires the deferred lines of make_line_sink() and re-shows when this manager dies.
     AsyncLifetimeGuard m_lifetime;
 
     // Current prompt being built or shown

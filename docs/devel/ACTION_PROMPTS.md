@@ -254,7 +254,8 @@ backdrop tap, ESC, a hot-reload rebuild, a `ctl reset`) calls the modal's dismis
 |-------|---------|-----------------|
 | Button with a gcode (`ButtonWithGcode`) | ends | The button's gcode only |
 | Button without a gcode, backdrop tap, ESC (`ButtonWithoutGcode`, `UserDismiss`) | ends | `RESPOND TYPE=command MSG="action:prompt_end"` (`ActionPromptManager::PROMPT_END_GCODE`) |
-| Hot reload, `ctl reset` or another sweep (`HotReload`, `External`) | ends | `prompt_end` |
+| `ctl reset` or another sweep (`External`) | ends | nothing: the screen was cleared, the user did not answer the printer |
+| Hot reload (`HotReload`, dev builds) | keeps `SHOWING`, re-shows the prompt from the rebuilt XML on a later tick | nothing |
 | Firmware `prompt_end` or next `prompt_begin` | already `IDLE`/`BUILDING`; `on_close` hid the modal | nothing |
 
 A button's macro is expected to end or replace the prompt itself, as with Mainsail. Sending
