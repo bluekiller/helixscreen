@@ -13,6 +13,7 @@
 
 #include <array>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -788,6 +789,8 @@ class NavigationManager {
 
     // Shared overlay backdrop widget (for first overlay)
     helix::ui::WidgetRef overlay_backdrop_;
+    // The theme palette the backdrop's snapshot was taken under.
+    std::string backdrop_palette_key_;
 
     // Latched at the dismiss-backdrop's LV_EVENT_PRESSED with the on-screen
     // keyboard's visibility. LVGL's click-focus DEFOCUS (which hides the
