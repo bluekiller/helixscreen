@@ -509,6 +509,37 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
 
     static constexpr int NUM_TOOLS = 4;
 
+    /// What one status frame decides, collected under mutex_ and acted on by
+    /// dispatch_effects() after it is released, plus the frame-local values the
+    /// parse sections hand to each other.
+    struct FrameEffects {
+        bool changed = false;
+        /// The active-tool port-present flag changed (#991): published to
+        /// AmsState exactly once.
+        bool port_present_changed = false;
+        /// Lanes that reached "unload_finish".
+        std::vector<int> unloaded_lanes;
+        /// Channels whose feed-port presence rose with no tag evidence behind
+        /// it.
+        std::vector<int> unverified_insert_lanes;
+        /// The cursor head's *_fail state when the active batch hit one;
+        /// end_firmware_batch() sends gcode, which must not run under mutex_.
+        int batch_failed_head = -1;
+        std::string batch_failed_state;
+
+        /// What this frame physically read off each channel's spool. A default
+        /// entry (no UID, read not finished) means the frame carried no
+        /// filament_detect.info for that channel, which the insert rule reads
+        /// as no signal.
+        std::array<helix::ams::SpoolEvidence, NUM_TOOLS> observed_evidence{};
+        /// The head whose channel reported an in-progress state this frame.
+        int in_progress_head = -1;
+        /// The batch macro reported doing=false and retired the active plan.
+        bool batch_retired = false;
+    };
+
+    void dispatch_effects(const FrameEffects& fx);
+
     /// RPC timeout budget for ONE batch feed op. AUTO_FEEDING heats from cold +
     /// feeds + flushes; measured ~86s live (see prepare_for_resume), so 150s is
     /// the headroom the resume path already uses. A batch scales this per op.

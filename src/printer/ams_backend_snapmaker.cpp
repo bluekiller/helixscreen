@@ -1289,30 +1289,7 @@ std::optional<helix::ams::SpoolEvidence> evidence_from_fingerprint(const std::st
 // ============================================================================
 
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
-    bool changed = false;
-    // Set when the active-tool port-present flag changed this parse (#991), so
-    // we publish to AmsState exactly once after releasing the mutex.
-    bool port_present_changed = false;
-    // Lanes that reached "unload_finish" this parse. Same deferral rule as
-    // port_present_changed: collected under mutex_, published to AmsState after
-    // it is released, because reaching into AmsState while holding ours inverts
-    // the order add_backend() acquires them in.
-    std::vector<int> unloaded_lanes;
-    // Channels whose feed-port presence rose this parse with no tag evidence
-    // behind it. Same deferral rule as unloaded_lanes: the notice reaches
-    // through AmsState and the UI queue, which must not run under mutex_.
-    std::vector<int> unverified_insert_lanes;
-    // The cursor head's *_fail state, when the active batch hit one this
-    // parse. Same deferral rule as unloaded_lanes: end_firmware_batch() sends
-    // gcode, which must not run under mutex_.
-    int batch_failed_head = -1;
-    std::string batch_failed_state;
-
-    // What this parse physically read off each channel's spool. A default
-    // entry (no UID, read not finished) means the notification carried no
-    // filament_detect.info for that channel, which the insert rule reads as
-    // no signal.
-    std::array<helix::ams::SpoolEvidence, NUM_TOOLS> observed_evidence{};
+    FrameEffects fx;
 
     { // Scope lock — emit_event MUST be called outside mutex_ to avoid deadlock
       // with sync_from_backend() which acquires mutex_ via get_system_info()
@@ -1339,7 +1316,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                 auto* slot = system_info_.units[0].get_slot(i);
                 if (slot && parked_in_frame && slot->status != SlotStatus::AVAILABLE) {
                     slot->status = SlotStatus::AVAILABLE;
-                    changed = true;
+                    fx.changed = true;
                 }
 
                 extruder_states_[i] = std::move(new_state);
@@ -1385,7 +1362,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
             // parse, from the latch and the toolhead switch.
             system_info_.current_tool = active;
             system_info_.current_slot = active; // 1:1 tool-to-slot on Snapmaker
-            changed = true;
+            fx.changed = true;
         }
 
         // Parse filament_detect info (RFID data per channel)
@@ -1413,7 +1390,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                     // is three indistinguishable states - reader disabled,
                     // untagged spool, empty channel - so it files no evidence
                     // at all and the fingerprint comes out empty (no signal).
-                    helix::ams::SpoolEvidence& evidence = observed_evidence[i];
+                    helix::ams::SpoolEvidence& evidence = fx.observed_evidence[i];
                     evidence.tag_uid = rfid.uid;
                     if (!rfid.uid.empty()) {
                         evidence.tag_read_complete = true;
@@ -1429,7 +1406,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                     if (pending_insert_passes_[i] > 0) {
                         pending_insert_passes_[i] = 0;
                         if (rfid.uid.empty() && rfid.main_type == "NONE") {
-                            unverified_insert_lanes.push_back(i);
+                            fx.unverified_insert_lanes.push_back(i);
                         }
                     }
                     if (rfid.main_type != "NONE") {
@@ -1517,14 +1494,14 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                         // from the tracker baseline, so a reading whose UID
                         // did not decode still names a spool boundary.
                         const int withheld = own_write_echoes_.withhold(
-                            i, fingerprint_from_evidence(observed_evidence[i]), cache);
+                            i, fingerprint_from_evidence(fx.observed_evidence[i]), cache);
                         if (withheld > 0) {
                             spdlog::debug("{} Slot {} withheld {} field(s) echoing our own write",
                                           backend_log_tag(), i, withheld);
                         }
                         helix::ams::ingest(lane_id(i), cache);
                     }
-                    changed = true;
+                    fx.changed = true;
                 }
             }
 
@@ -1551,7 +1528,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                             slot->status =
                                 (state_val != 0) ? SlotStatus::AVAILABLE : SlotStatus::EMPTY;
                         }
-                        changed = true;
+                        fx.changed = true;
                     }
                 }
             }
@@ -1560,7 +1537,6 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         // Parse filament_feed left/right — top-level Klipper objects (not nested in
         // filament_detect) Each contains per-extruder state: filament_detected, channel_state,
         // channel_error
-        int in_progress_head = -1;
         for (const auto& feed_key : {"filament_feed left", "filament_feed right"}) {
             if (status.contains(feed_key) && status[feed_key].is_object()) {
                 const auto& feed = status[feed_key];
@@ -1623,10 +1599,10 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                                 if (detected && (slot->status == SlotStatus::EMPTY ||
                                                  slot->status == SlotStatus::UNKNOWN)) {
                                     slot->status = SlotStatus::AVAILABLE;
-                                    changed = true;
+                                    fx.changed = true;
                                 } else if (!detected && slot->status != SlotStatus::LOADED) {
                                     slot->status = SlotStatus::EMPTY;
-                                    changed = true;
+                                    fx.changed = true;
                                 }
                             }
                         }
@@ -1736,16 +1712,16 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                         if (!state.empty()) {
                             if (system_info_.operation_phase != info.phase) {
                                 system_info_.operation_phase = info.phase;
-                                changed = true;
+                                fx.changed = true;
                             }
                         }
 
                         // Capture the head whose channel is mid-op; the single
                         // derivation of operation_working_slot below decides
                         // what the header names from it (batch cursor wins).
-                        if (in_progress_head < 0 && (info.action == AmsAction::LOADING ||
-                                                     info.action == AmsAction::UNLOADING)) {
-                            in_progress_head = i;
+                        if (fx.in_progress_head < 0 && (info.action == AmsAction::LOADING ||
+                                                        info.action == AmsAction::UNLOADING)) {
+                            fx.in_progress_head = i;
                         }
 
                         // "Loaded at toolhead" latch (the core fix). Driven purely
@@ -1758,10 +1734,10 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                         if (!state.empty() && !info.ignore) {
                             if (info.sets_loaded && !loaded_at_toolhead_[i]) {
                                 loaded_at_toolhead_[i] = true;
-                                changed = true;
+                                fx.changed = true;
                             } else if (info.clears_loaded && loaded_at_toolhead_[i]) {
                                 loaded_at_toolhead_[i] = false;
-                                changed = true;
+                                fx.changed = true;
                             }
                         }
 
@@ -1798,7 +1774,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                                     has_error_token
                                         ? friendly_channel_error(error, lane_noun(), i)
                                         : friendly_channel_state_fail(op_state, lane_noun(), i);
-                                changed = true;
+                                fx.changed = true;
                             }
                         } else if (!op_state.empty() && !op_info.ignore) {
                             // No error — drive the action / operation lifecycle from
@@ -1806,12 +1782,12 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                             if (op_info.action == AmsAction::LOADING) {
                                 if (system_info_.action != AmsAction::LOADING) {
                                     system_info_.action = AmsAction::LOADING;
-                                    changed = true;
+                                    fx.changed = true;
                                 }
                             } else if (op_info.action == AmsAction::UNLOADING) {
                                 if (system_info_.action != AmsAction::UNLOADING) {
                                     system_info_.action = AmsAction::UNLOADING;
-                                    changed = true;
+                                    fx.changed = true;
                                 }
                             } else if (op_info.is_terminal) {
                                 // A *_finish state resolves the operation. The
@@ -1839,7 +1815,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                                     // first and then ours via set_event_callback().
                                     // Calling it here closed the cycle and TSan
                                     // reported the deadlock (nightly, 2026-08-16).
-                                    unloaded_lanes.push_back(i);
+                                    fx.unloaded_lanes.push_back(i);
                                 }
                                 if (outcome_is_new &&
                                     (system_info_.action == AmsAction::LOADING ||
@@ -1847,7 +1823,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                                     system_info_.action = AmsAction::IDLE;
                                     system_info_.operation_detail.clear();
                                     PostOpCooldownManager::instance().schedule();
-                                    changed = true;
+                                    fx.changed = true;
                                 }
                             }
                             // A resting state (none / inited / wait_insert, and
@@ -1874,8 +1850,8 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                         if (batch_.active && i == batch_.heads[batch_.cursor]) {
                             if (op_info.is_fail) {
                                 batch_.active = false;
-                                batch_failed_head = i;
-                                batch_failed_state = op_state;
+                                fx.batch_failed_head = i;
+                                fx.batch_failed_state = op_state;
                             } else if (op_state ==
                                        (batch_.load ? "load_finish" : "unload_finish")) {
                                 ++batch_.cursor;
@@ -1895,7 +1871,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                                     // line once the action is IDLE.
                                     system_info_.operation_detail.clear();
                                 }
-                                changed = true;
+                                fx.changed = true;
                             }
                         }
 
@@ -1923,7 +1899,6 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         // cursor head reaching a terminal or a *_fail (lost response, script
         // abort, a feeder wedging mid-feed), and no channel_state detector
         // covers that end.
-        bool batch_retired = false;
         if (!batch_macro_object_.empty()) {
             const auto macro = status.find(batch_macro_object_);
             if (macro != status.end() && macro->is_object()) {
@@ -1931,8 +1906,8 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                 if (doing != macro->end() && doing->is_boolean() && !doing->get<bool>() &&
                     batch_.active) {
                     batch_.active = false;
-                    batch_retired = true;
-                    changed = true;
+                    fx.batch_retired = true;
+                    fx.changed = true;
                     spdlog::info("{} batch macro reports doing=false — retiring the active plan",
                                  backend_log_tag());
                 }
@@ -1952,15 +1927,15 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
             working_slot = batch_.heads[batch_.cursor];
         } else if (system_info_.action == AmsAction::LOADING ||
                    system_info_.action == AmsAction::UNLOADING) {
-            if (in_progress_head >= 0) {
-                working_slot = in_progress_head;
-            } else if (!batch_retired) {
+            if (fx.in_progress_head >= 0) {
+                working_slot = fx.in_progress_head;
+            } else if (!fx.batch_retired) {
                 working_slot = system_info_.operation_working_slot;
             }
         }
         if (system_info_.operation_working_slot != working_slot) {
             system_info_.operation_working_slot = working_slot;
-            changed = true;
+            fx.changed = true;
         }
 
         // Parse print_task_config — authoritative filament info from Snapmaker's task manager
@@ -2015,7 +1990,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                     spdlog::debug("[AMS Snapmaker] extruder_map_table changed ({} entries)",
                                   table.size());
                     extruder_map_table_ = std::move(table);
-                    changed = true;
+                    fx.changed = true;
                 }
             }
 
@@ -2029,7 +2004,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                 }
                 if (used != extruders_used_) {
                     extruders_used_ = std::move(used);
-                    changed = true;
+                    fx.changed = true;
                 }
             }
 
@@ -2067,7 +2042,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                         } else if (!exists) {
                             slot->status = SlotStatus::EMPTY;
                         }
-                        changed = true;
+                        fx.changed = true;
                     }
                 }
             }
@@ -2106,7 +2081,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                     if (slot) {
                         auto type = type_arr[i].get<std::string>();
                         slot->material = type; // Base type only (e.g., "PLA") for compact display
-                        changed = true;
+                        fx.changed = true;
                     }
                 }
             }
@@ -2120,7 +2095,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                     auto* slot = system_info_.units[0].get_slot(i);
                     if (slot) {
                         slot->brand = vendor_arr[i].get<std::string>();
-                        changed = true;
+                        fx.changed = true;
                     }
                 }
             }
@@ -2142,7 +2117,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                                 slot->color_rgb = *rgb;
                             }
                         }
-                        changed = true;
+                        fx.changed = true;
                     }
                 }
             }
@@ -2209,11 +2184,11 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
             bool present = fd_it->get<bool>();
             if (!toolhead_switch_reported_[tool_idx]) {
                 toolhead_switch_reported_[tool_idx] = true;
-                changed = true;
+                fx.changed = true;
             }
             if (sensor_filament_present_[tool_idx] != present) {
                 sensor_filament_present_[tool_idx] = present;
-                changed = true;
+                fx.changed = true;
                 spdlog::info("{} Tool {} filament sensor: {} ({})", backend_log_tag(), tool_idx,
                              present ? "PRESENT" : "RUNOUT", key);
             }
@@ -2233,21 +2208,21 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
                 switch_known ? sensor_filament_present_[t] : loaded_at_toolhead_[t];
             if (system_info_.filament_loaded != in_toolhead) {
                 system_info_.filament_loaded = in_toolhead;
-                changed = true;
+                fx.changed = true;
             }
             const bool at_nozzle =
                 loaded_at_toolhead_[t] && (!switch_known || sensor_filament_present_[t]);
             auto* slot = system_info_.units[0].get_slot(t);
             if (slot && at_nozzle && slot->status == SlotStatus::AVAILABLE) {
                 slot->status = SlotStatus::LOADED;
-                changed = true;
+                fx.changed = true;
             } else if (slot && !at_nozzle && slot->status == SlotStatus::LOADED) {
                 slot->status = SlotStatus::AVAILABLE;
-                changed = true;
+                fx.changed = true;
             }
         } else if (system_info_.filament_loaded) {
             system_info_.filament_loaded = false;
-            changed = true;
+            fx.changed = true;
         }
 
         // Per-slot runout demotion: any slot whose motion sensor reports
@@ -2265,7 +2240,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
             auto* slot = system_info_.units[0].get_slot(i);
             if (slot && slot->status == SlotStatus::LOADED) {
                 slot->status = SlotStatus::AVAILABLE;
-                changed = true;
+                fx.changed = true;
             }
         }
 
@@ -2295,14 +2270,14 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
             if (pending_insert_passes_[i] > 0 &&
                 ++pending_insert_passes_[i] > kSnapPendingInsertPasses) {
                 pending_insert_passes_[i] = 0;
-                unverified_insert_lanes.push_back(i);
+                fx.unverified_insert_lanes.push_back(i);
             }
 
             // A channel this parse carried no filament_detect.info for keeps
             // its default evidence, which the insert rule reads as no signal -
             // so the call is unconditional rather than gated on which keys the
             // notification happened to carry.
-            check_hardware_event_clear(*slot, i, observed_evidence[i]);
+            check_hardware_event_clear(*slot, i, fx.observed_evidence[i]);
             // Mirror firmware-truth color/material into lane_data so OrcaSlicer's
             // MoonrakerPrinterAgent sees the spool. OverwriteAlways policy: user
             // edits via apply_user_edit round-trip through firmware via the
@@ -2360,19 +2335,27 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         int port_val = active_port_present ? 1 : 0;
         if (port_val != last_published_port_present_) {
             last_published_port_present_ = port_val;
-            port_present_changed = true;
+            fx.port_present_changed = true;
         }
 
     } // Release mutex_ before emitting event
 
-    if (port_present_changed) {
+    dispatch_effects(fx);
+}
+
+// Everything a frame decided that reaches outside mutex_: AmsState takes its own
+// mutex and AmsState::add_backend() takes that one first and then ours via
+// set_event_callback(), the UI queue and gcode dispatch must not run under
+// either, and emit_event() re-enters get_system_info().
+void AmsBackendSnapmaker::dispatch_effects(const FrameEffects& fx) {
+    if (fx.port_present_changed) {
         AmsState::instance().set_active_tool_port_present(last_published_port_present_ != 0);
     }
 
     // Record the just-unloaded lanes so FilamentSensorManager suppresses the
     // runout modal during the grace window when the user is EXPECTED to pull
     // filament out of the lane.
-    for (int lane : unloaded_lanes) {
+    for (int lane : fx.unloaded_lanes) {
         AmsState::instance().mark_slot_unloaded(lane);
     }
 
@@ -2380,18 +2363,18 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     // record still describes the spool that went in (#1710). The notice
     // re-checks its own guards (print-feeding lane, lane with nothing to
     // clear) on the UI thread.
-    for (int lane : unverified_insert_lanes) {
+    for (int lane : fx.unverified_insert_lanes) {
         helix::ui::queue_update("AmsBackendSnapmaker::handle_status",
                                 [lane] { helix::ui::offer_clear_after_unverified_insert(lane); });
     }
 
-    if (batch_failed_head >= 0) {
+    if (fx.batch_failed_head >= 0) {
         spdlog::warn("{} head {} reached '{}' — clearing the firmware batch interlock",
-                     backend_log_tag(), batch_failed_head, batch_failed_state);
+                     backend_log_tag(), fx.batch_failed_head, fx.batch_failed_state);
         end_firmware_batch();
     }
 
-    if (changed) {
+    if (fx.changed) {
         emit_event(EVENT_STATE_CHANGED);
     }
 }
