@@ -363,9 +363,11 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
 
     // Subscribe to defined objects changes (for objects list button visibility + count)
     exclude_objects_observer_ = observe<int>(
-        printer_state_.get_defined_objects_version_subject(), this,
+        printer_state_.excluded_objects_state().get_defined_objects_version_subject(), this,
         [](PrintStatusPanel* self, int) {
-            int available = self->printer_state_.get_defined_objects().size() >= 2 ? 1 : 0;
+            int available =
+                self->printer_state_.excluded_objects_state().get_defined_objects().size() >= 2 ? 1
+                                                                                                : 0;
             lv_subject_set_int(&self->exclude_objects_available_subject_, available);
             self->update_objects_text();
             self->update_view_toggle_position(available != 0);
@@ -374,7 +376,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
 
     // Subscribe to excluded objects changes (for "X of Y obj" count updates)
     excluded_objects_version_observer_ = observe<int>(
-        printer_state_.get_excluded_objects_version_subject(), this,
+        printer_state_.excluded_objects_state().get_excluded_objects_version_subject(), this,
         [](PrintStatusPanel* self, int) { self->update_objects_text(); }, ps_subjects);
 
     // Subscribe to AMS current filament color for gcode viewer color override
@@ -2784,8 +2786,8 @@ void PrintStatusPanel::update_view_toggle_position(bool objects_visible) {
 void PrintStatusPanel::update_objects_text() {
     if (!subjects_initialized_)
         return;
-    auto& defined = printer_state_.get_defined_objects();
-    auto& excluded = printer_state_.get_excluded_objects();
+    auto& defined = printer_state_.excluded_objects_state().get_defined_objects();
+    auto& excluded = printer_state_.excluded_objects_state().get_excluded_objects();
     int total = static_cast<int>(defined.size());
     int active = std::max(0, total - static_cast<int>(excluded.size()));
     if (total >= 2) {

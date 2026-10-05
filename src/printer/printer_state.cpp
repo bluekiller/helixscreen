@@ -739,10 +739,6 @@ void PrinterState::update_gcode_modification_visibility() {
 
 // Note: update_print_show_progress() is now in print_domain_ component
 
-void PrinterState::set_excluded_objects(const std::unordered_set<std::string>& objects) {
-    excluded_objects_state_.set_excluded_objects(objects);
-}
-
 PrintJobState PrinterState::get_print_job_state() const {
     return print_domain_.get_print_job_state();
 }

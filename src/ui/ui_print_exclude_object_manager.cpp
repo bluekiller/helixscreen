@@ -57,7 +57,7 @@ void PrintExcludeObjectManager::init() {
 
     // Subscribe to excluded objects changes from PrinterState
     excluded_objects_observer_ = helix::ui::observe<int>(
-        printer_state_.get_excluded_objects_version_subject(), this,
+        printer_state_.excluded_objects_state().get_excluded_objects_version_subject(), this,
         [](PrintExcludeObjectManager* self, int) { self->on_excluded_objects_changed(); },
         printer_state_.get_subjects_lifetime());
 
@@ -146,7 +146,7 @@ void PrintExcludeObjectManager::handle_object_long_press(const char* object_name
     // didn't emit EXCLUDE_OBJECT_DEFINE markers, `defined_objects` will be empty and the
     // EXCLUDE_OBJECT gcode would be a silent no-op on the printer. Bail here rather than
     // showing a confirmation dialog that won't accomplish anything.
-    if (printer_state_.get_defined_objects().empty()) {
+    if (printer_state_.excluded_objects_state().get_defined_objects().empty()) {
         spdlog::info("[PrintExcludeObjectManager] Long-press on '{}' ignored: no defined objects "
                      "(exclude_object module unconfigured or slicer didn't label objects)",
                      object_name);
@@ -358,7 +358,7 @@ void PrintExcludeObjectManager::exclude_undo_timer_cb(lv_timer_t* timer) {
 
 void PrintExcludeObjectManager::on_excluded_objects_changed() {
     // Sync excluded objects from PrinterState (Klipper/Moonraker)
-    const auto& klipper_excluded = printer_state_.get_excluded_objects();
+    const auto& klipper_excluded = printer_state_.excluded_objects_state().get_excluded_objects();
 
     // Mirror Klipper's excluded set into our local set. Klipper's `exclude_object.excluded_objects`
     // is the authoritative source of truth — objects appear here regardless of whether the

@@ -66,7 +66,7 @@ struct LongPressHarness {
         // are plain members that init_subjects() does not touch — so anything left
         // here survives into the next test (and into unrelated ones), where a
         // manager syncs it on init and silently rejects a long-press.
-        fx.state().set_excluded_objects({});
+        fx.state().excluded_objects_state().set_excluded_objects({});
         fx.state().excluded_objects_state().set_defined_objects({});
         UpdateQueue::instance().drain();
     }
@@ -79,7 +79,7 @@ struct LongPressHarness {
 
     /// Push Klipper's exclude_object.excluded_objects the way a status update does.
     void klipper_excluded(const std::unordered_set<std::string>& names) {
-        fx.state().set_excluded_objects(names);
+        fx.state().excluded_objects_state().set_excluded_objects(names);
         UpdateQueue::instance().drain();
     }
 };
