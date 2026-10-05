@@ -249,6 +249,7 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     void set_state(ConnectionState next);
     void emit_event(MoonrakerEventType type, const std::string& message, bool is_error,
                     const std::string& details = "");
+    void emit_event(const MoonrakerEvent& ev);
 
     // Serialize + send a JSON-RPC envelope over the socket. Returns bytes sent
     // (>=0) or negative on failure. Safe to call from any task.
@@ -347,6 +348,9 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // WS-task only. Gates the RECONNECTED event so the first-ever connect is
     // silent and only genuine reconnections emit (desktop was_connected_).
     bool was_connected_ = false;
+    // One CONNECTION_LOST per outage: DISCONNECTED and CLOSED both land in
+    // on_ws_disconnected(), and so does every failed reconnect attempt.
+    bool lost_notified_ = false;
 
     // Bounded request tracker.
     std::mutex requests_mutex_;

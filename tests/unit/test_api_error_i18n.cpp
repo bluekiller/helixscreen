@@ -175,6 +175,38 @@ TEST_CASE_METHOD(LVGLTestFixture, "Tracker RPC_ERROR event renders in the active
           "Druckerbefehl 'printer.objects.query' fehlgeschlagen: Klippy not ready");
 }
 
+// The ESP32 client emits these same factories, so a tag here is a tag on both.
+TEST_CASE_METHOD(LVGLTestFixture, "Shared Moonraker client events carry translated templates",
+                 "[api-error-i18n][i18n]") {
+    struct Expect {
+        MoonrakerEvent evt;
+        MoonrakerEventType type;
+        bool is_error;
+    };
+    const std::vector<Expect> cases = {
+        {moonraker_event::reconnected(), MoonrakerEventType::RECONNECTED, false},
+        {moonraker_event::connection_lost_reconnecting(), MoonrakerEventType::CONNECTION_LOST,
+         false},
+        {moonraker_event::reconnect_stalled(), MoonrakerEventType::CONNECTION_FAILED, true},
+        {moonraker_event::rpc_failed("printer.info", "boom"), MoonrakerEventType::RPC_ERROR, true},
+        {moonraker_event::request_timed_out("printer.info", 5000),
+         MoonrakerEventType::REQUEST_TIMEOUT, false},
+        {moonraker_event::subscribe_failed("{}"), MoonrakerEventType::DISCOVERY_FAILED, false},
+    };
+
+    ScopedLanguage de("de");
+    for (const auto& c : cases) {
+        INFO(c.evt.message);
+        CHECK(c.evt.type == c.type);
+        CHECK(c.evt.is_error == c.is_error);
+        REQUIRE(c.evt.message_tag != nullptr);
+        CHECK(c.evt.message == c.evt.render(c.evt.message_tag));
+        CHECK(std::string(lv_tr(c.evt.message_tag)) != c.evt.message_tag);
+    }
+    CHECK(cases[4].evt.message == "Printer command 'printer.info' timed out after 5000ms");
+    CHECK(cases[3].evt.details == "printer.info");
+}
+
 TEST_CASE("MoonrakerEvent::render tolerates a translation's placeholder count",
           "[api-error-i18n][i18n]") {
     const MoonrakerEvent evt = MoonrakerEvent::translatable(
