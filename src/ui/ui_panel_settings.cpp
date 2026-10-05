@@ -4,7 +4,6 @@
 #include "ui_panel_settings.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_change_host_modal.h"
 #include "ui_debug_bundle_modal.h"
 #include "ui_info_qr_modal.h"
 #include "ui_modal.h"
@@ -12,9 +11,7 @@
 #include "plugins_overlay.h"
 #endif
 #include "ui_nav_manager.h"
-#include "ui_overlay_network_settings.h"
 #include "ui_panel_memory_stats.h"
-#include "ui_printer_list_overlay.h"
 #include "ui_settings_appearance.h"
 #include "ui_settings_connection.h"
 #include "ui_settings_display.h"
@@ -36,7 +33,6 @@
 #include "ui_wizard_hardware_selector.h"
 
 #include "app_globals.h"
-#include "config.h"
 #include "device_display_name.h"
 #include "ethernet_manager.h"
 #include "filament_sensor_manager.h"
@@ -96,10 +92,6 @@ void SettingsPanel::init_subjects() {
         spdlog::warn("[{}] init_subjects() called twice - ignoring", get_name());
         return;
     }
-
-    // Initialize info row subjects that remain in SettingsPanel
-    UI_MANAGED_SUBJECT_STRING(printer_host_value_subject_, printer_host_value_buf_, "\xe2\x80\x94",
-                              "printer_host_value", subjects_);
 
     // Initialize visibility subjects (controls which settings are shown)
     // Note: show_beta_features subject is initialized globally in app_globals.cpp
@@ -193,8 +185,6 @@ void SettingsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         return;
     }
 
-    populate_info_rows();
-
     spdlog::debug("[{}] Setup complete", get_name());
 }
 
@@ -206,21 +196,6 @@ void SettingsPanel::on_activate() {
 // ============================================================================
 // SETUP HELPERS
 // ============================================================================
-
-void SettingsPanel::populate_info_rows() {
-    // Printer host description: bound declaratively in settings_connection_overlay.xml
-    // via bind_description="printer_host_value". Seed the subject from config so the
-    // first paint shows the current host:port (otherwise it's the em-dash default
-    // until ChangeHostModal fires its completion callback).
-    Config* config = Config::get_instance();
-
-    std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
-    if (!host.empty()) {
-        int port = config->get<int>(config->df() + "moonraker_port", 7125);
-        std::string host_display = host + ":" + std::to_string(port);
-        lv_subject_copy_string(&printer_host_value_subject_, host_display.c_str());
-    }
-}
 
 namespace {
 // A subject owned by an overlay not yet created (e.g. update_new_version,
@@ -266,10 +241,10 @@ void SettingsPanel::refresh_status_lines() {
         // Android manages Wi-Fi and Ethernet itself — both backends compile to
         // nullptr there (wifi_backend.cpp, ethernet_backend.cpp under
         // __ANDROID__) — so probing either just logs errors/warnings for
-        // nothing. Show the printer host instead, the same value
-        // printer_host_value already carries.
-        lv_subject_copy_string(&settings_status_connection_subject_,
-                               lv_subject_get_string(&printer_host_value_subject_));
+        // nothing. Show the printer host instead.
+        lv_subject_copy_string(
+            &settings_status_connection_subject_,
+            helix::settings::ConnectionSettingsOverlay::printer_host_display().c_str());
     } else {
         // Both link probes block (a wpa_supplicant control round trip; sysfs
         // scans or a netd socket round trip for Ethernet), so neither runs on
@@ -341,25 +316,6 @@ void SettingsPanel::show_restart_prompt() {
     }
 }
 
-void SettingsPanel::handle_change_host_clicked() {
-    spdlog::debug("[{}] Change Host clicked", get_name());
-
-    // Ownership and the reconnect sequence live in show_change_host_modal();
-    // this panel contributes only its own host label refresh. The connection-
-    // failed prompt reaches the same modal, and duplicating the reconnect here
-    // is how the two would drift.
-    helix::ui::show_change_host_modal([this](bool changed) {
-        if (!changed) {
-            return;
-        }
-        Config* config = Config::get_instance();
-        const std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
-        const int port = config->get<int>(config->df() + "moonraker_port", 7125);
-        const std::string host_display = host + ":" + std::to_string(port);
-        lv_subject_copy_string(&printer_host_value_subject_, host_display.c_str());
-    });
-}
-
 void SettingsPanel::handle_hardware_health_clicked() {
     spdlog::debug("[{}] Hardware Health clicked - delegating to HardwareHealthOverlay", get_name());
 
@@ -393,8 +349,7 @@ template <auto Getter> auto nav_row() {
 } // namespace
 
 // Registered BEFORE settings_panel.xml per [L013]. The one table for every callback the
-// settings root and the Touch, Connection and System pages name; the other pages register
-// their own from OverlayBase::register_callbacks().
+// settings root names; each sub-page registers its own from OverlayBase::register_callbacks().
 void register_settings_panel_callbacks() {
     spdlog::trace("[SettingsPanel] Registering XML callbacks for settings_panel.xml");
 
@@ -417,12 +372,6 @@ void register_settings_panel_callbacks() {
 #if HELIX_HAS_PLUGINS
         {"on_plugins_clicked", nav_row<helix::plugin::get_plugins_overlay>()},
 #endif
-
-        // Connection page
-        {"on_printers_clicked", nav_row<helix::ui::get_printer_list_overlay>()},
-        {"on_network_clicked", nav_row<get_network_settings_overlay>()},
-        {"on_change_host_clicked",
-         [](lv_event_t*) { get_global_settings_panel().handle_change_host_clicked(); }},
 
         // Devices page
         {"on_hardware_health_clicked",

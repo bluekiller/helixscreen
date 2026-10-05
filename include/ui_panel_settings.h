@@ -122,9 +122,6 @@ class SettingsPanel : public PanelBase {
     /// RAII manager for automatic subject cleanup
     SubjectManager subjects_;
 
-    // Info row subjects
-    lv_subject_t printer_host_value_subject_{};
-
     // Platform visibility subjects (Android hides these)
     lv_subject_t show_network_settings_subject_{};
     lv_subject_t show_update_settings_subject_{};
@@ -138,9 +135,6 @@ class SettingsPanel : public PanelBase {
     lv_subject_t updates_unavailable_subject_{};
     // 1 once a plugin host exists: unhides the Plugins row (settings_panel.xml)
     lv_subject_t plugins_available_subject_{};
-
-    // Static buffers for string subjects
-    char printer_host_value_buf_[96]; // e.g., "192.168.1.100:7125"
 
     // Live status line shown under each stateful root row (settings_panel.xml),
     // refreshed by refresh_status_lines().
@@ -178,32 +172,15 @@ class SettingsPanel : public PanelBase {
     // superseded refresh cannot overwrite a newer one's result.
     uint32_t connection_probe_seq_ = 0;
 
-    // Note: Machine Limits overlay is now managed by MachineLimitsOverlay class
-    // See ui_settings_machine_limits.h
-
-    //
-    // === Setup Helpers ===
-    //
-
-    void populate_info_rows();
-
   public:
     /// Shown after any "requires restart" setting changes.
     void show_restart_prompt();
 
-  private:
-    //
-    // === Event Handlers ===
-    //
-
-    void handle_change_host_clicked();
-
-  public:
     /// Opens the Hardware Health overlay; also the target of the hardware-issue toast action.
     void handle_hardware_health_clicked();
 
-    // The root and Connection callback table lives in
-    // register_settings_panel_callbacks() and reaches the handlers above.
+    // The root rows' callback table lives in register_settings_panel_callbacks()
+    // and reaches the handlers above.
     friend void register_settings_panel_callbacks();
 };
 
