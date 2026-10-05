@@ -18,6 +18,7 @@ detail_view_visible  # src/ui/ui_panel_print_select.cpp:335
 dryer_current_temp_text  # src/printer/ams_state.cpp:416; src/printer/ams_state.cpp:816
 dryer_progress_pct  # src/printer/ams_state.cpp:415; src/printer/ams_state.cpp:815
 dryer_remaining_min  # src/printer/ams_state.cpp:414; src/printer/ams_state.cpp:814
+dryer_supported  # src/printer/ams_state_subjects.cpp:194; src/printer/ams_state_subjects.cpp:597
 dryer_target_temp  # src/printer/ams_state.cpp:413; src/printer/ams_state.cpp:813
 dryer_target_temp_text  # src/printer/ams_state.cpp:417; src/printer/ams_state.cpp:818
 dryer_time_text  # src/printer/ams_state.cpp:418; src/printer/ams_state.cpp:820
