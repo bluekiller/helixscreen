@@ -53,6 +53,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cctype>
 #include <cstring>
 #include <optional>
@@ -68,6 +69,12 @@ namespace {
 
 // Shutdown flag to prevent async callbacks from accessing destroyed singleton
 static std::atomic<bool> s_shutdown_flag{false};
+
+/// Everything AmsState holds outside the registry, RunoutGrace and its atomics
+/// is main-thread state with no lock; an off-main caller is a bug.
+void assert_main_thread() {
+    assert(ui::is_main_thread());
+}
 
 /// The error state a lane bar's status line draws from: the same derivation
 /// both current consumers (AMS overview mini bars, mini status) compute from
@@ -256,7 +263,7 @@ AmsState::~AmsState() {
 }
 
 void AmsState::init_subjects(bool register_xml) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (initialized_) {
         // Re-entry on the shared singleton: always rebind the print-state
@@ -743,8 +750,7 @@ void AmsState::register_xml_subject_names() {
     // registration only, no lv_subject_init_* (init memzeros the subject and
     // would wipe the observers bound since the first init). Re-registering an
     // existing name replaces the record's subject pointer, so names the first
-    // init already published are harmlessly re-published. Called with mutex_
-    // held.
+    // init already published are harmlessly re-published.
     //
     // MUST mirror the registration list in init_subjects(): same names, same
     // order, same loops. A name registered there but not here stays
@@ -922,7 +928,7 @@ void AmsState::register_xml_subject_names() {
 }
 
 void AmsState::deinit_subjects() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (!initialized_) {
         return;
@@ -974,12 +980,10 @@ void AmsState::init_backends_from_hardware(const helix::PrinterDiscovery& hardwa
         return;
     }
 
-    {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (registry_.count() > 0) {
-            spdlog::debug("[AMS State] Backends already initialized, skipping");
-            return;
-        }
+    assert_main_thread();
+    if (registry_.count() > 0) {
+        spdlog::debug("[AMS State] Backends already initialized, skipping");
+        return;
     }
 
     for (const auto& system : systems) {
@@ -1015,7 +1019,7 @@ void AmsState::init_backends_from_hardware(const helix::PrinterDiscovery& hardwa
 }
 
 void AmsState::set_backend(std::unique_ptr<AmsBackend> backend) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     clear_backends();
 
@@ -1027,7 +1031,7 @@ void AmsState::set_backend(std::unique_ptr<AmsBackend> backend) {
 }
 
 int AmsState::add_backend(std::unique_ptr<AmsBackend> backend) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     const int index = registry_.add(
         std::move(backend), [this](int i, const std::string& event, const std::string& data) {
@@ -1064,7 +1068,7 @@ bool AmsState::any_filament_batch_in_flight() const {
 }
 
 void AmsState::clear_backends() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     registry_.clear();
 
@@ -1133,7 +1137,7 @@ std::vector<uint32_t> AmsState::routed_tool_colors() const {
 
 std::vector<helix::AvailableSlot> AmsState::collect_available_slots() const {
     std::vector<helix::AvailableSlot> slots;
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     const auto& backends = registry_.backends();
     for (size_t bi = 0; bi < backends.size(); ++bi) {
@@ -1192,7 +1196,7 @@ AmsState::seed_tool_mappings(const std::vector<helix::GcodeToolInfo>& tools,
 }
 
 helix::FirmwareRouting AmsState::collect_firmware_routing() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     if (auto* backend = get_backend(0)) {
         return backend->firmware_default_routing();
     }
@@ -1200,7 +1204,7 @@ helix::FirmwareRouting AmsState::collect_firmware_routing() const {
 }
 
 bool AmsState::any_bypass_active() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     for (const auto& backend : registry_.backends()) {
         if (backend && backend->is_bypass_active()) {
             return true;
@@ -1210,12 +1214,12 @@ bool AmsState::any_bypass_active() const {
 }
 
 bool AmsState::active_spool_describes_bypass() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     return get_backend() == nullptr || any_bypass_active();
 }
 
 bool AmsState::effective_auto_match() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     // Ask whether the user's choice can be carried out at all, not whether the
     // mapping card is editable. Editability is only one of the two routes, and
     // the backend it gets wrong is the one where the toggle does the most
@@ -1251,20 +1255,20 @@ int AmsState::active_backend_index() const {
 }
 
 void AmsState::set_active_backend(int index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     if (index >= 0 && index < registry_.count()) {
         lv_subject_set_int(&active_backend_, index);
     }
 }
 
 bool AmsState::is_available() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     auto* primary = get_backend(0);
     return primary && primary->get_type() != AmsType::NONE;
 }
 
 void AmsState::set_moonraker_api(IMoonrakerAPI* api) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     api_ = api;
     last_synced_spoolman_id_ = 0; // Reset tracking on API change
     spdlog::debug("[AMS State] Moonraker API {} for Spoolman integration", api ? "set" : "cleared");
@@ -1474,7 +1478,7 @@ lv_subject_t* AmsState::backend_slot_subject(int backend_index, int slot_index,
                                              SubjectLifetime& lifetime,
                                              std::vector<lv_subject_t> BackendSlotSubjects::*member,
                                              lv_subject_t (&primary)[MAX_SLOTS]) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     lifetime.reset();
     if (backend_index == 0) {
         if (slot_index < 0 || slot_index >= MAX_SLOTS) {
@@ -1618,7 +1622,7 @@ void AmsState::BackendSlotSubjects::write(int i, const SlotInfo& slot) {
 }
 
 void AmsState::sync_backend(int backend_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (backend_index == 0) {
         sync_from_backend();
@@ -1654,7 +1658,7 @@ void AmsState::sync_backend(int backend_index) {
 }
 
 void AmsState::update_slot_for_backend(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (backend_index == 0) {
         update_slot(slot_index);
@@ -1687,7 +1691,7 @@ void AmsState::update_slot_for_backend(int backend_index, int slot_index) {
 }
 
 void AmsState::sync_from_backend() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     auto* backend = get_backend(0);
     if (!backend) {
@@ -2330,7 +2334,7 @@ bool AmsState::write_slot_subjects(AmsBackend& backend, int slot_index, const Sl
 }
 
 void AmsState::update_slot(int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     auto* backend = get_backend(0);
     if (!backend || slot_index < 0 || slot_index >= MAX_SLOTS) {
@@ -2454,7 +2458,7 @@ void AmsState::bump_slots_version() {
 }
 
 void AmsState::set_dryer_mirror_unit(int unit) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     if (dryer_mirror_unit_ == unit) {
         return;
     }
@@ -2463,7 +2467,7 @@ void AmsState::set_dryer_mirror_unit(int unit) {
 }
 
 void AmsState::set_detail_env_unit(int unit) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     detail_env_unit_ = unit;
     mirror_detail_env_subjects();
 }
@@ -2494,7 +2498,7 @@ void AmsState::mirror_detail_env_subjects() {
 }
 
 void AmsState::sync_dryer_from_backend() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     auto* backend = get_backend(0);
     if (!backend) {
@@ -2727,7 +2731,7 @@ void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
 }
 
 void AmsState::set_source_override(int source) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     source_override_ = source;
     spdlog::debug("[AMS State] Source override set to {}", source);
     // Re-sync to apply the override
@@ -2739,7 +2743,7 @@ void AmsState::set_source_override(int source) {
 }
 
 void AmsState::set_danger_threshold_override(int pct) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     danger_threshold_override_ = pct;
     spdlog::debug("[AMS State] Danger threshold override set to {}", pct);
     // Re-sync to apply the override
@@ -2751,7 +2755,7 @@ void AmsState::set_danger_threshold_override(int pct) {
 }
 
 void AmsState::set_action_detail(const std::string& detail) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     // Treat UI-managed detail like a backend-supplied operation_detail: it's
     // the highest-priority source for the displayed string. Empty clears it
     // and falls through to the action/print-state derivation.
@@ -2778,7 +2782,6 @@ void AmsState::set_action_detail(const std::string& detail) {
 // clang-format on
 
 void AmsState::recompute_action_detail() {
-    // Caller holds mutex_ (this is a private helper).
     auto action = static_cast<AmsAction>(lv_subject_get_int(&ams_action_));
 
     // Priority:
@@ -2833,7 +2836,7 @@ void AmsState::recompute_action_detail() {
 }
 
 void AmsState::set_action(AmsAction action) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     int val = static_cast<int>(action);
     if (lv_subject_get_int(&ams_action_) != val) {
         lv_subject_set_int(&ams_action_, val);
@@ -2856,7 +2859,7 @@ void AmsState::set_action(AmsAction action) {
 }
 
 void AmsState::set_active_step_operation(StepOperationType op) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     const StepOperationType prev = active_step_operation_.exchange(op, std::memory_order_relaxed);
     if (prev != op) {
         // Each operation kind has its own phase template, so an index carried
@@ -2868,7 +2871,7 @@ void AmsState::set_active_step_operation(StepOperationType op) {
 }
 
 void AmsState::set_narration_phase(int index, const std::string& label) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     // Firmware narration is not monotonic. AFC runs its wipe macro twice per
     // toolchange, once before and once after the kick (AFC.py
@@ -2973,7 +2976,7 @@ void AmsState::set_current_loaded_defaults(bool write_header) {
 }
 
 void AmsState::sync_current_loaded_from_backend() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (registry_.count() == 0) {
         set_current_loaded_defaults();
@@ -3020,7 +3023,7 @@ void AmsState::set_current_slot_header(AmsBackend& backend, int slot_index) {
 }
 
 void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (registry_.count() == 0) {
         set_current_loaded_defaults();
@@ -3223,7 +3226,7 @@ void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_inf
 // ============================================================================
 
 void AmsState::adjust_modal_temp(int delta_c) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     // Get limits from backend if available, fallback to constants
     float min_temp = static_cast<float>(MIN_DRYER_TEMP_C);
@@ -3244,7 +3247,7 @@ void AmsState::adjust_modal_temp(int delta_c) {
 }
 
 void AmsState::adjust_modal_duration(int delta_min) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     // Get max duration from backend if available, fallback to constant
     int max_duration = MAX_DRYER_DURATION_MIN;
@@ -3263,7 +3266,7 @@ void AmsState::adjust_modal_duration(int delta_min) {
 }
 
 void AmsState::set_modal_preset(int temp_c, int duration_min) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     lv_subject_set_int(&modal_target_temp_, temp_c);
     lv_subject_set_int(&modal_duration_min_, duration_min);
     spdlog::debug("[AMS State] Modal preset set: {}°C for {} min", temp_c, duration_min);
@@ -3274,7 +3277,7 @@ void AmsState::set_modal_preset(int temp_c, int duration_min) {
 // ============================================================================
 
 std::optional<SlotInfo> AmsState::raw_external_spool_info() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     // In-memory override takes priority when set (e.g. live tracker updates).
     if (in_memory_external_spool_.has_value()) {
         return in_memory_external_spool_;
@@ -3283,7 +3286,7 @@ std::optional<SlotInfo> AmsState::raw_external_spool_info() const {
 }
 
 std::optional<SlotInfo> AmsState::get_external_spool_info() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     std::optional<SlotInfo> out = raw_external_spool_info();
     if (!out.has_value()) {
         return out;
@@ -3303,13 +3306,13 @@ std::optional<SlotInfo> AmsState::get_external_spool_info() const {
 }
 
 void AmsState::set_external_spool_info_in_memory(const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     in_memory_external_spool_ = info;
     notify_external_spool_changed(info);
 }
 
 void AmsState::set_external_spool_info(const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     // Moving the binding to a different spool retires the previous spool's
     // records: its Spoolman record, the user's pick, the kept identity and the
     // meter's count all describe a spool that is no longer bound, and resolve()
@@ -3346,7 +3349,7 @@ void AmsState::notify_external_spool_changed(const SlotInfo& info) {
 }
 
 void AmsState::clear_external_spool_info() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     in_memory_external_spool_.reset();
     helix::SettingsManager::instance().clear_external_spool_info();
     // The raw record's absence has to reach the sources that described it, or
@@ -3367,7 +3370,7 @@ void AmsState::clear_external_spool_info() {
 
 AmsError AmsState::commit_slot_edit(int slot_index, const SlotInfo& original,
                                     const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     AmsBackend* backend = get_backend();
     if (!backend) {
         return AmsError(AmsResult::NO_AMS_DETECTED, "no AMS backend",
@@ -3454,7 +3457,7 @@ void AmsState::invalidate_stale_external_identity(const SlotInfo& info) {
 }
 
 void AmsState::commit_external_spool_edit(const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     // S1 — match the server active spool to what we are committing
     if (api_) {
@@ -3484,7 +3487,7 @@ void AmsState::commit_external_spool_edit(const SlotInfo& info) {
 
 void AmsState::commit_external_spool_edit(const SlotInfo& info, std::function<void()> on_committed,
                                           std::function<void(const MoonrakerError& err)> on_error) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     invalidate_stale_external_identity(info);
 

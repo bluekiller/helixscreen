@@ -21,9 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -51,8 +49,12 @@ class PrinterDiscovery;
  * 3. Subjects auto-update when backend emits events
  *
  * Thread Safety:
- * All public methods are thread-safe. Subject updates are posted
- * to LVGL's thread via queue_update when called from background threads.
+ * Main thread only, asserted, except where a method says otherwise. The
+ * exceptions answer from state with its own guard: the backend registry
+ * (get_backend, backend_count, primary_type, any_filament_batch_in_flight),
+ * RunoutGrace (the unload grace and per-slot unload stamps), the action and
+ * step-operation atomics, and the setters that marshal themselves to the main
+ * thread (set_pending_target_slot, set_active_tool_port_present).
  */
 /**
  * @brief Does a pre-print-send backend's SEED follow the persisted auto-color
@@ -288,7 +290,7 @@ class AmsState {
     [[nodiscard]] AmsBackend* get_backend() const;
 
     /**
-     * @brief Type of the primary backend, read under mutex_
+     * @brief Type of the primary backend. Safe off the main thread.
      *
      * For callers off the main thread: they cannot keep get_backend()'s pointer
      * past the lock, since clear_backends() frees it.
@@ -320,8 +322,8 @@ class AmsState {
      * @brief Whether any backend has a filament batch it dispatched and has not
      *        seen complete
      *
-     * Holds mutex_ across every backend it asks, so a caller off the main
-     * thread never keeps a backend pointer past clear_backends().
+     * Safe off the main thread: the registry holds its lock across every
+     * backend it asks, so no pointer outlives clear_backends().
      */
     [[nodiscard]] bool any_filament_batch_in_flight() const;
 
@@ -1475,7 +1477,7 @@ class AmsState {
     void sync_current_loaded_from_backend(const AmsSystemInfo& primary_info);
 
     /// Writes the "Current: ..." header for @p slot_index on @p backend, with
-    /// the unit name on multi-unit systems. Caller holds mutex_.
+    /// the unit name on multi-unit systems.
     void set_current_slot_header(AmsBackend& backend, int slot_index);
 
     /**
@@ -1726,7 +1728,7 @@ class AmsState {
      * @brief Write one primary-backend slot's per-slot subjects from @p slot
      *
      * The one per-slot derivation, shared by sync_from_backend() and
-     * update_slot(). Main thread only, with mutex_ held.
+     * update_slot(). Main thread only.
      *
      * @return true when a value refresh_slots() re-reads changed, so the caller
      *         owes a slots_version bump
@@ -1787,7 +1789,6 @@ class AmsState {
                                        std::vector<lv_subject_t> BackendSlotSubjects::*member,
                                        lv_subject_t (&primary)[MAX_SLOTS]);
 
-    mutable std::recursive_mutex mutex_;
     AmsBackendRegistry registry_;
     std::vector<BackendSlotSubjects> secondary_slot_subjects_;
     bool initialized_ = false;
@@ -1862,7 +1863,7 @@ class AmsState {
     /// extrude, not by the print ending), so the level alone cannot say whether a
     /// runout happened during THIS job. sync_from_backend() therefore looks for a
     /// false->true transition seen while a job was running, not for the level.
-    /// All three are written only under mutex_ and reset by clear_backends().
+    /// All three are main-thread state, reset by clear_backends().
     ///
     /// Last raw level, for edge detection.
     bool prev_backend_runout_{false};
@@ -1930,7 +1931,6 @@ class AmsState {
 
     /// Recompute the ams_action_detail subject from current AMS action +
     /// cached operation_detail + PrinterState print state.
-    /// Caller must hold mutex_.
     void recompute_action_detail();
 
     /// Wire (or rewire) the print_state_observer_. Idempotent.
@@ -1942,7 +1942,7 @@ class AmsState {
     /// subjects must already be initialized — no lv_subject_init_* here, init
     /// memzeros the subject and would wipe the observers bound since the first
     /// init. MUST mirror the registration list in init_subjects(): a name
-    /// registered there must be registered here too. Caller must hold mutex_.
+    /// registered there must be registered here too.
     void register_xml_subject_names();
 
     /// In-memory override for external spool info. Set by set_external_spool_info_in_memory()

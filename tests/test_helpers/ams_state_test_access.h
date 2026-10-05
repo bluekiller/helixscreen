@@ -61,7 +61,6 @@ class AmsStateTestAccess {
     /// LOADING/UNLOADING/SELECTING standing, which reads as "filament is moving"
     /// to every later test that asks is_filament_operation_active().
     static void reset_action(AmsState& ams) {
-        std::lock_guard<std::recursive_mutex> lock(ams.mutex_);
         if (ams.initialized_) {
             ams.set_action(AmsAction::IDLE);
         }
@@ -71,7 +70,6 @@ class AmsStateTestAccess {
     /// only on an action edge to IDLE, and a test that ends already IDLE never
     /// produces one, so the stale label would outrank every later detail.
     static void clear_narration(AmsState& ams) {
-        std::lock_guard<std::recursive_mutex> lock(ams.mutex_);
         if (ams.initialized_ && !ams.last_narration_label_.empty()) {
             ams.set_narration_phase(-1, "");
         }
