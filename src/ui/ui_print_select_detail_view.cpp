@@ -665,7 +665,7 @@ std::string PrintSelectDetailView::local_gcode_source() const {
     // doubles as the existence and readability probe: a file we cannot open is
     // one we must fetch over HTTP instead.
     if (!tio::open_file(candidate, "rb")) {
-        spdlog::debug("[DetailView] No local G-code at '{}' — falling back to HTTP", candidate);
+        spdlog::debug("[DetailView] No readable local G-code at '{}'", candidate);
         return {};
     }
     const auto on_disk_bytes = static_cast<size_t>(tio::file_size(candidate).value_or(0));
