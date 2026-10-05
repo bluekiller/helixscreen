@@ -5,6 +5,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "panel_widgets/callout_layout.h"
@@ -127,14 +128,13 @@ lv_obj_t* PrinterImageTaggerOverlay::create(lv_obj_t* parent) {
     if (overlay_root_) {
         return overlay_root_;
     }
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, xml_component(), nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, xml_component());
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
     }
     // Full screen: every pixel of image is room to tap.
     helix::nav::set_overlay_width_unmanaged(overlay_root_);
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
     return overlay_root_;
 }
 
