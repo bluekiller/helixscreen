@@ -469,8 +469,14 @@ TEST_CASE_METHOD(MultiBackendFixture, "AmsState: update_slot_for_backend delegat
 
     ams.add_backend(AmsBackend::create_mock(4));
 
-    // Should not crash for primary backend
+    // Backend 0 refreshes the primary slot subjects from the backend.
+    lv_subject_t* color = ams.get_slot_color_subject(0);
+    REQUIRE(color != nullptr);
+    const auto expected = static_cast<int>(ams.get_backend(0)->get_slot_info(0).color_rgb);
+    REQUIRE(expected != 0x123456);
+    lv_subject_set_int(color, 0x123456);
     ams.update_slot_for_backend(0, 0);
+    REQUIRE(lv_subject_get_int(color) == expected);
 
     // Should not crash for out-of-range backend
     ams.update_slot_for_backend(5, 0);

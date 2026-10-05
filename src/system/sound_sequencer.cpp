@@ -4,6 +4,7 @@
 #include "sound_sequencer.h"
 
 #include "audio_settings_manager.h"
+#include "helix_thread.h"
 #include "note_event.h"
 #include "spdlog/spdlog.h"
 
@@ -50,7 +51,7 @@ void SoundSequencer::start() {
     if (running_.load())
         return;
     running_.store(true);
-    sequencer_thread_ = std::thread(&SoundSequencer::sequencer_loop, this);
+    sequencer_thread_ = helix::make_thread(&SoundSequencer::sequencer_loop, this);
     spdlog::debug("[SoundSequencer] started sequencer thread");
 }
 

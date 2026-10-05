@@ -32,6 +32,8 @@ std::string pong_handler(const std::string&) {
     return R"({"jsonrpc":"2.0","result":"pong","id":1})";
 }
 
+// TEST_MIRROR_OK: post() is a raw loopback socket client; it shares only its name with
+// ingest_client post()
 /// POST a JSON-RPC body to loopback and return the raw response ("" if the
 /// port refuses the connection).
 std::string post(int port, const std::string& authorization) {

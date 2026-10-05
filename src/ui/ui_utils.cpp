@@ -223,6 +223,10 @@ void set_strict_ui_checks(bool enabled) noexcept {
     g_strict_ui_checks.store(enabled, std::memory_order_release);
 }
 
+bool strict_ui_checks() noexcept {
+    return g_strict_ui_checks.load(std::memory_order_acquire);
+}
+
 void report_ui_contract_breach(const char* message) {
     spdlog::error("{}", message);
 #ifndef HELIX_RELEASE_BUILD

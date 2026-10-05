@@ -16,7 +16,6 @@
 #include <fstream>
 #include <iterator>
 #include <optional>
-#include <regex>
 #include <string>
 #include <vector>
 
@@ -28,33 +27,15 @@
 
 namespace {
 
-/**
- * @brief Parse a probe progress line and extract current/total values
- *
- * Handles both formats:
- * - "Probing point 5/25"
- * - "Probe point 5 of 25"
- *
- * @param line The G-code response line to parse
- * @param current Output: current probe number
- * @param total Output: total probe count
- * @return true if line matched and was parsed successfully
- */
-bool parse_probe_progress(const std::string& line, int& current, int& total) {
-    // Static regex for performance - handles both formats
-    static const std::regex probe_regex(R"(Prob(?:ing point|e point) (\d+)[/\s]+(?:of\s+)?(\d+))");
-
-    std::smatch match;
-    if (std::regex_search(line, match, probe_regex) && match.size() == 3) {
-        try {
-            current = std::stoi(match[1].str());
-            total = std::stoi(match[2].str());
-            return true;
-        } catch (const std::exception&) {
-            return false;
-        }
+/// helix::parse_probe_progress() through the out-parameter shape these cases assert on.
+bool probe_progress(const std::string& line, int& current, int& total) {
+    const auto pp = helix::parse_probe_progress(line);
+    if (!pp) {
+        return false;
     }
-    return false;
+    current = pp->current;
+    total = pp->total;
+    return true;
 }
 
 /**
@@ -87,31 +68,31 @@ TEST_CASE("BedMeshCollector parses 'Probing point X/Y' format", "[bed_mesh_colle
     int current = 0, total = 0;
 
     SECTION("simple case") {
-        REQUIRE(parse_probe_progress("Probing point 5/25", current, total));
+        REQUIRE(probe_progress("Probing point 5/25", current, total));
         REQUIRE(current == 5);
         REQUIRE(total == 25);
     }
 
     SECTION("first point") {
-        REQUIRE(parse_probe_progress("Probing point 1/25", current, total));
+        REQUIRE(probe_progress("Probing point 1/25", current, total));
         REQUIRE(current == 1);
         REQUIRE(total == 25);
     }
 
     SECTION("last point") {
-        REQUIRE(parse_probe_progress("Probing point 25/25", current, total));
+        REQUIRE(probe_progress("Probing point 25/25", current, total));
         REQUIRE(current == 25);
         REQUIRE(total == 25);
     }
 
     SECTION("large grid") {
-        REQUIRE(parse_probe_progress("Probing point 49/100", current, total));
+        REQUIRE(probe_progress("Probing point 49/100", current, total));
         REQUIRE(current == 49);
         REQUIRE(total == 100);
     }
 
     SECTION("with prefix text") {
-        REQUIRE(parse_probe_progress("// Probing point 3/9", current, total));
+        REQUIRE(probe_progress("// Probing point 3/9", current, total));
         REQUIRE(current == 3);
         REQUIRE(total == 9);
     }
@@ -121,25 +102,25 @@ TEST_CASE("BedMeshCollector parses 'Probe point X of Y' format", "[bed_mesh_coll
     int current = 0, total = 0;
 
     SECTION("simple case") {
-        REQUIRE(parse_probe_progress("Probe point 5 of 25", current, total));
+        REQUIRE(probe_progress("Probe point 5 of 25", current, total));
         REQUIRE(current == 5);
         REQUIRE(total == 25);
     }
 
     SECTION("first point") {
-        REQUIRE(parse_probe_progress("Probe point 1 of 16", current, total));
+        REQUIRE(probe_progress("Probe point 1 of 16", current, total));
         REQUIRE(current == 1);
         REQUIRE(total == 16);
     }
 
     SECTION("last point") {
-        REQUIRE(parse_probe_progress("Probe point 16 of 16", current, total));
+        REQUIRE(probe_progress("Probe point 16 of 16", current, total));
         REQUIRE(current == 16);
         REQUIRE(total == 16);
     }
 
     SECTION("large grid") {
-        REQUIRE(parse_probe_progress("Probe point 77 of 144", current, total));
+        REQUIRE(probe_progress("Probe point 77 of 144", current, total));
         REQUIRE(current == 77);
         REQUIRE(total == 144);
     }
@@ -149,22 +130,22 @@ TEST_CASE("BedMeshCollector rejects invalid lines", "[bed_mesh_collector][regex]
     int current = 0, total = 0;
 
     SECTION("empty string") {
-        REQUIRE_FALSE(parse_probe_progress("", current, total));
+        REQUIRE_FALSE(probe_progress("", current, total));
     }
 
     SECTION("unrelated gcode output") {
-        REQUIRE_FALSE(parse_probe_progress("ok", current, total));
-        REQUIRE_FALSE(parse_probe_progress("G28", current, total));
-        REQUIRE_FALSE(parse_probe_progress("M104 S200", current, total));
+        REQUIRE_FALSE(probe_progress("ok", current, total));
+        REQUIRE_FALSE(probe_progress("G28", current, total));
+        REQUIRE_FALSE(probe_progress("M104 S200", current, total));
     }
 
     SECTION("similar but different text") {
-        REQUIRE_FALSE(parse_probe_progress("Moving to point 5/25", current, total));
-        REQUIRE_FALSE(parse_probe_progress("Point 5 of 25", current, total));
+        REQUIRE_FALSE(probe_progress("Moving to point 5/25", current, total));
+        REQUIRE_FALSE(probe_progress("Point 5 of 25", current, total));
     }
 
     SECTION("malformed numbers") {
-        REQUIRE_FALSE(parse_probe_progress("Probing point abc/def", current, total));
+        REQUIRE_FALSE(probe_progress("Probing point abc/def", current, total));
     }
 }
 
@@ -250,7 +231,7 @@ TEST_CASE("BedMeshCollector progress callback receives correct values",
 
     for (const auto& line : lines) {
         int current = 0, total = 0;
-        if (parse_probe_progress(line, current, total)) {
+        if (probe_progress(line, current, total)) {
             on_progress(current, total);
         }
     }
@@ -279,7 +260,7 @@ TEST_CASE("BedMeshCollector handles mixed format progress lines",
 
     for (const auto& line : lines) {
         int current = 0, total = 0;
-        if (parse_probe_progress(line, current, total)) {
+        if (probe_progress(line, current, total)) {
             on_progress(current, total);
         }
     }
@@ -303,19 +284,19 @@ TEST_CASE("BedMeshCollector handles edge case probe counts", "[bed_mesh_collecto
     int current = 0, total = 0;
 
     SECTION("minimum grid (2x2 = 4 points)") {
-        REQUIRE(parse_probe_progress("Probing point 1/4", current, total));
+        REQUIRE(probe_progress("Probing point 1/4", current, total));
         REQUIRE(current == 1);
         REQUIRE(total == 4);
     }
 
     SECTION("large grid (20x20 = 400 points)") {
-        REQUIRE(parse_probe_progress("Probing point 399/400", current, total));
+        REQUIRE(probe_progress("Probing point 399/400", current, total));
         REQUIRE(current == 399);
         REQUIRE(total == 400);
     }
 
     SECTION("adaptive mesh with odd count") {
-        REQUIRE(parse_probe_progress("Probing point 17/37", current, total));
+        REQUIRE(probe_progress("Probing point 17/37", current, total));
         REQUIRE(current == 17);
         REQUIRE(total == 37);
     }

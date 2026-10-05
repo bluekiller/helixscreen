@@ -10,6 +10,7 @@
 #include "brother_ql_printer.h"
 #include "brother_ql_protocol.h"
 #include "bt_print_utils.h"
+#include "helix_thread.h"
 #include "log_redact.h"
 
 #include <spdlog/spdlog.h>
@@ -63,7 +64,7 @@ void BrotherQLBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize
     // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
     // if it escapes an LVGL event frame (#724, #837, [L083]).
     try {
-        std::thread([mac, channel, commands = std::move(commands), callback]() {
+        helix::make_thread([mac, channel, commands = std::move(commands), callback]() {
             auto result = helix::bluetooth::rfcomm_send(mac, channel, commands, "Brother QL BT");
 
             helix::ui::queue_update("BrotherQLBluetoothPrinter::print", [callback, result]() {

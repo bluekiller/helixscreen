@@ -5,7 +5,7 @@
 # register_xml_subject_names() must publish exactly what init_subjects() does
 # (prestonbrown/helixscreen#1439).
 #
-# Each case mutates one thing in a copy of the real src/printer/ams_state.cpp,
+# Each case mutates one thing in a copy of the real src/printer/ams_state_subjects.cpp,
 # so a red result is attributable to that mutation alone.
 
 load helpers
@@ -14,8 +14,8 @@ SCRIPT="scripts/check_ams_xml_mirror.py"
 
 setup() {
     cd "$BATS_TEST_DIRNAME/../.." || return 1
-    SRC="$BATS_TEST_TMPDIR/ams_state.cpp"
-    cp src/printer/ams_state.cpp "$SRC"
+    SRC="$BATS_TEST_TMPDIR/ams_state_subjects.cpp"
+    cp src/printer/ams_state_subjects.cpp "$SRC"
 }
 
 # Insert $2 after the first line of $SRC matching the fixed string $1.
@@ -30,7 +30,7 @@ open(path, "w").write("\n".join(lines))
 EOF
 }
 
-@test "the real ams_state.cpp passes" {
+@test "the real ams_state_subjects.cpp passes" {
     run python3 "$SCRIPT"
     [ "$status" -eq 0 ]
     contains "registrations match" "$output"
@@ -108,7 +108,7 @@ EOF
     [ "$status" -eq 2 ]
 }
 
-@test "the pre-commit gate runs it and wakes on ams_state.cpp" {
+@test "the pre-commit gate runs it and wakes on the AmsState sources" {
     run grep -c "check_ams_xml_mirror.py" scripts/quality-checks.sh
     [ "$output" -ge 1 ]
     run bash -c "sed -n '/^qc_trigger_re()/,/^}/p' scripts/quality-checks.sh | grep qc_ams_xml_mirror"

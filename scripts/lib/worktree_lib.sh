@@ -40,6 +40,13 @@ canonicalize_path() {
     fi
 }
 
+# True when path $1 is root $2 itself or lies under it. A bare prefix test is not
+# enough: a sibling whose name extends the root's (.worktrees/x-1.0 beside
+# .worktrees/x) shares every character of it.
+path_is_within() {
+    [[ "$1" == "$2" || "$1" == "$2"/* ]]
+}
+
 # .git/modules/<name> is common to every worktree, so initializing a submodule
 # inside one (which is what --unlink's empty directories invite) repoints that
 # shared core.worktree at it. Left there, the main tree and every worktree
@@ -65,7 +72,7 @@ restore_shared_module_pointers() {
         gitdir="$(dirname -- "$cfg")"
         if [[ "$target" == /* ]]; then p="$target"; else p="$gitdir/$target"; fi
         resolved="$(canonicalize_path "$(dirname -- "$p")")/$(basename -- "$p")"
-        [[ "$resolved" == "$wt"/* ]] || continue
+        path_is_within "$resolved" "$wt" || continue
         # One ../ per component of .git/modules/<name> climbs back to the main
         # tree, whatever depth the worktree itself sits at.
         depth="${gitdir#"$main"/}"

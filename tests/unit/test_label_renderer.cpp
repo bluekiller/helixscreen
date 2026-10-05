@@ -233,6 +233,8 @@ static std::pair<int, int> x_extent(const helix::LabelBitmap& bmp, int y0, int y
     return {left, right};
 }
 
+// TEST_MIRROR_OK: count_black_pixels() measures a LabelBitmap; niimbot_protocol.cpp's counts raw
+// packed bytes
 static int count_black_pixels(const helix::LabelBitmap& bmp) {
     int count = 0;
     for (int y = 0; y < bmp.height(); y++)

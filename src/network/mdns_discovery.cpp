@@ -16,6 +16,7 @@
 
 #include "ui_update_queue.h"
 
+#include "helix_thread.h"
 #include "mdns/mdns.h"
 
 #include <spdlog/spdlog.h>
@@ -133,7 +134,7 @@ class MdnsDiscovery::Impl {
         running_.store(true);
         initial_update_sent_.store(false); // Reset so first query dispatches even if empty
         try {
-            thread_ = std::thread(&Impl::discovery_loop, this);
+            thread_ = helix::make_thread(&Impl::discovery_loop, this);
             spdlog::info("[MdnsDiscovery] Started discovery for {}", service_type_);
         } catch (const std::system_error& e) {
             spdlog::error("[MdnsDiscovery] Failed to spawn discovery thread: {}", e.what());

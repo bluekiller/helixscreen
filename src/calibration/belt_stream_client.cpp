@@ -3,6 +3,7 @@
 
 #include "belt_stream_client.h"
 
+#include "helix_thread.h"
 #include "system/helix_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -208,7 +209,10 @@ bool BeltStreamClient::start(const std::string& socket_path, const std::string& 
                  socket_path);
 
     loop_thread_ = std::make_unique<hv::EventLoopThread>();
-    loop_thread_->start(true, [this]() -> int { return attach() ? 0 : -1; });
+    loop_thread_->start(true, [this]() -> int {
+        helix::install_thread_altstack();
+        return attach() ? 0 : -1;
+    });
     return true;
 }
 

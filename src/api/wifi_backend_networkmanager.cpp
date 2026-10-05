@@ -4,6 +4,7 @@
 #include "wifi_backend_networkmanager.h"
 
 #include "app_globals.h"
+#include "helix_thread.h"
 #include "log_redact.h"
 #include "spdlog/spdlog.h"
 
@@ -95,7 +96,7 @@ WiFiError WifiBackendNetworkManager::start() {
     // Start background status polling thread. Wrap — EAGAIN throws ([L083]).
     status_running_ = true;
     try {
-        status_thread_ = std::thread(&WifiBackendNetworkManager::status_thread_func, this);
+        status_thread_ = helix::make_thread(&WifiBackendNetworkManager::status_thread_func, this);
     } catch (const std::system_error& e) {
         spdlog::error("[WifiBackend] Failed to spawn status thread: {}", e.what());
         status_running_ = false;
@@ -153,7 +154,7 @@ void WifiBackendNetworkManager::start_async() {
 
     // Wrap — EAGAIN under thread exhaustion throws std::system_error ([L083]).
     try {
-        init_thread_ = std::thread([this]() {
+        init_thread_ = helix::make_thread([this]() {
             WiFiError result = start();
             // Fire the event BEFORE clearing init_in_progress_. A handler that
             // synchronously calls start_async() again (e.g. a re-entry via the
@@ -413,7 +414,7 @@ WiFiError WifiBackendNetworkManager::trigger_scan() {
     // Launch new scan thread. Wrap — EAGAIN throws ([L083]).
     scan_active_ = true;
     try {
-        scan_thread_ = std::thread(&WifiBackendNetworkManager::scan_thread_func, this);
+        scan_thread_ = helix::make_thread(&WifiBackendNetworkManager::scan_thread_func, this);
     } catch (const std::system_error& e) {
         spdlog::error("[WifiBackend] Failed to spawn scan thread: {}", e.what());
         scan_active_ = false;
@@ -681,8 +682,8 @@ WiFiError WifiBackendNetworkManager::connect_network(const std::string& ssid,
     // Wrap — EAGAIN throws ([L083]).
     connect_active_ = true;
     try {
-        connect_thread_ = std::thread(&WifiBackendNetworkManager::connect_thread_func, this,
-                                      clean_ssid, password, is_hidden);
+        connect_thread_ = helix::make_thread(&WifiBackendNetworkManager::connect_thread_func, this,
+                                             clean_ssid, password, is_hidden);
     } catch (const std::system_error& e) {
         spdlog::error("[WifiBackend] Failed to spawn connect thread: {}", e.what());
         connect_active_ = false;

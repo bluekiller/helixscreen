@@ -10,6 +10,18 @@ class PrintStartCollectorTestAccess {
         return PrintStartCollector::is_heater_wait_report(line);
     }
 
+    static bool is_print_start_marker(const std::string& line) {
+        return PrintStartCollector::is_print_start_marker(line);
+    }
+
+    static bool is_completion_marker(const std::string& line) {
+        return PrintStartCollector::is_completion_marker(line);
+    }
+
+    static bool is_respond_completion(const std::string& line) {
+        return PrintStartCollector::is_respond_completion(line);
+    }
+
     /// Wind back the start time to simulate elapsed seconds.
     ///
     /// Also winds back both activity stamps, so this models "N seconds passed

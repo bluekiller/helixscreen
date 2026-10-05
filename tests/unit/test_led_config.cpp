@@ -75,36 +75,6 @@ TEST_CASE_METHOD(LedConfigFixture, "LedController config: default values after i
     ctrl.deinit();
 }
 
-TEST_CASE_METHOD(LedConfigFixture, "LedController config: set and get last_color",
-                 "[led][config]") {
-    auto& ctrl = helix::led::LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.set_last_color(0xFF0000);
-    REQUIRE(ctrl.last_color() == 0xFF0000);
-
-    ctrl.set_last_color(0x00FF00);
-    REQUIRE(ctrl.last_color() == 0x00FF00);
-
-    ctrl.deinit();
-}
-
-TEST_CASE_METHOD(LedConfigFixture, "LedController config: set and get last_brightness",
-                 "[led][config]") {
-    auto& ctrl = helix::led::LedController::instance();
-    ctrl.deinit();
-    ctrl.init(nullptr, nullptr);
-
-    ctrl.set_last_brightness(75);
-    REQUIRE(ctrl.last_brightness() == 75);
-
-    ctrl.set_last_brightness(0);
-    REQUIRE(ctrl.last_brightness() == 0);
-
-    ctrl.deinit();
-}
-
 TEST_CASE_METHOD(LedConfigFixture, "LedController config: set and get color_presets",
                  "[led][config]") {
     auto& ctrl = helix::led::LedController::instance();

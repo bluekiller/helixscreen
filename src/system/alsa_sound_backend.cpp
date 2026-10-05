@@ -6,6 +6,7 @@
 
 #include "alsa_clock_keepalive.h"
 #include "env_knobs.h"
+#include "helix_thread.h"
 
 #include <spdlog/spdlog.h>
 
@@ -191,7 +192,7 @@ bool ALSASoundBackend::initialize(const std::string& device) {
 
     // Start render thread
     running_.store(true, std::memory_order_relaxed);
-    render_thread_ = std::thread(&ALSASoundBackend::render_loop, this);
+    render_thread_ = helix::make_thread(&ALSASoundBackend::render_loop, this);
 
     return true;
 }

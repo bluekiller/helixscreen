@@ -265,9 +265,9 @@ user printing TPU without feeders (field report recorded at
 `src/printer/ams_backend_snapmaker.cpp#handle_status`). Feeders reaching `unload_finish` are reported to
 `AmsState::mark_slot_unloaded()` after the mutex is released so `FilamentSensorManager`
 suppresses the runout modal during the expected pull-out grace window
-(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `src/printer/ams_backend_snapmaker.cpp#handle_status`) — the deferral exists because
-calling into `AmsState` under our mutex inverted `add_backend()`'s lock order (TSan,
-2026-08-16).
+(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `src/printer/ams_backend_snapmaker.cpp#handle_status`) — calls into
+`AmsState` stay outside the backend mutex because the backend registry takes its own lock
+before a backend's (`include/ams_backend_registry.h#AmsBackendRegistry`).
 
 ### Runout and Resume
 

@@ -281,7 +281,7 @@ type                           = PLA
 | `src/printer/ams_backend_qidi.cpp` | `AmsBackendQidi` — dryer virtuals implementation |
 | `include/ams_backend_qidi.h` | Class declaration |
 | `include/ams_types.h` | `DryerInfo` struct |
-| `src/printer/ams_state.cpp` | `AmsState::sync_dryer_from_backend()` — subject bridge |
+| `src/printer/ams_state_dryer.cpp` | `AmsState::sync_dryer_from_backend()` — subject bridge |
 
 ### DryerInfo Population (`get_dryer_info`)
 
