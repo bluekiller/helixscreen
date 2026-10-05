@@ -20,6 +20,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/chaining_mock_backend.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
@@ -264,7 +265,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "Observer cleanup: cleanup resets all pending 
     get_printer_state().init_subjects(false);
     auto& ams = helix::AmsState::instance();
     ams.init_subjects(false);
-    auto owned = std::make_unique<helix::AmsBackendMock>(4);
+    auto owned = std::make_unique<helix::test::ChainingMockBackend>(4);
     helix::AmsBackendMock* backend = owned.get();
     backend->set_operation_delay(0);
     ams.set_backend(std::move(owned));

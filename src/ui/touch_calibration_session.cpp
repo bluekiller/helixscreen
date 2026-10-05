@@ -87,12 +87,23 @@ bool commit_calibration_result(ICalibrationSink* sink, const TouchCalibration& c
     const InstalledCalibration installed = install_calibration_result(sink, cal, fit);
 
     TouchRangeSettings range;
-    range.valid = installed.range_installed;
-    range.swap_axes = fit.swap_axes;
-    range.min_x = fit.min_x;
-    range.max_x = fit.max_x;
-    range.min_y = fit.min_y;
-    range.max_y = fit.max_y;
+    if (installed.range_installed) {
+        range.valid = true;
+        range.swap_axes = fit.swap_axes;
+        range.min_x = fit.min_x;
+        range.max_x = fit.max_x;
+        range.min_y = fit.min_y;
+        range.max_y = fit.max_y;
+        range.capture_rotation = cal.capture_rotation;
+    } else if (sink != nullptr) {
+        // The affine was solved over whatever range is live. A stored one stays
+        // with it, keeping its own capture rotation; anything else is the
+        // declared range, which next boot gets without a stored record.
+        const LiveTouchRange live = sink->current_touch_range();
+        if (live.source == TouchRangeSource::Stored && live.range.valid) {
+            range = live.range;
+        }
+    }
     save_touch_range(range);
     write_affine(*Config::get_instance(), installed.affine);
 

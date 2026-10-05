@@ -77,11 +77,11 @@ TEST_CASE("WledBackend: toggle with null API calls error callback", "[led][wled]
 TEST_CASE("WledBackend: null callbacks don't crash with null API", "[led][wled]") {
     WledBackend backend;
     // All callbacks null, api_ null -- should not crash
-    backend.set_on("test", nullptr, nullptr);
-    backend.set_off("test", nullptr, nullptr);
-    backend.set_brightness("test", 50, nullptr, nullptr);
-    backend.set_preset("test", 1, nullptr, nullptr);
-    backend.toggle("test", nullptr, nullptr);
+    REQUIRE_NOTHROW(backend.set_on("test", nullptr, nullptr));
+    REQUIRE_NOTHROW(backend.set_off("test", nullptr, nullptr));
+    REQUIRE_NOTHROW(backend.set_brightness("test", 50, nullptr, nullptr));
+    REQUIRE_NOTHROW(backend.set_preset("test", 1, nullptr, nullptr));
+    REQUIRE_NOTHROW(backend.toggle("test", nullptr, nullptr));
 }
 
 TEST_CASE("WledBackend: type is WLED", "[led][wled]") {

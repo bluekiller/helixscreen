@@ -11,7 +11,6 @@
 #include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 
 #include "ui/ui_widget_helpers.h"
 #if HELIX_HAS_LABEL_PRINTER

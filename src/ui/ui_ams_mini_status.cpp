@@ -6,7 +6,6 @@
 #include "ui_ams_lane_bar.h"
 #include "ui_ams_lane_spool.h"
 #include "ui_fonts.h"
-#include "ui_nav_manager.h"
 #include "ui_observer_guard.h"
 #include "ui_panel_ams.h"
 #include "ui_panel_ams_overview.h"

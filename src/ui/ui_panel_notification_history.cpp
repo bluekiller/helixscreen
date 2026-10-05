@@ -5,7 +5,7 @@
 
 #include "ui_event_safety.h"
 #include "ui_format_utils.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_notification_manager.h"
 #include "ui_panel_common.h"
 #include "ui_severity_card.h"
@@ -278,7 +278,7 @@ void NotificationHistoryPanel::dispatch_action(const char* action) {
 
     if (strcmp(action, "show_update_modal") == 0) {
         // Close notification history overlay first, then show update modal
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
         UpdateChecker::instance().show_update_notification();
     } else {
         spdlog::warn("[{}] Unknown action: {}", get_name(), action);

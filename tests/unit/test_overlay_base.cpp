@@ -343,7 +343,7 @@ TEST_CASE_METHOD(ShowFixture, "close() closes a shown overlay and is a no-op bef
 
 TEST_CASE_METHOD(ShowFixture,
                  "show() aborts on a root whose close callback another owner holds (strict)",
-                 "[overlay_base][overlay_show]") {
+                 "[overlay_base][overlay_show][subprocess]") {
     ShowOverlay overlay;
     REQUIRE(overlay.show(test_screen()));
     settle();
@@ -353,13 +353,13 @@ TEST_CASE_METHOD(ShowFixture,
 
     std::fflush(nullptr);
     pid_t pid = fork();
-    REQUIRE(pid >= 0);
     if (pid == 0) {
         std::signal(SIGABRT, SIG_DFL); // Catch2's handler would report instead of dying
         helix::ui::set_strict_ui_checks(true);
         overlay.show(test_screen());
         _exit(0);
     }
+    REQUIRE(pid > 0);
     int status = 0;
     REQUIRE(waitpid(pid, &status, 0) == pid);
     CHECK(WIFSIGNALED(status));

@@ -224,6 +224,7 @@ src/system/tls_trust.cpp  # the concrete libhv client; the firmware has no TLS
 src/system/tracker_module_mod.cpp  # not in the v1 Core+AMS cut
 src/system/tracker_player.cpp  # not in the v1 Core+AMS cut
 src/system/update_checker.cpp  # not in the v1 Core+AMS cut
+src/system/update_gate.cpp  # not in the v1 Core+AMS cut
 src/system/upgrade_nudge.cpp  # not in the v1 Core+AMS cut
 src/system/usb_printer_detector.cpp  # not in the v1 Core+AMS cut
 src/system/usb_scanner_monitor.cpp  # not in the v1 Core+AMS cut

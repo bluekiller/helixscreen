@@ -21,6 +21,8 @@ CalloutLayoutInput base() {
     return in;
 }
 
+// TEST_MIRROR_OK: find() looks a chip up in a CalloutLayout; it shares only its name with
+// platform_table::find()
 const CalloutChipOut* find(const CalloutLayout& l, CalloutKind k) {
     for (const auto& c : l.chips)
         if (c.kind == k)

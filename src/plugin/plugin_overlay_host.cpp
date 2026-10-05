@@ -5,7 +5,7 @@
 
 #include "plugin_overlay_host.h"
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_utils.h"
 
@@ -30,10 +30,9 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
     // opened with. A record whose root left the nav stack is mid-close (its
     // callback runs after the slide-out), so a re-open in that window builds a
     // fresh overlay instead of the dying handle.
-    auto& nav = NavigationManager::instance();
     for (const auto& rec : records_) {
         if (rec.plugin_id == plugin_id && rec.component == component &&
-            nav.is_panel_in_stack(rec.root))
+            helix::nav::is_in_stack(rec.root))
             return rec.handle;
     }
 
@@ -66,27 +65,22 @@ int PluginOverlayHost::open(const std::string& plugin_id, const std::string& com
 
 void PluginOverlayHost::push(lv_obj_t* root, IPanelLifecycle* lifecycle,
                              std::function<void()> on_nav_closed) {
-    auto& nav = NavigationManager::instance();
-    nav.register_overlay_instance(root, lifecycle);
+    helix::nav::register_overlay(root, lifecycle);
     // The navigation manager runs close callbacks deferred, after the slide-out, so
     // this is where a live host tears an overlay down.
-    nav.register_overlay_close_callback(
-        root, [fn = std::move(on_nav_closed), token = guard_.token()] {
-            if (token.expired())
-                return; // the destroyed host's owner already deleted the root
-            fn();
-        });
-    nav.push_overlay(root);
+    helix::nav::on_close(root, [fn = std::move(on_nav_closed), token = guard_.token()] {
+        if (token.expired())
+            return; // the destroyed host's owner already deleted the root
+        fn();
+    });
+    helix::nav::push_overlay(root);
 }
 
 PluginOverlayHost::~PluginOverlayHost() {
     guard_.invalidate();
     for (auto& rec : records_) {
-        if (!NavigationManager::is_destroyed()) {
-            auto& nav = NavigationManager::instance();
-            nav.unregister_overlay_close_callback(rec.root);
-            nav.unregister_overlay_instance(rec.root);
-        }
+        helix::nav::clear_on_close(rec.root);
+        helix::nav::unregister_overlay(rec.root);
         helix::ui::safe_delete_deferred(rec.root);
     }
 }
@@ -107,11 +101,10 @@ void PluginOverlayHost::close(int handle) {
     // The on-top decision happens in queue order inside close_overlay, so a push
     // queued ahead of this close (the wizard "open next, close current" pattern)
     // is already on the stack when the decision is made.
-    NavigationManager::instance().close_overlay(it->root);
+    helix::nav::close_overlay(it->root);
 }
 
 void PluginOverlayHost::close_all(const std::string& plugin_id) {
-    auto& nav = NavigationManager::instance();
     // Newest first, matching pop order. Every record leaves through navigation: an
     // on-top root needs go_back's restore path, a buried one is dropped by
     // close_overlay itself, and either way the nav close callback finishes the
@@ -120,7 +113,7 @@ void PluginOverlayHost::close_all(const std::string& plugin_id) {
         if (it->plugin_id != plugin_id)
             continue;
         it->on_closed = {}; // the plugin is unloading; its Lua is going away
-        nav.close_overlay(it->root);
+        helix::nav::close_overlay(it->root);
     }
 }
 
@@ -139,9 +132,8 @@ std::list<PluginOverlayHost::Record>::iterator
 PluginOverlayHost::finish(std::list<Record>::iterator it) {
     auto on_closed = std::move(it->on_closed);
     lv_obj_t* root = it->root;
-    auto& nav = NavigationManager::instance();
-    nav.unregister_overlay_close_callback(root);
-    nav.unregister_overlay_instance(root);
+    helix::nav::clear_on_close(root);
+    helix::nav::unregister_overlay(root);
     auto next = records_.erase(it);
     // Deferred: this runs from inside a queued callback, where a sync delete would
     // corrupt LVGL's event list mid-batch.

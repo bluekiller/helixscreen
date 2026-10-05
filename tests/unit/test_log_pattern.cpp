@@ -31,6 +31,8 @@ using helix::logging::SinkKind;
 
 namespace {
 
+// TEST_MIRROR_OK: contains() is a one-line assertion utility (substring search), not logic
+// under test
 bool contains(const char* hay, const char* needle) {
     return std::string(hay).find(needle) != std::string::npos;
 }

@@ -92,14 +92,18 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     [[nodiscard]] PathSegment get_slot_filament_segment(int slot_index) const override;
     [[nodiscard]] PathSegment infer_error_segment() const override;
 
-    /// Every parse path that resolves the seated slot now stamps
-    /// SlotStatus::LOADED on it (see apply_seated_slot_stamp_locked), so the
-    /// per-slot status answers the per-slot question. Before that the only
-    /// LOADED write lived in load_filament()'s gcode-success callback and the
-    /// next status frame erased it, leaving the inherited
-    /// can_unload_from_toolhead() false on every ACE slot (#1199).
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // Every parse path that resolves the seated slot stamps
+        // SlotStatus::LOADED on it (see apply_seated_slot_stamp_locked), so the
+        // per-slot status answers the per-slot question (#1199).
+        t.has_per_slot_loaded_authority = true;
+        t.has_environment_sensors = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
 
     // ========================================================================
@@ -189,9 +193,6 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     // Environment Sensors & Dryer Control (ACE Pro has built-in dryer + temp)
     // ========================================================================
 
-    [[nodiscard]] bool has_environment_sensors() const override {
-        return true;
-    }
     [[nodiscard]] DryerInfo get_dryer_info(int unit = 0) const override;
     AmsError start_drying(float temp_c, int duration_min, int fan_pct = -1, int unit = 0) override;
     AmsError stop_drying(int unit = 0) override;
@@ -411,7 +412,9 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     /// that is not seated, the target is the pending slot and an idle hub
     /// reads as LOADING, so a toolchange the printer started itself (PRINT_START,
     /// a T<n> mid-print, a macro) shows on the path before the tool seats.
-    /// Caller holds mutex_.
+    /// Swapping out a seated tool reads as UNLOADING until the hub sensor
+    /// clears, so the path stays on the outgoing lane while it retracts.
+    /// Caller holds mutex_; parse the path sensors first.
     /// @return true when pending_target_slot or action changed
     bool apply_target_index_locked(const nlohmann::json& data);
 
@@ -551,10 +554,14 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     bool manager_states_seat_ = false;
 
     /// Last `target_index` the manager stated (-1 = no toolchange under way),
-    /// and whether the LOADING currently shown was raised from it rather than
-    /// by this backend's own load command.
+    /// whether the LOADING/UNLOADING currently shown was raised from it rather
+    /// than by this backend's own load command, and whether the outgoing
+    /// strand has cleared the hub during this toolchange. The hub sensor is
+    /// made again once the incoming strand arrives, so only the latch tells
+    /// the two phases apart.
     int target_index_ = -1;
-    bool driver_loading_ = false;
+    bool driver_action_ = false;
+    bool swap_hub_cleared_ = false;
 
     /// Whether the driver has published `ace_pro_enabled`, and its last value.
     /// Absent means this rig has no master switch at all, which is a different

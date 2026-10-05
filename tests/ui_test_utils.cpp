@@ -755,6 +755,11 @@ ToastManager::~ToastManager() {
 
 void ToastManager::init() {
     spdlog::debug("[Test Stub] ToastManager::init()");
+    initialized_.store(true, std::memory_order_release);
+}
+
+void ToastManager::deinit_subjects() {
+    initialized_.store(false, std::memory_order_release);
 }
 
 void ToastManager::show(ToastSeverity severity, const char* message, uint32_t duration_ms) {
@@ -909,70 +914,19 @@ std::string app_get_config_dir() {
     return "";
 }
 
-// app_globals.o is excluded from the test link, so mirror the real
-// updates_externally_managed logic here (kept identical to src/app_globals.cpp)
-// so the update-gate tests exercise the genuine parse behavior rather than a
-// hollow stub.
-bool compute_updates_externally_managed(const char* disable_auto_updates, bool platform_default) {
-    // An explicit flag decides it, in either direction. helix::env_truthy()
-    // only answers "is this truthy", which cannot distinguish "0" from unset, so
-    // presence is tested separately and a falsy value force-enables self-update
-    // where the platform would otherwise default it off.
-    //
-    // Blank counts as ABSENT, not as falsy. helixscreen.env values routinely carry
-    // a stray space (which is why parsing trims), and an all-whitespace value read
-    // as an explicit "no" would silently switch self-update back on for a
-    // firmware-managed install — the exact failure this predicate exists to stop.
-    if (disable_auto_updates) {
-        const char* p = disable_auto_updates;
-        while (*p && std::isspace(static_cast<unsigned char>(*p))) {
-            ++p;
-        }
-        if (*p != '\0') {
-            return helix::env_truthy(disable_auto_updates);
-        }
-    }
-    return platform_default;
-}
-
+// app_globals.o is excluded from the test link. The pure predicates these wrap
+// live in src/system/update_gate.cpp, which is linked.
 bool updates_externally_managed() {
     static const bool cached = compute_updates_externally_managed(
         std::getenv("HELIX_DISABLE_AUTO_UPDATES"), helix::platform_defaults_to_external_updates());
     return cached;
 }
 
-// Mirror of src/app_globals.cpp compute_self_update_supported / self_update_supported /
-// update_install_suppressed / update_checks_suppressed (app_globals.o is
-// excluded from the test link).
-//
-// Keep the branch structure identical to the original, comments aside. A mirror that
-// drifts turns the tests below into a test of this file: the parent-only version of
-// this predicate was a false negative that hid the updater on every /opt install, and
-// nothing here would have noticed, because the assertions would have been passing
-// against the same wrong logic.
-#include "system/helix_paths.h"
-
 #include <unistd.h> // geteuid
-bool compute_self_update_supported(const std::string& install_root, bool can_escalate) {
-    if (install_root.empty()) {
-        return true;
-    }
-    const std::string parent = std::filesystem::path(install_root).parent_path().string();
-    if (!parent.empty() && helix::paths::is_writable_dir(parent)) {
-        return true; // atomic swap
-    }
-    if (parent.empty()) {
-        return true;
-    }
-    if (helix::paths::is_writable_dir(install_root)) {
-        return true; // in-place replacement
-    }
-    return can_escalate;
-}
 
 // Deliberately NOT a mirror: the real probe forks `sudo -n true`, and a test
 // binary must not shell out to sudo. euid 0 is the one branch that is free to
-// evaluate honestly. The pure predicate above is what the update-gate tests
+// evaluate honestly. compute_self_update_supported() is what the update-gate tests
 // exercise for both escalation values, so this stub costs no coverage.
 bool root_escalation_available() {
     return geteuid() == 0;
@@ -987,10 +941,6 @@ bool self_update_supported() {
         return compute_self_update_supported(root, root_escalation_available());
     }();
     return cached;
-}
-
-bool compute_update_install_suppressed(bool externally_managed, bool self_update_ok) {
-    return externally_managed || !self_update_ok;
 }
 
 bool update_install_suppressed() {

@@ -270,3 +270,19 @@ TEST_CASE("TouchCalibrationSession: restore puts back the LIVE range, not the st
 
     reset_stored_calibration_keys();
 }
+
+TEST_CASE("TouchCalibrationSession: restore reinstalls the transposed-range guess as itself",
+          "[touch-calibration][session][range-fit][transposed-guess]") {
+    PipelineSink sink;
+    sink.range = TouchRangeSettings{true, false, 0, PANEL_W, 0, PANEL_H};
+    sink.source = TouchRangeSource::DisplaySize;
+
+    TouchCalibrationSession session;
+    session.begin_capture(sink);
+    sink.apply_touch_range(false, 0, 0, 639, 479, TouchRangeSource::Stored);
+    session.restore(sink);
+
+    CHECK(sink.source == TouchRangeSource::DisplaySize);
+    CHECK(sink.range.max_x == PANEL_W);
+    CHECK(sink.range.max_y == PANEL_H);
+}

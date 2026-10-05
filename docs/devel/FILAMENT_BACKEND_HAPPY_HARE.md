@@ -95,7 +95,7 @@ keeps its last value instead of silently flipping to off. It lands in
 the first frame the flag is still false, which is why the uninitialised-registry branch
 reports `Unknown` + `NotReady` rather than `Off`.
 
-`recovers_filament_on_resume()` is **not** overridden here (default `false`), so a Happy
+`recovers_filament_on_resume()` is left at its `kTraits` default (`false`), so a Happy
 Hare runout gets the dialog with manual **Load** kept prominent, because Resume alone does not
 re-feed. `supports_per_tool_spool_assignment()` is not overridden either; it falls through
 to `is_tool_changer(get_type())`, which is false for an MMU.

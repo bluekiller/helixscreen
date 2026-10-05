@@ -230,20 +230,37 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
         return info.sync_feedback_bias > -1.5f;
     }
     [[nodiscard]] AmsType get_type() const override;
-    /// AFC firmware publishes a bypass sensor whether or not one is wired.
-    [[nodiscard]] bool bypass_is_virtual() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // AFC firmware publishes a bypass sensor whether or not one is wired.
+        t.bypass_is_virtual = true;
+        // The end-of-print macros consult the user's setting, so the toggle row
+        // is offered.
+        t.supports_configurable_unload_after_print = true;
+        // AFC users have a console; the screen passes their command through rather
+        // than synthesising a prerequisite operation they never asked for (#1229).
+        t.allows_implicit_chaining = false;
+        // AFC reports load state per lane (AFC_stepper.<lane>.tool_loaded), which
+        // parse_afc_stepper() turns into SlotStatus::LOADED. That beats deriving a
+        // per-lane answer from the aggregate current_slot pointer, which we resolve
+        // from several sources and which goes null mid-toolchange (#1194).
+        t.has_per_slot_loaded_authority = true;
+        // AFC refuses LANE_UNLOAD outright while printing, so the affordance must
+        // grey out with the rest — see AmsBackend for why this is not the default.
+        t.cold_lane_ops_refused_during_print = true;
+        // AFC heats the extruder itself from default_material_temps.
+        t.supports_auto_heat_on_load = true;
+        // AFC uses SET_SPOOL_ID gcode for persistence
+        t.has_firmware_spool_persistence = true;
+        // AFC publishes a lane spool_id in its status
+        t.printer_reports_spool_ids = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
-    /// The end-of-print macros consult the user's setting, so the toggle row
-    /// is offered.
-    [[nodiscard]] bool supports_configurable_unload_after_print() const override {
-        return true;
-    }
-    /// AFC users have a console; the screen passes their command through rather
-    /// than synthesising a prerequisite operation they never asked for (#1229).
-    [[nodiscard]] bool allows_implicit_chaining() const override {
-        return false;
-    }
+
     [[nodiscard]] const char* get_klipper_object_name() const override {
         return "AFC"; // Matches the Klipper object name (uppercase)
     }
@@ -283,14 +300,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     [[nodiscard]] PathSegment get_slot_filament_segment(int slot_index) const override;
     [[nodiscard]] PathSegment infer_error_segment() const override;
     [[nodiscard]] bool slot_has_prep_sensor(int slot_index) const override;
-
-    /// AFC reports load state per lane (AFC_stepper.<lane>.tool_loaded), which
-    /// parse_afc_stepper() turns into SlotStatus::LOADED. That beats deriving a
-    /// per-lane answer from the aggregate current_slot pointer, which we resolve
-    /// from several sources and which goes null mid-toolchange (#1194).
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return true;
-    }
 
     /// True when the extruder that names this lane as loaded has filament at
     /// either of its sensors. AFC_extruder carries tool_start_status /
@@ -385,11 +394,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
         return true;
     }
 
-    /// AFC refuses LANE_UNLOAD outright while printing, so the affordance must
-    /// grey out with the rest — see AmsBackend for why this is not the default.
-    [[nodiscard]] bool cold_lane_ops_refused_during_print() const override {
-        return true;
-    }
     AmsError cancel() override;
 
     // Configuration
@@ -410,15 +414,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     AmsError disable_bypass() override;
     [[nodiscard]] bool is_bypass_active() const override;
 
-    // Capability queries
-    /**
-     * @brief AFC automatically heats extruder using default_material_temps
-     * @return true - AFC handles preheat via its configuration
-     */
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
-        return true;
-    }
-
     [[nodiscard]] RemapStrategy get_remap_strategy() const override {
         return RemapStrategy::Native;
     }
@@ -426,14 +421,6 @@ class AmsBackendAfc : public AmsSubscriptionBackend {
     /// AFC owns the lane->tool map (SET_MAP) and get_tool_mapping() returns it.
     [[nodiscard]] bool owns_tool_mapping_table() const override {
         return true;
-    }
-
-    [[nodiscard]] bool has_firmware_spool_persistence() const override {
-        return true; // AFC uses SET_SPOOL_ID gcode for persistence
-    }
-
-    [[nodiscard]] bool printer_reports_spool_ids() const override {
-        return true; // AFC publishes a lane spool_id in its status
     }
 
     /// Per-lane remember_spool = true on EVERY reporting lane (ALL

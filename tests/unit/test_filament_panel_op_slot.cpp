@@ -129,8 +129,10 @@ class RecordingBackend : public helix::AmsBackendMock {
         }
         return info;
     }
-    [[nodiscard]] bool filament_ops_self_home() const override {
-        return self_homes_;
+    [[nodiscard]] helix::BackendTraits traits() const override {
+        helix::BackendTraits t = helix::AmsBackendMock::traits();
+        t.filament_ops_self_home = self_homes_;
+        return t;
     }
 
     helix::AmsError load_filament(int slot) override {

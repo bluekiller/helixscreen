@@ -7,7 +7,7 @@
 #include "ui_event_safety.h"
 #include "ui_filename_utils.h"
 #include "ui_format_utils.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_print_select.h"
@@ -309,6 +309,11 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             if (!self->widget_obj_)
                 return;
             self->apply_esp_psram_thumbnail();
+            // The thumbnail can land after the card went idle for a finished
+            // print; the idle thumbs show it only through a fresh resolve.
+            if (!self->is_active_) {
+                self->defer_reset_print_card_to_idle();
+            }
         },
         printer_state_.get_subjects_lifetime(), Dispatch::Immediate);
 #endif
@@ -470,10 +475,8 @@ void PrintStatusWidget::detach() {
     // recycled, so the lv_image outlives this detach, and for a variable source
     // lv_image stores the raw pointer (it only strdups paths). Ours can be the
     // last reference — PrinterState drops its own on the next filename change.
-    if (esp_thumbnail_ && print_card_active_thumb_ &&
-        lv_image_get_src(print_card_active_thumb_) == esp_thumbnail_->dsc()) {
-        lv_image_set_src(print_card_active_thumb_,
-                         helix::PrinterPrintState::no_thumbnail_placeholder());
+    if (esp_thumbnail_) {
+        unpoint_thumbs_from(esp_thumbnail_->dsc());
     }
     esp_thumbnail_.reset();
 #endif
@@ -692,7 +695,7 @@ void PrintStatusWidget::handle_print_card_clicked() {
 
 void PrintStatusWidget::handle_library_files() {
     spdlog::info("[PrintStatusWidget] Library: Print Files");
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 }
 
 void PrintStatusWidget::handle_library_last() {
@@ -715,7 +718,7 @@ void PrintStatusWidget::handle_library_last() {
     spdlog::info("[PrintStatusWidget] Library: Print Last -> {}", last_job->filename);
 
     // Navigate to PrintSelectPanel, select the file, and return to home on back
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     auto* panel = get_print_select_panel(printer_state_, get_moonraker_api());
     if (panel) {
@@ -729,7 +732,7 @@ void PrintStatusWidget::handle_library_last() {
 void PrintStatusWidget::handle_library_recent() {
     spdlog::info("[PrintStatusWidget] Library: Recent");
 
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     auto* panel = get_print_select_panel(printer_state_, get_moonraker_api());
     if (panel) {
@@ -816,10 +819,83 @@ void PrintStatusWidget::apply_esp_psram_thumbnail() {
     // which is what EspPsramThumbnail's destructor requires.
     auto previous = std::move(esp_thumbnail_);
     esp_thumbnail_ = std::move(thumb);
+    if (previous && previous != esp_thumbnail_) {
+        unpoint_thumbs_from(previous->dsc());
+    }
     lv_image_set_src(print_card_active_thumb_, esp_thumbnail_->dsc());
     spdlog::info("[PrintStatusWidget] Active print PSRAM thumbnail applied");
 }
+
+void PrintStatusWidget::unpoint_thumbs_from(const void* dsc) {
+    lv_obj_t* thumbs[] = {print_card_active_thumb_, print_card_thumb_, print_card_thumb_compact_,
+                          idle_hero_thumb()};
+    for (auto* img : thumbs) {
+        if (img && lv_obj_is_valid(img) && lv_image_get_src(img) == dsc) {
+            lv_image_set_src(img, helix::PrinterPrintState::no_thumbnail_placeholder());
+        }
+    }
+}
+
+bool PrintStatusWidget::show_finished_print_image() {
+    // The active-print media keeps the last print's image until another print
+    // starts. The history fetch cannot produce one here: there is no disk cache
+    // for it to land in.
+    auto* history = get_print_history_manager();
+    const PrintHistoryJob* newest = history ? history->get_newest_existing_job() : nullptr;
+    const char* raw = lv_subject_get_string(printer_state_.get_print_filename_subject());
+    const std::string& identity = printer_state_.get_effective_print_filename();
+    if (!idle_card_shows_active_thumbnail(printer_state_.get_print_lifecycle(),
+                                          newest ? newest->filename : std::string(), raw ? raw : "",
+                                          identity, printer_state_.get_print_thumbnail_file())) {
+        return false;
+    }
+    auto thumb = printer_state_.get_print_psram_thumbnail();
+    if (!thumb) {
+        return false;
+    }
+    if (thumb != esp_thumbnail_) {
+        apply_esp_psram_thumbnail();
+    }
+    if (esp_thumbnail_ != thumb) {
+        return false; // no active thumb to apply it to; this tree is incomplete
+    }
+    // idle_thumb_path_subject_ is a string and cannot carry a descriptor, so
+    // the hero is written directly; set_thumb_on_widgets() writes it back.
+    shown_idle_thumb_ = {};
+    lv_obj_t* thumbs[] = {print_card_thumb_, print_card_thumb_compact_, idle_hero_thumb()};
+    for (auto* img : thumbs) {
+        if (img && lv_obj_is_valid(img)) {
+            lv_image_set_src(img, esp_thumbnail_->dsc());
+        }
+    }
+    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}' (PSRAM)", identity);
+    return true;
+}
+
+lv_obj_t* PrintStatusWidget::idle_hero_thumb() const {
+    return widget_obj_ && lv_obj_is_valid(widget_obj_)
+               ? lv_obj_find_by_name(widget_obj_, "idle_thumb")
+               : nullptr;
+}
 #endif
+
+bool PrintStatusWidget::history_job_is_active_print(const std::string& history_file,
+                                                    const std::string& raw_file,
+                                                    const std::string& identity_file) {
+    return !history_file.empty() && (history_file == raw_file || history_file == identity_file);
+}
+
+bool PrintStatusWidget::idle_card_shows_active_thumbnail(PrintState state,
+                                                         const std::string& history_file,
+                                                         const std::string& raw_file,
+                                                         const std::string& identity_file,
+                                                         const std::string& thumbnail_file) {
+    if (thumbnail_file.empty() || thumbnail_file != identity_file) {
+        return false;
+    }
+    return state == PrintState::Complete ||
+           history_job_is_active_print(history_file, raw_file, identity_file);
+}
 
 std::string PrintStatusWidget::get_last_print_thumbnail_path() const {
     auto* history = get_print_history_manager();
@@ -938,6 +1014,13 @@ void PrintStatusWidget::reset_print_card_to_idle() {
     // an older fetch completing afterwards would otherwise overwrite it.
     auto ctx = ThumbnailLoadContext::create(lifetime_, &idle_thumb_generation_);
 
+#if defined(HELIX_PLATFORM_ESP32)
+    // Ahead of the history resolve: history may not be loaded at all.
+    if (show_finished_print_image()) {
+        return;
+    }
+#endif
+
     // Try to show the last printed file's thumbnail instead of benchy
     std::string thumb_rel_path = get_last_print_thumbnail_path();
     if (thumb_rel_path.empty()) {
@@ -1033,6 +1116,13 @@ void PrintStatusWidget::set_thumb_on_widgets(const char* src) {
     if (print_card_thumb_compact_ && lv_obj_is_valid(print_card_thumb_compact_)) {
         lv_image_set_src(print_card_thumb_compact_, src);
     }
+#if defined(HELIX_PLATFORM_ESP32)
+    // The subject only notifies on a change, and the hero may have been
+    // written directly (show_finished_print_image) while it held this value.
+    if (lv_obj_t* hero = idle_hero_thumb(); hero && lv_obj_is_valid(hero)) {
+        lv_image_set_src(hero, src);
+    }
+#endif
     lv_subject_copy_string(&idle_thumb_path_subject_, src);
 }
 

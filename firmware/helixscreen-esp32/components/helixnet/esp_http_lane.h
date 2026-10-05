@@ -50,6 +50,11 @@ class EspHttpLane {
 
     static constexpr size_t QUEUE_DEPTH = 8;
 
+    // Called on the lane's worker thread with each response's Date header
+    // value. One hook, set once at boot; nullptr clears it.
+    using DateHeaderHook = void (*)(const char* value);
+    static void set_date_header_hook(DateHeaderHook hook);
+
     EspHttpLane(const EspHttpLane&) = delete;
     EspHttpLane& operator=(const EspHttpLane&) = delete;
 

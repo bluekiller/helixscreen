@@ -81,7 +81,7 @@ static void on_camera_fullscreen_close(lv_event_t* /*e*/) {
     } else {
         // Standalone fullscreen viewer (no owning CameraWidget) — the
         // NavigationManager-registered close callback handles cleanup.
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 }
 
@@ -678,8 +678,8 @@ void CameraWidget::show_fullscreen_overlay() {
     // Register with NavigationManager for lifecycle and cleanup.
     // The close callback handles both explicit close (close button) and
     // NavigationManager-initiated close (backdrop click, back gesture).
-    NavigationManager::instance().register_overlay_instance(overlay, nullptr);
-    NavigationManager::instance().register_overlay_close_callback(overlay, [this]() {
+    helix::nav::register_overlay(overlay, nullptr);
+    helix::nav::on_close(overlay, [this]() {
         // Clear image source before deletion to prevent dangling draw buf reference
         if (fullscreen_image_) {
             lv_image_set_src(fullscreen_image_, nullptr);
@@ -713,8 +713,8 @@ void CameraWidget::show_fullscreen_overlay() {
     // its own XML (width="100%" height="100%") and must NOT go through the
     // standard overlay geometry calculator, which would give it a partial
     // transient width and offset it to one side.
-    NavigationManager::instance().set_overlay_width_unmanaged(overlay);
-    NavigationManager::instance().push_overlay(overlay);
+    helix::nav::set_overlay_width_unmanaged(overlay);
+    helix::nav::push_overlay(overlay);
 
     spdlog::info("[CameraWidget] Opened fullscreen camera");
 }
@@ -741,7 +741,7 @@ void CameraWidget::close_fullscreen() {
     }
 
     // go_back() fires the registered close callback which handles all cleanup
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 namespace {
@@ -909,10 +909,10 @@ void open_standalone_camera_fullscreen(lv_obj_t* parent_screen) {
             });
         });
 
-    NavigationManager::instance().register_overlay_instance(overlay, nullptr);
+    helix::nav::register_overlay(overlay, nullptr);
     lv_obj_add_event_cb(overlay, on_standalone_overlay_deleted, LV_EVENT_DELETE, nullptr);
     // The close is queued; a stale one must not shut a viewer opened since.
-    NavigationManager::instance().register_overlay_close_callback(overlay, [overlay]() {
+    helix::nav::on_close(overlay, [overlay]() {
         if (s_standalone && s_standalone->overlay == overlay) {
             close_standalone();
         }
@@ -922,8 +922,8 @@ void open_standalone_camera_fullscreen(lv_obj_t* parent_screen) {
     // the identical camera_fullscreen component, and without this it goes
     // through the overlay geometry calculator and renders at a partial
     // transient width offset to one side.
-    NavigationManager::instance().set_overlay_width_unmanaged(overlay);
-    NavigationManager::instance().push_overlay(overlay);
+    helix::nav::set_overlay_width_unmanaged(overlay);
+    helix::nav::push_overlay(overlay);
     spdlog::info("[CameraWidget] Standalone fullscreen opened (stream={}, snapshot={})", stream_url,
                  snapshot_url);
 }
@@ -942,8 +942,8 @@ void CameraWidget::destroy_fullscreen() {
     fullscreen_spinner_ = nullptr;
     s_fullscreen_owner = nullptr;
 
-    NavigationManager::instance().unregister_overlay_close_callback(fullscreen_overlay_);
-    NavigationManager::instance().unregister_overlay_instance(fullscreen_overlay_);
+    helix::nav::clear_on_close(fullscreen_overlay_);
+    helix::nav::unregister_overlay(fullscreen_overlay_);
     helix::ui::safe_delete_obj(fullscreen_overlay_);
 
     spdlog::debug("[CameraWidget] Fullscreen overlay destroyed (synchronous)");

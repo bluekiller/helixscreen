@@ -1529,10 +1529,11 @@ SUITE_REPORT ?= $(BUILD_DIR)/suite-report.xml
 # blocked by this, so the report excludes them and they are judged by the suite
 # itself. See prestonbrown/helixscreen#1375.
 VACUOUS_FILTER ?= ~[.]~[slow]~[subprocess]~[socket_discovery]
-# Ratchet. May fall, never rise. 36 no-assertion + 2 literal-tautology.
+# Ratchet. May fall, never rise. Crash canaries and compile-time-only cases are
+# exempted by name in scripts/vacuous_test_baseline.txt, not counted here.
 # The nightly reads this through print-vacuous-max rather than repeating the
 # number, so the gate cannot drift from the value the tree is held to.
-VACUOUS_MAX ?= 38
+VACUOUS_MAX ?= 0
 
 .PHONY: print-vacuous-max
 print-vacuous-max:
@@ -1576,13 +1577,13 @@ check-tautology:
 	$(Q)python3 scripts/check_test_tautology.py --max-allowed $(TAUTOLOGY_MAX)
 	$(Q)python3 scripts/check_test_mirrors.py $(MIRROR_MAX_ARGS)
 
-TAUTOLOGY_MAX ?= 3
+TAUTOLOGY_MAX ?= 0
 # One ratchet per signal, so fixing one kind cannot buy slack for another. Each
 # may fall, never rise; an unnamed signal (shadow-include, mirror-comment)
 # allows 0. stub-logic is tests/ui_test_utils.cpp standing in for app_globals.o,
 # ui_notification.o and ui_toast_manager.o.
-MIRROR_MAX_REDEFINED_SYMBOL ?= 17
-MIRROR_MAX_STUB_LOGIC ?= 30
+MIRROR_MAX_REDEFINED_SYMBOL ?= 0
+MIRROR_MAX_STUB_LOGIC ?= 27
 MIRROR_MAX_ARGS = --max redefined-symbol=$(MIRROR_MAX_REDEFINED_SYMBOL) \
 	--max stub-logic=$(MIRROR_MAX_STUB_LOGIC)
 
