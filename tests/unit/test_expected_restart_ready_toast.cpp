@@ -36,6 +36,7 @@ namespace {
 class ReadyToastFixture : public XMLTestFixture {
   public:
     ReadyToastFixture() {
+        ToastManager::instance().init();
         auto& estop = EmergencyStopOverlay::instance();
         estop.init(state(), &api());
         estop.init_subjects();
