@@ -309,6 +309,11 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
             if (!self->widget_obj_)
                 return;
             self->apply_esp_psram_thumbnail();
+            // The thumbnail can land after the card went idle for a finished
+            // print; the idle thumbs show it only through a fresh resolve.
+            if (!self->is_active_) {
+                self->defer_reset_print_card_to_idle();
+            }
         },
         printer_state_.get_subjects_lifetime(), Dispatch::Immediate);
 #endif
@@ -833,14 +838,15 @@ void PrintStatusWidget::unpoint_thumbs_from(const void* dsc) {
 
 bool PrintStatusWidget::show_finished_print_image() {
     // The active-print media keeps the last print's image until another print
-    // starts, so a history head naming that print is the one that just ended.
-    // The history fetch cannot produce its image here: there is no disk cache
+    // starts. The history fetch cannot produce one here: there is no disk cache
     // for it to land in.
     auto* history = get_print_history_manager();
     const PrintHistoryJob* newest = history ? history->get_newest_existing_job() : nullptr;
     const char* raw = lv_subject_get_string(printer_state_.get_print_filename_subject());
-    if (!newest || !history_job_is_active_print(newest->filename, raw ? raw : "",
-                                                printer_state_.get_print_thumbnail_file())) {
+    const std::string& identity = printer_state_.get_effective_print_filename();
+    if (!idle_card_shows_active_thumbnail(printer_state_.get_print_lifecycle(),
+                                          newest ? newest->filename : std::string(), raw ? raw : "",
+                                          identity, printer_state_.get_print_thumbnail_file())) {
         return false;
     }
     auto thumb = printer_state_.get_print_psram_thumbnail();
@@ -862,8 +868,7 @@ bool PrintStatusWidget::show_finished_print_image() {
             lv_image_set_src(img, esp_thumbnail_->dsc());
         }
     }
-    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}' (PSRAM)",
-                  newest->filename);
+    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}' (PSRAM)", identity);
     return true;
 }
 
@@ -878,6 +883,18 @@ bool PrintStatusWidget::history_job_is_active_print(const std::string& history_f
                                                     const std::string& raw_file,
                                                     const std::string& identity_file) {
     return !history_file.empty() && (history_file == raw_file || history_file == identity_file);
+}
+
+bool PrintStatusWidget::idle_card_shows_active_thumbnail(PrintState state,
+                                                         const std::string& history_file,
+                                                         const std::string& raw_file,
+                                                         const std::string& identity_file,
+                                                         const std::string& thumbnail_file) {
+    if (thumbnail_file.empty() || thumbnail_file != identity_file) {
+        return false;
+    }
+    return state == PrintState::Complete ||
+           history_job_is_active_print(history_file, raw_file, identity_file);
 }
 
 std::string PrintStatusWidget::get_last_print_thumbnail_path() const {
@@ -997,6 +1014,13 @@ void PrintStatusWidget::reset_print_card_to_idle() {
     // an older fetch completing afterwards would otherwise overwrite it.
     auto ctx = ThumbnailLoadContext::create(lifetime_, &idle_thumb_generation_);
 
+#if defined(HELIX_PLATFORM_ESP32)
+    // Ahead of the history resolve: history may not be loaded at all.
+    if (show_finished_print_image()) {
+        return;
+    }
+#endif
+
     // Try to show the last printed file's thumbnail instead of benchy
     std::string thumb_rel_path = get_last_print_thumbnail_path();
     if (thumb_rel_path.empty()) {
@@ -1005,12 +1029,6 @@ void PrintStatusWidget::reset_print_card_to_idle() {
         spdlog::debug("[PrintStatusWidget] Idle thumbnail: benchy (no history)");
         return;
     }
-
-#if defined(HELIX_PLATFORM_ESP32)
-    if (show_finished_print_image()) {
-        return;
-    }
-#endif
 
     // Compute pre-scale target from actual widget size (not hardcoded breakpoints)
     int widget_w = lv_obj_get_width(print_card_thumb_);

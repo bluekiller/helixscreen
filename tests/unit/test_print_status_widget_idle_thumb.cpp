@@ -945,3 +945,30 @@ TEST_CASE("PrintStatusWidget: the history head is matched to the active print",
                                                                rewritten, original));
     CHECK_FALSE(PrintStatusWidget::history_job_is_active_print("", "", ""));
 }
+
+// The finished print is known without history: print_stats says complete and
+// the thumbnail was loaded for the print it names. History is the fallback once
+// the printer leaves complete, and may not be loaded at all on the ESP32.
+TEST_CASE("PrintStatusWidget: the idle card shows the active thumbnail for a finished print",
+          "[print_status_widget][idle_thumb][finished]") {
+    const std::string einsy = "einsy.gcode";
+    const std::string rewritten = ".helix_temp/modified_einsy.gcode";
+    auto shows = [](PrintState state, const std::string& history_file, const std::string& raw,
+                    const std::string& identity, const std::string& thumbnail_file) {
+        return PrintStatusWidget::idle_card_shows_active_thumbnail(state, history_file, raw,
+                                                                   identity, thumbnail_file);
+    };
+
+    // Complete with no history at all.
+    CHECK(shows(PrintState::Complete, "", einsy, einsy, einsy));
+    CHECK(shows(PrintState::Complete, "", rewritten, einsy, einsy));
+    // Out of complete, history has to name the print.
+    CHECK(shows(PrintState::Idle, einsy, einsy, einsy, einsy));
+    CHECK(shows(PrintState::Idle, rewritten, rewritten, einsy, einsy));
+    CHECK_FALSE(shows(PrintState::Idle, "", einsy, einsy, einsy));
+    CHECK_FALSE(shows(PrintState::Idle, "other.gcode", einsy, einsy, einsy));
+    // The thumbnail must belong to the print, whatever the state.
+    CHECK_FALSE(shows(PrintState::Complete, "", einsy, einsy, "other.gcode"));
+    CHECK_FALSE(shows(PrintState::Complete, einsy, einsy, einsy, ""));
+    CHECK_FALSE(shows(PrintState::Complete, "", "", "", ""));
+}

@@ -187,6 +187,17 @@ class PrintStatusWidget : public PanelWidget {
     [[nodiscard]] static bool history_job_is_active_print(const std::string& history_file,
                                                           const std::string& raw_file,
                                                           const std::string& identity_file);
+
+    /// Whether the idle card shows the active print's thumbnail rather than
+    /// resolving one from history. The thumbnail must have been loaded for the
+    /// print (@p thumbnail_file == @p identity_file). While print_stats says
+    /// complete that print is the finished one; otherwise the history head
+    /// (@p history_file, "" when history has none) has to name it.
+    [[nodiscard]] static bool idle_card_shows_active_thumbnail(PrintState state,
+                                                               const std::string& history_file,
+                                                               const std::string& raw_file,
+                                                               const std::string& identity_file,
+                                                               const std::string& thumbnail_file);
     // Take a reference on the shared DetailedFormatter, building it if this is
     // the first. Shared by the ctor and ensure_formatter_for_test() so both go
     // through the same replacement ordering (see the definition).
