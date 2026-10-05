@@ -19,10 +19,12 @@ namespace {
 constexpr char TAG[] = "wall_clock";
 
 std::atomic<bool> s_set{false};
+std::atomic<bool> s_sntp_synced{false};
 
 // lwIP's thread. SNTP has already set the clock; this only stops a later Date
 // header from overriding it.
 void on_sntp_sync(timeval* tv) {
+    s_sntp_synced.store(true);
     if (!s_set.exchange(true)) {
         ESP_LOGI(TAG, "clock set by SNTP: %lld", static_cast<long long>(tv->tv_sec));
     }
@@ -36,6 +38,9 @@ void on_date_header(const char* value) {
     std::time_t epoch_s = 0;
     if (!helix::format::parse_http_date(value, epoch_s) || s_set.exchange(true)) {
         return;
+    }
+    if (s_sntp_synced.load()) {
+        return; // SNTP answered while this header was parsed; its time is better.
     }
     timeval tv{};
     tv.tv_sec = epoch_s;

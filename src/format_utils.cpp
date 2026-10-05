@@ -230,18 +230,24 @@ bool parse_http_date(const char* value, std::time_t& epoch_s) {
     }
     char mon[4] = {};
     char zone[4] = {};
-    int day = 0, year = 0, hour = 0, minute = 0, second = 0;
-    if (std::sscanf(value, "%*[A-Za-z], %2d %3s %4d %2d:%2d:%2d %3s", &day, mon, &year, &hour,
-                    &minute, &second, zone) != 7 ||
-        std::strcmp(zone, "GMT") != 0) {
+    int day = 0, year = 0, hour = 0, minute = 0, second = 0, end = 0;
+    if (std::sscanf(value, "%*[A-Za-z], %2d %3s %4d %2d:%2d:%2d %3s%n", &day, mon, &year, &hour,
+                    &minute, &second, zone, &end) != 7 ||
+        value[end] != '\0' || std::strcmp(zone, "GMT") != 0) {
         return false;
     }
     int month = 0;
     while (month < 12 && std::strcmp(mon, MONTHS[month]) != 0) {
         ++month;
     }
-    if (month == 12 || day < 1 || day > 31 || year < 1970 || hour < 0 || hour > 23 || minute < 0 ||
-        minute > 59 || second < 0 || second > 60) {
+    if (month == 12 || year < 1970 || hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
+        second < 0 || second > 60) {
+        return false;
+    }
+    static const int DAYS_IN_MONTH[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    const bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    const int month_days = DAYS_IN_MONTH[month] + ((month == 1 && leap) ? 1 : 0);
+    if (day < 1 || day > month_days) {
         return false;
     }
     // Days since the epoch for a proleptic Gregorian date (Hinnant's days_from_civil):

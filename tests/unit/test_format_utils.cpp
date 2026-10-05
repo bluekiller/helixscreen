@@ -557,5 +557,9 @@ TEST_CASE("parse_http_date rejects what is not an IMF-fixdate", "[format_utils][
     CHECK_FALSE(helix::format::parse_http_date("Sun, 06 Foo 1994 08:49:37 GMT", t));
     CHECK_FALSE(helix::format::parse_http_date("Sun, 06 Nov 1994 25:49:37 GMT", t));
     CHECK_FALSE(helix::format::parse_http_date("Sunday, 06-Nov-94 08:49:37 GMT", t));
+    CHECK_FALSE(helix::format::parse_http_date("Sun, 06 Nov 1994 08:49:37 GMTX", t));
+    CHECK_FALSE(helix::format::parse_http_date("Tue, 31 Feb 2026 00:00:00 GMT", t));
+    CHECK_FALSE(helix::format::parse_http_date("Thu, 29 Feb 2026 00:00:00 GMT", t));
+    CHECK_FALSE(helix::format::parse_http_date("Thu, 31 Apr 2026 00:00:00 GMT", t));
     CHECK(t == 42);
 }

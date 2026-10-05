@@ -96,16 +96,18 @@ extract_labels() {
 @test "each POSIX rule matches its bundled zone's TZif footer" {
     # The ESP32 firmware applies the POSIX column (newlib reads no zoneinfo), so
     # a rule that drifts from the bundle shows the wrong time there and nowhere else.
-    local bad=""
+    local bad="" rows=0
     while IFS='|' read -r zone posix; do
         [ -n "$zone" ] || continue
+        rows=$((rows + 1))
         local footer
         footer=$(tail -n 1 "$BUNDLE/$zone")
         [ "$posix" = "$footer" ] || bad="$bad $zone($posix != $footer)"
     done < <(sed -n '/^static const TimezoneEntry TIMEZONE_ENTRIES\[\] = {/,/^};/p' "$SRC" |
         sed -n 's/.*{[[:space:]]*"[^"]*"[[:space:]]*,[[:space:]]*"\([^"]*\)"[[:space:]]*,[[:space:]]*"\([^"]*\)"[[:space:]]*}.*/\1|\2/p')
 
-    [ "$(extract_ids | wc -l)" -gt 20 ]
+    # A row without a POSIX column parses as an id but not as a triple.
+    [ "$rows" -eq "$(extract_ids | wc -l)" ]
     if [ -n "$bad" ]; then
         echo "POSIX rule differs from the bundle:$bad"
         false
