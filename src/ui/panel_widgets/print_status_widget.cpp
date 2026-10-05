@@ -57,7 +57,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstring>
 #include <string_view>
 #include <unordered_set>
 
@@ -831,19 +830,19 @@ void PrintStatusWidget::unpoint_thumbs_from(const void* dsc) {
         }
     }
 }
-#endif
 
 bool PrintStatusWidget::show_finished_print_image() {
     // The active-print media keeps the last print's image until another print
-    // starts, so a history head naming that file is the print that just ended.
-    // Its image needs no fetch, and on the ESP32 it is the only one there is:
-    // the history fetch has no disk cache to land in.
+    // starts, so a history head naming that print is the one that just ended.
+    // The history fetch cannot produce its image here: there is no disk cache
+    // for it to land in.
     auto* history = get_print_history_manager();
     const PrintHistoryJob* newest = history ? history->get_newest_existing_job() : nullptr;
-    if (!newest || newest->filename != printer_state_.get_print_thumbnail_file()) {
+    const char* raw = lv_subject_get_string(printer_state_.get_print_filename_subject());
+    if (!newest || !history_job_is_active_print(newest->filename, raw ? raw : "",
+                                                printer_state_.get_print_thumbnail_file())) {
         return false;
     }
-#if defined(HELIX_PLATFORM_ESP32)
     auto thumb = printer_state_.get_print_psram_thumbnail();
     if (!thumb) {
         return false;
@@ -866,25 +865,20 @@ bool PrintStatusWidget::show_finished_print_image() {
     spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}' (PSRAM)",
                   newest->filename);
     return true;
-#else
-    const char* path = lv_subject_get_string(printer_state_.get_print_thumbnail_path_subject());
-    if (!path || !*path ||
-        strcmp(path, helix::PrinterPrintState::no_thumbnail_placeholder()) == 0) {
-        return false;
-    }
-    shown_idle_thumb_ = {};
-    set_thumb_on_widgets(path);
-    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}': {}", newest->filename,
-                  path);
-    return true;
-#endif
 }
 
-#if defined(HELIX_PLATFORM_ESP32)
 lv_obj_t* PrintStatusWidget::idle_hero_thumb() const {
-    return widget_obj_ ? lv_obj_find_by_name(widget_obj_, "idle_thumb") : nullptr;
+    return widget_obj_ && lv_obj_is_valid(widget_obj_)
+               ? lv_obj_find_by_name(widget_obj_, "idle_thumb")
+               : nullptr;
 }
 #endif
+
+bool PrintStatusWidget::history_job_is_active_print(const std::string& history_file,
+                                                    const std::string& raw_file,
+                                                    const std::string& identity_file) {
+    return !history_file.empty() && (history_file == raw_file || history_file == identity_file);
+}
 
 std::string PrintStatusWidget::get_last_print_thumbnail_path() const {
     auto* history = get_print_history_manager();
@@ -1012,9 +1006,11 @@ void PrintStatusWidget::reset_print_card_to_idle() {
         return;
     }
 
+#if defined(HELIX_PLATFORM_ESP32)
     if (show_finished_print_image()) {
         return;
     }
+#endif
 
     // Compute pre-scale target from actual widget size (not hardcoded breakpoints)
     int widget_w = lv_obj_get_width(print_card_thumb_);

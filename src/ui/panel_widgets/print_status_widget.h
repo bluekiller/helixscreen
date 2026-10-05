@@ -180,6 +180,13 @@ class PrintStatusWidget : public PanelWidget {
     // Called from the ctor in production, AND from ensure_formatter_for_test so
     // tests that only construct the formatter still get the subjects.
     static void init_static_subjects();
+
+    /// Whether a history entry is the active print. Moonraker records the name
+    /// print_stats reported (@p raw_file), which for a rewritten copy differs
+    /// from the print's identity (@p identity_file); either one matches.
+    [[nodiscard]] static bool history_job_is_active_print(const std::string& history_file,
+                                                          const std::string& raw_file,
+                                                          const std::string& identity_file);
     // Take a reference on the shared DetailedFormatter, building it if this is
     // the first. Shared by the ctor and ensure_formatter_for_test() so both go
     // through the same replacement ordering (see the definition).
@@ -548,12 +555,12 @@ class PrintStatusWidget : public PanelWidget {
     void unpoint_thumbs_from(const void* dsc);
     /// The detailed-idle hero image, or nullptr outside that layout.
     [[nodiscard]] lv_obj_t* idle_hero_thumb() const;
+    /// Show the active print's PSRAM thumbnail on the idle thumbs when the
+    /// history head is that print, which is how a finished print looks. False
+    /// when it is not available, leaving the history resolve.
+    bool show_finished_print_image();
 #endif
     void reset_print_card_to_idle();
-    /// Show the active print's image on the idle thumbs when the history head
-    /// is the file it was loaded for, which is how a finished print looks.
-    /// False when that image is not available, leaving the history resolve.
-    bool show_finished_print_image();
     // Publish one resolved idle thumbnail everywhere it is shown: the two
     // imperative Library-mode thumbs and idle_thumb_path_subject_, which the
     // detailed-idle hero reads through bind_src. A member rather than a lambda
