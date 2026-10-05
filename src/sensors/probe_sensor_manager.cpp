@@ -16,9 +16,9 @@
 
 // CRITICAL: Subject updates trigger lv_obj_invalidate() which asserts if called
 // during LVGL rendering. WebSocket callbacks run on libhv's event loop thread,
-// not the main LVGL thread. We must defer subject updates to the main thread
-// via ui_queue_update() to avoid the "Invalidate area not allowed during rendering"
-// assertion.
+// not the main LVGL thread. Subject updates are deferred to the main thread
+// through lifetime_.token().defer() to avoid the "Invalidate area not allowed
+// during rendering" assertion, and dropped once deinit_subjects() runs.
 
 namespace helix::sensors {
 
@@ -45,75 +45,12 @@ void ProbeSensorManager::discover(const std::vector<std::string>& klipper_object
     spdlog::debug("[ProbeSensorManager] Discovering probe sensors from {} objects",
                   klipper_objects.size());
 
-    // Clear existing sensors
-    sensors_.clear();
-
-    for (const auto& klipper_name : klipper_objects) {
-        std::string sensor_name;
-        ProbeSensorType type = ProbeSensorType::STANDARD;
-
-        if (!parse_klipper_name(klipper_name, sensor_name, type)) {
-            continue;
-        }
-
-        ProbeSensorConfig config(klipper_name, sensor_name, type);
-        sensors_.push_back(config);
-
-        // Initialize state if not already present
-        if (states_.find(klipper_name) == states_.end()) {
-            ProbeSensorState state;
-            state.available = true;
-            states_[klipper_name] = state;
-        } else {
-            states_[klipper_name].available = true;
-        }
-
-        spdlog::debug("[ProbeSensorManager] Discovered sensor: {} (type: {})", sensor_name,
-                      probe_type_to_string(type));
-    }
-
-    // Post-discovery refinement: upgrade EDDY_CURRENT sensors when a companion
-    // Cartographer or Beacon object is also present. These probes register both
-    // their own named object ("cartographer"/"beacon") AND a probe_eddy_current entry.
-    bool has_cartographer = std::any_of(sensors_.begin(), sensors_.end(), [](const auto& s) {
-        return s.type == ProbeSensorType::CARTOGRAPHER;
-    });
-    bool has_beacon = std::any_of(sensors_.begin(), sensors_.end(),
-                                  [](const auto& s) { return s.type == ProbeSensorType::BEACON; });
-
-    if (has_cartographer || has_beacon) {
-        for (auto& sensor : sensors_) {
-            if (sensor.type == ProbeSensorType::EDDY_CURRENT) {
-                if (has_cartographer) {
-                    spdlog::debug("[ProbeSensorManager] Upgrading eddy current sensor '{}' to "
-                                  "CARTOGRAPHER (companion object present)",
-                                  sensor.sensor_name);
-                    sensor.type = ProbeSensorType::CARTOGRAPHER;
-                } else if (has_beacon) {
-                    spdlog::debug("[ProbeSensorManager] Upgrading eddy current sensor '{}' to "
-                                  "BEACON (companion object present)",
-                                  sensor.sensor_name);
-                    sensor.type = ProbeSensorType::BEACON;
-                }
-            }
-        }
-    }
-
-    // Remove the virtual "probe" entry when a more specific probe type exists.
-    // Many Klipper probe types (BLTouch, Cartographer, Beacon, Smart Effector)
-    // register both their own section AND a [probe] wrapper. The wrapper is
-    // redundant — keep only the specific type.
-    bool has_specific_probe = std::any_of(sensors_.begin(), sensors_.end(), [](const auto& s) {
-        return s.type != ProbeSensorType::STANDARD;
-    });
-    if (has_specific_probe) {
-        auto it = std::remove_if(sensors_.begin(), sensors_.end(),
-                                 [](const auto& s) { return s.type == ProbeSensorType::STANDARD; });
-        if (it != sensors_.end()) {
-            spdlog::debug("[ProbeSensorManager] Removing virtual 'probe' entry "
-                          "(specific probe type present)");
-            sensors_.erase(it, sensors_.end());
-        }
+    sensors_ = probes_in(klipper_objects);
+    for (const auto& sensor : sensors_) {
+        auto& state = states_[sensor.klipper_name];
+        state.available = true;
+        spdlog::debug("[ProbeSensorManager] Discovered sensor: {} (type: {})", sensor.sensor_name,
+                      probe_type_to_string(sensor.type));
     }
 
     // Post-discovery refinement: upgrade STANDARD probes to KLICKY when
@@ -267,13 +204,57 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[ProbeSensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                spdlog::debug("[ProbeSensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("ProbeSensorManager::update_from_status", [] {
+                spdlog::debug("[ProbeSensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("ProbeSensorManager::update_from_status", [] {
                     ProbeSensorManager::instance().update_subjects_on_main_thread();
                 });
             }
         }
     }
+}
+
+std::vector<ProbeSensorConfig>
+ProbeSensorManager::probes_in(const std::vector<std::string>& klipper_objects) {
+    std::vector<ProbeSensorConfig> probes;
+    for (const auto& klipper_name : klipper_objects) {
+        std::string sensor_name;
+        ProbeSensorType type = ProbeSensorType::STANDARD;
+        if (parse_klipper_name(klipper_name, sensor_name, type)) {
+            probes.emplace_back(klipper_name, sensor_name, type);
+        }
+    }
+
+    // One physical probe can register several objects: every Klipper probe
+    // module also registers the generic [probe], and Cartographer and Beacon add
+    // a probe_eddy_current companion. Keep the most specific object only, so a
+    // single probe reads as one sensor and is subscribed once.
+    const auto has_type = [&probes](ProbeSensorType t) {
+        return std::any_of(probes.begin(), probes.end(),
+                           [t](const auto& p) { return p.type == t; });
+    };
+    const bool has_named_scanner =
+        has_type(ProbeSensorType::CARTOGRAPHER) || has_type(ProbeSensorType::BEACON);
+    const bool has_specific = std::any_of(probes.begin(), probes.end(), [](const auto& p) {
+        return p.type != ProbeSensorType::STANDARD;
+    });
+    probes.erase(std::remove_if(probes.begin(), probes.end(),
+                                [&](const auto& p) {
+                                    return (has_specific && p.type == ProbeSensorType::STANDARD) ||
+                                           (has_named_scanner &&
+                                            p.type == ProbeSensorType::EDDY_CURRENT);
+                                }),
+                 probes.end());
+    return probes;
+}
+
+nlohmann::json
+ProbeSensorManager::required_status_objects(const std::vector<std::string>& klipper_objects) {
+    static const nlohmann::json fields = nlohmann::json::array({"last_z_result", "z_offset"});
+    nlohmann::json objects = nlohmann::json::object();
+    for (const auto& probe : probes_in(klipper_objects)) {
+        objects[probe.klipper_name] = fields;
+    }
+    return objects;
 }
 
 void ProbeSensorManager::load_config(const nlohmann::json& config) {
@@ -438,6 +419,8 @@ void ProbeSensorManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
+
+    lifetime_.invalidate();
 
     spdlog::trace("[ProbeSensorManager] Deinitializing subjects");
     subjects_.deinit_all();
@@ -612,7 +595,7 @@ void ProbeSensorManager::update_subjects_on_main_thread() {
 // ============================================================================
 
 bool ProbeSensorManager::parse_klipper_name(const std::string& klipper_name,
-                                            std::string& sensor_name, ProbeSensorType& type) const {
+                                            std::string& sensor_name, ProbeSensorType& type) {
     // Cartographer 3D scanning/contact probe
     if (klipper_name == "cartographer") {
         sensor_name = "cartographer";

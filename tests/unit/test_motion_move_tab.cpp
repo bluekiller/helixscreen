@@ -207,6 +207,27 @@ TEST_CASE_METHOD(MoveTabFixture, "the tab rail renders filled pills", "[motion][
     CHECK(lv_color_eq(lv_obj_get_style_bg_color(idle, LV_PART_MAIN), palette.card_bg));
 }
 
+TEST_CASE_METHOD(MoveTabFixture, "the selected tab pill's icon and label read on its fill",
+                 "[motion][move-tab][xml]") {
+    // Light mode pairs dark #text with a dark #primary, so the pill only reads
+    // when its content takes the contrast colour.
+    REQUIRE_FALSE(theme_manager_is_dark_mode());
+    for (const char* strip : {"motion_tab_rail", "header_tabs"}) {
+        INFO(strip);
+        lv_obj_t* active = lv_obj_get_child(panel_widget(strip), 0);
+        REQUIRE(active != nullptr);
+        const lv_color_t fill = lv_obj_get_style_bg_color(active, LV_PART_MAIN);
+        REQUIRE(lv_color_eq(fill, ThemeManager::instance().current_palette().primary));
+        for (const char* part : {"tab_icon", "tab_label"}) {
+            INFO(part);
+            lv_obj_t* obj = lv_obj_find_by_name(active, part);
+            REQUIRE(obj != nullptr);
+            CHECK(helix::contrast_ratio(lv_obj_get_style_text_color(obj, LV_PART_MAIN), fill) >=
+                  kThemeTextContrastThreshold);
+        }
+    }
+}
+
 TEST_CASE_METHOD(MoveTabFixture, "homed preset tap sends one absolute move", "[motion][move-tab]") {
     get_global_motion_panel().set_motion_tab(1);
     drain();

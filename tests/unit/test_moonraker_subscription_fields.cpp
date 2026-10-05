@@ -511,6 +511,49 @@ TEST_CASE("Subscription: filament + width sensors narrow correctly", "[moonraker
     }
 }
 
+TEST_CASE("Subscription: probe objects narrow to ProbeSensorManager reads",
+          "[moonraker][subscription][probe]") {
+    const auto build_with = [](std::initializer_list<const char*> names) {
+        DiscoveryFixture fx;
+        for (const auto& name : names) {
+            fx.add(name, {});
+        }
+        return fx.build();
+    };
+    const auto requires_probe_fields = [](const json& subs, const char* obj) {
+        CAPTURE(obj);
+        REQUIRE(has_field(subs, obj, "last_z_result"));
+        REQUIRE(has_field(subs, obj, "z_offset"));
+        REQUIRE(subs[obj].size() == 2);
+    };
+
+    SECTION("each probe type, alone") {
+        for (const auto* name : {"probe", "bltouch", "smart_effector", "beacon", "cartographer",
+                                 "probe_eddy_current btt"}) {
+            requires_probe_fields(build_with({name}), name);
+        }
+    }
+
+    SECTION("the [probe] alias is not subscribed beside the specific object") {
+        json subs = build_with({"bltouch", "probe"});
+        requires_probe_fields(subs, "bltouch");
+        REQUIRE_FALSE(subs.contains("probe"));
+    }
+
+    SECTION("a Cartographer's eddy companion and alias are not subscribed") {
+        json subs = build_with({"probe", "probe_eddy_current carto", "cartographer"});
+        requires_probe_fields(subs, "cartographer");
+        REQUIRE_FALSE(subs.contains("probe"));
+        REQUIRE_FALSE(subs.contains("probe_eddy_current carto"));
+    }
+
+    SECTION("accelerometers and probe-named macros are not probes") {
+        json subs = build_with({"adxl345", "gcode_macro probe_wrapper"});
+        REQUIRE_FALSE(subs.contains("adxl345"));
+        REQUIRE_FALSE(subs.contains("gcode_macro probe_wrapper"));
+    }
+}
+
 TEST_CASE("Subscription: toolchanger + per-tool fields cover ToolState reads",
           "[moonraker][subscription]") {
     DiscoveryFixture fx;

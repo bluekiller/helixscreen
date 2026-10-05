@@ -1548,12 +1548,12 @@ def _strip_responsive_suffix(name: str) -> str:
 
 
 _CPP_REGISTER_CONST_RE = re.compile(
-    r'lv_xml_register_const\s*\(\s*[^,]+,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"'
+    r'lv_xml_(?:register|set)_const\s*\(\s*[^,]+,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"'
 )
 
 
 def extract_cpp_registered_constants(cpp_src_dirs: list[Path]) -> set[str]:
-    """Scan C++ source for every literal lv_xml_register_const() call site.
+    """Scan C++ source for every literal lv_xml_register_const()/set_const() call site.
 
     Catches constants the runtime registers via C++ (responsive spacing tokens
     like nav_width / overlay_panel_width / hue_height) which would otherwise

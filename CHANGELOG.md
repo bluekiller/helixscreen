@@ -5,6 +5,117 @@ All notable changes to HelixScreen will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-10-04
+
+### Changed
+
+- **Belt Tension is withdrawn from 1.0** - the sweep read its accelerometer data from a
+  folder Klipper never writes to, so it failed on every printer
+  ([#1721](https://github.com/prestonbrown/helixscreen/issues/1721)).
+- **The log records more by default** - production builds log at Info and write each line
+  to the log file as it happens, so a log taken right after a problem already holds what
+  happened.
+
+### Fixed
+
+**Stability**
+
+- **Raspberry Pi OS 32-bit no longer crashes with heap corruption** - the pi32 build used the
+  system's C++ runtime, which is built for an older CPU generation and keeps its bookkeeping
+  differently from what the app expected, so ordinary file listing wrote into freed memory
+  (`malloc(): unsorted double linked list corrupted`). pi32 builds now carry their own
+  runtime, which adds about 1 MB to the package
+  ([#1732](https://github.com/prestonbrown/helixscreen/issues/1732)).
+- **An unusual character in a name no longer loses a save** - a Wi-Fi network, printer or
+  file name containing bytes that are not valid text could crash the app or silently drop
+  the settings save. Those bytes are now replaced and the save goes through.
+- **The file list no longer floods slow printers with rescans** - the print list asked
+  Moonraker to rescan a file's metadata on every miss, and on a slow host the queue starved
+  the screen's own requests. One scan runs at a time, and a file that keeps failing waits 10
+  minutes before it is tried again.
+
+**Printing and filament systems**
+
+- **Several CFS units on community CFS firmware show one card per unit** - with two or more
+  boxes chained, every lane was drawn in one long row with overlapping labels. Each box is
+  now its own unit, so the multi-filament overview opens with one card per CFS.
+- **The file detail view no longer freezes the screen on large G-code files** - backing out
+  while the preview was still building waited out the whole build on the interface thread,
+  which could take many seconds on a large print. Cancelling now stops the indexing,
+  geometry and cache work promptly instead
+  ([#1706](https://github.com/prestonbrown/helixscreen/issues/1706)).
+- **File thumbnails on printers without file metadata stay bounded** - if Moonraker ignores
+  range requests and answers a small header read with the whole G-code file, the download
+  stops once the requested bytes have arrived
+  ([#1706](https://github.com/prestonbrown/helixscreen/issues/1706)).
+- **Pre-print status on the Snapmaker U1 shows each real step** - the preparation screen
+  used to sit on one label for most of the run: "Priming..." replaced every step from the
+  first toolhead move until the first layer, and a step following an earlier related one
+  (probing Z after homing the axes, bed mesh and plate detection after the bed inspection)
+  kept showing the first step's name instead of its own. Each step now shows as it happens:
+  homing, probing Z, bed mesh, plate detection.
+- **The heat-first warning checks the slot you selected** - with a cold nozzle, Load and
+  Unload warn about, or preheat for, the material of the slot the operation acts on, not
+  whichever spool happens to be loaded or on the external holder. Purge, Extrude and
+  Retract use the loaded lane's material.
+- **Happy Hare: Recover sets the real gate and whether filament is loaded** - Recover opens
+  a dialog to pick the gate that is really selected and whether filament is loaded,
+  instead of a bare `MMU_RECOVER` that could leave the position Unknown. The error popup's
+  own Recover sends a plain `MMU_RECOVER` and lets Happy Hare detect, where it used to send
+  an `UNLOADED=1` Happy Hare does not accept.
+- **Bypass could stay unavailable after an unload** - the filament path now settles on the
+  system's own state, so bypass becomes available once an unload finishes, including one
+  that ends with a CFS cut ([#1512](https://github.com/prestonbrown/helixscreen/issues/1512)).
+- **Device operation messages said "AFC" on every filament system** - homing, recovering and
+  aborting now read the same on Happy Hare and every other system.
+- **The Change Filament spool picker tells two spools of one vendor apart** - each row now
+  carries Spoolman's filament name.
+- **Your Material Temperatures edits survive a Moonraker update** - `user_filaments.json`
+  now lives in your config directory, linked into printer_data, instead of the install
+  directory a Moonraker web update replaces.
+- **Scan QR opens the barcode scanner on printers built without a camera** - on the AD5X,
+  AD5M, K1, K2, CC1 and U1 the button did nothing ([#1726](https://github.com/prestonbrown/helixscreen/issues/1726)).
+
+**Files and history**
+
+- **.gcode.3mf files keep their thumbnail, layer height and pre-print checks** in the file
+  details, and their names show without either extension ([#1713](https://github.com/prestonbrown/helixscreen/issues/1713)).
+- **Print history reads more jobs correctly** - it translates the job status, finds
+  thumbnails for files in subfolders, ages a job with no end time by its start, and reads
+  number fields Moonraker sends as text ([#1713](https://github.com/prestonbrown/helixscreen/issues/1713)).
+- **The home screen's last-print tile** words an unfinished job by its status and hides
+  stats that are zero ([#1713](https://github.com/prestonbrown/helixscreen/issues/1713)).
+
+**Updates**
+
+- **Updates, crash reports and debug-bundle uploads verify the server's certificate** - every
+  release package ships its own certificate bundle, so printers whose system certificates
+  are years out of date still connect.
+- **Updates follow your update channel** - the installer and Moonraker's update manager use
+  the beta or dev channel you picked instead of always pulling stable.
+- **Installing the Moonraker plugin from the screen works on installed releases** - the
+  release package now includes the plugin.
+- **Mainsail shows the new version after an update** - the first start after an update asks
+  Moonraker to refresh it ([#1727](https://github.com/prestonbrown/helixscreen/issues/1727)).
+- **An update restarts HelixScreen through systemd**, so the service picks up its updated
+  unit files ([#1713](https://github.com/prestonbrown/helixscreen/issues/1713)), and the restart no longer fails when `~/.helixscreen` is missing.
+
+**Screen and input**
+
+- **Screen rotation at 90 or 270 degrees on DRM displays draws correctly** - the picture is
+  rotated once, in software, instead of being handed to a display plane that could not lay
+  it out ([#1275](https://github.com/prestonbrown/helixscreen/issues/1275)).
+- **Home screen text follows a language change** - fan, nozzle, spool, camera, preheat and
+  print-stats labels switch language with the rest of the screen instead of staying in the
+  old one.
+- **The last-print card keeps its thumbnail** - it retries when you return to the home
+  screen and keeps its picture when the print's details are re-read.
+- **Scroll Guard works again** - with the post-scroll click guard turned on, a tap right
+  after a scroll no longer goes through on the printer's touchscreen. Changing the setting
+  needs a restart.
+- **The Full corner radius no longer turns dialogs into circles** - buttons still round into
+  pills, while cards, dialogs and inputs stop at a pill-shaped radius.
+
 ## [1.1.0-beta.3] - 2026-09-29
 
 <!-- whatsnew
@@ -7938,6 +8049,7 @@ Initial tagged release. Foundation for all subsequent development.
 [1.1.0-beta.3]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.2...v1.1.0-beta.3
 [1.1.0-beta.2]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.1...v1.1.0-beta.2
 [1.1.0-beta.1]: https://github.com/prestonbrown/helixscreen/compare/v1.0.2...v1.1.0-beta.1
+[1.0.3]: https://github.com/prestonbrown/helixscreen/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/prestonbrown/helixscreen/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/prestonbrown/helixscreen/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/prestonbrown/helixscreen/compare/v0.99.118...v1.0.0

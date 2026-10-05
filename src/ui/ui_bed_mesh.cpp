@@ -89,11 +89,11 @@ static bed_mesh_render_colors_t fetch_theme_colors() {
 
 /**
  * Draw a placeholder when the async render thread has not yet produced a frame.
- * Shows a dark background with centered "Rendering..." text.
+ * Shows the screen background with centered "Rendering..." text.
  */
 static void draw_async_placeholder(lv_layer_t* layer, const lv_area_t* coords, int width,
                                    int height) {
-    // Dark background rectangle (same color as normal mesh background)
+    // Screen background rectangle (same color as normal mesh background)
     lv_draw_rect_dsc_t rect_dsc;
     lv_draw_rect_dsc_init(&rect_dsc);
     rect_dsc.bg_color = theme_manager_get_color("screen_bg");
@@ -103,7 +103,7 @@ static void draw_async_placeholder(lv_layer_t* layer, const lv_area_t* coords, i
     // Centered "Rendering..." label
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
-    label_dsc.color = lv_color_white();
+    label_dsc.color = theme_manager_get_color("text");
     label_dsc.font = &noto_sans_14;
     label_dsc.opa = LV_OPA_60;
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
