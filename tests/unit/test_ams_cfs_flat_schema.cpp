@@ -14,8 +14,13 @@
 // from formatting. Sections of it are trimmed only where a subtree is
 // irrelevant to the parse under test; nothing is invented.
 
+#include "ui_update_queue.h"
+
+#include "../helix_test_fixture.h"
 #include "ams_backend_cfs.h"
 #include "ams_types.h"
+#include "test_helpers/cfs_test_access.h"
+#include "test_helpers/registered_backend.h"
 #include "ui/ams_drawing_utils.h"
 
 #include <fstream>
@@ -722,4 +727,231 @@ TEST_CASE("CFS flat: four boxes converge on one toolhead in the system path layo
         CHECK(layout.units[u].tool_count == 1);
         CHECK(layout.units[u].first_physical_tool == 0);
     }
+}
+
+// ============================================================================
+// Golden sequence: stock frames merged as deltas (a unit joining, the active
+// lane letter, the toolhead switch, a runout latch, a bay insert, a unit going
+// off the bus), the extruder and motor objects, then a flat fork frame. Each
+// frame is pinned as a text snapshot of everything the parse leaves behind plus
+// the gcode it dispatches after releasing the lock.
+// ============================================================================
+
+namespace {
+
+class CapturingCfs : public AmsBackendCfs {
+  public:
+    CapturingCfs() : AmsBackendCfs(nullptr, nullptr) {}
+
+    std::vector<std::string> captured;
+
+    AmsError execute_gcode(const std::string& gcode) override {
+        captured.push_back(gcode);
+        return AmsErrorHelper::success();
+    }
+};
+
+struct CfsGoldenFixture : public HelixTestFixture {
+    CfsGoldenFixture() {
+        backend.set_event_callback(
+            [this](const std::string& name, const std::string&) { events.push_back(name); });
+    }
+
+    ~CfsGoldenFixture() override {
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    std::string feed(const json& params) {
+        events.clear();
+        backend.captured.clear();
+        json notification;
+        notification["params"] = json::array({params, 0.0});
+        CfsTestAccess::handle_status(backend, notification);
+        helix::ui::UpdateQueue::instance().drain();
+        return snapshot();
+    }
+
+    std::string snapshot() {
+        const AmsSystemInfo info = backend.get_system_info();
+        std::string out = fmt::format(
+            "slot={} tool={} loaded={} runout={} action={} bypass={} declared={} endless={} "
+            "total={} variant={}\n",
+            info.current_slot, info.current_tool, info.filament_loaded, info.filament_runout,
+            ams_action_to_string(info.action), info.supports_bypass,
+            CfsTestAccess::bypass_declared(backend), info.endless_spool_enabled, info.total_slots,
+            static_cast<int>(CfsTestAccess::macro_variant(backend)));
+        std::string ttg;
+        for (const int v : info.tool_to_slot_map) {
+            ttg += (ttg.empty() ? "" : ",") + std::to_string(v);
+        }
+        out += fmt::format("  ttg={} units={}\n", ttg, info.units.size());
+        for (const auto& unit : info.units) {
+            out += fmt::format("  unit{} absent={} first={}:", unit.unit_index, unit.absent,
+                               unit.first_slot_global_index);
+            for (const auto& s : unit.slots) {
+                out += fmt::format(" [{} {}/{}/{} #{:06X}]", slot_status_to_string(s.status),
+                                   s.material, s.brand, s.spool_name, s.color_rgb);
+            }
+            out += "\n";
+        }
+        std::string gcodes;
+        for (const auto& g : backend.captured) {
+            gcodes += (gcodes.empty() ? "" : "|") + g;
+        }
+        out += fmt::format("  events={} gcodes='{}'", events.size(), gcodes);
+        return out;
+    }
+
+    helix::test::RegisteredBackend<CapturingCfs> backend_reg{};
+    CapturingCfs& backend = *backend_reg;
+    std::vector<std::string> events;
+};
+
+json golden_unit(const std::string& letter, std::vector<std::string> vendors) {
+    return json{{"state", "connect"},
+                {"filament", letter},
+                {"version", "1.1.3"},
+                {"sn", "GOLDEN"},
+                {"vender", vendors},
+                {"remain_len", json::array({"35", "57", "-1", "-1"})},
+                {"color_value", json::array({"0FF0000", "000FF00", "0000000", "0000000"})},
+                {"material_type", json::array({"101001", "101001", "-1", "-1"})},
+                {"change_color_num", json::array({"-1", "-1", "-1", "-1"})}};
+}
+
+} // namespace
+
+namespace {
+const std::string kCfsGolden = R"GOLD(stock full frame
+slot=-1 tool=-1 loaded=false runout=false action=Idle bypass=true declared=false endless=true total=4 variant=0
+  ttg=0,1,2,3 units=1
+  unit0 absent=false first=0: [Available PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+stock delta: unit 2 joins
+slot=-1 tool=-1 loaded=false runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Available PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+stock delta: lane A selected
+slot=0 tool=0 loaded=false runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Available PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+toolhead switch on
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+null toolhead reading
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+extruder heating
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=0 gcodes=''
+motor ready
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+runout latch
+slot=0 tool=0 loaded=true runout=true action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Empty // #808080] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+bay 3 filled
+slot=0 tool=0 loaded=true runout=true action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Available /Creality/ #000000] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+idle after runout
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=8 variant=0
+  ttg=0,1,2,3,4,5,6,7 units=2
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Available /Creality/ #000000] [Empty // #808080]
+  unit1 absent=false first=4: [Available PLA/Creality/ #FF0000] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes='BOX_INFO_REFRESH ADDR=1 NUM=4'
+unit 2 leaves the bus
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=4 variant=0
+  ttg=0,1,2,3 units=1
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Available /Creality/ #000000] [Empty // #808080]
+  events=1 gcodes=''
+measuring wheel noise
+slot=0 tool=0 loaded=true runout=false action=Idle bypass=true declared=false endless=true total=4 variant=0
+  ttg=0,1,2,3 units=1
+  unit0 absent=false first=0: [Loaded PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Available /Creality/ #000000] [Empty // #808080]
+  events=1 gcodes=''
+toolhead switch off
+slot=0 tool=0 loaded=false runout=false action=Idle bypass=true declared=false endless=true total=4 variant=0
+  ttg=0,1,2,3 units=1
+  unit0 absent=false first=0: [Available PLA/Creality/ #FF0000] [Available PLA/Creality/ #00FF00] [Available /Creality/ #000000] [Empty // #808080]
+  events=1 gcodes=''
+flat fork frame
+slot=-1 tool=-1 loaded=false runout=true action=Idle bypass=true declared=false endless=true total=16 variant=2
+  ttg=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 units=4
+  unit0 absent=false first=0: [Available PLA/Sunlu/ #D75BA7] [Available PLA/Slic3D/ #111111] [Available PLA/Elegoo/ #F2F2F2] [Available PLA/Elegoo/Grey #6F7379]
+  unit1 absent=false first=4: [Empty // #808080] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  unit2 absent=false first=8: [Empty // #808080] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  unit3 absent=false first=12: [Empty // #808080] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+flat delta: toolhead on
+slot=-1 tool=-1 loaded=true runout=true action=Idle bypass=true declared=false endless=true total=16 variant=2
+  ttg=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 units=4
+  unit0 absent=false first=0: [Available PLA/Sunlu/ #D75BA7] [Available PLA/Slic3D/ #111111] [Available PLA/Elegoo/ #F2F2F2] [Available PLA/Elegoo/Grey #6F7379]
+  unit1 absent=false first=4: [Empty // #808080] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  unit2 absent=false first=8: [Empty // #808080] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  unit3 absent=false first=12: [Empty // #808080] [Empty // #808080] [Empty // #808080] [Empty // #808080]
+  events=1 gcodes=''
+)GOLD";
+} // namespace
+
+TEST_CASE_METHOD(CfsGoldenFixture, "CFS golden status sequence", "[ams][cfs][golden]") {
+    const std::vector<std::pair<std::string, json>> frames = {
+        {"stock full frame",
+         json{
+             {"box", json{{"state", "connect"},
+                          {"filament", 1},
+                          {"auto_refill", 1},
+                          {"enable", 1},
+                          {"filament_useup", 0},
+                          {"map", json{{"T1A", "T1A"}, {"T1B", "T1B"}}},
+                          {"T1", golden_unit("None", {"Creality", "Creality", "none", "none"})}}}}},
+        {"stock delta: unit 2 joins",
+         json{{"box", json{{"T2", golden_unit("None", {"Creality", "none", "none", "none"})}}}}},
+        {"stock delta: lane A selected", json{{"box", json{{"T1", json{{"filament", "A"}}}}}}},
+        {"toolhead switch on",
+         json{{"filament_switch_sensor filament_sensor", json{{"filament_detected", true}}}}},
+        {"null toolhead reading",
+         json{{"filament_switch_sensor filament_sensor", json{{"filament_detected", nullptr}}}}},
+        {"extruder heating", json{{"extruder", json{{"target", 220.0}, {"temperature", 215.5}}}}},
+        {"motor ready", json{{"motor_control", json{{"motor_ready", true}}}}},
+        {"runout latch", json{{"box", json{{"filament", 1}, {"filament_useup", 1}}}}},
+        {"bay 3 filled",
+         json{{"box", json{{"T1", json{{"vender", json::array({"Creality", "Creality", "Creality",
+                                                               "none"})}}}}}}},
+        {"idle after runout", json{{"box", json{{"filament", 1}, {"filament_useup", 0}}}}},
+        {"unit 2 leaves the bus", json{{"box", json{{"T2", json{{"state", "None"}}}}}}},
+        {"measuring wheel noise", json{{"box", json{{"measuring_wheel", 3}}}}},
+        {"toolhead switch off",
+         json{{"filament_switch_sensor filament_sensor", json{{"filament_detected", false}}}}},
+        {"flat fork frame", json{{"box", load_box_fixture("cfs_fork_four_box_L8MMBCCK.json")}}},
+        {"flat delta: toolhead on",
+         json{{"filament_switch_sensor filament_sensor", json{{"filament_detected", true}}}}},
+    };
+
+    std::string all;
+    for (const auto& [name, params] : frames) {
+        all += name + "\n" + feed(params) + "\n";
+    }
+    CHECK(all == kCfsGolden);
 }

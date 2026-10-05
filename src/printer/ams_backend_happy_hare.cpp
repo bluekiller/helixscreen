@@ -2585,8 +2585,7 @@ AmsError AmsBackendHappyHare::apply_user_edit(int slot_index, const SlotInfo& in
         // The gate is being emptied deliberately, so a frame restating the
         // edit's values afterwards is the machine's own reading, not an echo
         // to hide - the guard from an earlier edit must not outlive it.
-        // Under the lock: the parse mutates the same map under mutex_ on the
-        // WebSocket thread.
+        // Under the lock: the parse mutates the same map under mutex_.
         {
             std::lock_guard<std::mutex> lock(mutex_);
             own_write_echoes_.abandon(slot_index);
@@ -2703,9 +2702,8 @@ AmsError AmsBackendHappyHare::apply_user_edit(int slot_index, const SlotInfo& in
         // dispatch: the guard has to be standing before any echo can arrive.
         // A dispatch that failed outright leaves it armed to self-clean the
         // same way - firmware still holds a value the declaration disagrees
-        // with. Under the lock: the parse mutates the same map under mutex_
-        // on the WebSocket thread. The dispatch itself stays outside it, as
-        // every other writer here.
+        // with. Under the lock: the parse mutates the same map under mutex_.
+        // The dispatch itself stays outside it, as every other writer here.
         {
             std::lock_guard<std::mutex> lock(mutex_);
             own_write_echoes_.stage(slot_index, declared);
