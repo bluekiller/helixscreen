@@ -496,4 +496,11 @@ TEST_CASE_METHOD(ShowFixture, "is_showing() covers queued, stacked and sliding-o
     CHECK(helix::nav::is_showing(overlay));
     lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
     CHECK_FALSE(helix::nav::is_showing(overlay));
+
+    // A caller may hold the pointer past the widget's deletion.
+    helix::nav::unregister_overlay(overlay);
+    lv_obj_t* deleted = lv_obj_create(test_screen());
+    lv_obj_delete(deleted);
+    CHECK_FALSE(helix::nav::is_showing(deleted));
+    lv_obj_delete(overlay);
 }

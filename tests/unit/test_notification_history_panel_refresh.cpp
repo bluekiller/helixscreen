@@ -209,5 +209,6 @@ TEST_CASE_METHOD(NotificationHistoryPanelFixture,
     REQUIRE(helix::nav::is_on_top(root_));
     helix::nav::go_back();
     UpdateQueue::instance().drain();
+    helix::nav::unregister_overlay(root_);
     lv_obj_delete(base);
 }
