@@ -13,7 +13,6 @@
 #endif
 #include "ui_nav_manager.h"
 #include "ui_overlay_network_settings.h"
-#include "ui_overlay_performance.h"
 #include "ui_panel_memory_stats.h"
 #include "ui_printer_list_overlay.h"
 #include "ui_settings_appearance.h"
@@ -25,10 +24,8 @@
 #include "ui_settings_language_time.h"
 #include "ui_settings_printing.h"
 #include "ui_settings_safety.h"
-#include "ui_settings_security.h"
 #include "ui_settings_sound.h"
 #include "ui_settings_system.h"
-#include "ui_settings_telemetry_data.h"
 #include "ui_settings_touch.h"
 #include "ui_settings_updates.h"
 #include "ui_severity_card.h"
@@ -87,13 +84,6 @@ SettingsPanel::~SettingsPanel() {
     deinit_subjects();
 
     // Note: Klipper/Moonraker/OS version observers bound declaratively in XML
-    if (lv_is_initialized()) {
-        // Unregister overlay callbacks to prevent dangling 'this' in callbacks
-        auto& nav = NavigationManager::instance();
-        if (factory_reset_dialog_) {
-            nav.unregister_overlay_close_callback(factory_reset_dialog_);
-        }
-    }
     // Note: Don't log here - spdlog may be destroyed during static destruction
 }
 
@@ -370,106 +360,12 @@ void SettingsPanel::handle_change_host_clicked() {
     });
 }
 
-void SettingsPanel::handle_restart_helix_clicked() {
-    spdlog::info("[SettingsPanel] Restart HelixScreen requested");
-    ToastManager::instance().show(ToastSeverity::INFO, lv_tr("Restarting HelixScreen..."), 1500);
-
-    // Schedule restart after brief delay to let toast display
-    helix::ui::queue_update("SettingsPanel::restart", []() {
-        spdlog::info("[SettingsPanel] Initiating restart...");
-        app_request_restart_service();
-    });
-}
-
-void SettingsPanel::handle_factory_reset_clicked() {
-    spdlog::debug("[{}] Factory Reset clicked - showing confirmation dialog", get_name());
-
-    // Create dialog on first use (lazy initialization)
-    if (!factory_reset_dialog_ && parent_screen_) {
-        spdlog::debug("[{}] Creating factory reset dialog...", get_name());
-
-        // Create self-contained factory_reset_modal component
-        // Callbacks are already wired via XML event_cb elements
-        factory_reset_dialog_ =
-            static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "factory_reset_modal", nullptr));
-
-        if (factory_reset_dialog_) {
-            // Start hidden
-            lv_obj_add_flag(factory_reset_dialog_, LV_OBJ_FLAG_HIDDEN);
-
-            // Register as a function-based (nullptr-lifecycle) overlay so
-            // crash crumbs show "anon" instead of "unreg".
-            NavigationManager::instance().register_overlay_instance(factory_reset_dialog_, nullptr);
-
-            // Register close callback to delete dialog when animation completes.
-            // Must use safe_delete_deferred — this lambda runs inside
-            // UpdateQueue::process_pending(), and synchronous deletion
-            // during a batch corrupts LVGL's event linked list (#356, #491).
-            NavigationManager::instance().register_overlay_close_callback(
-                factory_reset_dialog_,
-                [this]() { helix::ui::safe_delete_deferred(factory_reset_dialog_); });
-
-            spdlog::info("[{}] Factory reset dialog created", get_name());
-        } else {
-            spdlog::error("[{}] Failed to create factory reset dialog", get_name());
-            return;
-        }
-    }
-
-    // Show the dialog via navigation stack
-    if (factory_reset_dialog_) {
-        NavigationManager::instance().push_overlay(factory_reset_dialog_);
-    }
-}
-
-void SettingsPanel::perform_factory_reset() {
-    spdlog::warn("[{}] Performing factory reset - resetting config!", get_name());
-
-    // Get config instance and reset
-    Config* config = Config::get_instance();
-    config->reset_to_defaults();
-    config->save();
-    spdlog::info("[{}] Config reset to defaults", get_name());
-
-    // Hide the dialog - animation + callback will handle cleanup
-    if (factory_reset_dialog_) {
-        NavigationManager::instance().go_back();
-    }
-
-    // Show confirmation toast and restart
-    ToastManager::instance().show(ToastSeverity::INFO,
-                                  lv_tr("Settings reset to defaults. Restarting..."), 1500);
-
-    // Schedule restart after brief delay to let toast display
-    helix::ui::queue_update("SettingsPanel::factory_reset_restart", []() {
-        spdlog::info("[SettingsPanel] Restarting after factory reset...");
-        app_request_restart_service();
-    });
-}
-
 void SettingsPanel::handle_hardware_health_clicked() {
     spdlog::debug("[{}] Hardware Health clicked - delegating to HardwareHealthOverlay", get_name());
 
     auto& overlay = helix::settings::get_hardware_health_overlay();
     overlay.set_printer_state(&printer_state_);
     overlay.show(parent_screen_);
-}
-
-void SettingsPanel::handle_performance_clicked() {
-    spdlog::debug("[{}] Performance clicked - opening overlay", get_name());
-
-    auto* overlay = helix::ui::UiOverlayPerformance::instance().create(lv_screen_active());
-    if (!overlay) {
-        spdlog::error("[{}] Failed to create Performance overlay", get_name());
-        return;
-    }
-
-    // UiOverlayPerformance carries no IPanelLifecycle, so it registers with a null
-    // lifecycle: that is what separates an intentional lifecycle-less overlay from a
-    // caller who forgot to register. Without it the push is recorded as "unreg" in
-    // panel telemetry and crash breadcrumbs, and strict mode aborts.
-    NavigationManager::instance().register_overlay_instance(overlay, nullptr);
-    NavigationManager::instance().push_overlay(overlay);
 }
 
 // ============================================================================
@@ -528,34 +424,11 @@ void register_settings_panel_callbacks() {
         {"on_change_host_clicked",
          [](lv_event_t*) { get_global_settings_panel().handle_change_host_clicked(); }},
 
-        // System page
-        {"on_security_clicked", nav_row<get_security_settings_overlay>()},
-        {"on_telemetry_view_data", nav_row<get_telemetry_data_overlay>()},
-        {"on_telemetry_changed",
-         [](lv_event_t* e) {
-             bool on = event_checked(e);
-             SystemSettingsManager::instance().set_telemetry_enabled(on);
-             if (on) {
-                 ToastManager::instance().show(
-                     ToastSeverity::SUCCESS,
-                     lv_tr("Thanks! TOTALLY anonymous usage data helps improve HelixScreen."),
-                     4000);
-             }
-         }},
-        {"on_log_level_changed",
-         [](lv_event_t* e) {
-             SystemSettingsManager::instance().set_log_level_by_index(event_selected(e));
-         }},
+        // Devices page
         {"on_hardware_health_clicked",
          [](lv_event_t*) { get_global_settings_panel().handle_hardware_health_clicked(); }},
-        {"on_system_performance_clicked",
-         [](lv_event_t*) { get_global_settings_panel().handle_performance_clicked(); }},
-        {"on_restart_helix_settings_clicked",
-         [](lv_event_t*) { get_global_settings_panel().handle_restart_helix_clicked(); }},
-        {"on_factory_reset_clicked",
-         [](lv_event_t*) { get_global_settings_panel().handle_factory_reset_clicked(); }},
 
-        // Restart prompt, factory reset modal and the shared header back button
+        // Restart prompt and the shared header back button
         {"on_restart_later_clicked",
          [](lv_event_t*) {
              auto& panel = get_global_settings_panel();
@@ -565,14 +438,6 @@ void register_settings_panel_callbacks() {
              }
          }},
         {"on_restart_now_clicked", [](lv_event_t*) { app_request_restart_service(); }},
-        {"on_factory_reset_confirm",
-         [](lv_event_t*) { get_global_settings_panel().perform_factory_reset(); }},
-        {"on_factory_reset_cancel",
-         [](lv_event_t*) {
-             if (get_global_settings_panel().factory_reset_dialog_) {
-                 NavigationManager::instance().go_back(); // Animation + callback clean up
-             }
-         }},
         {"on_header_back_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
     });
 }

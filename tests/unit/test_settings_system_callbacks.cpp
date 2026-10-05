@@ -50,12 +50,20 @@ struct SystemCallbacksFixture : LVGLUITestFixture {
         return p;
     }
 
-    /// Whether the row's own widget has a click handler. An unregistered
-    /// callback is skipped when the XML is built, which leaves none.
-    bool is_tappable(const char* row) {
+    /// Whether @p row has the callback registered under @p callback attached.
+    /// One that is not registered is skipped when the XML is built, so the row
+    /// would stay on screen and do nothing.
+    bool row_runs(const char* row, const char* callback) {
         lv_obj_t* r = lv_obj_find_by_name(root_, row);
         REQUIRE(r != nullptr);
-        return lv_obj_get_event_count(r) > 0;
+        lv_event_cb_t cb = lv_xml_get_event_cb(nullptr, callback);
+        REQUIRE(cb != nullptr);
+        for (uint32_t i = 0; i < lv_obj_get_event_count(r); ++i) {
+            if (lv_event_dsc_get_cb(lv_obj_get_event_dsc(r, i)) == cb) {
+                return true;
+            }
+        }
+        return false;
     }
 };
 
@@ -93,11 +101,18 @@ TEST_CASE_METHOD(SystemCallbacksFixture, "System page: the log-level dropdown ap
     sys.set_log_level_by_index(before);
 }
 
-TEST_CASE_METHOD(SystemCallbacksFixture, "System page: every action row has a click handler",
+TEST_CASE_METHOD(SystemCallbacksFixture, "System page: every action row runs its callback",
                  "[settings][system_callbacks]") {
-    for (const char* row : {"row_security", "row_performance", "row_telemetry_view_data",
-                            "row_restart_helix", "row_factory_reset"}) {
-        CAPTURE(row);
-        CHECK(is_tappable(row));
+    struct Binding {
+        const char* row;
+        const char* callback;
+    };
+    for (const Binding& b : {Binding{"row_security", "on_security_clicked"},
+                             Binding{"row_performance", "on_system_performance_clicked"},
+                             Binding{"row_telemetry_view_data", "on_telemetry_view_data"},
+                             Binding{"row_restart_helix", "on_restart_helix_settings_clicked"},
+                             Binding{"row_factory_reset", "on_factory_reset_clicked"}}) {
+        CAPTURE(b.row, b.callback);
+        CHECK(row_runs(b.row, b.callback));
     }
 }

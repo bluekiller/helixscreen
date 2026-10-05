@@ -537,6 +537,7 @@ src/ui/ui_settings_sensors.cpp
 src/ui/ui_settings_sound.cpp
 src/ui/ui_settings_telemetry_data.cpp
 src/ui/ui_settings_touch.cpp
+src/ui/ui_settings_system.cpp
 src/ui/ui_settings_updates.cpp
 src/ui/ui_severity_card.cpp
 src/ui/ui_snake_game.cpp

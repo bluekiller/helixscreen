@@ -197,29 +197,12 @@ class SettingsPanel : public PanelBase {
     //
 
     void handle_change_host_clicked();
-    void handle_restart_helix_clicked();
-    void handle_factory_reset_clicked();
-    // Note: populate_sensor_list() moved to SensorSettingsOverlay
-    // Note: populate_macro_dropdowns() moved to MacroButtonsOverlay
-    // Note: populate_hardware_issues() moved to HardwareHealthOverlay
 
   public:
-    // Called by static modal callbacks - performs actual reset after confirmation
-    void perform_factory_reset();
-
-    // Called by toast action to navigate and open overlay
+    /// Opens the Hardware Health overlay; also the target of the hardware-issue toast action.
     void handle_hardware_health_clicked();
 
-    // Opens the Performance overlay (System settings row)
-    void handle_performance_clicked();
-
-    // Note: handle_hardware_action() moved to HardwareHealthOverlay
-    // See ui_settings_hardware_health.h
-
-    // Dialog pointers accessible to static callbacks
-    lv_obj_t* factory_reset_dialog_ = nullptr;
-
-    // The root, Touch, Connection and System callback table lives in
+    // The root and Connection callback table lives in
     // register_settings_panel_callbacks() and reaches the handlers above.
     friend void register_settings_panel_callbacks();
 };

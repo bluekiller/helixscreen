@@ -169,15 +169,18 @@ TEST_CASE_METHOD(TouchCallbacksFixture,
     CHECK_FALSE(display.get_hide_keyboard_with_hardware());
 }
 
-TEST_CASE_METHOD(TouchCallbacksFixture, "Touch page: the calibration row has a click handler",
+TEST_CASE_METHOD(TouchCallbacksFixture, "Touch page: the calibration row runs its callback",
                  "[settings][touch_callbacks]") {
-    // An unregistered callback is skipped when the XML is built, leaving the
-    // row with no event at all.
+    // An unregistered callback is skipped when the XML is built, so the row would
+    // stay on screen and do nothing.
     lv_obj_t* row = lv_obj_find_by_name(root_, "row_touch_calibration");
     REQUIRE(row != nullptr);
-    uint32_t handlers = lv_obj_get_event_count(row);
-    for (uint32_t i = 0; i < lv_obj_get_child_count(row); ++i) {
-        handlers += lv_obj_get_event_count(lv_obj_get_child(row, static_cast<int32_t>(i)));
+    lv_event_cb_t cb = lv_xml_get_event_cb(nullptr, "on_touch_calibration_clicked");
+    REQUIRE(cb != nullptr);
+
+    bool attached = false;
+    for (uint32_t i = 0; i < lv_obj_get_event_count(row); ++i) {
+        attached = attached || lv_event_dsc_get_cb(lv_obj_get_event_dsc(row, i)) == cb;
     }
-    CHECK(handlers > 0);
+    CHECK(attached);
 }
