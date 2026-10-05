@@ -509,6 +509,11 @@ void EspMoonrakerClient::on_ws_data(const esp_websocket_event_data_t* d) {
             }
         }
         rx_buf_.clear();
+        // A one-off large reply (configfile.settings is ~150KB) must not pin
+        // its peak capacity in PSRAM for the rest of the session.
+        if (rx_buf_.capacity() > RX_BUF_KEEP_BYTES) {
+            rx_buf_.shrink_to_fit();
+        }
         rx_skip_ = false;
     }
 }
