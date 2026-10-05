@@ -411,9 +411,9 @@ void GridEditMode::exit() {
 
     lv_subject_set_int(&get_home_edit_mode_subject(), 0);
 
-    if (config_) {
-        config_->save();
-    }
+    // Nothing to save: every change the session made (a drop, a resize, a
+    // removal, a catalog placement, the entry's position sync) saved itself,
+    // and a write the session does not need stalls a slow board's flash.
     if (rebuild) {
         // On the next tick, outside indev_proc_release (#814).
         schedule_deferred_rebuild();
