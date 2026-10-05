@@ -25,6 +25,7 @@ namespace helix::ui {
 void GcodePreviewFetcher::fetch(const std::string& filename, ReadyCb on_ready,
                                 UnavailableCb on_unavailable) {
     auto req = std::make_shared<Request>();
+    req->generation = ++generation_;
     req->filename = filename;
     req->on_ready = std::move(on_ready);
     req->on_unavailable = std::move(on_unavailable);
@@ -54,6 +55,14 @@ void GcodePreviewFetcher::fetch(const std::string& filename, ReadyCb on_ready,
     }
     req->temp_path =
         cache_dir + "/print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
+
+    // The file is already coming down: take over that transfer. Its bytes are
+    // partial, so no cache lookup may see them either.
+    if (auto it = in_flight_.find(req->temp_path); it != in_flight_.end()) {
+        spdlog::debug("[{}] Joining the running download of '{}'", log_tag_, filename);
+        it->second = req;
+        return;
+    }
 
     // Metadata gives the size, which decides whether to download at all. This
     // prevents OOM on memory-constrained devices like AD5M.
@@ -126,13 +135,17 @@ void GcodePreviewFetcher::list_qidi_shadow(const RequestPtr& req,
                 fall_back();
             });
         },
-        [this, token, fall_back](const MoonrakerError& err) {
-            token.defer("GcodePreviewFetcher::qidi_3mf_shadow_list_err", [this, err, fall_back]() {
-                spdlog::debug("[{}] Failed to list .temp for QIDI native 3MF preview: {}; "
-                              "falling back to active filename",
-                              log_tag_, err.message);
-                fall_back();
-            });
+        [this, token, req, fall_back](const MoonrakerError& err) {
+            token.defer(
+                "GcodePreviewFetcher::qidi_3mf_shadow_list_err", [this, req, err, fall_back]() {
+                    if (stale(req)) {
+                        return;
+                    }
+                    spdlog::debug("[{}] Failed to list .temp for QIDI native 3MF preview: {}; "
+                                  "falling back to active filename",
+                                  log_tag_, err.message);
+                    fall_back();
+                });
         });
 }
 
@@ -145,11 +158,17 @@ void GcodePreviewFetcher::lookup_metadata(const RequestPtr& req, const std::stri
         [this, token, req, root, download_target](const FileMetadata& metadata) {
             token.defer("GcodePreviewFetcher::metadata_ok",
                         [this, req, root, download_target, size = metadata.size]() {
+                            if (stale(req)) {
+                                return;
+                            }
                             stream_if_safe(req, root, download_target, size);
                         });
         },
         [this, token, req](const MoonrakerError& err) {
             token.defer("GcodePreviewFetcher::metadata_err", [this, req, err]() {
+                if (stale(req)) {
+                    return;
+                }
                 // Metadata only decides whether we need to DOWNLOAD the file. If
                 // the owner already renders it, or a cached copy exists (size
                 // unknown, so any non-empty copy is trusted), a metadata miss must
@@ -213,27 +232,60 @@ void GcodePreviewFetcher::stream_if_safe(const RequestPtr& req, const std::strin
 
 void GcodePreviewFetcher::download(const RequestPtr& req, const std::string& root,
                                    const std::string& download_target) {
+    // Another fetch of this file got here first (two lookups for one file can
+    // be outstanding at once): the transfer already running serves this one.
+    if (auto it = in_flight_.find(req->temp_path); it != in_flight_.end()) {
+        it->second = req;
+        return;
+    }
+    in_flight_[req->temp_path] = req;
+
     if (!owned_path_.empty() && owned_path_ != req->temp_path) {
         std::remove(owned_path_.c_str());
         owned_path_.clear();
     }
 
+    // The completions are not stale-checked against `req`: the transfer
+    // outlives a cancel, and whichever request holds it now is the one to tell.
     auto token = lifetime_.token();
+    const std::string temp_path = req->temp_path;
     api_->transfers().download_file_to_path(
-        root, download_target, req->temp_path,
-        [this, token, req](const std::string& path) {
-            token.defer("GcodePreviewFetcher::download_ok", [this, req, path]() {
+        root, download_target, temp_path,
+        [this, token, temp_path](const std::string& path) {
+            token.defer("GcodePreviewFetcher::download_ok", [this, temp_path, path]() {
+                auto waiter = take_waiter(temp_path);
+                if (!waiter || stale(waiter)) {
+                    // Nobody wants the copy and nothing tracks it for cleanup.
+                    if (owned_path_ != path) {
+                        std::remove(path.c_str());
+                    }
+                    return;
+                }
                 spdlog::debug("[{}] Streamed G-code to disk: {}", log_tag_, path);
-                hand_over(req, path);
+                hand_over(waiter, path);
             });
         },
-        [this, token, req](const MoonrakerError& err) {
-            token.defer("GcodePreviewFetcher::download_err", [this, req, err]() {
+        [this, token, temp_path](const MoonrakerError& err) {
+            token.defer("GcodePreviewFetcher::download_err", [this, temp_path, err]() {
+                auto waiter = take_waiter(temp_path);
+                if (!waiter || stale(waiter)) {
+                    return;
+                }
                 spdlog::warn("[{}] Failed to stream G-code for viewing '{}': {}", log_tag_,
-                             req->filename, err.message);
-                give_up(req, Unavailable::DownloadFailed);
+                             waiter->filename, err.message);
+                give_up(waiter, Unavailable::DownloadFailed);
             });
         });
+}
+
+GcodePreviewFetcher::RequestPtr GcodePreviewFetcher::take_waiter(const std::string& temp_path) {
+    auto it = in_flight_.find(temp_path);
+    if (it == in_flight_.end()) {
+        return nullptr;
+    }
+    RequestPtr waiter = std::move(it->second);
+    in_flight_.erase(it);
+    return waiter;
 }
 
 void GcodePreviewFetcher::hand_over(const RequestPtr& req, const std::string& path) {

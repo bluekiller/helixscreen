@@ -20,7 +20,9 @@
 #include "async_lifetime_guard.h"
 #include "i_moonraker_api.h"
 
+#include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -56,8 +58,20 @@ class GcodePreviewFetcher {
 
     /// Get @p filename's G-code onto disk. Exactly one of the callbacks runs
     /// later on the main thread, except when a size lookup fails while the
-    /// owner already shows a render (neither runs).
+    /// owner already shows a render (neither runs), or the fetch is cancelled
+    /// or superseded first (neither runs).
+    ///
+    /// Starting a fetch supersedes the one before it. A file already being
+    /// downloaded is joined, never downloaded twice: the new fetch takes over
+    /// the running transfer's callbacks.
     void fetch(const std::string& filename, ReadyCb on_ready, UnavailableCb on_unavailable);
+
+    /// Drop every fetch still waiting on the network. A running transfer is not
+    /// aborted and may finish writing its file; a later fetch of that file
+    /// joins it.
+    void cancel() {
+        ++generation_;
+    }
 
     /// Does the fetcher hold a local copy it will delete?
     bool owns_file() const {
@@ -69,12 +83,18 @@ class GcodePreviewFetcher {
 
   private:
     struct Request {
+        uint64_t generation = 0;
         std::string filename;
         std::string temp_path;
         ReadyCb on_ready;
         UnavailableCb on_unavailable;
     };
     using RequestPtr = std::shared_ptr<Request>;
+
+    /// A request whose fetch was cancelled or superseded.
+    bool stale(const RequestPtr& req) const {
+        return req->generation != generation_;
+    }
 
     void list_qidi_shadow(const RequestPtr& req, const std::string& metadata_filename);
     void lookup_metadata(const RequestPtr& req, const std::string& metadata_target,
@@ -83,6 +103,8 @@ class GcodePreviewFetcher {
                         const std::string& download_target, uint64_t size);
     void download(const RequestPtr& req, const std::string& root,
                   const std::string& download_target);
+    /// Remove and return the request waiting on the download to @p temp_path.
+    RequestPtr take_waiter(const std::string& temp_path);
     void hand_over(const RequestPtr& req, const std::string& path);
     void give_up(const RequestPtr& req, Unavailable why);
 
@@ -91,6 +113,10 @@ class GcodePreviewFetcher {
     std::function<bool()> rendered_probe_;
     /// The copy handed to the owner, deleted when replaced or discarded.
     std::string owned_path_;
+    uint64_t generation_ = 0;
+    /// Downloads still running, by local path, each with the request its
+    /// completion is delivered to.
+    std::map<std::string, RequestPtr> in_flight_;
     AsyncLifetimeGuard lifetime_;
 };
 

@@ -105,3 +105,36 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
     CHECK(gcode_displayed_file() == PRINT_A);
     CHECK(transfers_.held_count() == 0);
 }
+
+TEST_CASE_METHOD(PrintStatusPreviewFixture,
+                 "Print status: closing and reopening mid-download keeps one transfer",
+                 "[print_status][preview_fetch][slow]") {
+    report_print(PRINT_A);
+    start_fetch(PRINT_A);
+
+    // Destroy-on-close, then the reopened tree asks for the same file again.
+    PrintStatusPanelTestAccess::ui_destroyed(*panel_);
+    PrintStatusPanelTestAccess::set_gcode_viewer(*panel_, viewer_);
+    PrintStatusPanelTestAccess::load_gcode_for_viewing(*panel_, PRINT_A);
+    drain();
+
+    CHECK(transfers_.held_count() == 1);
+
+    // The one transfer serves the reopened tree.
+    land(PRINT_A);
+    CHECK(gcode_displayed_file() == PRINT_A);
+}
+
+TEST_CASE_METHOD(PrintStatusPreviewFixture,
+                 "Print status: a download started before a close is not loaded into a new tree",
+                 "[print_status][preview_fetch][slow]") {
+    report_print(PRINT_A);
+    start_fetch(PRINT_A);
+
+    PrintStatusPanelTestAccess::ui_destroyed(*panel_);
+    PrintStatusPanelTestAccess::set_gcode_viewer(*panel_, viewer_);
+    land_dropped(PRINT_A);
+
+    CHECK(gcode_displayed_file().empty());
+    CHECK_FALSE(ui_gcode_viewer_has_content(viewer_));
+}

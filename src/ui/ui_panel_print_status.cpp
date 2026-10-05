@@ -1405,6 +1405,7 @@ void PrintStatusPanel::on_ui_destroyed() {
         lv_timer_delete(gcode_load_timer_);
         gcode_load_timer_ = nullptr;
     }
+    preview_fetcher_.cancel();
 
     // Note: LVGL animations are already cancelled by lv_obj_delete() in the base
     // class destroy_overlay_ui() call, so no need to cancel them here.
