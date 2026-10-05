@@ -404,9 +404,13 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(false);
+    ctrl.set_startup_brightness(40);
+    ctrl.set_last_brightness(100);
 
-    // Should not crash - just a no-op
-    ctrl.apply_startup_preference(ctrl.light_targets(""));
+    ctrl.apply_startup_preference({"neopixel a"});
+
+    // Disabled: the startup brightness is not applied.
+    REQUIRE(ctrl.last_brightness() == 100);
 
     ctrl.deinit();
 }
@@ -419,9 +423,13 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(true);
+    ctrl.set_startup_brightness(40);
+    ctrl.set_last_brightness(100);
 
-    // Should not crash even though enabled
     ctrl.apply_startup_preference({});
+
+    // Nothing to light: the startup brightness is not applied.
+    REQUIRE(ctrl.last_brightness() == 100);
 
     ctrl.deinit();
 }
@@ -768,11 +776,19 @@ TEST_CASE_METHOD(LedControllerFixture, "OutputPinBackend: status for an unknown 
 
 TEST_CASE_METHOD(LedControllerFixture, "OutputPinBackend: no API safety", "[led][output_pin]") {
     helix::led::OutputPinBackend backend;
-    // Should not crash when API is null
-    backend.set_value("output_pin test", 0.5);
-    backend.turn_on("output_pin test");
-    backend.turn_off("output_pin test");
-    backend.set_brightness("output_pin test", 50);
+    std::vector<std::string> errors;
+    auto on_error = [&errors](const std::string& e) { errors.push_back(e); };
+
+    // With no API every command reports an error instead of sending.
+    backend.set_value("output_pin test", 0.5, nullptr, on_error);
+    backend.turn_on("output_pin test", nullptr, on_error);
+    backend.turn_off("output_pin test", nullptr, on_error);
+    backend.set_brightness("output_pin test", 50, nullptr, on_error);
+
+    REQUIRE(errors.size() == 4);
+    for (const auto& e : errors) {
+        CHECK(e.find("no API") != std::string::npos);
+    }
 }
 
 // ============================================================================

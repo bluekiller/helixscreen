@@ -126,9 +126,11 @@ TEST_CASE("text_format produces correct output", "[split_button]") {
 
 TEST_CASE("ui_split_button_init does not crash", "[split_button]") {
     lv_init_safe();
-    // Should be safe to call (may warn if XML not fully initialized)
-    // We mainly test that the function exists and links correctly
     ui_split_button_init();
+
+    lv_widget_processor_t* proc = lv_xml_widget_get_processor("ui_split_button");
+    REQUIRE(proc != nullptr);
+    REQUIRE(proc->create_cb != nullptr);
 }
 
 // =============================================================================

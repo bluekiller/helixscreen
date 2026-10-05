@@ -391,27 +391,6 @@ TEST_CASE("UpdateChecker cache behavior", "[update_checker][cache]") {
     }
 }
 
-TEST_CASE("UpdateChecker thread safety", "[update_checker][threading]") {
-    auto& checker = UpdateChecker::instance();
-
-    SECTION("get_status is thread-safe") {
-        // Should be able to call from any thread
-        auto status = checker.get_status();
-        (void)status; // Use the variable
-    }
-
-    SECTION("get_cached_update is thread-safe") {
-        // Should return consistent snapshot
-        auto cached = checker.get_cached_update();
-        (void)cached;
-    }
-
-    SECTION("has_update_available is thread-safe") {
-        auto has_update = checker.has_update_available();
-        (void)has_update;
-    }
-}
-
 TEST_CASE("UpdateChecker lifecycle", "[update_checker][lifecycle]") {
     auto& checker = UpdateChecker::instance();
 

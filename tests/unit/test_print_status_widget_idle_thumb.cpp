@@ -142,16 +142,18 @@ TEST_CASE_METHOD(PrintStatusIdleThumbFixture,
     PrintStatusWidget widget;
     lv_obj_t* container = create_mock_print_card(test_screen());
 
-    // Multiple attach/detach cycles should not crash
+    // Detached before its deferred idle reset ran.
     widget.attach(container, test_screen());
-    process_lvgl(200);
     widget.detach();
 
-    widget.attach(container, test_screen());
+    // Recycled onto fresh XML, it still schedules and runs its own idle reset.
+    lv_obj_t* fresh = create_mock_print_card(test_screen());
+    widget.attach(fresh, test_screen());
     process_lvgl(200);
+    REQUIRE(get_idle_thumb_src(fresh) == BENCHY_PATH);
     widget.detach();
 
-    // LVGL processing after detach should be safe
+    // LVGL processing after detach must not reach the detached widget.
     process_lvgl(200);
 }
 
