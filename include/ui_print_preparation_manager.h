@@ -524,6 +524,12 @@ class PrintPreparationManager {
     // === Scan Cache ===
     std::optional<gcode::ScanResult> cached_scan_result_;
     std::string cached_scan_filename_;
+    /// Full identity of the file cached_scan_result_ came from (the stick path
+    /// for a USB file, else current_path/filename), so a same-named file
+    /// elsewhere never reuses it.
+    std::string cached_scan_key_;
+    /// Key of the newest scan requested; an older scan's late answer is dropped.
+    std::string requested_scan_key_;
     helix::PrinterStopCheck printer_stop_check_;
     std::string printer_stop_check_filename_; ///< The file printer_stop_check_ answers for
     std::function<void()> on_scan_answered_;

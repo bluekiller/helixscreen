@@ -1010,3 +1010,31 @@ TEST_CASE_METHOD(DetailDownloadFixture, "An unreadable USB file asks Moonraker f
 
     pop_and_drain();
 }
+
+TEST_CASE_METHOD(DetailDownloadFixture,
+                 "A USB file named like a printer file gets its own operations scan",
+                 "[print_select][detail_view][usb]") {
+    CacheDirGuard guard;
+    EnvGuard mem_fail("HELIX_FORCE_GCODE_MEMORY_FAIL", "1");
+    const std::string name = "same_name_" + std::to_string(::getpid()) + ".gcode";
+    const std::string printer_gcode = "G28\nBED_MESH_CALIBRATE\nG1 X10 Y10 E1\n";
+    PlantedGcode printer_file(name, "", printer_gcode);
+
+    view_.show(name, "", "PLA", {"#FF0000"}, {}, printer_gcode.size(), 42);
+    auto* prep = view_.get_prep_manager();
+    REQUIRE(prep != nullptr);
+    REQUIRE(wait_until([&]() { return prep->has_scan_result_for(name); }, 15000));
+    REQUIRE(prep->get_scan_result()->has_operation(helix::gcode::OperationType::BED_MESH));
+    pop_and_drain();
+
+    const std::string stick_gcode = "G28\nG1 X10 Y10 E1\n";
+    StickFile stick(name, stick_gcode);
+    view_.show(name, "", "PLA", {"#FF0000"}, {}, stick_gcode.size(), 42, 0, stick.path.string());
+    prep = view_.get_prep_manager();
+    REQUIRE(wait_until([&]() { return prep->has_scan_result_for(name); }, 15000));
+    drain_queue_chain();
+
+    CHECK_FALSE(prep->get_scan_result()->has_operation(helix::gcode::OperationType::BED_MESH));
+
+    pop_and_drain();
+}
