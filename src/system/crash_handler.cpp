@@ -58,6 +58,7 @@
 #endif
 
 #ifdef __linux__
+#include <sys/syscall.h>
 #include <sys/uio.h> // process_vm_readv() for fault-free stack reads
 #endif
 
@@ -567,7 +568,10 @@ HELIX_NO_SANITIZE_ADDRESS static uintptr_t read_stack_word(uintptr_t base, size_
     if (n >= 0 || readv_errno == EFAULT) {
         readable = false;
     } else if (s_probe_pipe[1] >= 0) {
-        const ssize_t w = write(s_probe_pipe[1], reinterpret_cast<const void*>(addr), word_size);
+        // Raw syscall: the kernel answers EFAULT for an unmapped source, while
+        // a sanitizer's write() interceptor would check the source itself.
+        const ssize_t w =
+            syscall(SYS_write, s_probe_pipe[1], reinterpret_cast<const void*>(addr), word_size);
         if (w > 0) {
             char sink[8];
             (void)!read(s_probe_pipe[0], sink, static_cast<size_t>(w));
