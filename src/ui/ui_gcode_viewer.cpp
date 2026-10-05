@@ -3454,8 +3454,6 @@ const char* ui_gcode_viewer_pick_object(lv_obj_t*, int, int) {
 
 void ui_gcode_viewer_set_extrusion_color(lv_obj_t*, lv_color_t) {}
 
-void ui_gcode_viewer_set_travel_color(lv_obj_t*, lv_color_t) {}
-
 void ui_gcode_viewer_use_filament_color(lv_obj_t*, bool) {}
 
 void ui_gcode_viewer_set_opacity(lv_obj_t*, lv_opa_t) {}

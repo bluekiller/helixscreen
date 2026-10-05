@@ -397,18 +397,6 @@ class GCodeLayerRenderer {
     void set_extrusion_color(lv_color_t color);
 
     /**
-     * @brief Set travel color (overrides theme)
-     * @param color Color for travel moves
-     */
-    void set_travel_color(lv_color_t color);
-
-    /**
-     * @brief Set support color (overrides theme)
-     * @param color Color for support structures
-     */
-    void set_support_color(lv_color_t color);
-
-    /**
      * @brief Set tool color palette for multi-color prints
      * @param hex_colors Vector of hex color strings (e.g., "#ED1C24")
      */
@@ -668,8 +656,6 @@ class GCodeLayerRenderer {
     /// token walks LVGL's const registry, which is main-thread only.
     selection::Palette sel_palette_;
     bool use_custom_extrusion_color_ = false;
-    bool use_custom_travel_color_ = false;
-    bool use_custom_support_color_ = false;
     GCodeColorPalette tool_palette_; ///< Per-tool colors for multi-color prints
 
     // Object exclusion/highlight state, plus the interned-index map it classifies
