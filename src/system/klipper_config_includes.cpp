@@ -132,6 +132,23 @@ std::vector<std::string> extract_includes(const std::string& content) {
 // Active file resolution (pure)
 // ============================================================================
 
+namespace {
+
+/// The files one [include] names: every match for a glob, else the path
+/// relative to the including file (which may not exist).
+std::vector<std::string> include_targets(const std::map<std::string, std::string>& files,
+                                         const std::string& current_file,
+                                         const std::string& include_pattern) {
+    const bool has_wildcard = include_pattern.find('*') != std::string::npos ||
+                              include_pattern.find('?') != std::string::npos;
+    if (has_wildcard) {
+        return config_match_glob(files, current_file, include_pattern);
+    }
+    return {config_resolve_path(current_file, include_pattern)};
+}
+
+} // namespace
+
 std::set<std::string> resolve_active_files(const std::map<std::string, std::string>& files,
                                            const std::string& root_file, int max_depth) {
     std::set<std::string> active;
@@ -158,20 +175,9 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
 
         active.insert(file_path);
 
-        // Extract and process includes
-        auto includes = extract_includes(it->second);
-        for (const auto& include_pattern : includes) {
-            bool has_wildcard = include_pattern.find('*') != std::string::npos ||
-                                include_pattern.find('?') != std::string::npos;
-
-            if (has_wildcard) {
-                auto matched = config_match_glob(files, file_path, include_pattern);
-                for (const auto& match : matched) {
-                    process_file(match, depth + 1);
-                }
-            } else {
-                std::string resolved = config_resolve_path(file_path, include_pattern);
-                process_file(resolved, depth + 1);
+        for (const auto& include_pattern : extract_includes(it->second)) {
+            for (const auto& target : include_targets(files, file_path, include_pattern)) {
+                process_file(target, depth + 1);
             }
         }
     };
@@ -183,6 +189,126 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
 // ============================================================================
 // Async Moonraker integration
 // ============================================================================
+
+void download_include_graph(std::vector<std::string> listing, const std::string& root_file,
+                            ConfigDownloadFn download, ActiveFilesWithContentCallback on_complete,
+                            ErrorCallback on_error, size_t max_in_flight, int max_depth) {
+    // Keyed like the downloaded map so include_targets() globs against it; the
+    // values stay empty, only the names are known until a file arrives.
+    std::map<std::string, std::string> known;
+    for (auto& path : listing) {
+        known.emplace(std::move(path), std::string());
+    }
+    if (!known.count(root_file)) {
+        if (on_complete)
+            on_complete({}, {});
+        return;
+    }
+
+    // Shared by every download callback, which may run on any thread or inside
+    // the download() call itself; the lock is never held across download().
+    struct Walk {
+        std::mutex mutex;
+        std::map<std::string, std::string> known;
+        std::string root;
+        ConfigDownloadFn download;
+        ActiveFilesWithContentCallback on_complete;
+        ErrorCallback on_error;
+        size_t max_in_flight = 1;
+        int max_depth = 0;
+        std::vector<std::pair<std::string, int>> queue; // path, include depth
+        std::set<std::string> seen;
+        std::map<std::string, std::string> files;
+        size_t in_flight = 0;
+        std::string error;
+        bool reported = false;
+    };
+    auto walk = std::make_shared<Walk>();
+    walk->known = std::move(known);
+    walk->root = root_file;
+    walk->download = std::move(download);
+    walk->on_complete = std::move(on_complete);
+    walk->on_error = std::move(on_error);
+    walk->max_in_flight = std::max<size_t>(1, max_in_flight);
+    walk->max_depth = max_depth;
+    walk->queue.emplace_back(root_file, 0);
+    walk->seen.insert(root_file);
+
+    // Report once every outstanding download has returned. Called with the lock
+    // held; the returned closure runs after it is released.
+    auto take_report = [](Walk& w) -> std::function<void()> {
+        if (w.reported || w.in_flight > 0 || (w.error.empty() && !w.queue.empty()))
+            return {};
+        w.reported = true;
+        if (!w.error.empty()) {
+            return [cb = w.on_error, err = w.error]() {
+                if (cb)
+                    cb(err);
+            };
+        }
+        return [cb = w.on_complete, root = w.root, files = std::move(w.files)]() {
+            if (cb)
+                cb(resolve_active_files(files, root), files);
+        };
+    };
+
+    std::shared_ptr<std::function<void()>> pump = std::make_shared<std::function<void()>>();
+    std::weak_ptr<std::function<void()>> weak_pump = pump;
+    *pump = [walk, take_report, weak_pump]() {
+        for (;;) {
+            std::pair<std::string, int> next;
+            {
+                std::lock_guard<std::mutex> lock(walk->mutex);
+                if (!walk->error.empty() || walk->queue.empty() ||
+                    walk->in_flight >= walk->max_in_flight)
+                    return;
+                next = std::move(walk->queue.front());
+                walk->queue.erase(walk->queue.begin());
+                ++walk->in_flight;
+            }
+            auto self = weak_pump.lock();
+            const std::string path = next.first;
+            const int depth = next.second;
+            walk->download(
+                path,
+                [walk, take_report, self, path, depth](std::string content) {
+                    std::function<void()> report;
+                    {
+                        std::lock_guard<std::mutex> lock(walk->mutex);
+                        --walk->in_flight;
+                        if (walk->error.empty() && depth < walk->max_depth) {
+                            for (const auto& pattern : extract_includes(content)) {
+                                for (auto& t : include_targets(walk->known, path, pattern)) {
+                                    if (walk->known.count(t) && walk->seen.insert(t).second)
+                                        walk->queue.emplace_back(std::move(t), depth + 1);
+                                }
+                            }
+                        }
+                        walk->files[path] = std::move(content);
+                        report = take_report(*walk);
+                    }
+                    if (report)
+                        report();
+                    else if (self)
+                        (*self)();
+                },
+                [walk, take_report, path](std::string message) {
+                    spdlog::warn("[ConfigIncludes] Failed to download {}: {}", path, message);
+                    std::function<void()> report;
+                    {
+                        std::lock_guard<std::mutex> lock(walk->mutex);
+                        --walk->in_flight;
+                        if (walk->error.empty())
+                            walk->error = "Failed to download " + path + ": " + message;
+                        report = take_report(*walk);
+                    }
+                    if (report)
+                        report();
+                });
+        }
+    };
+    (*pump)();
+}
 
 void resolve_active_config_files_with_content(IMoonrakerAPI& api,
                                               ActiveFilesWithContentCallback on_complete,
@@ -201,51 +327,15 @@ void resolve_active_config_files_with_content(IMoonrakerAPI& api,
                     }
                 }
             }
-
-            if (cfg_paths.empty()) {
-                if (on_complete)
-                    on_complete({}, {});
-                return;
-            }
-
-            // Shared state for async downloads
-            struct DownloadState {
-                std::map<std::string, std::string> files_map;
-                std::atomic<int> pending{0};
-                std::mutex mutex;
-                ActiveFilesWithContentCallback on_complete;
-            };
-
-            auto state = std::make_shared<DownloadState>();
-            state->pending.store(static_cast<int>(cfg_paths.size()));
-            state->on_complete = on_complete;
-
-            for (const auto& path : cfg_paths) {
-                api.transfers().download_file(
-                    "config", path,
-                    [state, path](const std::string& content) {
-                        {
-                            std::lock_guard<std::mutex> lock(state->mutex);
-                            state->files_map[path] = content;
-                        }
-                        int remaining = state->pending.fetch_sub(1) - 1;
-                        if (remaining == 0) {
-                            auto active = resolve_active_files(state->files_map, "printer.cfg");
-                            if (state->on_complete)
-                                state->on_complete(active, state->files_map);
-                        }
-                    },
-                    [state, path](const MoonrakerError& err) {
-                        spdlog::warn("[ConfigIncludes] Failed to download {}: {}", path,
-                                     err.message);
-                        int remaining = state->pending.fetch_sub(1) - 1;
-                        if (remaining == 0) {
-                            auto active = resolve_active_files(state->files_map, "printer.cfg");
-                            if (state->on_complete)
-                                state->on_complete(active, state->files_map);
-                        }
-                    });
-            }
+            download_include_graph(
+                std::move(cfg_paths), "printer.cfg",
+                [&api](const std::string& path, std::function<void(std::string)> ok,
+                       std::function<void(std::string)> fail) {
+                    api.transfers().download_file(
+                        "config", path, [ok](const std::string& content) { ok(content); },
+                        [fail](const MoonrakerError& err) { fail(err.message); });
+                },
+                on_complete, on_error);
         },
         [on_error](const MoonrakerError& err) {
             if (on_error)
