@@ -252,14 +252,16 @@ void ActionPromptModal::create_buttons() {
     // while every label still fits its share: seven "PLA 220/60" presets would
     // get a few dozen pixels per cell and clip, so those keep row_wrap and take
     // the extra lines they need.
-    const auto rows = split_button_rows(prompt_data_.buttons);
-    for (const auto& row_buttons : rows) {
+    bool has_regular_buttons = false;
+    for (const auto& row_buttons : split_button_rows(prompt_data_.buttons)) {
         auto* row = static_cast<lv_obj_t*>(
             lv_xml_create(button_container, "action_prompt_button_row", nullptr));
         if (!row) {
+            // Without rows the footer still has to be built, or the prompt has no way out.
             spdlog::warn("[ActionPromptModal] action_prompt_button_row not registered");
-            return;
+            break;
         }
+        has_regular_buttons = true;
         const bool equal_width = row_buttons.size() >= 4 && equal_width_row_fits(row, row_buttons);
         if (equal_width) {
             lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
@@ -268,7 +270,6 @@ void ActionPromptModal::create_buttons() {
             create_button(btn, row, equal_width);
         }
     }
-    const bool has_regular_buttons = !rows.empty();
 
     for (const auto& btn : prompt_data_.buttons) {
         if (btn.is_footer && footer_container) {
