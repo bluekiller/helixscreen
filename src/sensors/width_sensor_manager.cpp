@@ -14,9 +14,9 @@
 
 // CRITICAL: Subject updates trigger lv_obj_invalidate() which asserts if called
 // during LVGL rendering. WebSocket callbacks run on libhv's event loop thread,
-// not the main LVGL thread. We must defer subject updates to the main thread
-// via ui_queue_update() to avoid the "Invalidate area not allowed during rendering"
-// assertion.
+// not the main LVGL thread. Subject updates are deferred to the main thread
+// through lifetime_.token().defer() to avoid the "Invalidate area not allowed
+// during rendering" assertion, and dropped once deinit_subjects() runs.
 
 namespace helix::sensors {
 

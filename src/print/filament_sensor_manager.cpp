@@ -26,9 +26,9 @@
 
 // CRITICAL: Subject updates trigger lv_obj_invalidate() which asserts if called
 // during LVGL rendering. WebSocket callbacks run on libhv's event loop thread,
-// not the main LVGL thread. We must defer subject updates to the main thread
-// via ui_queue_update() to avoid the "Invalidate area not allowed during rendering"
-// assertion.
+// not the main LVGL thread. Subject updates are deferred to the main thread
+// through lifetime_.token().defer() to avoid the "Invalidate area not allowed
+// during rendering" assertion, and dropped once deinit_subjects() runs.
 
 namespace helix {
 
@@ -1300,9 +1300,7 @@ void FilamentSensorManager::update_from_status(const json& status) {
                 spdlog::info("[FilamentSensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                // Defer subject updates to main LVGL thread via helix::ui::queue_update()
-                // This avoids the "Invalidate area not allowed during rendering" assertion
-                // and provides exception safety (try-catch wrapping)
+                // Deferred to the main LVGL thread; dropped after deinit_subjects().
                 spdlog::debug("[FilamentSensorManager] async_mode: deferring via lifetime token");
                 lifetime_.token().defer("FilamentSensorManager::update_subjects", [] {
                     FilamentSensorManager::instance().update_subjects_on_main_thread();
@@ -1562,7 +1560,7 @@ void FilamentSensorManager::set_sync_mode(bool enabled) {
 }
 
 void FilamentSensorManager::update_subjects_on_main_thread() {
-    // Called from a queue_update callback on the main LVGL thread
+    // Called from the deferred update on the main LVGL thread
     // It's safe to update subjects here without causing render-phase assertions
     update_subjects();
 }
