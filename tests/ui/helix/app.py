@@ -207,6 +207,16 @@ class HelixApp:
                   f"settings-test.json seeding; a hang at boot likely means this "
                   f"directory is already locked by another running instance")
 
+        # The thumbnail cache otherwise resolves to ~/.cache/helix, shared by
+        # every helix-screen on the machine. Each boot rewrites the cached PNGs
+        # and drops their prescaled .bin variants there, so another instance on
+        # print-select can delete art this one is loading. A private cache also
+        # gives every boot the same cold start.
+        if not env.get("HELIX_CACHE_DIR"):
+            cache_dir = self.workdir / "helix-cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            env["HELIX_CACHE_DIR"] = str(cache_dir)
+
         args = [
             str(self.binary),
             "--test", "--skip-wizard", "--skip-splash",

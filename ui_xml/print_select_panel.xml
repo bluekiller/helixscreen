@@ -45,9 +45,13 @@
            creation (both subjects default to 0, which evaluates hidden too) —
            kept as a failure-safe default matching the sibling buttons below,
            not a Rule #6 inline-vs-binding conflict. -->
+      <!-- No vertical padding: the selector must be exactly as tall as
+           view_toggle_btn, so showing it never changes the header's height.
+           The card grid is sized from that height when it populates, and a
+           drive can be reported after that. -->
       <lv_obj name="source_selector"
-              width="content" height="content" hidden="true" style_radius="#space_sm" style_pad_all="#space_xxs"
-              flex_flow="row" style_pad_gap="#space_md" scrollable="false">
+              width="content" height="content" hidden="true" style_radius="#space_sm" style_pad_hor="#space_xxs"
+              style_pad_ver="0" flex_flow="row" style_pad_gap="#space_md" scrollable="false">
         <bind_flag_if cond="not print_source_usb_present or print_source_moonraker_usb_access" flag="hidden"/>
 
         <!-- Printer tab: filled (active) when source=printer -->
