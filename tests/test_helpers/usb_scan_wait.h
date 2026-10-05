@@ -18,13 +18,17 @@
 
 namespace helix::test {
 
+/// A delivered result can start the next walk, so this repeats until a drain
+/// leaves the executor idle.
 inline void wait_for_usb_scan() {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (helix::http::HttpExecutor::fast().inflight() > 0 &&
-           std::chrono::steady_clock::now() < deadline) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    helix::ui::UpdateQueue::instance().drain();
+    auto& executor = helix::http::HttpExecutor::fast();
+    do {
+        while (executor.inflight() > 0 && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        helix::ui::UpdateQueue::instance().drain();
+    } while (executor.inflight() > 0 && std::chrono::steady_clock::now() < deadline);
 }
 
 } // namespace helix::test

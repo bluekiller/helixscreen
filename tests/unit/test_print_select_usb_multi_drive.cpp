@@ -177,5 +177,45 @@ TEST_CASE_METHOD(LVGLTestFixture, "PrintSelectUsbSource walks the stick off the 
         CHECK(deliveries == 1);
     }
 
+    SECTION("refreshes during a walk do not each start a walk") {
+        usb_source.select_usb_source();
+        usb_source.refresh_files();
+        usb_source.refresh_files();
+        usb_source.refresh_files();
+        helix::test::wait_for_usb_scan();
+        // The walk in flight, then one more for everything that came during it.
+        CHECK(backend->scan_count() <= 2);
+        CHECK(deliveries == 1);
+    }
+
+    manager.stop();
+}
+
+TEST_CASE("scan_usb_drives stops as soon as it is cancelled", "[usb][usb_async]") {
+    UsbManager manager(true);
+    REQUIRE(manager.start());
+    auto* backend = static_cast<UsbBackendMock*>(manager.get_backend());
+    REQUIRE(backend != nullptr);
+    backend->simulate_drive_insert(drive("/media/usb0", "FIRST"));
+    backend->simulate_drive_insert(drive("/media/usb1", "SECOND"));
+    backend->set_mock_files("/media/usb0", {{"/media/usb0/a.gcode", "a.gcode", 100, 1000}});
+    backend->set_mock_files("/media/usb1", {{"/media/usb1/b.gcode", "b.gcode", 100, 1000}});
+    std::vector<UsbDrive> drives;
+    REQUIRE(backend->get_connected_drives(drives).success());
+    REQUIRE(drives.size() == 2);
+
+    SECTION("cancelled before it starts, it reads nothing") {
+        auto scan = helix::ui::scan_usb_drives(*backend, drives, [] { return true; });
+        CHECK(backend->scan_count() == 0);
+        CHECK(scan.files.empty());
+    }
+
+    SECTION("cancelled after the first drive, it skips the second") {
+        int polls = 0;
+        auto scan = helix::ui::scan_usb_drives(*backend, drives, [&] { return ++polls > 1; });
+        CHECK(backend->scan_count() == 1);
+        CHECK(scan.thumbnails.empty());
+    }
+
     manager.stop();
 }
