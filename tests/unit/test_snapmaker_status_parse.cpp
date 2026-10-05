@@ -137,3 +137,17 @@ TEST_CASE("Snapmaker status parse reads a null feed field as absent", "[snapmake
     CHECK_FALSE(d.feed_channels[0].channel_state);
     CHECK_FALSE(d.feed_channels[0].channel_error);
 }
+
+TEST_CASE("Snapmaker status parse reads the batch macro's doing flag only under its own key",
+          "[snapmaker][status_parse]") {
+    const json frame{{"gcode_macro AUTO_FEEDING_BATCH", json{{"doing", false}}},
+                     {"gcode_macro OTHER", json{{"doing", true}}}};
+
+    CHECK(snapmaker::parse_status(frame, "gcode_macro AUTO_FEEDING_BATCH").batch_doing == false);
+    CHECK(snapmaker::parse_status(frame, "gcode_macro OTHER").batch_doing == true);
+    CHECK_FALSE(snapmaker::parse_status(frame, "").batch_doing);
+    CHECK_FALSE(snapmaker::parse_status(frame, "gcode_macro MISSING").batch_doing);
+    CHECK_FALSE(
+        snapmaker::parse_status(json{{"gcode_macro M", json{{"doing", 1}}}}, "gcode_macro M")
+            .batch_doing);
+}

@@ -1758,9 +1758,56 @@ void AmsBackendSnapmaker::advance_batch_locked(int i, const std::string& op_stat
     }
 }
 
+void AmsBackendSnapmaker::apply_batch_state_locked(const snapmaker::StatusDelta& delta,
+                                                   FrameEffects& fx) {
+    // The batch macro's `doing` save-variable is the firmware's own word on
+    // whether a batch script is running. A false reading retires any plan this
+    // process still holds active: the script ended without the cursor head
+    // reaching a terminal or a *_fail (lost response, script abort, a feeder
+    // wedging mid-feed), and no channel_state detector covers that end.
+    if (delta.batch_doing && !*delta.batch_doing && batch_.active) {
+        batch_.active = false;
+        fx.batch_retired = true;
+        fx.changed = true;
+        spdlog::info("{} batch macro reports doing=false — retiring the active plan",
+                     backend_log_tag());
+    }
+}
+
+void AmsBackendSnapmaker::apply_working_slot_locked(FrameEffects& fx) {
+    // ONE derivation of "the head an operation is working on": the batch cursor
+    // while a plan is active, else the head whose channel reported an
+    // in-progress state, else none. A toolhead-only delta carries no channel
+    // evidence, so mid-op it keeps the previous answer instead of flapping the
+    // header back to the carriage tool; a batch the firmware just reported
+    // ended carries nothing forward. current_slot is NOT touched here: it stays
+    // the carriage answer its other consumers (bypass unload, filament panel
+    // gating, the loaded card) read.
+    int working_slot = -1;
+    if (batch_.active) {
+        working_slot = batch_.heads[batch_.cursor];
+    } else if (system_info_.action == AmsAction::LOADING ||
+               system_info_.action == AmsAction::UNLOADING) {
+        if (fx.in_progress_head >= 0) {
+            working_slot = fx.in_progress_head;
+        } else if (!fx.batch_retired) {
+            working_slot = system_info_.operation_working_slot;
+        }
+    }
+    if (system_info_.operation_working_slot != working_slot) {
+        system_info_.operation_working_slot = working_slot;
+        fx.changed = true;
+    }
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
-    const snapmaker::StatusDelta delta = snapmaker::parse_status(status);
+    std::string batch_macro_object;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        batch_macro_object = batch_macro_object_;
+    }
+    const snapmaker::StatusDelta delta = snapmaker::parse_status(status, batch_macro_object);
 
     { // Scope lock — emit_event MUST be called outside mutex_ to avoid deadlock
       // with sync_from_backend() which acquires mutex_ via get_system_info()
@@ -1773,50 +1820,8 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
 
         apply_feed_channels_locked(delta, fx);
 
-        // The batch macro's `doing` save-variable is the firmware's own word
-        // on whether a batch script is running. A false reading retires any
-        // plan this process still holds active: the script ended without the
-        // cursor head reaching a terminal or a *_fail (lost response, script
-        // abort, a feeder wedging mid-feed), and no channel_state detector
-        // covers that end.
-        if (!batch_macro_object_.empty()) {
-            const auto macro = status.find(batch_macro_object_);
-            if (macro != status.end() && macro->is_object()) {
-                const auto doing = macro->find("doing");
-                if (doing != macro->end() && doing->is_boolean() && !doing->get<bool>() &&
-                    batch_.active) {
-                    batch_.active = false;
-                    fx.batch_retired = true;
-                    fx.changed = true;
-                    spdlog::info("{} batch macro reports doing=false — retiring the active plan",
-                                 backend_log_tag());
-                }
-            }
-        }
-
-        // ONE derivation of "the head an operation is working on": the batch
-        // cursor while a plan is active, else the head whose channel reported
-        // an in-progress state, else none. A toolhead-only delta carries no
-        // channel evidence, so mid-op it keeps the previous answer instead of
-        // flapping the header back to the carriage tool; a batch the firmware
-        // just reported ended carries nothing forward. current_slot is NOT
-        // touched here: it stays the carriage answer its other consumers
-        // (bypass unload, filament panel gating, the loaded card) read.
-        int working_slot = -1;
-        if (batch_.active) {
-            working_slot = batch_.heads[batch_.cursor];
-        } else if (system_info_.action == AmsAction::LOADING ||
-                   system_info_.action == AmsAction::UNLOADING) {
-            if (fx.in_progress_head >= 0) {
-                working_slot = fx.in_progress_head;
-            } else if (!fx.batch_retired) {
-                working_slot = system_info_.operation_working_slot;
-            }
-        }
-        if (system_info_.operation_working_slot != working_slot) {
-            system_info_.operation_working_slot = working_slot;
-            fx.changed = true;
-        }
+        apply_batch_state_locked(delta, fx);
+        apply_working_slot_locked(fx);
 
         // Parse print_task_config — authoritative filament info from Snapmaker's task manager
         // Contains per-extruder filament type, vendor, color, and presence data

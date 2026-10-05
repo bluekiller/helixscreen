@@ -527,6 +527,11 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                                       const snapmaker::ChannelStateInfo& op_info,
                                       const std::string& error, bool outcome_is_new,
                                       FrameEffects& fx);
+    /// Retires an active batch plan the firmware reports no longer running.
+    void apply_batch_state_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    /// The head an operation is working on, from the batch cursor or the
+    /// in-progress channel this frame found.
+    void apply_working_slot_locked(FrameEffects& fx);
     /// Verifies the batch plan's cursor head against the op outcome.
     void advance_batch_locked(int slot_index, const std::string& op_state,
                               const snapmaker::ChannelStateInfo& op_info, FrameEffects& fx);

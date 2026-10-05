@@ -102,6 +102,9 @@ struct StatusDelta {
     /// Every lane entry the frame carried, in the order the backend applies
     /// them: `filament_feed left` then `filament_feed right`, each by lane.
     std::vector<FeedChannelDelta> feed_channels;
+    /// The batch macro's `doing` save-variable; nullopt when the frame has no
+    /// such object or no boolean in it.
+    std::optional<bool> batch_doing;
 };
 
 [[nodiscard]] ExtruderDelta parse_extruder_delta(const nlohmann::json& extruder);
@@ -112,7 +115,11 @@ struct StatusDelta {
 
 [[nodiscard]] std::vector<FeedChannelDelta> parse_feed_channels(const nlohmann::json& status);
 
-[[nodiscard]] StatusDelta parse_status(const nlohmann::json& status);
+/// @p batch_macro_object is the status key the AUTO_FEEDING_BATCH macro
+/// publishes under ("gcode_macro " plus its config-case name), empty when the
+/// firmware has no such macro.
+[[nodiscard]] StatusDelta parse_status(const nlohmann::json& status,
+                                       const std::string& batch_macro_object = {});
 
 } // namespace snapmaker
 } // namespace helix

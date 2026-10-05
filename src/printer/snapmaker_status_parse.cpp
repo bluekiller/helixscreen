@@ -176,7 +176,7 @@ std::vector<FeedChannelDelta> parse_feed_channels(const nlohmann::json& status) 
     return channels;
 }
 
-StatusDelta parse_status(const nlohmann::json& status) {
+StatusDelta parse_status(const nlohmann::json& status, const std::string& batch_macro_object) {
     StatusDelta d;
 
     // Klipper names the first extruder "extruder" and the rest "extruder1"...
@@ -200,6 +200,13 @@ StatusDelta parse_status(const nlohmann::json& status) {
     }
 
     d.feed_channels = parse_feed_channels(status);
+
+    if (!batch_macro_object.empty()) {
+        const auto macro = status.find(batch_macro_object);
+        if (macro != status.end() && macro->is_object()) {
+            d.batch_doing = ams::read_field<bool>(*macro, "doing");
+        }
+    }
 
     return d;
 }
