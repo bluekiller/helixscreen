@@ -60,7 +60,7 @@ What works today:
 
 Not yet available on this target: the camera feed and QR features, the 2D G-code view, and the 3D bed mesh view.
 
-Release builds (1.1 betas and newer) include a ready-to-flash firmware zip. Installing, first-boot setup, updating and recovery are covered in [ESP32 Touchscreen (BTT K-Touch) - Alpha](../INSTALL.md#esp32-touchscreen-btt-k-touch---alpha).
+Release builds (1.1 betas and newer) include a ready-to-flash firmware zip. Installing, first-boot setup, updating and recovery are covered in [K-Touch Install](install-esp32.md).
 
 ---
 
