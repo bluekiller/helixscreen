@@ -25,9 +25,10 @@ void write_affine(Config& cfg, const TouchCalibration& cal) {
     cfg.set<int>("/input/calibration/rotation", cal.capture_rotation);
 }
 
-void restore_range(ICalibrationSink& sink, const TouchRangeSettings& range) {
-    if (range.valid) {
-        sink.apply_touch_range(range.swap_axes, range.min_x, range.min_y, range.max_x, range.max_y);
+void restore_range(ICalibrationSink& sink, const LiveTouchRange& live) {
+    const TouchRangeSettings& r = live.range;
+    if (r.valid) {
+        sink.apply_touch_range(r.swap_axes, r.min_x, r.min_y, r.max_x, r.max_y, live.source);
     }
 }
 
@@ -42,10 +43,11 @@ InstalledCalibration install_calibration_result(ICalibrationSink* sink, const To
     InstalledCalibration out;
     // Re-program the evdev stage first. A backend that cannot (no evdev, or a
     // degenerate range) says so, and the result falls back to the affine-only
-    // shape rather than a range nothing honours.
-    out.range_installed =
-        fit.valid && sink != nullptr &&
-        sink->apply_touch_range(fit.swap_axes, fit.min_x, fit.min_y, fit.max_x, fit.max_y);
+    // shape rather than a range nothing honours. A device that cannot report the
+    // range it runs now is left alone too: a session could not put it back.
+    out.range_installed = fit.valid && sink != nullptr && sink->current_touch_range().range.valid &&
+                          sink->apply_touch_range(fit.swap_axes, fit.min_x, fit.min_y, fit.max_x,
+                                                  fit.max_y, TouchRangeSource::Stored);
 
     // Exactly one of these two describes the mapping from here on.
     out.affine = out.range_installed ? fit.residual : cal;

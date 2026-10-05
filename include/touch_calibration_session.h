@@ -7,6 +7,12 @@
 
 namespace helix {
 
+/// The evdev range a touch device runs now, and which stage supplied it.
+struct LiveTouchRange {
+    TouchRangeSettings range; ///< valid=false: no evdev stage, or its range is unknown
+    TouchRangeSource source = TouchRangeSource::None;
+};
+
 /// The four touch-calibration operations an interactive calibration session
 /// performs on the live input device. DisplayManager implements this; the
 /// indirection exists so TouchCalibrationSession's backup/restore logic can be
@@ -35,8 +41,11 @@ struct ICalibrationSink {
     /// can do this, and every fake and every non-evdev display legitimately
     /// cannot. A false return means the caller must keep the affine-only result.
     ///
+    /// @param source What the diagnostics record as supplying the range
     /// @return true if the device accepted the new range
-    virtual bool apply_touch_range(bool swap_axes, int min_x, int min_y, int max_x, int max_y) {
+    virtual bool apply_touch_range(bool swap_axes, int min_x, int min_y, int max_x, int max_y,
+                                   TouchRangeSource source) {
+        (void)source;
         (void)swap_axes;
         (void)min_x;
         (void)min_y;
@@ -45,10 +54,11 @@ struct ICalibrationSink {
         return false;
     }
 
-    /// The evdev ABS range and axis swap installed now, so a session can put it
-    /// back after previewing a solved one. valid=false when there is no evdev
-    /// stage or its range is not knowable, which leaves nothing to restore.
-    virtual TouchRangeSettings current_touch_range() const {
+    /// The evdev ABS range and axis swap live now, so a session can put it back
+    /// after previewing a solved one. An invalid range (no evdev stage, or a
+    /// range that is not knowable) leaves nothing to restore, so no solved range
+    /// is installed over it either.
+    virtual LiveTouchRange current_touch_range() const {
         return {};
     }
 
@@ -78,8 +88,9 @@ struct ICalibrationSink {
 };
 
 /// Install the result of a three-point calibration on the live device without
-/// persisting it: the solved evdev range when the device accepts it, with the
-/// residual affine on top, otherwise the full affine over the current range.
+/// persisting it: the solved evdev range when the device accepts it and reports
+/// the range it runs now (so the change is undoable), with the residual affine on
+/// top; otherwise the full affine over the current range.
 ///
 /// This is the mapping commit_calibration_result() will persist, so a preview
 /// shows the user exactly what Next/Accept keeps. Installing only the full
@@ -170,7 +181,7 @@ class TouchCalibrationSession {
 
   private:
     TouchCalibration backup_{};
-    TouchRangeSettings range_backup_{};
+    LiveTouchRange range_backup_{};
     bool has_backup_ = false;
 };
 
