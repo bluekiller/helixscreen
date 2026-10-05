@@ -398,35 +398,6 @@ void ui_gcode_viewer_register(void);
 void ui_gcode_viewer_set_tool_colors(lv_obj_t* obj, const std::vector<uint32_t>& colors);
 
 /**
- * @brief Drop the per-tool AMS overrides and go back to the file's own colors
- * @param obj Viewer widget
- *
- * The retraction counterpart of ui_gcode_viewer_set_tool_colors(). It needs its
- * own entry point because an empty color vector means "nothing knowable" to
- * every layer below - and each one deliberately ignores it, so that a first
- * apply with no AMS data leaves the slicer palette alone instead of painting
- * over it. Passing {} therefore cannot express "stop overriding".
- *
- * For 2D: rebuilds the palette from the parsed file.
- * For 3D: restores the palette snapshot the renderer took before its first
- * override, since overrides are written into the baked palette in place.
- *
- * No-op when no overrides are applied.
- */
-void ui_gcode_viewer_clear_tool_colors(lv_obj_t* obj);
-
-/**
- * @brief The per-tool AMS color overrides currently applied to this viewer
- * @param obj Viewer widget
- * @return RGB colors indexed by tool (0xRRGGBB); empty when the renderers are
- *         on the file's own slicer palette
- *
- * This is the viewer's record of what it pushed at the renderers, and therefore
- * what ui_gcode_viewer_clear_tool_colors() retracts.
- */
-std::vector<uint32_t> ui_gcode_viewer_get_tool_colors(lv_obj_t* obj);
-
-/**
  * @brief Apply AMS filament colors to the viewer from AmsState
  * @param obj Viewer widget
  * @return true if AMS colors were applied, false if no AMS backend or all defaults
@@ -646,6 +617,15 @@ void gcode_viewer_install_loaded_file(lv_obj_t* viewer,
 /// Wait for the viewer's build thread to finish without cancelling it, so the
 /// result it queued is still delivered.
 void gcode_viewer_wait_for_build(lv_obj_t* viewer);
+
+/// The per-tool AMS color overrides the viewer has pushed at its renderers
+/// (0xRRGGBB by tool); empty when they are on the file's own slicer palette.
+std::vector<uint32_t> gcode_viewer_tool_colors(lv_obj_t* viewer);
+
+/// Drop those overrides and return to the file's own colors. No-op when none
+/// are applied. set_tool_colors() cannot express this: an empty vector means
+/// "nothing knowable" to every layer below.
+void gcode_viewer_clear_tool_colors(lv_obj_t* viewer);
 
 /// The 3D renderer's geometry palette; empty with no geometry or no 3D renderer.
 std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer);

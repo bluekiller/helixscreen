@@ -2619,7 +2619,7 @@ void ui_gcode_viewer_set_tool_colors(lv_obj_t* obj, const std::vector<uint32_t>&
     spdlog::debug("[GCode Viewer] Applied {} per-tool AMS color overrides", colors.size());
 }
 
-void ui_gcode_viewer_clear_tool_colors(lv_obj_t* obj) {
+static void ui_gcode_viewer_clear_tool_colors(lv_obj_t* obj) {
     if (!obj) {
         return;
     }
@@ -2648,17 +2648,6 @@ void ui_gcode_viewer_clear_tool_colors(lv_obj_t* obj) {
 
     lv_obj_invalidate(obj);
     spdlog::debug("[GCode Viewer] Retracted per-tool AMS color overrides");
-}
-
-std::vector<uint32_t> ui_gcode_viewer_get_tool_colors(lv_obj_t* obj) {
-    if (!obj) {
-        return {};
-    }
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st) {
-        return {};
-    }
-    return st->tool_color_overrides;
 }
 
 bool ui_gcode_viewer_apply_ams_tool_colors(lv_obj_t* obj) {
@@ -3144,6 +3133,15 @@ void gcode_viewer_wait_for_build(lv_obj_t* viewer) {
     if (st) {
         st->wait_for_build();
     }
+}
+
+std::vector<uint32_t> gcode_viewer_tool_colors(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->tool_color_overrides : std::vector<uint32_t>{};
+}
+
+void gcode_viewer_clear_tool_colors(lv_obj_t* viewer) {
+    ui_gcode_viewer_clear_tool_colors(viewer);
 }
 
 std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer) {
