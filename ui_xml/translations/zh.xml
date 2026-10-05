@@ -360,6 +360,7 @@
   <translation tag="Buffer Status" zh="缓冲区状态"/>
   <translation tag="Buffer tube problem" zh="缓冲管故障"/>
   <translation tag="Build Volume: " zh="构建尺寸: "/>
+  <translation tag="Building preview: %d%%" zh="正在生成预览：%d%%"/>
   <translation tag="Bundle Uploaded" zh="捆绑包已上传"/>
   <translation tag="Busy" zh="正忙"/>
   <translation tag="Button taps and navigation sounds" zh="按钮点击和导航声音"/>

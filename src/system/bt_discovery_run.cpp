@@ -67,8 +67,7 @@ void DiscoveryRun::report_device(const helix_bt_device* dev, void* user_data) {
 
 bool DiscoveryRun::start(std::shared_ptr<SharedContext> ctx, int timeout_ms, LifetimeToken token,
                          Callbacks callbacks) {
-    if (state_)
-        state_->alive.store(false);
+    cancel();
     auto state = std::make_shared<State>(std::move(ctx), std::move(token), std::move(callbacks));
 
     // Detached spawns are wrapped: EAGAIN under thread exhaustion throws (#724).

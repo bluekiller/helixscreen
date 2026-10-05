@@ -1484,7 +1484,7 @@ print-var-%:
 #
 # Layout:
 #   $(DESTDIR)/opt/helixscreen/
-#     bin/          helix-screen, helix-splash, helix-watchdog (if built)
+#     bin/          helix-screen, helix-splash, helix-watchdog, libhelix-bluetooth.so (if built)
 #     ui_xml/       runtime XML layouts (components, panels, translations)
 #     assets/
 #       fonts/      (only tiers enabled for this platform)
@@ -1518,6 +1518,10 @@ install:
 	fi
 	@if [ -x "$(BIN_DIR)/helix-watchdog" ]; then \
 		install -m 0755 "$(BIN_DIR)/helix-watchdog" "$(DESTDIR)/opt/helixscreen/bin/helix-watchdog"; \
+	fi
+	@# Bluetooth plugin: BluetoothLoader dlopen()s it from the binary's own directory.
+	@if [ -f "$(BIN_DIR)/libhelix-bluetooth.so" ]; then \
+		install -m 0755 "$(BIN_DIR)/libhelix-bluetooth.so" "$(DESTDIR)/opt/helixscreen/bin/libhelix-bluetooth.so"; \
 	fi
 	@echo "  → binaries"
 	@# ui_xml: copy tree, then prune source-tree build scaffolding that isn't runtime data.

@@ -393,6 +393,7 @@ translations:
   Buffer Status: Estado do Buffer
   Buffer tube problem: Problema no tubo do buffer
   'Build Volume: ': 'Volume de Impressão: '
+  'Building preview: %d%%': 'Gerando visualização: %d%%'
   Bundle Uploaded: Bundle Enviado
   Busy: 'Ocupado'
   Button taps and navigation sounds: Sons de botões e navegação

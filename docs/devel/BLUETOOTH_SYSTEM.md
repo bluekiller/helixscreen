@@ -141,7 +141,7 @@ helix_bt_register_agent(ctx);
 
 Each `init()` registers its own `Agent1` and asks to be the default agent, so the most recent context wins default-agent status. The MakeID backend uses the shared one because a second context on an RFCOMM link the UI already established fails with `ECONNABORTED` (`src/system/makeid_bt_printer.cpp#"loader.get_or_create_context()"`). New code should use `get_or_create_context()` unless it has a measured reason to own a bus connection.
 
-`get_or_create_context()` itself is not internally synchronized (`src/system/bluetooth_loader.cpp#get_or_create_context`). Its callers are serialized by the print mutexes and the UI thread.
+`get_or_create_context()` (`src/system/bluetooth_loader.cpp#get_or_create_context`) is thread-safe: print workers and the Forget workers call it concurrently, and one mutex makes the first callers share a single `init()`. A failed `init()` leaves no context, so the next caller retries.
 
 ---
 
@@ -196,7 +196,7 @@ callbacks.on_finished = [this](bool context_ok) { ... };  // UI thread
 bt_discovery_.start(bt_ctx_, 15000, lifetime_.token(), std::move(callbacks));
 ```
 
-`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and sets that scan's own cancel flag, which the plugin reads even before the scan has started; other scans on the context (the label printer's rediscover-before-pair, say) keep running. A later `start()` gets fresh state. `on_finished(false)` means the scan never ran: `SharedContext::get()` could not create a context, or `discover()` failed (no adapter, `StartDiscovery` refused; the plugin's `last_error` is logged). Both overlays then show "Could not start Bluetooth discovery" over their empty list.
+`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and sets that scan's own cancel flag, which the plugin reads even before the scan has started; other scans on the context (the label printer's rediscover-before-pair, say) keep running. A later `start()` cancels the scan it replaces the same way, then gets fresh state. `on_finished(false)` means the scan never ran: `SharedContext::get()` could not create a context, or `discover()` failed (no adapter, `StartDiscovery` refused; the plugin's `last_error` is logged). Both overlays then show "Could not start Bluetooth discovery" over their empty list.
 
 The barcode scanner overlay seeds its list from `enumerate_known()` the same way: the saved scanner shows at once, and BlueZ's known scanners merge in from a worker (`src/ui/ui_settings_barcode_scanner.cpp#seed_known_bt_devices`).
 

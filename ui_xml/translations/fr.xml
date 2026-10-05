@@ -360,6 +360,7 @@
   <translation tag="Buffer Status" fr="État du tampon"/>
   <translation tag="Buffer tube problem" fr="Problème de tube tampon"/>
   <translation tag="Build Volume: " fr="Volume d&apos;impression : "/>
+  <translation tag="Building preview: %d%%" fr="Génération de l&apos;aperçu : %d%%"/>
   <translation tag="Bundle Uploaded" fr="Bundle téléversé"/>
   <translation tag="Busy" fr="Occupé"/>
   <translation tag="Button taps and navigation sounds" fr="Sons de boutons et de navigation"/>

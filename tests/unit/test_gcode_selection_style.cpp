@@ -10,10 +10,10 @@
 
 using namespace helix::gcode;
 
-// Deliberately NOT the shipped hues. resolve() takes the palette now, so a
-// sentinel proves the value is threaded through from the caller; asserting
+// Deliberately NOT the shipped hues. resolve() takes the palette as an argument,
+// so a sentinel proves the value is threaded through from the caller; asserting
 // against the real constant would pass even if resolve() ignored its argument
-// and hardcoded the color again.
+// and hardcoded the color.
 namespace {
 constexpr helix::gcode::selection::Palette kTestPalette{/*excluded=*/0x123456,
                                                         /*outline=*/0xABCDEF,
@@ -21,11 +21,8 @@ constexpr helix::gcode::selection::Palette kTestPalette{/*excluded=*/0x123456,
 } // namespace
 
 // ---------------------------------------------------------------------------
-// resolve(): the single answer to "how does a selected/excluded segment look".
-// Before this header existed there were five divergent answers across the three
-// renderers (blue in the 2D isometric cache path, green via theme "success" in
-// the CPU wireframe 3D path, nothing at all in the GLES path, plus a dead 1.8x
-// brightness bake in the geometry builder). These cases pin the one answer.
+// resolve(): the single answer to "how does a selected/excluded segment look",
+// shared by every renderer. These cases pin that answer.
 // ---------------------------------------------------------------------------
 
 TEST_CASE("plain extrusion keeps the caller's color at full opacity", "[gcode_selection_style]") {
@@ -44,8 +41,7 @@ TEST_CASE("excluded segments are recolored and translucent", "[gcode_selection_s
 }
 
 // The whole point of the feature: a selected object keeps its filament color and
-// is marked by the rim instead of being recolored. A test that asserts
-// override_color == false here fails against the old blue-recolor behavior.
+// is marked by the rim instead of being recolored, so override_color stays false.
 TEST_CASE("highlighted segments keep filament color and carry the tag", "[gcode_selection_style]") {
     auto s = selection::resolve(kTestPalette, false, true, true);
     REQUIRE(s.override_color == false);
@@ -82,9 +78,8 @@ TEST_CASE("travel moves are never tagged", "[gcode_selection_style]") {
 // ---------------------------------------------------------------------------
 // outline_width_px(): the rim is measured in SCREEN PIXELS by both renderers.
 //
-// It replaced two world-space knobs that could not hold a width: the 3D shell
-// pushed a fixed 0.25mm along the normal, which at the plate-wide zoom the
-// viewer opens on is about half a pixel, so it read as speckle or as nothing.
+// A world-space width cannot hold a visible rim: 0.25mm at the plate-wide zoom
+// the viewer opens on is about half a pixel, which reads as speckle or nothing.
 // ---------------------------------------------------------------------------
 
 TEST_CASE("the rim is at least one pixel on any panel", "[gcode_selection_style]") {
@@ -121,8 +116,7 @@ TEST_CASE("a half-resolution readback never rounds the rim away", "[gcode_select
 }
 
 // ---------------------------------------------------------------------------
-// bracket_arm_length(): was duplicated at gcode_layer_renderer.cpp:1485 and
-// gcode_gles_renderer.cpp:1942, each commented as matching the other.
+// bracket_arm_length(): the one arm length both renderers draw corner brackets with.
 // ---------------------------------------------------------------------------
 
 TEST_CASE("bracket arm is 20% of the shortest edge", "[gcode_selection_style]") {
@@ -136,15 +130,14 @@ TEST_CASE("bracket arm is capped at 5mm on large objects", "[gcode_selection_sty
 }
 
 TEST_CASE("a degenerate bbox yields no arm", "[gcode_selection_style]") {
-    // Below 0.01mm the brackets are sub-pixel noise; both renderers skipped the
-    // object entirely. 0 is the shared "do not draw" signal.
+    // Below 0.01mm the brackets are sub-pixel noise, so neither renderer draws
+    // them. 0 is the shared "do not draw" signal.
     AABB bbox{glm::vec3(0.0f), glm::vec3(0.001f, 0.001f, 0.001f)};
     REQUIRE(selection::bracket_arm_length(bbox) == 0.0f);
 }
 
-// The 2D emitter had no is_empty() check and relied incidentally on an -inf
-// edge tripping the degeneracy guard; the 3D emitter checked explicitly. This
-// pins the behavior so the shared helper is safe for both.
+// An empty AABB has infinite edges, so the helper must reject it explicitly
+// rather than rely on the degeneracy guard tripping on -inf.
 TEST_CASE("an empty bbox yields no arm rather than inf or nan", "[gcode_selection_style]") {
     AABB empty;
     REQUIRE(empty.is_empty());
@@ -152,20 +145,19 @@ TEST_CASE("an empty bbox yields no arm rather than inf or nan", "[gcode_selectio
 }
 
 // ---------------------------------------------------------------------------
-// to_vec4(): the GLES path needs the same constants as normalized floats. The
-// bracket color previously disagreed: 0xC0C0C0 in 2D versus a hand-written
-// 0.75f in 3D under a comment claiming they matched. 0.75 * 255 = 191, not 192.
+// to_vec4(): the GLES path needs the same constants as normalized floats, exact
+// to the byte. 0.75 * 255 = 191, so a hand-rounded 0.75f is not 0xC0 (192).
 // ---------------------------------------------------------------------------
 
 TEST_CASE("to_vec4 round-trips the bracket color exactly", "[gcode_selection_style]") {
     // The SHIPPED bracket color, not the sentinel: this case is about the exact
-    // float conversion of 0xC0C0C0, which is what the 0.75f bug got wrong.
+    // float conversion of 0xC0C0C0.
     auto v = selection::to_vec4(selection::Palette{}.bracket);
     REQUIRE(v.r == Catch::Approx(192.0f / 255.0f));
     REQUIRE(v.g == Catch::Approx(192.0f / 255.0f));
     REQUIRE(v.b == Catch::Approx(192.0f / 255.0f));
     REQUIRE(v.a == Catch::Approx(1.0f));
-    // Guard against anyone reintroducing the 0.75f approximation.
+    // 0.75f is the nearby approximation that renders 191 instead of 192.
     REQUIRE(v.r != Catch::Approx(0.75f));
 }
 

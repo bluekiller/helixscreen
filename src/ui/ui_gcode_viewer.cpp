@@ -958,8 +958,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
                                                    LV_PART_MAIN);
                         lv_obj_align(state->ghost_progress_label_, LV_ALIGN_BOTTOM_LEFT, 8, -8);
                     }
-                    static char text[32];
-                    lv_snprintf(text, sizeof(text), "Building preview: %d%%", u->percent);
+                    char text[96];
+                    snprintf(text, sizeof(text), lv_tr("Building preview: %d%%"), u->percent);
                     lv_label_set_text(state->ghost_progress_label_, text);
                 });
         } else if (st->ghost_progress_label_) {
@@ -3453,8 +3453,6 @@ const char* ui_gcode_viewer_pick_object(lv_obj_t*, int, int) {
 }
 
 void ui_gcode_viewer_set_extrusion_color(lv_obj_t*, lv_color_t) {}
-
-void ui_gcode_viewer_set_travel_color(lv_obj_t*, lv_color_t) {}
 
 void ui_gcode_viewer_use_filament_color(lv_obj_t*, bool) {}
 

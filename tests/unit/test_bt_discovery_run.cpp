@@ -39,15 +39,22 @@ struct FakePlugin {
     int discovers_entered = 0;
     int discovers_released = 0; // discover call N returns once this exceeds N
     bool init_fails = false;
+    bool init_blocks = false; // init() waits for init_released
+    bool init_released = false;
+    int inits_entered = 0;
     int discover_result = 0;
     std::vector<std::string> names_per_call; // device name reported by call N on release
     std::vector<int> cancel_seen;            // *cancel when call N was released
+    std::vector<int> cancel_at_entry;        // *cancel when call N was entered
 };
 
 FakePlugin* g_fake = nullptr;
 
 extern "C" helix_bt_context* fake_init() {
-    std::lock_guard<std::mutex> lock(g_fake->mu);
+    std::unique_lock<std::mutex> lock(g_fake->mu);
+    ++g_fake->inits_entered;
+    g_fake->cv.notify_all();
+    g_fake->cv.wait(lock, [] { return !g_fake->init_blocks || g_fake->init_released; });
     ++g_fake->inits;
     return g_fake->init_fails ? nullptr : FAKE_CTX;
 }
@@ -68,6 +75,7 @@ extern "C" int fake_discover(helix_bt_context*, int, helix_bt_discover_cb cb, vo
     {
         std::unique_lock<std::mutex> lock(g_fake->mu);
         int call = g_fake->discovers_entered++;
+        g_fake->cancel_at_entry.push_back(cancel ? __atomic_load_n(cancel, __ATOMIC_ACQUIRE) : -1);
         g_fake->cv.notify_all();
         g_fake->cv.wait(lock, [&] { return g_fake->discovers_released > call; });
         name = g_fake->names_per_call.at(static_cast<size_t>(call));
@@ -117,6 +125,15 @@ struct ScopedFakePlugin {
         std::unique_lock<std::mutex> lock(fake.mu);
         fake.cv.wait_for(lock, std::chrono::seconds(5),
                          [&] { return fake.discovers_entered >= n; });
+    }
+    void wait_init_entered() {
+        std::unique_lock<std::mutex> lock(fake.mu);
+        fake.cv.wait_for(lock, std::chrono::seconds(5), [&] { return fake.inits_entered >= 1; });
+    }
+    void release_init() {
+        std::lock_guard<std::mutex> lock(fake.mu);
+        fake.init_released = true;
+        fake.cv.notify_all();
     }
     void release(int n) {
         std::lock_guard<std::mutex> lock(fake.mu);
@@ -275,4 +292,70 @@ TEST_CASE("DiscoveryRun reports a scan the plugin could not run as failed",
 
     REQUIRE(fixture.wait_until([&] { return !seen.finished.empty(); }));
     CHECK(seen.finished == std::vector<bool>{false});
+}
+
+// The worker creates its context before it calls discover(), and init() makes D-Bus
+// round trips, so a Stop can land in between. The cancel has to be visible to the scan
+// the moment it starts, or that scan runs its full timeout with every result dropped.
+TEST_CASE("A scan cancelled while its context is being created starts already cancelled",
+          "[bt][discovery_run][slow]") {
+    LVGLTestFixture fixture;
+    ScopedFakePlugin plugin;
+    plugin.fake.names_per_call = {"Scanner"};
+    plugin.fake.init_blocks = true;
+    helix::AsyncLifetimeGuard owner;
+    Seen seen;
+
+    DiscoveryRun run;
+    REQUIRE(run.start(std::make_shared<SharedContext>(), 15000, owner.token(), record_into(seen)));
+    plugin.wait_init_entered();
+    REQUIRE(plugin.count(&FakePlugin::discovers_entered) == 0);
+
+    run.cancel();
+    plugin.release_init();
+    plugin.wait_entered(1);
+    plugin.release(1);
+
+    std::vector<int> at_entry;
+    {
+        std::lock_guard<std::mutex> lock(plugin.fake.mu);
+        at_entry = plugin.fake.cancel_at_entry;
+    }
+    CHECK(at_entry == std::vector<int>{1});
+    CHECK(plugin.count(&FakePlugin::stops) == 0);
+
+    fixture.wait_until([] { return false; }, 100);
+    CHECK(seen.devices.empty());
+    CHECK(seen.finished.empty());
+}
+
+// A scan that start() replaces would otherwise hold the context's discover lock for its
+// full timeout with every result dropped, delaying the scan that replaced it.
+TEST_CASE("Starting a new scan cancels the one it replaces", "[bt][discovery_run][slow]") {
+    LVGLTestFixture fixture;
+    ScopedFakePlugin plugin;
+    plugin.fake.names_per_call = {"Old Scanner", "New Scanner"};
+    helix::AsyncLifetimeGuard owner;
+    Seen seen;
+
+    DiscoveryRun run;
+    auto ctx = std::make_shared<SharedContext>();
+    REQUIRE(run.start(ctx, 15000, owner.token(), record_into(seen)));
+    plugin.wait_entered(1);
+
+    REQUIRE(run.start(ctx, 15000, owner.token(), record_into(seen)));
+    plugin.wait_entered(2);
+    plugin.release(2);
+
+    REQUIRE(fixture.wait_until([&] { return !seen.finished.empty(); }));
+    fixture.wait_until([] { return false; }, 100);
+
+    std::vector<int> cancel_seen;
+    {
+        std::lock_guard<std::mutex> lock(plugin.fake.mu);
+        cancel_seen = plugin.fake.cancel_seen;
+    }
+    CHECK(cancel_seen == std::vector<int>{1, 0});
+    CHECK(seen.devices == std::vector<std::string>{"New Scanner"});
+    CHECK(seen.finished == std::vector<bool>{true});
 }

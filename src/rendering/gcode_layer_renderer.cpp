@@ -228,16 +228,6 @@ void GCodeLayerRenderer::set_extrusion_color(lv_color_t color) {
     invalidate_cache();
 }
 
-void GCodeLayerRenderer::set_travel_color(lv_color_t color) {
-    color_travel_ = color;
-    use_custom_travel_color_ = true;
-}
-
-void GCodeLayerRenderer::set_support_color(lv_color_t color) {
-    color_support_ = color;
-    use_custom_support_color_ = true;
-}
-
 void GCodeLayerRenderer::set_tool_color_palette(const std::vector<std::string>& hex_colors) {
     if (hex_colors.empty() && !tool_palette_.has_tool_colors()) {
         // Nothing to install and nothing to clear - bail before the join below so
@@ -321,8 +311,6 @@ void GCodeLayerRenderer::reset_colors() {
     sel_palette_ = selection::palette_from_theme();
 
     use_custom_extrusion_color_ = false;
-    use_custom_travel_color_ = false;
-    use_custom_support_color_ = false;
     tool_palette_ = GCodeColorPalette{};
 }
 

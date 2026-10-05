@@ -394,6 +394,7 @@ translations:
   Buffer Status: Estado del búfer
   Buffer tube problem: Problema con el tubo del búfer
   'Build Volume: ': 'Volumen de impresión: '
+  'Building preview: %d%%': 'Generando vista previa: %d%%'
   Bundle Uploaded: Paquete subido
   Busy: 'Ocupado'
   Button taps and navigation sounds: Sonidos de botones y navegación

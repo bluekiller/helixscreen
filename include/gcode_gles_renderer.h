@@ -214,7 +214,6 @@ class GCodeGLESRenderer {
     ///
     /// No-op when nothing has been overridden on the current geometry.
     void clear_tool_color_overrides();
-    void set_travel_color(lv_color_t) {}
     void set_brightness_factor(float) {}
 
     // ====== Rendering Options ======

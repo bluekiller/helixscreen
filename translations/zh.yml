@@ -365,6 +365,7 @@ translations:
   Buffer Status: 缓冲区状态
   Buffer tube problem: 缓冲管故障
   'Build Volume: ': '构建尺寸: '
+  'Building preview: %d%%': '正在生成预览：%d%%'
   Bundle Uploaded: 捆绑包已上传
   Busy: '正忙'
   Button taps and navigation sounds: 按钮点击和导航声音
