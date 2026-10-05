@@ -121,6 +121,9 @@ namespace helix::ui {
  */
 void set_strict_ui_checks(bool enabled) noexcept;
 
+/// Whether set_strict_ui_checks() turned breaches fatal.
+[[nodiscard]] bool strict_ui_checks() noexcept;
+
 /// Log @p message at error, then abort when strict UI checks are on.
 void report_ui_contract_breach(const char* message);
 

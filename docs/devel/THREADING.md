@@ -163,10 +163,14 @@ void WiFiManager::handle_scan_complete(const std::string& data) {
 
 ### Multi-backend coordination (AmsState)
 
-`AmsState` guards its `backends_` vector with a `std::recursive_mutex`. A backend emitting an
-event on a background thread acquires the mutex, reads backend state, then posts subject
-updates via `queue_update()`. Each backend's callback captures its index at registration time
-so events route to the correct per-backend subject storage.
+`AmsState`'s own state is main-thread only, with no lock: its methods assert
+`helix::ui::is_main_thread()`. A backend emitting an event on a background thread only posts a
+`queue_update()`; the queued body reads backend state and writes subjects on the main thread.
+Each backend's callback captures its index at registration time so events route to the
+correct per-backend subject storage. The queries background threads do make go to state with
+its own guard: `AmsBackendRegistry` (backend list, `std::mutex`, held across calls into a
+backend, so the order is registry -> `AmsBackend::mutex_`), `RunoutGrace` (unload grace, leaf
+mutex) and the action atomic.
 
 For secondary backends (index 1+), slot subjects live in `BackendSlotSubjects` structs rather
 than the flat `slot_colors_[]` / `slot_statuses_[]` arrays; `sync_backend(int)` and
@@ -851,11 +855,10 @@ cycle the moment one of them calls out while holding its lock. TSan reports it a
 `lock-order-inversion (potential deadlock)`. It has happened twice:
 `AmsState` <-> `SpoolmanManager`, and `AmsState` <-> `FilamentSensorManager`.
 
-**Established order: `AmsState` -> `FilamentSensorManager`.** AmsState may notify the sensor
-layer while holding `mutex_`; the sensor layer must **not** hold its own lock when it queries
-AmsState. The direction is forced by arithmetic, not taste: `AmsState` takes its lock at ~49
-sites and `FilamentSensorManager` at ~2, so "the AMS lock is not held" is not a property
-anyone can maintain, while "the sensor lock is not held" is.
+**`AmsState` holds no lock when it calls out.** Its own state is main-thread only, and the
+one lock behind it, `AmsBackendRegistry::mutex_`, is held only across calls into a backend.
+The sensor layer still takes no lock of its own while it queries AmsState, which keeps the
+order one-way.
 
 Two shapes that keep a lock off an outbound call, both in
 `src/print/filament_sensor_manager.cpp`:
@@ -881,8 +884,8 @@ for (const auto& c : candidates) { ...ask AmsState... }
 
 **A `recursive_mutex` defeats the obvious fix.** Deferring the outbound call to the end of the
 locking function does *not* release the lock when a caller above you already holds it:
-`AmsState::sync_backend()` locks `mutex_` and then calls `sync_from_backend()`, so releasing
-the inner acquisition leaves the outer one held and the cycle intact. Any fix anchored to one
+a function that locks and then calls a sibling that locks again holds the outer acquisition
+across the inner one's release, and the cycle stays intact. Any fix anchored to one
 scope inside a recursive lock has this hole. Fix the side that can actually guarantee the
 invariant.
 
