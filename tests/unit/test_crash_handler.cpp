@@ -1413,4 +1413,9 @@ TEST_CASE_METHOD(CrashTestFixture, "Crash: a stack overflow still writes the cra
     auto result = crash_handler::read_crash_file(crash_path());
     REQUIRE_FALSE(result.is_null());
     REQUIRE(result["signal"] == SIGSEGV);
+    // SP sits in the guard region below the stack. The stack dump starts
+    // there, so a handler that reads it unchecked faults again and the record
+    // stops before the dump and the memory map that follow it.
+    REQUIRE(result.contains("stack_dump"));
+    REQUIRE(result.contains("memory_map"));
 }

@@ -56,6 +56,10 @@
 #include <ucontext.h>
 #endif
 
+#ifdef __linux__
+#include <sys/uio.h> // process_vm_readv() for fault-free stack reads
+#endif
+
 // backtrace() is available on glibc Linux and macOS. Missing on Android NDK
 // (bionic) and musl libc (Creality K1/K2 MIPS).
 #if defined(__APPLE__) || (defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__))
@@ -525,14 +529,32 @@ static void write_kv_long(int fd, const char* key, long value, char* num_buf, si
 /// attribute from being lost when the helper is folded into an instrumented
 /// caller.
 ///
-/// Bounds are the caller's job and the two callers differ: fp_walk_backtrace
-/// validates every address against [sp, sp + MAX_STACK_SIZE) before walking,
-/// while the linear scan below simply reads a fixed 256 words up from SP and
-/// can run off the end of the mapping. That is pre-existing behaviour and is
-/// survivable where it runs — we are already inside a fatal signal handler —
-/// but it is a real limit of the scan, not something this accessor fixes.
+/// The address may be unmapped. After a stack overflow SP points into the guard
+/// region, and a direct load there faults again inside this handler, where
+/// SIGSEGV is blocked, so the kernel kills the process with the record half
+/// written. On Linux the word is copied with process_vm_readv(), which reports
+/// an unreadable address as an error instead; an unreadable word reads as 0,
+/// which is never inside .text. Elsewhere, or where the kernel lacks the
+/// syscall, the load is direct.
 HELIX_NO_SANITIZE_ADDRESS static uintptr_t read_stack_word(uintptr_t base, size_t index,
                                                            uintptr_t word_size) {
+#ifdef __linux__
+    uint64_t word64 = 0;
+    uint32_t word32 = 0;
+    void* dst = word_size == 8 ? static_cast<void*>(&word64) : static_cast<void*>(&word32);
+    struct iovec local = {dst, word_size};
+    struct iovec remote = {reinterpret_cast<void*>(base + index * word_size), word_size};
+    const int saved_errno = errno;
+    const ssize_t n = process_vm_readv(getpid(), &local, 1, &remote, 1, 0);
+    const bool no_syscall = n < 0 && errno == ENOSYS;
+    errno = saved_errno;
+    if (n == static_cast<ssize_t>(word_size)) {
+        return word_size == 8 ? static_cast<uintptr_t>(word64) : static_cast<uintptr_t>(word32);
+    }
+    if (!no_syscall) {
+        return 0;
+    }
+#endif
     if (word_size == 8) {
         return static_cast<uintptr_t>(*(reinterpret_cast<const volatile uint64_t*>(base) + index));
     }
