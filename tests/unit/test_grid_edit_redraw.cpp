@@ -12,6 +12,7 @@
 #include "../test_fixtures.h"
 #include "../test_helpers/grid_edit_mode_test_access.h"
 #include "../test_helpers/grid_edit_scene.h"
+#include "core/lv_obj_private.h"        // scr_layout_inv is private state
 #include "display/lv_display_private.h" // inv_areas / inv_p are private state
 #include "grid_edit_mode.h"
 
@@ -102,6 +103,47 @@ TEST_CASE_METHOD(XMLTestFixture,
     CHECK(lv_obj_get_x(right) + lv_obj_get_width(right) == W);
     CHECK(lv_obj_get_height(right) == H);
 
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: a drag step moves the widget and its chrome without a layout pass",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_drag");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    em.select_widget(scene.widget);
+    lv_obj_t* overlay = GridEditModeTestAccess::selection_overlay(em);
+    REQUIRE(overlay != nullptr);
+    lv_obj_add_flag(scene.widget, LV_OBJ_FLAG_FLOATING);
+    lv_obj_update_layout(scene.container);
+
+    lv_area_t before;
+    lv_obj_get_coords(scene.widget, &before);
+    const lv_point_t to = {before.x1 + 37, before.y1 + 21};
+    GridEditModeTestAccess::place_dragged_widget(em, to);
+
+    // Each pointer move runs this, and a forced layout pass there costs the
+    // whole screen's layout per move; the next refresh lays it out once. Until
+    // then the widget's coordinates are the ones it had.
+    lv_area_t unlaid;
+    lv_obj_get_coords(scene.widget, &unlaid);
+    CHECK(unlaid.x1 == before.x1);
+    CHECK(lv_obj_get_screen(scene.container)->scr_layout_inv);
+
+    lv_obj_update_layout(scene.container);
+    lv_area_t widget_area;
+    lv_area_t overlay_area;
+    lv_obj_get_coords(scene.widget, &widget_area);
+    lv_obj_get_coords(overlay, &overlay_area);
+    CHECK(widget_area.x1 == to.x);
+    CHECK(widget_area.y1 == to.y);
+    CHECK(overlay_area.x1 == widget_area.x1);
+    CHECK(overlay_area.y1 == widget_area.y1);
+
+    lv_obj_remove_flag(scene.widget, LV_OBJ_FLAG_FLOATING);
     em.exit();
     process_lvgl(50);
     lv_obj_delete(scene.container);

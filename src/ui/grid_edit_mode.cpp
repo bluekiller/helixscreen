@@ -1693,15 +1693,15 @@ void GridEditMode::place_dragged_widget(lv_point_t widget_pos) {
     // widget stays under the finger while its page slides.
     lv_area_t content;
     lv_obj_get_content_coords(container_, &content);
-    lv_obj_set_pos(selected_, widget_pos.x - content.x1, widget_pos.y - content.y1);
+    const int32_t x = widget_pos.x - content.x1;
+    const int32_t y = widget_pos.y - content.y1;
+    lv_obj_set_pos(selected_, x, y);
 
-    // The selection chrome, a sibling positioned the same way, tracks the
-    // widget where it now is.
+    // The selection chrome is a floating sibling positioned the same way, so it
+    // takes the same position. Reading the widget's coords back instead would
+    // need a layout pass over the whole screen on every pointer move.
     if (selection_overlay_) {
-        lv_obj_update_layout(selected_);
-        lv_area_t moved_area;
-        lv_obj_get_coords(selected_, &moved_area);
-        lv_obj_set_pos(selection_overlay_, moved_area.x1 - content.x1, moved_area.y1 - content.y1);
+        lv_obj_set_pos(selection_overlay_, x, y);
     }
 }
 

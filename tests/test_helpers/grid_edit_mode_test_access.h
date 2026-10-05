@@ -150,6 +150,11 @@ struct GridEditModeTestAccess {
         return em.snap_preview_;
     }
 
+    /// Move the dragged widget and its chrome the way a drag step does.
+    static void place_dragged_widget(GridEditMode& em, lv_point_t widget_pos) {
+        em.place_dragged_widget(widget_pos);
+    }
+
     /// Draw the snap preview the way a drag or resize step does.
     static void update_snap_preview(GridEditMode& em, int col, int row, int colspan, int rowspan,
                                     bool valid) {
