@@ -574,7 +574,9 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     rig.press(574, 300);
     rig.press(600, 310);
+    CHECK(rig.reprograms == 0);
     rig.press(630, 470);
+    rig.press(620, 460);
 
     CHECK(rig.reprograms == 1);
     CHECK(rig.last_min_x == 0);
@@ -647,6 +649,35 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     set_touch_capture_active(false);
     rig.press(560, 300);
+    rig.press(561, 300);
+    CHECK(rig.reprograms == 0);
+    rig.press(562, 301);
+    CHECK(rig.reprograms == 1);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "touch diagnostics: one glitch past the display edge does not correct the "
+                 "transposed guess",
+                 "[touch][touch-diagnostics][wrapper][transposed-guess]") {
+    // C5 Pro shape: a lying declaration, where a stray reading on X between the
+    // display edge and the declared max would otherwise persist the wrong range.
+    TransposedGuessRig rig(make_display_size_pipeline(799, 479, 480, 800), 480, 800);
+
+    rig.press(600, 300);
+    for (int i = 0; i < 20; i++) {
+        rig.press(100 + i, 400 + i);
+    }
+
+    CHECK(rig.reprograms == 0);
+    CHECK_FALSE(load_touch_range().valid);
+    TouchRangeDiagnostics diag;
+    REQUIRE(get_touch_range_diagnostics(diag));
+    CHECK(diag.pipeline.source == TouchRangeSource::DisplaySize);
+
+    // Two more readings past the edge make three, which is a touch, not a glitch.
+    rig.press(601, 300);
+    CHECK(rig.reprograms == 0);
+    rig.press(602, 301);
     CHECK(rig.reprograms == 1);
 }
 

@@ -77,8 +77,13 @@ void note_raw_sample(CalibrationContext& ctx, int raw_x, int raw_y) {
         ctx.observed.observe(raw_x, raw_y);
         TouchPipelineInfo& pipe = ctx.pipeline;
 
+        // Judged per sample, not on the extremes, which would keep one outlier
+        // voting forever.
+        TouchObservedExtremes sample;
+        sample.observe(raw_x, raw_y);
         if (ctx.reprogram_range && !ctx.capture_active &&
-            transposed_range_guess_disproved(ctx.observed, pipe)) {
+            transposed_range_guess_disproved(sample, pipe) &&
+            ++ctx.transposed_guess_votes >= kTransposedGuessCorroboration) {
             detail = fmt::format("cfg_x={}..{} cfg_y={}..{} obs_x={}..{} obs_y={}..{} samples={}",
                                  pipe.min_x, pipe.max_x, pipe.min_y, pipe.max_y, ctx.observed.min_x,
                                  ctx.observed.max_x, ctx.observed.min_y, ctx.observed.max_y,
