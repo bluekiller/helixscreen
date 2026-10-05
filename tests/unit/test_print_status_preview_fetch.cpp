@@ -15,6 +15,7 @@
 #include "ui_panel_print_status.h"
 
 #include "../test_helpers/print_status_preview_fixture.h"
+#include "config.h"
 
 #include <fstream>
 
@@ -35,6 +36,24 @@ std::filesystem::path cached_copy(const std::filesystem::path& cache_root) {
     }
     return {};
 }
+
+/// Points the connected printer at @p host for the test, then puts the previous
+/// address back.
+class ScopedMoonrakerHost {
+  public:
+    explicit ScopedMoonrakerHost(const std::string& host)
+        : key_(helix::Config::get_instance()->df() + "moonraker_host"),
+          previous_(helix::Config::get_instance()->get<std::string>(key_, "")) {
+        helix::Config::get_instance()->set(key_, host);
+    }
+    ~ScopedMoonrakerHost() {
+        helix::Config::get_instance()->set(key_, previous_);
+    }
+
+  private:
+    std::string key_;
+    std::string previous_;
+};
 
 } // namespace
 
@@ -137,4 +156,23 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
 
     CHECK(gcode_displayed_file().empty());
     CHECK_FALSE(ui_gcode_viewer_has_content(viewer_));
+}
+
+TEST_CASE_METHOD(PrintStatusPreviewFixture,
+                 "Print status: another printer's copy of a same-named file is not reused",
+                 "[print_status][preview_fetch][slow]") {
+    report_print(PRINT_A);
+    {
+        ScopedMoonrakerHost first("printer-one.local");
+        start_fetch(PRINT_A);
+        land(PRINT_A);
+        REQUIRE_FALSE(cached_copy(cache_.dir).empty());
+    }
+
+    ScopedMoonrakerHost second("printer-two.local");
+    const size_t held_before = transfers_.held_count();
+    PrintStatusPanelTestAccess::load_gcode_for_viewing(*panel_, PRINT_A);
+    drain();
+
+    CHECK(transfers_.held_count() == held_before + 1);
 }

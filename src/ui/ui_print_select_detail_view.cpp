@@ -598,10 +598,10 @@ void PrintSelectDetailView::hide() {
 // ============================================================================
 
 std::string PrintSelectDetailView::canonical_gcode_path() const {
-    // Hash the FULL relative path (not just the filename) so same-name files
+    // Keyed on the FULL relative path (not just the filename) so same-name files
     // in different directories never collide on one temp file.
-    return get_helix_cache_dir("gcode_temp") + "/detail_" +
-           std::to_string(std::hash<std::string>{}(current_file_key())) + ".gcode";
+    return get_helix_cache_dir("gcode_temp") + "/" +
+           helix::ui::GcodePreviewFetcher::cache_file_name("detail_", current_file_key());
 }
 
 void PrintSelectDetailView::resolve_local_gcodes_root() {

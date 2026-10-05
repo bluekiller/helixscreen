@@ -882,10 +882,11 @@ class PrintSelectDetailView : public OverlayBase {
     /**
      * @brief Canonical shared download path for the current file's gcode
      *
-     * `<cache>/gcode_temp/detail_<hash(full relative path)>.gcode` — hashed on
-     * the FULL path (dir + filename), so same-name files in different
-     * directories never collide. The headless tools scan and the viewer
-     * preview load from this ONE file.
+     * `<cache>/gcode_temp/detail_<hash(printer, full relative path)>.gcode` —
+     * hashed on the FULL path (dir + filename), so same-name files in different
+     * directories never collide, and on the connected printer, so a same-named
+     * file on another one is never taken for it. The headless tools scan and the
+     * viewer preview load from this ONE file.
      */
     [[nodiscard]] std::string canonical_gcode_path() const;
 

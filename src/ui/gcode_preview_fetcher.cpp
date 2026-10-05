@@ -58,8 +58,7 @@ void GcodePreviewFetcher::fetch(const std::string& filename, ReadyCb on_ready,
         give_up(req, Unavailable::NoCacheDir);
         return;
     }
-    req->temp_path =
-        cache_dir + "/print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
+    req->temp_path = cache_dir + "/" + cache_file_name("print_view_", filename);
 
     // The file is already coming down: take over that transfer. Its bytes are
     // partial, so no cache lookup may see them either.
@@ -78,6 +77,15 @@ void GcodePreviewFetcher::fetch(const std::string& filename, ReadyCb on_ready,
         return;
     }
     lookup_metadata(req, metadata_filename, "gcodes", filename);
+}
+
+std::string GcodePreviewFetcher::cache_file_name(const char* prefix, const std::string& file_key) {
+    auto* cfg = Config::get_instance();
+    const std::string printer = cfg->get<std::string>(cfg->df() + "moonraker_host", "localhost") +
+                                ":" +
+                                std::to_string(cfg->get<int>(cfg->df() + "moonraker_port", 7125));
+    return std::string(prefix) +
+           std::to_string(std::hash<std::string>{}(printer + '\n' + file_key)) + ".gcode";
 }
 
 void GcodePreviewFetcher::discard_file() {
