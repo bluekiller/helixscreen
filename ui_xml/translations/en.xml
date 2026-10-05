@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" en="Bed Heater"/>
   <translation tag="Bed Level" en="Bed Level"/>
   <translation tag="Bed Leveling" en="Bed Leveling"/>
+  <translation tag="Bed Map Clearance" en="Bed Map Clearance"/>
   <translation tag="Bed Mesh" en="Bed Mesh"/>
   <translation tag="Bed Mesh Complete" en="Bed Mesh Complete"/>
   <translation tag="Bed Mesh Render" en="Bed Mesh Render"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" en="Bed is Level!"/>
   <translation tag="Bed mesh operation timed out" en="Bed mesh operation timed out"/>
   <translation tag="Bed mesh..." en="Bed mesh..."/>
+  <translation tag="Bed tab moves lift to this height first" en="Bed tab moves lift to this height first"/>
   <translation tag="Bed target set to {}°C" en="Bed target set to {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" en="Bed temp must be 0-%d°C"/>
   <translation tag="Bed warming timed out" en="Bed warming timed out"/>
@@ -358,6 +360,7 @@
   <translation tag="Buffer Status" en="Buffer Status"/>
   <translation tag="Buffer tube problem" en="Buffer tube problem"/>
   <translation tag="Build Volume: " en="Build Volume: "/>
+  <translation tag="Building preview: %d%%" en="Building preview: %d%%"/>
   <translation tag="Bundle Uploaded" en="Bundle Uploaded"/>
   <translation tag="Busy" en="Busy"/>
   <translation tag="Button taps and navigation sounds" en="Button taps and navigation sounds"/>
@@ -686,6 +689,9 @@
   <translation tag="Copy Command" en="Copy Command"/>
   <translation tag="Copy failed - use SSH manually" en="Copy failed - use SSH manually"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." en="Copy it into this filament&apos;s slicer profile. The printer keeps nothing."/>
+  <translation tag="Copying from USB" en="Copying from USB"/>
+  <translation tag="Copying from USB stopped responding" en="Copying from USB stopped responding"/>
+  <translation tag="Copying from USB..." en="Copying from USB..."/>
   <translation tag="Corner roundness" en="Corner roundness"/>
   <translation tag="Correction (Ki)" en="Correction (Ki)"/>
   <translation tag="Could not add to queue" en="Could not add to queue"/>
@@ -693,6 +699,7 @@
   <translation tag="Could not answer the connection request" en="Could not answer the connection request"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." en="Could not check webcam status.&#10;Check printer connection."/>
   <translation tag="Could not confirm cancel" en="Could not confirm cancel"/>
+  <translation tag="Could not copy {} from USB: {}" en="Could not copy {} from USB: {}"/>
   <translation tag="Could not forget device" en="Could not forget device"/>
   <translation tag="Could not load printer database" en="Could not load printer database"/>
   <translation tag="Could not move the plate" en="Could not move the plate"/>
@@ -1348,6 +1355,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." en="Holding nozzle at {}°C to purge previous filament."/>
   <translation tag="Home" en="Home"/>
   <translation tag="Home &amp; Continue" en="Home &amp; Continue"/>
+  <translation tag="Home all axes to use the map" en="Home all axes to use the map"/>
   <translation tag="Home and sweep the cutter to re-find its position" en="Home and sweep the cutter to re-find its position"/>
   <translation tag="Home failed" en="Home failed"/>
   <translation tag="Home printer first?" en="Home printer first?"/>
@@ -1402,6 +1410,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" en="Ignore the click that fires when you lift after scrolling"/>
   <translation tag="Import failed: {}" en="Import failed: {}"/>
   <translation tag="Imported {}" en="Imported {}"/>
+  <translation tag="Importing {}..." en="Importing {}..."/>
   <translation tag="In Progress" en="In Progress"/>
   <translation tag="Inactive" en="Inactive"/>
   <translation tag="Include Klipper/Moonraker logs" en="Include Klipper/Moonraker logs"/>
@@ -3339,6 +3348,7 @@
   <translation tag="Z jog feedrate" en="Z jog feedrate"/>
   <translation tag="Z motor calibration failed" en="Z motor calibration failed"/>
   <translation tag="Z probes for bed leveling and mesh generation" en="Z probes for bed leveling and mesh generation"/>
+  <translation tag="Z {}, will lift to {}mm" en="Z {}, will lift to {}mm"/>
   <translation tag="Z-Off:" en="Z-Off:"/>
   <translation tag="Z-Offset" en="Z-Offset"/>
   <translation tag="Z-Offset Calibration" en="Z-Offset Calibration"/>

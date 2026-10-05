@@ -9,16 +9,17 @@ The DRM backend may take rotation over itself (a scanout plane advertising
 taken before set_display_rotation() returns records a value the display no
 longer has (prestonbrown/helixscreen#1275, #1587).
 
-Why a lint and not a unit test: init()'s rotation block lives behind
-`#ifndef HELIX_DISPLAY_SDL`, and the test binary compiles with
-HELIX_DISPLAY_SDL, so the path cannot run headless. The dormant path goes
-live the moment a plane owns rotation on i915/amdgpu (x86 targets).
+Every rotation routes through DisplayManager::settle_display_rotation(), and
+a unit test pins its order against a backend that un-swaps the resolution
+(tests/unit/application/test_display_manager.cpp). This gate keeps the
+sequence in that one place: a second hand-written copy, in or out of order,
+is what it reports.
 
 The gate fails closed in both directions:
 
   * The CENSUS asserts that every function in GUARDED_FUNCTIONS is still
     defined and still performs the number of settle/cache pairs recorded
-    there. A gate guarding nothing is a failure, not a pass - and "nothing"
+    there, and that no other function performs one. A gate guarding nothing is a failure, not a pass - and "nothing"
     is what a rename, a deletion, a wrapper around the settle call, or a
     cache write extracted into a helper all leave behind.
   * The ORDER rules pair each cache write with the nearest unconsumed settle
@@ -65,7 +66,6 @@ DEFAULT_FILE = "src/application/display_manager.cpp"
 # it is looking at something: a rename, a deletion, a wrapper around the
 # settle call and an extracted cache helper each change a number here.
 GUARDED_FUNCTIONS = {
-    "DisplayManager::init": 1,
     "DisplayManager::settle_display_rotation": 1,
 }
 
@@ -312,7 +312,7 @@ def check_source(text: str, source_name: str, census: bool = True) -> list[str]:
         total_pairs += pairs
 
     if census:
-        failures.extend(run_census(source_name, pairs_by_function))
+        failures.extend(run_census(source_name, pairs_by_function, total_pairs))
 
     return failures
 
@@ -331,8 +331,19 @@ def unpaired_settle(
     )
 
 
-def run_census(source_name: str, pairs_by_function: dict[str, int]) -> list[str]:
+def run_census(
+    source_name: str, pairs_by_function: dict[str, int], total_pairs: int
+) -> list[str]:
     failures: list[str] = []
+    stray = total_pairs - sum(pairs_by_function.get(name, 0) for name in GUARDED_FUNCTIONS)
+    if stray:
+        others = sorted(name for name, n in pairs_by_function.items()
+                        if n and name not in GUARDED_FUNCTIONS)
+        failures.append(
+            f"{source_name}: {', '.join(f'{n}()' for n in others)} repeat(s) the "
+            f"set_display_rotation()/cache sequence. Call settle_display_rotation() "
+            f"instead, so one tested helper owns the order."
+        )
     for name, expected in GUARDED_FUNCTIONS.items():
         if name not in pairs_by_function:
             failures.append(

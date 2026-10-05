@@ -300,6 +300,7 @@ translations:
   Bed Heater: 热床加热器
   Bed Level: 热床调平
   Bed Leveling: 热床调平
+  Bed Map Clearance: 热床地图安全高度
   Bed Mesh: 热床网格
   Bed Mesh Complete: 热床网格完成
   Bed Mesh Render: 热床网格渲染
@@ -316,6 +317,7 @@ translations:
   Bed is Level!: 热床已水平！
   Bed mesh operation timed out: 热床网格操作超时
   Bed mesh...: 热床网格...
+  Bed tab moves lift to this height first: 热床标签页的移动会先抬升到此高度
   Bed target set to {}°C: 热床目标已设为 {}°C
   Bed temp must be 0-%d°C: 热床温度必须为 0-%d°C
   Bed warming timed out: 热床加热超时
@@ -363,6 +365,7 @@ translations:
   Buffer Status: 缓冲区状态
   Buffer tube problem: 缓冲管故障
   'Build Volume: ': '构建尺寸: '
+  'Building preview: %d%%': '正在生成预览：%d%%'
   Bundle Uploaded: 捆绑包已上传
   Busy: '正忙'
   Button taps and navigation sounds: 按钮点击和导航声音
@@ -701,6 +704,9 @@ translations:
   Copy Command: 复制命令
   Copy failed - use SSH manually: 复制失败 - 请手动使用 SSH
   Copy it into this filament's slicer profile. The printer keeps nothing.: '请把它复制到该耗材的切片软件配置中。打印机不会保存任何内容。'
+  Copying from USB: '正在从 USB 复制'
+  Copying from USB stopped responding: '从 USB 复制已停止响应'
+  Copying from USB...: '正在从 USB 复制...'
   Corner roundness: 圆角程度
   Correction (Ki): 校正 (Ki)
   Could not add to queue: 无法添加到队列
@@ -710,6 +716,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "无法检查摄像头状态。\n请检查打印机连接。"
   Could not confirm cancel: 无法确认取消
+  'Could not copy {} from USB: {}': '无法从 USB 复制 {}：{}'
   Could not forget device: 无法忘记设备
   Could not load printer database: 无法加载打印机数据库
   Could not move the plate: 无法移动热床
@@ -1393,6 +1400,7 @@ translations:
   Holding nozzle at {}°C to purge previous filament.: 将喷嘴保持在 {}°C 以清洗之前的耗材。
   Home: 归位
   Home & Continue: 归位并继续
+  Home all axes to use the map: 请先归位所有轴以使用地图
   Home and sweep the cutter to re-find its position: 归零并扫过切刀以重新找到其位置
   Home failed: 归位失败
   Home printer first?: 先将打印机归位？
@@ -1450,6 +1458,7 @@ translations:
   Ignore the click that fires when you lift after scrolling: 忽略滚动后抬起手指时触发的点击
   'Import failed: {}': '导入失败: {}'
   Imported {}: 已导入 {}
+  Importing {}...: '正在导入 {}...'
   In Progress: 进行中
   Inactive: 未激活
   Include Klipper/Moonraker logs: 包含 Klipper/Moonraker 日志
@@ -3494,6 +3503,7 @@ translations:
   Z jog feedrate: Z 轴移动速度
   Z motor calibration failed: Z 电机校准失败
   Z probes for bed leveling and mesh generation: 用于热床调平和网格生成的 Z 探针
+  Z {}, will lift to {}mm: 'Z {}，将抬升至 {}mm'
   'Z-Off:': Z 偏移：
   Z-Offset: Z 偏移
   Z-Offset Calibration: Z 偏移校准

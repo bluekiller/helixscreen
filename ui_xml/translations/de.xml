@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" de="Bettheizung"/>
   <translation tag="Bed Level" de="Bettnivellierung"/>
   <translation tag="Bed Leveling" de="Bettnivellierung"/>
+  <translation tag="Bed Map Clearance" de="Bettkarte: Sicherheitshöhe"/>
   <translation tag="Bed Mesh" de="Bettnetz"/>
   <translation tag="Bed Mesh Complete" de="Bettnetz abgeschlossen"/>
   <translation tag="Bed Mesh Render" de="Bettnetz-Darstellung"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" de="Bett ist nivelliert!"/>
   <translation tag="Bed mesh operation timed out" de="Bettnetz-Vorgang Zeitüberschreitung"/>
   <translation tag="Bed mesh..." de="Bettnetz..."/>
+  <translation tag="Bed tab moves lift to this height first" de="Bewegungen im Heizbett-Tab heben zuerst auf diese Höhe an"/>
   <translation tag="Bed target set to {}°C" de="Bett-Zieltemperatur auf {}°C gesetzt"/>
   <translation tag="Bed temp must be 0-%d°C" de="Betttemperatur muss 0-%d°C betragen"/>
   <translation tag="Bed warming timed out" de="Bettaufheizung Zeitüberschreitung"/>
@@ -358,6 +360,7 @@
   <translation tag="Buffer Status" de="Pufferstatus"/>
   <translation tag="Buffer tube problem" de="Problem mit dem Pufferschlauch"/>
   <translation tag="Build Volume: " de="Bauraum: "/>
+  <translation tag="Building preview: %d%%" de="Vorschau wird erstellt: %d%%"/>
   <translation tag="Bundle Uploaded" de="Paket hochgeladen"/>
   <translation tag="Busy" de="Beschäftigt"/>
   <translation tag="Button taps and navigation sounds" de="Tastentöne und Navigationstöne"/>
@@ -686,6 +689,9 @@
   <translation tag="Copy Command" de="Befehl kopieren"/>
   <translation tag="Copy failed - use SSH manually" de="Kopieren fehlgeschlagen – SSH verwenden"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." de="Trage ihn ins Slicer-Profil dieses Filaments ein. Der Drucker speichert nichts."/>
+  <translation tag="Copying from USB" de="Kopieren von USB"/>
+  <translation tag="Copying from USB stopped responding" de="Kopieren von USB reagiert nicht mehr"/>
+  <translation tag="Copying from USB..." de="Kopieren von USB..."/>
   <translation tag="Corner roundness" de="Eckenrundung"/>
   <translation tag="Correction (Ki)" de="Korrektur (Ki)"/>
   <translation tag="Could not add to queue" de="Konnte nicht zur Warteschlange hinzufügen"/>
@@ -693,6 +699,7 @@
   <translation tag="Could not answer the connection request" de="Verbindungsanfrage konnte nicht beantwortet werden"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." de="Webcam-Status konnte nicht geprüft werden.&#10;Druckerverbindung prüfen."/>
   <translation tag="Could not confirm cancel" de="Abbruch konnte nicht bestätigt werden"/>
+  <translation tag="Could not copy {} from USB: {}" de="{} konnte nicht von USB kopiert werden: {}"/>
   <translation tag="Could not forget device" de="Gerät konnte nicht vergessen werden"/>
   <translation tag="Could not load printer database" de="Druckerdatenbank konnte nicht geladen werden"/>
   <translation tag="Could not move the plate" de="Heizbett konnte nicht bewegt werden"/>
@@ -1348,6 +1355,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." de="Düse wird bei {}°C gehalten, um vorheriges Filament auszuspülen."/>
   <translation tag="Home" de="Home"/>
   <translation tag="Home &amp; Continue" de="Referenzieren &amp; Fortfahren"/>
+  <translation tag="Home all axes to use the map" de="Alle Achsen referenzieren, um die Karte zu nutzen"/>
   <translation tag="Home and sweep the cutter to re-find its position" de="Referenzfahrt und Messfahrt des Schneiders, um seine Position neu zu ermitteln"/>
   <translation tag="Home failed" de="Referenzfahrt fehlgeschlagen"/>
   <translation tag="Home printer first?" de="Drucker zuerst referenzieren?"/>
@@ -1402,6 +1410,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" de="Klick ignorieren, der nach dem Scrollen beim Loslassen ausgelöst wird"/>
   <translation tag="Import failed: {}" de="Import fehlgeschlagen: {}"/>
   <translation tag="Imported {}" de="{} importiert"/>
+  <translation tag="Importing {}..." de="{} wird importiert..."/>
   <translation tag="In Progress" de="In Bearbeitung"/>
   <translation tag="Inactive" de="Inaktiv"/>
   <translation tag="Include Klipper/Moonraker logs" de="Klipper/Moonraker-Protokolle einschließen"/>
@@ -3339,6 +3348,7 @@
   <translation tag="Z jog feedrate" de="Vorschub für die Z-Bewegung"/>
   <translation tag="Z motor calibration failed" de="Kalibrierung des Z-Motors fehlgeschlagen"/>
   <translation tag="Z probes for bed leveling and mesh generation" de="Z-Sonden für Bettnivellierung und Netzerzeugung"/>
+  <translation tag="Z {}, will lift to {}mm" de="Z {}, hebt auf {}mm an"/>
   <translation tag="Z-Off:" de="Z-Off:"/>
   <translation tag="Z-Offset" de="Z-Offset"/>
   <translation tag="Z-Offset Calibration" de="Z-Offset-Kalibrierung"/>

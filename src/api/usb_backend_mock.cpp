@@ -92,6 +92,7 @@ UsbError UsbBackendMock::get_connected_drives(std::vector<UsbDrive>& drives) {
 
 UsbError UsbBackendMock::scan_for_gcode(const std::string& mount_path,
                                         std::vector<UsbGcodeFile>& files, int max_depth) {
+    ++scan_count_;
     std::lock_guard<std::mutex> lock(mutex_);
     (void)max_depth; // Unused in mock
 

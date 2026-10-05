@@ -102,10 +102,9 @@ class ProbeSensorTestFixture {
     }
 
     // Helper to simulate Moonraker status update
-    void update_sensor_state(const std::string& klipper_name, float last_z_result, float z_offset) {
+    void update_sensor_state(const std::string& klipper_name, float last_z_result) {
         json status;
         status[klipper_name]["last_z_result"] = last_z_result;
-        status[klipper_name]["z_offset"] = z_offset;
         mgr().update_from_status(status);
     }
 
@@ -378,20 +377,66 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - state updates", "
     discover_test_sensors();
     mgr().set_sensor_role("bltouch", ProbeSensorRole::Z_PROBE);
 
-    SECTION("Parses last_z_result and z_offset from status JSON") {
+    SECTION("Parses last_z_result and last_query from status JSON") {
         auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
         REQUIRE(state.has_value());
         REQUIRE(state->last_z_result == 0.0f);
-        REQUIRE(state->z_offset == 0.0f);
+        REQUIRE_FALSE(state->triggered);
 
         json status;
         status["bltouch"]["last_z_result"] = 0.125f;
-        status["bltouch"]["z_offset"] = -1.5f;
+        status["bltouch"]["last_query"] = true;
         mgr().update_from_status(status);
 
         state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
         REQUIRE(state->last_z_result == Catch::Approx(0.125f));
-        REQUIRE(state->z_offset == Catch::Approx(-1.5f));
+        REQUIRE(state->triggered);
+    }
+
+    SECTION("last_query accepts the integer form Cartographer publishes") {
+        json status;
+        status["bltouch"]["last_query"] = 1;
+        mgr().update_from_status(status);
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->triggered);
+
+        status["bltouch"]["last_query"] = 0;
+        mgr().update_from_status(status);
+        REQUIRE_FALSE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->triggered);
+    }
+
+    SECTION("A null or absent last_query keeps the previous value") {
+        json status;
+        status["bltouch"]["last_query"] = true;
+        mgr().update_from_status(status);
+
+        json null_status;
+        null_status["bltouch"]["last_query"] = nullptr;
+        mgr().update_from_status(null_status);
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->triggered);
+
+        json absent;
+        absent["bltouch"]["last_z_result"] = 0.2f;
+        mgr().update_from_status(absent);
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->triggered);
+    }
+
+    SECTION("A numeric z_offset updates the seed, a null one keeps it") {
+        json config;
+        config["bltouch"] = {{"z_offset", "-1.850"}};
+        mgr().discover_from_config(config);
+
+        json null_status;
+        null_status["bltouch"]["z_offset"] = nullptr;
+        mgr().update_from_status(null_status);
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->z_offset ==
+                Catch::Approx(-1.850f));
+
+        // Creality K1's Z_OFFSET_APPLY_PROBE moves it live, without a restart.
+        json status;
+        status["bltouch"]["z_offset"] = -0.5f;
+        mgr().update_from_status(status);
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->z_offset == Catch::Approx(-0.5f));
+        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -500);
     }
 
     SECTION("Status update for unknown sensor is ignored") {
@@ -437,32 +482,31 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - subject values",
         REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 0);
 
         // Update state with last_z_result = 0.125mm = 125 microns
-        update_sensor_state("bltouch", 0.125f, -1.5f);
+        update_sensor_state("bltouch", 0.125f);
         REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 125);
 
         // Update with different value
-        update_sensor_state("bltouch", 0.250f, -1.5f);
+        update_sensor_state("bltouch", 0.250f);
         REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 250);
     }
 
-    SECTION("Z offset subject updates correctly (value x 1000 = microns)") {
+    SECTION("Probe triggered subject follows last_query (QUERY_PROBE result)") {
         mgr().set_sensor_role("bltouch", ProbeSensorRole::Z_PROBE);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_triggered_subject()) == 0);
 
-        // After assignment, should show 0 since state defaults to 0.0
-        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == 0);
+        json status;
+        status["bltouch"]["last_query"] = true;
+        mgr().update_from_status(status);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_triggered_subject()) == 1);
 
-        // Update state with z_offset = -1.5mm = -1500 microns
-        update_sensor_state("bltouch", 0.125f, -1.5f);
-        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -1500);
-
-        // Update with different value
-        update_sensor_state("bltouch", 0.125f, -2.25f);
-        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -2250);
+        status["bltouch"]["last_query"] = false;
+        mgr().update_from_status(status);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_triggered_subject()) == 0);
     }
 
     SECTION("Subjects show -1 when sensor disabled") {
         mgr().set_sensor_role("bltouch", ProbeSensorRole::Z_PROBE);
-        update_sensor_state("bltouch", 0.125f, -1.5f);
+        update_sensor_state("bltouch", 0.125f);
 
         mgr().set_sensor_enabled("bltouch", false);
         REQUIRE(lv_subject_get_int(mgr().get_probe_triggered_subject()) == -1);
@@ -705,32 +749,26 @@ TEST_CASE("Probe type display strings", "[probe][types]") {
 }
 
 // ============================================================================
-// Null z_offset Handling Tests
+// Null Field Handling Tests
 // ============================================================================
 
-TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - null z_offset in status",
+TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - null fields in status",
                  "[probe][state][loadcell]") {
     std::vector<std::string> objects = {"probe"};
     mgr().discover(objects);
     mgr().set_sensor_role("probe", ProbeSensorRole::Z_PROBE);
 
-    SECTION("Null z_offset does not overwrite existing value") {
-        // Seed z_offset via normal status update first
-        json status;
-        status["probe"]["last_z_result"] = 0.0f;
-        status["probe"]["z_offset"] = -0.25f;
-        mgr().update_from_status(status);
+    SECTION("Null z_offset does not overwrite the config-seeded value") {
+        json config;
+        config["probe"] = {{"z_offset", "-0.250"}};
+        mgr().discover_from_config(config);
 
-        auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
-        REQUIRE(state->z_offset == Catch::Approx(-0.25f));
-
-        // Now send status with null z_offset (like flashforge_loadcell does)
         json null_status;
         null_status["probe"]["last_z_result"] = 0.1f;
         null_status["probe"]["z_offset"] = nullptr;
         mgr().update_from_status(null_status);
 
-        state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
+        auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
         REQUIRE(state->z_offset == Catch::Approx(-0.25f));
         REQUIRE(state->last_z_result == Catch::Approx(0.1f));
     }
@@ -738,17 +776,39 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - null z_offset in 
     SECTION("Null last_z_result does not overwrite existing value") {
         json status;
         status["probe"]["last_z_result"] = 0.5f;
-        status["probe"]["z_offset"] = -0.25f;
         mgr().update_from_status(status);
 
         json null_status;
         null_status["probe"]["last_z_result"] = nullptr;
-        null_status["probe"]["z_offset"] = -0.25f;
         mgr().update_from_status(null_status);
 
         auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
         REQUIRE(state->last_z_result == Catch::Approx(0.5f));
     }
+}
+
+// ============================================================================
+// Cartographer Status Source Tests
+// ============================================================================
+
+TEST_CASE_METHOD(ProbeSensorTestFixture,
+                 "ProbeSensorManager - Cartographer reads the probe object it registers",
+                 "[probe][state][cartographer]") {
+    mgr().discover({"probe", "cartographer"});
+    REQUIRE(mgr().sensor_count() == 1);
+    mgr().set_sensor_role("cartographer", ProbeSensorRole::Z_PROBE);
+
+    // The cartographer object nests last_z_result per mode; the flat keys live
+    // on the probe object.
+    json status;
+    status["cartographer"] = {{"scan", {{"last_z_result", 9.0}}}, {"touch", nullptr}};
+    status["probe"] = {{"name", "cartographer"}, {"last_query", 1}, {"last_z_result", -0.425}};
+    mgr().update_from_status(status);
+
+    auto state = mgr().get_sensor_state(ProbeSensorRole::Z_PROBE);
+    REQUIRE(state->last_z_result == Catch::Approx(-0.425f));
+    REQUIRE(state->triggered);
+    REQUIRE(lv_subject_get_int(mgr().get_probe_triggered_subject()) == 1);
 }
 
 // ============================================================================
@@ -813,20 +873,20 @@ TEST_CASE_METHOD(ProbeSensorTestFixture,
     mgr().set_sensor_role("bltouch", ProbeSensorRole::Z_PROBE);
     mgr().set_sync_mode(false);
 
-    update_sensor_state("bltouch", 0.25f, -1.5f);
+    update_sensor_state("bltouch", 0.25f);
     mgr().deinit_subjects();
     mgr().init_subjects();
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == -1);
 
-    update_sensor_state("bltouch", 0.5f, -1.5f);
+    update_sensor_state("bltouch", 0.5f);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 500);
     mgr().set_sync_mode(true);
 }
 
-// Klipper registers a [probe] alias, and Cartographer/Beacon a probe_eddy_current
-// companion, beside the specific probe object. The pair is one probe, so a fresh
+// Klipper's bltouch/smart_effector/probe_eddy_current, Beacon and Cartographer all
+// register the generic probe object beside their own. The pair is one probe, so a fresh
 // install gets Z_PROBE without anyone picking it.
 TEST_CASE_METHOD(ProbeSensorTestFixture,
                  "ProbeSensorManager - alias objects still auto-assign Z_PROBE", "[probe][roles]") {
@@ -837,22 +897,22 @@ TEST_CASE_METHOD(ProbeSensorTestFixture,
         mgr().discover({"bltouch", "probe"});
         mgr().load_config_from_file();
         REQUIRE(mgr().get_sensors()[0].klipper_name == "bltouch");
-        update_sensor_state("bltouch", 0.1f, -1.85f);
-        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -1850);
+        update_sensor_state("bltouch", 0.1f);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 100);
     }
 
-    SECTION("cartographer plus its eddy companion and probe alias") {
+    SECTION("cartographer plus an eddy object and its probe object") {
         mgr().discover({"probe", "probe_eddy_current carto", "cartographer"});
         mgr().load_config_from_file();
-        update_sensor_state("cartographer", -0.4f, 0.0f);
+        update_sensor_state("probe", -0.4f);
         REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == -400);
     }
 
     SECTION("plain probe alone") {
         mgr().discover({"probe"});
         mgr().load_config_from_file();
-        update_sensor_state("probe", 0.0f, -0.25f);
-        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -250);
+        update_sensor_state("probe", 0.25f);
+        REQUIRE(lv_subject_get_int(mgr().get_probe_last_z_subject()) == 250);
     }
 
     SECTION("a saved explicit role still wins") {

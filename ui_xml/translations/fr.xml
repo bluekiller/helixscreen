@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" fr="Chauffage du plateau"/>
   <translation tag="Bed Level" fr="Niveau du plateau"/>
   <translation tag="Bed Leveling" fr="Mise à niveau du plateau"/>
+  <translation tag="Bed Map Clearance" fr="Hauteur de sécurité de la carte"/>
   <translation tag="Bed Mesh" fr="Maillage du plateau"/>
   <translation tag="Bed Mesh Complete" fr="Maillage du plateau terminé"/>
   <translation tag="Bed Mesh Render" fr="Rendu du maillage du plateau"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" fr="Le plateau est niveau !"/>
   <translation tag="Bed mesh operation timed out" fr="Maillage du plateau — délai dépassé"/>
   <translation tag="Bed mesh..." fr="Maillage du plateau..."/>
+  <translation tag="Bed tab moves lift to this height first" fr="Les déplacements de l&apos;onglet Plateau montent d&apos;abord à cette hauteur"/>
   <translation tag="Bed target set to {}°C" fr="Cible plateau réglée à {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" fr="La température du plateau doit être entre 0 et %d°C"/>
   <translation tag="Bed warming timed out" fr="Préchauffage du plateau — délai dépassé"/>
@@ -358,6 +360,7 @@
   <translation tag="Buffer Status" fr="État du tampon"/>
   <translation tag="Buffer tube problem" fr="Problème de tube tampon"/>
   <translation tag="Build Volume: " fr="Volume d&apos;impression : "/>
+  <translation tag="Building preview: %d%%" fr="Génération de l&apos;aperçu : %d%%"/>
   <translation tag="Bundle Uploaded" fr="Bundle téléversé"/>
   <translation tag="Busy" fr="Occupé"/>
   <translation tag="Button taps and navigation sounds" fr="Sons de boutons et de navigation"/>
@@ -686,6 +689,9 @@
   <translation tag="Copy Command" fr="Copier la commande"/>
   <translation tag="Copy failed - use SSH manually" fr="Copie échouée - utilisez SSH manuellement"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." fr="Recopiez-le dans le profil de trancheur de ce filament. L&apos;imprimante ne conserve rien."/>
+  <translation tag="Copying from USB" fr="Copie depuis l&apos;USB"/>
+  <translation tag="Copying from USB stopped responding" fr="La copie depuis l&apos;USB ne répond plus"/>
+  <translation tag="Copying from USB..." fr="Copie depuis l&apos;USB..."/>
   <translation tag="Corner roundness" fr="Arrondi des coins"/>
   <translation tag="Correction (Ki)" fr="Correction (Ki)"/>
   <translation tag="Could not add to queue" fr="Impossible d&apos;ajouter à la file"/>
@@ -693,6 +699,7 @@
   <translation tag="Could not answer the connection request" fr="Impossible de répondre à la demande de connexion"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." fr="Impossible de vérifier la webcam.&#10;Vérifiez la connexion."/>
   <translation tag="Could not confirm cancel" fr="Impossible de confirmer l&apos;annulation"/>
+  <translation tag="Could not copy {} from USB: {}" fr="Impossible de copier {} depuis l&apos;USB : {}"/>
   <translation tag="Could not forget device" fr="Impossible d&apos;oublier l&apos;appareil"/>
   <translation tag="Could not load printer database" fr="Impossible de charger la base de données d&apos;imprimantes"/>
   <translation tag="Could not move the plate" fr="Impossible de déplacer le plateau"/>
@@ -1348,6 +1355,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." fr="Maintien de la buse à {}°C pour purger le filament précédent."/>
   <translation tag="Home" fr="Origine"/>
   <translation tag="Home &amp; Continue" fr="Référencer et continuer"/>
+  <translation tag="Home all axes to use the map" fr="Référencez tous les axes pour utiliser la carte"/>
   <translation tag="Home and sweep the cutter to re-find its position" fr="Prend l&apos;origine et balaie le coupeur pour retrouver sa position"/>
   <translation tag="Home failed" fr="Échec de la référence"/>
   <translation tag="Home printer first?" fr="Référencer l&apos;imprimante d&apos;abord ?"/>
@@ -1402,6 +1410,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" fr="Ignorer le clic déclenché au relâchement après un défilement"/>
   <translation tag="Import failed: {}" fr="Échec de l&apos;importation : {}"/>
   <translation tag="Imported {}" fr="{} importé"/>
+  <translation tag="Importing {}..." fr="Importation de {}..."/>
   <translation tag="In Progress" fr="En cours"/>
   <translation tag="Inactive" fr="Inactif"/>
   <translation tag="Include Klipper/Moonraker logs" fr="Inclure les journaux Klipper/Moonraker"/>
@@ -3339,6 +3348,7 @@
   <translation tag="Z jog feedrate" fr="Vitesse d&apos;avance du déplacement Z"/>
   <translation tag="Z motor calibration failed" fr="Échec de l&apos;étalonnage du moteur Z"/>
   <translation tag="Z probes for bed leveling and mesh generation" fr="Sondes Z pour la mise à niveau du plateau et la génération de maillage"/>
+  <translation tag="Z {}, will lift to {}mm" fr="Z {}, montera à {}mm"/>
   <translation tag="Z-Off:" fr="Z-Off :"/>
   <translation tag="Z-Offset" fr="Z-Offset"/>
   <translation tag="Z-Offset Calibration" fr="Calibration du Z-Offset"/>

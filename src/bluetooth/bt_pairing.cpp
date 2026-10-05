@@ -44,14 +44,14 @@ extern "C" int helix_bt_pair(helix_bt_context* ctx, const char* mac) {
         return -ENODEV;
     }
 
-    std::string path = mac_to_dbus_path(mac);
-    fprintf(stderr, "[bt] pair: starting for %s (dbus=%s)\n", mac, path.c_str());
-
     int r = 0;
     std::string err;
 
     try {
         ctx->bus_thread->run_sync([&](sd_bus* bus) {
+            const std::string path = helix::bluetooth::device_dbus_path(bus, mac);
+            fprintf(stderr, "[bt] pair: starting for %s (dbus=%s)\n", mac, path.c_str());
+
             // Log device properties pre-pair for diagnostics
             {
                 sd_bus_error pe = SD_BUS_ERROR_NULL;
@@ -222,13 +222,13 @@ static int read_device_bool(helix_bt_context* ctx, const char* mac, const char* 
         return -ENODEV;
     }
 
-    std::string path = mac_to_dbus_path(mac);
     int r = 0;
     int value = 0;
     std::string err;
 
     try {
         ctx->bus_thread->run_sync([&](sd_bus* bus) {
+            const std::string path = helix::bluetooth::device_dbus_path(bus, mac);
             sd_bus_error error = SD_BUS_ERROR_NULL;
             r = sd_bus_get_property_trivial(bus, "org.bluez", path.c_str(), "org.bluez.Device1",
                                             property, &error, 'b', &value);
@@ -281,9 +281,6 @@ extern "C" int helix_bt_remove_device(helix_bt_context* ctx, const char* mac) {
 
     // RemoveDevice is a method on the adapter (org.bluez.Adapter1), taking
     // the device's object path as its single argument.
-    std::string device_path = mac_to_dbus_path(mac);
-    const char* adapter_path = "/org/bluez/hci0";
-    fprintf(stderr, "[bt] removing device %s (%s)\n", mac, device_path.c_str());
 
     int r = 0;
     std::string err;
@@ -318,6 +315,11 @@ extern "C" int helix_bt_remove_device(helix_bt_context* ctx, const char* mac) {
 
     try {
         ctx->bus_thread->run_sync([&](sd_bus* bus) {
+            const std::string device_path = helix::bluetooth::device_dbus_path(bus, mac);
+            // The device path is "<adapter>/dev_...", and RemoveDevice belongs to that adapter.
+            const std::string adapter_path = device_path.substr(0, device_path.rfind('/'));
+            fprintf(stderr, "[bt] removing device %s (%s)\n", mac, device_path.c_str());
+
             // Best-effort disconnect first — ignore NotConnected / DoesNotExist /
             // any other failure. If the device has an active link, dropping it
             // here unblocks RemoveDevice; if it's already disconnected or the
@@ -334,8 +336,8 @@ extern "C" int helix_bt_remove_device(helix_bt_context* ctx, const char* mac) {
             }
 
             sd_bus_error error = SD_BUS_ERROR_NULL;
-            r = call_with_timeout(bus, adapter_path, "org.bluez.Adapter1", "RemoveDevice", &error,
-                                  "o", device_path.c_str());
+            r = call_with_timeout(bus, adapter_path.c_str(), "org.bluez.Adapter1", "RemoveDevice",
+                                  &error, "o", device_path.c_str());
             if (r < 0) {
                 fprintf(stderr, "[bt] RemoveDevice failed for %s: %s\n", mac,
                         error.message ? error.message : strerror(-r));

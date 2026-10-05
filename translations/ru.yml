@@ -320,6 +320,7 @@ translations:
   Bed Heater: Нагреватель стола
   Bed Level: Уровень стола
   Bed Leveling: Выравнивание стола
+  Bed Map Clearance: Безопасная высота карты стола
   Bed Mesh: Сетка стола
   Bed Mesh Complete: Сетка стола готова
   Bed Mesh Render: Рендер сетки стола
@@ -336,6 +337,7 @@ translations:
   Bed is Level!: Стол выровнен!
   Bed mesh operation timed out: Сетка стола — время ожидания истекло
   Bed mesh...: Сетка стола...
+  Bed tab moves lift to this height first: Перемещения на вкладке «Стол» сначала поднимают до этой высоты
   Bed target set to {}°C: Целевая температура стола {}°C
   Bed temp must be 0-%d°C: Температура стола должна быть 0-%d°C
   Bed warming timed out: Нагрев стола — время ожидания истекло
@@ -386,6 +388,7 @@ translations:
   Buffer Status: Статус буфера
   Buffer tube problem: Проблема с буферной трубкой
   'Build Volume: ': 'Область печати: '
+  'Building preview: %d%%': 'Создание предпросмотра: %d%%'
   Bundle Uploaded: Пакет отправлен
   Busy: 'Занят'
   Button taps and navigation sounds: Звуки нажатий и навигации
@@ -758,6 +761,9 @@ translations:
   Copy Command: Копировать команду
   Copy failed - use SSH manually: Ошибка копирования - используйте SSH вручную
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Перепишите его в профиль слайсера для этого филамента. Принтер ничего не сохраняет.'
+  Copying from USB: 'Копирование с USB'
+  Copying from USB stopped responding: 'Копирование с USB перестало отвечать'
+  Copying from USB...: 'Копирование с USB...'
   Corner roundness: Скругление углов
   Correction (Ki): Коррекция (Ki)
   Could not add to queue: Не удалось добавить в очередь
@@ -768,6 +774,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Не удалось проверить статус веб-камеры.\nПроверьте подключение принтера."
   Could not confirm cancel: Не удалось подтвердить отмену
+  'Could not copy {} from USB: {}': 'Не удалось скопировать {} с USB: {}'
   Could not forget device: Не удалось забыть устройство
   Could not load printer database: Не удалось загрузить базу данных принтеров
   Could not move the plate: Не удалось переместить стол
@@ -1475,6 +1482,7 @@ translations:
   Holding nozzle at {}°C to purge previous filament.: Удержание сопла при {}°C для очистки от предыдущего филамента.
   Home: Главная
   Home & Continue: Запарковать и продолжить
+  Home all axes to use the map: Выполните парковку всех осей, чтобы использовать карту
   Home and sweep the cutter to re-find its position: Ищет ноль и прощупывает резак, чтобы заново найти его позицию
   Home failed: Парковка не удалась
   Home printer first?: Сначала запарковать принтер?
@@ -1539,6 +1547,7 @@ translations:
     при отпускании после прокрутки
   'Import failed: {}': 'Ошибка импорта: {}'
   Imported {}: Импортировано {}
+  Importing {}...: 'Импорт {}...'
   In Progress: В процессе
   Inactive: Неактивно
   Include Klipper/Moonraker logs: Включить логи Klipper/Moonraker
@@ -3717,6 +3726,7 @@ translations:
   Z motor calibration failed: Не удалась калибровка двигателя Z
   Z probes for bed leveling and mesh generation: Z-зонды для выравнивания стола и
     создания сетки
+  Z {}, will lift to {}mm: 'Z {}, подъём до {}мм'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Калибровка Z-смещения

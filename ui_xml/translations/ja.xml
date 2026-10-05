@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" ja="ベッドヒーター"/>
   <translation tag="Bed Level" ja="ベッドレベル"/>
   <translation tag="Bed Leveling" ja="ベッドレベリング"/>
+  <translation tag="Bed Map Clearance" ja="ベッドマップの退避高さ"/>
   <translation tag="Bed Mesh" ja="ベッドメッシュ"/>
   <translation tag="Bed Mesh Complete" ja="ベッドメッシュ完了"/>
   <translation tag="Bed Mesh Render" ja="ベッドメッシュ描画"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" ja="ベッドが水平です！"/>
   <translation tag="Bed mesh operation timed out" ja="ベッドメッシュ操作がタイムアウトしました"/>
   <translation tag="Bed mesh..." ja="ベッドメッシュ..."/>
+  <translation tag="Bed tab moves lift to this height first" ja="ベッドタブの移動はまずこの高さまで上昇します"/>
   <translation tag="Bed target set to {}°C" ja="ベッド目標温度を {}°C に設定しました"/>
   <translation tag="Bed temp must be 0-%d°C" ja="ベッド温度は 0〜%d°C にしてください"/>
   <translation tag="Bed warming timed out" ja="ベッド加熱がタイムアウトしました"/>
@@ -358,6 +360,7 @@
   <translation tag="Buffer Status" ja="バッファーステータス"/>
   <translation tag="Buffer tube problem" ja="バッファーチューブの問題"/>
   <translation tag="Build Volume: " ja="造形サイズ: "/>
+  <translation tag="Building preview: %d%%" ja="プレビューを作成中: %d%%"/>
   <translation tag="Bundle Uploaded" ja="バンドルをアップロードしました"/>
   <translation tag="Busy" ja="ビジー状態"/>
   <translation tag="Button taps and navigation sounds" ja="ボタンタップとナビゲーション音"/>
@@ -686,6 +689,9 @@
   <translation tag="Copy Command" ja="コマンドをコピー"/>
   <translation tag="Copy failed - use SSH manually" ja="コピー失敗 - SSHを手動で使用してください"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." ja="この値をこのフィラメントのスライサー プロファイルに転記してください。プリンターには保存されません。"/>
+  <translation tag="Copying from USB" ja="USB からコピー中"/>
+  <translation tag="Copying from USB stopped responding" ja="USB からのコピーが応答しなくなりました"/>
+  <translation tag="Copying from USB..." ja="USB からコピー中..."/>
   <translation tag="Corner roundness" ja="角の丸み"/>
   <translation tag="Correction (Ki)" ja="補正 (Ki)"/>
   <translation tag="Could not add to queue" ja="キューに追加できませんでした"/>
@@ -693,6 +699,7 @@
   <translation tag="Could not answer the connection request" ja="接続リクエストに応答できませんでした"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." ja="ウェブカメラの状態を確認できませんでした。&#10;プリンター接続を確認してください。"/>
   <translation tag="Could not confirm cancel" ja="キャンセルを確認できませんでした"/>
+  <translation tag="Could not copy {} from USB: {}" ja="{} を USB からコピーできませんでした: {}"/>
   <translation tag="Could not forget device" ja="デバイスの登録を解除できませんでした"/>
   <translation tag="Could not load printer database" ja="プリンターデータベースを読み込めませんでした"/>
   <translation tag="Could not move the plate" ja="ベッドを動かせませんでした"/>
@@ -1348,6 +1355,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." ja="前のフィラメントをパージするためノズルを {}°C に保持しています。"/>
   <translation tag="Home" ja="ホーム"/>
   <translation tag="Home &amp; Continue" ja="ホーミングして続行"/>
+  <translation tag="Home all axes to use the map" ja="マップを使うには全軸をホーミングしてください"/>
   <translation tag="Home and sweep the cutter to re-find its position" ja="原点復帰後にカッターを走査して位置を再検出します"/>
   <translation tag="Home failed" ja="ホーミング失敗"/>
   <translation tag="Home printer first?" ja="先にプリンターをホーミングしますか？"/>
@@ -1402,6 +1410,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" ja="スクロール後に指を離したときに発生するクリックを無視"/>
   <translation tag="Import failed: {}" ja="インポートに失敗しました: {}"/>
   <translation tag="Imported {}" ja="{} をインポートしました"/>
+  <translation tag="Importing {}..." ja="{} をインポート中..."/>
   <translation tag="In Progress" ja="進行中"/>
   <translation tag="Inactive" ja="非アクティブ"/>
   <translation tag="Include Klipper/Moonraker logs" ja="Klipper/Moonrakerのログを含める"/>
@@ -3339,6 +3348,7 @@
   <translation tag="Z jog feedrate" ja="Z軸のジョグ移動速度"/>
   <translation tag="Z motor calibration failed" ja="Z モーターの校正に失敗しました"/>
   <translation tag="Z probes for bed leveling and mesh generation" ja="ベッドレベリングとメッシュ生成用 Z プローブ"/>
+  <translation tag="Z {}, will lift to {}mm" ja="Z {}、{}mmまで上昇します"/>
   <translation tag="Z-Off:" ja="Z-Off:"/>
   <translation tag="Z-Offset" ja="Z-Offset"/>
   <translation tag="Z-Offset Calibration" ja="Z-Offset キャリブレーション"/>

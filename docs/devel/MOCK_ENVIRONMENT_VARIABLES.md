@@ -470,6 +470,10 @@ live Y readout moves as the overlay jogs.
 HELIX_MOCK_PRINTER=k1 HELIX_MOCK_AMS=cfs ./build/bin/helix-screen --test -vv
 ```
 
+`HELIX_MOCK_CFS_BOXES` lists the box addresses on the bus, e.g. `1,2,3,4` for a full chain
+or `1,3` for a chain with box 2 off the bus (it shows as an absent unit). Box 1 is always
+present and carries the one spool; the others are empty. Default: box 1 only.
+
 **Multi-extruder and tool testing:** Setting `HELIX_MOCK_AMS=toolchanger` also creates multiple tool definitions and extruders in the mock environment. Multiple extruders (extruder, extruder1, etc.) and tools are auto-discovered from Klipper objects at runtime, so no separate env var is needed to control extruder count. The toolchanger mock provides a complete multi-tool, multi-extruder test environment.
 
 **Per-tool offsets:** each `tool T{n}` serves live `gcode_x_offset` / `gcode_y_offset` / `gcode_z_offset`, seeded distinct per tool *and* per axis (T{n}: x = 0.100·n, y = −0.050·n, z = −0.025·n; T0 is zero everywhere) so a display that shows every tool the same number, or X where Z belongs, cannot look right. `SET_TOOL_PARAMETER T=<n> PARAMETER=gcode_{x,y,z}_offset VALUE=<mm>` moves one axis live and republishes only that field; `SAVE_TOOL_PARAMETER` stages it under `configfile.save_config_pending_items["tool T<n>"]`; `SAVE_CONFIG` commits and restarts; a restart (`RESTART` or `printer.restart`) reverts anything not committed. `tests/unit/test_mock_save_config.cpp` pins all of it.
@@ -831,15 +835,17 @@ Choose which Z-probe the mock printer advertises. Controls both the Klipper obje
 |----------|-------|
 | **Values** | `cartographer`, `beacon`, `bltouch`, `loadcell`, `tap`, `klicky`, `standard`, `none` |
 | **Default** | `cartographer` |
-| **File** | `src/api/moonraker_client_mock.cpp` |
+| **File** | `src/api/moonraker_client_mock_objects.cpp` |
 
-| Value | Object exposed | Status detail |
-|-------|----------------|---------------|
-| `cartographer` *(default)* | `cartographer` | `last_z_result: -0.425`, `z_offset: 0.0` |
-| `beacon` | `beacon` | `last_z_result: -0.312`, `z_offset: 0.0` |
-| `bltouch` | `bltouch` | `last_z_result: 0.130`, `z_offset: -1.850` |
-| `loadcell` | generic `probe` | `z_offset: null` (the load-cell-probe case) |
-| `tap` / `klicky` / `standard` / anything else | generic `probe` | `last_z_result: 0.0`, `z_offset: -0.250` |
+Each value exposes the objects and full `get_status()` payload the real module publishes (`helix::sim::mock_probe_status()`; per-type table in `docs/devel/SENSOR_MANAGEMENT.md` § Probe status keys).
+
+| Value | Objects exposed | Status detail |
+|-------|-----------------|---------------|
+| `cartographer` *(default)* | `cartographer`, `probe` | `cartographer`: `scan`/`touch`/`mcu`; `probe`: `last_query: 0`, `last_z_result: -0.425` |
+| `beacon` | `beacon`, `probe` | `beacon`: `last_z_result: -0.312` plus Beacon's other keys; `probe`: `{name: "beacon"}` |
+| `bltouch` | `bltouch`, `probe` (same payload) | `last_query: false`, `last_z_result: 0.130` |
+| `loadcell` | generic `probe` | `last_z_result: 0.0`, `z_offset: null` (the Flashforge shape) |
+| `tap` / `klicky` / `standard` / anything else | generic `probe` | `last_query: false`, `last_z_result: 0.0` |
 | `none` | *(no probe object)* | *(no probe status)* |
 
 ```bash

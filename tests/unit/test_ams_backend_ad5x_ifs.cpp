@@ -1,6 +1,8 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_insert_notice.h"
+
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
@@ -12051,6 +12053,7 @@ TEST_CASE("AD5X IFS insert with no tag evidence offers Clear (#1710)", "[ams][ad
     Ad5xIfsTestAccess::inject_override_store(backend, std::move(store));
 
     std::vector<std::pair<ToastSeverity, std::string>> toasts;
+    helix::ui::reset_insert_offers_for_test();
     helix::ui::set_test_toast_hook([&](ToastSeverity severity, const std::string& msg, uint32_t) {
         toasts.emplace_back(severity, msg);
     });
@@ -12106,6 +12109,7 @@ TEST_CASE("AD5X JSON-inferred presence is not an insert edge (#1710)", "[ams][ad
     Ad5xIfsTestAccess::set_zcolor_supported(backend, false);
 
     std::vector<std::pair<ToastSeverity, std::string>> toasts;
+    helix::ui::reset_insert_offers_for_test();
     helix::ui::set_test_toast_hook([&](ToastSeverity severity, const std::string& msg, uint32_t) {
         toasts.emplace_back(severity, msg);
     });

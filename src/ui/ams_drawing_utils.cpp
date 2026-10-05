@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <map>
+#include <numeric>
 #include <set>
 
 namespace ams_draw {
@@ -381,7 +382,12 @@ SystemToolLayout compute_system_tool_layout(const helix::AmsSystemInfo& info,
         utl.min_virtual_tool = min_tool;
         utl.hub_tool_label = unit.hub_tool_label;
 
-        if (topo == helix::PathTopology::MIXED) {
+        if (unit.absent) {
+            // A box that is not on the bus feeds no nozzle, so the units around
+            // it number their nozzles as if it were not there.
+            utl.first_physical_tool = total_physical;
+            utl.tool_count = 0;
+        } else if (topo == helix::PathTopology::MIXED) {
             // MIXED: direct lanes each get their own nozzle position,
             // hub lanes share one nozzle position regardless of mapped_tool.
             // Count = number of direct lanes + 1 per hub group.
@@ -608,6 +614,17 @@ SystemToolLayout compute_system_tool_layout(const helix::AmsSystemInfo& info,
             result.physical_to_virtual_label[phys] = label;
         }
     }
+
+    std::vector<int> order_key(result.units.size(), 0);
+    for (size_t u = 0; u < result.units.size(); ++u) {
+        const auto& utl = result.units[u];
+        order_key[u] =
+            utl.tool_count > 0 ? utl.first_physical_tool : (u > 0 ? order_key[u - 1] : 0);
+    }
+    result.display_order.resize(result.units.size());
+    std::iota(result.display_order.begin(), result.display_order.end(), 0);
+    std::stable_sort(result.display_order.begin(), result.display_order.end(),
+                     [&order_key](int a, int b) { return order_key[a] < order_key[b]; });
 
     // Physical→extruder-name map. Positions no branch could identify stay empty.
     result.physical_to_extruder_name.assign(total_physical, std::string());

@@ -4,7 +4,7 @@
 
 ---
 
-Open the Motion screen by tapping **Motion** on the Controls panel. It has two tabs, **Jog** and **Move**, and always opens on Jog. In landscape the tabs sit in a rail on the left edge of the screen; in portrait they become icon pills in the header. The Jog tab has the circular jog pad with a Z-axis column (plus leveling buttons); the Move tab has a grid of bed positions (see [Move Tab](#move-tab)).
+Open the Motion screen by tapping **Motion** on the Controls panel. It has three tabs, **Jog**, **Move** and **Bed**, and always opens on Jog. In landscape the tabs sit in a rail on the left edge of the screen; in portrait they become icon pills in the header. The Jog tab has the circular jog pad with a Z-axis column (plus leveling buttons); the Move tab has a grid of bed positions (see [Move Tab](#move-tab)); the Bed tab is a map of the plate you tap to send the toolhead there (see [Bed Tab](#bed-tab)). The Z buttons stay on the right on every tab.
 
 ---
 
@@ -63,6 +63,7 @@ Besides the distances, the jog pad's own speed is adjustable. There are two plac
 | **Jog Speed XY** | How fast the toolhead travels on X/Y taps, in mm/s. The slider tops out at what the printer itself allows - its reported maximum feedrates - so you cannot ask for more than the machine will do. If you stored a speed and the printer later reports a lower ceiling (a firmware change, a different printer), the stored choice is kept but applied at the new ceiling. |
 | **Jog Speed Z** | Same, for the Z axis. |
 | **Fine / Coarse / Turbo distances** | The inner- and outer-ring distance for each of the three jog modes. Each distance is tapped in on a keypad; the inner and outer values of a mode cannot cross. |
+| **Bed Map Clearance** | How high the nozzle must be before a [Bed tab](#bed-tab) move travels, 1 to 50 mm (default 5 mm). Below it, the nozzle lifts to this height first. |
 | **Reset Distances** | Puts every distance back to the defaults shown in the table above. Asks for confirmation first. |
 
 ---
@@ -97,6 +98,20 @@ Below the grid are two buttons:
 - **Motors Off** - see [Motors Off](#motors-off) below
 
 Everything on the Move tab is disabled while a print is running or paused, and while the printer isn't ready.
+
+---
+
+## Bed Tab
+
+The **Bed** tab shows the print plate from above, rear edge at the top, with a ringed dot where the toolhead is and faint crosshair lines through it, edge to edge. The readout under the plate shows the head's X, Y and Z. **Tap anywhere on the plate** and the toolhead goes there in X and Y. **Drag** and the toolhead follows your finger, while the readout under the plate shows the X and Y beneath it. The head chases the latest point rather than every point it passed, so on a fast drag it moves in short hops and catches up when you stop. A tap or drag past the edge of the plate goes to the nearest point on it; on a delta printer the plate is drawn round and the nearest point is on its rim.
+
+The map is deliberately coarse. For an exact position, tap a coordinate in the header or use the Move tab.
+
+The plate is the same area the Move tab uses: the probing area from your `[bed_mesh]` config (or the axis travel when there is none), so a tap never sends the head off the plate into a purge bucket or tool dock.
+
+- **Z clearance.** A move keeps the current Z, unless the nozzle is below the **Bed Map Clearance** height ([Motion Settings](#motion-settings), 5 mm by default). Then it first lifts to that height and only then travels, so it never drags across the plate. A drag lifts once, before its first move. The readout warns you before you tap, for example "Z 0.20, will lift to 5mm".
+- **Not homed.** If any axis is not homed, Z included (the lift needs a known height), the plate greys out and the dot is hidden rather than drawn at a guessed spot. The readout says to home first, and the same home button the jog pad has (a house in a yellow ring) sits in the middle of the plate; tap it to home all axes. Tapping the plate instead homes first and then moves.
+- **Printing.** The Bed tab is disabled while a print is running or paused. The plate also greys out while the toolhead is busy and while the printer isn't ready.
 
 ---
 

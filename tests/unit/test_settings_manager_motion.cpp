@@ -117,6 +117,18 @@ TEST_CASE_METHOD(HelixTestFixture, "Z jog speed clamps at both bounds", "[settin
     REQUIRE(s.get_jog_speed_z() == 60000);
 }
 
+TEST_CASE_METHOD(HelixTestFixture, "Bed map clearance defaults to 5mm and clamps",
+                 "[settings_motion]") {
+    auto& s = helix::SettingsManager::instance();
+    s.init_subjects();
+    REQUIRE(s.get_bed_map_clearance_mm() == 5);
+    s.set_bed_map_clearance_mm(0);
+    CHECK(s.get_bed_map_clearance_mm() == helix::BED_MAP_CLEARANCE_MIN_MM);
+    s.set_bed_map_clearance_mm(999);
+    CHECK(s.get_bed_map_clearance_mm() == helix::BED_MAP_CLEARANCE_MAX_MM);
+    s.set_bed_map_clearance_mm(5);
+}
+
 namespace {
 
 // Seeds the config the load path reads, then rebuilds the subject cache the

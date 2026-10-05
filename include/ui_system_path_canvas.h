@@ -177,6 +177,16 @@ void ui_system_path_canvas_set_unit_tools(lv_obj_t* obj, int unit_index, int too
                                           int first_tool);
 
 /**
+ * @brief Mark a unit column as a box that is not on the bus
+ *
+ * An absent unit keeps its column (the card above it stays in place) but
+ * draws no stem, hub or route.
+ */
+namespace helix::ui {
+void ui_system_path_canvas_set_unit_absent(lv_obj_t* obj, int unit_index, bool absent);
+} // namespace helix::ui
+
+/**
  * @brief Set per-unit topology
  *
  * @param obj The system_path_canvas widget

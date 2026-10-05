@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" pt="Aquecedor da Mesa"/>
   <translation tag="Bed Level" pt="Nível da Mesa"/>
   <translation tag="Bed Leveling" pt="Nivelamento da Mesa"/>
+  <translation tag="Bed Map Clearance" pt="Altura de segurança do mapa"/>
   <translation tag="Bed Mesh" pt="Malha da Mesa"/>
   <translation tag="Bed Mesh Complete" pt="Malha da Mesa Concluída"/>
   <translation tag="Bed Mesh Render" pt="Renderização da Malha da Mesa"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" pt="Mesa Nivelada!"/>
   <translation tag="Bed mesh operation timed out" pt="Malha da mesa — tempo esgotado"/>
   <translation tag="Bed mesh..." pt="Malha da mesa..."/>
+  <translation tag="Bed tab moves lift to this height first" pt="Os movimentos da aba Mesa sobem primeiro até esta altura"/>
   <translation tag="Bed target set to {}°C" pt="Mesa configurada para {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" pt="A temperatura da mesa deve ser 0-%d°C"/>
   <translation tag="Bed warming timed out" pt="Aquecimento da mesa — tempo esgotado"/>
@@ -358,6 +360,7 @@
   <translation tag="Buffer Status" pt="Estado do Buffer"/>
   <translation tag="Buffer tube problem" pt="Problema no tubo do buffer"/>
   <translation tag="Build Volume: " pt="Volume de Impressão: "/>
+  <translation tag="Building preview: %d%%" pt="Gerando visualização: %d%%"/>
   <translation tag="Bundle Uploaded" pt="Bundle Enviado"/>
   <translation tag="Busy" pt="Ocupado"/>
   <translation tag="Button taps and navigation sounds" pt="Sons de botões e navegação"/>
@@ -686,6 +689,9 @@
   <translation tag="Copy Command" pt="Copiar Comando"/>
   <translation tag="Copy failed - use SSH manually" pt="Falha ao copiar - use SSH manualmente"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." pt="Copie-o para o perfil do fatiador deste filamento. A impressora não guarda nada."/>
+  <translation tag="Copying from USB" pt="Copiando do USB"/>
+  <translation tag="Copying from USB stopped responding" pt="A cópia do USB parou de responder"/>
+  <translation tag="Copying from USB..." pt="Copiando do USB..."/>
   <translation tag="Corner roundness" pt="Arredondamento dos cantos"/>
   <translation tag="Correction (Ki)" pt="Correção (Ki)"/>
   <translation tag="Could not add to queue" pt="Não foi possível adicionar à fila"/>
@@ -693,6 +699,7 @@
   <translation tag="Could not answer the connection request" pt="Não foi possível responder à solicitação de conexão"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." pt="Não foi possível verificar status da webcam.&#10;Verifique a conexão da impressora."/>
   <translation tag="Could not confirm cancel" pt="Não foi possível confirmar o cancelamento"/>
+  <translation tag="Could not copy {} from USB: {}" pt="Não foi possível copiar {} do USB: {}"/>
   <translation tag="Could not forget device" pt="Não foi possível esquecer o dispositivo"/>
   <translation tag="Could not load printer database" pt="Não foi possível carregar o banco de dados de impressoras"/>
   <translation tag="Could not move the plate" pt="Não foi possível mover a mesa"/>
@@ -1348,6 +1355,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." pt="Mantendo o bico a {}°C para purgar o filamento anterior."/>
   <translation tag="Home" pt="Início"/>
   <translation tag="Home &amp; Continue" pt="Fazer home e continuar"/>
+  <translation tag="Home all axes to use the map" pt="Referencie todos os eixos para usar o mapa"/>
   <translation tag="Home and sweep the cutter to re-find its position" pt="Referencia e varre o cortador para reencontrar sua posição"/>
   <translation tag="Home failed" pt="Homing falhou"/>
   <translation tag="Home printer first?" pt="Fazer home da impressora primeiro?"/>
@@ -1402,6 +1410,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" pt="Ignora o clique que ocorre ao soltar após rolagem"/>
   <translation tag="Import failed: {}" pt="Falha ao importar: {}"/>
   <translation tag="Imported {}" pt="{} importado"/>
+  <translation tag="Importing {}..." pt="Importando {}..."/>
   <translation tag="In Progress" pt="Em Andamento"/>
   <translation tag="Inactive" pt="Inativo"/>
   <translation tag="Include Klipper/Moonraker logs" pt="Incluir logs do Klipper/Moonraker"/>
@@ -3339,6 +3348,7 @@
   <translation tag="Z jog feedrate" pt="Velocidade de movimento do eixo Z"/>
   <translation tag="Z motor calibration failed" pt="Falha na calibração do motor Z"/>
   <translation tag="Z probes for bed leveling and mesh generation" pt="Sondas Z para nivelamento da mesa e geração de malha"/>
+  <translation tag="Z {}, will lift to {}mm" pt="Z {}, subirá para {}mm"/>
   <translation tag="Z-Off:" pt="Z-Offset:"/>
   <translation tag="Z-Offset" pt="Z-Offset"/>
   <translation tag="Z-Offset Calibration" pt="Calibração de Z-Offset"/>

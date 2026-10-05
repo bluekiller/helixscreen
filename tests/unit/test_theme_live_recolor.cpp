@@ -368,10 +368,12 @@ TEST_CASE_METHOD(XMLTestFixture,
   <view extends="lv_obj" width="400" height="200">
     <zone_tab name="sel_tab" label_subject="lr_tab_label" active_subject="lr_tab_active" tab_index="0"
               icon="cursor_move" callback="on_motion_tab_clicked"
-              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"/>
+              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"
+              content_selected_style="zone_tab_on_primary"/>
     <zone_tab name="idle_tab" label_subject="lr_tab_label" active_subject="lr_tab_idle" tab_index="1"
               icon="crosshairs_gps" callback="on_motion_tab_clicked"
-              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"/>
+              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"
+              content_selected_style="zone_tab_on_primary"/>
   </view>
 </component>)";
     REQUIRE(lv_xml_register_component_from_data("lr_motion_tabs", xml) == LV_RESULT_OK);
@@ -382,11 +384,11 @@ TEST_CASE_METHOD(XMLTestFixture,
     REQUIRE(bg_rgb(sel_tab) == hex(theme.dark.primary));
 
     theme_manager_apply_theme(theme, false);
-    // zone_tab_pill_selected sets bg_color="#primary" and no text color, so the
-    // label takes the button's contrast-adjusted text against the new primary.
-    const lv_color_t light_primary = theme_manager_parse_hex_color(theme.light.primary.c_str());
-    const uint32_t want_text = rgb(theme_manager_get_contrast_adjusted_text(
-        theme_manager_parse_hex_color(theme.light.text.c_str()), light_primary));
+    // The selected pill's label is bound to zone_tab_on_primary, so it takes
+    // the new mode's text_on_primary.
+    const char* on_primary = lv_xml_get_const(nullptr, "text_on_primary");
+    REQUIRE(on_primary != nullptr);
+    const uint32_t want_text = rgb(theme_manager_parse_hex_color(on_primary));
     CHECK(bg_rgb(sel_tab) == hex(theme.light.primary));
     CHECK(text_rgb(sel_label) == want_text);
     INFO("light contrast label/pill = " << contrast(text_rgb(sel_label), bg_rgb(sel_tab)));
@@ -395,10 +397,67 @@ TEST_CASE_METHOD(XMLTestFixture,
     // A tab built after the switch takes the pill style as it is now.
     lv_obj_t* fresh = create_component("lr_motion_tabs");
     REQUIRE(fresh != nullptr);
-    CHECK(bg_rgb(named(fresh, "sel_tab")) == hex(theme.light.primary));
-    // TODO: a freshly built selected pill's label keeps the semantic `text`
-    // color, about 1.5:1 on light `primary`; it needs a `text_on_primary` token
-    // in zone_tab_pill_selected before a contrast check can hold here.
+    lv_obj_t* fresh_tab = named(fresh, "sel_tab");
+    CHECK(bg_rgb(fresh_tab) == hex(theme.light.primary));
+    lv_obj_t* fresh_label = named(fresh_tab, "tab_label");
+    INFO(
+        "fresh light contrast label/pill = " << contrast(text_rgb(fresh_label), bg_rgb(fresh_tab)));
+    CHECK(contrast(text_rgb(fresh_label), bg_rgb(fresh_tab)) >= 4.0);
 
     lv_subject_deinit(&label_subject);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "an idle motion rail pill keeps its style's card fill after a switch",
+                 "[theme][xml][motion]") {
+    RestoreTheme restore;
+    const auto theme = helix::get_builtin_fallback_theme();
+    theme_manager_apply_theme(theme, true);
+    ScopedIntSubject idle("lr_pill_idle", 0);
+    lv_subject_t label_subject{};
+    static char label_buf[32];
+    lv_subject_init_string(&label_subject, label_buf, nullptr, sizeof(label_buf), "Bed");
+    lv_xml_register_subject(nullptr, "lr_pill_label", &label_subject);
+    REQUIRE(lv_xml_register_component_from_file("A:ui_xml/components/zone_tab.xml") ==
+            LV_RESULT_OK);
+
+    const char* xml = R"(<component>
+  <view extends="lv_obj" width="400" height="200">
+    <zone_tab name="idle_tab" label_subject="lr_pill_label" active_subject="lr_pill_idle" tab_index="1"
+              icon="crosshairs_gps" callback="on_motion_tab_clicked"
+              selected_style="zone_tab_pill_selected" idle_style="zone_tab_pill_idle"
+              content_selected_style="zone_tab_on_primary"/>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("lr_idle_pill", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_idle_pill");
+    REQUIRE(root != nullptr);
+    lv_obj_t* tab = named(root, "idle_tab");
+    REQUIRE(bg_rgb(tab) == hex(theme.dark.card_bg));
+    REQUIRE(hex(theme.light.card_bg) != hex(theme.light.elevated_bg));
+
+    theme_manager_apply_theme(theme, false);
+    CHECK(bg_rgb(tab) == hex(theme.light.card_bg));
+
+    lv_subject_deinit(&label_subject);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "the palette walker still themes a neutral button's fill",
+                 "[theme][xml]") {
+    const char* xml = R"(<component>
+  <view extends="lv_obj" width="300" height="300">
+    <ui_button name="btn" variant="transparent" text="Cancel"/>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("lr_plain_button", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("lr_plain_button");
+    REQUIRE(root != nullptr);
+    lv_obj_t* btn = named(root, "btn");
+
+    // ThemeManager's shared variant style is not a chosen style: the walker
+    // still gives this gray button the palette's control surface.
+    const uint32_t elevated = const_rgb("elevated_bg");
+    REQUIRE(bg_rgb(btn) != elevated);
+    theme_apply_current_palette_to_tree(root);
+    CHECK(bg_rgb(btn) == elevated);
 }

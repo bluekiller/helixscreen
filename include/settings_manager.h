@@ -49,6 +49,11 @@ enum class ConsoleFilterScope {
     Printer, ///< /printers/<active>/console/filter_user_* — active printer only
 };
 
+/// Range of the Bed-tab clearance setting, in whole mm; shared by the
+/// persisted table and the settings keypad.
+inline constexpr int BED_MAP_CLEARANCE_MIN_MM = 1;
+inline constexpr int BED_MAP_CLEARANCE_MAX_MM = 50;
+
 /**
  * @brief Application settings manager with reactive UI binding
  *
@@ -280,6 +285,17 @@ class SettingsManager {
     /** @brief Motion coordinate source subject (integer: 0=commanded, 1=actual) */
     lv_subject_t* subject_motion_show_actual_position() {
         return settings_.subject(Key::MotionShowActualPosition);
+    }
+
+    /** @brief Height in mm below which a Bed-tab move lifts Z before it
+     *  travels (default 5, range BED_MAP_CLEARANCE_MIN_MM-BED_MAP_CLEARANCE_MAX_MM) */
+    int get_bed_map_clearance_mm() const {
+        return settings_.get(Key::BedMapClearance);
+    }
+
+    /** @brief Set the Bed-tab clearance height in mm (clamped, persisted) */
+    void set_bed_map_clearance_mm(int mm) {
+        settings_.set(Key::BedMapClearance, mm);
     }
 
     // =========================================================================
@@ -770,6 +786,7 @@ class SettingsManager {
         JogSpeedXy,
         JogSpeedZ,
         MotionShowActualPosition,
+        BedMapClearance,
         QidiEjectDistance,
         QidiEjectVelocity,
         ToolheadStyle,

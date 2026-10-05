@@ -325,6 +325,7 @@ translations:
   Bed Heater: Aquecedor da Mesa
   Bed Level: Nível da Mesa
   Bed Leveling: Nivelamento da Mesa
+  Bed Map Clearance: Altura de segurança do mapa
   Bed Mesh: Malha da Mesa
   Bed Mesh Complete: Malha da Mesa Concluída
   Bed Mesh Render: Renderização da Malha da Mesa
@@ -341,6 +342,7 @@ translations:
   Bed is Level!: Mesa Nivelada!
   Bed mesh operation timed out: Malha da mesa — tempo esgotado
   Bed mesh...: Malha da mesa...
+  Bed tab moves lift to this height first: Os movimentos da aba Mesa sobem primeiro até esta altura
   Bed target set to {}°C: Mesa configurada para {}°C
   Bed temp must be 0-%d°C: A temperatura da mesa deve ser 0-%d°C
   Bed warming timed out: Aquecimento da mesa — tempo esgotado
@@ -391,6 +393,7 @@ translations:
   Buffer Status: Estado do Buffer
   Buffer tube problem: Problema no tubo do buffer
   'Build Volume: ': 'Volume de Impressão: '
+  'Building preview: %d%%': 'Gerando visualização: %d%%'
   Bundle Uploaded: Bundle Enviado
   Busy: 'Ocupado'
   Button taps and navigation sounds: Sons de botões e navegação
@@ -770,6 +773,9 @@ translations:
   Copy Command: Copiar Comando
   Copy failed - use SSH manually: Falha ao copiar - use SSH manualmente
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Copie-o para o perfil do fatiador deste filamento. A impressora não guarda nada.'
+  Copying from USB: 'Copiando do USB'
+  Copying from USB stopped responding: 'A cópia do USB parou de responder'
+  Copying from USB...: 'Copiando do USB...'
   Corner roundness: Arredondamento dos cantos
   Correction (Ki): Correção (Ki)
   Could not add to queue: Não foi possível adicionar à fila
@@ -780,6 +786,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Não foi possível verificar status da webcam.\nVerifique a conexão da impressora."
   Could not confirm cancel: Não foi possível confirmar o cancelamento
+  'Could not copy {} from USB: {}': 'Não foi possível copiar {} do USB: {}'
   Could not forget device: Não foi possível esquecer o dispositivo
   Could not load printer database: Não foi possível carregar o banco de dados de impressoras
   Could not move the plate: Não foi possível mover a mesa
@@ -1495,6 +1502,7 @@ translations:
     o filamento anterior.
   Home: Início
   Home & Continue: Fazer home e continuar
+  Home all axes to use the map: Referencie todos os eixos para usar o mapa
   Home and sweep the cutter to re-find its position: Referencia e varre o cortador para reencontrar sua posição
   Home failed: Homing falhou
   Home printer first?: Fazer home da impressora primeiro?
@@ -1559,6 +1567,7 @@ translations:
     ao soltar após rolagem
   'Import failed: {}': 'Falha ao importar: {}'
   Imported {}: '{} importado'
+  Importing {}...: 'Importando {}...'
   In Progress: Em Andamento
   Inactive: Inativo
   Include Klipper/Moonraker logs: Incluir logs do Klipper/Moonraker
@@ -3762,6 +3771,7 @@ translations:
   Z motor calibration failed: Falha na calibração do motor Z
   Z probes for bed leveling and mesh generation: Sondas Z para nivelamento da mesa
     e geração de malha
+  Z {}, will lift to {}mm: 'Z {}, subirá para {}mm'
   'Z-Off:': 'Z-Offset:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Calibração de Z-Offset

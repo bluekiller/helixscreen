@@ -161,6 +161,25 @@ void ProbeSensorManager::discover_from_config(const nlohmann::json& config_keys)
     update_subjects();
 }
 
+namespace {
+
+// Where each probe type publishes the keys this manager reads, per upstream
+// source (table in docs/devel/SENSOR_MANAGEMENT.md). The Cartographer plugin
+// nests last_z_result per mode on its own object; the flat keys live on the
+// probe object it registers.
+const std::string& status_object(const ProbeSensorConfig& probe) {
+    static const std::string probe_object = "probe";
+    return probe.type == ProbeSensorType::CARTOGRAPHER ? probe_object : probe.klipper_name;
+}
+
+// last_query is the result of the last QUERY_PROBE. Beacon publishes none, and
+// probe_eddy_current never sets it because it rejects QUERY_PROBE.
+bool publishes_last_query(ProbeSensorType type) {
+    return type != ProbeSensorType::BEACON && type != ProbeSensorType::EDDY_CURRENT;
+}
+
+} // namespace
+
 void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
     bool any_changed = false;
 
@@ -168,7 +187,7 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
 
         for (const auto& sensor : sensors_) {
-            const std::string& key = sensor.klipper_name;
+            const std::string& key = status_object(sensor);
 
             if (!status.contains(key)) {
                 continue;
@@ -178,24 +197,32 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
             auto& state = states_[sensor.klipper_name];
             ProbeSensorState old_state = state;
 
-            // Update last_z_result
-            if (sensor_data.contains("last_z_result") && sensor_data["last_z_result"].is_number()) {
-                state.last_z_result = sensor_data["last_z_result"].get<float>();
+            // A null or absent field keeps the previous value. Klipper answers a
+            // requested key its module lacks with null, so the configfile-seeded
+            // z_offset survives on mainline, where no probe module publishes it.
+            // The Creality K1/K2 and QIDI forks do, and K1's Z_OFFSET_APPLY_PROBE
+            // changes it live.
+            const auto z = sensor_data.find("last_z_result");
+            if (z != sensor_data.end() && z->is_number()) {
+                state.last_z_result = z->get<float>();
+            }
+            const auto offset = sensor_data.find("z_offset");
+            if (offset != sensor_data.end() && offset->is_number()) {
+                state.z_offset = offset->get<float>();
+            }
+            // Klipper publishes a bool, Cartographer an int.
+            const auto query = sensor_data.find("last_query");
+            if (query != sensor_data.end() && (query->is_boolean() || query->is_number())) {
+                state.triggered = query->is_boolean() ? query->get<bool>() : query->get<int>() != 0;
             }
 
-            // Update z_offset — some probe modules (e.g., flashforge_loadcell)
-            // return null for this field; skip null to preserve the config-seeded value
-            if (sensor_data.contains("z_offset") && sensor_data["z_offset"].is_number()) {
-                state.z_offset = sensor_data["z_offset"].get<float>();
-            }
-
-            // Check for state change
             if (state.last_z_result != old_state.last_z_result ||
-                state.z_offset != old_state.z_offset) {
+                state.triggered != old_state.triggered || state.z_offset != old_state.z_offset) {
                 any_changed = true;
                 spdlog::debug("[ProbeSensorManager] Sensor {} updated: last_z_result={:.3f}mm, "
-                              "z_offset={:.3f}mm",
-                              sensor.sensor_name, state.last_z_result, state.z_offset);
+                              "last_query={}, z_offset={:.3f}mm",
+                              sensor.sensor_name, state.last_z_result, state.triggered,
+                              state.z_offset);
             }
         }
 
@@ -224,10 +251,10 @@ ProbeSensorManager::probes_in(const std::vector<std::string>& klipper_objects) {
         }
     }
 
-    // One physical probe can register several objects: every Klipper probe
-    // module also registers the generic [probe], and Cartographer and Beacon add
-    // a probe_eddy_current companion. Keep the most specific object only, so a
-    // single probe reads as one sensor and is subscribed once.
+    // One physical probe can register several objects: Klipper's probe modules,
+    // Beacon and Cartographer all also register the generic probe object. Keep
+    // the most specific object only, so a single probe reads as one sensor and
+    // is subscribed once. An eddy object beside a named scanner is dropped too.
     const auto has_type = [&probes](ProbeSensorType t) {
         return std::any_of(probes.begin(), probes.end(),
                            [t](const auto& p) { return p.type == t; });
@@ -249,10 +276,12 @@ ProbeSensorManager::probes_in(const std::vector<std::string>& klipper_objects) {
 
 nlohmann::json
 ProbeSensorManager::required_status_objects(const std::vector<std::string>& klipper_objects) {
-    static const nlohmann::json fields = nlohmann::json::array({"last_z_result", "z_offset"});
     nlohmann::json objects = nlohmann::json::object();
     for (const auto& probe : probes_in(klipper_objects)) {
-        objects[probe.klipper_name] = fields;
+        objects[status_object(probe)] =
+            publishes_last_query(probe.type)
+                ? nlohmann::json::array({"last_query", "last_z_result", "z_offset"})
+                : nlohmann::json::array({"last_z_result", "z_offset"});
     }
     return objects;
 }
@@ -700,7 +729,7 @@ void ProbeSensorManager::update_subjects() {
         return config;
     };
 
-    // Get probe triggered value (currently always 0 since triggered comes from query)
+    // Probe triggered value: the last QUERY_PROBE result (last_query)
     auto get_triggered_value = [this, &get_z_probe_config]() -> int {
         const auto* config = get_z_probe_config();
         if (!config) {
@@ -712,8 +741,6 @@ void ProbeSensorManager::update_subjects() {
             return -1; // Sensor unavailable
         }
 
-        // For now, triggered state is not in regular status updates
-        // Return 0 (not triggered) as default when sensor is available
         return it->second.triggered ? 1 : 0;
     };
 

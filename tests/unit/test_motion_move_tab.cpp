@@ -23,6 +23,7 @@
 #include "ui_utils.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "moonraker_api.h"
 #include "moonraker_client_mock.h"
@@ -34,7 +35,9 @@
 #include "theme_manager.h"
 
 #include <array>
+#include <cstdio>
 #include <string>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
@@ -52,6 +55,44 @@ nlohmann::json ready_status(const char* homed_axes) {
         {"gcode_move", {{"gcode_position", {10.0, 10.0, 10.0, 0.0}}}},
     };
 }
+
+/// Holds every absolute move instead of acking it, so a test decides when
+/// (and whether) each one lands: the mock client acks synchronously, which
+/// keeps the coalescer from ever holding anything pending.
+class HoldingMotionAPI : public MoonrakerMotionAPI {
+  public:
+    using MoonrakerMotionAPI::MoonrakerMotionAPI;
+    struct Held {
+        helix::AxisTarget target;
+        SuccessCallback on_success;
+        ErrorCallback on_error;
+    };
+    void move_to(const helix::AxisTarget& target, double, double, SuccessCallback on_success,
+                 ErrorCallback on_error, std::optional<double>) override {
+        held.push_back({target, std::move(on_success), std::move(on_error)});
+    }
+    void move_relative(double, double, double dz, double, double, SuccessCallback on_success,
+                       ErrorCallback on_error) override {
+        held_relative.push_back({dz, std::move(on_success), std::move(on_error)});
+    }
+    struct HeldRelative {
+        double dz;
+        SuccessCallback on_success;
+        ErrorCallback on_error;
+    };
+    std::vector<Held> held;
+    std::vector<HeldRelative> held_relative;
+};
+
+class HoldingAPI : public MoonrakerAPI {
+  public:
+    HoldingAPI(helix::IMoonrakerClient& client, helix::PrinterState& state)
+        : MoonrakerAPI(client, state), holding_(client, state, get_safety_limits()) {}
+    MoonrakerMotionAPI& motion() override {
+        return holding_;
+    }
+    HoldingMotionAPI holding_;
+};
 
 class MoveTabFixture : public LVGLUITestFixture {
   public:
@@ -164,6 +205,27 @@ TEST_CASE_METHOD(MoveTabFixture, "the tab rail renders filled pills", "[motion][
     const auto& palette = ThemeManager::instance().current_palette();
     CHECK(lv_color_eq(lv_obj_get_style_bg_color(active, LV_PART_MAIN), palette.primary));
     CHECK(lv_color_eq(lv_obj_get_style_bg_color(idle, LV_PART_MAIN), palette.card_bg));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "the selected tab pill's icon and label read on its fill",
+                 "[motion][move-tab][xml]") {
+    // Light mode pairs dark #text with a dark #primary, so the pill only reads
+    // when its content takes the contrast colour.
+    REQUIRE_FALSE(theme_manager_is_dark_mode());
+    for (const char* strip : {"motion_tab_rail", "header_tabs"}) {
+        INFO(strip);
+        lv_obj_t* active = lv_obj_get_child(panel_widget(strip), 0);
+        REQUIRE(active != nullptr);
+        const lv_color_t fill = lv_obj_get_style_bg_color(active, LV_PART_MAIN);
+        REQUIRE(lv_color_eq(fill, ThemeManager::instance().current_palette().primary));
+        for (const char* part : {"tab_icon", "tab_label"}) {
+            INFO(part);
+            lv_obj_t* obj = lv_obj_find_by_name(active, part);
+            REQUIRE(obj != nullptr);
+            CHECK(helix::contrast_ratio(lv_obj_get_style_text_color(obj, LV_PART_MAIN), fill) >=
+                  kThemeTextContrastThreshold);
+        }
+    }
 }
 
 TEST_CASE_METHOD(MoveTabFixture, "homed preset tap sends one absolute move", "[motion][move-tab]") {
@@ -363,4 +425,575 @@ TEST_CASE_METHOD(MoveTabFixture,
     panel.init_subjects();
 
     CHECK(panel.are_subjects_initialized());
+}
+
+namespace {
+
+/// A point far outside the Bed tab's surface on the given side: every touch
+/// there clamps to the plate's edge, so the target does not depend on the
+/// test screen's size.
+lv_point_t far_point(lv_obj_t* area, bool right, bool bottom) {
+    lv_area_t c;
+    lv_obj_get_coords(area, &c);
+    return {right ? c.x2 + 1000 : c.x1 - 1000, bottom ? c.y2 + 1000 : c.y1 - 1000};
+}
+
+void bed_tap(lv_obj_t* area, lv_point_t at) {
+    auto& panel = get_global_motion_panel();
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, at);
+    panel.handle_bed_touch(helix::BedTouch::Released, area, at);
+    MoveTabFixture::drain();
+}
+
+/// Script entries that travel in XY.
+size_t xy_moves(const MoonrakerClientMock& client) {
+    size_t n = 0;
+    for (const auto& script : client.gcode_script_history()) {
+        if (script.find("G0 X") != std::string::npos) {
+            ++n;
+        }
+    }
+    return n;
+}
+
+std::string bed_readout() {
+    return lv_subject_get_string(lv_xml_get_subject(nullptr, "motion_bed_readout"));
+}
+
+/// At rest the readout shows no drag target (the header carries the position).
+bool readout_at_rest() {
+    return bed_readout().find("X ") == std::string::npos;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: the plate fits its slot and the pills show",
+                 "[motion][bed-tab][xml]") {
+    CHECK(lv_obj_has_flag(panel_widget("bed_tab"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(panel_widget("motion_tab_bed"), LV_OBJ_FLAG_HIDDEN));
+
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    CHECK_FALSE(lv_obj_has_flag(panel_widget("bed_tab"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(panel_widget("move_tab"), LV_OBJ_FLAG_HIDDEN));
+
+    // 235x235 travel: a square plate inside the surface.
+    lv_obj_t* area = panel_widget("bed_map_area");
+    lv_obj_t* plate = panel_widget("bed_map_plate");
+    const int32_t w = lv_obj_get_width(plate);
+    REQUIRE(w > 0);
+    CHECK(std::abs(w - lv_obj_get_height(plate)) <= 1);
+    CHECK(w <= lv_obj_get_width(area));
+    CHECK(lv_obj_get_height(plate) <= lv_obj_get_height(area));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a tap commits one move clamped to the plate",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    bed_tap(area, far_point(area, false, false));
+
+    const std::string scripts = all_scripts();
+    INFO(scripts);
+    // Rear-left corner, inset by the clamp's edge margin; Z 10 needs no lift.
+    CHECK(scripts.find("G0 X0.02 Y234.9") != std::string::npos);
+    CHECK(scripts.find('Z') == std::string::npos);
+    CHECK(xy_moves(client_) == 1);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a tap lands on the point drawn under it",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_area_t plate;
+    lv_obj_get_coords(panel_widget("bed_map_plate"), &plate);
+
+    bed_tap(panel_widget("bed_map_area"), {(plate.x1 + plate.x2) / 2, (plate.y1 + plate.y2) / 2});
+
+    double x = 0.0;
+    double y = 0.0;
+    for (const auto& script : client_.gcode_script_history()) {
+        if (const auto at = script.find("G0 X"); at != std::string::npos) {
+            REQUIRE(std::sscanf(script.c_str() + at, "G0 X%lf Y%lf", &x, &y) == 2);
+        }
+    }
+    // The middle of the drawn plate is the middle of the 235x235 bed, give or
+    // take a pixel of rounding.
+    CHECK(x == Catch::Approx(117.5).margin(1.5));
+    CHECK(y == Catch::Approx(117.5).margin(1.5));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: the head follows a drag and release adds nothing new",
+                 "[motion][bed-tab]") {
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    drain();
+    // Rear-right is under the finger, on screen and already on its way.
+    CHECK(bed_readout().find("X 235.0  Y 235.0") != std::string::npos);
+    CHECK(xy_moves(client_) == 1);
+
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    // The finger resting there repeats PRESSING; it sends nothing more.
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    drain();
+    CHECK(bed_readout().find("X 235.0  Y 0.0") != std::string::npos);
+    INFO(all_scripts());
+    CHECK(xy_moves(client_) == 2);
+    CHECK(all_scripts().find(" Y0.02 ") != std::string::npos);
+
+    // Released where the last target already went: no third move.
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    drain();
+    CHECK(xy_moves(client_) == 2);
+    CHECK(readout_at_rest());
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: release past the last streamed point sends it",
+                 "[motion][bed-tab]") {
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    drain();
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    drain();
+    INFO(all_scripts());
+    CHECK(xy_moves(client_) == 2);
+    CHECK(all_scripts().find(" Y0.02 ") != std::string::npos);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag from below clearance lifts first, to one height",
+                 "[motion][bed-tab]") {
+    auto& ps = get_printer_state();
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    ps.update_from_status({{"gcode_move", {{"gcode_position", {10.0, 10.0, 0.2, 0.0}}}}});
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    drain();
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    drain();
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, false, true));
+    drain();
+
+    // Every move of the gesture carries the one lift height decided at its
+    // start, so a coalesced replacement can never drop it; the mock acks
+    // without moving the commanded Z, which a per-move decision would misread.
+    const std::string scripts = all_scripts();
+    INFO(scripts);
+    CHECK(xy_moves(client_) == 3);
+    const auto lift = scripts.find("G0 Z5");
+    REQUIRE(lift != std::string::npos);
+    CHECK(lift < scripts.find("G0 X"));
+    size_t z_lines = 0;
+    for (size_t at = scripts.find("G0 Z"); at != std::string::npos;
+         at = scripts.find("G0 Z", at + 1)) {
+        CHECK(scripts.compare(at, 6, "G0 Z5 ") == 0);
+        ++z_lines;
+    }
+    CHECK(z_lines == 3);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: below clearance the lift is announced, then done first",
+                 "[motion][bed-tab]") {
+    auto& ps = get_printer_state();
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    CHECK(bed_readout().find("lift") == std::string::npos);
+
+    ps.update_from_status({{"gcode_move", {{"gcode_position", {10.0, 10.0, 0.2, 0.0}}}}});
+    drain();
+    // Announced before anything is tapped.
+    CHECK(bed_readout().find("Z 0.20, will lift to 5mm") != std::string::npos);
+    CHECK(client_.gcode_script_history().empty());
+
+    lv_obj_t* area = panel_widget("bed_map_area");
+    bed_tap(area, far_point(area, true, true));
+
+    const std::string scripts = all_scripts();
+    const auto lift = scripts.find("G0 Z5");
+    INFO(scripts);
+    const auto travel = scripts.find("G0 X234.9");
+    REQUIRE(lift != std::string::npos);
+    REQUIRE(travel != std::string::npos);
+    CHECK(lift < travel);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: unhomed hides the marker and offers Home",
+                 "[motion][bed-tab]") {
+    auto& ps = get_printer_state();
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* marker = panel_widget("bed_map_marker");
+    lv_obj_t* home = panel_widget("bed_map_home");
+    CHECK_FALSE(lv_obj_has_flag(marker, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN));
+
+    ps.update_from_status(ready_status("z"));
+    drain();
+    CHECK(lv_obj_has_flag(marker, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN));
+
+    click(home);
+    CHECK(all_scripts().find("G28") != std::string::npos);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a print disables the tab and the plate",
+                 "[motion][bed-tab]") {
+    auto& ps = get_printer_state();
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* pill = panel_widget("motion_tab_bed");
+    lv_obj_t* area = panel_widget("bed_map_area");
+    CHECK_FALSE(lv_obj_has_state(pill, LV_STATE_DISABLED));
+
+    ps.update_from_status({{"print_stats", {{"state", "printing"}}}});
+    drain();
+    CHECK(lv_obj_has_state(pill, LV_STATE_DISABLED));
+    CHECK(lv_obj_has_state(panel_widget("header_tab_bed"), LV_STATE_DISABLED));
+    CHECK(lv_obj_has_state(area, LV_STATE_DISABLED));
+
+    // The backstop: a touch delivered anyway moves nothing.
+    bed_tap(area, far_point(area, false, false));
+    CHECK(all_scripts().empty());
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a tap on an unhomed plate homes, then moves",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    get_printer_state().update_from_status(ready_status(""));
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    bed_tap(area, far_point(area, false, false));
+
+    const std::string scripts = all_scripts();
+    INFO(scripts);
+    const auto home = scripts.find("G28");
+    const auto travel = scripts.find("G0 X0.02");
+    REQUIRE(home != std::string::npos);
+    REQUIRE(travel != std::string::npos);
+    CHECK(home < travel);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: each tap is its own gesture, even on the same spot",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    bed_tap(area, far_point(area, false, false));
+    bed_tap(area, far_point(area, false, false));
+
+    INFO(all_scripts());
+    CHECK(xy_moves(client_) == 2);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: the XML wires a real pointer drag to the panel",
+                 "[motion][bed-tab][xml]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+    lv_area_t c;
+    lv_obj_get_coords(area, &c);
+    UITest::init(lv_screen_active());
+
+    // Through LVGL's own input pipeline: a misspelled trigger or callback name
+    // in motion_bed_map.xml leaves this drag moving nothing.
+    UITest::press_at(c.x1 + 2, c.y1 + 2);
+    UITest::press_at((c.x1 + c.x2) / 2, (c.y1 + c.y2) / 2);
+    drain();
+    CHECK(bed_readout().find("X ") != std::string::npos);
+    UITest::press_at(c.x2 - 2, c.y2 - 2);
+    UITest::release();
+    drain();
+    UITest::cleanup();
+
+    INFO(all_scripts());
+    CHECK(xy_moves(client_) >= 2);
+    CHECK(all_scripts().find(" Y0.02 ") != std::string::npos);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: the surface stays live while the toolhead reports busy",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    // idle_timeout reads Printing during any move, the drag's own included; a
+    // surface disabled by it stops receiving the drag that caused it.
+    get_printer_state().update_from_status({{"idle_timeout", {{"state", "Printing"}}}});
+    drain();
+    CHECK_FALSE(lv_obj_has_state(area, LV_STATE_DISABLED));
+    get_printer_state().update_from_status({{"idle_timeout", {{"state", "Ready"}}}});
+    drain();
+}
+
+TEST_CASE_METHOD(MoveTabFixture,
+                 "bed tab: no gesture starts while another operation holds the head",
+                 "[motion][bed-tab]") {
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    // A manual probe session holds the head absolutely: no recent app motion
+    // can excuse it the way it excuses idle_timeout.
+    lv_subject_t* probe = get_printer_state().get_manual_probe_active_subject();
+    lv_subject_set_int(probe, 1);
+    REQUIRE(get_printer_state().is_external_blocking_operation_active());
+    auto& panel = get_global_motion_panel();
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    drain();
+    // The finger is not tracked at all: no target under it, nothing sent.
+    CHECK(bed_readout().empty());
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    lv_subject_set_int(probe, 0);
+    drain();
+
+    CHECK(xy_moves(client_) == 0);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a drag sample replacing a pending one keeps the lift",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& moves = held_api.holding_.held;
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 0.2, 0.0}}}}});
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    REQUIRE(moves.size() == 1); // in flight, carrying the lift
+    REQUIRE(moves[0].target.z.has_value());
+    // Two more samples while it is in flight: the second replaces the first
+    // pending one wholesale.
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, false, true));
+    REQUIRE(moves.size() == 1);
+
+    moves[0].on_success();
+    drain();
+    REQUIRE(moves.size() == 2);
+    // The flushed target is the latest sample, still at the gesture's lift Z.
+    CHECK(moves[1].target.x == Catch::Approx(0.02));
+    REQUIRE(moves[1].target.z.has_value());
+    CHECK(*moves[1].target.z == Catch::Approx(*moves[0].target.z));
+
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, false, true));
+    set_moonraker_api(&api_);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: Z unhomed counts as unhomed, like Park",
+                 "[motion][bed-tab]") {
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    get_printer_state().update_from_status(ready_status("xy"));
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+    // With Z unknown no lift can be computed, so the map offers homing first.
+    CHECK(lv_obj_has_flag(panel_widget("bed_map_marker"), LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(panel_widget("bed_map_home"), LV_OBJ_FLAG_HIDDEN));
+
+    // A drag streams nothing; release homes, then moves.
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    drain();
+    CHECK(client_.gcode_script_history().empty());
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    drain();
+
+    const std::string scripts = all_scripts();
+    INFO(scripts);
+    const auto home = scripts.find("G28");
+    REQUIRE(home != std::string::npos);
+    REQUIRE(scripts.find("G0 X234.9") != std::string::npos);
+    CHECK(home < scripts.find("G0 X234.9"));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: a refused move ends the stream for that gesture",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& moves = held_api.holding_.held;
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    REQUIRE(moves.size() == 1);
+    MoonrakerError err;
+    err.message = "Move out of range";
+    moves[0].on_error(err);
+    drain();
+
+    // Every later sample would be refused the same way, one toast each.
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, true));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, false, true));
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, false, true));
+    drain();
+    CHECK(moves.size() == 1);
+
+    // The next gesture starts clean.
+    bed_tap(area, far_point(area, true, true));
+    CHECK(moves.size() == 2);
+    set_moonraker_api(&api_);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: leaving the panel ends the gesture in progress",
+                 "[motion][bed-tab]") {
+    auto& panel = get_global_motion_panel();
+    panel.set_motion_tab(2);
+    drain();
+    lv_obj_t* area = panel_widget("bed_map_area");
+
+    panel.handle_bed_touch(helix::BedTouch::Pressed, area, far_point(area, false, false));
+    panel.handle_bed_touch(helix::BedTouch::Pressing, area, far_point(area, true, false));
+    drain();
+    REQUIRE(xy_moves(client_) == 1);
+    REQUIRE(bed_readout().find("X ") != std::string::npos);
+
+    panel.on_deactivating(DeactivateReason::NavigateAway);
+    drain();
+    CHECK(readout_at_rest());
+
+    // A release the panel never saw the press for moves nothing.
+    panel.handle_bed_touch(helix::BedTouch::Released, area, far_point(area, true, true));
+    drain();
+    CHECK(xy_moves(client_) == 1);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "motion: a Z frame landing before its ack is not counted twice",
+                 "[motion][bed-tab]") {
+    HoldingAPI held_api{client_, get_printer_state()};
+    set_moonraker_api(&held_api);
+    auto& motion = held_api.holding_;
+    auto& panel = get_global_motion_panel();
+    panel.set_jog_mode(helix::JogMode::Coarse);
+    panel.set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 12.0, 0.0}}}}});
+    drain();
+
+    // Z down 10. Klipper can report the new position before acking the G0
+    // (a move that waits on a full lookahead buffer), so the frame comes first.
+    REQUIRE(panel.handle_z_button("z_down_large"));
+    REQUIRE(motion.held_relative.size() == 1);
+    REQUIRE(motion.held_relative[0].dz == Catch::Approx(-10.0));
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {10.0, 10.0, 2.0, 0.0}}}}});
+    drain();
+    motion.held_relative[0].on_success();
+    drain();
+
+    // The head is at 2: the readout and every lift start from there.
+    CHECK(bed_readout().find("Z 2.00, will lift to 5mm") != std::string::npos);
+    panel.park_over_plate(/*lift_z=*/true);
+    REQUIRE(motion.held.size() == 1);
+    REQUIRE(motion.held[0].target.z.has_value());
+    CHECK(*motion.held[0].target.z == Catch::Approx(12.0));
+    set_moonraker_api(&api_);
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: at rest the readout repeats no position",
+                 "[motion][bed-tab]") {
+    auto& ps = get_printer_state();
+    get_global_motion_panel().set_motion_tab(2);
+    drain();
+    // The header shows where the head is; above clearance there is nothing to say.
+    CHECK(bed_readout().empty());
+    // The empty label still holds its line, so the plate does not jump.
+    lv_obj_update_layout(lv_screen_active());
+    CHECK(lv_obj_get_height(panel_widget("bed_map_readout")) > 0);
+
+    ps.update_from_status({{"gcode_move", {{"gcode_position", {158.6, 104.0, 0.2, 0.0}}}}});
+    drain();
+    CHECK(bed_readout() == "Z 0.20, will lift to 5mm");
+
+    ps.update_from_status(ready_status("xy"));
+    drain();
+    CHECK(bed_readout() == "Home all axes to use the map");
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: crosshair guides cross the plate through the marker",
+                 "[motion][bed-tab][xml]") {
+    get_global_motion_panel().set_motion_tab(2);
+    get_printer_state().update_from_status(
+        {{"gcode_move", {{"gcode_position", {60.0, 150.0, 10.0, 0.0}}}}});
+    drain();
+    lv_obj_update_layout(lv_screen_active());
+    lv_area_t marker;
+    lv_area_t plate;
+    lv_area_t vertical;
+    lv_area_t horizontal;
+    lv_obj_get_coords(panel_widget("bed_map_marker"), &marker);
+    lv_obj_get_content_coords(panel_widget("bed_map_plate"), &plate);
+    lv_obj_t* guide_x = panel_widget("bed_map_guide_x");
+    lv_obj_t* guide_y = panel_widget("bed_map_guide_y");
+    lv_obj_get_coords(guide_x, &vertical);
+    lv_obj_get_coords(guide_y, &horizontal);
+
+    // Through the marker's centre...
+    CHECK(std::abs((vertical.x1 + vertical.x2) / 2 - (marker.x1 + marker.x2) / 2) <= 1);
+    CHECK(std::abs((horizontal.y1 + horizontal.y2) / 2 - (marker.y1 + marker.y2) / 2) <= 1);
+    // ...edge to edge across the plate, and no further.
+    CHECK(std::abs(vertical.y1 - plate.y1) <= 1);
+    CHECK(std::abs(vertical.y2 - plate.y2) <= 1);
+    CHECK(std::abs(horizontal.x1 - plate.x1) <= 1);
+    CHECK(std::abs(horizontal.x2 - plate.x2) <= 1);
+
+    get_printer_state().update_from_status(ready_status(""));
+    drain();
+    CHECK(lv_obj_has_flag(guide_x, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(guide_y, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "bed tab: unhomed shows the jog pad's warning home button",
+                 "[motion][bed-tab][xml]") {
+    get_global_motion_panel().set_motion_tab(2);
+    get_printer_state().update_from_status(ready_status(""));
+    drain();
+    lv_obj_t* home = panel_widget("bed_map_home");
+    REQUIRE_FALSE(lv_obj_has_flag(home, LV_OBJ_FLAG_HIDDEN));
+    const auto& palette = ThemeManager::instance().current_palette();
+    CHECK(lv_color_eq(lv_obj_get_style_border_color(home, LV_PART_MAIN), palette.warning));
+    CHECK(lv_color_eq(lv_obj_get_style_bg_color(home, LV_PART_MAIN), palette.elevated_bg));
+    CHECK(lv_obj_get_style_border_width(home, LV_PART_MAIN) == 3);
+    CHECK(lv_obj_get_width(home) == lv_obj_get_height(home));
+}
+
+TEST_CASE_METHOD(MoveTabFixture, "motion: the header title stays on one line",
+                 "[motion][move-tab][xml]") {
+    // Squeezed by the coordinates, a wrapping title broke mid-word ("MOTI" /
+    // "ON"); clip measures it unwrapped, so it keeps one line at any width.
+    lv_obj_t* title = panel_widget("header_title");
+    CHECK(lv_label_get_long_mode(title) == LV_LABEL_LONG_MODE_CLIP);
+    lv_obj_set_width(title, 20);
+    lv_obj_update_layout(title);
+    CHECK(lv_obj_get_height(title) ==
+          lv_font_get_line_height(lv_obj_get_style_text_font(title, LV_PART_MAIN)));
 }

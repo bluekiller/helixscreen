@@ -11,6 +11,25 @@
     <px name="motion_z_col_w_small" value="64"/>
     <px name="motion_z_col_w_medium" value="64"/>
     <px name="motion_z_col_w_large" value="64"/>
+    <!-- Bed tab toolhead marker diameter (components/motion_bed_map.xml). -->
+    <px name="bed_map_marker_size_micro" value="10"/>
+    <px name="bed_map_marker_size_tiny" value="12"/>
+    <px name="bed_map_marker_size_small" value="14"/>
+    <px name="bed_map_marker_size_medium" value="16"/>
+    <px name="bed_map_marker_size_large" value="20"/>
+    <!-- The marker's radius: the plate sits this far inside its surface so a
+         toolhead at the plate's edge draws its whole marker. -->
+    <px name="bed_map_inset_micro" value="5"/>
+    <px name="bed_map_inset_tiny" value="6"/>
+    <px name="bed_map_inset_small" value="7"/>
+    <px name="bed_map_inset_medium" value="8"/>
+    <px name="bed_map_inset_large" value="10"/>
+    <!-- Bed tab unhomed home button, near the jog pad's centre zone. -->
+    <px name="bed_map_home_size_micro" value="44"/>
+    <px name="bed_map_home_size_tiny" value="52"/>
+    <px name="bed_map_home_size_small" value="60"/>
+    <px name="bed_map_home_size_medium" value="72"/>
+    <px name="bed_map_home_size_large" value="88"/>
   </consts>
   <!-- Motion Sub-Screen: XYZ Movement & Homing -->
   <!-- Coordinates live in the header slot on landscape screens and in a slim
@@ -64,16 +83,17 @@
           <zone_tab label_subject="motion_tab_label_0"
                     active_subject="motion_tab_active_0" tab_index="0" icon="cursor_move" hide_label="true"
                     ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle"/>
+                    content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
           <zone_tab label_subject="motion_tab_label_1"
                     active_subject="motion_tab_active_1" tab_index="1" icon="crosshairs_gps" hide_label="true"
                     ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle"/>
-          <!-- The Bed tab arrives with its content in a later step. -->
-          <zone_tab label_subject="motion_tab_label_2"
-                    active_subject="motion_tab_active_2" tab_index="2" icon="grid_large" hide_label="true"
-                    ext_click_area="6" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                    idle_style="zone_tab_pill_idle" hidden="true"/>
+                    content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
+          <!-- The Bed tab is disabled while anything holds the machine (a print). -->
+          <zone_tab name="header_tab_bed"
+                    label_subject="motion_tab_label_2" active_subject="motion_tab_active_2" tab_index="2"
+                    icon="grid_large" hide_label="true" ext_click_area="6" callback="on_motion_tab_clicked"
+                    selected_style="zone_tab_pill_selected" content_selected_style="zone_tab_on_primary"
+                    idle_style="zone_tab_pill_idle" moves_machine="true"/>
         </lv_obj>
         <lv_obj name="header_coords"
                 width="content" height="100%" style_pad_all="0" style_pad_left="#space_sm" style_bg_opa="0"
@@ -83,7 +103,7 @@
           <lv_obj name="header_pos_x_group"
                   width="content" height="100%" clickable="true" style_pad_all="0" style_bg_opa="0"
                   style_border_width="0" scrollable="false" flex_flow="row" style_pad_gap="#space_xs"
-                  style_flex_cross_place="center">
+                  style_flex_cross_place="center" style_flex_track_place="center">
             <event_cb trigger="clicked" callback="on_motion_pos_clicked" user_data="x"/>
             <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
             <lv_label name="header_pos_x_letter" text="X" style_text_font="#font_body_bold">
@@ -98,7 +118,7 @@
           <lv_obj name="header_pos_y_group"
                   width="content" height="100%" clickable="true" style_pad_all="0" style_bg_opa="0"
                   style_border_width="0" scrollable="false" flex_flow="row" style_pad_gap="#space_xs"
-                  style_flex_cross_place="center">
+                  style_flex_cross_place="center" style_flex_track_place="center">
             <event_cb trigger="clicked" callback="on_motion_pos_clicked" user_data="y"/>
             <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
             <lv_label name="header_pos_y_letter" text="Y" style_text_font="#font_body_bold">
@@ -113,7 +133,7 @@
           <lv_obj name="header_pos_z_group"
                   width="content" height="100%" clickable="true" style_pad_all="0" style_bg_opa="0"
                   style_border_width="0" scrollable="false" flex_flow="row" style_pad_gap="#space_xs"
-                  style_flex_cross_place="center">
+                  style_flex_cross_place="center" style_flex_track_place="center">
             <event_cb trigger="clicked" callback="on_motion_pos_clicked" user_data="z"/>
             <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
             <lv_label name="header_pos_z_letter" text="Z" style_text_font="#font_body_bold">
@@ -128,19 +148,23 @@
           <lv_obj name="header_pos_swap"
                   width="content" height="#icon_button_size" style_min_width="#icon_button_size" clickable="true"
                   style_pad_all="0" style_pad_gap="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false"
-                  flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center">
+                  flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center"
+                  style_flex_track_place="center">
             <event_cb trigger="clicked" callback="on_motion_swap_coords_clicked"/>
             <icon src="swap_horizontal" size="xs">
               <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
               <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
             </icon>
+            <!-- At small the title, three 3-digit coordinates and this label do
+                 not fit one header line; the icon alone (tinted while showing
+                 actual) carries the toggle there, so the title keeps its room. -->
             <lv_label name="header_pos_swap_target" text="Target" translation_tag="Target" style_text_font="#font_small">
               <bind_style name="coords_swap_commanded" subject="settings_motion_show_actual_position" ref_value="0"/>
-              <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="1"/>
+              <bind_flag_if cond="settings_motion_show_actual_position eq 1 or ui_breakpoint eq 2" flag="hidden"/>
             </lv_label>
             <lv_label name="header_pos_swap_actual" text="Actual" translation_tag="Actual" style_text_font="#font_small">
               <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
-              <bind_flag_if_eq subject="settings_motion_show_actual_position" flag="hidden" ref_value="0"/>
+              <bind_flag_if cond="settings_motion_show_actual_position eq 0 or ui_breakpoint eq 2" flag="hidden"/>
             </lv_label>
           </lv_obj>
         </lv_obj>
@@ -160,7 +184,7 @@
         <lv_obj name="row_pos_x_group"
                 width="content" height="content" style_min_height="#icon_button_size" clickable="true"
                 style_pad_all="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false" flex_flow="row"
-                style_pad_gap="#space_xs" style_flex_cross_place="center">
+                style_pad_gap="#space_xs" style_flex_cross_place="center" style_flex_track_place="center">
           <event_cb trigger="clicked" callback="on_motion_pos_clicked" user_data="x"/>
           <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
           <lv_label name="row_pos_x_letter" text="X" style_text_font="#font_body_bold">
@@ -175,7 +199,7 @@
         <lv_obj name="row_pos_y_group"
                 width="content" height="content" style_min_height="#icon_button_size" clickable="true"
                 style_pad_all="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false" flex_flow="row"
-                style_pad_gap="#space_xs" style_flex_cross_place="center">
+                style_pad_gap="#space_xs" style_flex_cross_place="center" style_flex_track_place="center">
           <event_cb trigger="clicked" callback="on_motion_pos_clicked" user_data="y"/>
           <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
           <lv_label name="row_pos_y_letter" text="Y" style_text_font="#font_body_bold">
@@ -190,7 +214,7 @@
         <lv_obj name="row_pos_z_group"
                 width="content" height="content" style_min_height="#icon_button_size" clickable="true"
                 style_pad_all="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false" flex_flow="row"
-                style_pad_gap="#space_xs" style_flex_cross_place="center">
+                style_pad_gap="#space_xs" style_flex_cross_place="center" style_flex_track_place="center">
           <event_cb trigger="clicked" callback="on_motion_pos_clicked" user_data="z"/>
           <bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
           <lv_label name="row_pos_z_letter" text="Z" style_text_font="#font_body_bold">
@@ -205,7 +229,8 @@
         <lv_obj name="row_pos_swap"
                 width="content" height="#icon_button_size" style_min_width="#icon_button_size" clickable="true"
                 style_pad_all="0" style_pad_gap="#space_xs" style_bg_opa="0" style_border_width="0" scrollable="false"
-                flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center">
+                flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center"
+                style_flex_track_place="center">
           <event_cb trigger="clicked" callback="on_motion_swap_coords_clicked"/>
           <icon src="swap_horizontal" size="xs">
             <bind_style name="coords_swap_actual" subject="settings_motion_show_actual_position" ref_value="1"/>
@@ -232,7 +257,8 @@
              gets the rest; the pad is the largest square its wrapper allows
              (clamped in MotionPanel::setup_jog_pad), so a width-bound wrapper
              leaves no dead band beside the circle. On the Move tab the preset
-             grid takes the wrapper's slot; the Z column stays on every tab. -->
+             grid, on the Bed tab the plate map, takes the wrapper's slot; the Z
+             column stays on every tab. -->
         <lv_obj name="pad_row"
                 width="100%" height="0" flex_grow="1" style_pad_all="0" style_border_opa="0" scrollable="false"
                 flex_flow="row" style_pad_gap="#space_sm">
@@ -247,6 +273,11 @@
                   width="0" height="100%" flex_grow="3" style_pad_all="0" style_border_opa="0" scrollable="false">
             <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="1"/>
             <move_preset_grid actions="false"/>
+          </lv_obj>
+          <lv_obj name="bed_tab"
+                  width="0" height="100%" flex_grow="3" style_pad_all="0" style_border_opa="0" scrollable="false">
+            <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="2"/>
+            <motion_bed_map/>
           </lv_obj>
           <!-- The landscape Z column stood on its side: same bindings (arrow
                icons, mm step labels, the kinematics-aware axis label),
@@ -382,17 +413,17 @@
             <zone_tab label_subject="motion_tab_label_0"
                       active_subject="motion_tab_active_0" tab_index="0" icon="cursor_move" layout="column"
                       cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle"/>
+                      content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
             <zone_tab label_subject="motion_tab_label_1"
                       active_subject="motion_tab_active_1" tab_index="1" icon="crosshairs_gps" layout="column"
                       cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle"/>
-            <!-- The Bed tab arrives with its content in a later step; its pill
-                 stays out of the rail until then. -->
-            <zone_tab label_subject="motion_tab_label_2"
-                      active_subject="motion_tab_active_2" tab_index="2" icon="grid_large" layout="column"
-                      cross_place="center" callback="on_motion_tab_clicked" selected_style="zone_tab_pill_selected"
-                      idle_style="zone_tab_pill_idle" hidden="true"/>
+                      content_selected_style="zone_tab_on_primary" idle_style="zone_tab_pill_idle"/>
+            <!-- The Bed tab is disabled while anything holds the machine (a print). -->
+            <zone_tab name="motion_tab_bed"
+                      label_subject="motion_tab_label_2" active_subject="motion_tab_active_2" tab_index="2"
+                      icon="grid_large" layout="column" cross_place="center" callback="on_motion_tab_clicked"
+                      selected_style="zone_tab_pill_selected" content_selected_style="zone_tab_on_primary"
+                      idle_style="zone_tab_pill_idle" moves_machine="true"/>
           </lv_obj>
           <lv_obj name="tab_content"
                   width="0" height="100%" flex_grow="1" style_pad_all="0" scrollable="false" style_border_opa="0"
@@ -420,10 +451,10 @@
               <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="1"/>
               <move_preset_grid/>
             </lv_obj>
-            <!-- Bed tab content arrives in a later step; the container and its
-                 visibility binding are the seam it plugs into. -->
+            <!-- Bed tab: the plate map takes the same slot. -->
             <lv_obj name="bed_tab" width="100%" flex_grow="1" style_pad_all="0" style_border_opa="0" scrollable="false">
               <bind_flag_if_not_eq subject="motion_tab" flag="hidden" ref_value="2"/>
+              <motion_bed_map/>
             </lv_obj>
             <!-- Fine/Coarse/Turbo jog mode toggle -->
             <lv_obj width="100%"

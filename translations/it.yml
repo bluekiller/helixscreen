@@ -326,6 +326,7 @@ translations:
   Bed Heater: Riscaldatore piano
   Bed Level: Livellamento piano
   Bed Leveling: Livellamento piano
+  Bed Map Clearance: Altezza di sicurezza mappa
   Bed Mesh: Mesh piano
   Bed Mesh Complete: Mesh piano completata
   Bed Mesh Render: Rendering mesh piano
@@ -342,6 +343,7 @@ translations:
   Bed is Level!: Piano livellato!
   Bed mesh operation timed out: Mesh piano — tempo scaduto
   Bed mesh...: Mesh piano...
+  Bed tab moves lift to this height first: I movimenti della scheda Piano salgono prima a questa altezza
   Bed target set to {}°C: Obiettivo piano impostato a {}°C
   Bed temp must be 0-%d°C: La temperatura del piano deve essere 0-%d°C
   Bed warming timed out: Riscaldamento piano — tempo scaduto
@@ -393,6 +395,7 @@ translations:
   Buffer Status: Stato buffer
   Buffer tube problem: Problema al tubo del buffer
   'Build Volume: ': 'Volume di stampa: '
+  'Building preview: %d%%': 'Creazione anteprima: %d%%'
   Bundle Uploaded: Bundle caricato
   Busy: 'Occupato'
   Button taps and navigation sounds: Suoni pulsanti e navigazione
@@ -765,6 +768,9 @@ translations:
   Copy Command: Copia comando
   Copy failed - use SSH manually: Copia fallita - usa SSH manualmente
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Copialo nel profilo slicer di questo filamento. La stampante non conserva nulla.'
+  Copying from USB: 'Copia da USB'
+  Copying from USB stopped responding: 'La copia da USB non risponde più'
+  Copying from USB...: 'Copia da USB...'
   Corner roundness: Arrotondamento angoli
   Correction (Ki): Correzione (Ki)
   Could not add to queue: Impossibile aggiungere alla coda
@@ -775,6 +781,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Impossibile verificare stato webcam.\nControllare la connessione della stampante."
   Could not confirm cancel: Impossibile confermare l'annullamento
+  'Could not copy {} from USB: {}': 'Impossibile copiare {} da USB: {}'
   Could not forget device: Impossibile dimenticare il dispositivo
   Could not load printer database: Impossibile caricare il database della stampante
   Could not move the plate: Impossibile spostare il piano
@@ -1491,6 +1498,7 @@ translations:
     spurgare il filamento precedente.
   Home: Home
   Home & Continue: Homing e continua
+  Home all axes to use the map: Porta tutti gli assi in posizione per usare la mappa
   Home and sweep the cutter to re-find its position: Azzera e fa scorrevolare la taglierina per ritrovare la sua posizione
   Home failed: Homing fallito
   Home printer first?: Eseguire prima l'homing della stampante?
@@ -1555,6 +1563,7 @@ translations:
     attiva al rilascio dopo lo scorrimento
   'Import failed: {}': 'Importazione fallita: {}'
   Imported {}: Importato {}
+  Importing {}...: 'Importazione di {}...'
   In Progress: In corso
   Inactive: Inattivo
   Include Klipper/Moonraker logs: Includi log Klipper/Moonraker
@@ -3759,6 +3768,7 @@ translations:
   Z motor calibration failed: Calibrazione del motore Z non riuscita
   Z probes for bed leveling and mesh generation: Sonde Z per livellamento piano e
     generazione mesh
+  Z {}, will lift to {}mm: 'Z {}, salirà a {}mm'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Calibrazione Z-Offset

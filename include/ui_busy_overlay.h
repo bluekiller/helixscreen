@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -59,6 +60,18 @@ class BusyOverlay {
      * @param percent Progress percentage (0-100)
      */
     static void set_progress(const std::string& operation, float percent);
+
+    /**
+     * @brief set_progress() from a transfer callback on any thread
+     *
+     * Queues the update to the main thread. The overlay is process-wide, so
+     * the update belongs to no object and runs whoever started the transfer.
+     *
+     * @param operation Operation name (e.g., "Uploading")
+     * @param done Bytes transferred so far
+     * @param total Total bytes (0 shows 0%)
+     */
+    static void queue_progress(const std::string& operation, size_t done, size_t total);
 
     /**
      * @brief Hide overlay immediately

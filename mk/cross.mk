@@ -752,6 +752,18 @@ else
     $(error Unknown PLATFORM_TARGET: $(PLATFORM_TARGET). Valid options: native, pi, pi32, x86, ad5m, ad5m-br, cc1, mips, k1, ad5x, k1-dynamic, k2, snapmaker-u1, yocto)
 endif
 
+# pi32 compiles against Debian armhf (armv7) headers, whose shared_ptr uses the
+# atomic lock policy. Raspberry Pi OS 32-bit is Raspbian, built for armv6, whose
+# libstdc++.so.6 uses the mutex policy: a control block 24 bytes larger, with the
+# refcount at a different offset. Every refcount the app inlines on an object the
+# shared library owns (a std::filesystem::directory_iterator, for one) then lands
+# on the wrong word, and on freed memory once the library drops it - glibc's
+# "malloc(): unsorted double linked list corrupted" (#1732). Carrying our own
+# libstdc++ makes the inlined code and the library one build.
+ifneq ($(filter pi32 pi32-fbdev pi32-both,$(PLATFORM_TARGET)),)
+    TARGET_LDFLAGS += -static-libstdc++ -static-libgcc
+endif
+
 # =============================================================================
 # Cross-Compiler Configuration
 # =============================================================================
@@ -1789,10 +1801,9 @@ define deploy-common
 	@if [ -f $(3)/helix-screen-egl ]; then rsync -avzz $(3)/helix-screen-egl $(1):$(2)/bin/; \
 	else ssh $(1) "rm -f $(2)/bin/helix-screen-egl"; fi
 	@# Sync Bluetooth plugin if built (runtime-loaded via dlopen, same dir as binary)
-	@BT_SO_DIR=$$(dirname $(3))"/lib/libhelix-bluetooth.so"; \
-	if [ -f "$$BT_SO_DIR" ]; then \
+	@if [ -f $(3)/libhelix-bluetooth.so ]; then \
 		echo "$(DIM)Deploying Bluetooth plugin...$(RESET)"; \
-		rsync -avzz "$$BT_SO_DIR" $(1):$(2)/bin/; \
+		rsync -avzz $(3)/libhelix-bluetooth.so $(1):$(2)/bin/; \
 	fi
 	rsync -avzz scripts/helix-launcher.sh $(1):$(2)/bin/
 	@# Sync installer script (needed for auto-updates)
@@ -3036,7 +3047,7 @@ define release-package
 	@cp build/$(1)/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/
 	@if [ -f build/$(1)/bin/helix-splash ]; then cp build/$(1)/bin/helix-splash $(RELEASE_DIR)/helixscreen/bin/; fi
 	@if [ -f build/$(1)/bin/helix-watchdog ]; then cp build/$(1)/bin/helix-watchdog $(RELEASE_DIR)/helixscreen/bin/; fi
-	@if [ -f build/$(1)/lib/libhelix-bluetooth.so ]; then cp build/$(1)/lib/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
+	@if [ -f build/$(1)/bin/libhelix-bluetooth.so ]; then cp build/$(1)/bin/libhelix-bluetooth.so $(RELEASE_DIR)/helixscreen/bin/; fi
 	@if [ -f build/$(1)/bin/helix-screen-egl ]; then cp build/$(1)/bin/helix-screen-egl $(RELEASE_DIR)/helixscreen/bin/; fi
 	$(if $(filter $(1),$(REL_FBDEV)),@if [ -f build/$(1)-fbdev/bin/helix-screen ]; then cp build/$(1)-fbdev/bin/helix-screen $(RELEASE_DIR)/helixscreen/bin/helix-screen-fbdev; fi)
 	$(release-bin-extra-$(1))

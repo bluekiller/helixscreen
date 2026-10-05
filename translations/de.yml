@@ -331,6 +331,7 @@ translations:
   Bed Heater: Bettheizung
   Bed Level: Bettnivellierung
   Bed Leveling: Bettnivellierung
+  Bed Map Clearance: 'Bettkarte: Sicherheitshöhe'
   Bed Mesh: Bettnetz
   Bed Mesh Complete: Bettnetz abgeschlossen
   Bed Mesh Render: Bettnetz-Darstellung
@@ -347,6 +348,7 @@ translations:
   Bed is Level!: Bett ist nivelliert!
   Bed mesh operation timed out: Bettnetz-Vorgang Zeitüberschreitung
   Bed mesh...: Bettnetz...
+  Bed tab moves lift to this height first: Bewegungen im Heizbett-Tab heben zuerst auf diese Höhe an
   Bed target set to {}°C: Bett-Zieltemperatur auf {}°C gesetzt
   Bed temp must be 0-%d°C: Betttemperatur muss 0-%d°C betragen
   Bed warming timed out: Bettaufheizung Zeitüberschreitung
@@ -398,6 +400,7 @@ translations:
   Buffer Status: Pufferstatus
   Buffer tube problem: Problem mit dem Pufferschlauch
   'Build Volume: ': 'Bauraum: '
+  'Building preview: %d%%': 'Vorschau wird erstellt: %d%%'
   Bundle Uploaded: Paket hochgeladen
   Busy: 'Beschäftigt'
   Button taps and navigation sounds: Tastentöne und Navigationstöne
@@ -773,6 +776,9 @@ translations:
   Copy Command: Befehl kopieren
   Copy failed - use SSH manually: Kopieren fehlgeschlagen – SSH verwenden
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Trage ihn ins Slicer-Profil dieses Filaments ein. Der Drucker speichert nichts.'
+  Copying from USB: 'Kopieren von USB'
+  Copying from USB stopped responding: 'Kopieren von USB reagiert nicht mehr'
+  Copying from USB...: 'Kopieren von USB...'
   Corner roundness: Eckenrundung
   Correction (Ki): Korrektur (Ki)
   Could not add to queue: Konnte nicht zur Warteschlange hinzufügen
@@ -783,6 +789,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Webcam-Status konnte nicht geprüft werden.\nDruckerverbindung prüfen."
   Could not confirm cancel: Abbruch konnte nicht bestätigt werden
+  'Could not copy {} from USB: {}': '{} konnte nicht von USB kopiert werden: {}'
   Could not forget device: Gerät konnte nicht vergessen werden
   Could not load printer database: Druckerdatenbank konnte nicht geladen werden
   Could not move the plate: Heizbett konnte nicht bewegt werden
@@ -1503,6 +1510,7 @@ translations:
     vorheriges Filament auszuspülen.
   Home: Home
   Home & Continue: Referenzieren & Fortfahren
+  Home all axes to use the map: Alle Achsen referenzieren, um die Karte zu nutzen
   Home and sweep the cutter to re-find its position: Referenzfahrt und Messfahrt des Schneiders, um seine Position neu zu ermitteln
   Home failed: Referenzfahrt fehlgeschlagen
   Home printer first?: Drucker zuerst referenzieren?
@@ -1566,6 +1574,7 @@ translations:
     nach dem Scrollen beim Loslassen ausgelöst wird
   'Import failed: {}': 'Import fehlgeschlagen: {}'
   Imported {}: '{} importiert'
+  Importing {}...: '{} wird importiert...'
   In Progress: In Bearbeitung
   Inactive: Inaktiv
   Include Klipper/Moonraker logs: Klipper/Moonraker-Protokolle einschließen
@@ -3767,6 +3776,7 @@ translations:
   Z motor calibration failed: Kalibrierung des Z-Motors fehlgeschlagen
   Z probes for bed leveling and mesh generation: Z-Sonden für Bettnivellierung und
     Netzerzeugung
+  Z {}, will lift to {}mm: 'Z {}, hebt auf {}mm an'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Z-Offset-Kalibrierung

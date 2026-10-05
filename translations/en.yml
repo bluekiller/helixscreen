@@ -314,6 +314,7 @@ translations:
   Bed Heater: Bed Heater
   Bed Level: Bed Level
   Bed Leveling: Bed Leveling
+  Bed Map Clearance: Bed Map Clearance
   Bed Mesh: Bed Mesh
   'Bed Mesh Complete': 'Bed Mesh Complete'
   Bed Mesh Render: Bed Mesh Render
@@ -329,6 +330,7 @@ translations:
   Bed is Level!: Bed is Level!
   Bed mesh operation timed out: Bed mesh operation timed out
   'Bed mesh...': 'Bed mesh...'
+  Bed tab moves lift to this height first: Bed tab moves lift to this height first
   Bed target set to {}°C: Bed target set to {}°C
   Bed temp must be 0-%d°C: Bed temp must be 0-%d°C
   Bed warming timed out: Bed warming timed out
@@ -379,6 +381,7 @@ translations:
   Buffer Status: Buffer Status
   Buffer tube problem: Buffer tube problem
   'Build Volume: ': 'Build Volume: '
+  'Building preview: %d%%': 'Building preview: %d%%'
   Bundle Uploaded: Bundle Uploaded
   Busy: Busy
   Button taps and navigation sounds: Button taps and navigation sounds
@@ -742,6 +745,9 @@ translations:
   Copy Command: Copy Command
   Copy failed - use SSH manually: Copy failed - use SSH manually
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Copy it into this filament''s slicer profile. The printer keeps nothing.'
+  Copying from USB: Copying from USB
+  Copying from USB stopped responding: Copying from USB stopped responding
+  Copying from USB...: Copying from USB...
   Corner roundness: Corner roundness
   Correction (Ki): Correction (Ki)
   Could not add to queue: Could not add to queue
@@ -751,6 +757,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "Could not check webcam status.\nCheck printer connection."
   Could not confirm cancel: Could not confirm cancel
+  'Could not copy {} from USB: {}': 'Could not copy {} from USB: {}'
   Could not forget device: Could not forget device
   Could not load printer database: Could not load printer database
   Could not move the plate: Could not move the plate
@@ -1442,6 +1449,7 @@ translations:
   Holding nozzle at {}°C to purge previous filament.: Holding nozzle at {}°C to purge previous filament.
   Home: Home
   Home & Continue: Home & Continue
+  Home all axes to use the map: Home all axes to use the map
   Home and sweep the cutter to re-find its position: Home and sweep the cutter to re-find its position
   Home failed: Home failed
   Home printer first?: Home printer first?
@@ -1504,6 +1512,7 @@ translations:
     fires when you lift after scrolling
   'Import failed: {}': 'Import failed: {}'
   Imported {}: Imported {}
+  Importing {}...: Importing {}...
   In Progress: In Progress
   Inactive: Inactive
   Include Klipper/Moonraker logs: Include Klipper/Moonraker logs
@@ -3645,6 +3654,7 @@ translations:
   Z motor calibration failed: Z motor calibration failed
   Z probes for bed leveling and mesh generation: Z probes for bed leveling and mesh
     generation
+  Z {}, will lift to {}mm: Z {}, will lift to {}mm
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Z-Offset Calibration

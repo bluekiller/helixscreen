@@ -106,9 +106,12 @@ and selector: a global token (`style_text_color="#text_muted"`) with its name, a
   text stays as written. Widgets with no inline color are themed by the walker as before.
 - `lv_xml_reapply_style_tokens()` rewrites the `#token` colors of every named `<style>` in
   place, so widgets using the style, and ones built from it later, take the new mode.
-- The walker also leaves a label's text color alone when a style someone chose provides it
-  (a bound style, on or off at the time, a component `<style>`, one added from C++). ThemeManager's shared semantic
-  text styles do not count: a plain `text_body` on a dark ancestor still turns white.
+- The walker also leaves a label's text color, and a button's bg and border colors, alone
+  when a style someone chose provides it (a bound style, on or off at the time, a component
+  `<style>`, one added from C++), so the motion rail's idle `zone_tab_pill_idle` keeps
+  `#card_bg`. ThemeManager's shared semantic text styles and its button styles (every
+  `StyleRole::Button*`) do not count: a plain `text_body` on a dark ancestor still turns
+  white, and a gray `ui_button` still takes `elevated_bg`.
 
 A color passed through a component `$prop` is resolved at the instance tag, where the token
 name is lost, so it counts as a literal: kept, never re-applied. Colors set from C++ are not

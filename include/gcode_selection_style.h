@@ -137,19 +137,6 @@ inline int outline_width_px_scaled(int widget_width_px, int fbo_width_px) {
 }
 
 /**
- * @brief Halo geometry for the draw-API fallback (TOP_DOWN / ISOMETRIC).
- *
- * Those view modes paint straight into the LVGL layer, so there is no pixel
- * buffer for the rim scan to read and they keep the older dilate-and-overpaint:
- * draw the walls wide in white, draw them again narrower on top, keep what
- * survives. That is sound here for exactly the reason it was not sound in the
- * stacked FRONT view - one layer is drawn, so there are no layers above to punch
- * through the white and no accumulation down a sloped wall.
- */
-inline constexpr int kFallbackHaloDeltaPx = 6;
-inline constexpr int kFallbackHaloDeltaSmallPanelPx = 4;
-
-/**
  * @brief Resolved draw style for one segment.
  *
  * `override_color == false` means "keep whatever color the renderer computed"
@@ -167,10 +154,6 @@ struct SegmentStyle {
     /// rasterizer writes coverage into alpha and would erase the tag along every
     /// edge, which is where the rim needs it most.
     bool tagged = false;
-
-    /// Emit the draw-API fallback's halo for this segment. See kFallbackHaloDeltaPx.
-    /// The cached path ignores it and uses `tagged` instead.
-    bool fallback_halo = false;
 };
 
 /**
@@ -199,30 +182,8 @@ inline SegmentStyle resolve(const Palette& palette, bool excluded, bool highligh
         // draws opaque orange inside a white rim, which reads correctly.
         s.opa = kSelectedAlpha;
         s.tagged = true;
-        s.fallback_halo = true;
     }
     return s;
-}
-
-/// Whether a feature contributes to the draw-API fallback's halo.
-///
-/// Only the walls trace the object's contour. Haloing infill puts a white band
-/// along every infill line, which reads as stripes across the middle of the
-/// object instead of an outline. Unknown counts as eligible so a file with no
-/// ;TYPE annotations still gets a halo from all of its extrusions rather than
-/// none.
-///
-/// The tag path does NOT use this and deliberately tags every extrusion: the rim
-/// is derived from the boundary of the tagged region, so tagging the interior
-/// too is what stops infill gaps from reading as boundaries.
-inline bool halo_feature(FeatureType t) {
-    return t == FeatureType::OuterWall || t == FeatureType::OverhangWall ||
-           t == FeatureType::Unknown;
-}
-
-/// Width of the fallback halo line drawn beneath a core line of `base_width`.
-inline int halo_width(int base_width, bool small_panel) {
-    return base_width + (small_panel ? kFallbackHaloDeltaSmallPanelPx : kFallbackHaloDeltaPx);
 }
 
 /**

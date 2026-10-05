@@ -143,21 +143,27 @@ UsbError UsbBackendLinux::get_connected_drives(std::vector<UsbDrive>& drives) {
 
 UsbError UsbBackendLinux::scan_for_gcode(const std::string& mount_path,
                                          std::vector<UsbGcodeFile>& files, int max_depth) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
 
-    if (!running_) {
-        return UsbError(UsbResult::NOT_INITIALIZED, "Backend not started",
-                        "USB monitoring not active");
+        if (!running_) {
+            return UsbError(UsbResult::NOT_INITIALIZED, "Backend not started",
+                            "USB monitoring not active");
+        }
+
+        // Verify drive exists
+        auto it =
+            std::find_if(cached_drives_.begin(), cached_drives_.end(),
+                         [&mount_path](const UsbDrive& d) { return d.mount_path == mount_path; });
+        if (it == cached_drives_.end()) {
+            return UsbError(UsbResult::DRIVE_NOT_FOUND, "Drive not mounted: " + mount_path,
+                            "USB drive not connected");
+        }
     }
 
-    // Verify drive exists
-    auto it = std::find_if(cached_drives_.begin(), cached_drives_.end(),
-                           [&mount_path](const UsbDrive& d) { return d.mount_path == mount_path; });
-    if (it == cached_drives_.end()) {
-        return UsbError(UsbResult::DRIVE_NOT_FOUND, "Drive not mounted: " + mount_path,
-                        "USB drive not connected");
-    }
-
+    // The walk touches no member state, and holding the lock across it would
+    // stall the monitor thread and every drive query for as long as the
+    // stick takes to list.
     files.clear();
     scan_directory(mount_path, files, 0, max_depth);
 

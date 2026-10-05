@@ -194,8 +194,8 @@ std::string WizardAmsIdentifyStep::get_ams_details() const {
     std::string details;
 
     // Start with slot count if available
-    if (info.total_slots > 0) {
-        details = fmt::format(lv_tr("{} slots"), info.total_slots);
+    if (const int bays = info.present_slot_count(); bays > 0) {
+        details = fmt::format(lv_tr("{} slots"), bays);
     }
 
     // Add unit name if available (e.g., "• Turtle 1")
