@@ -47,7 +47,7 @@ void dirty_printer_state() {
     HardwareValidationResult result;
     result.critical_missing.push_back(
         HardwareIssue::critical("heater_bed", HardwareType::HEATER, "missing"));
-    ps.set_hardware_validation_result(result);
+    ps.hardware_validation_state().set_hardware_validation_result(result);
 
     // PrinterState's own printer_type_.
     ps.set_printer_type_sync("Voron 2.4");
@@ -61,7 +61,7 @@ void require_clean_printer_state() {
     CHECK(ps.get_excluded_objects().empty());
     CHECK(ps.excluded_objects_state().get_current_object().empty());
     CHECK_FALSE(ps.excluded_objects_state().has_objects());
-    CHECK_FALSE(ps.get_hardware_validation_result().has_issues());
+    CHECK_FALSE(ps.hardware_validation_state().get_hardware_validation_result().has_issues());
     CHECK(ps.get_printer_type().empty());
 }
 
@@ -81,7 +81,10 @@ TEST_CASE("PrinterState plain data does not survive a fixture boundary",
         // against a PrinterState that simply rejected every write.
         REQUIRE(get_printer_state().excluded_objects_state().has_objects());
         REQUIRE(get_printer_state().get_excluded_objects().count("Part_A") == 1);
-        REQUIRE(get_printer_state().get_hardware_validation_result().has_issues());
+        REQUIRE(get_printer_state()
+                    .hardware_validation_state()
+                    .get_hardware_validation_result()
+                    .has_issues());
         REQUIRE(get_printer_state().get_printer_type() == "Voron 2.4");
     }
 

@@ -189,7 +189,8 @@ void acknowledge_deferred_hardware_step(DiscoveryContext& ctx) {
 void validate_hardware_step(DiscoveryContext& ctx) {
     ctx.validator.emplace();
     auto validation_result = ctx.validator->validate(Config::get_instance(), ctx.hw);
-    get_printer_state().set_hardware_validation_result(validation_result);
+    get_printer_state().hardware_validation_state().set_hardware_validation_result(
+        validation_result);
     if (validation_result.has_issues() && ctx.hw_changed &&
         !Config::get_instance()->is_wizard_required() && !is_wizard_active()) {
         ctx.validator->notify_user(validation_result);

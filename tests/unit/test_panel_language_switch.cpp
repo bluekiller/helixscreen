@@ -82,14 +82,15 @@ TEST_CASE_METHOD(RussianFixture, "Hardware-health texts re-translate from the st
         HardwareIssue::info("fan_generic a", HardwareType::FAN, "Fan available"));
     result.newly_discovered.push_back(
         HardwareIssue::info("fan_generic b", HardwareType::FAN, "Fan available"));
-    state().set_hardware_validation_result(result);
-    REQUIRE(subject_text(state().get_hardware_issues_label_subject()) == "2 Hardware Issues");
+    state().hardware_validation_state().set_hardware_validation_result(result);
+    REQUIRE(subject_text(state().hardware_validation_state().get_hardware_issues_label_subject()) ==
+            "2 Hardware Issues");
 
     SystemSettingsManager::instance().set_language("ru");
     REQUIRE(std::string(lv_tr("{} Hardware Issues")) != "{} Hardware Issues");
     state().refresh_translated_texts();
 
-    CHECK(subject_text(state().get_hardware_issues_label_subject()) ==
+    CHECK(subject_text(state().hardware_validation_state().get_hardware_issues_label_subject()) ==
           fmt::format(lv_tr("{} Hardware Issues"), 2));
 }
 

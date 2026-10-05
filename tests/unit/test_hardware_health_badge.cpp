@@ -107,7 +107,7 @@ TEST_CASE_METHOD(HardwareHealthBadgeFixture,
     HardwareValidationResult result;
     result.newly_discovered.push_back(HardwareIssue::info(
         "filament_switch_sensor runout", HardwareType::FILAMENT_SENSOR, "Detected"));
-    get_printer_state().set_hardware_validation_result(result);
+    get_printer_state().hardware_validation_state().set_hardware_validation_result(result);
     process_lvgl(10);
 
     REQUIRE(badge_hidden("status_icon_container"));

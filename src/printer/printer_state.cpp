@@ -914,14 +914,6 @@ void PrinterState::set_print_display_filename(const std::string& name) {
 // HARDWARE VALIDATION - Delegated to hardware_validation_state_
 // ============================================================================
 
-void PrinterState::set_hardware_validation_result(const HardwareValidationResult& result) {
-    hardware_validation_state_.set_hardware_validation_result(result);
-}
-
-void PrinterState::remove_hardware_issue(const std::string& hardware_name) {
-    hardware_validation_state_.remove_hardware_issue(hardware_name);
-}
-
 void PrinterState::set_print_outcome(PrintOutcome outcome) {
     print_domain_.set_print_outcome(outcome);
 }

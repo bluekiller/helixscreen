@@ -2253,67 +2253,6 @@ class PrinterState {
     // HARDWARE VALIDATION API
     // ========================================================================
 
-    /**
-     * @brief Set hardware validation result and update subjects
-     *
-     * Updates all hardware validation subjects based on the validation result.
-     * Call after HardwareValidator::validate() completes.
-     *
-     * @param result Validation result from HardwareValidator
-     */
-    void set_hardware_validation_result(const HardwareValidationResult& result);
-
-    /**
-     * @brief Get the headline badge level subject
-     *
-     * Integer subject: 0=ok, 1=attention, 2=critical. Bind appearance to this
-     * rather than to a raw HardwareIssueSeverity, so every surface agrees on
-     * which findings count as merely worth attention.
-     */
-    lv_subject_t* get_hardware_status_level_subject() {
-        return hardware_validation_state_.get_hardware_status_level_subject();
-    }
-
-    /**
-     * @brief Get the hardware issues label subject
-     *
-     * String subject with formatted label like "1 Hardware Issue" or "5 Hardware Issues".
-     * Used for settings panel row label binding.
-     */
-    lv_subject_t* get_hardware_issues_label_subject() {
-        return hardware_validation_state_.get_hardware_issues_label_subject();
-    }
-
-    /**
-     * @brief Check if hardware validation has any issues
-     */
-    bool has_hardware_issues() {
-        return hardware_validation_state_.has_hardware_issues();
-    }
-
-    /**
-     * @brief Get the stored hardware validation result
-     *
-     * Returns the most recent validation result set via set_hardware_validation_result().
-     * Use this to access detailed issue information for UI display.
-     *
-     * @return Reference to the stored validation result
-     */
-    const HardwareValidationResult& get_hardware_validation_result() const {
-        return hardware_validation_state_.get_hardware_validation_result();
-    }
-
-    /**
-     * @brief Remove a hardware issue from the cached validation result
-     *
-     * Removes the issue matching the given hardware name from all issue lists
-     * and updates all related subjects (counts, status text, etc.).
-     * Used when user clicks "Ignore" or "Save" on a hardware issue.
-     *
-     * @param hardware_name The hardware name to remove (e.g., "filament_sensor runout")
-     */
-    void remove_hardware_issue(const std::string& hardware_name);
-
     // ========================================================================
     // PRINTER TYPE AND PRINT START CAPABILITIES
     // ========================================================================
