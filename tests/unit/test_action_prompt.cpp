@@ -1432,14 +1432,22 @@ TEST_CASE_METHOD(LVGLTestFixture, "ActionPromptManager: the line sink applies li
 
 TEST_CASE_METHOD(LVGLTestFixture, "ActionPromptManager: queued lines are dropped once it is gone",
                  "[action_prompt][threading]") {
+    (void)helix::async_lifetime::take_snapshot(); // clear earlier tests' skips
     std::function<void(const std::string&)> feed;
     {
         ActionPromptManager manager;
         feed = manager.make_line_sink();
-        feed("// action:prompt_begin Gone");
+        feed("// action:prompt_begin Gone"); // queued while alive
     }
-    feed("// action:prompt_show");
-    // Under ASAN a deferred process_line on the destroyed manager is a UAF.
+    feed("// action:prompt_show"); // refused before it is queued
     helix::ui::UpdateQueue::instance().drain();
-    SUCCEED();
+
+    // Both lines were skipped by the guard rather than run on a dead manager.
+    uint64_t skipped = 0;
+    for (const auto& entry : helix::async_lifetime::take_snapshot().entries) {
+        if (entry.tag == "ActionPromptManager::process_line") {
+            skipped = entry.count;
+        }
+    }
+    CHECK(skipped == 2);
 }
