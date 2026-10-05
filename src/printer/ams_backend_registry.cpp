@@ -15,7 +15,7 @@ int AmsBackendRegistry::add(std::unique_ptr<AmsBackend> backend, EventCallback o
     int index = 0;
     int slot_count = 0;
     {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         index = static_cast<int>(backends_.size());
         backends_.push_back(std::move(backend));
         AmsBackend* b = backends_.back().get();
@@ -45,7 +45,7 @@ int AmsBackendRegistry::add(std::unique_ptr<AmsBackend> backend, EventCallback o
         handles.push_back(tracker.register_sink(std::make_unique<AmsSlotSink>(index, slot)));
     }
     {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         sinks_[index] = std::move(handles);
     }
     spdlog::debug("[AMS State] Registered {} consumption sinks for backend {}", slot_count, index);
@@ -57,7 +57,7 @@ void AmsBackendRegistry::clear() {
     // backend through get(), so the backend must still be registered then.
     std::map<int, std::vector<FilamentConsumptionTracker::SinkHandle>> sinks;
     {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         sinks.swap(sinks_);
     }
     auto& tracker = FilamentConsumptionTracker::instance();
@@ -72,7 +72,7 @@ void AmsBackendRegistry::clear() {
     // anything.
     std::vector<std::unique_ptr<AmsBackend>> doomed;
     {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         doomed.swap(backends_);
     }
     for (auto& b : doomed) {
@@ -83,7 +83,7 @@ void AmsBackendRegistry::clear() {
 }
 
 void AmsBackendRegistry::release_all() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     for (auto& b : backends_) {
         if (b) {
             b->release_subscriptions();
@@ -93,7 +93,7 @@ void AmsBackendRegistry::release_all() {
 }
 
 AmsBackend* AmsBackendRegistry::get(int index) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (index < 0 || index >= static_cast<int>(backends_.size())) {
         return nullptr;
     }
@@ -101,12 +101,12 @@ AmsBackend* AmsBackendRegistry::get(int index) const {
 }
 
 int AmsBackendRegistry::count() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     return static_cast<int>(backends_.size());
 }
 
 std::optional<AmsType> AmsBackendRegistry::primary_type() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (backends_.empty() || !backends_[0]) {
         return std::nullopt;
     }
@@ -114,7 +114,7 @@ std::optional<AmsType> AmsBackendRegistry::primary_type() const {
 }
 
 bool AmsBackendRegistry::any_filament_batch_in_flight() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     return std::any_of(backends_.begin(), backends_.end(), [](const auto& backend) {
         return backend && backend->filament_batch_in_flight();
     });
@@ -122,7 +122,7 @@ bool AmsBackendRegistry::any_filament_batch_in_flight() const {
 
 void AmsBackendRegistry::set_gcode_response_callback(
     std::function<void(const std::string&)> callback) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     gcode_response_callback_ = std::move(callback);
     for (auto& backend : backends_) {
         if (backend) {

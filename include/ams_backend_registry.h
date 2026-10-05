@@ -57,7 +57,12 @@ class AmsBackendRegistry {
     }
 
   private:
-    mutable std::recursive_mutex mutex_;
+    /// Lock order: mutex_ -> AmsBackend::mutex_. primary_type() and
+    /// any_filament_batch_in_flight() call into a backend while holding it, so
+    /// a backend must never reach the registry (or AmsState::get_backend())
+    /// under its own lock. Not recursive: no method here calls another under
+    /// the lock, and a call that did would deadlock at once rather than nest.
+    mutable std::mutex mutex_;
     std::vector<std::unique_ptr<AmsBackend>> backends_;
     /// One FilamentConsumptionTracker sink per slot, keyed by backend index.
     std::map<int, std::vector<FilamentConsumptionTracker::SinkHandle>> sinks_;
