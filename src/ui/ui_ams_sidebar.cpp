@@ -1030,9 +1030,8 @@ void AmsOperationSidebar::abandon_preheat_if_target_dropped(int target_deci) {
     // The target subject reaches the preheat target some time after the send,
     // so only a drop from a target already seen means the preheat was undone
     // (cleared by the user, a heater fault, a Klipper shutdown).
-    constexpr int TEMP_THRESHOLD = 5;
     const int target = temperature::deci_to_degrees(target_deci);
-    if (target >= pending_load_target_temp_ - TEMP_THRESHOLD) {
+    if (target >= pending_load_target_temp_ - PREHEAT_MARGIN_C) {
         pending_load_target_seen_ = true;
         return;
     }
@@ -1152,9 +1151,7 @@ bool AmsOperationSidebar::is_extruder_below_target() const {
         return false;
     }
     int current_deci = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
-    // 5°C threshold matches check_pending_load() at line ~795
-    constexpr int TEMP_THRESHOLD_DECI = 50;
-    return current_deci < (target_deci - TEMP_THRESHOLD_DECI);
+    return current_deci < (target_deci - PREHEAT_MARGIN_C * 10);
 }
 
 void AmsOperationSidebar::refresh_heat_step_display() {
@@ -1603,8 +1600,7 @@ void AmsOperationSidebar::handle_load_with_preheat(int slot_index) {
         static_cast<int>(std::lround(printer_state_.get_active_extruder_last_nonzero_target()));
     int effective_target = helix::ui::filament_op_nozzle_temp(target, latch);
 
-    constexpr int TEMP_THRESHOLD = 5;
-    if (current >= (effective_target - TEMP_THRESHOLD)) {
+    if (current >= (effective_target - PREHEAT_MARGIN_C)) {
         ui_initiated_heat_ = false;
         dispatch_backend_load(plan, slot_index);
         return;
@@ -1642,9 +1638,7 @@ void AmsOperationSidebar::check_pending_load() {
                                          sizeof(temp_buf));
     AmsState::instance().set_action_detail(temp_buf);
 
-    constexpr int TEMP_THRESHOLD = 5;
-
-    if (current >= (pending_load_target_temp_ - TEMP_THRESHOLD)) {
+    if (current >= (pending_load_target_temp_ - PREHEAT_MARGIN_C)) {
         int slot = pending_load_slot_;
         pending_load_slot_ = -1;
         pending_load_target_temp_ = 0;

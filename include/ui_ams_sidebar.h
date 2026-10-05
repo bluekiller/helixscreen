@@ -241,6 +241,10 @@ class AmsOperationSidebar {
     // AmsState::hold_optimistic_action): the UI preheat, then the gap between
     // the backend accepting the command and its first frame, which can include
     // a G28. Each bounds an operation the backend never reports at all.
+    // A nozzle within this many degrees C of its target counts as hot enough:
+    // the preheat is done, a target counts as reached, the Heat step is over.
+    static constexpr int PREHEAT_MARGIN_C = 5;
+
     static constexpr std::chrono::minutes OPTIMISTIC_PREHEAT_HOLD{10};
     static constexpr std::chrono::seconds OPTIMISTIC_DISPATCH_HOLD{90};
 
