@@ -84,7 +84,7 @@ void IppPrinter::print(const LabelBitmap& bitmap, const LabelSize& size, PrintCa
     helix::http::HttpExecutor::fast().submit([host, port, resource_path, template_index,
                                               label_count, start_position, bitmap, size,
                                               callback]() {
-        // lv_tr is main-thread only, so the message is translated where the callback runs.
+        // The callback is UI-facing, so it and its message's translation run on the main thread.
         auto fail = [callback](const char* fmt_tag, auto... args) {
             static_assert(!(std::is_pointer_v<decltype(args)> || ...), "pass std::string");
             spdlog::error("IPP Printer: {}", fmt::format(fmt::runtime(fmt_tag), args...));

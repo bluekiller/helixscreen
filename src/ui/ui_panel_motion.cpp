@@ -1175,7 +1175,7 @@ void MotionPanel::home(char axis) {
                 }
             },
             [](const MoonrakerError& err) {
-                // home_axes() answers on the WebSocket thread; lv_tr is main-thread only.
+                // home_axes() answers on the WebSocket thread; the toast is main-thread only.
                 helix::ui::run_on_main("MotionPanel::home_failed", [err]() {
                     NOTIFY_ERROR(lv_tr("Homing failed: {}"),
                                  clean_gcode_error(err.localized_message()));

@@ -192,10 +192,10 @@ template <typename T> const T& localize_arg(const T& value) {
 /**
  * @brief A toast with a translated format string, callable from any thread
  *
- * lv_tr() and MoonrakerError::localized_message() are main-thread only (#1219),
- * while a Moonraker callback runs on whichever thread answered: the caller's
- * for a local refusal, the WebSocket thread for a printer reply. The
- * translation and the toast run on the main thread, inline when already there.
+ * A toast is main-thread only, while a Moonraker callback runs on whichever
+ * thread answered: the caller's for a local refusal, the WebSocket thread for a
+ * printer reply. The translation and the toast run on the main thread, inline
+ * when already there.
  * A MoonrakerError argument renders as its localized_message().
  *
  * Arguments are copied into a callback that may run later, so a char pointer

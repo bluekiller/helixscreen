@@ -240,8 +240,8 @@ void TemperatureController::set_target(const std::string& klipper_name, double c
     if (!api_ || klipper_name.empty()) {
         return;
     }
-    // Callers' callbacks toast through lv_tr, which is main-thread only (#1219);
-    // the printer's answer arrives on the WebSocket thread.
+    // Callers' callbacks toast, which is main-thread only; the printer's answer
+    // arrives on the WebSocket thread.
     auto on_ok = [opts]() {
         if (opts.on_success)
             helix::ui::run_on_main("TemperatureController::on_success", opts.on_success);

@@ -52,7 +52,7 @@ void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api) 
                     // error_cb marks the call caller-handled so the `!!`
                     // GcodeError toast is suppressed for the same failure.
                     // Without this the user sees nothing at all.
-                    // The reply arrives on the WebSocket thread; translation is main-thread only.
+                    // The reply arrives on the WebSocket thread; the toast is main-thread only.
                     ui::run_on_main("ActionPrompt::gcode_failure", [err]() {
                         ui::report_action_prompt_gcode_failure(err.localized_message());
                     });

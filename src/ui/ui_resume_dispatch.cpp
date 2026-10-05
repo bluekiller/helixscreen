@@ -98,7 +98,7 @@ void send_cancel_macro(IMoonrakerAPI* api, const std::string& log_prefix) {
         [log_prefix](const MoonrakerError& err) {
             spdlog::error("{} Failed to cancel print: {}", log_prefix, err.message);
             // StandardMacros::execute may deliver this from the libhv WebSocket
-            // thread; the toast and its lv_tr() lookup are main-thread only.
+            // thread; the toast is main-thread only.
             queue_update("dispatch_cancel_print::on_error", [err]() {
                 NOTIFY_ERROR(lv_tr("Failed to cancel: {}"), err.localized_message());
             });
@@ -165,8 +165,8 @@ void dispatch_prepared_resume(IMoonrakerAPI* api, std::string log_prefix,
 
     // The macro-dispatch closure. The success path stays on whichever
     // thread the API delivers it — we only spdlog::info() there (thread
-    // safe). The error path bounces through queue_update so the toast,
-    // lv_tr() lookup, and `on_failure` body all run on the main thread
+    // safe). The error path bounces through queue_update so the toast
+    // and `on_failure` body run on the main thread
     // even though StandardMacros::execute may invoke this callback from
     // the libhv WebSocket event-loop thread on JSON-RPC failure.
     auto dispatch = [api, log_prefix, on_failure]() {

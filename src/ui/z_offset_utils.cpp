@@ -178,7 +178,7 @@ void apply_and_save(IMoonrakerAPI* api, helix::ui::SaveConfigWatch& save_watch,
             spdlog::error("[ZOffsetUtils] {} failed: {}", apply_cmd, err.message);
             if (!on_error)
                 return;
-            // Klipper's reply arrives on the WebSocket thread; lv_tr is main-thread only.
+            // Klipper's reply arrives on the WebSocket thread; on_error is UI-facing.
             helix::ui::run_on_main("ZOffsetUtils::apply_error", [on_error, apply_cmd, err]() {
                 on_error(fmt::format(fmt::runtime(lv_tr("{} failed: {}")), apply_cmd,
                                      err.localized_message()));

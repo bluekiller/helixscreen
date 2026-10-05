@@ -382,7 +382,7 @@ bool GcodeErrorRouter::present_recover_toast(const ErrorEvent& e) {
                 c->gcode, [tag]() { spdlog::info("[Recovery] {} completed", tag); },
                 [tag](const MoonrakerError& err) {
                     spdlog::error("[Recovery] {} failed: {}", tag, err.message);
-                    // The callback can run on the WebSocket thread; lv_tr is main-thread only.
+                    // The callback can run on the WebSocket thread; the toast is main-thread only.
                     helix::ui::run_on_main("error_toast", [err]() {
                         ToastManager::instance().show(
                             ToastSeverity::ERROR,

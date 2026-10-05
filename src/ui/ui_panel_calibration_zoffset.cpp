@@ -739,7 +739,6 @@ void ZOffsetCalibrationPanel::send_accept() {
             },
             [this, token = lifetime_.token()](const MoonrakerError& err) {
                 // No bg-thread token.expired() — token.defer() gates on the main thread (L081).
-                // Formatted inside the deferred body: lv_tr is main-thread only.
                 token.defer("ZOffsetCalibrationPanel::on_calibration_result(accept_fail)",
                             [this, err]() {
                                 on_calibration_result(
