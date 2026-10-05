@@ -1949,11 +1949,11 @@ int PrintStartCollector::calculate_progress_locked() const {
     return std::min(static_cast<int>(progress * 95.0f), 95);
 }
 
-bool PrintStartCollector::is_print_start_marker(const std::string& line) const {
+bool PrintStartCollector::is_print_start_marker(const std::string& line) {
     return helix::regex_search(line, print_start_pattern_);
 }
 
-bool PrintStartCollector::is_completion_marker(const std::string& line) const {
+bool PrintStartCollector::is_completion_marker(const std::string& line) {
     return helix::regex_search(line, completion_pattern_);
 }
 

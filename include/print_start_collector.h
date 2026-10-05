@@ -461,15 +461,15 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     /**
      * @brief Check for PRINT_START start marker
      */
-    bool is_print_start_marker(const std::string& line) const;
+    static bool is_print_start_marker(const std::string& line);
 
     /**
      * @brief Check for print start completion (layer 1, etc.)
      */
-    bool is_completion_marker(const std::string& line) const;
+    static bool is_completion_marker(const std::string& line);
 
     /** @brief Check if a G-code response is a RESPOND-based print start completion */
-    [[nodiscard]] bool is_respond_completion(const std::string& line) const {
+    [[nodiscard]] static bool is_respond_completion(const std::string& line) {
         return helix::regex_search(line, respond_completion_pattern_);
     }
 

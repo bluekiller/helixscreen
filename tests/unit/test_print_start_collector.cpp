@@ -10,6 +10,9 @@
  * These tests don't require LVGL or Moonraker - they test pure regex logic.
  */
 
+#include "../test_helpers/print_start_collector_test_access.h"
+#include "print_start_profile.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -21,64 +24,35 @@
 
 #include "../catch_amalgamated.hpp"
 
-// ============================================================================
-// Pattern definitions (replicated from print_start_collector.cpp)
-// ============================================================================
-
-// PRINT_START marker pattern
-static const std::regex print_start_pattern(R"(PRINT_START|START_PRINT|_PRINT_START)",
-                                            std::regex::icase);
-
-// Completion marker (layer 1 detected)
-static const std::regex completion_pattern(
-    R"(SET_PRINT_STATS_INFO\s+CURRENT_LAYER=|LAYER:?\s*1\b|;LAYER:1|First layer)",
-    std::regex::icase);
-
-// RESPOND-based print start completion (authoritative signal)
-// Matches G-code responses containing "print" + "start"/"started"/"starting" adjacent in either
-// order
-static const std::regex respond_completion_pattern(
-    R"(\bprint\b\W+\b(start|started|starting)\b|\b(start|started|starting)\b\W+\bprint\b)",
-    std::regex::icase);
-
-// Phase detection patterns
-// Include both G-code commands AND Voron status_* LED macros (they indicate phase start)
-static const std::regex homing_pattern(R"(G28|Homing|Home All Axes|homing|status_homing)",
-                                       std::regex::icase);
-
-static const std::regex heating_bed_pattern(
-    R"(M190|M140\s+S[1-9]|Heating bed|Heat Bed|BED_TEMP|bed.*heat|status_heating)",
-    std::regex::icase);
-
-static const std::regex heating_nozzle_pattern(
-    R"(M109|M104\s+S[1-9]|Heating (nozzle|hotend|extruder)|EXTRUDER_TEMP|status_heating)",
-    std::regex::icase);
-
-static const std::regex qgl_pattern(R"(QUAD_GANTRY_LEVEL|quad.?gantry.?level|QGL|status_leveling)",
-                                    std::regex::icase);
-
-static const std::regex z_tilt_pattern(R"(Z_TILT_ADJUST|z.?tilt.?adjust|status_leveling)",
-                                       std::regex::icase);
-
-static const std::regex bed_mesh_pattern(
-    R"(BED_MESH_CALIBRATE|BED_MESH_PROFILE\s+LOAD=|Loading bed mesh|mesh.*load|status_meshing)",
-    std::regex::icase);
-
-static const std::regex cleaning_pattern(
-    R"(CLEAN_NOZZLE|NOZZLE_CLEAN|WIPE_NOZZLE|nozzle.?wipe|clean.?nozzle|status_cleaning)",
-    std::regex::icase);
-
-static const std::regex purging_pattern(
-    R"(VORON_PURGE|LINE_PURGE|PURGE_LINE|Prime.?Line|Priming|KAMP_.*PURGE|purge.?line)",
-    std::regex::icase);
+using helix::PrintStartPhase;
 
 // ============================================================================
-// Helper for testing patterns
+// Line classifiers under test: the collector's universal markers and the
+// response patterns of the shipped default profile.
 // ============================================================================
 
-static bool matches(const std::regex& pattern, const std::string& line) {
-    return std::regex_search(line, pattern);
+namespace {
+
+bool is_print_start(const std::string& line) {
+    return PrintStartCollectorTestAccess::is_print_start_marker(line);
 }
+
+bool is_completion(const std::string& line) {
+    return PrintStartCollectorTestAccess::is_completion_marker(line);
+}
+
+bool is_respond_completion(const std::string& line) {
+    return PrintStartCollectorTestAccess::is_respond_completion(line);
+}
+
+/// The phase the default profile reads out of a G-code response, IDLE if none.
+PrintStartPhase default_phase(const std::string& line) {
+    static const auto profile = PrintStartProfile::load_default();
+    PrintStartProfile::MatchResult result;
+    return profile->try_match_pattern(line, result) ? result.phase : PrintStartPhase::IDLE;
+}
+
+} // namespace
 
 // ============================================================================
 // PRINT_START Marker Tests
@@ -86,20 +60,20 @@ static bool matches(const std::regex& pattern, const std::string& line) {
 
 TEST_CASE("PrintStart: PRINT_START marker detection", "[core][print][marker]") {
     // Should match
-    REQUIRE(matches(print_start_pattern, "PRINT_START") == true);
-    REQUIRE(matches(print_start_pattern, "START_PRINT") == true);
-    REQUIRE(matches(print_start_pattern, "_PRINT_START") == true);
-    REQUIRE(matches(print_start_pattern, "print_start") == true); // Case insensitive
-    REQUIRE(matches(print_start_pattern, "Calling PRINT_START with args") == true);
+    REQUIRE(is_print_start("PRINT_START"));
+    REQUIRE(is_print_start("START_PRINT"));
+    REQUIRE(is_print_start("_PRINT_START"));
+    REQUIRE(is_print_start("print_start")); // Case insensitive
+    REQUIRE(is_print_start("Calling PRINT_START with args"));
 
     // Real macro invocations
-    REQUIRE(matches(print_start_pattern, "START_PRINT BED_TEMP=60 EXTRUDER_TEMP=200") == true);
-    REQUIRE(matches(print_start_pattern, "PRINT_START BED=60 EXTRUDER=200 CHAMBER=35") == true);
+    REQUIRE(is_print_start("START_PRINT BED_TEMP=60 EXTRUDER_TEMP=200"));
+    REQUIRE(is_print_start("PRINT_START BED=60 EXTRUDER=200 CHAMBER=35"));
 
     // Should NOT match
-    REQUIRE(matches(print_start_pattern, "PRINTS_TART") == false);
-    REQUIRE(matches(print_start_pattern, "G28") == false);
-    REQUIRE(matches(print_start_pattern, "") == false);
+    REQUIRE(!is_print_start("PRINTS_TART"));
+    REQUIRE(!is_print_start("G28"));
+    REQUIRE(!is_print_start(""));
 }
 
 // ============================================================================
@@ -108,17 +82,18 @@ TEST_CASE("PrintStart: PRINT_START marker detection", "[core][print][marker]") {
 
 TEST_CASE("PrintStart: completion marker detection", "[core][print][completion]") {
     // Should match
-    REQUIRE(matches(completion_pattern, "SET_PRINT_STATS_INFO CURRENT_LAYER=1") == true);
-    REQUIRE(matches(completion_pattern, "LAYER: 1") == true);
-    REQUIRE(matches(completion_pattern, "LAYER:1") == true);
-    REQUIRE(matches(completion_pattern, ";LAYER:1") == true);
-    REQUIRE(matches(completion_pattern, "First layer starting") == true);
+    REQUIRE(is_completion("SET_PRINT_STATS_INFO CURRENT_LAYER=1"));
+    REQUIRE(is_completion("LAYER: 1"));
+    REQUIRE(is_completion("LAYER:1"));
+    REQUIRE(is_completion(";LAYER:1"));
+    REQUIRE(is_completion("First layer starting"));
 
     // Should NOT match (not layer 1)
-    REQUIRE(matches(completion_pattern, "LAYER: 2") == false);
-    REQUIRE(matches(completion_pattern, "LAYER:10") == false);
-    REQUIRE(matches(completion_pattern, "LAYER:100") == false);
-    REQUIRE(matches(completion_pattern, "SET_PRINT_STATS_INFO") == false); // No CURRENT_LAYER
+    REQUIRE(!is_completion("LAYER: 2"));
+    REQUIRE(!is_completion("LAYER:10"));
+    REQUIRE(!is_completion("LAYER:100"));
+    REQUIRE(!is_completion("SET_PRINT_STATS_INFO")); // No CURRENT_LAYER
+    REQUIRE(!is_completion("status_printing"));
 }
 
 // ============================================================================
@@ -127,29 +102,29 @@ TEST_CASE("PrintStart: completion marker detection", "[core][print][completion]"
 
 TEST_CASE("PrintStart: RESPOND completion detection", "[core][print][respond]") {
     SECTION("Should match common print start messages") {
-        REQUIRE(matches(respond_completion_pattern, "// Print started!") == true);
-        REQUIRE(matches(respond_completion_pattern, "Print Started") == true);
-        REQUIRE(matches(respond_completion_pattern, "PRINT STARTING") == true);
-        REQUIRE(matches(respond_completion_pattern, "Print Start Complete") == true);
-        REQUIRE(matches(respond_completion_pattern, "print started") == true);
-        REQUIRE(matches(respond_completion_pattern, "Starting print") == true);
-        REQUIRE(matches(respond_completion_pattern, "starting print now") == true);
-        REQUIRE(matches(respond_completion_pattern, "Started print successfully") == true);
+        REQUIRE(is_respond_completion("// Print started!"));
+        REQUIRE(is_respond_completion("Print Started"));
+        REQUIRE(is_respond_completion("PRINT STARTING"));
+        REQUIRE(is_respond_completion("Print Start Complete"));
+        REQUIRE(is_respond_completion("print started"));
+        REQUIRE(is_respond_completion("Starting print"));
+        REQUIRE(is_respond_completion("starting print now"));
+        REQUIRE(is_respond_completion("Started print successfully"));
     }
 
     SECTION("Should NOT match unrelated messages") {
         // "Printing" is not "print" (word boundary)
-        REQUIRE(matches(respond_completion_pattern, "Printing layer 5") == false);
+        REQUIRE(!is_respond_completion("Printing layer 5"));
         // "restart" is not "start" (word boundary)
-        REQUIRE(matches(respond_completion_pattern, "restart print") == false);
+        REQUIRE(!is_respond_completion("restart print"));
         // "print_start" — underscore breaks word boundary for "start"
-        REQUIRE(matches(respond_completion_pattern, "print_start phase") == false);
+        REQUIRE(!is_respond_completion("print_start phase"));
         // No "print" keyword
-        REQUIRE(matches(respond_completion_pattern, "Starting temperature check") == false);
+        REQUIRE(!is_respond_completion("Starting temperature check"));
         // No "start" variant keyword
-        REQUIRE(matches(respond_completion_pattern, "print complete") == false);
+        REQUIRE(!is_respond_completion("print complete"));
         // Unrelated with both words far apart in different context
-        REQUIRE(matches(respond_completion_pattern, "start heating the print bed") == false);
+        REQUIRE(!is_respond_completion("start heating the print bed"));
     }
 }
 
@@ -159,21 +134,21 @@ TEST_CASE("PrintStart: RESPOND and PRINT_START patterns are independent",
         // "Print started!" is a RESPOND message, not a macro invocation
         // The print_start_pattern only matches exact macro names: PRINT_START, START_PRINT,
         // _PRINT_START
-        REQUIRE(matches(print_start_pattern, "Print started!") == false);
-        REQUIRE(matches(print_start_pattern, "PRINT STARTED") == false);
-        REQUIRE(matches(print_start_pattern, "print starting") == false);
+        REQUIRE(!is_print_start("Print started!"));
+        REQUIRE(!is_print_start("PRINT STARTED"));
+        REQUIRE(!is_print_start("print starting"));
         // But RESPOND pattern should match these:
-        REQUIRE(matches(respond_completion_pattern, "Print started!") == true);
-        REQUIRE(matches(respond_completion_pattern, "PRINT STARTED") == true);
-        REQUIRE(matches(respond_completion_pattern, "print starting") == true);
+        REQUIRE(is_respond_completion("Print started!"));
+        REQUIRE(is_respond_completion("PRINT STARTED"));
+        REQUIRE(is_respond_completion("print starting"));
     }
 
     SECTION("PRINT_START macro lines should not trigger RESPOND completion") {
         // "PRINT_START BED=60 EXTRUDER=200" should NOT match respond pattern
         // because "PRINT_START" has underscore breaking word boundary for "start"
-        REQUIRE(matches(respond_completion_pattern, "PRINT_START BED=60 EXTRUDER=200") == false);
-        REQUIRE(matches(respond_completion_pattern, "START_PRINT BED=60") == false);
-        REQUIRE(matches(respond_completion_pattern, "_PRINT_START") == false);
+        REQUIRE(!is_respond_completion("PRINT_START BED=60 EXTRUDER=200"));
+        REQUIRE(!is_respond_completion("START_PRINT BED=60"));
+        REQUIRE(!is_respond_completion("_PRINT_START"));
     }
 }
 
@@ -182,10 +157,10 @@ TEST_CASE("PrintStart: timeout fallback still available", "[core][print][timeout
     // interfere with timeout-based completion as a last resort.
 
     SECTION("RESPOND pattern does not match empty or noise lines") {
-        REQUIRE(matches(respond_completion_pattern, "") == false);
-        REQUIRE(matches(respond_completion_pattern, "ok") == false);
-        REQUIRE(matches(respond_completion_pattern, "T:200.0 /200.0 B:60.0 /60.0") == false);
-        REQUIRE(matches(respond_completion_pattern, "echo: M190 S60") == false);
+        REQUIRE(!is_respond_completion(""));
+        REQUIRE(!is_respond_completion("ok"));
+        REQUIRE(!is_respond_completion("T:200.0 /200.0 B:60.0 /60.0"));
+        REQUIRE(!is_respond_completion("echo: M190 S60"));
     }
 }
 
@@ -195,19 +170,19 @@ TEST_CASE("PrintStart: timeout fallback still available", "[core][print][timeout
 
 TEST_CASE("PrintStart: homing phase detection", "[core][print][homing]") {
     // Should match
-    REQUIRE(matches(homing_pattern, "G28") == true);
-    REQUIRE(matches(homing_pattern, "G28 X Y Z") == true);
-    REQUIRE(matches(homing_pattern, "G28 Z") == true);
-    REQUIRE(matches(homing_pattern, "Homing axes") == true);
-    REQUIRE(matches(homing_pattern, "Home All Axes") == true);
-    REQUIRE(matches(homing_pattern, "// homing started") == true);
+    REQUIRE(default_phase("G28") == PrintStartPhase::HOMING);
+    REQUIRE(default_phase("G28 X Y Z") == PrintStartPhase::HOMING);
+    REQUIRE(default_phase("G28 Z") == PrintStartPhase::HOMING);
+    REQUIRE(default_phase("Homing axes") == PrintStartPhase::HOMING);
+    REQUIRE(default_phase("Home All Axes") == PrintStartPhase::HOMING);
+    REQUIRE(default_phase("// homing started") == PrintStartPhase::HOMING);
 
     // Real Voron V2 macro output
-    REQUIRE(matches(homing_pattern, "SET_DISPLAY_TEXT MSG=\"Homing\"") == true);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Homing\"") == PrintStartPhase::HOMING);
 
     // Should NOT match
-    REQUIRE(matches(homing_pattern, "G29") == false); // Bed leveling
-    REQUIRE(matches(homing_pattern, "M104") == false);
+    REQUIRE(default_phase("G29") != PrintStartPhase::HOMING); // Bed leveling
+    REQUIRE(default_phase("M104") != PrintStartPhase::HOMING);
 }
 
 // ============================================================================
@@ -216,40 +191,40 @@ TEST_CASE("PrintStart: homing phase detection", "[core][print][homing]") {
 
 TEST_CASE("PrintStart: heating bed phase detection", "[core][print][heating]") {
     // Should match
-    REQUIRE(matches(heating_bed_pattern, "M190 S60") == true); // Wait for bed
-    REQUIRE(matches(heating_bed_pattern, "M140 S60") == true); // Set bed
-    REQUIRE(matches(heating_bed_pattern, "Heating bed to 60") == true);
-    REQUIRE(matches(heating_bed_pattern, "Heat Bed") == true);
-    REQUIRE(matches(heating_bed_pattern, "BED_TEMP=60") == true);
-    REQUIRE(matches(heating_bed_pattern, "bed heating") == true);
+    REQUIRE(default_phase("M190 S60") == PrintStartPhase::HEATING_BED); // Wait for bed
+    REQUIRE(default_phase("M140 S60") == PrintStartPhase::HEATING_BED); // Set bed
+    REQUIRE(default_phase("Heating bed to 60") == PrintStartPhase::HEATING_BED);
+    REQUIRE(default_phase("Heat Bed") == PrintStartPhase::HEATING_BED);
+    REQUIRE(default_phase("BED_TEMP=60") == PrintStartPhase::HEATING_BED);
+    REQUIRE(default_phase("bed heating") == PrintStartPhase::HEATING_BED);
 
     // Real Voron V2 macro: M190 S{BED_TEMP}
-    REQUIRE(matches(heating_bed_pattern, "M190 S110") == true);
+    REQUIRE(default_phase("M190 S110") == PrintStartPhase::HEATING_BED);
 
     // Should NOT match
-    REQUIRE(matches(heating_bed_pattern, "M140 S0") == false);   // Setting to 0 (cooling)
-    REQUIRE(matches(heating_bed_pattern, "M104 S200") == false); // Nozzle temp
+    REQUIRE(default_phase("M140 S0") != PrintStartPhase::HEATING_BED);   // Setting to 0 (cooling)
+    REQUIRE(default_phase("M104 S200") != PrintStartPhase::HEATING_BED); // Nozzle temp
 }
 
 TEST_CASE("PrintStart: heating nozzle phase detection", "[print][heating]") {
     // Should match
-    REQUIRE(matches(heating_nozzle_pattern, "M109 S200") == true); // Wait for nozzle
-    REQUIRE(matches(heating_nozzle_pattern, "M104 S200") == true); // Set nozzle
-    REQUIRE(matches(heating_nozzle_pattern, "M104 S150") == true); // Mesh temp
-    REQUIRE(matches(heating_nozzle_pattern, "Heating nozzle to 200") == true);
-    REQUIRE(matches(heating_nozzle_pattern, "Heating hotend") == true);
-    REQUIRE(matches(heating_nozzle_pattern, "Heating extruder") == true);
-    REQUIRE(matches(heating_nozzle_pattern, "EXTRUDER_TEMP=200") == true);
+    REQUIRE(default_phase("M109 S200") == PrintStartPhase::HEATING_NOZZLE); // Wait for nozzle
+    REQUIRE(default_phase("M104 S200") == PrintStartPhase::HEATING_NOZZLE); // Set nozzle
+    REQUIRE(default_phase("M104 S150") == PrintStartPhase::HEATING_NOZZLE); // Mesh temp
+    REQUIRE(default_phase("Heating nozzle to 200") == PrintStartPhase::HEATING_NOZZLE);
+    REQUIRE(default_phase("Heating hotend") == PrintStartPhase::HEATING_NOZZLE);
+    REQUIRE(default_phase("Heating extruder") == PrintStartPhase::HEATING_NOZZLE);
+    REQUIRE(default_phase("EXTRUDER_TEMP=200") == PrintStartPhase::HEATING_NOZZLE);
 
     // Real Voron V2 macro output
-    REQUIRE(matches(heating_nozzle_pattern, "SET_DISPLAY_TEXT MSG=\"Heating for print\"") ==
-            false); // "for print" not "nozzle"
-    REQUIRE(matches(heating_nozzle_pattern,
-                    "SET_DISPLAY_TEXT MSG=\"Heating extruder and bed for probing\"") == true);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") !=
+            PrintStartPhase::HEATING_NOZZLE); // "for print" not "nozzle"
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating extruder and bed for probing\"") ==
+            PrintStartPhase::HEATING_NOZZLE);
 
     // Should NOT match
-    REQUIRE(matches(heating_nozzle_pattern, "M104 S0") == false);  // Cooling
-    REQUIRE(matches(heating_nozzle_pattern, "M190 S60") == false); // Bed temp
+    REQUIRE(default_phase("M104 S0") != PrintStartPhase::HEATING_NOZZLE);  // Cooling
+    REQUIRE(default_phase("M190 S60") != PrintStartPhase::HEATING_NOZZLE); // Bed temp
 }
 
 // ============================================================================
@@ -258,27 +233,27 @@ TEST_CASE("PrintStart: heating nozzle phase detection", "[print][heating]") {
 
 TEST_CASE("PrintStart: QGL phase detection", "[print][leveling]") {
     // Should match
-    REQUIRE(matches(qgl_pattern, "QUAD_GANTRY_LEVEL") == true);
-    REQUIRE(matches(qgl_pattern, "quad gantry level") == true);
-    REQUIRE(matches(qgl_pattern, "Running QGL") == true);
+    REQUIRE(default_phase("QUAD_GANTRY_LEVEL") == PrintStartPhase::QGL);
+    REQUIRE(default_phase("quad gantry level") == PrintStartPhase::QGL);
+    REQUIRE(default_phase("Running QGL") == PrintStartPhase::QGL);
 
     // Real Voron V2 macro output
-    REQUIRE(matches(qgl_pattern, "SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") ==
-            false); // "gantry" alone doesn't match
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") !=
+            PrintStartPhase::QGL); // "gantry" alone doesn't match
 
     // Should NOT match
-    REQUIRE(matches(qgl_pattern, "Z_TILT_ADJUST") == false);
-    REQUIRE(matches(qgl_pattern, "G28") == false);
+    REQUIRE(default_phase("Z_TILT_ADJUST") != PrintStartPhase::QGL);
+    REQUIRE(default_phase("G28") != PrintStartPhase::QGL);
 }
 
 TEST_CASE("PrintStart: Z_TILT phase detection", "[print][leveling]") {
     // Should match
-    REQUIRE(matches(z_tilt_pattern, "Z_TILT_ADJUST") == true);
-    REQUIRE(matches(z_tilt_pattern, "z_tilt_adjust") == true);
-    REQUIRE(matches(z_tilt_pattern, "z tilt adjust") == true);
+    REQUIRE(default_phase("Z_TILT_ADJUST") == PrintStartPhase::Z_TILT);
+    REQUIRE(default_phase("z_tilt_adjust") == PrintStartPhase::Z_TILT);
+    REQUIRE(default_phase("z tilt adjust") == PrintStartPhase::Z_TILT);
 
     // Should NOT match
-    REQUIRE(matches(z_tilt_pattern, "QUAD_GANTRY_LEVEL") == false);
+    REQUIRE(default_phase("QUAD_GANTRY_LEVEL") != PrintStartPhase::Z_TILT);
 }
 
 // ============================================================================
@@ -287,18 +262,21 @@ TEST_CASE("PrintStart: Z_TILT phase detection", "[print][leveling]") {
 
 TEST_CASE("PrintStart: bed mesh phase detection", "[print][mesh]") {
     // Should match
-    REQUIRE(matches(bed_mesh_pattern, "BED_MESH_CALIBRATE") == true);
-    REQUIRE(matches(bed_mesh_pattern, "BED_MESH_PROFILE LOAD=default") == true);
-    REQUIRE(matches(bed_mesh_pattern, "Loading bed mesh") == true);
-    REQUIRE(matches(bed_mesh_pattern, "mesh loading") == true);
+    REQUIRE(default_phase("BED_MESH_CALIBRATE") == PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("BED_MESH_PROFILE LOAD=default") == PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("Loading bed mesh") == PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("mesh loading") == PrintStartPhase::BED_MESH);
 
     // Real Voron V2 macro: BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1
-    REQUIRE(matches(bed_mesh_pattern, "BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1") == true);
+    REQUIRE(default_phase("BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1") ==
+            PrintStartPhase::BED_MESH);
+
+    // Display text naming the phase counts too
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Performing bed mesh calibration\"") ==
+            PrintStartPhase::BED_MESH);
 
     // Should NOT match
-    REQUIRE(matches(bed_mesh_pattern, "BED_MESH_CLEAR") == false);
-    REQUIRE(matches(bed_mesh_pattern, "SET_DISPLAY_TEXT MSG=\"Performing bed mesh calibration\"") ==
-            false);
+    REQUIRE(default_phase("BED_MESH_CLEAR") != PrintStartPhase::BED_MESH);
 }
 
 // ============================================================================
@@ -307,19 +285,18 @@ TEST_CASE("PrintStart: bed mesh phase detection", "[print][mesh]") {
 
 TEST_CASE("PrintStart: cleaning phase detection", "[print][cleaning]") {
     // Should match
-    REQUIRE(matches(cleaning_pattern, "CLEAN_NOZZLE") == true);
-    REQUIRE(matches(cleaning_pattern, "NOZZLE_CLEAN") == true);
-    REQUIRE(matches(cleaning_pattern, "WIPE_NOZZLE") == true);
-    REQUIRE(matches(cleaning_pattern, "nozzle wipe") == true);
-    REQUIRE(matches(cleaning_pattern, "clean nozzle") == true);
-    REQUIRE(matches(cleaning_pattern, "clean_nozzle") == true); // Voron V2 macro call
+    REQUIRE(default_phase("CLEAN_NOZZLE") == PrintStartPhase::CLEANING);
+    REQUIRE(default_phase("NOZZLE_CLEAN") == PrintStartPhase::CLEANING);
+    REQUIRE(default_phase("WIPE_NOZZLE") == PrintStartPhase::CLEANING);
+    REQUIRE(default_phase("nozzle wipe") == PrintStartPhase::CLEANING);
+    REQUIRE(default_phase("clean nozzle") == PrintStartPhase::CLEANING);
+    REQUIRE(default_phase("clean_nozzle") == PrintStartPhase::CLEANING); // Voron V2 macro call
 
-    // Real Voron V2 display text - note: "Cleaning nozzle" has "ing " between,
-    // which doesn't match clean.?nozzle pattern (requires 0-1 char between)
-    REQUIRE(matches(cleaning_pattern, "SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == false);
+    // Real Voron V2 display text
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == PrintStartPhase::CLEANING);
 
     // Should NOT match
-    REQUIRE(matches(cleaning_pattern, "PURGE_LINE") == false);
+    REQUIRE(default_phase("PURGE_LINE") != PrintStartPhase::CLEANING);
 }
 
 // ============================================================================
@@ -328,21 +305,21 @@ TEST_CASE("PrintStart: cleaning phase detection", "[print][cleaning]") {
 
 TEST_CASE("PrintStart: purging phase detection", "[print][purging]") {
     // Should match
-    REQUIRE(matches(purging_pattern, "VORON_PURGE") == true);
-    REQUIRE(matches(purging_pattern, "LINE_PURGE") == true);
-    REQUIRE(matches(purging_pattern, "PURGE_LINE") == true);
-    REQUIRE(matches(purging_pattern, "Prime Line") == true);
-    REQUIRE(matches(purging_pattern, "PrimeLine") == true);
-    REQUIRE(matches(purging_pattern, "Priming extruder") == true);
-    REQUIRE(matches(purging_pattern, "KAMP_ADAPTIVE_PURGE") == true);
-    REQUIRE(matches(purging_pattern, "purge line done") == true);
+    REQUIRE(default_phase("VORON_PURGE") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("LINE_PURGE") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("PURGE_LINE") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("Prime Line") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("PrimeLine") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("Priming extruder") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("KAMP_ADAPTIVE_PURGE") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("purge line done") == PrintStartPhase::PURGING);
 
     // Real Voron V2 display text
-    REQUIRE(matches(purging_pattern, "SET_DISPLAY_TEXT MSG=\"Purging\"") ==
-            false); // Just "Purging" alone
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Purging\"") !=
+            PrintStartPhase::PURGING); // Just "Purging" alone
 
     // Should NOT match
-    REQUIRE(matches(purging_pattern, "CLEAN_NOZZLE") == false);
+    REQUIRE(default_phase("CLEAN_NOZZLE") != PrintStartPhase::PURGING);
 }
 
 // ============================================================================
@@ -366,42 +343,45 @@ TEST_CASE("PrintStart: real Voron V2 START_PRINT macro lines", "[print][voron][i
     // Lines from actual Voron V2 START_PRINT macro
     struct TestCase {
         std::string line;
-        const std::regex* expected_pattern;
+        PrintStartPhase expected; ///< INITIALIZING = the PRINT_START marker
         const char* description;
     };
 
     std::vector<TestCase> voron_lines = {
-        {"START_PRINT BED_TEMP=110 EXTRUDER_TEMP=250 CHAMBER_TEMP=45", &print_start_pattern,
-         "macro invocation"},
-        {"M104 S150", &heating_nozzle_pattern, "mesh temp heating"},
-        {"M190 S110", &heating_bed_pattern, "bed temp wait"},
-        {"G28", &homing_pattern, "home all"},
-        {"clean_nozzle", &cleaning_pattern, "nozzle clean macro"},
-        {"QUAD_GANTRY_LEVEL", &qgl_pattern, "quad gantry level"},
-        {"G28 Z", &homing_pattern, "home Z after QGL"},
-        {"BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1", &bed_mesh_pattern, "adaptive bed mesh"},
-        {"M109 S250", &heating_nozzle_pattern, "extruder temp wait"},
-        {"VORON_PURGE", &purging_pattern, "voron purge"},
+        {"START_PRINT BED_TEMP=110 EXTRUDER_TEMP=250 CHAMBER_TEMP=45",
+         PrintStartPhase::INITIALIZING, "macro invocation"},
+        {"M104 S150", PrintStartPhase::HEATING_NOZZLE, "mesh temp heating"},
+        {"M190 S110", PrintStartPhase::HEATING_BED, "bed temp wait"},
+        {"G28", PrintStartPhase::HOMING, "home all"},
+        {"clean_nozzle", PrintStartPhase::CLEANING, "nozzle clean macro"},
+        {"QUAD_GANTRY_LEVEL", PrintStartPhase::QGL, "quad gantry level"},
+        {"G28 Z", PrintStartPhase::HOMING, "home Z after QGL"},
+        {"BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1", PrintStartPhase::BED_MESH,
+         "adaptive bed mesh"},
+        {"M109 S250", PrintStartPhase::HEATING_NOZZLE, "extruder temp wait"},
+        {"VORON_PURGE", PrintStartPhase::PURGING, "voron purge"},
     };
 
     for (const auto& tc : voron_lines) {
         CAPTURE(tc.description, tc.line);
-        REQUIRE(matches(*tc.expected_pattern, tc.line) == true);
+        if (tc.expected == PrintStartPhase::INITIALIZING) {
+            REQUIRE(is_print_start(tc.line));
+        } else {
+            REQUIRE(default_phase(tc.line) == tc.expected);
+        }
     }
 }
 
 TEST_CASE("PrintStart: Voron V2 SET_DISPLAY_TEXT messages", "[print][voron]") {
     // These are the display messages from the macro
-    REQUIRE(matches(homing_pattern, "SET_DISPLAY_TEXT MSG=\"Homing\"") == true);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Homing\"") == PrintStartPhase::HOMING);
 
-    // Note: "Cleaning nozzle" has "ing " between clean and nozzle,
-    // so it doesn't match clean.?nozzle pattern (which requires 0-1 char)
-    REQUIRE(matches(cleaning_pattern, "SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == false);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == PrintStartPhase::CLEANING);
 
-    // These DON'T match because they use different wording
-    // This is intentional - we match G-code commands, not display text
-    REQUIRE(matches(qgl_pattern, "SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") == false);
-    REQUIRE(matches(heating_nozzle_pattern, "SET_DISPLAY_TEXT MSG=\"Heating for print\"") == false);
+    // Wording that names no phase the patterns know does not match
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") != PrintStartPhase::QGL);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") !=
+            PrintStartPhase::HEATING_NOZZLE);
 }
 
 // ============================================================================
@@ -427,69 +407,56 @@ TEST_CASE("PrintStart: Voron V2 SET_DISPLAY_TEXT messages", "[print][voron]") {
 TEST_CASE("PrintStart: real AD5M Pro START_PRINT macro lines", "[print][ad5m][integration]") {
     struct TestCase {
         std::string line;
-        const std::regex* expected_pattern;
+        PrintStartPhase expected; ///< INITIALIZING = the PRINT_START marker
         const char* description;
     };
 
     std::vector<TestCase> ad5m_lines = {
-        {"START_PRINT BED_TEMP=60 EXTRUDER_TEMP=200", &print_start_pattern, "macro invocation"},
-        {"RESPOND MSG=\"START_PRINT\"", &print_start_pattern, "respond with start marker"},
-        {"M140 S60", &heating_bed_pattern, "set bed temp"},
-        {"M104 S200", &heating_nozzle_pattern, "set nozzle temp"},
-        {"G28", &homing_pattern, "home all"},
-        {"BED_MESH_CALIBRATE mesh_min=-100,-100 mesh_max=100,100", &bed_mesh_pattern,
+        {"START_PRINT BED_TEMP=60 EXTRUDER_TEMP=200", PrintStartPhase::INITIALIZING,
+         "macro invocation"},
+        {"RESPOND MSG=\"START_PRINT\"", PrintStartPhase::INITIALIZING, "respond with start marker"},
+        {"M140 S60", PrintStartPhase::HEATING_BED, "set bed temp"},
+        {"M104 S200", PrintStartPhase::HEATING_NOZZLE, "set nozzle temp"},
+        {"G28", PrintStartPhase::HOMING, "home all"},
+        {"BED_MESH_CALIBRATE mesh_min=-100,-100 mesh_max=100,100", PrintStartPhase::BED_MESH,
          "KAMP mesh calibrate"},
-        {"BED_MESH_PROFILE LOAD=auto", &bed_mesh_pattern, "load auto mesh profile"},
-        {"LINE_PURGE", &purging_pattern, "KAMP line purge"},
+        {"BED_MESH_PROFILE LOAD=auto", PrintStartPhase::BED_MESH, "load auto mesh profile"},
+        {"LINE_PURGE", PrintStartPhase::PURGING, "KAMP line purge"},
     };
 
     for (const auto& tc : ad5m_lines) {
         CAPTURE(tc.description, tc.line);
-        REQUIRE(matches(*tc.expected_pattern, tc.line) == true);
+        if (tc.expected == PrintStartPhase::INITIALIZING) {
+            REQUIRE(is_print_start(tc.line));
+        } else {
+            REQUIRE(default_phase(tc.line) == tc.expected);
+        }
     }
 }
 
 TEST_CASE("PrintStart: AD5M Pro _PRINT_STATUS messages", "[print][ad5m]") {
     // These are unique to AD5M Pro mod firmware
-    REQUIRE(matches(homing_pattern, "_PRINT_STATUS S=\"HOMING...\"") == true);
+    REQUIRE(default_phase("_PRINT_STATUS S=\"HOMING...\"") == PrintStartPhase::HOMING);
 
     // Note: These DON'T match because they use different wording (status strings only)
-    REQUIRE(matches(heating_bed_pattern, "_PRINT_STATUS S=\"HEATING...\"") == false);
-    REQUIRE(matches(bed_mesh_pattern, "_PRINT_STATUS S=\"MESH CHECKING...\"") == false);
+    REQUIRE(default_phase("_PRINT_STATUS S=\"HEATING...\"") != PrintStartPhase::HEATING_BED);
+    REQUIRE(default_phase("_PRINT_STATUS S=\"MESH CHECKING...\"") != PrintStartPhase::BED_MESH);
 }
 
 TEST_CASE("PrintStart: AD5M Pro KAMP-specific patterns", "[print][ad5m][kamp]") {
     // KAMP adaptive purge patterns
-    REQUIRE(matches(purging_pattern, "KAMP_ADAPTIVE_PURGE") == true);
-    REQUIRE(matches(purging_pattern, "_LINE_PURGE") == true);
+    REQUIRE(default_phase("KAMP_ADAPTIVE_PURGE") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("_LINE_PURGE") == PrintStartPhase::PURGING);
 
     // KAMP bed mesh with parameters
-    REQUIRE(matches(bed_mesh_pattern, "BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1") == true);
-    REQUIRE(matches(bed_mesh_pattern, "_KAMP_BED_MESH_CALIBRATE") == true);
+    REQUIRE(default_phase("BED_MESH_CALIBRATE PROFILE=adaptive ADAPTIVE=1") ==
+            PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("_KAMP_BED_MESH_CALIBRATE") == PrintStartPhase::BED_MESH);
 }
 
 // ============================================================================
 // Noise Rejection Tests
 // ============================================================================
-
-// ============================================================================
-// Voron Status LED Macro Tests
-// ============================================================================
-
-TEST_CASE("PrintStart: Voron status_* LED macros are valid phase indicators",
-          "[print][voron][status]") {
-    // These LED macros are called at the START of each phase in Voron configs
-    REQUIRE(matches(homing_pattern, "status_homing") == true);
-    REQUIRE(matches(heating_bed_pattern, "status_heating") == true);
-    REQUIRE(matches(heating_nozzle_pattern, "status_heating") == true);
-    REQUIRE(matches(qgl_pattern, "status_leveling") == true);
-    REQUIRE(matches(z_tilt_pattern, "status_leveling") == true);
-    REQUIRE(matches(bed_mesh_pattern, "status_meshing") == true);
-    REQUIRE(matches(cleaning_pattern, "status_cleaning") == true);
-
-    // status_printing indicates print started (end of PRINT_START)
-    REQUIRE(matches(completion_pattern, "status_printing") == false); // Not a completion marker
-}
 
 // ============================================================================
 // Noise Rejection Tests
@@ -515,15 +482,9 @@ TEST_CASE("PrintStart: typical noise lines should not match phases", "[print][ne
         "status_ready",    // Idle status
     };
 
-    std::vector<const std::regex*> phase_patterns = {
-        &homing_pattern, &heating_bed_pattern, &heating_nozzle_pattern, &qgl_pattern,
-        &z_tilt_pattern, &bed_mesh_pattern,    &cleaning_pattern,       &purging_pattern};
-
     for (const auto& line : noise_lines) {
-        for (const auto* pattern : phase_patterns) {
-            CAPTURE(line);
-            REQUIRE(matches(*pattern, line) == false);
-        }
+        CAPTURE(line);
+        REQUIRE(default_phase(line) == PrintStartPhase::IDLE);
     }
 }
 
