@@ -458,8 +458,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     [[nodiscard]] std::string build_preference_gcode(const std::string& action_id,
                                                      const std::any& value) const;
 
-    // Static parsers (public for testing)
-
   protected:
     void on_started() override;
     void handle_status(const nlohmann::json& status) override;
