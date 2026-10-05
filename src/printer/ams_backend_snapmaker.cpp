@@ -1135,9 +1135,8 @@ AmsError AmsBackendSnapmaker::disable_bypass() {
 // Static Parsers
 // ============================================================================
 
-ExtruderToolState AmsBackendSnapmaker::parse_extruder_state(const nlohmann::json& json) {
-    ExtruderToolState state;
-
+ExtruderToolState AmsBackendSnapmaker::parse_extruder_state(const nlohmann::json& json,
+                                                            ExtruderToolState state) {
     if (json.contains("state") && json["state"].is_string()) {
         state.state = json["state"].get<std::string>();
     }
@@ -1326,14 +1325,19 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         for (int i = 0; i < NUM_TOOLS; i++) {
             const auto& key = extruder_keys[i];
             if (status.contains(key) && status[key].is_object()) {
-                auto new_state = parse_extruder_state(status[key]);
+                // Status frames are deltas: fields this frame omits keep the
+                // values already held for the tool.
+                auto new_state = parse_extruder_state(status[key], extruder_states_[i]);
+                const auto park_it = status[key].find("park_pin");
+                const bool parked_in_frame =
+                    park_it != status[key].end() && park_it->is_boolean() && park_it->get<bool>();
 
                 // A parked tool is not the loaded one. LOADED itself is written
                 // only by the per-frame recompute after the sensor parse: an
                 // active pin says the tool is on the carriage, not that it has
                 // filament at the nozzle.
                 auto* slot = system_info_.units[0].get_slot(i);
-                if (slot && new_state.park_pin && slot->status != SlotStatus::AVAILABLE) {
+                if (slot && parked_in_frame && slot->status != SlotStatus::AVAILABLE) {
                     slot->status = SlotStatus::AVAILABLE;
                     changed = true;
                 }

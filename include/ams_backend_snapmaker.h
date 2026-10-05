@@ -487,7 +487,10 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                                                      const std::any& value) const;
 
     // Static parsers (public for testing)
-    static ExtruderToolState parse_extruder_state(const nlohmann::json& json);
+    /// Overlays the fields @p json carries onto @p state; an omitted field
+    /// keeps its value.
+    static ExtruderToolState parse_extruder_state(const nlohmann::json& json,
+                                                  ExtruderToolState state = {});
     static SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
 
   protected:

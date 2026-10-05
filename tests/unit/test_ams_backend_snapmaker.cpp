@@ -4084,3 +4084,30 @@ TEST_CASE_METHOD(SnapmakerGoldenFixture, "Snapmaker golden status sequence",
     }
     CHECK(all == kGolden);
 }
+
+TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder delta frames keep the fields they omit",
+                 "[ams][snapmaker][extruder][delta]") {
+    helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
+    AmsBackendSnapmaker& backend = *backend_reg;
+
+    SnapmakerTestAccess::handle_status(backend, json{{"extruder1", json{{"state", "PARKED"},
+                                                                        {"park_pin", true},
+                                                                        {"active_pin", false},
+                                                                        {"switch_count", 7}}}});
+    REQUIRE(SnapmakerTestAccess::extruder_state(backend, 1).park_pin);
+
+    // A temperature-only update names none of the tool-changer fields.
+    SnapmakerTestAccess::handle_status(backend, json{{"extruder1", json{{"temperature", 215.5}}}});
+    auto held = SnapmakerTestAccess::extruder_state(backend, 1);
+    CHECK(held.state == "PARKED");
+    CHECK(held.park_pin);
+    CHECK(held.switch_count == 7);
+
+    // A frame that does name a field overwrites only that field.
+    SnapmakerTestAccess::handle_status(
+        backend, json{{"extruder1", json{{"state", "ACTIVE"}, {"park_pin", false}}}});
+    held = SnapmakerTestAccess::extruder_state(backend, 1);
+    CHECK(held.state == "ACTIVE");
+    CHECK_FALSE(held.park_pin);
+    CHECK(held.switch_count == 7);
+}
