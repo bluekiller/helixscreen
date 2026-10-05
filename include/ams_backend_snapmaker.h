@@ -527,6 +527,12 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                                       const snapmaker::ChannelStateInfo& op_info,
                                       const std::string& error, bool outcome_is_new,
                                       FrameEffects& fx);
+    /// The task manager's record: stored preferences, routing, and each head's
+    /// configured material, brand and colour.
+    void apply_print_task_config_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_task_routing_locked(const snapmaker::PrintTaskConfigDelta& ptc, FrameEffects& fx);
+    void apply_task_slot_identity_locked(const snapmaker::PrintTaskConfigDelta& ptc,
+                                         FrameEffects& fx);
     /// Retires an active batch plan the firmware reports no longer running.
     void apply_batch_state_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     /// The head an operation is working on, from the batch cursor or the

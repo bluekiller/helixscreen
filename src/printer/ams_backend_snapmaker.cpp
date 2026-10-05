@@ -1800,6 +1800,129 @@ void AmsBackendSnapmaker::apply_working_slot_locked(FrameEffects& fx) {
     }
 }
 
+void AmsBackendSnapmaker::apply_print_task_config_locked(const snapmaker::StatusDelta& delta,
+                                                         FrameEffects& fx) {
+    // print_task_config is the authoritative filament record from Snapmaker's
+    // task manager: per-extruder type, vendor, color and presence, plus the
+    // routing of the running print.
+    if (!delta.print_task_config) {
+        return;
+    }
+    const auto& ptc = *delta.print_task_config;
+
+    // Firmware-stored preferences are held as told, never filed as lane
+    // observations: they are a write surface like the filament_type/vendor/color
+    // fields below.
+    print_preferences_.merge(ptc.preferences);
+
+    apply_task_routing_locked(ptc, fx);
+    apply_task_slot_identity_locked(ptc, fx);
+}
+
+void AmsBackendSnapmaker::apply_task_routing_locked(const snapmaker::PrintTaskConfigDelta& ptc,
+                                                    FrameEffects& fx) {
+    // extruder_map_table: [int x32], logical tool -> physical head. The
+    // firmware's own routing authority for the running print (see the member's
+    // doc comment). Mirrored verbatim; interpretation belongs to
+    // get_tool_mapping()'s callers, not here.
+    if (ptc.extruder_map_table && *ptc.extruder_map_table != extruder_map_table_) {
+        spdlog::debug("[AMS Snapmaker] extruder_map_table changed ({} entries)",
+                      ptc.extruder_map_table->size());
+        extruder_map_table_ = *ptc.extruder_map_table;
+        fx.changed = true;
+    }
+
+    // extruders_used: [bool x4], the heads this task uses. Gates whether the map
+    // above may be read at all (see the member's doc comment).
+    if (ptc.extruders_used && *ptc.extruders_used != extruders_used_) {
+        extruders_used_ = *ptc.extruders_used;
+        fx.changed = true;
+    }
+
+    // Snapshot the routing while the task is still configured. Both fields are
+    // members, so this is evaluated against the accumulated state rather than
+    // only what THIS frame carried: an incremental update that names one of
+    // them still lands on the right answer.
+    //
+    // This is the only moment the routing is knowable. Once the print ends the
+    // firmware clears extruders_used and resets the table, and a reprint has
+    // nothing left to read: no detail view, no picker, no colour match to
+    // recompute. An empty table is never snapshotted: "known: nothing" is
+    // indistinguishable from a real answer to the caller, and the honest value
+    // is "not known".
+    const bool task_configured_now =
+        std::any_of(extruders_used_.begin(), extruders_used_.end(), [](bool b) { return b; });
+    if (task_configured_now && !extruder_map_table_.empty() &&
+        last_task_extruder_map_ != extruder_map_table_) {
+        last_task_extruder_map_ = extruder_map_table_;
+        spdlog::debug("[AMS Snapmaker] recorded task routing ({} entries) for reprint",
+                      last_task_extruder_map_.size());
+    }
+}
+
+void AmsBackendSnapmaker::apply_task_slot_identity_locked(
+    const snapmaker::PrintTaskConfigDelta& ptc, FrameEffects& fx) {
+    // filament_exist: whether filament is loaded per slot
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (!ptc.filament_exist[i]) {
+            continue;
+        }
+        const bool exists = *ptc.filament_exist[i];
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot) {
+            if (exists && slot->status != SlotStatus::LOADED) {
+                slot->status = SlotStatus::AVAILABLE;
+            } else if (!exists) {
+                slot->status = SlotStatus::EMPTY;
+            }
+            fx.changed = true;
+        }
+    }
+
+    // These three fields write SlotInfo and deliberately file NO lane
+    // observation, unlike the RFID parse.
+    //
+    // print_task_config is a write surface, not a sensor.
+    // SET_PRINT_FILAMENT_CONFIG takes VENDOR / FILAMENT_TYPE / FILAMENT_SUBTYPE /
+    // FILAMENT_COLOR_RGBA as gcode parameters and persists them, so whoever sent
+    // that command set these values: the machine's own screen, a slicer, a
+    // console, or this backend's write-back through /printer/filament_detect/set,
+    // which firmware mirrors into this same struct. Filing any of it as
+    // VendorCache would return a user's own edit as firmware truth.
+    //
+    // The firmware carries the provenance bit itself, and it shows the channel is
+    // redundant rather than merely unsafe: filament_official marks a head whose
+    // entry came from a Snapmaker RFID spool, and SET_PRINT_FILAMENT_CONFIG is
+    // refused on such a head without FORCE. An official entry is the tag
+    // filament_detect.info already reports, which the RFID parse files; an
+    // unofficial one is somebody's declaration. Neither is a reading this key can
+    // contribute.
+    //
+    // A user's declaration reaches the lane model through commit_slot_edit, which
+    // is the funnel that records authorship.
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (!slot) {
+            continue;
+        }
+        if (ptc.filament_type[i]) {
+            slot->material =
+                *ptc.filament_type[i]; // Base type only (e.g., "PLA") for compact display
+            fx.changed = true;
+        }
+        if (ptc.filament_vendor[i]) {
+            slot->brand = *ptc.filament_vendor[i];
+            fx.changed = true;
+        }
+        if (ptc.filament_color_rgba[i]) {
+            if (const auto rgb = snapmaker::rgb_from_rgba_hex(*ptc.filament_color_rgba[i])) {
+                slot->color_rgb = *rgb;
+            }
+            fx.changed = true;
+        }
+    }
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
     std::string batch_macro_object;
@@ -1823,190 +1946,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
         apply_batch_state_locked(delta, fx);
         apply_working_slot_locked(fx);
 
-        // Parse print_task_config — authoritative filament info from Snapmaker's task manager
-        // Contains per-extruder filament type, vendor, color, and presence data
-        if (status.contains("print_task_config") && status["print_task_config"].is_object()) {
-            const auto& ptc = status["print_task_config"];
-
-            // Firmware-stored preferences. Merged field by field, because a delta
-            // frame that mentions one setting says nothing about the others.
-            // Held as told, never filed as lane observations — these are a write
-            // surface like the filament_type/vendor/color fields below.
-            const auto incoming = snapmaker::read_print_preferences(status);
-            if (incoming.auto_replenish) {
-                print_preferences_.auto_replenish = incoming.auto_replenish;
-            }
-            if (incoming.replenish_ignore_color) {
-                print_preferences_.replenish_ignore_color = incoming.replenish_ignore_color;
-            }
-            if (incoming.filament_entangle_detect) {
-                print_preferences_.filament_entangle_detect = incoming.filament_entangle_detect;
-            }
-            if (incoming.end_led_turn_off) {
-                print_preferences_.end_led_turn_off = incoming.end_led_turn_off;
-            }
-            if (incoming.filament_entangle_sen) {
-                print_preferences_.filament_entangle_sen = incoming.filament_entangle_sen;
-            }
-            if (!incoming.end_unload_filament.empty()) {
-                print_preferences_.end_unload_filament = incoming.end_unload_filament;
-            }
-
-            // extruder_map_table: [int x32] — logical tool -> physical head. The
-            // firmware's own routing authority for the running print (see the
-            // member's doc comment). Mirrored verbatim; interpretation belongs to
-            // get_tool_mapping()'s callers, not here.
-            if (ptc.contains("extruder_map_table") && ptc["extruder_map_table"].is_array()) {
-                std::vector<int> table;
-                table.reserve(ptc["extruder_map_table"].size());
-                for (const auto& entry : ptc["extruder_map_table"]) {
-                    // A non-integer or out-of-range head is recorded as -1 ("no
-                    // opinion") rather than clamped: silently substituting head 0
-                    // is the identity-as-truth mistake this whole path exists to
-                    // stop making.
-                    if (!entry.is_number_integer()) {
-                        table.push_back(-1);
-                        continue;
-                    }
-                    const int head = entry.get<int>();
-                    table.push_back((head >= 0 && head < NUM_TOOLS) ? head : -1);
-                }
-                if (table != extruder_map_table_) {
-                    spdlog::debug("[AMS Snapmaker] extruder_map_table changed ({} entries)",
-                                  table.size());
-                    extruder_map_table_ = std::move(table);
-                    fx.changed = true;
-                }
-            }
-
-            // extruders_used: [bool x4] — heads this task uses. Gates whether the
-            // map above may be read at all (see the member's doc comment).
-            if (ptc.contains("extruders_used") && ptc["extruders_used"].is_array()) {
-                std::vector<bool> used;
-                used.reserve(ptc["extruders_used"].size());
-                for (const auto& entry : ptc["extruders_used"]) {
-                    used.push_back(entry.is_boolean() && entry.get<bool>());
-                }
-                if (used != extruders_used_) {
-                    extruders_used_ = std::move(used);
-                    fx.changed = true;
-                }
-            }
-
-            // Snapshot the routing while the task is still configured. Both
-            // fields are members, so this is evaluated against the accumulated
-            // state rather than only what THIS frame carried — an incremental
-            // update that names one of them still lands on the right answer.
-            //
-            // This is the only moment the routing is knowable. Once the print
-            // ends the firmware clears extruders_used and resets the table, and a
-            // reprint has nothing left to read: no detail view, no picker, no
-            // colour match to recompute. An empty table is never snapshotted —
-            // "known: nothing" is indistinguishable from a real answer to the
-            // caller, and the honest value is "not known".
-            const bool task_configured_now = std::any_of(
-                extruders_used_.begin(), extruders_used_.end(), [](bool b) { return b; });
-            if (task_configured_now && !extruder_map_table_.empty() &&
-                last_task_extruder_map_ != extruder_map_table_) {
-                last_task_extruder_map_ = extruder_map_table_;
-                spdlog::debug("[AMS Snapmaker] recorded task routing ({} entries) for reprint",
-                              last_task_extruder_map_.size());
-            }
-
-            // filament_exist: [bool, bool, bool, bool] — whether filament is loaded per slot
-            if (ptc.contains("filament_exist") && ptc["filament_exist"].is_array()) {
-                const auto& exist_arr = ptc["filament_exist"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(exist_arr.size()); i++) {
-                    if (!exist_arr[i].is_boolean())
-                        continue;
-                    bool exists = exist_arr[i].get<bool>();
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        if (exists && slot->status != SlotStatus::LOADED) {
-                            slot->status = SlotStatus::AVAILABLE;
-                        } else if (!exists) {
-                            slot->status = SlotStatus::EMPTY;
-                        }
-                        fx.changed = true;
-                    }
-                }
-            }
-
-            // These three fields write SlotInfo and deliberately file NO lane
-            // observation, unlike the RFID parse above.
-            //
-            // print_task_config is a write surface, not a sensor.
-            // SET_PRINT_FILAMENT_CONFIG takes VENDOR / FILAMENT_TYPE /
-            // FILAMENT_SUBTYPE / FILAMENT_COLOR_RGBA as gcode parameters and
-            // persists them, so whoever sent that command set these values: the
-            // machine's own screen, a slicer, a console, or this backend's
-            // write-back through /printer/filament_detect/set, which firmware
-            // mirrors into this same struct. Filing any of it as VendorCache
-            // would return a user's own edit as firmware truth.
-            //
-            // The firmware carries the provenance bit itself, and it shows the
-            // channel is redundant rather than merely unsafe: filament_official
-            // marks a head whose entry came from a Snapmaker RFID spool, and
-            // SET_PRINT_FILAMENT_CONFIG is refused on such a head without
-            // FORCE. An official entry is the tag filament_detect.info already
-            // reports, which the RFID parse files; an unofficial one is
-            // somebody's declaration. Neither is a reading this key can
-            // contribute.
-            //
-            // A user's declaration reaches the lane model through
-            // commit_slot_edit, which is the funnel that records authorship.
-            //
-            // filament_type: ["PLA", "PLA", ...] — material type per slot
-            if (ptc.contains("filament_type") && ptc["filament_type"].is_array()) {
-                const auto& type_arr = ptc["filament_type"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(type_arr.size()); i++) {
-                    if (!type_arr[i].is_string())
-                        continue;
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        auto type = type_arr[i].get<std::string>();
-                        slot->material = type; // Base type only (e.g., "PLA") for compact display
-                        fx.changed = true;
-                    }
-                }
-            }
-
-            // filament_vendor: ["Snapmaker", ...] — brand per slot
-            if (ptc.contains("filament_vendor") && ptc["filament_vendor"].is_array()) {
-                const auto& vendor_arr = ptc["filament_vendor"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(vendor_arr.size()); i++) {
-                    if (!vendor_arr[i].is_string())
-                        continue;
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        slot->brand = vendor_arr[i].get<std::string>();
-                        fx.changed = true;
-                    }
-                }
-            }
-
-            // filament_color_rgba: ["080A0DFF", "E2DEDBFF", ...] — hex RGBA color per slot
-            if (ptc.contains("filament_color_rgba") && ptc["filament_color_rgba"].is_array()) {
-                const auto& color_arr = ptc["filament_color_rgba"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(color_arr.size()); i++) {
-                    if (!color_arr[i].is_string())
-                        continue;
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        auto hex = color_arr[i].get<std::string>();
-                        // RGBA hex string → RGB uint32: take first 6 chars
-                        if (hex.size() >= 6) {
-                            const auto rgb =
-                                helix::text_io::parse_leading<unsigned long>(hex.substr(0, 6), 16);
-                            if (rgb) {
-                                slot->color_rgb = *rgb;
-                            }
-                        }
-                        fx.changed = true;
-                    }
-                }
-            }
-        }
+        apply_print_task_config_locked(delta, fx);
 
         // Parse filament_motion_sensor / filament_switch_sensor per tool. The U1's
         // [filament_motion_sensor e{N}_filament] is a motion runout during a

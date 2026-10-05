@@ -4,6 +4,7 @@
 #include "snapmaker_status_parse.h"
 
 #include "ams_status_json.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <optional>
@@ -145,6 +146,58 @@ FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect) {
     return d;
 }
 
+std::optional<uint32_t> rgb_from_rgba_hex(const std::string& hex) {
+    // RGBA hex string -> RGB: the first six characters.
+    if (hex.size() < 6) {
+        return std::nullopt;
+    }
+    const auto rgb = text_io::parse_leading<unsigned long>(hex.substr(0, 6), 16);
+    if (!rgb) {
+        return std::nullopt;
+    }
+    return static_cast<uint32_t>(*rgb);
+}
+
+PrintTaskConfigDelta parse_print_task_config(const nlohmann::json& status) {
+    PrintTaskConfigDelta d;
+    d.preferences = read_print_preferences(status);
+
+    const auto ptc_it = status.find("print_task_config");
+    if (ptc_it == status.end() || !ptc_it->is_object()) {
+        return d;
+    }
+    const auto& ptc = *ptc_it;
+
+    if (ptc.contains("extruder_map_table") && ptc["extruder_map_table"].is_array()) {
+        std::vector<int> table;
+        table.reserve(ptc["extruder_map_table"].size());
+        for (const auto& entry : ptc["extruder_map_table"]) {
+            if (!entry.is_number_integer()) {
+                table.push_back(-1);
+                continue;
+            }
+            const int head = entry.get<int>();
+            table.push_back((head >= 0 && head < kToolCount) ? head : -1);
+        }
+        d.extruder_map_table = std::move(table);
+    }
+
+    if (ptc.contains("extruders_used") && ptc["extruders_used"].is_array()) {
+        std::vector<bool> used;
+        used.reserve(ptc["extruders_used"].size());
+        for (const auto& entry : ptc["extruders_used"]) {
+            used.push_back(entry.is_boolean() && entry.get<bool>());
+        }
+        d.extruders_used = std::move(used);
+    }
+
+    d.filament_exist = ams::read_indexed<bool, kToolCount>(ptc, "filament_exist");
+    d.filament_type = ams::read_indexed<std::string, kToolCount>(ptc, "filament_type");
+    d.filament_vendor = ams::read_indexed<std::string, kToolCount>(ptc, "filament_vendor");
+    d.filament_color_rgba = ams::read_indexed<std::string, kToolCount>(ptc, "filament_color_rgba");
+    return d;
+}
+
 std::vector<FeedChannelDelta> parse_feed_channels(const nlohmann::json& status) {
     std::vector<FeedChannelDelta> channels;
     for (const char* feed_key : {"filament_feed left", "filament_feed right"}) {
@@ -200,6 +253,10 @@ StatusDelta parse_status(const nlohmann::json& status, const std::string& batch_
     }
 
     d.feed_channels = parse_feed_channels(status);
+
+    if (status.contains("print_task_config") && status["print_task_config"].is_object()) {
+        d.print_task_config = parse_print_task_config(status);
+    }
 
     if (!batch_macro_object.empty()) {
         const auto macro = status.find(batch_macro_object);

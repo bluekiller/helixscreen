@@ -151,3 +151,46 @@ TEST_CASE("Snapmaker status parse reads the batch macro's doing flag only under 
         snapmaker::parse_status(json{{"gcode_macro M", json{{"doing", 1}}}}, "gcode_macro M")
             .batch_doing);
 }
+
+TEST_CASE("Snapmaker status parse reads print_task_config without inventing what it omits",
+          "[snapmaker][status_parse]") {
+    const auto none = snapmaker::parse_status(json::object());
+    CHECK_FALSE(none.print_task_config);
+
+    const auto d = snapmaker::parse_status(
+        json{{"print_task_config", json{{"extruder_map_table", json::array({2, 7, "x", -1, 3})},
+                                        {"extruders_used", json::array({true, 1, false})},
+                                        {"filament_exist", json::array({true, false})},
+                                        {"filament_type", json::array({"PLA", 5, "PETG"})},
+                                        {"filament_color_rgba", json::array({"112233FF", "FFF"})},
+                                        {"auto_replenish_filament", true}}}});
+    REQUIRE(d.print_task_config);
+    const auto& ptc = *d.print_task_config;
+
+    // Out-of-range and non-integer heads are -1, never clamped to head 0.
+    REQUIRE(ptc.extruder_map_table);
+    CHECK(*ptc.extruder_map_table == std::vector<int>{2, -1, -1, -1, 3});
+    REQUIRE(ptc.extruders_used);
+    CHECK(*ptc.extruders_used == std::vector<bool>{true, false, false});
+
+    CHECK(ptc.filament_exist[0] == true);
+    CHECK(ptc.filament_exist[1] == false);
+    CHECK_FALSE(ptc.filament_exist[2]);
+    CHECK(ptc.filament_type[0] == "PLA");
+    CHECK_FALSE(ptc.filament_type[1]);
+    CHECK(ptc.filament_type[2] == "PETG");
+    CHECK_FALSE(ptc.filament_vendor[0]);
+    CHECK(ptc.preferences.auto_replenish == true);
+    CHECK_FALSE(ptc.preferences.end_led_turn_off);
+
+    CHECK_FALSE(snapmaker::parse_status(json{{"print_task_config", json::object()}})
+                    .print_task_config->extruder_map_table);
+}
+
+TEST_CASE("Snapmaker rgb_from_rgba_hex takes the first six characters",
+          "[snapmaker][status_parse]") {
+    CHECK(snapmaker::rgb_from_rgba_hex("112233FF") == 0x112233u);
+    CHECK(snapmaker::rgb_from_rgba_hex("AABBCC") == 0xAABBCCu);
+    CHECK_FALSE(snapmaker::rgb_from_rgba_hex("FFF"));
+    CHECK_FALSE(snapmaker::rgb_from_rgba_hex(""));
+}

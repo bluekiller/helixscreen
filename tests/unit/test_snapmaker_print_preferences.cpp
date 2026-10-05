@@ -114,3 +114,26 @@ TEST_CASE("snapmaker prefs: nothing to change renders an empty string", "[snapma
     // rather than sending a bare command that sets nothing.
     REQUIRE(write_print_preferences_gcode(PrintPreferences{}).empty());
 }
+
+TEST_CASE("snapmaker prefs: merge keeps a held field the incoming frame omits",
+          "[snapmaker][prefs]") {
+    PrintPreferences held;
+    held.auto_replenish = true;
+    held.filament_entangle_sen = "low";
+    held.end_unload_filament = {true, false};
+
+    PrintPreferences incoming;
+    incoming.end_led_turn_off = false;
+    incoming.filament_entangle_sen = "high";
+    held.merge(incoming);
+
+    REQUIRE(held.auto_replenish.value() == true);
+    REQUIRE(held.end_led_turn_off.value() == false);
+    REQUIRE(held.filament_entangle_sen.value() == "high");
+    REQUIRE(held.end_unload_filament == std::vector<bool>{true, false});
+
+    PrintPreferences replacement;
+    replacement.end_unload_filament = {false};
+    held.merge(replacement);
+    REQUIRE(held.end_unload_filament == std::vector<bool>{false});
+}

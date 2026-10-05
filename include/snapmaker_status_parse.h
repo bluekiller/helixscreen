@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "snapmaker_print_preferences.h"
+
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -90,6 +92,26 @@ struct FeedChannelDelta {
     std::optional<bool> disable_auto;
 };
 
+/// The `print_task_config` object: the task manager's record of the print and
+/// of what each head is configured with.
+struct PrintTaskConfigDelta {
+    PrintPreferences preferences;
+    /// extruder_map_table: logical tool -> physical head. A non-integer or
+    /// out-of-range head is -1 ("no opinion") rather than clamped: substituting
+    /// head 0 would be identity read as truth.
+    std::optional<std::vector<int>> extruder_map_table;
+    /// extruders_used: the heads the current task uses.
+    std::optional<std::vector<bool>> extruders_used;
+    std::array<std::optional<bool>, kToolCount> filament_exist;
+    std::array<std::optional<std::string>, kToolCount> filament_type;
+    std::array<std::optional<std::string>, kToolCount> filament_vendor;
+    /// Hex RGBA, as the firmware spells it.
+    std::array<std::optional<std::string>, kToolCount> filament_color_rgba;
+};
+
+/// The RGB a `filament_color_rgba` entry names, or nullopt when it names none.
+[[nodiscard]] std::optional<uint32_t> rgb_from_rgba_hex(const std::string& hex);
+
 /// Everything the backend reads from one status frame, parsed up front.
 struct StatusDelta {
     /// extruder, extruder1 .. extruder3; nullopt when the frame has no such
@@ -105,6 +127,8 @@ struct StatusDelta {
     /// The batch macro's `doing` save-variable; nullopt when the frame has no
     /// such object or no boolean in it.
     std::optional<bool> batch_doing;
+    /// nullopt when the frame has no print_task_config object.
+    std::optional<PrintTaskConfigDelta> print_task_config;
 };
 
 [[nodiscard]] ExtruderDelta parse_extruder_delta(const nlohmann::json& extruder);
@@ -112,6 +136,8 @@ struct StatusDelta {
 [[nodiscard]] SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
 
 [[nodiscard]] FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect);
+
+[[nodiscard]] PrintTaskConfigDelta parse_print_task_config(const nlohmann::json& status);
 
 [[nodiscard]] std::vector<FeedChannelDelta> parse_feed_channels(const nlohmann::json& status);
 
