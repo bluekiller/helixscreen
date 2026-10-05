@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <cstdint>
 #include <ctime>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -133,6 +135,29 @@ struct PrintFileData {
     static PrintFileData make_directory(const std::string& name, const std::string& icon_path,
                                         bool is_parent = false);
 };
+
+namespace helix {
+
+/// Where a USB file's copy goes in Moonraker's copy folder.
+struct UsbCopyTarget {
+    std::string name;   ///< Filename inside the copy folder
+    bool reuse = false; ///< A same-size file is already there: print it, upload nothing
+};
+
+/**
+ * @brief Name a USB file's copy without replacing a different file
+ *
+ * Tries @p filename, then "<stem> (2).<ext>", "<stem> (3).<ext>", ...: the
+ * first name that is free is uploaded to, and the first that already holds a
+ * file of @p size is reused. Size is the identity test, since the copy folder
+ * is only ever filled from sticks.
+ *
+ * @param existing Filenames already in the copy folder, with their sizes
+ */
+UsbCopyTarget choose_usb_copy_target(const std::string& filename, uint64_t size,
+                                     const std::map<std::string, uint64_t>& existing);
+
+} // namespace helix
 
 /**
  * @brief Decide whether to carry forward cached metadata from a previous file listing

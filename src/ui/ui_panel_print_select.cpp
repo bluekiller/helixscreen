@@ -2898,9 +2898,10 @@ void PrintSelectPanel::start_print(bool force) {
     std::vector<std::string> colors = selected_filament_colors_;
     std::string thumbnail = selected_detail_thumbnail_buffer_;
     if (!selected_local_path_.empty()) {
-        copy_usb_file_to_printer([this, filename, colors = std::move(colors),
-                                  thumbnail = std::move(thumbnail)](const std::string& dir) {
-            dispatch_print(filename, dir, colors, thumbnail);
+        copy_usb_file_to_printer([this, colors = std::move(colors),
+                                  thumbnail = std::move(thumbnail)](const std::string& dest) {
+            const size_t slash = dest.rfind('/');
+            dispatch_print(dest.substr(slash + 1), dest.substr(0, slash), colors, thumbnail);
         });
         return;
     }
@@ -2926,42 +2927,91 @@ void PrintSelectPanel::dispatch_print(const std::string& filename, const std::st
     print_controller_->initiate();
 }
 
-void PrintSelectPanel::copy_usb_file_to_printer(std::function<void(const std::string& dir)> then) {
+void PrintSelectPanel::copy_usb_file_to_printer(std::function<void(const std::string& dest)> then) {
     if (!api_) {
         NOTIFY_ERROR(lv_tr("Cannot start print: internal error"));
         return;
     }
 
-    const std::string filename = selected_filename_buffer_;
-    const std::string local_path = selected_local_path_;
-    const std::string dir = kUsbCopyDir;
-    const std::string dest = dir + "/" + filename;
-    spdlog::info("[{}] Copying USB file {} to gcodes/{}", get_name(), local_path, dest);
-
+    UsbCopyRequest req{selected_filename_buffer_, selected_local_path_, selected_file_size_bytes_,
+                       std::move(then)};
     usb_copy_in_flight_ = true;
     BusyOverlay::show(lv_tr("Copying from USB..."));
 
-    // Moonraker's upload replaces a same-named file. That is wanted inside
-    // kUsbCopyDir, which holds nothing but these copies, and Moonraker
-    // refuses to replace the file it is printing.
+    // What the copy folder already holds decides the name (choose_usb_copy_target).
+    // A listing, not a metadata lookup: one request answers every candidate
+    // name, and its sizes come from the filesystem rather than a metascan.
+    const std::string dir = kUsbCopyDir;
+    auto tok = object_lifetime_.token();
+    api_->files().list_files(
+        "gcodes", dir, false,
+        [this, tok, dir, req](const std::vector<FileInfo>& files) mutable {
+            // Some Moonraker versions answer a missing directory with the root
+            // listing, so only entries directly under dir count.
+            std::map<std::string, uint64_t> existing;
+            const std::string prefix = dir + "/";
+            for (const auto& f : files) {
+                if (!f.is_dir && f.path.rfind(prefix, 0) == 0 &&
+                    f.path.find('/', prefix.size()) == std::string::npos) {
+                    existing[f.path.substr(prefix.size())] = f.size;
+                }
+            }
+            tok.defer("PrintSelectPanel::usb_copy_listed",
+                      [this, req = std::move(req), existing = std::move(existing)]() mutable {
+                          upload_usb_copy(std::move(req), existing);
+                      });
+        },
+        [this, tok, req](const MoonrakerError& err) mutable {
+            tok.defer("PrintSelectPanel::usb_copy_list_failed",
+                      [this, req = std::move(req), err]() mutable {
+                          // Moonraker reports a folder that does not exist yet as 404.
+                          if (err.code == 404) {
+                              upload_usb_copy(std::move(req), {});
+                              return;
+                          }
+                          finish_usb_copy_failed(req.filename, err.user_message());
+                      });
+        });
+}
+
+void PrintSelectPanel::upload_usb_copy(UsbCopyRequest req,
+                                       const std::map<std::string, uint64_t>& existing) {
+    const auto target = choose_usb_copy_target(req.filename, req.size, existing);
+    const std::string dest = std::string(kUsbCopyDir) + "/" + target.name;
+    if (target.reuse) {
+        spdlog::info("[{}] gcodes/{} already holds {} ({} bytes); not copying", get_name(), dest,
+                     req.local_path, req.size);
+        usb_copy_in_flight_ = false;
+        BusyOverlay::hide();
+        req.then(dest);
+        return;
+    }
+
+    spdlog::info("[{}] Copying USB file {} to gcodes/{}", get_name(), req.local_path, dest);
+    const std::string filename = req.filename;
     api_->transfers().upload_file_from_path(
-        "gcodes", dest, local_path,
+        "gcodes", dest, req.local_path,
         object_lifetime_.bg_cb("PrintSelectPanel::usb_copy_done",
-                               [this, dir, then = std::move(then)]() {
+                               [this, dest, then = std::move(req.then)]() {
                                    usb_copy_in_flight_ = false;
                                    BusyOverlay::hide();
-                                   then(dir);
+                                   then(dest);
                                }),
         [this, tok = object_lifetime_.token(), filename](const MoonrakerError& err) {
             tok.defer("PrintSelectPanel::usb_copy_failed", [this, filename, err]() {
-                usb_copy_in_flight_ = false;
-                BusyOverlay::hide();
-                NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), filename, err.user_message());
+                finish_usb_copy_failed(filename, err.user_message());
             });
         },
         [label = std::string(lv_tr("Copying from USB"))](size_t done, size_t total) {
             BusyOverlay::queue_progress(label, done, total);
         });
+}
+
+void PrintSelectPanel::finish_usb_copy_failed(const std::string& filename,
+                                              const std::string& reason) {
+    usb_copy_in_flight_ = false;
+    BusyOverlay::hide();
+    NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), filename, reason);
 }
 
 void PrintSelectPanel::add_to_queue() {
@@ -2980,9 +3030,7 @@ void PrintSelectPanel::add_to_queue() {
     // Moonraker addresses queued files the same way started ones: relative to
     // the gcodes root, with any subdirectory prefixed.
     if (!selected_local_path_.empty()) {
-        const std::string name = selected_filename_buffer_;
-        copy_usb_file_to_printer(
-            [this, name](const std::string& dir) { queue_file(dir + "/" + name); });
+        copy_usb_file_to_printer([this](const std::string& dest) { queue_file(dest); });
         return;
     }
     queue_file(composed_selected_filename());

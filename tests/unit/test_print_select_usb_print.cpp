@@ -11,6 +11,7 @@
  * it, and the path Moonraker is given has to be the copy's.
  */
 
+#include "../test_helpers/moonraker_client_mock_test_access.h"
 #include "../test_helpers/print_select_panel_fixture.h"
 #include "../test_helpers/print_select_panel_test_access.h"
 #include "../test_helpers/usb_scan_wait.h"
@@ -92,6 +93,33 @@ class UsbPrintFixture : private helix::PrintSelectGlobalStateReset,
 
     std::string local_path() const {
         return (root_ / "projects" / "part.gcode").string();
+    }
+
+    /// Make server.files.list for the copy folder answer @p entries
+    /// (path relative to gcodes, size), or fail with @p error_code.
+    void copy_folder_holds(std::vector<std::pair<std::string, uint64_t>> entries,
+                           int error_code = 0) {
+        helix::MoonrakerClientMockTestAccess::set_method_handler(
+            mock_client_, "server.files.list",
+            [entries, error_code](MoonrakerClientMock*, const json&,
+                                  std::function<void(const json&)> success_cb,
+                                  std::function<void(const MoonrakerError&)> error_cb) -> bool {
+                if (error_code != 0) {
+                    MoonrakerError err =
+                        MoonrakerError::unknown("listing refused", "server.files.list");
+                    err.code = error_code;
+                    if (error_cb) {
+                        error_cb(err);
+                    }
+                    return true;
+                }
+                json result = json::array();
+                for (const auto& [path, size] : entries) {
+                    result.push_back({{"path", path}, {"size", size}, {"modified", 1.0}});
+                }
+                success_cb(json{{"result", result}});
+                return true;
+            });
     }
 
     MoonrakerFileTransferAPIMock& transfers() {
@@ -184,4 +212,50 @@ TEST_CASE_METHOD(UsbPrintFixture, "a USB file added to the queue is queued as it
     set_job_queue_state(previous);
     jqs.reset();
     drain();
+}
+
+TEST_CASE_METHOD(UsbPrintFixture, "a same-size copy already on the printer is reused, not uploaded",
+                 "[usb][usb_print]") {
+    copy_folder_holds({{"usb_prints/part.gcode", 15}});
+    panel_->start_print(/*force=*/true);
+    drain();
+
+    CHECK(transfers().path_uploads().empty());
+    const auto [filename, dir] = PrintSelectPanelTestAccess::controller_file(*panel_);
+    CHECK(filename == "part.gcode");
+    CHECK(dir == PrintSelectPanel::kUsbCopyDir);
+}
+
+TEST_CASE_METHOD(UsbPrintFixture,
+                 "a different file under the same name is kept, the copy is suffixed",
+                 "[usb][usb_print]") {
+    copy_folder_holds({{"usb_prints/part.gcode", 999}});
+    panel_->start_print(/*force=*/true);
+    drain();
+
+    REQUIRE(transfers().path_uploads().size() == 1);
+    CHECK(transfers().path_uploads()[0].dest_path == "usb_prints/part (2).gcode");
+    CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first == "part (2).gcode");
+}
+
+TEST_CASE_METHOD(UsbPrintFixture, "a copy folder that does not exist yet is created by the upload",
+                 "[usb][usb_print]") {
+    copy_folder_holds({}, 404);
+    panel_->start_print(/*force=*/true);
+    drain();
+
+    REQUIRE(transfers().path_uploads().size() == 1);
+    CHECK(transfers().path_uploads()[0].dest_path == "usb_prints/part.gcode");
+}
+
+TEST_CASE_METHOD(UsbPrintFixture, "an unreadable copy folder stops the copy rather than guess",
+                 "[usb][usb_print]") {
+    ErrorLog errors;
+    copy_folder_holds({}, 500);
+    panel_->start_print(/*force=*/true);
+    drain();
+
+    CHECK(transfers().path_uploads().empty());
+    CHECK(errors.messages.size() == 1);
+    CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first.empty());
 }

@@ -33,8 +33,11 @@
 #include <atomic>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -942,16 +945,30 @@ class PrintSelectPanel : public PanelBase {
     /// Queue taps are ignored until the copy lands or fails.
     bool usb_copy_in_flight_ = false;
 
+    /// A USB copy's inputs, read when Print or Add to Queue was tapped.
+    struct UsbCopyRequest {
+        std::string filename;
+        std::string local_path;
+        uint64_t size = 0;
+        std::function<void(const std::string& dest)> then;
+    };
+
     /**
-     * @brief Copy the selected USB file into Moonraker's gcodes root.
+     * @brief Get the selected USB file into Moonraker's gcodes root.
      *
      * Moonraker cannot read a stick HelixScreen mounted itself, so a USB file
-     * is uploaded to kUsbCopyDir/<filename> (replacing an earlier copy there)
-     * before it prints or queues. @p then runs on the main thread with the
-     * Moonraker-relative directory once the copy is in place; a failure
-     * toasts and runs nothing.
+     * goes to kUsbCopyDir first, named by choose_usb_copy_target(): a
+     * same-size copy already there is reused, a different file of that name
+     * is never replaced. @p then runs on the main thread with the copy's
+     * Moonraker-relative path; a failure toasts and runs nothing.
      */
-    void copy_usb_file_to_printer(std::function<void(const std::string& dir)> then);
+    void copy_usb_file_to_printer(std::function<void(const std::string& dest)> then);
+
+    /// Name the copy from what kUsbCopyDir holds, then upload or reuse.
+    void upload_usb_copy(UsbCopyRequest req, const std::map<std::string, uint64_t>& existing);
+
+    /// End an in-flight copy with a toast.
+    void finish_usb_copy_failed(const std::string& filename, const std::string& reason);
 
     /// Hand the controller @p filename in Moonraker directory @p dir, with the
     /// tool colors and thumbnail read when Print was tapped, and start.

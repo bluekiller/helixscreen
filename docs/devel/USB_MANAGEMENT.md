@@ -161,13 +161,14 @@ That pre-extracted path rides along to `PrintStartController` and on to `ActiveP
 
 ### Starting a print from the USB source
 
-Moonraker usually cannot read a stick HelixScreen mounted itself (it runs as another user, in another mount namespace, or on another host), so a USB file is copied to Moonraker before it prints. When the selected file has a `local_path`, `PrintSelectPanel::start_print` and `add_to_queue` call `copy_usb_file_to_printer()` (`src/ui/ui_panel_print_select.cpp#copy_usb_file_to_printer`), which streams it through `ITransfersAPI::upload_file_from_path` to `gcodes/usb_prints/<filename>` under a `BusyOverlay` with progress. On success the panel hands `PrintStartController` the filename with `usb_prints` as its directory (or queues `usb_prints/<filename>`), and the normal start pipeline runs against the copy. On failure it toasts "Could not copy ... from USB" and starts nothing. Print and Add to Queue taps are ignored while a copy is in flight.
+Moonraker usually cannot read a stick HelixScreen mounted itself (it runs as another user, in another mount namespace, or on another host), so a USB file is copied to Moonraker before it prints. When the selected file has a `local_path`, `PrintSelectPanel::start_print` and `add_to_queue` call `copy_usb_file_to_printer()` (`src/ui/ui_panel_print_select.cpp#copy_usb_file_to_printer`). It lists `gcodes/usb_prints` and names the copy with `choose_usb_copy_target()` (`src/print/print_file_data.cpp#choose_usb_copy_target`), then either reuses a file already there or streams the stick file through `ITransfersAPI::upload_file_from_path`, under a `BusyOverlay` with progress. The panel then hands `PrintStartController` the copy's name with `usb_prints` as its directory (or queues `usb_prints/<name>`), and the normal start pipeline runs against the copy. The filename, tool colors and thumbnail are read when Print is tapped, not when the copy lands. On failure it toasts "Could not copy ... from USB" and starts nothing. Print and Add to Queue taps are ignored while a copy is in flight.
 
 Policy, as implemented:
 
 - The folder is `usb_prints` (`PrintSelectPanel::kUsbCopyDir`), never `usb`: that name is the stick symlink some images create, which the probe below looks for.
-- A copy replaces an earlier file of the same name in `usb_prints/`. That folder holds nothing but these copies, and Moonraker refuses to replace the file it is printing.
-- Copies are left in place after the print, so history, reprint and the Printer tab keep working. Nothing prunes the folder.
+- Naming never replaces a different file. The candidates are `<name>`, then `<stem> (2).<ext>`, `<stem> (3).<ext>`, and so on. The first candidate that is absent is uploaded to; the first that holds a file of the stick file's size is reused with no upload. Size is the identity test.
+- The folder is read with a listing rather than per-file metadata: one request answers every candidate, and listing sizes come from the filesystem. Entries outside `usb_prints/` are ignored, because some Moonraker versions answer a missing folder with the root listing. A 404 means the folder does not exist yet and the copy goes ahead as `<name>`; any other listing error stops the copy with a toast.
+- Copies are left in place after the print, so history, reprint and the Printer tab keep working. Nothing prunes the folder, so editing and re-slicing one file leaves a numbered copy per version.
 - The copy happens after the panel's own preflight checks, before `PrintStartController`'s gates, so a print cancelled at a gate leaves its copy behind.
 
 The detail view still loads its preview and preflight scan from Moonraker at `current_path_/<filename>`, which does not exist for a USB file until it is copied, so those fall back to their timeouts.
@@ -324,7 +325,8 @@ The mock Moonraker can pretend a `gcodes/usb` symlink exists: `mock_set_usb_syml
 | `tests/unit/test_usb_automount.cpp` | `[usb_automount]` | Ladder order, grace, probe, ownership, lazy unmount, cooldown, cache |
 | `tests/unit/test_print_select_usb_visibility.cpp` | (XML fixture) | `source_selector` bindings |
 | `tests/unit/test_print_select_usb_multi_drive.cpp` | `[usb][multi_drive]`, `[usb][thumbnail]`, `[usb][usb_async]` | Scanning every drive, surviving the loss of one, per-path thumbnail keys, the off-thread scan and its stale-result rules |
-| `tests/unit/test_print_select_usb_print.cpp` | `[usb][usb_print]` | Print and Add to Queue copy the stick file to `usb_prints/` and use the copy; a failed copy starts nothing |
+| `tests/unit/test_print_select_usb_print.cpp` | `[usb][usb_print]` | Print and Add to Queue copy the stick file to `usb_prints/` and use the copy; reuse, suffixing and listing errors; a failed copy starts nothing |
+| `tests/unit/test_usb_copy_name.cpp` | `[usb][usb_copy_name]` | `choose_usb_copy_target` naming rule |
 | `tests/unit/test_metadata_and_usb_symlink.cpp` | `[usb][symlink]` | Moonraker symlink access and source switching |
 | `tests/unit/test_usb_printer_detector.cpp` | `[label-printer][usb-detect]` | Known-printer table lookups, polling off the UI thread |
 | `tests/unit/test_usb_scanner_monitor.cpp` | `[usb_scanner]` | Keymaps, Spoolman pattern parsing |
