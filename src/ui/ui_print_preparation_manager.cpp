@@ -1619,7 +1619,8 @@ void PrintPreparationManager::modify_and_print_streaming(
             }
 
             if (!result.success) {
-                NOTIFY_ERROR(lv_tr("Failed to modify G-code: {}"), result.error_message);
+                helix::ui::notify_error_tr(TR_NOOP("Failed to modify G-code: {}"),
+                                           result.error_message);
                 // Defer this-> access to main thread.
                 token.defer("PrintPreparationManager::modify_fail_clear_progress",
                             [this]() { abandon_start("modify_failed"); });
@@ -1716,7 +1717,8 @@ void PrintPreparationManager::modify_and_print_streaming(
                                                           const MoonrakerError& error) {
                                     queue_busy_hide();
 
-                                    NOTIFY_ERROR(lv_tr("Failed to start print: {}"), error.message);
+                                    helix::ui::notify_error_tr(TR_NOOP("Failed to start print: {}"),
+                                                               error);
                                     LOG_ERROR_INTERNAL(
                                         "[PrintPreparationManager] Print start failed for {}: {}",
                                         remote_temp_path, error.message);
@@ -1776,7 +1778,8 @@ void PrintPreparationManager::modify_and_print_streaming(
                         // Clean up local file even on error (bg-safe filesystem op)
                         hfs::remove(modified_path);
 
-                        NOTIFY_ERROR(lv_tr("Failed to upload modified G-code: {}"), error.message);
+                        helix::ui::notify_error_tr(TR_NOOP("Failed to upload modified G-code: {}"),
+                                                   error);
                         LOG_ERROR_INTERNAL("[PrintPreparationManager] Upload failed: {}",
                                            error.message);
                         // L081 Mechanism C: printer_state_ is a this->member.
@@ -1796,7 +1799,8 @@ void PrintPreparationManager::modify_and_print_streaming(
             // Clean up partial download if any (bg-safe filesystem op)
             hfs::remove(local_download_path);
 
-            NOTIFY_ERROR(lv_tr("Failed to download G-code for modification: {}"), error.message);
+            helix::ui::notify_error_tr(TR_NOOP("Failed to download G-code for modification: {}"),
+                                       error);
             LOG_ERROR_INTERNAL("[PrintPreparationManager] Download failed for {}: {}", file_path,
                                error.message);
             // L081 Mechanism C: printer_state_ is a this->member.
@@ -1860,7 +1864,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
             // take the same exit.
             if (helix::text_io::file_size(local_download_path).value_or(0) == 0) {
                 hfs::remove(local_download_path);
-                NOTIFY_ERROR(lv_tr("Failed to read G-code for remap"));
+                helix::ui::notify_error_tr(TR_NOOP("Failed to read G-code for remap"));
                 token.defer("PrintPreparationManager::remap_read_fail", [this]() {
                     BusyOverlay::hide();
                     abandon_start("remap_read_failed");
@@ -1912,8 +1916,8 @@ void PrintPreparationManager::modify_and_print_with_remap(
 
             if (!rewrite_ok) {
                 hfs::remove(modified_path);
-                NOTIFY_ERROR(lv_tr("Failed to remap G-code: {}"),
-                             std::string("could not write ") + modified_path);
+                helix::ui::notify_error_tr(TR_NOOP("Failed to remap G-code: {}"),
+                                           std::string("could not write ") + modified_path);
                 token.defer("PrintPreparationManager::remap_apply_fail", [this]() {
                     BusyOverlay::hide();
                     abandon_start("remap_apply_failed");
@@ -1981,7 +1985,8 @@ void PrintPreparationManager::modify_and_print_with_remap(
                                 auto on_print_error = [this, token, remote_temp_path](
                                                           const MoonrakerError& error) {
                                     queue_busy_hide();
-                                    NOTIFY_ERROR(lv_tr("Failed to start print: {}"), error.message);
+                                    helix::ui::notify_error_tr(TR_NOOP("Failed to start print: {}"),
+                                                               error);
                                     LOG_ERROR_INTERNAL(
                                         "[PrintPreparationManager] Remapped print start "
                                         "failed for {}: {}",
@@ -2017,7 +2022,8 @@ void PrintPreparationManager::modify_and_print_with_remap(
                     [this, token, modified_path](const MoonrakerError& error) {
                         queue_busy_hide();
                         hfs::remove(modified_path);
-                        NOTIFY_ERROR(lv_tr("Failed to upload remapped G-code: {}"), error.message);
+                        helix::ui::notify_error_tr(TR_NOOP("Failed to upload remapped G-code: {}"),
+                                                   error);
                         LOG_ERROR_INTERNAL("[PrintPreparationManager] Remap upload failed: {}",
                                            error.message);
                         token.defer("PrintPreparationManager::remap_upload_fail_clear",
@@ -2033,7 +2039,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
         [this, token, file_path, local_download_path](const MoonrakerError& error) {
             queue_busy_hide();
             hfs::remove(local_download_path);
-            NOTIFY_ERROR(lv_tr("Failed to download G-code for remap: {}"), error.message);
+            helix::ui::notify_error_tr(TR_NOOP("Failed to download G-code for remap: {}"), error);
             LOG_ERROR_INTERNAL("[PrintPreparationManager] Remap download failed for {}: {}",
                                file_path, error.message);
             token.defer("PrintPreparationManager::remap_download_fail_clear",
@@ -2061,7 +2067,7 @@ void PrintPreparationManager::start_print_directly(const std::string& filename,
         },
         // Error callback
         [filename, on_completion](const MoonrakerError& error) {
-            NOTIFY_ERROR(lv_tr("Failed to start print: {}"), error.message);
+            helix::ui::notify_error_tr(TR_NOOP("Failed to start print: {}"), error);
             LOG_ERROR_INTERNAL("[PrintPreparationManager] Print start failed for {}: {} ({})",
                                filename, error.message, error.get_type_string());
 

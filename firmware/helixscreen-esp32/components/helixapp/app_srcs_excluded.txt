@@ -317,6 +317,7 @@ src/plugin/lua_bind_io.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_host.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_xml_policy.cpp  # not in the v1 Core+AMS cut
 src/plugin/lua_bind_widget.cpp  # not in the v1 Core+AMS cut
+src/plugin/lua_bind_canvas.cpp  # not in the v1 Core+AMS cut
 src/plugin/lua_panel_widget.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_overlay_host.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_settings_overlay.cpp  # not in the v1 Core+AMS cut
@@ -325,3 +326,4 @@ src/plugin/plugins_overlay.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_source.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_source_app.cpp  # not in the v1 Core+AMS cut
 src/plugin/plugin_dir_watcher.cpp  # not in the v1 Core+AMS cut
+src/plugin/plugin_canvas.cpp  # not in the v1 Core+AMS cut

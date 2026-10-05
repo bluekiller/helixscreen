@@ -4814,7 +4814,7 @@ AmsError AmsBackendAfc::execute_gcode_notify(const std::string& gcode,
 
     spdlog::info("[AMS AFC] Executing G-code: {}", gcode);
 
-    // Capture messages by value for async callbacks (thread-safe via ui_queue_update())
+    // Both callbacks run on the WebSocket thread; the toasts queue themselves to main.
     api_->execute_gcode(
         gcode,
         [success_msg]() {
@@ -4827,7 +4827,8 @@ AmsError AmsBackendAfc::execute_gcode_notify(const std::string& gcode,
                 spdlog::warn("[AMS AFC] G-code response timed out (may still be running): {}",
                              gcode);
                 if (!error_prefix.empty()) {
-                    NOTIFY_WARNING(lv_tr("{} — response timed out"), error_prefix);
+                    helix::ui::notify_tr(ToastSeverity::WARNING, TR_NOOP("{} — response timed out"),
+                                         error_prefix);
                 }
             } else if (!error_prefix.empty()) {
                 NOTIFY_ERROR("{}: {}", error_prefix, err.message);

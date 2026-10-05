@@ -1874,7 +1874,7 @@ void PrintStatusPanel::handle_reprint_button() {
                 // Runs on libhv WS event loop — marshal LVGL work to main.
                 token.defer("PrintStatusPanel::reprint_err", [this, err]() {
                     spdlog::error("[{}] Failed to reprint: {}", get_name(), err.message);
-                    NOTIFY_ERROR(lv_tr("Failed to reprint: {}"), err.user_message());
+                    helix::ui::notify_error_tr(TR_NOOP("Failed to reprint: {}"), err);
                     ui_set_button_enabled(btn_cancel_, true);
                 });
             });

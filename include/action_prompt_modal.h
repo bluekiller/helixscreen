@@ -173,12 +173,11 @@ class ActionPromptModal : public Modal {
  * this toast would leave the failure with no surface at all. See
  * include/rpc_error_policy.h.
  *
- * Safe to call from the WebSocket background thread - the notification layer
- * marshals to the main thread itself.
+ * Main thread only: it shows a toast.
  *
  * @param error_message Klipper's message from the failed RPC (MoonrakerError::
- *                      user_message()). Empty falls back to a generic string so
- *                      the toast is never blank.
+ *                      localized_message()). Empty falls back to a generic string
+ *                      so the toast is never blank.
  */
 void report_action_prompt_gcode_failure(const std::string& error_message);
 
