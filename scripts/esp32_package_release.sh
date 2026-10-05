@@ -60,16 +60,16 @@ fi
 cat > "$PKG/README.txt" <<EOF
 HelixScreen ${TAG} for the BigTreeTech K-Touch (ESP32-S3) - ALPHA
 
-Install esptool once:   pip install esptool
+Install esptool once:   pipx install esptool  (or pip install esptool in a virtualenv)
 Connect the K-Touch by USB-C. Its port is /dev/ttyUSB0 on Linux,
 /dev/cu.usbserial-* or /dev/cu.wchusbserial* on macOS, COMx on Windows (CH340 driver).
 Run the commands from inside this folder. If a write fails, retry with -b 115200.
 
 Fresh install (also wipes saved WiFi; settings are kept):
-  python -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 ${FACTORY}
+  python3 -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 ${FACTORY}
 
 Update an existing HelixScreen install (keeps WiFi and settings):
-  python -m esptool --chip esp32s3 -p PORT -b 460800 write_flash @flash_args
+  python3 -m esptool --chip esp32s3 -p PORT -b 460800 write_flash @flash_args
 
 Full guide: https://github.com/prestonbrown/helixscreen/blob/main/docs/user/INSTALL.md
 EOF

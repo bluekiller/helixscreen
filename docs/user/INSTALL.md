@@ -148,11 +148,13 @@ The BigTreeTech K-Touch is a small standalone touchscreen built around an ESP32-
 
 > **This is an alpha.** Expect rough edges and missing features (see [what doesn't work yet](#what-doesnt-work-yet-on-the-k-touch)). It replaces the K-Touch's stock BigTreeTech firmware. The 1.0.x releases do not include it: use a 1.1 beta release or newer.
 
+**Easiest: flash from your browser.** Open [helixscreen.org/flash](https://helixscreen.org/flash/) in desktop Chrome or Edge, plug in the K-Touch with a USB-C data cable, and click **Install**. Tick **Erase device** for a first install over BigTreeTech's firmware; leave it unticked when updating to keep your WiFi and settings. Then continue at [First boot](#first-boot-wifi-and-printer-setup). The rest of this section does the same thing from a terminal.
+
 **What you need:**
 
 - A BigTreeTech K-Touch
 - A USB-C cable that carries data (some charge-only cables don't)
-- A computer with Python 3 and esptool, installed with `pip install esptool`
+- A computer with Python 3 and esptool, installed with `pipx install esptool` (or `pip install esptool` inside a virtualenv)
 - A driver for the K-Touch's USB chip (a CH340). Linux has it built in and the panel shows up as `/dev/ttyUSB0`. On Windows, if no new COM port appears when you plug the panel in, install the CH340 driver from WCH. Recent macOS versions include one; the panel appears as `/dev/cu.usbserial-*` or `/dev/cu.wchusbserial*`
 
 **Download.** On the [releases page](https://github.com/prestonbrown/helixscreen/releases), pick a 1.1 beta or newer and download `helixscreen-esp32-ktouch-v<VERSION>.zip`. Unzip it and open a terminal inside the folder it creates. The commands below use `PORT` for the panel's port: `/dev/ttyUSB0` on Linux, `/dev/cu.usbserial-...` on macOS, or `COM3` (whatever Device Manager shows under **Ports**) on Windows.
@@ -160,7 +162,7 @@ The BigTreeTech K-Touch is a small standalone touchscreen built around an ESP32-
 **Optional: back up the stock firmware first.** This saves the whole 16MB flash, so you can put BigTreeTech's firmware back later. It takes a few minutes. Keep reads at 460800 or lower: the CH340 drops bytes at 921600.
 
 ```bash
-python -m esptool --chip esp32s3 -p PORT -b 460800 read_flash 0 0x1000000 ktouch-stock-backup.bin
+python3 -m esptool --chip esp32s3 -p PORT -b 460800 read_flash 0 0x1000000 ktouch-stock-backup.bin
 ```
 
 ### Installing
@@ -168,7 +170,7 @@ python -m esptool --chip esp32s3 -p PORT -b 460800 read_flash 0 0x1000000 ktouch
 Plug the K-Touch into your computer, switch it on, and flash the factory image:
 
 ```bash
-python -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 helixscreen-esp32-ktouch-factory.bin
+python3 -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 helixscreen-esp32-ktouch-factory.bin
 ```
 
 If the write fails part way, run the same command again with `-b 115200`. Newer esptool versions print "Deprecated" warnings about `write_flash`; those are harmless.
@@ -197,7 +199,7 @@ Prefer to do it on the panel itself? Tap **Use Settings Instead**, then join you
 There are no over-the-air updates yet, and the panel won't offer you one. To update, download the new zip, unzip it, and from inside that folder run:
 
 ```bash
-python -m esptool --chip esp32s3 -p PORT -b 460800 write_flash @flash_args
+python3 -m esptool --chip esp32s3 -p PORT -b 460800 write_flash @flash_args
 ```
 
 This writes the new firmware and keeps your WiFi network and settings. It has to be run from inside the unzipped folder, because `flash_args` lists the other files by name.
@@ -209,13 +211,13 @@ The factory-image command from [Installing](#installing) also works for an updat
 If the panel won't start, or keeps restarting, erase it completely and install fresh:
 
 ```bash
-python -m esptool --chip esp32s3 -p PORT erase_flash
-python -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 helixscreen-esp32-ktouch-factory.bin
+python3 -m esptool --chip esp32s3 -p PORT erase_flash
+python3 -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 helixscreen-esp32-ktouch-factory.bin
 ```
 
 Erasing removes everything, including your settings and WiFi, so you'll set the panel up again from the hotspot.
 
-To go back to BigTreeTech's firmware, write the backup you made: `python -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 ktouch-stock-backup.bin`.
+To go back to BigTreeTech's firmware, write the backup you made: `python3 -m esptool --chip esp32s3 -p PORT -b 460800 write_flash 0x0 ktouch-stock-backup.bin`.
 
 ### What doesn't work yet on the K-Touch
 

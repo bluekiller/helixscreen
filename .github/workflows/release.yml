@@ -643,7 +643,9 @@ jobs:
   # A skipped job poisons the implicit success() of every job downstream of it,
   # transitively, so release, publish-android, upload-r2 and notify-website each
   # spell out their own condition with !cancelled() and explicit results instead
-  # of relying on it.
+  # of relying on it. Release ignores this job's result: the firmware is alpha,
+  # so a red ESP32 build ships the release without the zip instead of blocking
+  # every platform.
   build-esp32:
     name: Build (ESP32 K-Touch)
     needs: [plan]
@@ -670,8 +672,7 @@ jobs:
       ${{ !cancelled()
       && needs.plan.result == 'success'
       && needs.build-platforms.result == 'success'
-      && needs.build-android.result == 'success'
-      && (needs.build-esp32.result == 'success' || needs.build-esp32.result == 'skipped') }}
+      && needs.build-android.result == 'success' }}
     permissions:
       contents: write  # Required to create releases
     env:
