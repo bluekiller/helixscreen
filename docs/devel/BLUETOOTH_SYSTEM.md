@@ -141,7 +141,7 @@ helix_bt_register_agent(ctx);
 
 Each `init()` registers its own `Agent1` and asks to be the default agent, so the most recent context wins default-agent status. The MakeID backend uses the shared one because a second context on an RFCOMM link the UI already established fails with `ECONNABORTED` (`src/system/makeid_bt_printer.cpp#"loader.get_or_create_context()"`). New code should use `get_or_create_context()` unless it has a measured reason to own a bus connection.
 
-`get_or_create_context()` itself is not internally synchronized (`src/system/bluetooth_loader.cpp#get_or_create_context`). Its callers are serialized by the print mutexes and the UI thread.
+`get_or_create_context()` (`src/system/bluetooth_loader.cpp#get_or_create_context`) is thread-safe: print workers and the Forget workers call it concurrently, and one mutex makes the first callers share a single `init()`. A failed `init()` leaves no context, so the next caller retries.
 
 ---
 

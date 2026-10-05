@@ -60,9 +60,11 @@ BluetoothLoader::~BluetoothLoader() {
     // destructor, by a worker or a later static, still calls the deinit it captured.
 }
 
-// Not thread-safe, but callers are serialized by s_print_mutex in makeid_bt_printer.cpp
-// and UI pairing is single-threaded.
+// Callers run on print workers and Forget workers at once, so creation is serialized: a
+// second init() would register a competing BlueZ agent. A failed init() is retried by the
+// next caller.
 helix_bt_context* BluetoothLoader::get_or_create_context() {
+    std::lock_guard<std::mutex> lock(ctx_mutex_);
     if (shared_ctx_)
         return shared_ctx_;
     if (!available_ || !init)
