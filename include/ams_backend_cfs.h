@@ -645,6 +645,11 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     std::string current_tnn_;
     bool motor_ready_ = true;
 
+    /// Every stock `box` frame since the last flat one, merged: what the stock
+    /// parse reads, since one frame carries only the units that changed.
+    /// handle_status runs on the main thread only.
+    nlohmann::json stock_box_state_ = nlohmann::json::object();
+
     // K1 vs K2 macro dialect, latched in ctor from PrinterDetector. Most
     // callers route through dispatch_action_script and pull the macro string
     // from the static helpers (load_gcode/unload_gcode/swap_gcode), so this
@@ -882,9 +887,9 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     std::optional<std::vector<int>> flat_backup_edges_;
 
     /// The slot number a command names for @p bay. A bay's global index is the
-    /// firmware's own slot number on every dialect; -1 when Fork has no
-    /// reported bay there (no frame yet, or a box missing from the chain),
-    /// which callers refuse rather than guess.
+    /// firmware's own slot number on every dialect; -1 for a bay in an absent
+    /// unit, and on Fork for any bay not reported (no frame yet), which
+    /// callers refuse rather than guess.
     /// **Caller must hold mutex_.**
     [[nodiscard]] int firmware_slot_locked(int bay) const;
 

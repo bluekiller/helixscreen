@@ -564,6 +564,9 @@ static AmsError firmware_slot_unknown(int bay) {
 }
 
 int AmsBackendCfs::firmware_slot_locked(int bay) const {
+    if (system_info_.slot_absent(bay)) {
+        return -1;
+    }
     return macro_variant_ != CfsMacroVariant::Fork || system_info_.slot_exists(bay) ? bay : -1;
 }
 
@@ -1460,6 +1463,19 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
             }
         }
 
+        // Stock frames are deltas: a frame naming only T3 says nothing about T1
+        // and T2, so the parse reads the box as the merge of every frame since
+        // the last flat one. A unit leaves only when a frame reports it
+        // disconnected.
+        if (is_flat) {
+            stock_box_state_ = nlohmann::json::object();
+        } else {
+            if (!stock_box_state_.is_object()) {
+                stock_box_state_ = nlohmann::json::object();
+            }
+            stock_box_state_.merge_patch(box);
+        }
+
         if (is_full_update) {
             // Snapshot under the lock: pushed_material_codes_ is written by
             // push_slot_identity_to_firmware on the UI thread, and the parse
@@ -1471,7 +1487,7 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 own_labels = pushed_material_codes_;
             }
-            auto new_info = parse_box_status(box, &own_labels);
+            auto new_info = parse_box_status(is_flat ? box : stock_box_state_, &own_labels);
 
             // Firmware's own account of every bay this frame described. What
             // makes this correct is the values, not the position: new_info is
@@ -4882,9 +4898,9 @@ void AmsBackendCfs::clear_slot_override(int slot_index) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto* slot = system_info_.get_slot_global(slot_index);
-        if (!slot) {
-            spdlog::warn("{} clear_slot_override: no slot entry for global index {}",
-                         backend_log_tag(), slot_index);
+        if (!slot || system_info_.slot_absent(slot_index)) {
+            spdlog::warn("{} clear_slot_override: no bay at global index {}", backend_log_tag(),
+                         slot_index);
             return;
         }
         spdlog::info("{} Slot {} override cleared by user request", backend_log_tag(), slot_index);

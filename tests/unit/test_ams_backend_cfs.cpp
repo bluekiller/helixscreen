@@ -1,9 +1,11 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_ams_context_menu.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_cfs.h"
@@ -6082,6 +6084,83 @@ TEST_CASE("CFS: an absent box's bays refuse every operation", "[ams][cfs][1464]"
         REQUIRE(CfsTestAccess::get_override(backend, 4).has_value());
         CHECK(CfsTestAccess::get_override(backend, 4)->spool_name == "T2A spool");
     }
+}
+
+// A stock box frame is a delta: the units it omits are unchanged, not gone.
+// Only a frame reporting a unit disconnected takes it off the bus (#1464).
+TEST_CASE("CFS stock: a delta frame naming one unit leaves the others as they were",
+          "[ams][cfs][1464]") {
+    CfsRemapHelper backend;
+    backend.mark_running();
+    json full = make_multi_unit_box(3);
+    full["T1"]["vender"] = json::array({"Creality", "none", "none", "none"});
+    full["T1"]["remain_len"] = json::array({"300", "-1", "-1", "-1"});
+    full["T1"]["color_value"] = json::array({"0FF5500", "-1", "-1", "-1"});
+    CfsTestAccess::handle_status(backend, make_cfs_notification(full));
+    REQUIRE(backend.get_system_info().units.size() == 3);
+
+    json delta = json::object();
+    delta["T3"] = full["T3"];
+    delta["T3"]["filament"] = "B";
+    CfsTestAccess::handle_status(backend, make_cfs_notification(delta));
+
+    const auto info = backend.get_system_info();
+    REQUIRE(info.units.size() == 3);
+    for (const auto& unit : info.units) {
+        INFO("unit " << unit.unit_index);
+        CHECK_FALSE(unit.absent);
+    }
+    CHECK(info.present_slot_count() == 12);
+    CHECK(backend.get_slot_info(0).color_rgb == 0xFF5500u);
+    CHECK(info.current_slot == 9);
+
+    SECTION("a frame reporting a unit disconnected does take it off") {
+        json gone = json::object();
+        gone["T2"] = json{{"state", "None"}};
+        CfsTestAccess::handle_status(backend, make_cfs_notification(gone));
+        CHECK(backend.get_system_info().slot_absent(5));
+        CHECK(backend.get_slot_info(0).color_rgb == 0xFF5500u);
+    }
+}
+
+// A stock tool whose bay sits in a box off the bus is refused, and so is
+// clearing that bay's spool (#1464).
+TEST_CASE("CFS stock: tool change and Clear Spool refuse an absent bay", "[ams][cfs][1464]") {
+    json box = make_multi_unit_box(3);
+    box["T2"] = json{{"state", "None"}};
+    CfsRemapHelper backend;
+    backend.mark_running();
+    CfsTestAccess::handle_status(backend, make_cfs_notification(box));
+
+    CHECK(backend.change_tool(5).result == AmsResult::INVALID_SLOT);
+    CHECK(backend.dispatched.empty());
+
+    helix::ams::FilamentSlotOverride kept;
+    kept.spool_name = "T2B spool";
+    CfsTestAccess::seed_override(backend, 5, kept);
+    helix::AmsBackend& base = backend;
+    base.clear_slot_override(5);
+    REQUIRE(CfsTestAccess::get_override(backend, 5).has_value());
+    CHECK(CfsTestAccess::get_override(backend, 5)->spool_name == "T2B spool");
+}
+
+// Tapping a bay of a box that is not on the bus opens no menu (#1464).
+TEST_CASE_METHOD(LVGLUITestFixture, "CFS: an absent bay's tap opens no context menu",
+                 "[ams][cfs][context_menu][1464]") {
+    REQUIRE(lv_xml_register_component_from_file("A:ui_xml/ams_context_menu.xml") == LV_RESULT_OK);
+    helix::test::RegisteredBackend<CfsRemapHelper> backend;
+    json box = make_multi_unit_box(3);
+    box["T2"] = json{{"state", "None"}};
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(box));
+
+    helix::ui::SlotMenuHost host;
+    host.parent_screen = test_screen();
+    helix::ui::AmsContextMenu menu;
+    helix::ui::open_slot_context_menu(menu, host, 5, test_screen(), {0, 0});
+    CHECK_FALSE(menu.is_visible());
+    helix::ui::open_slot_context_menu(menu, host, 8, test_screen(), {0, 0});
+    CHECK(menu.is_visible());
+    menu.hide();
 }
 
 // The last box dropping leaves no placeholder: its bays fall outside the span,
