@@ -27,6 +27,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/chaining_mock_backend.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
@@ -63,18 +64,9 @@ namespace {
 /// rather than of the box it runs on, so the arming-edge assertion below is
 /// asserting something real. Events emitted on the owning thread pass straight
 /// through: the unload dispatch and the enable both emit there.
-class GatedBackendMock : public AmsBackendMock {
+class GatedBackendMock : public helix::test::ChainingMockBackend {
   public:
-    explicit GatedBackendMock(int slot_count) : AmsBackendMock(slot_count) {}
-
-    /// The unload-before-bypass chain runs only on a backend that chains
-    /// implicitly, as AD5X IFS does; the mock's default Happy Hare persona
-    /// does not.
-    [[nodiscard]] BackendTraits traits() const override {
-        BackendTraits t = AmsBackendMock::traits();
-        t.allows_implicit_chaining = true;
-        return t;
-    }
+    explicit GatedBackendMock(int slot_count) : ChainingMockBackend(slot_count) {}
 
     ~GatedBackendMock() override {
         // The wrapper below captures this object; nothing may still be parked
