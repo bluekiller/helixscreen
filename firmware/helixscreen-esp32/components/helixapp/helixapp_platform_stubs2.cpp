@@ -82,6 +82,9 @@ std::vector<UsbDrive> UsbManager::get_drives() const {
 bool UsbManager::is_running() const {
     return false;
 }
+std::shared_ptr<UsbBackend> UsbManager::backend_snapshot() const {
+    return nullptr;
+}
 
 // --- host identity / platform info (gethostname/getifaddrs; Android JNI) ----
 namespace helix {
