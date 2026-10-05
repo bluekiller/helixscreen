@@ -244,50 +244,43 @@ void ControlsPanel::init_subjects() {
         },
         printer_state_.get_subjects_lifetime());
 
+    // Every no-argument XML callback is one entry: its XML name and the handler it runs on
+    // the global panel. on_controls_macro and on_controls_fan_slider read the event, so
+    // they keep their own trampolines.
     register_xml_callbacks({
-        // Calibration button event callbacks (direct buttons in card, no modal)
-        {"on_calibration_bed_mesh", on_calibration_bed_mesh},
-        {"on_calibration_zoffset", on_calibration_zoffset},
-        {"on_calibration_tool_offsets", on_calibration_tool_offsets},
-        {"on_calibration_pa", on_calibration_pa},
-        {"on_calibration_screws", on_calibration_screws},
-        {"on_calibration_motors", on_calibration_motors},
+        {"on_calibration_bed_mesh", dispatch<&ControlsPanel::handle_calibration_bed_mesh>},
+        {"on_calibration_zoffset", dispatch<&ControlsPanel::handle_calibration_zoffset>},
+        {"on_calibration_tool_offsets", dispatch<&ControlsPanel::handle_calibration_tool_offsets>},
+        {"on_calibration_pa", dispatch<&ControlsPanel::handle_calibration_pa>},
+        {"on_calibration_screws", dispatch<&ControlsPanel::handle_calibration_screws>},
+        {"on_calibration_motors", dispatch<&ControlsPanel::handle_calibration_motors>},
 
-        // Quick Actions: Home buttons
-        {"on_controls_home_all", on_home_all},
-        {"on_controls_home_x", on_home_x},
-        {"on_controls_home_y", on_home_y},
-        {"on_controls_home_xy", on_home_xy},
-        {"on_controls_home_z", on_home_z},
-
-        // Quick Actions: Leveling buttons (QGL / Z-Tilt)
-        {"on_controls_qgl", on_qgl},
-        {"on_controls_z_tilt", on_z_tilt},
-
-        // Quick Actions: Macro buttons (unified callback with user_data index)
+        {"on_controls_home_all", dispatch<&ControlsPanel::handle_home_all>},
+        {"on_controls_home_x", dispatch<&ControlsPanel::handle_home_x>},
+        {"on_controls_home_y", dispatch<&ControlsPanel::handle_home_y>},
+        {"on_controls_home_xy", dispatch<&ControlsPanel::handle_home_xy>},
+        {"on_controls_home_z", dispatch<&ControlsPanel::handle_home_z>},
+        {"on_controls_qgl", dispatch<&ControlsPanel::handle_qgl>},
+        {"on_controls_z_tilt", dispatch<&ControlsPanel::handle_z_tilt>},
         {"on_controls_macro", on_macro},
-
-        // Cooling: Fan slider
         {"on_controls_fan_slider", on_fan_slider_changed},
 
-        // Z-Offset banner: Save button
-        {"on_controls_save_z_offset", on_save_z_offset},
+        {"on_controls_save_z_offset", dispatch<&ControlsPanel::handle_save_z_offset>},
+        {"on_zoffset_tune", dispatch<&ControlsPanel::handle_zoffset_tune>},
 
-        // Z-Offset clickable row: Opens Print Tune overlay
-        {"on_zoffset_tune", on_zoffset_tune},
+        // Cards and rows that open a full overlay
+        {"on_controls_quick_actions", dispatch<&ControlsPanel::handle_quick_actions_clicked>},
+        {"on_nozzle_temp_clicked", dispatch<&ControlsPanel::handle_nozzle_temp_clicked>},
+        {"on_bed_temp_clicked", dispatch<&ControlsPanel::handle_bed_temp_clicked>},
+        {"on_chamber_temp_clicked", dispatch<&ControlsPanel::handle_chamber_temp_clicked>},
+        {"on_controls_cooling", dispatch<&ControlsPanel::handle_cooling_clicked>},
+        {"on_controls_more_sensors", dispatch<&ControlsPanel::handle_secondary_temps_clicked>},
+        {"on_controls_secondary_fans", dispatch<&ControlsPanel::handle_secondary_fans_clicked>},
 
-        // Card click handlers (navigation to full overlay panels)
-        {"on_controls_quick_actions", on_quick_actions_clicked},
-        {"on_nozzle_temp_clicked", on_nozzle_temp_clicked},
-        {"on_bed_temp_clicked", on_bed_temp_clicked},
-        {"on_chamber_temp_clicked", on_chamber_temp_clicked},
-        {"on_controls_cooling", on_cooling_clicked},
-        {"on_controls_more_sensors", on_secondary_temps_clicked},
-        {"on_controls_secondary_fans", on_secondary_fans_clicked},
-        // Pencil icon edit handlers (open temperature keypad)
-        {"on_nozzle_target_edit", on_nozzle_target_edit},
-        {"on_bed_target_edit", on_bed_target_edit},
-        {"on_chamber_target_edit", on_chamber_target_edit},
+        // Pencil icons: open the temperature keypad
+        {"on_nozzle_target_edit", dispatch<&ControlsPanel::handle_nozzle_target_edit>},
+        {"on_bed_target_edit", dispatch<&ControlsPanel::handle_bed_target_edit>},
+        {"on_chamber_target_edit", dispatch<&ControlsPanel::handle_chamber_target_edit>},
     });
 
     subjects_initialized_ = true;
@@ -319,9 +312,6 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Cache dynamic container for secondary fans
     FIND_WIDGET(secondary_fans_list_, panel_, "secondary_fans_list", get_name());
-
-    // Wire up card click handlers (cards need manual wiring for navigation)
-    setup_card_handlers();
 
     // Bind heating icon animators for nozzle/bed/chamber status visualization.
     // The binder owns its own temperature observers, so the panel does not need
@@ -430,29 +420,6 @@ void ControlsPanel::refresh_all_displays() {
 // ============================================================================
 // PRIVATE HELPERS
 // ============================================================================
-
-void ControlsPanel::setup_card_handlers() {
-    // All card click handlers are now wired via XML event_cb - see init_subjects().
-    // This function is retained for validation and debugging purposes.
-
-    lv_obj_t* card_quick_actions = nullptr;
-    lv_obj_t* card_temperatures = nullptr;
-    lv_obj_t* card_cooling = nullptr;
-    lv_obj_t* card_calibration = nullptr;
-
-    FIND_WIDGET_OPTIONAL(card_quick_actions, panel_, "card_quick_actions");
-    FIND_WIDGET_OPTIONAL(card_temperatures, panel_, "card_temperatures");
-    FIND_WIDGET_OPTIONAL(card_cooling, panel_, "card_cooling");
-    FIND_WIDGET_OPTIONAL(card_calibration, panel_, "card_calibration");
-
-    if (!card_quick_actions || !card_temperatures || !card_cooling || !card_calibration) {
-        spdlog::error("[{}] Failed to find all V2 cards", get_name());
-        return;
-    }
-
-    spdlog::trace("[{}] V2 card navigation handlers validated (wired via XML event_cb)",
-                  get_name());
-}
 
 void ControlsPanel::register_observers() {
     // Subscribe to temperature updates using bundle (replaces 4 individual observers)
@@ -1195,42 +1162,14 @@ void ControlsPanel::handle_calibration_motors() {
 }
 
 // ============================================================================
-// V2 CARD CLICK TRAMPOLINES (XML event_cb - use global accessor)
+// XML CALLBACK TRAMPOLINES
 // ============================================================================
 
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, quick_actions_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, nozzle_temp_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, bed_temp_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, chamber_temp_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, cooling_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, secondary_fans_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, secondary_temps_clicked)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, nozzle_target_edit)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, bed_target_edit)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, chamber_target_edit)
+template <void (ControlsPanel::*Handler)()> void ControlsPanel::dispatch(lv_event_t*) {
+    HELIX_TRAMPOLINE_GUARD_BEGIN(get_global_controls_panel().*Handler)();
+    HELIX_TRAMPOLINE_GUARD_END_NAMED("ControlsPanel")
+}
 
-// ============================================================================
-// CALIBRATION BUTTON TRAMPOLINES (XML event_cb - use global accessor)
-// ============================================================================
-
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, calibration_bed_mesh)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, calibration_zoffset)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, calibration_tool_offsets)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, calibration_pa)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, calibration_screws)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, calibration_motors)
-
-// ============================================================================
-// V2 BUTTON TRAMPOLINES (XML event_cb - use global accessor)
-// ============================================================================
-
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, home_all)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, home_x)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, home_y)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, home_xy)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, home_z)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, qgl)
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, z_tilt)
 // Unified macro callback - extracts index from user_data
 void ControlsPanel::on_macro(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_macro");
@@ -1243,9 +1182,7 @@ void ControlsPanel::on_macro(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, zoffset_tune)
-
-// Cannot use macro - has extra logic to extract slider value
+// Cannot use dispatch - has extra logic to extract slider value
 void ControlsPanel::on_fan_slider_changed(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_fan_slider_changed");
     auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -1253,8 +1190,6 @@ void ControlsPanel::on_fan_slider_changed(lv_event_t* e) {
     get_global_controls_panel().handle_fan_slider_changed(value);
     LVGL_SAFE_EVENT_CB_END();
 }
-
-PANEL_TRAMPOLINE(ControlsPanel, get_global_controls_panel, save_z_offset)
 
 void ControlsPanel::subscribe_to_secondary_fan_speeds() {
     using helix::ui::observe;

@@ -102,10 +102,9 @@ class ControlsPanel : public PanelBase {
     void deinit_subjects();
 
     /**
-     * @brief Setup the controls panel with card navigation handlers
+     * @brief Setup the controls panel: cache its dynamic lists and start observing live data
      *
-     * Wires up card background click handlers for navigation to full panels.
-     * All button handlers are already wired via XML event_cb in init_subjects().
+     * Every click handler is wired in the XML (callbacks registered by init_subjects()).
      *
      * @param panel Root panel object from lv_xml_create()
      * @param parent_screen Parent screen (needed for overlay panel creation)
@@ -347,7 +346,6 @@ class ControlsPanel : public PanelBase {
     // === Private Helpers ===
     //
 
-    void setup_card_handlers();
     void register_observers();
 
     // Display update helpers
@@ -490,50 +488,17 @@ class ControlsPanel : public PanelBase {
     void handle_calibration_motors();
 
     //
-    // === V2 Card Click Trampolines (manual wiring with user_data) ===
+    // === XML event_cb trampolines ===
     //
 
-    static void on_quick_actions_clicked(lv_event_t* e);
-    static void on_nozzle_temp_clicked(lv_event_t* e);
-    static void on_bed_temp_clicked(lv_event_t* e);
-    static void on_chamber_temp_clicked(lv_event_t* e);
-    static void on_cooling_clicked(lv_event_t* e);
-    static void on_secondary_fans_clicked(lv_event_t* e);
-    static void on_secondary_temps_clicked(lv_event_t* e);
-    static void on_nozzle_target_edit(lv_event_t* e);
-    static void on_bed_target_edit(lv_event_t* e);
-    static void on_chamber_target_edit(lv_event_t* e);
-    //
-    // === Calibration Button Trampolines (XML event_cb - global accessor) ===
-    //
+    /// Entry for a no-argument handler: runs @p Handler on the global panel.
+    /// init_subjects() pairs each with its XML callback name.
+    template <void (ControlsPanel::*Handler)()> static void dispatch(lv_event_t* e);
 
-    static void on_calibration_bed_mesh(lv_event_t* e);
-    static void on_calibration_zoffset(lv_event_t* e);
-    static void on_calibration_pa(lv_event_t* e);
-    static void on_calibration_screws(lv_event_t* e);
-    static void on_calibration_tool_offsets(lv_event_t* e);
-    static void on_calibration_motors(lv_event_t* e);
-
-    //
-    // === V2 Button Trampolines (XML event_cb - global accessor) ===
-    //
-
-    static void on_home_all(lv_event_t* e);
-    static void on_home_x(lv_event_t* e);
-    static void on_home_y(lv_event_t* e);
-    static void on_home_xy(lv_event_t* e);
-    static void on_home_z(lv_event_t* e);
-    static void on_qgl(lv_event_t* e);
-    static void on_z_tilt(lv_event_t* e);
+    // The two that read the event: the macro slot index rides in user_data,
+    // the fan slider's value comes off the target widget.
     static void on_macro(lv_event_t* e);
     static void on_fan_slider_changed(lv_event_t* e);
-    static void on_save_z_offset(lv_event_t* e);
-
-    //
-    // === Z-Offset Trampolines (XML event_cb - global accessor) ===
-    //
-
-    static void on_zoffset_tune(lv_event_t* e);
 
     void subscribe_to_secondary_fan_speeds();
     void update_secondary_fan_speed(const std::string& object_name, int speed_pct);
