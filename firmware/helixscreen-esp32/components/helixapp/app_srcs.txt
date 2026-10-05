@@ -355,6 +355,7 @@ src/ui/shared_font_style.cpp
 src/ui/text_metrics.cpp
 src/ui/style_configs.cpp
 src/ui/temp_graph_controller.cpp
+src/ui/print_status_layout_fitter.cpp
 src/ui/temp_graph_tooltip.cpp
 src/ui/temperature_controller.cpp
 src/ui/bed_drying_controller.cpp

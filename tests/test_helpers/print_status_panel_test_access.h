@@ -55,7 +55,7 @@ class PrintStatusPanelTestAccess {
     }
 
     static void recompute_aux_composites(PrintStatusPanel& panel, int density, bool aux_present) {
-        panel.recompute_aux_composites_for_measurement(density, aux_present);
+        panel.layout_fitter_.recompute_aux_composites_for_measurement(density, aux_present);
     }
 
     static void set_thumbnail_widget(PrintStatusPanel& panel, lv_obj_t* image) {
