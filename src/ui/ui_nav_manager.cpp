@@ -1466,16 +1466,24 @@ void NavigationManager::overlay_delete_event_cb(lv_event_t* e) {
     NavigationManager::instance().scrub_deleted_widget(target);
 }
 
-void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen) {
-    // Keep the live E-stop out of the snapshot: it stays above the backdrop,
-    // and a dimmed copy baked into the image would show wherever the page
-    // shifts (the keyboard lifts the layout, backdrop included).
+void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriving) {
+    // Keep the live E-stop and the arriving overlay out of the snapshot: both
+    // stay above the backdrop, and a dimmed copy baked into the image would
+    // show wherever the page shifts (the keyboard lifts the layout, backdrop
+    // included) or wherever the live overlay has not covered it yet.
     const bool estop_shown = rail_estop_ && !lv_obj_has_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
     if (estop_shown) {
         lv_obj_add_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
     }
+    const bool arriving_shown = arriving && !lv_obj_has_flag(arriving, LV_OBJ_FLAG_HIDDEN);
+    if (arriving_shown) {
+        lv_obj_add_flag(arriving, LV_OBJ_FLAG_HIDDEN);
+    }
     overlay_backdrop_ = helix::ui::create_darkened_backdrop(screen, 40);
     backdrop_palette_key_ = active_palette_key();
+    if (arriving_shown) {
+        lv_obj_remove_flag(arriving, LV_OBJ_FLAG_HIDDEN);
+    }
     if (estop_shown) {
         lv_obj_remove_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
     }
@@ -1887,7 +1895,7 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         // the visible content, not a blank screen.
         lv_obj_t* screen = lv_obj_get_screen(overlay_panel);
         if (screen && is_first_overlay) {
-            mgr.adopt_overlay_backdrop(screen);
+            mgr.adopt_overlay_backdrop(screen, overlay_panel);
         }
 
         // Resolve and apply the width class before the overlay becomes visible,
