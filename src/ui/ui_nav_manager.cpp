@@ -227,6 +227,24 @@ bool NavigationManager::is_klippy_ready() const {
     return lv_subject_get_int(subject) == 0; // KlippyState::READY
 }
 
+void NavigationManager::retire_overlay(lv_obj_t* overlay) {
+    // Both run inside UpdateQueue drains or LVGL animation callbacks, where a
+    // synchronous delete corrupts LVGL's event list (#637, #620).
+    auto backdrop_it = overlay_backdrops_.find(overlay);
+    if (backdrop_it != overlay_backdrops_.end()) {
+        helix::ui::safe_delete_deferred(backdrop_it->second);
+        overlay_backdrops_.erase(backdrop_it);
+    }
+
+    auto callback_it = overlay_close_callbacks_.find(overlay);
+    if (callback_it != overlay_close_callbacks_.end()) {
+        spdlog::trace("[NavigationManager] Deferring close callback for overlay {}",
+                      (void*)overlay);
+        defer_close_callback(std::move(callback_it->second));
+        overlay_close_callbacks_.erase(callback_it);
+    }
+}
+
 void NavigationManager::clear_overlay_stack() {
     // L081 Mech D defense: cancel in-flight pointer input before bulk teardown.
     // Stale clicks queued in indev would otherwise dispatch to widgets we're
@@ -249,25 +267,10 @@ void NavigationManager::clear_overlay_stack() {
             inst_it->second->on_deactivate(DeactivateReason::NavigateAway);
         }
 
-        // Defer close callback via run_next_tick so any object deletion happens
-        // OUTSIDE process_pending(). clear_overlay_stack() is called from subject
-        // observers (connection loss, klippy shutdown) which fire inside
-        // process_pending() — synchronous lv_obj_delete there corrupts LVGL's
-        // event linked list (prestonbrown/helixscreen#637).
-        auto close_it = overlay_close_callbacks_.find(overlay);
-        if (close_it != overlay_close_callbacks_.end()) {
-            defer_close_callback(std::move(close_it->second));
-            overlay_close_callbacks_.erase(close_it);
-        }
-
-        // Clean up dynamic backdrop for this overlay (if one was created).
-        // Must use safe_delete_deferred — we may be inside process_pending()
-        // and synchronous deletion corrupts LVGL's event list (#637).
-        auto backdrop_it = overlay_backdrops_.find(overlay);
-        if (backdrop_it != overlay_backdrops_.end()) {
-            helix::ui::safe_delete_deferred(backdrop_it->second);
-            overlay_backdrops_.erase(backdrop_it);
-        }
+        // clear_overlay_stack() is called from subject observers (connection
+        // loss, klippy shutdown) which fire inside process_pending(), so the
+        // overlay's teardown must not run synchronously here.
+        retire_overlay(overlay);
 
         panel_stack_.pop_back();
         spdlog::trace("[NavigationManager] Cleared overlay {} from stack", (void*)overlay);
@@ -304,17 +307,12 @@ void NavigationManager::overlay_slide_out_complete_cb(lv_anim_t* anim) {
     spdlog::trace("[NavigationManager] Overlay slide+fade-out complete, panel {} hidden",
                   (void*)panel);
 
-    // Defer close callback via run_next_tick so any object deletion happens AFTER the
-    // current render cycle completes. Animation callbacks fire from inside
-    // lv_timer_handler() → lv_display_refr_timer(), and deleting objects mid-layout
-    // causes use-after-free in layout_update_core → lv_obj_scrollbar_invalidate.
+    // Animation callbacks fire from inside lv_timer_handler() →
+    // lv_display_refr_timer(), and deleting objects mid-layout is a
+    // use-after-free in layout_update_core → lv_obj_scrollbar_invalidate, so the
+    // close callback waits for the next tick.
     auto& mgr = NavigationManager::instance();
-    auto it = mgr.overlay_close_callbacks_.find(panel);
-    if (it != mgr.overlay_close_callbacks_.end()) {
-        spdlog::trace("[NavigationManager] Deferring close callback for overlay {}", (void*)panel);
-        defer_close_callback(std::move(it->second));
-        mgr.overlay_close_callbacks_.erase(it);
-    }
+    mgr.retire_overlay(panel);
 
     // Lifecycle: activate what's now visible. go_back() consumes the latch
     // itself before it returns, so this is the fallback for any close path that
@@ -792,25 +790,9 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 (void*)panel);
         }
 
-        // Defer close callback via run_next_tick — switch_to_panel_impl() can be
-        // called from subject observers inside process_pending(), and synchronous
-        // lv_obj_delete in close callbacks corrupts LVGL's event list (#637).
-        auto it = overlay_close_callbacks_.find(panel);
-        if (it != overlay_close_callbacks_.end()) {
-            spdlog::trace("[NavigationManager] Deferring close callback for panel {} (navbar)",
-                          (void*)panel);
-            defer_close_callback(std::move(it->second));
-            overlay_close_callbacks_.erase(it);
-        }
-
-        // Clean up dynamic backdrop for this overlay (if one was created).
-        // Must use safe_delete_deferred — we're inside a queue_update() callback
-        // and synchronous deletion corrupts LVGL's event list (#620).
-        auto backdrop_it = overlay_backdrops_.find(panel);
-        if (backdrop_it != overlay_backdrops_.end()) {
-            helix::ui::safe_delete_deferred(backdrop_it->second);
-            overlay_backdrops_.erase(backdrop_it);
-        }
+        // switch_to_panel_impl() can be called from subject observers inside
+        // process_pending(), so the overlay's teardown must not run synchronously.
+        retire_overlay(panel);
     }
 
     // Clear the panel stack and the per-open bookkeeping, but NOT the overlay
@@ -1976,20 +1958,10 @@ void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
             mgr.go_back_now(); // on top: normal pop with restore path
             return;
         }
-        // Buried: drop it from the stack and fire its close callback without
-        // disturbing the overlay that covers it (it is already hidden).
+        // Buried: drop it from the stack and retire it without disturbing the
+        // overlay that covers it (it is already hidden).
         mgr.panel_stack_.erase(it);
-        auto backdrop_it = mgr.overlay_backdrops_.find(root);
-        if (backdrop_it != mgr.overlay_backdrops_.end()) {
-            helix::ui::safe_delete_deferred(backdrop_it->second);
-            mgr.overlay_backdrops_.erase(backdrop_it);
-        }
-        auto cb_it = mgr.overlay_close_callbacks_.find(root);
-        if (cb_it != mgr.overlay_close_callbacks_.end()) {
-            auto callback = std::move(cb_it->second);
-            mgr.overlay_close_callbacks_.erase(cb_it);
-            callback();
-        }
+        mgr.retire_overlay(root);
     });
 }
 

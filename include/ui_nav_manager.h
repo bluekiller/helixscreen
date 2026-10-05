@@ -606,6 +606,10 @@ class NavigationManager {
     // Check if klippy is in READY state
     bool is_klippy_ready() const;
 
+    // Tear down what an overlay leaving the stack owns: its nested-overlay
+    // backdrop is deleted and its close callback runs, both on the next tick.
+    void retire_overlay(lv_obj_t* overlay);
+
     // Clear overlay stack (used during connection loss)
     void clear_overlay_stack();
 

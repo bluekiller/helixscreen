@@ -21,6 +21,12 @@ class NavigationManagerTestAccess {
         return nav.overlay_backdrop_;
     }
 
+    /// Give @p overlay a nested-overlay backdrop, as a stacked push does.
+    static void set_overlay_backdrop_for(NavigationManager& nav, lv_obj_t* overlay,
+                                         lv_obj_t* backdrop) {
+        nav.overlay_backdrops_[overlay] = backdrop;
+    }
+
     /// Create the darkened snapshot backdrop, as the first push_overlay() does.
     static void adopt_overlay_backdrop(NavigationManager& nav, lv_obj_t* screen) {
         nav.adopt_overlay_backdrop(screen);
@@ -89,6 +95,15 @@ class NavigationManagerTestAccess {
     /// The close path taken on connection loss or Klippy leaving READY.
     static void clear_overlay_stack(NavigationManager& nav) {
         nav.clear_overlay_stack();
+    }
+
+    /// The slide-out animation's completion callback, for a widget whose slide
+    /// has just ended.
+    static void slide_out_complete(lv_obj_t* panel) {
+        lv_anim_t anim;
+        lv_anim_init(&anim);
+        lv_anim_set_var(&anim, panel);
+        NavigationManager::overlay_slide_out_complete_cb(&anim);
     }
 
     /// Run the overlay open / close slide directly on a widget.
