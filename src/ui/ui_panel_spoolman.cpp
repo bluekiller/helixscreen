@@ -282,7 +282,8 @@ void SpoolmanPanel::refresh_spools() {
 
     api->spoolman().get_spoolman_spools(
         [name, apply_spools, tok](const std::vector<SpoolInfo>& spools) {
-            if (tok.expired())
+            // L081_OK: skips the active-spool RPC for a dead panel; apply_spools defers.
+            if (tok.expired_no_lvgl())
                 return;
             spdlog::info("[{}] Received {} spools from Spoolman", name, spools.size());
 

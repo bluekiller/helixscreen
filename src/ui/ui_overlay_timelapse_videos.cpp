@@ -211,9 +211,7 @@ void TimelapseVideosOverlay::fetch_frame_info() {
     auto tok = lifetime_.token();
     api_->timelapse().get_last_frame_info(
         [tok](const LastFrameInfo& info) {
-            if (tok.expired())
-                return;
-            helix::ui::queue_update("TimelapseVideosOverlay::fetch_frame_info", [info]() {
+            tok.defer("TimelapseVideosOverlay::fetch_frame_info", [info]() {
                 auto& tl = helix::TimelapseState::instance();
                 lv_subject_set_int(tl.get_frame_count_subject(), info.frame_count);
                 spdlog::debug("[Timelapse Videos] Frame info: {} frames", info.frame_count);

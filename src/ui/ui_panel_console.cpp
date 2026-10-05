@@ -738,9 +738,9 @@ void ConsolePanel::send_gcode_command() {
     if (api) {
         api->execute_gcode(command, nullptr, // success: no-op, response comes via WS subscription
                            [token = lifetime_.token()](const MoonrakerError& err) {
-                               if (token.expired())
-                                   return;
-                               NOTIFY_ERROR(lv_tr("Failed to send command: {}"), err.message);
+                               token.defer("ConsolePanel::send_error", [msg = err.message]() {
+                                   NOTIFY_ERROR(lv_tr("Failed to send command: {}"), msg);
+                               });
                            });
     } else {
         spdlog::warn("[{}] No IMoonrakerAPI available", get_name());
