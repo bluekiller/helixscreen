@@ -1177,6 +1177,38 @@ TEST_CASE("get_best_thumbnail_from_content - Basic extraction", "[gcode][thumbna
     }
 }
 
+TEST_CASE("get_best_thumbnail_from_content - Cura JPEG thumbnail comes back as PNG",
+          "[gcode][thumbnail]") {
+    // Cura writes "; thumbnail_JPG begin"; a 16x8 JPEG.
+    std::stringstream gcode;
+    gcode << ";FLAVOR:Marlin\n";
+    gcode << "; thumbnail_JPG begin 16x8 848\n";
+    gcode << "; /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsK\n";
+    gcode << "; CwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQU\n";
+    gcode << "; FBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAAIABADASIA\n";
+    gcode << "; AhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQA\n";
+    gcode << "; AAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3\n";
+    gcode << "; ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWm\n";
+    gcode << "; p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEA\n";
+    gcode << "; AwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSEx\n";
+    gcode << "; BhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElK\n";
+    gcode << "; U1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3\n";
+    gcode << "; uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDwSiii\n";
+    gcode << "; vz8/uA//2Q==\n";
+    gcode << "; thumbnail_JPG end\n";
+    gcode << "G28 ; home\n";
+
+    auto thumb = get_best_thumbnail_from_content(gcode.str());
+
+    REQUIRE(thumb.width == 16);
+    REQUIRE(thumb.height == 8);
+    REQUIRE(thumb.png_data.size() >= 8);
+    CHECK(thumb.png_data[0] == 0x89);
+    CHECK(thumb.png_data[1] == 'P');
+    CHECK(thumb.png_data[2] == 'N');
+    CHECK(thumb.png_data[3] == 'G');
+}
+
 TEST_CASE("get_best_thumbnail_from_content - thumbnail after setup commands",
           "[gcode][thumbnail]") {
     const std::string png =
