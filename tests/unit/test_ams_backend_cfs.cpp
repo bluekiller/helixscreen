@@ -1323,6 +1323,23 @@ TEST_CASE("CFS boxes converge on one toolhead in the system path layout",
     }
 }
 
+// Cards run in box-address order, so a box off the bus keeps its physical place.
+TEST_CASE("CFS overview cards stay in address order around an absent box",
+          "[ams][cfs][tool_layout][ams_draw]") {
+    json box = make_multi_unit_box(4);
+    box["T2"]["state"] = "None";
+    const auto info = AmsBackendCfs::parse_box_status(box);
+    const auto order = ams_draw::compute_system_tool_layout(info, nullptr).display_order;
+
+    REQUIRE(order.size() == 4);
+    std::vector<int> addresses;
+    for (int i : order) {
+        addresses.push_back(info.units[static_cast<size_t>(i)].unit_index + 1);
+    }
+    CHECK(addresses == std::vector<int>{1, 2, 3, 4});
+    CHECK(info.units[static_cast<size_t>(order[1])].absent);
+}
+
 TEST_CASE("CFS GCode helpers", "[ams][cfs]") {
     // The CR_BOX_* primitives don't park the toolhead — without wrapping,
     // CR_BOX_FLUSH extrudes onto the build plate instead of into the K2's
