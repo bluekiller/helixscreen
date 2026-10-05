@@ -505,8 +505,11 @@ void AmsOperationSidebar::cleanup() {
     // trigger callbacks on already-null widget pointers.
     clog_meter_.reset();
 
-    // Clear all pending state.
+    // Clear all pending state. A preheat still waiting here never dispatches.
     bypass_toggle_.cancel_pending();
+    if (pending_load_slot_ >= 0) {
+        AmsState::instance().release_optimistic_action();
+    }
     pending_load_slot_ = -1;
     pending_load_target_temp_ = 0;
     ui_initiated_heat_ = false;
@@ -984,7 +987,23 @@ void AmsOperationSidebar::start_operation(StepOperationType op_type, int target_
     // Mark the operation busy right away (the XML binding hides the buttons on
     // it) with the action of the step it starts on. A backend step model says
     // which; the legacy bar's first step is always Heat.
-    AmsState::instance().set_action(current_step_model_.action_at(0).value_or(AmsAction::HEATING));
+    const auto projected = current_step_model_.action_at(0);
+    AmsState::instance().set_action(projected.value_or(AmsAction::HEATING));
+    // A backend whose phase model projects the action publishes it for every
+    // step. The rest report IDLE until their firmware starts, so the UI's
+    // action stands in for that silence instead of reading as Idle
+    // (prestonbrown/helixscreen#1057).
+    if (!projected) {
+        AmsState::instance().hold_optimistic_action(OPTIMISTIC_PREHEAT_HOLD);
+    }
+}
+
+void AmsOperationSidebar::hand_operation_to_backend() {
+    auto& ams = AmsState::instance();
+    if (ams.optimistic_action_held()) {
+        ams.hold_optimistic_action(OPTIMISTIC_DISPATCH_HOLD);
+    }
+    ams.sync_from_backend();
 }
 
 void AmsOperationSidebar::fail_started_operation(const AmsError& error) {
@@ -995,6 +1014,7 @@ void AmsOperationSidebar::fail_started_operation(const AmsError& error) {
     AmsState::instance().set_pending_target_slot(-1);
     // Backend never left IDLE; pull its truth back into the UI so the action
     // buttons reappear and the step bar hides.
+    AmsState::instance().release_optimistic_action();
     AmsState::instance().sync_from_backend();
 }
 
@@ -1336,7 +1356,10 @@ void AmsOperationSidebar::handle_unload(int slot_index) {
             helix::ui::disarm_manual_pull_prompt();
         }
         helix::ui::notify_ams_error(error);
+        AmsState::instance().release_optimistic_action();
+        return;
     }
+    hand_operation_to_backend();
 }
 
 void AmsOperationSidebar::handle_reset() {
@@ -1608,6 +1631,7 @@ void AmsOperationSidebar::check_pending_load() {
             spdlog::warn("[AmsSidebar] Preheat complete but slot {} no longer routes to the "
                          "backend (tier={}) — not dispatching",
                          slot, static_cast<int>(plan.tier));
+            AmsState::instance().release_optimistic_action();
             return;
         }
         spdlog::info("[AmsSidebar] Preheat complete, dispatching load for slot {}", slot);
@@ -1648,7 +1672,9 @@ void AmsOperationSidebar::dispatch_backend_load(const helix::ui::FilamentOpPlan&
 
     if (!error.success()) {
         fail_started_operation(error);
+        return;
     }
+    hand_operation_to_backend();
 }
 
 // ============================================================================

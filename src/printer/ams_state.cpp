@@ -364,6 +364,8 @@ void AmsState::clear_backends() {
     // per-slot stamps index the departing backend's slots; kept, they would
     // suppress a real runout on the same index of the next backend.
     runout_grace_.reset();
+    // A hold describes an operation on the departing backend.
+    optimistic_action_until_.reset();
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().
@@ -594,6 +596,14 @@ void AmsState::sync_system_subjects(const AmsSystemInfo& info) {
     int new_filament_system = is_filament_system(info.type) ? 1 : 0;
     lv_subject_set_int(&ams_is_filament_system_, new_filament_system);
     int new_action = static_cast<int>(info.action);
+    if (optimistic_action_until_) {
+        if (info.action != AmsAction::IDLE ||
+            std::chrono::steady_clock::now() >= *optimistic_action_until_) {
+            optimistic_action_until_.reset();
+        } else {
+            new_action = lv_subject_get_int(&ams_action_);
+        }
+    }
     // One-shot runout grace. An unload ends with the filament deliberately
     // dragged off the toolhead sensor, and that empty reading is the operation
     // working, not a runout — but is_filament_operation_active() only covers
@@ -610,7 +620,7 @@ void AmsState::sync_system_subjects(const AmsSystemInfo& info) {
                             static_cast<AmsAction>(new_action));
     if (lv_subject_get_int(&ams_action_) != new_action) {
         spdlog::debug("[AmsState] sync_from_backend: action changed to {} ({})", new_action,
-                      ams_action_to_string(info.action));
+                      ams_action_to_string(static_cast<AmsAction>(new_action)));
         lv_subject_set_int(&ams_action_, new_action);
         action_mirror_.store(static_cast<AmsAction>(new_action), std::memory_order_relaxed);
     }
@@ -1430,6 +1440,21 @@ void AmsState::set_action(AmsAction action) {
         // LOADING → IDLE while still printing should flip "Loading" → "Printing").
         recompute_action_detail();
     }
+}
+
+void AmsState::hold_optimistic_action(std::chrono::milliseconds budget) {
+    assert_main_thread();
+    optimistic_action_until_ = std::chrono::steady_clock::now() + budget;
+}
+
+void AmsState::release_optimistic_action() {
+    assert_main_thread();
+    optimistic_action_until_.reset();
+}
+
+bool AmsState::optimistic_action_held() const {
+    assert_main_thread();
+    return optimistic_action_until_.has_value();
 }
 
 void AmsState::set_active_step_operation(StepOperationType op) {

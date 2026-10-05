@@ -1498,6 +1498,15 @@ Two consequences worth naming, because they look like bugs and are not:
 - **Tool changers skip the sidebar's preheat entirely.** `SELECT_TOOL` owns its own heat
   sequence and the backend sets `SELECTING` at dispatch, resolving on the macro ack (#1183);
   an optimistic `HEATING` stepper would fight it. Only the *decision* is shared.
+- **The optimistic action outlives backend silence.** A backend whose step model projects
+  no action and that sets none at dispatch (Happy Hare) reports `IDLE` through the UI
+  preheat and until its firmware starts, and every sync (the sidebar's 1.5s stall watchdog included) would copy
+  that. `start_operation()` calls `AmsState::hold_optimistic_action()`, so a backend `IDLE`
+  leaves the action alone until the backend reports a busy action of its own, which takes
+  over for the rest of the operation. Dispatch restarts the budget
+  (`hand_operation_to_backend()`); a refused dispatch, an abandoned preheat or the budget
+  running out releases it. AFC and CFS set their own action at dispatch, so the hold ends
+  on the sync that follows it (prestonbrown/helixscreen#1057).
 
 Two more where the surface deliberately does **not** use the plan's value:
 

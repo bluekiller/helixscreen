@@ -15,6 +15,7 @@
 #include "filament_op_execute.h"
 #include "filament_op_slot_resolver.h"
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include <optional>
@@ -227,6 +228,17 @@ class AmsOperationSidebar {
     lv_timer_t* stall_watchdog_timer_ = nullptr;
     static constexpr uint32_t STALL_WATCHDOG_PERIOD_MS = 1500;
     static void stall_watchdog_cb(lv_timer_t* timer);
+
+    // How long the optimistic action outlives backend silence (see
+    // AmsState::hold_optimistic_action): the UI preheat, then the gap between
+    // the backend accepting the command and its first frame, which can include
+    // a G28. Each bounds an operation the backend never reports at all.
+    static constexpr std::chrono::minutes OPTIMISTIC_PREHEAT_HOLD{10};
+    static constexpr std::chrono::seconds OPTIMISTIC_DISPATCH_HOLD{90};
+
+    // The backend accepted the operation: restart a held action's budget from
+    // here, and sync so a backend that set its own action at dispatch drives.
+    void hand_operation_to_backend();
 
     // Step progress state
     StepOperationType current_operation_type_ = StepOperationType::LOAD_FRESH;
