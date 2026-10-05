@@ -112,10 +112,13 @@ class ToastManager {
                                const char* action_text);
     void ensure_stack_container();
     ToastList::iterator find_by_widget(lv_obj_t* widget);
-    /** If a non-exiting, non-action toast with identical severity+message is
-     *  visible, reset its dismiss timer and return true (caller skips
-     *  creating a duplicate). Rapid-fire error paths (jog spam, reconnect
-     *  storms) otherwise stack N identical widgets in one queue drain.
+    /** If a non-exiting toast with identical severity+message is visible,
+     *  reset its dismiss timer and return true (caller skips creating a
+     *  duplicate). Rapid-fire error paths (jog spam, reconnect storms, a
+     *  flapping sensor re-raising one notice) otherwise stack N identical
+     *  widgets. An action toast only folds into one whose button runs the
+     *  same callback on the same user_data: two toasts with one message but
+     *  different targets are two questions, and merging them would drop one.
      *
      *  Defined inline (header-only): mk/tests.mk excludes
      *  ui_toast_manager.o from the test build and tests/ui_test_utils.cpp
@@ -126,12 +129,15 @@ class ToastManager {
      *  app binary and the test binary link the same code; only LVGL's
      *  lv_timer_reset() is needed, which is available in both. Do not
      *  move this back to ui_toast_manager.cpp or add a stub override. */
-    bool refresh_duplicate(ToastSeverity severity, const char* message) {
+    bool refresh_duplicate(ToastSeverity severity, const char* message,
+                           toast_action_callback_t action_cb = nullptr,
+                           void* action_user_data = nullptr) {
         if (!message) {
             return false;
         }
         for (auto& t : active_) {
-            if (!t.is_exiting && t.action_cb == nullptr && t.severity == severity &&
+            if (!t.is_exiting && t.action_cb == action_cb &&
+                t.action_user_data == action_user_data && t.severity == severity &&
                 t.message == message) {
                 if (t.dismiss_timer) {
                     lv_timer_reset(t.dismiss_timer);

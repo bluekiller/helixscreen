@@ -5,6 +5,7 @@
 
 #include "ui_ams_edit_overlay.h"
 #include "ui_animations_pref.h"
+#include "ui_insert_notice.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_observer_guard.h"
@@ -383,6 +384,10 @@ void HelixTestFixture::reset_all() {
     StandardMacros::instance().load_from_config();
     helix::SystemSettingsManager::instance().init_subjects();
     helix::SystemSettingsManager::instance().set_language("en");
+
+    // A same-spool notice asked in one test would otherwise hold its lane's
+    // quiet window open into the next, and that test's insert would ask nothing.
+    helix::ui::reset_insert_offers_for_test();
 
     // Global RuntimeConfig's --real-*/--no-ams/--disconnected opt-out flags back
     // to their off-by-default state. Every test that exercises RuntimeConfig

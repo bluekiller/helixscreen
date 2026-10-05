@@ -28,6 +28,19 @@ class ToastManagerTestAccess {
         inst.message = msg;
         tm.active_.push_back(std::move(inst));
     }
+    static void inject_action(ToastManager& tm, ToastSeverity sev, const char* msg,
+                              toast_action_callback_t cb, void* user_data) {
+        ToastManager::ToastInstance inst;
+        inst.severity = sev;
+        inst.message = msg;
+        inst.action_cb = cb;
+        inst.action_user_data = user_data;
+        tm.active_.push_back(std::move(inst));
+    }
+    static bool refresh_action_duplicate(ToastManager& tm, ToastSeverity sev, const char* msg,
+                                         toast_action_callback_t cb, void* user_data) {
+        return tm.refresh_duplicate(sev, msg, cb, user_data);
+    }
     static ToastManager::ToastList::iterator find_owning_toast(ToastManager& tm, lv_obj_t* node) {
         return tm.find_owning_toast(node);
     }
@@ -60,6 +73,33 @@ TEST_CASE("Toast dedupe: different message or severity does not match", "[toast]
     CHECK_FALSE(
         ToastManagerTestAccess::refresh_duplicate(tm, ToastSeverity::WARNING, "Jog failed: busy"));
     CHECK_FALSE(ToastManagerTestAccess::refresh_duplicate(tm, ToastSeverity::ERROR, "Other error"));
+    ToastManagerTestAccess::clear(tm);
+}
+
+namespace {
+void action_a(void*) {}
+void action_b(void*) {}
+} // namespace
+
+TEST_CASE("Toast dedupe: an action toast folds only into the same action on the same target",
+          "[toast][dedupe]") {
+    auto& tm = ToastManager::instance();
+    ToastManagerTestAccess::clear(tm);
+    int lane_5 = 5;
+    int lane_6 = 6;
+    ToastManagerTestAccess::inject_action(tm, ToastSeverity::INFO, "Same spool in Gate 5?",
+                                          action_a, &lane_5);
+
+    CHECK(ToastManagerTestAccess::refresh_action_duplicate(
+        tm, ToastSeverity::INFO, "Same spool in Gate 5?", action_a, &lane_5));
+    // Same words, different question: each keeps its own button.
+    CHECK_FALSE(ToastManagerTestAccess::refresh_action_duplicate(
+        tm, ToastSeverity::INFO, "Same spool in Gate 5?", action_a, &lane_6));
+    CHECK_FALSE(ToastManagerTestAccess::refresh_action_duplicate(
+        tm, ToastSeverity::INFO, "Same spool in Gate 5?", action_b, &lane_5));
+    // A plain toast never absorbs an action toast's message, nor the reverse.
+    CHECK_FALSE(ToastManagerTestAccess::refresh_duplicate(tm, ToastSeverity::INFO,
+                                                          "Same spool in Gate 5?"));
     ToastManagerTestAccess::clear(tm);
 }
 
