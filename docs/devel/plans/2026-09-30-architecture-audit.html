@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>809fc7139</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>b518b9824</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -1826,9 +1826,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <section id="sec-f"><h2>F. RAM</h2>
 <p class="lede"><strong>Field data (telemetry to 2026-09-26)</strong>: RAM stepped up at 0.99.108 on ad5x, k2 and k1 (+1-2.5 MB), most likely <code>10e336c15</code> sizing the debug ring from total RAM. That is deliberate; ad5m and cc1 stay on the 2000-line floor. ad5m startup RSS is about +13% against early 0.99, with private-dirty back to baseline by 1.0.1. cc1 is flat across 14 devices. 1.0.x is flat or down everywhere.</p>
 <details class="f" id="RAM-1" data-tag="footprint" data-size="1.1" data-status="progress">
-<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">5a4541b17</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
+<summary><span class="fid">RAM-1</span><span class="chip t-footprint">footprint</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/overlay-destroy-led-ams</code><span class="ftitle">Overlays are never freed after first open (~70 classes, 5 free on close)</span><span class="fimpact">0.4-1.5MB typical, up to 5.5MB retained</span></summary>
 <div class="fbody">
-<p class="branch">Three tranches shipped. <code>refactor/fw-infra</code> (<code>4d4057937</code>): Bed Mesh, Console, Macros, Input Shaper, QrScanner, Plugins. <code>perf/ram1-overlay-destroy-on-close</code> (<code>a7f96c8ba</code>): Motion, Macro Buttons, Motion Settings, Theme Editor, Temp Graph, CFS Chute, Tool Offset, PA. <code>perf/ram1-tranche3</code> (<code>5a4541b17</code>): PID, Z Offset, Touch Calibration, Printer Manager. Left: LED control (timer, dynamic tab rows) and AMS environment (dryer state, six widget pointers).</p>
+<p class="branch">Three tranches shipped (<code>4d4057937</code>, <code>a7f96c8ba</code>, <code>5a4541b17</code>). Remaining LED control and AMS environment on <code>refactor/overlay-destroy-led-ams</code> (another session; #1246/#1329).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/overlay_base.h#OverlayBase</code>, the ~70 <code>OverlayBase</code> subclasses under <code>src/ui/</code>, lazy-create sites using <code>destroy_on_close</code></dd>
 <dt>Evidence</dt><dd>Only 5 destroy their tree on close (QrScanner, SpoolmanOverlay, PrintSelectDetailView, PrintStatus in low-memory mode, AmsEdit); <code>destroy_on_close</code> used at 1 of 23 lazy sites. 90 overlay-ish components hold ~6,100 static objects (color_picker 280, input_shaper_panel 277, ams_edit_overlay 217, motion_panel 196, temp_graph_overlay 189). At a measured ~0.4-0.9 kB/object: typical session (15-25 overlays) 0.4-1.5 MB, every overlay opened 2.5-5.5 MB, against the AD5M 14-20 MB budget.</dd>
