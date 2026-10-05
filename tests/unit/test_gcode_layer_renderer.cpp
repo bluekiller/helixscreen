@@ -1020,6 +1020,173 @@ TEST_CASE("pick_object_at honors the support visibility toggle",
 }
 
 // ===========================================================================
+// Picking under FRONT, the projection the preview ships with. FRONT rotates XY
+// by 45 degrees and folds Z into screen y, so a footprint and a segment
+// distance there differ from TOP_DOWN's; these cases name every click in world
+// millimetres and derive the pixels through the same projection.
+// ===========================================================================
+
+namespace {
+
+constexpr ViewMode kFront = ViewMode::FRONT;
+
+struct ScreenRect {
+    int min_x = std::numeric_limits<int>::max();
+    int min_y = std::numeric_limits<int>::max();
+    int max_x = std::numeric_limits<int>::lowest();
+    int max_y = std::numeric_limits<int>::lowest();
+
+    bool contains(glm::ivec2 p) const {
+        return p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y;
+    }
+};
+
+ScreenRect front_rect(const AABB& fit_box, const AABB& box) {
+    ScreenRect r;
+    for (const glm::vec3& c : box.corners()) {
+        const glm::ivec2 p = project_expected(fit_box, c.x, c.y, c.z, kFront);
+        r.min_x = std::min(r.min_x, p.x);
+        r.min_y = std::min(r.min_y, p.y);
+        r.max_x = std::max(r.max_x, p.x);
+        r.max_y = std::max(r.max_y, p.y);
+    }
+    return r;
+}
+
+// Screen distance from a click to a world segment, projected under FRONT. FRONT
+// is not a similarity transform, so the nearest point in world space is not
+// the nearest on screen; this measures on screen, as the picker does.
+float front_distance(const AABB& fit_box, glm::ivec2 click, const glm::vec3& a,
+                     const glm::vec3& b) {
+    const glm::vec2 p(click);
+    const glm::vec2 s(project_expected(fit_box, a.x, a.y, a.z, kFront));
+    const glm::vec2 e(project_expected(fit_box, b.x, b.y, b.z, kFront));
+    const glm::vec2 d = e - s;
+    const float len2 = glm::dot(d, d);
+    const float t = len2 > 0.0f ? std::clamp(glm::dot(p - s, d) / len2, 0.0f, 1.0f) : 0.0f;
+    return glm::distance(p, s + t * d);
+}
+
+// Two parallel rails 4mm apart on one layer, in separate objects whose XY boxes
+// are disjoint but whose FRONT footprints overlap. "beta" sorts after "alpha"
+// in the object map yet its segment comes first in the layer, so neither map
+// order nor segment order can stand in for the distance comparison.
+ParsedGCodeFile make_parallel_rails_gcode() {
+    ParsedGCodeFile gcode;
+    Layer layer;
+    layer.z_height = 0.2f;
+    const float z = 0.2f;
+    add_object_segment(gcode, layer, "beta", {10.0f, 44.0f, z}, {60.0f, 44.0f, z});
+    add_object_segment(gcode, layer, "beta", {60.0f, 44.0f, z}, {60.0f, 80.0f, z});
+    add_object_segment(gcode, layer, "alpha", {10.0f, 10.0f, z}, {10.0f, 40.0f, z});
+    add_object_segment(gcode, layer, "alpha", {10.0f, 40.0f, z}, {60.0f, 40.0f, z});
+    gcode.layers.push_back(std::move(layer));
+    return gcode;
+}
+
+} // namespace
+
+TEST_CASE("FRONT: pick_object_at picks the object under the tap", "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_tall_object_gcode();
+    configure(renderer, gcode, 4, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const glm::ivec2 on_rail = project_expected(fit_box, 30.0f, 10.0f, 0.4f, kFront);
+
+    // Fixture guard: the tap lands inside the body's FRONT footprint.
+    REQUIRE(front_rect(fit_box, gcode.objects.at("body").bounding_box).contains(on_rail));
+
+    auto hit = renderer.pick_object_at(on_rail.x, on_rail.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit.value() == "body");
+}
+
+TEST_CASE("FRONT: pick_object_at misses outside the projected footprint",
+          "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_tall_object_gcode();
+    configure(renderer, gcode, 4, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const ScreenRect r = front_rect(fit_box, gcode.objects.at("body").bounding_box);
+    const int mid_y = (r.min_y + r.max_y) / 2;
+    const int mid_x = (r.min_x + r.max_x) / 2;
+
+    // Past the footprint by more than the picker's inflation on each side.
+    const int clear = static_cast<int>(selection::kPickThresholdPx) + 10;
+    CHECK_FALSE(renderer.pick_object_at(r.min_x - clear, mid_y).has_value());
+    CHECK_FALSE(renderer.pick_object_at(r.max_x + clear, mid_y).has_value());
+    CHECK_FALSE(renderer.pick_object_at(mid_x, r.min_y - clear).has_value());
+    CHECK_FALSE(renderer.pick_object_at(mid_x, r.max_y + clear).has_value());
+}
+
+TEST_CASE("FRONT: overlapping footprints resolve to the object whose segment is under the tap",
+          "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_overlapping_boxes_gcode();
+    configure(renderer, gcode, 0, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const ScreenRect alpha = front_rect(fit_box, gcode.objects.at("alpha").bounding_box);
+    const ScreenRect beta = front_rect(fit_box, gcode.objects.at("beta").bounding_box);
+
+    // On beta's x=55 rail, inside the band where the two footprints overlap.
+    const glm::ivec2 on_beta = project_expected(fit_box, 55.0f, 63.0f, 0.2f, kFront);
+
+    // Fixture guards: both footprints contain the tap, so stage 1 cannot decide,
+    // and alpha's nearest rail is beyond the picker's reach.
+    REQUIRE(alpha.contains(on_beta));
+    REQUIRE(beta.contains(on_beta));
+    REQUIRE(front_distance(fit_box, on_beta, {10.0f, 50.0f, 0.2f}, {60.0f, 50.0f, 0.2f}) >
+            selection::kPickThresholdPx);
+    REQUIRE(front_distance(fit_box, on_beta, {10.0f, 10.0f, 0.2f}, {10.0f, 60.0f, 0.2f}) >
+            selection::kPickThresholdPx);
+
+    auto hit = renderer.pick_object_at(on_beta.x, on_beta.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit.value() == "beta");
+}
+
+TEST_CASE("FRONT: a tap within reach of two objects picks the nearer segment",
+          "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_parallel_rails_gcode();
+    configure(renderer, gcode, 0, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const ScreenRect alpha = front_rect(fit_box, gcode.objects.at("alpha").bounding_box);
+    const ScreenRect beta = front_rect(fit_box, gcode.objects.at("beta").bounding_box);
+
+    const glm::vec3 alpha_a{10.0f, 40.0f, 0.2f}, alpha_b{60.0f, 40.0f, 0.2f};
+    const glm::vec3 beta_a{10.0f, 44.0f, 0.2f}, beta_b{60.0f, 44.0f, 0.2f};
+
+    // Between the rails, 1mm off beta's and 3mm off alpha's.
+    const glm::ivec2 tap = project_expected(fit_box, 35.0f, 43.0f, 0.2f, kFront);
+    const float to_alpha = front_distance(fit_box, tap, alpha_a, alpha_b);
+    const float to_beta = front_distance(fit_box, tap, beta_a, beta_b);
+
+    // Fixture guards: stage 1 passes both objects, and both rails are in reach,
+    // so only the distance comparison in stage 2 can decide.
+    REQUIRE(alpha.contains(tap));
+    REQUIRE(beta.contains(tap));
+    REQUIRE(to_alpha < selection::kPickThresholdPx);
+    REQUIRE(to_beta < to_alpha);
+
+    auto hit = renderer.pick_object_at(tap.x, tap.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit.value() == "beta");
+
+    // Mirrored: 1mm off alpha's rail, alpha wins.
+    const glm::ivec2 tap_alpha = project_expected(fit_box, 35.0f, 41.0f, 0.2f, kFront);
+    REQUIRE(front_distance(fit_box, tap_alpha, alpha_a, alpha_b) <
+            front_distance(fit_box, tap_alpha, beta_a, beta_b));
+    auto hit_alpha = renderer.pick_object_at(tap_alpha.x, tap_alpha.y);
+    REQUIRE(hit_alpha.has_value());
+    CHECK(hit_alpha.value() == "alpha");
+}
+
+// ===========================================================================
 // Selection index-map wiring.
 //
 // Selection is classified by interned object index through SelectionState, which
