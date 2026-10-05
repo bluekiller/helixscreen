@@ -48,7 +48,7 @@ void seed_two_objects(helix::PrinterExcludedObjectsState& eo) {
 
 TEST_CASE_METHOD(LVGLUITestFixture, "exclude_object state survives an unrelated status update",
                  "[exclude_object][printer_switch]") {
-    auto* eo = state().get_excluded_objects_state();
+    auto* eo = &state().excluded_objects_state();
     REQUIRE(eo != nullptr);
     seed_two_objects(*eo);
     REQUIRE(eo->get_defined_objects().size() == 2);
@@ -67,7 +67,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "exclude_object state survives an unrelated 
 
 TEST_CASE_METHOD(LVGLUITestFixture, "switching printers clears every exclude_object field",
                  "[exclude_object][printer_switch]") {
-    auto* eo = state().get_excluded_objects_state();
+    auto* eo = &state().excluded_objects_state();
     REQUIRE(eo != nullptr);
     seed_two_objects(*eo);
     REQUIRE(eo->has_objects());
@@ -88,7 +88,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "switching printers clears every exclude_obj
 
 TEST_CASE_METHOD(LVGLUITestFixture, "switching printers notifies exclude_object observers",
                  "[exclude_object][printer_switch]") {
-    auto* eo = state().get_excluded_objects_state();
+    auto* eo = &state().excluded_objects_state();
     REQUIRE(eo != nullptr);
     seed_two_objects(*eo);
 
@@ -105,7 +105,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "switching printers notifies exclude_object 
 
 TEST_CASE_METHOD(LVGLUITestFixture, "clearing exclude_object state is idempotent",
                  "[exclude_object][printer_switch]") {
-    auto* eo = state().get_excluded_objects_state();
+    auto* eo = &state().excluded_objects_state();
     REQUIRE(eo != nullptr);
     REQUIRE(eo->get_defined_objects().empty());
 

@@ -10,6 +10,7 @@
 #include "update_queue_test_access.h"
 
 #include <mutex>
+#include <vector>
 
 namespace helix {
 
@@ -235,7 +236,7 @@ class PrinterStateTestAccess {
         ps.temperature_state_.set_chamber_cooling_fan_name("");
 
         // --- Domains with pure data ------------------------------------------
-        PrinterExcludedObjectsStateTestAccess::clear_data(*ps.get_excluded_objects_state());
+        PrinterExcludedObjectsStateTestAccess::clear_data(ps.excluded_objects_state());
         PrinterMotionStateTestAccess::clear_data(ps.motion_state_);
         PrinterCapabilitiesStateTestAccess::clear_data(ps.capabilities_state_);
         PrinterCalibrationStateTestAccess::clear_data(ps.calibration_state_);
@@ -260,6 +261,22 @@ class PrinterStateTestAccess {
         ps.last_unknown_klippy_state_.clear();
         ps.timelapse_default_enabled_ = false;
         ps.reset_klippy_state_freshness();
+    }
+
+    /// Every domain member, in declaration order.
+    static std::vector<const void*> domain_members(PrinterState& ps) {
+        return {&ps.temperature_state_,
+                &ps.motion_state_,
+                &ps.fan_state_,
+                &ps.print_domain_,
+                &ps.capabilities_state_,
+                &ps.plugin_status_state_,
+                &ps.calibration_state_,
+                &ps.hardware_validation_state_,
+                &ps.composite_visibility_state_,
+                &ps.network_state_,
+                &ps.versions_state_,
+                &ps.excluded_objects_state_};
     }
 
     static PrinterFanState& get_fan_state(PrinterState& ps) {

@@ -1658,8 +1658,8 @@ void PrintStatusPanel::show_exclude_map_view() {
             }
         }
 
-        map_view_->create(thumbnail_section, printer_state_.get_excluded_objects_state(), bed_w,
-                          bed_h, exclude_manager_.get(), parsed);
+        map_view_->create(thumbnail_section, &printer_state_.excluded_objects_state(), bed_w, bed_h,
+                          exclude_manager_.get(), parsed);
 
         // The side list's X already closes the whole panel — hide the map's
         // duplicate close button so users have one obvious dismiss control.
@@ -2073,7 +2073,7 @@ void PrintStatusPanel::bind_fan_observers() {
     aux_speed_lifetime_.reset();
     aux_speed_observer_.reset();
 
-    auto primary = printer_state_.get_fan_state().classify_primary_fans();
+    auto primary = printer_state_.fan_state().classify_primary_fans();
     part_fan_name_ = primary.part;
     hotend_fan_name_ = primary.hotend;
     aux_fan_name_ = primary.aux;

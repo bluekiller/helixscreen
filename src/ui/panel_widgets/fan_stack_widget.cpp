@@ -508,7 +508,7 @@ void FanStackWidget::bind_fans() {
         return;
     }
 
-    auto primary = printer_state_.get_fan_state().classify_primary_fans();
+    auto primary = printer_state_.fan_state().classify_primary_fans();
     part_fan_name_ = primary.part;
     hotend_fan_name_ = primary.hotend;
     aux_fan_name_ = primary.aux;

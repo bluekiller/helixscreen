@@ -61,7 +61,8 @@ PrinterDiscovery hardware_with(bool bed_mesh, bool qgl, bool z_tilt, bool nozzle
 
 int read_aggregate(PrinterState& state) {
     UpdateQueueTestAccess::drain(UpdateQueue::instance());
-    return lv_subject_get_int(state.get_has_any_preprint_options_subject());
+    return lv_subject_get_int(
+        state.composite_visibility_state().get_has_any_preprint_options_subject());
 }
 
 PrinterState& fresh_state() {

@@ -67,13 +67,13 @@ struct LongPressHarness {
         // here survives into the next test (and into unrelated ones), where a
         // manager syncs it on init and silently rejects a long-press.
         fx.state().set_excluded_objects({});
-        fx.state().get_excluded_objects_state()->set_defined_objects({});
+        fx.state().excluded_objects_state().set_defined_objects({});
         UpdateQueue::instance().drain();
     }
 
     /// Populate what the slicer's EXCLUDE_OBJECT_DEFINE markers would have set.
     void define_objects(const std::vector<std::string>& names) {
-        fx.state().get_excluded_objects_state()->set_defined_objects(names);
+        fx.state().excluded_objects_state().set_defined_objects(names);
         UpdateQueue::instance().drain();
     }
 

@@ -301,6 +301,85 @@ class PrinterState {
     }
 
     //
+    // Domain components. Each owns its subjects and the state behind them;
+    // reach a domain's subjects and queries through its accessor. Setters the
+    // WebSocket thread calls stay on PrinterState, which defers them to the
+    // main thread.
+    //
+    helix::PrinterTemperatureState& temperature_state() {
+        return temperature_state_;
+    }
+    const helix::PrinterTemperatureState& temperature_state() const {
+        return temperature_state_;
+    }
+    helix::PrinterMotionState& motion_state() {
+        return motion_state_;
+    }
+    const helix::PrinterMotionState& motion_state() const {
+        return motion_state_;
+    }
+    helix::PrinterFanState& fan_state() {
+        return fan_state_;
+    }
+    const helix::PrinterFanState& fan_state() const {
+        return fan_state_;
+    }
+    helix::PrinterPrintState& print_state() {
+        return print_domain_;
+    }
+    const helix::PrinterPrintState& print_state() const {
+        return print_domain_;
+    }
+    helix::PrinterCapabilitiesState& capabilities_state() {
+        return capabilities_state_;
+    }
+    const helix::PrinterCapabilitiesState& capabilities_state() const {
+        return capabilities_state_;
+    }
+    helix::PrinterPluginStatusState& plugin_status_state() {
+        return plugin_status_state_;
+    }
+    const helix::PrinterPluginStatusState& plugin_status_state() const {
+        return plugin_status_state_;
+    }
+    helix::PrinterCalibrationState& calibration_state() {
+        return calibration_state_;
+    }
+    const helix::PrinterCalibrationState& calibration_state() const {
+        return calibration_state_;
+    }
+    helix::PrinterHardwareValidationState& hardware_validation_state() {
+        return hardware_validation_state_;
+    }
+    const helix::PrinterHardwareValidationState& hardware_validation_state() const {
+        return hardware_validation_state_;
+    }
+    helix::PrinterCompositeVisibilityState& composite_visibility_state() {
+        return composite_visibility_state_;
+    }
+    const helix::PrinterCompositeVisibilityState& composite_visibility_state() const {
+        return composite_visibility_state_;
+    }
+    helix::PrinterNetworkState& network_state() {
+        return network_state_;
+    }
+    const helix::PrinterNetworkState& network_state() const {
+        return network_state_;
+    }
+    helix::PrinterVersionsState& versions_state() {
+        return versions_state_;
+    }
+    const helix::PrinterVersionsState& versions_state() const {
+        return versions_state_;
+    }
+    helix::PrinterExcludedObjectsState& excluded_objects_state() {
+        return excluded_objects_state_;
+    }
+    const helix::PrinterExcludedObjectsState& excluded_objects_state() const {
+        return excluded_objects_state_;
+    }
+
+    //
     // Subject accessors for XML binding
     //
 
@@ -393,11 +472,6 @@ class PrinterState {
 
     lv_subject_t* get_extruder_version_subject() {
         return temperature_state_.get_extruder_version_subject();
-    }
-
-    // Direct access to temperature state (for UI enumeration)
-    const helix::PrinterTemperatureState& temperature_state() const {
-        return temperature_state_;
     }
 
     lv_subject_t* get_bed_temp_subject() {
@@ -1223,14 +1297,6 @@ class PrinterState {
     // ========================================================================
 
     /**
-     * @brief Get the fan state component (for classify_primary_fans and other operations)
-     * @return Const reference to PrinterFanState
-     */
-    const helix::PrinterFanState& get_fan_state() const {
-        return fan_state_;
-    }
-
-    /**
      * @brief Get all tracked fans
      * @return Const reference to fan info vector
      */
@@ -1511,18 +1577,6 @@ class PrinterState {
      */
     lv_subject_t* get_defined_objects_version_subject() {
         return excluded_objects_state_.get_defined_objects_version_subject();
-    }
-
-    /**
-     * @brief Get the excluded objects state component
-     *
-     * Provides direct access for components that need the full state
-     * (e.g., ExcludeObjectMapView needs version subjects + geometry).
-     *
-     * @return Pointer to the excluded objects state
-     */
-    PrinterExcludedObjectsState* get_excluded_objects_state() {
-        return &excluded_objects_state_;
     }
 
     /**
@@ -1956,17 +2010,6 @@ class PrinterState {
     }
 
     // === Visibility Subject Getters (pre-print options card aggregate) ===
-
-    /**
-     * @brief Get aggregate subject: 1 if any preprint option row is visible
-     *
-     * Bound by `print_file_detail.xml` to hide the entire PRINT OPTIONS card
-     * when no row would be visible. The legacy individual `can_show_*`
-     * forwarding accessors were retired — they had no production consumer.
-     */
-    lv_subject_t* get_has_any_preprint_options_subject() {
-        return composite_visibility_state_.get_has_any_preprint_options_subject();
-    }
 
     /**
      * @brief Get visibility subject for timelapse capability

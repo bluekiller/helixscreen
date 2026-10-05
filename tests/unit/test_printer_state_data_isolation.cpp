@@ -39,9 +39,9 @@ void dirty_printer_state() {
 
     // PrinterExcludedObjectsState — the reported case. All four members are
     // plain containers behind a version subject.
-    ps.get_excluded_objects_state()->set_defined_objects({"Part_A", "Part_B"});
+    ps.excluded_objects_state().set_defined_objects({"Part_A", "Part_B"});
     ps.set_excluded_objects({"Part_A"});
-    ps.get_excluded_objects_state()->set_current_object("Part_B");
+    ps.excluded_objects_state().set_current_object("Part_B");
 
     // PrinterHardwareValidationState — a struct member, not a subject.
     HardwareValidationResult result;
@@ -57,10 +57,10 @@ void dirty_printer_state() {
 void require_clean_printer_state() {
     PrinterState& ps = get_printer_state();
 
-    CHECK(ps.get_excluded_objects_state()->get_defined_objects().empty());
+    CHECK(ps.excluded_objects_state().get_defined_objects().empty());
     CHECK(ps.get_excluded_objects().empty());
-    CHECK(ps.get_excluded_objects_state()->get_current_object().empty());
-    CHECK_FALSE(ps.get_excluded_objects_state()->has_objects());
+    CHECK(ps.excluded_objects_state().get_current_object().empty());
+    CHECK_FALSE(ps.excluded_objects_state().has_objects());
     CHECK_FALSE(ps.get_hardware_validation_result().has_issues());
     CHECK(ps.get_printer_type().empty());
 }
@@ -79,7 +79,7 @@ TEST_CASE("PrinterState plain data does not survive a fixture boundary",
 
         // The setup must actually have taken, or the assertions below are vacuous
         // against a PrinterState that simply rejected every write.
-        REQUIRE(get_printer_state().get_excluded_objects_state()->has_objects());
+        REQUIRE(get_printer_state().excluded_objects_state().has_objects());
         REQUIRE(get_printer_state().get_excluded_objects().count("Part_A") == 1);
         REQUIRE(get_printer_state().get_hardware_validation_result().has_issues());
         REQUIRE(get_printer_state().get_printer_type() == "Voron 2.4");
@@ -99,7 +99,7 @@ TEST_CASE("PrinterState data isolation: writer", "[core][isolation][printer_stat
     LVGLTestFixture fx;
     get_printer_state().init_subjects(false);
     dirty_printer_state();
-    REQUIRE(get_printer_state().get_excluded_objects_state()->has_objects());
+    REQUIRE(get_printer_state().excluded_objects_state().has_objects());
 }
 
 TEST_CASE("PrinterState data isolation: successor sees a clean singleton",

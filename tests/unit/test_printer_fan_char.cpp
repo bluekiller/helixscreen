@@ -1640,14 +1640,14 @@ TEST_CASE("Promoted part fan survives a role re-apply (#1181)", "[fan][reinit][c
     // reports, and the real part cooler is a named generic fan.
     state.init_fans({"fan", "fan_generic part_cooling"});
     state.update_from_status({{"fan_generic part_cooling", {{"speed", 0.6}}}});
-    REQUIRE(state.get_fan_state().classify_primary_fans().part == "fan_generic part_cooling");
+    REQUIRE(state.fan_state().classify_primary_fans().part == "fan_generic part_cooling");
 
     // After a re-apply the promotion must hold. Losing ever_ran drops the slot
     // back to the front-most commandable fan — the dead [fan], sitting at 0% —
     // which is the compact row frozen at 0% while All Fans stays correct.
     state.init_fans({"fan", "fan_generic part_cooling"});
 
-    REQUIRE(state.get_fan_state().classify_primary_fans().part == "fan_generic part_cooling");
+    REQUIRE(state.fan_state().classify_primary_fans().part == "fan_generic part_cooling");
 }
 
 // ============================================================================
