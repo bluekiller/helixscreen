@@ -25,11 +25,13 @@
 // Forward declaration
 class IMoonrakerAPI;
 namespace helix {
-class TempGraphController;
 struct MemoryInfo;
 } // namespace helix
 
 #include "filament_mapper.h" // helix::GcodeToolInfo
+#include "print_preview_controller.h"
+#include "print_progress_text.h"
+#include "print_status_layout_fitter.h"
 
 #include <functional>
 #include <memory>
@@ -246,6 +248,7 @@ class PrintStatusPanel : public OverlayBase {
      */
     void set_api(IMoonrakerAPI* api) {
         api_ = api;
+        preview_.set_api(api);
         if (exclude_manager_) {
             exclude_manager_->set_api(api);
         }
@@ -339,19 +342,12 @@ class PrintStatusPanel : public OverlayBase {
 
     SubjectManager subjects_; ///< RAII manager for automatic subject cleanup
 
-    lv_subject_t layer_text_subject_{};
-    lv_subject_t filament_used_text_subject_{};
-    lv_subject_t elapsed_subject_{};
-    lv_subject_t remaining_subject_{};
-    lv_subject_t eta_subject_{};
     lv_subject_t nozzle_status_subject_{};        ///< duty text ("" = none)
     lv_subject_t bed_status_subject_{};           ///< duty text ("" = none)
     lv_subject_t chamber_status_subject_{};       ///< duty text ("" = none)
     lv_subject_t nozzle_status_state_subject_{};  ///< HeaterStatusState int
     lv_subject_t bed_status_state_subject_{};     ///< HeaterStatusState int
     lv_subject_t chamber_status_state_subject_{}; ///< HeaterStatusState int
-    lv_subject_t speed_subject_{};
-    lv_subject_t flow_subject_{};
     lv_subject_t
         view_toggle_icon_subject_{}; ///< MDI codepoint for btn_view_toggle_icon (cube/layers)
     lv_subject_t
@@ -382,11 +378,6 @@ class PrintStatusPanel : public OverlayBase {
     // every size where the cap does not bind.
     lv_subject_t graph_fits_subject_{};
 
-    // Height apply_preview_height_cap() last parked in the preview_slack
-    // absorber, in px. The single input to recompute_graph_fits(), cached rather
-    // than re-measured so the fit decision cannot disagree with the layout that
-    // produced it.
-    int32_t preview_slack_h_ = 0;
     // Aux fan present subject (1=aux cluster visible, 0=hidden).
     // Set by bind_fan_speeds() when an aux fan is discovered.
     lv_subject_t aux_fan_present_subject_{};
@@ -401,14 +392,6 @@ class PrintStatusPanel : public OverlayBase {
     lv_subject_t aux_icon_visible_subject_{};  // aux_present && density==0
     lv_subject_t aux_full_visible_subject_{};  // aux_present && density!=2
     lv_subject_t aux_short_visible_subject_{}; // aux_present && density==2
-
-    // Cached natural height of the fan row (measured at attach while
-    // forced-visible). Used by recompute_fans_fit() as the `needed` value.
-    int fan_row_natural_height_ = 0;
-
-    // Cached natural widths per density tier (measured at attach).
-    // Index 0=full, 1=medium, 2=compact. 0 means not yet measured.
-    int fan_row_natural_width_[3] = {0, 0, 0};
 
     bool animations_enabled_ = false; ///< Cached from DisplaySettingsManager
 
@@ -444,16 +427,9 @@ class PrintStatusPanel : public OverlayBase {
     lv_subject_t print_controls_enabled_subject_{}; ///< 1 when lifecycle.is_active()
 
     // Subject storage buffers
-    char layer_text_buf_[80] = "Layer 0 / 0";
-    char filament_used_text_buf_[32] = "";
-    char elapsed_buf_[32] = "0h 00m";
-    char remaining_buf_[32] = "0h 00m";
-    char eta_buf_[32] = "";
     char nozzle_status_buf_[helix::ui::temperature::HEATER_STATUS_BUF_BYTES] = "Off";
     char bed_status_buf_[helix::ui::temperature::HEATER_STATUS_BUF_BYTES] = "Off";
     char chamber_status_buf_[helix::ui::temperature::HEATER_STATUS_BUF_BYTES] = "";
-    char speed_buf_[32] = "100%";
-    char flow_buf_[32] = "100%";
     char objects_text_buf_[32] = "";        ///< "X of Y obj" buffer
     char view_toggle_icon_buf_[8] = "";     ///< View toggle icon codepoint (cube/layers)
     char camera_button_label_buf_[16] = ""; ///< Short/long camera label per ui_breakpoint
@@ -468,19 +444,7 @@ class PrintStatusPanel : public OverlayBase {
     /// Pure-logic state machine (no LVGL deps) — owns all print state variables
     PrintLifecycleState lifecycle_;
 
-    // Thumbnail loading state
     std::string current_print_filename_; ///< Full path to current print file (for metadata fetch)
-    /// Path most recently accepted from the shared thumbnail subject. Kept so
-    /// on_activate() can re-apply it without a refetch.
-    std::string cached_thumbnail_path_;
-
-#if defined(HELIX_PLATFORM_ESP32)
-    /// PSRAM-resident thumbnail currently shown in print_thumbnail_. There is
-    /// no cache file on this platform, so cached_thumbnail_path_ stays empty
-    /// and this shared_ptr is what keeps the image src's buffer alive.
-    /// Main-thread only (its destructor drops the LVGL image cache entry).
-    std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail_;
-#endif
 
     // Child widgets
     lv_obj_t* progress_bar_ = nullptr;
@@ -489,35 +453,14 @@ class PrintStatusPanel : public OverlayBase {
     lv_obj_t* print_thumbnail_ = nullptr;
     lv_obj_t* gradient_background_ = nullptr;
 
-    // Per-asset "what is on screen" markers. The thumbnail (fallback image) and
-    // the gcode viewer (3D/2D geometry) load on independent paths with very
-    // different latencies — the thumbnail subject observer can advance its marker
-    // even while the panel is hidden, while the gcode load is deferred and only
-    // scheduled when active. A SINGLE shared marker let the thumbnail mask a
-    // stale gcode render from the previous print (metadata+thumbnail correct, 3D
-    // render still the old model), so the two are tracked separately and
-    // reconciled independently in ensure_preview_current(). Empty when that
-    // widget shows nothing; cleared in lockstep with widget destruction
-    // (on_ui_destroyed) and geometry clearing (clear callback) so the
-    // reconciliation never trusts a stale "showing X" claim against a blank
-    // widget.
-    std::string displayed_file_;       // file whose image is in the thumbnail
-    std::string gcode_displayed_file_; // file whose geometry is in the viewer
-    // Print whose gcode the viewer's current load is for. load_gcode_file()
-    // writes it in the same call that starts the viewer load, and the viewer
-    // reports only its newest load, so the load callback always reads the name
-    // of the load it is reporting. The callback records gcode_displayed_file_
-    // and publishes the scan's pauses under this name.
-    std::string gcode_load_filename_;
+    /// What the thumbnail and G-code viewer show for the running print.
+    helix::ui::PrintPreviewController preview_;
 
-    // Deferred G-code loading: filename to load when panel becomes visible
-    // Set in set_filename(), consumed in on_activate() - avoids downloading
-    // large files unless user actually navigates to print status panel
-    std::string pending_gcode_filename_;
+    /// The progress card's text subjects and their formatting.
+    helix::ui::PrintProgressText progress_text_;
 
-    // One-shot timer for deferred G-code loading (5s delay after print start)
-    // Prevents memory spike during homing/heating phase
-    lv_timer_t* gcode_load_timer_ = nullptr;
+    /// Measured layout: fan row fit, preview height cap, temperature mini-graph.
+    helix::ui::PrintStatusLayoutFitter layout_fitter_;
 
     /**
      * @brief Withholds the preparing overlay until preparation is worth showing
@@ -535,14 +478,6 @@ class PrintStatusPanel : public OverlayBase {
 
     /// How long Preparing must persist before the overlay is shown.
     static constexpr uint32_t PREPARING_SHOW_DELAY_MS = 750;
-    void schedule_deferred_gcode_load();
-
-    // Reconcile the preview widgets against the current print state. Reads the
-    // ACTUAL widget state (thumbnail image source, gcode viewer geometry) and
-    // (re)loads only what is missing or stale. Safe and idempotent to call any
-    // time; called unconditionally on every on_activate() so re-entry after a
-    // destroy-on-close / memory-reclaim cycle is self-healing.
-    void ensure_preview_current();
 
     bool complete_view_mode_ = false;
 
@@ -560,9 +495,6 @@ class PrintStatusPanel : public OverlayBase {
     // Track whether panel is currently active (visible and receiving updates)
     // Used to load gcode immediately if already active when print starts
     bool is_active_ = false;
-
-    // Path to temp G-code file downloaded for viewing (cleaned up on print end)
-    std::string temp_gcode_path_;
 
     // Control buttons (stored for enable/disable on state changes)
     lv_obj_t* btn_timelapse_ = nullptr;
@@ -600,58 +532,10 @@ class PrintStatusPanel : public OverlayBase {
                            const char* icon_widget_name);
     void update_fan_speed_display(const char* label_name, const char* icon_name, int speed);
     void refresh_fan_animations();
-    /// Portrait: cap thumbnail_section's aspect and park the leftover in the
-    /// preview_slack absorber between the card and the controls. No-op in
-    /// landscape and at every size where the cap does not bind.
-    void apply_preview_height_cap();
-    /// Record the absorber height the cap just applied and re-decide whether the
-    /// temperature mini-graph fits in it. Called from every exit path of
-    /// apply_preview_height_cap(), including the ones that leave the layout alone.
-    void note_preview_slack(int32_t slack_h);
-    void recompute_graph_fits(); ///< Slack-based graph visibility (graph_fits_subject_)
-    /// Build the mini-graph controller into temp_graph_container if it is not
-    /// already live. Idempotent; no-op when the widget tree is gone.
-    void ensure_temp_graph();
-    /// Detach the mini-graph's observers synchronously, then release the
-    /// controller. Must run BEFORE the container is freed.
-    /// @param defer_delete Hand the deallocation to run_next_tick instead of
-    ///        running it here. True on the on_ui_destroyed() path, which is a
-    ///        close callback and may be inside an UpdateQueue batch (#696).
-    ///        False from the destructor, where nothing will ever drain the async
-    ///        queue again and a deferred delete would leak the observers along
-    ///        with the object.
-    void destroy_temp_graph(bool defer_delete = true);
-    void recompute_fans_fit();       ///< Height-based row visibility (fans_fit_subject_)
-    void recompute_fans_density();   ///< Width-based content tier (fan_row_density_subject_)
-    void recompute_aux_composites(); ///< Compute 3 aux_*_visible from aux_present + density
-    void recompute_aux_composites_for_measurement(int density,
-                                                  bool aux_present); ///< Measurement helper
-
-    /// Render print_layer_text from the lifecycle's layer counters.
-    void update_layer_text();
-
-    /// Render print_filament_used_text from the current filament_used subject.
-    void update_filament_used_text();
 
     void update_all_displays();
     void update_heater_status_rows();
     void show_gcode_viewer(bool show);
-    /// True when @p print_filename still names the print PrinterState reports as
-    /// effective. A gcode fetch crosses a metadata lookup, a download and the
-    /// viewer's own async build, and the print can change at any point along
-    /// that chain; every stage that is about to act on @p print_filename checks
-    /// this first and drops the load instead of applying it to the wrong print.
-    bool is_load_for_effective_print(const std::string& print_filename) const;
-    /// Load @p file_path into the viewer as the gcode of print @p print_filename.
-    void load_gcode_file(const char* file_path, const std::string& print_filename);
-#if defined(HELIX_PLATFORM_ESP32)
-    /// Pull the current PSRAM thumbnail from PrinterState, hold a reference,
-    /// and point print_thumbnail_ at its descriptor. Main thread only; no-op
-    /// when the widget is absent or no thumbnail has been fetched yet.
-    void apply_esp_psram_thumbnail();
-#endif
-    void
-    load_gcode_for_viewing(const std::string& filename); ///< Download and load G-code into viewer
     void update_button_states(); ///< Enable/disable buttons based on current print state
 
     /// "Cam"/"Camera" per ui_breakpoint — full word only where Row 2 has room
@@ -666,15 +550,11 @@ class PrintStatusPanel : public OverlayBase {
     void
     update_view_toggle_position(bool objects_visible); ///< Shift view toggle when objects btn shown
     void animate_badge_pop_in(lv_obj_t* badge, const char* label); ///< Pop-in animation for badges
-    void animate_print_complete();      ///< Celebratory animation when print finishes
-    void animate_print_cancelled();     ///< Warning animation when print is cancelled
-    void animate_print_error();         ///< Error animation when print fails
-    void cleanup_temp_gcode();          ///< Remove temp G-code file downloaded for viewing
-    void show_exclude_map_view();       ///< Show overhead map view of print objects
-    void hide_exclude_map_view();       ///< Destroy map view and restore thumbnail/gradient
-    bool build_and_apply_tool_colors(); ///< Build per-tool AMS color map and apply to viewer
-
-    static void format_time(int seconds, char* buf, size_t buf_size);
+    void animate_print_complete();  ///< Celebratory animation when print finishes
+    void animate_print_cancelled(); ///< Warning animation when print is cancelled
+    void animate_print_error();     ///< Error animation when print fails
+    void show_exclude_map_view();   ///< Show overhead map view of print objects
+    void hide_exclude_map_view();   ///< Destroy map view and restore thumbnail/gradient
 
     //
     // === Instance Handlers ===
@@ -824,19 +704,6 @@ class PrintStatusPanel : public OverlayBase {
 
     /// Manages filament runout guidance (extracted from PrintStatusPanel)
     std::unique_ptr<helix::ui::FilamentRunoutHandler> runout_handler_;
-
-    //
-    // === Portrait Temperature Mini-Graph ===
-    //
-
-    /// Owns the graph widget, its series observers and history backfill. Built
-    /// on demand once the slack band is big enough, then kept alive across
-    /// show/hide — recreating it would discard the backfilled trace.
-    std::unique_ptr<helix::TempGraphController> temp_graph_controller_;
-
-    /// The XML container the controller drew into. Nulled by on_ui_destroyed()
-    /// so a rebuilt tree is never populated through a stale pointer.
-    lv_obj_t* temp_graph_container_ = nullptr;
 };
 
 // Global instance accessor (needed by main.cpp)

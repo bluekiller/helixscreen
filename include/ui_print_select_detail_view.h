@@ -10,6 +10,7 @@
 
 #include "ams_remap.h"
 #include "gcode_footer_summary.h"
+#include "gcode_preview_fetcher.h"
 #include "moonraker_types.h"
 #include "overlay_base.h"
 #include "preflight_validator.h"
@@ -703,11 +704,9 @@ class PrintSelectDetailView : public OverlayBase {
 
     // --- Shared gcode download (ONE file + ONE download per open) ---
     // The headless tools scan and the viewer preview share a single canonical
-    // file (canonical_gcode_path()) and a single in-flight transfer;
-    // concurrent callers queue in gcode_download_waiters_ and are fanned out
-    // (main thread) when the transfer resolves.
-    bool gcode_download_in_flight_ = false;
-    std::vector<std::function<void(bool, std::string)>> gcode_download_waiters_;
+    // file (canonical_gcode_path()) and a single in-flight transfer; the fetcher
+    // fans the result out to every caller waiting on it (main thread).
+    helix::ui::GcodePreviewFetcher gcode_fetcher_{"DetailView"};
 
     // Absolute path of Moonraker's `gcodes` root, but ONLY when Moonraker runs
     // on this machine — "" whenever the file must come over HTTP. Resolved once
@@ -887,10 +886,11 @@ class PrintSelectDetailView : public OverlayBase {
     /**
      * @brief Canonical shared download path for the current file's gcode
      *
-     * `<cache>/gcode_temp/detail_<hash(full relative path)>.gcode` — hashed on
-     * the FULL path (dir + filename), so same-name files in different
-     * directories never collide. The headless tools scan and the viewer
-     * preview load from this ONE file.
+     * `<cache>/gcode_temp/detail_<hash(printer, full relative path)>.gcode` —
+     * hashed on the FULL path (dir + filename), so same-name files in different
+     * directories never collide, and on the connected printer, so a same-named
+     * file on another one is never taken for it. The headless tools scan and the
+     * viewer preview load from this ONE file.
      */
     [[nodiscard]] std::string canonical_gcode_path() const;
 
