@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ui_nav.h"
+#include "ui_nav_panel_registry.h"
 #include "ui_nav_printer_badge.h"
 #include "ui_nav_rail_estop.h"
 #include "ui_observer_guard.h"
@@ -188,7 +189,7 @@ class NavigationManager {
     /**
      * @brief Find the PanelId owned by a given PanelBase instance
      *
-     * Searches panel_instances_ for a matching pointer. Used by
+     * Searches the registered panel instances for a matching pointer. Used by
      * hot-reload rebuild to let panels locate themselves without
      * needing per-subclass get_panel_id() overrides.
      *
@@ -204,7 +205,7 @@ class NavigationManager {
      * caller is responsible for teardown (via safe_delete_deferred).
      *
      * @param id Panel identifier
-     * @param new_widget New widget to register in panel_widgets_[id]
+     * @param new_widget New widget to register as panel @p id
      */
     void replace_panel_widget(helix::PanelId id, lv_obj_t* new_widget);
 
@@ -598,9 +599,6 @@ class NavigationManager {
     // Check if panel requires Moonraker connection
     static bool panel_requires_connection(helix::PanelId panel);
 
-    // True when @p obj is one of the registered main panel widgets.
-    bool is_main_panel(lv_obj_t* obj) const;
-
     // Check if printer is connected
     bool is_printer_connected() const;
 
@@ -649,7 +647,7 @@ class NavigationManager {
     // memory is freed. scrub_deleted_widget() erases the widget from every
     // widget-keyed bookkeeping container, so panel_stack_.back() on the next
     // push_overlay() cannot dereference freed memory. The scalars
-    // (overlay_backdrop_, app_layout_widget_, panel_widgets_) are WidgetRefs
+    // (overlay_backdrop_, app_layout_widget_, the panel slots) are WidgetRefs
     // and clear themselves.
     void scrub_deleted_widget(lv_obj_t* widget);
     // Attach the LV_EVENT_DELETE scrub callback to a widget exactly once.
@@ -710,29 +708,12 @@ class NavigationManager {
     helix::PanelId active_panel_ = helix::PanelId::Home;
     bool suspended_ = false; // True when screensaver has suspended lifecycle
 
-    // Panel widget tracking for show/hide
-    helix::ui::WidgetRef panel_widgets_[UI_PANEL_COUNT];
-
-    // C++ panel instances for lifecycle dispatch (on_activate/on_deactivate)
-    std::array<PanelBase*, UI_PANEL_COUNT> panel_instances_ = {};
-
-    // Lazy panel builder (ESP32 deferred-panel bring-up). Empty on desktop.
-    // Invoked by switch_to_panel_impl() when a target panel's widget slot is
-    // still null, to build it on first navigation. See set_deferred_panel_builder().
-    std::function<void(int)> deferred_panel_builder_;
-    bool building_deferred_panel_ = false; // re-entrancy guard for the builder
+    // Main panel widgets, their lifecycle instances and the lazy builder
+    helix::ui::PanelRegistry panels_;
     // Outermost-transition guard for the ESP32 nav busy scrim (NavTransitionScrim
     // in ui_nav_manager.cpp): switch_to_panel_impl can cascade into
     // handle_active_panel_change, and only the outer one owns/tears down a scrim.
     bool nav_scrim_active_ = false;
-
-    // If panel_id has no widget yet and a deferred builder is set, build it now
-    // (first-navigation lazy bring-up). No-op on desktop (builder unset) and for
-    // already-built panels. Guarded against re-entrancy. Called from both
-    // navigation choke points (switch_to_panel_impl + handle_active_panel_change).
-    void ensure_panel_built(int panel_id);
-    // Whether ensure_panel_built(panel_id) would build anything.
-    bool needs_build(int panel_id) const;
 
     // C++ overlay instances for lifecycle dispatch (on_activate/on_deactivate)
     std::unordered_map<lv_obj_t*, IPanelLifecycle*> overlay_instances_;

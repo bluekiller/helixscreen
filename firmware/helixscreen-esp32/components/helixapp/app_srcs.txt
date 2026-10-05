@@ -453,6 +453,7 @@ src/ui/ui_manual_pull_prompt.cpp
 src/ui/ui_markdown.cpp
 src/ui/ui_modal.cpp
 src/ui/ui_nav_manager.cpp
+src/ui/ui_nav_panel_registry.cpp
 src/ui/ui_nav_printer_badge.cpp
 src/ui/ui_nav_rail_estop.cpp
 src/ui/ui_notification.cpp
