@@ -130,6 +130,14 @@ class SnapmakerTestAccess {
         std::lock_guard<std::mutex> lock(b.mutex_);
         b.loaded_at_toolhead_[slot_index] = loaded;
     }
+    static int pending_insert_passes(const AmsBackendSnapmaker& b, int slot_index) {
+        std::lock_guard<std::mutex> lock(b.mutex_);
+        return b.pending_insert_passes_[slot_index];
+    }
+    static int last_published_port_present(const AmsBackendSnapmaker& b) {
+        std::lock_guard<std::mutex> lock(b.mutex_);
+        return b.last_published_port_present_;
+    }
     static void set_current_tool(AmsBackendSnapmaker& b, int tool) {
         std::lock_guard<std::mutex> lock(b.mutex_);
         b.system_info_.current_tool = tool;
