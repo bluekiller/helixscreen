@@ -6187,11 +6187,25 @@ TEST_CASE_METHOD(LVGLUITestFixture, "CFS: the all-units slot row disables an abs
     const auto result =
         ams_detail_create_slots(w, slots, 16, /*unit_index=*/-1, [](lv_event_t*) {}, nullptr);
     REQUIRE(result.slot_count == 12);
-    for (int bay = 0; bay < 12; ++bay) {
-        INFO("bay " << bay);
-        REQUIRE(slots[bay] != nullptr);
-        CHECK(lv_obj_has_state(slots[bay], LV_STATE_DISABLED) == (bay >= 4 && bay < 8));
-    }
+    auto check_disabled = [&](bool box2_absent) {
+        for (int bay = 0; bay < 12; ++bay) {
+            INFO("bay " << bay);
+            REQUIRE(slots[bay] != nullptr);
+            CHECK(lv_obj_has_state(slots[bay], LV_STATE_DISABLED) ==
+                  (box2_absent && bay >= 4 && bay < 8));
+        }
+    };
+    check_disabled(true);
+
+    // Same span either way, so no rebuild: a refresh follows the box.
+    json back = make_multi_unit_box(3);
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(back));
+    helix::ui::ams_detail_sync_slot_states(slots, result.slot_count);
+    check_disabled(false);
+
+    CfsTestAccess::handle_status(*backend, make_cfs_notification(box));
+    helix::ui::ams_detail_sync_slot_states(slots, result.slot_count);
+    check_disabled(true);
 
     int count = result.slot_count;
     ams_detail_destroy_slots(w, slots, count);

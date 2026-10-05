@@ -49,6 +49,10 @@ class CfsTestAccess {
         // wrote only this map would leave the lane reading empty.
         helix::test::file_override_as_lane_records(b, slot_index, ovr);
     }
+    static void erase_override(helix::printer::AmsBackendCfs& b, int slot_index) {
+        std::lock_guard<std::mutex> lock(b.mutex_);
+        b.overrides_.erase(slot_index);
+    }
     static std::optional<helix::ams::FilamentSlotOverride>
     get_override(const helix::printer::AmsBackendCfs& b, int slot_index) {
         std::lock_guard<std::mutex> lock(b.mutex_);

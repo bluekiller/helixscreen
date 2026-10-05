@@ -2305,10 +2305,10 @@ itself:
 
 Every mirror `publish_external_lane()` writes carries `helix_external: true`. CFS sorts the
 loaded mirrors against the first box frame of a session: one whose key is a bay the box reports
-stays as that bay's record (an adopted mirror may have been one), and any other is dropped from
-the bay overrides. An unmarked record at the external key is adopted when it names the spool
+becomes that bay's record (an adopted mirror may have been one) and is rewritten without the
+mark, and any other is dropped from the bay overrides. An unmarked record at the external key is adopted when it names the spool
 being published (`record_describes_spool()`), and left alone otherwise. When the Fork key moves
-(the top box returns), the mirror at the old key is cleared if it is still ours.
+(the top box returns), the old key is cleared only where CFS still holds its own marked mirror.
 
 The identity rule is shared in `publish_external_lane()`: a null or identity-less record
 (no Spoolman id, no material, default-gray color) **clears** the lane rather than

@@ -1652,12 +1652,34 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                 // key is a bay the box reports (an adopted mirror may have been
                 // that bay's record), and no one's anywhere else. Decided once,
                 // on the first frame: a bay whose box later leaves keeps it.
+                //
+                // A mirror kept as a bay's record is that bay's record from
+                // here on: unmarked and persisted so, or the external publish
+                // would go on treating it as its own to overwrite or clear.
                 if (!mirrors_sorted_) {
                     mirrors_sorted_ = true;
                     for (auto it = overrides_.begin(); it != overrides_.end();) {
-                        it = it->second.external_mirror && !system_info_.slot_exists(it->first)
-                                 ? overrides_.erase(it)
-                                 : std::next(it);
+                        if (!it->second.external_mirror) {
+                            ++it;
+                        } else if (!system_info_.slot_exists(it->first)) {
+                            it = overrides_.erase(it);
+                        } else {
+                            it->second.external_mirror = false;
+                            if (override_store_) {
+                                const int bay = it->first;
+                                override_store_->save_async(
+                                    bay, it->second,
+                                    [tag = backend_log_tag(), bay](bool ok,
+                                                                   const std::string& err) {
+                                        if (!ok) {
+                                            spdlog::warn("{} unmarking the record at bay {} "
+                                                         "failed: {}",
+                                                         tag, bay, err);
+                                        }
+                                    });
+                            }
+                            ++it;
+                        }
                     }
                 }
                 // Presence-gated like filament_runout below. Moonraker
@@ -4950,11 +4972,6 @@ void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
     // index is 8, box 3 bay A's key. overrides_ holds every lane_data record
     // this backend loaded or wrote, so a record there without the mirror mark
     // belongs to a bay and is neither overwritten nor cleared.
-    //
-    // Deliberately NOT routed through overrides_ (the per-bay override map):
-    // hardware-event clearing and stale-override logic walk that map by real
-    // slot index, and the external spool is not a bay. A one-shot record built
-    // by the shared helper keeps the mirror map untouched.
     constexpr int kStockExternalLane = 16;
     int lane_index = -1;
     bool supported = false;
@@ -4993,15 +5010,16 @@ void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
         return;
     }
     // The Fork key follows the chain (the top box returning moves it), and the
-    // mirror left at the old key would read as a second external tray. Ours
-    // to clear unless a record that is not ours has arrived there since.
+    // mirror left at the old key would read as a second external tray. Cleared
+    // only where we still hold our own marked mirror there.
     int stale_key = -1;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (external_lane_published_ >= 0 && external_lane_published_ != lane_index) {
             auto old = overrides_.find(external_lane_published_);
-            if (old == overrides_.end() || old->second.external_mirror) {
+            if (old != overrides_.end() && old->second.external_mirror) {
                 stale_key = external_lane_published_;
+                overrides_.erase(old);
             }
         }
         external_lane_published_ = lane_index;
@@ -5015,7 +5033,19 @@ void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
                 }
             });
     }
-    helix::ams::publish_external_lane(override_store_.get(), lane_index, spool, backend_log_tag());
+    const bool published = helix::ams::publish_external_lane(override_store_.get(), lane_index,
+                                                             spool, backend_log_tag());
+    // overrides_ is this backend's account of the namespace, so the mirror is
+    // filed there by its mark: the guard above and the old-key clear read it.
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (published) {
+        helix::ams::FilamentSlotOverride mirror;
+        mirror.external_mirror = true;
+        overrides_[lane_index] = mirror;
+    } else if (auto it = overrides_.find(lane_index);
+               it != overrides_.end() && it->second.external_mirror) {
+        overrides_.erase(it);
+    }
 }
 
 } // namespace helix::printer

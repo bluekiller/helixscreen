@@ -830,6 +830,7 @@ void AmsOverviewPanel::refresh_detail_if_needed() {
         create_detail_slots(unit);
         update_detail_header(unit, info);
     }
+    helix::ui::ams_detail_sync_slot_states(detail_slot_widgets_, detail_slot_count_);
 
     // Always update path canvas — segment/action changes need to propagate
     // even when slot count hasn't changed (e.g., load/unload animations)

@@ -578,6 +578,61 @@ TEST_CASE("External spool mirror: kept as a bay's record only where the key is a
     }
 }
 
+// A mirror kept as a bay's record becomes that bay's record outright: unmarked
+// and persisted so, or the external publish would go on treating the bay's
+// record as its own (#1464).
+TEST_CASE("External spool mirror: one kept as a bay's record stops being ours",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    helix::ams::FilamentSlotOverride kept;
+    kept.material = "PETG";
+    kept.spool_name = "Box 3 A spool";
+    kept.external_mirror = true;
+    fx.seed_record(8, kept);
+
+    fx.send_fork_frame(12);
+    REQUIRE(CfsTestAccess::get_override(*fx.backend, 8).has_value());
+    CHECK_FALSE(CfsTestAccess::get_override(*fx.backend, 8)->external_mirror);
+    helix::ui::UpdateQueue::instance().drain();
+    const json persisted = fx.api->mock_get_db_value("lane_data", "lane9");
+    REQUIRE_FALSE(persisted.is_null());
+    CHECK_FALSE(persisted.contains("helix_external"));
+
+    // Box 3 off the bus: the external slot is 8, box 3 bay A's key.
+    fx.send_fork_frame(8);
+    const SlotInfo spool = CfsPublishFixture::asa();
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == persisted);
+
+    // Box 3 back: the external slot moves to 12 and 8 is box 3 bay A again.
+    fx.send_fork_frame(12);
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == persisted);
+}
+
+// The old key is cleared only where we hold our own marked mirror; a key we
+// hold nothing for is no record of ours (#1464).
+TEST_CASE("CFS external spool lane: an old key we hold no record for is not cleared",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.send_fork_frame(8);
+    const SlotInfo spool = CfsPublishFixture::asa();
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+
+    // Someone else's record lands on the old key without passing through us.
+    CfsTestAccess::erase_override(*fx.backend, 8);
+    const json foreign = json{{"lane", "8"}, {"material", "PLA"}};
+    fx.api->mock_set_db_value("lane_data", "lane9", foreign);
+
+    fx.send_fork_frame(12);
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == foreign);
+}
+
 // When the fork's external slot moves (the top box returns), the mirror at the
 // old key would stay behind as a phantom tray. It is cleared there, but only if
 // the record is still ours (#1464).
