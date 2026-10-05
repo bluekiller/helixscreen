@@ -1727,6 +1727,56 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(lv_obj_get_style_grid_cell_column_pos(widget, LV_PART_MAIN) == new_col);
 }
 
+namespace {
+
+/// The column the stored home layout gives @p id on page 0, or -1.
+int stored_home_col(const char* id) {
+    auto* cfg = Config::get_instance();
+    const auto node = cfg->get<nlohmann::json>(cfg->df() + "panel_widgets/home", nlohmann::json());
+    if (!node.is_object() || !node.contains("pages") || node["pages"].empty()) {
+        return -1;
+    }
+    for (const auto& w : node["pages"][0]["widgets"]) {
+        if (w.value("id", "") == id) {
+            return w.value("col", -1);
+        }
+    }
+    return -1;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "a drop's save waits for edits to settle, and every end writes it",
+                 "[1638][edit-swipe][home][grid_edit][deferred_save]") {
+    build_home();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    enter_edit_mode();
+    const int stored_before = stored_home_col("temperature");
+    const lv_point_t pointer = drag_one_cell(widget);
+    indev.release(pointer.x, pointer.y);
+    settle();
+    const int moved_col = entry_on_page(0, "temperature").col;
+    REQUIRE(moved_col != stored_before);
+
+    // A flash write stalls a slow board for hundreds of ms per drop, so the
+    // drop only asks for one.
+    REQUIRE(config().save_pending());
+    CHECK(stored_home_col("temperature") == stored_before);
+
+    SECTION("leaving edit mode") {
+        panel().exit_grid_edit_mode();
+    }
+    SECTION("a hot-reload rebuild of the panel") {
+        panel().on_deactivating(DeactivateReason::Rebuild);
+    }
+    SECTION("the edits settling") {
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
+    }
+    CHECK_FALSE(config().save_pending());
+    CHECK(stored_home_col("temperature") == moved_col);
+}
+
 TEST_CASE_METHOD(EditHomeFixture, "entering edit mode disarms clicks on every page",
                  "[1638][edit-swipe][home][grid_edit]") {
     build_home();
@@ -3553,7 +3603,7 @@ TEST_CASE_METHOD(EditHomeFixture,
     check_session_on_screen();
 }
 
-TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
+TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once when edits settle",
                  "[1638][edit-swipe][home][grid_edit]") {
     SECTION("a drop on the next-page slot creates a page and keeps its origin page") {
         build_home(1, 1); // 'temperature' alone on the main page, which never prunes
@@ -3566,6 +3616,7 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         settle();
         REQUIRE(config().page_count() == 2);
         REQUIRE(count_on_page(1, "temperature") == 1);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
     SECTION("a move that empties its page removes the page") {
@@ -3591,6 +3642,7 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         settle();
         REQUIRE(config().page_count() == 1);
         REQUIRE(count_on_page(0, "fan") == 1);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
     SECTION("removing a page's last widget removes the page") {
@@ -3606,6 +3658,7 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         indev.release(r.x, r.y);
         settle();
         REQUIRE(config().page_count() == 1);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
     SECTION("a move within its page") {
@@ -3619,6 +3672,10 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         indev.release(pointer.x, pointer.y);
         settle();
         REQUIRE(entry_on_page(0, "temperature").col == origin.col + CELL_TRACKS);
+        CHECK(counter.writes() == 0); // each write stalls a slow board's flash
+        CHECK(config().save_pending());
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
 }

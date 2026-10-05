@@ -411,9 +411,12 @@ void GridEditMode::exit() {
 
     lv_subject_set_int(&get_home_edit_mode_subject(), 0);
 
-    // Nothing to save: every change the session made (a drop, a resize, a
-    // removal, a catalog placement, the entry's position sync) saved itself,
-    // and a write the session does not need stalls a slow board's flash.
+    // Every change the session made (a drop, a resize, a removal, a catalog
+    // placement, the entry's position sync) asked for a save once edits
+    // settle; the session ending is the latest that save can wait.
+    if (config_) {
+        config_->flush_pending_save();
+    }
     if (rebuild) {
         // On the next tick, outside indev_proc_release (#814).
         schedule_deferred_rebuild();
@@ -997,7 +1000,7 @@ void GridEditMode::sync_config_from_screen() {
     }
 
     if (any_changed) {
-        config_->save();
+        config_->save_soon();
         spdlog::info("[GridEditMode] Synced config positions from screen layout");
     }
 }
@@ -1087,7 +1090,7 @@ void GridEditMode::remove_selected_widget() {
     change.page_count = static_cast<int>(config_->page_count());
     change.focus_page = page_index_;
     const bool pruned = prune_empty_page(page_index_);
-    config_->save();
+    config_->save_soon();
     if (pruned) {
         // The owner rebuilds the page set: rebuilding this container would lay
         // out a page index the prune just shifted. The session's page goes, so
@@ -1964,8 +1967,8 @@ void GridEditMode::handle_drag_end(lv_event_t* /*e*/) {
         change.removed_page = origin_page;
     }
     // One save for the whole commit: the move, a page it created and a page it
-    // emptied.
-    config_->save();
+    // emptied. Deferred until edits settle; exit() writes it at the latest.
+    config_->save_soon();
     if (change.page_added || change.page_prepended || change.removed_page >= 0) {
         // The panel rebuilds the carousel on the next tick, and the session goes
         // with the entry; the grid's own deferred rebuild would run against
@@ -2312,10 +2315,10 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
     entry.row = result.row;
     entry.colspan = result.colspan;
     entry.rowspan = result.rowspan;
-    // Persist now: the deferred completion below can be interrupted (a page
-    // flip during the ease, a session exit) and the committed span must not
-    // depend on the animation finishing.
-    config_->save();
+    // Persist at commit, not at the animation's end: the deferred completion
+    // below can be interrupted (a page flip during the ease, a session exit)
+    // and the committed span must not depend on the animation finishing.
+    config_->save_soon();
 
     // Clean up resize state. The snap preview goes now; the outline eases into
     // the committed cell first.
@@ -2930,7 +2933,7 @@ void GridEditMode::place_widget_from_catalog(const std::string& widget_id) {
     // chrome is visible immediately.
     select_widget(nullptr);
     forget_container_children();
-    config_->save();
+    config_->save_soon();
     rebuild_then_select(widget_id);
 }
 
