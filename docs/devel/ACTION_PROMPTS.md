@@ -266,8 +266,11 @@ the same way and also closes the prompt on any other connected client. Its send 
 (`caller_surfaces_errors=false`), so a rejection reaches the user through Klipper's `!!` line and
 `GcodeErrorRouter`; see [RPC_ERROR_OWNERSHIP.md](RPC_ERROR_OWNERSHIP.md).
 
-`closed_on_screen()` only acts from `SHOWING`, so a close that loses a race with the next firmware
-prompt cannot discard the prompt being built.
+`closed_on_screen()` only acts from `SHOWING`, so a close that lands while the next firmware
+prompt is being built leaves the manager's state alone. The `prompt_end` it sends is another
+matter: Klipper echoes it after whatever the macro has already sent, so if the firmware raises a
+new prompt right after the user's close, the echo can close that new prompt too. Mainsail has the
+same race.
 
 ### Other code that reads prompt state
 
