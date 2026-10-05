@@ -423,9 +423,15 @@ void EmergencyStopOverlay::execute_emergency_stop() {
         },
         [](const MoonrakerError& err) {
             spdlog::error("[EmergencyStop] Emergency stop failed: {}", err.message);
-            ToastManager::instance().show(ToastSeverity::ERROR,
-                                          ("Emergency stop failed: " + err.user_message()).c_str(),
-                                          5000);
+            // The callback can run on the WebSocket thread; lv_tr is main-thread only.
+            helix::ui::run_on_main("error_toast", [err]() {
+                ToastManager::instance().show(
+                    ToastSeverity::ERROR,
+                    fmt::format(fmt::runtime(lv_tr("Emergency stop failed: {}")),
+                                err.localized_message())
+                        .c_str(),
+                    5000);
+            });
         });
 }
 
@@ -807,8 +813,14 @@ void EmergencyStopOverlay::restart_klipper() {
         },
         [](const MoonrakerError& err) {
             spdlog::error("[KlipperRecovery] Klipper restart failed: {}", err.message);
-            ToastManager::instance().show(ToastSeverity::ERROR,
-                                          ("Restart failed: " + err.user_message()).c_str(), 5000);
+            // The callback can run on the WebSocket thread; lv_tr is main-thread only.
+            helix::ui::run_on_main("error_toast", [err]() {
+                ToastManager::instance().show(
+                    ToastSeverity::ERROR,
+                    fmt::format(fmt::runtime(lv_tr("Restart failed: {}")), err.localized_message())
+                        .c_str(),
+                    5000);
+            });
         });
 }
 
@@ -839,9 +851,15 @@ void EmergencyStopOverlay::firmware_restart() {
         },
         [](const MoonrakerError& err) {
             spdlog::error("[KlipperRecovery] Recovery failed: {}", err.message);
-            ToastManager::instance().show(
-                ToastSeverity::ERROR, ("Firmware restart failed: " + err.user_message()).c_str(),
-                5000);
+            // The callback can run on the WebSocket thread; lv_tr is main-thread only.
+            helix::ui::run_on_main("error_toast", [err]() {
+                ToastManager::instance().show(
+                    ToastSeverity::ERROR,
+                    fmt::format(fmt::runtime(lv_tr("Firmware restart failed: {}")),
+                                err.localized_message())
+                        .c_str(),
+                    5000);
+            });
         });
 }
 

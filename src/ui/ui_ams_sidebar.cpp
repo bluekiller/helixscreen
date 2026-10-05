@@ -1731,9 +1731,9 @@ void AmsOperationSidebar::send_standard_filament_macro(
         [is_load](const MoonrakerError& err) {
             spdlog::error("[AmsSidebar] Filament macro failed: {}", err.message);
             if (is_load) {
-                NOTIFY_ERROR(lv_tr("Failed to load filament: {}"), err.user_message());
+                helix::ui::notify_error_tr(TR_NOOP("Failed to load filament: {}"), err);
             } else {
-                NOTIFY_ERROR(lv_tr("Failed to unload: {}"), err.user_message());
+                helix::ui::notify_error_tr(TR_NOOP("Failed to unload: {}"), err);
             }
         });
 }
@@ -1752,9 +1752,9 @@ void AmsOperationSidebar::send_filament_fallback_gcode(bool is_load) {
         [is_load](const MoonrakerError& err) {
             spdlog::error("[AmsSidebar] Fallback gcode failed: {}", err.message);
             if (is_load) {
-                NOTIFY_ERROR(lv_tr("Failed to load filament: {}"), err.user_message());
+                helix::ui::notify_error_tr(TR_NOOP("Failed to load filament: {}"), err);
             } else {
-                NOTIFY_ERROR(lv_tr("Failed to unload: {}"), err.user_message());
+                helix::ui::notify_error_tr(TR_NOOP("Failed to unload: {}"), err);
             }
         },
         IMoonrakerAPI::EXTRUSION_TIMEOUT_MS);

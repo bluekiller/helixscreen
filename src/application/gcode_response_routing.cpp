@@ -4,6 +4,7 @@
 #include "gcode_response_routing.h"
 
 #include "ui_toast_manager.h"
+#include "ui_update_queue.h"
 
 #include "action_prompt_manager.h"
 #include "action_prompt_modal.h"
@@ -51,7 +52,10 @@ void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api) 
                     // error_cb marks the call caller-handled so the `!!`
                     // GcodeError toast is suppressed for the same failure.
                     // Without this the user sees nothing at all.
-                    ui::report_action_prompt_gcode_failure(err.user_message());
+                    // The reply arrives on the WebSocket thread; translation is main-thread only.
+                    ui::run_on_main("ActionPrompt::gcode_failure", [err]() {
+                        ui::report_action_prompt_gcode_failure(err.localized_message());
+                    });
                 },
                 IMoonrakerAPI::MACRO_TIMEOUT_MS);
         });

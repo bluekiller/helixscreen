@@ -1051,6 +1051,9 @@ TEST_CASE_METHOD(NetdBackendFixture, "netd joining the current network resolves 
 // ============================================================================
 TEST_CASE_METHOD(NetdBackendFixture, "netd refused scan keeps the previous rows",
                  "[netd][wifi][1398]") {
+    // Long watchdog: the published rows must come from the daemon's answer, and
+    // a short timer outrun by a loaded host completes the scan without it.
+    backend_ = std::make_unique<WifiBackendNetd>(kReconnectMs, 10000);
     register_standard_events();
     REQUIRE(start_and_settle());
 
@@ -1161,6 +1164,9 @@ TEST_CASE_METHOD(NetdBackendFixture, "netd stop with a pending scan stays silent
 // ============================================================================
 TEST_CASE_METHOD(NetdBackendFixture, "netd completed-empty scan clears ghost rows",
                  "[netd][wifi][1398]") {
+    // Long watchdog: the published rows must come from the daemon's answer, and
+    // a short timer outrun by a loaded host completes the scan without it.
+    backend_ = std::make_unique<WifiBackendNetd>(kReconnectMs, 10000);
     register_standard_events();
     REQUIRE(start_and_settle());
 
@@ -1329,6 +1335,9 @@ TEST_CASE_METHOD(NetdBackendFixture, "netd dead socket refuses to fabricate a co
 // ============================================================================
 TEST_CASE_METHOD(NetdBackendFixture, "netd rows with no scan outstanding are dropped",
                  "[netd][wifi]") {
+    // Long watchdog: the published rows must come from the daemon's answer, and
+    // a short timer outrun by a loaded host completes the scan without it.
+    backend_ = std::make_unique<WifiBackendNetd>(kReconnectMs, 10000);
     register_standard_events();
     REQUIRE(start_and_settle());
 
@@ -1381,6 +1390,9 @@ TEST_CASE_METHOD(NetdBackendFixture, "netd unowned 5GHz row still proves band su
 // ============================================================================
 TEST_CASE_METHOD(NetdBackendFixture, "netd abandoned scan rows do not reach the next scan",
                  "[netd][wifi]") {
+    // Long watchdog: the published rows must come from the daemon's answer, and
+    // a short timer outrun by a loaded host completes the scan without it.
+    backend_ = std::make_unique<WifiBackendNetd>(kReconnectMs, 10000);
     register_standard_events();
     REQUIRE(start_and_settle());
 
