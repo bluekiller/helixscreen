@@ -61,9 +61,22 @@ static bool is_walker_replaced_style(const lv_style_t* style) {
     if (style == tm.get_style(StyleRole::TextPrimary) ||
         style == tm.get_style(StyleRole::TextMuted))
         return true;
-    for (int r = static_cast<int>(StyleRole::Button);
-         r <= static_cast<int>(StyleRole::ButtonPressed); r++) {
-        if (style == tm.get_style(static_cast<StyleRole>(r)))
+    static constexpr StyleRole kButtonRoles[] = {
+        StyleRole::Button,
+        StyleRole::ButtonPrimary,
+        StyleRole::ButtonSecondary,
+        StyleRole::ButtonTertiary,
+        StyleRole::ButtonDanger,
+        StyleRole::ButtonGhost,
+        StyleRole::ButtonTransparent,
+        StyleRole::ButtonOutline,
+        StyleRole::ButtonSuccess,
+        StyleRole::ButtonWarning,
+        StyleRole::ButtonDisabled,
+        StyleRole::ButtonPressed,
+    };
+    for (StyleRole r : kButtonRoles) {
+        if (style == tm.get_style(r))
             return true;
     }
     return false;
