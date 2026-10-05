@@ -230,7 +230,7 @@ TEST_CASE_METHOD(PreStartGateFixture,
     // starting a print the user already cancelled is the worst outcome here.
     // Cancel is expressed by retiring the preparing job, which is the same token
     // the start was armed with.
-    state.begin_preparing(helix::PrintJobRef{"part.gcode", "", ""});
+    state.print_state().begin_preparing(helix::PrintJobRef{"part.gcode", "", ""});
     set_busy(true);
 
     manager.start_print("part.gcode", "", []() {}, completion());
@@ -238,7 +238,7 @@ TEST_CASE_METHOD(PreStartGateFixture,
     REQUIRE(api->captured_error);
 
     // User cancels while the macro is still running.
-    state.retire_preparing(helix::PreparingExit::Cancelled);
+    state.print_state().retire_preparing(helix::PreparingExit::Cancelled);
 
     // Macro finishes and the printer goes idle.
     api->captured_error(

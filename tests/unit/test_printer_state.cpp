@@ -205,10 +205,10 @@ TEST_CASE("PrinterState: Initialization sets default values", "[state][init]") {
     REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 0);
 
     // Print progress should be 0
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 0);
 
     // Print state should be "standby"
-    const char* print_state = lv_subject_get_string(state.get_print_state_subject());
+    const char* print_state = lv_subject_get_string(state.print_state().get_print_state_subject());
     REQUIRE(std::string(print_state) == "standby");
 
     // Position should be 0
@@ -310,7 +310,7 @@ TEST_CASE("PrinterState: Update print progress from notification", "[state][prog
 
     state.update_from_status(notification["params"][0]);
 
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 45);
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 45);
 }
 
 TEST_CASE("PrinterState: Update print state and filename", "[state][progress]") {
@@ -325,10 +325,10 @@ TEST_CASE("PrinterState: Update print state and filename", "[state][progress]") 
 
     state.update_from_status(notification["params"][0]);
 
-    const char* print_state = lv_subject_get_string(state.get_print_state_subject());
+    const char* print_state = lv_subject_get_string(state.print_state().get_print_state_subject());
     REQUIRE(std::string(print_state) == "printing");
 
-    const char* filename = lv_subject_get_string(state.get_print_filename_subject());
+    const char* filename = lv_subject_get_string(state.print_state().get_print_filename_subject());
     REQUIRE(std::string(filename) == "benchy.gcode");
 }
 
@@ -351,9 +351,9 @@ TEST_CASE("PrinterState: parses print_stats.exception structured object",
                            {"level", 2}}}}}};
         state.update_from_status(status);
 
-        REQUIRE(state.get_print_exception_id() == 523);
-        REQUIRE(state.get_print_exception_code() == 0);
-        REQUIRE(state.get_print_exception_message() == "e1_filament runout");
+        REQUIRE(state.print_state().get_print_exception_id() == 523);
+        REQUIRE(state.print_state().get_print_exception_code() == 0);
+        REQUIRE(state.print_state().get_print_exception_message() == "e1_filament runout");
     }
 
     SECTION("Empty exception object resets fields to cleared state") {
@@ -362,14 +362,14 @@ TEST_CASE("PrinterState: parses print_stats.exception structured object",
             {"print_stats",
              {{"exception", {{"id", 532}, {"code", 1}, {"message", "detected dirty bed"}}}}}};
         state.update_from_status(populate);
-        REQUIRE(state.get_print_exception_id() == 532);
+        REQUIRE(state.print_state().get_print_exception_id() == 532);
 
         json clear = {{"print_stats", {{"exception", json::object()}}}};
         state.update_from_status(clear);
 
-        REQUIRE(state.get_print_exception_id() == -1);
-        REQUIRE(state.get_print_exception_code() == -1);
-        REQUIRE(state.get_print_exception_message().empty());
+        REQUIRE(state.print_state().get_print_exception_id() == -1);
+        REQUIRE(state.print_state().get_print_exception_code() == -1);
+        REQUIRE(state.print_state().get_print_exception_message().empty());
     }
 
     SECTION("Absent exception key leaves fields unchanged") {
@@ -382,9 +382,9 @@ TEST_CASE("PrinterState: parses print_stats.exception structured object",
         json no_exc = {{"print_stats", {{"state", "paused"}}}};
         state.update_from_status(no_exc);
 
-        REQUIRE(state.get_print_exception_id() == 532);
-        REQUIRE(state.get_print_exception_code() == 1);
-        REQUIRE(state.get_print_exception_message() == "detected dirty bed");
+        REQUIRE(state.print_state().get_print_exception_id() == 532);
+        REQUIRE(state.print_state().get_print_exception_code() == 1);
+        REQUIRE(state.print_state().get_print_exception_message() == "detected dirty bed");
     }
 
     SECTION("Null exception (subscription null) leaves fields unchanged") {
@@ -396,9 +396,9 @@ TEST_CASE("PrinterState: parses print_stats.exception structured object",
         json null_exc = {{"print_stats", {{"exception", nullptr}}}};
         state.update_from_status(null_exc);
 
-        REQUIRE(state.get_print_exception_id() == 532);
-        REQUIRE(state.get_print_exception_code() == 1);
-        REQUIRE(state.get_print_exception_message() == "detected dirty bed");
+        REQUIRE(state.print_state().get_print_exception_id() == 532);
+        REQUIRE(state.print_state().get_print_exception_code() == 1);
+        REQUIRE(state.print_state().get_print_exception_message() == "detected dirty bed");
     }
 }
 
@@ -411,21 +411,21 @@ TEST_CASE("PrinterState: Progress percentage edge cases", "[state][progress][edg
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"virtual_sdcard", {{"progress", 0.0}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 0);
+        REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 0);
     }
 
     SECTION("100% progress") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"virtual_sdcard", {{"progress", 1.0}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 100);
+        REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 100);
     }
 
     SECTION("67.3% progress -> 67%") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"virtual_sdcard", {{"progress", 0.673}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 67);
+        REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 67);
     }
 }
 
@@ -912,9 +912,10 @@ TEST_CASE("PrinterState: Complete printing state update", "[state][integration]"
             2100);
     REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_temp_subject()) == 602);
     REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 600);
-    REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 67);
-    REQUIRE(std::string(lv_subject_get_string(state.get_print_state_subject())) == "printing");
-    REQUIRE(std::string(lv_subject_get_string(state.get_print_filename_subject())) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 67);
+    REQUIRE(std::string(lv_subject_get_string(state.print_state().get_print_state_subject())) ==
+            "printing");
+    REQUIRE(std::string(lv_subject_get_string(state.print_state().get_print_filename_subject())) ==
             "model.gcode");
     // Positions are stored as centimillimeters (×100) for 0.01mm precision
     REQUIRE(lv_subject_get_int(state.motion_state().get_position_x_subject()) == 12500); // 125.0mm
@@ -988,8 +989,8 @@ TEST_CASE_METHOD(HelixTestFixture,
                              {"params", {{{"print_stats", {{"state", "printing"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
 
-        REQUIRE(state.get_print_job_state() == PrintJobState::PRINTING);
-        REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+        REQUIRE(state.print_state().get_print_job_state() == PrintJobState::PRINTING);
+        REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
                 static_cast<int>(PrintJobState::PRINTING));
     }
 
@@ -998,7 +999,7 @@ TEST_CASE_METHOD(HelixTestFixture,
                              {"params", {{{"print_stats", {{"state", "paused"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
 
-        REQUIRE(state.get_print_job_state() == PrintJobState::PAUSED);
+        REQUIRE(state.print_state().get_print_job_state() == PrintJobState::PAUSED);
     }
 
     SECTION("Both string and enum subjects update together") {
@@ -1007,9 +1008,10 @@ TEST_CASE_METHOD(HelixTestFixture,
         state.update_from_status(notification["params"][0]);
 
         // String subject should have the raw string
-        REQUIRE(std::string(lv_subject_get_string(state.get_print_state_subject())) == "complete");
+        REQUIRE(std::string(lv_subject_get_string(state.print_state().get_print_state_subject())) ==
+                "complete");
         // Enum subject should have the parsed enum value
-        REQUIRE(state.get_print_job_state() == PrintJobState::COMPLETE);
+        REQUIRE(state.print_state().get_print_job_state() == PrintJobState::COMPLETE);
     }
 }
 
@@ -1022,42 +1024,42 @@ TEST_CASE("PrinterState: can_start_new_print logic", "[state][enum]") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"print_stats", {{"state", "standby"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(state.can_start_new_print() == true);
+        REQUIRE(state.print_state().can_start_new_print() == true);
     }
 
     SECTION("Can start from COMPLETE") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"print_stats", {{"state", "complete"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(state.can_start_new_print() == true);
+        REQUIRE(state.print_state().can_start_new_print() == true);
     }
 
     SECTION("Can start from CANCELLED") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"print_stats", {{"state", "cancelled"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(state.can_start_new_print() == true);
+        REQUIRE(state.print_state().can_start_new_print() == true);
     }
 
     SECTION("Can start from ERROR") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"print_stats", {{"state", "error"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(state.can_start_new_print() == true);
+        REQUIRE(state.print_state().can_start_new_print() == true);
     }
 
     SECTION("Cannot start from PRINTING") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"print_stats", {{"state", "printing"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(state.can_start_new_print() == false);
+        REQUIRE(state.print_state().can_start_new_print() == false);
     }
 
     SECTION("Cannot start from PAUSED") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"print_stats", {{"state", "paused"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        REQUIRE(state.can_start_new_print() == false);
+        REQUIRE(state.print_state().can_start_new_print() == false);
     }
 }
 
@@ -1072,42 +1074,42 @@ TEST_CASE("PrinterState: Enum subject value reflects all state transitions", "[s
     json notification = {{"method", "notify_status_update"},
                          {"params", {{{"print_stats", {{"state", "standby"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::STANDBY));
 
     // PRINTING
     notification = {{"method", "notify_status_update"},
                     {"params", {{{"print_stats", {{"state", "printing"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::PRINTING));
 
     // PAUSED
     notification = {{"method", "notify_status_update"},
                     {"params", {{{"print_stats", {{"state", "paused"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::PAUSED));
 
     // COMPLETE
     notification = {{"method", "notify_status_update"},
                     {"params", {{{"print_stats", {{"state", "complete"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::COMPLETE));
 
     // CANCELLED
     notification = {{"method", "notify_status_update"},
                     {"params", {{{"print_stats", {{"state", "cancelled"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::CANCELLED));
 
     // ERROR
     notification = {{"method", "notify_status_update"},
                     {"params", {{{"print_stats", {{"state", "error"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::ERROR));
 }
 
@@ -1457,14 +1459,16 @@ TEST_CASE("PrinterState: set_print_outcome updates subject", "[state][print_outc
     state.init_subjects(false);
 
     // Initial state should be NONE
-    auto initial = static_cast<PrintOutcome>(lv_subject_get_int(state.get_print_outcome_subject()));
+    auto initial = static_cast<PrintOutcome>(
+        lv_subject_get_int(state.print_state().get_print_outcome_subject()));
     REQUIRE(initial == PrintOutcome::NONE);
 
     // Set to CANCELLED - THIS SHOULD FAIL TO COMPILE (method doesn't exist yet)
-    state.set_print_outcome(PrintOutcome::CANCELLED);
+    state.print_state().set_print_outcome(PrintOutcome::CANCELLED);
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-    auto after = static_cast<PrintOutcome>(lv_subject_get_int(state.get_print_outcome_subject()));
+    auto after = static_cast<PrintOutcome>(
+        lv_subject_get_int(state.print_state().get_print_outcome_subject()));
     REQUIRE(after == PrintOutcome::CANCELLED);
 }
 

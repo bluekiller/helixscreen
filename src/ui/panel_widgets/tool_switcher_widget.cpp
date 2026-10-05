@@ -166,13 +166,13 @@ void ToolSwitcherWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // memory (#705). The comment here used to claim none was needed; its two
     // sibling call sites (ui_panel_filament, ui_ams_sidebar) both pass it.
     print_state_observer_ = helix::ui::observe<int>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [token](ToolSwitcherWidget* self, int /*state*/) {
             if (token.expired())
                 return;
             self->refresh_print_gating();
         },
-        printer_state_.get_static_print_subjects_lifetime());
+        printer_state_.print_state().get_static_subjects_lifetime());
 
     // Initial build deferred to on_size_changed() which fires after
     // the widget is fully attached to the screen tree.
@@ -541,7 +541,7 @@ void ToolSwitcherWidget::ToolPicker::on_created(lv_obj_t* backdrop) {
 // ============================================================================
 
 AmsError ToolSwitcherWidget::tool_change_refusal() const {
-    const auto lifecycle = printer_state_.get_print_lifecycle();
+    const auto lifecycle = printer_state_.print_state().get_print_lifecycle();
     const bool paused = lifecycle == PrintState::Paused;
 
     // No backend means a plain Tn / macro path with no firmware macro that could
@@ -627,7 +627,7 @@ void ToolSwitcherWidget::handle_tool_selected(int tool_index) {
     // paused job (everything except AD5X IFS) — pause-then-swap is the runout
     // and colour-change recovery workflow, so the change is offered, with a
     // confirmation because it moves the toolhead into a part still on the bed.
-    const auto lifecycle = printer_state_.get_print_lifecycle();
+    const auto lifecycle = printer_state_.print_state().get_print_lifecycle();
     if (lifecycle == PrintState::Paused) {
         spdlog::info("[ToolSwitcher] Print paused, showing confirmation for T{}", tool_index);
 

@@ -224,8 +224,8 @@ BedDryingController::State BedDryingController::state() const {
 }
 
 void BedDryingController::set_latch(bool on) {
-    state_.set_spool_latch(on,
-                           on && tc_ ? tc_->chamber_dryer_tokens() : std::vector<std::string>{});
+    state_.print_state().set_spool_latch(on, on && tc_ ? tc_->chamber_dryer_tokens()
+                                                       : std::vector<std::string>{});
 }
 
 void BedDryingController::restore() {

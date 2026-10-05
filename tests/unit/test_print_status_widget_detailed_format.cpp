@@ -62,10 +62,11 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter writes layer and time",
 
     FormatterScope fs;
 
-    lv_subject_set_int(ps.get_print_layer_current_subject(), 42);
-    lv_subject_set_int(ps.get_print_layer_total_subject(), 213);
-    lv_subject_set_int(ps.get_print_elapsed_subject(), 42 * 60);              // 0h 42m
-    lv_subject_set_int(ps.get_print_time_left_subject(), 2 * 3600 + 14 * 60); // 2h 14m
+    lv_subject_set_int(ps.print_state().get_print_layer_current_subject(), 42);
+    lv_subject_set_int(ps.print_state().get_print_layer_total_subject(), 213);
+    lv_subject_set_int(ps.print_state().get_print_elapsed_subject(), 42 * 60); // 0h 42m
+    lv_subject_set_int(ps.print_state().get_print_time_left_subject(),
+                       2 * 3600 + 14 * 60); // 2h 14m
 
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
@@ -87,8 +88,8 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter time text omits hours unde
 
     FormatterScope fs;
 
-    lv_subject_set_int(ps.get_print_elapsed_subject(), 45 * 60);
-    lv_subject_set_int(ps.get_print_time_left_subject(), 0);
+    lv_subject_set_int(ps.print_state().get_print_elapsed_subject(), 45 * 60);
+    lv_subject_set_int(ps.print_state().get_print_time_left_subject(), 0);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     // A hand-rolled "%dh %02dm" renders this as "0h 45m / 0h 45m".
@@ -108,13 +109,13 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter filament text switches uni
 
     // Below 1000mm the canonical formatter stays in millimetres. Dividing by
     // 1000 unconditionally renders this as "0.9m".
-    lv_subject_set_int(ps.get_print_filament_used_subject(), 850);
+    lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 850);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
     REQUIRE(std::string(lv_subject_get_string(
                 lv_xml_get_subject(nullptr, "print_status_filament_text"))) == "Filament: 850mm");
 
     // Above 1000000mm it switches to kilometres rather than "1200.0m".
-    lv_subject_set_int(ps.get_print_filament_used_subject(), 1200000);
+    lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 1200000);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
     REQUIRE(std::string(lv_subject_get_string(
                 lv_xml_get_subject(nullptr, "print_status_filament_text"))) == "Filament: 1.20km");
@@ -132,8 +133,8 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter seeds initial values on co
         PrinterStateTestAccess::get_print_state(ps), true);
 
     // Set subjects BEFORE creating formatter — seed calls in constructor pick them up
-    lv_subject_set_int(ps.get_print_layer_current_subject(), 100);
-    lv_subject_set_int(ps.get_print_layer_total_subject(), 200);
+    lv_subject_set_int(ps.print_state().get_print_layer_current_subject(), 100);
+    lv_subject_set_int(ps.print_state().get_print_layer_total_subject(), 200);
 
     FormatterScope fs;
 
@@ -155,8 +156,8 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter layer text omits total whe
 
     FormatterScope fs;
 
-    lv_subject_set_int(ps.get_print_layer_current_subject(), 7);
-    lv_subject_set_int(ps.get_print_layer_total_subject(), 0);
+    lv_subject_set_int(ps.print_state().get_print_layer_current_subject(), 7);
+    lv_subject_set_int(ps.print_state().get_print_layer_total_subject(), 0);
 
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
@@ -179,11 +180,11 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter layer text marks estimates
 
     // A freshly reset PrinterState has neither real layer data nor a Z-derived
     // layer, so layer_is_accurate() is false and the count is an estimate.
-    REQUIRE(ps.layer_is_accurate() == false);
+    REQUIRE(ps.print_state().layer_is_accurate() == false);
 
     lv_subject_set_int(ps.motion_state().get_gcode_position_z_subject(), 2400); // 24.00mm
-    lv_subject_set_int(ps.get_print_layer_current_subject(), 42);
-    lv_subject_set_int(ps.get_print_layer_total_subject(), 213);
+    lv_subject_set_int(ps.print_state().get_print_layer_current_subject(), 42);
+    lv_subject_set_int(ps.print_state().get_print_layer_total_subject(), 213);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     REQUIRE(std::string(lv_subject_get_string(lv_xml_get_subject(
@@ -200,7 +201,7 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter filament text empty when z
 
     FormatterScope fs;
 
-    lv_subject_set_int(ps.get_print_filament_used_subject(), 0);
+    lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 0);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     REQUIRE(std::string(lv_subject_get_string(
@@ -217,7 +218,7 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter filament text formatted in
 
     FormatterScope fs;
 
-    lv_subject_set_int(ps.get_print_filament_used_subject(), 2500); // 2.5m
+    lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 2500); // 2.5m
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     REQUIRE(std::string(lv_subject_get_string(
@@ -397,8 +398,8 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter re-renders its text on a l
     ps.init_subjects(false);
     PrinterPrintStateTestAccess::set_has_real_layer_data(
         PrinterStateTestAccess::get_print_state(ps), true);
-    lv_subject_set_int(ps.get_print_filament_used_subject(), 1500);
-    lv_subject_set_int(ps.get_print_layer_current_subject(), 7);
+    lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 1500);
+    lv_subject_set_int(ps.print_state().get_print_layer_current_subject(), 7);
 
     ScopedHistory history({make_history_job("slipper.gcode", true, 2 * 3600.0)});
 

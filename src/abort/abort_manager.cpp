@@ -288,7 +288,7 @@ void AbortManager::send_cancel_print() {
         // completion is something the PRINTER reports, and Preparing is not a
         // state CANCEL_PRINT can produce.
         cancel_state_observer_ = helix::ui::observe_print_state(
-            printer_state_->get_print_state_enum_subject(), this,
+            printer_state_->print_state().get_print_state_enum_subject(), this,
             [](AbortManager* self, PrintJobState value) {
                 self->on_print_state_during_cancel(value);
             },
@@ -449,7 +449,7 @@ void AbortManager::complete_abort(const char* message) {
     // Moonraker reports "standby" after M112+restart, not "cancelled"
     lifetime_.defer("AbortManager::print_outcome", [this]() {
         if (printer_state_) {
-            printer_state_->set_print_outcome(PrintOutcome::CANCELLED);
+            printer_state_->print_state().set_print_outcome(PrintOutcome::CANCELLED);
         }
     });
 

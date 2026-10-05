@@ -325,7 +325,7 @@ void TemperatureController::start_chamber_drying(float temp_c, int duration_min,
     if (!api_ || !dryer.supported) {
         return;
     }
-    lv_subject_t* job = state_.get_job_holds_machine_subject();
+    lv_subject_t* job = state_.print_state().get_job_holds_machine_subject();
     const bool job_active = job && lv_subject_get_int(job) != 0;
     if (job_active && !dryer.allows_during_print) {
         spdlog::info("[TemperatureController] Chamber drying refused: a job holds the machine");
@@ -461,7 +461,7 @@ void TemperatureController::end_dry_run(const char* why) {
     const int target_c = dry_run_.bed_c;
     const int restore_s = dry_run_.idle_restore_s;
     dry_run_ = {};
-    lv_subject_t* job = state_.get_job_holds_machine_subject();
+    lv_subject_t* job = state_.print_state().get_job_holds_machine_subject();
     if (job && lv_subject_get_int(job) != 0) {
         spdlog::info("[TemperatureController] Drying ended ({}): a job owns the machine", why);
         return;

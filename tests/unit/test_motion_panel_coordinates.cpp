@@ -193,7 +193,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "motion bounds follow the gcode origin, not 
                                              {{"homing_origin", {-0.0889, -0.016, 0.06, 0.0}},
                                               {"gcode_position", {10.0, 10.0, 274.94, 0.0}}}}});
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::ui::UpdateQueue::instance().drain();
 

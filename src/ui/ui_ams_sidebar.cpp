@@ -374,9 +374,9 @@ void AmsOperationSidebar::init_observers() {
         [](AmsOperationSidebar* self, int) { self->refresh_button_gating(); },
         AmsState::instance().get_subjects_lifetime());
     print_state_observer_ = observe<int>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [](AmsOperationSidebar* self, int) { self->refresh_button_gating(); },
-        printer_state_.get_static_print_subjects_lifetime());
+        printer_state_.print_state().get_static_subjects_lifetime());
 
     // Active backend observer: re-syncs reset button label when the user switches backend tabs
     active_backend_observer_ = observe<int>(
@@ -1155,7 +1155,7 @@ AmsOperationSidebar::OpInputs AmsOperationSidebar::read_op_inputs() const {
     // AmsSystemInfo::is_busy(): the same predicate check_preconditions()
     // refuses on, instead of a fourth open-coded `action != IDLE && != ERROR`.
     return {/*system_busy=*/backend && backend->get_system_info().is_busy(),
-            printer_state_.get_print_lifecycle(),
+            printer_state_.print_state().get_print_lifecycle(),
             /*backend_self_homes=*/backend && backend->filament_ops_self_home()};
 }
 
@@ -1186,7 +1186,7 @@ helix::ui::OpButtonState AmsOperationSidebar::read_batch_load_gating_state() con
 helix::ui::MachineOpGating AmsOperationSidebar::read_machine_op_gating() const {
     AmsBackend* backend = AmsState::instance().get_backend();
     return helix::ui::compute_machine_op_gating(
-        helix::ui::print_blocks_filament_op(printer_state_.get_print_lifecycle(),
+        helix::ui::print_blocks_filament_op(printer_state_.print_state().get_print_lifecycle(),
                                             backend && backend->filament_ops_self_home()),
         /*reset_moves_filament=*/backend && backend->reset_moves_filament());
 }

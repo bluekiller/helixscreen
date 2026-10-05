@@ -499,8 +499,8 @@ void MoonrakerMotionAPI::execute_gcode(const std::string& gcode, SuccessCallback
     // MoonrakerAPI::execute_gcode. Homing/recovery/probe-control pass through.
     // Uses the attributed predicate: self-busy from our own recent jog passes
     // (idle_timeout reports "Printing" during any move), external ops still refuse.
-    if (helix::is_discretionary_gcode(gcode) &&
-        (state_.is_external_blocking_operation_active() || state_.is_in_print_start())) {
+    if (helix::is_discretionary_gcode(gcode) && (state_.is_external_blocking_operation_active() ||
+                                                 state_.print_state().is_in_print_start())) {
         if (!silent) {
             spdlog::warn("[Motion API] Refusing discretionary G-code while printer is "
                          "homing/leveling/starting a print: '{}'",

@@ -69,7 +69,7 @@ void PrintExcludeObjectManager::init() {
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - asks whether a live gcode
     // queue exists; see on_print_state_changed().
     print_state_observer_ = helix::ui::observe_print_state<PrintExcludeObjectManager>(
-        printer_state_.get_print_state_enum_subject(), this,
+        printer_state_.print_state().get_print_state_enum_subject(), this,
         [](PrintExcludeObjectManager* self, PrintJobState state) {
             self->on_print_state_changed(state);
         },

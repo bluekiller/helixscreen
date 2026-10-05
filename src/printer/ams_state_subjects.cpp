@@ -518,11 +518,11 @@ void AmsState::install_print_state_observer() {
     // safely skip lv_observer_remove() if PrinterState already deinit'd its
     // subjects (e.g. between tests).
     print_state_observer_.reset();
-    auto lifetime = get_printer_state().get_static_print_subjects_lifetime();
+    auto lifetime = get_printer_state().print_state().get_static_subjects_lifetime();
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - recompute_action_detail()
     // labels what the printer reports, and reads the same subject.
     print_state_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_print_state_enum_subject(), this,
+        get_printer_state().print_state().get_print_state_enum_subject(), this,
         [](AmsState* self, int /*print_state*/) { self->recompute_action_detail(); }, lifetime);
 }
 

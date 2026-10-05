@@ -105,7 +105,7 @@ TEST_CASE("ensure_homed_then's continuation is not refused as someone else's bus
     helix::PrinterState& state = get_printer_state();
     state.init_subjects(false);
     state.set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     lv_subject_copy_string(state.motion_state().get_homed_axes_subject(), "");
 

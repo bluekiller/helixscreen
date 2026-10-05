@@ -79,10 +79,10 @@ struct TrackerGatingFixture : LVGLTestFixture {
         // Zero stale subjects before tracker start — see routing fixture
         // notes: LVGL subjects notify observers on add with the existing
         // value, which would consume filament from the wrong slot.
-        lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
+        lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
         SubjectLifetime reset_lt;
         for (int i = 0; i < 16; ++i) {
-            auto* subj = printer.get_extruder_filament_used_subject(i, reset_lt);
+            auto* subj = printer.print_state().get_extruder_filament_used_subject(i, reset_lt);
             if (subj) {
                 lv_subject_set_int(subj, 0);
             }
@@ -116,7 +116,7 @@ TEST_CASE_METHOD(TrackerGatingFixture, "Gating: slot with spoolman_id != 0 not t
 
     auto& state = get_printer_state();
     SubjectLifetime lt;
-    auto* e0 = state.get_extruder_filament_used_subject(0, lt);
+    auto* e0 = state.print_state().get_extruder_filament_used_subject(0, lt);
     REQUIRE(e0 != nullptr);
 
     const float before = mock->get_slot_info(0).remaining_weight_g;
@@ -140,7 +140,7 @@ TEST_CASE_METHOD(TrackerGatingFixture, "Gating: native tracking backend not decr
 
     auto& state = get_printer_state();
     SubjectLifetime lt;
-    auto* e0 = state.get_extruder_filament_used_subject(0, lt);
+    auto* e0 = state.print_state().get_extruder_filament_used_subject(0, lt);
     REQUIRE(e0 != nullptr);
 
     const float before0 = mock->get_slot_info(0).remaining_weight_g;
@@ -156,7 +156,7 @@ TEST_CASE_METHOD(TrackerGatingFixture, "Gating: native tracking backend not decr
 TEST_CASE_METHOD(TrackerGatingFixture, "Mid-print edit rebaselines sink", "[tracker][gating]") {
     auto& state = get_printer_state();
     SubjectLifetime lt;
-    auto* e0 = state.get_extruder_filament_used_subject(0, lt);
+    auto* e0 = state.print_state().get_extruder_filament_used_subject(0, lt);
     REQUIRE(e0 != nullptr);
 
     // First tick: push 500 mm → slot 0 decrements ~1.49 g.
@@ -201,7 +201,7 @@ TEST_CASE_METHOD(TrackerGatingFixture,
 
     auto& state = get_printer_state();
     SubjectLifetime lt;
-    auto* e0 = state.get_extruder_filament_used_subject(0, lt);
+    auto* e0 = state.print_state().get_extruder_filament_used_subject(0, lt);
     REQUIRE(e0 != nullptr);
 
     // Push delta on an inactive slot → no write, still -1 (sentinel).

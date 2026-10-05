@@ -237,7 +237,7 @@ bool AdvancedPanel::macro_job_holds_machine() const {
     // job_holds_machine, not print_active: a host-side Preparing job has
     // print_active == 0 while the toolhead moves, and restarting Klipper
     // through it kills a job the app has already committed to.
-    return lv_subject_get_int(printer_state_.get_job_holds_machine_subject()) != 0;
+    return lv_subject_get_int(printer_state_.print_state().get_job_holds_machine_subject()) != 0;
 }
 
 void AdvancedPanel::handle_helix_macros_install_clicked() {
@@ -412,7 +412,7 @@ void AdvancedPanel::wire_macro_restart_observer() {
     }
 
     macro_job_observer_ = helix::ui::observe<int>(
-        printer_state_.get_job_holds_machine_subject(), this,
+        printer_state_.print_state().get_job_holds_machine_subject(), this,
         [](AdvancedPanel* self, int holds) {
             // The machine went idle by the same predicate the restart guard
             // uses, so the offer can never pop into a Preparing window.

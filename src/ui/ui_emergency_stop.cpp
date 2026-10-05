@@ -253,7 +253,7 @@ void EmergencyStopOverlay::create() {
     // so covering the button needed two subscriptions and a hand-rolled OR.
     // derive_print_state() does that merge once, for everyone.
     print_state_observer_ = observe<int>(
-        printer_state_->get_print_lifecycle_subject(), this,
+        printer_state_->print_state().get_print_lifecycle_subject(), this,
         [](EmergencyStopOverlay* self, int /*lifecycle*/) { self->update_visibility(); },
         ps_subjects);
 
@@ -378,7 +378,7 @@ void EmergencyStopOverlay::update_visibility() {
     // both subjects to catch each half. That is job_holds_machine() spelled out,
     // so it asks the lifecycle once instead - one predicate, one observer, and
     // no second spelling to drift.
-    const auto lifecycle = printer_state_->get_print_lifecycle();
+    const auto lifecycle = printer_state_->print_state().get_print_lifecycle();
 
     int new_value = job_holds_machine(lifecycle) ? 1 : 0;
     int current_value = lv_subject_get_int(&estop_visible_);

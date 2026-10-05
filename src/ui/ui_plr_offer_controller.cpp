@@ -32,7 +32,7 @@ PlrOfferController::PlrOfferController() {
     // registration-fire; thereafter a genuine 0->1 edge offers. See
     // on_connection_state_changed for how reconnect manufactures that edge.
     pl_valid_observer_ = observe<int>(
-        ps.get_pl_env_valid_subject(), this,
+        ps.print_state().get_pl_env_valid_subject(), this,
         [](PlrOfferController* self, int value) { self->on_pl_env_valid_changed(value); },
         ps.get_subjects_lifetime());
 
@@ -43,7 +43,7 @@ PlrOfferController::PlrOfferController() {
     // macro) comes from discovery and is read live in evaluate_offer, so this
     // observer alone is enough.
     interrupted_flag_observer_ = observe<int>(
-        ps.get_plr_interrupted_flag_subject(), this,
+        ps.print_state().get_plr_interrupted_flag_subject(), this,
         [](PlrOfferController* self, int value) { self->on_plr_interrupted_flag_changed(value); },
         ps.get_subjects_lifetime());
 
@@ -51,7 +51,7 @@ PlrOfferController::PlrOfferController() {
     // flag this only says the FIRMWARE supports recovery — whether a snapshot
     // exists takes a separate, side-effectful probe.
     creality_capable_observer_ = observe<int>(
-        ps.get_plr_power_loss_signal_subject(), this,
+        ps.print_state().get_plr_power_loss_signal_subject(), this,
         [](PlrOfferController* self, int value) { self->on_creality_capable_changed(value); },
         ps.get_subjects_lifetime());
 
@@ -75,11 +75,14 @@ void PlrOfferController::evaluate_offer() {
     // pure decision below (and its latch/re-arm/wizard rules) stays
     // backend-agnostic. See docs/devel/POWER_LOSS_RECOVERY.md.
     PlrCapabilitySignals caps;
-    caps.snapmaker_pl_env_valid = lv_subject_get_int(ps.get_pl_env_valid_subject()) != 0;
-    caps.qidi_resume_macro = lv_subject_get_int(ps.get_plr_resume_macro_subject()) != 0;
-    caps.qidi_was_interrupted = lv_subject_get_int(ps.get_plr_interrupted_flag_subject()) != 0;
+    caps.snapmaker_pl_env_valid =
+        lv_subject_get_int(ps.print_state().get_pl_env_valid_subject()) != 0;
+    caps.qidi_resume_macro =
+        lv_subject_get_int(ps.print_state().get_plr_resume_macro_subject()) != 0;
+    caps.qidi_was_interrupted =
+        lv_subject_get_int(ps.print_state().get_plr_interrupted_flag_subject()) != 0;
     caps.creality_power_loss_field =
-        lv_subject_get_int(ps.get_plr_power_loss_signal_subject()) != 0;
+        lv_subject_get_int(ps.print_state().get_plr_power_loss_signal_subject()) != 0;
     PlrBackendType backend = plr_select_backend(caps);
 
     bool recovery_available = false;
@@ -89,7 +92,7 @@ void PlrOfferController::evaluate_offer() {
         // Passive: the firmware already validated the snapshot against MCU
         // flash on boot, so pl_env_valid IS availability.
         recovery_available = true;
-        recovery_file = ps.pl_recovery_file();
+        recovery_file = ps.print_state().pl_recovery_file();
         break;
     case PlrBackendType::QIDI:
         // Passive: selection already required was_interrupted true, which the
@@ -97,7 +100,7 @@ void PlrOfferController::evaluate_offer() {
         // record no filename; virtual_sdcard.file_path is display-only and may
         // be empty (the prompt degrades to its generic body).
         recovery_available = true;
-        recovery_file = ps.pl_recovery_file();
+        recovery_file = ps.print_state().pl_recovery_file();
         break;
     case PlrBackendType::CREALITY:
         // Active: only a completed probe reporting both states counts.
@@ -112,7 +115,7 @@ void PlrOfferController::evaluate_offer() {
     // print_stats still reads standby, and offering "Resume interrupted print?"
     // on top of a start the user has already committed to is a modal ambush —
     // its Resume button would start a different file than the one they chose.
-    bool idle = !job_holds_machine(ps.get_print_lifecycle());
+    bool idle = !job_holds_machine(ps.print_state().get_print_lifecycle());
 
     PlrOfferSignals signals;
     signals.recovery_available = recovery_available;
@@ -194,7 +197,7 @@ void PlrOfferController::probe_creality_once() {
     // terminal state would clear exclude_object_info for no benefit.
     // RAW_PRINT_STATE_OK: mirrors a Klipper condition on print_stats.state
     // itself — the handler only arms power_loss from "standby".
-    auto state = ps.get_print_job_state();
+    auto state = ps.print_state().get_print_job_state();
     if (state != PrintJobState::STANDBY) {
         spdlog::debug("[PLR] Creality capable but print state is {} (not standby) — skipping probe",
                       static_cast<int>(state));
@@ -239,7 +242,7 @@ void PlrOfferController::on_creality_detect_result(const PlrDetectResult& result
     if (creality_recovery_file_.empty()) {
         // Fall back to whatever the status payload carried; virtual_sdcard's
         // file_path is parsed unconditionally, so it may be populated.
-        creality_recovery_file_ = get_printer_state().pl_recovery_file();
+        creality_recovery_file_ = get_printer_state().print_state().pl_recovery_file();
     }
     evaluate_offer();
 }
@@ -262,11 +265,11 @@ void PlrOfferController::on_connection_state_changed(int new_conn_state) {
         // ever arrive. Safe on the main thread: observer callbacks are
         // queue-deferred.
         auto& ps = get_printer_state();
-        lv_subject_set_int(ps.get_pl_env_valid_subject(), 0);
-        lv_subject_set_int(ps.get_plr_resume_macro_subject(), 0);
-        lv_subject_set_int(ps.get_plr_interrupted_flag_subject(), 0);
-        lv_subject_set_int(ps.get_plr_power_loss_signal_subject(), 0);
-        ps.clear_pl_recovery_file();
+        lv_subject_set_int(ps.print_state().get_pl_env_valid_subject(), 0);
+        lv_subject_set_int(ps.print_state().get_plr_resume_macro_subject(), 0);
+        lv_subject_set_int(ps.print_state().get_plr_interrupted_flag_subject(), 0);
+        lv_subject_set_int(ps.print_state().get_plr_power_loss_signal_subject(), 0);
+        ps.print_state().clear_pl_recovery_file();
     }
     last_conn_state_ = new_conn_state;
 }

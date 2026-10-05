@@ -72,7 +72,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "progress arc and bar agree while the displa
         push_status(state(), "standby", 0.0);
         process_lvgl(10);
 
-        REQUIRE(lv_subject_get_int(state().get_print_progress_subject()) == 0);
+        REQUIRE(lv_subject_get_int(state().print_state().get_print_progress_subject()) == 0);
         arc_pct = static_cast<int>(lv_arc_get_value(arc));
         bar_pct = static_cast<int>(lv_bar_get_value(bar));
     }

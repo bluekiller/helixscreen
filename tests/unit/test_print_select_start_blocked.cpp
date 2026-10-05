@@ -57,7 +57,8 @@ struct StartBlockedFixture : public LVGLUITestFixture {
     }
 
     void set_print_state(PrintState s) {
-        lv_subject_set_int(state().get_print_lifecycle_subject(), static_cast<int>(s));
+        lv_subject_set_int(state().print_state().get_print_lifecycle_subject(),
+                           static_cast<int>(s));
         UpdateQueue::instance().drain();
     }
 
@@ -228,7 +229,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a panel initialized mid-print starts blocke
     // The state holds BEFORE the panel's subjects exist, which is the mid-print
     // entry path: no transition ever fires after init, so only the init-time
     // update_print_button_state() call can have published the blocked state.
-    lv_subject_set_int(state().get_print_lifecycle_subject(),
+    lv_subject_set_int(state().print_state().get_print_lifecycle_subject(),
                        static_cast<int>(PrintState::Printing));
 
     auto panel = std::make_unique<PrintSelectPanel>(state(), nullptr);

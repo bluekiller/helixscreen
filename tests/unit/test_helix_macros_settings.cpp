@@ -78,7 +78,7 @@ struct MacrosSettingsFixture : LVGLUITestFixture {
     /// The restart policy reads job_holds_machine (print_active misses a
     /// host-side Preparing job), so that is the seam the tests drive.
     void set_job_holds(int v) {
-        lv_subject_set_int(state().get_job_holds_machine_subject(), v);
+        lv_subject_set_int(state().print_state().get_job_holds_machine_subject(), v);
     }
 
     bool restart_sent() const {
@@ -366,7 +366,7 @@ TEST_CASE_METHOD(MacrosSettingsFixture, "a host-side preparing job hard-refuses 
     // Preparing: job_holds_machine is 1 while print_active stays 0 - the
     // machine is committed to a job the wire has not reported yet.
     set_job_holds(1);
-    lv_subject_set_int(state().get_print_active_subject(), 0);
+    lv_subject_set_int(state().print_state().get_print_active_subject(), 0);
     settle();
 
     tap_install_row();

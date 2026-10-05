@@ -533,10 +533,6 @@ void PrinterState::update_nav_buttons_enabled() {
     network_state_.update_nav_buttons_enabled();
 }
 
-void PrinterState::set_print_in_progress(bool in_progress) {
-    print_domain_.set_print_in_progress(in_progress);
-}
-
 void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
     // Called directly from the main LVGL thread (hardware discovery callback).
     // No deferral needed — the caller is already inside a queue_update callback.
@@ -683,10 +679,6 @@ void PrinterState::update_gcode_modification_visibility() {
 
 // Note: update_print_show_progress() is now in print_domain_ component
 
-PrintJobState PrinterState::get_print_job_state() const {
-    return print_domain_.get_print_job_state();
-}
-
 bool PrinterState::is_blocking_operation_active() {
     // Interactive manual probe (PROBE_CALIBRATE / Z_ENDSTOP_CALIBRATE): always
     // blocking. idle_timeout may bounce to Ready between TESTZ commands, so this
@@ -736,10 +728,6 @@ bool PrinterState::is_external_blocking_operation_active() {
     return !app_motion_activity_.recently_active() &&
            !app_motion_activity_.owns_busy_episode(
                calibration_state_.idle_timeout_busy().printing_since());
-}
-
-bool PrinterState::can_start_new_print() const {
-    return print_domain_.can_start_new_print();
 }
 
 int PrinterState::get_configured_z_offset_microns() {
@@ -824,39 +812,9 @@ void PrinterState::apply_effective_bed_moves() {
 // PRINT START PROGRESS TRACKING - Delegated to print_domain_
 // ============================================================================
 
-bool PrinterState::is_in_print_start() const {
-    return print_domain_.is_in_print_start();
-}
-
-void PrinterState::set_print_start_state(PrintStartPhase phase, const char* message, int progress) {
-    print_domain_.set_print_start_state(phase, message, progress);
-}
-
-void PrinterState::reset_print_start_state() {
-    print_domain_.reset_print_start_state();
-}
-
-void PrinterState::set_print_thumbnail(const std::string& for_file, const std::string& path) {
-    print_domain_.set_print_thumbnail(for_file, path);
-}
-
-#if defined(HELIX_PLATFORM_ESP32)
-void PrinterState::set_print_psram_thumbnail(std::shared_ptr<helix::ui::EspPsramThumbnail> thumb) {
-    print_domain_.set_print_psram_thumbnail(std::move(thumb));
-}
-#endif
-
-void PrinterState::set_print_display_filename(const std::string& name) {
-    print_domain_.set_print_display_filename(name);
-}
-
 // ============================================================================
 // HARDWARE VALIDATION - Delegated to hardware_validation_state_
 // ============================================================================
-
-void PrinterState::set_print_outcome(PrintOutcome outcome) {
-    print_domain_.set_print_outcome(outcome);
-}
 
 // ============================================================================
 // PRINTER TYPE AND PRINT START CAPABILITIES

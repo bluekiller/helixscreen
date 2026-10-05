@@ -409,7 +409,7 @@ void ToolOffsetCalibrationPanel::save_offsets() {
     // any other way in (as the bypass toggle refuses mid-print in code too).
     // A print can start from the web UI while this overlay is open, and Save
     // ends in SAVE_CONFIG, which restarts Klipper under it.
-    if (job_holds_machine(get_printer_state().get_print_lifecycle())) {
+    if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
         NOTIFY_WARNING(lv_tr("Cannot save offsets while printing"));
         spdlog::info("[ToolOffsetCal] Refused Save - a job holds the machine");
         return;

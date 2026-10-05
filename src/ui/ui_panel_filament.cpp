@@ -259,9 +259,9 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // PrinterState is a separate singleton whose subjects tests tear down while
     // this guard is alive (#705).
     print_active_observer_ = observe<int>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [](FilamentPanel* self, int) { self->update_filament_op_buttons(); },
-        printer_state_.get_static_print_subjects_lifetime());
+        printer_state_.print_state().get_static_subjects_lifetime());
 
     // Note: Chamber temperature display is initialized by observer callbacks
     // and refresh_all_displays() on panel activation.
@@ -2059,7 +2059,7 @@ void FilamentPanel::update_filament_op_buttons() {
     // IFS). Reading the raw print_active subject here would grey the buttons
     // through every runout pause on every other backend — i.e. exactly when the
     // user needs them.
-    const auto lifecycle = printer_state_.get_print_lifecycle();
+    const auto lifecycle = printer_state_.print_state().get_print_lifecycle();
     const bool print_blocks_op =
         helix::ui::print_blocks_filament_op(lifecycle, backend->filament_ops_self_home());
 
@@ -2822,7 +2822,7 @@ void FilamentPanel::restore_heater_after_preheat() {
     // the pre-start block is about to heat the nozzle, and the comment above
     // already gives "a real print re-heats or cancels the pending cooldown" as
     // the reason this is safe. Preparing is that case, one step earlier.
-    const auto lifecycle = printer_state_.get_print_lifecycle();
+    const auto lifecycle = printer_state_.print_state().get_print_lifecycle();
     if (!job_holds_machine(lifecycle)) {
         PostOpCooldownManager::instance().schedule();
     }

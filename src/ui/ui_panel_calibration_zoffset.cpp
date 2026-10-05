@@ -687,7 +687,7 @@ void ZOffsetCalibrationPanel::send_accept() {
         // an accept ever fires under a running print, where the subtraction
         // excludes the live transient and is correct.
         std::string cmd = fmt::format("SET_GCODE_OFFSET Z={:.3f}", cumulative_z_delta_);
-        if (lv_subject_get_int(get_printer_state().get_print_active_subject()) == 0) {
+        if (lv_subject_get_int(get_printer_state().print_state().get_print_active_subject()) == 0) {
             std::string clear =
                 helix::zoffset::stale_probe_delta_clear_gcode(get_printer_state().get_discovery());
             if (!clear.empty()) {

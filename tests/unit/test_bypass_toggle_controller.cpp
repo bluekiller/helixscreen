@@ -47,7 +47,7 @@ void seed_print_state(PrintJobState state) {
 /// Raise a host-side pre-print phase: print_stats still reads standby, but the
 /// lifecycle becomes Preparing. The wire cannot express this window at all.
 void seed_preprint_phase(helix::PrintStartPhase phase) {
-    get_printer_state().set_print_start_state(phase, "", 0);
+    get_printer_state().print_state().set_print_start_state(phase, "", 0);
     helix::ui::UpdateQueue::instance().drain();
 }
 

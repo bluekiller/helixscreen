@@ -553,7 +553,7 @@ TEST_CASE_METHOD(AutoStateTargetFixture,
     // PRINTING is a genuine state transition (the dedup in on_state_changed()
     // skips re-applying an unchanged key). Clearing klippy ERROR and zeroing the
     // extruder target keeps compute_state_key() at "idle" for the baseline.
-    auto* print_subj = ps.get_print_state_enum_subject();
+    auto* print_subj = ps.print_state().get_print_state_enum_subject();
     REQUIRE(print_subj != nullptr);
     lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
     if (auto* klippy_subj = ps.network_state().get_klippy_state_subject()) {

@@ -260,7 +260,8 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
     // bypass_busy_gate is for the print-launch send: its on_success chains the
     // job launch, so queueing it fire-and-forget would orphan the print start.
     if (!bypass_busy_gate && helix::is_discretionary_gcode(gcode) &&
-        (state_.is_external_blocking_operation_active() || state_.is_in_print_start())) {
+        (state_.is_external_blocking_operation_active() ||
+         state_.print_state().is_in_print_start())) {
         // A physical MOVE must never queue behind the blocking op: a jog that fires
         // minutes late, after the user has walked away, can crash the toolhead.
         // Refuse it up front (recovery/homing are non-discretionary and never reach

@@ -133,7 +133,7 @@ std::string LedAutoState::compute_state_key() const {
         // themes), not internal state. There is no "preparing" key, and a
         // pre-print block already falls through to "heating" below, which is
         // what the machine is in fact doing.
-        auto print_state = printer_state_->get_print_job_state();
+        auto print_state = printer_state_->print_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
             return "printing";
@@ -222,7 +222,7 @@ void LedAutoState::subscribe_observers() {
 
     // RAW_PRINT_STATE_OK: the LED state names are theme keys keyed off what the
     // printer reports; see state_name_for_theme() below.
-    auto* print_subj = printer_state_->get_print_state_enum_subject();
+    auto* print_subj = printer_state_->print_state().get_print_state_enum_subject();
     if (print_subj) {
         print_state_observer_ = observe<int>(
             print_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },

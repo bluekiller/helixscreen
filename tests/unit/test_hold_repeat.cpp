@@ -286,7 +286,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a hold that repeated jogs exactly once on r
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
                        10'000); // 100.00mm
@@ -438,7 +438,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a hold that moves then hits the ceiling sto
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -550,7 +550,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a coordinate tap sends one absolute single-
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -613,7 +613,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "an unhomed coordinate tap homes first then 
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -682,7 +682,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::ui::UpdateQueue::instance().drain();
 

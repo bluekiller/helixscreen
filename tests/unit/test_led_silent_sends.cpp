@@ -44,7 +44,7 @@ struct SilentSendFixture : public LVGLTestFixture {
 
         state.init_subjects(false);
         state.set_klippy_state_sync(helix::KlippyState::READY);
-        lv_subject_set_int(state.get_print_state_enum_subject(),
+        lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                            static_cast<int>(helix::PrintJobState::STANDBY));
         lv_subject_set_int(state.temperature_state().get_active_extruder_target_subject(), 0);
 
@@ -92,9 +92,9 @@ struct SilentSendFixture : public LVGLTestFixture {
     /// Arm the print-start window the busy gate reads. The phase subject is
     /// not one LedAutoState observes, so arming it triggers no LED send.
     void arm_print_start() {
-        lv_subject_set_int(state.get_print_start_phase_subject(),
+        lv_subject_set_int(state.print_state().get_print_start_phase_subject(),
                            static_cast<int>(helix::PrintStartPhase::HOMING));
-        REQUIRE(state.is_in_print_start());
+        REQUIRE(state.print_state().is_in_print_start());
     }
 
     bool sent_gcode_containing(const char* needle) const {
@@ -119,7 +119,7 @@ TEST_CASE_METHOD(SilentSendFixture,
     client.clear_gcode_script_history();
 
     arm_print_start();
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::PRINTING));
     drain();
 
@@ -139,7 +139,7 @@ TEST_CASE_METHOD(SilentSendFixture,
     client.clear_gcode_script_history();
 
     arm_print_start();
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::PRINTING));
     drain();
 
@@ -159,7 +159,7 @@ TEST_CASE_METHOD(SilentSendFixture,
     ctrl.set_startup_brightness(80);
 
     arm_print_start();
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::PRINTING));
     ctrl.apply_startup_preference({"neopixel chamber_light"});
     drain();

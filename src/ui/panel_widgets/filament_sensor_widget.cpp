@@ -192,7 +192,8 @@ void FilamentSensorWidget::handle_click() {
     // policy only asks whether a print is running right now; Paused keeps the
     // full modal on purpose (Load/Unload are safe then), so this is exactly
     // Printing rather than job_holds_machine().
-    const bool printing = get_printer_state().get_print_lifecycle() == PrintState::Printing;
+    const bool printing =
+        get_printer_state().print_state().get_print_lifecycle() == PrintState::Printing;
 
     switch (ui::decide_tap_destination(sensor_state, printing ? 1 : 0)) {
     case ui::FilamentTapDestination::None:

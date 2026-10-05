@@ -51,7 +51,7 @@ void PrintControlButtons::init_subjects() {
     // clear a pending Pause on the Idle -> Preparing edge, before the printer
     // has answered.
     print_state_observer_ = observe<int>(
-        get_printer_state().get_print_state_enum_subject(), this,
+        get_printer_state().print_state().get_print_state_enum_subject(), this,
         [](PrintControlButtons* self, int) {
             // A real state change clears any optimistic
             // pending action; the new state is authoritative.
@@ -68,7 +68,7 @@ void PrintControlButtons::init_subjects() {
     // block the printer keeps reporting the previous job, so nothing else here
     // would re-evaluate for the entire window.
     print_lifecycle_observer_ = observe<int>(
-        get_printer_state().get_print_lifecycle_subject(), this,
+        get_printer_state().print_state().get_print_lifecycle_subject(), this,
         [](PrintControlButtons* self, int) { self->recompute(); },
         get_printer_state().get_subjects_lifetime());
 
@@ -94,9 +94,9 @@ ControlButtonView PrintControlButtons::current_view() const {
     // RAW_PRINT_STATE_OK: ControlButtonInputs carries BOTH axes on purpose -
     // job_state (the wire) and lifecycle - because "who holds the job" and "what
     // may the user do" are different questions. See print_control_view.cpp.
-    in.job_state = state.get_print_job_state();
-    in.lifecycle = state.get_print_lifecycle();
-    in.has_preparing_job = state.has_preparing_job();
+    in.job_state = state.print_state().get_print_job_state();
+    in.lifecycle = state.print_state().get_print_lifecycle();
+    in.has_preparing_job = state.print_state().has_preparing_job();
     in.pending = pending_action_;
     in.pause_available = !macros.get(StandardMacroSlot::Pause).is_empty();
     in.resume_available = !macros.get(StandardMacroSlot::Resume).is_empty();
@@ -129,7 +129,7 @@ void PrintControlButtons::handle_primary_button() {
         return;
     }
     // RAW_PRINT_STATE_OK: picks which macro to send; see below.
-    auto state = get_printer_state().get_print_job_state();
+    auto state = get_printer_state().print_state().get_print_job_state();
     auto& macros = StandardMacros::instance();
 
     // RAW_PRINT_STATE_OK: chooses WHICH macro to send. Pause is meaningless
@@ -207,7 +207,7 @@ void PrintControlButtons::handle_stop_button() {
             // The notification and the heater cooldown belong to the
             // preparing-exit observer, which sees every retirement rather than
             // just this one path.
-            state.retire_preparing(helix::PreparingExit::Cancelled);
+            state.print_state().retire_preparing(helix::PreparingExit::Cancelled);
             return;
         }
 

@@ -242,10 +242,10 @@ TEST_CASE("chamber dryer bed assist turns the bed off however the cycle ends",
     SECTION("a print owns the bed by the time the cycle ends") {
         f.controller.start_chamber_drying(55.0f, 240, true);
         report_drying(f, true);
-        lv_subject_set_int(f.state.get_job_holds_machine_subject(), 1);
+        lv_subject_set_int(f.state.print_state().get_job_holds_machine_subject(), 1);
         report_drying(f, false);
         CHECK(count(f.client.gcode_script_history(), kBedOff) == 0);
-        lv_subject_set_int(f.state.get_job_holds_machine_subject(), 0);
+        lv_subject_set_int(f.state.print_state().get_job_holds_machine_subject(), 0);
     }
 
     SECTION("a target set by hand since") {
@@ -274,10 +274,10 @@ TEST_CASE("chamber dryer bed assist turns the bed off however the cycle ends",
     }
 
     SECTION("refused while a job holds the machine") {
-        lv_subject_set_int(f.state.get_job_holds_machine_subject(), 1);
+        lv_subject_set_int(f.state.print_state().get_job_holds_machine_subject(), 1);
         f.controller.start_chamber_drying(55.0f, 240, true);
         CHECK(f.client.gcode_script_history().empty());
-        lv_subject_set_int(f.state.get_job_holds_machine_subject(), 0);
+        lv_subject_set_int(f.state.print_state().get_job_holds_machine_subject(), 0);
     }
 
     SECTION("no heated bed, no assist") {
@@ -438,10 +438,10 @@ TEST_CASE("chamber dryer holds Klipper's idle timeout for the run",
         f.controller.start_chamber_drying(55.0f, 240);
         drain();
         report_drying(f, true);
-        lv_subject_set_int(f.state.get_job_holds_machine_subject(), 1);
+        lv_subject_set_int(f.state.print_state().get_job_holds_machine_subject(), 1);
         report_drying(f, false);
         CHECK(idle_lines(f) == std::vector<std::string>{hold});
-        lv_subject_set_int(f.state.get_job_holds_machine_subject(), 0);
+        lv_subject_set_int(f.state.print_state().get_job_holds_machine_subject(), 0);
     }
 
     SECTION("without a bed assist the hold still applies") {

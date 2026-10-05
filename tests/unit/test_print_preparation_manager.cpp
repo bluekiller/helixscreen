@@ -3266,9 +3266,9 @@ TEST_CASE_METHOD(HelixTestFixture,
     helix::ui::PrintPreparationManager manager;
     manager.set_dependencies(nullptr, &state);
 
-    state.begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
-    REQUIRE(state.has_preparing_job());
-    REQUIRE(lv_subject_get_int(state.get_print_in_progress_subject()) == 1);
+    state.print_state().begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
+    REQUIRE(state.print_state().has_preparing_job());
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 1);
 
     // api_ is null, so the modify route bails on its FIRST guard. Both of its
     // synchronous guards are real reachable exits — continue_print_start()
@@ -3281,12 +3281,12 @@ TEST_CASE_METHOD(HelixTestFixture,
     // the point of naming which exit this drives rather than guessing.)
     PrintPreparationManagerTestAccess::modify_and_print(manager, "doomed.gcode");
 
-    REQUIRE_FALSE(state.has_preparing_job());
-    REQUIRE(lv_subject_get_int(state.get_print_in_progress_subject()) == 0);
-    REQUIRE(state.last_preparing_exit() == helix::PreparingExit::Failed);
+    REQUIRE_FALSE(state.print_state().has_preparing_job());
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 0);
+    REQUIRE(state.print_state().last_preparing_exit() == helix::PreparingExit::Failed);
 
     // And the machine is released — this is the user-visible half of the latch.
-    REQUIRE(lv_subject_get_int(state.get_job_holds_machine_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.print_state().get_job_holds_machine_subject()) == 0);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
@@ -3301,14 +3301,14 @@ TEST_CASE_METHOD(HelixTestFixture,
     helix::ui::PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
 
-    state.begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
-    REQUIRE(state.has_preparing_job());
+    state.print_state().begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
+    REQUIRE(state.print_state().has_preparing_job());
 
     PrintPreparationManagerTestAccess::modify_and_print(manager, "doomed.gcode");
 
-    REQUIRE_FALSE(state.has_preparing_job());
-    REQUIRE(lv_subject_get_int(state.get_print_in_progress_subject()) == 0);
-    REQUIRE(state.last_preparing_exit() == helix::PreparingExit::Failed);
+    REQUIRE_FALSE(state.print_state().has_preparing_job());
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 0);
+    REQUIRE(state.print_state().last_preparing_exit() == helix::PreparingExit::Failed);
 }
 
 // ============================================================================
@@ -3372,7 +3372,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
-    state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+    state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
 
     const std::string original =
         read_whole_file("assets/test_gcodes/" + std::string(kRemapFixture));
@@ -3420,7 +3420,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
-    state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+    state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
 
     // The fixture uses T0-T3, so remapping T7 rewrites no line at all.
     manager.modify_and_print_with_remap(kRemapFixture, {{7, 8}}, nullptr);
@@ -3451,7 +3451,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     {
         PrintPreparationManager manager;
         manager.set_dependencies(&api, &state);
-        state.begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
+        state.print_state().begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
         manager.modify_and_print_with_remap("no_such_file.gcode", {{1, 2}}, nullptr);
         REQUIRE(BusyOverlay::is_pending());
     }
@@ -3475,7 +3475,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
-    state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+    state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
 
     manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
     drain_until_quiet();
@@ -3513,16 +3513,16 @@ TEST_CASE_METHOD(HelixTestFixture,
     // released. Asserted per section rather than after them, so a section that
     // aborts cannot leave the check running against a case that armed nothing.
     auto expect_job_retired = [&state]() {
-        REQUIRE_FALSE(state.has_preparing_job());
-        CHECK(lv_subject_get_int(state.get_print_in_progress_subject()) == 0);
-        CHECK(state.last_preparing_exit() == PreparingExit::Failed);
-        CHECK(lv_subject_get_int(state.get_job_holds_machine_subject()) == 0);
+        REQUIRE_FALSE(state.print_state().has_preparing_job());
+        CHECK(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 0);
+        CHECK(state.print_state().last_preparing_exit() == PreparingExit::Failed);
+        CHECK(lv_subject_get_int(state.print_state().get_job_holds_machine_subject()) == 0);
     };
 
     SECTION("no API") {
         manager.set_dependencies(nullptr, &state);
-        state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
         drain_until_quiet();
@@ -3531,8 +3531,8 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     SECTION("download fails") {
         manager.set_dependencies(&api, &state);
-        state.begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         // Nothing under assets/test_gcodes/ resolves this, so the mock errors.
         manager.modify_and_print_with_remap("no_such_file.gcode", {{1, 2}}, nullptr);
@@ -3545,8 +3545,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("upload fails") {
         manager.set_dependencies(&api, &state);
         api.transfers_mock().mock_fail_path_uploads();
-        state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
         drain_until_quiet();
@@ -3561,8 +3561,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("plugin refuses the modified print") {
         manager.set_dependencies(&api, &state);
         api.job_mock().mock_fail_modified_prints();
-        state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
         drain_until_quiet();
@@ -3639,8 +3639,10 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
     });
 
     // A job is armed and STAYS armed — nobody cancelled.
-    printer_state_.begin_preparing(helix::PrintJobRef{"mesh_print.gcode", "gcodes", ""});
-    const int epoch = lv_subject_get_int(printer_state_.get_preparing_epoch_subject());
+    printer_state_.print_state().begin_preparing(
+        helix::PrintJobRef{"mesh_print.gcode", "gcodes", ""});
+    const int epoch =
+        lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject());
     REQUIRE(epoch != 0);
     PrintPreparationManagerTestAccess::set_pre_start_epoch(manager_, epoch);
 
@@ -3679,12 +3681,14 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
         return json{{"result", "ok"}};
     });
 
-    printer_state_.begin_preparing(helix::PrintJobRef{"cancelled.gcode", "gcodes", ""});
-    const int epoch = lv_subject_get_int(printer_state_.get_preparing_epoch_subject());
+    printer_state_.print_state().begin_preparing(
+        helix::PrintJobRef{"cancelled.gcode", "gcodes", ""});
+    const int epoch =
+        lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject());
     PrintPreparationManagerTestAccess::set_pre_start_epoch(manager_, epoch);
 
     // The user cancels while the macro is still running.
-    printer_state_.retire_preparing(helix::PreparingExit::Cancelled);
+    printer_state_.print_state().retire_preparing(helix::PreparingExit::Cancelled);
 
     // Ack lands one second later — fresh by any clock, dead by intent.
     PrintPreparationManagerTestAccess::set_pre_start_sent_ago(manager_, std::chrono::seconds(1));
@@ -3714,14 +3718,16 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
         return json{{"result", "ok"}};
     });
 
-    printer_state_.begin_preparing(helix::PrintJobRef{"first.gcode", "gcodes", ""});
-    const int first_epoch = lv_subject_get_int(printer_state_.get_preparing_epoch_subject());
+    printer_state_.print_state().begin_preparing(helix::PrintJobRef{"first.gcode", "gcodes", ""});
+    const int first_epoch =
+        lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject());
     PrintPreparationManagerTestAccess::set_pre_start_epoch(manager_, first_epoch);
 
-    printer_state_.retire_preparing(helix::PreparingExit::Superseded);
-    printer_state_.begin_preparing(helix::PrintJobRef{"second.gcode", "gcodes", ""});
-    REQUIRE(printer_state_.has_preparing_job()); // armed — but a DIFFERENT job
-    REQUIRE(lv_subject_get_int(printer_state_.get_preparing_epoch_subject()) != first_epoch);
+    printer_state_.print_state().retire_preparing(helix::PreparingExit::Superseded);
+    printer_state_.print_state().begin_preparing(helix::PrintJobRef{"second.gcode", "gcodes", ""});
+    REQUIRE(printer_state_.print_state().has_preparing_job()); // armed — but a DIFFERENT job
+    REQUIRE(lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject()) !=
+            first_epoch);
 
     PrintPreparationManagerTestAccess::set_pre_start_sent_ago(manager_, std::chrono::seconds(1));
 

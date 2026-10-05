@@ -54,7 +54,7 @@ class BlockingOpFixture : public LVGLTestFixture {
     }
 
     void set_print_state(PrintJobState s) {
-        lv_subject_set_int(state.get_print_state_enum_subject(), static_cast<int>(s));
+        lv_subject_set_int(state.print_state().get_print_state_enum_subject(), static_cast<int>(s));
     }
 
     PrinterState state;

@@ -32,7 +32,8 @@ void PrintProgressText::init_subjects(SubjectManager& subjects) {
 
 void PrintProgressText::refresh_layer() {
     std::string text = format_layer_progress_compact(
-        lifecycle_.current_layer(), lifecycle_.total_layers(), printer_state_.layer_is_accurate(),
+        lifecycle_.current_layer(), lifecycle_.total_layers(),
+        printer_state_.print_state().layer_is_accurate(),
         lv_subject_get_int(printer_state_.motion_state().get_gcode_position_z_subject()));
     std::snprintf(layer_text_buf_, sizeof(layer_text_buf_), "%s", text.c_str());
     lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
@@ -44,7 +45,8 @@ void PrintProgressText::clear_layer() {
 }
 
 void PrintProgressText::refresh_filament_used() {
-    int filament_mm = lv_subject_get_int(get_printer_state().get_print_filament_used_subject());
+    int filament_mm =
+        lv_subject_get_int(get_printer_state().print_state().get_print_filament_used_subject());
     if (filament_mm > 0) {
         std::string fil_str =
             helix::format::format_filament_length(static_cast<double>(filament_mm));

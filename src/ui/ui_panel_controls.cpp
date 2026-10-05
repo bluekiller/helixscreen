@@ -609,7 +609,7 @@ void ControlsPanel::register_observers() {
         printer_state_.get_subjects_lifetime());
 
     z_offset_print_active_observer_ = observe<int>(
-        printer_state_.get_print_active_subject(), this,
+        printer_state_.print_state().get_print_active_subject(), this,
         [](ControlsPanel* self, int /* print_active */) {
             if (self->active_)
                 self->update_controls_z_offset_display();

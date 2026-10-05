@@ -76,7 +76,7 @@ class BeltPanelFixture : public XMLTestFixture {
         get_printer_state().set_printer_connection_state(
             static_cast<int>(ConnectionState::CONNECTED), nullptr);
         get_printer_state().set_klippy_state_sync(KlippyState::READY);
-        lv_subject_set_int(get_printer_state().get_print_active_subject(), 0);
+        lv_subject_set_int(get_printer_state().print_state().get_print_active_subject(), 0);
         lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "xyz");
         set_accel_subject(1);
 

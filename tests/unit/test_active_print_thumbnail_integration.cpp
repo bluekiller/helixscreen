@@ -253,7 +253,7 @@ struct ActivePrintThumbnailFixture : public LVGLTestFixture {
     }
 
     std::string subject_path() {
-        return lv_subject_get_string(state_.get_print_thumbnail_path_subject());
+        return lv_subject_get_string(state_.print_state().get_print_thumbnail_path_subject());
     }
 
     std::string panel_src() const {
@@ -291,7 +291,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
     media().set_thumbnail_path("model_a.gcode", THUMB_A);
     drain();
 
-    REQUIRE(state().get_print_thumbnail_file() == "model_a.gcode");
+    REQUIRE(state().print_state().get_print_thumbnail_file() == "model_a.gcode");
     REQUIRE(subject_path() == THUMB_A);
     REQUIRE(panel_src() == THUMB_A);
     REQUIRE(PrintStatusPanelTestAccess::displayed_file(panel()) == "model_a.gcode");
@@ -311,7 +311,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
     // The subject must no longer attribute anything to A: identity moves to B,
     // and A's path is gone. Whatever stands in for "nothing yet" (empty string
     // or an explicit placeholder), it is not A's image.
-    CHECK(state().get_print_thumbnail_file() == "model_b.gcode");
+    CHECK(state().print_state().get_print_thumbnail_file() == "model_b.gcode");
     CHECK(subject_path() != THUMB_A);
     // "Nothing yet" is the placeholder, published explicitly, so the panel
     // actually repaints instead of leaving A's pixels on B's card.
@@ -331,7 +331,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
     // A fetch started for A can still complete after B took over. The panel
     // compares the identity the subject carries against the file it is showing,
     // so this must not repaint B's card with A's image.
-    state().set_print_thumbnail("model_a.gcode", THUMB_A);
+    state().print_state().set_print_thumbnail("model_a.gcode", THUMB_A);
     drain();
 
     CHECK(panel_src() == THUMB_B);
@@ -345,14 +345,14 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
     // print's path and identity, but this manager has no history of its own.
     // The clear must key off the path's identity, not off whether THIS manager
     // has loaded anything before.
-    state().set_print_thumbnail("model_a.gcode", THUMB_A);
+    state().print_state().set_print_thumbnail("model_a.gcode", THUMB_A);
 
     start_consumers();
     REQUIRE(subject_path() == THUMB_A);
 
     set_print_filename("model_b.gcode");
 
-    CHECK(state().get_print_thumbnail_file() == "model_b.gcode");
+    CHECK(state().print_state().get_print_thumbnail_file() == "model_b.gcode");
     CHECK(subject_path() != THUMB_A);
     CHECK(panel_src() != THUMB_A);
 }
@@ -419,7 +419,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
 
     CHECK(subject_path() != ActivePrintMediaManager::no_thumbnail_placeholder());
     CHECK_FALSE(subject_path().empty());
-    CHECK(state().get_print_thumbnail_file() == "3DBenchy.gcode");
+    CHECK(state().print_state().get_print_thumbnail_file() == "3DBenchy.gcode");
     CHECK(panel_src() == subject_path());
 }
 
@@ -442,7 +442,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
 
     REQUIRE(ActivePrintMediaManagerTestAccess::thumbnail_loaded(media()));
     CHECK(subject_path() != ActivePrintMediaManager::no_thumbnail_placeholder());
-    CHECK(state().get_print_thumbnail_file() == "3DBenchy.gcode");
+    CHECK(state().print_state().get_print_thumbnail_file() == "3DBenchy.gcode");
     CHECK(panel_src() == subject_path());
 }
 
@@ -475,7 +475,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
     CHECK(api.transfers().partial_downloads() == 1);
     CHECK_FALSE(ActivePrintMediaManagerTestAccess::thumbnail_loaded(mgr));
     CHECK(subject_path() == ActivePrintMediaManager::no_thumbnail_placeholder());
-    CHECK(state().get_print_thumbnail_file() == "no_thumb.gcode");
+    CHECK(state().print_state().get_print_thumbnail_file() == "no_thumb.gcode");
 }
 
 TEST_CASE_METHOD(ActivePrintThumbnailFixture,
@@ -506,7 +506,7 @@ TEST_CASE_METHOD(ActivePrintThumbnailFixture,
     CHECK(api.transfers().partial_downloads() == 2);
     REQUIRE(ActivePrintMediaManagerTestAccess::thumbnail_loaded(media()));
     CHECK(subject_path() != ActivePrintMediaManager::no_thumbnail_placeholder());
-    CHECK(state().get_print_thumbnail_file() == "3DBenchy.gcode");
+    CHECK(state().print_state().get_print_thumbnail_file() == "3DBenchy.gcode");
 }
 
 TEST_CASE_METHOD(ActivePrintThumbnailFixture,

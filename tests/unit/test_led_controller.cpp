@@ -1714,7 +1714,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     // The API reads the PrinterState it was constructed with. READY + idle_timeout
     // "Printing" without a file print == an external blocking op holds the lock.
     state.set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::PrinterStateTestAccess::set_sustained_idle_timeout_printing(state, true);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());

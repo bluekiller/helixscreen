@@ -274,7 +274,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // Set up observers (after widget references are cached and widget_obj_ is set)
     print_state_observer_ = observe_print_lifecycle<PrintStatusWidget>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [](PrintStatusWidget* self, PrintState state) {
             if (!self->widget_obj_)
                 return;
@@ -287,7 +287,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // from the UI thread via queue_update. Immediate avoids the double-deferral that
     // caused stale reads when the subject changed between notification and handler.
     print_thumbnail_path_observer_ = observe<const char*>(
-        printer_state_.get_print_thumbnail_path_subject(), this,
+        printer_state_.print_state().get_print_thumbnail_path_subject(), this,
         [](PrintStatusWidget* self, const char* path) {
             if (!self->widget_obj_)
                 return;
@@ -304,7 +304,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // widget destruction), and the setter always runs on the UI thread — so the
     // extra deferral would only add a frame and a stale-read window.
     print_psram_thumb_observer_ = observe<int>(
-        printer_state_.get_print_psram_thumb_gen_subject(), this,
+        printer_state_.print_state().get_print_psram_thumb_gen_subject(), this,
         [](PrintStatusWidget* self, int /*gen*/) {
             if (!self->widget_obj_)
                 return;
@@ -357,7 +357,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         token.defer("PrintStatusWidget::on_history_changed", [this]() {
             if (!widget_obj_ || !print_card_thumb_)
                 return;
-            bool is_idle = !job_holds_machine(printer_state_.get_print_lifecycle());
+            bool is_idle = !job_holds_machine(printer_state_.print_state().get_print_lifecycle());
             if (is_idle) {
                 // Defer: token.defer body runs inside UpdateQueue::process_pending,
                 // and synchronous reset_print_card_to_idle would cascade lv_image_set_src
@@ -393,7 +393,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // Check initial print state
     if (print_card_thumb_ && print_card_active_thumb_) {
-        const PrintState state = printer_state_.get_print_lifecycle();
+        const PrintState state = printer_state_.print_state().get_print_lifecycle();
         if (job_holds_machine(state)) {
             on_print_state_changed(state);
 #if defined(HELIX_PLATFORM_ESP32)
@@ -527,7 +527,7 @@ void PrintStatusWidget::on_activate() {
     // the file grid's in the cache's eviction order. Once per activation, so a
     // printer that keeps failing costs one request per visit, not a loop.
     if (widget_obj_ && print_card_thumb_ &&
-        !job_holds_machine(printer_state_.get_print_lifecycle())) {
+        !job_holds_machine(printer_state_.print_state().get_print_lifecycle())) {
         defer_reset_print_card_to_idle();
     }
 }
@@ -560,7 +560,8 @@ void PrintStatusWidget::on_size_changed(int /*colspan*/, int /*rowspan*/, int wi
     // Combined gate: only show the filament line at the wide band AND when actual
     // filament has been extruded. update_filament_text() also writes this
     // subject on used_mm changes, keeping both inputs in sync.
-    int used_mm = lv_subject_get_int(printer_state_.get_print_filament_used_subject());
+    int used_mm =
+        lv_subject_get_int(printer_state_.print_state().get_print_filament_used_subject());
     lv_subject_set_int(&show_filament_active_subject_, (width_band >= 2 && used_mm > 0) ? 1 : 0);
 
     // Compact mode: narrow — not enough horizontal space for thumbnail + action rows
@@ -675,7 +676,7 @@ void PrintStatusWidget::handle_print_card_clicked() {
         return;
     }
 
-    if (!printer_state_.can_start_new_print()) {
+    if (!printer_state_.print_state().can_start_new_print()) {
         // Print in progress - show print status overlay
         spdlog::info(
             "[PrintStatusWidget] Print card clicked - showing print status (print in progress)");
@@ -809,7 +810,7 @@ void PrintStatusWidget::apply_esp_psram_thumbnail() {
     if (!widget_obj_ || !print_card_active_thumb_) {
         return;
     }
-    auto thumb = printer_state_.get_print_psram_thumbnail();
+    auto thumb = printer_state_.print_state().get_print_psram_thumbnail();
     if (!thumb) {
         return;
     }
@@ -842,14 +843,16 @@ bool PrintStatusWidget::show_finished_print_image() {
     // for it to land in.
     auto* history = get_print_history_manager();
     const PrintHistoryJob* newest = history ? history->get_newest_existing_job() : nullptr;
-    const char* raw = lv_subject_get_string(printer_state_.get_print_filename_subject());
-    const std::string& identity = printer_state_.get_effective_print_filename();
-    if (!idle_card_shows_active_thumbnail(printer_state_.get_print_lifecycle(),
-                                          newest ? newest->filename : std::string(), raw ? raw : "",
-                                          identity, printer_state_.get_print_thumbnail_file())) {
+    const char* raw =
+        lv_subject_get_string(printer_state_.print_state().get_print_filename_subject());
+    const std::string& identity = printer_state_.print_state().get_effective_print_filename();
+    if (!idle_card_shows_active_thumbnail(
+            printer_state_.print_state().get_print_lifecycle(),
+            newest ? newest->filename : std::string(), raw ? raw : "", identity,
+            printer_state_.print_state().get_print_thumbnail_file())) {
         return false;
     }
-    auto thumb = printer_state_.get_print_psram_thumbnail();
+    auto thumb = printer_state_.print_state().get_print_psram_thumbnail();
     if (!thumb) {
         return false;
     }
@@ -1205,7 +1208,7 @@ void PrintStatusWidget::check_and_show_idle_runout_modal() {
     // before plus Preparing, which the wire could not express: a "load filament"
     // dialog on top of a start the user just committed to is an ambush, and the
     // block below would burn the one-shot grace on the way past.
-    const PrintState lifecycle = printer_state_.get_print_lifecycle();
+    const PrintState lifecycle = printer_state_.print_state().get_print_lifecycle();
     if (lifecycle != PrintState::Idle && lifecycle != PrintState::Complete &&
         lifecycle != PrintState::Cancelled) {
         spdlog::debug(
@@ -1891,10 +1894,10 @@ int cd_to_c(int cd) {
 
 void PrintStatusWidget::DetailedFormatter::update_layer_text() {
     auto& ps = get_printer_state();
-    int cur = lv_subject_get_int(ps.get_print_layer_current_subject());
-    int tot = lv_subject_get_int(ps.get_print_layer_total_subject());
+    int cur = lv_subject_get_int(ps.print_state().get_print_layer_current_subject());
+    int tot = lv_subject_get_int(ps.print_state().get_print_layer_total_subject());
     std::string text = helix::ui::format_layer_progress(
-        cur, tot, ps.layer_is_accurate(),
+        cur, tot, ps.print_state().layer_is_accurate(),
         lv_subject_get_int(ps.motion_state().get_gcode_position_z_subject()));
     snprintf(layer_text_buf_, sizeof(layer_text_buf_), "%s", text.c_str());
     lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
@@ -1902,8 +1905,8 @@ void PrintStatusWidget::DetailedFormatter::update_layer_text() {
 
 void PrintStatusWidget::DetailedFormatter::update_time_text() {
     auto& ps = get_printer_state();
-    int elapsed = lv_subject_get_int(ps.get_print_elapsed_subject());
-    int remain = lv_subject_get_int(ps.get_print_time_left_subject());
+    int elapsed = lv_subject_get_int(ps.print_state().get_print_elapsed_subject());
+    int remain = lv_subject_get_int(ps.print_state().get_print_time_left_subject());
     int total = elapsed + remain;
     std::string text =
         helix::format::duration_padded(elapsed) + " / " + helix::format::duration_padded(total);
@@ -1912,7 +1915,8 @@ void PrintStatusWidget::DetailedFormatter::update_time_text() {
 }
 
 void PrintStatusWidget::DetailedFormatter::update_filament_text() {
-    int used_mm = lv_subject_get_int(get_printer_state().get_print_filament_used_subject());
+    int used_mm =
+        lv_subject_get_int(get_printer_state().print_state().get_print_filament_used_subject());
     if (used_mm <= 0) {
         filament_text_buf_[0] = '\0';
     } else {
@@ -2199,21 +2203,21 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
     using helix::ui::observe;
     auto& ps = get_printer_state();
     layer_current_observer_ = observe<int>(
-        ps.get_print_layer_current_subject(), this,
+        ps.print_state().get_print_layer_current_subject(), this,
         [](DetailedFormatter* self, int) { self->update_layer_text(); },
         ps.get_subjects_lifetime());
     layer_total_observer_ = observe<int>(
-        ps.get_print_layer_total_subject(), this,
+        ps.print_state().get_print_layer_total_subject(), this,
         [](DetailedFormatter* self, int) { self->update_layer_text(); },
         ps.get_subjects_lifetime());
     elapsed_observer_ = observe<int>(
-        ps.get_print_elapsed_subject(), this,
+        ps.print_state().get_print_elapsed_subject(), this,
         [](DetailedFormatter* self, int) { self->update_time_text(); }, ps.get_subjects_lifetime());
     time_left_observer_ = observe<int>(
-        ps.get_print_time_left_subject(), this,
+        ps.print_state().get_print_time_left_subject(), this,
         [](DetailedFormatter* self, int) { self->update_time_text(); }, ps.get_subjects_lifetime());
     filament_used_observer_ = observe<int>(
-        ps.get_print_filament_used_subject(), this,
+        ps.print_state().get_print_filament_used_subject(), this,
         [](DetailedFormatter* self, int) { self->update_filament_text(); },
         ps.get_subjects_lifetime());
 

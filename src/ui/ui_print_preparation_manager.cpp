@@ -688,7 +688,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
     // Snapshot whether this start is under a preparing job. Only then does the
     // job disappearing later mean the user cancelled; a caller that never armed
     // one must still be able to start a print.
-    armed_at_start_ = printer_state_ && printer_state_->has_preparing_job();
+    armed_at_start_ = printer_state_ && printer_state_->print_state().has_preparing_job();
 
     if (!api_) {
         spdlog::error("[PrintPreparationManager] Cannot start print - not connected to printer");
@@ -818,7 +818,9 @@ void PrintPreparationManager::start_print(const std::string& filename,
         // ack can be judged on whether the job it belongs to still exists
         // rather than on how long it took to arrive.
         pre_start_epoch_ =
-            printer_state_ ? lv_subject_get_int(printer_state_->get_preparing_epoch_subject()) : 0;
+            printer_state_
+                ? lv_subject_get_int(printer_state_->print_state().get_preparing_epoch_subject())
+                : 0;
         // The busy gate must not queue this send fire-and-forget: its on_success
         // is the only trigger that launches the job, so a discretionary block
         // (a pre_start_gcode heater template) would never fire it and the print
@@ -896,7 +898,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
 }
 
 bool PrintPreparationManager::is_print_in_progress() const {
-    return printer_state_ && printer_state_->is_print_in_progress();
+    return printer_state_ && printer_state_->print_state().is_print_in_progress();
 }
 
 // ============================================================================
@@ -1304,10 +1306,12 @@ void PrintPreparationManager::continue_print_start(
     // blocking pre-start macro was running, or another print superseded ours.
     // A pre-start macro can run for ten minutes; starting the job after the user
     // has already cancelled it is the worst outcome available.
-    if (armed_at_start_ && printer_state_ && !printer_state_->has_preparing_job()) {
-        spdlog::info("[PrintPreparationManager] Start abandoned - '{}' is no longer being "
-                     "prepared ({})",
-                     filename, helix::preparing_exit_name(printer_state_->last_preparing_exit()));
+    if (armed_at_start_ && printer_state_ && !printer_state_->print_state().has_preparing_job()) {
+        spdlog::info(
+            "[PrintPreparationManager] Start abandoned - '{}' is no longer being "
+            "prepared ({})",
+            filename,
+            helix::preparing_exit_name(printer_state_->print_state().last_preparing_exit()));
         if (on_completion) {
             on_completion(false, "");
         }
@@ -1330,7 +1334,8 @@ void PrintPreparationManager::continue_print_start(
     // A late ack and a slow-but-wanted macro are the same code path with the
     // same signature; only the epoch tells them apart.
     if (pre_start_epoch_ != 0 && printer_state_) {
-        const int now_epoch = lv_subject_get_int(printer_state_->get_preparing_epoch_subject());
+        const int now_epoch =
+            lv_subject_get_int(printer_state_->print_state().get_preparing_epoch_subject());
         if (now_epoch != pre_start_epoch_) {
             spdlog::warn("[PrintPreparationManager] Dropping pre-start completion for a retired "
                          "job (epoch {} -> {}) - not starting '{}'",
@@ -1487,7 +1492,7 @@ void PrintPreparationManager::abandon_start(const char* where) {
     }
     spdlog::warn("[PrintPreparationManager] Start abandoned at {} - retiring the preparing job",
                  where);
-    printer_state_->retire_preparing(helix::PreparingExit::Failed);
+    printer_state_->print_state().retire_preparing(helix::PreparingExit::Failed);
 }
 
 void PrintPreparationManager::modify_and_print(
@@ -1708,8 +1713,9 @@ void PrintPreparationManager::modify_and_print_streaming(
                                             // call: PrinterState is the single authority, so
                                             // the panel and the media manager can no longer
                                             // disagree about which print this is.
-                                            get_printer_state().set_print_identity_override(
-                                                d->original_path);
+                                            get_printer_state()
+                                                .print_state()
+                                                .set_print_identity_override(d->original_path);
 
                                             if (d->navigate_cb) {
                                                 d->navigate_cb();
@@ -1979,8 +1985,9 @@ void PrintPreparationManager::modify_and_print_with_remap(
                                             display_filename, file_path, on_navigate_to_status}),
                                         [](PrintStartedData* d) {
                                             BusyOverlay::hide();
-                                            get_printer_state().set_print_identity_override(
-                                                d->original_path);
+                                            get_printer_state()
+                                                .print_state()
+                                                .set_print_identity_override(d->original_path);
                                             if (d->navigate_cb)
                                                 d->navigate_cb();
                                         });

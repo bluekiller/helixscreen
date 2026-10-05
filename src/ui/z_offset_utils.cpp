@@ -84,7 +84,7 @@ int displayed_z_offset_microns(helix::PrinterState& state) {
     return displayed_z_offset_microns(
         lv_subject_get_int(state.motion_state().get_gcode_z_offset_subject()),
         state.get_persisted_z_offset_microns(),
-        lv_subject_get_int(state.get_print_active_subject()) != 0);
+        lv_subject_get_int(state.print_state().get_print_active_subject()) != 0);
 }
 
 std::string build_z_adjust_gcode(int base_microns, int live_microns, int delta_microns,
@@ -282,7 +282,7 @@ AdjustResult adjust(IMoonrakerAPI* api, PrinterState* ps, double session_base_mm
     // becomes a no-op). Clear it on the same script, before the override reads
     // it. Never mid-print: there the subtraction excludes the live per-print
     // transient and is correct.
-    if (ps && lv_subject_get_int(ps->get_print_active_subject()) == 0) {
+    if (ps && lv_subject_get_int(ps->print_state().get_print_active_subject()) == 0) {
         const std::string clear = stale_probe_delta_clear_gcode(ps->get_discovery());
         if (!clear.empty()) {
             gcode = clear + "\n" + gcode;

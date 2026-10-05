@@ -71,7 +71,7 @@ void PostOpCooldownManager::schedule() {
                 // Skip while a job owns the toolhead. Preparing counts: a
                 // print that is starting will heat the nozzle itself, so cooling
                 // it down now is work the pre-start block immediately undoes.
-                const auto lifecycle = state.get_print_lifecycle();
+                const auto lifecycle = state.print_state().get_print_lifecycle();
                 if (job_holds_machine(lifecycle)) {
                     spdlog::info("[PostOpCooldown] Skipping cooldown — print active");
                     return;

@@ -307,7 +307,7 @@ TEST_CASE_METHOD(HomeWidgetTeardownFixture,
 
     // A print-lifecycle transition fires print_state_observer_; its handler
     // (refresh_print_gating over pill_buttons_) is queued.
-    lv_subject_t* lifecycle = state().get_print_lifecycle_subject();
+    lv_subject_t* lifecycle = state().print_state().get_print_lifecycle_subject();
     REQUIRE(lifecycle != nullptr);
     lv_subject_set_int(lifecycle, static_cast<int>(PrintState::Printing));
 

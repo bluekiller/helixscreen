@@ -113,7 +113,7 @@ void TimelapseState::handle_timelapse_event(const nlohmann::json& event) {
 
             // On first frame, set capture info with print filename and timestamp
             if (current == 0) {
-                auto* fn_subject = get_printer_state().get_print_filename_subject();
+                auto* fn_subject = get_printer_state().print_state().get_print_filename_subject();
                 const char* filename = fn_subject ? lv_subject_get_string(fn_subject) : "";
                 auto date_str = helix::ui::format_short_date(std::time(nullptr));
                 std::string info;

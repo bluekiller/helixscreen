@@ -256,14 +256,14 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
 
     // Subscribe to print progress and state
     print_progress_observer_ = observe<int>(
-        printer_state_.get_print_progress_subject(), this,
+        printer_state_.print_state().get_print_progress_subject(), this,
         [](PrintStatusPanel* self, int progress) { self->on_print_progress_changed(progress); },
         ps_subjects);
     print_state_observer_ = observe_print_state<PrintStatusPanel>(
         // RAW_PRINT_STATE_OK: the panel's lifecycle_ adopts the published
         // PrintState (Phase 0b); this observer feeds it the wire transition that
         // derive_print_state() needs alongside the live phase.
-        printer_state_.get_print_state_enum_subject(), this,
+        printer_state_.print_state().get_print_state_enum_subject(), this,
         [](PrintStatusPanel* self, PrintJobState state) { self->on_print_state_changed(state); },
         ps_subjects);
     // The print's identity can change without the reported filename changing -
@@ -273,7 +273,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // on itself, minus the coupling that let the panel and the media manager
     // drift apart (prestonbrown/helixscreen#1339).
     print_identity_observer_ = observe<int>(
-        printer_state_.get_print_identity_epoch_subject(), this,
+        printer_state_.print_state().get_print_identity_epoch_subject(), this,
         [](PrintStatusPanel* self, int /*epoch*/) {
             // No marker clearing here on purpose. decide_preview_action() already
             // compares BOTH markers against the new identity and reloads whichever
@@ -285,7 +285,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         ps_subjects);
 
     print_filename_observer_ = observe<const char*>(
-        printer_state_.get_print_filename_subject(), this,
+        printer_state_.print_state().get_print_filename_subject(), this,
         [](PrintStatusPanel* self, const char* filename) {
             self->on_print_filename_changed(filename);
         },
@@ -318,7 +318,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
 
     // Subscribe to layer tracking for G-code viewer ghost layer updates
     print_layer_observer_ = observe<int>(
-        printer_state_.get_print_layer_current_subject(), this,
+        printer_state_.print_state().get_print_layer_current_subject(), this,
         [](PrintStatusPanel* self, int layer) { self->on_print_layer_changed(layer); },
         ps_subjects);
 
@@ -326,38 +326,39 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     z_position_observer_ = observe<int>(
         printer_state_.motion_state().get_gcode_position_z_subject(), this,
         [](PrintStatusPanel* self, int) {
-            int layer = lv_subject_get_int(self->printer_state_.get_print_layer_current_subject());
+            int layer = lv_subject_get_int(
+                self->printer_state_.print_state().get_print_layer_current_subject());
             self->on_print_layer_changed(layer);
         },
         ps_subjects);
 
     // Subscribe to wall-clock elapsed time (total_duration includes prep time)
     print_duration_observer_ = observe<int>(
-        printer_state_.get_print_elapsed_subject(), this,
+        printer_state_.print_state().get_print_elapsed_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_print_duration_changed(seconds); },
         ps_subjects);
     print_time_left_observer_ = observe<int>(
-        printer_state_.get_print_time_left_subject(), this,
+        printer_state_.print_state().get_print_time_left_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_print_time_left_changed(seconds); },
         ps_subjects);
 
     // Subscribe to print start preparation phase subjects
     print_start_phase_observer_ = observe<int>(
-        printer_state_.get_print_start_phase_subject(), this,
+        printer_state_.print_state().get_print_start_phase_subject(), this,
         [](PrintStatusPanel* self, int phase) { self->on_print_start_phase_changed(phase); },
         ps_subjects);
     print_start_progress_observer_ = observe<int>(
-        printer_state_.get_print_start_progress_subject(), this,
+        printer_state_.print_state().get_print_start_progress_subject(), this,
         [](PrintStatusPanel* self, int progress) {
             self->on_print_start_progress_changed(progress);
         },
         ps_subjects);
     preprint_remaining_observer_ = observe<int>(
-        printer_state_.get_preprint_remaining_subject(), this,
+        printer_state_.print_state().get_preprint_remaining_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_preprint_remaining_changed(seconds); },
         ps_subjects);
     preprint_elapsed_observer_ = observe<int>(
-        printer_state_.get_preprint_elapsed_subject(), this,
+        printer_state_.print_state().get_preprint_elapsed_subject(), this,
         [](PrintStatusPanel* self, int seconds) { self->on_preprint_elapsed_changed(seconds); },
         ps_subjects);
 
@@ -412,7 +413,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // (no observer lifecycle changes), and set_print_thumbnail is always called
     // from the UI thread via queue_update.
     print_thumbnail_path_observer_ = ui::observe<const char*>(
-        printer_state_.get_print_thumbnail_path_subject(), this,
+        printer_state_.print_state().get_print_thumbnail_path_subject(), this,
         [](PrintStatusPanel* self, const char* path) {
             self->preview_.on_thumbnail_published(path);
         },
@@ -427,7 +428,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // widget destruction), and the setter always runs on the UI thread — so the
     // extra deferral would only add a frame and a stale-read window.
     print_psram_thumb_observer_ = ui::observe<int>(
-        printer_state_.get_print_psram_thumb_gen_subject(), this,
+        printer_state_.print_state().get_print_psram_thumb_gen_subject(), this,
         [](PrintStatusPanel* self, int /*gen*/) { self->preview_.apply_psram_thumbnail(); },
         ps_subjects, ui::Dispatch::Immediate);
 #endif
@@ -475,7 +476,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // subject, avoiding the L042 two-observer race that made the error overlay
     // pop at startup when end_overlay_dismissed==0 unhide-raced the outcome check.
     print_outcome_observer_ = observe<int>(
-        printer_state_.get_print_outcome_subject(), this,
+        printer_state_.print_state().get_print_outcome_subject(), this,
         [](PrintStatusPanel* self, int) { self->recompute_end_overlay_visibility(); }, ps_subjects);
     recompute_end_overlay_visibility();
 
@@ -792,7 +793,7 @@ void PrintStatusPanel::init_subjects() {
     UI_MANAGED_SUBJECT_INT(print_pause_reason_visible_subject_, 0, "print_pause_reason_visible",
                            subjects_);
     print_message_observer_ = observe<const char*>(
-        printer_state_.get_print_message_subject(), this,
+        printer_state_.print_state().get_print_message_subject(), this,
         [](PrintStatusPanel* self, const char*) { self->recompute_paused_overlay_visibility(); },
         printer_state_.get_subjects_lifetime());
 
@@ -872,23 +873,28 @@ void PrintStatusPanel::init_subjects() {
 
     // Sync initial state from PrinterState (in case app opens while print is in progress)
     // This is necessary because observers only fire on VALUE CHANGE, not on subscribe.
-    int initial_progress = lv_subject_get_int(printer_state_.get_print_progress_subject());
-    int initial_layer = lv_subject_get_int(printer_state_.get_print_layer_current_subject());
-    int initial_total_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject());
+    int initial_progress =
+        lv_subject_get_int(printer_state_.print_state().get_print_progress_subject());
+    int initial_layer =
+        lv_subject_get_int(printer_state_.print_state().get_print_layer_current_subject());
+    int initial_total_layers =
+        lv_subject_get_int(printer_state_.print_state().get_print_layer_total_subject());
     if (initial_progress > 0 || initial_layer > 0 || initial_total_layers > 0) {
         lifecycle_.on_progress_changed(initial_progress);
         lifecycle_.on_layer_changed(initial_layer, initial_total_layers,
-                                    printer_state_.has_real_layer_data());
+                                    printer_state_.print_state().has_real_layer_data());
         update_all_displays();
         spdlog::debug("[{}] Synced initial print state: progress={}%, layer={}/{}", get_name(),
                       initial_progress, initial_layer, initial_total_layers);
     }
 
     // Sync initial preparation state from PrinterState (in case panel opens mid-preparation)
-    int initial_phase = lv_subject_get_int(printer_state_.get_print_start_phase_subject());
+    int initial_phase =
+        lv_subject_get_int(printer_state_.print_state().get_print_start_phase_subject());
     if (initial_phase != 0) {
         on_print_start_phase_changed(initial_phase);
-        int prog = lv_subject_get_int(printer_state_.get_print_start_progress_subject());
+        int prog =
+            lv_subject_get_int(printer_state_.print_state().get_print_start_progress_subject());
         on_print_start_progress_changed(prog);
         spdlog::debug("[{}] Synced initial preparation state: phase={}, progress={}%", get_name(),
                       initial_phase, prog);
@@ -993,10 +999,10 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     // so a replacement is logged only while the last numbered tree is alive.
     if (replaces_previous_tree && s_last_destroyed_tree != s_tree_number) {
         log_tree_destroyed(PrintStatusTreeDestroyCause::ReplacedByRebuild,
-                           printer_state_.get_print_lifecycle());
+                           printer_state_.print_state().get_print_lifecycle());
     }
     const helix::MemoryInfo tree_mem = memory_info_source_();
-    log_tree_created(printer_state_.get_print_lifecycle(), tree_mem.available_mb());
+    log_tree_created(printer_state_.print_state().get_print_lifecycle(), tree_mem.available_mb());
 #if defined(HELIX_PLATFORM_ESP32)
     // Same [heap:<stage>] shape as the firmware's boot milestones, so a boot log
     // shows what building this tree on top of home cost.
@@ -1138,7 +1144,7 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
                 spdlog::info("[{}] Loading G-code file from command line: {}", get_name(),
                              config->gcode_test_file);
                 preview_.load_file(config->gcode_test_file,
-                                   printer_state_.get_effective_print_filename());
+                                   printer_state_.print_state().get_effective_print_filename());
             } else {
                 spdlog::warn("[{}] G-code file too large for 2D streaming: {} ({} bytes) - using "
                              "thumbnail only",
@@ -1198,7 +1204,8 @@ void PrintStatusPanel::on_activate() {
     is_active_ = true;
 
     // RAW_PRINT_STATE_OK: pairs with the scoped-runout guard's reason below.
-    int state_enum = lv_subject_get_int(printer_state_.get_print_state_enum_subject());
+    int state_enum =
+        lv_subject_get_int(printer_state_.print_state().get_print_state_enum_subject());
     spdlog::debug("[{}] on_activate() print_state_enum={}", get_name(), state_enum);
 
     // Reconcile the preview against the current print state. This single
@@ -1234,8 +1241,10 @@ void PrintStatusPanel::on_activate() {
 
     // Sync gcode viewer to current print layer (may have advanced while panel was hidden)
     if (gcode_present && !lv_obj_has_flag(gcode_viewer_, LV_OBJ_FLAG_HIDDEN)) {
-        int current_layer = lv_subject_get_int(printer_state_.get_print_layer_current_subject());
-        int total_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject());
+        int current_layer =
+            lv_subject_get_int(printer_state_.print_state().get_print_layer_current_subject());
+        int total_layers =
+            lv_subject_get_int(printer_state_.print_state().get_print_layer_total_subject());
         int viewer_max_layer = ui_gcode_viewer_get_max_layer(gcode_viewer_);
         int viewer_layer = current_layer;
         if (total_layers > 0 && viewer_max_layer > 0) {
@@ -1404,7 +1413,7 @@ void PrintStatusPanel::on_root_deleted(lv_event_t* e) {
         s_cached_panel = nullptr;
     }
     log_tree_destroyed(PrintStatusTreeDestroyCause::WidgetTreeDeleted,
-                       self->printer_state_.get_print_lifecycle());
+                       self->printer_state_.print_state().get_print_lifecycle());
 }
 
 void PrintStatusPanel::forget_cached_widgets() {
@@ -1436,7 +1445,8 @@ void PrintStatusPanel::destroy_cached_overlay(PrintStatusTreeDestroyCause cause)
     g_print_status_panel->destroy_overlay_ui(s_cached_panel);
     // destroy_overlay_ui() nulls the pointer only when it destroyed a tree.
     if (s_cached_panel == nullptr) {
-        log_tree_destroyed(cause, g_print_status_panel->printer_state_.get_print_lifecycle());
+        log_tree_destroyed(
+            cause, g_print_status_panel->printer_state_.print_state().get_print_lifecycle());
     }
 }
 
@@ -1454,7 +1464,7 @@ void PrintStatusPanel::on_overlay_closed() {
         return;
     }
 
-    const PrintState lifecycle = panel.printer_state_.get_print_lifecycle();
+    const PrintState lifecycle = panel.printer_state_.print_state().get_print_lifecycle();
     const helix::MemoryInfo mem = memory_info_source_();
     if (helix::ui::print_status_destroy_on_close(mem.is_low_memory(), lifecycle)) {
         destroy_cached_overlay(PrintStatusTreeDestroyCause::OverlayClose);
@@ -1474,7 +1484,7 @@ void PrintStatusPanel::on_overlay_closed() {
     // Nothing else gives a low-memory host this tree's memory back once the job
     // ends while it is hidden.
     panel.kept_tree_job_observer_ = observe<int>(
-        panel.printer_state_.get_job_holds_machine_subject(), &panel,
+        panel.printer_state_.print_state().get_job_holds_machine_subject(), &panel,
         [](PrintStatusPanel* /*self*/, int holds) {
             if (holds == 0) {
                 release_kept_tree_after_job();
@@ -1501,8 +1511,9 @@ void PrintStatusPanel::release_kept_tree_after_job() {
         if (helix::nav::is_in_stack(s_cached_panel)) {
             return;
         }
-        if (!helix::ui::print_status_destroy_on_close(memory_info_source_().is_low_memory(),
-                                                      panel.printer_state_.get_print_lifecycle())) {
+        if (!helix::ui::print_status_destroy_on_close(
+                memory_info_source_().is_low_memory(),
+                panel.printer_state_.print_state().get_print_lifecycle())) {
             return;
         }
         destroy_cached_overlay(PrintStatusTreeDestroyCause::JobEndedWhileHidden);
@@ -1919,7 +1930,7 @@ void PrintStatusPanel::recompute_scoped_runout() {
     // previous job, so widening this would scope the badge to the wrong file
     // instead of hiding it — which is why print_scopes_runout_badge() is
     // narrower than PrintLifecycleState::is_active().
-    auto state = printer_state_.get_print_job_state();
+    auto state = printer_state_.print_state().get_print_job_state();
     if (!helix::print_scopes_runout_badge(state)) {
         fsm.set_scoped_runout(-1);
         return;
@@ -1931,7 +1942,8 @@ void PrintStatusPanel::recompute_scoped_runout() {
     // here means the geometry in the viewer belongs to a different print. Reading
     // get_tools_used() in that window would scope the badge to the wrong print's
     // tools, so treat it the same as no file loaded yet.
-    if (preview_.gcode_displayed_file() != printer_state_.get_effective_print_filename()) {
+    if (preview_.gcode_displayed_file() !=
+        printer_state_.print_state().get_effective_print_filename()) {
         fsm.set_scoped_runout(-1);
         return;
     }
@@ -2000,8 +2012,9 @@ void PrintStatusPanel::handle_view_toggle() {
         // Progress view: restore current layer with ghost
         if (gcode_viewer_) {
             int current_layer =
-                lv_subject_get_int(printer_state_.get_print_layer_current_subject());
-            int total_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject());
+                lv_subject_get_int(printer_state_.print_state().get_print_layer_current_subject());
+            int total_layers =
+                lv_subject_get_int(printer_state_.print_state().get_print_layer_total_subject());
             int viewer_max_layer = ui_gcode_viewer_get_max_layer(gcode_viewer_);
             int viewer_layer = current_layer;
             if (total_layers > 0 && viewer_max_layer > 0) {
@@ -2058,7 +2071,7 @@ void PrintStatusPanel::on_temperature_changed() {
 void PrintStatusPanel::recompute_end_overlay_visibility() {
     if (!subjects_initialized_)
         return;
-    int outcome = lv_subject_get_int(printer_state_.get_print_outcome_subject());
+    int outcome = lv_subject_get_int(printer_state_.print_state().get_print_outcome_subject());
     bool dismissed = lv_subject_get_int(&end_overlay_dismissed_subject_) != 0;
     int complete = (!dismissed && outcome == static_cast<int>(PrintOutcome::COMPLETE)) ? 1 : 0;
     int cancelled = (!dismissed && outcome == static_cast<int>(PrintOutcome::CANCELLED)) ? 1 : 0;
@@ -2197,7 +2210,7 @@ void PrintStatusPanel::recompute_paused_overlay_visibility() {
     // in derive_print_state(), so the lifecycle would answer identically; the
     // wire is simply the more direct statement of what is being asked.)
     // RAW_PRINT_STATE_OK: see the optimistic-overlay note below.
-    auto state = printer_state_.get_print_job_state();
+    auto state = printer_state_.print_state().get_print_job_state();
     // RAW_PRINT_STATE_OK: is the printer REPORTING paused - the optimistic
     // Pause/Resume overlay tracks the printer, not our intent.
     bool paused = (state == PrintJobState::PAUSED);
@@ -2236,7 +2249,8 @@ void PrintStatusPanel::recompute_paused_overlay_visibility() {
             reason = lane.empty() ? std::string(lv_tr("Filament Runout"))
                                   : std::string(lv_tr("Filament Runout")) + " (" + lane + ")";
         } else {
-            const char* fw_msg = lv_subject_get_string(printer_state_.get_print_message_subject());
+            const char* fw_msg =
+                lv_subject_get_string(printer_state_.print_state().get_print_message_subject());
             if (fw_msg && *fw_msg) {
                 reason = fw_msg;
             }
@@ -2328,14 +2342,15 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
                   static_cast<int>(job_state), static_cast<int>(lifecycle_.state()));
 
     // Get outcome from PrinterState for lifecycle decision-making
-    auto outcome =
-        static_cast<PrintOutcome>(lv_subject_get_int(printer_state_.get_print_outcome_subject()));
+    auto outcome = static_cast<PrintOutcome>(
+        lv_subject_get_int(printer_state_.print_state().get_print_outcome_subject()));
 
     // Delegate state mapping and transition logic to lifecycle. The live phase
     // goes in too: without it this derives Printing (or Complete) while the
     // published print_lifecycle correctly says Preparing, and the two disagree
     // for the whole pre-print window.
-    const int start_phase = lv_subject_get_int(printer_state_.get_print_start_phase_subject());
+    const int start_phase =
+        lv_subject_get_int(printer_state_.print_state().get_print_start_phase_subject());
     auto result = lifecycle_.on_job_state_changed(job_state, outcome, start_phase);
     if (!result.state_changed) {
         return;
@@ -2516,8 +2531,9 @@ void PrintStatusPanel::on_gcode_z_offset_changed(int /* microns */) {
 
 void PrintStatusPanel::on_print_layer_changed(int current_layer) {
     // Read total layers from PrinterState and delegate to lifecycle
-    int total_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject());
-    bool has_real_data = printer_state_.has_real_layer_data();
+    int total_layers =
+        lv_subject_get_int(printer_state_.print_state().get_print_layer_total_subject());
+    bool has_real_data = printer_state_.print_state().has_real_layer_data();
     if (!lifecycle_.on_layer_changed(current_layer, total_layers, has_real_data)) {
         spdlog::trace("[{}] Ignoring layer update ({}) - guarded by lifecycle", get_name(),
                       current_layer);
@@ -2560,8 +2576,8 @@ void PrintStatusPanel::on_print_layer_changed(int current_layer) {
 
 void PrintStatusPanel::on_print_duration_changed(int seconds) {
     // Get outcome from PrinterState and delegate guard + state update to lifecycle
-    auto outcome =
-        static_cast<PrintOutcome>(lv_subject_get_int(printer_state_.get_print_outcome_subject()));
+    auto outcome = static_cast<PrintOutcome>(
+        lv_subject_get_int(printer_state_.print_state().get_print_outcome_subject()));
     if (!lifecycle_.on_duration_changed(seconds, outcome)) {
         spdlog::trace("[{}] Ignoring duration update ({}) - guarded by lifecycle", get_name(),
                       seconds);
@@ -2580,8 +2596,8 @@ void PrintStatusPanel::on_print_duration_changed(int seconds) {
 
 void PrintStatusPanel::on_print_time_left_changed(int seconds) {
     // Get outcome from PrinterState and delegate guard + state update to lifecycle
-    auto outcome =
-        static_cast<PrintOutcome>(lv_subject_get_int(printer_state_.get_print_outcome_subject()));
+    auto outcome = static_cast<PrintOutcome>(
+        lv_subject_get_int(printer_state_.print_state().get_print_outcome_subject()));
     if (!lifecycle_.on_time_left_changed(seconds, outcome)) {
         spdlog::trace("[{}] Ignoring time_left update ({}) - guarded by lifecycle", get_name(),
                       seconds);
@@ -2615,7 +2631,7 @@ void PrintStatusPanel::on_print_start_phase_changed(int phase) {
     // Delegate state transition to lifecycle. RAW_PRINT_STATE_OK: the panel's
     // PrintLifecycleState derives its own PrintState from (wire, phase) via
     // derive_print_state(), so this feeds it the wire half deliberately.
-    auto current_job_state = printer_state_.get_print_job_state();
+    auto current_job_state = printer_state_.print_state().get_print_job_state();
     bool state_changed = lifecycle_.on_start_phase_changed(phase, current_job_state);
 
     // Update preparing visibility, debounced on the way UP only. Hiding is
@@ -2630,7 +2646,8 @@ void PrintStatusPanel::on_print_start_phase_changed(int phase) {
                 self->preparing_show_timer_ = nullptr;
                 lv_timer_delete(t);
                 // Re-check: preparation may have ended while we waited.
-                if (lv_subject_get_int(self->printer_state_.get_print_start_phase_subject()) != 0) {
+                if (lv_subject_get_int(
+                        self->printer_state_.print_state().get_print_start_phase_subject()) != 0) {
                     lv_subject_set_int(&self->preparing_visible_subject_, 1);
                 }
             },
@@ -2733,7 +2750,7 @@ void PrintStatusPanel::on_preprint_remaining_changed(int seconds) {
     // Fall back to get_estimated_print_time() if remaining_seconds hasn't been seeded yet
     int slicer_time = lifecycle_.remaining_seconds() > 0
                           ? lifecycle_.remaining_seconds()
-                          : printer_state_.get_estimated_print_time();
+                          : printer_state_.print_state().get_estimated_print_time();
     lifecycle_.on_preprint_remaining_changed(seconds, slicer_time);
 
     if (lifecycle_.state() != PrintState::Preparing) {

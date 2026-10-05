@@ -875,7 +875,7 @@ void BeltTensionPanel::refresh_gate() {
     in.detecting = detection_pending_ &&
                    detected_hw_.kinematics == helix::calibration::KinematicsType::UNKNOWN;
     in.klippy_socket_reachable = klippy_socket_reachable_;
-    in.print_active = lv_subject_get_int(ps.get_print_active_subject()) != 0;
+    in.print_active = lv_subject_get_int(ps.print_state().get_print_active_subject()) != 0;
 
     const auto gate = helix::calibration::evaluate_belt_gate(in);
     const bool calibrator_idle =
@@ -929,7 +929,7 @@ void BeltTensionPanel::ensure_gate_observers() {
         accel_subj, this, [](BeltTensionPanel* self, int) { self->refresh_gate(); },
         ps.get_subjects_lifetime());
     print_active_observer_ = helix::ui::observe<int>(
-        ps.get_print_active_subject(), this,
+        ps.print_state().get_print_active_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
     connected_observer_ = helix::ui::observe<int>(
         ps.network_state().get_nav_buttons_enabled_subject(), this,

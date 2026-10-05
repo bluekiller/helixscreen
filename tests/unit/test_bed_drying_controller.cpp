@@ -69,7 +69,7 @@ struct BedDryingFixture : public LVGLTestFixture {
     ~BedDryingFixture() override {
         ui::set_test_notification_info_hook(nullptr);
         ctrl.reset();
-        state.set_spool_latch(false);
+        state.print_state().set_spool_latch(false);
         SettingsManager::instance().clear_bed_drying_record();
         drain();
     }
@@ -146,7 +146,7 @@ TEST_CASE_METHOD(BedDryingFixture, "prepare moves the plate to the far end of Z 
     CHECK(sent("M400"));
     // Spools can land on the plate once the place prompt is up, so the latch is
     // set and saved before it opens; nothing heats yet.
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK(SettingsManager::instance().get_bed_drying_record().placing);
     CHECK(ctrl->state() == BedDryingController::State::Placing);
     CHECK_FALSE(sent("heater_bed"));
@@ -158,10 +158,10 @@ TEST_CASE_METHOD(BedDryingFixture, "only 'no spools placed' clears the latch fro
                  "[bed_drying][1730]") {
     ctrl->prepare(kMaterials[0], false, nullptr, nullptr);
     drain();
-    REQUIRE(state.spool_latch_active());
+    REQUIRE(state.print_state().spool_latch_active());
     ctrl->cancel_placement();
     drain();
-    CHECK_FALSE(state.spool_latch_active());
+    CHECK_FALSE(state.print_state().spool_latch_active());
     CHECK_FALSE(SettingsManager::instance().get_bed_drying_record().latched);
     CHECK(sent("SET_IDLE_TIMEOUT TIMEOUT=300"));
 }
@@ -184,7 +184,7 @@ TEST_CASE_METHOD(BedDryingFixture, "a restore before Klipper is ready defers the
                  "[bed_drying][1730]") {
     start_pla();
     ctrl.reset();
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
     client.clear_gcode_script_history();
     state.set_klippy_state_sync(KlippyState::STARTUP);
 
@@ -192,7 +192,7 @@ TEST_CASE_METHOD(BedDryingFixture, "a restore before Klipper is ready defers the
     ctrl = make_controller();
     ctrl->restore();
     drain();
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK_FALSE(sent("SET_IDLE_TIMEOUT"));
     CHECK(ctrl->state() == BedDryingController::State::Running);
 
@@ -254,7 +254,7 @@ TEST_CASE_METHOD(BedDryingFixture, "confirming the spools persists the latch, th
     CHECK(r.end_s == kStart + kHours12);
     CHECK(r.bed_c == 70);
     CHECK(r.idle_restore_s == 300);
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK(ctrl->state() == BedDryingController::State::Running);
     CHECK(sent("heater_bed"));
     // Held to the planned end plus the 10 minute dead-man margin.
@@ -265,15 +265,15 @@ TEST_CASE_METHOD(BedDryingFixture, "an app restart brings the latch back from se
                  "[bed_drying][1730]") {
     start_pla();
     ctrl.reset();
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
 
     now = kStart + 3600;
     ctrl = make_controller();
     ctrl->restore();
 
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK(ctrl->state() == BedDryingController::State::Running);
-    CHECK(lv_subject_get_int(state.get_machine_motion_blocked_subject()) == 1);
+    CHECK(lv_subject_get_int(state.print_state().get_machine_motion_blocked_subject()) == 1);
 }
 
 TEST_CASE_METHOD(BedDryingFixture, "the flip reminder fires once, at the midpoint",
@@ -303,7 +303,7 @@ TEST_CASE_METHOD(BedDryingFixture, "the run ends at its planned end and the latc
     CHECK(sent("SET_IDLE_TIMEOUT TIMEOUT=86400"));
     CHECK_FALSE(sent("SET_IDLE_TIMEOUT TIMEOUT=300"));
     CHECK(sent("heater_bed"));
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK(SettingsManager::instance().get_bed_drying_record().ended);
 }
 
@@ -330,7 +330,7 @@ TEST_CASE_METHOD(BedDryingFixture, "the remove prompt waits for the bed to cool 
     drain();
     // The configured timeout comes back only once the spools are off.
     CHECK(sent("SET_IDLE_TIMEOUT TIMEOUT=300"));
-    CHECK_FALSE(state.spool_latch_active());
+    CHECK_FALSE(state.print_state().spool_latch_active());
     CHECK_FALSE(SettingsManager::instance().get_bed_drying_record().latched);
     CHECK(ctrl->state() == BedDryingController::State::Idle);
 }
@@ -344,14 +344,14 @@ TEST_CASE_METHOD(BedDryingFixture, "Klipper dropping the bed target ends the run
     bed(0, 50);
     ctrl->tick(kStart + 61);
     CHECK(ctrl->state() == BedDryingController::State::Cooling);
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
 }
 
 TEST_CASE_METHOD(BedDryingFixture, "a restart after the planned end finishes the run at once",
                  "[bed_drying][1730]") {
     start_pla();
     ctrl.reset();
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
     client.clear_gcode_script_history();
 
     now = kStart + kHours12 + 3600; // power came back after the run should have ended
@@ -359,7 +359,7 @@ TEST_CASE_METHOD(BedDryingFixture, "a restart after the planned end finishes the
     ctrl->restore();
     drain();
 
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK(ctrl->state() != BedDryingController::State::Running);
     CHECK(sent("SET_IDLE_TIMEOUT TIMEOUT=86400"));
 }
@@ -377,7 +377,7 @@ TEST_CASE_METHOD(BedDryingFixture, "nothing latches or heats when the drying sta
 
     CHECK_FALSE(ready);
     CHECK_FALSE(error.empty());
-    CHECK_FALSE(state.spool_latch_active());
+    CHECK_FALSE(state.print_state().spool_latch_active());
     CHECK_FALSE(ctrl->confirm_placed());
     CHECK_FALSE(sent("heater_bed"));
 }
@@ -388,11 +388,11 @@ TEST_CASE_METHOD(BedDryingFixture, "a restart while placing keeps the chosen mat
     drain();
     REQUIRE(ctrl->state() == BedDryingController::State::Placing);
     ctrl.reset();
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
 
     ctrl = make_controller();
     ctrl->restore();
-    CHECK(state.spool_latch_active());
+    CHECK(state.print_state().spool_latch_active());
     CHECK(ctrl->state() == BedDryingController::State::Placing);
     REQUIRE(ctrl->confirm_placed());
     drain();
@@ -504,7 +504,7 @@ TEST_CASE_METHOD(BedDryingFixture, "stopping during the plate move never starts 
 
     CHECK_FALSE(ready);
     CHECK(ctrl->state() == BedDryingController::State::Idle);
-    CHECK_FALSE(state.spool_latch_active());
+    CHECK_FALSE(state.print_state().spool_latch_active());
     CHECK_FALSE(SettingsManager::instance().get_bed_drying_record().latched);
 }
 
@@ -559,7 +559,7 @@ TEST_CASE_METHOD(BedDryingFixture, "Stop turns the chamber heater off while it i
     drain();
 
     // Sent while the spool latch is still set, so the latch lets it through.
-    REQUIRE(state.spool_latch_active());
+    REQUIRE(state.print_state().spool_latch_active());
     CHECK(sent("SET_HEATER_TEMPERATURE HEATER=chamber TARGET=0"));
 }
 
@@ -583,7 +583,7 @@ TEST_CASE_METHOD(BedDryingFixture,
     discover_chamber_heater();
     start_with_chamber(kMaterials[0]);
     ctrl.reset();
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
 
     ctrl = make_controller();
     ctrl->restore();
