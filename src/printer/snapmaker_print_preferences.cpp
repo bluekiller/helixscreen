@@ -37,6 +37,27 @@ bool PrintPreferences::empty() const {
            !end_led_turn_off && !filament_entangle_sen && end_unload_filament.empty();
 }
 
+void PrintPreferences::merge(const PrintPreferences& incoming) {
+    if (incoming.auto_replenish) {
+        auto_replenish = incoming.auto_replenish;
+    }
+    if (incoming.replenish_ignore_color) {
+        replenish_ignore_color = incoming.replenish_ignore_color;
+    }
+    if (incoming.filament_entangle_detect) {
+        filament_entangle_detect = incoming.filament_entangle_detect;
+    }
+    if (incoming.end_led_turn_off) {
+        end_led_turn_off = incoming.end_led_turn_off;
+    }
+    if (incoming.filament_entangle_sen) {
+        filament_entangle_sen = incoming.filament_entangle_sen;
+    }
+    if (!incoming.end_unload_filament.empty()) {
+        end_unload_filament = incoming.end_unload_filament;
+    }
+}
+
 PrintPreferences read_print_preferences(const nlohmann::json& status) {
     PrintPreferences p;
     if (!status.is_object()) {

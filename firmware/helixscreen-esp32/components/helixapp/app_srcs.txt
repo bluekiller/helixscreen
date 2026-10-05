@@ -137,6 +137,7 @@ src/printer/ams_environment_zone.cpp
 src/printer/ams_state.cpp
 src/printer/ams_subscription_backend.cpp
 src/printer/batch_feed_reconcile.cpp
+src/printer/cfs_status_parse.cpp
 src/printer/lane_echo.cpp
 src/printer/lane_resolver.cpp
 src/printer/lane_apply.cpp
@@ -160,6 +161,7 @@ src/printer/filament_variants.cpp
 src/printer/firmware_fault_codes.cpp
 src/printer/hardware_role_registry.cpp
 src/printer/hardware_validator.cpp
+src/printer/happy_hare_status_parse.cpp
 src/printer/hh_defaults.cpp
 src/printer/klipper_error_table.cpp
 src/printer/macro_executor.cpp
@@ -198,6 +200,7 @@ src/printer/snapmaker_channel_state.cpp
 src/printer/snapmaker_exceptions.cpp
 src/printer/snapmaker_print_preferences.cpp
 src/printer/snapmaker_resume.cpp
+src/printer/snapmaker_status_parse.cpp
 src/printer/z_offset_persistence.cpp
 src/printer/plr_backend.cpp
 src/printer/plr_offer.cpp

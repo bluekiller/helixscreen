@@ -68,6 +68,42 @@ class HappyHareTestAccess {
     template <class B> static auto& dryer_info(B& b) {
         return b.dryer_info_;
     }
+    template <class B> static auto gate_sensor(B& b, int slot_index) {
+        return b.gate_sensor(slot_index);
+    }
+    template <class B> static auto& filament_pos(B& b) {
+        return b.filament_pos_;
+    }
+    template <class B> static auto& bowden_progress(B& b) {
+        return b.bowden_progress_;
+    }
+    template <class B> static auto& error_segment(B& b) {
+        return b.error_segment_;
+    }
+    template <class B> static auto& reason_for_pause(B& b) {
+        return b.reason_for_pause_;
+    }
+    template <class B> static auto& num_units(B& b) {
+        return b.num_units_;
+    }
+    template <class B> static auto& per_unit_gate_counts(B& b) {
+        return b.per_unit_gate_counts_;
+    }
+    template <class B> static auto& active_unit(B& b) {
+        return b.active_unit_;
+    }
+    template <class B> static auto& gate_status_raw(B& b) {
+        return b.gate_status_raw_;
+    }
+    template <class B> static auto& led_exit_effect(B& b) {
+        return b.led_exit_effect_;
+    }
+    template <class B> static auto& espooler_active(B& b) {
+        return b.espooler_active_;
+    }
+    template <class B> static auto& flowguard_encoder_mode(B& b) {
+        return b.flowguard_encoder_mode_;
+    }
 
     /// Namespace the override store was pointed at, or empty when no store was
     /// built. Lets a test assert the PRIVATE namespace without reaching for the
