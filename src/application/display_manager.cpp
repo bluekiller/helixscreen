@@ -41,6 +41,7 @@
 #include "runtime_config.h"
 #include "screen_hide_hold.h"
 #include "tap_latch.h"
+#include "touch_calibration_wrapper.h"
 #ifdef HELIX_ENABLE_SCREENSAVER
 #include "ui_nav_manager.h"
 
@@ -901,6 +902,20 @@ bool DisplayManager::apply_touch_calibration(const helix::TouchCalibration& cal)
         return false;
     }
     return m_backend->set_calibration(cal);
+}
+
+helix::TouchRangeSettings DisplayManager::current_touch_range() const {
+    helix::TouchRangeDiagnostics diag;
+    helix::TouchRangeSettings range;
+    if (helix::get_touch_range_diagnostics(diag) && diag.pipeline.configured_valid) {
+        range.valid = true;
+        range.swap_axes = diag.pipeline.swap_axes;
+        range.min_x = diag.pipeline.min_x;
+        range.max_x = diag.pipeline.max_x;
+        range.min_y = diag.pipeline.min_y;
+        range.max_y = diag.pipeline.max_y;
+    }
+    return range;
 }
 
 helix::TouchCalibration DisplayManager::get_current_calibration() const {

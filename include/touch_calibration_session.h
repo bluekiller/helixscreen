@@ -45,6 +45,13 @@ struct ICalibrationSink {
         return false;
     }
 
+    /// The evdev ABS range and axis swap installed now, so a session can put it
+    /// back after previewing a solved one. valid=false when there is no evdev
+    /// stage or its range is not knowable, which leaves nothing to restore.
+    virtual TouchRangeSettings current_touch_range() const {
+        return {};
+    }
+
     /// Mark that a calibration capture is on screen.
     ///
     /// The global debug-touch ripple is suppressed while this is true: the
@@ -69,6 +76,20 @@ struct ICalibrationSink {
     /// by applying it.
     virtual void clear_calibration() = 0;
 };
+
+/// Install the result of a three-point calibration on the live device without
+/// persisting it: the solved evdev range when the device accepts it, with the
+/// residual affine on top, otherwise the full affine over the current range.
+///
+/// This is the mapping commit_calibration_result() will persist, so a preview
+/// shows the user exactly what Next/Accept keeps. Installing only the full
+/// affine behind the declared range would leave an under-declared axis clamped
+/// before the affine runs, putting the confirm button out of reach (#1714).
+/// TouchCalibrationSession::restore()/revert_for_retry() undo both stages.
+///
+/// @return true if the live device accepted the new mapping
+bool apply_calibration_result(ICalibrationSink* sink, const TouchCalibration& cal,
+                              const TouchRangeFit& fit);
 
 /// Persist and install the result of an accepted three-point calibration.
 ///
@@ -113,7 +134,7 @@ bool commit_calibration_result(ICalibrationSink* sink, const TouchCalibration& c
 /// left the panel's touch input disabled until a restart.
 class TouchCalibrationSession {
   public:
-    /// Snapshot the calibration active now and disable the affine transform so
+    /// Snapshot the calibration and evdev range active now and disable the affine transform so
     /// the session can capture raw (pre-affine) coordinates. Re-snapshots on
     /// every call: a session always begins from a clean baseline.
     void begin_capture(ICalibrationSink& sink);
@@ -149,6 +170,7 @@ class TouchCalibrationSession {
 
   private:
     TouchCalibration backup_{};
+    TouchRangeSettings range_backup_{};
     bool has_backup_ = false;
 };
 

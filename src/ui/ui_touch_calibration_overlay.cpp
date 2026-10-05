@@ -122,7 +122,8 @@ TouchCalibrationOverlay::TouchCalibrationOverlay() {
         helix::ICalibrationSink* sink = controller_.sink();
         const TouchCalibration* fresh =
             controller_.panel() ? controller_.panel()->get_calibration() : nullptr;
-        if (sink && fresh && fresh->valid && sink->apply_calibration(*fresh)) {
+        if (sink && fresh && fresh->valid &&
+            helix::apply_calibration_result(sink, *fresh, controller_.panel()->get_range_fit())) {
             spdlog::info("[{}] Entered VERIFY under the newly captured calibration "
                          "(a={:.4f} e={:.4f}); reverts unless accepted",
                          get_name(), fresh->a, fresh->e);
