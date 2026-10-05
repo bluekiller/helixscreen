@@ -106,6 +106,7 @@
 // WifiBackend) + Moonraker connect thread.
 #include "async_lifetime_guard.h"
 #include "provisioning_esp.h"
+#include "wall_clock_esp.h"
 #include "wifi_backend_esp.h"
 #include "wifi_manager.h"
 
@@ -455,6 +456,10 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
 
                 IMoonrakerAPI* api = mgr->api();
                 helix::IMoonrakerClient* c = mgr->client();
+
+                if (api) {
+                    helix::wall_clock_esp::request_date(api->get_http_base_url());
+                }
 
                 // Task 15 R1: AMS-relevant subset of desktop's
                 // init_subsystems_from_hardware() (src/printer/printer_discovery.cpp,

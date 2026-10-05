@@ -129,9 +129,33 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     AmsError reset() override;
     AmsError clear_fault(int slot_index) override;
     AmsError recover_with_state(const RecoverStateRequest& request) override;
-    [[nodiscard]] bool supports_recover_with_state() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        t.supports_recover_with_state = true;
+        t.supports_lane_preload = true;
+        t.supports_gate_select = true;
+        t.supports_gate_check = true;
+        // reset() sends bare MMU_HOME. With no FORCE_UNLOAD parameter Happy Hare
+        // takes its automatic-unload branch whenever filament_pos is not UNLOADED,
+        // so the filament comes out of the toolhead before the selector homes.
+        t.reset_moves_filament = true;
+        // Happy Hare users have a console; the screen passes their command through
+        // rather than synthesising a prerequisite operation they never asked for
+        // (#1229).
+        t.allows_implicit_chaining = false;
+        // Live temp/target read from heater_generic via Moonraker subscriptions
+        t.has_environment_sensors = true;
+        // Happy Hare persists via MMU_GATE_MAP SPOOLID
+        t.has_firmware_spool_persistence = true;
+        // Happy Hare publishes gate spool_id in mmu status
+        t.printer_reports_spool_ids = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
+
     /**
      * @brief The MMU_RECOVER line asserting @p request.
      *
@@ -150,9 +174,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * @brief Park a gate's filament ready for a later load (MMU_PRELOAD GATE=n).
      */
     AmsError preload_lane(int slot_index) override;
-    [[nodiscard]] bool supports_lane_preload() const override {
-        return true;
-    }
     /**
      * @brief Move the selector to a gate without loading filament (MMU_SELECT).
      */
@@ -161,20 +182,8 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * @brief Jog the selector relative to the current gate (MMU_SELECT, clamped).
      */
     AmsError move_selector(int delta) override;
-    [[nodiscard]] bool supports_gate_select() const override {
-        return true;
-    }
-    [[nodiscard]] bool supports_gate_check() const override {
-        return true;
-    }
     [[nodiscard]] std::string reset_button_label() const override {
         return "Home";
-    }
-    /// reset() sends bare MMU_HOME. With no FORCE_UNLOAD parameter Happy Hare
-    /// takes its automatic-unload branch whenever filament_pos is not UNLOADED,
-    /// so the filament comes out of the toolhead before the selector homes.
-    [[nodiscard]] bool reset_moves_filament() const override {
-        return true;
     }
     /**
      * @brief Probe a single gate's sensor (MMU_CHECK_GATE GATE=n).
@@ -214,12 +223,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// mmu.filament "Loaded" while mmu.gate names no gate (-1). Gate -2 is
     /// bypass — accounted there (the gate layer also silences under bypass).
     [[nodiscard]] std::optional<bool> toolhead_filament_unaccounted() const override;
-    /// Happy Hare users have a console; the screen passes their command through
-    /// rather than synthesising a prerequisite operation they never asked for
-    /// (#1229).
-    [[nodiscard]] bool allows_implicit_chaining() const override {
-        return false;
-    }
 
     // === Endless Spool ===
     //
@@ -271,9 +274,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     AmsError stop_drying(int unit = 0) override;
     AmsError update_drying(float temp_c = -1, int duration_min = -1, int fan_pct = -1,
                            int unit = 0) override;
-    [[nodiscard]] bool has_environment_sensors() const override {
-        return true; // Live temp/target read from heater_generic via Moonraker subscriptions
-    }
 
     /// Delete this gate's user override ("Clear Spool").
     void clear_slot_override(int slot_index) override;
@@ -285,14 +285,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// HH boot; the AmsState event triggers (bypass engage, external-spool
     /// edit) re-publish.
     void publish_external_spool_lane(const SlotInfo* spool) override;
-
-    [[nodiscard]] bool has_firmware_spool_persistence() const override {
-        return true; // Happy Hare persists via MMU_GATE_MAP SPOOLID
-    }
-
-    [[nodiscard]] bool printer_reports_spool_ids() const override {
-        return true; // Happy Hare publishes gate spool_id in mmu status
-    }
 
     [[nodiscard]] RemapStrategy get_remap_strategy() const override {
         return RemapStrategy::Native;

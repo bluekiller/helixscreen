@@ -13,6 +13,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/chaining_mock_backend.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "ams_backend_mock.h"
 #include "ams_bypass_policy.h"
@@ -90,7 +91,7 @@ class ActionRecorder {
 /// the fixture. Same idiom as test_ams_bypass_preflight_wiring.cpp.
 class BypassToggleFixture : public LVGLTestFixture {
   public:
-    AmsBackendMock* backend = nullptr;
+    helix::test::ChainingMockBackend* backend = nullptr;
     BypassToggleController controller;
 
     BypassToggleFixture() {
@@ -101,7 +102,7 @@ class BypassToggleFixture : public LVGLTestFixture {
         auto& ams = AmsState::instance();
         ams.init_subjects(false);
 
-        auto owned = std::make_unique<AmsBackendMock>(4);
+        auto owned = std::make_unique<helix::test::ChainingMockBackend>(4);
         backend = owned.get();
         backend->set_operation_delay(0);
         ams.set_backend(std::move(owned));

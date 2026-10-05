@@ -6,7 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_color_picker.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
 #include "ui_toast_manager.h"
@@ -686,7 +686,7 @@ void SpoolWizardOverlay::on_creation_success(const SpoolInfo& spool) {
     }
 
     // Close the wizard overlay
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void SpoolWizardOverlay::on_creation_error(const std::string& message, int rollback_vendor_id,

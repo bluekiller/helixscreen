@@ -1875,7 +1875,7 @@ void PrintSelectPanel::on_activate() {
             return_to_home_on_close_ = false;
             return_home_activation_count_ = 0;
             spdlog::info("[{}] Returning to home panel (Print Last flow)", get_name());
-            NavigationManager::instance().set_active(PanelId::Home);
+            helix::nav::set_active(PanelId::Home);
             return;
         }
     }
@@ -3213,7 +3213,7 @@ void PrintSelectPanel::start_queued_job(const JobQueueEntry& job) {
                 try_open_pending_queued_job();
             }));
 
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
     refresh_files(/*force=*/true);
 }
 

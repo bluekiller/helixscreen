@@ -91,10 +91,9 @@ class AmsBackendMock : public AmsBackend {
      */
     [[nodiscard]] bool can_unload_from_toolhead(int slot_index) const override;
 
-    // Capability flag (overridable in tests; production mock returns default false)
-    [[nodiscard]] bool tracks_consumption_natively() const override {
-        return tracks_consumption_natively_;
-    }
+    /// The traits of the backend the current persona stands in for. Three
+    /// fields answer from the mock itself instead (see the .cpp).
+    [[nodiscard]] BackendTraits traits() const override;
 
     /// Mock extruder->slot mapping. Returns slot == extruder_idx when the
     /// identity mapping flag is set (simulates a tool-changer) and
@@ -151,17 +150,8 @@ class AmsBackendMock : public AmsBackend {
     // Batch filament ops: advertised in Snapmaker mode so the picker UI is
     // drivable in --test. Rehearses the real script (see the .cpp) and then
     // runs the single-op simulation.
-    [[nodiscard]] bool supports_batch_filament_ops() const override;
     AmsError load_filament_batch(const std::vector<int>& slots) override;
     AmsError unload_filament_batch(const std::vector<int>& slots) override;
-
-    // Capability answers the U1 gives and the base class does not. Each one
-    // inverts a base default, so a mock that stayed silent rehearsed the
-    // opposite branch of every path that asks. Pinned against the real backend
-    // by tests/unit/test_ams_mock_snapmaker_parity.cpp.
-    [[nodiscard]] bool has_physical_tray() const override;
-    [[nodiscard]] bool recovers_filament_on_resume() const override;
-    [[nodiscard]] bool should_suppress_idle_runout_modal() const override;
 
     // Recovery
     AmsError recover() override;
@@ -169,33 +159,16 @@ class AmsBackendMock : public AmsBackend {
     AmsError cancel() override;
     AmsError clear_fault(int slot_index) override;
     AmsError recover_with_state(const RecoverStateRequest& request) override;
-    [[nodiscard]] bool supports_recover_with_state() const override {
-        return system_info_.type == AmsType::HAPPY_HARE;
-    }
     AmsError preload_lane(int slot_index) override;
-    [[nodiscard]] bool supports_lane_preload() const override {
-        return system_info_.type == AmsType::HAPPY_HARE;
-    }
 
     // Gate select / check (Happy Hare selector-based systems only)
     AmsError select_gate(int slot_index) override;
     AmsError move_selector(int delta) override;
-    [[nodiscard]] bool supports_gate_select() const override {
-        return system_info_.type == AmsType::HAPPY_HARE;
-    }
     AmsError check_gate(int slot_index) override;
     AmsError check_all_gates() override;
-    [[nodiscard]] bool supports_gate_check() const override {
-        return system_info_.type == AmsType::HAPPY_HARE;
-    }
     [[nodiscard]] std::string reset_button_label() const override {
         return system_info_.type == AmsType::HAPPY_HARE ? std::string("Home")
                                                         : std::string("Reset");
-    }
-    /// Mirrors the emulated backend so the sidebar greys Reset in --test exactly
-    /// where it would on hardware: Happy Hare's MMU_HOME unloads before homing.
-    [[nodiscard]] bool reset_moves_filament() const override {
-        return system_info_.type == AmsType::HAPPY_HARE;
     }
 
     // Configuration
@@ -235,9 +208,6 @@ class AmsBackendMock : public AmsBackend {
     /// nullopt until the "unaccounted" scenario runs; then true — the mock
     /// cannot observe a toolhead, so only the staged scenario answers.
     [[nodiscard]] std::optional<bool> toolhead_filament_unaccounted() const override;
-
-    // Environment sensors
-    [[nodiscard]] bool has_environment_sensors() const override;
 
     // Dryer
     [[nodiscard]] DryerInfo get_dryer_info(int unit = 0) const override;
@@ -311,21 +281,14 @@ class AmsBackendMock : public AmsBackend {
     /// the knob exists: the pre-discovery shape has to be asked for.
     void set_remap_ready(bool ready);
 
-    // Mirrors get_remap_strategy(): when emulating Snapmaker U1 the controller
-    // must run the pre-print send path.
-    [[nodiscard]] bool requires_preprint_send() const override;
-
     /// Emulates the U1's firmware-native pre-print config in Snapmaker mode, ""
     /// otherwise.
     ///
-    /// Load-bearing, not cosmetic. requires_preprint_send() above tells the
-    /// controller there is work to do; while this was left to the base's ""
-    /// return, every --test run of the U1 remap ended at "U1 pre-print config
-    /// empty - starting print directly" and the user's pick reached nothing.
-    /// Picking a head in the modal still logged a stored mapping, so the feature
-    /// LOOKED like it worked while the one step that carries it to the printer
-    /// was skipped. Delegates to AmsBackendSnapmaker::preprint_gcode so the
-    /// bytes are the real ones.
+    /// Load-bearing, not cosmetic. requires_preprint_send() tells the
+    /// controller there is work to do, and an empty answer here makes it start
+    /// the print directly, so the user's head pick never reaches the printer
+    /// even though the modal logs a stored mapping. Delegates to
+    /// AmsBackendSnapmaker::preprint_gcode so the bytes are the real ones.
     [[nodiscard]] std::string build_preprint_gcode(const std::set<int>& tools_used,
                                                    const std::map<int, int>& remap) const override;
 
@@ -561,20 +524,6 @@ class AmsBackendMock : public AmsBackend {
      * @return true if simulating an AFC Box Turtle
      */
     [[nodiscard]] bool is_afc_mode() const;
-
-    /// Mirrors AmsBackendAfc while AFC mode is on: the mock claims to be a Box
-    /// Turtle in every other respect, so the capabilities whose only true
-    /// override is AFC's must answer the same way or `HELIX_MOCK_AMS=afc`
-    /// produces a system that looks like AFC to the panels and not-AFC to
-    /// anything asking a capability (#1229's bypass rule could not be exercised
-    /// in the mock at all when these sat at the base-class default).
-    [[nodiscard]] bool bypass_is_virtual() const override {
-        return is_afc_mode();
-    }
-
-    [[nodiscard]] bool supports_configurable_unload_after_print() const override {
-        return is_afc_mode();
-    }
 
     /**
      * @brief The lane noun for whichever backend type this mock is configured to

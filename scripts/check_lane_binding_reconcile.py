@@ -13,7 +13,7 @@ A backend (include/ams_backend_<name>.h + src/printer/ams_backend_<name>.cpp)
 must call reconcile_lane_binding() when either:
   - its source reads a JSON key naming a spool id ("spool_id", "gate_spool_id",
     "spoolman_id", ...), or
-  - it overrides printer_reports_spool_ids() to return true.
+  - its kTraits sets printer_reports_spool_ids = true.
 
 Usage: check_lane_binding_reconcile.py [--root DIR]
 """
@@ -24,7 +24,7 @@ from pathlib import Path
 COMMENT = re.compile(r"//.*$", re.MULTILINE)
 # The key has to END in the id: "spool_width" and "spoolman_valid" are not ids.
 SPOOL_ID_KEY = re.compile(r'"[A-Za-z_]*[Ss]pool[A-Za-z_]*(?:_id|Id|ID)"')
-REPORTS_IDS = re.compile(r"printer_reports_spool_ids\s*\(\s*\)[^{;]*\{\s*return\s+true\b")
+REPORTS_IDS = re.compile(r"\.printer_reports_spool_ids\s*=\s*true\b")
 RECONCILE = re.compile(r"\breconcile_lane_binding\s*\(")
 
 
@@ -43,7 +43,7 @@ def scan(root: Path) -> list[str] | None:
         if key:
             reasons.append(f"reads {key.group(0)}")
         if REPORTS_IDS.search(code):
-            reasons.append("printer_reports_spool_ids() returns true")
+            reasons.append("kTraits sets printer_reports_spool_ids")
         if reasons and not RECONCILE.search(code):
             hits.append(f"{cpp.relative_to(root)}: {', '.join(reasons)}")
     return hits

@@ -10,7 +10,6 @@
 #include "ui_event_safety.h"
 #include "ui_icon.h"
 #include "ui_manual_pull_prompt.h"
-#include "ui_nav_manager.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_ams.h"
 #include "ui_panel_ams_overview.h"

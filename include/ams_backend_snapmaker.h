@@ -124,21 +124,44 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
         return PathTopology::PARALLEL;
     }
 
-    // The U1 has no shared tray or housing: spools mount on the left and right
-    // of the machine and feed through bowdens into a lane-assist motor unit on
-    // each side. The detail view's tray graphic draws a container that is not
-    // there.
-    [[nodiscard]] bool has_physical_tray() const override {
-        return false;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // The U1 has no shared tray or housing: spools mount on the left and right
+        // of the machine and feed through bowdens into a lane-assist motor unit on
+        // each side. The detail view's tray graphic draws a container that is not
+        // there.
+        t.has_physical_tray = false;
+        t.supports_auto_heat_on_load = true;
+        // Snapmaker U1's Resume runs AUTO_FEEDING (loads filament to the nozzle)
+        // before RESUME, so Resume alone recovers a runout. The runout dialog uses
+        // this to present Resume as primary and demote manual Load/Unload/Purge.
+        t.recovers_filament_on_resume = true;
+        // The U1 drives load/unload entirely on its own, so an idle lane going empty
+        // (a hand-pull, or a lane left unloaded) needs no operator action and the
+        // idle runout-guidance modal is just noise. Mid-print runout is a separate
+        // path and is unaffected.
+        t.should_suppress_idle_runout_modal = true;
+        // Snapmaker U1's firmware errors if SET_PRINT_USED_EXTRUDERS /
+        // SET_PRINT_EXTRUDER_MAP arrive mid-print, so the config must be sent before
+        // PRINT_START. Always-on (even with no remap) to suppress a spurious-feed
+        // runout — the slicer auto-feeds heads the print doesn't use → empty head →
+        // runout cancel.
+        t.requires_preprint_send = true;
+        // The U1's four independent feeders can be driven as one batch: the
+        // firmware sequences per-extruder AUTO_FEEDING itself. Gates the batch
+        // Load/Unload affordance in the UI.
+        t.supports_batch_filament_ops = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
 
     // FEED_AUTO homes and sets its own nozzle target from the lane's material:
     // a load reports load_homing then load_heating, an unload unload_homing then
     // unload_heating. A G28 or UI preheat in front of it is a second wait.
     [[nodiscard]] bool delegates_homing_to_printer() const override {
-        return true;
-    }
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
         return true;
     }
 
@@ -258,21 +281,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     // showing the modal.
     [[nodiscard]] bool is_stuck_motion_sensor_runout(int slot_index) const override;
 
-    // Snapmaker U1's Resume runs AUTO_FEEDING (loads filament to the nozzle)
-    // before RESUME, so Resume alone recovers a runout. The runout dialog uses
-    // this to present Resume as primary and demote manual Load/Unload/Purge.
-    [[nodiscard]] bool recovers_filament_on_resume() const override {
-        return true;
-    }
-
-    // The U1 drives load/unload entirely on its own, so an idle lane going empty
-    // (a hand-pull, or a lane left unloaded) needs no operator action and the
-    // idle runout-guidance modal is just noise. Mid-print runout is a separate
-    // path and is unaffected.
-    [[nodiscard]] bool should_suppress_idle_runout_modal() const override {
-        return true;
-    }
-
     // Snapmaker U1 uses firmware-native print_task_config gcode
     // (SET_PRINT_USED_EXTRUDERS / SET_PRINT_EXTRUDER_MAP) emitted before
     // PRINT_START; no gcode-file rewrite is needed.
@@ -306,15 +314,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     AmsError disable_bypass() override;
     [[nodiscard]] bool is_bypass_active() const override {
         return false;
-    }
-
-    // Snapmaker U1's firmware errors if SET_PRINT_USED_EXTRUDERS /
-    // SET_PRINT_EXTRUDER_MAP arrive mid-print, so the config must be sent before
-    // PRINT_START. Always-on (even with no remap) to suppress a spurious-feed
-    // runout — the slicer auto-feeds heads the print doesn't use → empty head →
-    // runout cancel.
-    [[nodiscard]] bool requires_preprint_send() const override {
-        return true;
     }
 
     // Builds the firmware-native pre-print command sequence for print_task_config.
@@ -356,13 +355,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// so it unit-tests without a backend or connection.
     [[nodiscard]] static std::string batch_feed_gcode(const std::vector<int>& slots, bool load,
                                                       bool use_batch_macro = false);
-
-    /// The U1's four independent feeders can be driven as one batch: the
-    /// firmware sequences per-extruder AUTO_FEEDING itself. Gates the batch
-    /// Load/Unload affordance in the UI.
-    [[nodiscard]] bool supports_batch_filament_ops() const override {
-        return true;
-    }
 
     /// Caches the batch-macro capability from @p discovery. Must run before
     /// start(): the status parse and the batch dispatch both read

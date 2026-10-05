@@ -207,7 +207,6 @@ const char* WizardWifiStep::get_wifi_signal_icon(int signal_strength, bool is_se
 void WizardWifiStep::update_wifi_status(const char* status) {
     if (!status)
         return;
-    spdlog::debug("[{}] Updating WiFi status: {}", get_name(), status);
     lv_subject_copy_string(&wifi_status_, status);
 }
 

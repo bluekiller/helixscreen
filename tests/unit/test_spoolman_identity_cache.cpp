@@ -23,6 +23,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
+#include "../test_helpers/mock_bypass.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "ams_types.h"
@@ -609,6 +610,7 @@ TEST_CASE_METHOD(IdentityCacheFixture,
     // enable_bypass() needs a started backend; the default "idle" scenario
     // spawns no thread, so this stays a synchronous test.
     REQUIRE(backend->start().success());
+    REQUIRE(helix::test::unload_for_bypass(*backend));
     REQUIRE(backend->enable_bypass().success());
     REQUIRE(backend->is_bypass_active());
 

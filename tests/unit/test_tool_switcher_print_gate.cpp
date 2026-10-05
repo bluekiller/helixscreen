@@ -63,8 +63,10 @@ class GateBackend : public AmsBackendMock {
     bool tool_change_should_fail = false;
     int change_tool_calls = 0;
 
-    bool filament_ops_self_home() const override {
-        return self_homes;
+    BackendTraits traits() const override {
+        BackendTraits t = AmsBackendMock::traits();
+        t.filament_ops_self_home = self_homes;
+        return t;
     }
 
     AmsError change_tool(int /*tool_number*/) override {

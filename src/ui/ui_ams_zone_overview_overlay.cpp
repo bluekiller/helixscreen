@@ -10,7 +10,6 @@
 
 #include "ui_ams_environment_overlay.h"
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
 #include "ui_zone_presentation.h"
 
 #include "ams_backend.h"
