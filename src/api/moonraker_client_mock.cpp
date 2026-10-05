@@ -3328,7 +3328,7 @@ void MoonrakerClientMock::dispatch_initial_state() {
           {"axis_maximum",
            {persona_axis_maximum(printer_type_)[0], persona_axis_maximum(printer_type_)[1],
             persona_axis_maximum(printer_type_)[2], 0.0}},
-          {"kinematics", discovery_.hardware().kinematics()}}},
+          {"kinematics", mock_internal::mock_kinematics(printer_type_)}}},
         {"gcode_move",
          {{"gcode_position", {x, y, z, 0.0}}, // Commanded position (same as toolhead in mock)
           {"speed_factor", speed / 100.0},
@@ -4168,7 +4168,7 @@ void MoonrakerClientMock::temperature_simulation_loop() {
               {"axis_maximum",
                {persona_axis_maximum(printer_type_)[0], persona_axis_maximum(printer_type_)[1],
                 persona_axis_maximum(printer_type_)[2], 0.0}},
-              {"kinematics", discovery_.hardware().kinematics()}}},
+              {"kinematics", mock_internal::mock_kinematics(printer_type_)}}},
             {"gcode_move",
              {{"gcode_position", {x, y, z, 0.0}}, // Commanded position (same as toolhead in mock)
               {"speed", feed_mm_s},
