@@ -2960,10 +2960,7 @@ void PrintSelectPanel::copy_usb_file_to_printer(std::function<void(const std::st
             });
         },
         [label = std::string(lv_tr("Copying from USB"))](size_t done, size_t total) {
-            const float pct =
-                total > 0 ? 100.0f * static_cast<float>(done) / static_cast<float>(total) : 0.0f;
-            helix::ui::queue_update("PrintSelectPanel::usb_copy_progress",
-                                    [label, pct]() { BusyOverlay::set_progress(label, pct); });
+            BusyOverlay::queue_progress(label, done, total);
         });
 }
 
