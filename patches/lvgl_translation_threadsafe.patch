@@ -192,3 +192,12 @@
   */
  const char * lv_translation_get(const char * tag);
  
+@@ -111,6 +117,8 @@
+  * @param pack      pointer to a static or dynamic language pack
+  * @param lang_name name of the language to find
+  * @return          index of the language or -1 if not found.
++ * @note            Main thread only: it reads the pack without the lock, so it
++ *                  must not run beside pack registration on another thread.
+  */
+ int32_t lv_translation_get_language_index(lv_translation_pack_t * pack, const char * lang_name);
+ 

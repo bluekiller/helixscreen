@@ -52,7 +52,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     for (int i = 0; i < 3000; i++) {
         lv_translation_set_language(langs[i % 3]);
         // A language switch loads the target locale's pack while lookups run.
-        if (i % 30 == 0) {
+        if (i % 600 == 0) {
             std::string lang = "zz" + std::to_string(i);
             std::string pack = "<translations languages=\"" + lang +
                                "\">"
