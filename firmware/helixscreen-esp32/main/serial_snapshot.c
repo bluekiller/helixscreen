@@ -66,9 +66,10 @@ void serial_snapshot_start(void) {
 }
 
 // The last dump stays in PSRAM so "snapline N" can resend one line of it.
-// Task-context output (esp_log, printf) shares one locked stdout, so it lands
-// between whole lines; only ROM/ISR output such as a task_wdt report can split
-// one, which is what the per-line crc catches.
+// Task-context output (esp_log, printf) shares one locked stdout, so it never
+// lands inside a line, though a log written in pieces (the WiFi driver's) can
+// leave its prefix in front of one. ROM/ISR output such as a task_wdt report
+// can split a line; its crc catches that.
 #define SNAP_LINE_BYTES 57 // -> one 76-char base64 line
 
 static unsigned char* s_dump;
