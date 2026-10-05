@@ -1701,18 +1701,17 @@ jobs:
         echo "=== Symbol pruning complete ==="
 
   # ============================================================================
-  # Trigger docs rebuild + deploy on helixscreen-website for stable releases.
-  # Gated on the channel declared by RELEASE_CHANNEL, so helixscreen.org tracks
-  # the latest stable docs rather than in-flight devel content. A tag-string gate
-  # cannot express this: the devel track also tags plain vX.Y.Z versions, so
-  # `tag has no hyphen` would deploy devel-track docs.
+  # Trigger a docs rebuild + deploy on helixscreen-website for every published
+  # release. The website ignores the dispatched tag: it resolves each docs
+  # version (stable at the root, the beta line under /<version>/) from its own
+  # release-tag prefix, so any release rebuilds every version correctly.
   # Requires WEBSITE_DISPATCH_TOKEN: PAT with contents:write on helixscreen-website.
   # ============================================================================
   notify-website:
     name: Trigger Docs Deploy
     runs-on: ubuntu-latest
     needs: [release, plan]
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.mode == 'publish' && needs.release.outputs.channel == 'stable' }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.mode == 'publish' }}
 
     steps:
     - name: Record dispatch time
