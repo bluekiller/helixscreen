@@ -22,16 +22,11 @@
 #include <utility>
 
 #if !defined(HELIX_PLATFORM_ESP32)
+#include "lodepng_encode.h"
 #include "stb_image.h"
 
 #include <lvgl.h>
 #include <memory>
-
-// lodepng.h cannot be included from C++ (its C++ overloads sit inside its own
-// extern "C" block); this is the one entry point needed. Built via LV_USE_LODEPNG.
-// NAMESPACE_OK: a C symbol from LVGL's lodepng
-extern "C" unsigned lodepng_encode32(unsigned char** out, size_t* outsize,
-                                     const unsigned char* image, unsigned w, unsigned h);
 #endif
 
 namespace {

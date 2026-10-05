@@ -2837,6 +2837,11 @@ void PrintSelectPanel::on_file_long_pressed(size_t file_index) {
         spdlog::trace("[{}] long-press on directory ignored: {}", get_name(), file.filename);
         return;
     }
+    if (!file.local_path.empty()) {
+        // No delete for a USB file, the same as its hidden detail-view button.
+        spdlog::trace("[{}] long-press on USB file ignored: {}", get_name(), file.filename);
+        return;
+    }
 
     spdlog::info("[{}] Long-press delete requested: {}", get_name(), file.filename);
 

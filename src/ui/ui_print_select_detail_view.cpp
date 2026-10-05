@@ -662,8 +662,8 @@ std::string PrintSelectDetailView::local_gcode_source() const {
     }
 
     // Size is the same staleness check the cached-copy path uses. It also
-    // doubles as the existence and readability probe: a file we cannot open is
-    // one we must fetch over HTTP instead.
+    // doubles as the existence and readability probe: a Moonraker file we
+    // cannot open here comes over HTTP instead, and a USB file is unreadable.
     if (!tio::open_file(candidate, "rb")) {
         spdlog::debug("[DetailView] No readable local G-code at '{}'", candidate);
         return {};
@@ -712,7 +712,7 @@ void PrintSelectDetailView::ensure_gcode_downloaded(
         return;
     }
     // 0. The file is on this machine (a USB stick, or Moonraker's copy when
-    //    Moonraker runs here) — no transfer, no second copy on the same
+    //    Moonraker runs here): no transfer, no second copy on the same
     //    flash. For Moonraker's copy this only CONSULTS the answer; the resolve is
     //    kicked once from set_dependencies() and never awaited here. Awaiting it
     //    would hang this load outright on any Moonraker that does not answer
