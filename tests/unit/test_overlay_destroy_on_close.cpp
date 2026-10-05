@@ -29,10 +29,16 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "app_globals.h"
+#include "helix-xml/src/xml/lv_xml.h"
+#include "led/led_controller.h"
+#include "led/ui_led_control_overlay.h"
 #include "static_panel_registry.h"
+#include "theme_manager.h"
 
 #include <array>
 #include <functional>
+#include <memory>
+#include <string>
 
 #include "../catch_amalgamated.hpp"
 
@@ -256,4 +262,111 @@ TEST_CASE_METHOD(DestroyOnCloseFixture, "Printer Manager rebuilds its tree on re
     auto& p = get_printer_manager_overlay();
     expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
                              [&] { return p.get_root(); });
+}
+
+namespace {
+
+/// Text of the label inside tab @p index of a repeat-built tab strip, or "".
+std::string tab_label_text(lv_obj_t* strip, uint32_t index) {
+    lv_obj_t* tab = strip ? lv_obj_get_child(strip, static_cast<int32_t>(index)) : nullptr;
+    lv_obj_t* label = tab ? lv_obj_find_by_name(tab, "tab_label") : nullptr;
+    return label ? lv_label_get_text(label) : "";
+}
+
+/// Two native strips and one effect, so the tab row, the swatches and the effect
+/// chips are all built.
+class LedDestroyFixture : public DestroyOnCloseFixture {
+  protected:
+    LedDestroyFixture() {
+        auto& ctrl = helix::led::LedController::instance();
+        ctrl.deinit();
+        ctrl.init(nullptr, nullptr);
+        for (const char* id : {"neopixel chamber_light", "neopixel sb_leds"}) {
+            helix::led::LedStripInfo strip;
+            strip.name = id;
+            strip.id = id;
+            strip.backend = helix::led::LedBackendType::NATIVE;
+            strip.supports_color = true;
+            ctrl.native().add_strip(strip);
+        }
+        helix::led::LedEffectInfo glow;
+        glow.name = "led_effect glow";
+        glow.display_name = "Glow";
+        glow.target_leds = {"neopixel chamber_light"};
+        ctrl.effects().add_effect(glow);
+    }
+
+    ~LedDestroyFixture() override {
+        StaticPanelRegistry::instance().destroy_all();
+        settle();
+        helix::led::LedController::instance().deinit();
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(LedDestroyFixture, "LED Control rebuilds its tree and tabs on reopen",
+                 "[overlay_destroy_on_close][led_control]") {
+    auto& p = get_led_control_overlay();
+    expect_rebuilt_on_reopen(
+        [&] { REQUIRE(helix::open_led_control_overlay(lv_screen_active(), "") != nullptr); },
+        [&] { return p.get_root(); });
+
+    // The tab pools go with the tree.
+    CHECK(lv_xml_get_subject(nullptr, "led_tab_name_0") == nullptr);
+
+    // A reopen builds its tab row against live pools: each tab names its device.
+    REQUIRE(helix::open_led_control_overlay(lv_screen_active(), "") != nullptr);
+    settle();
+    lv_obj_t* row = lv_obj_find_by_name(p.get_root(), "led_tab_row");
+    REQUIRE(row != nullptr);
+    REQUIRE(lv_obj_get_child_count(row) == 2);
+    for (uint32_t i = 0; i < 2; ++i) {
+        lv_subject_t* name =
+            lv_xml_get_subject(nullptr, ("led_tab_name_" + std::to_string(i)).c_str());
+        REQUIRE(name != nullptr);
+        CHECK(tab_label_text(row, i) == lv_subject_get_string(name));
+        CHECK_FALSE(tab_label_text(row, i).empty());
+    }
+    NavigationManager::instance().go_back();
+    settle();
+}
+
+TEST_CASE_METHOD(LedDestroyFixture,
+                 "LED Control effect timeout, state frames and theme flips after close touch no "
+                 "tree",
+                 "[overlay_destroy_on_close][led_control]") {
+    auto& p = get_led_control_overlay();
+    REQUIRE(helix::open_led_control_overlay(lv_screen_active(), "neopixel chamber_light") !=
+            nullptr);
+    settle();
+
+    // Tapping the effect chip arms the bounded wait for a status frame.
+    lv_obj_t* chip = lv_obj_find_by_name(p.get_root(), "led_chip_0");
+    REQUIRE(chip != nullptr);
+    lv_obj_send_event(chip, LV_EVENT_CLICKED, nullptr);
+    lv_subject_t* active = lv_xml_get_subject(nullptr, "led_active_chip");
+    REQUIRE(active != nullptr);
+    REQUIRE(lv_subject_get_int(active) == 0);
+
+    NavigationManager::instance().go_back();
+    settle();
+    REQUIRE(p.get_root() == nullptr);
+
+    // A state frame, a theme flip and the effect timeout all land after close.
+    auto& ctrl = helix::led::LedController::instance();
+    lv_subject_set_int(ctrl.get_led_state_version_subject(),
+                       lv_subject_get_int(ctrl.get_led_state_version_subject()) + 1);
+    lv_subject_set_int(theme_manager_get_changed_subject(),
+                       lv_subject_get_int(theme_manager_get_changed_subject()) + 1);
+    process_lvgl(4500);
+    settle();
+    CHECK(p.get_root() == nullptr);
+
+    // And the next open still works.
+    REQUIRE(helix::open_led_control_overlay(lv_screen_active(), "") != nullptr);
+    settle();
+    CHECK(lv_obj_find_by_name(p.get_root(), "led_chip_0") != nullptr);
+    NavigationManager::instance().go_back();
+    settle();
 }
