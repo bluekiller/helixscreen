@@ -30,6 +30,7 @@ struct MemoryInfo;
 } // namespace helix
 
 #include "filament_mapper.h" // helix::GcodeToolInfo
+#include "gcode_preview_fetcher.h"
 
 #include <functional>
 #include <memory>
@@ -246,6 +247,7 @@ class PrintStatusPanel : public OverlayBase {
      */
     void set_api(IMoonrakerAPI* api) {
         api_ = api;
+        preview_fetcher_.set_api(api);
         if (exclude_manager_) {
             exclude_manager_->set_api(api);
         }
@@ -561,8 +563,9 @@ class PrintStatusPanel : public OverlayBase {
     // Used to load gcode immediately if already active when print starts
     bool is_active_ = false;
 
-    // Path to temp G-code file downloaded for viewing (cleaned up on print end)
-    std::string temp_gcode_path_;
+    // Gets the print's G-code onto disk for the viewer; owns the downloaded
+    // copy (deleted on print end)
+    helix::ui::GcodePreviewFetcher preview_fetcher_{"PrintStatus"};
 
     // Control buttons (stored for enable/disable on state changes)
     lv_obj_t* btn_timelapse_ = nullptr;

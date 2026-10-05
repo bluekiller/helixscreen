@@ -41,6 +41,7 @@
 #include "filament_sensor_manager.h"
 #include "format_utils.h"
 #include "gcode_parser.h"
+#include "gcode_preview_fetcher.h"
 #include "gcode_preview_setup.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "i_moonraker_api.h"
@@ -225,6 +226,9 @@ static void try_reclaim_cached_print_status() {
 
 PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     : printer_state_(printer_state), api_(api) {
+    preview_fetcher_.set_api(api);
+    preview_fetcher_.set_rendered_probe(
+        [this]() { return gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_); });
     // Pre-init local subject used by observer callback below (fires immediately on subscribe)
     lv_subject_init_int(&exclude_objects_available_subject_, 0);
 
@@ -547,11 +551,7 @@ PrintStatusPanel::~PrintStatusPanel() {
     // ObserverGuard handles observer cleanup automatically
     resize_registered_ = false;
 
-    // Clean up temp G-code file if any
-    if (!temp_gcode_path_.empty()) {
-        std::remove(temp_gcode_path_.c_str());
-        temp_gcode_path_.clear();
-    }
+    cleanup_temp_gcode();
 
     // CRITICAL: Check if LVGL is still initialized before calling LVGL functions.
     // During static destruction, LVGL may already be torn down.
@@ -1661,15 +1661,7 @@ void PrintStatusPanel::format_time(int seconds, char* buf, size_t buf_size) {
 }
 
 void PrintStatusPanel::cleanup_temp_gcode() {
-    if (!temp_gcode_path_.empty()) {
-        if (std::remove(temp_gcode_path_.c_str()) == 0) {
-            spdlog::debug("[{}] Cleaned up temp G-code file: {}", get_name(), temp_gcode_path_);
-        } else {
-            spdlog::trace("[{}] Temp G-code file already removed: {}", get_name(),
-                          temp_gcode_path_);
-        }
-        temp_gcode_path_.clear();
-    }
+    preview_fetcher_.discard_file();
 }
 
 void PrintStatusPanel::show_gcode_viewer(bool show) {
@@ -3073,7 +3065,7 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
     // Clear thumbnail and G-code tracking when print ends
     if (result.print_ended) {
         if (!displayed_file_.empty() || !gcode_displayed_file_.empty() ||
-            lifecycle_.gcode_loaded() || !temp_gcode_path_.empty() ||
+            lifecycle_.gcode_loaded() || preview_fetcher_.owns_file() ||
             !pending_gcode_filename_.empty()) {
             spdlog::debug("[{}] Clearing thumbnail/gcode tracking (print ended)", get_name());
             // Cancel pending deferred G-code load (print is over)
@@ -3751,221 +3743,10 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
         return;
     }
 
-    // Thumbnail Only skips all gcode downloading/parsing. ensure_preview_current()
-    // already declines to arm the load, but the deferred timer is scheduled up to
-    // 5s ahead of firing, so the setting can flip inside that window.
-    if (!helix::ui::preview_viewer_enabled()) {
-        spdlog::info("[{}] G-code render mode is Thumbnail Only - skipping G-code load",
-                     get_name());
-        show_gcode_viewer(false);
-        return;
-    }
-
-    // Check config option to disable 3D rendering entirely
-    auto* cfg = Config::get_instance();
-    bool gcode_3d_enabled = cfg->get<bool>("/display/gcode_3d_enabled", true);
-    if (!gcode_3d_enabled) {
-        spdlog::info("[{}] G-code 3D rendering disabled via config - using thumbnail only",
-                     get_name());
-        show_gcode_viewer(false); // Ensure thumbnail is shown, not empty viewer
-        return;
-    }
-
-    // Generate temp file path - check if we already have a cached copy
-    // Use persistent cache directory (not /tmp which may be RAM-backed on embedded)
-    std::string cache_dir = get_helix_cache_dir("gcode_temp");
-    if (cache_dir.empty()) {
-        spdlog::warn("[{}] No writable cache directory - skipping G-code preview", get_name());
-        show_gcode_viewer(false);
-        return;
-    }
-    std::string temp_path =
-        cache_dir + "/print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
-
-    // Get file metadata to check size before downloading
-    // This prevents OOM on memory-constrained devices like AD5M
-    std::string metadata_filename = resolve_gcode_filename(filename);
-
-    auto token = lifetime_.token();
-
-    auto download_to_viewer = [this, filename, temp_path](const std::string& root,
-                                                          const std::string& download_filename) {
-        if (!temp_gcode_path_.empty() && temp_gcode_path_ != temp_path) {
-            std::remove(temp_gcode_path_.c_str());
-            temp_gcode_path_.clear();
-        }
-
-        auto inner_token = lifetime_.token();
-        api_->transfers().download_file_to_path(
-            root, download_filename, temp_path,
-            [this, inner_token, temp_path, filename](const std::string& path) {
-                inner_token.defer("PrintStatusPanel::gcode_download_ok", [this, path, filename]() {
-                    temp_gcode_path_ = path;
-                    spdlog::debug("[{}] Streamed G-code to disk, loading into viewer: {}",
-                                  get_name(), path);
-                    load_gcode_file(path.c_str(), filename);
-                });
-            },
-            [this, inner_token, filename](const MoonrakerError& err) {
-                inner_token.defer("PrintStatusPanel::gcode_download_err", [this, filename, err]() {
-                    spdlog::warn("[{}] Failed to stream G-code for viewing '{}': {}", get_name(),
-                                 filename, err.message);
-                    show_gcode_viewer(false);
-                });
-            });
-    };
-
-    // Shared size gate: skip 2D streaming if the file would OOM the device,
-    // otherwise stream it into the viewer. Used by both the standard "gcodes"
-    // metadata path and the QIDI ".temp" shadow path.
-    auto stream_if_safe = [this, download_to_viewer, temp_path,
-                           filename](const std::string& root, const std::string& download_target,
-                                     uint64_t size) {
-        if (!helix::is_gcode_2d_streaming_safe(size)) {
-            auto mem = helix::get_system_memory_info();
-            spdlog::warn("[{}] G-code too large for 2D streaming: file={} bytes, available "
-                         "RAM={}MB - using thumbnail only",
-                         get_name(), size, mem.available_mb());
-            show_gcode_viewer(false);
-            return;
-        }
-
-        // The cache is keyed by file name alone; the server's size says whether
-        // it still holds this file.
-        const size_t cached_size = static_cast<size_t>(tio::file_size(temp_path).value_or(0));
-        if (helix::ui::preview_cache_is_current(cached_size, size)) {
-            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
-                         temp_path);
-            temp_gcode_path_ = temp_path;
-            load_gcode_file(temp_path.c_str(), filename);
-            return;
-        }
-
-        spdlog::debug("[{}] G-code size {} bytes - safe to render, streaming to disk...",
-                      get_name(), size);
-        download_to_viewer(root, download_target);
-    };
-
-    auto load_existing_gcode_path = [this, token, filename, temp_path, stream_if_safe](
-                                        const std::string& metadata_target, const std::string& root,
-                                        const std::string& download_target) {
-        api_->files().get_file_metadata(
-            metadata_target,
-            [this, token, root, download_target, stream_if_safe](const FileMetadata& metadata) {
-                token.defer("PrintStatusPanel::gcode_metadata_ok",
-                            [this, root, download_target, metadata, stream_if_safe]() {
-                                stream_if_safe(root, download_target, metadata.size);
-                            });
-            },
-            [this, token, filename, temp_path](const MoonrakerError& err) {
-                token.defer("PrintStatusPanel::gcode_metadata_err", [this, filename, temp_path,
-                                                                     err]() {
-                    // Metadata only decides whether we need to DOWNLOAD the file.
-                    // If the viewer already has geometry, or a cached copy exists
-                    // (size unknown, so any non-empty copy is trusted), a metadata
-                    // miss must not blank the preview. Reachable on a flaky link or
-                    // while Moonraker is rescanning. This error is silent (no
-                    // toast), so hiding the viewer here would leave a blank preview
-                    // for the rest of the print.
-                    if (gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_)) {
-                        spdlog::debug("[{}] G-code metadata unavailable for '{}': {} - keeping "
-                                      "already-loaded render",
-                                      get_name(), filename, err.message);
-                        return;
-                    }
-                    const size_t cached_size =
-                        static_cast<size_t>(tio::file_size(temp_path).value_or(0));
-                    if (helix::ui::preview_cache_is_current(cached_size, 0)) {
-                        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
-                            spdlog::info("[{}] G-code metadata unavailable for '{}': {} - using "
-                                         "cached copy ({} bytes)",
-                                         get_name(), filename, err.message, cached_size);
-                            temp_gcode_path_ = temp_path;
-                            load_gcode_file(temp_path.c_str(), filename);
-                            return;
-                        }
-                        std::remove(temp_path.c_str());
-                    }
-                    spdlog::debug(
-                        "[{}] Failed to get G-code metadata for '{}': {} - skipping 3D render",
-                        get_name(), filename, err.message);
-                    show_gcode_viewer(false);
-                });
-            },
-            true // silent - don't trigger RPC_ERROR event/toast
-        );
-    };
-
-    auto use_existing_download_path = [metadata_filename, filename, load_existing_gcode_path]() {
-        load_existing_gcode_path(metadata_filename, "gcodes", filename);
-    };
-
-    if (helix::gcode::is_3mf(filename)) {
-        api_->files().list_files(
-            ".temp", "", false,
-            [this, token, use_existing_download_path,
-             stream_if_safe](const std::vector<FileInfo>& files) {
-                token.defer("PrintStatusPanel::qidi_3mf_shadow_list_ok",
-                            [this, files, use_existing_download_path, stream_if_safe]() {
-                                spdlog::debug("[{}] .temp returned {} entries for QIDI native 3MF "
-                                              "preview lookup",
-                                              get_name(), files.size());
-
-                                // A multi-plate .3mf can leave several
-                                // shadow_native_plate_*.gcode files in .temp, and
-                                // Moonraker exposes no plate index for the active
-                                // print. The active plate's shadow is (re)written at
-                                // print start, so the newest-modified match is the
-                                // best proxy for "the plate currently printing".
-                                const FileInfo* best = nullptr;
-                                for (const auto& file : files) {
-                                    if (!helix::gcode::is_native_3mf_shadow(file.path)) {
-                                        continue;
-                                    }
-                                    if (best == nullptr || file.modified > best->modified) {
-                                        best = &file;
-                                    }
-                                }
-
-                                if (best != nullptr) {
-                                    spdlog::debug(
-                                        "[{}] Selected QIDI native 3MF shadow G-code (newest of "
-                                        "matches): .temp/{} ({} bytes, modified {})",
-                                        get_name(), best->path, best->size, best->modified);
-
-                                    stream_if_safe(".temp", best->path, best->size);
-                                    return;
-                                }
-
-                                spdlog::debug("[{}] No QIDI native 3MF shadow G-code found; "
-                                              "falling back to active filename",
-                                              get_name());
-                                use_existing_download_path();
-                            });
-            },
-            [this, token, use_existing_download_path](const MoonrakerError& err) {
-                token.defer("PrintStatusPanel::qidi_3mf_shadow_list_err",
-                            [this, err, use_existing_download_path]() {
-                                spdlog::debug(
-                                    "[{}] Failed to list .temp for QIDI native 3MF preview: {}; "
-                                    "falling back to active filename",
-                                    get_name(), err.message);
-                                use_existing_download_path();
-                            });
-            });
-        return;
-    }
-
-    // All four callbacks below fire on background threads — get_file_metadata's
-    // success/error cb runs on libhv's WS event loop, download_file_to_path's
-    // runs on HttpExecutor::slow(). They MUST marshal to the main thread via
-    // tok.defer before touching LVGL widgets, the gcode_viewer state, or the
-    // temp_gcode_path_ member. Pre-fix, the inner success cb called
-    // load_gcode_file → ui_gcode_viewer_load_file_async → safe_delete on the
-    // HTTP worker, racing the main render loop and producing the L081-cluster
-    // heap corruption that surfaces as a SIGSEGV in get_prop_core / layout
-    // (#906 family, WKC5J9SK on v0.99.56 ad5x).
-    use_existing_download_path();
+    preview_fetcher_.fetch(
+        filename,
+        [this, filename](const std::string& path) { load_gcode_file(path.c_str(), filename); },
+        [this](helix::ui::GcodePreviewFetcher::Unavailable) { show_gcode_viewer(false); });
 }
 
 // ============================================================================
