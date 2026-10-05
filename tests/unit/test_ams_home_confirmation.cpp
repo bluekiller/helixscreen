@@ -4,6 +4,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_backend_afc.h"
 #include "ams_backend_cfs.h"
 #include "ams_backend_toolchanger.h"
@@ -211,10 +212,9 @@ TEST_CASE("an unload through execute_filament_unload on an unhomed printer homes
 TEST_CASE("ensure_homed_then custom timeout/silent bypass the hardcoded virtuals and reach "
           "MoonrakerAPI::execute_gcode (integration)",
           "[ams][homing][integration]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     helix::AmsBackendAfc backend(&api, &client);
 
@@ -266,10 +266,9 @@ TEST_CASE("ensure_homed_then custom timeout/silent bypass the hardcoded virtuals
 
 TEST_CASE("CFS dispatch_action_script routes through ensure_homed_then and homes when unhomed",
           "[ams][homing][cfs]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     // homed_axes defaults to "" (not homed) -- exercises the G28-then-payload leg.
     helix::printer::AmsBackendCfs backend(&api, nullptr);
@@ -294,10 +293,9 @@ TEST_CASE("CFS dispatch_action_script routes through ensure_homed_then and homes
 }
 
 TEST_CASE("CFS Fork variant never homes via dispatch_action_script", "[ams][homing][cfs][fork]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     helix::printer::AmsBackendCfs backend(&api, nullptr);
     helix::CfsTestAccess::set_macro_variant_fork(backend);

@@ -6,6 +6,7 @@
 #include "ui_filename_utils.h"
 #include "ui_gradient_canvas.h"
 #include "ui_panel_print_select.h" // For PrintFileData, CardDimensions
+#include "ui_virtual_list.h"
 
 #include "helix_fs.h"
 #include "lv_draw_buf_guard.h"
@@ -122,6 +123,7 @@ void PrintSelectCardView::clear_cached_state() {
     trailing_spacer_ = nullptr;
     visible_start_row_ = -1;
     visible_end_row_ = -1;
+    total_items_ = 0;
     last_leading_height_ = -1;
     last_trailing_height_ = -1;
 }
@@ -520,6 +522,17 @@ void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
 void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_list,
                                          const CardDimensions& dims) {
     if (!container_ || card_pool_.empty() || file_list.empty()) {
+        for (auto* card : card_pool_) {
+            lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+        }
+        std::fill(card_pool_indices_.begin(), card_pool_indices_.end(), -1);
+        if (container_) {
+            sync_list_spacers(container_, leading_spacer_, trailing_spacer_, VirtualWindow{},
+                              last_leading_height_, last_trailing_height_);
+        }
+        visible_start_row_ = -1;
+        visible_end_row_ = -1;
+        total_items_ = 0;
         return;
     }
 
@@ -533,15 +546,21 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
     int row_height = dims.card_height + card_gap;
     int total_rows = (static_cast<int>(file_list.size()) + cards_per_row_ - 1) / cards_per_row_;
 
-    // Calculate visible row range (with buffer)
-    int first_visible_row = std::max(0, static_cast<int>(scroll_y / row_height) - BUFFER_ROWS);
-    int last_visible_row = std::min(
-        total_rows, static_cast<int>((scroll_y + viewport_height) / row_height) + 1 + BUFFER_ROWS);
+    const VirtualWindow win =
+        compute_window(scroll_y, viewport_height, row_height, total_rows, BUFFER_ROWS);
+    const int first_visible_row = win.first;
+    const int last_visible_row = win.last;
+
+    // Force re-render if total item count changed (e.g. directory change)
+    bool data_changed = (static_cast<int>(file_list.size()) != total_items_);
 
     // Skip update if visible range hasn't changed
-    if (first_visible_row == visible_start_row_ && last_visible_row == visible_end_row_) {
+    if (!data_changed && first_visible_row == visible_start_row_ &&
+        last_visible_row == visible_end_row_) {
         return;
     }
+
+    total_items_ = static_cast<int>(file_list.size());
 
     // Calculate file index range
     int first_visible_idx = first_visible_row * cards_per_row_;
@@ -552,25 +571,8 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
                   scroll_y, viewport_height, first_visible_row, last_visible_row, first_visible_idx,
                   last_visible_idx);
 
-    // Update spacer heights (only when changed to avoid redundant relayout)
-    int leading_height = first_visible_row * row_height;
-    if (leading_spacer_) {
-        if (leading_height != last_leading_height_) {
-            lv_obj_set_height(leading_spacer_, leading_height);
-            last_leading_height_ = leading_height;
-        }
-        if (lv_obj_get_index(leading_spacer_) != 0) {
-            lv_obj_move_to_index(leading_spacer_, 0);
-        }
-    }
-
-    int trailing_height = std::max(0, (total_rows - last_visible_row) * row_height);
-    if (trailing_spacer_) {
-        if (trailing_height != last_trailing_height_) {
-            lv_obj_set_height(trailing_spacer_, trailing_height);
-            last_trailing_height_ = trailing_height;
-        }
-    }
+    sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
+                      last_trailing_height_);
 
     // Assign pool cards to visible indices, skipping cards that already show correct file
     size_t pool_idx = 0;
@@ -579,7 +581,7 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
         lv_obj_t* card = card_pool_[pool_idx];
 
         // Skip reconfiguration if this card already shows this file
-        if (card_pool_indices_[pool_idx] != file_idx) {
+        if (data_changed || card_pool_indices_[pool_idx] != file_idx) {
             configure_card(card, pool_idx, static_cast<size_t>(file_idx), file_list[file_idx],
                            dims);
             card_pool_indices_[pool_idx] = file_idx;

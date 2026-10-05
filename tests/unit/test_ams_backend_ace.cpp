@@ -6,6 +6,7 @@
 #include "ui_update_queue.h"
 
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_backend_ace.h"
 #include "ams_bypass_policy.h"
 #include "ams_types.h"
@@ -1179,10 +1180,8 @@ TEST_CASE("ACE load does not seat a slot the driver never moved to", "[ams][ace]
 TEST_CASE("ACE override loaded at init is applied over firmware data",
           "[ams][ace][filament_slot_override]") {
     AceTmpCacheDir tmp("task13_override_applied");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1223,10 +1222,8 @@ TEST_CASE("ACE migrates from helix-screen:ace_slot_overrides on first startup",
     // directly so we don't need to drive on_started() (which requires a
     // started subscription backend).
     AceTmpCacheDir tmp("task13_migration");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Seed legacy namespace with a PLA Orange override on slot 0.
     // lane_data is untouched -> forces migration.
@@ -1268,10 +1265,8 @@ TEST_CASE("ACE migrates from helix-screen:ace_slot_overrides on first startup",
 
 TEST_CASE("ACE apply_user_edit writes to store", "[ams][ace][filament_slot_override]") {
     AceTmpCacheDir tmp("task13_persist_true");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1325,10 +1320,8 @@ TEST_CASE("ACE apply_user_edit writes to store", "[ams][ace][filament_slot_overr
 TEST_CASE("ACE sync_external_identity does NOT write to store",
           "[ams][ace][filament_slot_override]") {
     AceTmpCacheDir tmp("task13_persist_false");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1371,10 +1364,8 @@ TEST_CASE_METHOD(HelixTestFixture, "ACE weight persist leaves the lane's declara
     // record that took its authorship from that diff would drop every choice
     // the lane already carried.
     AceTmpCacheDir tmp("task18_weight_persist");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1428,10 +1419,8 @@ TEST_CASE_METHOD(HelixTestFixture, "ACE weight persist leaves the lane's declara
 TEST_CASE("ACE inserting a different tagged spool clears the override",
           "[ams][ace][filament_slot_override][1710]") {
     AceTmpCacheDir tmp("task13_empty_to_present_clears");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1490,10 +1479,8 @@ TEST_CASE("ACE reloading the same tagged spool keeps the override",
     // insert rule says SameSpool and the override stands. Only a spool whose
     // tag reads differently is a swap.
     AceTmpCacheDir tmp("task13_loaded_to_empty_preserves");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1528,10 +1515,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // tag read (rfid=false): the insert rule has nothing to compare, so the
     // record stays and the user is asked. Tapping Clear is what clears it.
     AceTmpCacheDir tmp("task1710_untagged_insert_notice");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1600,10 +1585,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // states hub memory, not the reader), and the late read is judged: a
     // different tag reading clears, and a judged swap never asks.
     AceTmpCacheDir tmp("task1710_late_tag_swap");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1657,10 +1640,8 @@ TEST_CASE("ACE an rfid state of 2 (identified) reads as a tag read",
     // evidence and a swap is a judged DifferentSpool, not a verdict held
     // forever.
     AceTmpCacheDir tmp("task1710_numeric_rfid");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1701,10 +1682,8 @@ namespace {
 void assert_rfid_state_sequence(std::int64_t closing_state, bool closing_clears,
                                 std::int64_t edge_state = 3) {
     AceTmpCacheDir tmp("task1710_rfid_states");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1789,10 +1768,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // before the override was set can exist: the rule reads NoEvidence on
     // principle and asks instead of clearing.
     AceTmpCacheDir tmp("task1710_no_prior_reading");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1855,10 +1832,8 @@ TEST_CASE("ACE partial override only replaces specified fields",
 TEST_CASE("ACE clear_slot_override erases in-memory override and MR DB entry",
           "[ams][ace][filament_slot_override]") {
     AceTmpCacheDir tmp("task16_clear_slot_override");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1917,10 +1892,8 @@ TEST_CASE("ACE clear_slot_override erases in-memory override and MR DB entry",
 TEST_CASE("ACE clear_slot_override is a no-op when no override is present",
           "[ams][ace][filament_slot_override]") {
     AceTmpCacheDir tmp("task16_clear_slot_override_noop");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -1942,10 +1915,8 @@ TEST_CASE("ACE clear_slot_override is a no-op when no override is present",
 TEST_CASE("ACE clear_slot_override drops the whole Spoolman link",
           "[ams][ace][filament_slot_override][1625]") {
     AceTmpCacheDir tmp("clear_spoolman_link");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAce> backend_reg(&api, nullptr);
     AmsBackendAce& backend = *backend_reg;
@@ -2371,10 +2342,8 @@ TEST_CASE("ACE combined notify frame applies instance slots AND manager seat", "
 
 TEST_CASE_METHOD(LVGLTestFixture, "ACE REST fallback seats from ace_manager current_index",
                  "[ams][ace][1069]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     RestResponse not_found;
     not_found.success = false;
@@ -2499,10 +2468,8 @@ TEST_CASE("ACE lowest instance wins over a higher instance's slots", "[ams][ace]
 
 TEST_CASE_METHOD(LVGLTestFixture, "ACE REST unit-status idle keeps an in-flight load",
                  "[ams][ace][1069]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     RestResponse status_ok;
     status_ok.success = true;
@@ -2659,10 +2626,8 @@ TEST_CASE("ACE parse_status_response derives model and firmware", "[ams][ace][pa
 TEST_CASE_METHOD(LVGLTestFixture,
                  "ACE missing /info does not surface an error when /status succeeds",
                  "[ams][ace][rest_fallback][kobra]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // Fork surface: /info 404s, /status + /slots succeed. /status carries model.
     RestResponse info_404;
@@ -2713,10 +2678,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "ACE surfaces an error when the data endpoints
     // Genuinely-missing-bridge case: /info, /status AND /slots all 404. The
     // error must still surface — but now gated on the DATA endpoints failing,
     // not on /info.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     RestResponse not_found;
     not_found.success = false;
@@ -2801,10 +2764,8 @@ TEST_CASE("Retargeting an ACE dryer keeps the time already served", "[ams][ace][
 TEST_CASE("ACE publishes a persisted edit to lane_data as the user's own",
           "[ams][ace][filament_slot_override]") {
     AceTmpCacheDir tmp("issue1649_user_locks");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     AmsBackendAce backend(&api, nullptr);
     auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(&api, "ace");

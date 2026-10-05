@@ -269,6 +269,7 @@ class PrintSelectCardView : public ContainerDeleteNet {
     int cards_per_row_ = 3;
     int visible_start_row_ = -1;
     int visible_end_row_ = -1;
+    int total_items_ = 0;
 
     // === Cached Spacer Heights (avoid redundant lv_obj_set_height → relayout) ===
     int last_leading_height_ = -1;

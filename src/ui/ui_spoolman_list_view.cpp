@@ -4,6 +4,7 @@
 #include "ui_spoolman_list_view.h"
 
 #include "ui_spool_canvas.h"
+#include "ui_virtual_list.h"
 
 #include "format_utils.h"
 #include "theme_manager.h"
@@ -320,14 +321,8 @@ void SpoolmanListView::update_visible(const std::vector<SpoolInfo>& spools, int 
         for (auto& rw : pool_) {
             lv_obj_add_flag(rw.root, LV_OBJ_FLAG_HIDDEN);
         }
-        if (leading_spacer_) {
-            lv_obj_set_height(leading_spacer_, 0);
-            last_leading_height_ = 0;
-        }
-        if (trailing_spacer_) {
-            lv_obj_set_height(trailing_spacer_, 0);
-            last_trailing_height_ = 0;
-        }
+        sync_list_spacers(container_, leading_spacer_, trailing_spacer_, VirtualWindow{},
+                          last_leading_height_, last_trailing_height_);
         visible_start_ = -1;
         visible_end_ = -1;
         total_items_ = 0;
@@ -340,13 +335,12 @@ void SpoolmanListView::update_visible(const std::vector<SpoolInfo>& spools, int 
     int total_rows = static_cast<int>(spools.size());
 
     int row_height = cached_row_height_ > 0 ? cached_row_height_ : 56;
-    int row_gap = cached_row_gap_;
-    int row_stride = row_height + row_gap;
+    int row_stride = row_height + cached_row_gap_;
 
-    // Calculate visible range with buffer
-    int first_visible = std::max(0, static_cast<int>(scroll_y / row_stride) - BUFFER_ROWS);
-    int last_visible = std::min(
-        total_rows, static_cast<int>((scroll_y + viewport_height) / row_stride) + 1 + BUFFER_ROWS);
+    const VirtualWindow win =
+        compute_window(scroll_y, viewport_height, row_stride, total_rows, BUFFER_ROWS);
+    const int first_visible = win.first;
+    const int last_visible = win.last;
 
     // Force re-render if total item count changed (e.g. filter applied)
     bool data_changed = (total_rows != total_items_);
@@ -362,25 +356,8 @@ void SpoolmanListView::update_visible(const std::vector<SpoolInfo>& spools, int 
         "[SpoolmanListView] Rendering rows {}-{} of {} (scroll_y={} viewport={} data_changed={})",
         first_visible, last_visible, total_rows, scroll_y, viewport_height, data_changed);
 
-    // Update spacer heights (only when changed to avoid redundant relayout)
-    int leading_height = first_visible * row_stride;
-    if (leading_spacer_) {
-        if (leading_height != last_leading_height_) {
-            lv_obj_set_height(leading_spacer_, leading_height);
-            last_leading_height_ = leading_height;
-        }
-        if (lv_obj_get_index(leading_spacer_) != 0) {
-            lv_obj_move_to_index(leading_spacer_, 0);
-        }
-    }
-
-    int trailing_height = std::max(0, (total_rows - last_visible) * row_stride);
-    if (trailing_spacer_) {
-        if (trailing_height != last_trailing_height_) {
-            lv_obj_set_height(trailing_spacer_, trailing_height);
-            last_trailing_height_ = trailing_height;
-        }
-    }
+    sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
+                      last_trailing_height_);
 
     // Assign pool rows to visible indices, skipping rows that already show correct data
     size_t pool_idx = 0;
@@ -406,17 +383,9 @@ void SpoolmanListView::update_visible(const std::vector<SpoolInfo>& spools, int 
         pool_indices_[pool_idx] = -1;
     }
 
-    // Ensure trailing spacer is always last child
-    if (trailing_spacer_) {
-        int32_t child_count = lv_obj_get_child_count(container_);
-        if (lv_obj_get_index(trailing_spacer_) != child_count - 1) {
-            lv_obj_move_to_index(trailing_spacer_, child_count - 1);
-        }
-    }
-
     spdlog::debug("[SpoolmanListView] Spacers: leading={}px trailing={}px, visible rows={}, "
                   "container content_h={} child_count={}",
-                  leading_height, trailing_height, last_visible - first_visible,
+                  win.leading_px, win.trailing_px, last_visible - first_visible,
                   lv_obj_get_content_height(container_), lv_obj_get_child_count(container_));
 
     visible_start_ = first_visible;

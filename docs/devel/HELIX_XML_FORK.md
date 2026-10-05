@@ -203,6 +203,7 @@ gap that actively costs us something today.
 | `float` and `color` subjects | Upstream Pro docs, July 2026: *"Currently, only integer and string types are supported."* |
 | `bind_src` accepting STRING subjects | Upstream only accepted POINTER |
 | `HELIX_HOT_RELOAD` re-registration | Edit XML, see it in ~500ms, no restart |
+| Authored-color records: `lv_xml_obj_has_authored_style`, `lv_xml_reapply_token_styles`, `lv_xml_reapply_style_tokens` | Inline and `<style>` `#const` colors follow a live theme switch, and bulk recolor code can tell what the XML set (`THEME_SYSTEM.md` § Authored Inline Colors) |
 | `<subject name= type= value=>` convention | Ours; upstream uses tag-per-type (`<int name=…>`). Both parse — `type=` overrides the tag name (`lib/helix-xml/src/xml/lv_xml_component.c#"\"scope; its style storage is held until deinit\","`) |
 
 ## Should we chase parity?

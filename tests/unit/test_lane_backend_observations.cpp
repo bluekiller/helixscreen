@@ -8,6 +8,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/mock_printer.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_ace.h"
 #include "ams_backend_ad5x_ifs.h"
@@ -3321,10 +3322,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "Snapmaker's own write-back does not return as
     // The write-back needs a real API behind it: /printer/filament_detect/set
     // is only POSTed when one is attached, and that POST is what the parse has
     // to recognise on the way back.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     SnapmakerHarness harness(&api, nullptr);
 
@@ -3434,10 +3433,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing a Snapmaker spool ends its echo supp
                  "[lane][ingest][snapmaker]") {
     // The write-back needs a real API behind it: the POST is what arms the
     // guard, and the clear has to end what that edit armed.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     SnapmakerHarness harness(&api, nullptr);
 
@@ -3499,10 +3496,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "a Snapmaker write firmware refused withholds 
     // and the values never reach the machine. Nothing is going to echo them,
     // and a guard left armed would withhold the tag's own reading of those
     // fields until the spool changes.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     RestResponse not_found;
     not_found.success = false;
@@ -3570,10 +3565,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "a Snapmaker refusal answers only the edit it 
     // marshals to the main thread only after the second save has staged its
     // own declaration. The refusal belongs to the first edit, so it may not
     // cancel the second's guard.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     RestResponse not_found;
     not_found.success = false;
@@ -3633,10 +3626,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "a Snapmaker refusal answers only the edit it 
 TEST_CASE_METHOD(LVGLTestFixture,
                  "Snapmaker withholds only the fields the user moved, not the whole write-back",
                  "[lane][ingest][snapmaker]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     SnapmakerHarness harness(&api, nullptr);
 
@@ -3696,10 +3687,8 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
 TEST_CASE_METHOD(LVGLTestFixture, "a Spoolman link declares the binding, not the values it carries",
                  "[lane][ingest][snapmaker]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     SnapmakerHarness harness(&api, nullptr);
 
@@ -5025,10 +5014,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "Snapmaker's resync consults its own echo guar
                  "[lane][ingest][resync][snapmaker]") {
     // The edit's guard is armed on the way to a real POST, so this reaches it
     // through the production path rather than staging by hand.
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     // The real backend answers firmware_publishes_lane_identity() == true, so
     // only the flipped gates below can bring a resync to its guard. Finding

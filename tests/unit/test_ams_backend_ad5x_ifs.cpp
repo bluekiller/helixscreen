@@ -4,6 +4,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
 #include "../test_helpers/filament_slot_override_store_test_access.h"
+#include "../test_helpers/mock_printer.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_ad5x_ifs.h"
@@ -4996,10 +4997,8 @@ TEST_CASE("AD5X IFS apply_user_edit stores override in memory and store",
     // destination to write to. on_started() is not called — overrides_
     // starts empty — so we can assert the persist path populates it.
     Ad5xIfsTmpCacheDir tmp("task10_stores_override");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5056,10 +5055,8 @@ TEST_CASE("AD5X IFS sync_external_identity does NOT write to store",
     // Same fixture as above, but through a sync the override store
     // must stay untouched: sync_external_identity writes memory only.
     Ad5xIfsTmpCacheDir tmp("task10_no_persist");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5100,10 +5097,8 @@ TEST_CASE("AD5X IFS sync_external_identity does NOT write to store",
 TEST_CASE("AD5X IFS update_slot_weight preserves identity and does not write Adventurer5M.json",
           "[ams][ad5x_ifs][filament_slot_override][981]") {
     Ad5xIfsTmpCacheDir tmp("weight_only_preserves_identity");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5155,10 +5150,8 @@ TEST_CASE("AD5X IFS update_slot_weight preserves identity and does not write Adv
 TEST_CASE("AD5X IFS update_slot_weight on an un-overridden slot does not lock identity",
           "[ams][ad5x_ifs][filament_slot_override][981]") {
     Ad5xIfsTmpCacheDir tmp("weight_only_no_lock");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5206,10 +5199,8 @@ TEST_CASE("AD5X IFS apply_user_edit survives a matching firmware parse",
     // write_adventurer_json succeeds in production, firmware reports the
     // user's color back, no change detected, override metadata survives.
     Ad5xIfsTmpCacheDir tmp("task10_next_parse");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5254,10 +5245,8 @@ TEST_CASE("AD5X IFS user-edited slot survives firmware FFMInfo revert (#965 regr
     // Color may still propagate (treated as firmware-authoritative drift) —
     // the regression we're guarding against is material data loss.
     Ad5xIfsTmpCacheDir tmp("ifs_postprint_revert_965");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5322,10 +5311,8 @@ TEST_CASE("AD5X IFS auto-mirror still tracks firmware for slots with no user loc
     // OrcaSlicer's MoonrakerPrinterAgent stays in sync with the printer.
     // Only user-locked slots are sticky; everything else tracks firmware.
     Ad5xIfsTmpCacheDir tmp("ifs_bootstrap_tracks_firmware");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5360,10 +5347,8 @@ TEST_CASE("AD5X IFS user edit does not file as firmware truth without a printer 
     // override is cleared the lane asserts the abandoned edit as what the
     // machine said (prestonbrown/helixscreen#1631).
     Ad5xIfsTmpCacheDir tmp("ifs_user_edit_not_vendor_cache");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5415,10 +5400,8 @@ TEST_CASE("AD5X IFS apply_user_edit writes the edited values to Adventurer5M.jso
     // the firmware-truth arrays hold: a write sourced from the arrays would
     // upload the stale pre-edit reading right back to the printer.
     Ad5xIfsTmpCacheDir tmp("ifs_user_edit_json_carries_edit");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5466,10 +5449,8 @@ TEST_CASE("AD5X IFS apply_user_edit _IFS_VARS payload merges the edited lane wit
     // arrays — every other lane keeps what the printer last said. lessWaste
     // shape: 16 tool-indexed entries, identity map until a remap is parsed.
     Ad5xIfsTmpCacheDir tmp("ifs_user_edit_vars_merge");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<GcodeCapturingBackend> backend_reg(&api, nullptr);
     GcodeCapturingBackend& backend = *backend_reg;
@@ -5553,10 +5534,8 @@ TEST_CASE("AD5X IFS apply_user_edit with pre-existing override replaces it",
     // it via apply_user_edit. get_slot_info must reflect the NEW values
     // immediately, not the old staged override.
     Ad5xIfsTmpCacheDir tmp("task10_replace");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5619,10 +5598,8 @@ TEST_CASE("AD5X IFS external color change syncs colour and preserves a linked sp
           "and material",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("ext_color_change_syncs");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5708,10 +5685,8 @@ TEST_CASE("AD5X IFS external color change with no override creates minimal lane_
     // see the slot's color from MoonrakerPrinterAgent. Now we publish a
     // minimal record (color + material) so Orca's view stays useful.
     Ad5xIfsTmpCacheDir tmp("ext_color_change_creates_minimal");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5771,10 +5746,8 @@ TEST_CASE("AD5X IFS GET_ZCOLOR eject keeps the override and lane_data (#1071)",
     // override-retention without a store; this case additionally verifies the MR
     // DB lane_data row survives.
     Ad5xIfsTmpCacheDir tmp("eject_clears_override");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -5839,10 +5812,8 @@ TEST_CASE("AD5X IFS GET_ZCOLOR eject keeps the override and lane_data (#1071)",
 TEST_CASE("AD5X IFS external color change mirrors colors+types into _IFS_VARS",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("ifs_vars_mirror_external");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     GcodeCapturingBackend backend(&api, nullptr);
     Ad5xIfsTestAccess::set_has_ifs_vars(backend, true);
@@ -5895,10 +5866,8 @@ TEST_CASE("AD5X IFS external color change mirrors colors+types into _IFS_VARS",
 TEST_CASE("AD5X IFS bambufy prefix gets SHOW=0 to suppress _IFS_VARS echo",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("ifs_vars_mirror_bambufy_show0");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     GcodeCapturingBackend backend(&api, nullptr);
     Ad5xIfsTestAccess::set_has_ifs_vars(backend, true);
@@ -6019,10 +5988,8 @@ TEST_CASE("AD5X IFS mirror skipped when has_ifs_vars_ is false (stock zmod)",
     // is skipped — calling _IFS_VARS on a printer without the macro just
     // produces a "Unknown command" gcode error.
     Ad5xIfsTmpCacheDir tmp("ifs_vars_mirror_stock_zmod");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     GcodeCapturingBackend backend(&api, nullptr);
     Ad5xIfsTestAccess::set_has_ifs_vars(backend, false); // stock zmod
@@ -6068,10 +6035,8 @@ TEST_CASE("AD5X IFS mirror skipped when has_ifs_vars_ is false (stock zmod)",
 TEST_CASE("AD5X IFS empty colors_[] on boot does NOT establish phantom baseline",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("boot_phantom_baseline_no_clear");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -6183,10 +6148,8 @@ TEST_CASE("AD5X IFS first firmware color observation does NOT clear override",
     // before firmware is polled; the colors may not match exactly
     // (rounding, scheme differences). We must not clear on first observation.
     Ad5xIfsTmpCacheDir tmp("task11_first_observation_no_clear");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -6250,10 +6213,8 @@ TEST_CASE("AD5X IFS apply_user_edit does not wipe override on color edit",
     // Then user saves a new override with a DIFFERENT color.
     // The override must survive — not get treated as a hardware swap.
     Ad5xIfsTmpCacheDir tmp("task11_apply_user_edit_no_wipe");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -6311,10 +6272,8 @@ TEST_CASE("AD5X IFS sync_external_identity does not wipe existing override",
     // not be misread as a physical swap — the saved override must remain
     // in overrides_.
     Ad5xIfsTmpCacheDir tmp("task11_sync_external_identity_no_wipe");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -6514,10 +6473,8 @@ TEST_CASE("AD5X IFS pure black (#000000) is a real reading, not a no-signal sent
 TEST_CASE("AD5X IFS clear_slot_override erases in-memory override and MR DB entry",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("task16_clear_slot_override");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -6583,10 +6540,8 @@ TEST_CASE("AD5X IFS clear_slot_override erases in-memory override and MR DB entr
 TEST_CASE("AD5X IFS clear_slot_override drops the whole Spoolman link",
           "[ams][ad5x_ifs][filament_slot_override][1625]") {
     Ad5xIfsTmpCacheDir tmp("clear_spoolman_link");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -6612,10 +6567,8 @@ TEST_CASE("AD5X IFS clear_slot_override drops the whole Spoolman link",
 TEST_CASE("AD5X IFS clear_slot_override is safe when no override is present",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("task16_clear_slot_override_noop");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -8454,10 +8407,8 @@ TEST_CASE("AD5X IFS CHANGE_ZCOLOR with no locked override is a harmless no-op (#
 TEST_CASE("AD5X IFS external CHANGE_ZCOLOR preserves the user brand override (#981/726747c71)",
           "[ams][ad5x_ifs][filament_slot_override]") {
     Ad5xIfsTmpCacheDir tmp("bugB_brand_survives_change_zcolor");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11521,10 +11472,8 @@ TEST_CASE(
     "an AD5X linked lane records Spoolman's material spelling while firmware gets a valid one",
     "[ams][ad5x_ifs][filament_slot_override][1653]") {
     Ad5xIfsTmpCacheDir tmp("linked_material_spelling");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11582,10 +11531,8 @@ TEST_CASE("clearing an AD5X port takes the linked spool's brand off it",
     // user just cleared, and no later paint can retire it: nothing states a
     // brand any more, and apply_resolved() leaves an unobserved field standing.
     Ad5xIfsTmpCacheDir tmp("clear_takes_the_brand");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11639,10 +11586,8 @@ TEST_CASE("an AD5X slot edit paints the edit's values, not the pre-edit ones",
     // so any paint that resolves before the new declaration is filed lays the
     // earlier values back over the new ones.
     Ad5xIfsTmpCacheDir tmp("edit_paints_edit");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11684,10 +11629,8 @@ TEST_CASE("a spool Spoolman denies keeps the AD5X port's brand as remembered",
     // spool change replaces it. Both lane shapes - one no one edited and one
     // carrying a person's own pick - must end up showing the same brand.
     Ad5xIfsTmpCacheDir tmp("denied_keeps_brand");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11744,10 +11687,8 @@ TEST_CASE("a Spoolman record re-filed without its brand clears the AD5X port's b
     // persists across frames - must let the brand go rather than keep showing
     // what an earlier paint wrote.
     Ad5xIfsTmpCacheDir tmp("refiled_without_brand");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11804,10 +11745,8 @@ TEST_CASE("an external CHANGE_ZCOLOR retires the released colour's name",
     // neither store onto the struct, so the paint that follows is the only
     // thing that can take the name off the port.
     Ad5xIfsTmpCacheDir tmp("change_zcolor_retires_colour_name");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11859,10 +11798,8 @@ TEST_CASE("an external AD5X type change leaves a linked lane's Spoolman material
     // the server's on the lane, but it neither rewrites the stored record nor
     // takes the server's material off the lane.
     Ad5xIfsTmpCacheDir tmp("ifs_linked_external_type");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11909,10 +11846,8 @@ TEST_CASE("an external CHANGE_ZCOLOR on a linked lane releases the colour and ke
     // The material is the linked spool's, and the catalog pick is scoped to it,
     // so neither the record nor the lane gives them up.
     Ad5xIfsTmpCacheDir tmp("ifs_linked_zcolor_release");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -11971,10 +11906,8 @@ TEST_CASE("AD5X IFS echo of a user edit does not file as firmware truth (#1633)"
     // Filing that echo as VendorCache hands the lane the user's abandoned
     // edit as the machine's word once the override is cleared.
     Ad5xIfsTmpCacheDir tmp("ifs_echo_suppressed");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -12067,10 +12000,8 @@ TEST_CASE("AD5X IFS echo guard refuses to arm without a presence boundary (#1633
     // refuse, which leaves the echo filing as VendorCache: the lesser harm,
     // and the design's explicit call for this hardware.
     Ad5xIfsTmpCacheDir tmp("ifs_echo_no_boundary");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -12110,10 +12041,8 @@ TEST_CASE("AD5X IFS insert with no tag evidence offers Clear (#1710)", "[ams][ad
     // the slot spec's insert rule, so everything is kept and the user is
     // asked whether it is the same spool.
     Ad5xIfsTmpCacheDir tmp("ifs_insert_notice");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
@@ -12162,10 +12091,8 @@ TEST_CASE("AD5X JSON-inferred presence is not an insert edge (#1710)", "[ams][ad
     // likely to be the write coming back as a spool going in, and the insert
     // notice would land on the user's own fresh edit, where Clear wipes it.
     Ad5xIfsTmpCacheDir tmp("ifs_json_presence_no_notice");
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& api = mock_printer.api;
 
     helix::test::RegisteredBackend<AmsBackendAd5xIfs> backend_reg(&api, nullptr);
     AmsBackendAd5xIfs& backend = *backend_reg;
