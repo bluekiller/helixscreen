@@ -176,6 +176,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         ~CloseOnExit() {
             v.hide();
             helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
         }
     } closer{view};
 
@@ -195,6 +196,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // The seed is consumed: the next show of any file starts from defaults.
     view.hide();
     helix::ui::UpdateQueue::instance().drain();
+    lv_timer_handler(); // the close callback runs on the next tick
     view.show("other.gcode", "", "PLA");
     helix::ui::UpdateQueue::instance().drain();
 
@@ -237,6 +239,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "detail_mapping_ready tracks cache seed and 
     auto pop_and_drain = [&view]() {
         view.hide();
         helix::ui::UpdateQueue::instance().drain();
+        lv_timer_handler(); // the close callback runs on the next tick
     };
 
     SECTION("warmed cache: ready=1 and tools_used seeded before activation") {
@@ -420,6 +423,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     view.hide();
     helix::ui::UpdateQueue::instance().drain();
+    lv_timer_handler(); // the close callback runs on the next tick
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "prep time estimate line appears on the first open",
@@ -472,6 +476,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "prep time estimate line appears on the firs
 
     view.hide();
     helix::ui::UpdateQueue::instance().drain();
+    lv_timer_handler(); // the close callback runs on the next tick
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "History row lives in the metadata strip",
@@ -583,6 +588,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         ~CloseOnExit() {
             v.hide();
             helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
         }
     } closer{view};
 
@@ -749,6 +755,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "A bypassed single-lane print renders no fil
         ~CloseOnExit() {
             v.hide();
             helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
         }
     } closer{view};
 
@@ -841,6 +848,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "The tap chevron tracks the card, and the ba
         ~CloseOnExit() {
             v.hide();
             helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
         }
     } closer{view};
 
@@ -1018,6 +1026,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "A tap on the filament card opens the remap 
         ~CloseOnExit() {
             v.hide();
             helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
         }
     } closer{view};
 
@@ -1124,6 +1133,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "More-below subject tracks the options scrol
         ~CloseOnExit() {
             v.hide();
             helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
         }
     } closer{view};
 

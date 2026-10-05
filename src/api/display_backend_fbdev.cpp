@@ -435,8 +435,8 @@ lv_indev_t* DisplayBackendFbdev::create_input_pointer() {
                      env_swap_override ? " (swap held by environment override)" : "");
     } else if (stored_range.valid) {
         spdlog::warn("[Fbdev Backend] Ignoring stored touch range on a {}°-rotated display"
-                     " - solved through the rotation, affine-only path applies",
-                     applied_rotation);
+                     " - not stamped as solved unrotated (rotation={}), affine-only path applies",
+                     applied_rotation, stored_range.capture_rotation);
     } else {
         spdlog::info("[Fbdev Backend] Touch range source: kernel/MT-declared ABS range");
     }

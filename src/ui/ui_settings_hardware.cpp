@@ -5,7 +5,7 @@
 
 #include "ui_ams_device_operations_overlay.h"
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_power.h"
 #include "ui_settings_fans.h"
 #include "ui_settings_led.h"
@@ -63,7 +63,7 @@ void HardwareSettingsOverlay::register_callbacks() {
              lv_obj_t* overlay = get_global_power_panel().get_or_create_overlay(
                  get_hardware_settings_overlay().parent_screen_);
              if (overlay) {
-                 NavigationManager::instance().push_overlay(overlay);
+                 helix::nav::push_overlay(overlay);
              } else {
                  spdlog::error("[HardwareSettingsOverlay] Failed to open Power panel");
              }

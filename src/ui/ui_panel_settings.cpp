@@ -10,7 +10,7 @@
 #if HELIX_HAS_PLUGINS
 #include "plugins_overlay.h"
 #endif
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_memory_stats.h"
 #include "ui_settings_appearance.h"
 #include "ui_settings_connection.h"
@@ -387,6 +387,6 @@ void register_settings_panel_callbacks() {
              }
          }},
         {"on_restart_now_clicked", [](lv_event_t*) { app_request_restart_service(); }},
-        {"on_header_back_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
+        {"on_header_back_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
     });
 }

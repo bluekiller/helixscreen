@@ -6,7 +6,7 @@
 #include "ui_event_safety.h"
 #include "ui_fan_control_overlay.h"
 #include "ui_keyboard_manager.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_overlay_printer_image.h"
 #include "ui_overlay_printer_type.h"
 #include "ui_overlay_retraction_settings.h"
@@ -205,8 +205,8 @@ void on_chip_ams_clicked(lv_event_t*) {
         // cached panel loses its registration and on_deactivate() never fires on
         // dismiss — leaving the filament-path animation drawing into a torn-down
         // panel. Idempotent.
-        NavigationManager::instance().register_overlay_instance(panel_obj, &ams_panel);
-        NavigationManager::instance().push_overlay(panel_obj);
+        helix::nav::register_overlay(panel_obj, &ams_panel);
+        helix::nav::push_overlay(panel_obj);
     }
 }
 
@@ -221,7 +221,7 @@ void on_chip_power_clicked(lv_event_t*) {
     auto& panel = get_global_power_panel();
     lv_obj_t* overlay = panel.get_or_create_overlay(lv_display_get_screen_active(nullptr));
     if (overlay) {
-        NavigationManager::instance().push_overlay(overlay);
+        helix::nav::push_overlay(overlay);
     }
 }
 

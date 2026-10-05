@@ -43,7 +43,6 @@
 #include "tap_latch.h"
 #include "touch_calibration_wrapper.h"
 #ifdef HELIX_ENABLE_SCREENSAVER
-#include "ui_nav_manager.h"
 
 #include "screensaver.h"
 #endif
@@ -915,6 +914,9 @@ helix::LiveTouchRange DisplayManager::current_touch_range() const {
         live.range.min_y = diag.pipeline.min_y;
         live.range.max_y = diag.pipeline.max_y;
         live.source = diag.pipeline.source;
+        if (live.source == helix::TouchRangeSource::Stored) {
+            live.range.capture_rotation = diag.pipeline.stored.capture_rotation;
+        }
     }
     return live;
 }

@@ -7,7 +7,7 @@
 #include "ui_event_safety.h"
 #include "ui_filename_utils.h"
 #include "ui_format_utils.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_print_select.h"
@@ -692,7 +692,7 @@ void PrintStatusWidget::handle_print_card_clicked() {
 
 void PrintStatusWidget::handle_library_files() {
     spdlog::info("[PrintStatusWidget] Library: Print Files");
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 }
 
 void PrintStatusWidget::handle_library_last() {
@@ -715,7 +715,7 @@ void PrintStatusWidget::handle_library_last() {
     spdlog::info("[PrintStatusWidget] Library: Print Last -> {}", last_job->filename);
 
     // Navigate to PrintSelectPanel, select the file, and return to home on back
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     auto* panel = get_print_select_panel(printer_state_, get_moonraker_api());
     if (panel) {
@@ -729,7 +729,7 @@ void PrintStatusWidget::handle_library_last() {
 void PrintStatusWidget::handle_library_recent() {
     spdlog::info("[PrintStatusWidget] Library: Recent");
 
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     auto* panel = get_print_select_panel(printer_state_, get_moonraker_api());
     if (panel) {

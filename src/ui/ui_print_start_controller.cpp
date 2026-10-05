@@ -13,7 +13,7 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_print_status.h"
 #include "ui_print_select_detail_view.h"
 #include "ui_update_queue.h"
@@ -304,11 +304,10 @@ void PrintStartController::execute_print_start() {
                         // actually put on the stack, and it goes null with
                         // destroy-on-close — the same handle the auto-nav gate
                         // checks membership with (print_start_navigation.cpp).
-                        auto& nav = NavigationManager::instance();
-                        if (nav.is_panel_on_top(PrintStatusPanel::get_cached_overlay())) {
+                        if (helix::nav::is_on_top(PrintStatusPanel::get_cached_overlay())) {
                             spdlog::info("[PrintStartController] Navigating back to print select "
                                          "after failure");
-                            nav.go_back(); // Pop print status overlay
+                            helix::nav::go_back(); // Pop print status overlay
 
                             // Re-show the detail view so user can retry
                             if (show_detail) {

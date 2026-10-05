@@ -4,7 +4,6 @@
 #include "ui_panel_common.h"
 
 #include "ui_component_header_bar.h"
-#include "ui_nav_manager.h"
 #include "ui_utils.h"
 
 #include "display_manager.h"

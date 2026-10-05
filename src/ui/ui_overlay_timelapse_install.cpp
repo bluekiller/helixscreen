@@ -6,7 +6,7 @@
 #include "ui_button.h"
 #include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_step_progress.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
@@ -239,8 +239,7 @@ void TimelapseInstallOverlay::step_check_plugin() {
                         ui_step_progress_set_completed(step_progress_, i);
                     }
                 }
-                show_action_button(lv_tr("Close"),
-                                   []() { NavigationManager::instance().go_back(); });
+                show_action_button(lv_tr("Close"), []() { helix::nav::go_back(); });
             });
         },
         [this, tok](const MoonrakerError& /*err*/) {
@@ -300,8 +299,7 @@ void TimelapseInstallOverlay::recheck_after_install() {
                         ui_step_progress_set_completed(step_progress_, i);
                     }
                 }
-                show_action_button(lv_tr("Done"),
-                                   []() { NavigationManager::instance().go_back(); });
+                show_action_button(lv_tr("Done"), []() { helix::nav::go_back(); });
             });
         },
         [this, tok](const MoonrakerError& /*err*/) {
@@ -651,8 +649,7 @@ void TimelapseInstallOverlay::step_verify() {
                 }
                 // Update capability state so UI reflects timelapse availability
                 get_printer_state().set_timelapse_available(true);
-                show_action_button(lv_tr("Done"),
-                                   []() { NavigationManager::instance().go_back(); });
+                show_action_button(lv_tr("Done"), []() { helix::nav::go_back(); });
                 ToastManager::instance().show(ToastSeverity::SUCCESS,
                                               lv_tr("Timelapse plugin installed!"), 3000);
             });

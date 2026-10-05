@@ -11,7 +11,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_debug_bundle_modal.h"
 #include "ui_info_qr_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_settings_about.h"
 
@@ -29,8 +29,8 @@ void HelpSettingsOverlay::register_callbacks() {
              spdlog::info("[HelpSettingsOverlay] Replay Welcome Tour clicked");
              // Dismiss the Help overlay, then switch to the Home panel so the tour's
              // navbar highlights (and the widget tiles) are actually on screen.
-             NavigationManager::instance().go_back();
-             NavigationManager::instance().set_active(helix::PanelId::Home);
+             helix::nav::go_back();
+             helix::nav::set_active(helix::PanelId::Home);
              // Defer start so panel activation + layout settle before the overlay
              // resolves target coordinates. Unguarded: the lambda captures no `this`
              // and only touches the immortal FirstRunTour function-local static.
