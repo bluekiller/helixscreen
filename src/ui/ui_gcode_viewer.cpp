@@ -485,6 +485,16 @@ static void gcode_viewer_refresh_content_offset(gcode_viewer_state_t* st, lv_obj
 /// viewer's own delete handler can detach it before this object is freed.
 static void gcode_viewer_occluder_delete_cb(lv_event_t* e);
 
+/// Take down the loading spinner, deferred: callers run inside queued
+/// callbacks, where a synchronous delete corrupts LVGL's event list.
+static void remove_loading_ui(gcode_viewer_state_t* st) {
+    if (st->loading_container) {
+        st->loading_spinner = nullptr;
+        st->loading_label = nullptr;
+        helix::ui::safe_delete_deferred(st->loading_container);
+    }
+}
+
 // Helper: Check if viewer has any G-code data (full file or streaming)
 static bool has_gcode_data(const gcode_viewer_state_t* st) {
     return st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
@@ -1856,11 +1866,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
                 // Clean up loading UI — deferred to next frame to avoid deleting
                 // the spinner while its animation timer events may be in-flight
-                if (st->loading_container) {
-                    st->loading_spinner = nullptr;
-                    st->loading_label = nullptr;
-                    helix::ui::safe_delete_deferred(st->loading_container);
-                }
+                remove_loading_ui(st);
 
                 if (r->success && st->streaming_controller_ &&
                     st->streaming_controller_->is_open()) {
@@ -2128,11 +2134,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
                 // Clean up loading UI — deferred to next frame to avoid deleting
                 // the spinner while its animation timer events may be in-flight
-                if (st->loading_container) {
-                    st->loading_spinner = nullptr;
-                    st->loading_label = nullptr;
-                    helix::ui::safe_delete_deferred(st->loading_container);
-                }
+                remove_loading_ui(st);
 
                 if (r->success) {
                     spdlog::debug("[GCode Viewer] Async callback - setting up geometry");
@@ -2303,6 +2305,11 @@ void ui_gcode_viewer_clear(lv_obj_t* obj) {
     crash_handler::breadcrumb::note("layer_renderer", "clear_reset_post");
     // An on-demand 3D build reads the file in place; join it before freeing.
     st->cancel_build();
+    // A result queued before the cancel would otherwise pass the generation
+    // check and reinstall the file this call is clearing.
+    st->bump_generation();
+    // Nothing will deliver a result now, so nothing else takes the spinner down.
+    remove_loading_ui(st);
     st->gcode_file.reset();
     st->streaming_controller_.reset();
     st->has_external_color_override = false; // Clear external color override
