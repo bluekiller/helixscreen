@@ -4,6 +4,7 @@
 
 #include "ui_update_queue.h"
 
+#include "helix_thread.h"
 #include "layout_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -166,7 +167,7 @@ void XmlHotReloader::start(const std::vector<std::string>& xml_dirs, int poll_in
                  file_mtimes_.size(), xml_dirs.size(), poll_interval_ms_);
 
     running_.store(true);
-    poll_thread_ = std::thread(&XmlHotReloader::poll_loop, this);
+    poll_thread_ = helix::make_thread(&XmlHotReloader::poll_loop, this);
 }
 
 void XmlHotReloader::stop() {

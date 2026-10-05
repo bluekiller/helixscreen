@@ -10,6 +10,7 @@
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
+#include "helix_thread.h"
 #include "lvgl_image_writer.h"
 #include "memory_monitor.h"
 #include "system/crash_handler.h"
@@ -155,6 +156,9 @@ void ThumbnailProcessor::process_file_async(const std::string& png_path,
                                   cache_dir_copy = std::move(cache_dir_copy),
                                   journal_copy = std::move(journal_copy), target, on_success,
                                   on_error]() {
+                // libhv's HThreadPool spawns its own workers, so each task
+                // makes sure the worker it lands on has a signal stack.
+                helix::install_thread_altstack();
                 // The read happens HERE, on the worker. Callers used to slurp the
                 // PNG on the main thread purely to hand the bytes straight back
                 // to this pool - once per file while a listing populated.
@@ -233,6 +237,7 @@ void ThumbnailProcessor::process_async(const std::vector<uint8_t>& png_data,
                 [this, png_copy = std::move(png_copy), source_copy = std::move(source_copy),
                  cache_dir_copy = std::move(cache_dir_copy), journal_copy = std::move(journal_copy),
                  target, on_success, on_error]() {
+                    helix::install_thread_altstack();
                     ProcessResult result =
                         do_process(png_copy, source_copy, target, cache_dir_copy, journal_copy);
                     deliver_result(result, source_copy, on_success, on_error);
@@ -482,7 +487,10 @@ void ThumbnailProcessor::submit_test_task(std::function<void()> task) {
     // then have this commit() resurrect it.
     std::lock_guard<std::mutex> lock(mutex_);
     if (!shutdown_ && thread_pool_) {
-        thread_pool_->commit(std::move(task));
+        thread_pool_->commit([task = std::move(task)] {
+            helix::install_thread_altstack();
+            task();
+        });
     }
 }
 

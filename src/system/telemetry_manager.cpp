@@ -16,6 +16,7 @@
 #include "display_manager.h"
 #include "display_settings_manager.h"
 #include "filament_sensor_manager.h"
+#include "helix_thread.h"
 #include "host_identity.h"
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
@@ -718,7 +719,7 @@ void TelemetryManager::try_send(bool force) {
     // spawn failure the queue is already in the right state. Just log; the
     // next try_send tick will retry.
     try {
-        send_thread_ = std::thread([this, batch = std::move(batch)]() { do_send(batch); });
+        send_thread_ = helix::make_thread([this, batch = std::move(batch)]() { do_send(batch); });
     } catch (const std::system_error& e) {
         spdlog::error("[TelemetryManager] Failed to spawn send thread: {} — events remain "
                       "queued for next try_send",

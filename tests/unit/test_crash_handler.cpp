@@ -14,6 +14,7 @@
 
 #include "../test_helpers/breadcrumb_capture.h"
 #include "config.h"
+#include "helix_thread.h"
 #include "system/crash_error_log_sink.h"
 #include "system/crash_handler.h"
 #include "system/telemetry_manager.h"
@@ -1447,6 +1448,35 @@ TEST_CASE_METHOD(CrashTestFixture, "Crash: a stack overflow still writes the cra
     // SP sits in the guard region below the stack. The stack dump starts
     // there, so a handler that reads it unchecked faults again and the record
     // stops before the dump and the memory map that follow it.
+    REQUIRE(result.contains("stack_dump"));
+    REQUIRE(result.contains("memory_map"));
+}
+
+TEST_CASE_METHOD(CrashTestFixture,
+                 "Crash: a stack overflow on a make_thread worker still writes the crash file",
+                 "[telemetry][crash][subprocess]") {
+    pid_t pid = fork();
+    REQUIRE(pid >= 0);
+
+    if (pid == 0) {
+        crash_handler::install(crash_path());
+        auto worker = helix::make_thread([] { overflow_stack(0); });
+        worker.join();
+        _exit(99);
+    }
+
+    int status = 0;
+    REQUIRE(waitpid(pid, &status, 0) == pid);
+    INFO("WIFEXITED=" << WIFEXITED(status) << " WEXITSTATUS=" << WEXITSTATUS(status)
+                      << " WIFSIGNALED=" << WIFSIGNALED(status)
+                      << " WTERMSIG=" << WTERMSIG(status));
+    // The main thread's signal stack does not serve a worker: without its own,
+    // the kernel cannot deliver SIGSEGV on the overflowed stack and the process
+    // dies before the handler writes anything.
+    REQUIRE(crash_handler::has_crash_file(crash_path()));
+    auto result = crash_handler::read_crash_file(crash_path());
+    REQUIRE_FALSE(result.is_null());
+    REQUIRE(result["signal"] == SIGSEGV);
     REQUIRE(result.contains("stack_dump"));
     REQUIRE(result.contains("memory_map"));
 }

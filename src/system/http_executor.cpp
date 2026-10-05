@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "http_executor.h"
 
+#include "helix_thread.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -44,7 +46,7 @@ void HttpExecutor::start() {
         auto state = std::atomic_load(&state_); // shared_ptr copy for the thread to hold
         auto name = name_;
         auto* owner = this;
-        w->thread = std::thread([state, w, owner, name, i]() {
+        w->thread = helix::make_thread([state, w, owner, name, i]() {
             loop(state, owner, name, i);
             // Safe even if stop() has already cleared `workers_`: `w` is a
             // captured shared_ptr, so the Worker object lives until the

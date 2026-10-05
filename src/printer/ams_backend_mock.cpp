@@ -4,6 +4,7 @@
 #include "ams_backend_mock.h"
 
 #include "afc_defaults.h"
+#include "helix_thread.h"
 #if HELIX_HAS_SNAPMAKER
 #include "ams_backend_snapmaker.h"
 #endif
@@ -310,7 +311,7 @@ AmsError AmsBackendMock::start() {
             set_realistic_mode(true);
             // Schedule a load after a short delay so the UI has time to initialize
             scenario_thread_running_ = true;
-            scenario_thread_ = std::thread([this]() {
+            scenario_thread_ = helix::make_thread([this]() {
                 {
                     std::unique_lock<std::mutex> lk(shutdown_mutex_);
                     shutdown_cv_.wait_for(lk, std::chrono::milliseconds(500),
@@ -325,7 +326,7 @@ AmsError AmsBackendMock::start() {
         } else if (scenario == "bypass") {
             // Schedule bypass after a short delay so the UI has time to initialize
             scenario_thread_running_ = true;
-            scenario_thread_ = std::thread([this]() {
+            scenario_thread_ = helix::make_thread([this]() {
                 {
                     std::unique_lock<std::mutex> lk(shutdown_mutex_);
                     shutdown_cv_.wait_for(lk, std::chrono::milliseconds(500),
@@ -1816,8 +1817,8 @@ AmsError AmsBackendMock::start_drying(float temp_c, int duration_min, int fan_pc
     // Start simulation thread
     // speed_x: how many simulated seconds pass per real second
     // At default 60x: 1 real second = 1 simulated minute, so 4h completes in 4min
-    dryer_thread_ =
-        std::thread([this, temp_c, duration_min, speed_x, start_temp, initial_elapsed_min, unit]() {
+    dryer_thread_ = helix::make_thread(
+        [this, temp_c, duration_min, speed_x, start_temp, initial_elapsed_min, unit]() {
             float current_temp = start_temp;
             int total_sec = duration_min * 60;              // Total simulated seconds
             int elapsed_sim_sec = initial_elapsed_min * 60; // Honor optional head start
@@ -3604,7 +3605,7 @@ void AmsBackendMock::schedule_recovery_sequence() {
     operation_thread_running_ = true;
 
     // Run recovery sequence in background thread
-    operation_thread_ = std::thread([this]() {
+    operation_thread_ = helix::make_thread([this]() {
         // Helper lambda for interruptible sleep
         InterruptibleSleep interruptible_sleep = [this](int ms) -> bool {
             std::unique_lock<std::mutex> lock(shutdown_mutex_);
@@ -3662,41 +3663,42 @@ void AmsBackendMock::schedule_completion(AmsAction action, const std::string& co
     bool is_tool_change = (complete_event == EVENT_TOOL_CHANGED);
 
     // Simulate operation delay in background thread with path segment progression
-    operation_thread_ = std::thread([this, action, complete_event, slot_index, is_tool_change]() {
-        // Helper lambda for interruptible sleep (returns false if cancelled/shutdown)
-        InterruptibleSleep interruptible_sleep = [this](int ms) -> bool {
-            std::unique_lock<std::mutex> lock(shutdown_mutex_);
-            return !shutdown_cv_.wait_for(lock, std::chrono::milliseconds(ms), [this] {
-                return shutdown_requested_.load() || cancel_requested_.load();
-            });
-        };
+    operation_thread_ =
+        helix::make_thread([this, action, complete_event, slot_index, is_tool_change]() {
+            // Helper lambda for interruptible sleep (returns false if cancelled/shutdown)
+            InterruptibleSleep interruptible_sleep = [this](int ms) -> bool {
+                std::unique_lock<std::mutex> lock(shutdown_mutex_);
+                return !shutdown_cv_.wait_for(lock, std::chrono::milliseconds(ms), [this] {
+                    return shutdown_requested_.load() || cancel_requested_.load();
+                });
+            };
 
-        if (is_tool_change) {
-            // Tool change uses special operation with SELECTING phase
-            execute_tool_change_operation(slot_index, interruptible_sleep);
-        } else if (action == AmsAction::LOADING) {
-            // Use phase executor (handles both realistic and simple modes)
-            execute_load_operation(slot_index, interruptible_sleep);
-        } else if (action == AmsAction::UNLOADING) {
-            // Use phase executor (handles both realistic and simple modes)
-            execute_unload_operation(interruptible_sleep);
-        } else {
-            // For other actions, just wait and complete
-            if (!interruptible_sleep(get_effective_delay_ms(operation_delay_ms_)))
-                return;
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                system_info_.action = AmsAction::IDLE;
-                system_info_.operation_detail.clear();
+            if (is_tool_change) {
+                // Tool change uses special operation with SELECTING phase
+                execute_tool_change_operation(slot_index, interruptible_sleep);
+            } else if (action == AmsAction::LOADING) {
+                // Use phase executor (handles both realistic and simple modes)
+                execute_load_operation(slot_index, interruptible_sleep);
+            } else if (action == AmsAction::UNLOADING) {
+                // Use phase executor (handles both realistic and simple modes)
+                execute_unload_operation(interruptible_sleep);
+            } else {
+                // For other actions, just wait and complete
+                if (!interruptible_sleep(get_effective_delay_ms(operation_delay_ms_)))
+                    return;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    system_info_.action = AmsAction::IDLE;
+                    system_info_.operation_detail.clear();
+                }
             }
-        }
 
-        if (shutdown_requested_ || cancel_requested_)
-            return; // Final check before emitting
+            if (shutdown_requested_ || cancel_requested_)
+                return; // Final check before emitting
 
-        emit_event(complete_event, slot_index >= 0 ? std::to_string(slot_index) : "");
-        emit_event(EVENT_STATE_CHANGED);
-    });
+            emit_event(complete_event, slot_index >= 0 ? std::to_string(slot_index) : "");
+            emit_event(EVENT_STATE_CHANGED);
+        });
 }
 
 // ============================================================================
