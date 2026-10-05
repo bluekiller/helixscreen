@@ -217,7 +217,7 @@ void EmergencyStopOverlay::deinit_subjects() {
     // Same reasoning as the dialog pointers above, one level up: init() stored
     // borrowed pointers, and neither object survives what this runs ahead of.
     // Production always re-inits before the next create() (a soft restart re-runs
-    // Application::init_panel_subjects()), but tests own a PrinterState per
+    // PrinterSession::init_panel_subjects()), but tests own a PrinterState per
     // fixture and never re-init, so leaving these set hands the next test a
     // singleton pointing at freed objects. Every consumer is null-guarded.
     printer_state_ = nullptr;
