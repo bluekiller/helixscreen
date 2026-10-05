@@ -224,7 +224,9 @@ class ActivePrintMediaManager {
     /// the notify_filelist_changed / notify_klippy_ready re-triggers.
     static constexpr int MAX_EMPTY_THUMBNAIL_RETRIES = 2;
     /// Retries after a fetched thumbnail failed to decode (ESP32 PSRAM shortage).
-    static constexpr int MAX_DECODE_RETRIES = 1;
+    /// On retry_delay_ms()'s ladder they land about 2, 7, 17, 37 and 67s after
+    /// the first failure, by which point boot has settled and PSRAM freed up.
+    static constexpr int MAX_DECODE_RETRIES = 5;
 
     helix::ui::LvglTimerGuard retry_timer_; ///< Pending one-shot retry (empty when none)
     int thumbnail_retry_count_ = 0;         ///< Retries scheduled for the current filename
