@@ -140,10 +140,13 @@ The volume label comes from the mount point leaf when it does not look like a de
 
 `scan_for_gcode()` refuses a mount path that is not in `cached_drives_`, then releases the backend mutex and walks it recursively to `max_depth` 3 by default (`src/api/usb_backend_linux.cpp#scan_directory`). Files are kept when `helix::gcode::has_printable_extension()` accepts the name, the same predicate the Moonraker file list uses, so 8.3 names like `3DBENC~1.GCO` from an `msdos` mount still match.
 
-`PrintSelectUsbSource::refresh_files()` takes the drive list on the UI thread, then hands the slow part to `HttpExecutor::fast()`: `scan_drives()` walks every mounted drive into one flat list (a file's path already carries its mount point) and pulls each file's header thumbnail into the thumbnail cache (`src/ui/ui_print_select_usb_source.cpp#scan_drives`):
+`PrintSelectUsbSource::refresh_files()` takes the drive list and a `shared_ptr` to the backend (`UsbManager::backend_snapshot()`) on the UI thread, then hands the slow part to `HttpExecutor::fast()`: `scan_usb_drives()` walks every mounted drive into one flat list (a file's path already carries its mount point) and pulls each file's header thumbnail into the thumbnail cache (`src/ui/ui_print_select_usb_source.cpp#scan_usb_drives`):
 
 ```cpp
     for (const auto& file : scan.files) {
+        if (cancelled()) {
+            return scan;
+        }
         std::string cache_path;
         auto best = helix::gcode::get_best_thumbnail(file.path);
         if (!best.png_data.empty()) {
@@ -155,13 +158,15 @@ The volume label comes from the mount point leaf when it does not look like a de
 
 The cache key is the full path, so same-named files in different folders or on different sticks keep their own thumbnails. `save_raw_png` accepts PNG only, so a slicer that embeds JPEG thumbnails (Cura) shows the default card image.
 
-The result comes back through a `scan_lifetime_` token. Each refresh invalidates the previous one, so only the newest scan delivers, and a scan that lands after the user switched back to the Printer tab is dropped. On the UI thread each entry goes through `PrintFileData::from_usb_file`, which fills `--` for print time, filament, layers and height and keeps the stick path in `local_path`. The panel then marks every entry `metadata_fetched = true` so no Moonraker metadata request goes out.
+One walk runs at a time. Every refresh, every switch to the Printer tab and the source's destruction bump `scan_generation_`; the walk polls it before each drive and each file and stops early once it has moved. When a walk ends under an old generation, `on_scan_done()` starts one more walk if the USB tab is still selected, so any number of refreshes during a walk cost one extra walk. Only a walk that ends under the current generation delivers. The result comes back through the `scan_lifetime_` token, which expires only with the object. The walk holds the backend, never the manager, because the application destroys the manager before it stops the executors; `~UsbManager` stops the backend, so a walk still holding it scans nothing and its monitor thread cannot report into the freed manager.
+
+The walk stays on the fast lane rather than the slow one: single-flight it occupies at most one of the four fast workers, while the slow lane's single worker would queue the listing behind any large G-code transfer. On the UI thread each entry goes through `PrintFileData::from_usb_file`, which fills `--` for print time, filament, layers and height and keeps the stick path in `local_path`. The panel then marks every entry `metadata_fetched = true` so no Moonraker metadata request goes out.
 
 That pre-extracted path rides along to `PrintStartController` and on to `ActivePrintMediaManager::set_thumbnail_path`, so the print status panel can show it without a Moonraker fetch.
 
 ### Starting a print from the USB source
 
-Moonraker usually cannot read a stick HelixScreen mounted itself (it runs as another user, in another mount namespace, or on another host), so a USB file is copied to Moonraker before it prints. When the selected file has a `local_path`, `PrintSelectPanel::start_print` and `add_to_queue` call `copy_usb_file_to_printer()` (`src/ui/ui_panel_print_select.cpp#copy_usb_file_to_printer`). It lists `gcodes/usb_prints` and names the copy with `choose_usb_copy_target()` (`src/print/print_file_data.cpp#choose_usb_copy_target`), then either reuses a file already there or streams the stick file through `ITransfersAPI::upload_file_from_path`, under a `BusyOverlay` with progress. The panel then hands `PrintStartController` the copy's name with `usb_prints` as its directory (or queues `usb_prints/<name>`), and the normal start pipeline runs against the copy. The filename, tool colors and thumbnail are read when Print is tapped, not when the copy lands. On failure it toasts "Could not copy ... from USB" and starts nothing. Print and Add to Queue taps are ignored while a copy is in flight.
+Moonraker usually cannot read a stick HelixScreen mounted itself (it runs as another user, in another mount namespace, or on another host), so a USB file is copied to Moonraker before it prints. When the selected file has a `local_path`, `PrintSelectPanel::start_print` and `add_to_queue` call `copy_usb_file_to_printer()` (`src/ui/ui_panel_print_select.cpp#copy_usb_file_to_printer`). It lists `gcodes/usb_prints` and names the copy with `choose_usb_copy_target()` (`src/print/print_file_data.cpp#choose_usb_copy_target`), then either reuses a file already there or streams the stick file through `ITransfersAPI::upload_file_from_path`, under a `BusyOverlay` with progress. The panel then hands `PrintStartController` the copy's name with `usb_prints` as its directory (or queues `usb_prints/<name>`), and the normal start pipeline runs against the copy. The filename, tool colors and thumbnail are read when Print is tapped, not when the copy lands. On failure it toasts "Could not copy ... from USB" and starts nothing. Print and Add to Queue taps are ignored while a copy is in flight. `BusyOverlay` has no cancel and libhv's upload timeout is an hour, so a one-shot watchdog (`kUsbCopyStallMs`, 30s) abandons a copy that reports no progress for that long, toasts "Copying from USB stopped responding", and ignores the copy's late answer; each whole-percent progress report pushes the watchdog back.
 
 Policy, as implemented:
 
@@ -204,14 +209,14 @@ On removal, `on_drive_removed()` asks the manager what is still mounted, because
 | `UsbBackendLinux::monitor_thread_func`, `UsbAutomount::poll` | Monitor thread | Never touches LVGL. All automount syscalls stay here, including the shutdown `unmount_all()`. |
 | `UsbBackendMock` demo insert | Mock's demo thread | Same callback path as the real backend |
 | `DriveCallback` | Whichever backend thread fired it | Must marshal with `helix::ui::queue_update()` before touching widgets or subjects |
-| `PrintSelectUsbSource::refresh_files` | UI thread, then `HttpExecutor::fast()` | Drive list on the UI thread; walk and thumbnail extraction on the worker; result delivered with `tok.defer()` |
+| `PrintSelectUsbSource::refresh_files` | UI thread, then `HttpExecutor::fast()` | Drive list and backend snapshot on the UI thread; walk and thumbnail extraction on the worker, one at a time; result delivered with `tok.defer()` |
 | `PrinterImageOverlay` | UI thread | Calls `get_drives()` and scans `drives[0]` synchronously |
 
 The `SubjectInitializer` callback captures a raw `PrintSelectPanel*` together with a `weak_ptr<bool>` alive guard, and checks `expired()` inside each queued lambda, so a queued update that lands after teardown does nothing (`src/application/subject_initializer.cpp#init_usb_manager`). It also suppresses the "USB drive connected" toast for 3 seconds after setup so a drive present at boot does not announce itself.
 
 `PrinterImageOverlay::scan_usb_drives` still walks the first drive for images on the UI thread when it activates.
 
-`UsbManager::~UsbManager` and `UsbBackendMock::~UsbBackendMock` skip their mutexes: they can run during static destruction, when the mutex may already be gone.
+`UsbManager::~UsbManager` and `UsbBackendMock::~UsbBackendMock` skip their own mutexes: they can run during static destruction, when the mutex may already be gone. `~UsbManager` still calls the backend's `stop()`, since a scan may hold the backend past the manager.
 
 ---
 
