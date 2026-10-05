@@ -27,9 +27,12 @@
 #include "ams_types.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lib/lvgl/src/misc/lv_timer_private.h"
+#include "moonraker_client_mock.h"
 #include "test_helpers/afc_test_access.h"
 #include "test_helpers/ams_sidebar_xml.h"
+#include "test_helpers/ams_state_test_access.h"
 #include "test_helpers/cfs_test_access.h"
+#include "test_helpers/gcode_recording_api.h"
 #include "test_helpers/happy_hare_test_access.h"
 
 #include <chrono>
@@ -48,11 +51,12 @@ using helix::SlotStatus;
 
 namespace helix {
 
-/// Happy Hare with four available gates, running, gcode captured. HH sets no
-/// action of its own at dispatch: mmu.action is the only thing that moves it.
+/// Happy Hare with four available gates and running, sending through @p api.
+/// HH sets no action of its own at dispatch: mmu.action is the only thing that
+/// moves it.
 class HhOptimisticBackend : public AmsBackendHappyHare {
   public:
-    HhOptimisticBackend() : AmsBackendHappyHare(nullptr, nullptr) {
+    explicit HhOptimisticBackend(IMoonrakerAPI* api) : AmsBackendHappyHare(api, nullptr) {
         std::vector<std::string> names{"0", "1", "2", "3"};
         HappyHareTestAccess::slots(*this).initialize("MMU", names);
         AmsUnit unit;
@@ -73,12 +77,8 @@ class HhOptimisticBackend : public AmsBackendHappyHare {
         running_ = true;
     }
 
-    AmsError execute_gcode(const std::string& gcode) override {
-        sent.push_back(gcode);
-        return AmsErrorHelper::success();
-    }
     bool toolhead_homed() const override {
-        return true;
+        return homed;
     }
 
     void seat(int slot) {
@@ -100,7 +100,7 @@ class HhOptimisticBackend : public AmsBackendHappyHare {
         handle_status_update(notification);
     }
 
-    std::vector<std::string> sent;
+    bool homed = true;
 };
 
 /// AFC with four lanes, running, gcode captured.
@@ -175,8 +175,8 @@ namespace {
 /// The production sidebar over a chosen backend, built the way ams_panel.xml
 /// builds it.
 struct OptimisticSidebarFixture : public XMLTestFixture {
-    template <typename BackendT> BackendT& build() {
-        auto owned = std::make_unique<BackendT>();
+    template <typename BackendT, typename... Args> BackendT& build(Args&&... args) {
+        auto owned = std::make_unique<BackendT>(std::forward<Args>(args)...);
         BackendT& backend = *owned;
         AmsState::instance().set_backend(std::move(owned));
         AmsState::instance().init_subjects(true);
@@ -188,6 +188,7 @@ struct OptimisticSidebarFixture : public XMLTestFixture {
         REQUIRE(lv_xml_create(panel_, "ams_sidebar", attrs) != nullptr);
         sidebar_ = std::make_unique<helix::ui::AmsOperationSidebar>(state());
         REQUIRE(sidebar_->setup(panel_));
+        sidebar_->init_observers(); // as the AMS panels do after setup()
         return backend;
     }
 
@@ -209,7 +210,10 @@ struct OptimisticSidebarFixture : public XMLTestFixture {
     /// The test pump runs only one-shot timers, so the periodic watchdog is
     /// found by its owner and fired directly.
     void let_watchdog_run() {
-        helix::ui::UpdateQueue::instance().drain();
+        // A deferred callback can queue another, so drain until quiet.
+        for (int i = 0; i < 4; ++i) {
+            helix::ui::UpdateQueue::instance().drain();
+        }
         int fired = 0;
         for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) {
             if (lv_timer_get_user_data(t) == sidebar_.get()) {
@@ -220,6 +224,23 @@ struct OptimisticSidebarFixture : public XMLTestFixture {
         REQUIRE(fired == 1);
     }
 
+    [[nodiscard]] helix::HhOptimisticBackend& build_hh() {
+        return build<helix::HhOptimisticBackend>(&api_);
+    }
+
+    [[nodiscard]] static bool held() {
+        return AmsState::instance().optimistic_action_held();
+    }
+
+    void set_nozzle(int temp_c, int target_c) {
+        lv_subject_set_int(state().get_active_extruder_target_subject(), target_c * 10);
+        lv_subject_set_int(state().get_active_extruder_temp_subject(), temp_c * 10);
+        // The sidebar's temperature observers run deferred, one frame at a time.
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    MoonrakerClientMock client_{MoonrakerClientMock::PrinterType::VORON_24};
+    helix::test::GcodeRecordingApi api_{client_, state()};
     std::unique_ptr<helix::ui::AmsOperationSidebar> sidebar_;
     lv_obj_t* panel_ = nullptr;
 };
@@ -229,13 +250,13 @@ struct OptimisticSidebarFixture : public XMLTestFixture {
 TEST_CASE_METHOD(OptimisticSidebarFixture,
                  "Happy Hare load: the UI preheat window does not read as Idle",
                  "[ams][optimistic_action][happy_hare]") {
-    auto& hh = build<helix::HhOptimisticBackend>();
+    auto& hh = build_hh();
 
     // HH does not heat for a load, so the sidebar preheats first. The extruder
     // reads 0C here, so the load waits on the preheat and HH is not called.
     sidebar_->handle_load_with_preheat(1);
     REQUIRE(shown_action() == AmsAction::HEATING);
-    REQUIRE(hh.sent.empty());
+    REQUIRE(api_.sent.empty());
 
     // HH has nothing to say while the nozzle heats: its stored action is the
     // Idle from before the tap. A gate_status delta still reaches the parser
@@ -248,12 +269,12 @@ TEST_CASE_METHOD(OptimisticSidebarFixture,
 TEST_CASE_METHOD(OptimisticSidebarFixture,
                  "Happy Hare unload: the gap before mmu.action moves does not read as Idle",
                  "[ams][optimistic_action][happy_hare]") {
-    auto& hh = build<helix::HhOptimisticBackend>();
+    auto& hh = build_hh();
     hh.seat(1);
     AmsState::instance().sync_from_backend();
 
     sidebar_->handle_unload(1);
-    REQUIRE(hh.sent == std::vector<std::string>{"MMU_UNLOAD"});
+    REQUIRE(api_.sent == std::vector<std::string>{"MMU_UNLOAD"});
     REQUIRE(shown_action() == AmsAction::HEATING);
 
     // MMU_UNLOAD is queued, HH has not started it yet.
@@ -307,31 +328,122 @@ TEST_CASE_METHOD(OptimisticSidebarFixture, "CFS unload: CFS's own dispatch actio
 TEST_CASE_METHOD(OptimisticSidebarFixture,
                  "Happy Hare: an expired hold lets the backend's Idle through",
                  "[ams][optimistic_action][happy_hare]") {
-    auto& hh = build<helix::HhOptimisticBackend>();
+    auto& hh = build_hh();
     hh.seat(1);
     AmsState::instance().sync_from_backend();
 
     sidebar_->handle_unload(1);
-    REQUIRE(AmsState::instance().optimistic_action_held());
+    REQUIRE(held());
+    let_watchdog_run();
+    REQUIRE(shown_action() == AmsAction::HEATING);
 
     // HH never reports the operation at all. The guardrail is what ends it.
-    AmsState::instance().hold_optimistic_action(std::chrono::milliseconds(0));
+    helix::AmsStateTestAccess::age_optimistic_action(AmsState::instance(), std::chrono::hours(1));
     let_watchdog_run();
     CHECK(shown_action() == AmsAction::IDLE);
-    CHECK_FALSE(AmsState::instance().optimistic_action_held());
+    CHECK_FALSE(held());
 }
 
 TEST_CASE_METHOD(OptimisticSidebarFixture, "Happy Hare: a refused unload does not hold the action",
                  "[ams][optimistic_action][happy_hare]") {
-    auto& hh = build<helix::HhOptimisticBackend>();
+    auto& hh = build_hh();
     hh.seat(1);
     AmsState::instance().sync_from_backend();
     // A stopped backend refuses the op after the sidebar has marked it busy.
     hh.stop_for_test();
 
     sidebar_->handle_unload(1);
-    REQUIRE(hh.sent.empty());
-    CHECK_FALSE(AmsState::instance().optimistic_action_held());
-    let_watchdog_run();
+    REQUIRE(api_.sent.empty());
+    CHECK_FALSE(held());
     CHECK(shown_action() == AmsAction::IDLE);
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture, "Happy Hare: a refused load does not hold the action",
+                 "[ams][optimistic_action][happy_hare]") {
+    auto& hh = build_hh();
+    hh.stop_for_test();
+    // Hot already, so the load dispatches at once and the refusal reaches
+    // fail_started_operation().
+    set_nozzle(300, 300);
+
+    sidebar_->handle_load_with_preheat(1);
+    REQUIRE(api_.sent.empty());
+    CHECK_FALSE(held());
+    CHECK(shown_action() == AmsAction::IDLE);
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture,
+                 "Happy Hare: a gcode error from MMU_UNLOAD ends the held action",
+                 "[ams][optimistic_action][happy_hare]") {
+    auto& hh = build_hh();
+    hh.seat(1);
+    AmsState::instance().sync_from_backend();
+    // Paused, disabled or bypass selected: HH answers with an error and never
+    // moves mmu.action.
+    api_.fail = {"MMU_UNLOAD"};
+
+    sidebar_->handle_unload(1);
+    REQUIRE(api_.sent == std::vector<std::string>{"MMU_UNLOAD"});
+    let_watchdog_run();
+    CHECK_FALSE(held());
+    CHECK(shown_action() == AmsAction::IDLE);
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture, "Happy Hare: a failed pre-op G28 ends the held action",
+                 "[ams][optimistic_action][happy_hare]") {
+    auto& hh = build_hh();
+    hh.seat(1);
+    hh.homed = false;
+    AmsState::instance().sync_from_backend();
+    api_.fail = {"G28"};
+
+    sidebar_->handle_unload(1);
+    REQUIRE(api_.sent == std::vector<std::string>{"G28"});
+    let_watchdog_run();
+    CHECK_FALSE(held());
+    CHECK(shown_action() == AmsAction::IDLE);
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture,
+                 "Happy Hare: a preheat whose nozzle target is taken away abandons the load",
+                 "[ams][optimistic_action][happy_hare]") {
+    build_hh();
+    sidebar_->handle_load_with_preheat(1);
+    REQUIRE(held());
+
+    // The target lands, then disappears: the user cleared it, or Klipper shut down.
+    set_nozzle(100, 300);
+    REQUIRE(held());
+    set_nozzle(100, 0);
+    CHECK_FALSE(held());
+    CHECK(shown_action() == AmsAction::IDLE);
+
+    // A later heat-up for something else must not fire the abandoned load.
+    set_nozzle(300, 300);
+    CHECK(api_.sent.empty());
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture,
+                 "Happy Hare: tearing the sidebar down mid-preheat ends the held action",
+                 "[ams][optimistic_action][happy_hare]") {
+    build_hh();
+    sidebar_->handle_load_with_preheat(1);
+    REQUIRE(held());
+    REQUIRE(shown_action() == AmsAction::HEATING);
+
+    sidebar_->cleanup();
+    CHECK_FALSE(held());
+    CHECK(shown_action() == AmsAction::IDLE);
+}
+
+TEST_CASE_METHOD(OptimisticSidebarFixture, "Happy Hare: a backend swap ends the held action",
+                 "[ams][optimistic_action][happy_hare]") {
+    auto& hh = build_hh();
+    hh.seat(1);
+    AmsState::instance().sync_from_backend();
+    sidebar_->handle_unload(1);
+    REQUIRE(held());
+
+    AmsState::instance().clear_backends();
+    CHECK_FALSE(held());
 }

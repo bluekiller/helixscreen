@@ -100,6 +100,12 @@ class AmsOperationSidebar {
     void fail_started_operation(const AmsError& error);
 
     /**
+     * @brief Unwind a start_operation() whose backend is not doing anything:
+     *        drop the target pulse, release the held action and resync.
+     */
+    void abandon_started_operation();
+
+    /**
      * @brief Handle load request with automatic preheat if needed
      */
     void handle_load_with_preheat(int slot_index);
@@ -209,6 +215,8 @@ class AmsOperationSidebar {
     int pending_load_slot_ = -1;
     int pending_load_target_temp_ = 0;
     bool ui_initiated_heat_ = false;
+    // The nozzle target has reached the pending preheat target at least once.
+    bool pending_load_target_seen_ = false;
     AmsAction prev_ams_action_ = AmsAction::IDLE;
 
     // Lifecycle flag — set in setup(), cleared in cleanup().
@@ -291,6 +299,9 @@ class AmsOperationSidebar {
     std::map<std::string, std::string> macro_temp_prefill(helix::ui::FilamentMacroOp op,
                                                           int slot_index);
     void check_pending_load();
+    // A preheat whose nozzle target is taken away never reaches temperature, so
+    // check_pending_load() would never fire. Abandons the load instead.
+    void abandon_preheat_if_target_dropped(int target_deci);
     void handle_load_complete();
     void show_preheat_feedback(int slot_index, int target_temp);
 

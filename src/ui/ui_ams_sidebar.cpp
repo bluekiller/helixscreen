@@ -432,9 +432,10 @@ void AmsOperationSidebar::init_observers() {
     // (the macro raises the target before any visible action change)
     extruder_target_observer_ = observe<int>(
         printer_state_.get_active_extruder_target_subject(), this,
-        [](AmsOperationSidebar* self, int /*target_deci*/) {
+        [](AmsOperationSidebar* self, int target_deci) {
             if (!self->active_)
                 return;
+            self->abandon_preheat_if_target_dropped(target_deci);
             self->refresh_heat_step_display();
         },
         printer_state_.get_subjects_lifetime());
@@ -509,6 +510,7 @@ void AmsOperationSidebar::cleanup() {
     bypass_toggle_.cancel_pending();
     if (pending_load_slot_ >= 0) {
         AmsState::instance().release_optimistic_action();
+        AmsState::instance().sync_from_backend();
     }
     pending_load_slot_ = -1;
     pending_load_target_temp_ = 0;
@@ -987,13 +989,12 @@ void AmsOperationSidebar::start_operation(StepOperationType op_type, int target_
     // Mark the operation busy right away (the XML binding hides the buttons on
     // it) with the action of the step it starts on. A backend step model says
     // which; the legacy bar's first step is always Heat.
-    const auto projected = current_step_model_.action_at(0);
-    AmsState::instance().set_action(projected.value_or(AmsAction::HEATING));
-    // A backend whose phase model projects the action publishes it for every
-    // step. The rest report IDLE until their firmware starts, so the UI's
-    // action stands in for that silence instead of reading as Idle
+    AmsState::instance().set_action(current_step_model_.action_at(0).value_or(AmsAction::HEATING));
+    // A backend that reports IDLE until its firmware starts gets the UI's
+    // action standing in for that silence instead of reading as Idle
     // (prestonbrown/helixscreen#1057).
-    if (!projected) {
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (backend && backend->holds_optimistic_action()) {
         AmsState::instance().hold_optimistic_action(OPTIMISTIC_PREHEAT_HOLD);
     }
 }
@@ -1010,12 +1011,42 @@ void AmsOperationSidebar::fail_started_operation(const AmsError& error) {
     spdlog::warn("[AmsSidebar] Operation dispatch failed: {} ({})", error.user_msg,
                  error.technical_msg);
     helix::ui::notify_ams_error(error, lv_tr("Filament operation failed"));
+    abandon_started_operation();
+}
+
+void AmsOperationSidebar::abandon_started_operation() {
     target_load_slot_ = -1;
     AmsState::instance().set_pending_target_slot(-1);
     // Backend never left IDLE; pull its truth back into the UI so the action
     // buttons reappear and the step bar hides.
     AmsState::instance().release_optimistic_action();
     AmsState::instance().sync_from_backend();
+}
+
+void AmsOperationSidebar::abandon_preheat_if_target_dropped(int target_deci) {
+    if (pending_load_slot_ < 0) {
+        return;
+    }
+    // The target subject reaches the preheat target some time after the send,
+    // so only a drop from a target already seen means the preheat was undone
+    // (cleared by the user, a heater fault, a Klipper shutdown).
+    constexpr int TEMP_THRESHOLD = 5;
+    const int target = temperature::deci_to_degrees(target_deci);
+    if (target >= pending_load_target_temp_ - TEMP_THRESHOLD) {
+        pending_load_target_seen_ = true;
+        return;
+    }
+    if (!pending_load_target_seen_) {
+        return;
+    }
+    spdlog::info("[AmsSidebar] Nozzle target fell to {}C during the preheat for slot {} — "
+                 "not loading",
+                 target, pending_load_slot_);
+    pending_load_slot_ = -1;
+    pending_load_target_temp_ = 0;
+    pending_load_target_seen_ = false;
+    ui_initiated_heat_ = false;
+    abandon_started_operation();
 }
 
 void AmsOperationSidebar::update_step_progress(AmsAction action) {
@@ -1356,7 +1387,7 @@ void AmsOperationSidebar::handle_unload(int slot_index) {
             helix::ui::disarm_manual_pull_prompt();
         }
         helix::ui::notify_ams_error(error);
-        AmsState::instance().release_optimistic_action();
+        abandon_started_operation();
         return;
     }
     hand_operation_to_backend();
@@ -1583,6 +1614,7 @@ void AmsOperationSidebar::handle_load_with_preheat(int slot_index) {
     // ensure_homed_then() once the nozzle is up to temperature.
     pending_load_slot_ = slot_index;
     pending_load_target_temp_ = effective_target;
+    pending_load_target_seen_ = false;
     ui_initiated_heat_ = true;
 
     if (auto* c = get_temperature_controller()) {
@@ -1631,7 +1663,7 @@ void AmsOperationSidebar::check_pending_load() {
             spdlog::warn("[AmsSidebar] Preheat complete but slot {} no longer routes to the "
                          "backend (tier={}) — not dispatching",
                          slot, static_cast<int>(plan.tier));
-            AmsState::instance().release_optimistic_action();
+            abandon_started_operation();
             return;
         }
         spdlog::info("[AmsSidebar] Preheat complete, dispatching load for slot {}", slot);

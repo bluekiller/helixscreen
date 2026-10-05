@@ -1222,12 +1222,16 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
     spdlog::trace("[AMS State] Received event '{}' data='{}' from backend {}", event, data,
                   backend_index);
 
-    auto queue_sync = [backend_index](bool full_sync, int slot_index) {
+    auto queue_sync = [backend_index](bool full_sync, int slot_index, bool ends_operation = false) {
         helix::ui::queue_update(
-            "AmsState::on_backend_event", [backend_index, full_sync, slot_index]() {
+            "AmsState::on_backend_event", [backend_index, full_sync, slot_index, ends_operation]() {
                 // Skip if shutdown is in progress - AmsState singleton may be destroyed
                 if (ams_state_detail::shutting_down()) {
                     return;
+                }
+
+                if (ends_operation && backend_index == 0) {
+                    AmsState::instance().release_optimistic_action();
                 }
 
                 if (full_sync) {
@@ -1268,8 +1272,9 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
         // These events indicate state change, sync everything
         queue_sync(true, -1);
     } else if (event == AmsBackend::EVENT_ERROR) {
-        // Error occurred, sync to get error state
-        queue_sync(true, -1);
+        // Error occurred, sync to get error state. An error ends the operation,
+        // so an optimistic action held over the backend's silence ends with it.
+        queue_sync(true, -1, /*ends_operation=*/true);
         spdlog::warn("[AMS State] Backend error - {}", data);
     } else if (event == AmsBackend::EVENT_ATTENTION_REQUIRED) {
         // User intervention needed

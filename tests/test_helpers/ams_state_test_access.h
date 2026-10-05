@@ -38,6 +38,14 @@ class AmsStateTestAccess {
         g.armed_at_ -= by;
     }
 
+    /// Move the optimistic-action deadline back in time, so a hold the
+    /// sidebar armed with its real budget reads as that much older.
+    static void age_optimistic_action(AmsState& ams, std::chrono::milliseconds by) {
+        if (ams.optimistic_action_until_) {
+            *ams.optimistic_action_until_ -= by;
+        }
+    }
+
     /// Peek at the flag without consuming it.
     [[nodiscard]] static bool post_unload_runout_grace_armed(AmsState& ams) {
         auto& g = ams.runout_grace_;
