@@ -116,6 +116,9 @@ void GcodePreviewFetcher::list_qidi_shadow(const RequestPtr& req,
         [this, token, req, fall_back](const std::vector<FileInfo>& files) {
             token.defer("GcodePreviewFetcher::qidi_3mf_shadow_list_ok", [this, req, files,
                                                                          fall_back]() {
+                if (stale(req)) {
+                    return;
+                }
                 spdlog::debug("[{}] .temp returned {} entries for QIDI native 3MF preview lookup",
                               log_tag_, files.size());
 

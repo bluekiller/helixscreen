@@ -29,6 +29,44 @@ namespace {
 
 constexpr const char* REMOTE = "pause_markers_demo.gcode";
 
+/// File listings that park until the test delivers them.
+class HeldFileListing : public MoonrakerFileAPIMock {
+  public:
+    using MoonrakerFileAPIMock::MoonrakerFileAPIMock;
+
+    void list_files(const std::string&, const std::string&, bool, FileListCallback on_success,
+                    ErrorCallback) override {
+        pending_ = std::move(on_success);
+    }
+
+    bool pending() const {
+        return static_cast<bool>(pending_);
+    }
+
+    void deliver(const std::vector<FileInfo>& files) {
+        auto done = std::move(pending_);
+        pending_ = nullptr;
+        done(files);
+    }
+
+  private:
+    FileListCallback pending_;
+};
+
+class HeldListingAPIMock : public HeldTransfersAPIMock {
+  public:
+    HeldListingAPIMock(helix::MoonrakerClient& client, helix::PrinterState& state,
+                       HeldFileTransfers& transfers, HeldFileListing& listing)
+        : HeldTransfersAPIMock(client, state, transfers), listing_(listing) {}
+
+    MoonrakerFileAPI& files() override {
+        return listing_;
+    }
+
+  private:
+    HeldFileListing& listing_;
+};
+
 class FetcherFixture : public HelixTestFixture {
   public:
     FetcherFixture() : client_(MoonrakerClientMock::PrinterType::VORON_24) {
@@ -201,4 +239,30 @@ TEST_CASE_METHOD(FetcherFixture,
     drain();
     CHECK(first_ready.empty());
     CHECK(second_ready.size() == 1);
+}
+
+TEST_CASE_METHOD(FetcherFixture, "Fetcher: a .temp listing landing after cancel starts nothing",
+                 "[gcode_preview_fetcher]") {
+    HeldFileListing listing{client_};
+    HeldListingAPIMock api{client_, state_, transfers_, listing};
+    fetcher_.set_api(&api);
+
+    int ready = 0;
+    int unavailable = 0;
+    fetcher_.fetch(
+        "model.3mf", [&](const std::string&) { ++ready; },
+        [&](GcodePreviewFetcher::Unavailable) { ++unavailable; });
+    REQUIRE(listing.pending());
+
+    fetcher_.cancel();
+    FileInfo shadow;
+    shadow.path = "shadow_native_plate_1.gcode";
+    shadow.size = 10;
+    listing.deliver({shadow});
+    drain();
+
+    CHECK(ready == 0);
+    CHECK(unavailable == 0);
+    CHECK(transfers_.held_count() == 0);
+    CHECK_FALSE(fetcher_.owns_file());
 }
