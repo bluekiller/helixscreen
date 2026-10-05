@@ -688,6 +688,9 @@
   <translation tag="Copy Command" zh="复制命令"/>
   <translation tag="Copy failed - use SSH manually" zh="复制失败 - 请手动使用 SSH"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." zh="请把它复制到该耗材的切片软件配置中。打印机不会保存任何内容。"/>
+  <translation tag="Copying from USB" zh="正在从 USB 复制"/>
+  <translation tag="Copying from USB stopped responding" zh="从 USB 复制已停止响应"/>
+  <translation tag="Copying from USB..." zh="正在从 USB 复制..."/>
   <translation tag="Corner roundness" zh="圆角程度"/>
   <translation tag="Correction (Ki)" zh="校正 (Ki)"/>
   <translation tag="Could not add to queue" zh="无法添加到队列"/>
@@ -695,6 +698,7 @@
   <translation tag="Could not answer the connection request" zh="无法响应连接请求"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." zh="无法检查摄像头状态。&#10;请检查打印机连接。"/>
   <translation tag="Could not confirm cancel" zh="无法确认取消"/>
+  <translation tag="Could not copy {} from USB: {}" zh="无法从 USB 复制 {}：{}"/>
   <translation tag="Could not forget device" zh="无法忘记设备"/>
   <translation tag="Could not load printer database" zh="无法加载打印机数据库"/>
   <translation tag="Could not move the plate" zh="无法移动热床"/>
@@ -1405,6 +1409,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" zh="忽略滚动后抬起手指时触发的点击"/>
   <translation tag="Import failed: {}" zh="导入失败: {}"/>
   <translation tag="Imported {}" zh="已导入 {}"/>
+  <translation tag="Importing {}..." zh="正在导入 {}..."/>
   <translation tag="In Progress" zh="进行中"/>
   <translation tag="Inactive" zh="未激活"/>
   <translation tag="Include Klipper/Moonraker logs" zh="包含 Klipper/Moonraker 日志"/>

@@ -151,7 +151,7 @@ void print_spool_label(const SpoolInfo& spool, PrintCallback callback) {
         ipp_printer.set_label_count(settings.get_label_count());
         ipp_printer.print(bitmap, label_size, callback);
     } else if (is_usb) {
-        auto detected = UsbPrinterDetector().scan();
+        auto detected = UsbPrinterDetector::scan();
         uint16_t vid = settings.get_usb_vid();
         uint16_t pid = settings.get_usb_pid();
 

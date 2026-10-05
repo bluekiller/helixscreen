@@ -895,13 +895,6 @@ std::optional<gcode::OperationType> file_embeddable_op_for_id(const std::string&
 
 // Transfer callbacks run on the HTTP thread. BusyOverlay is process-wide, so
 // these updates belong to no object and still run if the manager is gone.
-void queue_busy_progress(const char* label, size_t done, size_t total) {
-    float pct =
-        (total > 0) ? (100.0f * static_cast<float>(done) / static_cast<float>(total)) : 0.0f;
-    helix::ui::queue_update("PrintPreparationManager::busy_progress",
-                            [label, pct]() { BusyOverlay::set_progress(label, pct); });
-}
-
 void queue_busy_hide() {
     helix::ui::queue_update("PrintPreparationManager::busy_hide", []() { BusyOverlay::hide(); });
 }
@@ -1554,7 +1547,7 @@ void PrintPreparationManager::modify_and_print_streaming(
 
     // Progress callback for download - NOTE: called from HTTP thread
     auto download_progress = [](size_t received, size_t total) {
-        queue_busy_progress("Downloading", received, total);
+        BusyOverlay::queue_progress("Downloading", received, total);
     };
 
     // Step 1: Download file to disk (streaming, not memory)
@@ -1763,7 +1756,7 @@ void PrintPreparationManager::modify_and_print_streaming(
                     },
                     // Upload progress callback
                     [](size_t sent, size_t total) {
-                        queue_busy_progress("Uploading", sent, total);
+                        BusyOverlay::queue_progress("Uploading", sent, total);
                     });
             }); // close PrintPreparationManager::modify_upload_kickoff defer
         },
@@ -1822,7 +1815,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
     BusyOverlay::show("Preparing print...");
 
     auto download_progress = [](size_t received, size_t total) {
-        queue_busy_progress("Downloading", received, total);
+        BusyOverlay::queue_progress("Downloading", received, total);
     };
 
     // Step 1: Download original file to disk (streaming).
@@ -2003,7 +1996,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
                     },
                     // Upload progress callback
                     [](size_t sent, size_t total) {
-                        queue_busy_progress("Uploading", sent, total);
+                        BusyOverlay::queue_progress("Uploading", sent, total);
                     });
             });
         },

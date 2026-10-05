@@ -90,9 +90,11 @@ enum class UsbEvent {
  *
  * Provides a clean, platform-agnostic API for USB drive monitoring.
  * Concrete implementations handle platform-specific details:
- * - UsbBackendLinux: inotify on /dev, parse /proc/mounts
- * - UsbBackendMacOS: FSEvents on /Volumes
+ * - UsbBackendLinux: polls /proc/self/mountinfo for mount table changes,
+ *   parses /proc/mounts
  * - UsbBackendMock: Simulator mode with fake drives
+ *
+ * No other platform has a backend: create() returns nullptr there.
  *
  * Design principles:
  * - Hide all platform-specific details from UsbManager
@@ -185,12 +187,15 @@ class UsbBackend {
     /**
      * @brief Create appropriate backend for current platform
      *
-     * - Linux: UsbBackendLinux (inotify + /proc/mounts)
-     * - macOS: UsbBackendMacOS (FSEvents on /Volumes)
+     * - Linux: UsbBackendLinux (mount table poll)
      * - Test mode: UsbBackendMock (simulator with fake data)
+     * - Anything else: nullptr
+     *
+     * The backend comes back unstarted, so the caller can attach its event
+     * callback before start().
      *
      * @param force_mock If true, always return mock backend (for testing)
-     * @return Unique pointer to backend instance
+     * @return Unique pointer to backend instance, or nullptr
      */
     static std::unique_ptr<UsbBackend> create(bool force_mock = false);
 };

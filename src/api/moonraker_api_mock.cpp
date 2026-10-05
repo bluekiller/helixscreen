@@ -1004,6 +1004,11 @@ void MoonrakerFileTransferAPIMock::upload_file_from_path(
                  "local='{}', size={} bytes",
                  root, dest_path, local_path, record.content.size());
 
+    if (hold_path_uploads_) {
+        held_path_uploads_.push_back(std::move(on_success));
+        return;
+    }
+
     if (fail_path_uploads_) {
         if (on_error) {
             on_error(MoonrakerError::unknown("Mock upload rejected: " + dest_path,

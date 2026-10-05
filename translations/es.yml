@@ -772,6 +772,9 @@ translations:
   Copy Command: Copiar Comando
   Copy failed - use SSH manually: Error al copiar - use SSH manualmente
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'Cópialo en el perfil del laminador de este filamento. La impresora no guarda nada.'
+  Copying from USB: 'Copiando desde USB'
+  Copying from USB stopped responding: 'La copia desde USB dejó de responder'
+  Copying from USB...: 'Copiando desde USB...'
   Corner roundness: Redondeo de esquinas
   Correction (Ki): Corrección (Ki)
   Could not add to queue: No se pudo añadir a la cola
@@ -782,6 +785,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "No se pudo verificar la webcam.\nCompruebe la conexión."
   Could not confirm cancel: No se pudo confirmar la cancelación
+  'Could not copy {} from USB: {}': 'No se pudo copiar {} desde USB: {}'
   Could not forget device: No se pudo olvidar el dispositivo
   Could not load printer database: No se pudo cargar la base de datos de impresoras
   Could not move the plate: No se pudo mover la cama
@@ -1560,6 +1564,7 @@ translations:
     dispara al levantar el dedo después de desplazarte
   'Import failed: {}': 'Error al importar: {}'
   Imported {}: '{} importado'
+  Importing {}...: 'Importando {}...'
   In Progress: En Progreso
   Inactive: Inactivo
   Include Klipper/Moonraker logs: Incluir registros de Klipper/Moonraker

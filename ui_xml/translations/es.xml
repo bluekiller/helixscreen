@@ -688,6 +688,9 @@
   <translation tag="Copy Command" es="Copiar Comando"/>
   <translation tag="Copy failed - use SSH manually" es="Error al copiar - use SSH manualmente"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." es="Cópialo en el perfil del laminador de este filamento. La impresora no guarda nada."/>
+  <translation tag="Copying from USB" es="Copiando desde USB"/>
+  <translation tag="Copying from USB stopped responding" es="La copia desde USB dejó de responder"/>
+  <translation tag="Copying from USB..." es="Copiando desde USB..."/>
   <translation tag="Corner roundness" es="Redondeo de esquinas"/>
   <translation tag="Correction (Ki)" es="Corrección (Ki)"/>
   <translation tag="Could not add to queue" es="No se pudo añadir a la cola"/>
@@ -695,6 +698,7 @@
   <translation tag="Could not answer the connection request" es="No se pudo responder a la solicitud de conexión"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." es="No se pudo verificar la webcam.&#10;Compruebe la conexión."/>
   <translation tag="Could not confirm cancel" es="No se pudo confirmar la cancelación"/>
+  <translation tag="Could not copy {} from USB: {}" es="No se pudo copiar {} desde USB: {}"/>
   <translation tag="Could not forget device" es="No se pudo olvidar el dispositivo"/>
   <translation tag="Could not load printer database" es="No se pudo cargar la base de datos de impresoras"/>
   <translation tag="Could not move the plate" es="No se pudo mover la cama"/>
@@ -1405,6 +1409,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" es="Ignora el clic que se dispara al levantar el dedo después de desplazarte"/>
   <translation tag="Import failed: {}" es="Error al importar: {}"/>
   <translation tag="Imported {}" es="{} importado"/>
+  <translation tag="Importing {}..." es="Importando {}..."/>
   <translation tag="In Progress" es="En Progreso"/>
   <translation tag="Inactive" es="Inactivo"/>
   <translation tag="Include Klipper/Moonraker logs" es="Incluir registros de Klipper/Moonraker"/>

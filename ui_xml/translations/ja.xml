@@ -688,6 +688,9 @@
   <translation tag="Copy Command" ja="コマンドをコピー"/>
   <translation tag="Copy failed - use SSH manually" ja="コピー失敗 - SSHを手動で使用してください"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." ja="この値をこのフィラメントのスライサー プロファイルに転記してください。プリンターには保存されません。"/>
+  <translation tag="Copying from USB" ja="USB からコピー中"/>
+  <translation tag="Copying from USB stopped responding" ja="USB からのコピーが応答しなくなりました"/>
+  <translation tag="Copying from USB..." ja="USB からコピー中..."/>
   <translation tag="Corner roundness" ja="角の丸み"/>
   <translation tag="Correction (Ki)" ja="補正 (Ki)"/>
   <translation tag="Could not add to queue" ja="キューに追加できませんでした"/>
@@ -695,6 +698,7 @@
   <translation tag="Could not answer the connection request" ja="接続リクエストに応答できませんでした"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." ja="ウェブカメラの状態を確認できませんでした。&#10;プリンター接続を確認してください。"/>
   <translation tag="Could not confirm cancel" ja="キャンセルを確認できませんでした"/>
+  <translation tag="Could not copy {} from USB: {}" ja="{} を USB からコピーできませんでした: {}"/>
   <translation tag="Could not forget device" ja="デバイスの登録を解除できませんでした"/>
   <translation tag="Could not load printer database" ja="プリンターデータベースを読み込めませんでした"/>
   <translation tag="Could not move the plate" ja="ベッドを動かせませんでした"/>
@@ -1405,6 +1409,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" ja="スクロール後に指を離したときに発生するクリックを無視"/>
   <translation tag="Import failed: {}" ja="インポートに失敗しました: {}"/>
   <translation tag="Imported {}" ja="{} をインポートしました"/>
+  <translation tag="Importing {}..." ja="{} をインポート中..."/>
   <translation tag="In Progress" ja="進行中"/>
   <translation tag="Inactive" ja="非アクティブ"/>
   <translation tag="Include Klipper/Moonraker logs" ja="Klipper/Moonrakerのログを含める"/>
