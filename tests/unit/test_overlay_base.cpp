@@ -15,6 +15,7 @@
  * regress back to sync safe_delete.
  */
 
+#include "ui_nav.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
 #include "ui_update_queue.h"
@@ -472,4 +473,27 @@ TEST_CASE_METHOD(ShowFixture, "is_push_pending() spans push_overlay() to its que
     CHECK(nav.is_panel_on_top(overlay));
     nav.go_back();
     settle();
+}
+
+TEST_CASE_METHOD(ShowFixture, "is_showing() covers queued, stacked and sliding-out overlays",
+                 "[overlay_base][overlay_show][nav]") {
+    lv_obj_t* overlay = lv_obj_create(test_screen());
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    helix::nav::register_overlay(overlay, nullptr);
+    CHECK_FALSE(helix::nav::is_showing(overlay));
+    CHECK_FALSE(helix::nav::is_showing(nullptr));
+
+    helix::nav::push_overlay(overlay);
+    CHECK(helix::nav::is_showing(overlay)); // queued, still hidden
+    settle();
+    CHECK(helix::nav::is_showing(overlay)); // in the stack
+
+    // Off the stack but still drawn: what a slide-out animation leaves until it ends.
+    helix::nav::go_back();
+    settle();
+    REQUIRE_FALSE(helix::nav::is_in_stack(overlay));
+    lv_obj_remove_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    CHECK(helix::nav::is_showing(overlay));
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    CHECK_FALSE(helix::nav::is_showing(overlay));
 }

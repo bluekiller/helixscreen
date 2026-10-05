@@ -2024,4 +2024,9 @@ bool is_push_pending(lv_obj_t* panel) {
     return NavigationManager::instance().is_push_pending(panel);
 }
 
+bool is_showing(lv_obj_t* panel) {
+    return panel && (is_in_stack(panel) || is_push_pending(panel) ||
+                     !lv_obj_has_flag(panel, LV_OBJ_FLAG_HIDDEN));
+}
+
 } // namespace helix::nav
