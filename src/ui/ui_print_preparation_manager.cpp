@@ -568,8 +568,10 @@ void PrintPreparationManager::scan_file_for_operations(const std::string& filena
         });
     };
 
+    // A bounded read, on the fast lane: the slow lane's one worker can sit
+    // behind a multi-minute upload.
     if (!local_path.empty()) {
-        helix::http::HttpExecutor::slow().submit([local_path, on_content, on_failure]() {
+        helix::http::HttpExecutor::fast().submit([local_path, on_content, on_failure]() {
             auto head = helix::text_io::read_file(local_path, helix::PRINTER_STOP_SCAN_BYTES);
             if (!head) {
                 on_failure("cannot read " + local_path);

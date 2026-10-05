@@ -44,6 +44,7 @@
 #include "../test_helpers/planted_gcode.h"
 #include "gcode_ops_detector.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "http_executor.h"
 #include "macro_param_cache.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
@@ -57,6 +58,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <memory>
 #include <set>
 #include <string>
@@ -1036,5 +1038,29 @@ TEST_CASE_METHOD(DetailDownloadFixture,
 
     CHECK_FALSE(prep->get_scan_result()->has_operation(helix::gcode::OperationType::BED_MESH));
 
+    pop_and_drain();
+}
+
+TEST_CASE_METHOD(DetailDownloadFixture,
+                 "A USB file's operations scan does not wait on the slow lane",
+                 "[print_select][detail_view][usb]") {
+    CacheDirGuard guard;
+    EnvGuard mem_fail("HELIX_FORCE_GCODE_MEMORY_FAIL", "1");
+    const std::string name = "busy_lane_" + std::to_string(::getpid()) + ".gcode";
+    const std::string content = "G28\nBED_MESH_CALIBRATE\nG1 X10 Y10 E1\n";
+    StickFile stick(name, content);
+
+    // A long upload holding the slow lane's single worker.
+    std::promise<void> release;
+    std::shared_future<void> upload_done = release.get_future().share();
+    helix::http::HttpExecutor::slow().submit([upload_done] { upload_done.wait(); });
+
+    view_.show(name, "", "PLA", {"#FF0000"}, {}, content.size(), 42, 0, stick.path.string());
+    auto* prep = view_.get_prep_manager();
+    REQUIRE(prep != nullptr);
+    CHECK(wait_until([&]() { return prep->has_printer_stop_answer_for(name); }, 5000));
+
+    release.set_value();
+    REQUIRE(wait_until([this]() { return ready(); }, 15000));
     pop_and_drain();
 }
