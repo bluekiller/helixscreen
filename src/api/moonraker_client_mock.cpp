@@ -1041,19 +1041,12 @@ void MoonrakerClientMock::populate_capabilities() {
     std::string mock_probe_type = (probe_env && probe_env[0]) ? probe_env : "cartographer";
     if (mock_probe_type == "none") {
         spdlog::debug("[MoonrakerClientMock] Probe disabled via env var");
-    } else if (mock_probe_type == "cartographer") {
-        mock_objects.push_back("cartographer");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: cartographer");
-    } else if (mock_probe_type == "bltouch") {
-        mock_objects.push_back("bltouch");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: bltouch");
-    } else if (mock_probe_type == "beacon") {
-        mock_objects.push_back("beacon");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: beacon");
     } else {
-        // tap, klicky, standard, etc. → generic "probe" object
-        mock_objects.push_back("probe");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: {} (as generic probe)", mock_probe_type);
+        const json probe_status = helix::sim::mock_probe_status();
+        for (auto it = probe_status.begin(); it != probe_status.end(); ++it) {
+            mock_objects.push_back(it.key());
+        }
+        spdlog::debug("[MoonrakerClientMock] Mock probe: {}", mock_probe_type);
     }
 
     // Filament sensors (common setup: runout sensor at spool holder)
@@ -3443,23 +3436,9 @@ void MoonrakerClientMock::dispatch_initial_state() {
     initial_status["hall_filament_width_sensor"] = {
         {"Diameter", 1.75}, {"Raw", 500.0}, {"is_active", true}};
 
-    // Add probe sensor status data (matches objects added in populate_capabilities)
-    {
-        const char* probe_env = std::getenv("HELIX_MOCK_PROBE_TYPE");
-        std::string mock_probe_type = (probe_env && probe_env[0]) ? probe_env : "cartographer";
-
-        if (mock_probe_type == "cartographer") {
-            initial_status["cartographer"] = {{"last_z_result", -0.425}, {"z_offset", 0.0}};
-        } else if (mock_probe_type == "beacon") {
-            initial_status["beacon"] = {{"last_z_result", -0.312}, {"z_offset", 0.0}};
-        } else if (mock_probe_type == "bltouch") {
-            initial_status["bltouch"] = {{"last_z_result", 0.130}, {"z_offset", -1.850}};
-        } else if (mock_probe_type == "loadcell") {
-            initial_status["probe"] = {{"last_z_result", 0.0}, {"z_offset", nullptr}};
-        } else if (mock_probe_type != "none") {
-            initial_status["probe"] = {{"last_z_result", 0.0}, {"z_offset", -0.250}};
-        }
-    }
+    // Probe objects (the same ones populate_capabilities() lists)
+    // (assigned, not merge_patch'd: a patch drops the null fields they carry).
+    initial_status.update(helix::sim::mock_probe_status());
 
     // Chamber backend diagnostics + filter pin (e.g. dragonbreath trio via
     // HELIX_MOCK_OBJECTS). Tail of the builder; keys are distinct from every

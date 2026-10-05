@@ -122,9 +122,9 @@ A manager only sees fields that `MoonrakerDiscoverySequence::build_subscription_
 | `load_cell *` | `force_g` |
 | filament switch/motion sensors | `filament_detected`, `enabled`, `detection_count` |
 | width sensors | `Diameter`, `Raw` |
-| probe objects (`probe`, `bltouch`, `beacon`, ...), one per physical probe | `last_z_result`, `z_offset`, from `ProbeSensorManager::required_status_objects()` |
+| probe objects (`probe`, `bltouch`, `beacon`, ...), one per physical probe | `last_query` and `last_z_result`, or `last_z_result` alone, per the table in [Probe status keys](#probe-status-keys), from `ProbeSensorManager::required_status_objects()` |
 
-`ProbeSensorManager` owns which object names are probes, so the builder asks it rather than listing them. Mainline Klipper's probe status carries `last_z_result` but no `z_offset`; Moonraker answers that field with `null`, the parser skips it, and the offset seeded by `discover_from_config()` stands. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
+`ProbeSensorManager` owns which object names are probes and which object and keys each type publishes, so the builder asks it rather than listing them. No probe module publishes `z_offset`; the offset comes from `discover_from_config()` alone. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
 
 A field-restricted subscription makes Moonraker send `null` for a field the object lacks. Every parser therefore uses `find()` plus a type check before `get<>()`, never `value()` or a bare `get<>()`:
 
@@ -290,7 +290,33 @@ Roles are CHAMBER and DRYER, auto-assigned at discovery to the first sensor whos
 
 ## Probe, Accelerometer, Width and Load Cell
 
-**Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. One physical probe often registers several objects: every Klipper probe module also registers the generic `probe`, and Cartographer and Beacon add a `probe_eddy_current` companion. `probes_in()` keeps only the most specific object, and both `discover()` and the status subscription go through it, so such a printer has one probe sensor, subscribed once. `load_config_from_file()` applies a saved `probe_sensors` role first, then auto-assigns Z_PROBE when exactly one probe remains and none holds it. Nothing in the UI assigns probe roles, so a printer with two genuinely distinct probes and no saved choice reads -1 on the probe subjects. `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
+**Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. One physical probe often registers several objects: Klipper's `bltouch`, `smart_effector` and `probe_eddy_current`, Beacon and the Cartographer plugin all also register the generic `probe`. `probes_in()` keeps only the most specific object (and drops an eddy object beside a named scanner), and both `discover()` and the status subscription go through it, so such a printer has one probe sensor, subscribed once. `load_config_from_file()` applies a saved `probe_sensors` role first, then auto-assigns Z_PROBE when exactly one probe remains and none holds it. Nothing in the UI assigns probe roles, so a printer with two genuinely distinct probes and no saved choice reads -1 on the probe subjects. `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
+
+### Probe status keys
+
+What each object's `get_status()` returns, read from the upstream source (Klipper `461c4e37`, Kalico `0028cf70`, beacon3d/beacon_klipper `3eb01346`, Cartographer3D/cartographer3d-plugin `06e01690`, Cartographer3D/cartographer-klipper `d8fbed79`, vvuk/eddy-ng `1ed056b1`). Klipper's `objects/list` (`Klipper3d/klipper: klippy/webhooks.py#_handle_list`) lists only objects that have `get_status`, so an object without one never reaches `parse_klipper_name()`.
+
+| Object | Source | `get_status` keys | Also registers `probe`? | HelixScreen reads |
+|--------|--------|-------------------|-------------------------|-------------------|
+| `probe` | `Klipper3d/klipper: klippy/extras/probe.py#ProbeCommandHelper.get_status` | `name`, `last_query`, `last_probe_position`, `last_z_result` | is `probe` | `probe`: `last_query`, `last_z_result` |
+| `probe` | `KalicoCrew/kalico: klippy/extras/probe.py#PrinterProbe.get_status` | `name`, `last_query`, `last_z_result` | is `probe` | same |
+| `bltouch`, `smart_effector` | `Klipper3d/klipper: klippy/extras/bltouch.py#PrinterBLTouch.get_status`, `Klipper3d/klipper: klippy/extras/smart_effector.py#PrinterSmartEffector.get_status`: both delegate to `ProbeCommandHelper` | same four keys as `probe` | yes, the same object (`load_config` adds it) | own object: `last_query`, `last_z_result` |
+| `bltouch`, `smart_effector` | `KalicoCrew/kalico: klippy/extras/bltouch.py#load_config`, `KalicoCrew/kalico: klippy/extras/smart_effector.py#load_config` | none (no `get_status`, so not listed) | yes, a `PrinterProbe` wrapper | seen as plain `probe` |
+| `probe_eddy_current <name>` | `Klipper3d/klipper: klippy/extras/probe_eddy_current.py#PrinterEddyProbe.get_status` (`ProbeCommandHelper`, built without `query_endstop`) | same four keys; `last_query` stays `false` because `QUERY_PROBE` is rejected | yes, the same object | own object: `last_z_result` |
+| `probe_eddy_current <name>` | `KalicoCrew/kalico: klippy/extras/probe_eddy_current.py#PrinterEddyProbe` | none (not listed) | yes, a `PrinterProbe` wrapper | seen as plain `probe` |
+| `beacon` | `beacon3d/beacon_klipper: beacon.py#BeaconProbe.get_status` | `last_sample`, `last_received_sample`, `last_z_result`, `last_probe_position`, `last_probe_result`, `last_offset_result`, `last_poke_result`, `model` | yes when `register_as_probe` (default for the unnamed sensor); its status is `{"name": "beacon"}` only (`BeaconProbeWrapper.get_status`) | `beacon`: `last_z_result` |
+| `cartographer` | `Cartographer3D/cartographer3d-plugin: src/cartographer/core.py#PrinterCartographer.get_status` | `scan`, `touch`, `mcu`; `scan`/`touch` each hold `current_model`, `models`, `last_z_result` (`Cartographer3D/cartographer3d-plugin: src/cartographer/probe/scan_mode.py`, `Cartographer3D/cartographer3d-plugin: src/cartographer/probe/touch_mode.py`) | yes when `register_as_probe` (default `true`); `Cartographer3D/cartographer3d-plugin: src/cartographer/adapters/klipper/probe.py#get_status` returns `name`, `last_query` (int 0/1), `last_z_result`, `last_probe_position` | `probe`: `last_query`, `last_z_result` |
+| `cartographer` | `Cartographer3D/cartographer-klipper: cartographer.py` (v1 module, section `[cartographer]`) | `last_sample`, `model` | yes, but that wrapper has no `get_status` | nothing useful |
+| `scanner` | `Cartographer3D/cartographer-klipper: scanner.py#Scanner.get_status` (section `[scanner]`) | `last_sample`, `last_received_sample`, `model` | yes, `ScannerWrapper.get_status`: `name`, `last_z_result` | not parsed; seen as plain `probe` |
+| `probe_eddy_ng <name>` | `vvuk/eddy-ng: probe_eddy_ng.py#ProbeEddy.get_status` | `ProbeCommandHelper` keys plus `home_trigger_height`, `tap_offset`, `last_tap_z`, ... | yes, the same object | not parsed; seen as plain `probe` |
+
+Klicky has no module: it is a plain `[probe]` with dock macros, and `discover()` retypes it from the macros.
+
+- **`last_z_result`** is set only by the `PROBE` command. Klipper stores the toolhead Z at trigger (`bed_z + z_offset`, marked deprecated in `cmd_PROBE`); Kalico and the Cartographer plugin store the Z their probe run returns; Beacon stores trigger Z minus the probe's `z_offset`.
+- **`last_query`** is the result of the last `QUERY_PROBE`, not a live endstop state; nothing publishes a live one. It drives `probe_triggered`. Klipper and Kalico publish a bool, the Cartographer plugin an int.
+- **`z_offset`** is published by none of these. The Flashforge firmware's probe reports it as `null`, which is why `discover_from_config()` seeds it.
+- A null or absent field never overwrites state.
+- A Cartographer configured with `register_as_probe: false` beside a separate `[probe]` reads that probe's status: the objects list cannot tell the two apart.
 
 **Accelerometer.** Found only in `configfile.config` sections (`adxl345`, `adxl345 bed`, `lis2dw hotend`, ...). A `beacon` section with `accel_scale` or `accel_axes_map` adds Beacon's onboard LIS2DW. The role INPUT_SHAPER backs `is_sensor_available(AccelSensorRole::INPUT_SHAPER)`.
 

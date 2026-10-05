@@ -19,11 +19,13 @@
 
 #include "ui_update_queue.h"
 
+#include "../../src/api/moonraker_client_mock_internal.h"
 #include "../lvgl_test_fixture.h"
 #include "moonraker_client_mock.h"
 #include "probe_sensor_manager.h"
 
 #include <cstdlib>
+#include <set>
 #include <string>
 
 #include "../catch_amalgamated.hpp"
@@ -204,4 +206,68 @@ TEST_CASE_METHOD(MockProbeDiscoveryFixture,
     helix::ui::UpdateQueue::instance().drain();
 
     REQUIRE(psm.get_z_offset() == Catch::Approx(-0.185f));
+}
+
+// ============================================================================
+// 3. The mock's probe status matches what each upstream module publishes
+// ============================================================================
+
+namespace {
+
+std::set<std::string> keys_of(const json& obj) {
+    std::set<std::string> keys;
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        keys.insert(it.key());
+    }
+    return keys;
+}
+
+} // namespace
+
+TEST_CASE("Mock probe status carries the keys real firmware publishes",
+          "[mock][probe][subscription]") {
+    using Keys = std::set<std::string>;
+    const Keys helper_keys = {"name", "last_query", "last_probe_position", "last_z_result"};
+
+    SECTION("bltouch registers bltouch and the probe alias, same ProbeCommandHelper status") {
+        ScopedProbeType probe_type("bltouch");
+        const json st = helix::sim::mock_probe_status();
+        REQUIRE(keys_of(st) == Keys{"bltouch", "probe"});
+        REQUIRE(keys_of(st["bltouch"]) == helper_keys);
+        REQUIRE(st["bltouch"] == st["probe"]);
+        REQUIRE(st["bltouch"]["last_query"].is_boolean());
+    }
+
+    SECTION("generic probe publishes the ProbeCommandHelper status") {
+        ScopedProbeType probe_type("tap");
+        const json st = helix::sim::mock_probe_status();
+        REQUIRE(keys_of(st) == Keys{"probe"});
+        REQUIRE(keys_of(st["probe"]) == helper_keys);
+    }
+
+    SECTION("beacon: flat status on beacon, a name-only probe alias") {
+        ScopedProbeType probe_type("beacon");
+        const json st = helix::sim::mock_probe_status();
+        REQUIRE(keys_of(st) == Keys{"beacon", "probe"});
+        REQUIRE(keys_of(st["beacon"]) ==
+                Keys{"last_sample", "last_received_sample", "last_z_result", "last_probe_position",
+                     "last_probe_result", "last_offset_result", "last_poke_result", "model"});
+        REQUIRE(st["probe"] == json{{"name", "beacon"}});
+    }
+
+    SECTION("cartographer: per-mode status on cartographer, flat keys on probe") {
+        ScopedProbeType probe_type("cartographer");
+        const json st = helix::sim::mock_probe_status();
+        REQUIRE(keys_of(st) == Keys{"cartographer", "probe"});
+        REQUIRE(keys_of(st["cartographer"]) == Keys{"scan", "touch", "mcu"});
+        REQUIRE(keys_of(st["cartographer"]["scan"]) ==
+                Keys{"current_model", "models", "last_z_result"});
+        REQUIRE(keys_of(st["probe"]) == helper_keys);
+        REQUIRE(st["probe"]["last_query"].is_number_integer());
+    }
+
+    SECTION("none publishes no probe object") {
+        ScopedProbeType probe_type("none");
+        REQUIRE(helix::sim::mock_probe_status().empty());
+    }
 }

@@ -34,20 +34,11 @@ namespace helix::sensors {
  * - bltouch - BLTouch probe
  * - smart_effector - Duet Smart Effector
  * - probe_eddy_current <name> - Eddy current probe (has a name parameter)
+ * - beacon, cartographer - eddy scanners from their own plugins
  *
- * Status JSON format:
- * @code
- * {
- *   "probe": {
- *     "last_z_result": 0.125,
- *     "z_offset": -1.5
- *   },
- *   "bltouch": {
- *     "last_z_result": 0.130,
- *     "z_offset": -1.52
- *   }
- * }
- * @endcode
+ * Status keys read: last_z_result and last_query (the last QUERY_PROBE result).
+ * Which object carries them differs per type; z_offset is published by none and
+ * comes from the configfile. Per-type table: docs/devel/SENSOR_MANAGEMENT.md.
  *
  * @note Switch sensors configured as probes are handled by SwitchSensorManager,
  *       not this manager.
@@ -79,10 +70,9 @@ class ProbeSensorManager {
     /**
      * @brief Status subscription for every probe object in an objects list
      *
-     * Maps each probe probes_in() keeps to the fields
-     * update_from_status() reads. Mainline Klipper publishes last_z_result but
-     * not z_offset; Moonraker answers the missing field with null, which the
-     * parser skips, so the config-seeded offset survives.
+     * Maps each probe probes_in() keeps to the object and fields its module
+     * actually publishes: a Cartographer is read from the probe object it
+     * registers, and types without a usable last_query request last_z_result only.
      */
     [[nodiscard]] static nlohmann::json
     required_status_objects(const std::vector<std::string>& klipper_objects);
@@ -262,7 +252,7 @@ class ProbeSensorManager {
      * @return true if successfully parsed as probe sensor
      */
     /// Probe configs for an objects list, one per physical probe: alias objects
-    /// ([probe], a Cartographer/Beacon probe_eddy_current companion) are dropped.
+    /// (the generic probe object, an eddy object beside a named scanner) are dropped.
     static std::vector<ProbeSensorConfig>
     probes_in(const std::vector<std::string>& klipper_objects);
 

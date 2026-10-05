@@ -929,3 +929,54 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
 }
 
 } // namespace mock_internal
+
+namespace helix::sim {
+
+json mock_probe_status() {
+    const char* probe_env = std::getenv("HELIX_MOCK_PROBE_TYPE");
+    const std::string probe_type = (probe_env && probe_env[0]) ? probe_env : "cartographer";
+
+    // Klipper's ProbeCommandHelper.get_status(); last_probe_position is a
+    // gcode.Coord, which pads to four elements.
+    const auto helper_status = [](const char* name, double last_z_result) {
+        return json{{"name", name},
+                    {"last_query", false},
+                    {"last_probe_position", json::array({0.0, 0.0, 0.0, 0.0})},
+                    {"last_z_result", last_z_result}};
+    };
+
+    json st = json::object();
+    if (probe_type == "none") {
+        return st;
+    }
+    if (probe_type == "cartographer") {
+        const json mode = {
+            {"current_model", "default"}, {"models", "default"}, {"last_z_result", nullptr}};
+        st["cartographer"] = {{"scan", mode},
+                              {"touch", mode},
+                              {"mcu", {{"last_sample", nullptr}, {"constants", nullptr}}}};
+        st["probe"] = {{"name", "cartographer"},
+                       {"last_query", 0},
+                       {"last_z_result", -0.425},
+                       {"last_probe_position", json::array({0.0, 0.0, 0.0, 0.0})}};
+    } else if (probe_type == "beacon") {
+        st["beacon"] = {
+            {"last_sample", nullptr},       {"last_received_sample", nullptr},
+            {"last_z_result", -0.312},      {"last_probe_position", json::array({0.0, 0.0})},
+            {"last_probe_result", nullptr}, {"last_offset_result", nullptr},
+            {"last_poke_result", nullptr},  {"model", "default"}};
+        st["probe"] = {{"name", "beacon"}};
+    } else if (probe_type == "bltouch") {
+        st["bltouch"] = helper_status("bltouch", 0.130);
+        st["probe"] = st["bltouch"];
+    } else if (probe_type == "loadcell") {
+        // The Flashforge firmware's probe reports z_offset: null.
+        st["probe"] = {{"last_z_result", 0.0}, {"z_offset", nullptr}};
+    } else {
+        // tap, klicky, standard, ... → generic [probe]
+        st["probe"] = helper_status("probe", 0.0);
+    }
+    return st;
+}
+
+} // namespace helix::sim
