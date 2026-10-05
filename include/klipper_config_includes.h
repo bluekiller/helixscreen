@@ -72,14 +72,17 @@ using ConfigDownloadFn =
                        std::function<void(std::string)> on_fail)>;
 
 /// Config downloads outstanding at once. The ESP32 HTTP lane queues 8 requests
-/// for every caller, thumbnails included, so this leaves it room.
+/// for every caller, thumbnails included, and frees a slot only after the
+/// completion callback returns, so the walk can hold one more than this.
 inline constexpr size_t kMaxConfigDownloadsInFlight = 4;
 
 /// Download @p root_file and every file its [include] chain reaches, following
 /// globs against @p listing (every path in the config root) and paths relative
-/// to the including file. Files outside the chain are never fetched. A failed
-/// download fails the whole walk through @p on_error, once the downloads still
-/// outstanding have returned; a partial set would read as a config without them.
+/// to the including file. Files outside the chain are never fetched. A download
+/// refused before @p download returns is retried when an in-flight one completes;
+/// with nothing in flight, and for any other failure, the whole walk fails through
+/// @p on_error once the outstanding downloads have returned. A partial set would
+/// read as a config without the missing files.
 void download_include_graph(std::vector<std::string> listing, const std::string& root_file,
                             ConfigDownloadFn download, ActiveFilesWithContentCallback on_complete,
                             ErrorCallback on_error,

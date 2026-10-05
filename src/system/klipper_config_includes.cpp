@@ -269,6 +269,10 @@ void download_include_graph(std::vector<std::string> listing, const std::string&
             auto self = weak_pump.lock();
             const std::string path = next.first;
             const int depth = next.second;
+            // A failure reported before download() returns is the transport
+            // refusing to queue the request, not a failed transfer.
+            auto submitting = std::make_shared<std::atomic<bool>>(true);
+            auto deferred = std::make_shared<std::atomic<bool>>(false);
             walk->download(
                 path,
                 [walk, take_report, self, path, depth](std::string content) {
@@ -292,12 +296,21 @@ void download_include_graph(std::vector<std::string> listing, const std::string&
                     else if (self)
                         (*self)();
                 },
-                [walk, take_report, path](std::string message) {
-                    spdlog::warn("[ConfigIncludes] Failed to download {}: {}", path, message);
+                [walk, take_report, path, depth, submitting, deferred](std::string message) {
                     std::function<void()> report;
                     {
                         std::lock_guard<std::mutex> lock(walk->mutex);
                         --walk->in_flight;
+                        // Backpressure: retry when an in-flight download completes.
+                        // With nothing in flight there is no completion to wait for.
+                        if (submitting->load() && walk->in_flight > 0 && walk->error.empty()) {
+                            walk->queue.insert(walk->queue.begin(), {path, depth});
+                            deferred->store(true);
+                            spdlog::debug("[ConfigIncludes] {} not queued ({}), retrying later",
+                                          path, message);
+                            return;
+                        }
+                        spdlog::warn("[ConfigIncludes] Failed to download {}: {}", path, message);
                         if (walk->error.empty())
                             walk->error = "Failed to download " + path + ": " + message;
                         report = take_report(*walk);
@@ -305,6 +318,9 @@ void download_include_graph(std::vector<std::string> listing, const std::string&
                     if (report)
                         report();
                 });
+            submitting->store(false);
+            if (deferred->load())
+                return;
         }
     };
     (*pump)();

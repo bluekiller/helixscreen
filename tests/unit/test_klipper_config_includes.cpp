@@ -518,3 +518,81 @@ TEST_CASE("download_include_graph - a download rejected before it returns report
     CHECK(completions == 0);
     CHECK(errors == 1);
 }
+
+TEST_CASE("download_include_graph - a full queue is backpressure while downloads are in flight",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n[include c.cfg]\n"},
+        {"a.cfg", "[a]\n"},
+        {"b.cfg", "[b]\n"},
+        {"c.cfg", "[c]\n"},
+    };
+    // The lane refuses c.cfg once, before returning, as a full HTTP queue does.
+    int rejections_left = 1;
+    auto deferred = dl.fn();
+    GraphResult r;
+    download_include_graph(
+        dl.listing(), "printer.cfg",
+        [&](const std::string& path, std::function<void(std::string)> ok,
+            std::function<void(std::string)> fail) {
+            if (path == "c.cfg" && rejections_left > 0) {
+                --rejections_left;
+                dl.requested.push_back(path);
+                fail("HTTP request could not be queued");
+                return;
+            }
+            deferred(path, std::move(ok), std::move(fail));
+        },
+        [&r](const std::set<std::string>& active, const std::map<std::string, std::string>& c) {
+            ++r.completions;
+            r.active = active;
+            r.contents = c;
+        },
+        [&r](const std::string& err) {
+            ++r.errors;
+            r.error = err;
+        });
+    dl.answer_all();
+
+    REQUIRE(rejections_left == 0); // the rejection happened
+    CHECK(r.errors == 0);
+    REQUIRE(r.completions == 1);
+    CHECK(r.active == std::set<std::string>{"printer.cfg", "a.cfg", "b.cfg", "c.cfg"});
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "c.cfg") == 2);
+}
+
+TEST_CASE("download_include_graph - an include cycle terminates and fetches each file once",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n"},
+        {"a.cfg", "[include b.cfg]\n"},
+        {"b.cfg", "[include a.cfg]\n"},
+    };
+    GraphResult r;
+    run_graph(dl, r);
+    dl.answer_all();
+
+    REQUIRE(r.completions == 1);
+    CHECK(dl.requested.size() == 3);
+    CHECK(r.active == std::set<std::string>{"printer.cfg", "a.cfg", "b.cfg"});
+}
+
+TEST_CASE("download_include_graph - a file included by two parents is fetched once",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[include shared.cfg]\n"},
+        {"b.cfg", "[include shared.cfg]\n"},
+        {"shared.cfg", "[shared]\n"},
+    };
+    GraphResult r;
+    run_graph(dl, r);
+    dl.answer_all();
+
+    REQUIRE(r.completions == 1);
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "shared.cfg") == 1);
+    CHECK(r.active.count("shared.cfg") == 1);
+}
