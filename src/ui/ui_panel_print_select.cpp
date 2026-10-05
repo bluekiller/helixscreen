@@ -2892,19 +2892,26 @@ void PrintSelectPanel::start_print(bool force) {
         }
     }
 
+    // Everything about the tapped file is read now: a USB copy lands later,
+    // by when the user may have opened another file.
     const std::string filename = selected_filename_buffer_;
+    std::vector<std::string> colors = selected_filament_colors_;
+    std::string thumbnail = selected_detail_thumbnail_buffer_;
     if (!selected_local_path_.empty()) {
-        copy_usb_file_to_printer(
-            [this, filename](const std::string& dir) { dispatch_print(filename, dir); });
+        copy_usb_file_to_printer([this, filename, colors = std::move(colors),
+                                  thumbnail = std::move(thumbnail)](const std::string& dir) {
+            dispatch_print(filename, dir, colors, thumbnail);
+        });
         return;
     }
-    dispatch_print(filename, current_path_);
+    dispatch_print(filename, current_path_, colors, thumbnail);
 }
 
-void PrintSelectPanel::dispatch_print(const std::string& filename, const std::string& dir) {
+void PrintSelectPanel::dispatch_print(const std::string& filename, const std::string& dir,
+                                      const std::vector<std::string>& filament_colors,
+                                      const std::string& thumbnail) {
     // Pass extracted thumbnail path so USB/embedded thumbnails propagate to print status
-    print_controller_->set_file(filename, dir, selected_filament_colors_,
-                                selected_detail_thumbnail_buffer_);
+    print_controller_->set_file(filename, dir, filament_colors, thumbnail);
 
     // A Print tap for the pending queued file puts the removal bookkeeping
     // past the reach of hide_detail_view(): from here only a confirmed start

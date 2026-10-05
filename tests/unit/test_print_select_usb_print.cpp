@@ -143,6 +143,22 @@ TEST_CASE_METHOD(UsbPrintFixture, "a failed USB copy says so and starts nothing"
     CHECK(PrintSelectPanelTestAccess::controller_file(*panel_).first == "part.gcode");
 }
 
+TEST_CASE_METHOD(UsbPrintFixture, "a USB print keeps what was selected when Print was tapped",
+                 "[usb][usb_print]") {
+    PrintSelectPanelTestAccess::set_selected_colors(*panel_, {"#FF0000"});
+    transfers().mock_hold_path_uploads();
+    panel_->start_print(/*force=*/true);
+    drain();
+
+    // Another file opened while the copy runs.
+    PrintSelectPanelTestAccess::set_selected_colors(*panel_, {"#00FF00"});
+    transfers().release_held_path_uploads();
+    drain();
+
+    CHECK(PrintSelectPanelTestAccess::controller_colors(*panel_) ==
+          std::vector<std::string>{"#FF0000"});
+}
+
 TEST_CASE_METHOD(UsbPrintFixture, "a USB file added to the queue is queued as its copy",
                  "[usb][usb_print]") {
     JobQueueState* previous = get_job_queue_state();

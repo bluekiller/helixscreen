@@ -953,8 +953,11 @@ class PrintSelectPanel : public PanelBase {
      */
     void copy_usb_file_to_printer(std::function<void(const std::string& dir)> then);
 
-    /// Hand the controller @p filename in Moonraker directory @p dir and start.
-    void dispatch_print(const std::string& filename, const std::string& dir);
+    /// Hand the controller @p filename in Moonraker directory @p dir, with the
+    /// tool colors and thumbnail read when Print was tapped, and start.
+    void dispatch_print(const std::string& filename, const std::string& dir,
+                        const std::vector<std::string>& filament_colors,
+                        const std::string& thumbnail);
 
     /// post_job @p filename (Moonraker-relative) with the detail view's options.
     void queue_file(const std::string& filename);

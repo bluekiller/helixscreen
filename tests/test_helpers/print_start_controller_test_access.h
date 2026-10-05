@@ -52,6 +52,11 @@ class PrintStartControllerTestAccess {
         return {c.filename_, c.path_};
     }
 
+    static const std::vector<std::string>&
+    filament_colors(const helix::ui::PrintStartController& c) {
+        return c.filament_colors_;
+    }
+
     // --- print-start success hook (test_job_queue_start_guard.cpp) ---
 
     /// Fire on_print_started_, the callback the start pipeline invokes once
