@@ -4,7 +4,9 @@
 #pragma once
 
 #include "ui_notification.h"
+#ifndef HELIX_SPLASH_ONLY
 #include "ui_update_queue.h"
+#endif
 
 #include "ams_error.h"
 #include "moonraker_error.h"
@@ -174,6 +176,8 @@
 // Translated errors from callbacks on any thread
 // ============================================================================
 
+// The splash binary links no UpdateQueue, so it gets the macros above only.
+#ifndef HELIX_SPLASH_ONLY
 namespace helix::ui {
 
 namespace detail {
@@ -228,6 +232,7 @@ template <typename... Args> void notify_error_tr(const char* fmt_tag, Args... ar
 }
 
 } // namespace helix::ui
+#endif // HELIX_SPLASH_ONLY
 
 // ============================================================================
 // AMS errors — the one place an AmsError becomes user-visible
