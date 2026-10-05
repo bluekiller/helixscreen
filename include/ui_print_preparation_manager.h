@@ -273,8 +273,11 @@ class PrintPreparationManager {
      *
      * @param filename File name (relative to gcodes root)
      * @param current_path Current directory path (empty = root)
+     * @param local_path The file on this host (a USB stick) when Moonraker has
+     *        no copy; read directly instead of downloaded.
      */
-    void scan_file_for_operations(const std::string& filename, const std::string& current_path);
+    void scan_file_for_operations(const std::string& filename, const std::string& current_path,
+                                  const std::string& local_path = {});
 
     /**
      * @brief Clear cached scan result

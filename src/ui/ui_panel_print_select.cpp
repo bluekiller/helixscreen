@@ -2148,7 +2148,7 @@ void PrintSelectPanel::show_detail_view() {
         detail_view_->show(filename, current_path_, selected_filament_type_,
                            selected_filament_colors_, selected_filament_materials_,
                            selected_file_size_bytes_, selected_modified_timestamp_,
-                           selected_gcode_end_byte_);
+                           selected_gcode_end_byte_, selected_local_path_);
         // Update history status display in detail view
         detail_view_->update_history_status(selected_history_status_, selected_success_count_);
     }
