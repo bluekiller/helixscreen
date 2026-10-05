@@ -542,6 +542,29 @@ TEST_CASE_METHOD(NetdBackendFixture, "netd scan rows merge and complete once", "
 }
 
 // ============================================================================
+// A completed scan yields exactly one SCAN_COMPLETE even after the watchdog
+// deadline passes. Short watchdog on purpose: it does not matter which path
+// completed the scan, only that no second completion follows.
+// ============================================================================
+TEST_CASE_METHOD(NetdBackendFixture, "netd completed scan is not completed again by the watchdog",
+                 "[netd][wifi]") {
+    register_standard_events();
+    REQUIRE(start_and_settle());
+
+    WiFiError result{WiFiResult::UNKNOWN_ERROR};
+    std::thread caller([&] { result = backend_->trigger_scan(); });
+    helix::test::JoinOnExit caller_join(caller);
+    REQUIRE(wait_until([&] { return line_recorded("SCAN"); }));
+    server_->push_line("OK");
+    caller.join();
+
+    REQUIRE(wait_for_event("SCAN_COMPLETE", 1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2 * kWatchdogMs));
+    REQUIRE(drain_wire());
+    REQUIRE(event_count("SCAN_COMPLETE") == 1);
+}
+
+// ============================================================================
 // 8. A refused scan: fire-and-forget means the ERR arrives as a daemon line
 //    and completes the scan through the outstanding-scan attribution — one
 //    SCAN_COMPLETE, an empty cache (nothing was found), and the caller's
