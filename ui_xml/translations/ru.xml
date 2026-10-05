@@ -2238,6 +2238,7 @@
   <translation tag="Printer is busy - {} stays in the queue" ru="Принтер занят – {} остаётся в очереди"/>
   <translation tag="Printer is busy — try again in a moment" ru="Принтер занят — повторите попытку чуть позже"/>
   <translation tag="Printer is not paired — pair it first" ru="Принтер не сопряжён — сначала выполните сопряжение"/>
+  <translation tag="Printer is not ready" ru="Принтер не готов"/>
   <translation tag="Printer is not ready. Please wait for initialization." ru="Принтер не готов. Дождитесь инициализации."/>
   <translation tag="Printer message: {}" ru="Сообщение принтера: {}"/>
   <translation tag="Printer name" ru="Название принтера"/>
@@ -2373,7 +2374,6 @@
   <translation tag="Recovering AFC system..." ru="Восстановление системы AFC..."/>
   <translation tag="Recovering..." ru="Восстановление..."/>
   <translation tag="Recovery failed" ru="Восстановление не удалось"/>
-  <translation tag="Recovery failed: " ru="Восстановление не удалось: "/>
   <translation tag="Recovery failed: {}" ru="Восстановление не удалось: {}"/>
   <translation tag="Reduce Sensitivity" ru="Снизить чувствительность"/>
   <translation tag="Reduce ringing and ghosting artifacts" ru="Уменьшить артефакты звона и двоения"/>

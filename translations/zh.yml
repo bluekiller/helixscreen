@@ -2318,6 +2318,7 @@ translations:
   Printer is busy - {} stays in the queue: '打印机忙碌中 – {} 保留在队列中'
   Printer is busy — try again in a moment: 打印机忙 — 请稍后重试
   Printer is not paired — pair it first: 打印机未配对 — 请先进行配对
+  Printer is not ready: 打印机未就绪
   Printer is not ready. Please wait for initialization.: 打印机未就绪。请等待初始化完成。
   'Printer message: {}': '打印机消息：{}'
   Printer name: 打印机名称
@@ -2457,7 +2458,6 @@ translations:
   Recovering AFC system...: AFC系统恢复中...
   Recovering...: 恢复中...
   Recovery failed: 恢复失败
-  'Recovery failed: ': '恢复失败: '
   'Recovery failed: {}': '恢复失败: {}'
   Reduce Sensitivity: 降低灵敏度
   Reduce ringing and ghosting artifacts: 减少振纹和残影

@@ -453,10 +453,9 @@ void PrintStartController::initiate_reprint(const std::string& filename, const s
                 });
             },
             [tok, on_error, ps = &printer_state_](const MoonrakerError& err) mutable {
-                std::string msg = err.user_message();
-                tok.defer("PrintStartController::reprint.err", [msg, on_error, ps]() {
+                tok.defer("PrintStartController::reprint.err", [err, on_error, ps]() {
                     ps->retire_preparing(helix::PreparingExit::Failed);
-                    NOTIFY_ERROR(lv_tr("Failed to reprint: {}"), msg);
+                    NOTIFY_ERROR(lv_tr("Failed to reprint: {}"), err.localized_message());
                     if (on_error) {
                         on_error();
                     }

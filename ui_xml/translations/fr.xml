@@ -2238,6 +2238,7 @@
   <translation tag="Printer is busy - {} stays in the queue" fr="L&apos;imprimante est occupée – {} reste dans la file"/>
   <translation tag="Printer is busy — try again in a moment" fr="L&apos;imprimante est occupée — réessayez dans un instant"/>
   <translation tag="Printer is not paired — pair it first" fr="L&apos;imprimante n&apos;est pas appairée — appairez-la d&apos;abord"/>
+  <translation tag="Printer is not ready" fr="L&apos;imprimante n&apos;est pas prête"/>
   <translation tag="Printer is not ready. Please wait for initialization." fr="L&apos;imprimante n&apos;est pas prête. Veuillez attendre l&apos;initialisation."/>
   <translation tag="Printer message: {}" fr="Message de l&apos;imprimante : {}"/>
   <translation tag="Printer name" fr="Nom de l&apos;imprimante"/>
@@ -2373,7 +2374,6 @@
   <translation tag="Recovering AFC system..." fr="Récupération du système AFC..."/>
   <translation tag="Recovering..." fr="Récupération..."/>
   <translation tag="Recovery failed" fr="Échec de la récupération"/>
-  <translation tag="Recovery failed: " fr="Échec de la récupération : "/>
   <translation tag="Recovery failed: {}" fr="Échec de la récupération : {}"/>
   <translation tag="Reduce Sensitivity" fr="Réduire la sensibilité"/>
   <translation tag="Reduce ringing and ghosting artifacts" fr="Réduire les artefacts d&apos;ondulation et de ghosting"/>

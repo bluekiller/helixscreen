@@ -2479,6 +2479,7 @@ translations:
   Printer is busy — try again in a moment: A impressora está ocupada — tente novamente em instantes
   Printer is not paired — pair it first: A impressora não está pareada — pareie-a
     primeiro
+  Printer is not ready: A impressora não está pronta
   Printer is not ready. Please wait for initialization.: A impressora não está pronta. Aguarde a inicialização.
   'Printer message: {}': 'Mensagem da impressora: {}'
   Printer name: Nome da impressora
@@ -2625,7 +2626,6 @@ translations:
   Recovering AFC system...: Recuperando sistema AFC...
   Recovering...: Recuperando...
   Recovery failed: Recuperação falhou
-  'Recovery failed: ': 'A recuperação falhou: '
   'Recovery failed: {}': 'A recuperação falhou: {}'
   Reduce Sensitivity: Reduzir Sensibilidade
   Reduce ringing and ghosting artifacts: Reduzir artefatos de ringing e ghosting

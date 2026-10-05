@@ -2486,6 +2486,7 @@ translations:
   Printer is busy - {} stays in the queue: 'Drucker ist beschäftigt – {} bleibt in der Warteschlange'
   Printer is busy — try again in a moment: Drucker ist beschäftigt — versuche es gleich noch einmal
   Printer is not paired — pair it first: Drucker ist nicht gekoppelt — zuerst koppeln
+  Printer is not ready: Drucker ist nicht bereit
   Printer is not ready. Please wait for initialization.: Drucker ist nicht bereit. Bitte warte auf die Initialisierung.
   'Printer message: {}': 'Druckermeldung: {}'
   Printer name: Druckername
@@ -2632,7 +2633,6 @@ translations:
   Recovering AFC system...: AFC-Wiederherstellung...
   Recovering...: Wiederherstellung...
   Recovery failed: Wiederherstellung fehlgeschlagen
-  'Recovery failed: ': 'Wiederherstellung fehlgeschlagen: '
   'Recovery failed: {}': 'Wiederherstellung fehlgeschlagen: {}'
   Reduce Sensitivity: Empfindlichkeit verringern
   Reduce ringing and ghosting artifacts: Klingel- und Geisterartefakte reduzieren

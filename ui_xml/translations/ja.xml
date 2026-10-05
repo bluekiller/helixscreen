@@ -2238,6 +2238,7 @@
   <translation tag="Printer is busy - {} stays in the queue" ja="プリンターは使用中です – {} はキューに残ります"/>
   <translation tag="Printer is busy — try again in a moment" ja="プリンターがビジー状態です — しばらくしてからもう一度お試しください"/>
   <translation tag="Printer is not paired — pair it first" ja="プリンターがペアリングされていません — 先にペアリングしてください"/>
+  <translation tag="Printer is not ready" ja="プリンターの準備ができていません"/>
   <translation tag="Printer is not ready. Please wait for initialization." ja="プリンターの準備ができていません。初期化が終わるまでお待ちください。"/>
   <translation tag="Printer message: {}" ja="プリンターのメッセージ: {}"/>
   <translation tag="Printer name" ja="プリンター名"/>
@@ -2373,7 +2374,6 @@
   <translation tag="Recovering AFC system..." ja="AFCシステムを復旧中..."/>
   <translation tag="Recovering..." ja="復旧中..."/>
   <translation tag="Recovery failed" ja="復旧失敗"/>
-  <translation tag="Recovery failed: " ja="復旧に失敗しました: "/>
   <translation tag="Recovery failed: {}" ja="復旧に失敗しました: {}"/>
   <translation tag="Reduce Sensitivity" ja="感度を下げる"/>
   <translation tag="Reduce ringing and ghosting artifacts" ja="リンギングとゴーストのアーティファクトを軽減"/>

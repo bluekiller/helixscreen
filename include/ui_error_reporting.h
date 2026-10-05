@@ -4,8 +4,10 @@
 #pragma once
 
 #include "ui_notification.h"
+#include "ui_update_queue.h"
 
 #include "ams_error.h"
+#include "moonraker_error.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -166,6 +168,40 @@
         spdlog::error("[CRITICAL] {}: {}", title, formatted_msg);                                  \
         ui_notification_error(title, formatted_msg.c_str(), true);                                 \
     } while (0)
+
+// ============================================================================
+// Translated errors from callbacks on any thread
+// ============================================================================
+
+namespace helix::ui {
+
+namespace detail {
+inline std::string localize_arg(const MoonrakerError& err) {
+    return err.localized_message();
+}
+template <typename T> const T& localize_arg(const T& value) {
+    return value;
+}
+} // namespace detail
+
+/**
+ * @brief NOTIFY_ERROR with a translated format string, callable from any thread
+ *
+ * lv_tr() and MoonrakerError::localized_message() are main-thread only (#1219),
+ * while a Moonraker error callback runs on whichever thread answered: the
+ * caller's for a local refusal, the WebSocket thread for a printer reply. The
+ * translation and the toast run on the main thread, inline when already there.
+ * A MoonrakerError argument renders as its localized_message().
+ *
+ * @param fmt_tag Untranslated format with static lifetime; wrap the literal in TR_NOOP
+ */
+template <typename... Args> void notify_error_tr(const char* fmt_tag, Args... args) {
+    run_on_main("notify_error_tr", [fmt_tag, args...]() {
+        NOTIFY_ERROR(::fmt::runtime(lv_tr(fmt_tag)), detail::localize_arg(args)...);
+    });
+}
+
+} // namespace helix::ui
 
 // ============================================================================
 // AMS errors — the one place an AmsError becomes user-visible

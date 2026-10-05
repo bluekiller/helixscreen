@@ -2238,6 +2238,7 @@
   <translation tag="Printer is busy - {} stays in the queue" zh="打印机忙碌中 – {} 保留在队列中"/>
   <translation tag="Printer is busy — try again in a moment" zh="打印机忙 — 请稍后重试"/>
   <translation tag="Printer is not paired — pair it first" zh="打印机未配对 — 请先进行配对"/>
+  <translation tag="Printer is not ready" zh="打印机未就绪"/>
   <translation tag="Printer is not ready. Please wait for initialization." zh="打印机未就绪。请等待初始化完成。"/>
   <translation tag="Printer message: {}" zh="打印机消息：{}"/>
   <translation tag="Printer name" zh="打印机名称"/>
@@ -2373,7 +2374,6 @@
   <translation tag="Recovering AFC system..." zh="AFC系统恢复中..."/>
   <translation tag="Recovering..." zh="恢复中..."/>
   <translation tag="Recovery failed" zh="恢复失败"/>
-  <translation tag="Recovery failed: " zh="恢复失败: "/>
   <translation tag="Recovery failed: {}" zh="恢复失败: {}"/>
   <translation tag="Reduce Sensitivity" zh="降低灵敏度"/>
   <translation tag="Reduce ringing and ghosting artifacts" zh="减少振纹和残影"/>

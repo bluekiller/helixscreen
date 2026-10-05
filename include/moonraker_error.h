@@ -6,6 +6,7 @@
 #include "format_utils.h"
 #include "json_fwd.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "translation_loader.h"
 
 #include <string>
 
@@ -34,6 +35,8 @@ struct MoonrakerError {
     std::string message;                                ///< Human-readable error message
     std::string method;                                 ///< Method that caused the error
     json details;                                       ///< Additional error details from Moonraker
+    /// Untranslated key `message` was set from; nullptr when `message` is not ours to translate
+    const char* message_tag = nullptr;
 
     /**
      * @brief Check if there's an error
@@ -88,18 +91,21 @@ struct MoonrakerError {
     }
 
     /**
-     * @brief Get user-friendly error message
-     * @return Error message suitable for display to users. The curated strings
-     *         are translated; `message` is passed through as-is (it is Klipper's,
-     *         Moonraker's, or a guard's already-translated text). For logs, use
-     *         `message`.
+     * @brief Untranslated source text for what a user sees
+     * @return A translation key (`message_tag`, or a curated string for the
+     *         error's type), or nullptr when the text is `message` as received:
+     *         Klipper's or Moonraker's own words, which are not ours to translate.
      */
-    std::string user_message() const {
-        if (type == MoonrakerErrorType::TIMEOUT) {
-            return lv_tr("Request timed out. The printer may be busy.");
-        } else if (type == MoonrakerErrorType::CONNECTION_LOST) {
-            return lv_tr("Connection to printer lost.");
-        } else if (type == MoonrakerErrorType::NOT_READY) {
+    const char* display_tag() const {
+        if (message_tag) {
+            return message_tag;
+        }
+        switch (type) {
+        case MoonrakerErrorType::TIMEOUT:
+            return TR_NOOP("Request timed out. The printer may be busy.");
+        case MoonrakerErrorType::CONNECTION_LOST:
+            return TR_NOOP("Connection to printer lost.");
+        case MoonrakerErrorType::NOT_READY:
             // A populated NOT_READY message is always more specific than the
             // generic fallback, and the fallback is actively misleading for the
             // transient cases: the guards distinguish "busy — try again in a
@@ -110,17 +116,38 @@ struct MoonrakerError {
             // Deliberately narrow: TIMEOUT/CONNECTION_LOST above keep their
             // curated strings because their `message` fields hold diagnostic
             // detail ("WebSocket connection lost"), which reads as jargon.
-            return message.empty() ? lv_tr("Printer is not ready. Please wait for initialization.")
-                                   : message;
-        } else if (type == MoonrakerErrorType::FILE_NOT_FOUND) {
-            return lv_tr("File not found on printer.");
-        } else if (type == MoonrakerErrorType::PERMISSION_DENIED) {
-            return lv_tr("Permission denied. Check printer configuration.");
-        } else if (!message.empty()) {
-            return message;
-        } else {
-            return lv_tr("An unknown error occurred.");
+            return message.empty()
+                       ? TR_NOOP("Printer is not ready. Please wait for initialization.")
+                       : nullptr;
+        case MoonrakerErrorType::FILE_NOT_FOUND:
+            return TR_NOOP("File not found on printer.");
+        case MoonrakerErrorType::PERMISSION_DENIED:
+            return TR_NOOP("Permission denied. Check printer configuration.");
+        default:
+            return message.empty() ? TR_NOOP("An unknown error occurred.") : nullptr;
         }
+    }
+
+    /**
+     * @brief User-facing error text in English. Safe on any thread.
+     *
+     * For what the user sees, prefer localized_message() on the main thread.
+     */
+    std::string user_message() const {
+        const char* tag = display_tag();
+        return tag ? std::string(tag) : message;
+    }
+
+    /**
+     * @brief user_message() in the active language. MAIN THREAD ONLY.
+     *
+     * lv_tr() reads translation state that a language switch frees on the main
+     * thread (#1219). Error callbacks often run on the WebSocket thread: capture
+     * the error by value and call this from the deferred main-thread body.
+     */
+    std::string localized_message() const {
+        const char* tag = display_tag();
+        return tag ? std::string(lv_tr(tag)) : message;
     }
 
     /**
@@ -275,6 +302,18 @@ struct MoonrakerError {
         err.type = MoonrakerErrorType::NOT_READY;
         err.method = method;
         err.message = message;
+        return err;
+    }
+
+    /**
+     * @brief A refusal HelixScreen issued itself, with translatable text
+     * @param method Method that was refused
+     * @param tag    Untranslated, static-lifetime text (wrap the literal in TR_NOOP)
+     * @return NOT_READY error whose localized_message() translates @p tag
+     */
+    static MoonrakerError refusal(const std::string& method, const char* tag) {
+        MoonrakerError err = not_ready(method, tag);
+        err.message_tag = tag;
         return err;
     }
 

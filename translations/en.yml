@@ -2404,6 +2404,7 @@ translations:
   Printer is busy - {} stays in the queue: Printer is busy - {} stays in the queue
   Printer is busy — try again in a moment: Printer is busy — try again in a moment
   Printer is not paired — pair it first: Printer is not paired — pair it first
+  Printer is not ready: Printer is not ready
   Printer is not ready. Please wait for initialization.: Printer is not ready. Please wait for initialization.
   'Printer message: {}': 'Printer message: {}'
   Printer name: Printer name
@@ -2547,7 +2548,6 @@ translations:
   Recovering AFC system...: Recovering AFC system...
   Recovering...: Recovering...
   Recovery failed: Recovery failed
-  'Recovery failed: ': 'Recovery failed: '
   'Recovery failed: {}': 'Recovery failed: {}'
   Reduce Sensitivity: Reduce Sensitivity
   Reduce ringing and ghosting artifacts: Reduce ringing and ghosting artifacts

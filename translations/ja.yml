@@ -2327,6 +2327,7 @@ translations:
   Printer is busy - {} stays in the queue: 'プリンターは使用中です – {} はキューに残ります'
   Printer is busy — try again in a moment: プリンターがビジー状態です — しばらくしてからもう一度お試しください
   Printer is not paired — pair it first: プリンターがペアリングされていません — 先にペアリングしてください
+  Printer is not ready: プリンターの準備ができていません
   Printer is not ready. Please wait for initialization.: プリンターの準備ができていません。初期化が終わるまでお待ちください。
   'Printer message: {}': 'プリンターのメッセージ: {}'
   Printer name: プリンター名
@@ -2466,7 +2467,6 @@ translations:
   Recovering AFC system...: AFCシステムを復旧中...
   Recovering...: 復旧中...
   Recovery failed: 復旧失敗
-  'Recovery failed: ': '復旧に失敗しました: '
   'Recovery failed: {}': '復旧に失敗しました: {}'
   Reduce Sensitivity: 感度を下げる
   Reduce ringing and ghosting artifacts: リンギングとゴーストのアーティファクトを軽減

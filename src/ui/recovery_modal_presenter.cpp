@@ -264,9 +264,14 @@ void RecoveryModalPresenter::dispatch_recovery(const std::string& gcode, const s
         gcode, [tag]() { spdlog::info("[Recovery] {} completed", tag); },
         [tag](const MoonrakerError& err) {
             spdlog::error("[Recovery] {} failed: {}", tag, err.message);
-            ToastManager::instance().show(
-                ToastSeverity::ERROR,
-                (std::string(lv_tr("Recovery failed: ")) + err.user_message()).c_str(), 6000);
+            // The callback can run on the WebSocket thread; lv_tr is main-thread only.
+            helix::ui::run_on_main("error_toast", [err]() {
+                ToastManager::instance().show(
+                    ToastSeverity::ERROR,
+                    fmt::format(fmt::runtime(lv_tr("Recovery failed: {}")), err.localized_message())
+                        .c_str(),
+                    6000);
+            });
         },
         IMoonrakerAPI::AMS_OPERATION_TIMEOUT_MS);
 }

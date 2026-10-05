@@ -696,9 +696,8 @@ void ProbeOverlay::handle_probe_accuracy() {
             }
             spdlog::error("[Probe] PROBE_ACCURACY failed: {}", err.message);
             api->unregister_method_callback("notify_gcode_response", handler_name);
-            std::string msg = err.user_message();
-            helix::ui::queue_update("ProbeOverlay::handle_probe_accuracy", [msg]() {
-                get_global_probe_overlay().set_accuracy_error(msg);
+            helix::ui::queue_update("ProbeOverlay::handle_probe_accuracy", [err]() {
+                get_global_probe_overlay().set_accuracy_error(err.localized_message());
             });
         },
         IAdvancedAPI::PROBING_TIMEOUT_MS + prep_timeout_ms);

@@ -2453,6 +2453,7 @@ translations:
   Printer is busy - {} stays in the queue: 'Принтер занят – {} остаётся в очереди'
   Printer is busy — try again in a moment: Принтер занят — повторите попытку чуть позже
   Printer is not paired — pair it first: Принтер не сопряжён — сначала выполните сопряжение
+  Printer is not ready: Принтер не готов
   Printer is not ready. Please wait for initialization.: Принтер не готов. Дождитесь инициализации.
   'Printer message: {}': 'Сообщение принтера: {}'
   Printer name: Название принтера
@@ -2599,7 +2600,6 @@ translations:
   Recovering AFC system...: Восстановление системы AFC...
   Recovering...: Восстановление...
   Recovery failed: Восстановление не удалось
-  'Recovery failed: ': 'Восстановление не удалось: '
   'Recovery failed: {}': 'Восстановление не удалось: {}'
   Reduce Sensitivity: Снизить чувствительность
   Reduce ringing and ghosting artifacts: Уменьшить артефакты звона и двоения

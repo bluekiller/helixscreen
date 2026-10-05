@@ -248,7 +248,7 @@ void TemperatureController::set_target(const std::string& klipper_name, double c
         if (opts.on_error)
             opts.on_error(e);
         if (opts.toast) {
-            NOTIFY_ERROR(lv_tr("Failed to set temperature: {}"), e.user_message());
+            helix::ui::notify_error_tr(TR_NOOP("Failed to set temperature: {}"), e);
         }
     };
     // opts.toast is the signal: on_err above raises NOTIFY_ERROR only when it is

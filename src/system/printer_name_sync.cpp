@@ -118,7 +118,7 @@ void PrinterNameSync::write_back(IMoonrakerAPI* api, const std::string& name) {
         FLUIDD_NAMESPACE, FLUIDD_KEY, name,
         [name]() { spdlog::debug("[PrinterNameSync] Wrote '{}' to Fluidd DB", name); },
         [](const MoonrakerError& err) {
-            spdlog::warn("[PrinterNameSync] Failed to write to Fluidd DB: {}", err.user_message());
+            spdlog::warn("[PrinterNameSync] Failed to write to Fluidd DB: {}", err.message);
         });
 }
 
