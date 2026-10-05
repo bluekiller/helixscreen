@@ -122,6 +122,7 @@ src/printer/afc_config_manager.cpp
 src/printer/afc_defaults.cpp
 src/printer/afc_fault_position.cpp
 src/printer/ams_backend.cpp
+src/printer/ams_backend_registry.cpp
 src/printer/ams_backend_ace.cpp
 src/printer/ams_backend_ad5x_ifs.cpp
 src/printer/ams_backend_afc.cpp
@@ -134,7 +135,13 @@ src/printer/ams_backend_snapmaker.cpp
 src/printer/ams_backend_toolchanger.cpp
 src/printer/ams_endless_spool.cpp
 src/printer/ams_environment_zone.cpp
+src/printer/ams_runout_grace.cpp
 src/printer/ams_state.cpp
+src/printer/ams_state_clog.cpp
+src/printer/ams_state_dryer.cpp
+src/printer/ams_state_external_spool.cpp
+src/printer/ams_state_subjects.cpp
+src/printer/ams_state_tool_mapping.cpp
 src/printer/ams_subscription_backend.cpp
 src/printer/batch_feed_reconcile.cpp
 src/printer/cfs_status_parse.cpp

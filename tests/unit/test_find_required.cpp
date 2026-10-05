@@ -71,16 +71,16 @@ TEST_CASE_METHOD(LVGLTestFixture,
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "find_required aborts on a missing name under strict checks",
-                 "[find_required]") {
+                 "[find_required][subprocess]") {
     std::fflush(nullptr);
     pid_t pid = fork();
-    REQUIRE(pid >= 0);
     if (pid == 0) {
         std::signal(SIGABRT, SIG_DFL); // Catch2's handler would report instead of dying
         helix::ui::set_strict_ui_checks(true);
         find_required(test_screen(), "fr_strict_missing", "Owner");
         _exit(0);
     }
+    REQUIRE(pid > 0);
     int status = 0;
     REQUIRE(waitpid(pid, &status, 0) == pid);
     CHECK(WIFSIGNALED(status));

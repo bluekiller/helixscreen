@@ -2,6 +2,8 @@
 
 #include "bt_bus_thread.h"
 
+#include "helix_thread.h"
+
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
@@ -33,7 +35,7 @@ void BusThread::start() {
     stopping_.store(false);
     // Wrap — EAGAIN under thread exhaustion throws std::system_error ([L083]).
     try {
-        thread_ = std::thread([this] {
+        thread_ = helix::make_thread([this] {
             // Published from inside the worker before any work runs: a write
             // from the parent after construction would race the worker's
             // first on_thread() check.

@@ -300,10 +300,8 @@ TEST_CASE_METHOD(HotReloadFixture, "destructor stops the polling thread", "[hot-
         hr.set_reload_callback([](const std::string&, const std::string&) {});
         hr.start({temp_dir_.string()}, 50);
         REQUIRE(hr.is_running() == true);
-        // Destructor should call stop() and join the thread
+        // The destructor stops and joins the thread; a missed join hangs the suite here.
     }
-    // If we get here without hanging, the destructor worked
-    REQUIRE(true);
 }
 
 // ============================================================================

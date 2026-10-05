@@ -58,6 +58,7 @@ The one-liner above works on every supported platform, but each printer family h
 | Elegoo Centauri Carbon | [Centauri Carbon Install](guide/install-cc1.md) - requires the OpenCentauri COSMOS firmware, 26.07.0 or newer |
 | Creality Sonic Pad | [Sonic Pad Install](guide/install-sonicpad.md) - requires the SonicPad-Debian firmware |
 | Snapmaker U1 | [Snapmaker U1 Install](guide/install-u1.md) - stock firmware 1.2+ with Root access, or PAXX Extended Firmware |
+| BigTreeTech K-Touch (standalone ESP32 screen) | [K-Touch Install](guide/install-esp32.md) - alpha firmware, flashed from your browser or over USB; 1.1 betas and newer |
 
 ---
 
@@ -78,6 +79,7 @@ Common screen devices:
 - A repurposed Klipper pad or a small self-built touchscreen PC
 - A mini PC or x86 box with an HDMI touchscreen
 - Your desktop, running the app in a window (macOS or Linux) for monitoring
+- A BigTreeTech K-Touch, with the [ESP32 firmware](guide/install-esp32.md) (alpha)
 
 **How it works:** HelixScreen is a Moonraker client. It only needs network access to your printer's Moonraker instance (port `7125` by default); it does **not** need to run on the same machine as Klipper.
 

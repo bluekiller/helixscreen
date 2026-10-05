@@ -19,6 +19,7 @@
 
 #include "ams_bypass_policy.h"
 #include "exception_policy.h"
+#include "helix_thread.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "lane_apply.h"
@@ -1417,7 +1418,7 @@ void AmsBackendAce::start_rest_fallback() {
     }
     // EAGAIN under thread exhaustion throws std::system_error ([L083]).
     if (!helix::contain_exceptions("[ACE] Spawning the REST polling thread", [&] {
-            rest_polling_thread_ = std::thread(&AmsBackendAce::rest_polling_loop, this);
+            rest_polling_thread_ = helix::make_thread(&AmsBackendAce::rest_polling_loop, this);
         })) {
         use_rest_fallback_ = false;
         return;

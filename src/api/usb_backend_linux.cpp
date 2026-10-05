@@ -7,6 +7,8 @@
 
 #include "ui_filename_utils.h"
 
+#include "helix_thread.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -67,7 +69,7 @@ UsbError UsbBackendLinux::start() {
     }
 
     try {
-        monitor_thread_ = std::thread(&UsbBackendLinux::monitor_thread_func, this);
+        monitor_thread_ = helix::make_thread(&UsbBackendLinux::monitor_thread_func, this);
     } catch (const std::system_error& e) {
         spdlog::error("[UsbBackendLinux] Failed to spawn monitor thread: {}", e.what());
         running_ = false;

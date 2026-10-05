@@ -174,6 +174,9 @@ done
 for f in "$DIR"/helixscreen-*.zip; do
     [[ -f "$f" ]] || continue
     base=$(basename "$f")
+    # ESP32 firmware zips sit in the same release directory but are flashed
+    # over USB; no updater can install one, so none may appear as a platform.
+    [[ "$base" == helixscreen-esp32-* ]] && continue
     if [[ "$base" =~ ^helixscreen-(.+)\.zip$ ]]; then
         add_platform "${BASH_REMATCH[1]}"
     fi

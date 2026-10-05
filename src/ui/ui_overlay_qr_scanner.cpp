@@ -15,6 +15,7 @@
 
 #include "app_globals.h"
 #include "display_settings_manager.h"
+#include "helix_thread.h"
 #include "i_moonraker_api.h"
 #include "printer_state.h"
 #include "sound_manager.h"
@@ -470,7 +471,7 @@ void QrScannerOverlay::on_camera_frame(lv_draw_buf_t* frame) {
         // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
         // if it escapes an LVGL event frame (#724, #837, [L083]).
         try {
-            std::thread([this, qr_buf, qr_w, qr_h, decode_tok]() {
+            helix::make_thread([this, qr_buf, qr_w, qr_h, decode_tok]() {
                 auto result = qr_decoder_->decode(qr_buf->data(), qr_w, qr_h);
                 decode_busy_ = false;
 
