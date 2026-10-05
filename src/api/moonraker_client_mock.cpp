@@ -3255,12 +3255,7 @@ void MoonrakerClientMock::dispatch_initial_state() {
     int flow = flow_factor_.load();
     int fan = fan_speed_.load();
 
-    // Get homed_axes with thread safety
-    std::string homed;
-    {
-        std::lock_guard<std::mutex> lock(homed_axes_mutex_);
-        homed = homed_axes_;
-    }
+    const std::string homed = get_homed_axes();
 
     // Get print state with thread safety
     std::string print_state_str = get_print_state_string();
@@ -4066,11 +4061,7 @@ void MoonrakerClientMock::temperature_simulation_loop() {
         double x, y, z;
         read_position_snapshot(x, y, z);
 
-        std::string homed;
-        {
-            std::lock_guard<std::mutex> lock(homed_axes_mutex_);
-            homed = homed_axes_;
-        }
+        const std::string homed = get_homed_axes();
 
         // Simulate speed/flow oscillation (90-110%) - only during printing
         int speed = 100;

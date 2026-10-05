@@ -535,6 +535,34 @@ TEST_CASE("MoonrakerClientMock status frames report the persona's kinematics aft
     CHECK(kinematics == "corexy");
 }
 
+TEST_CASE("MoonrakerClientMock object snapshots report the mock's own homed_axes",
+          "[connection][homing]") {
+    // The status stream carries homed_axes on every tick, so a query or
+    // subscribe reply that disagrees with it flips the UI's homed state about
+    // a second after boot.
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+    auto snapshot = [&mock](const char* method) {
+        std::string homed = "<none>";
+        mock.send_jsonrpc(
+            method, json{{"objects", {{"toolhead", nullptr}}}},
+            [&homed](const json& r) {
+                homed = r["result"]["status"]["toolhead"]["homed_axes"].get<std::string>();
+            },
+            [](const MoonrakerError&) {});
+        return homed;
+    };
+
+    REQUIRE(mock.get_homed_axes().empty());
+    CHECK(snapshot("printer.objects.query") == "");
+    CHECK(snapshot("printer.objects.subscribe") == "");
+
+    REQUIRE(mock.gcode_script("G28 X") == 0);
+    REQUIRE(mock.get_homed_axes() == "x");
+    CHECK(snapshot("printer.objects.query") == "x");
+    CHECK(snapshot("printer.objects.subscribe") == "x");
+}
+
 // ============================================================================
 // Notification Format Tests
 // ============================================================================
