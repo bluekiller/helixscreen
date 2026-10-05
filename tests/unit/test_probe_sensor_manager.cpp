@@ -420,16 +420,23 @@ TEST_CASE_METHOD(ProbeSensorTestFixture, "ProbeSensorManager - state updates", "
         REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->triggered);
     }
 
-    SECTION("z_offset in status is ignored: the configfile is its only source") {
+    SECTION("A numeric z_offset updates the seed, a null one keeps it") {
         json config;
         config["bltouch"] = {{"z_offset", "-1.850"}};
         mgr().discover_from_config(config);
 
+        json null_status;
+        null_status["bltouch"]["z_offset"] = nullptr;
+        mgr().update_from_status(null_status);
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->z_offset ==
+                Catch::Approx(-1.850f));
+
+        // Creality K1's Z_OFFSET_APPLY_PROBE moves it live, without a restart.
         json status;
         status["bltouch"]["z_offset"] = -0.5f;
         mgr().update_from_status(status);
-        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->z_offset ==
-                Catch::Approx(-1.850f));
+        REQUIRE(mgr().get_sensor_state(ProbeSensorRole::Z_PROBE)->z_offset == Catch::Approx(-0.5f));
+        REQUIRE(lv_subject_get_int(mgr().get_probe_z_offset_subject()) == -500);
     }
 
     SECTION("Status update for unknown sensor is ignored") {

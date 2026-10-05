@@ -197,12 +197,18 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
             auto& state = states_[sensor.klipper_name];
             ProbeSensorState old_state = state;
 
-            // A null or absent field keeps the previous value. z_offset is not
-            // read here: no probe module publishes it, so the configfile seed
-            // is its only source.
+            // A null or absent field keeps the previous value. Klipper answers a
+            // requested key its module lacks with null, so the configfile-seeded
+            // z_offset survives on mainline, where no probe module publishes it.
+            // The Creality K1/K2 and QIDI forks do, and K1's Z_OFFSET_APPLY_PROBE
+            // changes it live.
             const auto z = sensor_data.find("last_z_result");
             if (z != sensor_data.end() && z->is_number()) {
                 state.last_z_result = z->get<float>();
+            }
+            const auto offset = sensor_data.find("z_offset");
+            if (offset != sensor_data.end() && offset->is_number()) {
+                state.z_offset = offset->get<float>();
             }
             // Klipper publishes a bool, Cartographer an int.
             const auto query = sensor_data.find("last_query");
@@ -211,11 +217,12 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
             }
 
             if (state.last_z_result != old_state.last_z_result ||
-                state.triggered != old_state.triggered) {
+                state.triggered != old_state.triggered || state.z_offset != old_state.z_offset) {
                 any_changed = true;
                 spdlog::debug("[ProbeSensorManager] Sensor {} updated: last_z_result={:.3f}mm, "
-                              "last_query={}",
-                              sensor.sensor_name, state.last_z_result, state.triggered);
+                              "last_query={}, z_offset={:.3f}mm",
+                              sensor.sensor_name, state.last_z_result, state.triggered,
+                              state.z_offset);
             }
         }
 
@@ -271,9 +278,10 @@ nlohmann::json
 ProbeSensorManager::required_status_objects(const std::vector<std::string>& klipper_objects) {
     nlohmann::json objects = nlohmann::json::object();
     for (const auto& probe : probes_in(klipper_objects)) {
-        objects[status_object(probe)] = publishes_last_query(probe.type)
-                                            ? nlohmann::json::array({"last_query", "last_z_result"})
-                                            : nlohmann::json::array({"last_z_result"});
+        objects[status_object(probe)] =
+            publishes_last_query(probe.type)
+                ? nlohmann::json::array({"last_query", "last_z_result", "z_offset"})
+                : nlohmann::json::array({"last_z_result", "z_offset"});
     }
     return objects;
 }

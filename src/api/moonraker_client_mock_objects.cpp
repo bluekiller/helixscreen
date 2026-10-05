@@ -970,7 +970,7 @@ json mock_probe_status() {
         st["bltouch"] = helper_status("bltouch", 0.130);
         st["probe"] = st["bltouch"];
     } else if (probe_type == "loadcell") {
-        // The Flashforge firmware's probe reports z_offset: null.
+        // No z_offset on this probe: Klipper answers the requested key with null.
         st["probe"] = {{"last_z_result", 0.0}, {"z_offset", nullptr}};
     } else {
         // tap, klicky, standard, ... → generic [probe]

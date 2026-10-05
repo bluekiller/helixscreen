@@ -122,9 +122,9 @@ A manager only sees fields that `MoonrakerDiscoverySequence::build_subscription_
 | `load_cell *` | `force_g` |
 | filament switch/motion sensors | `filament_detected`, `enabled`, `detection_count` |
 | width sensors | `Diameter`, `Raw` |
-| probe objects (`probe`, `bltouch`, `beacon`, ...), one per physical probe | `last_query` and `last_z_result`, or `last_z_result` alone, per the table in [Probe status keys](#probe-status-keys), from `ProbeSensorManager::required_status_objects()` |
+| probe objects (`probe`, `bltouch`, `beacon`, ...), one per physical probe | `last_z_result` and `z_offset`, plus `last_query` where the type publishes a usable one, per the table in [Probe status keys](#probe-status-keys), from `ProbeSensorManager::required_status_objects()` |
 
-`ProbeSensorManager` owns which object names are probes and which object and keys each type publishes, so the builder asks it rather than listing them. No probe module publishes `z_offset`; the offset comes from `discover_from_config()` alone. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
+`ProbeSensorManager` owns which object names are probes and which object and keys each type publishes, so the builder asks it rather than listing them. Mainline modules do not publish `z_offset` and Klipper answers the requested key with `null`, so the offset seeded by `discover_from_config()` stands; the Creality and QIDI forks publish it, and a numeric value replaces the seed. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
 
 A field-restricted subscription makes Moonraker send `null` for a field the object lacks. Every parser therefore uses `find()` plus a type check before `get<>()`, never `value()` or a bare `get<>()`:
 
@@ -294,12 +294,16 @@ Roles are CHAMBER and DRYER, auto-assigned at discovery to the first sensor whos
 
 ### Probe status keys
 
-What each object's `get_status()` returns, read from the upstream source (Klipper `461c4e37`, Kalico `0028cf70`, beacon3d/beacon_klipper `3eb01346`, Cartographer3D/cartographer3d-plugin `06e01690`, Cartographer3D/cartographer-klipper `d8fbed79`, vvuk/eddy-ng `1ed056b1`). Klipper's `objects/list` (`Klipper3d/klipper: klippy/webhooks.py#_handle_list`) lists only objects that have `get_status`, so an object without one never reaches `parse_klipper_name()`.
+What each object's `get_status()` returns, read from the upstream source (Klipper `461c4e37`, Kalico `0028cf70`, beacon3d/beacon_klipper `3eb01346`, Cartographer3D/cartographer3d-plugin `06e01690`, Cartographer3D/cartographer-klipper `d8fbed79`, vvuk/eddy-ng `1ed056b1`, CrealityOfficial/K1_Series_Klipper `e09f36e6`, CrealityOfficial/K2_Series_Klipper `bc0a5207`, QIDITECH/klipper `653d7a8f`). Klipper's `objects/list` (`Klipper3d/klipper: klippy/webhooks.py#_handle_list`) lists only objects that have `get_status`, so an object without one never reaches `parse_klipper_name()`.
+
+The last column omits `z_offset`, which HelixScreen requests on every probe object it reads (see the `z_offset` note below).
 
 | Object | Source | `get_status` keys | Also registers `probe`? | HelixScreen reads |
 |--------|--------|-------------------|-------------------------|-------------------|
 | `probe` | `Klipper3d/klipper: klippy/extras/probe.py#ProbeCommandHelper.get_status` | `name`, `last_query`, `last_probe_position`, `last_z_result` | is `probe` | `probe`: `last_query`, `last_z_result` |
 | `probe` | `KalicoCrew/kalico: klippy/extras/probe.py#PrinterProbe.get_status` | `name`, `last_query`, `last_z_result` | is `probe` | same |
+| `probe` | `CrealityOfficial/K1_Series_Klipper: klippy/extras/probe.py#PrinterProbe.get_status` (also `CrealityOfficial/K2_Series_Klipper`) | `last_query`, `last_z_result`, `z_offset` (`z_offset_calibrate` once `Z_OFFSET_APPLY_PROBE` ran, so it changes live) | is `probe` | same |
+| `probe` | `QIDITECH/klipper: klippy/extras/probe.py#PrinterProbe.get_status` | `last_query`, `last_z_result`, `x_offset`, `y_offset`, `z_offset` (static config values) | is `probe` | same |
 | `bltouch`, `smart_effector` | `Klipper3d/klipper: klippy/extras/bltouch.py#PrinterBLTouch.get_status`, `Klipper3d/klipper: klippy/extras/smart_effector.py#PrinterSmartEffector.get_status`: both delegate to `ProbeCommandHelper` | same four keys as `probe` | yes, the same object (`load_config` adds it) | own object: `last_query`, `last_z_result` |
 | `bltouch`, `smart_effector` | `KalicoCrew/kalico: klippy/extras/bltouch.py#load_config`, `KalicoCrew/kalico: klippy/extras/smart_effector.py#load_config` | none (no `get_status`, so not listed) | yes, a `PrinterProbe` wrapper | seen as plain `probe` |
 | `probe_eddy_current <name>` | `Klipper3d/klipper: klippy/extras/probe_eddy_current.py#PrinterEddyProbe.get_status` (`ProbeCommandHelper`, built without `query_endstop`) | same four keys; `last_query` stays `false` because `QUERY_PROBE` is rejected | yes, the same object | own object: `last_z_result` |
@@ -314,7 +318,7 @@ Klicky has no module: it is a plain `[probe]` with dock macros, and `discover()`
 
 - **`last_z_result`** is set only by the `PROBE` command. Klipper stores the toolhead Z at trigger (`bed_z + z_offset`, marked deprecated in `cmd_PROBE`); Kalico and the Cartographer plugin store the Z their probe run returns; Beacon stores trigger Z minus the probe's `z_offset`.
 - **`last_query`** is the result of the last `QUERY_PROBE`, not a live endstop state; nothing publishes a live one. It drives `probe_triggered`. Klipper and Kalico publish a bool, the Cartographer plugin an int.
-- **`z_offset`** is published by none of these. The Flashforge firmware's probe reports it as `null`, which is why `discover_from_config()` seeds it.
+- **`z_offset`** is not published by any mainline, Kalico, Beacon or Cartographer module. The Creality K1 and K2 forks publish it and update it live through `Z_OFFSET_APPLY_PROBE`; the QIDI fork publishes it with `x_offset` and `y_offset` as static config values. It is requested on every probe object: Klipper answers a requested key the module lacks with `null` (`Klipper3d/klipper: klippy/webhooks.py#_do_query` fills it with `res.get(ri, None)`), which keeps the `discover_from_config()` seed, and a number replaces it. The Flashforge firmware's `null` is that fill, not a published field. Creality's Ender-3 V3 and Elegoo have no public Klipper source to check.
 - A null or absent field never overwrites state.
 - A Cartographer configured with `register_as_probe: false` beside a separate `[probe]` reads that probe's status: the objects list cannot tell the two apart.
 

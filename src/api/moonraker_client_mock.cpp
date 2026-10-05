@@ -841,7 +841,6 @@ void MoonrakerClientMock::populate_capabilities() {
     mock_objects.push_back("heater_bed");
     mock_objects.push_back("extruder");
     mock_objects.push_back("bed_mesh");
-    mock_objects.push_back("probe"); // Most printers have a probe for bed mesh/leveling
 
     // Add capabilities for UI testing (speaker for M300, firmware retraction for G10/G11)
     mock_objects.push_back("output_pin beeper");   // Triggers has_speaker_ capability

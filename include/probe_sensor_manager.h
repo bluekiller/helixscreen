@@ -36,9 +36,11 @@ namespace helix::sensors {
  * - probe_eddy_current <name> - Eddy current probe (has a name parameter)
  * - beacon, cartographer - eddy scanners from their own plugins
  *
- * Status keys read: last_z_result and last_query (the last QUERY_PROBE result).
- * Which object carries them differs per type; z_offset is published by none and
- * comes from the configfile. Per-type table: docs/devel/SENSOR_MANAGEMENT.md.
+ * Status keys read: last_z_result, last_query (the last QUERY_PROBE result) and
+ * z_offset. Which object carries them differs per type. Mainline modules do not
+ * publish z_offset, so it is seeded from the configfile; the Creality K1/K2 and
+ * QIDI forks publish it on their probe. Per-type table:
+ * docs/devel/SENSOR_MANAGEMENT.md.
  *
  * @note Switch sensors configured as probes are handled by SwitchSensorManager,
  *       not this manager.
@@ -72,7 +74,8 @@ class ProbeSensorManager {
      *
      * Maps each probe probes_in() keeps to the object and fields its module
      * actually publishes: a Cartographer is read from the probe object it
-     * registers, and types without a usable last_query request last_z_result only.
+     * registers, and types without a usable last_query skip it. z_offset is
+     * requested everywhere; a module without it answers null.
      */
     [[nodiscard]] static nlohmann::json
     required_status_objects(const std::vector<std::string>& klipper_objects);

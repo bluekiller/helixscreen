@@ -24,6 +24,7 @@
 #include "moonraker_client_mock.h"
 #include "probe_sensor_manager.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <set>
 #include <string>
@@ -269,5 +270,28 @@ TEST_CASE("Mock probe status carries the keys real firmware publishes",
     SECTION("none publishes no probe object") {
         ScopedProbeType probe_type("none");
         REQUIRE(helix::sim::mock_probe_status().empty());
+    }
+}
+
+TEST_CASE_METHOD(MockProbeDiscoveryFixture, "Mock objects list carries each probe object once",
+                 "[mock][probe][discovery]") {
+    const auto probe_count = [](const char* type) {
+        ScopedProbeType probe_type(type);
+        MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
+        std::vector<std::string> objects;
+        client.set_on_hardware_discovered(
+            [&objects](const helix::PrinterDiscovery& hw) { objects = hw.printer_objects(); });
+        client.discover_printer([] {}, nullptr);
+        return std::count(objects.begin(), objects.end(), "probe");
+    };
+
+    SECTION("a generic probe is listed once") {
+        REQUIRE(probe_count("tap") == 1);
+    }
+    SECTION("bltouch lists its probe alias once") {
+        REQUIRE(probe_count("bltouch") == 1);
+    }
+    SECTION("none lists no probe object") {
+        REQUIRE(probe_count("none") == 0);
     }
 }
