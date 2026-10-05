@@ -196,7 +196,7 @@ callbacks.on_finished = [this](bool context_ok) { ... };  // UI thread
 bt_discovery_.start(bt_ctx_, 15000, lifetime_.token(), std::move(callbacks));
 ```
 
-`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and sets that scan's own cancel flag, which the plugin reads even before the scan has started; other scans on the context (the label printer's rediscover-before-pair, say) keep running. A later `start()` gets fresh state. `on_finished(false)` means `SharedContext::get()` could not create a context.
+`accept` runs on the bus thread inside the plugin's callback; `DiscoveryRun` copies each accepted device's strings before the callback returns and defers `on_device` through the token. `cancel()` silences the scan's remaining callbacks and sets that scan's own cancel flag, which the plugin reads even before the scan has started; other scans on the context (the label printer's rediscover-before-pair, say) keep running. A later `start()` gets fresh state. `on_finished(false)` means the scan never ran: `SharedContext::get()` could not create a context, or `discover()` failed (no adapter, `StartDiscovery` refused; the plugin's `last_error` is logged). Both overlays then show "Could not start Bluetooth discovery" over their empty list.
 
 The barcode scanner overlay seeds its list from `enumerate_known()` the same way: the saved scanner shows at once, and BlueZ's known scanners merge in from a worker (`src/ui/ui_settings_barcode_scanner.cpp#seed_known_bt_devices`).
 

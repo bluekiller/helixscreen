@@ -63,8 +63,9 @@ class DiscoveryRun {
         std::function<bool(const helix_bt_device&)> accept;
         /// UI thread, once per reported device.
         std::function<void(const DiscoveredDevice&)> on_device;
-        /// UI thread, when the scan ends; false when no context could be created.
-        std::function<void(bool context_ok)> on_finished;
+        /// UI thread, when the scan ends; false when no context could be created or the
+        /// plugin's discover() failed (no adapter, StartDiscovery refused).
+        std::function<void(bool ok)> on_finished;
     };
 
     /// Starts a scan and silences any earlier one. Callbacks run only while @p token is

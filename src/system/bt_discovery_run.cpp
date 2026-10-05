@@ -6,6 +6,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cerrno>
 #include <system_error>
 #include <thread>
 
@@ -73,14 +74,20 @@ bool DiscoveryRun::start(std::shared_ptr<SharedContext> ctx, int timeout_ms, Lif
         std::thread([state, timeout_ms]() mutable {
             auto& loader = BluetoothLoader::instance();
             helix_bt_context* bt = state->ctx->get();
+            int result = -ENODEV;
             if (bt && loader.discover)
-                loader.discover(bt, timeout_ms, &DiscoveryRun::report_device, &state,
-                                &state->cancel);
+                result = loader.discover(bt, timeout_ms, &DiscoveryRun::report_device, &state,
+                                         &state->cancel);
+            if (result < 0) {
+                spdlog::warn("[BluetoothDiscovery] Scan failed ({}): {}", result,
+                             bt && loader.last_error ? loader.last_error(bt)
+                                                     : "no Bluetooth context");
+            }
 
-            const bool context_ok = bt != nullptr;
-            state->token.defer("DiscoveryRun::finished", [state, context_ok] {
+            const bool ok = result >= 0;
+            state->token.defer("DiscoveryRun::finished", [state, ok] {
                 if (state->alive.load() && state->callbacks.on_finished)
-                    state->callbacks.on_finished(context_ok);
+                    state->callbacks.on_finished(ok);
             });
         }).detach();
     } catch (const std::system_error& e) {

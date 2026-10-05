@@ -10,6 +10,7 @@
 #include "bt_discovery_run.h"
 
 #include <atomic>
+#include <cerrno>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
@@ -38,6 +39,7 @@ struct FakePlugin {
     int discovers_entered = 0;
     int discovers_released = 0; // discover call N returns once this exceeds N
     bool init_fails = false;
+    int discover_result = 0;
     std::vector<std::string> names_per_call; // device name reported by call N on release
     std::vector<int> cancel_seen;            // *cancel when call N was released
 };
@@ -83,7 +85,8 @@ extern "C" int fake_discover(helix_bt_context*, int, helix_bt_discover_cb cb, vo
     skipped.mac = "11:22:33:44:55:66";
     skipped.name = "not a scanner";
     cb(&skipped, user_data);
-    return 0;
+    std::lock_guard<std::mutex> lock(g_fake->mu);
+    return g_fake->discover_result;
 }
 
 /// Swaps the fake plugin into the loader and restores the real pointers afterwards.
@@ -255,4 +258,21 @@ TEST_CASE("DiscoveryRun callbacks stop when their owner is destroyed",
 
     CHECK(seen.devices.empty());
     CHECK(seen.finished.empty());
+}
+
+TEST_CASE("DiscoveryRun reports a scan the plugin could not run as failed",
+          "[bt][discovery_run][slow]") {
+    LVGLTestFixture fixture;
+    ScopedFakePlugin plugin;
+    plugin.fake.names_per_call = {"Scanner"};
+    plugin.fake.discover_result = -ENODEV; // no adapter
+    helix::AsyncLifetimeGuard owner;
+    Seen seen;
+
+    DiscoveryRun run;
+    REQUIRE(run.start(std::make_shared<SharedContext>(), 15000, owner.token(), record_into(seen)));
+    plugin.release(1);
+
+    REQUIRE(fixture.wait_until([&] { return !seen.finished.empty(); }));
+    CHECK(seen.finished == std::vector<bool>{false});
 }

@@ -502,12 +502,10 @@ void BarcodeScannerSettingsOverlay::start_bt_discovery() {
                       helix::redact::mac(info.mac));
         populate_bt_dropdown();
     };
-    callbacks.on_finished = [this](bool context_ok) {
-        if (!context_ok) {
-            spdlog::error("[{}] Failed to init BT context", get_name());
+    callbacks.on_finished = [this](bool ok) {
+        if (!ok)
             ToastManager::instance().show(ToastSeverity::ERROR,
-                                          lv_tr("Bluetooth initialization failed"));
-        }
+                                          lv_tr("Could not start Bluetooth discovery"), 3000);
         bt_discovering_ = false;
         lv_subject_set_int(&bt_discovering_subject_, 0);
         spdlog::info("[BarcodeScannerSettings] BT discovery finished, {} scanner(s) found",
