@@ -37,20 +37,43 @@ uint8_t alpha_at(const std::vector<uint8_t>& out, ThumbnailDims d, int x, int y)
 
 TEST_CASE("fit_thumbnail keeps aspect inside the box and never upscales",
           "[thumbnail][downscale]") {
-    CHECK(helix::fit_thumbnail(300, 300, 260).w == 260);
-    CHECK(helix::fit_thumbnail(300, 300, 260).h == 260);
-    const ThumbnailDims wide = helix::fit_thumbnail(400, 200, 260);
-    CHECK(wide.w == 260);
-    CHECK(wide.h == 130);
-    const ThumbnailDims tall = helix::fit_thumbnail(200, 400, 260);
+    // The print-status thumbnail box at 800x480.
+    constexpr int BOX_W = 377;
+    constexpr int BOX_H = 260;
+    const ThumbnailDims square = helix::fit_thumbnail(300, 300, BOX_W, BOX_H);
+    CHECK(square.w == 260);
+    CHECK(square.h == 260);
+    // 16:9 fills the box's width rather than shrinking to fit a 260 square.
+    const ThumbnailDims wide = helix::fit_thumbnail(640, 360, BOX_W, BOX_H);
+    CHECK(wide.w == 377);
+    CHECK(wide.h == 212);
+    const ThumbnailDims very_wide = helix::fit_thumbnail(1000, 500, BOX_W, BOX_H);
+    CHECK(very_wide.w == 377);
+    CHECK(very_wide.h == 188);
+    // Taller than the box's ratio: height binds.
+    const ThumbnailDims tall = helix::fit_thumbnail(200, 400, BOX_W, BOX_H);
     CHECK(tall.w == 130);
     CHECK(tall.h == 260);
-    const ThumbnailDims small = helix::fit_thumbnail(48, 48, 260);
-    CHECK(small.w == 48);
-    CHECK(small.h == 48);
-    CHECK(helix::fit_thumbnail(1000, 1, 260).h == 1);
-    CHECK(helix::fit_thumbnail(0, 300, 260).w == 0);
+    // Already inside the box: kept as is.
+    const ThumbnailDims small = helix::fit_thumbnail(320, 180, BOX_W, BOX_H);
+    CHECK(small.w == 320);
+    CHECK(small.h == 180);
+    CHECK(helix::fit_thumbnail(1000, 1, BOX_W, BOX_H).h == 1);
+    CHECK(helix::fit_thumbnail(0, 300, BOX_W, BOX_H).w == 0);
     CHECK(helix::rgb565a8_size({260, 260}) == 202800);
+    CHECK(helix::rgb565a8_size({BOX_W, BOX_H}) == 294060);
+}
+
+TEST_CASE("only a lodepng allocation failure is worth retrying", "[thumbnail][downscale]") {
+    using helix::ThumbnailDecodeFailure;
+    CHECK(helix::classify_lodepng_error(0) == ThumbnailDecodeFailure::None);
+    CHECK(helix::classify_lodepng_error(83) == ThumbnailDecodeFailure::OutOfMemory);
+    // 37: 16-bit channels this port rejects; 27/30: a PNG cut short by the
+    // capped fetch; 28: not a PNG at all.
+    for (unsigned err : {37u, 27u, 30u, 28u}) {
+        CAPTURE(err);
+        CHECK(helix::classify_lodepng_error(err) == ThumbnailDecodeFailure::BadImage);
+    }
 }
 
 TEST_CASE("downscale packs RGB565 then an alpha plane", "[thumbnail][downscale]") {

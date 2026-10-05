@@ -586,9 +586,10 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                 constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
                 // The print-status panel draws its thumbnail in a 377x260 box
                 // (contain) at 800x480 and the home print card in 119x84, so
-                // one image fitted to 260px serves both; LVGL scales it down
-                // for the card.
-                constexpr int ESP32_THUMBNAIL_DRAW_PX = 260;
+                // one image fitted to that box serves both; LVGL scales it
+                // down for the card. Worst case 377x260 RGB565A8 = 294KB.
+                constexpr int ESP32_THUMBNAIL_BOX_W = 377;
+                constexpr int ESP32_THUMBNAIL_BOX_H = 260;
 
                 // MANDATORY threading: EspHttpLane invokes on_success/on_error
                 // directly on its own worker thread with no marshaling. Both
@@ -606,24 +607,34 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                         // malloc, lodepng touches no LVGL state, and only the
                         // finished image crosses over via tok.defer. On the UI
                         // thread it would add ~100ms+ to an already stalled boot.
+                        helix::ThumbnailDecodeFailure failure{};
                         auto thumb = helix::ui::EspPsramThumbnail::create_decoded(
-                            png_bytes, ESP32_THUMBNAIL_DRAW_PX);
+                            png_bytes, ESP32_THUMBNAIL_BOX_W, ESP32_THUMBNAIL_BOX_H, failure);
                         if (!thumb) {
-                            // Usually a transient PSRAM shortage while the UI
-                            // builds; one later attempt, never one per draw.
-                            tok.defer("ActivePrintMediaManager::on_thumbnail_decode_failed",
-                                      [this, ctx, filename, resolved_thumb_path]() {
-                                          if (!ctx.is_valid()) {
-                                              return;
-                                          }
-                                          spdlog::warn(
-                                              "[ActivePrintMediaManager] Could not "
-                                              "decode thumbnail {} (largest free "
-                                              "PSRAM block {}KB)",
-                                              resolved_thumb_path,
-                                              helix::get_system_memory_info().largest_free_kb);
-                                          schedule_thumbnail_retry(filename, MAX_DECODE_RETRIES);
-                                      });
+                            // A PSRAM shortage while the UI builds is transient and
+                            // worth a later attempt; a corrupt, unsupported or
+                            // truncated PNG fails the same way every time, so the
+                            // placeholder stays.
+                            tok.defer(
+                                "ActivePrintMediaManager::on_thumbnail_decode_failed",
+                                [this, ctx, filename, resolved_thumb_path, failure]() {
+                                    if (!ctx.is_valid()) {
+                                        return;
+                                    }
+                                    if (failure != helix::ThumbnailDecodeFailure::OutOfMemory) {
+                                        spdlog::warn("[ActivePrintMediaManager] Thumbnail {} "
+                                                     "is not a decodable PNG; keeping the "
+                                                     "placeholder",
+                                                     resolved_thumb_path);
+                                        return;
+                                    }
+                                    spdlog::warn("[ActivePrintMediaManager] Could not decode "
+                                                 "thumbnail {}: out of memory (largest free "
+                                                 "PSRAM block {}KB)",
+                                                 resolved_thumb_path,
+                                                 helix::get_system_memory_info().largest_free_kb);
+                                    schedule_thumbnail_retry(filename, MAX_DECODE_RETRIES);
+                                });
                             return;
                         }
                         // The last shared_ptr release must happen on the UI

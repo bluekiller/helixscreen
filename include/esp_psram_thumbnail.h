@@ -98,15 +98,19 @@ class EspPsramThumbnail {
         return std::shared_ptr<EspPsramThumbnail>(new EspPsramThumbnail(buf, png_bytes.size()));
     }
 
-    /// Decodes png_bytes once and keeps it as an RGB565A8 image no larger than
-    /// max_px square, so drawing it needs no PNG decoder and no image-cache
+    /// Decodes png_bytes once and keeps it as an RGB565A8 image fitted inside
+    /// max_w x max_h, so drawing it needs no PNG decoder and no image-cache
     /// entry. A 300px PNG costs ~720KB only while it decodes here, then 3 bytes
     /// per kept pixel. Safe on the HTTP lane worker: lodepng allocates through
     /// lv_malloc (the C library allocator on this build) and touches no widget
-    /// state. Returns nullptr when the PNG cannot be decoded or memory runs out.
-    static std::shared_ptr<EspPsramThumbnail> create_decoded(const std::string& png_bytes,
-                                                             int max_px) {
+    /// state. Returns nullptr when the PNG cannot be decoded or memory runs out,
+    /// and says which in @p failure.
+    static std::shared_ptr<EspPsramThumbnail>
+    create_decoded(const std::string& png_bytes, int max_w, int max_h,
+                   helix::ThumbnailDecodeFailure& failure) {
+        failure = helix::ThumbnailDecodeFailure::None;
         if (png_bytes.empty()) {
+            failure = helix::ThumbnailDecodeFailure::BadImage;
             return nullptr;
         }
         unsigned char* decoded_raw = nullptr;
@@ -121,10 +125,12 @@ class EspPsramThumbnail {
             if (decoded) {
                 lv_draw_buf_destroy(decoded);
             }
+            failure =
+                err ? helix::classify_lodepng_error(err) : helix::ThumbnailDecodeFailure::BadImage;
             return nullptr;
         }
         const helix::ThumbnailDims dims =
-            helix::fit_thumbnail(static_cast<int>(w), static_cast<int>(h), max_px);
+            helix::fit_thumbnail(static_cast<int>(w), static_cast<int>(h), max_w, max_h);
         const size_t size = helix::rgb565a8_size(dims);
         auto* buf =
             size ? static_cast<uint8_t*>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM)) : nullptr;
@@ -134,6 +140,8 @@ class EspPsramThumbnail {
         }
         lv_draw_buf_destroy(decoded);
         if (!buf) {
+            failure = size ? helix::ThumbnailDecodeFailure::OutOfMemory
+                           : helix::ThumbnailDecodeFailure::BadImage;
             return nullptr;
         }
         return std::shared_ptr<EspPsramThumbnail>(new EspPsramThumbnail(buf, size, dims));

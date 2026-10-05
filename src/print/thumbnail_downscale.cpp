@@ -7,17 +7,25 @@
 
 namespace helix {
 
-ThumbnailDims fit_thumbnail(int w, int h, int max_px) {
-    if (w <= 0 || h <= 0 || max_px <= 0) {
+ThumbnailDims fit_thumbnail(int w, int h, int max_w, int max_h) {
+    if (w <= 0 || h <= 0 || max_w <= 0 || max_h <= 0) {
         return {};
     }
-    if (w <= max_px && h <= max_px) {
+    if (w <= max_w && h <= max_h) {
         return {w, h};
     }
-    if (w >= h) {
-        return {max_px, std::max(1, static_cast<int>(static_cast<int64_t>(h) * max_px / w))};
+    // Width is the binding side when w/h >= max_w/max_h.
+    if (static_cast<int64_t>(w) * max_h >= static_cast<int64_t>(h) * max_w) {
+        return {max_w, std::max(1, static_cast<int>(static_cast<int64_t>(h) * max_w / w))};
     }
-    return {std::max(1, static_cast<int>(static_cast<int64_t>(w) * max_px / h)), max_px};
+    return {std::max(1, static_cast<int>(static_cast<int64_t>(w) * max_h / h)), max_h};
+}
+
+ThumbnailDecodeFailure classify_lodepng_error(unsigned error) {
+    if (error == 0) {
+        return ThumbnailDecodeFailure::None;
+    }
+    return error == 83 ? ThumbnailDecodeFailure::OutOfMemory : ThumbnailDecodeFailure::BadImage;
 }
 
 void downscale_rgba_to_rgb565a8(const uint8_t* rgba, int src_w, int src_h, ThumbnailDims dst,

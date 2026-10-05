@@ -12,9 +12,20 @@ struct ThumbnailDims {
     int h = 0;
 };
 
-/// The size an image of @p w x @p h takes inside a @p max_px square, aspect
-/// kept. Never upscales; each side is at least 1. {0,0} for a degenerate input.
-ThumbnailDims fit_thumbnail(int w, int h, int max_px);
+/// The size an image of @p w x @p h takes inside a @p max_w x @p max_h box,
+/// aspect kept. Never upscales; each side is at least 1. {0,0} for a degenerate
+/// input.
+ThumbnailDims fit_thumbnail(int w, int h, int max_w, int max_h);
+
+/// Why a thumbnail decode produced nothing.
+enum class ThumbnailDecodeFailure {
+    None,
+    OutOfMemory, ///< Worth retrying once memory frees up
+    BadImage,    ///< Corrupt, truncated or unsupported: retrying cannot help
+};
+
+/// Classifies a lodepng error code. 83 is lodepng's allocation failure.
+ThumbnailDecodeFailure classify_lodepng_error(unsigned error);
 
 /// Bytes an RGB565A8 image of @p dims needs: a 16-bit colour plane followed by
 /// an 8-bit alpha plane.
