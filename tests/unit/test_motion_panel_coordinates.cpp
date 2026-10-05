@@ -103,12 +103,12 @@ TEST_CASE_METHOD(LVGLUITestFixture, "coordinate readouts follow the commanded/ac
 
     auto& ps = get_printer_state();
     using helix::units::to_centimm;
-    lv_subject_set_int(ps.get_gcode_position_x_subject(), to_centimm(10.0));
-    lv_subject_set_int(ps.get_gcode_position_y_subject(), to_centimm(20.0));
-    lv_subject_set_int(ps.get_gcode_position_z_subject(), to_centimm(5.0));
-    lv_subject_set_int(ps.get_live_position_x_subject(), to_centimm(11.5));
-    lv_subject_set_int(ps.get_live_position_y_subject(), to_centimm(21.5));
-    lv_subject_set_int(ps.get_live_position_z_subject(), to_centimm(5.25));
+    lv_subject_set_int(ps.motion_state().get_gcode_position_x_subject(), to_centimm(10.0));
+    lv_subject_set_int(ps.motion_state().get_gcode_position_y_subject(), to_centimm(20.0));
+    lv_subject_set_int(ps.motion_state().get_gcode_position_z_subject(), to_centimm(5.0));
+    lv_subject_set_int(ps.motion_state().get_live_position_x_subject(), to_centimm(11.5));
+    lv_subject_set_int(ps.motion_state().get_live_position_y_subject(), to_centimm(21.5));
+    lv_subject_set_int(ps.motion_state().get_live_position_z_subject(), to_centimm(5.25));
     helix::ui::UpdateQueue::instance().drain();
 
     // Commanded mode (the default): gcode position, not live.
@@ -135,13 +135,13 @@ TEST_CASE_METHOD(LVGLUITestFixture, "coordinate readouts follow the commanded/ac
                      theme_manager_get_color("primary")));
 
     // Live updates keep flowing while the preference is "actual"...
-    lv_subject_set_int(ps.get_live_position_x_subject(), to_centimm(12.75));
+    lv_subject_set_int(ps.motion_state().get_live_position_x_subject(), to_centimm(12.75));
     helix::ui::UpdateQueue::instance().drain();
     check_header_text(root, "header_pos_x", "12.75");
 
     // ...and commanded updates win again once it flips back.
     settings.set_motion_show_actual_position(false);
-    lv_subject_set_int(ps.get_gcode_position_x_subject(), to_centimm(13.0));
+    lv_subject_set_int(ps.motion_state().get_gcode_position_x_subject(), to_centimm(13.0));
     helix::ui::UpdateQueue::instance().drain();
     check_header_text(root, "header_pos_x", "13.00");
 
@@ -203,8 +203,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "motion bounds follow the gcode origin, not 
     CHECK_FALSE(lv_obj_has_state(z_down, LV_STATE_DISABLED));
 
     // The keypad bounds the same envelope: Z tops out at 274.94, not 275.
-    const auto params = helix::keypad_params_for_axis(get_printer_state().get_gcode_axis_bounds(),
-                                                      helix::Axis::Z, 274.94);
+    const auto params = helix::keypad_params_for_axis(
+        get_printer_state().motion_state().get_gcode_axis_bounds(), helix::Axis::Z, 274.94);
     REQUIRE(params.has_value());
     CHECK(params->max_value == Catch::Approx(274.94f));
     CHECK(params->min_value == Catch::Approx(-0.06f));

@@ -109,9 +109,9 @@ TEST_CASE_METHOD(DestroyOnCloseFixture, "Motion observers fired after close touc
     expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
                              [&] { return p.get_root(); });
     // The homed and position observers outlive the tree and reach for the jog pad.
-    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "xyz");
+    lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "xyz");
     settle();
-    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "");
+    lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "");
     settle();
     CHECK(p.get_root() == nullptr);
 }

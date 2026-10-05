@@ -200,7 +200,7 @@ void ControlsPanel::init_subjects() {
 
     // Observe homed_axes from PrinterState to update homing subjects using string observer
     homed_axes_observer_ = observe<const char*>(
-        printer_state_.get_homed_axes_subject(), this,
+        printer_state_.motion_state().get_homed_axes_subject(), this,
         [](ControlsPanel* self, const char* axes) {
             bool has_x = strchr(axes, 'x') != nullptr;
             bool has_y = strchr(axes, 'y') != nullptr;
@@ -391,24 +391,24 @@ void ControlsPanel::refresh_all_displays() {
     update_speed_display();
 
     // Re-read position subjects
-    if (auto* subj = printer_state_.get_gcode_position_x_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_gcode_position_x_subject()) {
         int centimm = lv_subject_get_int(subj);
         format_position(centimm, controls_pos_x_buf_, sizeof(controls_pos_x_buf_));
         lv_subject_copy_string(&controls_pos_x_subject_, controls_pos_x_buf_);
     }
-    if (auto* subj = printer_state_.get_gcode_position_y_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_gcode_position_y_subject()) {
         int centimm = lv_subject_get_int(subj);
         format_position(centimm, controls_pos_y_buf_, sizeof(controls_pos_y_buf_));
         lv_subject_copy_string(&controls_pos_y_subject_, controls_pos_y_buf_);
     }
-    if (auto* subj = printer_state_.get_gcode_position_z_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_gcode_position_z_subject()) {
         int centimm = lv_subject_get_int(subj);
         format_position(centimm, controls_pos_z_buf_, sizeof(controls_pos_z_buf_));
         lv_subject_copy_string(&controls_pos_z_subject_, controls_pos_z_buf_);
     }
 
     // Re-read Z-offset subjects
-    if (auto* subj = printer_state_.get_pending_z_offset_delta_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_pending_z_offset_delta_subject()) {
         update_z_offset_delta_display(lv_subject_get_int(subj));
     }
     update_controls_z_offset_display();
@@ -540,7 +540,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to pending Z-offset delta (for unsaved adjustment banner)
     pending_z_offset_observer_ = observe<int>(
-        printer_state_.get_pending_z_offset_delta_subject(), this,
+        printer_state_.motion_state().get_pending_z_offset_delta_subject(), this,
         [](ControlsPanel* self, int delta_microns) {
             if (self->active_)
                 self->update_z_offset_delta_display(delta_microns);
@@ -572,7 +572,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to speed/flow factor updates (skip formatting when hidden)
     speed_factor_observer_ = observe<int>(
-        printer_state_.get_speed_factor_subject(), this,
+        printer_state_.motion_state().get_speed_factor_subject(), this,
         [](ControlsPanel* self, int /* value */) {
             if (self->active_)
                 self->update_speed_display();
@@ -581,7 +581,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to gcode Z-offset for live tuning display (skip formatting when hidden)
     gcode_z_offset_observer_ = observe<int>(
-        printer_state_.get_gcode_z_offset_subject(), this,
+        printer_state_.motion_state().get_gcode_z_offset_subject(), this,
         [](ControlsPanel* self, int /* offset_microns */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -591,7 +591,7 @@ void ControlsPanel::register_observers() {
     // The displayed Z-offset switches source between the live and the
     // firmware-persisted reading, so all three inputs have to retrigger it.
     persisted_z_offset_observer_ = observe<int>(
-        printer_state_.get_persisted_z_offset_subject(), this,
+        printer_state_.motion_state().get_persisted_z_offset_subject(), this,
         [](ControlsPanel* self, int /* offset_microns */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -599,7 +599,7 @@ void ControlsPanel::register_observers() {
         printer_state_.get_subjects_lifetime());
 
     persisted_z_offset_valid_observer_ = observe<int>(
-        printer_state_.get_persisted_z_offset_valid_subject(), this,
+        printer_state_.motion_state().get_persisted_z_offset_valid_subject(), this,
         [](ControlsPanel* self, int /* valid */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -1070,7 +1070,7 @@ void ControlsPanel::handle_z_tilt() {
 
 void ControlsPanel::update_speed_display() {
     int speed_pct = 100;
-    if (auto* speed_subj = printer_state_.get_speed_factor_subject()) {
+    if (auto* speed_subj = printer_state_.motion_state().get_speed_factor_subject()) {
         speed_pct = lv_subject_get_int(speed_subj);
     }
     helix::format::format_percent(speed_pct, speed_override_buf_, sizeof(speed_override_buf_));

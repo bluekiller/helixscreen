@@ -1052,20 +1052,20 @@ void MoonrakerManager::init_print_start_collector() {
         if (collector && collector->is_active()) {
             auto& state = get_printer_state();
             collector->note_position_sample(
-                static_cast<float>(
-                    helix::units::from_centimm(lv_subject_get_int(state.get_position_x_subject()))),
-                static_cast<float>(
-                    helix::units::from_centimm(lv_subject_get_int(state.get_position_y_subject()))),
                 static_cast<float>(helix::units::from_centimm(
-                    lv_subject_get_int(state.get_position_z_subject()))));
+                    lv_subject_get_int(state.motion_state().get_position_x_subject()))),
+                static_cast<float>(helix::units::from_centimm(
+                    lv_subject_get_int(state.motion_state().get_position_y_subject()))),
+                static_cast<float>(helix::units::from_centimm(
+                    lv_subject_get_int(state.motion_state().get_position_z_subject()))));
         }
     };
-    m_print_position_observers[0] =
-        ObserverGuard(get_printer_state().get_position_x_subject(), position_cb, nullptr);
-    m_print_position_observers[1] =
-        ObserverGuard(get_printer_state().get_position_y_subject(), position_cb, nullptr);
-    m_print_position_observers[2] =
-        ObserverGuard(get_printer_state().get_position_z_subject(), position_cb, nullptr);
+    m_print_position_observers[0] = ObserverGuard(
+        get_printer_state().motion_state().get_position_x_subject(), position_cb, nullptr);
+    m_print_position_observers[1] = ObserverGuard(
+        get_printer_state().motion_state().get_position_y_subject(), position_cb, nullptr);
+    m_print_position_observers[2] = ObserverGuard(
+        get_printer_state().motion_state().get_position_z_subject(), position_cb, nullptr);
 
     spdlog::debug("[MoonrakerManager] Print start collector initialized");
 }

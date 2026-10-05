@@ -300,17 +300,18 @@ void MotionPanel::init_subjects() {
     // Sync initial position values (observers only fire on change, not on subscribe)
     // Without this, panel shows dashes until next position update even if printer is homed
     current_x_ = static_cast<float>(helix::units::from_centimm(
-        lv_subject_get_int(get_printer_state().get_gcode_position_x_subject())));
+        lv_subject_get_int(get_printer_state().motion_state().get_gcode_position_x_subject())));
     current_y_ = static_cast<float>(helix::units::from_centimm(
-        lv_subject_get_int(get_printer_state().get_gcode_position_y_subject())));
-    gcode_z_centimm_ = lv_subject_get_int(get_printer_state().get_gcode_position_z_subject());
+        lv_subject_get_int(get_printer_state().motion_state().get_gcode_position_y_subject())));
+    gcode_z_centimm_ =
+        lv_subject_get_int(get_printer_state().motion_state().get_gcode_position_z_subject());
     current_z_ = static_cast<float>(helix::units::from_centimm(gcode_z_centimm_));
     live_x_ = static_cast<float>(helix::units::from_centimm(
-        lv_subject_get_int(get_printer_state().get_live_position_x_subject())));
+        lv_subject_get_int(get_printer_state().motion_state().get_live_position_x_subject())));
     live_y_ = static_cast<float>(helix::units::from_centimm(
-        lv_subject_get_int(get_printer_state().get_live_position_y_subject())));
+        lv_subject_get_int(get_printer_state().motion_state().get_live_position_y_subject())));
     live_z_ = static_cast<float>(helix::units::from_centimm(
-        lv_subject_get_int(get_printer_state().get_live_position_z_subject())));
+        lv_subject_get_int(get_printer_state().motion_state().get_live_position_z_subject())));
     show_actual_ = SettingsManager::instance().get_motion_show_actual_position();
     refresh_position_display();
 
@@ -636,7 +637,7 @@ void MotionPanel::register_position_observers() {
 
     // Use gcode position (commanded) for X/Y display and jog calculations
     position_x_observer_ = observe<int>(
-        get_printer_state().get_gcode_position_x_subject(), this,
+        get_printer_state().motion_state().get_gcode_position_x_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
                 return;
@@ -648,7 +649,7 @@ void MotionPanel::register_position_observers() {
         get_printer_state().get_subjects_lifetime());
 
     position_y_observer_ = observe<int>(
-        get_printer_state().get_gcode_position_y_subject(), this,
+        get_printer_state().motion_state().get_gcode_position_y_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
                 return;
@@ -662,7 +663,7 @@ void MotionPanel::register_position_observers() {
     // The readout shows the commanded (gcode) Z; mesh-compensated toolhead Z
     // has no display here.
     gcode_z_observer_ = observe<int>(
-        get_printer_state().get_gcode_position_z_subject(), this,
+        get_printer_state().motion_state().get_gcode_position_z_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
                 return;
@@ -679,7 +680,7 @@ void MotionPanel::register_position_observers() {
     // while the commanded position can round to the same centimillimeter and
     // fire nothing: this subject is homing_origin[2] and moves with it.
     gcode_z_offset_observer_ = observe<int>(
-        get_printer_state().get_gcode_z_offset_subject(), this,
+        get_printer_state().motion_state().get_gcode_z_offset_subject(), this,
         [](MotionPanel* self, int) {
             if (!self->subjects_initialized_)
                 return;
@@ -690,7 +691,7 @@ void MotionPanel::register_position_observers() {
     // Actual (live) positions from motion_report.live_position; the readouts
     // show these while the coordinate preference is "actual".
     live_position_observer_x_ = observe<int>(
-        get_printer_state().get_live_position_x_subject(), this,
+        get_printer_state().motion_state().get_live_position_x_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
                 return;
@@ -700,7 +701,7 @@ void MotionPanel::register_position_observers() {
         },
         get_printer_state().get_subjects_lifetime());
     live_position_observer_y_ = observe<int>(
-        get_printer_state().get_live_position_y_subject(), this,
+        get_printer_state().motion_state().get_live_position_y_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
                 return;
@@ -710,7 +711,7 @@ void MotionPanel::register_position_observers() {
         },
         get_printer_state().get_subjects_lifetime());
     live_position_observer_z_ = observe<int>(
-        get_printer_state().get_live_position_z_subject(), this,
+        get_printer_state().motion_state().get_live_position_z_subject(), this,
         [](MotionPanel* self, int centimm) {
             if (!self->subjects_initialized_)
                 return;
@@ -754,7 +755,7 @@ void MotionPanel::register_position_observers() {
     // subjects (the readouts mute an unhomed axis) and recolor the
     // custom-drawn center home button: warning tint until all axes are homed.
     homed_axes_observer_ = observe<const char*>(
-        get_printer_state().get_homed_axes_subject(), this,
+        get_printer_state().motion_state().get_homed_axes_subject(), this,
         [](MotionPanel* self, const char* axes) {
             if (!self->subjects_initialized_)
                 return;
@@ -1047,7 +1048,7 @@ double MotionPanel::clamp_axis_delta(helix::Axis axis, double current, double un
 }
 
 helix::AxisBounds MotionPanel::clamp_bounds() {
-    return helix::inset_bounds(get_printer_state().get_gcode_axis_bounds(),
+    return helix::inset_bounds(get_printer_state().motion_state().get_gcode_axis_bounds(),
                                helix::GCODE_EDGE_MARGIN_MM);
 }
 
@@ -1212,8 +1213,8 @@ void MotionPanel::open_axis_keypad(char axis) {
                                   : axis == 'y' ? helix::Axis::Y
                                                 : helix::Axis::Z;
     const double commanded = axis == 'x' ? current_x_ : axis == 'y' ? current_y_ : current_z_;
-    const auto params = helix::keypad_params_for_axis(get_printer_state().get_gcode_axis_bounds(),
-                                                      axis_enum, commanded);
+    const auto params = helix::keypad_params_for_axis(
+        get_printer_state().motion_state().get_gcode_axis_bounds(), axis_enum, commanded);
     if (!params) {
         NOTIFY_INFO(lv_tr("Axis limits unknown"));
         return;
@@ -1399,7 +1400,7 @@ void MotionPanel::park_over_plate(bool lift_z) {
     if (!get_moonraker_api()) {
         return;
     }
-    const AxisBounds gcode = get_printer_state().get_gcode_axis_bounds();
+    const AxisBounds gcode = get_printer_state().motion_state().get_gcode_axis_bounds();
     const auto plate = bed_plate();
     auto target = plate ? helix::plate_rear_park(plate->area) : std::nullopt;
     if (!target) {
@@ -1436,7 +1437,8 @@ std::optional<MotionPanel::BedPlate> MotionPanel::bed_plate() const {
         return std::nullopt;
     }
     const auto& ps = get_printer_state();
-    const auto area = helix::preset_area(ps.get_axis_bounds(), ps.get_gcode_axis_bounds(),
+    const auto area = helix::preset_area(ps.motion_state().get_axis_bounds(),
+                                         ps.motion_state().get_gcode_axis_bounds(),
                                          api->hardware().build_volume());
     if (!area.has_x || !area.has_y || area.x_max <= area.x_min || area.y_max <= area.y_min) {
         return std::nullopt;

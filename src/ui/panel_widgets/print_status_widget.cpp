@@ -1894,7 +1894,8 @@ void PrintStatusWidget::DetailedFormatter::update_layer_text() {
     int cur = lv_subject_get_int(ps.get_print_layer_current_subject());
     int tot = lv_subject_get_int(ps.get_print_layer_total_subject());
     std::string text = helix::ui::format_layer_progress(
-        cur, tot, ps.layer_is_accurate(), lv_subject_get_int(ps.get_gcode_position_z_subject()));
+        cur, tot, ps.layer_is_accurate(),
+        lv_subject_get_int(ps.motion_state().get_gcode_position_z_subject()));
     snprintf(layer_text_buf_, sizeof(layer_text_buf_), "%s", text.c_str());
     lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
 }

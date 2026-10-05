@@ -81,9 +81,10 @@ int displayed_z_offset_microns(int live_microns, std::optional<int> persisted_mi
 }
 
 int displayed_z_offset_microns(helix::PrinterState& state) {
-    return displayed_z_offset_microns(lv_subject_get_int(state.get_gcode_z_offset_subject()),
-                                      state.get_persisted_z_offset_microns(),
-                                      lv_subject_get_int(state.get_print_active_subject()) != 0);
+    return displayed_z_offset_microns(
+        lv_subject_get_int(state.motion_state().get_gcode_z_offset_subject()),
+        state.get_persisted_z_offset_microns(),
+        lv_subject_get_int(state.get_print_active_subject()) != 0);
 }
 
 std::string build_z_adjust_gcode(int base_microns, int live_microns, int delta_microns,
@@ -110,7 +111,7 @@ void apply_and_save(IMoonrakerAPI* api, helix::ui::SaveConfigWatch& save_watch,
     // genuinely persisted even though HelixScreen sent nothing.
     auto on_saved = [ps, on_success = std::move(on_success)]() {
         if (ps) {
-            ps->clear_pending_z_offset_delta();
+            ps->motion_state().clear_pending_z_offset_delta();
         }
         if (on_success) {
             on_success();
@@ -243,13 +244,14 @@ AdjustResult adjust(IMoonrakerAPI* api, PrinterState* ps, double session_base_mm
     const int new_microns = static_cast<int>(std::lround(new_offset * 1000.0));
     const int base_microns = new_microns - delta_microns;
     // Read the live offset before the optimistic write below overwrites it.
-    const int live_microns = ps ? lv_subject_get_int(ps->get_gcode_z_offset_subject()) : 0;
+    const int live_microns =
+        ps ? lv_subject_get_int(ps->motion_state().get_gcode_z_offset_subject()) : 0;
     const bool adjusting_from_persisted = ps && base_microns != live_microns;
 
     if (ps) {
-        ps->add_pending_z_offset_delta(delta_microns);
+        ps->motion_state().add_pending_z_offset_delta(delta_microns);
         // Publish immediately rather than waiting for Moonraker to broadcast.
-        if (auto* subj = ps->get_gcode_z_offset_subject()) {
+        if (auto* subj = ps->motion_state().get_gcode_z_offset_subject()) {
             lv_subject_set_int(subj, new_microns);
         }
         // When the base came from the firmware-persisted value we are about to
@@ -257,7 +259,7 @@ AdjustResult adjust(IMoonrakerAPI* api, PrinterState* ps, double session_base_mm
         // persisted subject with it so the Controls row does not show the stale
         // number until save_variables is broadcast back.
         if (adjusting_from_persisted) {
-            if (auto* subj = ps->get_persisted_z_offset_subject()) {
+            if (auto* subj = ps->motion_state().get_persisted_z_offset_subject()) {
                 lv_subject_set_int(subj, new_microns);
             }
         }
@@ -308,7 +310,7 @@ SaveAvailability current_save_availability() {
     // The published form of "the strategy is not FIRMWARE_MANAGED", so the C++
     // answer and the XML bindings are computed from the same input.
     facts.manual_save_supported = lv_subject_get_int(ps.get_z_offset_can_save_subject()) != 0;
-    facts.global_dirty = lv_subject_get_int(ps.get_gcode_z_offset_subject()) != 0;
+    facts.global_dirty = lv_subject_get_int(ps.motion_state().get_gcode_z_offset_subject()) != 0;
     facts.tools_dirty =
         lv_subject_get_int(helix::ToolState::instance().get_any_tool_offset_dirty_subject()) == 1;
     return facts;
@@ -345,7 +347,8 @@ struct SaveAvailabilityPublisher {
 
         PrinterState& ps = get_printer_state();
         auto& ts = helix::ToolState::instance();
-        observe(global_offset_obs, ps.get_gcode_z_offset_subject(), ps.get_subjects_lifetime());
+        observe(global_offset_obs, ps.motion_state().get_gcode_z_offset_subject(),
+                ps.get_subjects_lifetime());
         observe(can_save_obs, ps.get_z_offset_can_save_subject(), ps.get_subjects_lifetime());
         observe(tools_dirty_obs, ts.get_any_tool_offset_dirty_subject(),
                 ts.get_subjects_lifetime());

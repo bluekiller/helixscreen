@@ -211,13 +211,13 @@ TEST_CASE("PrinterState: Initialization sets default values", "[state][init]") {
     REQUIRE(std::string(print_state) == "standby");
 
     // Position should be 0
-    REQUIRE(lv_subject_get_int(state.get_position_x_subject()) == 0);
-    REQUIRE(lv_subject_get_int(state.get_position_y_subject()) == 0);
-    REQUIRE(lv_subject_get_int(state.get_position_z_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_x_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_y_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_z_subject()) == 0);
 
     // Speed/flow factors should be 100%
-    REQUIRE(lv_subject_get_int(state.get_speed_factor_subject()) == 100);
-    REQUIRE(lv_subject_get_int(state.get_flow_factor_subject()) == 100);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_speed_factor_subject()) == 100);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_flow_factor_subject()) == 100);
 
     // Fan speed should be 0
     REQUIRE(lv_subject_get_int(state.fan_state().get_fan_speed_subject()) == 0);
@@ -441,11 +441,11 @@ TEST_CASE("PrinterState: Update toolhead position", "[state][motion]") {
     state.update_from_status(notification["params"][0]);
 
     // Positions are stored as centimillimeters (×100) for 0.01mm precision
-    REQUIRE(lv_subject_get_int(state.get_position_x_subject()) == 12550); // 125.5mm
-    REQUIRE(lv_subject_get_int(state.get_position_y_subject()) == 8730);  // 87.3mm
-    REQUIRE(lv_subject_get_int(state.get_position_z_subject()) == 4520);  // 45.2mm
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_x_subject()) == 12550); // 125.5mm
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_y_subject()) == 8730);  // 87.3mm
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_z_subject()) == 4520);  // 45.2mm
 
-    const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+    const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
     REQUIRE(std::string(homed) == "xyz");
 }
 
@@ -458,7 +458,7 @@ TEST_CASE("PrinterState: Homed axes variations", "[state][motion]") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"toolhead", {{"homed_axes", "xy"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+        const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
         REQUIRE(std::string(homed) == "xy");
     }
 
@@ -466,7 +466,7 @@ TEST_CASE("PrinterState: Homed axes variations", "[state][motion]") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"toolhead", {{"homed_axes", ""}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+        const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
         REQUIRE(std::string(homed) == "");
     }
 
@@ -474,7 +474,7 @@ TEST_CASE("PrinterState: Homed axes variations", "[state][motion]") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"toolhead", {{"homed_axes", "z"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+        const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
         REQUIRE(std::string(homed) == "z");
     }
 
@@ -482,7 +482,7 @@ TEST_CASE("PrinterState: Homed axes variations", "[state][motion]") {
         json notification = {{"method", "notify_status_update"},
                              {"params", {{{"toolhead", {{"homed_axes", "xyz"}}}}, 0.0}}};
         state.update_from_status(notification["params"][0]);
-        const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+        const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
         REQUIRE(std::string(homed) == "xyz");
     }
 }
@@ -605,8 +605,8 @@ TEST_CASE("PrinterState: Homed axes observer pattern for derived subjects",
         state->callback_count++;
     };
 
-    lv_observer_t* observer =
-        lv_subject_add_observer(state.get_homed_axes_subject(), observer_cb, &homing);
+    lv_observer_t* observer = lv_subject_add_observer(state.motion_state().get_homed_axes_subject(),
+                                                      observer_cb, &homing);
 
     // Initial callback fires immediately (LVGL behavior)
     REQUIRE(homing.callback_count == 1);
@@ -663,8 +663,8 @@ TEST_CASE("PrinterState: Update speed and flow factors", "[state][speed]") {
 
     state.update_from_status(notification["params"][0]);
 
-    REQUIRE(lv_subject_get_int(state.get_speed_factor_subject()) == 125);
-    REQUIRE(lv_subject_get_int(state.get_flow_factor_subject()) == 95);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_speed_factor_subject()) == 125);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_flow_factor_subject()) == 95);
 }
 
 TEST_CASE("PrinterState: Update fan speed", "[state][fan]") {
@@ -904,12 +904,13 @@ TEST_CASE("PrinterState: Complete printing state update", "[state][integration]"
     REQUIRE(std::string(lv_subject_get_string(state.get_print_filename_subject())) ==
             "model.gcode");
     // Positions are stored as centimillimeters (×100) for 0.01mm precision
-    REQUIRE(lv_subject_get_int(state.get_position_x_subject()) == 12500); // 125.0mm
-    REQUIRE(lv_subject_get_int(state.get_position_y_subject()) == 8700);  // 87.0mm
-    REQUIRE(lv_subject_get_int(state.get_position_z_subject()) == 4500);  // 45.0mm
-    REQUIRE(std::string(lv_subject_get_string(state.get_homed_axes_subject())) == "xyz");
-    REQUIRE(lv_subject_get_int(state.get_speed_factor_subject()) == 100);
-    REQUIRE(lv_subject_get_int(state.get_flow_factor_subject()) == 100);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_x_subject()) == 12500); // 125.0mm
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_y_subject()) == 8700);  // 87.0mm
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_z_subject()) == 4500);  // 45.0mm
+    REQUIRE(std::string(lv_subject_get_string(state.motion_state().get_homed_axes_subject())) ==
+            "xyz");
+    REQUIRE(lv_subject_get_int(state.motion_state().get_speed_factor_subject()) == 100);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_flow_factor_subject()) == 100);
     REQUIRE(lv_subject_get_int(state.fan_state().get_fan_speed_subject()) == 50);
 }
 

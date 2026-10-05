@@ -222,7 +222,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a Z jog blocked at the ceiling cancels the 
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     helix::ui::UpdateQueue::instance().drain();
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 25'000); // 250.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       25'000); // 250.00mm
     helix::ui::UpdateQueue::instance().drain();
 
     std::vector<std::string> warnings;
@@ -287,7 +288,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a hold that repeated jogs exactly once on r
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
     lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 10'000); // 100.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       10'000); // 100.00mm
     helix::ui::UpdateQueue::instance().drain();
 
     // A real API over a mock client: every dispatched jog lands in the mock's
@@ -388,7 +390,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "two taps at the Z limit warn twice", "[moti
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     helix::ui::UpdateQueue::instance().drain();
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 25'000); // 250.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       25'000); // 250.00mm
     helix::ui::UpdateQueue::instance().drain();
 
     std::vector<std::string> warnings;
@@ -448,7 +451,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a hold that moves then hits the ceiling sto
     // processing those events rewrites the position subjects. The first tick
     // (Coarse outer, 10mm) moves the remaining 5 as a silent partial; the
     // second is fully clamped and stops the repeat without a toast.
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 24'500); // 245.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       24'500); // 245.00mm
     helix::ui::UpdateQueue::instance().drain();
 
     std::vector<std::string> warnings;
@@ -501,13 +505,15 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Z buttons disable at the ceiling and swap u
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     helix::ui::UpdateQueue::instance().drain();
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 10'000); // 100.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       10'000); // 100.00mm
     helix::ui::UpdateQueue::instance().drain();
     CHECK_FALSE(lv_obj_has_state(up_large, LV_STATE_DISABLED));
     CHECK_FALSE(lv_obj_has_state(down_large, LV_STATE_DISABLED));
 
     // Reaching the max disables both up buttons; down still has room.
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 25'000); // 250.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       25'000); // 250.00mm
     helix::ui::UpdateQueue::instance().drain();
     CHECK(lv_obj_has_state(up_large, LV_STATE_DISABLED));
     CHECK(lv_obj_has_state(up_small, LV_STATE_DISABLED));
@@ -556,7 +562,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a coordinate tap sends one absolute single-
 
     // The setup reached the branch under test: Y homed with a known envelope,
     // so the tap dispatches immediately with no homing detour.
-    REQUIRE(get_printer_state().get_axis_bounds().has_y);
+    REQUIRE(get_printer_state().motion_state().get_axis_bounds().has_y);
     REQUIRE(helix::axis_is_homed(get_printer_state(), helix::Axis::Y));
 
     panel.request_axis_target('y', 100.0);
@@ -618,7 +624,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "an unhomed coordinate tap homes first then 
     client.clear_gcode_script_history();
 
     // Unhomed with a known envelope: the move must wait for a full G28.
-    REQUIRE(get_printer_state().get_axis_bounds().has_y);
+    REQUIRE(get_printer_state().motion_state().get_axis_bounds().has_y);
     REQUIRE_FALSE(helix::axis_is_homed(get_printer_state(), helix::Axis::Y));
 
     panel.request_axis_target('y', 100.0);
@@ -685,7 +691,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     IMoonrakerAPI* previous_api = get_moonraker_api();
     set_moonraker_api(&api);
 
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 24'500); // 245.00mm
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(),
+                       24'500); // 245.00mm
     helix::ui::UpdateQueue::instance().drain();
 
     // A real finger sets PRESSED through the input device; the test sets it.
@@ -702,7 +709,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     // The head reaches the ceiling: the held button disables under the finger,
     // and the next tick's refusal clears the pressed look LVGL would keep.
-    lv_subject_set_int(get_printer_state().get_gcode_position_z_subject(), 25'000);
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_z_subject(), 25'000);
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(lv_obj_has_state(z_up, LV_STATE_DISABLED));
     CHECK(panel.z_hold_timer().poll(HoldRepeat::DELAY_MS + HoldRepeat::INTERVAL_MS));
@@ -733,8 +740,10 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a diagonal along a wall moves the free axis
                                               {"axis_minimum", {0.0, 0.0, 0.0, 0.0}},
                                               {"axis_maximum", {235.0, 235.0, 250.0, 0.0}}}}});
     helix::ui::UpdateQueue::instance().drain();
-    lv_subject_set_int(get_printer_state().get_gcode_position_x_subject(), 23'500); // X at max
-    lv_subject_set_int(get_printer_state().get_gcode_position_y_subject(), 10'000); // Y mid
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_x_subject(),
+                       23'500); // X at max
+    lv_subject_set_int(get_printer_state().motion_state().get_gcode_position_y_subject(),
+                       10'000); // Y mid
     helix::ui::UpdateQueue::instance().drain();
 
     std::vector<std::string> warnings;

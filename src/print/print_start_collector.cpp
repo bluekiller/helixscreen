@@ -674,7 +674,7 @@ void PrintStartCollector::check_fallback_completion() {
         // that a bed-first-heat macro (homed_axes still "" before G28 starts)
         // correctly shows "Heating Bed", and so the proactive heating unit tests
         // (which don't set homed_axes) are unaffected.
-        const char* homed = lv_subject_get_string(state_.get_homed_axes_subject());
+        const char* homed = lv_subject_get_string(state_.motion_state().get_homed_axes_subject());
         bool fully_homed = homed != nullptr && strchr(homed, 'x') != nullptr &&
                            strchr(homed, 'y') != nullptr && strchr(homed, 'z') != nullptr;
         // Enter HOMING when axes are partially homed (G28 mid-flight). STAY in

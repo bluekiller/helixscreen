@@ -33,7 +33,7 @@ void PrintProgressText::init_subjects(SubjectManager& subjects) {
 void PrintProgressText::refresh_layer() {
     std::string text = format_layer_progress_compact(
         lifecycle_.current_layer(), lifecycle_.total_layers(), printer_state_.layer_is_accurate(),
-        lv_subject_get_int(printer_state_.get_gcode_position_z_subject()));
+        lv_subject_get_int(printer_state_.motion_state().get_gcode_position_z_subject()));
     std::snprintf(layer_text_buf_, sizeof(layer_text_buf_), "%s", text.c_str());
     lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
 }
@@ -60,8 +60,8 @@ void PrintProgressText::refresh_speed_flow() {
     auto text = helix::tune::status_speed_flow_text(
         DisplaySettingsManager::instance().get_speed_flow_physical_units(),
         lifecycle_.speed_percent(), lifecycle_.flow_percent(),
-        lv_subject_get_int(printer_state_.get_live_velocity_subject()),
-        lv_subject_get_int(printer_state_.get_live_extruder_velocity_subject()),
+        lv_subject_get_int(printer_state_.motion_state().get_live_velocity_subject()),
+        lv_subject_get_int(printer_state_.motion_state().get_live_extruder_velocity_subject()),
         printer_state_.get_discovery().filament_diameter_mm());
     // The extruder velocity observer fires several times a second; only a
     // changed string is worth a relabel.

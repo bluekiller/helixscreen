@@ -181,7 +181,7 @@ TEST_CASE_METHOD(HelixTestFixture, "DetailedFormatter layer text marks estimates
     // layer, so layer_is_accurate() is false and the count is an estimate.
     REQUIRE(ps.layer_is_accurate() == false);
 
-    lv_subject_set_int(ps.get_gcode_position_z_subject(), 2400); // 24.00mm
+    lv_subject_set_int(ps.motion_state().get_gcode_position_z_subject(), 2400); // 24.00mm
     lv_subject_set_int(ps.get_print_layer_current_subject(), 42);
     lv_subject_set_int(ps.get_print_layer_total_subject(), 213);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());

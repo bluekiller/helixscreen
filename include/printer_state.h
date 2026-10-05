@@ -1217,103 +1217,11 @@ class PrinterState {
      */
     void reset_print_start_state();
 
-    // Toolhead position subjects - actual physical position (includes mesh compensation)
-    lv_subject_t* get_position_x_subject() {
-        return motion_state_.get_position_x_subject();
-    }
-    lv_subject_t* get_position_y_subject() {
-        return motion_state_.get_position_y_subject();
-    }
-    lv_subject_t* get_position_z_subject() {
-        return motion_state_.get_position_z_subject();
-    }
-
-    // Gcode position subjects - commanded position (what user requested)
-    lv_subject_t* get_gcode_position_x_subject() {
-        return motion_state_.get_gcode_position_x_subject();
-    }
-    lv_subject_t* get_gcode_position_y_subject() {
-        return motion_state_.get_gcode_position_y_subject();
-    }
-    lv_subject_t* get_gcode_position_z_subject() {
-        return motion_state_.get_gcode_position_z_subject();
-    }
-
-    // Live position subjects - physical position mid-move (motion_report)
-    lv_subject_t* get_live_position_x_subject() {
-        return motion_state_.get_live_position_x_subject();
-    }
-    lv_subject_t* get_live_position_y_subject() {
-        return motion_state_.get_live_position_y_subject();
-    }
-    lv_subject_t* get_live_position_z_subject() {
-        return motion_state_.get_live_position_z_subject();
-    }
-
-    lv_subject_t* get_homed_axes_subject() {
-        return motion_state_.get_homed_axes_subject();
-    } // "xyz", "xy", etc.
     // Note: Derived subjects (xy_homed, z_homed, all_homed) are panel-local in ControlsPanel
-
-    // Speed/Flow subjects (percentages, 0-100) - delegated to PrinterMotionState component
-    lv_subject_t* get_speed_factor_subject() {
-        return motion_state_.get_speed_factor_subject();
-    }
-    lv_subject_t* get_flow_factor_subject() {
-        return motion_state_.get_flow_factor_subject();
-    }
-    lv_subject_t* get_max_velocity_subject() {
-        return motion_state_.get_max_velocity_subject();
-    }
-    lv_subject_t* get_live_extruder_velocity_subject() {
-        return motion_state_.get_live_extruder_velocity_subject();
-    }
-    /// Measured toolhead speed in mm/s. Unlike the commanded gcode speed it
-    /// falls to 0 when the toolhead stops.
-    lv_subject_t* get_live_velocity_subject() {
-        return motion_state_.get_live_velocity_subject();
-    }
 
     // ========================================================================
     // MULTI-FAN API - Delegated to PrinterFanState component
     // ========================================================================
-
-    /**
-     * @brief Get G-code Z offset subject for tune panel
-     *
-     * Returns current Z-offset from gcode_move.homing_origin[2] in microns.
-     * Divide by 1000.0 to get mm value (e.g., 200 = 0.200mm).
-     * Used for live baby-stepping display during prints.
-     * Delegated to PrinterMotionState component.
-     */
-    lv_subject_t* get_gcode_z_offset_subject() {
-        return motion_state_.get_gcode_z_offset_subject();
-    }
-
-    /**
-     * @brief Get the firmware-persisted Z-offset subject (microns)
-     *
-     * ZMOD stores the offset the next print will apply in
-     * save_variables.gcode_offsets.z and zeroes gcode_move's live offset outside
-     * a print, so this - not get_gcode_z_offset_subject() - is the truthful
-     * reading while idle. Only meaningful when
-     * get_persisted_z_offset_valid_subject() reads 1.
-     * Delegated to PrinterMotionState component.
-     */
-    lv_subject_t* get_persisted_z_offset_subject() {
-        return motion_state_.get_persisted_z_offset_subject();
-    }
-
-    /**
-     * @brief Get whether a firmware-persisted Z-offset has been reported (0/1)
-     *
-     * Separate from the value because 0 microns is a legitimate stored offset.
-     * Reads 0 on every non-ZMOD printer.
-     * Delegated to PrinterMotionState component.
-     */
-    lv_subject_t* get_persisted_z_offset_valid_subject() {
-        return motion_state_.get_persisted_z_offset_valid_subject();
-    }
 
     /**
      * @brief Firmware-persisted Z-offset in microns, or nullopt when unknown
@@ -1334,16 +1242,6 @@ class PrinterState {
     // ========================================================================
 
     /**
-     * @brief Get pending Z-offset delta subject
-     *
-     * Returns accumulated Z-offset adjustment made during print tuning (microns).
-     * Use this to show "unsaved adjustment" notification in Controls panel.
-     */
-    lv_subject_t* get_pending_z_offset_delta_subject() {
-        return motion_state_.get_pending_z_offset_delta_subject();
-    }
-
-    /**
      * @brief Get subject indicating whether Z-offset can be manually saved
      *
      * Returns 1 when the printer's Z-offset calibration strategy requires
@@ -1353,47 +1251,6 @@ class PrinterState {
      */
     lv_subject_t* get_z_offset_can_save_subject() {
         return profile_state_.get_z_offset_can_save_subject();
-    }
-
-    /**
-     * @brief Add to pending Z-offset delta (called when user adjusts Z during print)
-     * @param delta_microns Adjustment in microns (positive = farther, negative = closer)
-     */
-    void add_pending_z_offset_delta(int delta_microns) {
-        motion_state_.add_pending_z_offset_delta(delta_microns);
-    }
-
-    /**
-     * @brief Get current pending Z-offset delta in microns
-     */
-    int get_pending_z_offset_delta() const {
-        return motion_state_.get_pending_z_offset_delta();
-    }
-
-    /**
-     * @brief Check if there's a pending Z-offset adjustment
-     */
-    bool has_pending_z_offset_adjustment() const {
-        return motion_state_.has_pending_z_offset_adjustment();
-    }
-
-    /**
-     * @brief Clear pending Z-offset delta (after save or dismiss)
-     */
-    void clear_pending_z_offset_delta() {
-        motion_state_.clear_pending_z_offset_delta();
-    }
-
-    /// Kinematic envelope (mm) from toolhead.axis_minimum / axis_maximum.
-    [[nodiscard]] AxisBounds get_axis_bounds() const {
-        return motion_state_.get_axis_bounds();
-    }
-
-    /// The envelope in G-code coordinates: machine bounds shifted by minus
-    /// gcode_move.homing_origin. Motion-panel clamps compare against
-    /// gcode_move.gcode_position, so they use these.
-    [[nodiscard]] AxisBounds get_gcode_axis_bounds() const {
-        return motion_state_.get_gcode_axis_bounds();
     }
 
     /**

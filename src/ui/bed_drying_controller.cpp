@@ -276,9 +276,9 @@ void BedDryingController::prepare(const Material& material, bool with_appliance,
 
     // G1 takes G-code coordinates, and the park stays over the plate: travel
     // past it can hold tool docks or a purge bucket.
-    const AxisBounds b = state_.get_gcode_axis_bounds();
-    const auto park =
-        plate_rear_park(preset_area(state_.get_axis_bounds(), b, api_->hardware().build_volume()));
+    const AxisBounds b = state_.motion_state().get_gcode_axis_bounds();
+    const auto park = plate_rear_park(
+        preset_area(state_.motion_state().get_axis_bounds(), b, api_->hardware().build_volume()));
     std::string move = fmt::format("G90\nG1 Z{:.1f} F600", clearance_z(b.z_max));
     if (park) {
         move += fmt::format("\nG1 X{:.1f} Y{:.1f} F6000", *park->x, *park->y);
@@ -326,7 +326,7 @@ void BedDryingController::prepare(const Material& material, bool with_appliance,
             fail, 180000);
     };
 
-    const char* homed = lv_subject_get_string(state_.get_homed_axes_subject());
+    const char* homed = lv_subject_get_string(state_.motion_state().get_homed_axes_subject());
     const bool all_homed =
         homed && std::strchr(homed, 'x') && std::strchr(homed, 'y') && std::strchr(homed, 'z');
     spdlog::info("[BedDrying] Preparing: {}clearance move to Z {:.1f}", all_homed ? "" : "home, ",

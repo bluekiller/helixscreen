@@ -1391,7 +1391,7 @@ TEST_CASE("Print characterization: print update does not affect non-print subjec
     state.update_from_status(initial);
 
     // Positions stored as centimillimeters (×100) for 0.01mm precision
-    REQUIRE(lv_subject_get_int(state.get_position_x_subject()) == 10000);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_x_subject()) == 10000);
 
     // Now update print state
     json print_update = {{"print_stats", {{"state", "printing"}, {"filename", "test.gcode"}}},
@@ -1404,7 +1404,7 @@ TEST_CASE("Print characterization: print update does not affect non-print subjec
     REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 50);
 
     // Position should be unchanged (still centimillimeters)
-    REQUIRE(lv_subject_get_int(state.get_position_x_subject()) == 10000);
+    REQUIRE(lv_subject_get_int(state.motion_state().get_position_x_subject()) == 10000);
 }
 
 TEST_CASE("Print characterization: non-print update does not affect print subjects",

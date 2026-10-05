@@ -245,11 +245,11 @@ void QrScannerOverlay::start_scanning() {
     auto& state = get_printer_state();
     bool bed_moves =
         lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) != 0;
-    const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+    const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
     bool z_homed = homed && strchr(homed, 'z') != nullptr;
 
     if (bed_moves && z_homed) {
-        int z_centimm = lv_subject_get_int(state.get_position_z_subject());
+        int z_centimm = lv_subject_get_int(state.motion_state().get_position_z_subject());
         double z_mm = z_centimm / 100.0;
         constexpr double QR_SCAN_Z = 150.0;
         if (z_mm < QR_SCAN_Z) {

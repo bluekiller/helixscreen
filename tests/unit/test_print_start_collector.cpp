@@ -3509,7 +3509,7 @@ TEST_CASE_METHOD(SnapmakerCollectorFixture,
     // homed_axes string is partial during homing ("xy" = z not yet homed). The
     // proactive detector must show "Homing", not mislabel the concurrent warm-up
     // as "Heating Bed".
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xy");
     set_all_temps(/*bed*/ 250, 550, /*ext*/ 0, 0);
     collector().check_fallback_completion();
     drain_async_updates();
@@ -3519,14 +3519,14 @@ TEST_CASE_METHOD(SnapmakerCollectorFixture,
     // Klipper clears homed_axes to "" as each axis re-homes during G28. That
     // empty-string blip must NOT flip the label to "Heating Bed" — the HOMING
     // latch holds until the toolhead is actually fully homed.
-    lv_subject_copy_string(state().get_homed_axes_subject(), "");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "");
     collector().check_fallback_completion();
     drain_async_updates();
     drain_async_updates();
     REQUIRE(get_current_phase() == PrintStartPhase::HOMING);
 
     // Once fully homed, proactive may surface the bed heating (still pre-signal).
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xyz");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
     collector().check_fallback_completion();
     drain_async_updates();
     drain_async_updates();
@@ -3861,7 +3861,7 @@ TEST_CASE_METHOD(SnapmakerCollectorFixture,
     collector().enable_fallbacks();
     // Proactive detection owns this window: mid-home, it shows Homing even
     // with the bed far below its target and a wait reporting.
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xy");
     set_all_temps(/*bed*/ 250, 1000, /*ext*/ 0, 0);
     feed_gcode("B:25.0 /100.0");
     collector().check_fallback_completion();
@@ -5220,7 +5220,7 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     // Mid-G28 with the bed still climbing. Only the proactive detector can
     // reach HOMING from here: the heating correction beneath it never leaves
     // the two heating phases, so a gated-off detector shows HEATING_BED.
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xy");
     set_all_temps(/*bed*/ 235, 600, /*ext*/ 0, 0);
     collector().check_fallback_completion();
     drain_async_updates();
