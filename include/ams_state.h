@@ -1724,6 +1724,29 @@ class AmsState {
      */
     void on_backend_event(int backend_index, const std::string& event, const std::string& data);
 
+    /// @name sync_from_backend() steps, in the order it runs them. Main thread
+    /// only; @p backend is the primary backend and never null.
+    /// @{
+    /// Type, action, operation phase, system name and logo, current slot/tool.
+    void sync_system_subjects(const AmsSystemInfo& info);
+    /// Push or drop the AMS tool topology in ToolState.
+    void sync_tool_topology(AmsBackend* backend);
+    /// filament_loaded, the runout indicator's edge state, and the unload grace.
+    void sync_filament_runout(const AmsSystemInfo& info);
+    /// The bypass subjects, the bypass edge, and the external spool subjects.
+    void sync_bypass(AmsBackend* backend, const AmsSystemInfo& info);
+    /// Bump tool_map_version when the physical or applied routing moved.
+    void sync_tool_routing(AmsBackend* backend, const AmsSystemInfo& info);
+    /// The slot <-> ToolState spool bridge, both directions, and its save.
+    /// @return true when a slot subject changed
+    bool sync_tool_spools(AmsBackend* backend, const AmsSystemInfo& info);
+    /// Per-unit temperature, humidity and environment-indicator subjects.
+    void sync_unit_environment(AmsBackend* backend, const AmsSystemInfo& info);
+    /// Reset the slot subjects past @p total_slots.
+    /// @return true when a slot subject changed
+    bool clear_unused_slot_subjects(int total_slots);
+    /// @}
+
     /**
      * @brief Write one primary-backend slot's per-slot subjects from @p slot
      *

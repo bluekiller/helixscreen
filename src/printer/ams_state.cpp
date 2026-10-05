@@ -485,6 +485,81 @@ void AmsState::sync_from_backend() {
 
     AmsSystemInfo info = backend->get_system_info();
 
+    sync_system_subjects(info);
+    sync_tool_topology(backend);
+    sync_filament_runout(info);
+    sync_bypass(backend, info);
+    lv_subject_set_int(&ams_slot_count_, info.total_slots);
+
+    // Update tool change progress raw data (text formatting in UI layer)
+    if (info.number_of_toolchanges > 0) {
+        lv_subject_set_int(&toolchange_visible_, 1);
+    } else {
+        lv_subject_set_int(&toolchange_visible_, 0);
+    }
+    lv_subject_set_int(&ams_current_toolchange_, info.current_toolchange);
+    lv_subject_set_int(&ams_number_of_toolchanges_, info.number_of_toolchanges);
+
+    // Cache the backend-supplied operation_detail so the print-state observer
+    // can recompute the displayed string later without re-querying the backend.
+    last_operation_detail_ = info.operation_detail;
+    recompute_action_detail();
+
+    // Update path visualization subjects
+    int new_topology = static_cast<int>(backend->get_topology());
+    lv_subject_set_int(&path_topology_, new_topology);
+    int new_filament_seg = static_cast<int>(backend->get_filament_segment());
+    lv_subject_set_int(&path_filament_segment_, new_filament_seg);
+
+    // Update per-slot subjects, only firing when values actually change
+    bool any_slot_changed = false;
+    for (int i = 0; i < std::min(info.total_slots, MAX_SLOTS); ++i) {
+        const SlotInfo* slot = info.get_slot_global(i);
+        if (slot && write_slot_subjects(*backend, i, *slot)) {
+            any_slot_changed = true;
+        }
+    }
+
+    sync_tool_routing(backend, info);
+
+    if (sync_tool_spools(backend, info)) {
+        any_slot_changed = true;
+    }
+
+    sync_unit_environment(backend, info);
+
+    if (clear_unused_slot_subjects(info.total_slots)) {
+        any_slot_changed = true;
+    }
+
+    if (any_slot_changed) {
+        spdlog::trace("[AmsState] Slot data changed, bumping version");
+        bump_slots_version();
+    }
+
+    // Mirror the detail-view env indicator's currently-shown unit
+    mirror_detail_env_subjects();
+
+    // Sync dryer state (for systems with integrated drying like ACE)
+    sync_dryer_from_backend();
+
+    // Sync clog detection meter subjects
+    sync_clog_meter_from_info(info);
+
+    // Sync "Currently Loaded" display subjects (pass info to avoid re-fetching)
+    sync_current_loaded_from_backend(info);
+
+    // Sync the endless-spool status line (backend-neutral; every backend answers
+    // the same capability question)
+    sync_endless_spool_from_backend(backend);
+
+    spdlog::trace("[AMS State] Synced from backend - type={}, slots={}, action={}, segment={}",
+                  ams_type_to_string(info.type), info.total_slots,
+                  ams_action_to_string(info.action),
+                  path_segment_to_string(backend->get_filament_segment()));
+}
+
+void AmsState::sync_system_subjects(const AmsSystemInfo& info) {
     // Update system-level subjects
     int new_type = static_cast<int>(info.type);
     lv_subject_set_int(&ams_type_, new_type);
@@ -558,7 +633,9 @@ void AmsState::sync_from_backend() {
     }
     lv_subject_set_int(&pending_target_slot_, info.pending_target_slot);
     lv_subject_set_int(&ams_current_tool_, info.current_tool);
+}
 
+void AmsState::sync_tool_topology(AmsBackend* backend) {
     // Push tool topology to ToolState when the active backend multiplexes tools.
     // Otherwise leave ToolState in its extruder-enumerated state.
     if (auto topo = helix::build_ams_topology(backend, 0)) {
@@ -568,9 +645,9 @@ void AmsState::sync_from_backend() {
         // so callers can rebuild tools_ from extruders.
         helix::ToolState::instance().clear_ams_topology();
     }
+}
 
-    // Tool text formatting (ams_current_tool_text_) handled by UI-layer observer
-
+void AmsState::sync_filament_runout(const AmsSystemInfo& info) {
     int new_loaded = info.filament_loaded ? 1 : 0;
     lv_subject_set_int(&filament_loaded_, new_loaded);
 
@@ -632,19 +709,17 @@ void AmsState::sync_from_backend() {
                       new_runout, info.filament_runout, runout_edge_armed_, paused);
         lv_subject_set_int(&filament_runout_, new_runout);
     }
-    // The one bypass truth: the backend's own is_bypass_active(), the same
-    // predicate BypassToggleController branches on when the user taps. This
-    // subject used to be derived independently from current_slot == -2, so with
-    // a declaration latched and the filament pulled the switch rendered
-    // unchecked while a tap took the DISABLE path — "turn it on" answered
-    // "Bypass disabled", and the pre-print gate meanwhile acted on a bypass the
-    // user could not see or clear. Display and action now read one value.
     // Filament back at the toolhead retires the grace: it was armed for the
     // removal this unload caused, and anything after a reload is a new event.
     if (info.filament_loaded) {
         runout_grace_.on_filament_loaded();
     }
+}
 
+void AmsState::sync_bypass(AmsBackend* backend, const AmsSystemInfo& info) {
+    // The one bypass truth: the backend's own is_bypass_active(), the same
+    // predicate BypassToggleController branches on when the user taps, so the
+    // switch and the action it takes read one value.
     const int new_bypass = backend->is_bypass_active() ? 1 : 0;
     if (lv_subject_get_int(&bypass_active_) != new_bypass) {
         spdlog::debug("[AmsState] bypass -> {}", new_bypass);
@@ -696,37 +771,9 @@ void AmsState::sync_from_backend() {
     lv_subject_set_int(&external_spool_color_, new_ext_color);
     lv_subject_copy_string(&external_spool_material_,
                            ext_spool.has_value() ? ext_spool->material.c_str() : "");
-    lv_subject_set_int(&ams_slot_count_, info.total_slots);
+}
 
-    // Update tool change progress raw data (text formatting in UI layer)
-    if (info.number_of_toolchanges > 0) {
-        lv_subject_set_int(&toolchange_visible_, 1);
-    } else {
-        lv_subject_set_int(&toolchange_visible_, 0);
-    }
-    lv_subject_set_int(&ams_current_toolchange_, info.current_toolchange);
-    lv_subject_set_int(&ams_number_of_toolchanges_, info.number_of_toolchanges);
-
-    // Cache the backend-supplied operation_detail so the print-state observer
-    // can recompute the displayed string later without re-querying the backend.
-    last_operation_detail_ = info.operation_detail;
-    recompute_action_detail();
-
-    // Update path visualization subjects
-    int new_topology = static_cast<int>(backend->get_topology());
-    lv_subject_set_int(&path_topology_, new_topology);
-    int new_filament_seg = static_cast<int>(backend->get_filament_segment());
-    lv_subject_set_int(&path_filament_segment_, new_filament_seg);
-
-    // Update per-slot subjects, only firing when values actually change
-    bool any_slot_changed = false;
-    for (int i = 0; i < std::min(info.total_slots, MAX_SLOTS); ++i) {
-        const SlotInfo* slot = info.get_slot_global(i);
-        if (slot && write_slot_subjects(*backend, i, *slot)) {
-            any_slot_changed = true;
-        }
-    }
-
+void AmsState::sync_tool_routing(AmsBackend* backend, const AmsSystemInfo& info) {
     // Detect routing changes and bump tool_map_version_ so the gcode renderer
     // refreshes tool colors.
     //
@@ -743,7 +790,10 @@ void AmsState::sync_from_backend() {
         lv_subject_set_int(&tool_map_version_, v + 1);
         spdlog::debug("[AmsState] tool routing changed, version now {}", v + 1);
     }
+}
 
+bool AmsState::sync_tool_spools(AmsBackend* backend, const AmsSystemInfo& info) {
+    bool any_slot_changed = false;
     // Sync spool assignments to ToolState for slots with mapped tools.
     //
     // The clear branch matters as much as the assign one: this only ever
@@ -821,7 +871,10 @@ void AmsState::sync_from_backend() {
     if (!backend->has_firmware_spool_persistence()) {
         ToolState::instance().save_spool_assignments_if_dirty(get_moonraker_api());
     }
+    return any_slot_changed;
+}
 
+void AmsState::sync_unit_environment(AmsBackend* backend, const AmsSystemInfo& info) {
     // Update per-unit environment subjects (CFS temperature/humidity)
     for (const auto& unit : info.units) {
         int idx = unit.unit_index;
@@ -959,9 +1012,12 @@ void AmsState::sync_from_backend() {
         lv_subject_set_int(&env_ind_visible_[i], 0);
         lv_subject_set_int(&env_ind_humidity_visible_[i], 0);
     }
+}
 
+bool AmsState::clear_unused_slot_subjects(int total_slots) {
     // Clear remaining slot subjects, only firing when values actually change
-    for (int i = info.total_slots; i < MAX_SLOTS; ++i) {
+    bool any_slot_changed = false;
+    for (int i = total_slots; i < MAX_SLOTS; ++i) {
         int default_color = static_cast<int>(AMS_DEFAULT_SLOT_COLOR);
         if (lv_subject_get_int(&slot_colors_[i]) != default_color) {
             lv_subject_set_int(&slot_colors_[i], default_color);
@@ -1009,32 +1065,7 @@ void AmsState::sync_from_backend() {
             any_slot_changed = true;
         }
     }
-
-    if (any_slot_changed) {
-        spdlog::trace("[AmsState] Slot data changed, bumping version");
-        bump_slots_version();
-    }
-
-    // Mirror the detail-view env indicator's currently-shown unit
-    mirror_detail_env_subjects();
-
-    // Sync dryer state (for systems with integrated drying like ACE)
-    sync_dryer_from_backend();
-
-    // Sync clog detection meter subjects
-    sync_clog_meter_from_info(info);
-
-    // Sync "Currently Loaded" display subjects (pass info to avoid re-fetching)
-    sync_current_loaded_from_backend(info);
-
-    // Sync the endless-spool status line (backend-neutral; every backend answers
-    // the same capability question)
-    sync_endless_spool_from_backend(backend);
-
-    spdlog::trace("[AMS State] Synced from backend - type={}, slots={}, action={}, segment={}",
-                  ams_type_to_string(info.type), info.total_slots,
-                  ams_action_to_string(info.action),
-                  path_segment_to_string(backend->get_filament_segment()));
+    return any_slot_changed;
 }
 
 bool AmsState::write_slot_subjects(AmsBackend& backend, int slot_index, const SlotInfo& slot) {
