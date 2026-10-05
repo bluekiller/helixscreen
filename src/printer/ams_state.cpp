@@ -299,6 +299,7 @@ void AmsState::init_subjects(bool register_xml) {
     INIT_SUBJECT_INT(ams_is_tool_changer, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(ams_is_filament_system, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(ams_action, static_cast<int>(AmsAction::IDLE), subjects_, register_xml);
+    action_mirror_.store(AmsAction::IDLE, std::memory_order_relaxed);
     // Granular load/unload sub-phase (Snapmaker U1). -1 = no active step.
     INIT_SUBJECT_INT(ams_operation_phase, -1, subjects_, register_xml);
     INIT_SUBJECT_INT(ams_operation_indeterminate, 0, subjects_, register_xml);
@@ -1084,6 +1085,14 @@ AmsBackend* AmsState::get_backend(int index) const {
     return backends_[index].get();
 }
 
+std::optional<AmsType> AmsState::primary_type() const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (backends_.empty() || !backends_[0]) {
+        return std::nullopt;
+    }
+    return backends_[0]->get_type();
+}
+
 int AmsState::backend_count() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     return static_cast<int>(backends_.size());
@@ -1863,6 +1872,7 @@ void AmsState::sync_from_backend() {
         spdlog::debug("[AmsState] sync_from_backend: action changed to {} ({})", new_action,
                       ams_action_to_string(info.action));
         lv_subject_set_int(&ams_action_, new_action);
+        action_mirror_.store(static_cast<AmsAction>(new_action), std::memory_order_relaxed);
     }
     // Granular firmware sub-phase (Snapmaker U1: Home/Select/Heat/Move). Most
     // backends leave operation_phase at -1, so this is a no-op for them.
@@ -2976,6 +2986,7 @@ void AmsState::set_action(AmsAction action) {
     int val = static_cast<int>(action);
     if (lv_subject_get_int(&ams_action_) != val) {
         lv_subject_set_int(&ams_action_, val);
+        action_mirror_.store(action, std::memory_order_relaxed);
         spdlog::debug("[AMS State] Action set: {}", ams_action_to_string(action));
         // Operation ended: clear the narration label + phase index BEFORE the
         // recompute so the cleared state is reflected in the detail string. The
@@ -3086,8 +3097,8 @@ bool AmsState::post_unload_runout_grace_armed() {
 }
 
 bool AmsState::is_filament_operation_active() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    auto action = static_cast<AmsAction>(lv_subject_get_int(&ams_action_));
+    // Called from the WebSocket thread; lv_subject_t is main-thread only.
+    const auto action = action_mirror_.load(std::memory_order_relaxed);
     // Only suppress during states that actively move filament past sensors.
     // Heating, tip forming, cutting, and purging are stationary — a sensor
     // change in those states would indicate a real problem.
