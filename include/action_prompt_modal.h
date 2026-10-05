@@ -85,6 +85,7 @@ class ActionPromptModal : public Modal {
      *
      * Fires from on_hide() for a button tap, backdrop tap, ESC or any other
      * close that is not the owner's own hide(), saying which kind it was.
+     * It runs synchronously inside Modal::hide(), so it must not show a modal.
      */
     using DismissCallback = std::function<void(PromptCloseKind kind)>;
     void set_dismiss_callback(DismissCallback callback);
