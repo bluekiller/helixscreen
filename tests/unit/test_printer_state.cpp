@@ -198,10 +198,11 @@ TEST_CASE("PrinterState: Initialization sets default values", "[state][init]") {
     state.init_subjects();
 
     // Temperature subjects should be initialized to 0
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 0);
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 0);
-    REQUIRE(lv_subject_get_int(state.get_bed_temp_subject()) == 0);
-    REQUIRE(lv_subject_get_int(state.get_bed_target_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) ==
+            0);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_temp_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 0);
 
     // Print progress should be 0
     REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 0);
@@ -247,8 +248,10 @@ TEST_CASE("PrinterState: Update extruder temperature from status", "[state][temp
     state.update_from_status(status);
 
     // Subjects store decidegrees (temp * 10)
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2053);
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 2100);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+            2053);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) ==
+            2100);
 }
 
 TEST_CASE("PrinterState: Update bed temperature from status", "[state][temp]") {
@@ -261,8 +264,8 @@ TEST_CASE("PrinterState: Update bed temperature from status", "[state][temp]") {
     state.update_from_status(status);
 
     // Subjects store decidegrees (temp * 10)
-    REQUIRE(lv_subject_get_int(state.get_bed_temp_subject()) == 605);
-    REQUIRE(lv_subject_get_int(state.get_bed_target_subject()) == 600);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_temp_subject()) == 605);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 600);
 }
 
 TEST_CASE("PrinterState: Temperature decidegree storage", "[state][temp][edge]") {
@@ -274,19 +277,22 @@ TEST_CASE("PrinterState: Temperature decidegree storage", "[state][temp][edge]")
     SECTION("205.4°C stored as 2054 decidegrees") {
         json status = {{"extruder", {{"temperature", 205.4}}}};
         state.update_from_status(status);
-        REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2054);
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+                2054);
     }
 
     SECTION("205.6°C stored as 2056 decidegrees") {
         json status = {{"extruder", {{"temperature", 205.6}}}};
         state.update_from_status(status);
-        REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2056);
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+                2056);
     }
 
     SECTION("210.0°C stored as 2100 decidegrees") {
         json status = {{"extruder", {{"temperature", 210.0}}}};
         state.update_from_status(status);
-        REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2100);
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+                2100);
     }
 }
 
@@ -840,7 +846,7 @@ TEST_CASE("PrinterState: Empty status object is handled", "[state][error]") {
     state.update_from_status(empty_status);
 
     // Values should remain at defaults
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) == 0);
 }
 
 TEST_CASE("PrinterState: Partial status updates work", "[state][error]") {
@@ -852,22 +858,27 @@ TEST_CASE("PrinterState: Partial status updates work", "[state][error]") {
     SECTION("Only extruder temp, no target") {
         json status = {{"extruder", {{"temperature", 205.0}}}};
         state.update_from_status(status);
-        REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2050);
-        REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 0); // unchanged
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+                2050);
+        REQUIRE(
+            lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) ==
+            0); // unchanged
     }
 
     SECTION("Only bed target, no temp") {
         json status = {{"heater_bed", {{"target", 60.0}}}};
         state.update_from_status(status);
-        REQUIRE(lv_subject_get_int(state.get_bed_temp_subject()) == 0); // unchanged
-        REQUIRE(lv_subject_get_int(state.get_bed_target_subject()) == 600);
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_temp_subject()) ==
+                0); // unchanged
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 600);
     }
 
     SECTION("Unknown fields are ignored") {
         json status = {{"unknown_sensor", {{"value", 123.0}}},
                        {"extruder", {{"temperature", 100.0}}}};
         state.update_from_status(status);
-        REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 1000);
+        REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+                1000);
     }
 }
 
@@ -895,10 +906,12 @@ TEST_CASE("PrinterState: Complete printing state update", "[state][integration]"
     state.update_from_status(notification["params"][0]);
 
     // Verify all values updated correctly (temps stored as decidegrees)
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2105);
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 2100);
-    REQUIRE(lv_subject_get_int(state.get_bed_temp_subject()) == 602);
-    REQUIRE(lv_subject_get_int(state.get_bed_target_subject()) == 600);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+            2105);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) ==
+            2100);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_temp_subject()) == 602);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 600);
     REQUIRE(lv_subject_get_int(state.get_print_progress_subject()) == 67);
     REQUIRE(std::string(lv_subject_get_string(state.get_print_state_subject())) == "printing");
     REQUIRE(std::string(lv_subject_get_string(state.get_print_filename_subject())) ==
@@ -1467,7 +1480,7 @@ TEST_CASE("PrinterState: toolhead.extruder updates active extruder subjects",
     state.init_subjects(false);
 
     // Set up two extruders
-    state.init_extruders({"extruder", "extruder1"});
+    state.temperature_state().init_extruders({"extruder", "extruder1"});
 
     // Set initial temperatures for both extruders
     json status1 = {{"extruder", {{"temperature", 200.0}, {"target", 210.0}}},
@@ -1475,17 +1488,21 @@ TEST_CASE("PrinterState: toolhead.extruder updates active extruder subjects",
     state.update_from_status(status1);
 
     // Active extruder defaults to "extruder" — verify those are the active values
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2000);
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 2100);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+            2000);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) ==
+            2100);
 
     // Now switch active extruder via toolhead.extruder
     json status2 = {{"toolhead", {{"extruder", "extruder1"}}}};
     state.update_from_status(status2);
 
     // Active subjects should now reflect extruder1's values
-    REQUIRE(state.active_extruder_name() == "extruder1");
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 1500);
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_target_subject()) == 1600);
+    REQUIRE(state.temperature_state().active_extruder_name() == "extruder1");
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+            1500);
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) ==
+            1600);
 }
 
 TEST_CASE("PrinterState: toolhead.extruder with unknown name keeps previous active",
@@ -1495,7 +1512,7 @@ TEST_CASE("PrinterState: toolhead.extruder with unknown name keeps previous acti
     PrinterStateTestAccess::reset(state);
     state.init_subjects(false);
 
-    state.init_extruders({"extruder"});
+    state.temperature_state().init_extruders({"extruder"});
 
     json status = {{"extruder", {{"temperature", 205.0}, {"target", 210.0}}}};
     state.update_from_status(status);
@@ -1505,8 +1522,9 @@ TEST_CASE("PrinterState: toolhead.extruder with unknown name keeps previous acti
     state.update_from_status(status2);
 
     // Active extruder should still be "extruder"
-    REQUIRE(state.active_extruder_name() == "extruder");
-    REQUIRE(lv_subject_get_int(state.get_active_extruder_temp_subject()) == 2050);
+    REQUIRE(state.temperature_state().active_extruder_name() == "extruder");
+    REQUIRE(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) ==
+            2050);
 }
 
 TEST_CASE("PrinterState: get_active_extruder_*_subject returns valid subjects",
@@ -1517,8 +1535,8 @@ TEST_CASE("PrinterState: get_active_extruder_*_subject returns valid subjects",
     state.init_subjects(false);
 
     // Active extruder subjects should be valid (non-null)
-    REQUIRE(state.get_active_extruder_temp_subject() != nullptr);
-    REQUIRE(state.get_active_extruder_target_subject() != nullptr);
+    REQUIRE(state.temperature_state().get_active_extruder_temp_subject() != nullptr);
+    REQUIRE(state.temperature_state().get_active_extruder_target_subject() != nullptr);
 }
 
 // ============================================================================
@@ -1867,7 +1885,7 @@ TEST_CASE("PrinterState::set_hardware: a chamber sensor the printer does not rep
         json status = {{"temperature_sensor chamber", {{"temperature", 30.87}}}};
         state.update_from_status(status);
         // Decidegrees, truncated.
-        CHECK(lv_subject_get_int(state.get_chamber_temp_subject()) == 308);
+        CHECK(lv_subject_get_int(state.temperature_state().get_chamber_temp_subject()) == 308);
     }
     SECTION("a printer with no chamber sensor has none") {
         state.set_hardware(discovered_objects(

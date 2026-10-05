@@ -559,7 +559,7 @@ TEST_CASE_METHOD(AutoStateTargetFixture,
     if (auto* klippy_subj = ps.network_state().get_klippy_state_subject()) {
         lv_subject_set_int(klippy_subj, static_cast<int>(helix::KlippyState::READY));
     }
-    if (auto* ext_target = ps.get_active_extruder_target_subject()) {
+    if (auto* ext_target = ps.temperature_state().get_active_extruder_target_subject()) {
         lv_subject_set_int(ext_target, 0);
     }
 

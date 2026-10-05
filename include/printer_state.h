@@ -372,14 +372,6 @@ class PrinterState {
     // Example: 205.3C is stored as 2053. Divide by 10 for display.
     // Delegated to PrinterTemperatureState component.
 
-    // Active extruder subjects — track whichever extruder is currently active
-    lv_subject_t* get_active_extruder_temp_subject() {
-        return temperature_state_.get_active_extruder_temp_subject();
-    }
-    lv_subject_t* get_active_extruder_target_subject() {
-        return temperature_state_.get_active_extruder_target_subject();
-    }
-
     /// Duty for one heater, so every surface renders the same number rather
     /// than each mapping heater type to subject on its own.
     lv_subject_t* get_heater_power_subject(helix::HeaterType type) {
@@ -394,113 +386,12 @@ class PrinterState {
         }
     }
 
-    // Heater duty cycle, whole percent, -1 until a heater reports one.
-    lv_subject_t* get_extruder_power_subject() {
-        return temperature_state_.get_extruder_power_subject();
-    }
-    /// A specific extruder's duty with its lifetime token (use when creating
-    /// observers). Distinct from the nullary overload, which is the ACTIVE
-    /// extruder's mirror.
-    lv_subject_t* get_extruder_power_subject(const std::string& name, SubjectLifetime& lifetime) {
-        return temperature_state_.get_extruder_power_subject(name, lifetime);
-    }
-
-    // Multi-extruder discovery
-    void init_extruders(const std::vector<std::string>& heaters) {
-        temperature_state_.init_extruders(heaters);
-    }
-
     /// Re-format the text this state translates as it discovers hardware
     /// (extruder and fan names, hardware-health texts) in the current language.
     void refresh_translated_texts() {
         temperature_state_.refresh_display_names();
         fan_state_.refresh_display_names();
         hardware_validation_state_.refresh_texts();
-    }
-
-    // Per-extruder subject access (returns nullptr if not found)
-    // Prefer the overloads with SubjectLifetime when creating observers!
-    lv_subject_t* get_extruder_temp_subject(const std::string& name) {
-        return temperature_state_.get_extruder_temp_subject(name);
-    }
-    lv_subject_t* get_extruder_target_subject(const std::string& name) {
-        return temperature_state_.get_extruder_target_subject(name);
-    }
-    lv_subject_t* get_extruder_temp_subject(const std::string& name, SubjectLifetime& lifetime) {
-        return temperature_state_.get_extruder_temp_subject(name, lifetime);
-    }
-    lv_subject_t* get_extruder_target_subject(const std::string& name, SubjectLifetime& lifetime) {
-        return temperature_state_.get_extruder_target_subject(name, lifetime);
-    }
-
-    int extruder_count() const {
-        return temperature_state_.extruder_count();
-    }
-
-    const std::string& active_extruder_name() const {
-        return temperature_state_.active_extruder_name();
-    }
-
-    void set_active_extruder(const std::string& name) {
-        temperature_state_.set_active_extruder(name);
-    }
-
-    // Active extruder's latched last non-zero target (°C); 0 if unknown.
-    float get_active_extruder_last_nonzero_target() const {
-        return temperature_state_.get_active_extruder_last_nonzero_target();
-    }
-
-    // Clear the nozzle load latch (last non-zero target); empty name = active extruder.
-    void clear_nozzle_load_latch(const std::string& extruder_name = "") {
-        temperature_state_.clear_load_latch(extruder_name);
-    }
-
-    lv_subject_t* get_extruder_version_subject() {
-        return temperature_state_.get_extruder_version_subject();
-    }
-
-    lv_subject_t* get_bed_temp_subject() {
-        return temperature_state_.get_bed_temp_subject();
-    }
-    lv_subject_t* get_bed_temp_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_bed_temp_subject(lifetime);
-    }
-    lv_subject_t* get_bed_target_subject() {
-        return temperature_state_.get_bed_target_subject();
-    }
-    lv_subject_t* get_bed_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_bed_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_temp_subject() {
-        return temperature_state_.get_chamber_temp_subject();
-    }
-    /// A chamber filament-drying cycle is running (0/1).
-    lv_subject_t* get_chamber_dryer_active_subject() {
-        return temperature_state_.get_chamber_dryer_active_subject();
-    }
-    lv_subject_t* get_chamber_temp_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_temp_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_target_subject() {
-        return temperature_state_.get_chamber_target_subject();
-    }
-    lv_subject_t* get_chamber_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_fan_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_fan_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_effective_target_subject() {
-        return temperature_state_.get_chamber_effective_target_subject();
-    }
-    lv_subject_t* get_chamber_effective_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_effective_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_mode_subject() {
-        return temperature_state_.get_chamber_mode_subject();
-    }
-    lv_subject_t* get_chamber_mode_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_mode_subject(lifetime);
     }
 
     // Print progress subjects - delegated to PrinterPrintState component

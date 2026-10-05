@@ -1935,11 +1935,11 @@ void PrintStatusWidget::DetailedFormatter::update_nozzle_text() {
     lv_subject_t* temp_sub;
     lv_subject_t* tgt_sub;
     if (current_nozzle_override_ == "auto") {
-        temp_sub = ps.get_active_extruder_temp_subject();
-        tgt_sub = ps.get_active_extruder_target_subject();
+        temp_sub = ps.temperature_state().get_active_extruder_temp_subject();
+        tgt_sub = ps.temperature_state().get_active_extruder_target_subject();
     } else {
-        temp_sub = ps.get_extruder_temp_subject(current_nozzle_override_);
-        tgt_sub = ps.get_extruder_target_subject(current_nozzle_override_);
+        temp_sub = ps.temperature_state().get_extruder_temp_subject(current_nozzle_override_);
+        tgt_sub = ps.temperature_state().get_extruder_target_subject(current_nozzle_override_);
     }
     int temp_dd = temp_sub ? lv_subject_get_int(temp_sub) : 0;
     int tgt_dd = tgt_sub ? lv_subject_get_int(tgt_sub) : 0;
@@ -1978,11 +1978,11 @@ bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
     auto bind_auto = [&]() {
         current_nozzle_override_ = "auto";
         nozzle_temp_observer_ = observe<int>(
-            ps.get_active_extruder_temp_subject(), this,
+            ps.temperature_state().get_active_extruder_temp_subject(), this,
             [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
             ps.get_subjects_lifetime());
         nozzle_target_observer_ = observe<int>(
-            ps.get_active_extruder_target_subject(), this,
+            ps.temperature_state().get_active_extruder_target_subject(), this,
             [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
             ps.get_subjects_lifetime());
         update_nozzle_text();
@@ -1995,8 +1995,10 @@ bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
     }
 
     // Pinned: resolve dynamic per-tool subjects
-    auto* temp_sub = ps.get_extruder_temp_subject(override_name, nozzle_temp_lifetime_);
-    auto* tgt_sub = ps.get_extruder_target_subject(override_name, nozzle_target_lifetime_);
+    auto* temp_sub =
+        ps.temperature_state().get_extruder_temp_subject(override_name, nozzle_temp_lifetime_);
+    auto* tgt_sub =
+        ps.temperature_state().get_extruder_target_subject(override_name, nozzle_target_lifetime_);
     if (!temp_sub || !tgt_sub) {
         spdlog::info("[DetailedFormatter] nozzle override '{}' not found, falling back to auto",
                      override_name);
@@ -2220,11 +2222,11 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
     // guard is what learns the subjects died when PrinterState deinits, instead
     // of leaving that to StaticSubjectRegistry ordering.
     nozzle_temp_observer_ = observe<int>(
-        ps.get_active_extruder_temp_subject(), this,
+        ps.temperature_state().get_active_extruder_temp_subject(), this,
         [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         ps.get_subjects_lifetime());
     nozzle_target_observer_ = observe<int>(
-        ps.get_active_extruder_target_subject(), this,
+        ps.temperature_state().get_active_extruder_target_subject(), this,
         [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         ps.get_subjects_lifetime());
     // Bed and chamber temp_display widgets bind directly to bed_temp / bed_target /

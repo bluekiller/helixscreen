@@ -471,7 +471,7 @@ void ZOffsetCalibrationPanel::start_calibration() {
 
         PrinterState& ps = get_printer_state();
         bed_temp_observer_ = observe<int>(
-            ps.get_bed_temp_subject(bed_temp_lifetime_), this,
+            ps.temperature_state().get_bed_temp_subject(bed_temp_lifetime_), this,
             [](ZOffsetCalibrationPanel* self, int temp_deci) {
                 if (self->state_ != State::WARMING)
                     return;

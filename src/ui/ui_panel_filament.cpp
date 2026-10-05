@@ -181,7 +181,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // Note: We check are_subjects_initialized() because observers may fire immediately
     // upon registration, but subjects aren't initialized until init_subjects() is called.
     chamber_temp_observer_ = observe<int>(
-        printer_state_.get_chamber_temp_subject(), this,
+        printer_state_.temperature_state().get_chamber_temp_subject(), this,
         [](FilamentPanel* self, int raw) {
             self->chamber_current_ = deci_to_degrees(raw);
             if (self->are_subjects_initialized()) {
@@ -191,7 +191,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         },
         printer_state_.get_subjects_lifetime());
     chamber_target_observer_ = observe<int>(
-        printer_state_.get_chamber_target_subject(), this,
+        printer_state_.temperature_state().get_chamber_target_subject(), this,
         [](FilamentPanel* self, int raw) {
             self->chamber_target_ = raw; // Store decidegrees (matches PrinterState format)
             if (self->are_subjects_initialized()) {
@@ -2708,7 +2708,7 @@ const char* FilamentPanel::preheat_op_name(PreheatOp op) {
 // nozzle_target_ member — set_material() overwrites nozzle_target_ with
 // the preset's preview temperature, so it's unreliable here.
 int FilamentPanel::current_extruder_target() const {
-    auto* subj = printer_state_.get_active_extruder_target_subject();
+    auto* subj = printer_state_.temperature_state().get_active_extruder_target_subject();
     return subj ? deci_to_degrees(lv_subject_get_int(subj)) : 0;
 }
 
@@ -3076,7 +3076,7 @@ void FilamentPanel::execute_unload() {
     // Filament is being pulled — nothing left to purge, so drop the swap-preheat
     // latch. The next load computes its hold-temp fresh instead of inheriting this
     // material's target.
-    printer_state_.clear_nozzle_load_latch();
+    printer_state_.temperature_state().clear_load_latch();
 
     AmsBackend* backend = AmsState::instance().get_backend();
     const int slot = selected_op_slot();

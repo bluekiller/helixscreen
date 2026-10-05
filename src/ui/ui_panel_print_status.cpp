@@ -251,7 +251,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
 
     // Chamber status text: observe chamber temp to compute Heating/Cooling/Holding status
     chamber_temp_observer_ = observe<int>(
-        printer_state_.get_chamber_temp_subject(), this,
+        printer_state_.temperature_state().get_chamber_temp_subject(), this,
         [](PrintStatusPanel* self, int) { self->update_chamber_status(); }, ps_subjects);
 
     // Subscribe to print progress and state
@@ -2034,10 +2034,12 @@ void PrintStatusPanel::on_resize_static() {
 
 void PrintStatusPanel::on_temperature_changed() {
     // Read all temperature values from PrinterState subjects and delegate to lifecycle
-    int nz_cur = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
-    int nz_tgt = lv_subject_get_int(printer_state_.get_active_extruder_target_subject());
-    int bed_cur = lv_subject_get_int(printer_state_.get_bed_temp_subject());
-    int bed_tgt = lv_subject_get_int(printer_state_.get_bed_target_subject());
+    int nz_cur =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_temp_subject());
+    int nz_tgt =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_target_subject());
+    int bed_cur = lv_subject_get_int(printer_state_.temperature_state().get_bed_temp_subject());
+    int bed_tgt = lv_subject_get_int(printer_state_.temperature_state().get_bed_target_subject());
     lifecycle_.on_temperature_changed(nz_cur, nz_tgt, bed_cur, bed_tgt);
 
     if (!subjects_initialized_)
@@ -2250,8 +2252,9 @@ void PrintStatusPanel::update_chamber_status() {
 
     bool has_heater = lv_subject_get_int(printer_state_.capabilities_state().subject(
                           Capability::HasChamberHeater)) != 0;
-    int current = lv_subject_get_int(printer_state_.get_chamber_temp_subject());
-    int target = lv_subject_get_int(printer_state_.get_chamber_target_subject());
+    int current = lv_subject_get_int(printer_state_.temperature_state().get_chamber_temp_subject());
+    int target =
+        lv_subject_get_int(printer_state_.temperature_state().get_chamber_target_subject());
 
     if (!has_heater || target == 0) {
         // Sensor-only or heater off: no status text

@@ -194,7 +194,8 @@ constexpr const char* kBedOff = "SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET
 /// production delivers it: a subject change the controller observes, drained
 /// through the update queue.
 void report_drying(ChamberFixture& f, bool running) {
-    lv_subject_set_int(f.state.get_chamber_dryer_active_subject(), running ? 1 : 0);
+    lv_subject_set_int(f.state.temperature_state().get_chamber_dryer_active_subject(),
+                       running ? 1 : 0);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 }
 
@@ -250,7 +251,7 @@ TEST_CASE("chamber dryer bed assist turns the bed off however the cycle ends",
     SECTION("a target set by hand since") {
         f.controller.start_chamber_drying(55.0f, 240, true);
         report_drying(f, true);
-        lv_subject_set_int(f.state.get_bed_target_subject(), 500);
+        lv_subject_set_int(f.state.temperature_state().get_bed_target_subject(), 500);
         f.controller.stop_chamber_drying();
         CHECK(count(f.client.gcode_script_history(), kBedOff) == 0);
     }

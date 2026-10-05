@@ -758,20 +758,20 @@ TEST_CASE("sensor_display_name maps Klipper names to user-facing labels",
 
     // Pre-discovery / no extruder yet known: derived from suffix.
     auto& ps = get_printer_state();
-    ps.init_extruders({}); // clear
+    ps.temperature_state().init_extruders({}); // clear
     REQUIRE(TempGraphWidgetTestAccess::sensor_display_name("extruder") == "Nozzle");
     REQUIRE(TempGraphWidgetTestAccess::sensor_display_name("extruder1") == "Nozzle 2");
     REQUIRE(TempGraphWidgetTestAccess::sensor_display_name("extruder5") == "Nozzle 6");
 
     // After discovery: defers to the cached display_name (which itself is
     // sorted/translated). Multi-extruder => "extruder" becomes "Nozzle 1".
-    ps.init_extruders({"extruder", "extruder1", "extruder2", "extruder3"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1", "extruder2", "extruder3"});
     REQUIRE(TempGraphWidgetTestAccess::sensor_display_name("extruder") == "Nozzle 1");
     REQUIRE(TempGraphWidgetTestAccess::sensor_display_name("extruder1") == "Nozzle 2");
     REQUIRE(TempGraphWidgetTestAccess::sensor_display_name("extruder3") == "Nozzle 4");
 
     // Reset to empty so we don't leak state into other tests.
-    ps.init_extruders({});
+    ps.temperature_state().init_extruders({});
 }
 
 // ============================================================================
@@ -781,7 +781,7 @@ TEST_CASE("sensor_display_name maps Klipper names to user-facing labels",
 TEST_CASE("merge_discovered_extruders adds missing entries and is idempotent",
           "[temp_graph][panel_widget][config]") {
     auto& ps = get_printer_state();
-    ps.init_extruders({"extruder", "extruder1", "extruder2", "extruder3"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1", "extruder2", "extruder3"});
 
     nlohmann::json config = {{"sensors",
                               {
@@ -810,13 +810,13 @@ TEST_CASE("merge_discovered_extruders adds missing entries and is idempotent",
     REQUIRE(added_again == false);
     REQUIRE(sensors.size() == 5); // extruder + bed + 3 new
 
-    ps.init_extruders({});
+    ps.temperature_state().init_extruders({});
 }
 
 TEST_CASE("merge_discovered_extruders honors the enabled flag",
           "[temp_graph][panel_widget][config]") {
     auto& ps = get_printer_state();
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
 
     nlohmann::json config = {{"sensors", nlohmann::json::array()}};
 
@@ -825,7 +825,7 @@ TEST_CASE("merge_discovered_extruders honors the enabled flag",
         REQUIRE(entry["enabled"].get<bool>() == false);
     }
 
-    ps.init_extruders({});
+    ps.temperature_state().init_extruders({});
 }
 
 // ============================================================================
@@ -907,7 +907,7 @@ TEST_CASE_METHOD(TempGraphFeatureFixture,
 
     // PrinterState is a process-global; clear any tools a previous case
     // discovered so attach() really does run pre-discovery.
-    ps.init_extruders({});
+    ps.temperature_state().init_extruders({});
     queue.drain();
 
     // Given: a widget attached while only the legacy single extruder is known
@@ -925,7 +925,7 @@ TEST_CASE_METHOD(TempGraphFeatureFixture,
     REQUIRE(before.size() == 2);
 
     // When: a 3-tool changer is discovered after the fact
-    ps.init_extruders({"extruder", "extruder1", "extruder2"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1", "extruder2"});
     queue.drain();
     lv_timer_handler_safe(); // lv_async_call runs here, outside the queue batch
 
@@ -953,7 +953,7 @@ TEST_CASE_METHOD(TempGraphFeatureFixture,
     ps.init_subjects(false);
     auto& queue = helix::ui::UpdateQueue::instance();
 
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
     queue.drain();
 
     TempGraphWidget widget("temp_graph:test_no_churn");
@@ -968,7 +968,7 @@ TEST_CASE_METHOD(TempGraphFeatureFixture,
     auto* controller_before = TempGraphWidgetTestAccess::get_widget_obj(widget);
 
     // When: the same tool set is rediscovered (reconnect bumps the version)
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
     queue.drain();
     lv_timer_handler_safe();
 

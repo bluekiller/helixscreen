@@ -61,7 +61,7 @@ class TempGraphReattachFixture : public LVGLTestFixture {
         // SAMPLE_INTERVAL_SEC throttle. The follow-up reading these tests push
         // would then be throttled away, and the assertion would blame the
         // suppression flag for a co-tenant's leftover state.
-        if (auto* bed = get_printer_state().get_bed_temp_subject()) {
+        if (auto* bed = get_printer_state().temperature_state().get_bed_temp_subject()) {
             lv_subject_set_int(bed, 0);
         }
         settle();
@@ -110,7 +110,7 @@ std::unique_ptr<TempGraphController> make_stale_controller(lv_obj_t* parent, int
     // sampled yet, so a later reading cannot be rejected for arriving too soon.
     REQUIRE(controller->graph()->visible_point_count == 0);
 
-    auto* bed = get_printer_state().get_bed_temp_subject();
+    auto* bed = get_printer_state().temperature_state().get_bed_temp_subject();
     REQUIRE(bed != nullptr);
 
     controller->pause();
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(TempGraphReattachFixture, "Reattach suppression clears for the 
     // A genuinely fresh reading after the reconnect must land. This is the half
     // that fails if the suppression is set and never cleared — the graph would
     // simply freeze for the rest of the session.
-    auto* bed = get_printer_state().get_bed_temp_subject();
+    auto* bed = get_printer_state().temperature_state().get_bed_temp_subject();
     lv_subject_set_int(bed, 2100);
     settle();
 
@@ -197,8 +197,8 @@ TEST_CASE_METHOD(TempGraphReattachFixture, "Reattach keeps the graph and its ser
 TEST_CASE_METHOD(TempGraphReattachFixture,
                  "The first reading of a sample slot pushes every series at once",
                  "[controller][temp_graph_controller]") {
-    auto* bed = get_printer_state().get_bed_temp_subject();
-    auto* chamber = get_printer_state().get_chamber_temp_subject();
+    auto* bed = get_printer_state().temperature_state().get_bed_temp_subject();
+    auto* chamber = get_printer_state().temperature_state().get_chamber_temp_subject();
     REQUIRE(bed != nullptr);
     REQUIRE(chamber != nullptr);
     lv_subject_set_int(chamber, 0);

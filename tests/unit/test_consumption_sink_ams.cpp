@@ -430,24 +430,25 @@ TEST_CASE_METHOD(AmsSlotSinkFixture,
 
     SECTION("identity mapping on a single-extruder printer: three dead slots") {
         mock->set_identity_extruder_mapping_for_testing(true);
-        printer.init_extruders({"extruder"});
+        printer.temperature_state().init_extruders({"extruder"});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               3);
     }
     SECTION("every mapped extruder reported: nothing to say") {
         mock->set_identity_extruder_mapping_for_testing(true);
-        printer.init_extruders({"extruder", "extruder1", "extruder2", "extruder3"});
+        printer.temperature_state().init_extruders(
+            {"extruder", "extruder1", "extruder2", "extruder3"});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               0);
     }
     SECTION("no mapping declared: nothing to say") {
-        printer.init_extruders({"extruder"});
+        printer.temperature_state().init_extruders({"extruder"});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               0);
     }
     SECTION("before extruder discovery the count is unknown, not zero") {
         mock->set_identity_extruder_mapping_for_testing(true);
-        printer.init_extruders({});
+        printer.temperature_state().init_extruders({});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               0);
     }
@@ -459,7 +460,7 @@ TEST_CASE_METHOD(AmsSlotSinkFixture, "the PRINTING transition is what reports de
     auto& printer = get_printer_state();
 
     mock->set_identity_extruder_mapping_for_testing(true);
-    printer.init_extruders({"extruder"});
+    printer.temperature_state().init_extruders({"extruder"});
 
     tracker.start();
     lv_subject_set_int(printer.get_print_filament_used_subject(), 0);

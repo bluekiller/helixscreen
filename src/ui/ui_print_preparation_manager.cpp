@@ -209,13 +209,13 @@ void PrintPreparationManager::recalculate_estimate() {
 
     // Current temps (decidegrees -> degrees)
     float ext_temp = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_active_extruder_temp_subject()));
-    float ext_target = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_active_extruder_target_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_active_extruder_temp_subject()));
+    float ext_target = helix::ui::temperature::deci_to_degrees_f(lv_subject_get_int(
+        printer_state_->temperature_state().get_active_extruder_target_subject()));
     float bed_temp = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_bed_temp_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_bed_temp_subject()));
     float bed_target = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_bed_target_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_bed_target_subject()));
 
     float total = 0.0f;
 

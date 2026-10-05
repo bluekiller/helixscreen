@@ -46,7 +46,7 @@ struct SilentSendFixture : public LVGLTestFixture {
         state.set_klippy_state_sync(helix::KlippyState::READY);
         lv_subject_set_int(state.get_print_state_enum_subject(),
                            static_cast<int>(helix::PrintJobState::STANDBY));
-        lv_subject_set_int(state.get_active_extruder_target_subject(), 0);
+        lv_subject_set_int(state.temperature_state().get_active_extruder_target_subject(), 0);
 
         client.connect("ws://mock/websocket", []() {}, []() {});
         api = std::make_unique<MoonrakerAPIMock>(client, state);

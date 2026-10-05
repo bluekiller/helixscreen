@@ -90,7 +90,9 @@ class RecoveryPreheatFixture : public LVGLUITestFixture {
     }
 
     void set_nozzle_c(int celsius) {
-        lv_subject_set_int(get_printer_state().get_active_extruder_temp_subject(), celsius * 10);
+        lv_subject_set_int(
+            get_printer_state().temperature_state().get_active_extruder_temp_subject(),
+            celsius * 10);
     }
 
     helix::ui::RecoveryModalPresenter& presenter() {

@@ -63,7 +63,8 @@ TEST_CASE("TemperatureController resolves heater names", "[temp_controller]") {
         REQUIRE(f.controller.resolved_name(HeaterType::Chamber) == "heater_generic chamber_heater");
     }
     SECTION("nozzle is the active extruder") {
-        REQUIRE(f.controller.resolved_name(HeaterType::Nozzle) == f.state.active_extruder_name());
+        REQUIRE(f.controller.resolved_name(HeaterType::Nozzle) ==
+                f.state.temperature_state().active_extruder_name());
     }
 }
 
@@ -293,13 +294,14 @@ std::string last_temp_gcode(const MoonrakerClientMock& client) {
 TEST_CASE("TemperatureController swap-preheat guard holds the previous filament temp",
           "[temp_controller][temperature][swap_preheat]") {
     ControllerFixture f;
-    f.state.init_extruders({"extruder"});
+    f.state.temperature_state().init_extruders({"extruder"});
     f.state.set_klippy_state_sync(helix::KlippyState::READY);
 
     SECTION("raises a lower request to the latched target when the nozzle is still hot") {
         // ABS at 250 loaded/hot; switch to TPU at 230. Latch=250, actual=245.
         feed_nozzle(f.state, /*actual=*/245.0, /*target=*/250.0);
-        REQUIRE(f.state.get_active_extruder_last_nonzero_target() == Catch::Approx(250.0));
+        REQUIRE(f.state.temperature_state().get_active_extruder_last_nonzero_target() ==
+                Catch::Approx(250.0));
 
         f.client.clear_gcode_script_history();
         f.controller.set_target(helix::HeaterType::Nozzle, 230.0,
@@ -325,7 +327,8 @@ TEST_CASE("TemperatureController swap-preheat guard holds the previous filament 
     SECTION("cold nozzle with no latch sends the requested target unchanged") {
         // Never heated: latch=0, actual=25. Request 230 stands.
         feed_nozzle(f.state, /*actual=*/25.0, /*target=*/0.0);
-        REQUIRE(f.state.get_active_extruder_last_nonzero_target() == Catch::Approx(0.0));
+        REQUIRE(f.state.temperature_state().get_active_extruder_last_nonzero_target() ==
+                Catch::Approx(0.0));
 
         f.client.clear_gcode_script_history();
         f.controller.set_target(helix::HeaterType::Nozzle, 230.0,

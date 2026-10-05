@@ -463,13 +463,13 @@ void BedDryingController::end_run(const char* why) {
     record_.ended = true;
     (void)SettingsManager::instance().set_bed_drying_record(record_);
     if (tc_) {
-        lv_subject_t* target = state_.get_bed_target_subject();
+        lv_subject_t* target = state_.temperature_state().get_bed_target_subject();
         const int target_deci = target ? lv_subject_get_int(target) : 0;
         if (target_deci == 0 || target_deci == record_.bed_c * 10) {
             tc_->set_target(HeaterType::Bed, 0);
         }
         if (record_.chamber_c > 0) {
-            lv_subject_t* chamber = state_.get_chamber_target_subject();
+            lv_subject_t* chamber = state_.temperature_state().get_chamber_target_subject();
             const int chamber_deci = chamber ? lv_subject_get_int(chamber) : 0;
             if (chamber_deci == 0 || chamber_deci == record_.chamber_c * 10) {
                 tc_->set_target(HeaterType::Chamber, 0, {.toast = false});
@@ -519,7 +519,7 @@ void BedDryingController::tick(long long now_s) {
         return;
     }
     if (!record_.ended) {
-        lv_subject_t* target = state_.get_bed_target_subject();
+        lv_subject_t* target = state_.temperature_state().get_bed_target_subject();
         const int target_deci = target ? lv_subject_get_int(target) : 0;
         if (target_deci == record_.bed_c * 10) {
             bed_target_seen_ = true;
@@ -539,7 +539,7 @@ void BedDryingController::tick(long long now_s) {
         }
     }
     if (record_.ended && !removal_prompted_) {
-        lv_subject_t* temp = state_.get_bed_temp_subject();
+        lv_subject_t* temp = state_.temperature_state().get_bed_temp_subject();
         const double bed_c = temp ? lv_subject_get_int(temp) / 10.0 : 0.0;
         if (may_prompt_removal(bed_c)) {
             removal_prompted_ = true;
@@ -567,7 +567,7 @@ void BedDryingController::publish() {
         break;
     }
     case State::Cooling: {
-        lv_subject_t* temp = state_.get_bed_temp_subject();
+        lv_subject_t* temp = state_.temperature_state().get_bed_temp_subject();
         const int bed_c = temp ? lv_subject_get_int(temp) / 10 : 0;
         text = fmt::format("{} {}°C", lv_tr("Bed cooling, spools still on the bed:"), bed_c);
         break;

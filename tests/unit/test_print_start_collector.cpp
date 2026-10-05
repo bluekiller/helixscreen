@@ -612,16 +612,18 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
      * Example: 60.0C = 600 decidegrees
      */
     void set_bed_temps(int temp_decideg, int target_decideg) {
-        lv_subject_set_int(state_.get_bed_temp_subject(), temp_decideg);
-        lv_subject_set_int(state_.get_bed_target_subject(), target_decideg);
+        lv_subject_set_int(state_.temperature_state().get_bed_temp_subject(), temp_decideg);
+        lv_subject_set_int(state_.temperature_state().get_bed_target_subject(), target_decideg);
     }
 
     /**
      * @brief Set extruder temperature and target in PrinterState subjects
      */
     void set_extruder_temps(int temp_decideg, int target_decideg) {
-        lv_subject_set_int(state_.get_active_extruder_temp_subject(), temp_decideg);
-        lv_subject_set_int(state_.get_active_extruder_target_subject(), target_decideg);
+        lv_subject_set_int(state_.temperature_state().get_active_extruder_temp_subject(),
+                           temp_decideg);
+        lv_subject_set_int(state_.temperature_state().get_active_extruder_target_subject(),
+                           target_decideg);
     }
 
     /**
@@ -3650,8 +3652,9 @@ class SnapmakerHeaterWaitFixture : public SnapmakerCollectorFixture {
     }
 
     void set_chamber(int temp_decideg, int target_decideg) {
-        lv_subject_set_int(state().get_chamber_temp_subject(), temp_decideg);
-        lv_subject_set_int(state().get_chamber_target_subject(), target_decideg);
+        lv_subject_set_int(state().temperature_state().get_chamber_temp_subject(), temp_decideg);
+        lv_subject_set_int(state().temperature_state().get_chamber_target_subject(),
+                           target_decideg);
     }
 
     helix::sim::SimulatedClock::ManualScope clock_{helix::sim::SimSpeed::of(1.0)};
@@ -3975,8 +3978,8 @@ TEST_CASE_METHOD(ArtilleryHeaterWaitFixture,
     feed("[AM1P] State: HEAT_BED");
     REQUIRE(get_current_phase() == PrintStartPhase::HEATING_BED);
     set_all_temps(/*bed*/ 970, 1000, /*ext*/ 2100, 2100);
-    lv_subject_set_int(state().get_chamber_temp_subject(), 300);
-    lv_subject_set_int(state().get_chamber_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_chamber_temp_subject(), 300);
+    lv_subject_set_int(state().temperature_state().get_chamber_target_subject(), 600);
     feed("B:97.0 /100.0 T0:210.0 /210.0");
     tick();
     REQUIRE(get_current_phase() == PrintStartPhase::HEATING_BED);
@@ -5026,8 +5029,8 @@ TEST_CASE_METHOD(PrintStartCollectorSequentialFixture,
     // proactive detector would relabel the phase HEATING_BED on its next
     // check. A phase-object state IS the firmware narrating, so it must latch
     // the same real_signal_seen_ gate a console match latches.
-    lv_subject_set_int(state().get_bed_temp_subject(), 250);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 250);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     collector().start();
     collector().enable_fallbacks();
     drain_async_updates();

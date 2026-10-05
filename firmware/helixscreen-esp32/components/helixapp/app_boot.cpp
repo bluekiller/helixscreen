@@ -449,7 +449,7 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 ps.fan_state().init_fans(
                     fans, helix::FanRoleConfig::from_config(helix::Config::get_instance(), fans),
                     snapshot->fan_max_power());
-                ps.init_extruders(snapshot->heaters());
+                ps.temperature_state().init_extruders(snapshot->heaters());
 
                 ps.set_klipper_version(snapshot->software_version());
                 ps.set_moonraker_version(snapshot->moonraker_version());

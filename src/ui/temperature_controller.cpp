@@ -97,7 +97,7 @@ void TemperatureController::refresh_presets() {
 std::string TemperatureController::resolved_name(HeaterType type) const {
     switch (type) {
     case HeaterType::Nozzle:
-        return state_.active_extruder_name();
+        return state_.temperature_state().active_extruder_name();
     case HeaterType::Bed:
         return "heater_bed";
     case HeaterType::Chamber:
@@ -193,11 +193,12 @@ void TemperatureController::set_target(HeaterType type, double celsius, SendOpti
     // Nozzle only — bed/chamber and any call without the flag are untouched, so
     // cooldown-to-0 and deliberate manual lowers still work.
     if (type == HeaterType::Nozzle && opts.keep_previous_hot) {
-        const int actual_deci = lv_subject_get_int(state_.get_active_extruder_temp_subject());
+        const int actual_deci =
+            lv_subject_get_int(state_.temperature_state().get_active_extruder_temp_subject());
         const double actual_deg =
             static_cast<double>(helix::ui::temperature::deci_to_degrees_f(actual_deci));
-        const double latched =
-            static_cast<double>(state_.get_active_extruder_last_nonzero_target());
+        const double latched = static_cast<double>(
+            state_.temperature_state().get_active_extruder_last_nonzero_target());
         const double floor_deg = std::max({latched, actual_deg});
         if (celsius < floor_deg) {
             celsius = floor_deg;
@@ -294,7 +295,7 @@ void TemperatureController::set_chamber_dryer(const chamber::ChamberHeaterBacken
     // so the bed assist follows the reported state rather than our commands.
     if (!dryer_active_observer_ && chamber_dryer().supported) {
         dryer_active_observer_ = ui::observe<int>(
-            state_.get_chamber_dryer_active_subject(), this,
+            state_.temperature_state().get_chamber_dryer_active_subject(), this,
             [](TemperatureController* self, int active) {
                 self->on_chamber_dryer_active(active != 0);
             },
@@ -472,7 +473,7 @@ void TemperatureController::end_dry_run(const char* why) {
     if (target_c <= 0) {
         return;
     }
-    lv_subject_t* bed_target = state_.get_bed_target_subject();
+    lv_subject_t* bed_target = state_.temperature_state().get_bed_target_subject();
     const int bed_target_deci = bed_target ? lv_subject_get_int(bed_target) : 0;
     if (bed_target_deci != 0 && bed_target_deci != target_c * 10) {
         spdlog::info("[TemperatureController] Bed assist ended ({}): target changed since", why);

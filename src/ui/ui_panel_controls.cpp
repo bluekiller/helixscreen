@@ -359,28 +359,28 @@ void ControlsPanel::on_deactivating(DeactivateReason) {
 
 void ControlsPanel::refresh_all_displays() {
     // Re-read cached values from subjects and update all formatted displays
-    if (auto* subj = printer_state_.get_active_extruder_temp_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_active_extruder_temp_subject()) {
         cached_extruder_temp_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_active_extruder_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_active_extruder_target_subject()) {
         cached_extruder_target_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_bed_temp_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_bed_temp_subject()) {
         cached_bed_temp_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_bed_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_bed_target_subject()) {
         cached_bed_target_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_chamber_temp_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_temp_subject()) {
         cached_chamber_temp_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_chamber_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_target_subject()) {
         cached_chamber_target_ = lv_subject_get_int(subj); // keypad seed
     }
-    if (auto* subj = printer_state_.get_chamber_effective_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_effective_target_subject()) {
         cached_chamber_effective_target_ = lv_subject_get_int(subj); // status display
     }
-    if (auto* subj = printer_state_.get_chamber_mode_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_mode_subject()) {
         cached_chamber_mode_ = lv_subject_get_int(subj); // M141 control mode
     }
     update_nozzle_temp_display();
@@ -450,7 +450,7 @@ void ControlsPanel::register_observers() {
     // Note: We check are_subjects_initialized() because observers may fire immediately
     // upon registration, but subjects aren't initialized until init_subjects() is called.
     chamber_temp_observer_ = observe<int>(
-        printer_state_.get_chamber_temp_subject(chamber_temp_lifetime_), this,
+        printer_state_.temperature_state().get_chamber_temp_subject(chamber_temp_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_temp_ = value;
             if (self->are_subjects_initialized() && self->active_)
@@ -460,7 +460,8 @@ void ControlsPanel::register_observers() {
     // Raw heater target is kept for keypad seed only (shows the currently entered
     // heater setpoint when the user opens the keypad to edit the chamber target).
     chamber_target_observer_ = observe<int>(
-        printer_state_.get_chamber_target_subject(chamber_target_lifetime_), this,
+        printer_state_.temperature_state().get_chamber_target_subject(chamber_target_lifetime_),
+        this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_target_ = value;
             // Status display uses cached_chamber_effective_target_, not this value.
@@ -469,7 +470,8 @@ void ControlsPanel::register_observers() {
     // Effective target is the canonical display value: heater target when heating,
     // cooling-fan ceiling when maintaining, 0 when off — drives the status string.
     chamber_effective_target_observer_ = observe<int>(
-        printer_state_.get_chamber_effective_target_subject(chamber_effective_target_lifetime_),
+        printer_state_.temperature_state().get_chamber_effective_target_subject(
+            chamber_effective_target_lifetime_),
         this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_effective_target_ = value;
@@ -480,7 +482,7 @@ void ControlsPanel::register_observers() {
     // M141 control mode (Off/Heating/Maintaining) — needed so the status string
     // leads with the correct mode word rather than the raw thermal state.
     chamber_mode_observer_ = observe<int>(
-        printer_state_.get_chamber_mode_subject(chamber_mode_lifetime_), this,
+        printer_state_.temperature_state().get_chamber_mode_subject(chamber_mode_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_mode_ = value;
             if (self->are_subjects_initialized() && self->active_)

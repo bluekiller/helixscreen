@@ -289,7 +289,7 @@ void FilamentConsumptionTracker::on_extruder_filament_used_changed(int extruder_
 int FilamentConsumptionTracker::warn_unreported_extruder_mappings() {
     // Deltas arrive per reported extruder, so a slot mapped past that count
     // never accrues. Zero means discovery has not run, not "no extruders".
-    const int reported = get_printer_state().extruder_count();
+    const int reported = get_printer_state().temperature_state().extruder_count();
     if (reported <= 0) {
         return 0;
     }

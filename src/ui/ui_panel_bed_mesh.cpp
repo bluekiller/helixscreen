@@ -1109,8 +1109,10 @@ void BedMeshPanel::rename_profile(int index) {
 void BedMeshPanel::remember_heaters_probing_turns_on() {
     auto& state = get_printer_state();
     // A target of 0 means the heater is off.
-    preheat_turned_on_nozzle_ = lv_subject_get_int(state.get_active_extruder_target_subject()) == 0;
-    preheat_turned_on_bed_ = lv_subject_get_int(state.get_bed_target_subject()) == 0;
+    preheat_turned_on_nozzle_ =
+        lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject()) == 0;
+    preheat_turned_on_bed_ =
+        lv_subject_get_int(state.temperature_state().get_bed_target_subject()) == 0;
 }
 
 void BedMeshPanel::preheat_for_probing() {
@@ -1119,8 +1121,9 @@ void BedMeshPanel::preheat_for_probing() {
     auto& state = get_printer_state();
 
     // Subject values are decidegrees (value * 10)
-    int nozzle_target = lv_subject_get_int(state.get_active_extruder_target_subject());
-    int bed_target = lv_subject_get_int(state.get_bed_target_subject());
+    int nozzle_target =
+        lv_subject_get_int(state.temperature_state().get_active_extruder_target_subject());
+    int bed_target = lv_subject_get_int(state.temperature_state().get_bed_target_subject());
 
     auto set_temp = [](const std::string& heater, double temp, const char* label) {
         if (auto* c = get_temperature_controller()) {
@@ -1134,7 +1137,7 @@ void BedMeshPanel::preheat_for_probing() {
 
     if (preheat_turned_on_nozzle_) {
         spdlog::info("[BedMeshPanel] Preheating nozzle to {}°C for probing", PROBE_NOZZLE_TEMP);
-        set_temp(state.active_extruder_name(), PROBE_NOZZLE_TEMP, "nozzle");
+        set_temp(state.temperature_state().active_extruder_name(), PROBE_NOZZLE_TEMP, "nozzle");
     } else {
         spdlog::info("[BedMeshPanel] Nozzle already heating (target={}°C), skipping",
                      helix::units::from_decidegrees(nozzle_target));
@@ -1165,7 +1168,7 @@ void BedMeshPanel::cooldown_after_probing() {
     };
 
     if (preheat_turned_on_nozzle_) {
-        turn_off(get_printer_state().active_extruder_name(), "nozzle");
+        turn_off(get_printer_state().temperature_state().active_extruder_name(), "nozzle");
         preheat_turned_on_nozzle_ = false;
     }
 
@@ -1295,7 +1298,8 @@ void BedMeshPanel::prepare_and_probe() {
         if (preheat_turned_on_nozzle_) {
             char buf[128];
             std::snprintf(buf, sizeof(buf), "TEMPERATURE_WAIT SENSOR=%s MINIMUM=%.0f\n",
-                          get_printer_state().active_extruder_name().c_str(), PROBE_NOZZLE_TEMP);
+                          get_printer_state().temperature_state().active_extruder_name().c_str(),
+                          PROBE_NOZZLE_TEMP);
             wait_cmd += buf;
         }
         if (preheat_turned_on_bed_) {
@@ -1433,9 +1437,9 @@ BedMeshPanel::plan_calibration_into(const std::string& name) const {
     // parameters it takes, and brings its own heating and homing.
     const auto& info = StandardMacros::instance().get(StandardMacroSlot::BedMesh);
     auto& state = get_printer_state();
-    const int bed_temp_c =
-        helix::bed_mesh::probe_bed_temp_c(lv_subject_get_int(state.get_bed_target_subject()),
-                                          lv_subject_get_int(state.get_bed_temp_subject()));
+    const int bed_temp_c = helix::bed_mesh::probe_bed_temp_c(
+        lv_subject_get_int(state.temperature_state().get_bed_target_subject()),
+        lv_subject_get_int(state.temperature_state().get_bed_temp_subject()));
     auto plan = helix::bed_mesh::plan_calibration(info, name, bed_temp_c);
     if (plan.copy_to.empty()) {
         spdlog::info("[BedMeshPanel] Calibrating into '{}' with: {}", name, plan.command);

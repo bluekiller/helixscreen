@@ -1034,12 +1034,14 @@ void MoonrakerManager::init_print_start_collector() {
             collector->check_fallback_completion();
         }
     };
-    m_print_bed_target_fallback_observer = ObserverGuard(
-        get_printer_state().get_bed_target_subject(m_print_bed_target_fallback_lifetime),
-        fallback_cb, nullptr);
+    m_print_bed_target_fallback_observer =
+        ObserverGuard(get_printer_state().temperature_state().get_bed_target_subject(
+                          m_print_bed_target_fallback_lifetime),
+                      fallback_cb, nullptr);
     m_print_bed_target_fallback_observer.set_alive_token(m_print_bed_target_fallback_lifetime);
-    m_print_ext_target_fallback_observer = ObserverGuard(
-        get_printer_state().get_active_extruder_target_subject(), fallback_cb, nullptr);
+    m_print_ext_target_fallback_observer =
+        ObserverGuard(get_printer_state().temperature_state().get_active_extruder_target_subject(),
+                      fallback_cb, nullptr);
 
     // Toolhead position feeds the collector's silent-window inference
     // ("Probing Z..." / "Checking Bed Mesh..." / sweep → bed mesh). The

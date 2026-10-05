@@ -2921,8 +2921,9 @@ void on_print_state_changed_for_telemetry(lv_observer_t* observer, lv_subject_t*
         int phases_completed = s_telemetry_max_phase;
 
         // Temperatures: subjects store decidegrees (value * 10), divide by 10
-        int nozzle_temp_deci = lv_subject_get_int(ps.get_active_extruder_target_subject());
-        int bed_temp_deci = lv_subject_get_int(ps.get_bed_target_subject());
+        int nozzle_temp_deci =
+            lv_subject_get_int(ps.temperature_state().get_active_extruder_target_subject());
+        int bed_temp_deci = lv_subject_get_int(ps.temperature_state().get_bed_target_subject());
         int nozzle_temp = helix::ui::temperature::deci_to_degrees(nozzle_temp_deci);
         int bed_temp = helix::ui::temperature::deci_to_degrees(bed_temp_deci);
 
