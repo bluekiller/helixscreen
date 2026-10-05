@@ -17,6 +17,7 @@
 #include "ui_settings_hardware.h"
 #include "ui_settings_safety.h"
 #include "ui_settings_sound.h"
+#include "ui_settings_touch.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -196,6 +197,7 @@ TEST_CASE("settings pages: renamed page titles", "[settings][settings_pages]") {
 
 TEST_CASE_METHOD(PageRowsFixture, "settings pages: touch calibration row shows calibration status",
                  "[settings][settings_pages]") {
+    helix::settings::get_touch_settings_overlay().init_subjects();
     lv_subject_t* status = lv_xml_get_subject(nullptr, "touch_cal_status");
     REQUIRE(status != nullptr);
 
@@ -211,4 +213,8 @@ TEST_CASE_METHOD(PageRowsFixture, "settings pages: touch calibration row shows c
     lv_subject_copy_string(status, "Calibrated");
     process_lvgl(5);
     CHECK(std::string(lv_label_get_text(status_label)) == "Calibrated");
+
+    lv_obj_delete(root_);
+    root_ = nullptr;
+    helix::settings::get_touch_settings_overlay().deinit_subjects();
 }

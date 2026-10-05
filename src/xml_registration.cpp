@@ -576,6 +576,8 @@ void register_xml_components() {
     register_xml("components/home_page_container.xml");
     register_xml("components/home_next_page_slot.xml");
     register_xml("home_panel.xml");
+    register_xml("components/controls_fan_row.xml");
+    register_xml("components/controls_fan_more_row.xml");
     register_xml("controls_panel.xml");
     // The AMS environment overlay registers zone_tab lazily on first open; the
     // motion panel's tab rail instantiates it too, so it must be known here,

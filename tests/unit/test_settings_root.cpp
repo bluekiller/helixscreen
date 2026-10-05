@@ -388,10 +388,13 @@ TEST_CASE_METHOD(RootFixture, "settings root: Android shows the printer host as 
     // Neither backend exists on Android (wifi_backend.cpp, ethernet_backend.cpp
     // both compile to nullptr under __ANDROID__), so the row must show the
     // printer host instead of probing hardware this build has no access to.
-    lv_subject_t* host_subject = lv_xml_get_subject(nullptr, "printer_host_value");
-    REQUIRE(host_subject != nullptr);
-    const std::string saved_host = lv_subject_get_string(host_subject);
-    lv_subject_copy_string(host_subject, "192.168.1.42:7125");
+    helix::Config* config = helix::Config::get_instance();
+    const std::string host_key = config->df() + "moonraker_host";
+    const std::string port_key = config->df() + "moonraker_port";
+    const std::string saved_host = config->get<std::string>(host_key, "");
+    const int saved_port = config->get<int>(port_key, 7125);
+    config->set<std::string>(host_key, "192.168.1.42");
+    config->set<int>(port_key, 7125);
 
     EthernetManager* before =
         SettingsPanelTestAccess::ethernet_manager(get_global_settings_panel());
@@ -413,7 +416,8 @@ TEST_CASE_METHOD(RootFixture, "settings root: Android shows the printer host as 
     process_lvgl(50);
     CHECK(status_text(root_, "row_connection") == "192.168.1.42:7125");
 
-    lv_subject_copy_string(host_subject, saved_host.c_str());
+    config->set<std::string>(host_key, saved_host);
+    config->set<int>(port_key, saved_port);
 }
 
 TEST_CASE_METHOD(RootFixture, "settings root: Updates status reads firmware-managed",

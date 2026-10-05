@@ -25,6 +25,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <lvgl.h>
@@ -430,6 +431,21 @@ std::optional<helix::ui::SaveConfigWatch>& shared_save_watch_storage() {
     return storage;
 }
 
+/// How long a shared save counts as running. SAVE_CONFIG restarts Klipper, and
+/// the resulting disconnect drops the rpc, so neither callback is guaranteed to
+/// fire; the window is what keeps the button from staying dead. It covers
+/// Z_OFFSET_APPLY_* plus SAVE_CONFIG plus the restart, with headroom for stock
+/// code that chains a second config write (Creality K2 + CFS writes CFS Tn_data
+/// via CXSAVE_CONFIG ~50s later).
+constexpr uint32_t kSharedSaveWindowMs = 90000;
+
+std::atomic<bool> g_shared_save_running{false};
+std::atomic<uint32_t> g_shared_save_started_ms{0};
+
+void end_shared_save() {
+    g_shared_save_running = false;
+}
+
 /// The watch, constructing it on first use and registering the teardown that
 /// destroys it while LVGL is still up. Deliberately NOT reached through the
 /// same call that re-creates it: the deinit callback touches the storage
@@ -438,30 +454,52 @@ helix::ui::SaveConfigWatch& shared_save_watch() {
     auto& storage = shared_save_watch_storage();
     if (!storage) {
         storage.emplace();
-        StaticSubjectRegistry::instance().register_deinit(
-            "zoffset::shared_save_watch", [] { shared_save_watch_storage().reset(); });
+        StaticSubjectRegistry::instance().register_deinit("zoffset::shared_save_watch",
+                                                          [] { reset_shared_save(); });
     }
     return *storage;
 }
 
 } // namespace
 
+bool shared_save_in_flight() {
+    return g_shared_save_running && lv_tick_elaps(g_shared_save_started_ms) < kSharedSaveWindowMs;
+}
+
+void reset_shared_save() {
+    end_shared_save();
+    shared_save_watch_storage().reset();
+}
+
 namespace {
 
 /// The save itself, once any confirmation has been answered.
 void run_shared_save() {
+    if (shared_save_in_flight()) {
+        spdlog::warn("[ZOffsetUtils] Z-offset save already in progress, ignoring");
+        return;
+    }
     IMoonrakerAPI* api = get_moonraker_api();
     PrinterState& ps = get_printer_state();
     if (!api) {
         NOTIFY_ERROR("{}", lv_tr("No printer connection"));
         return;
     }
+    g_shared_save_started_ms = lv_tick_get();
+    g_shared_save_running = true;
     NOTIFY_INFO(lv_tr("Saving Z-offset..."));
     save_dirty_offsets(
         api, shared_save_watch(), ps.get_z_offset_calibration_strategy(), ps.get_discovery(),
         current_save_availability().global_dirty,
-        []() { NOTIFY_SUCCESS("{}", lv_tr("Z-offset saved")); },
-        [](const std::string& error) { NOTIFY_ERROR("{}", error); }, &ps);
+        []() {
+            end_shared_save();
+            NOTIFY_SUCCESS("{}", lv_tr("Z-offset saved"));
+        },
+        [](const std::string& error) {
+            end_shared_save();
+            NOTIFY_ERROR("{}", error);
+        },
+        &ps);
 }
 
 } // namespace
@@ -469,6 +507,17 @@ void run_shared_save() {
 void save_dirty_offsets_shared() {
     PrinterState& ps = get_printer_state();
     const SaveAvailability facts = current_save_availability();
+
+    // The rule both surfaces' buttons bind to, so a click that got through
+    // cannot mean something different from what the button offered.
+    if (!save_available(facts)) {
+        spdlog::debug("[ZOffsetUtils] No Z-offset adjustment to save");
+        return;
+    }
+    if (shared_save_in_flight()) {
+        spdlog::warn("[ZOffsetUtils] Z-offset save already in progress, ignoring");
+        return;
+    }
 
     // Only warn when a restart is actually coming. The machine-wide save always
     // ends in SAVE_CONFIG, and so does a tool-only save on firmware that stages
@@ -484,8 +533,8 @@ void save_dirty_offsets_shared() {
         return;
     }
 
-    // Same warning the Controls button gives. A one-tap header button that
-    // silently restarts Klipper mid-session is the worse failure.
+    // A one-tap button that silently restarts Klipper mid-session is the worse
+    // failure.
     helix::ui::modal_confirm(
         lv_tr("Save Z-Offset?"),
         lv_tr("This will save the Z-offset and restart Klipper to write the configuration. The "
