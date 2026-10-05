@@ -1778,11 +1778,12 @@ class AmsState {
         void write(int i, const SlotInfo& slot);
     };
 
-    /// Secondary-backend subject from @p member, or @p primary for backend 0,
-    /// with the lifetime token set accordingly.
+    /// Secondary-backend subject from @p member, or @p primary's slot for
+    /// backend 0, with the lifetime token set accordingly. Every per-backend
+    /// slot getter resolves through here.
     lv_subject_t* backend_slot_subject(int backend_index, int slot_index, SubjectLifetime& lifetime,
                                        std::vector<lv_subject_t> BackendSlotSubjects::*member,
-                                       lv_subject_t* primary);
+                                       lv_subject_t (&primary)[MAX_SLOTS]);
 
     mutable std::recursive_mutex mutex_;
     std::vector<std::unique_ptr<AmsBackend>> backends_;

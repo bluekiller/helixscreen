@@ -1540,98 +1540,19 @@ std::string AmsState::unit_absent_subject_name(int unit_index) {
     return buf;
 }
 
-lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return get_slot_color_subject(slot_index);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    return &subs.colors[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_status_subject(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return get_slot_status_subject(slot_index);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    return &subs.statuses[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index,
-                                               SubjectLifetime& lifetime) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(get_slot_color_subject(slot_index), get_subjects_lifetime(), lifetime);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        lifetime.reset();
-        return nullptr;
-    }
-    lifetime = secondary_slot_subjects_[sec_idx].lifetime;
-    return get_slot_color_subject(backend_index, slot_index);
-}
-
-lv_subject_t* AmsState::get_slot_status_subject(int backend_index, int slot_index,
-                                                SubjectLifetime& lifetime) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(get_slot_status_subject(slot_index), get_subjects_lifetime(),
-                             lifetime);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        lifetime.reset();
-        return nullptr;
-    }
-    lifetime = secondary_slot_subjects_[sec_idx].lifetime;
-    return get_slot_status_subject(backend_index, slot_index);
-}
-
-lv_subject_t* AmsState::get_slot_fill_subject(int backend_index, int slot_index,
-                                              SubjectLifetime& lifetime) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(get_slot_fill_subject(slot_index), get_subjects_lifetime(), lifetime);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        lifetime.reset();
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        lifetime.reset();
-        return nullptr;
-    }
-    lifetime = subs.lifetime;
-    return &subs.fills[slot_index];
-}
-
 lv_subject_t* AmsState::backend_slot_subject(int backend_index, int slot_index,
                                              SubjectLifetime& lifetime,
                                              std::vector<lv_subject_t> BackendSlotSubjects::*member,
-                                             lv_subject_t* primary) {
+                                             lv_subject_t (&primary)[MAX_SLOTS]) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(primary, get_subjects_lifetime(), lifetime);
-    }
     lifetime.reset();
+    if (backend_index == 0) {
+        if (slot_index < 0 || slot_index >= MAX_SLOTS) {
+            return nullptr;
+        }
+        lifetime = get_subjects_lifetime();
+        return &primary[slot_index];
+    }
     int sec_idx = backend_index - 1;
     if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
         return nullptr;
@@ -1644,48 +1565,61 @@ lv_subject_t* AmsState::backend_slot_subject(int backend_index, int slot_index,
     return &(subs.*member)[slot_index];
 }
 
-lv_subject_t* AmsState::get_slot_lane_state_subject(int backend_index, int slot_index,
-                                                    SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::lane_states,
-        backend_index == 0 ? get_slot_lane_state_subject(slot_index) : nullptr);
+lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index) {
+    SubjectLifetime unused;
+    return get_slot_color_subject(backend_index, slot_index, unused);
 }
 
-lv_subject_t* AmsState::get_slot_has_error_subject(int backend_index, int slot_index,
-                                                   SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::has_errors,
-        backend_index == 0 ? get_slot_has_error_subject(slot_index) : nullptr);
-}
-
-lv_subject_t* AmsState::get_slot_error_severity_subject(int backend_index, int slot_index,
-                                                        SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::severities,
-        backend_index == 0 ? get_slot_error_severity_subject(slot_index) : nullptr);
+lv_subject_t* AmsState::get_slot_status_subject(int backend_index, int slot_index) {
+    SubjectLifetime unused;
+    return get_slot_status_subject(backend_index, slot_index, unused);
 }
 
 lv_subject_t* AmsState::get_slot_material_subject(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return get_slot_material_subject(slot_index);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    return &subs.materials[slot_index];
+    SubjectLifetime unused;
+    return get_slot_material_subject(backend_index, slot_index, unused);
+}
+
+lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index,
+                                               SubjectLifetime& lifetime) {
+    return backend_slot_subject(backend_index, slot_index, lifetime, &BackendSlotSubjects::colors,
+                                slot_colors_);
+}
+
+lv_subject_t* AmsState::get_slot_status_subject(int backend_index, int slot_index,
+                                                SubjectLifetime& lifetime) {
+    return backend_slot_subject(backend_index, slot_index, lifetime, &BackendSlotSubjects::statuses,
+                                slot_statuses_);
+}
+
+lv_subject_t* AmsState::get_slot_fill_subject(int backend_index, int slot_index,
+                                              SubjectLifetime& lifetime) {
+    return backend_slot_subject(backend_index, slot_index, lifetime, &BackendSlotSubjects::fills,
+                                slot_fills_);
 }
 
 lv_subject_t* AmsState::get_slot_material_subject(int backend_index, int slot_index,
                                                   SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::materials,
-        backend_index == 0 ? get_slot_material_subject(slot_index) : nullptr);
+    return backend_slot_subject(backend_index, slot_index, lifetime,
+                                &BackendSlotSubjects::materials, slot_materials_);
+}
+
+lv_subject_t* AmsState::get_slot_lane_state_subject(int backend_index, int slot_index,
+                                                    SubjectLifetime& lifetime) {
+    return backend_slot_subject(backend_index, slot_index, lifetime,
+                                &BackendSlotSubjects::lane_states, slot_lane_states_);
+}
+
+lv_subject_t* AmsState::get_slot_has_error_subject(int backend_index, int slot_index,
+                                                   SubjectLifetime& lifetime) {
+    return backend_slot_subject(backend_index, slot_index, lifetime,
+                                &BackendSlotSubjects::has_errors, slot_has_error_);
+}
+
+lv_subject_t* AmsState::get_slot_error_severity_subject(int backend_index, int slot_index,
+                                                        SubjectLifetime& lifetime) {
+    return backend_slot_subject(backend_index, slot_index, lifetime,
+                                &BackendSlotSubjects::severities, slot_error_severity_);
 }
 
 void AmsState::BackendSlotSubjects::init(int count) {
