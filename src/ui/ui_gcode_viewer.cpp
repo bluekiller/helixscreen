@@ -485,6 +485,7 @@ static void gcode_viewer_refresh_content_offset(gcode_viewer_state_t* st, lv_obj
 /// Registered on the occluder, keyed to the viewer. Declared here so the
 /// viewer's own delete handler can detach it before this object is freed.
 static void gcode_viewer_occluder_delete_cb(lv_event_t* e);
+static const char* ui_gcode_viewer_pick_object(lv_obj_t* obj, int x, int y);
 
 /// The centered spinner card shown while the viewer has nothing to draw yet.
 static void create_loading_ui(gcode_viewer_state_t* st, lv_obj_t* obj, const char* text) {
@@ -2496,15 +2497,6 @@ void ui_gcode_viewer_disable_streaming(lv_obj_t* obj) {
 // Camera Controls
 // ==============================================
 
-void ui_gcode_viewer_zoom(lv_obj_t* obj, float factor) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-    st->camera_->zoom(factor);
-    lv_obj_invalidate(obj);
-}
-
 void ui_gcode_viewer_reset_camera(lv_obj_t* obj) {
     gcode_viewer_state_t* st = get_state(obj);
     if (!st)
@@ -2520,89 +2512,9 @@ void ui_gcode_viewer_reset_camera(lv_obj_t* obj) {
     lv_obj_invalidate(obj);
 }
 
-void ui_gcode_viewer_set_view(lv_obj_t* obj, GcodeViewerPresetView preset) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-    switch (preset) {
-    case GcodeViewerPresetView::Isometric:
-        st->camera_->set_isometric_view();
-        break;
-    case GcodeViewerPresetView::Top:
-        st->camera_->set_top_view();
-        break;
-    case GcodeViewerPresetView::Front:
-        st->camera_->set_front_view();
-        break;
-    case GcodeViewerPresetView::Side:
-        st->camera_->set_side_view();
-        break;
-    }
-
-    lv_obj_invalidate(obj);
-}
-
-void ui_gcode_viewer_set_camera_azimuth(lv_obj_t* obj, float azimuth) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-    st->camera_->set_azimuth(azimuth);
-    lv_obj_invalidate(obj);
-}
-
-void ui_gcode_viewer_set_camera_elevation(lv_obj_t* obj, float elevation) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-    st->camera_->set_elevation(elevation);
-    lv_obj_invalidate(obj);
-}
-
-void ui_gcode_viewer_set_camera_zoom(lv_obj_t* obj, float zoom) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-    st->camera_->set_zoom_level(zoom);
-    lv_obj_invalidate(obj);
-}
-
-void ui_gcode_viewer_set_debug_colors(lv_obj_t* obj, bool enable) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_debug_face_colors(enable);
-    lv_obj_invalidate(obj);
-#else
-    (void)enable;
-#endif
-}
-
 // ==============================================
 // Rendering Options
 // ==============================================
-
-void ui_gcode_viewer_set_show_travels(lv_obj_t* obj, bool show) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_show_travels(show);
-#endif
-
-    // Also update 2D renderer if initialized
-    if (st->layer_renderer_2d_) {
-        st->layer_renderer_2d_->set_show_travels(show);
-    }
-
-    lv_obj_invalidate(obj);
-}
 
 void ui_gcode_viewer_set_highlighted_objects(lv_obj_t* obj,
                                              const std::unordered_set<std::string>& object_names) {
@@ -2668,24 +2580,6 @@ void ui_gcode_viewer_set_object_long_press_callback(
 // ==============================================
 // Color & Rendering Control
 // ==============================================
-
-void ui_gcode_viewer_set_extrusion_color(lv_obj_t* obj, lv_color_t color) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-    // Store override so lazy-initialized renderers pick it up
-    st->has_external_color_override = true;
-    st->external_color_override = color;
-
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_extrusion_color(color);
-#endif
-    if (st->layer_renderer_2d_) {
-        st->layer_renderer_2d_->set_extrusion_color(color);
-    }
-    lv_obj_invalidate(obj);
-}
 
 void ui_gcode_viewer_set_tool_colors(lv_obj_t* obj, const std::vector<uint32_t>& colors) {
     gcode_viewer_state_t* st = get_state(obj);
@@ -2791,10 +2685,6 @@ bool ui_gcode_viewer_apply_ams_tool_colors(lv_obj_t* obj) {
 }
 
 // ==============================================
-// Layer Control Extensions
-// ==============================================
-
-// ==============================================
 // Print Progress / Ghost Layer Visualization
 // ==============================================
 
@@ -2834,22 +2724,6 @@ void ui_gcode_viewer_set_print_progress(lv_obj_t* obj, int current_layer) {
     // Note: 2D renderer's current_layer is set in the render callback
     // using print_progress_layer_, so we just need to invalidate.
     lv_obj_invalidate(obj);
-}
-
-void ui_gcode_viewer_set_ghost_mode(lv_obj_t* obj, int mode) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-#ifdef ENABLE_3D_RENDERER
-    // Map int to enum (0=Dimmed, 1=Stipple)
-    helix::gcode::GhostRenderMode render_mode = (mode == 1) ? helix::gcode::GhostRenderMode::Stipple
-                                                            : helix::gcode::GhostRenderMode::Dimmed;
-    st->renderer_->set_ghost_render_mode(render_mode);
-    lv_obj_invalidate(obj);
-#else
-    (void)mode;
-#endif
 }
 
 /// Drop the reference when the strip is destroyed, so a later draw cannot
@@ -2977,18 +2851,6 @@ int ui_gcode_viewer_get_max_layer(lv_obj_t* obj) {
 }
 
 // ==============================================
-// Metadata Access
-// ==============================================
-
-const char* ui_gcode_viewer_get_filament_type(lv_obj_t* obj) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st || !st->gcode_file || st->gcode_file->filament_type.empty())
-        return nullptr;
-
-    return st->gcode_file->filament_type.c_str();
-}
-
-// ==============================================
 // Parsed Data Access
 // ==============================================
 
@@ -3000,7 +2862,7 @@ const helix::gcode::ParsedGCodeFile* ui_gcode_viewer_get_parsed_file(lv_obj_t* o
     return st->gcode_file.get();
 }
 
-std::vector<std::string> ui_gcode_viewer_get_tool_palette(lv_obj_t* obj) {
+static std::vector<std::string> ui_gcode_viewer_get_tool_palette(lv_obj_t* obj) {
     gcode_viewer_state_t* st = get_state(obj);
     if (!st) {
         return {};
@@ -3118,7 +2980,7 @@ bool ui_gcode_viewer_pump_offscreen_2d(lv_obj_t* obj) {
 // Object Picking
 // ==============================================
 
-const char* ui_gcode_viewer_pick_object(lv_obj_t* obj, int x, int y) {
+static const char* ui_gcode_viewer_pick_object(lv_obj_t* obj, int x, int y) {
     gcode_viewer_state_t* st = get_state(obj);
     if (!st || !has_gcode_data(st))
         return nullptr;
@@ -3196,25 +3058,6 @@ int ui_gcode_viewer_get_layer_count(lv_obj_t* obj) {
     }
 
     return 0;
-}
-
-// ==============================================
-// Material & Lighting Control
-// ==============================================
-
-void ui_gcode_viewer_set_specular(lv_obj_t* obj, float intensity, float shininess) {
-    gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
-        return;
-
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_specular(intensity, shininess);
-    lv_obj_invalidate(obj); // Request redraw
-#else
-    (void)intensity;
-    (void)shininess;
-    spdlog::warn("[GCode Viewer] set_specular() ignored - 3D renderer not available");
-#endif
 }
 
 // ==============================================
@@ -3382,17 +3225,11 @@ void ui_gcode_viewer_set_first_frame_callback(lv_obj_t*, gcode_viewer_load_callb
 
 void ui_gcode_viewer_set_thumbnail_parity(lv_obj_t*, bool) {}
 
-void ui_gcode_viewer_set_gcode_data(lv_obj_t*, void*) {}
-
 void ui_gcode_viewer_clear(lv_obj_t*) {}
 
 void ui_gcode_viewer_clear_all_active(void) {}
 
 void ui_gcode_viewer_set_clear_callback(lv_obj_t*, ui_gcode_viewer_clear_cb_t, void*) {}
-
-helix::GcodeViewerState ui_gcode_viewer_get_state(lv_obj_t*) {
-    return helix::GcodeViewerState::Empty;
-}
 
 bool ui_gcode_viewer_has_content(lv_obj_t*) {
     return false;
@@ -3408,81 +3245,15 @@ void ui_gcode_viewer_force_redraw(lv_obj_t*) {}
 
 void ui_gcode_viewer_set_render_mode(lv_obj_t*, helix::GcodeViewerRenderMode) {}
 
-helix::GcodeViewerRenderMode ui_gcode_viewer_get_render_mode(lv_obj_t*) {
-    return helix::GcodeViewerRenderMode::Auto;
-}
-
-void ui_gcode_viewer_evaluate_render_mode(lv_obj_t*) {}
-
 bool ui_gcode_viewer_is_using_2d_mode(lv_obj_t*) {
     return false;
 }
 
 void ui_gcode_viewer_disable_streaming(lv_obj_t*) {}
 
-void ui_gcode_viewer_set_show_supports(lv_obj_t*, bool) {}
-
-void ui_gcode_viewer_rotate(lv_obj_t*, float, float) {}
-
-void ui_gcode_viewer_pan(lv_obj_t*, float, float) {}
-
-void ui_gcode_viewer_zoom(lv_obj_t*, float) {}
-
 void ui_gcode_viewer_reset_camera(lv_obj_t*) {}
 
-void ui_gcode_viewer_set_view(lv_obj_t*, helix::GcodeViewerPresetView) {}
-
-void ui_gcode_viewer_set_camera_azimuth(lv_obj_t*, float) {}
-
-void ui_gcode_viewer_set_camera_elevation(lv_obj_t*, float) {}
-
-void ui_gcode_viewer_set_camera_zoom(lv_obj_t*, float) {}
-
-void ui_gcode_viewer_set_debug_colors(lv_obj_t*, bool) {}
-
-void ui_gcode_viewer_set_show_travels(lv_obj_t*, bool) {}
-
-void ui_gcode_viewer_set_show_extrusions(lv_obj_t*, bool) {}
-
-void ui_gcode_viewer_set_layer_range(lv_obj_t*, int, int) {}
-
-void ui_gcode_viewer_set_highlighted_object(lv_obj_t*, const char*) {}
-
-const char* ui_gcode_viewer_pick_object(lv_obj_t*, int, int) {
-    return nullptr;
-}
-
-void ui_gcode_viewer_set_extrusion_color(lv_obj_t*, lv_color_t) {}
-
-void ui_gcode_viewer_use_filament_color(lv_obj_t*, bool) {}
-
-void ui_gcode_viewer_set_opacity(lv_obj_t*, lv_opa_t) {}
-
-void ui_gcode_viewer_set_brightness(lv_obj_t*, float) {}
-
-void ui_gcode_viewer_set_specular(lv_obj_t*, float, float) {}
-
-void ui_gcode_viewer_set_single_layer(lv_obj_t*, int) {}
-
-int ui_gcode_viewer_get_current_layer_start(lv_obj_t*) {
-    return 0;
-}
-
-int ui_gcode_viewer_get_current_layer_end(lv_obj_t*) {
-    return -1;
-}
-
 void ui_gcode_viewer_set_print_progress(lv_obj_t*, int) {}
-
-void ui_gcode_viewer_set_ghost_opacity(lv_obj_t*, lv_opa_t) {}
-
-void ui_gcode_viewer_set_ghost_mode(lv_obj_t*, int) {}
-
-void ui_gcode_viewer_set_ssao_enabled(lv_obj_t*, bool) {}
-
-bool ui_gcode_viewer_get_ssao_enabled(lv_obj_t*) {
-    return false;
-}
 
 void ui_gcode_viewer_set_bottom_occluder(lv_obj_t*, lv_obj_t*) {}
 
@@ -3490,27 +3261,11 @@ int ui_gcode_viewer_get_max_layer(lv_obj_t*) {
     return -1;
 }
 
-const char* ui_gcode_viewer_get_filament_color(lv_obj_t*) {
-    return nullptr;
-}
-
-const char* ui_gcode_viewer_get_filament_type(lv_obj_t*) {
-    return nullptr;
-}
-
-float ui_gcode_viewer_get_nozzle_diameter_mm(lv_obj_t*) {
-    return 0.0f;
-}
-
 const char* ui_gcode_viewer_get_filename(lv_obj_t*) {
     return nullptr;
 }
 
 int ui_gcode_viewer_get_layer_count(lv_obj_t*) {
-    return 0;
-}
-
-int ui_gcode_viewer_get_segments_rendered(lv_obj_t*) {
     return 0;
 }
 
@@ -3535,10 +3290,6 @@ void ui_gcode_viewer_set_object_long_press_callback(lv_obj_t*,
 
 const helix::gcode::ParsedGCodeFile* ui_gcode_viewer_get_parsed_file(lv_obj_t*) {
     return nullptr;
-}
-
-std::vector<std::string> ui_gcode_viewer_get_tool_palette(lv_obj_t*) {
-    return {};
 }
 
 std::set<int> ui_gcode_viewer_get_tools_used(lv_obj_t*) {
