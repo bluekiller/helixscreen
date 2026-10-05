@@ -1177,6 +1177,82 @@ TEST_CASE("get_best_thumbnail_from_content - Basic extraction", "[gcode][thumbna
     }
 }
 
+TEST_CASE("get_best_thumbnail_from_content - an unusable JPEG yields to the PNG",
+          "[gcode][thumbnail]") {
+    const std::string png_block = "; thumbnail begin 1x1 96\n"
+                                  "; "
+                                  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+"
+                                  "M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\n"
+                                  "; thumbnail end\n";
+
+    SECTION("a JPEG wider than 512px") {
+        const std::string gcode =
+            png_block +
+            "; thumbnail_JPG begin 600x8 1040\n"
+            "; /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkz\n"
+            "; ODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2Nj\n"
+            "; Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAAIAlgDASIA\n"
+            "; AhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQA\n"
+            "; AAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3\n"
+            "; ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWm\n"
+            "; p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEA\n"
+            "; AwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSEx\n"
+            "; BhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElK\n"
+            "; U1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3\n"
+            "; uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDHooor\n"
+            "; kPLCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooo\n"
+            "; oAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiig\n"
+            "; AooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//Z\n"
+            "; thumbnail_JPG end\n"
+            "G28\n";
+        auto thumb = get_best_thumbnail_from_content(gcode);
+        CHECK(thumb.width == 1);
+        CHECK(thumb.height == 1);
+        REQUIRE(thumb.png_data.size() >= 8);
+        CHECK(thumb.png_data[0] == 0x89);
+    }
+
+    SECTION("a JPEG that does not decode") {
+        const std::string gcode =
+            png_block +
+            "; thumbnail_JPG begin 300x300 96\n"
+            "; /9j/4G5vdCBhIGpwZWcgYXQgYWxsbm90IGEganBlZyBhdCBhbGxub3QgYSBqcGVnIGF0IGFsbG5v\n"
+            "; dCBhIGpwZWcgYXQgYWxs\n"
+            "; thumbnail_JPG end\n"
+            "G28\n";
+        auto thumb = get_best_thumbnail_from_content(gcode);
+        CHECK(thumb.width == 1);
+        REQUIRE(thumb.png_data.size() >= 8);
+        CHECK(thumb.png_data[0] == 0x89);
+    }
+
+    SECTION("a 512px-wide JPEG still converts") {
+        const std::string gcode =
+            png_block +
+            "; thumbnail_JPG begin 512x8 1008\n"
+            "; /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkz\n"
+            "; ODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2Nj\n"
+            "; Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAAIAgADASIA\n"
+            "; AhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQA\n"
+            "; AAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3\n"
+            "; ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWm\n"
+            "; p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEA\n"
+            "; AwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSEx\n"
+            "; BhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElK\n"
+            "; U1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3\n"
+            "; uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDHooor\n"
+            "; kPLCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooo\n"
+            "; oAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiig\n"
+            "; AooooAKKKKACiiigD//Z\n"
+            "; thumbnail_JPG end\n"
+            "G28\n";
+        auto thumb = get_best_thumbnail_from_content(gcode);
+        CHECK(thumb.width == 512);
+        REQUIRE(thumb.png_data.size() >= 8);
+        CHECK(thumb.png_data[0] == 0x89);
+    }
+}
+
 TEST_CASE("get_best_thumbnail_from_content - Cura JPEG thumbnail comes back as PNG",
           "[gcode][thumbnail]") {
     // Cura writes "; thumbnail_JPG begin"; a 16x8 JPEG.
