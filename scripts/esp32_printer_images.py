@@ -26,22 +26,15 @@ Usage:
     pip install Pillow
     python3 scripts/esp32_printer_images.py [--out DIR]
 
-If an image in the set is missing or fails to process, this script exits
-non-zero rather than shipping a partial set.
+If an image in the set is missing or fails to process, or Pillow is not
+installed, this script exits non-zero rather than shipping a partial set.
+esp32_stage_assets.py calls generate() itself when the renditions are absent
+or stale, so a build never packs without them.
 """
 
 import argparse
 import sys
 from pathlib import Path
-
-try:
-    from PIL import Image
-except ImportError:
-    print("FAIL: Pillow not installed. Use a venv:\n"
-          "  python3 -m venv /tmp/esp32imgs-venv && "
-          ". /tmp/esp32imgs-venv/bin/activate && pip install Pillow",
-          file=sys.stderr)
-    sys.exit(1)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIR = REPO_ROOT / "assets" / "images" / "printers"
@@ -67,6 +60,8 @@ def format_bytes(n: int) -> str:
 
 def render_one(src: Path, dest: Path) -> tuple[int, int]:
     """Downscale + quantize a single PNG. Returns (orig_bytes, out_bytes)."""
+    from PIL import Image
+
     orig_bytes = src.stat().st_size
 
     im = Image.open(src).convert("RGBA")
@@ -104,13 +99,30 @@ def render_one(src: Path, dest: Path) -> tuple[int, int]:
     return orig_bytes, len(best)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT,
-                        help=f"output directory (default: {DEFAULT_OUT})")
-    args = parser.parse_args()
+def is_fresh(out_dir: Path) -> bool:
+    """True when out_dir holds exactly the ESP32_PRINTERS renditions, each newer
+    than its source picture and than this script."""
+    expected = {f"{name}.png" for name in ESP32_PRINTERS}
+    if not out_dir.is_dir() or {f.name for f in out_dir.iterdir()} != expected:
+        return False
+    oldest_output = min((out_dir / name).stat().st_mtime for name in expected)
+    newest_input = max([(SOURCE_DIR / name).stat().st_mtime for name in expected
+                        if (SOURCE_DIR / name).exists()] + [Path(__file__).stat().st_mtime])
+    return oldest_output >= newest_input
 
-    out_dir: Path = args.out
+
+def generate(out_dir: Path = DEFAULT_OUT) -> int:
+    """Render ESP32_PRINTERS into out_dir. Returns 0, or 1 after printing why."""
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        print("FAIL: Pillow not installed, so the ESP32 printer pictures cannot be "
+              "generated. Use a venv:\n"
+              "  python3 -m venv /tmp/esp32imgs-venv && "
+              "/tmp/esp32imgs-venv/bin/pip install Pillow",
+              file=sys.stderr)
+        return 1
+
     out_dir.mkdir(parents=True, exist_ok=True)
 
     sources = [SOURCE_DIR / f"{name}.png" for name in ESP32_PRINTERS]
@@ -160,6 +172,14 @@ def main() -> int:
         return 1
 
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", type=Path, default=DEFAULT_OUT,
+                        help=f"output directory (default: {DEFAULT_OUT})")
+    args = parser.parse_args()
+    return generate(args.out)
 
 
 if __name__ == "__main__":
