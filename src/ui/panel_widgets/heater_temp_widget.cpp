@@ -5,7 +5,6 @@
 
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
 #include "ui_temperature_utils.h"
 #include "ui_utils.h"
 

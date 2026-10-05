@@ -18,7 +18,8 @@ enum class MoonrakerEventRoute {
     RecoveryShutdown,      ///< Unified recovery dialog, SHUTDOWN reason
     ConnectionFailedModal, ///< Change-Address prompt (not a plain OK-only alert)
     ErrorToast,            ///< NOTIFY_ERROR_T with the decision's title
-    WarningToast           ///< NOTIFY_WARNING
+    WarningToast,          ///< NOTIFY_WARNING
+    SuccessToast           ///< Toast only, no notification-history row
 };
 
 /// Why an event was suppressed. Only meaningful when route == Ignore; lets the

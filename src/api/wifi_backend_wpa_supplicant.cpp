@@ -2048,7 +2048,8 @@ WifiBackend::ConnectionStatus WifiBackendWpaSupplicant::get_status() {
 
     if (status_changed) {
         spdlog::trace("[WifiBackend] Status: connected={} ssid='{}' ip='{}' signal={}%",
-                      status.connected, status.ssid, status.ip_address, status.signal_strength);
+                      status.connected, helix::redact::ssid(status.ssid), status.ip_address,
+                      status.signal_strength);
         last_logged_status_ = status;
     }
 
@@ -2146,7 +2147,7 @@ std::vector<WiFiNetwork> WifiBackendWpaSupplicant::parse_scan_results(const std:
 
         // Skip hidden networks (empty or missing SSID)
         if (ssid.empty()) {
-            spdlog::trace("[WifiBackend] Skipping hidden network: {}", bssid);
+            spdlog::trace("[WifiBackend] Skipping hidden network: {}", helix::redact::mac(bssid));
             continue;
         }
 
@@ -2178,8 +2179,8 @@ std::vector<WiFiNetwork> WifiBackendWpaSupplicant::parse_scan_results(const std:
         WiFiNetwork network(ssid, signal_percent, is_secured, security_type, freq_mhz);
         networks.push_back(network);
 
-        spdlog::trace("[WifiBackend] Parsed network: '{}' {}% {} {}", ssid, signal_percent,
-                      security_type, bssid);
+        spdlog::trace("[WifiBackend] Parsed network: '{}' {}% {} {}", helix::redact::ssid(ssid),
+                      signal_percent, security_type, helix::redact::mac(bssid));
     }
 
     spdlog::debug("[WifiBackend] Parsed {} networks from scan results", networks.size());

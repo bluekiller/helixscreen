@@ -7,7 +7,6 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_utils.h"
 
 #include "helix-xml/src/xml/lv_xml.h"

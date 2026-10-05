@@ -755,6 +755,11 @@ ToastManager::~ToastManager() {
 
 void ToastManager::init() {
     spdlog::debug("[Test Stub] ToastManager::init()");
+    initialized_.store(true, std::memory_order_release);
+}
+
+void ToastManager::deinit_subjects() {
+    initialized_.store(false, std::memory_order_release);
 }
 
 void ToastManager::show(ToastSeverity severity, const char* message, uint32_t duration_ms) {

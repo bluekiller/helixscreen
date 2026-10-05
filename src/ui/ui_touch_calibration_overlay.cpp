@@ -5,7 +5,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_effects.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_toast_manager.h"
 
 #include "config.h"
@@ -322,7 +322,7 @@ void TouchCalibrationOverlay::hide() {
     spdlog::debug("[{}] Hiding overlay", get_name());
 
     // Pop from navigation stack - on_deactivate() will be called by NavigationManager
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 
     spdlog::info("[{}] Overlay hidden", get_name());
 }
@@ -412,7 +412,7 @@ void TouchCalibrationOverlay::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Call base class to set cleanup_called_ flag

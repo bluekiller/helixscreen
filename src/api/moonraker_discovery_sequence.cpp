@@ -1328,7 +1328,7 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
     // Happy Hare MMU object (gate status, colors, materials, filament info)
     // Subscribe to specific fields only — nullptr means ALL fields, which causes
     // excessive notifications and Klipper-side serialization cost (#388)
-    if (hw.has_mmu()) {
+    if (hw.mmu_type() == AmsType::HAPPY_HARE) {
         // endless_spool_enabled is the ENABLE bit for endless_spool_groups. Happy Hare
         // ignores a GROUPS= write while it is 0, so an edit sent without reading it first
         // fails silently.
@@ -1628,7 +1628,7 @@ void MoonrakerDiscoverySequence::complete_discovery_subscription(uint64_t seq) {
     if (hw.has_fan_feedback()) {
         spdlog::debug("[MoonrakerDiscoverySequence] Subscribing to fan_feedback for RPM data");
     }
-    if (hw.has_mmu()) {
+    if (hw.mmu_type() == AmsType::HAPPY_HARE) {
         spdlog::info("[Moonraker Client] Subscribing to MMU object (Happy Hare)");
     }
     const size_t afc_skipped =

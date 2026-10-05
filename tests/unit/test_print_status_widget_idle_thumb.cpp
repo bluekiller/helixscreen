@@ -923,3 +923,54 @@ TEST_CASE_METHOD(PrintStatusIdleThumbFixture,
         widget.detach();
     }
 }
+
+// A finished print leaves the card in its idle view with the print as the
+// history head. On the ESP32 the history fetch cannot produce its image, so the
+// card shows the active print's PSRAM thumbnail when the head is that print.
+// Moonraker records the name print_stats reported, which for a copy this app
+// rewrote is the temp path, while the thumbnail belongs to the original.
+TEST_CASE("PrintStatusWidget: the history head is matched to the active print",
+          "[print_status_widget][idle_thumb][finished]") {
+    const std::string original = "einsy.gcode";
+    const std::string rewritten = ".helix_temp/modified_einsy.gcode";
+
+    // A plain print: print_stats and the identity name the same file.
+    CHECK(PrintStatusWidget::history_job_is_active_print(original, original, original));
+    // A rewritten copy, recorded under the temp path or the original.
+    CHECK(PrintStatusWidget::history_job_is_active_print(rewritten, rewritten, original));
+    CHECK(PrintStatusWidget::history_job_is_active_print(original, rewritten, original));
+    // Klipper cleared print_stats.filename; the identity still names the print.
+    CHECK(PrintStatusWidget::history_job_is_active_print(original, "", original));
+
+    CHECK_FALSE(PrintStatusWidget::history_job_is_active_print("other.gcode", original, original));
+    CHECK_FALSE(PrintStatusWidget::history_job_is_active_print(".helix_temp/modified_other.gcode",
+                                                               rewritten, original));
+    CHECK_FALSE(PrintStatusWidget::history_job_is_active_print("", "", ""));
+}
+
+// The finished print is known without history: print_stats says complete and
+// the thumbnail was loaded for the print it names. History is the fallback once
+// the printer leaves complete, and may not be loaded at all on the ESP32.
+TEST_CASE("PrintStatusWidget: the idle card shows the active thumbnail for a finished print",
+          "[print_status_widget][idle_thumb][finished]") {
+    const std::string einsy = "einsy.gcode";
+    const std::string rewritten = ".helix_temp/modified_einsy.gcode";
+    auto shows = [](PrintState state, const std::string& history_file, const std::string& raw,
+                    const std::string& identity, const std::string& thumbnail_file) {
+        return PrintStatusWidget::idle_card_shows_active_thumbnail(state, history_file, raw,
+                                                                   identity, thumbnail_file);
+    };
+
+    // Complete with no history at all.
+    CHECK(shows(PrintState::Complete, "", einsy, einsy, einsy));
+    CHECK(shows(PrintState::Complete, "", rewritten, einsy, einsy));
+    // Out of complete, history has to name the print.
+    CHECK(shows(PrintState::Idle, einsy, einsy, einsy, einsy));
+    CHECK(shows(PrintState::Idle, rewritten, rewritten, einsy, einsy));
+    CHECK_FALSE(shows(PrintState::Idle, "", einsy, einsy, einsy));
+    CHECK_FALSE(shows(PrintState::Idle, "other.gcode", einsy, einsy, einsy));
+    // The thumbnail must belong to the print, whatever the state.
+    CHECK_FALSE(shows(PrintState::Complete, "", einsy, einsy, "other.gcode"));
+    CHECK_FALSE(shows(PrintState::Complete, einsy, einsy, einsy, ""));
+    CHECK_FALSE(shows(PrintState::Complete, "", "", "", ""));
+}

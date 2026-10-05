@@ -7,7 +7,7 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
 #include "ui_update_queue.h"
@@ -113,7 +113,7 @@ void MacrosPanel::register_callbacks() {
              if (self.edit_mode_) {
                  self.exit_edit_mode(false); // discard pending changes, stay on panel
              } else {
-                 NavigationManager::instance().go_back(); // normal Back: close the overlay
+                 helix::nav::go_back(); // normal Back: close the overlay
              }
          }},
     });

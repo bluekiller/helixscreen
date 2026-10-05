@@ -185,6 +185,22 @@ TEST_CASE("Klipper-ready is never a notification", "[moonraker][routing][1219]")
     }
 }
 
+TEST_CASE("Connection restored is a success toast, connection lost a warning",
+          "[moonraker][routing]") {
+    // Good news is not history: two outages must not leave four bell rows.
+    for (bool modal : {NO_MODAL, MODAL_UP}) {
+        INFO("modal=" << modal);
+        auto restored =
+            decide_moonraker_event(MoonrakerEventType::RECONNECTED, NOT_ERROR, NO_WIZARD, modal);
+        REQUIRE(restored.route == MoonrakerEventRoute::SuccessToast);
+        REQUIRE(restored.title_tag == nullptr);
+
+        auto lost = decide_moonraker_event(MoonrakerEventType::CONNECTION_LOST, NOT_ERROR,
+                                           NO_WIZARD, modal);
+        REQUIRE(lost.route == MoonrakerEventRoute::WarningToast);
+    }
+}
+
 TEST_CASE("Non-ready warnings still reach the warning-toast fallthrough",
           "[moonraker][routing][1219]") {
     // Only KLIPPY_READY is routed away as a lifecycle event; that short-circuit

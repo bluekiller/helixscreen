@@ -7,7 +7,7 @@
 #include "ui_component_keypad.h"
 #include "ui_error_reporting.h"
 #include "ui_heater_config.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_temperature_utils.h"
 #include "ui_utils.h"
@@ -373,7 +373,7 @@ void TempGraphOverlay::open(Mode mode, lv_obj_t* parent_screen) {
 
 void TempGraphOverlay::before_show() {
     // The pairing must survive a navbar panel switch.
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this, true);
+    helix::nav::register_overlay(overlay_root_, this, true);
 
     // Sync the declarative mode subject on every open: the caller may have chosen
     // a different mode than last time. XML bindings (strip visibility via

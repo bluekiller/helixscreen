@@ -112,12 +112,15 @@ bool apply_calibration_result(ICalibrationSink* sink, const TouchCalibration& ca
 ///    `/input/calibration/` (usually nothing at all, on a panel square to the
 ///    display). The range is re-programmed on the live device first, then the
 ///    residual affine installed on top.
-///  - No range fit (no raw digitizer readings, or an implausible decomposition):
-///    `cal` goes to `/input/calibration/` exactly as it did before #1259, and
-///    the stored range is cleared.
+///  - No range installed (no raw digitizer readings, an implausible
+///    decomposition, a rotated display, or a backend that refuses it): `cal` goes
+///    to `/input/calibration/`. It was solved over the range live now, so a
+///    stored range that is live stays stored, with its own capture rotation;
+///    otherwise the stored range is cleared.
 ///
-/// Clearing the unused side is the part that matters: a stored range left behind
-/// next to a full-pipeline affine would apply both stages and double the mapping.
+/// Clearing the unused side is the part that matters: a stored range the affine
+/// was not solved over, left behind next to it, would apply both stages and
+/// double the mapping.
 ///
 /// Does NOT call Config::save() - the caller decides when to flush.
 ///

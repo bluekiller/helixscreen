@@ -46,6 +46,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
+#include "wall_clock_esp.h"
 #include "wifi_backend.h"
 
 #include <spdlog/spdlog.h>
@@ -276,6 +277,8 @@ class WifiBackendEsp : public WifiBackend {
             ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                                                        &WifiBackendEsp::ip_event_handler, this));
             handlers_registered_ = true;
+
+            helix::wall_clock_esp::start();
         }
 
         if (!assoc_timeout_timer_) {
