@@ -139,15 +139,19 @@ TEST_CASE_METHOD(LVGLTestFixture,
     ui_gcode_viewer_set_render_mode(viewer, GcodeViewerRenderMode::Layer2D);
     helix::test_access::gcode_viewer_install_loaded_file(viewer, make_over_budget_file());
     REQUIRE(ui_gcode_viewer_is_using_2d_mode(viewer));
+    const uint32_t children_before = lv_obj_get_child_count(viewer);
 
     ui_gcode_viewer_set_render_mode(viewer, GcodeViewerRenderMode::Render3D);
 
     // The build has not been answered on the calling thread: the viewer is in
-    // 3D, waiting on geometry.
+    // 3D, waiting on geometry, with the loading spinner up meanwhile.
     CHECK_FALSE(ui_gcode_viewer_is_using_2d_mode(viewer));
+    CHECK(lv_obj_get_child_count(viewer) == children_before + 1);
 
     helix::test_access::gcode_viewer_wait_for_build(viewer);
     helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(20);
+    CHECK(lv_obj_get_child_count(viewer) == children_before);
 
     // Refused: this file draws in 2D, and the user's choice of 3D survives it.
     CHECK(ui_gcode_viewer_is_using_2d_mode(viewer));

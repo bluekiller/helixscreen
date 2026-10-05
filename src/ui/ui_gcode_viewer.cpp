@@ -485,6 +485,42 @@ static void gcode_viewer_refresh_content_offset(gcode_viewer_state_t* st, lv_obj
 /// viewer's own delete handler can detach it before this object is freed.
 static void gcode_viewer_occluder_delete_cb(lv_event_t* e);
 
+/// The centered spinner card shown while the viewer has nothing to draw yet.
+static void create_loading_ui(gcode_viewer_state_t* st, lv_obj_t* obj, const char* text) {
+    st->loading_container = lv_obj_create(obj);
+    lv_obj_set_size(st->loading_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_center(st->loading_container);
+    lv_obj_set_flex_flow(st->loading_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(st->loading_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_color(st->loading_container, theme_manager_get_color("card_bg"),
+                              LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(st->loading_container, 220, LV_PART_MAIN);
+    lv_obj_set_style_border_width(st->loading_container, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(st->loading_container, 8, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(st->loading_container, theme_manager_get_spacing("space_xl"),
+                             LV_PART_MAIN);
+    lv_obj_set_style_pad_gap(st->loading_container, theme_manager_get_spacing("space_md"),
+                             LV_PART_MAIN);
+
+    st->loading_spinner = lv_spinner_create(st->loading_container);
+    int32_t spinner_size = theme_manager_get_spacing("spinner_lg");
+    if (spinner_size <= 0)
+        spinner_size = 48;
+    int32_t spinner_arc = theme_manager_get_spacing("spinner_arc_lg");
+    if (spinner_arc <= 0)
+        spinner_arc = 4;
+    lv_obj_set_size(st->loading_spinner, spinner_size, spinner_size);
+    lv_color_t primary = theme_manager_get_color("primary");
+    lv_obj_set_style_arc_color(st->loading_spinner, primary, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(st->loading_spinner, spinner_arc, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_opa(st->loading_spinner, LV_OPA_0, LV_PART_MAIN);
+
+    st->loading_label = lv_label_create(st->loading_container);
+    lv_label_set_text(st->loading_label, text);
+    lv_obj_set_style_text_color(st->loading_label, theme_manager_get_color("text"), LV_PART_MAIN);
+}
+
 /// Take down the loading spinner, deferred: callers run inside queued
 /// callbacks, where a synchronous delete corrupts LVGL's event list.
 static void remove_loading_ui(gcode_viewer_state_t* st) {
@@ -1798,40 +1834,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
     // Ideal for large files on memory-constrained devices.
     // =========================================================================
     if (use_streaming) {
-        // Create loading UI
-        st->loading_container = lv_obj_create(obj);
-        lv_obj_set_size(st->loading_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_center(st->loading_container);
-        lv_obj_set_flex_flow(st->loading_container, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(st->loading_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_bg_color(st->loading_container, theme_manager_get_color("card_bg"),
-                                  LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(st->loading_container, 220, LV_PART_MAIN);
-        lv_obj_set_style_border_width(st->loading_container, 0, LV_PART_MAIN);
-        lv_obj_set_style_radius(st->loading_container, 8, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(st->loading_container, theme_manager_get_spacing("space_xl"),
-                                 LV_PART_MAIN);
-        lv_obj_set_style_pad_gap(st->loading_container, theme_manager_get_spacing("space_md"),
-                                 LV_PART_MAIN);
-
-        st->loading_spinner = lv_spinner_create(st->loading_container);
-        int32_t spinner_size = theme_manager_get_spacing("spinner_lg");
-        if (spinner_size <= 0)
-            spinner_size = 48;
-        int32_t spinner_arc = theme_manager_get_spacing("spinner_arc_lg");
-        if (spinner_arc <= 0)
-            spinner_arc = 4;
-        lv_obj_set_size(st->loading_spinner, spinner_size, spinner_size);
-        lv_color_t primary = theme_manager_get_color("primary");
-        lv_obj_set_style_arc_color(st->loading_spinner, primary, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_width(st->loading_spinner, spinner_arc, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_opa(st->loading_spinner, LV_OPA_0, LV_PART_MAIN);
-
-        st->loading_label = lv_label_create(st->loading_container);
-        lv_label_set_text(st->loading_label, lv_tr("Indexing G-code..."));
-        lv_obj_set_style_text_color(st->loading_label, theme_manager_get_color("text"),
-                                    LV_PART_MAIN);
+        create_loading_ui(st, obj, lv_tr("Indexing G-code..."));
 
         // Create streaming controller
         st->streaming_controller_ = std::make_unique<helix::gcode::GCodeStreamingController>();
@@ -1979,41 +1982,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
     // LVGL spinner child causes crashes during deletion — the spinner's animation
     // timer events corrupt the event list during safe_delete in the async callback.
     if (!lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
-        st->loading_container = lv_obj_create(obj);
-        lv_obj_set_size(st->loading_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_center(st->loading_container);
-        lv_obj_set_flex_flow(st->loading_container, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(st->loading_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-
-        lv_obj_set_style_bg_color(st->loading_container, theme_manager_get_color("card_bg"),
-                                  LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(st->loading_container, 220, LV_PART_MAIN);
-        lv_obj_set_style_border_width(st->loading_container, 0, LV_PART_MAIN);
-        lv_obj_set_style_radius(st->loading_container, 8, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(st->loading_container, theme_manager_get_spacing("space_xl"),
-                                 LV_PART_MAIN);
-        lv_obj_set_style_pad_gap(st->loading_container, theme_manager_get_spacing("space_md"),
-                                 LV_PART_MAIN);
-
-        st->loading_spinner = lv_spinner_create(st->loading_container);
-        int32_t spinner_size = theme_manager_get_spacing("spinner_lg");
-        if (spinner_size <= 0)
-            spinner_size = 48;
-        int32_t spinner_arc = theme_manager_get_spacing("spinner_arc_lg");
-        if (spinner_arc <= 0)
-            spinner_arc = 4;
-        lv_obj_set_size(st->loading_spinner, spinner_size, spinner_size);
-
-        lv_color_t primary = theme_manager_get_color("primary");
-        lv_obj_set_style_arc_color(st->loading_spinner, primary, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_width(st->loading_spinner, spinner_arc, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_opa(st->loading_spinner, LV_OPA_0, LV_PART_MAIN);
-
-        st->loading_label = lv_label_create(st->loading_container);
-        lv_label_set_text(st->loading_label, lv_tr("Loading G-code..."));
-        lv_obj_set_style_text_color(st->loading_label, theme_manager_get_color("text"),
-                                    LV_PART_MAIN);
+        create_loading_ui(st, obj, lv_tr("Loading G-code..."));
     }
 
     // Launch worker thread via RAII-managed start_build()
@@ -2443,6 +2412,11 @@ static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj) {
         std::unique_ptr<helix::gcode::RibbonGeometry> geometry;
     };
 
+    // The 3D view has no mesh to draw until the result lands.
+    if (!st->loading_container && !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+        create_loading_ui(st, obj, lv_tr("Loading G-code..."));
+    }
+
     // Every path that frees st->gcode_file joins this thread first
     // (cancel_build), so `file` outlives the build.
     st->start_build([st, obj, file, gen, default_rgb]() {
@@ -2458,6 +2432,7 @@ static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj) {
                 if (!state || state->load_generation() != gen || state->gcode_file.get() != file) {
                     return;
                 }
+                remove_loading_ui(state);
                 if (r->geometry) {
                     install_3d_geometry(state, std::move(r->geometry));
                     if (state->camera_) {
