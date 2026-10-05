@@ -4,6 +4,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../ui_test_utils.h"
 #include "action_prompt_manager.h"
 #include "ams_backend_happy_hare.h"
 #include "ams_state.h"
@@ -5422,4 +5423,386 @@ TEST_CASE("Happy Hare connect asks configfile once and applies it to every reade
     CHECK(HappyHareTestAccess::config_defaults(helper).gear_from_buffer_speed ==
           Catch::Approx(175.0f));
     CHECK(HappyHareTestAccess::config_defaults(helper).loaded);
+}
+
+// ============================================================================
+// Golden sequence: one full printer.mmu frame, then the deltas a Happy Hare box
+// sends for a load, an unload, a pause and its resume, a gate insert, hex-only
+// gate colours, per-gate drying and a topology change. Each frame is pinned as
+// a text snapshot of everything the parse leaves behind plus the effects it
+// dispatches.
+// ============================================================================
+
+namespace {
+
+std::string join_ints(const std::vector<int>& values) {
+    std::string out;
+    for (const int v : values) {
+        out += (out.empty() ? "" : ",") + std::to_string(v);
+    }
+    return out;
+}
+
+struct HappyHareGoldenFixture : public LVGLUITestFixture {
+    HappyHareGoldenFixture() {
+        backend.set_event_callback(
+            [this](const std::string& name, const std::string&) { events.push_back(name); });
+        helix::ui::set_test_toast_hook([this](ToastSeverity, const std::string& message, uint32_t) {
+            toasts += (toasts.empty() ? "" : "|") + message;
+        });
+    }
+
+    ~HappyHareGoldenFixture() override {
+        helix::ui::set_test_toast_hook(nullptr);
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    std::string feed(const nlohmann::json& mmu) {
+        events.clear();
+        toasts.clear();
+        nlohmann::json params;
+        params["mmu"] = mmu;
+        nlohmann::json notification;
+        notification["params"] = nlohmann::json::array({params, 0.0});
+        HappyHareTestAccess::handle_status_update(backend, notification);
+        helix::ui::UpdateQueue::instance().drain();
+        return snapshot();
+    }
+
+    std::string snapshot() {
+        using A = HappyHareTestAccess;
+        const helix::AmsSystemInfo info = backend.get_system_info();
+        std::string out = fmt::format(
+            "slot={} tool={} loaded={} action={} detail='{}' bypass={} units={} hub={} "
+            "slot_sensors={}\n",
+            info.current_slot, info.current_tool, info.filament_loaded,
+            helix::ams_action_to_string(info.action), info.operation_detail, info.supports_bypass,
+            A::num_units(backend), info.units.empty() ? false : info.units[0].hub_sensor_triggered,
+            info.units.empty() ? false : info.units[0].has_slot_sensors);
+        out += fmt::format("  pos={} bowden={} unit={} counts={} seg={} fault='{}' rawgates={}\n",
+                           A::filament_pos(backend), A::bowden_progress(backend),
+                           A::active_unit(backend), join_ints(A::per_unit_gate_counts(backend)),
+                           helix::path_segment_to_string(A::error_segment(backend)),
+                           A::reason_for_pause(backend), join_ints(A::gate_status_raw(backend)));
+        out += fmt::format(
+            "  espooler='{}' fb='{}' bias={:.3f}/{:.3f} drive={} clog={} enc={}/{}/{:.1f}/{:.1f}/"
+            "{:.1f}/{:.1f} fg={}/{}/{}/{:.2f}/{:.2f}/{:.2f} fgmode={} led='{}' flow={:.1f} "
+            "purge={:.1f}\n",
+            info.espooler_state, info.sync_feedback_state, info.sync_feedback_bias,
+            info.sync_feedback_bias_raw, info.sync_drive, info.clog_detection,
+            info.encoder_info.enabled, info.encoder_info.flow_rate,
+            info.encoder_info.desired_headroom, info.encoder_info.detection_length,
+            info.encoder_info.headroom, info.encoder_info.min_headroom, info.flowguard_info.enabled,
+            info.flowguard_info.active, info.flowguard_info.trigger, info.flowguard_info.level,
+            info.flowguard_info.max_clog, info.flowguard_info.max_tangle,
+            A::flowguard_encoder_mode(backend), A::led_exit_effect(backend),
+            info.sync_feedback_flow_rate, info.toolchange_purge_volume);
+        out += fmt::format(
+            "  tc={}/{} spoolman={} pending={} endless={} ttg={}\n", info.current_toolchange,
+            info.number_of_toolchanges, helix::spoolman_mode_to_string(info.spoolman_mode),
+            info.pending_spool_id, info.endless_spool_enabled, join_ints(info.tool_to_slot_map));
+        const auto dryer = backend.get_dryer_info();
+        std::string drying;
+        for (const auto& d : A::gate_drying_states(backend)) {
+            drying += d + "|";
+        }
+        out += fmt::format("  dryer={}/{}/{:.1f}/{:.1f}/{}/{}/{} gatedry={}\n", dryer.supported,
+                           dryer.active, dryer.current_temp_c, dryer.target_temp_c,
+                           dryer.remaining_min, dryer.duration_min, dryer.fan_pct, drying);
+        for (int i = 0; i < 4; ++i) {
+            const SlotInfo s = backend.get_slot_info(i);
+            const auto* sensor = HappyHareTestAccess::gate_sensor(backend, i);
+            out += fmt::format(
+                "  g{} {} #{:06X} mat='{}' name='{}' brand='{}' spool={} temp={}-{} grp={} err={} "
+                "sensor={}/{}\n",
+                i, helix::slot_status_to_string(s.status), s.color_rgb, s.material, s.color_name,
+                s.brand, s.spoolman_id, s.nozzle_temp_min, s.nozzle_temp_max, s.endless_spool_group,
+                s.error ? s.error->message : std::string("-"),
+                sensor ? sensor->has_pre_gate_sensor : false,
+                sensor ? sensor->pre_gate_triggered : false);
+        }
+        out += fmt::format("  events={} toasts='{}'", events.size(), toasts);
+        return out;
+    }
+
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> backend_reg{nullptr, nullptr};
+    AmsBackendHappyHareTestHelper& backend = *backend_reg;
+    std::vector<std::string> events;
+    std::string toasts;
+};
+
+nlohmann::json golden_hh_full_frame() {
+    using json = nlohmann::json;
+    return json{
+        {"gate", 1},
+        {"tool", 1},
+        {"filament", "Loaded"},
+        {"reason_for_pause", ""},
+        {"action", "Idle"},
+        {"filament_pos", 8},
+        {"bowden_progress", -1},
+        {"has_bypass", true},
+        {"num_units", 1},
+        {"num_gates", 4},
+        {"unit", 0},
+        {"gate_status", json::array({1, 2, 0, -1})},
+        {"gate_color_rgb", json::array({0xFF0000, 0x00FF00, json::array({1.0, 0.5, 0.0}), 0})},
+        {"gate_color", json::array({"0000ff", "0000ff", "0000ff", "0000ff"})},
+        {"gate_material", json::array({"PLA", "PETG", "ABS", ""})},
+        {"espooler_active", "assist"},
+        {"sync_feedback_state", "neutral"},
+        {"sync_feedback_bias_modelled", 0.25},
+        {"sync_feedback_bias_raw", -0.5},
+        {"sync_drive", true},
+        {"clog_detection_enabled", 2},
+        {"encoder", json{{"flow_rate", 97},
+                         {"desired_headroom", 8.0},
+                         {"detection_length", 20.0},
+                         {"headroom", 15.0},
+                         {"min_headroom", 6.0}}},
+        {"flowguard", json{{"enabled", true},
+                           {"active", false},
+                           {"trigger", ""},
+                           {"level", 0.1},
+                           {"max_clog", 0.8},
+                           {"max_tangle", -0.8},
+                           {"encoder_mode", 1}}},
+        {"leds", json{{"unit0", json{{"exit_effect", "gate_status"}}}}},
+        {"sync_feedback_flow_rate", 99.5},
+        {"toolchange_purge_volume", 45.0},
+        {"num_toolchanges", 3},
+        {"slicer_tool_map", json{{"total_toolchanges", 10}}},
+        {"spoolman_support", "pull"},
+        {"pending_spool_id", 7},
+        {"gate_spool_id", json::array({12, 0, -1, 5})},
+        {"gate_temperature", json::array({210, 230, 250, 200})},
+        {"gate_name", json::array({"Red", "", "Orange", "Blue"})},
+        {"gate_filament_name", json::array({"Ignored", "Green PETG", "", ""})},
+        {"ttg_map", json::array({1, 0, 2, 3})},
+        {"sensors", json{{"mmu_pre_gate_0", true},
+                         {"mmu_pre_gate_1", false},
+                         {"mmu_pre_gate_2", nullptr},
+                         {"mmu_gear", true}}},
+        {"drying_state", json{{"active", true},
+                              {"current_temp", 41.5},
+                              {"target_temp", 55.0},
+                              {"remaining_min", 120},
+                              {"duration_min", 240},
+                              {"fan_pct", 30}}},
+        {"endless_spool_enabled", 1},
+        {"endless_spool_groups", json::array({0, 0, 1, 1})}};
+}
+
+} // namespace
+
+namespace {
+const std::string kHappyHareGolden = R"GOLD(full frame
+slot=1 tool=1 loaded=true action=Idle detail='Idle' bypass=true units=1 hub=false slot_sensors=true
+  pos=8 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 Loaded #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+load: loading
+slot=1 tool=1 loaded=true action=Loading detail='Loading' bypass=true units=1 hub=true slot_sensors=true
+  pos=3 bowden=40 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 Loaded #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts='Same spool in Gate 3? Tap Clear if it is a new one.'
+load: loaded
+slot=2 tool=2 loaded=true action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=8 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+unload: unloading
+slot=2 tool=2 loaded=true action=Unloading detail='Unloading' bypass=true units=1 hub=true slot_sensors=true
+  pos=4 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+unload: unloaded
+slot=-1 tool=-1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=false slot_sensors=true
+  pos=0 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+fault: paused
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=Output Tube fault='Filament is stuck in the extruder' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=Filament is stuck in the extruder sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+fault: resumed
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,-1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Unknown #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+insert: gate 3 fills
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,0,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Empty #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+insert: gate 2 fills
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF0000 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #00FF00 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #FF8000 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+hex colours only
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF8800 mat='PLA' name='Red' brand='' spool=12 temp=210-210 grp=0 err=- sensor=true/true
+  g1 From Buffer #808080 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #00FF00 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+temperature + name deltas
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=
+  g0 Available #FF8800 mat='PLA' name='Crimson' brand='' spool=12 temp=215-215 grp=0 err=- sensor=true/true
+  g1 From Buffer #808080 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #00FF00 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+per-gate drying array
+slot=1 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=active||queued||
+  g0 Available #FF8800 mat='PLA' name='Crimson' brand='' spool=12 temp=215-215 grp=0 err=- sensor=true/true
+  g1 From Buffer #808080 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #00FF00 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=false/false
+  events=1 toasts=''
+aggregate sensors
+slot=3 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=1 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=0 counts=4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=active||queued||
+  g0 Available #FF8800 mat='PLA' name='Crimson' brand='' spool=12 temp=215-215 grp=0 err=- sensor=true/false
+  g1 From Buffer #808080 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #00FF00 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=true/true
+  events=1 toasts=''
+topology string
+slot=3 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=2 hub=true slot_sensors=true
+  pos=5 bowden=-1 unit=1 counts=6,4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=active||queued||
+  g0 Available #FF8800 mat='PLA' name='Crimson' brand='' spool=12 temp=215-215 grp=0 err=- sensor=true/false
+  g1 From Buffer #808080 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #00FF00 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=true/true
+  events=1 toasts=''
+idle sparse frame
+slot=3 tool=1 loaded=false action=Idle detail='Idle' bypass=true units=2 hub=true slot_sensors=true
+  pos=7 bowden=-1 unit=1 counts=6,4 seg=None fault='' rawgates=1,2,1,1
+  espooler='assist' fb='neutral' bias=0.250/-0.500 drive=true clog=2 enc=true/97/8.0/20.0/15.0/6.0 fg=true/false//0.10/0.80/-0.80 fgmode=1 led='gate_status' flow=99.5 purge=45.0
+  tc=2/10 spoolman=Pull pending=7 endless=true ttg=1,0,2,3
+  dryer=true/true/41.5/55.0/120/240/30 gatedry=active||queued||
+  g0 Available #FF8800 mat='PLA' name='Crimson' brand='' spool=12 temp=215-215 grp=0 err=- sensor=true/false
+  g1 From Buffer #808080 mat='PETG' name='Green PETG' brand='' spool=0 temp=230-230 grp=0 err=- sensor=true/false
+  g2 Available #00FF00 mat='ABS' name='Orange' brand='' spool=0 temp=250-250 grp=1 err=- sensor=true/false
+  g3 Available #000000 mat='' name='Blue' brand='' spool=5 temp=200-200 grp=1 err=- sensor=true/true
+  events=1 toasts=''
+)GOLD";
+} // namespace
+
+TEST_CASE_METHOD(HappyHareGoldenFixture, "Happy Hare golden status sequence",
+                 "[ams][happy_hare][golden]") {
+    using json = nlohmann::json;
+    const std::vector<std::pair<std::string, json>> frames = {
+        {"full frame", golden_hh_full_frame()},
+        {"load: loading",
+         json{{"action", "Loading"}, {"filament_pos", 3}, {"bowden_progress", 40}}},
+        {"load: loaded", json{{"action", "Idle"},
+                              {"filament_pos", 8},
+                              {"bowden_progress", -1},
+                              {"gate", 2},
+                              {"tool", 2},
+                              {"filament", "Loaded"}}},
+        {"unload: unloading", json{{"action", "Unloading"}, {"filament_pos", 4}}},
+        {"unload: unloaded", json{{"action", "Idle"},
+                                  {"filament_pos", 0},
+                                  {"filament", "Unloaded"},
+                                  {"gate", -1},
+                                  {"tool", -1}}},
+        {"fault: paused", json{{"gate", 1},
+                               {"tool", 1},
+                               {"filament_pos", 5},
+                               {"reason_for_pause", "Filament is stuck in the extruder"}}},
+        {"fault: resumed", json{{"reason_for_pause", ""}}},
+        {"insert: gate 3 fills", json{{"gate_status", json::array({1, 2, 0, 1})}}},
+        {"insert: gate 2 fills", json{{"gate_status", json::array({1, 2, 1, 1})}}},
+        {"hex colours only", json{{"gate_color", json::array({"ff8800", "", "#00ff00", "zzz"})}}},
+        {"temperature + name deltas",
+         json{{"gate_temperature", json::array({215})}, {"gate_name", json::array({"Crimson"})}}},
+        {"per-gate drying array",
+         json{{"drying_state", json::array({"active", "", "queued", ""})}}},
+        {"aggregate sensors", json{{"gate", 3}, {"sensors", json{{"mmu_pre_gate", true}}}}},
+        {"topology string", json{{"num_gates", "6,4"}, {"num_units", 2}, {"unit", 1}}},
+        {"idle sparse frame", json{{"filament_pos", 7}}},
+    };
+
+    std::string all;
+    for (const auto& [name, frame] : frames) {
+        all += name + "\n" + feed(frame) + "\n";
+    }
+    CHECK(all == kHappyHareGolden);
 }
