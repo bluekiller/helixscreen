@@ -785,16 +785,6 @@ void GridEditMode::create_selection_chrome(lv_obj_t* widget) {
                 LV_EVENT_CLICKED, this);
         }
     }
-
-    // Verify: where did the overlay actually end up on screen?
-    lv_obj_update_layout(selection_overlay_);
-    lv_area_t overlay_area;
-    lv_obj_get_coords(selection_overlay_, &overlay_area);
-    spdlog::trace("[GridEditMode] Chrome verify: overlay_screen=({},{})→({},{}) "
-                  "widget_screen=({},{})→({},{}) delta=({},{})",
-                  overlay_area.x1, overlay_area.y1, overlay_area.x2, overlay_area.y2,
-                  widget_area.x1, widget_area.y1, widget_area.x2, widget_area.y2,
-                  overlay_area.x1 - widget_area.x1, overlay_area.y1 - widget_area.y1);
 }
 
 void GridEditMode::destroy_selection_chrome() {
@@ -2651,6 +2641,33 @@ void GridEditMode::rebuild_lattice() {
     if (!container_ || !shield_)
         return;
 
+    lv_area_t content_area;
+    helix::CellMetrics m = current_metrics(&content_area);
+    int ncols = m.cols;
+    int nrows = m.rows;
+
+    int w = lv_area_get_width(&content_area);
+    int h = lv_area_get_height(&content_area);
+
+    const int cell = GridLayout::TRACKS_PER_CELL;
+    auto [col_step, row_step] =
+        selected_ ? snap_step_for(selected_widget_id()) : std::pair<int, int>{cell, cell};
+    // On a config page other than the main page while more than one page
+    // exists; the next-page slot is no page to delete.
+    const bool show_delete_page = config_ && !on_next_page_slot() &&
+                                  static_cast<size_t>(page_index_) != config_->main_page_index() &&
+                                  config_->page_count() > 1;
+
+    // A lattice is a hundred-odd objects, which a slow board takes ~200 ms to
+    // build, and a selection change, a drop or a resize usually asks for the
+    // one already drawn.
+    const LatticeKey key{shield_,  container_, ncols, nrows,           col_step,
+                         row_step, w,          h,     show_delete_page};
+    if (key == lattice_key_ && lv_obj_get_child_count(shield_) > 0) {
+        return;
+    }
+    lattice_key_ = key;
+
     // Children only: lattice dots and the delete-page button. Neither is
     // ever the indev's press target, so replacing them mid-gesture is
     // indev-neutral by LVGL's own rules.
@@ -2660,14 +2677,6 @@ void GridEditMode::rebuild_lattice() {
         helix::ui::safe_clean_children(shield_);
     }
     delete_page_btn_ = nullptr;
-
-    lv_area_t content_area;
-    helix::CellMetrics m = current_metrics(&content_area);
-    int ncols = m.cols;
-    int nrows = m.rows;
-
-    int w = lv_area_get_width(&content_area);
-    int h = lv_area_get_height(&content_area);
 
     if (w <= 0 || h <= 0) {
         spdlog::warn("[GridEditMode] Container content area {}x{}, skipping dots", w, h);
@@ -2679,10 +2688,6 @@ void GridEditMode::rebuild_lattice() {
     // Use contrast text color so dots are visible on both light and dark backgrounds
     lv_color_t screen_bg = ThemeManager::instance().current_palette().screen_bg;
     lv_color_t dot_color = theme_manager_get_contrast_color(screen_bg);
-
-    const int cell = GridLayout::TRACKS_PER_CELL;
-    auto [col_step, row_step] =
-        selected_ ? snap_step_for(selected_widget_id()) : std::pair<int, int>{cell, cell};
 
     // c/r run 0..ncols/0..nrows inclusive to draw both edges of the lattice.
     // grid_track_origin() only knows track starts (0..n-1); the final boundary
@@ -2722,11 +2727,7 @@ void GridEditMode::rebuild_lattice() {
 
     // Create "Delete Page" button — hidden for the main page, shown for secondary pages
     delete_page_btn_ = nullptr;
-    // On a config page other than the main page while more than one page
-    // exists; the next-page slot is no page to delete.
-    if (config_ && !on_next_page_slot() &&
-        static_cast<size_t>(page_index_) != config_->main_page_index() &&
-        config_->page_count() > 1) {
+    if (show_delete_page) {
         constexpr int DEL_BTN_SIZE = 40;
         constexpr int DEL_BTN_MARGIN = 8;
 

@@ -614,6 +614,12 @@ class GridEditMode {
     static void crossing_flip_cb(lv_timer_t* timer);
     static void dwell_flip_cb(lv_timer_t* timer);
     lv_obj_t* delete_page_btn_ = nullptr;
+    /// What the drawn lattice was built for: the shield and page holding it,
+    /// the grid, the selection's snap steps, the content size and whether the
+    /// delete-page button shows. rebuild_lattice() keeps a lattice whose key
+    /// still matches.
+    using LatticeKey = std::tuple<lv_obj_t*, lv_obj_t*, int, int, int, int, int, int, bool>;
+    LatticeKey lattice_key_{};
 
     // Drag threshold: track press origin, only start real drag after movement
     static constexpr int DRAG_THRESHOLD_PX = 12;
