@@ -601,7 +601,11 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                     [this, tok = lifetime_.token(), ctx, filename,
                      resolved_thumb_path](const std::string& png_bytes) {
                         // lane worker: decode + PSRAM copy only, no widgets, no
-                        // members.
+                        // members. The decode belongs here, not on the UI thread:
+                        // this build has no LVGL OS layer, lv_malloc is plain
+                        // malloc, lodepng touches no LVGL state, and only the
+                        // finished image crosses over via tok.defer. On the UI
+                        // thread it would add ~100ms+ to an already stalled boot.
                         auto thumb = helix::ui::EspPsramThumbnail::create_decoded(
                             png_bytes, ESP32_THUMBNAIL_DRAW_PX);
                         if (!thumb) {
