@@ -77,6 +77,7 @@
 #include "moonraker_types.h" // FileInfo/FileMetadata/ThumbnailInfo/resolve_thumbnail_path — HTTP HIL probe
 #include "panel_factory.h"
 #include "pending_startup_warnings.h"
+#include "print_history_manager.h"
 #include "printer_discovery.h" // helix::PrinterDiscovery + init_subsystems (discovery callback args)
 #include "printer_fan_state.h" // helix::FanRoleConfig for the non-mock fan-role resolve
 #include "printer_state.h"
@@ -875,6 +876,12 @@ extern "C" void app_boot_ui(void) {
     static JobQueueState job_queue(manager.api(), manager.client());
     job_queue.init_subjects();
     set_job_queue_state(&job_queue);
+
+    // Print history cache: Reprint Last, the print-status idle card and the
+    // file list's success marks all read it through get_print_history_manager()
+    // and render as "no history" while that returns null.
+    static PrintHistoryManager print_history(manager.api(), manager.client());
+    set_print_history_manager(&print_history);
     log_heap_milestone("subjects-up");
 
     // Global software keyboard — one shared lv_keyboard, hidden until a
