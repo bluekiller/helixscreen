@@ -51,11 +51,11 @@ class CrashReportModal : public Modal {
 
   private:
     // Subjects for XML data binding
+    SubjectManager subjects_;
     lv_subject_t details_subject_{};
     lv_subject_t status_subject_{};
     lv_subject_t show_qr_subject_{};
     bool subjects_initialized_ = false;
-    SubjectManager subjects_;
 
     // Subject string buffers
     char details_buf_[512] = {};

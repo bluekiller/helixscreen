@@ -266,6 +266,25 @@ TEST_CASE("SubjectManager::publish withdraws the name on deinit_all", "[shutdown
     REQUIRE(lv_xml_get_subject(nullptr, "test_publish_withdraw") == nullptr);
 }
 
+TEST_CASE("SubjectManager::deinit_all leaves a name a successor re-published",
+          "[shutdown][xml_name]") {
+    LVGLTestFixture fixture;
+    lv_subject_t old_subject{};
+    lv_subject_t new_subject{};
+    SubjectManager old_owner;
+    SubjectManager new_owner;
+    lv_subject_init_int(&old_subject, 0);
+    lv_subject_init_int(&new_subject, 0);
+    old_owner.publish("test_publish_successor", &old_subject);
+    new_owner.publish("test_publish_successor", &new_subject);
+
+    old_owner.deinit_all();
+    REQUIRE(lv_xml_get_subject(nullptr, "test_publish_successor") == &new_subject);
+
+    new_owner.deinit_all();
+    REQUIRE(lv_xml_get_subject(nullptr, "test_publish_successor") == nullptr);
+}
+
 namespace helix {
 void register_clock_widget();
 }
@@ -279,11 +298,16 @@ TEST_CASE("init_widget_subjects runs every widget subject hook on each call",
     auto& widgets = PanelWidgetManager::instance();
     widgets.init_widget_subjects();
 
-    int calls = 0;
-    register_widget_subjects("clock", [&calls]() { ++calls; });
+    static int calls = 0;
+    calls = 0;
+    struct RestoreClockHook {
+        ~RestoreClockHook() {
+            register_clock_widget();
+        }
+    } restore;
+    register_widget_subjects("clock", []() { ++calls; });
     widgets.init_widget_subjects();
     widgets.init_widget_subjects();
-    register_clock_widget();
 
     REQUIRE(calls == 2);
 }

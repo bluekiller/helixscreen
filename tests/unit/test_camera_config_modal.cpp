@@ -16,6 +16,8 @@
 #include "../test_helpers/camera_config_modal_test_access.h"
 #include "camera_config_modal.h"
 
+#include <memory>
+
 #include "../catch_amalgamated.hpp"
 
 using helix::CameraConfigModal;
@@ -136,6 +138,20 @@ TEST_CASE_METHOD(LVGLTestFixture, "CameraConfigModal: destroying the modal withd
     }
     CHECK(lv_xml_get_subject(nullptr, "cam_rot_0_active") == nullptr);
     CHECK(lv_xml_get_subject(nullptr, "cam_source_0_name") == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "CameraConfigModal: reopening before the old modal is freed keeps the new names",
+                 "[camera][modal][xml_name]") {
+    auto first =
+        std::make_unique<CameraConfigModal>("camera", TEST_PANEL, [](const nlohmann::json&) {});
+    CameraConfigModal second("camera", TEST_PANEL, [](const nlohmann::json&) {});
+    lv_subject_t* rot = lv_xml_get_subject(nullptr, "cam_rot_0_active");
+    REQUIRE(rot != nullptr);
+
+    first.reset();
+    CHECK(lv_xml_get_subject(nullptr, "cam_rot_0_active") == rot);
+    CHECK(lv_xml_get_subject(nullptr, "cam_source_0_name") != nullptr);
 }
 
 #endif // HELIX_HAS_CAMERA

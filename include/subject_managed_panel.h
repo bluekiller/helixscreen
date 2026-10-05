@@ -279,7 +279,10 @@ class SubjectManager {
                                               ? subject_names_[i].c_str()
                                               : nullptr;
             if (registered_name) {
-                helix::xml::unregister_subject_in_current_scope(registered_name);
+                // Only while the name is still ours: a successor owner (a modal
+                // reopened before the old instance is freed) may have re-published
+                // it, and dropping its record would strand its bindings.
+                helix::xml::unregister_subject_in_current_scope(registered_name, subject);
             } else if (const SubjectDebugInfo* info =
                            SubjectDebugRegistry::instance().lookup(subject)) {
                 // Registered without a name while the subject IS published

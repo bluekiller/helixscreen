@@ -193,6 +193,7 @@ class WizardFilamentSensorSelectStep : public helix::wizard::Step {
     lv_timer_t* refresh_timer_ = nullptr;
 
     // Subject (dropdown selection index)
+    SubjectManager subjects_;
     lv_subject_t runout_sensor_selected_{};
 
     // Dynamic options storage
@@ -201,7 +202,6 @@ class WizardFilamentSensorSelectStep : public helix::wizard::Step {
 
     // Track initialization
     bool subjects_initialized_ = false;
-    SubjectManager subjects_;
 };
 
 // ============================================================================

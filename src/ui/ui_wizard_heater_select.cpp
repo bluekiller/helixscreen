@@ -51,7 +51,8 @@ WizardHeaterSelectStep::WizardHeaterSelectStep() {
 }
 
 WizardHeaterSelectStep::~WizardHeaterSelectStep() {
-    // NOTE: Do NOT call LVGL functions here - LVGL may be destroyed first
+    // LVGL may be destroyed first: no direct LVGL calls here. The subjects_ member
+    // deinits its subjects only while lv_is_initialized().
     // NOTE: Do NOT log here - spdlog may be destroyed first
     screen_root_ = nullptr;
 }

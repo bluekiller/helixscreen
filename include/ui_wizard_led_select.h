@@ -119,6 +119,7 @@ class WizardLedSelectStep : public helix::wizard::Step {
     lv_obj_t* screen_root_ = nullptr;
 
     // Subjects
+    SubjectManager subjects_;
     lv_subject_t led_strip_selected_{};
 
     // Dynamic options storage
@@ -126,7 +127,6 @@ class WizardLedSelectStep : public helix::wizard::Step {
 
     // Track initialization
     bool subjects_initialized_ = false;
-    SubjectManager subjects_;
 };
 
 // ============================================================================

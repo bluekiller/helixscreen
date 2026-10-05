@@ -138,6 +138,7 @@ class WizardFanSelectStep : public helix::wizard::Step {
     lv_obj_t* screen_root_ = nullptr;
 
     // Subjects
+    SubjectManager subjects_;
     lv_subject_t hotend_fan_selected_{};
     lv_subject_t part_fan_selected_{};
     lv_subject_t chamber_fan_selected_{};
@@ -151,7 +152,6 @@ class WizardFanSelectStep : public helix::wizard::Step {
 
     // Track initialization
     bool subjects_initialized_ = false;
-    SubjectManager subjects_;
 };
 
 // ============================================================================

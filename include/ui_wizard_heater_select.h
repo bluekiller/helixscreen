@@ -121,6 +121,7 @@ class WizardHeaterSelectStep : public helix::wizard::Step {
     lv_obj_t* screen_root_ = nullptr;
 
     // Subjects
+    SubjectManager subjects_;
     lv_subject_t bed_heater_selected_{};
     lv_subject_t hotend_heater_selected_{};
 
@@ -130,7 +131,6 @@ class WizardHeaterSelectStep : public helix::wizard::Step {
 
     // Track initialization
     bool subjects_initialized_ = false;
-    SubjectManager subjects_;
 };
 
 // ============================================================================

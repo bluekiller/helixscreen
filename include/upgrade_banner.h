@@ -61,9 +61,9 @@ class UpgradeBanner {
     static void on_dismiss_clicked(lv_event_t* e);
 
     lv_obj_t* banner_ = nullptr;
+    SubjectManager subjects_;
     lv_subject_t message_subject_{};
     bool message_subject_initialized_ = false;
-    SubjectManager subjects_;
 
     ObserverGuard status_observer_;
     ObserverGuard version_observer_;
