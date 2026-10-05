@@ -1899,7 +1899,8 @@ void GridEditMode::reselect_in_place(lv_obj_t* widget) {
     if (!widget || !container_) {
         return;
     }
-    lv_obj_invalidate(container_);
+    // Layout puts the widget back in its cell, repainting where it was and where
+    // it lands; nothing else on the page changed.
     lv_obj_update_layout(container_);
     // Only while it is still a child of the scoped container: a rebuild since
     // the gesture began deleted the objects it held.

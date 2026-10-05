@@ -148,3 +148,24 @@ TEST_CASE_METHOD(XMLTestFixture,
     process_lvgl(50);
     lv_obj_delete(scene.container);
 }
+
+TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: a drop that moves nothing repaints the widget only",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_noop_drop");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    lv_obj_update_layout(scene.container);
+    flush_invalidation();
+
+    GridEditModeTestAccess::reselect_in_place(em, scene.widget);
+    REQUIRE(em.selected_widget() == scene.widget);
+
+    const int32_t page_px = lv_area_get_size(&scene.container->coords);
+    const int32_t repainted = invalidated_px();
+    INFO("repainted " << repainted << " of the page's " << page_px << " px");
+    CHECK(repainted < page_px / 2);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}

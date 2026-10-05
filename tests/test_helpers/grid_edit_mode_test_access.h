@@ -155,6 +155,11 @@ struct GridEditModeTestAccess {
         em.place_dragged_widget(widget_pos);
     }
 
+    /// Settle a gesture that committed nothing, as a no-op drop does.
+    static void reselect_in_place(GridEditMode& em, lv_obj_t* widget) {
+        em.reselect_in_place(widget);
+    }
+
     /// Draw the snap preview the way a drag or resize step does.
     static void update_snap_preview(GridEditMode& em, int col, int row, int colspan, int rowspan,
                                     bool valid) {
