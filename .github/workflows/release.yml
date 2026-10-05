@@ -954,13 +954,17 @@ jobs:
         ### ESP32 (BTT K-Touch) - alpha
         Firmware for the BigTreeTech K-Touch, flashed over USB with esptool. Not built for 1.0.x releases.
         - `helixscreen-esp32-ktouch-${{ steps.version.outputs.version }}.zip`: unzip it and follow `README.txt` inside, or see the [install guide](https://github.com/${{ github.repository }}/blob/main/docs/user/INSTALL.md#esp32-touchscreen-btt-k-touch---alpha)
-
-        ## Checksums
-
-        ```
-        $(cd release-files && sha256sum *.tar.gz *.zip *.apk *.aab 2>/dev/null)
-        ```
         EOF
+          # The heredoc above is quoted so the notes' backticks stay literal, so
+          # the checksums are appended by a real command.
+          {
+            echo
+            echo "## Checksums"
+            echo
+            echo '```'
+            (cd release-files && sha256sum *.tar.gz *.zip *.apk *.aab 2>/dev/null) || true
+            echo '```'
+          } >> release-notes.md
         fi
 
     - name: Create GitHub Release
