@@ -13,9 +13,10 @@
 namespace helix::bluetooth {
 
 SharedContext::~SharedContext() {
-    auto& loader = BluetoothLoader::instance();
-    if (auto* ctx = ctx_.load(); ctx && loader.deinit)
-        loader.deinit(ctx);
+    // ponytail: a detached worker still inside a plugin call when the process exits is not
+    // joined; exit tears it down mid-call. Joinable workers if teardown order ever matters.
+    if (auto* ctx = ctx_.load(); ctx && deinit_)
+        deinit_(ctx);
 }
 
 helix_bt_context* SharedContext::get() {
@@ -28,6 +29,7 @@ helix_bt_context* SharedContext::get() {
     if (!loader.init)
         return nullptr;
     auto* ctx = loader.init();
+    deinit_ = loader.deinit;
     ctx_.store(ctx);
     return ctx;
 }

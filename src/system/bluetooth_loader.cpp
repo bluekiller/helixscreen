@@ -56,11 +56,8 @@ BluetoothLoader::~BluetoothLoader() {
         deinit(shared_ctx_);
         shared_ctx_ = nullptr;
     }
-    if (dl_handle_) {
-        dlclose(dl_handle_);
-        dl_handle_ = nullptr;
-        spdlog::trace("[BluetoothLoader] Plugin unloaded");
-    }
+    // The plugin stays mapped until the process ends: a SharedContext released after this
+    // destructor, by a worker or a later static, still calls the deinit it captured.
 }
 
 // Not thread-safe, but callers are serialized by s_print_mutex in makeid_bt_printer.cpp

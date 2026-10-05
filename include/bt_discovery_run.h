@@ -44,6 +44,9 @@ class SharedContext {
   private:
     std::mutex init_mutex_;
     std::atomic<helix_bt_context*> ctx_{nullptr};
+    // Captured with the context so the destructor never reaches BluetoothLoader, which a
+    // release during static destruction can outlive.
+    helix_bt_deinit_fn deinit_ = nullptr;
 };
 
 /// A device reported by discovery, copied out of the plugin's temporaries.
