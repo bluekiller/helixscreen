@@ -71,8 +71,8 @@ class DiscoveryRun {
         std::function<void(bool ok)> on_finished;
     };
 
-    /// Starts a scan and silences any earlier one. Callbacks run only while @p token is
-    /// alive and until cancel(). False when the worker thread could not be spawned.
+    /// Starts a scan and cancels any earlier one, as cancel() does. Callbacks run only while @p
+    /// token is alive and until cancel(). False when the worker thread could not be spawned.
     bool start(std::shared_ptr<SharedContext> ctx, int timeout_ms, LifetimeToken token,
                Callbacks callbacks);
 

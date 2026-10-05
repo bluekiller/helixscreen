@@ -328,3 +328,34 @@ TEST_CASE("A scan cancelled while its context is being created starts already ca
     CHECK(seen.devices.empty());
     CHECK(seen.finished.empty());
 }
+
+// A scan that start() replaces would otherwise hold the context's discover lock for its
+// full timeout with every result dropped, delaying the scan that replaced it.
+TEST_CASE("Starting a new scan cancels the one it replaces", "[bt][discovery_run][slow]") {
+    LVGLTestFixture fixture;
+    ScopedFakePlugin plugin;
+    plugin.fake.names_per_call = {"Old Scanner", "New Scanner"};
+    helix::AsyncLifetimeGuard owner;
+    Seen seen;
+
+    DiscoveryRun run;
+    auto ctx = std::make_shared<SharedContext>();
+    REQUIRE(run.start(ctx, 15000, owner.token(), record_into(seen)));
+    plugin.wait_entered(1);
+
+    REQUIRE(run.start(ctx, 15000, owner.token(), record_into(seen)));
+    plugin.wait_entered(2);
+    plugin.release(2);
+
+    REQUIRE(fixture.wait_until([&] { return !seen.finished.empty(); }));
+    fixture.wait_until([] { return false; }, 100);
+
+    std::vector<int> cancel_seen;
+    {
+        std::lock_guard<std::mutex> lock(plugin.fake.mu);
+        cancel_seen = plugin.fake.cancel_seen;
+    }
+    CHECK(cancel_seen == std::vector<int>{1, 0});
+    CHECK(seen.devices == std::vector<std::string>{"New Scanner"});
+    CHECK(seen.finished == std::vector<bool>{true});
+}
