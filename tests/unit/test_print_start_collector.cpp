@@ -181,8 +181,8 @@ TEST_CASE("PrintStart: homing phase detection", "[core][print][homing]") {
     REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Homing\"") == PrintStartPhase::HOMING);
 
     // Should NOT match
-    REQUIRE(default_phase("G29") != PrintStartPhase::HOMING); // Bed leveling
-    REQUIRE(default_phase("M104") != PrintStartPhase::HOMING);
+    REQUIRE(default_phase("G29") == PrintStartPhase::IDLE); // Bed leveling
+    REQUIRE(default_phase("M104") == PrintStartPhase::IDLE);
 }
 
 // ============================================================================
@@ -202,8 +202,8 @@ TEST_CASE("PrintStart: heating bed phase detection", "[core][print][heating]") {
     REQUIRE(default_phase("M190 S110") == PrintStartPhase::HEATING_BED);
 
     // Should NOT match
-    REQUIRE(default_phase("M140 S0") != PrintStartPhase::HEATING_BED);   // Setting to 0 (cooling)
-    REQUIRE(default_phase("M104 S200") != PrintStartPhase::HEATING_BED); // Nozzle temp
+    REQUIRE(default_phase("M140 S0") == PrintStartPhase::IDLE); // Setting to 0 (cooling)
+    REQUIRE(default_phase("M104 S200") == PrintStartPhase::HEATING_NOZZLE); // Nozzle temp
 }
 
 TEST_CASE("PrintStart: heating nozzle phase detection", "[print][heating]") {
@@ -217,14 +217,14 @@ TEST_CASE("PrintStart: heating nozzle phase detection", "[print][heating]") {
     REQUIRE(default_phase("EXTRUDER_TEMP=200") == PrintStartPhase::HEATING_NOZZLE);
 
     // Real Voron V2 macro output
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") !=
-            PrintStartPhase::HEATING_NOZZLE); // "for print" not "nozzle"
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") ==
+            PrintStartPhase::IDLE); // "for print" not "nozzle"
     REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating extruder and bed for probing\"") ==
             PrintStartPhase::HEATING_NOZZLE);
 
     // Should NOT match
-    REQUIRE(default_phase("M104 S0") != PrintStartPhase::HEATING_NOZZLE);  // Cooling
-    REQUIRE(default_phase("M190 S60") != PrintStartPhase::HEATING_NOZZLE); // Bed temp
+    REQUIRE(default_phase("M104 S0") == PrintStartPhase::IDLE);         // Cooling
+    REQUIRE(default_phase("M190 S60") == PrintStartPhase::HEATING_BED); // Bed temp
 }
 
 // ============================================================================
@@ -238,12 +238,12 @@ TEST_CASE("PrintStart: QGL phase detection", "[print][leveling]") {
     REQUIRE(default_phase("Running QGL") == PrintStartPhase::QGL);
 
     // Real Voron V2 macro output
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") !=
-            PrintStartPhase::QGL); // "gantry" alone doesn't match
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") ==
+            PrintStartPhase::IDLE); // "gantry" alone doesn't match
 
     // Should NOT match
-    REQUIRE(default_phase("Z_TILT_ADJUST") != PrintStartPhase::QGL);
-    REQUIRE(default_phase("G28") != PrintStartPhase::QGL);
+    REQUIRE(default_phase("Z_TILT_ADJUST") == PrintStartPhase::Z_TILT);
+    REQUIRE(default_phase("G28") == PrintStartPhase::HOMING);
 }
 
 TEST_CASE("PrintStart: Z_TILT phase detection", "[print][leveling]") {
@@ -253,7 +253,7 @@ TEST_CASE("PrintStart: Z_TILT phase detection", "[print][leveling]") {
     REQUIRE(default_phase("z tilt adjust") == PrintStartPhase::Z_TILT);
 
     // Should NOT match
-    REQUIRE(default_phase("QUAD_GANTRY_LEVEL") != PrintStartPhase::Z_TILT);
+    REQUIRE(default_phase("QUAD_GANTRY_LEVEL") == PrintStartPhase::QGL);
 }
 
 // ============================================================================
@@ -276,7 +276,7 @@ TEST_CASE("PrintStart: bed mesh phase detection", "[print][mesh]") {
             PrintStartPhase::BED_MESH);
 
     // Should NOT match
-    REQUIRE(default_phase("BED_MESH_CLEAR") != PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("BED_MESH_CLEAR") == PrintStartPhase::IDLE);
 }
 
 // ============================================================================
@@ -296,7 +296,7 @@ TEST_CASE("PrintStart: cleaning phase detection", "[print][cleaning]") {
     REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == PrintStartPhase::CLEANING);
 
     // Should NOT match
-    REQUIRE(default_phase("PURGE_LINE") != PrintStartPhase::CLEANING);
+    REQUIRE(default_phase("PURGE_LINE") == PrintStartPhase::PURGING);
 }
 
 // ============================================================================
@@ -315,11 +315,11 @@ TEST_CASE("PrintStart: purging phase detection", "[print][purging]") {
     REQUIRE(default_phase("purge line done") == PrintStartPhase::PURGING);
 
     // Real Voron V2 display text
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Purging\"") !=
-            PrintStartPhase::PURGING); // Just "Purging" alone
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Purging\"") ==
+            PrintStartPhase::IDLE); // Just "Purging" alone
 
     // Should NOT match
-    REQUIRE(default_phase("CLEAN_NOZZLE") != PrintStartPhase::PURGING);
+    REQUIRE(default_phase("CLEAN_NOZZLE") == PrintStartPhase::CLEANING);
 }
 
 // ============================================================================
@@ -379,9 +379,8 @@ TEST_CASE("PrintStart: Voron V2 SET_DISPLAY_TEXT messages", "[print][voron]") {
     REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == PrintStartPhase::CLEANING);
 
     // Wording that names no phase the patterns know does not match
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") != PrintStartPhase::QGL);
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") !=
-            PrintStartPhase::HEATING_NOZZLE);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") == PrintStartPhase::IDLE);
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") == PrintStartPhase::IDLE);
 }
 
 // ============================================================================
@@ -439,8 +438,8 @@ TEST_CASE("PrintStart: AD5M Pro _PRINT_STATUS messages", "[print][ad5m]") {
     REQUIRE(default_phase("_PRINT_STATUS S=\"HOMING...\"") == PrintStartPhase::HOMING);
 
     // Note: These DON'T match because they use different wording (status strings only)
-    REQUIRE(default_phase("_PRINT_STATUS S=\"HEATING...\"") != PrintStartPhase::HEATING_BED);
-    REQUIRE(default_phase("_PRINT_STATUS S=\"MESH CHECKING...\"") != PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("_PRINT_STATUS S=\"HEATING...\"") == PrintStartPhase::IDLE);
+    REQUIRE(default_phase("_PRINT_STATUS S=\"MESH CHECKING...\"") == PrintStartPhase::IDLE);
 }
 
 TEST_CASE("PrintStart: AD5M Pro KAMP-specific patterns", "[print][ad5m][kamp]") {
@@ -453,10 +452,6 @@ TEST_CASE("PrintStart: AD5M Pro KAMP-specific patterns", "[print][ad5m][kamp]") 
             PrintStartPhase::BED_MESH);
     REQUIRE(default_phase("_KAMP_BED_MESH_CALIBRATE") == PrintStartPhase::BED_MESH);
 }
-
-// ============================================================================
-// Noise Rejection Tests
-// ============================================================================
 
 // ============================================================================
 // Noise Rejection Tests
