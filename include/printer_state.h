@@ -390,7 +390,7 @@ class PrinterState {
             return temperature_state_.get_chamber_power_subject();
         case helix::HeaterType::Nozzle:
         default:
-            return get_extruder_power_subject();
+            return temperature_state_.get_extruder_power_subject();
         }
     }
 
@@ -1519,57 +1519,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Set power device count
-     *
-     * Delegates to PrinterCapabilitiesState (thread-safe).
-     *
-     * @param count Number of discovered power devices
-     */
-    void set_power_device_count(int count);
-
-    /**
-     * @brief Get power device count subject for XML binding
-     *
-     * Integer subject holding the number of discovered power devices.
-     * 0 = no power devices, used to hide/show power panel UI elements.
-     */
-    lv_subject_t* get_power_device_count_subject() {
-        return capabilities_state_.subject(Capability::PowerDeviceCount);
-    }
-
-    /**
-     * @brief Set Moonraker sensor count (async update from discovery)
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     *
-     * @param count Number of discovered Moonraker sensors
-     */
-    void set_sensor_count(int count);
-
-    /**
-     * @brief Set Spoolman availability status
-     *
-     * Called after checking Moonraker's server.info components and verifying
-     * Spoolman connection via get_spoolman_status(). Updates printer_has_spoolman_
-     * subject for UI visibility gating.
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     *
-     * @param available True if Spoolman is configured and connected
-     */
-    void set_spoolman_available(bool available);
-
-    /**
-     * @brief Set speaker availability from local sound backend.
-     *
-     * Called early at startup so sound settings are visible before
-     * hardware discovery completes (or when Klipper is not connected).
-     */
-    void set_sound_backend_available(bool available) {
-        capabilities_state_.set_sound_backend_available(available);
-    }
-
-    /**
      * @brief Check if Spoolman is available
      *
      * Reads the printer_has_spoolman subject value. Safe to call from any thread
@@ -1577,17 +1526,6 @@ class PrinterState {
      */
     bool is_spoolman_available() const {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasSpoolman)) == 1;
-    }
-
-    /**
-     * @brief Set job queue availability from Moonraker's server.info components
-     *
-     * Thread-safe: defers the LVGL subject update to the main thread.
-     *
-     * @param available True if the job_queue component is listed
-     */
-    void set_job_queue_available(bool available) {
-        capabilities_state_.set_job_queue_available(available);
     }
 
     /**
@@ -1600,64 +1538,9 @@ class PrinterState {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasJobQueue)) == 1;
     }
 
-    /**
-     * @brief Set webcam availability status
-     *
-     * Called after checking Moonraker's server.webcams.list API.
-     * Updates printer_has_webcam subject for UI visibility gating.
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     *
-     * The one-entry form of set_webcams(): a single feed by URL, or none.
-     *
-     * @param available False publishes an empty list
-     * @param stream_url MJPEG stream URL (a non-empty one is streamed as MJPEG)
-     * @param snapshot_url Snapshot URL
-     */
-    void set_webcam_available(bool available, const std::string& stream_url = "",
-                              const std::string& snapshot_url = "", bool flip_h = false,
-                              bool flip_v = false, int target_fps = 15);
-
-    /**
-     * @brief Publish the printer's full webcam list (see
-     * PrinterCapabilitiesState::set_webcams). The auto-pick feeds the
-     * single-feed getters below; `webcam_count` counts the named entries.
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     */
-    void set_webcams(std::vector<WebcamInfo> cams);
-
-    /// Every enabled webcam discovery found, in Moonraker's order. Main thread only.
-    const std::vector<WebcamInfo>& get_webcams() const {
-        return capabilities_state_.get_webcams();
-    }
-
     /// True if at least one enabled webcam has been detected
     bool has_webcam() const {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasWebcam)) == 1;
-    }
-
-    /// Auto-pick MJPEG stream URL (empty if none)
-    const std::string& get_webcam_stream_url() const {
-        return capabilities_state_.get_webcam_stream_url();
-    }
-
-    /// Auto-pick snapshot URL (empty if none)
-    const std::string& get_webcam_snapshot_url() const {
-        return capabilities_state_.get_webcam_snapshot_url();
-    }
-
-    /// Webcam flip flags from Moonraker config
-    bool get_webcam_flip_horizontal() const {
-        return capabilities_state_.get_webcam_flip_horizontal();
-    }
-    bool get_webcam_flip_vertical() const {
-        return capabilities_state_.get_webcam_flip_vertical();
-    }
-
-    /// Configured target FPS from Moonraker webcam config (default 15)
-    int get_webcam_target_fps() const {
-        return capabilities_state_.get_webcam_target_fps();
     }
 
     /**
@@ -1700,87 +1583,7 @@ class PrinterState {
      */
     void set_helix_plugin_installed(bool installed);
 
-    /**
-     * @brief Check if HelixPrint plugin is available
-     *
-     * Convenience getter for checking plugin status. This is the preferred
-     * way to query plugin availability (vs accessing the subject directly).
-     *
-     * @return True if the HelixPrint Moonraker plugin is installed
-     */
-    bool service_has_helix_plugin() const;
-
-    /// Tri-state plugin presence as published: -1 not probed, 0 absent,
-    /// 1 present. Callers that must tell "not probed yet" apart from "absent"
-    /// want this; service_has_helix_plugin() collapses both to false.
-    int helix_plugin_state() const;
-
-    /**
-     * @brief Mark helper-macro files as staged, awaiting a Klipper restart
-     *
-     * Set by the Advanced panel's macro install flow when the files landed
-     * but a running print made an immediate restart unsafe. Clears when
-     * discovery reports the macros active.
-     *
-     * Main thread only (fired from deferred install callbacks).
-     *
-     * @param pending True while the staged files still await a restart
-     */
-    void set_helix_macros_restart_pending(bool pending);
-
-    /**
-     * @brief Helper-macro install status subject
-     *
-     * Bound by advanced_panel.xml to switch the macro rows. Values are
-     * HelixMacrosStatus: -1 unknown, 0 not installed, 1 installed,
-     * 2 outdated, 3 staged awaiting restart.
-     */
-    lv_subject_t* get_helix_macros_status_subject() {
-        return plugin_status_state_.get_helix_macros_status_subject();
-    }
-
-    /**
-     * @brief Get helix_plugin_installed subject for observers
-     *
-     * Use this when you need to observe plugin status changes (e.g., for install prompts).
-     *
-     * @return Pointer to the helix_plugin_installed_ subject
-     */
-    lv_subject_t* get_helix_plugin_installed_subject() {
-        return plugin_status_state_.get_helix_plugin_installed_subject();
-    }
-
     // === Visibility Subject Getters (pre-print options card aggregate) ===
-
-    /**
-     * @brief Get visibility subject for timelapse capability
-     *
-     * Returns 1 when printer has timelapse plugin installed, 0 otherwise.
-     * Timelapse does not require helix_print plugin.
-     */
-    lv_subject_t* get_printer_has_timelapse_subject() {
-        return capabilities_state_.subject(Capability::HasTimelapse);
-    }
-
-    /**
-     * @brief Get capability subject for Spoolman availability
-     *
-     * Returns 1 when Moonraker reports a reachable Spoolman, 0 otherwise. The
-     * int form of is_spoolman_available(), for observers. Prefer this over
-     * `lv_xml_get_subject(nullptr, "printer_has_spoolman")`: the XML lookup
-     * misses whenever subjects were initialised without XML registration, and
-     * it misses *silently*, leaving the caller with no observer at all.
-     */
-    lv_subject_t* get_printer_has_spoolman_subject() {
-        return capabilities_state_.subject(Capability::HasSpoolman);
-    }
-
-    /**
-     * @brief Get capability subject for purge line (priming)
-     */
-    lv_subject_t* get_printer_has_purge_line_subject() {
-        return capabilities_state_.subject(Capability::HasPurgeLine);
-    }
 
     /**
      * @brief Set printer kinematics type and update has_individual_xyz_homing and
@@ -1818,51 +1621,6 @@ class PrinterState {
      * one of those changes; writes only on change.
      */
     void refresh_bed_drying_capability();
-
-    /**
-     * @brief Get has_individual_xyz_homing subject for XML binding
-     *
-     * Returns 1 if the printer's XYZ axes can be homed individually,
-     * 0 otherwise (delta/rotary_delta).
-     * Used for hiding redundant home buttons on deltas.
-     */
-    lv_subject_t* get_printer_has_individual_xyz_homing_subject() {
-        return capabilities_state_.subject(Capability::HasIndividualXyzHoming);
-    }
-
-    /// 1 if the printer's kinematics is one whose two belt paths the Belt
-    /// Tension comparison can measure (corexy, limited_corexy), 0 otherwise.
-    lv_subject_t* get_printer_supports_belt_compare_subject() {
-        return capabilities_state_.subject(Capability::SupportsBeltCompare);
-    }
-
-    /**
-     * @brief Get bed_moves subject for XML binding
-     *
-     * Returns 1 if the printer's bed moves on Z axis (corexy, corexz),
-     * 0 if the printer's gantry/head moves on Z (cartesian, delta).
-     * Used for Z-offset UI to show appropriate directional icons.
-     */
-    lv_subject_t* get_printer_bed_moves_subject() {
-        return capabilities_state_.subject(Capability::BedMoves);
-    }
-    lv_subject_t* get_printer_is_enclosed_subject() {
-        return capabilities_state_.subject(Capability::IsEnclosed);
-    }
-    lv_subject_t* get_printer_can_bed_dry_subject() {
-        return capabilities_state_.subject(Capability::CanBedDry);
-    }
-
-    /**
-     * @brief Get printer_has_chamber_heater subject
-     *
-     * Returns 1 if the printer has an active chamber heater (heater_generic chamber),
-     * 0 if chamber is sensor-only or absent. Used by chamber temp overlay to
-     * show/hide preset controls.
-     */
-    lv_subject_t* get_printer_has_chamber_heater_subject() {
-        return capabilities_state_.subject(Capability::HasChamberHeater);
-    }
 
     /**
      * @brief Whether a blocking non-print operation is currently in progress
@@ -1920,18 +1678,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Check if printer has a probe configured
-     *
-     * Used by Z-offset calibration to determine whether to use
-     * PROBE_CALIBRATE (has probe) or Z_ENDSTOP_CALIBRATE (no probe).
-     *
-     * @return true if [probe] or [bltouch] section exists in Klipper config
-     */
-    bool has_probe() {
-        return capabilities_state_.has_probe();
-    }
-
-    /**
      * @brief Get the configured (saved) z-offset in microns
      *
      * Returns the printer's saved z-offset value before calibration started.
@@ -1941,17 +1687,6 @@ class PrinterState {
      * @return Z-offset in microns (e.g., -1500 for -1.500mm)
      */
     int get_configured_z_offset_microns();
-
-    /**
-     * @brief Set stepper_z position_endstop (for non-probe printers)
-     *
-     * Forwarded to PrinterCapabilitiesState.
-     *
-     * @param microns position_endstop in microns
-     */
-    void set_stepper_z_endstop_microns(int microns) {
-        capabilities_state_.set_stepper_z_endstop_microns(microns);
-    }
 
     // ========================================================================
     // HARDWARE VALIDATION API

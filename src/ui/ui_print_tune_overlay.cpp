@@ -259,7 +259,8 @@ void PrintTuneOverlay::update_z_offset_icons(lv_obj_t* /*panel*/) {
 
     // Get kinematics type from PrinterState
     // 0 = unknown, 1 = bed moves Z (CoreXY), 2 = head moves Z (Cartesian/Delta)
-    int kin = lv_subject_get_int(printer_state_->get_printer_bed_moves_subject());
+    int kin =
+        lv_subject_get_int(printer_state_->capabilities_state().subject(Capability::BedMoves));
     bool bed_moves_z = (kin == 1);
 
     // Set icon names via string subjects (bind_icon in XML)

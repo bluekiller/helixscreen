@@ -1260,11 +1260,11 @@ TEST_CASE("PrinterState: set_kinematics detects corexy as bed-moves", "[state][k
     state.init_subjects(false);
 
     // Default should be 0 (gantry moves)
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 
     // CoreXY printers (without QGL) have moving beds on Z
     state.set_kinematics("corexy");
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
 }
 
 TEST_CASE("PrinterState: set_kinematics detects cartesian as gantry-moves", "[state][kinematics]") {
@@ -1276,11 +1276,11 @@ TEST_CASE("PrinterState: set_kinematics detects cartesian as gantry-moves", "[st
 
     // First set to corexy (bed moves)
     state.set_kinematics("corexy");
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
 
     // Cartesian printers have moving gantry on Z
     state.set_kinematics("cartesian");
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 }
 
 TEST_CASE("PrinterState: set_kinematics detects delta as gantry-moves", "[state][kinematics]") {
@@ -1292,7 +1292,7 @@ TEST_CASE("PrinterState: set_kinematics detects delta as gantry-moves", "[state]
 
     // Delta printers have moving effector, not bed
     state.set_kinematics("delta");
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 }
 
 TEST_CASE("PrinterState: set_kinematics handles kinematics variations", "[state][kinematics]") {
@@ -1305,19 +1305,19 @@ TEST_CASE("PrinterState: set_kinematics handles kinematics variations", "[state]
     SECTION("corexz - gantry moves on Z (Voron Switchwire)") {
         // CoreXZ has gantry-Z, not bed-Z
         state.set_kinematics("corexz");
-        REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+        REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
     }
 
     SECTION("hybrid_corexy - bed moves (contains corexy)") {
         // hybrid_corexy contains "corexy", so bed moves
         state.set_kinematics("hybrid_corexy");
-        REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+        REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
     }
 
     SECTION("limited_cartesian - gantry moves (no corexy/corexz)") {
         // limited_cartesian does NOT contain "corexy" or "corexz"
         state.set_kinematics("limited_cartesian");
-        REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+        REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
     }
 }
 
@@ -1328,23 +1328,28 @@ TEST_CASE("PrinterState: set_kinematics gates belt compare on true CoreXY", "[st
     PrinterStateTestAccess::reset(state);
     state.init_subjects(false);
 
-    REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 0);
+    REQUIRE(lv_subject_get_int(
+                state.capabilities_state().subject(Capability::SupportsBeltCompare)) == 0);
 
     SECTION("corexz never arms it") {
         state.set_kinematics("corexz");
-        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 0);
+        REQUIRE(lv_subject_get_int(
+                    state.capabilities_state().subject(Capability::SupportsBeltCompare)) == 0);
     }
 
     SECTION("corexy arms it and cartesian clears it") {
         state.set_kinematics("corexy");
-        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 1);
+        REQUIRE(lv_subject_get_int(
+                    state.capabilities_state().subject(Capability::SupportsBeltCompare)) == 1);
         state.set_kinematics("cartesian");
-        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 0);
+        REQUIRE(lv_subject_get_int(
+                    state.capabilities_state().subject(Capability::SupportsBeltCompare)) == 0);
     }
 
     SECTION("limited_corexy arms it") {
         state.set_kinematics("limited_corexy");
-        REQUIRE(lv_subject_get_int(state.get_printer_supports_belt_compare_subject()) == 1);
+        REQUIRE(lv_subject_get_int(
+                    state.capabilities_state().subject(Capability::SupportsBeltCompare)) == 1);
     }
 }
 
@@ -1362,7 +1367,7 @@ TEST_CASE("PrinterState: Update kinematics from toolhead notification", "[state]
     state.update_from_status(notification["params"][0]);
 
     // Cartesian = gantry moves on Z
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 }
 
 TEST_CASE("PrinterState: Kinematics update from cartesian notification",
@@ -1375,7 +1380,7 @@ TEST_CASE("PrinterState: Kinematics update from cartesian notification",
 
     // First set to corexy (bed moves)
     state.set_kinematics("corexy");
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
 
     // Update to cartesian via notification
     nlohmann::json notification = {
@@ -1385,7 +1390,7 @@ TEST_CASE("PrinterState: Kinematics update from cartesian notification",
     state.update_from_status(notification["params"][0]);
 
     // Should now be gantry-moves
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 }
 
 TEST_CASE("PrinterState: Observer fires when bed_moves changes", "[state][kinematics][observer]") {
@@ -1406,8 +1411,8 @@ TEST_CASE("PrinterState: Observer fires when bed_moves changes", "[state][kinema
 
     int user_data[2] = {0, -1}; // [callback_count, last_value]
 
-    lv_observer_t* observer =
-        lv_subject_add_observer(state.get_printer_bed_moves_subject(), observer_cb, user_data);
+    lv_observer_t* observer = lv_subject_add_observer(
+        state.capabilities_state().subject(Capability::BedMoves), observer_cb, user_data);
 
     // LVGL auto-notifies observers when first added
     REQUIRE(user_data[0] == 1);
@@ -1639,7 +1644,7 @@ PrinterState& state_before_discovery(const char* heater_assignment,
 }
 
 int has_chamber_heater(PrinterState& state) {
-    return lv_subject_get_int(state.get_printer_has_chamber_heater_subject());
+    return lv_subject_get_int(state.capabilities_state().subject(Capability::HasChamberHeater));
 }
 
 int has_chamber_sensor(PrinterState& state) {
@@ -1782,7 +1787,7 @@ TEST_CASE("PrinterState: chamber heater presence follows each discovery, never t
           "[state][hardware][chamber]") {
     ChamberAssignmentsRestore restore;
     PrinterState& state = state_before_discovery(PRESET_CHAMBER_HEATER);
-    lv_subject_t* presence = state.get_printer_has_chamber_heater_subject();
+    lv_subject_t* presence = state.capabilities_state().subject(Capability::HasChamberHeater);
 
     // Every value the capability takes from here on, including ones set and
     // replaced inside a single call.

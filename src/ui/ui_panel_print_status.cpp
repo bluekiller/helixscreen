@@ -2248,8 +2248,8 @@ void PrintStatusPanel::update_chamber_status() {
     if (!subjects_initialized_)
         return;
 
-    bool has_heater =
-        lv_subject_get_int(printer_state_.get_printer_has_chamber_heater_subject()) != 0;
+    bool has_heater = lv_subject_get_int(printer_state_.capabilities_state().subject(
+                          Capability::HasChamberHeater)) != 0;
     int current = lv_subject_get_int(printer_state_.get_chamber_temp_subject());
     int target = lv_subject_get_int(printer_state_.get_chamber_target_subject());
 

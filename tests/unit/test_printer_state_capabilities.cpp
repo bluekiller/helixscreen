@@ -443,7 +443,7 @@ TEST_CASE("PrinterState: a capability answered before subject init survives it",
     PrinterStateTestAccess::reset(state);
 
     // Answer BEFORE the subjects exist, the way discovery can.
-    state.set_spoolman_available(true);
+    state.capabilities_state().set_spoolman_available(true);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 
     state.init_subjects(false);
@@ -461,7 +461,7 @@ TEST_CASE("PrinterState: a pre-init 'absent' answer is honoured too",
     PrinterState& state = get_printer_state();
     PrinterStateTestAccess::reset(state);
 
-    state.set_spoolman_available(false);
+    state.capabilities_state().set_spoolman_available(false);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 
     state.init_subjects(false);
@@ -479,13 +479,13 @@ TEST_CASE("PrinterState: a post-init answer still wins over the latched one",
     PrinterState& state = get_printer_state();
     PrinterStateTestAccess::reset(state);
 
-    state.set_spoolman_available(true);
+    state.capabilities_state().set_spoolman_available(true);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     state.init_subjects(false);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     REQUIRE(state.is_spoolman_available());
 
-    state.set_spoolman_available(false);
+    state.capabilities_state().set_spoolman_available(false);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 
     CHECK_FALSE(state.is_spoolman_available());

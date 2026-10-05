@@ -183,7 +183,8 @@ void MoonrakerDiscoverySequence::discover_power_devices() {
                 }
             }
             spdlog::info("[Moonraker Client] Power device detection: {} devices", devices.size());
-            get_printer_state().set_power_device_count(static_cast<int>(devices.size()));
+            get_printer_state().capabilities_state().set_power_device_count(
+                static_cast<int>(devices.size()));
             // Marshal to UI thread — set_devices creates LVGL subjects
             auto devices_copy = std::make_shared<std::vector<PowerDevice>>(std::move(devices));
             helix::ui::queue_update("PowerDeviceState::set_devices", [devices_copy]() {
@@ -192,7 +193,7 @@ void MoonrakerDiscoverySequence::discover_power_devices() {
         },
         [](const MoonrakerError& err) {
             spdlog::debug("[Moonraker Client] Power device detection failed: {}", err.message);
-            get_printer_state().set_power_device_count(0);
+            get_printer_state().capabilities_state().set_power_device_count(0);
         },
         0,     // default timeout
         true); // silent — suppress error toast
@@ -209,7 +210,8 @@ void MoonrakerDiscoverySequence::discover_sensors() {
     api->get_sensors(
         [](const std::vector<helix::SensorInfo>& sensors, const nlohmann::json& initial_values) {
             spdlog::info("[Moonraker Client] Sensor detection: {} sensors", sensors.size());
-            get_printer_state().set_sensor_count(static_cast<int>(sensors.size()));
+            get_printer_state().capabilities_state().set_sensor_count(
+                static_cast<int>(sensors.size()));
             auto sensors_copy = std::make_shared<std::vector<helix::SensorInfo>>(sensors);
             auto values_copy = std::make_shared<nlohmann::json>(initial_values);
             helix::ui::queue_update("SensorState::set_sensors", [sensors_copy, values_copy]() {
@@ -218,7 +220,7 @@ void MoonrakerDiscoverySequence::discover_sensors() {
         },
         [](const MoonrakerError& err) {
             spdlog::debug("[Moonraker Client] Sensor detection failed: {}", err.message);
-            get_printer_state().set_sensor_count(0);
+            get_printer_state().capabilities_state().set_sensor_count(0);
         });
 }
 
@@ -402,11 +404,11 @@ void MoonrakerDiscoverySequence::detect_webcam(json service_state) {
                     spdlog::info("[Discovery] No local camera found");
                 }
             }
-            get_printer_state().set_webcams(std::move(cams));
+            get_printer_state().capabilities_state().set_webcams(std::move(cams));
         },
         [](const MoonrakerError& err) {
             spdlog::debug("[Discovery] Webcam detection failed: {}", err.message);
-            get_printer_state().set_webcam_available(false);
+            get_printer_state().capabilities_state().set_webcam_available(false);
         },
         0,     // default timeout
         true); // silent — webcams not always configured
@@ -599,7 +601,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                         // installed correctly hides the corresponding UI rows. The flags
                         // get re-set below if the components are detected.
                         get_printer_state().set_timelapse_available(false);
-                        get_printer_state().set_job_queue_available(false);
+                        get_printer_state().capabilities_state().set_job_queue_available(false);
 
                         // Check for Spoolman component and verify connection
                         bool has_spoolman_component =
@@ -624,7 +626,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                             // to come back up left a connected Spoolman dark for five
                             // days on a K2 Plus (2026-08-24) — lanes showed unmanaged
                             // and the material dropdown came up empty.
-                            get_printer_state().set_spoolman_available(false);
+                            get_printer_state().capabilities_state().set_spoolman_available(false);
                         } else {
                             spdlog::info("[Moonraker Client] Spoolman component detected, "
                                          "checking status...");
@@ -644,7 +646,8 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                     }
                                     spdlog::info("[Moonraker Client] Spoolman status: connected={}",
                                                  connected);
-                                    get_printer_state().set_spoolman_available(connected);
+                                    get_printer_state().capabilities_state().set_spoolman_available(
+                                        connected);
                                 },
                                 [this, seq](const MoonrakerError& err) {
                                     if (is_stale() || !is_current_sequence(seq))
@@ -652,7 +655,8 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                     spdlog::debug(
                                         "[Moonraker Client] Spoolman status check failed: {}",
                                         err.message);
-                                    get_printer_state().set_spoolman_available(false);
+                                    get_printer_state().capabilities_state().set_spoolman_available(
+                                        false);
                                 },
                                 0,     // default timeout
                                 true); // silent — Spoolman not always configured
@@ -707,7 +711,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                             components.end();
                         if (has_job_queue_component) {
                             spdlog::info("[Moonraker Client] Job queue component detected");
-                            get_printer_state().set_job_queue_available(true);
+                            get_printer_state().capabilities_state().set_job_queue_available(true);
                         }
                     }
                 }

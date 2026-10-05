@@ -515,7 +515,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Z buttons disable at the ceiling and swap u
 
     // A bed-moves printer swaps the direction each on-screen arrow drives, so
     // the disabled pair swaps with it.
-    lv_subject_set_int(get_printer_state().get_printer_bed_moves_subject(), 1);
+    lv_subject_set_int(get_printer_state().capabilities_state().subject(Capability::BedMoves), 1);
     helix::ui::UpdateQueue::instance().drain();
     CHECK_FALSE(lv_obj_has_state(up_large, LV_STATE_DISABLED));
     CHECK(lv_obj_has_state(down_large, LV_STATE_DISABLED));
@@ -695,8 +695,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     // Any recompute before the head reports 250 reads commanded Z, so the up
     // buttons stay live even while the move toward the ceiling is in flight.
-    lv_subject_set_int(get_printer_state().get_printer_bed_moves_subject(), 1);
-    lv_subject_set_int(get_printer_state().get_printer_bed_moves_subject(), 0);
+    lv_subject_set_int(get_printer_state().capabilities_state().subject(Capability::BedMoves), 1);
+    lv_subject_set_int(get_printer_state().capabilities_state().subject(Capability::BedMoves), 0);
     helix::ui::UpdateQueue::instance().drain();
     CHECK_FALSE(lv_obj_has_state(z_up, LV_STATE_DISABLED));
 

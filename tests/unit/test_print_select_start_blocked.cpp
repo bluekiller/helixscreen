@@ -63,7 +63,7 @@ struct StartBlockedFixture : public LVGLUITestFixture {
 
     /// set_job_queue_available() defers its subject write through UpdateQueue
     void set_job_queue(bool available) {
-        state().set_job_queue_available(available);
+        state().capabilities_state().set_job_queue_available(available);
         UpdateQueue::instance().drain();
     }
 

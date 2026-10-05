@@ -700,7 +700,7 @@ void MoonrakerAPI::update_safety_limits_from_printer(SuccessCallback on_success,
                 if (endstop_val.is_number()) {
                     double endstop = endstop_val.get<double>();
                     int microns = static_cast<int>(endstop * 1000.0);
-                    state_.set_stepper_z_endstop_microns(microns);
+                    state_.capabilities_state().set_stepper_z_endstop_microns(microns);
                     spdlog::debug(
                         "[Moonraker API] stepper_z position_endstop: {:.3f}mm ({} microns)",
                         endstop, microns);

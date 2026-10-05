@@ -145,7 +145,7 @@ void SpoolmanManager::init_subjects() {
     // whenever subjects were initialised without XML registration, and the miss
     // is silent, which left the manager with no availability observer at all.
     spoolman_availability_observer_ = observe<int>(
-        get_printer_state().get_printer_has_spoolman_subject(), this,
+        get_printer_state().capabilities_state().subject(Capability::HasSpoolman), this,
         [](SpoolmanManager* self, int value) {
             if (value == 0) {
                 std::lock_guard<std::recursive_mutex> lock(self->mutex_);

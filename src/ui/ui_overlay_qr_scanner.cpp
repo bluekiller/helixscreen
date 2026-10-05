@@ -243,7 +243,8 @@ void QrScannerOverlay::start_scanning() {
 
     // On moving-bed printers, lower the bed to give room for QR scanning
     auto& state = get_printer_state();
-    bool bed_moves = lv_subject_get_int(state.get_printer_bed_moves_subject()) != 0;
+    bool bed_moves =
+        lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) != 0;
     const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
     bool z_homed = homed && strchr(homed, 'z') != nullptr;
 

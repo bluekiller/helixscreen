@@ -256,7 +256,8 @@ void AdvancedPanel::handle_helix_macros_install_clicked() {
         return;
     }
 
-    const int status = lv_subject_get_int(printer_state_.get_helix_macros_status_subject());
+    const int status =
+        lv_subject_get_int(printer_state_.plugin_status_state().get_helix_macros_status_subject());
     if (status == static_cast<int>(HelixMacrosStatus::Unknown)) {
         ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Printer status unknown"), 2000);
         return;
@@ -301,7 +302,8 @@ void AdvancedPanel::handle_helix_macros_update_clicked() {
         return;
     }
 
-    const int status = lv_subject_get_int(printer_state_.get_helix_macros_status_subject());
+    const int status =
+        lv_subject_get_int(printer_state_.plugin_status_state().get_helix_macros_status_subject());
     if (status != static_cast<int>(HelixMacrosStatus::Outdated)) {
         ToastManager::instance().show(ToastSeverity::INFO, lv_tr("Helper macros are up to date"),
                                       2000);
@@ -337,7 +339,7 @@ void AdvancedPanel::run_helix_macros_stage(bool update) {
         // A print is active: queue the restart for the print-complete offer.
         // The staged files are safe wherever they sit and activate at
         // whatever Klipper restart happens next, organic or offered.
-        printer_state_.set_helix_macros_restart_pending(true);
+        printer_state_.plugin_status_state().set_helix_macros_restart_pending(true);
         macro_restart_offer_made_ = false;
         ToastManager::instance().show(
             ToastSeverity::SUCCESS,
@@ -374,7 +376,7 @@ bool AdvancedPanel::restart_helix_macros_when_idle() {
         [this](const MoonrakerError& err) {
             spdlog::error("[{}] Klipper restart request failed: {}", get_name(), err.message);
             // The files are staged but unactivated: keep offering the restart.
-            printer_state_.set_helix_macros_restart_pending(true);
+            printer_state_.plugin_status_state().set_helix_macros_restart_pending(true);
             ToastManager::instance().show(ToastSeverity::ERROR, lv_tr("Failed to restart Klipper"),
                                           4000);
         });
@@ -417,8 +419,8 @@ void AdvancedPanel::wire_macro_restart_observer() {
             if (holds != 0) {
                 return;
             }
-            const int status =
-                lv_subject_get_int(self->printer_state_.get_helix_macros_status_subject());
+            const int status = lv_subject_get_int(
+                self->printer_state_.plugin_status_state().get_helix_macros_status_subject());
             if (status != static_cast<int>(HelixMacrosStatus::RestartPending)) {
                 // A restart landed and activated the macros: re-arm so the
                 // next staging gets its own offer.
@@ -444,7 +446,7 @@ void AdvancedPanel::handle_helix_plugin_install_clicked() {
     spdlog::debug("[{}] HelixPrint Plugin Install clicked", get_name());
 
     // Double-check plugin isn't already installed (defensive)
-    if (printer_state_.service_has_helix_plugin()) {
+    if (printer_state_.plugin_status_state().service_has_helix_plugin()) {
         spdlog::info("[{}] Plugin already installed", get_name());
         ToastManager::instance().show(ToastSeverity::INFO, lv_tr("Plugin already installed"), 2000);
         return;

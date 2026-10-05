@@ -812,7 +812,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register observer on helix_plugin_installed to show install prompt when plugin not available
     // Subject uses tri-state: -1=unknown (pre-discovery), 0=not installed, 1=installed
     // Only show modal when explicitly 0 (after discovery confirms plugin is missing)
-    lv_subject_t* plugin_subject = printer_state_.get_helix_plugin_installed_subject();
+    lv_subject_t* plugin_subject =
+        printer_state_.plugin_status_state().get_helix_plugin_installed_subject();
     if (plugin_subject) {
         helix_plugin_observer_ = observe<int>(
             plugin_subject, this,

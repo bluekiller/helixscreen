@@ -1373,7 +1373,7 @@ nlohmann::json TelemetryManager::build_session_event() const {
         if (spoolman_subj && lv_subject_get_int(spoolman_subj) > 0) {
             features.push_back("spoolman");
         }
-        if (ps.service_has_helix_plugin()) {
+        if (ps.plugin_status_state().service_has_helix_plugin()) {
             features.push_back("helix_plugin");
         }
 
@@ -1875,7 +1875,8 @@ nlohmann::json TelemetryManager::build_hardware_profile_event() const {
 
         // ---- plugins section ----
         json plugins;
-        plugins["helix_plugin_installed"] = get_printer_state().service_has_helix_plugin();
+        plugins["helix_plugin_installed"] =
+            get_printer_state().plugin_status_state().service_has_helix_plugin();
         event["plugins"] = plugins;
 
         // ---- display_backend ----

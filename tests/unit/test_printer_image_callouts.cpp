@@ -991,7 +991,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // no longer fit beside the image, so the mode drops to pinned.
     const auto regions = prepare_tagged_widget();
     lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
-    lv_subject_t* has_chamber = state().get_printer_has_chamber_heater_subject();
+    lv_subject_t* has_chamber = state().capabilities_state().subject(Capability::HasChamberHeater);
     REQUIRE(has_led);
     lv_subject_set_int(has_led, 0);
     lv_subject_set_int(has_chamber, 0);

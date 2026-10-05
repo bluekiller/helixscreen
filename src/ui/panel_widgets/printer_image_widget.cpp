@@ -735,7 +735,8 @@ void PrinterImageWidget::arm_callout_observers() {
         w->update_callouts();
         w->schedule_callout_layout();
     };
-    for (lv_subject_t* s : {printer_has_led_subject(), ps.get_printer_has_chamber_heater_subject()})
+    for (lv_subject_t* s :
+         {printer_has_led_subject(), ps.capabilities_state().subject(Capability::HasChamberHeater)})
         callout_observers_.push_back(helix::ui::observe<int>(s, this, on_capability, life));
     const auto observe_dynamic = [&](lv_subject_t* s, SubjectLifetime& lt) {
         callout_observers_.push_back(helix::ui::observe<int>(s, this, on_change, lt));
@@ -807,7 +808,7 @@ void PrinterImageWidget::update_callouts() {
     lv_subject_set_int(&s_callout_bed_heating, bed_heating);
     heater(read_int_or_zero(ps.get_chamber_temp_subject()),
            read_int_or_zero(ps.get_chamber_effective_target_subject()),
-           read_int_or_zero(ps.get_printer_has_chamber_heater_subject()) != 0,
+           read_int_or_zero(ps.capabilities_state().subject(Capability::HasChamberHeater)) != 0,
            &s_callout_chamber_shown, &s_callout_chamber_text);
 
     const int fan = read_int_or_zero(ps.fan_state().get_fan_speed_subject());
@@ -977,7 +978,7 @@ void PrinterImageWidget::apply_callout_layout() {
          text(&s_callout_bed_text), widest_heater, true},
         {CalloutKind::Chamber, "callout_chip_chamber", &s_callout_chamber_shown,
          icon_px("fridge_industrial"), text(&s_callout_chamber_text), widest_heater,
-         read_int_or_zero(ps.get_printer_has_chamber_heater_subject()) != 0},
+         read_int_or_zero(ps.capabilities_state().subject(Capability::HasChamberHeater)) != 0},
         {CalloutKind::Fan, "callout_chip_fan", &s_callout_fan_shown, icon_px("fan"),
          text(&s_callout_fan_text), "100%", true},
         {CalloutKind::Light,

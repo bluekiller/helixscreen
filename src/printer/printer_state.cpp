@@ -440,7 +440,7 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // once neither arm is active. is_blocking_operation_active() sees the
     // just-updated manual_probe / idle_timeout / print-job subjects. The store is
     // idempotent, so gating on the predicate needs no separate edge tracking.
-    if (!is_blocking_operation_active() && !is_in_print_start()) {
+    if (!is_blocking_operation_active() && !print_domain_.is_in_print_start()) {
         calibration_state_.arm_busy_queue_toast();
     }
 }
@@ -624,34 +624,6 @@ void PrinterState::set_os_version_internal(const std::string& version) {
     versions_state_.set_os_version_internal(version);
 }
 
-void PrinterState::set_power_device_count(int count) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_power_device_count(count);
-}
-
-void PrinterState::set_sensor_count(int count) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_sensor_count(count);
-}
-
-void PrinterState::set_spoolman_available(bool available) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_spoolman_available(available);
-}
-
-void PrinterState::set_webcam_available(bool available, const std::string& stream_url,
-                                        const std::string& snapshot_url, bool flip_h, bool flip_v,
-                                        int target_fps) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_webcam_available(available, stream_url, snapshot_url, flip_h, flip_v,
-                                             target_fps);
-}
-
-void PrinterState::set_webcams(std::vector<WebcamInfo> cams) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_webcams(std::move(cams));
-}
-
 void PrinterState::set_timelapse_available(bool available) {
     // Delegate to capabilities_state_ component (handles thread-safety internally)
     capabilities_state_.set_timelapse_available(available);
@@ -702,20 +674,6 @@ void PrinterState::set_helix_plugin_installed(bool installed) {
     });
 }
 
-bool PrinterState::service_has_helix_plugin() const {
-    // Delegate to plugin_status_state_ component
-    return plugin_status_state_.service_has_helix_plugin();
-}
-
-int PrinterState::helix_plugin_state() const {
-    return plugin_status_state_.helix_plugin_state();
-}
-
-void PrinterState::set_helix_macros_restart_pending(bool pending) {
-    // Main thread only; the install flow reaches this from deferred callbacks
-    plugin_status_state_.set_helix_macros_restart_pending(pending);
-}
-
 void PrinterState::update_gcode_modification_visibility() {
     // Delegate to composite visibility component
     bool plugin = plugin_status_state_.service_has_helix_plugin();
@@ -758,7 +716,7 @@ bool PrinterState::is_blocking_operation_active() {
     // print_stats still reads standby, and answering "blocked" there is correct:
     // the toolhead really is busy. Widening to Preparing would make this return
     // false and ADMIT jogs during the bed mesh.
-    const PrintJobState pstate = get_print_job_state();
+    const PrintJobState pstate = print_domain_.get_print_job_state();
     return pstate != PrintJobState::PRINTING && pstate != PrintJobState::PAUSED;
 }
 
@@ -785,7 +743,7 @@ bool PrinterState::can_start_new_print() const {
 }
 
 int PrinterState::get_configured_z_offset_microns() {
-    if (has_probe()) {
+    if (capabilities_state_.has_probe()) {
         // Probe printers: z_offset stored in ProbeSensorManager (already in microns)
         return lv_subject_get_int(
             helix::sensors::ProbeSensorManager::instance().get_probe_z_offset_subject());

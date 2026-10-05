@@ -280,7 +280,7 @@ void TemperatureService::update_status(HeaterType type) {
 
     // Re-check read_only for chamber from live capability subject
     if (type == HeaterType::Chamber) {
-        auto* cap_subj = printer_state_.get_printer_has_chamber_heater_subject();
+        auto* cap_subj = printer_state_.capabilities_state().subject(Capability::HasChamberHeater);
         h.read_only = (lv_subject_get_int(cap_subj) == 0);
     }
 
@@ -566,7 +566,8 @@ void TemperatureService::setup_mini_combined_graph(lv_obj_t* container) {
     // Add chamber series if printer has a chamber heater or sensor
     {
         const auto& chamber = heaters_[idx(HeaterType::Chamber)];
-        auto* heater_subj = printer_state_.get_printer_has_chamber_heater_subject();
+        auto* heater_subj =
+            printer_state_.capabilities_state().subject(Capability::HasChamberHeater);
         bool has_heater = heater_subj && lv_subject_get_int(heater_subj) != 0;
         // One source for the reading, so this series cannot disagree with the
         // chamber readout about which probe it means. A target line needs a

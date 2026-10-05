@@ -314,7 +314,8 @@ void MotionPanel::init_subjects() {
     show_actual_ = SettingsManager::instance().get_motion_show_actual_position();
     refresh_position_display();
 
-    int bed_moves = lv_subject_get_int(get_printer_state().get_printer_bed_moves_subject());
+    int bed_moves =
+        lv_subject_get_int(get_printer_state().capabilities_state().subject(Capability::BedMoves));
 
     // Update Z axis label
     update_z_axis_label(bed_moves != 0);
@@ -741,7 +742,7 @@ void MotionPanel::register_position_observers() {
     // Use Dispatch::Immediate — label/icon updates are safe to do immediately,
     // and the deferred callback can be lost during panel recreation (#610)
     bed_moves_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_printer_bed_moves_subject(), this,
+        get_printer_state().capabilities_state().subject(Capability::BedMoves), this,
         [](MotionPanel* self, int bed_moves) {
             if (!self->subjects_initialized_)
                 return;

@@ -656,7 +656,8 @@ bool PrintPreparationManager::can_modify_gcode() const {
     // the original filename back in Moonraker's history afterwards. Without it
     // finished jobs are listed as ".helix_temp/modified_1766807545_name.gcode",
     // so we decline rather than clutter the history.
-    return printer_state_ != nullptr && printer_state_->service_has_helix_plugin();
+    return printer_state_ != nullptr &&
+           printer_state_->plugin_status_state().service_has_helix_plugin();
 }
 
 // ============================================================================
@@ -1534,7 +1535,8 @@ void PrintPreparationManager::modify_and_print(
     //
     // This prevents TTC errors on memory-constrained devices like AD5M (~108MB RAM)
     // by never loading the entire G-code file into memory.
-    bool has_plugin = printer_state_ && printer_state_->service_has_helix_plugin();
+    bool has_plugin =
+        printer_state_ && printer_state_->plugin_status_state().service_has_helix_plugin();
     spdlog::info("[PrintPreparationManager] Using unified streaming modification flow (plugin: {})",
                  has_plugin);
     modify_and_print_streaming(file_path, display_filename, ops_to_disable, macro_skip_params,

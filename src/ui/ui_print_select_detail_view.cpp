@@ -229,7 +229,7 @@ void PrintSelectDetailView::init_subjects() {
     // after first paint, and the Moonraker version arrives with discovery.
     // Without these the card keeps whatever it decided before either was known.
     plugin_installed_observer_ = observe<int>(
-        get_printer_state().get_helix_plugin_installed_subject(), this,
+        get_printer_state().plugin_status_state().get_helix_plugin_installed_subject(), this,
         [](PrintSelectDetailView* self, int /*state*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
     moonraker_degraded_observer_ = observe<int>(
@@ -1692,8 +1692,9 @@ helix::printer::RemapBlock PrintSelectDetailView::current_remap_block() const {
     if (backend == nullptr) {
         return helix::printer::RemapBlock::NoStrategy;
     }
-    return helix::printer::remap_block(*backend, get_printer_state().helix_plugin_state(),
-                                       static_cast<int>(get_used_tool_info().size()));
+    return helix::printer::remap_block(
+        *backend, get_printer_state().plugin_status_state().helix_plugin_state(),
+        static_cast<int>(get_used_tool_info().size()));
 }
 
 void PrintSelectDetailView::on_color_card_clicked() {
@@ -2512,7 +2513,7 @@ void PrintSelectDetailView::populate_option_rows() {
         }
         const PrePrintOption* opt = printer_state_->get_pre_print_option_set().find(id);
         if (opt && prep_manager_->disabling_option_requires_plugin(*opt)) {
-            return printer_state_->get_helix_plugin_installed_subject();
+            return printer_state_->plugin_status_state().get_helix_plugin_installed_subject();
         }
         return nullptr; // Not plugin-dependent: always visible for declared options.
     };
