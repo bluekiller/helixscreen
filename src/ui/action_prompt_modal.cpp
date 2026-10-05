@@ -151,6 +151,12 @@ bool ActionPromptModal::show_prompt(lv_obj_t* parent, const PromptData& data) {
     return true;
 }
 
+bool ActionPromptModal::show_owned_prompt(lv_obj_t* parent, const PromptData& data) {
+    auto modal = std::make_unique<ActionPromptModal>();
+    modal->prompt_data_ = data;
+    return Modal::show_owned(std::move(modal), parent);
+}
+
 // ============================================================================
 // Modal Hooks
 // ============================================================================

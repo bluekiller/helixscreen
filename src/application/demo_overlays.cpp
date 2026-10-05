@@ -185,8 +185,7 @@ bool show_demo_overlay(const std::string& name) {
             {"Change Lane", "AFC_CHANGE_LANE", "secondary", "", false, -1},
             {"Cancel Print", "CANCEL_PRINT", "error", "", true, -1},
         };
-        auto* modal = new helix::ui::ActionPromptModal();
-        modal->show_prompt(screen, data);
+        helix::ui::ActionPromptModal::show_owned_prompt(screen, data);
         return true;
     }
 
@@ -210,8 +209,7 @@ bool show_demo_overlay(const std::string& name) {
             {"Nylon 260/80", "SET_MATERIAL M=NYLON", "primary", "", false, -1},
             {"Cancel", "", "error", "", true, -1},
         };
-        auto* modal = new helix::ui::ActionPromptModal();
-        modal->show_prompt(screen, data);
+        helix::ui::ActionPromptModal::show_owned_prompt(screen, data);
         return true;
     }
 
