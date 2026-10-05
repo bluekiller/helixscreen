@@ -359,6 +359,8 @@ src/ui/shared_font_style.cpp
 src/ui/text_metrics.cpp
 src/ui/style_configs.cpp
 src/ui/temp_graph_controller.cpp
+src/ui/print_progress_text.cpp
+src/ui/print_status_layout_fitter.cpp
 src/ui/temp_graph_tooltip.cpp
 src/ui/temperature_controller.cpp
 src/ui/bed_drying_controller.cpp
@@ -675,7 +677,9 @@ src/ui/ui_gcode_viewer.cpp
 #   mode ladder + bottom-occluder handoff). Both those panels are in this build
 #   and call it ungated; its only deps are the ui_gcode_viewer_* API above (the
 #   no-op branch defines all of it), DisplaySettingsManager and RuntimeConfig.
+src/ui/gcode_preview_fetcher.cpp
 src/ui/gcode_preview_setup.cpp
+src/ui/print_preview_controller.cpp
 #   bed-mesh viewer, compiled-out branch (HELIX_HAS_BED_MESH_3D=0): same trick
 #   as ui_gcode_viewer above — its #else no-op defines ui_bed_mesh_register()
 #   (registers a stub <bed_mesh> widget so layouts parse) plus the rest of the
