@@ -30,12 +30,17 @@ struct UsbScan {
 
 // Reads the stick: a directory walk plus a header read per file, slow enough
 // on a large stick to stall a frame, so it never runs on the UI thread.
-UsbScan scan_drives(const UsbManager& manager, const std::vector<UsbDrive>& drives) {
+UsbScan scan_drives(UsbBackend& backend, const std::vector<UsbDrive>& drives) {
     UsbScan scan;
     // Every drive contributes to one flat list: a file's path already carries
     // its mount point, so a second stick needs no selector to be reachable.
     for (const auto& drive : drives) {
-        auto files = manager.scan_for_gcode(drive.mount_path);
+        std::vector<UsbGcodeFile> files;
+        const UsbError result = backend.scan_for_gcode(drive.mount_path, files, 3);
+        if (!result.success()) {
+            spdlog::warn("[UsbSource] Failed to scan '{}': {}", drive.label, result.technical_msg);
+            continue;
+        }
         spdlog::info("[UsbSource] Found {} G-code files on USB drive '{}'", files.size(),
                      drive.label);
         scan.files.insert(scan.files.end(), std::make_move_iterator(files.begin()),
@@ -303,12 +308,18 @@ void PrintSelectUsbSource::refresh_files() {
         return;
     }
 
-    // The manager outlives the panel's sources: SubjectInitializer owns it
-    // until shutdown.
-    const UsbManager* manager = usb_manager_;
+    // The worker holds the backend, never the manager: the application
+    // destroys the manager before it stops the executors.
+    auto backend = usb_manager_->backend_snapshot();
+    if (!backend) {
+        if (on_files_ready_) {
+            on_files_ready_(std::vector<PrintFileData>{});
+        }
+        return;
+    }
     helix::http::HttpExecutor::fast().submit(
-        [this, tok = scan_lifetime_.token(), manager, drives = std::move(drives)]() {
-            auto scan = scan_drives(*manager, drives);
+        [this, tok = scan_lifetime_.token(), backend, drives = std::move(drives)]() {
+            auto scan = scan_drives(*backend, drives);
             tok.defer("PrintSelectUsbSource::refresh_files", [this, scan = std::move(scan)]() {
                 // A switch back to Printer while the walk ran leaves the
                 // panel's list to the Printer source.

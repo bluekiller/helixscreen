@@ -391,3 +391,17 @@ TEST_CASE("UsbBackend factory returns the Linux backend unstarted", "[usb_backen
     CHECK_FALSE(backend->is_running());
 }
 #endif
+
+TEST_CASE("UsbManager stops its backend even while a scan still holds it", "[usb_manager]") {
+    // A USB walk on a worker thread keeps a reference to the backend; a
+    // backend still running after its manager dies reports events into
+    // freed memory.
+    auto manager = std::make_unique<UsbManager>(true);
+    REQUIRE(manager->start());
+    std::shared_ptr<UsbBackend> held = manager->backend_snapshot();
+    REQUIRE(held != nullptr);
+    REQUIRE(held->is_running());
+
+    manager.reset();
+    CHECK_FALSE(held->is_running());
+}

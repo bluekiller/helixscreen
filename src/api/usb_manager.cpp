@@ -12,7 +12,12 @@ UsbManager::UsbManager(bool force_mock) : force_mock_(force_mock) {
 UsbManager::~UsbManager() {
     // Don't call stop() which locks mutex_ - during static destruction
     // the mutex may already be destroyed, causing "mutex lock failed" crash.
-    // Just reset the backend - its destructor will handle cleanup without locking.
+    // The backend is stopped explicitly because a scan may still hold a
+    // reference to it: left running, its monitor thread would keep calling
+    // on_backend_event() on this destroyed manager.
+    if (backend_) {
+        backend_->stop();
+    }
     backend_.reset();
 }
 
@@ -109,6 +114,11 @@ std::vector<UsbGcodeFile> UsbManager::scan_for_gcode(const std::string& mount_pa
     }
 
     return files;
+}
+
+std::shared_ptr<UsbBackend> UsbManager::backend_snapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return backend_;
 }
 
 UsbBackend* UsbManager::get_backend() {
