@@ -7,7 +7,9 @@
 #include "text_io.h"
 
 #include <algorithm>
+#include <cctype>
 #include <optional>
+#include <string_view>
 
 namespace helix {
 
@@ -158,6 +160,49 @@ std::optional<uint32_t> rgb_from_rgba_hex(const std::string& hex) {
     return static_cast<uint32_t>(*rgb);
 }
 
+std::vector<ToolheadSensorDelta> parse_toolhead_sensors(const nlohmann::json& status) {
+    std::vector<ToolheadSensorDelta> sensors;
+    // Match both prefixes (motion is the Snapmaker default; switch is the
+    // generic fallback) and any "e{N}_filament" / "e{N}" sensor name suffix.
+    constexpr std::string_view motion_prefix = "filament_motion_sensor ";
+    constexpr std::string_view switch_prefix = "filament_switch_sensor ";
+    for (auto it = status.begin(); it != status.end(); ++it) {
+        const std::string& key = it.key();
+        std::string_view sensor_name;
+        if (key.compare(0, motion_prefix.size(), motion_prefix) == 0) {
+            sensor_name = std::string_view(key).substr(motion_prefix.size());
+        } else if (key.compare(0, switch_prefix.size(), switch_prefix) == 0) {
+            sensor_name = std::string_view(key).substr(switch_prefix.size());
+        } else {
+            continue;
+        }
+        // Anything but "e{N}_filament" or "e{N}" (toolhead_sensor,
+        // bypass_sensor, custom names) is unrelated to per-tool runout.
+        if (sensor_name.size() < 2 || sensor_name[0] != 'e') {
+            continue;
+        }
+        size_t digit_end = 1;
+        while (digit_end < sensor_name.size() &&
+               std::isdigit(static_cast<unsigned char>(sensor_name[digit_end]))) {
+            ++digit_end;
+        }
+        if (digit_end == 1) {
+            continue; // no digits
+        }
+        const auto tool = text_io::parse_leading<int>(sensor_name.substr(1, digit_end - 1));
+        if (!tool || *tool < 0 || *tool >= kToolCount || !it.value().is_object()) {
+            continue;
+        }
+        ToolheadSensorDelta d;
+        d.tool = *tool;
+        d.object = key;
+        d.enabled = ams::read_field<bool>(it.value(), "enabled");
+        d.filament_detected = ams::read_field<bool>(it.value(), "filament_detected");
+        sensors.push_back(std::move(d));
+    }
+    return sensors;
+}
+
 PrintTaskConfigDelta parse_print_task_config(const nlohmann::json& status) {
     PrintTaskConfigDelta d;
     d.preferences = read_print_preferences(status);
@@ -253,6 +298,8 @@ StatusDelta parse_status(const nlohmann::json& status, const std::string& batch_
     }
 
     d.feed_channels = parse_feed_channels(status);
+
+    d.toolhead_sensors = parse_toolhead_sensors(status);
 
     if (status.contains("print_task_config") && status["print_task_config"].is_object()) {
         d.print_task_config = parse_print_task_config(status);

@@ -1923,6 +1923,39 @@ void AmsBackendSnapmaker::apply_task_slot_identity_locked(
     }
 }
 
+void AmsBackendSnapmaker::apply_toolhead_sensors_locked(const snapmaker::StatusDelta& delta,
+                                                        FrameEffects& fx) {
+    // The U1's [filament_motion_sensor e{N}_filament] is a motion runout during
+    // a print (filament_detected:false when extrusion outruns the encoder, then
+    // PAUSE via pause_on_runout) and a presence switch otherwise (it copies the
+    // toolhead pin). Mirror the flag: the path canvas breaks the spool->toolhead
+    // line on runout, and outside a print it answers whether filament sits in
+    // the toolhead.
+    for (const auto& sensor : delta.toolhead_sensors) {
+        const int tool_idx = sensor.tool;
+
+        // `enabled` rides the same status objects and gates loading: a sensor
+        // the firmware has disabled cannot confirm feed.
+        if (sensor.enabled) {
+            channel_snapshots_[static_cast<size_t>(tool_idx)].sensor_enabled = *sensor.enabled;
+        }
+        if (!sensor.filament_detected) {
+            continue;
+        }
+        const bool present = *sensor.filament_detected;
+        if (!toolhead_switch_reported_[tool_idx]) {
+            toolhead_switch_reported_[tool_idx] = true;
+            fx.changed = true;
+        }
+        if (sensor_filament_present_[tool_idx] != present) {
+            sensor_filament_present_[tool_idx] = present;
+            fx.changed = true;
+            spdlog::info("{} Tool {} filament sensor: {} ({})", backend_log_tag(), tool_idx,
+                         present ? "PRESENT" : "RUNOUT", sensor.object);
+        }
+    }
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
     std::string batch_macro_object;
@@ -1948,76 +1981,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
 
         apply_print_task_config_locked(delta, fx);
 
-        // Parse filament_motion_sensor / filament_switch_sensor per tool. The U1's
-        // [filament_motion_sensor e{N}_filament] is a motion runout during a
-        // print (filament_detected:false when extrusion outruns the encoder,
-        // then PAUSE via pause_on_runout) and a presence switch otherwise (it
-        // copies the toolhead pin). Mirror the flag: the path canvas breaks the
-        // spool→toolhead line on runout, and outside a print it answers whether
-        // filament sits in the toolhead.
-        //
-        // Match both prefixes (motion is the Snapmaker default; switch is the
-        // generic fallback) and any "e{N}_filament" / "e{N}" sensor name suffix.
-        for (auto it = status.begin(); it != status.end(); ++it) {
-            const std::string& key = it.key();
-            const auto motion_prefix = std::string_view("filament_motion_sensor ");
-            const auto switch_prefix = std::string_view("filament_switch_sensor ");
-            std::string_view sensor_name;
-            if (key.compare(0, motion_prefix.size(), motion_prefix) == 0) {
-                sensor_name = std::string_view(key).substr(motion_prefix.size());
-            } else if (key.compare(0, switch_prefix.size(), switch_prefix) == 0) {
-                sensor_name = std::string_view(key).substr(switch_prefix.size());
-            } else {
-                continue;
-            }
-            // Expect "e{N}_filament" or "e{N}". Anything else (toolhead_sensor,
-            // bypass_sensor, custom names) is unrelated to per-tool runout.
-            if (sensor_name.size() < 2 || sensor_name[0] != 'e')
-                continue;
-            size_t digit_end = 1;
-            while (digit_end < sensor_name.size() &&
-                   std::isdigit(static_cast<unsigned char>(sensor_name[digit_end]))) {
-                ++digit_end;
-            }
-            if (digit_end == 1)
-                continue; // no digits
-            const auto parsed_tool_idx =
-                helix::text_io::parse_leading<int>(sensor_name.substr(1, digit_end - 1));
-            if (!parsed_tool_idx) {
-                continue;
-            }
-            const int tool_idx = *parsed_tool_idx;
-            if (tool_idx < 0 || tool_idx >= NUM_TOOLS)
-                continue;
-            if (!it.value().is_object())
-                continue;
-            // `enabled` rides the same status objects and gates loading: a
-            // sensor the firmware has disabled cannot confirm feed. Absent
-            // means no change (delta frames omit held values).
-            auto enabled_it = it.value().find("enabled");
-            if (enabled_it != it.value().end() && enabled_it->is_boolean()) {
-                channel_snapshots_[static_cast<size_t>(tool_idx)].sensor_enabled =
-                    enabled_it->get<bool>();
-            }
-            // filament_detected: Klipper emits as bool; default true (no runout)
-            // so missing field == "no change" via the contains check. Use .find()
-            // + is_boolean() (per [L087]) rather than .value() which would throw
-            // on a null payload.
-            auto fd_it = it.value().find("filament_detected");
-            if (fd_it == it.value().end() || !fd_it->is_boolean())
-                continue;
-            bool present = fd_it->get<bool>();
-            if (!toolhead_switch_reported_[tool_idx]) {
-                toolhead_switch_reported_[tool_idx] = true;
-                fx.changed = true;
-            }
-            if (sensor_filament_present_[tool_idx] != present) {
-                sensor_filament_present_[tool_idx] = present;
-                fx.changed = true;
-                spdlog::info("{} Tool {} filament sensor: {} ({})", backend_log_tag(), tool_idx,
-                             present ? "PRESENT" : "RUNOUT", key);
-            }
-        }
+        apply_toolhead_sensors_locked(delta, fx);
 
         // The active tool's loaded answers, derived from held state on every
         // frame so they cannot depend on which fields this frame carried: a

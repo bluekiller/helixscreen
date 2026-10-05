@@ -194,3 +194,35 @@ TEST_CASE("Snapmaker rgb_from_rgba_hex takes the first six characters",
     CHECK_FALSE(snapmaker::rgb_from_rgba_hex("FFF"));
     CHECK_FALSE(snapmaker::rgb_from_rgba_hex(""));
 }
+
+TEST_CASE("Snapmaker status parse picks per-tool runout sensors out of the frame by name",
+          "[snapmaker][status_parse]") {
+    const auto d = snapmaker::parse_status(
+        json{{"filament_motion_sensor e2_filament",
+              json{{"enabled", true}, {"filament_detected", false}}},
+             {"filament_switch_sensor e0", json{{"filament_detected", true}}},
+             {"filament_motion_sensor e7_filament", json{{"filament_detected", true}}},
+             {"filament_motion_sensor toolhead_sensor", json{{"filament_detected", true}}},
+             {"filament_motion_sensor e1_filament", "not an object"},
+             {"filament_motion_sensor e3_filament", json{{"filament_detected", nullptr}}}});
+
+    REQUIRE(d.toolhead_sensors.size() == 3);
+    const auto find = [&](int tool) -> const snapmaker::ToolheadSensorDelta* {
+        for (const auto& s : d.toolhead_sensors) {
+            if (s.tool == tool) {
+                return &s;
+            }
+        }
+        return nullptr;
+    };
+    REQUIRE(find(2));
+    CHECK(find(2)->enabled == true);
+    CHECK(find(2)->filament_detected == false);
+    CHECK(find(2)->object == "filament_motion_sensor e2_filament");
+    REQUIRE(find(0));
+    CHECK_FALSE(find(0)->enabled);
+    CHECK(find(0)->filament_detected == true);
+    REQUIRE(find(3));
+    CHECK_FALSE(find(3)->filament_detected);
+    CHECK_FALSE(find(1));
+}

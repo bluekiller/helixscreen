@@ -112,6 +112,15 @@ struct PrintTaskConfigDelta {
 /// The RGB a `filament_color_rgba` entry names, or nullopt when it names none.
 [[nodiscard]] std::optional<uint32_t> rgb_from_rgba_hex(const std::string& hex);
 
+/// One per-tool runout sensor object: `filament_motion_sensor e{N}_filament`
+/// (the Snapmaker default) or the generic `filament_switch_sensor` form.
+struct ToolheadSensorDelta {
+    int tool = 0;
+    std::string object; ///< the status key, for logs
+    std::optional<bool> enabled;
+    std::optional<bool> filament_detected;
+};
+
 /// Everything the backend reads from one status frame, parsed up front.
 struct StatusDelta {
     /// extruder, extruder1 .. extruder3; nullopt when the frame has no such
@@ -129,6 +138,8 @@ struct StatusDelta {
     std::optional<bool> batch_doing;
     /// nullopt when the frame has no print_task_config object.
     std::optional<PrintTaskConfigDelta> print_task_config;
+    /// The per-tool runout sensors the frame carried, in status-object order.
+    std::vector<ToolheadSensorDelta> toolhead_sensors;
 };
 
 [[nodiscard]] ExtruderDelta parse_extruder_delta(const nlohmann::json& extruder);
@@ -136,6 +147,8 @@ struct StatusDelta {
 [[nodiscard]] SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
 
 [[nodiscard]] FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect);
+
+[[nodiscard]] std::vector<ToolheadSensorDelta> parse_toolhead_sensors(const nlohmann::json& status);
 
 [[nodiscard]] PrintTaskConfigDelta parse_print_task_config(const nlohmann::json& status);
 

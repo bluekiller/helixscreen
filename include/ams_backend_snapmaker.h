@@ -533,6 +533,8 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     void apply_task_routing_locked(const snapmaker::PrintTaskConfigDelta& ptc, FrameEffects& fx);
     void apply_task_slot_identity_locked(const snapmaker::PrintTaskConfigDelta& ptc,
                                          FrameEffects& fx);
+    /// The per-tool runout sensors: enabled flag and filament present/runout.
+    void apply_toolhead_sensors_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     /// Retires an active batch plan the firmware reports no longer running.
     void apply_batch_state_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     /// The head an operation is working on, from the batch cursor or the
