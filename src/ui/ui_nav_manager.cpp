@@ -2347,3 +2347,55 @@ void NavigationManager::deinit_subjects() {
     subjects_initialized_ = false;
     spdlog::trace("[NavigationManager] Subjects deinitialized");
 }
+
+// ============================================================================
+// helix::nav FORWARDS
+// ============================================================================
+
+namespace helix::nav {
+
+void push_overlay(lv_obj_t* overlay, bool hide_previous) {
+    NavigationManager::instance().push_overlay(overlay, hide_previous);
+}
+
+bool go_back() {
+    return NavigationManager::instance().go_back();
+}
+
+void close_overlay(lv_obj_t* overlay) {
+    NavigationManager::instance().close_overlay(overlay);
+}
+
+void register_overlay(lv_obj_t* widget, IPanelLifecycle* overlay, bool persistent) {
+    NavigationManager::instance().register_overlay_instance(widget, overlay, persistent);
+}
+
+void unregister_overlay(lv_obj_t* widget) {
+    if (!NavigationManager::is_destroyed()) {
+        NavigationManager::instance().unregister_overlay_instance(widget);
+    }
+}
+
+void on_close(lv_obj_t* overlay, OverlayCloseCallback callback) {
+    NavigationManager::instance().register_overlay_close_callback(overlay, std::move(callback));
+}
+
+void clear_on_close(lv_obj_t* overlay) {
+    if (!NavigationManager::is_destroyed()) {
+        NavigationManager::instance().unregister_overlay_close_callback(overlay);
+    }
+}
+
+void set_active(PanelId panel_id) {
+    NavigationManager::instance().set_active(panel_id);
+}
+
+bool is_on_top(lv_obj_t* panel) {
+    return NavigationManager::instance().is_panel_on_top(panel);
+}
+
+bool is_in_stack(lv_obj_t* panel) {
+    return NavigationManager::instance().is_panel_in_stack(panel);
+}
+
+} // namespace helix::nav

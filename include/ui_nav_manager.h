@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ui_nav.h"
 #include "ui_observer_guard.h"
 #include "ui_printer_switch_menu.h"
 #include "ui_widget_ref.h"
@@ -20,46 +21,6 @@
 // Forward declarations for lifecycle dispatch
 class PanelBase;
 class OverlayBase;
-class IPanelLifecycle;
-
-namespace helix {
-/// Callback type for overlay close notifications
-using OverlayCloseCallback = std::function<void()>;
-} // namespace helix
-
-/**
- * @brief Navigation panel identifiers
- *
- * Order matches app_layout.xml panel children for index-based access.
- */
-namespace helix {
-enum class PanelId {
-    Home = 0,    ///< Panel 0: Home
-    PrintSelect, ///< Panel 1: Print Select (beneath Home)
-    Controls,    ///< Panel 2: Controls
-    Filament,    ///< Panel 3: Filament
-    Settings,    ///< Panel 4: Settings
-    Advanced,    ///< Panel 5: Advanced
-    Count        ///< Total number of panels
-};
-
-/**
- * @brief Whether overlays pushed from a nav root are destinations by default.
- *
- * Settings is the one root users navigate *within* rather than launch things
- * from: Settings > Connection > Network is a sub-screen of Settings, not a layer
- * over it, so it renders at destination width (iOS push semantics). Every other root
- * launches tools you return from, which get the gapped transient width.
- *
- * See include/overlay_class.h and prestonbrown/helixscreen#1178.
- */
-constexpr bool nav_root_is_destination(PanelId id) {
-    return id == PanelId::Settings;
-}
-} // namespace helix
-
-// Legacy aliases for backward compatibility
-constexpr int UI_PANEL_COUNT = static_cast<int>(helix::PanelId::Count);
 
 /**
  * @brief Singleton manager for navigation and panel management
