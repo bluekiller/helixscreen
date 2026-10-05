@@ -366,6 +366,7 @@ translations:
   Buffer Status: バッファーステータス
   Buffer tube problem: バッファーチューブの問題
   'Build Volume: ': '造形サイズ: '
+  'Building preview: %d%%': 'プレビューを作成中: %d%%'
   Bundle Uploaded: バンドルをアップロードしました
   Busy: 'ビジー状態'
   Button taps and navigation sounds: ボタンタップとナビゲーション音

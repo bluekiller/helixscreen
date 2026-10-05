@@ -958,8 +958,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
                                                    LV_PART_MAIN);
                         lv_obj_align(state->ghost_progress_label_, LV_ALIGN_BOTTOM_LEFT, 8, -8);
                     }
-                    static char text[32];
-                    lv_snprintf(text, sizeof(text), "Building preview: %d%%", u->percent);
+                    char text[96];
+                    snprintf(text, sizeof(text), lv_tr("Building preview: %d%%"), u->percent);
                     lv_label_set_text(state->ghost_progress_label_, text);
                 });
         } else if (st->ghost_progress_label_) {
