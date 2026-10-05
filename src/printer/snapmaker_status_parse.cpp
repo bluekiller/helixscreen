@@ -4,6 +4,7 @@
 #include "snapmaker_status_parse.h"
 
 #include "ams_status_json.h"
+#include "lane_translation.h"
 #include "text_io.h"
 
 #include <algorithm>
@@ -149,15 +150,13 @@ FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect) {
 }
 
 std::optional<uint32_t> rgb_from_rgba_hex(const std::string& hex) {
-    // RGBA hex string -> RGB: the first six characters.
-    if (hex.size() < 6) {
+    // Only an Observed reading is a colour; an empty or malformed value leaves
+    // the slot's colour as it was.
+    const auto reading = ams::read_lane_color(hex);
+    if (reading.kind != ams::ColorReadingKind::Observed) {
         return std::nullopt;
     }
-    const auto rgb = text_io::parse_leading<unsigned long>(hex.substr(0, 6), 16);
-    if (!rgb) {
-        return std::nullopt;
-    }
-    return static_cast<uint32_t>(*rgb);
+    return reading.rgb;
 }
 
 std::vector<ToolheadSensorDelta> parse_toolhead_sensors(const nlohmann::json& status) {

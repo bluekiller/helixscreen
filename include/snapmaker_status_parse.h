@@ -105,11 +105,13 @@ struct PrintTaskConfigDelta {
     std::array<std::optional<bool>, kToolCount> filament_exist;
     std::array<std::optional<std::string>, kToolCount> filament_type;
     std::array<std::optional<std::string>, kToolCount> filament_vendor;
-    /// Hex RGBA, as the firmware spells it.
+    /// Hex RGBA, as the firmware spells it; see rgb_from_rgba_hex.
     std::array<std::optional<std::string>, kToolCount> filament_color_rgba;
 };
 
-/// The RGB a `filament_color_rgba` entry names, or nullopt when it names none.
+/// The RGB a `filament_color_rgba` entry names (the lane-colour grammar: bare or
+/// `#`-prefixed hex, with or without an alpha byte), or nullopt when it names
+/// none.
 [[nodiscard]] std::optional<uint32_t> rgb_from_rgba_hex(const std::string& hex);
 
 /// One per-tool runout sensor object: `filament_motion_sensor e{N}_filament`
