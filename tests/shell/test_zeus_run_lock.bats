@@ -14,6 +14,9 @@
 # sudo and docker so nothing leaves the sandbox and no build runs; what is
 # under test is the lock protocol itself. ZEUS_LOCK_DIR points the lock at
 # the per-test sandbox, the same way ZEUS_WORKDIR and TMPDIR do.
+#
+# The tsan cases at the end pin that job's make target and its refusal to
+# call a run with no test output clean.
 
 WORKTREE_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 SCRIPT="$WORKTREE_ROOT/scripts/zeus-run.sh"
@@ -184,4 +187,48 @@ wait_for_line() { # <substring> <file>
     reapply_line=$(grep -nF "make reapply-patches" "$MOCK_DOCKER_LOG" | head -1 | cut -d: -f1)
     [ -n "$reapply_line" ]
     [ "$reset_line" -lt "$reapply_line" ]
+}
+
+@test "tsan with tags runs test-tsan-one with the tags as one TEST argument" {
+    # Stub the Catch2 summary a real tagged run tees into the log.
+    mock_command_script docker '
+case "$1" in
+    ps) echo helix-tsan ;;
+    exec)
+        case "$*" in
+            *pgrep*) exit 1 ;;
+            *test-tsan-one*) echo "[docker-exec] $*" >> "$MOCK_DOCKER_LOG"; echo "All tests passed (1 assertion in 1 test case)" ;;
+            *) echo "[docker-exec] $*" >> "$MOCK_DOCKER_LOG" ;;
+        esac ;;
+esac
+exit 0'
+    run "$SCRIPT" tsan '[ams],[spoolman]'
+    [ "$status" -eq 0 ]
+    grep -qF 'make test-tsan-one TEST="[ams],[spoolman]"' "$MOCK_DOCKER_LOG"
+    refute_grep 'make test-tsan ' "$MOCK_DOCKER_LOG"
+}
+
+@test "tsan with no tag runs the sharded suite" {
+    mock_command_script docker '
+case "$1" in
+    ps) echo helix-tsan ;;
+    exec)
+        case "$*" in
+            *pgrep*) exit 1 ;;
+            *"make test-tsan "*) echo "[docker-exec] $*" >> "$MOCK_DOCKER_LOG"; echo "✓ TSAN clean — no sanitizer reports" ;;
+            *) echo "[docker-exec] $*" >> "$MOCK_DOCKER_LOG" ;;
+        esac ;;
+esac
+exit 0'
+    run "$SCRIPT" tsan
+    [ "$status" -eq 0 ]
+    grep -qF 'make test-tsan -j' "$MOCK_DOCKER_LOG"
+    refute_grep 'test-tsan-one' "$MOCK_DOCKER_LOG"
+}
+
+@test "a tsan run that printed no Catch2 summary is not reported clean" {
+    # The default docker stub runs nothing, so the log carries no summary.
+    run "$SCRIPT" tsan '[ams]'
+    [ "$status" -eq 1 ]
+    contains "not a clean TSAN result" "$output"
 }
