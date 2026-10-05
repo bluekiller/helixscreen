@@ -1607,7 +1607,7 @@ void GCodeGLESRenderer::draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* 
     lv_draw_image_dsc_init(&img_dsc);
     img_dsc.src = draw_buf_;
 
-    lv_area_t area = *widget_coords;
+    lv_area_t area = helix::draw_buf_blit_area(*draw_buf_, *widget_coords);
     lv_draw_image(layer, &img_dsc, &area);
 }
 
@@ -2180,6 +2180,11 @@ size_t GCodeGLESRenderer::get_geometry_color_count() const {
     if (geometry_)
         return geometry_->color_palette.size();
     return 0;
+}
+
+std::vector<uint32_t> GCodeGLESRenderer::get_geometry_color_palette() const {
+    std::lock_guard<std::mutex> lock(palette_mutex_);
+    return geometry_ ? geometry_->color_palette : std::vector<uint32_t>{};
 }
 
 helix::gcode::RenderMemoryReport GCodeGLESRenderer::memory_report() const {

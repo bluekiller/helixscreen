@@ -3,7 +3,9 @@
 
 #include "helix_test_fixture.h"
 
+#include "ui_ams_edit_overlay.h"
 #include "ui_animations_pref.h"
+#include "ui_insert_notice.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
 #include "ui_observer_guard.h"
@@ -40,9 +42,12 @@
 #include "temperature_sensor_manager.h"
 #include "test_helpers/ams_state_test_access.h"
 #include "test_helpers/config_test_access.h"
+#include "test_helpers/display_manager_test_access.h"
 #include "test_helpers/emergency_stop_test_access.h"
+#include "test_helpers/layout_manager_test_access.h"
 #include "test_helpers/print_control_buttons_test_access.h"
 #include "test_helpers/printer_state_test_access.h"
+#include "test_helpers/tips_manager_test_access.h"
 #include "tool_state.h"
 #include "ui/ui_widget_helpers.h"
 
@@ -177,6 +182,29 @@ struct ConfigSandbox {
 };
 const ConfigSandbox g_config_sandbox;
 
+/// The default logger as the process first saw it. Cases that call
+/// logging::init(), swap in a capture logger, or raise the level for their own
+/// output leave the next case logging into a different logger at a different
+/// threshold, so a case that reads back an info line finds nothing.
+void restore_default_logger() {
+    struct Baseline {
+        std::shared_ptr<spdlog::logger> logger = spdlog::default_logger();
+        spdlog::level::level_enum level = logger->level();
+        std::vector<spdlog::sink_ptr> sinks = logger->sinks();
+    };
+    static const Baseline baseline;
+
+    if (spdlog::default_logger() != baseline.logger) {
+        spdlog::set_default_logger(baseline.logger);
+    }
+    if (baseline.logger->level() != baseline.level) {
+        baseline.logger->set_level(baseline.level);
+    }
+    if (baseline.logger->sinks() != baseline.sinks) {
+        baseline.logger->sinks() = baseline.sinks;
+    }
+}
+
 } // namespace
 
 namespace helix::test {
@@ -209,6 +237,11 @@ void reset_config_singleton() {
     if (std::filesystem::remove(config_sandbox_dir() + "/user_filaments.json", overlay_ec)) {
         filament::reload_materials();
     }
+
+    // FilamentSlotOverrideStore's offline fallback reads this file when the
+    // Moonraker DB round-trip never answers, so a record an earlier backend case
+    // cached would come back as the "offline" overrides of an unrelated store.
+    std::filesystem::remove(config_sandbox_dir() + "/filament_slot_overrides.json", overlay_ec);
 
     helix::Config* cfg = helix::Config::get_instance();
     helix::ConfigTestAccess::path(*cfg) = config_sandbox_dir() + "/settings.json";
@@ -351,6 +384,10 @@ void HelixTestFixture::reset_all() {
     StandardMacros::instance().load_from_config();
     helix::SystemSettingsManager::instance().init_subjects();
     helix::SystemSettingsManager::instance().set_language("en");
+
+    // A same-spool notice asked in one test would otherwise hold its lane's
+    // quiet window open into the next, and that test's insert would ask nothing.
+    helix::ui::reset_insert_offers_for_test();
 
     // Global RuntimeConfig's --real-*/--no-ams/--disconnected opt-out flags back
     // to their off-by-default state. Every test that exercises RuntimeConfig
@@ -543,6 +580,27 @@ void HelixTestFixture::reset_all() {
     // bodies; a case asserting "first occurrence logs at its usual level" would
     // otherwise depend on how many distinct warnings earlier cases emitted.
     helix::logging::reset_lvgl_log_dedupe();
+
+    // Once initialized, LayoutManager decides ui_is_portrait and the layout tier
+    // for every refresh, so a case that initialized it would make a later case's
+    // display resize invisible to the theme.
+    LayoutManagerTestAccess::reset(helix::LayoutManager::instance());
+
+    // Its subjects publish global XML names, and a second AmsEditOverlay built
+    // on the stack (which cases do to reach its private members) takes those
+    // names over and withdraws them when it dies. The singleton still counts
+    // them as registered, so it is dropped to re-register on next use.
+    if (helix::lazy_global_if_exists<helix::ui::AmsEditOverlay>() &&
+        !lv_xml_get_subject(nullptr, "ams_edit_save_disabled")) {
+        helix::detail::lazy_global_slot<helix::ui::AmsEditOverlay>().reset();
+    }
+
+    TipsManagerTestAccess::reset_if_created();
+
+    // The wake gate arms a one-shot timer that re-enables every pointer indev.
+    DisplayManagerTestAccess::finish_input_gate();
+
+    restore_default_logger();
 
     // The debug-bundle log tail reads this ring, so whatever earlier cases
     // logged (a store path, an SSID) would otherwise show up in a later bundle.

@@ -68,7 +68,7 @@ printer_data/config/helixscreen/plugins/<id>/
 The Mainsail or Fluidd file manager works; no restart is needed. The screen mirrors the
 folder into a local cache on connect and whenever the files change, shows a toast when a
 new plugin arrives, and never enables one on its own - the user enables it in
-Settings > Plugins (`src/application/application.cpp#on_plugin_sync`).
+Settings > Plugins (`src/application/printer_session.cpp#on_plugin_sync`).
 
 A plugin over a sync limit is skipped whole and keeps its previous installed version
 (`include/plugin_source.h`): at most 128 files, 8 MB per plugin, 4 MB per file, and 32

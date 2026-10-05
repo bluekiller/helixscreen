@@ -124,10 +124,11 @@ struct SpoolCellData {
     std::string material;   // "" => label reads "--"
     int remaining_pct = -1; // actual % remaining; -1 = unknown (blank label)
     bool active = false;    // actively-loaded lane (success-colored badge)
+    int slot = -1;          // global slot index; -1 = the cell's own position
 
     bool operator==(const SpoolCellData& o) const {
         return lane_state == o.lane_state && material == o.material &&
-               remaining_pct == o.remaining_pct && active == o.active;
+               remaining_pct == o.remaining_pct && active == o.active && slot == o.slot;
     }
 };
 
@@ -185,6 +186,11 @@ struct AmsMiniStatusData {
     // and updated in place on every sync; only a lane count change adds or
     // removes cells.
     std::vector<lv_obj_t*> spool_cell_objs;
+    std::vector<int> spool_cell_obj_slots; // slot each pooled cell was built for
+
+    // Slots inside an absent unit (a box that is not on the bus): neither drawn
+    // nor counted in the "+N" overflow.
+    std::vector<int> absent_slots;
 
     // Auto-binding observer (observe AmsState slots_version subject)
     // Uses ObserverGuard for RAII lifecycle management
@@ -319,7 +325,13 @@ static void rebuild_bars(AmsMiniStatusData* data) {
 
     int max_vis = effective_max_visible(data);
     int visible_count = std::min(data->slot_count, max_vis);
-    int overflow_count = data->slot_count - visible_count;
+    int overflow_count = 0;
+    for (int i = visible_count; i < data->slot_count; ++i) {
+        if (std::find(data->absent_slots.begin(), data->absent_slots.end(), i) ==
+            data->absent_slots.end()) {
+            ++overflow_count;
+        }
+    }
 
     // Calculate dimensions from container
     // Don't force layout — read current dimensions. If they're not resolved
@@ -669,6 +681,7 @@ static void drop_spool_cells(AmsMiniStatusData* data) {
         helix::ui::safe_delete_deferred(dead);
     }
     data->spool_cell_objs.clear();
+    data->spool_cell_obj_slots.clear();
 }
 
 /**
@@ -946,6 +959,7 @@ static void rebuild_spools(AmsMiniStatusData* data) {
     } else {
         data->spool_cell_objs.resize(n, nullptr);
     }
+    data->spool_cell_obj_slots.resize(n, -1);
 
     char nm[32];
     auto cell_part = [&](lv_obj_t* root, const char* fmt, int idx) -> lv_obj_t* {
@@ -955,8 +969,17 @@ static void rebuild_spools(AmsMiniStatusData* data) {
 
     for (int i = 0; i < n; ++i) {
         const SpoolCellData& cd = data->spool_cells[i];
-        if (!data->spool_cell_objs[i])
-            data->spool_cell_objs[i] = create_spool_cell(sc, i, spool_size);
+        // A cell binds its slot's subjects when it is built, so a pooled cell
+        // now standing for a different slot (a box left the chain) is rebuilt.
+        const int slot = cd.slot >= 0 ? cd.slot : i;
+        if (data->spool_cell_objs[i] && data->spool_cell_obj_slots[i] != slot) {
+            condemn(data->spool_cell_objs[i]);
+            data->spool_cell_objs[i] = nullptr;
+        }
+        if (!data->spool_cell_objs[i]) {
+            data->spool_cell_objs[i] = create_spool_cell(sc, slot, spool_size);
+            data->spool_cell_obj_slots[i] = slot;
+        }
         lv_obj_t* cell = data->spool_cell_objs[i];
         if (!cell)
             continue;
@@ -978,7 +1001,7 @@ static void rebuild_spools(AmsMiniStatusData* data) {
         if (lv_obj_t* lspool = lv_obj_find_by_name(cell, "lane_spool"))
             helix::ui::ams_lane_spool_set_size(lspool, spool_size);
 
-        if (lv_obj_t* badge = cell_part(cell, "spool_badge_%d", i)) {
+        if (lv_obj_t* badge = cell_part(cell, "spool_badge_%d", slot)) {
             const int badge_size = spool_size * 2 / 5;
             lv_obj_set_size(badge, badge_size, badge_size);
             ams_draw::set_lane_badge_active(badge, cd.active);
@@ -991,7 +1014,7 @@ static void rebuild_spools(AmsMiniStatusData* data) {
         const bool show_pct = !stacked || stacked_pct;
         const lv_opa_t text_opa =
             cd.lane_state == helix::ui::LaneState::Ghosted ? ams_draw::GHOST_OPA : LV_OPA_COVER;
-        lv_obj_t* col = cell_part(cell, "spool_text_%d", i);
+        lv_obj_t* col = cell_part(cell, "spool_text_%d", slot);
         if (col) {
             lv_obj_set_width(col, text_w);
             // Stacked, the column is one line under the spool and must not claim the
@@ -1003,7 +1026,7 @@ static void rebuild_spools(AmsMiniStatusData* data) {
                 lv_obj_add_flag(col, LV_OBJ_FLAG_HIDDEN);
         }
 
-        lv_obj_t* mat = cell_part(cell, "spool_material_%d", i);
+        lv_obj_t* mat = cell_part(cell, "spool_material_%d", slot);
         if (mat) {
             lv_obj_set_width(mat, text_w);
             // A squeezed column is sized for a shortened name, not the widest one,
@@ -1023,7 +1046,7 @@ static void rebuild_spools(AmsMiniStatusData* data) {
             lv_label_set_text(mat, spool_material_text(cd));
         }
 
-        lv_obj_t* pct = cell_part(cell, "spool_pct_%d", i);
+        lv_obj_t* pct = cell_part(cell, "spool_pct_%d", slot);
         if (pct) {
             lv_obj_set_width(pct, text_w);
             if (cd.remaining_pct >= 0) {
@@ -1371,9 +1394,17 @@ static void sync_from_ams_state(AmsMiniStatusData* data) {
     // Get multi-unit info from system info
     helix::AmsSystemInfo info = backend->get_system_info();
     data->unit_count = static_cast<int>(info.units.size());
+    data->absent_slots.clear();
     for (int u = 0; u < data->unit_count && u < 8; ++u) {
         data->unit_rows[u].first_slot = info.units[u].first_slot_global_index;
-        data->unit_rows[u].slot_count = info.units[u].slot_count;
+        // An absent unit's bays are not drawn: the row is condemned for having
+        // no bars, like the card above it that says Not connected.
+        data->unit_rows[u].slot_count = info.units[u].absent ? 0 : info.units[u].slot_count;
+    }
+    for (int i = 0; i < slot_count; ++i) {
+        if (info.slot_absent(i)) {
+            data->absent_slots.push_back(i);
+        }
     }
     // Clear any stale unit rows beyond current count
     for (int u = data->unit_count; u < 8; ++u) {
@@ -1389,8 +1420,12 @@ static void sync_from_ams_state(AmsMiniStatusData* data) {
     // re-derived here, so the strip's labels and its graphics cannot disagree
     // about one lane (out-of-range lanes have no subject and read
     // Empty/inactive, ams_slot's fallback).
-    data->spool_cells.assign(slot_count, SpoolCellData{});
+    data->spool_cells.clear();
+    data->spool_cells.reserve(static_cast<size_t>(slot_count));
     for (int i = 0; i < slot_count; ++i) {
+        if (info.slot_absent(i)) {
+            continue;
+        }
         helix::SlotInfo slot = backend->get_slot_info(i);
         int rem = -1;
         float p = slot.get_remaining_percent();
@@ -1402,7 +1437,8 @@ static void sync_from_ams_state(AmsMiniStatusData* data) {
         lv_subject_t* active_subject =
             helix::AmsState::instance().get_slot_active_loaded_subject(i);
 
-        SpoolCellData& c = data->spool_cells[i];
+        SpoolCellData& c = data->spool_cells.emplace_back();
+        c.slot = i;
         c.lane_state =
             lane_state_subject
                 ? static_cast<helix::ui::LaneState>(lv_subject_get_int(lane_state_subject))

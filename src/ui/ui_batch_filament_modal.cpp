@@ -206,7 +206,11 @@ void BatchFilamentModal::on_show() {
 
     std::vector<MultiSelectItem> items;
     items.reserve(rows.slots.size());
+    const AmsSystemInfo sys = backend->get_system_info();
     for (size_t slot = 0; slot < rows.slots.size(); ++slot) {
+        if (sys.slot_absent(static_cast<int>(slot))) {
+            continue; // a box that is not on the bus has no heads to pick
+        }
         items.push_back(
             {std::to_string(slot),
              row_label(backend->lane_noun(), static_cast<int>(slot), rows.slots[slot],

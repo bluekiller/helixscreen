@@ -75,6 +75,11 @@ struct PrintSelectPanelTestAccess {
         return panel.detail_view_built_;
     }
 
+    /// Whether the panel's USB source has a walk in flight.
+    static bool usb_scanning(const PrintSelectPanel& panel) {
+        return panel.usb_source_ && panel.usb_source_->is_scanning();
+    }
+
     /// Whether the detail-view overlay is currently pushed (OverlayBase's
     /// is_visible, driven by NavigationManager activate/deactivate).
     static bool detail_view_visible(const PrintSelectPanel& panel) {
@@ -112,6 +117,23 @@ struct PrintSelectPanelTestAccess {
     static void fire_print_started(PrintSelectPanel& panel) {
         REQUIRE(panel.print_controller_ != nullptr);
         PrintStartControllerTestAccess::fire_print_started(*panel.print_controller_);
+    }
+
+    /// The file the print controller was last told to start: {filename, dir}.
+    static std::pair<std::string, std::string> controller_file(const PrintSelectPanel& panel) {
+        REQUIRE(panel.print_controller_ != nullptr);
+        return PrintStartControllerTestAccess::file(*panel.print_controller_);
+    }
+
+    /// The tool colors the print controller was last handed.
+    static std::vector<std::string> controller_colors(const PrintSelectPanel& panel) {
+        REQUIRE(panel.print_controller_ != nullptr);
+        return PrintStartControllerTestAccess::filament_colors(*panel.print_controller_);
+    }
+
+    /// Overwrite the selected file's tool colors, as opening another file does.
+    static void set_selected_colors(PrintSelectPanel& panel, std::vector<std::string> colors) {
+        panel.selected_filament_colors_ = std::move(colors);
     }
 
     /// The detail view's current option-row states (id -> on).

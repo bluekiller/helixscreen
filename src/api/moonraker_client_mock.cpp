@@ -841,7 +841,6 @@ void MoonrakerClientMock::populate_capabilities() {
     mock_objects.push_back("heater_bed");
     mock_objects.push_back("extruder");
     mock_objects.push_back("bed_mesh");
-    mock_objects.push_back("probe"); // Most printers have a probe for bed mesh/leveling
 
     // Add capabilities for UI testing (speaker for M300, firmware retraction for G10/G11)
     mock_objects.push_back("output_pin beeper");   // Triggers has_speaker_ capability
@@ -1041,19 +1040,12 @@ void MoonrakerClientMock::populate_capabilities() {
     std::string mock_probe_type = (probe_env && probe_env[0]) ? probe_env : "cartographer";
     if (mock_probe_type == "none") {
         spdlog::debug("[MoonrakerClientMock] Probe disabled via env var");
-    } else if (mock_probe_type == "cartographer") {
-        mock_objects.push_back("cartographer");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: cartographer");
-    } else if (mock_probe_type == "bltouch") {
-        mock_objects.push_back("bltouch");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: bltouch");
-    } else if (mock_probe_type == "beacon") {
-        mock_objects.push_back("beacon");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: beacon");
     } else {
-        // tap, klicky, standard, etc. → generic "probe" object
-        mock_objects.push_back("probe");
-        spdlog::debug("[MoonrakerClientMock] Mock probe: {} (as generic probe)", mock_probe_type);
+        const json probe_status = helix::sim::mock_probe_status();
+        for (auto it = probe_status.begin(); it != probe_status.end(); ++it) {
+            mock_objects.push_back(it.key());
+        }
+        spdlog::debug("[MoonrakerClientMock] Mock probe: {}", mock_probe_type);
     }
 
     // Filament sensors (common setup: runout sensor at spool holder)
@@ -1458,7 +1450,7 @@ nlohmann::json MoonrakerClientMock::cfs_box_status_json() const {
     // Stock K1 `box` frame: T1 = unit 1, one array entry per bay. Bay A
     // carries a spool; the others report the "none"/-1 sentinels. Same shape
     // the unit-test fixtures feed parse_stock_box_status().
-    return nlohmann::json::parse(R"({
+    auto box = nlohmann::json::parse(R"({
         "state": "connect", "filament": 0, "auto_refill": 0, "enable": 1,
         "same_material": 0,
         "map": {"T1A": "T1A", "T1B": "T1B", "T1C": "T1C", "T1D": "T1D"},
@@ -1468,6 +1460,25 @@ nlohmann::json MoonrakerClientMock::cfs_box_status_json() const {
                "color_value": ["0E8E4F", "-1", "-1", "-1"],
                "material_type": ["000003", "-1", "-1", "-1"]}
     })");
+    // HELIX_MOCK_CFS_BOXES lists the box addresses on the bus ("1,2,4"); box 1
+    // is always present, every other listed box is empty.
+    const char* boxes = std::getenv("HELIX_MOCK_CFS_BOXES");
+    for (const char* c = boxes; c && *c; ++c) {
+        if (*c < '2' || *c > '4') {
+            continue;
+        }
+        const std::string unit = std::string("T") + *c;
+        box[unit] = {{"state", "connect"},
+                     {"filament", "None"},
+                     {"vender", {"none", "none", "none", "none"}},
+                     {"remain_len", {"-1", "-1", "-1", "-1"}},
+                     {"color_value", {"-1", "-1", "-1", "-1"}},
+                     {"material_type", {"-1", "-1", "-1", "-1"}}};
+        for (char bay : {'A', 'B', 'C', 'D'}) {
+            box["map"][unit + bay] = unit + bay;
+        }
+    }
+    return box;
 }
 
 void MoonrakerClientMock::simulate_cfs_find_cut_pos() {
@@ -3255,12 +3266,7 @@ void MoonrakerClientMock::dispatch_initial_state() {
     int flow = flow_factor_.load();
     int fan = fan_speed_.load();
 
-    // Get homed_axes with thread safety
-    std::string homed;
-    {
-        std::lock_guard<std::mutex> lock(homed_axes_mutex_);
-        homed = homed_axes_;
-    }
+    const std::string homed = get_homed_axes();
 
     // Get print state with thread safety
     std::string print_state_str = get_print_state_string();
@@ -3328,7 +3334,7 @@ void MoonrakerClientMock::dispatch_initial_state() {
           {"axis_maximum",
            {persona_axis_maximum(printer_type_)[0], persona_axis_maximum(printer_type_)[1],
             persona_axis_maximum(printer_type_)[2], 0.0}},
-          {"kinematics", discovery_.hardware().kinematics()}}},
+          {"kinematics", mock_internal::mock_kinematics(printer_type_)}}},
         {"gcode_move",
          {{"gcode_position", {x, y, z, 0.0}}, // Commanded position (same as toolhead in mock)
           {"speed_factor", speed / 100.0},
@@ -3443,23 +3449,9 @@ void MoonrakerClientMock::dispatch_initial_state() {
     initial_status["hall_filament_width_sensor"] = {
         {"Diameter", 1.75}, {"Raw", 500.0}, {"is_active", true}};
 
-    // Add probe sensor status data (matches objects added in populate_capabilities)
-    {
-        const char* probe_env = std::getenv("HELIX_MOCK_PROBE_TYPE");
-        std::string mock_probe_type = (probe_env && probe_env[0]) ? probe_env : "cartographer";
-
-        if (mock_probe_type == "cartographer") {
-            initial_status["cartographer"] = {{"last_z_result", -0.425}, {"z_offset", 0.0}};
-        } else if (mock_probe_type == "beacon") {
-            initial_status["beacon"] = {{"last_z_result", -0.312}, {"z_offset", 0.0}};
-        } else if (mock_probe_type == "bltouch") {
-            initial_status["bltouch"] = {{"last_z_result", 0.130}, {"z_offset", -1.850}};
-        } else if (mock_probe_type == "loadcell") {
-            initial_status["probe"] = {{"last_z_result", 0.0}, {"z_offset", nullptr}};
-        } else if (mock_probe_type != "none") {
-            initial_status["probe"] = {{"last_z_result", 0.0}, {"z_offset", -0.250}};
-        }
-    }
+    // Probe objects (the same ones populate_capabilities() lists)
+    // (assigned, not merge_patch'd: a patch drops the null fields they carry).
+    initial_status.update(helix::sim::mock_probe_status());
 
     // Chamber backend diagnostics + filter pin (e.g. dragonbreath trio via
     // HELIX_MOCK_OBJECTS). Tail of the builder; keys are distinct from every
@@ -4066,11 +4058,7 @@ void MoonrakerClientMock::temperature_simulation_loop() {
         double x, y, z;
         read_position_snapshot(x, y, z);
 
-        std::string homed;
-        {
-            std::lock_guard<std::mutex> lock(homed_axes_mutex_);
-            homed = homed_axes_;
-        }
+        const std::string homed = get_homed_axes();
 
         // Simulate speed/flow oscillation (90-110%) - only during printing
         int speed = 100;
@@ -4168,7 +4156,7 @@ void MoonrakerClientMock::temperature_simulation_loop() {
               {"axis_maximum",
                {persona_axis_maximum(printer_type_)[0], persona_axis_maximum(printer_type_)[1],
                 persona_axis_maximum(printer_type_)[2], 0.0}},
-              {"kinematics", discovery_.hardware().kinematics()}}},
+              {"kinematics", mock_internal::mock_kinematics(printer_type_)}}},
             {"gcode_move",
              {{"gcode_position", {x, y, z, 0.0}}, // Commanded position (same as toolhead in mock)
               {"speed", feed_mm_s},

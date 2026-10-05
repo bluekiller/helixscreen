@@ -86,12 +86,9 @@ struct FilamentSensorState {
     FilamentSensorState()
         : filament_detected(true), enabled(true), detection_count(0), available(false),
           reported(false) {}
-    // filament_detected defaults to TRUE (optimistic "present until proven empty"). The
-    // false default meant that any read before Moonraker's first status update arrived
-    // saw every sensor as a runout — a false positive that hit FilamentRunoutHandler
-    // on print-status panel construction within ~5s of helix-screen startup. The
-    // FilamentSensorManager startup-grace-period gate (formerly in has_any_runout)
-    // was a band-aid for this default; now redundant and removed.
+    // filament_detected defaults to true ("present until proven empty"): the runout
+    // queries ignore the startup grace period and can run before Moonraker's first
+    // status frame, which must never read as a runout.
 };
 
 /**

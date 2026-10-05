@@ -841,9 +841,9 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                 // is the ONLY place they appear — this is the sole caller
                                 // that fills AccelSensorManager, which Settings > Sensors,
                                 // telemetry and detect_belt_hardware() all read.
-                                // Both must run on main thread — update_subjects() sets
-                                // LVGL subjects. discover_from_config() rebuilds its list
-                                // from scratch, so a reconnect re-run cannot duplicate.
+                                // Both must run on main thread: they set LVGL subjects
+                                // (probe_z_offset, accel_count). discover_from_config() rebuilds
+                                // its list from scratch, so a reconnect re-run cannot duplicate.
                                 nlohmann::json cfg_for_sensors = cfg;
                                 helix::ui::queue_update(
                                     "MoonrakerDiscoverySequence::continue_discovery_objects",
@@ -1506,6 +1506,14 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
         json::array({"filament_detected", "enabled", "detection_count"});
     for (const auto& sensor : filament_sensors) {
         subscription_objects[sensor] = filament_sensor_fields;
+    }
+
+    // Probe objects. ProbeSensorManager owns which names are probes and which
+    // fields it reads.
+    const json probe_objects =
+        helix::sensors::ProbeSensorManager::required_status_objects(hw.printer_objects());
+    for (auto it = probe_objects.begin(); it != probe_objects.end(); ++it) {
+        subscription_objects[it.key()] = it.value();
     }
 
     // All discovered width sensors. WidthSensorManager reads Diameter + Raw.

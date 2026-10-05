@@ -190,7 +190,8 @@ TEST_CASE("the ghost silhouette skips auxiliary geometry too", "[layer_renderer]
         auto gcode = make_gcode(with_tower);
         renderer.set_gcode(&gcode);
         renderer.set_canvas_size(200, 200);
-        renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+        GCodeLayerRendererTestAccess::set_view_mode(renderer,
+                                                    GCodeLayerRenderer::ViewMode::TOP_DOWN);
         renderer.auto_fit();
         renderer.set_current_layer(0);
 
@@ -223,7 +224,7 @@ TEST_CASE("set_excluded_objects stores names and can be cleared", "[layer_render
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -256,7 +257,7 @@ TEST_CASE("set_highlighted_objects stores names and can be cleared",
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -288,7 +289,7 @@ TEST_CASE("pick_object_at returns object name for segment under cursor", "[layer
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -325,7 +326,7 @@ TEST_CASE("pick_object_at returns nullopt for empty space", "[layer_renderer][pi
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -343,7 +344,7 @@ TEST_CASE("pick_object_at skips segments without object_name", "[layer_renderer]
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -359,7 +360,7 @@ TEST_CASE("pick_object_at with multiple objects picks closest", "[layer_renderer
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -380,7 +381,7 @@ TEST_CASE("pick_object_at with multiple objects picks closest", "[layer_renderer
 TEST_CASE("pick_object_at with no gcode returns nullopt", "[layer_renderer][pick]") {
     GCodeLayerRenderer renderer;
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
 
     // No gcode set - should return nullopt
     auto result = renderer.pick_object_at(100, 100);
@@ -397,7 +398,7 @@ TEST_CASE("pick_object_at with empty layer returns nullopt", "[layer_renderer][p
 
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.set_current_layer(0);
 
     auto result = renderer.pick_object_at(100, 100);
@@ -415,7 +416,7 @@ TEST_CASE("excluded objects are still pickable", "[layer_renderer][exclude][pick
     auto gcode = make_test_gcode();
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(200, 200);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
     renderer.set_current_layer(0);
 
@@ -464,7 +465,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "render_layers_to_cache emits gcode breadcrumb
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false); // deterministic: no background ghost thread
     renderer.set_canvas_size(200, 200);
     renderer.set_current_layer(0);
@@ -671,7 +671,7 @@ void configure(GCodeLayerRenderer& renderer, const ParsedGCodeFile& gcode, int l
                GCodeLayerRenderer::ViewMode view = GCodeLayerRenderer::ViewMode::TOP_DOWN) {
     renderer.set_gcode(&gcode);
     renderer.set_canvas_size(PICK_CANVAS, PICK_CANVAS);
-    renderer.set_view_mode(view);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, view);
     renderer.auto_fit();
     renderer.set_current_layer(layer);
 }
@@ -846,7 +846,7 @@ TEST_CASE("pick_object_at in streaming mode walks past uncached layers",
     GCodeLayerRenderer renderer;
     renderer.set_streaming_controller(&controller);
     renderer.set_canvas_size(PICK_CANVAS, PICK_CANVAS);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::TOP_DOWN);
+    GCodeLayerRendererTestAccess::set_view_mode(renderer, GCodeLayerRenderer::ViewMode::TOP_DOWN);
     renderer.auto_fit();
 
     // Cache only the bottom of the file. DEFAULT_PREFETCH_RADIUS is 3, so
@@ -1020,6 +1020,173 @@ TEST_CASE("pick_object_at honors the support visibility toggle",
 }
 
 // ===========================================================================
+// Picking under FRONT, the projection the preview ships with. FRONT rotates XY
+// by 45 degrees and folds Z into screen y, so a footprint and a segment
+// distance there differ from TOP_DOWN's; these cases name every click in world
+// millimetres and derive the pixels through the same projection.
+// ===========================================================================
+
+namespace {
+
+constexpr ViewMode kFront = ViewMode::FRONT;
+
+struct ScreenRect {
+    int min_x = std::numeric_limits<int>::max();
+    int min_y = std::numeric_limits<int>::max();
+    int max_x = std::numeric_limits<int>::lowest();
+    int max_y = std::numeric_limits<int>::lowest();
+
+    bool contains(glm::ivec2 p) const {
+        return p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y;
+    }
+};
+
+ScreenRect front_rect(const AABB& fit_box, const AABB& box) {
+    ScreenRect r;
+    for (const glm::vec3& c : box.corners()) {
+        const glm::ivec2 p = project_expected(fit_box, c.x, c.y, c.z, kFront);
+        r.min_x = std::min(r.min_x, p.x);
+        r.min_y = std::min(r.min_y, p.y);
+        r.max_x = std::max(r.max_x, p.x);
+        r.max_y = std::max(r.max_y, p.y);
+    }
+    return r;
+}
+
+// Screen distance from a click to a world segment, projected under FRONT. FRONT
+// is not a similarity transform, so the nearest point in world space is not
+// the nearest on screen; this measures on screen, as the picker does.
+float front_distance(const AABB& fit_box, glm::ivec2 click, const glm::vec3& a,
+                     const glm::vec3& b) {
+    const glm::vec2 p(click);
+    const glm::vec2 s(project_expected(fit_box, a.x, a.y, a.z, kFront));
+    const glm::vec2 e(project_expected(fit_box, b.x, b.y, b.z, kFront));
+    const glm::vec2 d = e - s;
+    const float len2 = glm::dot(d, d);
+    const float t = len2 > 0.0f ? std::clamp(glm::dot(p - s, d) / len2, 0.0f, 1.0f) : 0.0f;
+    return glm::distance(p, s + t * d);
+}
+
+// Two parallel rails 4mm apart on one layer, in separate objects whose XY boxes
+// are disjoint but whose FRONT footprints overlap. "beta" sorts after "alpha"
+// in the object map yet its segment comes first in the layer, so neither map
+// order nor segment order can stand in for the distance comparison.
+ParsedGCodeFile make_parallel_rails_gcode() {
+    ParsedGCodeFile gcode;
+    Layer layer;
+    layer.z_height = 0.2f;
+    const float z = 0.2f;
+    add_object_segment(gcode, layer, "beta", {10.0f, 44.0f, z}, {60.0f, 44.0f, z});
+    add_object_segment(gcode, layer, "beta", {60.0f, 44.0f, z}, {60.0f, 80.0f, z});
+    add_object_segment(gcode, layer, "alpha", {10.0f, 10.0f, z}, {10.0f, 40.0f, z});
+    add_object_segment(gcode, layer, "alpha", {10.0f, 40.0f, z}, {60.0f, 40.0f, z});
+    gcode.layers.push_back(std::move(layer));
+    return gcode;
+}
+
+} // namespace
+
+TEST_CASE("FRONT: pick_object_at picks the object under the tap", "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_tall_object_gcode();
+    configure(renderer, gcode, 4, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const glm::ivec2 on_rail = project_expected(fit_box, 30.0f, 10.0f, 0.4f, kFront);
+
+    // Fixture guard: the tap lands inside the body's FRONT footprint.
+    REQUIRE(front_rect(fit_box, gcode.objects.at("body").bounding_box).contains(on_rail));
+
+    auto hit = renderer.pick_object_at(on_rail.x, on_rail.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit.value() == "body");
+}
+
+TEST_CASE("FRONT: pick_object_at misses outside the projected footprint",
+          "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_tall_object_gcode();
+    configure(renderer, gcode, 4, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const ScreenRect r = front_rect(fit_box, gcode.objects.at("body").bounding_box);
+    const int mid_y = (r.min_y + r.max_y) / 2;
+    const int mid_x = (r.min_x + r.max_x) / 2;
+
+    // Past the footprint by more than the picker's inflation on each side.
+    const int clear = static_cast<int>(selection::kPickThresholdPx) + 10;
+    CHECK_FALSE(renderer.pick_object_at(r.min_x - clear, mid_y).has_value());
+    CHECK_FALSE(renderer.pick_object_at(r.max_x + clear, mid_y).has_value());
+    CHECK_FALSE(renderer.pick_object_at(mid_x, r.min_y - clear).has_value());
+    CHECK_FALSE(renderer.pick_object_at(mid_x, r.max_y + clear).has_value());
+}
+
+TEST_CASE("FRONT: overlapping footprints resolve to the object whose segment is under the tap",
+          "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_overlapping_boxes_gcode();
+    configure(renderer, gcode, 0, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const ScreenRect alpha = front_rect(fit_box, gcode.objects.at("alpha").bounding_box);
+    const ScreenRect beta = front_rect(fit_box, gcode.objects.at("beta").bounding_box);
+
+    // On beta's x=55 rail, inside the band where the two footprints overlap.
+    const glm::ivec2 on_beta = project_expected(fit_box, 55.0f, 63.0f, 0.2f, kFront);
+
+    // Fixture guards: both footprints contain the tap, so stage 1 cannot decide,
+    // and alpha's nearest rail is beyond the picker's reach.
+    REQUIRE(alpha.contains(on_beta));
+    REQUIRE(beta.contains(on_beta));
+    REQUIRE(front_distance(fit_box, on_beta, {10.0f, 50.0f, 0.2f}, {60.0f, 50.0f, 0.2f}) >
+            selection::kPickThresholdPx);
+    REQUIRE(front_distance(fit_box, on_beta, {10.0f, 10.0f, 0.2f}, {10.0f, 60.0f, 0.2f}) >
+            selection::kPickThresholdPx);
+
+    auto hit = renderer.pick_object_at(on_beta.x, on_beta.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit.value() == "beta");
+}
+
+TEST_CASE("FRONT: a tap within reach of two objects picks the nearer segment",
+          "[layer_renderer][pick][front]") {
+    GCodeLayerRenderer renderer;
+    auto gcode = make_parallel_rails_gcode();
+    configure(renderer, gcode, 0, kFront);
+
+    const AABB& fit_box = gcode.global_bounding_box;
+    const ScreenRect alpha = front_rect(fit_box, gcode.objects.at("alpha").bounding_box);
+    const ScreenRect beta = front_rect(fit_box, gcode.objects.at("beta").bounding_box);
+
+    const glm::vec3 alpha_a{10.0f, 40.0f, 0.2f}, alpha_b{60.0f, 40.0f, 0.2f};
+    const glm::vec3 beta_a{10.0f, 44.0f, 0.2f}, beta_b{60.0f, 44.0f, 0.2f};
+
+    // Between the rails, 1mm off beta's and 3mm off alpha's.
+    const glm::ivec2 tap = project_expected(fit_box, 35.0f, 43.0f, 0.2f, kFront);
+    const float to_alpha = front_distance(fit_box, tap, alpha_a, alpha_b);
+    const float to_beta = front_distance(fit_box, tap, beta_a, beta_b);
+
+    // Fixture guards: stage 1 passes both objects, and both rails are in reach,
+    // so only the distance comparison in stage 2 can decide.
+    REQUIRE(alpha.contains(tap));
+    REQUIRE(beta.contains(tap));
+    REQUIRE(to_alpha < selection::kPickThresholdPx);
+    REQUIRE(to_beta < to_alpha);
+
+    auto hit = renderer.pick_object_at(tap.x, tap.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit.value() == "beta");
+
+    // Mirrored: 1mm off alpha's rail, alpha wins.
+    const glm::ivec2 tap_alpha = project_expected(fit_box, 35.0f, 41.0f, 0.2f, kFront);
+    REQUIRE(front_distance(fit_box, tap_alpha, alpha_a, alpha_b) <
+            front_distance(fit_box, tap_alpha, beta_a, beta_b));
+    auto hit_alpha = renderer.pick_object_at(tap_alpha.x, tap_alpha.y);
+    REQUIRE(hit_alpha.has_value());
+    CHECK(hit_alpha.value() == "alpha");
+}
+
+// ===========================================================================
 // Selection index-map wiring.
 //
 // Selection is classified by interned object index through SelectionState, which
@@ -1166,7 +1333,6 @@ RenderCounts render_and_count(const std::unordered_set<std::string>& highlighted
                               ParsedGCodeFile& gcode, uint8_t* buf, lv_obj_t* canvas) {
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);   // no background thread: deterministic
     renderer.set_ssao_enabled(false); // the outline pass would add white of its own
     // Antialiasing is a separate flag now, and it has to be pinned too. A tagged
@@ -1280,7 +1446,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing the selection removes the halo",
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);
     renderer.set_ssao_enabled(false);
     renderer.set_canvas_size(200, 200);
@@ -1301,11 +1466,100 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing the selection removes the halo",
     };
 
     REQUIRE(draw() > 0);
-    // Deselecting must invalidate the solid cache, or the halo would persist as a
-    // stale cached image -- the exact bug the InvalidationScope split could cause
-    // if SolidCache were mishandled.
+    // Deselecting must invalidate the solid cache, or the rim would persist as
+    // stale cached pixels.
     renderer.set_highlighted_objects({});
     REQUIRE(draw() == 0);
+}
+
+// ===========================================================================
+// Recoloring a built preview.
+//
+// Both caches hold pixels, so a color change that does not drop them leaves the
+// old color on screen until something unrelated invalidates.
+// ===========================================================================
+
+TEST_CASE_METHOD(LVGLTestFixture, "a new extrusion color repaints a completed solid cache",
+                 "[layer_renderer][color]") {
+    auto gcode = make_test_gcode();
+    lv_obj_t* canvas = lv_canvas_create(test_screen());
+    REQUIRE(canvas != nullptr);
+    static uint8_t buf[200 * 200 * 4];
+    lv_canvas_set_buffer(canvas, buf, 200, 200, LV_COLOR_FORMAT_ARGB8888);
+
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+    renderer.set_ghost_mode(false);
+    renderer.set_ssao_enabled(false);
+    renderer.set_antialias_enabled(false);
+    renderer.set_canvas_size(200, 200);
+    renderer.set_current_layer(0);
+
+    // Painted pixels whose dominant channel is red vs blue (ARGB8888 is BGRA).
+    auto count = [&]() {
+        std::fill(buf, buf + 200 * 200 * 4, uint8_t{0});
+        drive_until_cached(renderer, canvas);
+        std::pair<int, int> red_blue{0, 0};
+        for (int i = 0; i < 200 * 200; ++i) {
+            const uint8_t b = buf[i * 4 + 0];
+            const uint8_t r = buf[i * 4 + 2];
+            if (buf[i * 4 + 3] == 0) {
+                continue;
+            }
+            if (r > b) {
+                ++red_blue.first;
+            } else if (b > r) {
+                ++red_blue.second;
+            }
+        }
+        return red_blue;
+    };
+
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+    const auto first = count();
+    REQUIRE(first.first > 0);
+    REQUIRE(first.second == 0);
+
+    renderer.set_extrusion_color(lv_color_hex(0x0000FF));
+    const auto second = count();
+    INFO("red=" << second.first << " blue=" << second.second);
+    CHECK(second.first == 0);
+    CHECK(second.second > 0);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a new extrusion color drops the built ghost",
+                 "[layer_renderer][color][ghost]") {
+    auto gcode = make_test_gcode();
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+
+    renderer.pump_offscreen_build(200, 200);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    renderer.pump_offscreen_build(200, 200);
+    REQUIRE(renderer.has_ghost_output());
+
+    // The same color is not a change, so a healthy ghost survives it.
+    renderer.set_extrusion_color(lv_color_hex(0xFF0000));
+    CHECK(renderer.has_ghost_output());
+
+    renderer.set_extrusion_color(lv_color_hex(0x0000FF));
+    CHECK_FALSE(renderer.has_ghost_output());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "installing a tool palette drops the built ghost",
+                 "[layer_renderer][color][ghost]") {
+    auto gcode = make_test_gcode();
+    GCodeLayerRenderer renderer;
+    renderer.set_gcode(&gcode);
+
+    renderer.pump_offscreen_build(200, 200);
+    GCodeLayerRendererTestAccess::join_ghost_build(renderer);
+    renderer.pump_offscreen_build(200, 200);
+    REQUIRE(renderer.has_ghost_output());
+
+    renderer.set_tool_color_palette({"#112233", "#445566"});
+    CHECK_FALSE(renderer.has_ghost_output());
 }
 
 // ===========================================================================
@@ -1375,7 +1629,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "scrubbing back down the stack keeps the selec
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);   // no background thread: deterministic
     renderer.set_ssao_enabled(false); // the shading pass would add white of its own
     renderer.set_antialias_enabled(false);
@@ -1446,7 +1699,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     // Ghost mode left ON (the default): the ghost build is the first real
     // content, so the reveal gate has to key off it.
     renderer.set_canvas_size(200, 200);
@@ -1507,7 +1759,6 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_canvas_size(200, 200);
     renderer.set_current_layer(119);
 
@@ -1615,7 +1866,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "solid-cache batches are time-boxed against sl
 
     GCodeLayerRenderer renderer;
     renderer.set_streaming_controller(&controller);
-    renderer.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     renderer.set_ghost_mode(false);
     renderer.set_canvas_size(200, 200);
 

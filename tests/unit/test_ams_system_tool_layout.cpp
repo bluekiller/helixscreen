@@ -990,3 +990,48 @@ TEST_CASE("SystemToolLayout: 2 HUB units sharing hub_tool_label=0 merge to 1 noz
     CHECK(layout.units[0].tool_count == 1);
     CHECK(layout.units[1].tool_count == 1);
 }
+
+// ============================================================================
+// Absent units: a box held at its address while off the bus
+// ============================================================================
+
+TEST_CASE("SystemToolLayout: an absent unit feeds no nozzle and moves no other unit",
+          "[ams][tool_layout][ams_draw][1464]") {
+    // Two CFS-style HUB boxes at addresses 1 and 3, with address 2 held absent.
+    auto make_unit = [](int address, bool absent) {
+        AmsUnit unit;
+        unit.unit_index = address - 1;
+        unit.slot_count = 4;
+        unit.first_slot_global_index = (address - 1) * 4;
+        unit.topology = PathTopology::HUB;
+        unit.absent = absent;
+        for (int s = 0; s < 4; ++s) {
+            SlotInfo slot;
+            slot.slot_index = s;
+            slot.global_index = unit.first_slot_global_index + s;
+            slot.mapped_tool = absent ? -1 : slot.global_index;
+            unit.slots.push_back(slot);
+        }
+        return unit;
+    };
+    AmsSystemInfo with_gap;
+    with_gap.type = AmsType::CFS;
+    with_gap.units = {make_unit(1, false), make_unit(2, true), make_unit(3, false)};
+    with_gap.total_slots = 12;
+    AmsSystemInfo without_gap = with_gap;
+    without_gap.units.erase(without_gap.units.begin() + 1);
+
+    const auto gap = compute_system_tool_layout(with_gap, nullptr);
+    const auto plain = compute_system_tool_layout(without_gap, nullptr);
+
+    REQUIRE(gap.units.size() == 3);
+    CHECK(gap.units[1].tool_count == 0);
+    CHECK(gap.total_physical_tools == plain.total_physical_tools);
+    CHECK(gap.physical_to_virtual_label == plain.physical_to_virtual_label);
+    CHECK(gap.virtual_to_physical == plain.virtual_to_physical);
+    for (auto [g, p] : {std::pair{0, 0}, std::pair{2, 1}}) {
+        INFO("unit " << g);
+        CHECK(gap.units[g].first_physical_tool == plain.units[p].first_physical_tool);
+        CHECK(gap.units[g].tool_count == plain.units[p].tool_count);
+    }
+}

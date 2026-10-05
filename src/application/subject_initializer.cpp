@@ -77,11 +77,7 @@
 #include <memory>
 
 SubjectInitializer::SubjectInitializer() = default;
-SubjectInitializer::~SubjectInitializer() {
-    // Invalidate alive guard BEFORE UsbManager destruction — prevents queued
-    // USB callbacks from accessing freed PrintSelectPanel
-    *m_usb_callback_alive = false;
-}
+SubjectInitializer::~SubjectInitializer() = default;
 
 void SubjectInitializer::init_core_and_state() {
     spdlog::debug("[SubjectInitializer] Initializing core and state subjects...");
@@ -486,21 +482,10 @@ void SubjectInitializer::init_usb_manager(const RuntimeConfig& runtime_config) {
     spdlog::trace("[SubjectInitializer] Initializing USB manager");
 
     m_usb_manager = std::make_unique<UsbManager>(runtime_config.should_mock_usb());
-    if (m_usb_manager->start()) {
-        spdlog::debug("[SubjectInitializer] USB Manager started (mock={})",
-                      runtime_config.should_mock_usb());
-        if (m_print_select_panel) {
-            m_print_select_panel->set_usb_manager(m_usb_manager.get());
-        }
-        // Also provide USB manager to printer image overlay
-        helix::settings::get_printer_image_overlay().set_usb_manager(m_usb_manager.get());
-    } else {
-        spdlog::info(
-            "[SubjectInitializer] USB Manager not started (not available on this platform)");
-    }
 
-    // Set up USB drive event notifications
-    if (m_usb_manager) {
+    // The callback goes on before start(): the backend's thread can report a
+    // drive as soon as it runs, and an event with no callback is dropped.
+    {
         // Track when USB callbacks were set up - suppress toasts for drives at startup
         static auto usb_setup_time = std::chrono::steady_clock::now();
 
@@ -548,6 +533,18 @@ void SubjectInitializer::init_usb_manager(const RuntimeConfig& runtime_config) {
                 }
             }
         });
-        // Note: Demo drives are now auto-added by UsbBackendMock::start() after 1.5s delay
+    }
+
+    if (m_usb_manager->start()) {
+        spdlog::debug("[SubjectInitializer] USB Manager started (mock={})",
+                      runtime_config.should_mock_usb());
+        if (m_print_select_panel) {
+            m_print_select_panel->set_usb_manager(m_usb_manager.get());
+        }
+        // Also provide USB manager to printer image overlay
+        helix::settings::get_printer_image_overlay().set_usb_manager(m_usb_manager.get());
+    } else {
+        spdlog::info(
+            "[SubjectInitializer] USB Manager not started (not available on this platform)");
     }
 }

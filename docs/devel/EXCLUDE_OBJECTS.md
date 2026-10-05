@@ -173,7 +173,7 @@ The `PrintExcludeObjectManager` implements a state machine with three states:
 
 ### Step-by-step
 
-1. **Initiation**: User long-presses an object in the G-code viewer (1000ms threshold — `LONG_PRESS_THRESHOLD_MS` in `src/ui/ui_gcode_viewer.cpp#LONG_PRESS_THRESHOLD_MS`, deliberately double the app-wide 500ms gesture timeout because the gesture cancels printing the object) or taps an object in the Print Objects side list.
+1. **Initiation**: User long-presses an object in the G-code viewer (1000ms threshold — `LONG_PRESS_THRESHOLD_MS` in `src/ui/gcode_viewer_input.cpp#LONG_PRESS_THRESHOLD_MS`, deliberately double the app-wide 500ms gesture timeout because the gesture cancels printing the object) or taps an object in the Print Objects side list.
 
 2. **Guard checks**: Empty names, already-excluded objects, and pending exclusions are rejected.
 
@@ -447,9 +447,8 @@ reading older code or notes:
   color", which described a 1.8x `HIGHLIGHT_BRIGHTNESS` bake in the geometry
   builder that no live caller reached. A selected object deliberately keeps its
   filament color and is marked by the rim instead, as in OrcaSlicer.
-- **Exclusion does not change line width.** The "1px line width" was the
-  `lv_draw_line` fallback path's width, not the isometric view's, and the
-  isometric view is what every shipped printer draws.
+- **Exclusion does not change line width.** Excluded objects draw at the same
+  stroke width as everything else.
 
 The rim is derived from where the object actually landed on screen, not painted
 speculatively: the selected object is drawn once with a tag in its alpha byte,

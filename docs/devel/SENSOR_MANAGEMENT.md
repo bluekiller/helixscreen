@@ -46,7 +46,6 @@ Each manager has a matching `*_types.h` header (`filament_sensor_types.h`, `humi
 | `src/ui/ui_filament_runout_handler.cpp` | Runout guidance modal, driven by `filament_any_runout` and `has_real_runout()` |
 | `src/ui/panel_widgets/thermistor_widget.cpp`, `humidity_widget.cpp`, `width_sensor_widget.cpp`, `filament_sensor_widget.cpp` | Home-panel widgets for each category |
 | `include/sensor_state.h`, `src/printer/sensor_state.cpp` | Moonraker `[sensor]` components (separate universe, see below) |
-| `include/switch_sensor_types.h` | `SwitchSensorRole` and friends. Nothing in `src/` includes it; only `tests/unit/test_switch_sensor_manager.cpp` does |
 
 ## Architecture
 
@@ -66,7 +65,7 @@ PrinterDiscovery ──► init_subsystems_from_hardware()
 notify_status_update ──► PrinterState::update_from_status()
                               └─ for_each_sensor_manager(m.update_from_status(status))
                                      │  parse under the manager's mutex
-                                     └─ queue_update / tok.defer ──► update_subjects() on the main thread
+                                     └─ lifetime_.token().defer ──► update_subjects() on the main thread
                                                                           │
                                        XML bind_* / observe<int>() ◄──────┘
 ```
@@ -123,8 +122,9 @@ A manager only sees fields that `MoonrakerDiscoverySequence::build_subscription_
 | `load_cell *` | `force_g` |
 | filament switch/motion sensors | `filament_detected`, `enabled`, `detection_count` |
 | width sensors | `Diameter`, `Raw` |
+| probe objects (`probe`, `bltouch`, `beacon`, ...), one per physical probe | `last_z_result` and `z_offset`, plus `last_query` where the type publishes a usable one, per the table in [Probe status keys](#probe-status-keys), from `ProbeSensorManager::required_status_objects()` |
 
-Probe objects are not in the subscription. `ProbeSensorManager::update_from_status()` reads `last_z_result` and `z_offset` when a frame carries them (the mock's initial status does), but against a real printer the probe values come from `discover_from_config()`. Accelerometers likewise never appear in status, so `accel_connected` stays at its discovery value.
+`ProbeSensorManager` owns which object names are probes and which object and keys each type publishes, so the builder asks it rather than listing them. Mainline modules do not publish `z_offset` and Klipper answers the requested key with `null`, so the offset seeded by `discover_from_config()` stands; the Creality and QIDI forks publish it, and a numeric value replaces the seed. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
 
 A field-restricted subscription makes Moonraker send `null` for a field the object lacks. Every parser therefore uses `find()` plus a type check before `get<>()`, never `value()` or a bare `get<>()`:
 
@@ -138,16 +138,9 @@ if (auto it = sensor_data.find("temperature");
 
 ### Threading
 
-`discover*()`, `load_config*()` and the `set_*()` mutators touch subjects directly and run on the main thread. `update_from_status()` takes the manager's `std::recursive_mutex`, updates `states_`, and if anything changed defers `update_subjects()` to the main thread. Two deferral styles exist today:
+`discover*()`, `load_config*()` and the `set_*()` mutators touch subjects directly and run on the main thread. `update_from_status()` takes the manager's `std::recursive_mutex`, updates `states_`, and if anything changed defers `update_subjects()` to the main thread with `lifetime_.token().defer(...)`. `deinit_subjects()` invalidates that `AsyncLifetimeGuard` first, so an update queued before teardown is dropped instead of landing on torn-down (or freshly re-created) subjects. `AccelSensorManager` has nothing to defer: accelerometers publish no status.
 
-| Style | Managers |
-|-------|----------|
-| `lifetime_.token()` then `tok.defer(...)` (dropped after `deinit_subjects()` invalidates the guard) | `TemperatureSensorManager`, `LoadCellManager` |
-| plain `helix::ui::queue_update(...)` calling `instance().update_subjects_on_main_thread()` | `FilamentSensorManager`, `HumiditySensorManager`, `ProbeSensorManager`, `AccelSensorManager`, `WidthSensorManager` |
-
-Prefer the token form in new code: it is the pattern [THREADING.md](THREADING.md) describes, and it keeps a callback queued during shutdown from touching torn-down state.
-
-Every manager also has `set_sync_mode(bool)`. With it on, `update_from_status()` calls `update_subjects()` inline, which is how unit tests avoid pumping the `UpdateQueue`.
+Every manager that parses status also has `set_sync_mode(bool)`. With it on, `update_from_status()` calls `update_subjects()` inline, which is how unit tests avoid pumping the `UpdateQueue`.
 
 ### Subjects
 
@@ -159,19 +152,18 @@ All values are integers so XML can bind them. Fixed-name subjects register globa
 | `filament_runout_scoped` | Filament | same -1/0/1/2, scoped to the running print's tools; written by `PrintStatusPanel` via `set_scoped_runout()` |
 | `filament_any_runout` | Filament | 1 when `has_any_runout()` and outside the startup grace period |
 | `filament_motion_active`, `filament_master_enabled`, `filament_sensor_count` | Filament | 0/1, 0/1, count |
-| `probe_triggered` | Filament (Z_PROBE role) and Probe | -1/0/1(/2) |
+| `filament_probe_triggered` | Filament (a switch sensor in the Z_PROBE role) | -1/0/1/2 |
+| `probe_triggered` | Probe | -1/0/1 |
 | `temp_sensor_count` | Temperature | count; the per-sensor subjects carry decidegrees (°C x 10) |
 | `chamber_humidity`, `dryer_humidity` | Humidity | % x 10, -1 when no enabled sensor holds the role |
 | `chamber_pressure` | Humidity | Pa (hPa x 100), -1 when unavailable |
 | `humidity_sensor_count` | Humidity | count |
 | `probe_last_z`, `probe_z_offset`, `probe_count` | Probe | microns, microns, count |
-| `accel_connected`, `accel_count` | Accel | -1/0/1, count |
+| `accel_count` | Accel | count |
 | `filament_width_diameter`, `filament_diameter_text`, `width_sensor_count` | Width | microns, string (`"--"` default), count |
 | `load_cell_count` | Load cell | count |
 
 The `*_count` subjects double as hardware gates: `src/ui/panel_widget_registry.cpp` names `temp_sensor_count`, `filament_sensor_count`, `humidity_sensor_count` and `width_sensor_count` as `hardware_gate_subject`s, and `ui_xml/sensors_overlay.xml` hides each section with `bind_flag_if_eq ... ref_value="0"`.
-
-`FilamentSensorManager` and `ProbeSensorManager` both register an XML subject named `probe_triggered`. No XML binds it today; if you need one, read it through a manager's getter rather than by name.
 
 Each manager exposes `get_subjects_lifetime()`. Pass it as the fourth argument of `observe<int>()` for any observer that can outlive the manager's teardown, as `src/ui/ui_filament_runout_handler.cpp#show_runout_guidance_modal` does with `get_any_runout_subject()`.
 
@@ -179,7 +171,7 @@ Each manager exposes `get_subjects_lifetime()`. Pass it as the fourth argument o
 
 Three managers persist per-sensor config under the active printer's prefix (`Config::df()`): `filament_sensors`, `probe_sensors` and `width_sensors`. Each stores a `sensors` array of `{klipper_name, role, enabled, ...}` and the filament block adds `master_enabled` and an optional per-sensor `lane`. The UI writes through `save_config_to_file()` after each change (Settings > Sensors and the wizard).
 
-Temperature, humidity and accelerometer managers implement `load_config(json)` / `save_config()` but nothing in `src/` calls them, so their roles come only from discovery-time auto-assignment and from `set_sensor_role()` calls that last until the next rediscovery. `LoadCellManager::load_config()` is a documented no-op.
+Temperature, humidity and accelerometer managers implement `load_config(json)` / `save_config()`, but nothing in `src/` calls them, and nothing in `src/` calls their `set_sensor_role()` either: the Settings overlay lists these sensors read-only. Their roles are therefore exactly what discovery derives from the names, plus the chamber promotion `PrinterState` applies from the saved chamber assignment, and a rediscovery reproduces them. Wire `load_config_from_file()` / `save_config_to_file()` the way width does when a UI starts assigning these roles. `LoadCellManager::load_config()` is a documented no-op.
 
 ## Filament Sensors
 
@@ -298,9 +290,39 @@ Roles are CHAMBER and DRYER, auto-assigned at discovery to the first sensor whos
 
 ## Probe, Accelerometer, Width and Load Cell
 
-**Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. `load_config_from_file()` auto-assigns Z_PROBE when exactly one probe exists and no saved config gave one the role; with several probes the subjects read -1 until the user picks one in Settings > Sensors (persisted under `probe_sensors`). `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
+**Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. One physical probe often registers several objects: Klipper's `bltouch`, `smart_effector` and `probe_eddy_current`, Beacon and the Cartographer plugin all also register the generic `probe`. `probes_in()` keeps only the most specific object (and drops an eddy object beside a named scanner), and both `discover()` and the status subscription go through it, so such a printer has one probe sensor, subscribed once. `load_config_from_file()` applies a saved `probe_sensors` role first, then auto-assigns Z_PROBE when exactly one probe remains and none holds it. Nothing in the UI assigns probe roles, so a printer with two genuinely distinct probes and no saved choice reads -1 on the probe subjects. `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
 
-**Accelerometer.** Found only in `configfile.config` sections (`adxl345`, `adxl345 bed`, `lis2dw hotend`, ...). A `beacon` section with `accel_scale` or `accel_axes_map` adds Beacon's onboard LIS2DW. The role INPUT_SHAPER backs `is_input_shaper_connected()`.
+### Probe status keys
+
+What each object's `get_status()` returns, read from the upstream source (Klipper `461c4e37`, Kalico `0028cf70`, beacon3d/beacon_klipper `3eb01346`, Cartographer3D/cartographer3d-plugin `06e01690`, Cartographer3D/cartographer-klipper `d8fbed79`, vvuk/eddy-ng `1ed056b1`, CrealityOfficial/K1_Series_Klipper `e09f36e6`, CrealityOfficial/K2_Series_Klipper `bc0a5207`, QIDITECH/klipper `653d7a8f`). Klipper's `objects/list` (`Klipper3d/klipper: klippy/webhooks.py#_handle_list`) lists only objects that have `get_status`, so an object without one never reaches `parse_klipper_name()`.
+
+The last column omits `z_offset`, which HelixScreen requests on every probe object it reads (see the `z_offset` note below).
+
+| Object | Source | `get_status` keys | Also registers `probe`? | HelixScreen reads |
+|--------|--------|-------------------|-------------------------|-------------------|
+| `probe` | `Klipper3d/klipper: klippy/extras/probe.py#ProbeCommandHelper.get_status` | `name`, `last_query`, `last_probe_position`, `last_z_result` | is `probe` | `probe`: `last_query`, `last_z_result` |
+| `probe` | `KalicoCrew/kalico: klippy/extras/probe.py#PrinterProbe.get_status` | `name`, `last_query`, `last_z_result` | is `probe` | same |
+| `probe` | `CrealityOfficial/K1_Series_Klipper: klippy/extras/probe.py#PrinterProbe.get_status` (also `CrealityOfficial/K2_Series_Klipper`) | `last_query`, `last_z_result`, `z_offset` (`z_offset_calibrate` once `Z_OFFSET_APPLY_PROBE` ran, so it changes live) | is `probe` | same |
+| `probe` | `QIDITECH/klipper: klippy/extras/probe.py#PrinterProbe.get_status` | `last_query`, `last_z_result`, `x_offset`, `y_offset`, `z_offset` (static config values) | is `probe` | same |
+| `bltouch`, `smart_effector` | `Klipper3d/klipper: klippy/extras/bltouch.py#PrinterBLTouch.get_status`, `Klipper3d/klipper: klippy/extras/smart_effector.py#PrinterSmartEffector.get_status`: both delegate to `ProbeCommandHelper` | same four keys as `probe` | yes, the same object (`load_config` adds it) | own object: `last_query`, `last_z_result` |
+| `bltouch`, `smart_effector` | `KalicoCrew/kalico: klippy/extras/bltouch.py#load_config`, `KalicoCrew/kalico: klippy/extras/smart_effector.py#load_config` | none (no `get_status`, so not listed) | yes, a `PrinterProbe` wrapper | seen as plain `probe` |
+| `probe_eddy_current <name>` | `Klipper3d/klipper: klippy/extras/probe_eddy_current.py#PrinterEddyProbe.get_status` (`ProbeCommandHelper`, built without `query_endstop`) | same four keys; `last_query` stays `false` because `QUERY_PROBE` is rejected | yes, the same object | own object: `last_z_result` |
+| `probe_eddy_current <name>` | `KalicoCrew/kalico: klippy/extras/probe_eddy_current.py#PrinterEddyProbe` | none (not listed) | yes, a `PrinterProbe` wrapper | seen as plain `probe` |
+| `beacon` | `beacon3d/beacon_klipper: beacon.py#BeaconProbe.get_status` | `last_sample`, `last_received_sample`, `last_z_result`, `last_probe_position`, `last_probe_result`, `last_offset_result`, `last_poke_result`, `model` | yes when `register_as_probe` (default for the unnamed sensor); its status is `{"name": "beacon"}` only (`BeaconProbeWrapper.get_status`) | `beacon`: `last_z_result` |
+| `cartographer` | `Cartographer3D/cartographer3d-plugin: src/cartographer/core.py#PrinterCartographer.get_status` | `scan`, `touch`, `mcu`; `scan`/`touch` each hold `current_model`, `models`, `last_z_result` (`Cartographer3D/cartographer3d-plugin: src/cartographer/probe/scan_mode.py`, `Cartographer3D/cartographer3d-plugin: src/cartographer/probe/touch_mode.py`) | yes when `register_as_probe` (default `true`); `Cartographer3D/cartographer3d-plugin: src/cartographer/adapters/klipper/probe.py#get_status` returns `name`, `last_query` (int 0/1), `last_z_result`, `last_probe_position` | `probe`: `last_query`, `last_z_result` |
+| `cartographer` | `Cartographer3D/cartographer-klipper: cartographer.py` (v1 module, section `[cartographer]`) | `last_sample`, `model` | yes, but that wrapper has no `get_status` | nothing useful |
+| `scanner` | `Cartographer3D/cartographer-klipper: scanner.py#Scanner.get_status` (section `[scanner]`) | `last_sample`, `last_received_sample`, `model` | yes, `ScannerWrapper.get_status`: `name`, `last_z_result` | not parsed; seen as plain `probe` |
+| `probe_eddy_ng <name>` | `vvuk/eddy-ng: probe_eddy_ng.py#ProbeEddy.get_status` | `ProbeCommandHelper` keys plus `home_trigger_height`, `tap_offset`, `last_tap_z`, ... | yes, the same object | not parsed; seen as plain `probe` |
+
+Klicky has no module: it is a plain `[probe]` with dock macros, and `discover()` retypes it from the macros.
+
+- **`last_z_result`** is set only by the `PROBE` command. Klipper stores the toolhead Z at trigger (`bed_z + z_offset`, marked deprecated in `cmd_PROBE`); Kalico and the Cartographer plugin store the Z their probe run returns; Beacon stores trigger Z minus the probe's `z_offset`.
+- **`last_query`** is the result of the last `QUERY_PROBE`, not a live endstop state; nothing publishes a live one. It drives `probe_triggered`. Klipper and Kalico publish a bool, the Cartographer plugin an int.
+- **`z_offset`** is not published by any mainline, Kalico, Beacon or Cartographer module. The Creality K1 and K2 forks publish it and update it live through `Z_OFFSET_APPLY_PROBE`; the QIDI fork publishes it with `x_offset` and `y_offset` as static config values. It is requested on every probe object: Klipper answers a requested key the module lacks with `null` (`Klipper3d/klipper: klippy/webhooks.py#_do_query` fills it with `res.get(ri, None)`), which keeps the `discover_from_config()` seed, and a number replaces it. The Flashforge firmware's `null` is that fill, not a published field. Creality's Ender-3 V3 and Elegoo have no public Klipper source to check.
+- A null or absent field never overwrites state.
+- A Cartographer configured with `register_as_probe: false` beside a separate `[probe]` reads that probe's status: the objects list cannot tell the two apart.
+
+**Accelerometer.** Found only in `configfile.config` sections (`adxl345`, `adxl345 bed`, `lis2dw hotend`, ...). A `beacon` section with `accel_scale` or `accel_axes_map` adds Beacon's onboard LIS2DW. The role INPUT_SHAPER backs `is_sensor_available(AccelSensorRole::INPUT_SHAPER)`.
 
 **Width.** Klipper allows one of each width-sensor module, so the names are fixed (`tsl1401cl`, `hall`). The first sensor is auto-assigned FLOW_COMPENSATION; `get_flow_compensation_diameter()` reads it. `filament_diameter_text` is pre-formatted for the width widget.
 

@@ -12,6 +12,7 @@
 
 #include "ui_panel_print_select.h"
 
+#include "ui_busy_overlay.h"
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
@@ -173,6 +174,7 @@ PrintSelectPanel::~PrintSelectPanel() {
         // Remove scroll event callbacks to prevent use-after-free
         if (card_view_container_) {
             lv_obj_remove_event_cb(card_view_container_, on_scroll_static);
+            lv_obj_remove_event_cb(card_view_container_, on_card_container_resized_static);
         }
         if (list_rows_container_) {
             lv_obj_remove_event_cb(list_rows_container_, on_scroll_static);
@@ -383,6 +385,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register scroll event handlers for progressive loading
     lv_obj_add_event_cb(card_view_container_, on_scroll_static, LV_EVENT_SCROLL, this);
     lv_obj_add_event_cb(list_rows_container_, on_scroll_static, LV_EVENT_SCROLL, this);
+    lv_obj_add_event_cb(card_view_container_, on_card_container_resized_static,
+                        LV_EVENT_SIZE_CHANGED, this);
 
     // Create and setup virtualized view modules
     auto* self = this;
@@ -2147,7 +2151,7 @@ void PrintSelectPanel::show_detail_view() {
         detail_view_->show(filename, current_path_, selected_filament_type_,
                            selected_filament_colors_, selected_filament_materials_,
                            selected_file_size_bytes_, selected_modified_timestamp_,
-                           selected_gcode_end_byte_);
+                           selected_gcode_end_byte_, selected_local_path_);
         // Update history status display in detail view
         detail_view_->update_history_status(selected_history_status_, selected_success_count_);
     }
@@ -2198,6 +2202,11 @@ void PrintSelectPanel::show_delete_confirmation() {
                      get_name());
         return;
     }
+    // A USB file has no Moonraker path to delete.
+    if (!selected_local_path_.empty()) {
+        spdlog::debug("[{}] Delete refused for USB file {}", get_name(), selected_local_path_);
+        return;
+    }
     std::string filename(selected_filename_buffer_);
     detail_view_->show_delete_confirmation(filename);
 }
@@ -2225,35 +2234,18 @@ CardDimensions PrintSelectPanel::calculate_card_dimensions() {
         return publish({4, 2, CARD_MIN_WIDTH, CARD_DEFAULT_HEIGHT});
     }
 
-    lv_coord_t container_width = lv_obj_get_content_width(card_view_container_);
     // Read gap from container's XML-defined style (respects design tokens)
     // Note: style_pad_gap in XML sets both pad_row and pad_column; we read pad_column for width
     // calc
     int card_gap = lv_obj_get_style_pad_column(card_view_container_, LV_PART_MAIN);
-    spdlog::trace("[{}] Container content width: {}px (MIN={}, MAX={}, GAP={})", get_name(),
-                  container_width, CARD_MIN_WIDTH, CARD_MAX_WIDTH, card_gap);
-
-    // Calculate available height from parent panel dimensions
-    lv_obj_t* panel_root = lv_obj_get_parent(card_view_container_);
-    if (!panel_root) {
-        spdlog::error("[{}] Cannot find panel root", get_name());
-        return publish({4, 2, CARD_MIN_WIDTH, CARD_DEFAULT_HEIGHT});
-    }
-
-    lv_coord_t panel_height = lv_obj_get_height(panel_root);
-    lv_obj_t* top_bar = lv_obj_get_child(panel_root, 0);
-    lv_coord_t top_bar_height = top_bar ? lv_obj_get_height(top_bar) : 60;
-    lv_coord_t panel_gap = lv_obj_get_style_pad_row(panel_root, LV_PART_MAIN);
-    lv_coord_t container_pad_top = lv_obj_get_style_pad_top(card_view_container_, LV_PART_MAIN);
-    lv_coord_t container_pad_bottom =
-        lv_obj_get_style_pad_bottom(card_view_container_, LV_PART_MAIN);
-    lv_coord_t container_padding = container_pad_top + container_pad_bottom;
-    lv_coord_t available_height = panel_height - top_bar_height - container_padding - panel_gap;
-
-    spdlog::trace("[{}] Height calc: panel={} - top_bar={} - container_pad({}+{})={} - "
-                  "panel_gap={} = available={}",
-                  get_name(), panel_height, top_bar_height, container_pad_top, container_pad_bottom,
-                  container_padding, panel_gap, available_height);
+    // The container's own content box already excludes the header, the context
+    // banner and its padding, whichever of them is showing.
+    lv_obj_update_layout(card_view_container_);
+    lv_coord_t container_width = lv_obj_get_content_width(card_view_container_);
+    lv_coord_t available_height = lv_obj_get_content_height(card_view_container_);
+    sized_for_w_ = container_width;
+    sized_for_h_ = available_height;
+    spdlog::trace("[{}] Card container content height: {}px", get_name(), available_height);
 
     CardDimensions dims;
 
@@ -2770,6 +2762,7 @@ void PrintSelectPanel::apply_file_selection(const PrintFileData& file) {
     selected_filament_colors_ = file.filament_colors;
     selected_filament_materials_ = file.filament_types;
     selected_file_size_bytes_ = file.file_size_bytes;
+    selected_local_path_ = file.local_path;
     selected_modified_timestamp_ = file.modified_timestamp;
     selected_gcode_end_byte_ = file.gcode_end_byte;
     selected_history_status_ = file.history_status;
@@ -2830,6 +2823,11 @@ void PrintSelectPanel::on_file_long_pressed(size_t file_index) {
         spdlog::trace("[{}] long-press on directory ignored: {}", get_name(), file.filename);
         return;
     }
+    if (!file.local_path.empty()) {
+        // No delete for a USB file, the same as its hidden detail-view button.
+        spdlog::trace("[{}] long-press on USB file ignored: {}", get_name(), file.filename);
+        return;
+    }
 
     spdlog::info("[{}] Long-press delete requested: {}", get_name(), file.filename);
 
@@ -2844,6 +2842,9 @@ void PrintSelectPanel::on_file_long_pressed(size_t file_index) {
 }
 
 void PrintSelectPanel::start_print(bool force) {
+    if (usb_copy_in_flight_) {
+        return;
+    }
     if (print_button_mode_ == helix::ui::PrintSelectButtonMode::Queue) {
         add_to_queue();
         return;
@@ -2887,16 +2888,34 @@ void PrintSelectPanel::start_print(bool force) {
         }
     }
 
-    // Set the file to print in the controller
+    // Everything about the tapped file is read now: a USB copy lands later,
+    // by when the user may have opened another file.
+    const std::string filename = selected_filename_buffer_;
+    std::vector<std::string> colors = selected_filament_colors_;
+    std::string thumbnail = selected_detail_thumbnail_buffer_;
+    if (!selected_local_path_.empty()) {
+        copy_usb_file_to_printer([this, colors = std::move(colors),
+                                  thumbnail = std::move(thumbnail)](const std::string& dest) {
+            const size_t slash = dest.rfind('/');
+            dispatch_print(dest.substr(slash + 1), dest.substr(0, slash), colors, thumbnail);
+        });
+        return;
+    }
+    dispatch_print(filename, current_path_, colors, thumbnail);
+}
+
+void PrintSelectPanel::dispatch_print(const std::string& filename, const std::string& dir,
+                                      const std::vector<std::string>& filament_colors,
+                                      const std::string& thumbnail) {
     // Pass extracted thumbnail path so USB/embedded thumbnails propagate to print status
-    print_controller_->set_file(selected_filename_buffer_, current_path_, selected_filament_colors_,
-                                selected_detail_thumbnail_buffer_);
+    print_controller_->set_file(filename, dir, filament_colors, thumbnail);
 
     // A Print tap for the pending queued file puts the removal bookkeeping
     // past the reach of hide_detail_view(): from here only a confirmed start
     // (finish_pending_queued_job) or the user opening a different file
     // clears it.
-    if (pending_queued_start_ && pending_queued_start_->filename == composed_selected_filename()) {
+    const std::string composed = dir.empty() ? filename : dir + "/" + filename;
+    if (pending_queued_start_ && pending_queued_start_->filename == composed) {
         pending_queued_start_->start_attempted = true;
     }
 
@@ -2904,23 +2923,172 @@ void PrintSelectPanel::start_print(bool force) {
     print_controller_->initiate();
 }
 
+void PrintSelectPanel::copy_usb_file_to_printer(std::function<void(const std::string& dest)> then) {
+    if (!api_) {
+        NOTIFY_ERROR(lv_tr("Cannot start print: internal error"));
+        return;
+    }
+
+    UsbCopyRequest req{selected_filename_buffer_, selected_local_path_, selected_file_size_bytes_,
+                       ++usb_copy_generation_, std::move(then)};
+    usb_copy_in_flight_ = true;
+    BusyOverlay::show(lv_tr("Copying from USB..."));
+
+    // BusyOverlay has no cancel and the transport's own timeout is an hour,
+    // so a copy that stops making progress is abandoned here instead. One
+    // shot, pushed back by every progress report.
+    lv_timer_t* watchdog = lv_timer_create(
+        [](lv_timer_t* t) {
+            auto* self = static_cast<PrintSelectPanel*>(lv_timer_get_user_data(t));
+            // LVGL deletes a finished one-shot itself.
+            self->usb_copy_watchdog_.release();
+            self->abandon_stalled_usb_copy();
+        },
+        kUsbCopyStallMs, this);
+    lv_timer_set_repeat_count(watchdog, 1);
+    usb_copy_watchdog_.reset(watchdog);
+
+    // What the copy folder already holds decides the name (choose_usb_copy_target).
+    // A listing, not a metadata lookup: one request answers every candidate
+    // name, and its sizes come from the filesystem rather than a metascan.
+    const std::string dir = kUsbCopyDir;
+    auto tok = object_lifetime_.token();
+    api_->files().list_files(
+        "gcodes", dir, false,
+        [this, tok, dir, req](const std::vector<FileInfo>& files) mutable {
+            // Some Moonraker versions answer a missing directory with the root
+            // listing, so only entries directly under dir count.
+            std::map<std::string, uint64_t> existing;
+            const std::string prefix = dir + "/";
+            for (const auto& f : files) {
+                if (!f.is_dir && f.path.rfind(prefix, 0) == 0 &&
+                    f.path.find('/', prefix.size()) == std::string::npos) {
+                    existing[f.path.substr(prefix.size())] = f.size;
+                }
+            }
+            tok.defer("PrintSelectPanel::usb_copy_listed",
+                      [this, req = std::move(req), existing = std::move(existing)]() mutable {
+                          if (usb_copy_current(req.generation)) {
+                              upload_usb_copy(std::move(req), existing);
+                          }
+                      });
+        },
+        [this, tok, req](const MoonrakerError& err) mutable {
+            tok.defer("PrintSelectPanel::usb_copy_list_failed",
+                      [this, req = std::move(req), err]() mutable {
+                          if (!usb_copy_current(req.generation)) {
+                              return;
+                          }
+                          // Moonraker reports a folder that does not exist yet as 404.
+                          if (err.code == 404) {
+                              upload_usb_copy(std::move(req), {});
+                              return;
+                          }
+                          end_usb_copy();
+                          NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), req.filename,
+                                       err.user_message());
+                      });
+        });
+}
+
+void PrintSelectPanel::upload_usb_copy(UsbCopyRequest req,
+                                       const std::map<std::string, uint64_t>& existing) {
+    const auto target = choose_usb_copy_target(req.filename, req.size, existing);
+    const std::string dest = std::string(kUsbCopyDir) + "/" + target.name;
+    if (target.reuse) {
+        spdlog::info("[{}] gcodes/{} already holds {} ({} bytes); not copying", get_name(), dest,
+                     req.local_path, req.size);
+        end_usb_copy();
+        req.then(dest);
+        return;
+    }
+
+    spdlog::info("[{}] Copying USB file {} to gcodes/{}", get_name(), req.local_path, dest);
+    const std::string filename = req.filename;
+    const uint64_t generation = req.generation;
+    auto tok = object_lifetime_.token();
+    api_->transfers().upload_file_from_path(
+        "gcodes", dest, req.local_path,
+        object_lifetime_.bg_cb("PrintSelectPanel::usb_copy_done",
+                               [this, dest, generation, then = std::move(req.then)]() {
+                                   if (usb_copy_current(generation)) {
+                                       end_usb_copy();
+                                       then(dest);
+                                   }
+                               }),
+        [this, tok, generation, filename](const MoonrakerError& err) {
+            tok.defer("PrintSelectPanel::usb_copy_failed", [this, generation, filename, err]() {
+                if (usb_copy_current(generation)) {
+                    end_usb_copy();
+                    NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), filename,
+                                 err.user_message());
+                }
+            });
+        },
+        // Runs per chunk on the transfer thread: only a whole-percent change
+        // is worth a trip through the UI queue.
+        [this, tok, label = std::string(lv_tr("Copying from USB")),
+         last_pct = -1](size_t done, size_t total) mutable {
+            const int pct = total > 0 ? static_cast<int>(done * 100 / total) : 0;
+            if (pct == last_pct) {
+                return;
+            }
+            last_pct = pct;
+            BusyOverlay::queue_progress(label, done, total);
+            tok.defer("PrintSelectPanel::usb_copy_progress", [this]() {
+                if (lv_timer_t* watchdog = usb_copy_watchdog_.get()) {
+                    lv_timer_reset(watchdog);
+                }
+            });
+        });
+}
+
+bool PrintSelectPanel::usb_copy_current(uint64_t generation) const {
+    return usb_copy_in_flight_ && generation == usb_copy_generation_;
+}
+
+void PrintSelectPanel::end_usb_copy() {
+    usb_copy_in_flight_ = false;
+    usb_copy_watchdog_.reset();
+    BusyOverlay::hide();
+}
+
+void PrintSelectPanel::abandon_stalled_usb_copy() {
+    spdlog::warn("[{}] USB copy made no progress for {}s; abandoning it", get_name(),
+                 kUsbCopyStallMs / 1000);
+    ++usb_copy_generation_; // a late answer from the abandoned copy is ignored
+    end_usb_copy();
+    NOTIFY_ERROR(lv_tr("Copying from USB stopped responding"));
+}
+
 void PrintSelectPanel::add_to_queue() {
     // One Add in flight at a time: the button is disabled while the request
     // runs, but a hardware double-tap can still land before the subject
     // propagates, and a second add_job would queue the file twice.
-    if (queue_add_in_flight_) {
+    if (queue_add_in_flight_ || usb_copy_in_flight_) {
         return;
     }
 
-    auto* jqs = get_job_queue_state();
-    if (!api_ || !jqs) {
+    if (!api_ || !get_job_queue_state()) {
         NOTIFY_ERROR(lv_tr("Cannot add to queue: internal error"));
         return;
     }
 
     // Moonraker addresses queued files the same way started ones: relative to
     // the gcodes root, with any subdirectory prefixed.
-    std::string filename = composed_selected_filename();
+    if (!selected_local_path_.empty()) {
+        copy_usb_file_to_printer([this](const std::string& dest) { queue_file(dest); });
+        return;
+    }
+    queue_file(composed_selected_filename());
+}
+
+void PrintSelectPanel::queue_file(const std::string& filename) {
+    auto* jqs = get_job_queue_state();
+    if (!api_ || !jqs) {
+        NOTIFY_ERROR(lv_tr("Cannot add to queue: internal error"));
+        return;
+    }
 
     helix::queue::QueuedJobOptions options;
     options.filename = filename;
@@ -3313,6 +3481,10 @@ void PrintSelectPanel::apply_remap(const std::vector<helix::ToolMapping>& update
 }
 
 void PrintSelectPanel::delete_file() {
+    if (!selected_local_path_.empty()) {
+        hide_delete_confirmation();
+        return;
+    }
     std::string filename_to_delete(selected_filename_buffer_);
     auto* self = this;
     auto token = object_lifetime_.token();
@@ -3393,6 +3565,31 @@ void PrintSelectPanel::on_scroll_static(lv_event_t* e) {
     if (self && target) {
         self->handle_scroll(target);
     }
+}
+
+void PrintSelectPanel::on_card_container_resized_static(lv_event_t* e) {
+    auto* self = static_cast<PrintSelectPanel*>(lv_event_get_user_data(e));
+    if (!self || self->card_resize_pending_) {
+        return;
+    }
+    // SIZE_CHANGED arrives inside a layout pass; re-populating there would
+    // re-enter the layout and reconfigure pooled cards mid-pass.
+    self->card_resize_pending_ = true;
+    self->object_lifetime_.defer("PrintSelectPanel::card_container_resized", [self]() {
+        self->card_resize_pending_ = false;
+        lv_obj_t* c = self->card_view_container_;
+        if (!c || !lv_obj_is_valid(c) || self->current_view_mode_ != PrintSelectViewMode::CARD) {
+            return;
+        }
+        // Only a content box the cards were not sized for re-populates, so a
+        // re-populate cannot feed its own resize back into another one.
+        lv_obj_update_layout(c);
+        if (lv_obj_get_content_width(c) == self->sized_for_w_ &&
+            lv_obj_get_content_height(c) == self->sized_for_h_) {
+            return;
+        }
+        self->populate_card_view(true);
+    });
 }
 
 void PrintSelectPanel::on_file_clicked_static(lv_event_t* e) {

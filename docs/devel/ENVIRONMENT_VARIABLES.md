@@ -1371,6 +1371,26 @@ constructor, so the suite never arms the mounter regardless of euid.
 HELIX_USB_AUTOMOUNT=0 ./build/bin/helix-screen -vv
 ```
 
+### `HELIX_BLUETOOTH`
+
+Whether to load the Bluetooth plugin. Unloaded, `BluetoothLoader` reports unavailable as on
+a device with no adapter: no system-bus connection is opened and no BlueZ pairing agent is
+registered. A native build puts `libhelix-bluetooth.so` beside `helix-screen` and
+`helix-tests`, so a `--test` run leaves it unloaded unless this is `1`, and a desktop opening
+the Bluetooth settings never has its default agent taken. The unit-test binary pins `0` in
+its startup constructor. Decision: `src/system/bluetooth_loader.cpp#bluetooth_enabled`.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `0` (never load), `1` (load, `--test` included), anything else or unset (load except under `--test`) |
+| **Default** | Loaded in production, not loaded under `--test` |
+| **File** | `src/system/bluetooth_loader.cpp` |
+
+```bash
+# Exercise the real plugin from a mock run on a machine with an adapter.
+HELIX_BLUETOOTH=1 ./build/bin/helix-screen --test -vv
+```
+
 ### `HELIX_TEMP_GRAPH_GRAD_SKIP`
 
 Force the temperature graph's gradient to re-render on every dirtied frame, disabling the

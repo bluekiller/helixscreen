@@ -1228,7 +1228,12 @@ struct AmsUnit {
     std::vector<SlotInfo> slots; ///< Slot information
 
     // Unit-level status
-    bool connected = false;                     ///< Unit communication status
+    bool connected = false; ///< Unit communication status
+    /// An address no unit answers from, below one that does. Firmware that
+    /// numbers bays by box address keeps the gap's indices reserved, so this
+    /// stands in for the missing box: its bays are EMPTY, nothing may be sent
+    /// to them, and they are not counted or offered as bays that exist.
+    bool absent = false;
     std::string firmware_version;               ///< Firmware version if available
     std::string serial_number;                  ///< Hardware serial number
     std::optional<EnvironmentData> environment; ///< Per-unit temp/humidity (nullopt = no sensors)
@@ -1573,6 +1578,60 @@ struct AmsSystemInfo {
      * @brief Get the currently active slot info
      * @return Pointer to active slot or nullptr if none selected
      */
+    /**
+     * @brief Whether @p global_index is a bay some unit actually reported
+     *
+     * False for an index no unit covers and for one inside an absent unit.
+     */
+    [[nodiscard]] bool slot_exists(int global_index) const {
+        const AmsUnit* unit = unit_for_slot(global_index);
+        return unit != nullptr && !unit->absent;
+    }
+
+    /// True when @p global_index sits inside an absent unit's reserved range.
+    [[nodiscard]] bool slot_absent(int global_index) const {
+        const AmsUnit* unit = unit_for_slot(global_index);
+        return unit != nullptr && unit->absent;
+    }
+
+    /**
+     * @brief The number of bays that exist, for anything shown to the user
+     *
+     * total_slots is the index span and counts an absent unit's reserved
+     * bays; this does not.
+     */
+    [[nodiscard]] int present_slot_count() const {
+        int count = 0;
+        for (const auto& unit : units) {
+            if (!unit.absent) {
+                count += unit.slot_count;
+            }
+        }
+        return count;
+    }
+
+    /// The global indices of every bay that exists, ascending: what a list of
+    /// bays offered to the user walks.
+    [[nodiscard]] std::vector<int> present_slots() const {
+        std::vector<int> slots;
+        for (int i = 0; i < total_slots; ++i) {
+            if (slot_exists(i)) {
+                slots.push_back(i);
+            }
+        }
+        return slots;
+    }
+
+    [[nodiscard]] const AmsUnit* unit_for_slot(int global_index) const {
+        for (const auto& unit : units) {
+            if (global_index >= unit.first_slot_global_index &&
+                global_index < unit.first_slot_global_index + unit.slot_count) {
+                return &unit;
+            }
+        }
+        return nullptr;
+    }
+
     [[nodiscard]] const SlotInfo* get_active_slot() const {
         if (current_slot < 0)
             return nullptr;

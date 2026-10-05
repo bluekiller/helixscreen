@@ -23,6 +23,7 @@
 #include "display_settings_manager.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "moonraker_api.h"
+#include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "planted_gcode.h"
 #include "print_state_test_drivers.h"
@@ -68,6 +69,10 @@ enum class PrintSelectFilelistHandler { Unregistered, Registered };
 /// construction. Deferred leaves the panel set up but never visited.
 enum class PrintSelectVisit { Immediate, Deferred };
 
+/// Which API the panel talks to. Mock is MoonrakerAPIMock, whose transfers
+/// record uploads instead of needing an HTTP server.
+enum class PrintSelectApi { Real, Mock };
+
 /// The real panel over the real NavigationManager: mock client connected,
 /// MoonrakerAPI on top of it, print_select_panel XML built, and the navigation
 /// stack seeded the way the app has it (panel_stack_[0] = the active main
@@ -77,7 +82,8 @@ class PrintSelectPanelFixture : public LVGLUITestFixture {
   public:
     explicit PrintSelectPanelFixture(
         PrintSelectFilelistHandler handler = PrintSelectFilelistHandler::Unregistered,
-        PrintSelectVisit visit = PrintSelectVisit::Immediate)
+        PrintSelectVisit visit = PrintSelectVisit::Immediate,
+        PrintSelectApi api = PrintSelectApi::Real)
         : mock_client_(MoonrakerClientMock::PrinterType::VORON_24, /*speedup_factor=*/100.0) {
         animations_were_enabled_ = DisplaySettingsManager::instance().get_animations_enabled();
         DisplaySettingsManager::instance().set_animations_enabled(false);
@@ -86,7 +92,11 @@ class PrintSelectPanelFixture : public LVGLUITestFixture {
         // initial-state dispatch then has no subscribers to storm, while
         // get_connection_state() still reports CONNECTED for is_ready() checks.
         mock_client_.connect("ws://mock/websocket", []() {}, []() {});
-        api_ = std::make_unique<MoonrakerAPI>(mock_client_, get_printer_state());
+        if (api == PrintSelectApi::Mock) {
+            api_ = std::make_unique<MoonrakerAPIMock>(mock_client_, get_printer_state());
+        } else {
+            api_ = std::make_unique<MoonrakerAPI>(mock_client_, get_printer_state());
+        }
 
         panel_ = std::make_unique<PrintSelectPanel>(get_printer_state(), api_.get());
         panel_->init_subjects();

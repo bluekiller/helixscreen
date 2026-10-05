@@ -53,7 +53,7 @@ The pre-print filament check that catches an empty slot before a multi-color pri
 Nozzle and bed temperature panels, multi-extruder selector for printers with multiple extruders, material presets, and live temperature graphs.
 
 ### [Motion & Positioning](guide/motion.md)
-Jog and Move tabs, tap-to-move coordinates, bed position grid, park, homing, distance increments, and emergency stop.
+Jog, Move and Bed tabs, tap-to-move coordinates, bed position grid, tap-the-plate bed map, park, homing, distance increments, and emergency stop.
 
 ![Motion Controls](../images/screenshot-motion-panel.png)
 

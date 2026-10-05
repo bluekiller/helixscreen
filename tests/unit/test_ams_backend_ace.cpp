@@ -1698,6 +1698,7 @@ void assert_rfid_state_sequence(std::int64_t closing_state, bool closing_clears,
     AceTestAccess::seed_override(backend, 0, ovr);
 
     std::vector<std::pair<ToastSeverity, std::string>> toasts;
+    helix::ui::reset_insert_offers_for_test();
     helix::ui::set_test_toast_hook([&](ToastSeverity severity, const std::string& msg, uint32_t) {
         toasts.emplace_back(severity, msg);
     });

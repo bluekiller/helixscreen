@@ -13,6 +13,7 @@
 
 #include <array>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -791,6 +792,8 @@ class NavigationManager {
 
     // Shared overlay backdrop widget (for first overlay)
     helix::ui::WidgetRef overlay_backdrop_;
+    // The theme palette the backdrop's snapshot was taken under.
+    std::string backdrop_palette_key_;
 
     // Latched at the dismiss-backdrop's LV_EVENT_PRESSED with the on-screen
     // keyboard's visibility. LVGL's click-focus DEFOCUS (which hides the
@@ -844,6 +847,7 @@ class NavigationManager {
     ObserverGuard klippy_state_observer_;
     ObserverGuard printer_dot_observer_;
     ObserverGuard printer_switcher_observer_;
+    ObserverGuard theme_observer_;
 
     // Printer connection status dot widget
     lv_obj_t* printer_dot_widget_ = nullptr;

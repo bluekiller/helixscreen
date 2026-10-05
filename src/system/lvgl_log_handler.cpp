@@ -50,21 +50,34 @@ static std::mutex s_dedupe_mutex;
 static std::unordered_set<std::string> s_seen_messages;
 
 /**
- * @brief Strip LVGL's "(timestamp, +delta)\t" prefix from a log message.
+ * @brief Strip LVGL's "(timestamp, +delta)\t" group from a log message.
  *
- * LVGL prepends a timing header like "(33165.838, +7629213)\t" to every
- * log line. The numbers vary per call, so we strip them to compare bodies.
+ * LVGL formats a record as "[Warn]\t(33165.838, +7629213)\t<func>: <text> <file>:<line>".
+ * The timestamp and the delta since the previous record differ on every call, so
+ * they are dropped before comparing bodies; the "[Level]" prefix stays so the
+ * same text at two levels is two messages.
  */
-std::string_view strip_lvgl_timestamp(std::string_view msg) {
-    if (msg.empty() || msg.front() != '(')
-        return msg;
-    size_t close = msg.find(')');
+std::string strip_lvgl_timestamp(std::string_view msg) {
+    size_t group = 0;
+    if (!msg.empty() && msg.front() == '[') {
+        size_t level_end = msg.find(']');
+        if (level_end == std::string_view::npos)
+            return std::string(msg);
+        group = level_end + 1;
+    }
+    while (group < msg.size() && (msg[group] == '\t' || msg[group] == ' '))
+        ++group;
+    if (group >= msg.size() || msg[group] != '(')
+        return std::string(msg);
+    size_t close = msg.find(')', group);
     if (close == std::string_view::npos || close + 1 >= msg.size())
-        return msg;
+        return std::string(msg);
     size_t body = close + 1;
     while (body < msg.size() && (msg[body] == '\t' || msg[body] == ' '))
         ++body;
-    return msg.substr(body);
+    std::string key(msg.substr(0, group));
+    key.append(msg.substr(body));
+    return key;
 }
 
 /**
@@ -85,7 +98,7 @@ bool is_high_frequency_retry(std::string_view msg) {
  *         false if it is the first occurrence (caller logs at original level).
  */
 bool seen_before(const std::string& msg) {
-    std::string key(strip_lvgl_timestamp(msg));
+    std::string key = strip_lvgl_timestamp(msg);
     std::lock_guard<std::mutex> lock(s_dedupe_mutex);
     if (s_seen_messages.size() >= LVGL_DEDUPE_MAX) {
         // Best-effort cap: clear and start over. 256 unique broken-asset

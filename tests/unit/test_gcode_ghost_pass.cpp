@@ -80,7 +80,6 @@ ParsedGCodeFile make_two_object_tower(int layer_count) {
 
 void configure(GCodeLayerRenderer& r, ParsedGCodeFile& gcode, bool ghost) {
     r.set_gcode(&gcode);
-    r.set_view_mode(GCodeLayerRenderer::ViewMode::FRONT);
     r.set_ssao_enabled(false);      // isolate the ghost from the shading pass
     r.set_antialias_enabled(false); // and from the AA fringe, now a separate flag
     r.set_extrusion_color(lv_color_hex(0x3060C0));

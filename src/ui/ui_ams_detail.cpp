@@ -23,6 +23,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <string>
@@ -259,10 +260,11 @@ AmsDetailSlotResult ams_detail_create_slots(AmsDetailWidgets& w, lv_obj_t* slot_
     // Determine slot count and offset from backend
     int count = 0;
     int slot_offset = 0;
+    helix::AmsSystemInfo info;
 
     auto* backend = helix::AmsState::instance().get_backend();
     if (backend) {
-        helix::AmsSystemInfo info = backend->get_system_info();
+        info = backend->get_system_info();
         if (unit_index >= 0 && unit_index < static_cast<int>(info.units.size())) {
             count = info.units[unit_index].slot_count;
             slot_offset = info.units[unit_index].first_slot_global_index;
@@ -299,6 +301,7 @@ AmsDetailSlotResult ams_detail_create_slots(AmsDetailWidgets& w, lv_obj_t* slot_
     }
 
     result.slot_count = count;
+    helix::ui::ams_detail_sync_slot_states(slot_widgets, count);
 
     // Calculate and apply slot sizing
     lv_obj_t* slot_area = lv_obj_get_parent(w.slot_grid);
@@ -325,6 +328,30 @@ AmsDetailSlotResult ams_detail_create_slots(AmsDetailWidgets& w, lv_obj_t* slot_
                   result.layout.centering_offset);
 
     return result;
+}
+
+void helix::ui::ams_detail_sync_slot_states(lv_obj_t* slot_widgets[], int slot_count) {
+    auto* backend = helix::AmsState::instance().get_backend();
+    if (!backend) {
+        return;
+    }
+    const helix::AmsSystemInfo info = backend->get_system_info();
+    for (int i = 0; i < slot_count; ++i) {
+        lv_obj_t* slot = slot_widgets[i];
+        if (!slot) {
+            continue;
+        }
+        // A bay of a box that is not on the bus keeps its place in the row but
+        // takes the disabled state, like its unit's card: dimmed, and a tap
+        // reaches nothing.
+        const int global_index =
+            static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(slot)));
+        if (info.slot_absent(global_index)) {
+            lv_obj_add_state(slot, LV_STATE_DISABLED);
+        } else {
+            lv_obj_remove_state(slot, LV_STATE_DISABLED);
+        }
+    }
 }
 
 void ams_detail_destroy_slots(AmsDetailWidgets& w, lv_obj_t* slot_widgets[], int& slot_count) {
@@ -877,8 +904,18 @@ struct InsertOfferSnapshot {
     }
 };
 
-std::unordered_map<int, InsertOfferSnapshot>& insert_offers() {
-    static std::unordered_map<int, InsertOfferSnapshot> offers;
+struct InsertOffer {
+    InsertOfferSnapshot shown;
+    std::chrono::steady_clock::time_point asked_at;
+};
+
+/// A flapping gate sensor reports an insert on every rising edge, so the same
+/// lane, still showing the same details, is asked about at most once per this
+/// window. Without it, each flap re-raises a notice the user just dismissed.
+constexpr auto kInsertOfferQuiet = std::chrono::minutes(5);
+
+std::unordered_map<int, InsertOffer>& insert_offers() {
+    static std::unordered_map<int, InsertOffer> offers;
     return offers;
 }
 
@@ -888,7 +925,7 @@ void clear_if_lane_unchanged(int slot) {
     if (it == offers.end()) {
         return;
     }
-    const InsertOfferSnapshot shown = it->second;
+    const InsertOfferSnapshot shown = it->second.shown;
     offers.erase(it);
     AmsBackend* backend = AmsState::instance().get_backend();
     if (!backend || !(InsertOfferSnapshot::of(backend->get_slot_info(slot)) == shown)) {
@@ -899,6 +936,10 @@ void clear_if_lane_unchanged(int slot) {
 }
 
 } // namespace
+
+void reset_insert_offers_for_test() {
+    insert_offers().clear();
+}
 
 void offer_clear_after_unverified_insert(int slot) {
     AmsBackend* backend = AmsState::instance().get_backend();
@@ -911,7 +952,15 @@ void offer_clear_after_unverified_insert(int slot) {
     if (!info.has_filament_info() && info.spoolman_id <= 0) {
         return;
     }
-    insert_offers()[slot] = InsertOfferSnapshot::of(info);
+    const auto snapshot = InsertOfferSnapshot::of(info);
+    const auto now = std::chrono::steady_clock::now();
+    auto& offers = insert_offers();
+    if (const auto it = offers.find(slot); it != offers.end() && it->second.shown == snapshot &&
+                                           now - it->second.asked_at < kInsertOfferQuiet) {
+        spdlog::debug("[AMS] Slot {} same-spool notice already asked; not re-raised", slot);
+        return;
+    }
+    offers[slot] = {snapshot, now};
     const std::string message =
         fmt::format(lv_tr("Same spool in {}? Tap Clear if it is a new one."),
                     lane_label(backend->lane_noun(), slot));

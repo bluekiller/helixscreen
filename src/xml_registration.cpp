@@ -464,6 +464,7 @@ void register_xml_components() {
     register_xml("runout_guidance_modal.xml");
     register_xml("shutdown_modal.xml");
     register_xml("plugin_install_modal.xml");
+    register_xml("action_prompt_button_row.xml");
     register_xml("action_prompt_modal.xml");
     register_xml("info_qr_modal.xml");
     register_xml("chamber_dryer_modal.xml");
@@ -578,9 +579,11 @@ void register_xml_components() {
     register_xml("controls_panel.xml");
     // The AMS environment overlay registers zone_tab lazily on first open; the
     // motion panel's tab rail instantiates it too, so it must be known here,
-    // before motion_panel.xml parses — along with the Move tab's bed grid.
+    // before motion_panel.xml parses — along with the Move tab's bed grid and
+    // the Bed tab's map.
     register_xml("components/zone_tab.xml");
     register_xml("components/move_preset_grid.xml");
+    register_xml("components/motion_bed_map.xml");
     register_xml("motion_panel.xml");
     // TempGraphOverlay is the only temperature overlay.
     register_xml("temp_graph_overlay.xml");

@@ -26,14 +26,15 @@ protocol itself is Klipper's: [G-Codes: action commands](https://www.klipper3d.o
 | `src/ui/action_prompt_manager.cpp` | Line parser, button-spec parser, command handlers, test prompt helpers |
 | `include/action_prompt_modal.h` | `helix::ui::ActionPromptModal` (a `Modal` subclass) and `report_action_prompt_gcode_failure()` |
 | `src/ui/action_prompt_modal.cpp` | Builds text labels and buttons from `PromptData`, button layout, color mapping, click handling |
-| `ui_xml/action_prompt_modal.xml` | Dialog shell: title, scrollable text area, AFC fault diagram, button row, footer row |
-| `src/application/application.cpp#init_action_prompt` | Wiring: creates manager and modal, registers the `notify_gcode_response` handler, sends button gcode |
+| `ui_xml/action_prompt_modal.xml` | Dialog shell: title, scrollable text area, AFC fault diagram, button rows, footer row |
+| `ui_xml/action_prompt_button_row.xml` | One row of regular buttons: a button group, or a run of ungrouped buttons |
+| `src/application/application.cpp#init_action_prompt` | Wiring: creates manager and modal, registers the `notify_gcode_response` handler, sends button gcode and `prompt_end` |
 | `src/application/application_sdl_shortcuts.cpp` | `A` and `N` keys raise a test prompt and a test notification in `--test` |
 | `src/application/demo_overlays.cpp` | `ctl demo action-prompt-worst` and `action-prompt-many` |
 | `src/printer/ams_backend_mock.cpp#execute_device_action` | Mock AFC calibration wizard that injects a full prompt sequence |
-| `tests/unit/test_action_prompt.cpp` | Parser, button spec, state machine, callbacks, static accessors |
-| `tests/unit/test_action_prompt_dismiss.cpp` | Empty-gcode button closes without sending |
-| `tests/unit/test_action_prompt_modal_layout.cpp` | One-row vs wrapping button layout |
+| `tests/unit/test_action_prompt.cpp` | Parser, button spec, state machine, callbacks, static accessors, line sink, `closed_on_screen()` for every close kind |
+| `tests/unit/test_action_prompt_dismiss.cpp` | Empty-gcode button closes without sending; which closes reach the dismiss callback |
+| `tests/unit/test_action_prompt_modal_layout.cpp` | One-row vs wrapping button layout, a row per button group, color tokens |
 | `tests/unit/test_action_prompt_modal_stress.cpp` | Rapid show/hide, reuse across prompt shapes (hidden tag) |
 | `tests/unit/test_action_prompt_gcode_failure.cpp` | Failed button gcode raises a toast |
 
@@ -52,35 +53,45 @@ Moonraker  notify_gcode_response  ["// action:prompt_begin Filament Change", ...
   |
   v  (WebSocket thread)
 Application::init_action_prompt handler "action_prompt_manager"
-  |  one process_line() per string in params
-  v
-ActionPromptManager
+  |  make_line_sink(): drops non-action lines, defers the rest
+  v  (main thread)
+ActionPromptManager::process_line()
   |  parse_action_line()  -> {command, payload}
   |  parse_button_spec()  -> PromptButton
   |  IDLE -> BUILDING -> SHOWING -> IDLE, accumulates PromptData
   |
-  +-- on_show(PromptData) --defer--> ActionPromptModal::show_prompt(lv_screen_active(), data)
-  +-- on_close()          --defer--> ActionPromptModal::hide()
-  +-- on_notify(text)     --queue--> ToastManager INFO toast, 5s
+  +-- on_show(PromptData) ---> ActionPromptModal::show_prompt(lv_screen_active(), data)
+  +-- on_close()          ---> ActionPromptModal::hide()
+  +-- on_notify(text)     ---> ToastManager INFO toast, 5s
                                          |
                                          v  (main thread, button tap)
                           ActionPromptModal::handle_button_click(gcode)
-                                         |  gcode callback, then hide()
+                                         |  gcode callback, then hide(ButtonPress)
                                          v
                           IMoonrakerAPI::execute_gcode(gcode, ..., MACRO_TIMEOUT_MS)
                                          |  on error
                                          v
                           report_action_prompt_gcode_failure() -> "Macro failed: ..." toast
+
+                          any close but the manager's own (button, backdrop, ESC)
+                                         |  dismiss callback
+                                         v
+                          ActionPromptManager::closed_on_screen(PromptCloseKind)
+                          -> true: Application sends prompt_end to Klipper
 ```
 
 ### Protocol lines to the manager
 
 The handler accepts both shapes Moonraker's `params` can take, an array of strings or an array
-whose first element is the array of strings, and feeds every string to `process_line()`. Lines
-that are not action lines are dropped by the parser, so the whole console stream goes through it.
+whose first element is the array of strings, and feeds every string to the callable from
+`ActionPromptManager::make_line_sink()`. The sink runs `parse_action_line()` on the calling thread,
+drops anything that is not an action line, and defers the rest to the main thread through a token
+of the manager's own `AsyncLifetimeGuard`, so lines still queued when the manager is destroyed are
+skipped. Every state change, and every `on_show`/`on_close`/`on_notify` call, happens on the main
+thread.
 
-`AmsState::set_gcode_response_callback()` is pointed at the same `process_line()`, which is how a
-mock AMS backend injects prompt lines without a Moonraker connection. Both registrations are
+`AmsState::set_gcode_response_callback()` is pointed at the same sink, which is how a mock AMS
+backend injects prompt lines without a Moonraker connection. Both registrations are
 undone in `src/application/application.cpp#teardown_printer_scope` before the manager is destroyed.
 The teardown rule for `notify_gcode_response` handlers is in
 [architecture/12-system-services.md](architecture/12-system-services.md).
@@ -140,6 +151,9 @@ only of `_`, `-` and spaces is cleared so the swatch is not painted with a place
 | `BUILDING` | After `prompt_begin`. Text, buttons and groups accumulate |
 | `SHOWING` | After `prompt_show`. `on_show` has fired |
 
+`closed_on_screen()` is how a close on the screen reaches the manager (see below). It never fires
+`on_close`, and from any state but `SHOWING` it does nothing.
+
 Rules worth knowing before writing a macro or a test:
 
 - `prompt_text`, `prompt_button`, `prompt_footer_button` and the group directives are ignored
@@ -151,12 +165,13 @@ Rules worth knowing before writing a macro or a test:
   it fires `on_close`. From `IDLE` it does nothing.
 - `notify` is independent of the prompt state.
 - Group IDs come from a counter that is not reset between prompts, so a `group_id` is unique for
-  the life of the manager, not per prompt.
+  the life of the manager, not per prompt. Buttons outside a group have `group_id == -1`.
 
 ### Modal UI
 
-`on_show` and `on_close` arrive on the WebSocket thread, so `init_action_prompt` hops both to the
-main thread through `m_async_lifetime.defer()`. The prompt is copied into the deferred lambda.
+`on_show` and `on_close` run on the main thread, so `init_action_prompt` shows and hides the
+modal directly. The manager's state and the modal's visibility change together, with no queued
+step between them.
 
 `ActionPromptModal::show_prompt()` stores the data and calls `Modal::show()`; `on_show()` runs
 `populate_content()`, which sets the title through `kModalTitleWidgetName` (the name the
@@ -167,10 +182,12 @@ reused for every prompt; `on_hide()` removes the button event callbacks and free
 
 Button layout (`src/ui/action_prompt_modal.cpp#create_buttons`):
 
-- Regular buttons go in `button_container`. With three or fewer, each is content-sized and the
-  container wraps (`row_wrap`).
-- With four or more, they become equal-width cells on one non-wrapping row, but only if every
-  label fits its share of the measured width (`equal_width_row_fits`). Otherwise they fall back to
+- Regular buttons are split into rows (`split_button_rows`): each button group is a row of its
+  own, and a run of ungrouped buttons between groups shares one. Each row is an
+  `action_prompt_button_row` stacked in `button_container`.
+- In a row of three or fewer, each button is content-sized and the row wraps (`row_wrap`).
+- A row of four or more becomes equal-width cells on one non-wrapping row, but only if every
+  label fits its share of the measured width (`equal_width_row_fits`). Otherwise it keeps
   wrapping, which never clips.
 - Footer buttons go in `footer_container`, full height, flex-grow 1, with a 1px divider between
   them. The footer and its divider are hidden when there are no footer buttons.
@@ -181,7 +198,7 @@ Named colors map to theme tokens in `src/ui/action_prompt_modal.cpp#get_button_c
 | Klipper color | Theme token |
 |---------------|-------------|
 | `primary` or empty | `primary` |
-| `secondary` | `success` |
+| `secondary` | `secondary` |
 | `info` | `info` |
 | `warning` | `warning` |
 | `error` | `danger` |
@@ -197,24 +214,21 @@ dropped), plays `button_tap`, and calls `handle_button_click()`:
 
 ```cpp
 void ActionPromptModal::handle_button_click(const std::string& gcode) {
-    // An empty gcode is a dismiss affordance: close, send nothing. Callers no
-    // longer have to smuggle a Klipper comment ("; error-dismiss") through to
-    // get a button that does nothing (#1172).
+    // An empty gcode is a dismiss affordance: close, send nothing (#1172).
     if (gcode.empty()) {
         spdlog::info("[ActionPromptModal] Dismiss button clicked (no gcode)");
-        hide();
+        hide(ModalCloseReason::ButtonPress);
         return;
     }
 
     spdlog::info("[ActionPromptModal] Button clicked, gcode: {}", gcode);
 
-    // Call the gcode callback if set
     if (gcode_callback_) {
         gcode_callback_(gcode);
+        button_sent_gcode_ = true;
     }
 
-    // Close the modal
-    hide();
+    hide(ModalCloseReason::ButtonPress);
 }
 ```
 
@@ -228,19 +242,47 @@ cut, purge). Its error callback calls `report_action_prompt_gcode_failure()`, wh
 caller-handled, so the `!!` GcodeError toast for the same rejection is suppressed; see
 [RPC_ERROR_OWNERSHIP.md](RPC_ERROR_OWNERSHIP.md).
 
-The modal closes locally on every tap and the manager is not told. It stays `SHOWING` until the
-firmware sends `prompt_end` or the next `prompt_begin`. Backdrop tap and ESC (from the `Modal`
-base) behave the same way. A well-formed macro ends its prompt from the button gcode, for example
-`RESPOND TYPE=command MSG="action:prompt_end"` followed by the real command.
+### Closing on the screen
+
+The modal closes on every tap. Any close that is not the owner's own `hide()` (a button tap,
+backdrop tap, ESC, a hot-reload rebuild, a `ctl reset`) calls the modal's dismiss callback from
+`on_hide()` with a `PromptCloseKind`. `init_action_prompt` passes it to
+`ActionPromptManager::closed_on_screen()`, which updates the state and returns whether to send
+`prompt_end`, the way Mainsail does:
+
+| Close | Manager | Sent to Klipper |
+|-------|---------|-----------------|
+| Button with a gcode (`ButtonWithGcode`) | ends | The button's gcode only |
+| Button without a gcode, backdrop tap, ESC (`ButtonWithoutGcode`, `UserDismiss`) | ends | `RESPOND TYPE=command MSG="action:prompt_end"` (`ActionPromptManager::PROMPT_END_GCODE`) |
+| `ctl reset` or another sweep (`External`) | ends | nothing: the screen was cleared, the user did not answer the printer |
+| Hot reload (`HotReload`, dev builds) | keeps `SHOWING`, re-shows the prompt from the rebuilt XML on a later tick | nothing |
+| Firmware `prompt_end` or next `prompt_begin` | already `IDLE`/`BUILDING`; `on_close` hid the modal | nothing |
+
+A button's macro is expected to end or replace the prompt itself, as with Mainsail. Sending
+`prompt_end` after the button gcode would race that macro and could close the next prompt it
+raises, so the button path only ends the prompt locally; the `prompt_end` the macro echoes then
+finds the manager `IDLE` and does nothing. The `prompt_end` that HelixScreen sends is echoed back
+the same way and also closes the prompt on any other connected client. Its send is log-only
+(`caller_surfaces_errors=false`), so a rejection reaches the user through Klipper's `!!` line and
+`GcodeErrorRouter`; see [RPC_ERROR_OWNERSHIP.md](RPC_ERROR_OWNERSHIP.md).
+
+`closed_on_screen()` only acts from `SHOWING`, so a close that lands while the next firmware
+prompt is being built leaves the manager's state alone. The `prompt_end` it sends is another
+matter: Klipper echoes it after whatever the macro has already sent, so if the firmware raises a
+new prompt right after the user's close, the echo can close that new prompt too. Mainsail has the
+same race.
 
 ### Other code that reads prompt state
 
 The static accessors let other translation units ask about the firmware prompt without owning the
-manager. `Application` registers the instance with `set_instance()` and clears it in `teardown_printer_scope`.
+manager. `Application` registers the instance with `set_instance()` and clears it in `teardown_printer_scope`;
+a registered manager that is destroyed clears it itself. `is_showing()` and `current_prompt_name()` read
+only a title published by the registered manager, never the manager, so a reader on another thread
+cannot race its destruction.
 
 | Accessor | Used by | For |
 |----------|---------|-----|
-| `ActionPromptManager::is_showing()` | `src/printer/ams_backend_afc.cpp`, `src/ui/recovery_modal_presenter.cpp#present` | Whether a firmware prompt is up |
+| `ActionPromptManager::is_showing()` | `src/printer/ams_backend_afc.cpp`, `src/ui/recovery_modal_presenter.cpp#present` | Whether a firmware prompt is up. False once the user closed it on the screen |
 | `ActionPromptManager::current_prompt_name()` | same | The title, e.g. AFC suppresses its toasts while a title containing `AFC` is showing |
 | `ActionPromptManager::dismiss_active()` | `RecoveryModalPresenter::present` | Closes a firmware prompt that a backend's `duplicates_firmware_prompt()` claims, once the recovery modal covers it. Main thread only |
 
@@ -272,15 +314,11 @@ lines; see [FILAMENT_BACKEND_AD5X_IFS.md](FILAMENT_BACKEND_AD5X_IFS.md).
 
 Not supported:
 
-- **Button group layout.** Groups are parsed and stored in `PromptButton::group_id`, but the modal
-  does not read it. Grouped buttons flow in the same container as ungrouped ones.
 - **Any other `action:` command**, including OctoPrint-style `action:pause`, `action:resume` and
   `action:cancel`, and any unrecognised `prompt_*`. These log `unknown command` at debug and are
   dropped.
 - **Severity from the wire.** `PromptData::severity` (the red error icon) is only set by C++
   callers such as the recovery presenter. No directive sets it.
-- **Telling the firmware the user closed the dialog.** A backdrop tap, ESC or button tap closes the
-  modal without sending `prompt_end` or anything else.
 
 ---
 
@@ -291,15 +329,14 @@ make t F='[action_prompt]'                         # parser, state machine, layo
 ./build/bin/helix-tests '[action_prompt][stress]'  # stress cases are hidden behind [.ui_integration]
 ```
 
-The cases in `tests/unit/test_action_prompt.cpp` whose names start with `ActionPromptModal:` check
-`PromptData` and the manager, not the modal. Modal behavior is covered by the layout, dismiss and
-stress files.
+`tests/unit/test_action_prompt.cpp` tests the manager only. Modal behavior is covered by the
+layout, dismiss and stress files, which build a real modal.
 
 In a running mock (`--test`):
 
 | How | What you get |
 |-----|--------------|
-| `A` key (SDL window, test mode) | `trigger_test_prompt()`: all five colors, a Yes/No group and a Cancel footer button. Each button sends `RESPOND msg="..."` |
+| `A` key (SDL window, test mode) | `trigger_test_prompt()`: all five colors, a Yes/No group on its own row and a Cancel footer button. Each button sends `RESPOND msg="..."` |
 | `N` key (SDL window, test mode) | `trigger_test_notify()`: an `action:notify` toast |
 | `HELIX_MOCK_AMS=afc`, then the AFC device action "Run Calibration Wizard" | The mock backend replays an `AFC Calibration` prompt through `AmsState`'s gcode response callback, with four grouped lane buttons, a "Calibrate All" button and a Cancel footer |
 | `helix-screen ctl -s "$HELIX_SOCK" demo action-prompt-worst` | Tallest shape: AFC diagram, three wrapping text lines, three buttons and a footer, error severity. Used for the chrome budget in `ui_xml/action_prompt_modal.xml` |
@@ -309,7 +346,7 @@ The `ctl demo` screens construct `PromptData` directly and skip the manager. `HE
 documented in [MOCK_ENVIRONMENT_VARIABLES.md](MOCK_ENVIRONMENT_VARIABLES.md); `ctl` in
 [HELIXCTL.md](HELIXCTL.md).
 
-Logs to grep with `-vv`: `[ActionPrompt]` (wiring, sends, failures), `[ActionPromptModal]`
+Logs to grep with `-vv`: `[ActionPrompt]` (wiring, sends, `Closed on screen, sending prompt_end`, failures), `[ActionPromptModal]`
 (show, buttons, clicks), `ActionPromptManager: command=` (every parsed line, debug).
 
 ---
@@ -345,6 +382,7 @@ button, and pass `severity = "error"` for the error icon.
 ### Reacting to a firmware prompt
 
 Use `ActionPromptManager::is_showing()` and `current_prompt_name()`. They are safe to call from
-any thread but read without a lock, so treat them as hints. If your feature replaces a backend's
+any thread: they read a title the main thread publishes with `std::atomic_store` on each state
+change. A reader on another thread can see a value one transition old, so treat them as hints. If your feature replaces a backend's
 own firmware dialog, implement `AmsBackend::duplicates_firmware_prompt()` rather than calling
 `dismiss_active()` yourself.

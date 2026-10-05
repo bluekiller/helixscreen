@@ -297,6 +297,7 @@
   <translation tag="Bed Heater" ru="Нагреватель стола"/>
   <translation tag="Bed Level" ru="Уровень стола"/>
   <translation tag="Bed Leveling" ru="Выравнивание стола"/>
+  <translation tag="Bed Map Clearance" ru="Безопасная высота карты стола"/>
   <translation tag="Bed Mesh" ru="Сетка стола"/>
   <translation tag="Bed Mesh Complete" ru="Сетка стола готова"/>
   <translation tag="Bed Mesh Render" ru="Рендер сетки стола"/>
@@ -312,6 +313,7 @@
   <translation tag="Bed is Level!" ru="Стол выровнен!"/>
   <translation tag="Bed mesh operation timed out" ru="Сетка стола — время ожидания истекло"/>
   <translation tag="Bed mesh..." ru="Сетка стола..."/>
+  <translation tag="Bed tab moves lift to this height first" ru="Перемещения на вкладке «Стол» сначала поднимают до этой высоты"/>
   <translation tag="Bed target set to {}°C" ru="Целевая температура стола {}°C"/>
   <translation tag="Bed temp must be 0-%d°C" ru="Температура стола должна быть 0-%d°C"/>
   <translation tag="Bed warming timed out" ru="Нагрев стола — время ожидания истекло"/>
@@ -358,6 +360,7 @@
   <translation tag="Buffer Status" ru="Статус буфера"/>
   <translation tag="Buffer tube problem" ru="Проблема с буферной трубкой"/>
   <translation tag="Build Volume: " ru="Область печати: "/>
+  <translation tag="Building preview: %d%%" ru="Создание предпросмотра: %d%%"/>
   <translation tag="Bundle Uploaded" ru="Пакет отправлен"/>
   <translation tag="Busy" ru="Занят"/>
   <translation tag="Button taps and navigation sounds" ru="Звуки нажатий и навигации"/>
@@ -686,6 +689,9 @@
   <translation tag="Copy Command" ru="Копировать команду"/>
   <translation tag="Copy failed - use SSH manually" ru="Ошибка копирования - используйте SSH вручную"/>
   <translation tag="Copy it into this filament&apos;s slicer profile. The printer keeps nothing." ru="Перепишите его в профиль слайсера для этого филамента. Принтер ничего не сохраняет."/>
+  <translation tag="Copying from USB" ru="Копирование с USB"/>
+  <translation tag="Copying from USB stopped responding" ru="Копирование с USB перестало отвечать"/>
+  <translation tag="Copying from USB..." ru="Копирование с USB..."/>
   <translation tag="Corner roundness" ru="Скругление углов"/>
   <translation tag="Correction (Ki)" ru="Коррекция (Ki)"/>
   <translation tag="Could not add to queue" ru="Не удалось добавить в очередь"/>
@@ -693,6 +699,7 @@
   <translation tag="Could not answer the connection request" ru="Не удалось ответить на запрос подключения"/>
   <translation tag="Could not check webcam status.&#10;Check printer connection." ru="Не удалось проверить статус веб-камеры.&#10;Проверьте подключение принтера."/>
   <translation tag="Could not confirm cancel" ru="Не удалось подтвердить отмену"/>
+  <translation tag="Could not copy {} from USB: {}" ru="Не удалось скопировать {} с USB: {}"/>
   <translation tag="Could not forget device" ru="Не удалось забыть устройство"/>
   <translation tag="Could not load printer database" ru="Не удалось загрузить базу данных принтеров"/>
   <translation tag="Could not move the plate" ru="Не удалось переместить стол"/>
@@ -1348,6 +1355,7 @@
   <translation tag="Holding nozzle at {}°C to purge previous filament." ru="Удержание сопла при {}°C для очистки от предыдущего филамента."/>
   <translation tag="Home" ru="Главная"/>
   <translation tag="Home &amp; Continue" ru="Запарковать и продолжить"/>
+  <translation tag="Home all axes to use the map" ru="Выполните парковку всех осей, чтобы использовать карту"/>
   <translation tag="Home and sweep the cutter to re-find its position" ru="Ищет ноль и прощупывает резак, чтобы заново найти его позицию"/>
   <translation tag="Home failed" ru="Парковка не удалась"/>
   <translation tag="Home printer first?" ru="Сначала запарковать принтер?"/>
@@ -1402,6 +1410,7 @@
   <translation tag="Ignore the click that fires when you lift after scrolling" ru="Игнорировать клик, возникающий при отпускании после прокрутки"/>
   <translation tag="Import failed: {}" ru="Ошибка импорта: {}"/>
   <translation tag="Imported {}" ru="Импортировано {}"/>
+  <translation tag="Importing {}..." ru="Импорт {}..."/>
   <translation tag="In Progress" ru="В процессе"/>
   <translation tag="Inactive" ru="Неактивно"/>
   <translation tag="Include Klipper/Moonraker logs" ru="Включить логи Klipper/Moonraker"/>
@@ -3339,6 +3348,7 @@
   <translation tag="Z jog feedrate" ru="Скорость перемещения по оси Z"/>
   <translation tag="Z motor calibration failed" ru="Не удалась калибровка двигателя Z"/>
   <translation tag="Z probes for bed leveling and mesh generation" ru="Z-зонды для выравнивания стола и создания сетки"/>
+  <translation tag="Z {}, will lift to {}mm" ru="Z {}, подъём до {}мм"/>
   <translation tag="Z-Off:" ru="Z-Off:"/>
   <translation tag="Z-Offset" ru="Z-Offset"/>
   <translation tag="Z-Offset Calibration" ru="Калибровка Z-смещения"/>

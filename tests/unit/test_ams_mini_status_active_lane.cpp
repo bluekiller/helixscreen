@@ -18,7 +18,9 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/backend_user_edit.h"
+#include "../test_helpers/cfs_test_access.h"
 #include "../ui_test_utils.h"
+#include "ams_backend_cfs.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "theme_manager.h"
@@ -357,6 +359,48 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: spent lane keeps the shared fill 
     // min_pct 0 hid the fill entirely; the shared default keeps the sliver.
     CHECK_FALSE(lv_obj_has_flag(bar_fill, LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_get_style_height(bar_fill, LV_PART_MAIN) == LV_PCT(shared_floor));
+
+    lv_obj_delete(w);
+    teardown_ams();
+}
+
+// A box held at its address while off the bus draws no spool cells: the strip
+// shows the bays that exist, as the unit card says Not connected (#1464).
+TEST_CASE_METHOD(LVGLUITestFixture, "ams_mini: an absent unit's bays draw no cells",
+                 "[ams][mini_status][1464]") {
+    auto& ams = AmsState::instance();
+    ams.init_subjects(false);
+    auto owned = std::make_unique<helix::printer::AmsBackendCfs>(nullptr, nullptr);
+    auto* cfs = owned.get();
+    ams.set_backend(std::move(owned));
+
+    nlohmann::json box = {{"state", "connect"}, {"filament", 0}, {"map", nlohmann::json::object()}};
+    for (const char* unit : {"T1", "T3"}) {
+        box[unit] = {{"state", "connect"},
+                     {"filament", "None"},
+                     {"vender", {"none", "none", "none", "none"}},
+                     {"remain_len", {"-1", "-1", "-1", "-1"}},
+                     {"color_value", {"-1", "-1", "-1", "-1"}},
+                     {"material_type", {"-1", "-1", "-1", "-1"}}};
+    }
+    box["T2"] = {{"state", "None"}};
+    helix::CfsTestAccess::handle_status(
+        *cfs, nlohmann::json{{"params", nlohmann::json::array({nlohmann::json{{"box", box}}, 0})}});
+    REQUIRE(cfs->get_system_info().slot_absent(5));
+
+    ui_ams_mini_status_init();
+    lv_obj_t* w = ui_ams_mini_status_create(test_screen(), 60);
+    ui_ams_mini_status_set_width(w, 600); // spool mode
+    helix::ui::UpdateQueue::instance().drain();
+    ams.sync_from_backend();
+    helix::ui::UpdateQueue::instance().drain();
+
+    CHECK(UITest::find_by_name(w, "spool_cell_0") != nullptr);
+    CHECK(UITest::find_by_name(w, "spool_cell_8") != nullptr);
+    for (int bay = 4; bay < 8; ++bay) {
+        INFO("bay " << bay);
+        CHECK(UITest::find_by_name(w, ("spool_cell_" + std::to_string(bay)).c_str()) == nullptr);
+    }
 
     lv_obj_delete(w);
     teardown_ams();

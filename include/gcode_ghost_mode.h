@@ -21,8 +21,8 @@ namespace gcode {
 /**
  * @brief Ghost layer rendering mode (for print progress visualization).
  *
- * Ghost rendering is primarily a 3D renderer feature. The 2D renderer accepts
- * the setting for API compatibility but does not render ghost layers.
+ * Only the 3D renderer reads this. The 2D renderer draws its own ghost, a
+ * faded whole-model buffer, whatever the mode.
  */
 enum class GhostRenderMode : uint8_t {
     Dimmed = 0, ///< Reduce opacity of unprinted layers

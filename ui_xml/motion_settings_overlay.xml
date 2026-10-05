@@ -144,6 +144,25 @@
         <setting_value_field name="turbo_outer_row"
                              value_subject="turbo_outer_display" callback="on_motion_field_clicked" user_data="7"/>
       </lv_obj>
+      <divider_horizontal/>
+      <!-- Bed tab: a move from below this height lifts Z to it first -->
+      <lv_obj width="100%"
+              height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
+              style_pad_top="#space_md" style_pad_bottom="#space_sm" flex_flow="row"
+              style_flex_main_place="space_between" style_flex_cross_place="center">
+        <lv_obj height="content"
+                style_pad_all="0" scrollable="false" flex_flow="row" style_flex_cross_place="center"
+                style_pad_gap="#space_sm">
+          <icon src="grid_large" size="sm" variant="secondary"/>
+          <lv_obj height="content" style_pad_all="0" scrollable="false" flex_flow="column" style_pad_gap="#space_xxs">
+            <text_body text="Bed Map Clearance" translation_tag="Bed Map Clearance"/>
+            <text_small text="Bed tab moves lift to this height first"
+                        translation_tag="Bed tab moves lift to this height first"/>
+          </lv_obj>
+        </lv_obj>
+        <setting_value_field name="bed_map_clearance_row"
+                             value_subject="bed_map_clearance_display" callback="on_motion_field_clicked" user_data="8"/>
+      </lv_obj>
       <!-- Spacer to push buttons to bottom -->
       <lv_obj width="100%" flex_grow="1" scrollable="false"/>
     </lv_obj>

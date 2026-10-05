@@ -23,7 +23,7 @@ namespace {
 
 AmsRecoverStateModal::Choices choices(bool has_bypass) {
     AmsRecoverStateModal::Choices c;
-    c.slot_count = 4;
+    c.slots = {0, 1, 2, 3};
     c.has_bypass = has_bypass;
     return c;
 }
@@ -126,6 +126,23 @@ TEST_CASE("Recover state modal round-trips every selection and never names a too
             CHECK(cmd.find("TOOL=") == std::string::npos);
         }
     }
+}
+
+TEST_CASE("Recover state modal offers only bays that exist", "[ams][recover_state][1464]") {
+    // Bays 0-3 and 8-11; 4-7 belong to an absent box.
+    AmsRecoverStateModal::Choices c;
+    c.slots = {0, 1, 2, 3, 8, 9, 10, 11};
+    c.has_bypass = true;
+
+    // Row 5 is the first bay after the gap, not bay 4.
+    const auto req = AmsRecoverStateModal::request_for({5, 0}, c);
+    CHECK(req.slot == 8);
+    CHECK(AmsRecoverStateModal::selection_for(req, c).slot == 5);
+    CHECK(AmsRecoverStateModal::request_for({9, 0}, c).bypass);
+
+    RecoverStateRequest absent;
+    absent.slot = 5;
+    CHECK(AmsRecoverStateModal::selection_for(absent, c).slot == 0);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "Recover state modal sends the pre-filled gate on confirm",

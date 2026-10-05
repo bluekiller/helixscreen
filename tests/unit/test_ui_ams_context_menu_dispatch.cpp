@@ -353,6 +353,26 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     helix::ui::set_test_toast_hook([&](ToastSeverity severity, const std::string& msg, uint32_t) {
         toasts.emplace_back(severity, msg);
     });
+    helix::ui::reset_insert_offers_for_test();
+
+    SECTION("a flapping gate asks once, not on every edge") {
+        LifecycleGuard hold(PrintState::Idle);
+        for (int edge = 0; edge < 5; ++edge) {
+            helix::ui::offer_clear_after_unverified_insert(0);
+        }
+        CHECK(toasts.size() == 1);
+
+        // Another lane is its own question.
+        helix::ui::offer_clear_after_unverified_insert(2);
+        CHECK(toasts.size() == 2);
+
+        // New details on the lane are a new question.
+        helix::SlotInfo edited = backend->get_slot_info(0);
+        edited.material = "ASA";
+        REQUIRE(helix::test::apply_edit(*backend, 0, edited).success());
+        helix::ui::offer_clear_after_unverified_insert(0);
+        CHECK(toasts.size() == 3);
+    }
 
     SECTION("offered on a free machine, and the button clears the lane") {
         LifecycleGuard hold(PrintState::Idle);

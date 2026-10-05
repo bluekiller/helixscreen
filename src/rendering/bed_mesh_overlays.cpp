@@ -405,7 +405,7 @@ void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, 
 
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
-    label_dsc.color = lv_color_white();
+    label_dsc.color = theme_manager_get_color("text");
     label_dsc.font = small_canvas ? &noto_sans_10 : &noto_sans_14;
     label_dsc.opa = LV_OPA_90;
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
@@ -560,7 +560,7 @@ void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer_t* ren
     // Configure label drawing style (smaller font than axis letters)
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
-    label_dsc.color = lv_color_white();
+    label_dsc.color = theme_manager_get_color("text");
     label_dsc.font = &noto_sans_10; // Smaller font for numeric labels
     label_dsc.opa = LV_OPA_80;      // Slightly more transparent than axis letters
     label_dsc.align = LV_TEXT_ALIGN_CENTER;

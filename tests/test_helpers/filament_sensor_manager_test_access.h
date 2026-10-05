@@ -31,8 +31,8 @@ class FilamentSensorManagerTestAccess {
         // Reset initial status tracking (ensures first update_from_status triggers subjects)
         mgr.initial_status_received_ = false;
 
-        // Reset startup time to 10 seconds in the past so the 2-second grace period
-        // is already expired in tests (avoids flaky timing-dependent failures)
+        // Reset startup time to 10 seconds in the past so the stabilization grace
+        // period is already expired in tests (avoids flaky timing-dependent failures)
         mgr.startup_time_ = std::chrono::steady_clock::now() - std::chrono::seconds(10);
 
         // Reset subjects if initialized

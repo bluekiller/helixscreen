@@ -214,7 +214,6 @@ class GCodeGLESRenderer {
     ///
     /// No-op when nothing has been overridden on the current geometry.
     void clear_tool_color_overrides();
-    void set_travel_color(lv_color_t) {}
     void set_brightness_factor(float) {}
 
     // ====== Rendering Options ======
@@ -275,6 +274,8 @@ class GCodeGLESRenderer {
         return triangles_rendered_ / 2;
     }
     size_t get_geometry_color_count() const;
+    /// The loaded geometry's color palette, overrides included (empty with no geometry).
+    std::vector<uint32_t> get_geometry_color_palette() const;
     /// Itemized heap and VRAM this renderer holds, for A/B measurement. Replaces
     /// a get_memory_usage() that returned a bare total, had no caller anywhere,
     /// and silently omitted the readback buffer.
@@ -508,6 +509,9 @@ class GCodeGLESRenderer {
     size_t upload_next_layer_ = 0;   ///< Next layer to upload (incremental)
     size_t upload_total_layers_ = 0; ///< Total layers needing upload
 
+    /// Reads the upload flag and selection sets without a GL context.
+    friend class GCodeGLESRendererTestAccess;
+
     // ====== Configuration ======
 
     GCodeColorPalette palette_; ///< Tool color palette for per-vertex coloring
@@ -530,7 +534,7 @@ class GCodeGLESRenderer {
     /// The defaults cover a frame drawn before that first refresh, and the
     /// headless tests, which register no tokens.
     selection::Palette sel_palette_;
-    std::mutex palette_mutex_; ///< Guards geometry color palette reads/writes
+    mutable std::mutex palette_mutex_; ///< Guards geometry color palette reads/writes
     glm::vec4 filament_color_{DEFAULT_FILAMENT_COLOR};
     float specular_intensity_ = DEFAULT_SPECULAR_INTENSITY;
     float specular_shininess_ = DEFAULT_SPECULAR_SHININESS;

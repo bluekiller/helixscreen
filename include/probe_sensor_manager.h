@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
 #include "lvgl.h"
 #include "probe_sensor_types.h"
 #include "subject_managed_panel.h"
@@ -33,20 +34,13 @@ namespace helix::sensors {
  * - bltouch - BLTouch probe
  * - smart_effector - Duet Smart Effector
  * - probe_eddy_current <name> - Eddy current probe (has a name parameter)
+ * - beacon, cartographer - eddy scanners from their own plugins
  *
- * Status JSON format:
- * @code
- * {
- *   "probe": {
- *     "last_z_result": 0.125,
- *     "z_offset": -1.5
- *   },
- *   "bltouch": {
- *     "last_z_result": 0.130,
- *     "z_offset": -1.52
- *   }
- * }
- * @endcode
+ * Status keys read: last_z_result, last_query (the last QUERY_PROBE result) and
+ * z_offset. Which object carries them differs per type. Mainline modules do not
+ * publish z_offset, so it is seeded from the configfile; the Creality K1/K2 and
+ * QIDI forks publish it on their probe. Per-type table:
+ * docs/devel/SENSOR_MANAGEMENT.md.
  *
  * @note Switch sensors configured as probes are handled by SwitchSensorManager,
  *       not this manager.
@@ -74,6 +68,17 @@ class ProbeSensorManager {
 
     /// @brief Update state from Moonraker status JSON
     void update_from_status(const nlohmann::json& status);
+
+    /**
+     * @brief Status subscription for every probe object in an objects list
+     *
+     * Maps each probe probes_in() keeps to the object and fields its module
+     * actually publishes: a Cartographer is read from the probe object it
+     * registers, and types without a usable last_query skip it. z_offset is
+     * requested everywhere; a module without it answers null.
+     */
+    [[nodiscard]] static nlohmann::json
+    required_status_objects(const std::vector<std::string>& klipper_objects);
 
     /// @brief Seed initial state from Klipper configfile (e.g., z_offset from [probe])
     void discover_from_config(const nlohmann::json& config_keys);
@@ -249,8 +254,13 @@ class ProbeSensorManager {
      * @param[out] type Detected sensor type
      * @return true if successfully parsed as probe sensor
      */
-    bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
-                            ProbeSensorType& type) const;
+    /// Probe configs for an objects list, one per physical probe: alias objects
+    /// (the generic probe object, an eddy object beside a named scanner) are dropped.
+    static std::vector<ProbeSensorConfig>
+    probes_in(const std::vector<std::string>& klipper_objects);
+
+    static bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
+                                   ProbeSensorType& type);
 
     /**
      * @brief Find config by Klipper name
@@ -286,6 +296,8 @@ class ProbeSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t probe_triggered_{};
     lv_subject_t probe_last_z_{};
     lv_subject_t probe_z_offset_{};

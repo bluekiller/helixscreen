@@ -413,8 +413,9 @@ void ToastManager::create_toast_internal(ToastSeverity severity, const char* mes
     }
 
     // Dedupe: rapid identical toasts refresh the existing one instead of
-    // stacking. Action toasts are excluded (callback/user_data may differ).
-    if (!with_action && refresh_duplicate(severity, message)) {
+    // stacking. An action toast matches only the same callback and user_data.
+    if (refresh_duplicate(severity, message, with_action ? action_cb : nullptr,
+                          with_action ? action_user_data : nullptr)) {
         return;
     }
 

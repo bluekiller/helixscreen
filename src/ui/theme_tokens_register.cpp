@@ -180,6 +180,17 @@ void register_semantic_colors(lv_xml_component_scope_t* scope, const helix::Them
         register_color(names[i], i);
     }
 
+    // Text on a solid primary fill, for XML styles that paint one without a
+    // ui_button to run the contrast pass (selected pills, chips).
+    {
+        const lv_color_t on_primary = theme_manager_get_contrast_adjusted_text(
+            theme_manager_parse_hex_color(current_palette->text.c_str()),
+            theme_manager_parse_hex_color(current_palette->primary.c_str()));
+        char buf[8];
+        snprintf(buf, sizeof(buf), "#%06x", lv_color_to_u32(on_primary) & 0xFFFFFF);
+        lv_xml_set_const(scope, "text_on_primary", buf);
+    }
+
     // Swatch descriptions for theme editor - registered as string subjects
     // so bind_text="swatch_N_desc" works in XML (consts don't resolve for bind_text)
     static constexpr const char* swatch_descriptions[ThemeSubjects::kSwatchCount] = {

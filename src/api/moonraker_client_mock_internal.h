@@ -202,3 +202,17 @@ json get_mock_probe_config();
 json get_mock_mmu_status();
 
 } // namespace mock_internal
+
+namespace helix::sim {
+
+/**
+ * @brief Get the mock probe's printer objects and their status, keyed by object
+ *
+ * Keyed off HELIX_MOCK_PROBE_TYPE. The keys are the objects the probe registers
+ * (a module that also claims the generic "probe" object lists both), and each
+ * value is the full get_status() payload that module returns, per the per-type
+ * table in docs/devel/SENSOR_MANAGEMENT.md. Empty for "none".
+ */
+nlohmann::json mock_probe_status();
+
+} // namespace helix::sim

@@ -616,6 +616,23 @@ class MoonrakerFileTransferAPIMock : public MoonrakerFileTransferAPI {
         fail_path_uploads_ = fail;
     }
 
+    /// Make later upload_file_from_path() calls record and then wait: neither
+    /// callback runs until release_held_path_uploads().
+    void mock_hold_path_uploads(bool hold = true) {
+        hold_path_uploads_ = hold;
+    }
+
+    /// Complete every held upload with success.
+    void release_held_path_uploads() {
+        auto held = std::move(held_path_uploads_);
+        held_path_uploads_.clear();
+        for (auto& cb : held) {
+            if (cb) {
+                cb();
+            }
+        }
+    }
+
   private:
     /**
      * @brief Find test file using fallback path search
@@ -655,6 +672,8 @@ class MoonrakerFileTransferAPIMock : public MoonrakerFileTransferAPI {
     std::vector<std::string> download_destinations_;
     /// When set, upload_file_from_path() reports failure instead of success
     bool fail_path_uploads_ = false;
+    bool hold_path_uploads_ = false;
+    std::vector<SuccessCallback> held_path_uploads_;
 };
 
 /**

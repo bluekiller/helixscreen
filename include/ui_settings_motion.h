@@ -8,6 +8,7 @@
  * Persisted settings owned by SettingsManager:
  * - Jog Speed XY / Z (stored mm/min, displayed mm/s)
  * - Six step distances (Fine/Coarse/Turbo x inner/outer, mm)
+ * - Bed map clearance (mm below which a Bed-tab move lifts Z first)
  *
  * @pattern Overlay (lazy init)
  * @threading Main thread only
@@ -43,6 +44,7 @@ enum class Field : int {
     CoarseOuter,
     TurboInner,
     TurboOuter,
+    BedMapClearance,
     Count
 };
 

@@ -503,6 +503,66 @@ TEST_CASE("MoonrakerClientMock initial state dispatch", "[connection][slow][init
     }
 }
 
+TEST_CASE("MoonrakerClientMock status frames report the persona's kinematics after a rebuild",
+          "[connection][kinematics]") {
+    // A hardware-list rebuild re-parses the object list, which carries no
+    // kinematics. The toolhead status must still agree with configfile, or
+    // PrinterState flips every kinematics-derived capability off after boot.
+    MockBehaviorTestFixture fixture;
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+    mock.set_fans(mock.hardware().fans());
+    mock.register_notify_update(fixture.create_capture_callback());
+    mock.connect("ws://mock/websocket", []() {}, []() {});
+
+    std::string kinematics = "<none>";
+    REQUIRE(fixture.wait_for_matching(
+        [&kinematics](const json& n) {
+            if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                return false;
+            }
+            const json& status = n["params"][0];
+            if (!status.is_object() || !status.contains("toolhead") ||
+                !status["toolhead"].contains("kinematics")) {
+                return false;
+            }
+            kinematics = status["toolhead"]["kinematics"].get<std::string>();
+            return true;
+        },
+        2000));
+    mock.stop_temperature_simulation();
+    mock.disconnect();
+
+    CHECK(kinematics == "corexy");
+}
+
+TEST_CASE("MoonrakerClientMock object snapshots report the mock's own homed_axes",
+          "[connection][homing]") {
+    // The status stream carries homed_axes on every tick, so a query or
+    // subscribe reply that disagrees with it flips the UI's homed state about
+    // a second after boot.
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+    auto snapshot = [&mock](const char* method) {
+        std::string homed = "<none>";
+        mock.send_jsonrpc(
+            method, json{{"objects", {{"toolhead", nullptr}}}},
+            [&homed](const json& r) {
+                homed = r["result"]["status"]["toolhead"]["homed_axes"].get<std::string>();
+            },
+            [](const MoonrakerError&) {});
+        return homed;
+    };
+
+    REQUIRE(mock.get_homed_axes().empty());
+    CHECK(snapshot("printer.objects.query") == "");
+    CHECK(snapshot("printer.objects.subscribe") == "");
+
+    REQUIRE(mock.gcode_script("G28 X") == 0);
+    REQUIRE(mock.get_homed_axes() == "x");
+    CHECK(snapshot("printer.objects.query") == "x");
+    CHECK(snapshot("printer.objects.subscribe") == "x");
+}
+
 // ============================================================================
 // Notification Format Tests
 // ============================================================================

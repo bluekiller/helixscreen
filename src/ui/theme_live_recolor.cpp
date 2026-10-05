@@ -54,25 +54,57 @@ static void swap_map_add(std::vector<ColorSwapEntry>& map, lv_color_t from, lv_c
     map.push_back({from, to});
 }
 
-/// True when a label's text color at `selector` comes from a style someone
-/// chose for it: a bound style, a component <style> or one added from C++.
-/// A local value, an LVGL theme style and ThemeManager's shared semantic text
-/// styles do not count; those are what the walker is there to replace.
-static bool label_text_color_from_chosen_style(lv_obj_t* obj, lv_style_selector_t selector) {
-    if (!lv_obj_check_type(obj, &lv_label_class))
+/// True for ThemeManager's shared styles whose colors the walker replaces: the
+/// semantic text styles on labels and the button surfaces on buttons.
+static bool is_walker_replaced_style(const lv_style_t* style) {
+    auto& tm = ThemeManager::instance();
+    if (style == tm.get_style(StyleRole::TextPrimary) ||
+        style == tm.get_style(StyleRole::TextMuted))
+        return true;
+    static constexpr StyleRole kButtonRoles[] = {
+        StyleRole::Button,
+        StyleRole::ButtonPrimary,
+        StyleRole::ButtonSecondary,
+        StyleRole::ButtonTertiary,
+        StyleRole::ButtonDanger,
+        StyleRole::ButtonGhost,
+        StyleRole::ButtonTransparent,
+        StyleRole::ButtonOutline,
+        StyleRole::ButtonSuccess,
+        StyleRole::ButtonWarning,
+        StyleRole::ButtonDisabled,
+        StyleRole::ButtonPressed,
+    };
+    for (StyleRole r : kButtonRoles) {
+        if (style == tm.get_style(r))
+            return true;
+    }
+    return false;
+}
+
+/// True when `prop` at `selector` comes from a style someone chose for `obj`:
+/// a bound style, a component <style> or one added from C++. Checked for a
+/// label's text color and a button's bg and border colors. A local value, an
+/// LVGL theme style and is_walker_replaced_style() do not count; those are
+/// what the walker is there to replace.
+static bool color_from_chosen_style(lv_obj_t* obj, lv_style_prop_t prop,
+                                    lv_style_selector_t selector) {
+    const bool applies = prop == LV_STYLE_TEXT_COLOR
+                             ? lv_obj_check_type(obj, &lv_label_class)
+                             : (prop == LV_STYLE_BG_COLOR || prop == LV_STYLE_BORDER_COLOR) &&
+                                   lv_obj_check_type(obj, &lv_button_class);
+    if (!applies)
         return false;
-    const lv_style_t* primary = ThemeManager::instance().get_style(StyleRole::TextPrimary);
-    const lv_style_t* muted = ThemeManager::instance().get_style(StyleRole::TextMuted);
     for (uint32_t i = 0; i < obj->style_cnt; i++) {
         const lv_obj_style_t& entry = obj->styles[i];
         // A disabled entry still counts: lv_obj_bind_style toggles its style
         // disabled, and a local value written now would hide it once enabled.
         if (entry.is_local || entry.is_trans || entry.is_theme)
             continue;
-        if (entry.selector != selector || entry.style == primary || entry.style == muted)
+        if (entry.selector != selector || is_walker_replaced_style(entry.style))
             continue;
         lv_style_value_t value;
-        if (lv_style_get_prop(entry.style, LV_STYLE_TEXT_COLOR, &value) == LV_STYLE_RES_FOUND)
+        if (lv_style_get_prop(entry.style, prop, &value) == LV_STYLE_RES_FOUND)
             return true;
     }
     return false;
@@ -87,7 +119,7 @@ static void set_palette_color(lv_obj_t* obj, lv_style_prop_t prop, lv_color_t co
     if (lv_xml_obj_has_authored_style(obj, prop, selector))
         return;
     // A local value outranks every normal style, so writing one would hide it.
-    if (prop == LV_STYLE_TEXT_COLOR && label_text_color_from_chosen_style(obj, selector))
+    if (color_from_chosen_style(obj, prop, selector))
         return;
     lv_style_value_t value{};
     value.color = color;

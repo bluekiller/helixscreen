@@ -19,7 +19,7 @@ Four subsystems share the word and almost nothing else:
 |-----------|--------------|---------------------|--------|
 | Removable drives | Lists G-code on a mounted stick as a print source, imports printer images | Mount table (`/proc/self/mountinfo` poll) | `UsbBackendLinux` monitor thread |
 | Fallback automounter | Mounts sticks read-only on boards with no mounter of their own | sysfs `/sys/block/sd*` | Same monitor thread |
-| USB label printers | Phomemo M110 over the kernel `usblp` driver | libusb bus enumeration | LVGL timer (UI thread) + detached print thread |
+| USB label printers | Phomemo M110 over the kernel `usblp` driver | libusb bus enumeration | `HttpExecutor::fast()` scan driven by an LVGL timer + detached print thread |
 | HID barcode scanners | Reads keyboard-wedge scanners for Spoolman spool IDs | evdev `/dev/input` | `UsbScannerMonitor` thread |
 
 USB mice, keyboards and touchscreens go through `input_device_scanner` and the display backends; see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) for their overrides.
@@ -37,10 +37,11 @@ USB mice, keyboards and touchscreens go through `input_device_scanner` and the d
 | `include/usb_manager.h` / `src/api/usb_manager.cpp` | `UsbManager`: owns the backend, single drive-event callback, locked queries |
 | `src/application/subject_initializer.cpp` | Creates the `UsbManager`, fans drive events out to the UI and toasts |
 | `include/ui_print_select_usb_source.h` / `src/ui/ui_print_select_usb_source.cpp` | `PrintSelectUsbSource`: Printer/USB source switch, subjects, file conversion |
-| `src/ui/ui_panel_print_select.cpp` | Hosts the USB source, Moonraker `usb/` symlink probe |
+| `src/ui/ui_panel_print_select.cpp` | Hosts the USB source, copies a USB file to Moonraker before printing, Moonraker `usb/` symlink probe |
 | `ui_xml/print_select_panel.xml` | `source_selector` bindings |
 | `src/ui/ui_overlay_printer_image.cpp` | Image import from the first mounted drive |
-| `src/print/print_file_data.cpp` | `PrintFileData::from_usb_file` |
+| `include/single_flight_walk.h` | `SingleFlightWalk`: one stick walk at a time on `HttpExecutor::fast()`, newest request wins |
+| `src/print/print_file_data.cpp` | `PrintFileData::from_usb_file` (keeps the stick path in `local_path`) |
 | `include/usb_printer_detector.h` / `src/system/usb_printer_detector.cpp` | libusb scan for known label printer VID:PIDs |
 | `src/system/phomemo_printer.cpp` | Phomemo USB transport (`/dev/usb/lpN` write) |
 | `src/system/label_printer_utils.cpp` | Transport dispatch for spool labels, including the USB fallback |
@@ -70,12 +71,12 @@ UsbBackendLinux monitor thread          UI thread (LVGL)
                                                  -> print_select_panel.xml bind_flag_if
 ```
 
-`UsbBackend` is the platform seam. `UsbManager` is what application code holds: it creates the backend through `UsbBackend::create()`, forwards backend events to one registered `DriveCallback`, and wraps `get_drives()` / `scan_for_gcode()` in its mutex. `SubjectInitializer` owns the only `UsbManager` (`include/subject_initializer.h#SubjectInitializer/usb_manager`) and is the only place that registers a drive callback.
+`UsbBackend` is the platform seam. `UsbManager` is what application code holds: it creates the backend through `UsbBackend::create()` (which returns it unstarted), attaches its event callback, then starts it, so no event can fire before someone is listening. It forwards backend events to one registered `DriveCallback`, which `SubjectInitializer` also attaches before calling `start()`. `get_drives()` runs under the manager's mutex; `scan_for_gcode()` takes it only to copy the backend's `shared_ptr`, so a long walk never blocks a drive query. `SubjectInitializer` owns the only `UsbManager` (`include/subject_initializer.h#SubjectInitializer/usb_manager`) and is the only place that registers a drive callback.
 
 Two consumers hold a raw `UsbManager*`:
 
 - `PrintSelectPanel` gets push events (through the `SubjectInitializer` callback) and also reads `get_drives()` when the manager is attached, which covers a drive that was already mounted before the panel existed (`src/ui/ui_print_select_usb_source.cpp#set_usb_manager`).
-- `PrinterImageOverlay` gets no events. It calls `get_drives()` on every `on_activate()` and scans only `drives[0]` for images (`src/ui/ui_overlay_printer_image.cpp#scan_usb_drives`).
+- `PrinterImageOverlay` gets no events. It calls `get_drives()` on every `on_activate()` and walks only `drives[0]` for images, off the UI thread through its own `SingleFlightWalk` (`src/ui/ui_overlay_printer_image.cpp#scan_usb_drives`).
 
 ### Detection: watching the mount table
 
@@ -138,26 +139,49 @@ The volume label comes from the mount point leaf when it does not look like a de
 
 ### Listing G-code
 
-`scan_for_gcode()` refuses a mount path that is not in `cached_drives_`, then walks it recursively to `max_depth` 3 by default (`src/api/usb_backend_linux.cpp#scan_directory`). Files are kept when `helix::gcode::has_printable_extension()` accepts the name, the same predicate the Moonraker file list uses, so 8.3 names like `3DBENC~1.GCO` from an `msdos` mount still match.
+`scan_for_gcode()` refuses a mount path that is not in `cached_drives_`, then releases the backend mutex and walks it recursively to `max_depth` 3 by default (`src/api/usb_backend_linux.cpp#scan_directory`). Files are kept when `helix::gcode::has_printable_extension()` accepts the name, the same predicate the Moonraker file list uses, so 8.3 names like `3DBENC~1.GCO` from an `msdos` mount still match.
 
-`PrintSelectUsbSource::refresh_files()` scans every mounted drive into one flat list (a file's path already carries its mount point) and converts each entry with `PrintFileData::from_usb_file`, which fills `--` for print time, filament, layers and height. The panel then marks every entry `metadata_fetched = true` so no Moonraker metadata request goes out. Thumbnails come from the G-code header (`src/ui/ui_print_select_usb_source.cpp#convert_to_print_file_data`):
+`PrintSelectUsbSource::refresh_files()` takes the drive list and a `shared_ptr` to the backend (`UsbManager::backend_snapshot()`) on the UI thread, then hands the slow part to `HttpExecutor::fast()`: `scan_usb_drives()` walks every mounted drive into one flat list (a file's path already carries its mount point) and pulls each file's header thumbnail into the thumbnail cache (`src/ui/ui_print_select_usb_source.cpp#scan_usb_drives`):
 
 ```cpp
-        auto best = helix::gcode::get_best_thumbnail(usb_file.path);
-        if (!best.png_data.empty()) {
-            auto& cache = get_thumbnail_cache();
-            std::string cache_path = cache.save_raw_png("usb:" + usb_file.filename, best.png_data);
-            if (!cache_path.empty()) {
-                file_data.thumbnail_path = cache_path;
-            }
+    for (const auto& file : scan.files) {
+        if (cancelled()) {
+            return scan;
         }
+        std::string cache_path;
+        auto best = helix::gcode::get_best_thumbnail(file.path);
+        if (!best.png_data.empty()) {
+            cache_path = get_thumbnail_cache().save_raw_png("usb:" + file.path, best.png_data);
+        }
+        scan.thumbnails.push_back(std::move(cache_path));
+    }
 ```
+
+The cache key is the full path, so same-named files in different folders or on different sticks keep their own thumbnails. `save_raw_png` accepts PNG only; Cura's `; thumbnail_JPG begin` blocks still arrive as PNG, because `get_best_thumbnail()` re-encodes a JPEG thumbnail through stb_image and lodepng (`src/rendering/gcode_parser.cpp#jpeg_to_png`).
+
+One walk runs at a time, through `SingleFlightWalk` (`include/single_flight_walk.h`). Every refresh supersedes the walk in flight: its `cancelled()` predicate, polled before each drive and each file, turns true and its result is dropped, and the newest request runs once it ends, so any number of refreshes during a walk cost one extra walk. A switch to the Printer tab and the source's destruction cancel both the running walk and any queued one. Results come back through the walk's lifetime token, which expires with the source. The walk holds the backend, never the manager, because the application destroys the manager before it stops the executors; `~UsbManager` stops the backend, so a walk still holding it scans nothing and its monitor thread cannot report into the freed manager.
+
+The walk stays on the fast lane rather than the slow one: single-flight it occupies at most one of the four fast workers, while the slow lane's single worker would queue the listing behind any large G-code transfer. On the UI thread each entry goes through `PrintFileData::from_usb_file`, which fills `--` for print time, filament, layers and height and keeps the stick path in `local_path`. The panel then marks every entry `metadata_fetched = true` so no Moonraker metadata request goes out.
 
 That pre-extracted path rides along to `PrintStartController` and on to `ActivePrintMediaManager::set_thumbnail_path`, so the print status panel can show it without a Moonraker fetch.
 
 ### Starting a print from the USB source
 
-The print button hands `PrintStartController::set_file()` the selected basename plus `current_path_`, and `PrintPreparationManager::start_print` joins them into a Moonraker-relative path (`src/ui/ui_print_preparation_manager.cpp#start_print`). Nothing in the USB source copies or uploads the stick's file to Moonraker, and `PrintFileData` keeps only the basename, not `UsbGcodeFile::path`. A print from the USB tab therefore only finds its file when Moonraker can already see one at that relative path. Treat the USB tab as a lister until a transfer step exists.
+Moonraker usually cannot read a stick HelixScreen mounted itself (it runs as another user, in another mount namespace, or on another host), so a USB file is copied to Moonraker before it prints. When the selected file has a `local_path`, `PrintSelectPanel::start_print` and `add_to_queue` call `copy_usb_file_to_printer()` (`src/ui/ui_panel_print_select.cpp#copy_usb_file_to_printer`). It lists `gcodes/usb_prints` and names the copy with `choose_usb_copy_target()` (`src/print/print_file_data.cpp#choose_usb_copy_target`), then either reuses a file already there or streams the stick file through `ITransfersAPI::upload_file_from_path`, under a `BusyOverlay` with progress. The panel then hands `PrintStartController` the copy's name with `usb_prints` as its directory (or queues `usb_prints/<name>`), and the normal start pipeline runs against the copy. The filename, tool colors and thumbnail are read when Print is tapped, not when the copy lands. On failure it toasts "Could not copy ... from USB" and starts nothing. Print and Add to Queue taps are ignored while a copy is in flight. `BusyOverlay` has no cancel and libhv's upload timeout is an hour, so a one-shot watchdog (`kUsbCopyStallMs`, 30s) abandons a copy that reports no progress for that long, toasts "Copying from USB stopped responding", and ignores the copy's late answer; each whole-percent progress report pushes the watchdog back.
+
+Policy, as implemented:
+
+- The folder is `usb_prints` (`PrintSelectPanel::kUsbCopyDir`), never `usb`: that name is the stick symlink some images create, which the probe below looks for.
+- Naming never replaces a different file. The candidates are `<name>`, then `<stem> (2).<ext>`, `<stem> (3).<ext>`, and so on. The first candidate that is absent is uploaded to; the first that holds a file of the stick file's size is reused with no upload. Size is the identity test.
+- The folder is read with a listing rather than per-file metadata: one request answers every candidate, and listing sizes come from the filesystem. Entries outside `usb_prints/` are ignored, because some Moonraker versions answer a missing folder with the root listing. A 404 means the folder does not exist yet and the copy goes ahead as `<name>`; any other listing error stops the copy with a toast.
+- Copies are left in place after the print, so history, reprint and the Printer tab keep working. Nothing prunes the folder, so editing and re-slicing one file leaves a numbered copy per version.
+- The copy happens after the panel's own preflight checks, before `PrintStartController`'s gates, so a print cancelled at a gate leaves its copy behind.
+
+### The detail view for a USB file
+
+`PrintSelectPanel::show_detail_view` hands the detail view the file's `local_path`. Moonraker has no copy of the file until it is printed, so every read comes off the stick: `local_gcode_source()` returns the stick path, which the preview, the footer read and the whole-file tools scan already read in place for a same-host Moonraker ([architecture/16-gcode-pipeline.md](architecture/16-gcode-pipeline.md), "Getting the file"), and `PrintPreparationManager::scan_file_for_operations` reads the preamble with `text_io::read_file(path, PRINTER_STOP_SCAN_BYTES)` on the slow lane. No metadata request goes out. A stick file that cannot be read fails at once rather than falling back to HTTP. The view keys its tools-used cache and the operations scan by the stick path, so a same-named printer file never answers for it.
+
+Delete is not offered: the delete button binds `hidden` to `print_source_is_usb`, and `show_delete_confirmation()` / `delete_file()` refuse a file with `local_path`, since delete addresses Moonraker storage by name and the automounter mounts sticks read-only.
 
 ### The Moonraker `usb/` symlink case
 
@@ -190,13 +214,12 @@ On removal, `on_drive_removed()` asks the manager what is still mounted, because
 | `UsbBackendLinux::monitor_thread_func`, `UsbAutomount::poll` | Monitor thread | Never touches LVGL. All automount syscalls stay here, including the shutdown `unmount_all()`. |
 | `UsbBackendMock` demo insert | Mock's demo thread | Same callback path as the real backend |
 | `DriveCallback` | Whichever backend thread fired it | Must marshal with `helix::ui::queue_update()` before touching widgets or subjects |
-| `PrintSelectUsbSource`, `PrinterImageOverlay` | UI thread | Call `get_drives()` / `scan_for_gcode()` synchronously |
+| `PrintSelectUsbSource::refresh_files` | UI thread, then `HttpExecutor::fast()` | Drive list and backend snapshot on the UI thread; walk and thumbnail extraction on the worker, one at a time; result delivered with `tok.defer()` |
+| `PrinterImageOverlay` | UI thread, then `HttpExecutor::fast()` | `get_drives()` on the UI thread; the `drives[0]` image walk through `SingleFlightWalk` |
 
 The `SubjectInitializer` callback captures a raw `PrintSelectPanel*` together with a `weak_ptr<bool>` alive guard, and checks `expired()` inside each queued lambda, so a queued update that lands after teardown does nothing (`src/application/subject_initializer.cpp#init_usb_manager`). It also suppresses the "USB drive connected" toast for 3 seconds after setup so a drive present at boot does not announce itself.
 
-`scan_for_gcode()` and `get_best_thumbnail()` read the stick on the UI thread while holding the manager and backend mutexes. A slow stick with many files stalls the frame for the length of that walk, and the monitor thread blocks on the backend mutex for the same time.
-
-`UsbManager::~UsbManager` and `UsbBackendMock::~UsbBackendMock` skip their mutexes: they can run during static destruction, when the mutex may already be gone.
+`UsbManager::~UsbManager` and `UsbBackendMock::~UsbBackendMock` skip their own mutexes: they can run during static destruction, when the mutex may already be gone. `~UsbManager` still calls the backend's `stop()`, since a scan may hold the backend past the manager.
 
 ---
 
@@ -252,7 +275,7 @@ The successful mount logs at info with the filesystem and options, which is the 
 | macOS (dev only) | None (`create()` returns `nullptr`) | Not compiled | When Homebrew libusb is found by pkg-config | No `/dev/usb/lp*`, so nothing prints |
 | Any, `--test` | `UsbBackendMock` | n/a | Unchanged | Unchanged |
 
-The libusb gating lives in the `Makefile` platform blocks; `-DHELIX_HAS_LIBUSB=1` is what `src/system/usb_printer_detector.cpp` keys on. The comment in `include/usb_backend.h` mentions a `UsbBackendMacOS`; there is no such class.
+The libusb gating lives in the `Makefile` platform blocks; `-DHELIX_HAS_LIBUSB=1` is what `src/system/usb_printer_detector.cpp` keys on.
 
 When `UsbManager::start()` fails, `SubjectInitializer` still keeps the manager and its callback, but no consumer receives the pointer, so the USB tab and the image-import section stay hidden.
 
@@ -266,19 +289,20 @@ The protocol side is in [LABEL_PRINTER_SYSTEM.md](LABEL_PRINTER_SYSTEM.md). The 
 
 ```cpp
 static const std::vector<KnownUsbPrinter> s_known_printers = {
-    {0x0483, 0x5740, "Phomemo M110"}, // STM32 CDC-ACM variant
-    {0x0493, 0x8760, "Phomemo M110"}, // Original USB variant
+    {0x0493, 0x8760, "Phomemo M110"},
     // Future printers added here
 };
 ```
 
-`scan()` creates and destroys a fresh `libusb_context` each call and opens matching devices only to read the serial string. `start_polling()` drives `scan()` from an `lv_timer` (3s default) on the UI thread, and fires the callback on the first scan and on any change in the VID/PID/bus/address set. The label printer settings overlay starts polling while the transport is USB and stops it on deactivate; it auto-selects the first printer found when no VID is saved yet.
+The table lists only devices the `usblp` transport can drive. `0483:5740` is ST's stock virtual COM port id: a CDC-ACM device gets a tty, never a `/dev/usb/lpN` node, and unrelated STM32 boards share it.
+
+`scan()` is static and synchronous: it creates and destroys a fresh `libusb_context` each call and opens matching devices only to read the serial string. `start_polling()` runs an `lv_timer` (3s default) whose tick submits `scan()` to `HttpExecutor::fast()`, one scan at a time; the result comes back through the detector's lifetime token, and the callback fires on the UI thread on the first scan and on any change in the VID/PID/bus/address set. `print_spool_label()` scans once per USB print through `scan_async()`, the same lane-and-queue hop as a static call. The label printer settings overlay starts polling while the transport is USB and stops it on deactivate; it auto-selects the first printer found when no VID is saved yet.
 
 **Settings** are `/label_printer/usb_vid`, `/label_printer/usb_pid`, `/label_printer/usb_serial`, with `printer_type` = `"usb"` (subject value 1). A USB printer counts as configured when VID and PID are both non-zero.
 
-**Transport.** Despite the libusb detection, printing does not use libusb. `PhomemoPrinter::print` spawns a detached thread that maps the VID:PID to a kernel `usblp` node by reading `/sys/class/usbmisc/lp{0..7}/device/../idVendor` and `idProduct`, then writes the raster with an `std::ofstream` (`src/system/phomemo_printer.cpp#find_usblp_device`). The result comes back through `helix::ui::queue_update()`. The thread spawn is wrapped in `try`/`catch` because `pthread_create` can fail with `EAGAIN` on small ARM boards.
+**Transport.** Despite the libusb detection, printing does not use libusb. `PhomemoPrinter::print` spawns a detached thread that maps the VID:PID to a kernel `usblp` node by reading `/sys/class/usbmisc/lp{0..7}/device/../idVendor` and `idProduct`, then writes the raster with an `std::ofstream` (`src/system/phomemo_printer.cpp#find_usblp_device`). The sysfs ids go through `PhomemoPrinter::read_sysfs_usb_id`, which returns 0 for a missing, empty or malformed value rather than throwing on the detached thread. The result comes back through `helix::ui::queue_update()`. The thread spawn is wrapped in `try`/`catch` because `pthread_create` can fail with `EAGAIN` on small ARM boards.
 
-**Dispatch.** `print_spool_label()` rescans the bus before each USB print. If the configured VID:PID is missing but another known printer is present, it prints to that one instead (`src/system/label_printer_utils.cpp#print_spool_label`). `friendly_label_printer_error()` maps `/dev/usb` open failures to "USB printer access denied".
+**Dispatch.** `print_spool_label()` rescans the bus off the UI thread before each USB print. If the configured VID:PID is missing but another known printer is present, it prints to that one instead (`src/system/label_printer_utils.cpp#print_spool_label`). `friendly_label_printer_error()` maps `/dev/usb` open failures to "USB printer access denied".
 
 ---
 
@@ -296,7 +320,7 @@ static const std::vector<KnownUsbPrinter> s_known_printers = {
 
 ### `--test`
 
-`RuntimeConfig::should_mock_usb()` returns `test_mode`, so every `--test` run uses `UsbBackendMock` (when the build has `HELIX_ENABLE_MOCKS`). There is no `HELIX_MOCK_*` variable for USB. 1.5s after `start()`, the mock inserts one drive, `PRINT_FILES` at `/media/usb0`, with six fake files (`src/api/usb_backend_mock.cpp#add_demo_drives`), two of them under `projects/`. The files do not exist on disk, so their cards show the default thumbnail. Within the 3s startup window the insert produces no toast, but the Printer/USB tabs appear on the print select panel.
+`RuntimeConfig::should_mock_usb()` returns `test_mode`, so every `--test` run uses `UsbBackendMock` (when the build has `HELIX_ENABLE_MOCKS`). There is no `HELIX_MOCK_*` variable for USB. 1.5s after `start()`, the mock inserts one drive, `PRINT_FILES` at `/media/usb0`, with six fake files (`src/api/usb_backend_mock.cpp#add_demo_drives`), two of them under `projects/`. The files do not exist on disk, so their cards show the default thumbnail, their detail view falls back to the thumbnail at once (the log names the `/media/usb0` path it could not read), and printing one copies an empty file: the mock's `upload_file_from_path` records the upload and succeeds, and the mock Moonraker then starts `usb_prints/<filename>`. Within the 3s startup window the insert produces no toast, but the Printer/USB tabs appear on the print select panel.
 
 The mock Moonraker can pretend a `gcodes/usb` symlink exists: `mock_set_usb_symlink_active(true)` (declared in `include/moonraker_client_mock.h`) makes `server.files.list` for `usb` return `usb/test_usb_file.gcode`. Only tests call it.
 
@@ -308,9 +332,14 @@ The mock Moonraker can pretend a `gcodes/usb` symlink exists: `mock_set_usb_syml
 | `tests/unit/test_usb_backend_linux.cpp` | `[usb_backend][linux]` | `is_usb_mount` filesystem filter, idempotent start/stop |
 | `tests/unit/test_usb_automount.cpp` | `[usb_automount]` | Ladder order, grace, probe, ownership, lazy unmount, cooldown, cache |
 | `tests/unit/test_print_select_usb_visibility.cpp` | (XML fixture) | `source_selector` bindings |
-| `tests/unit/test_print_select_usb_multi_drive.cpp` | | Scanning every drive, surviving the loss of one |
+| `tests/unit/test_print_select_usb_multi_drive.cpp` | `[usb][multi_drive]`, `[usb][thumbnail]`, `[usb][usb_async]` | Scanning every drive, surviving the loss of one, per-path thumbnail keys, the off-thread scan and its stale-result rules |
+| `tests/unit/test_print_select_usb_print.cpp` | `[usb][usb_print]`, `[usb][usb_delete]` | Print and Add to Queue copy the stick file to `usb_prints/` and use the copy; reuse, suffixing and listing errors; a failed copy starts nothing; no delete for a USB file |
+| `tests/unit/test_detail_gcode_download_integrity.cpp` | `[detail_view][usb]` | The detail view reads a USB file from the stick and asks Moonraker for nothing |
+| `tests/unit/test_single_flight_walk.cpp` | `[usb][usb_async]` | `SingleFlightWalk`: delivery through the UI queue, newest wins, cancel |
+| `tests/unit/test_printer_image_usb_import.cpp` | `[usb][usb_async]` | The printer image overlay walks the stick off the UI thread |
+| `tests/unit/test_usb_copy_name.cpp` | `[usb][usb_copy_name]` | `choose_usb_copy_target` naming rule |
 | `tests/unit/test_metadata_and_usb_symlink.cpp` | `[usb][symlink]` | Moonraker symlink access and source switching |
-| `tests/unit/test_usb_printer_detector.cpp` | `[label-printer][usb-detect]` | Known-printer table lookups |
+| `tests/unit/test_usb_printer_detector.cpp` | `[label-printer][usb-detect]` | Known-printer table lookups, polling and the spool-label scan off the UI thread |
 | `tests/unit/test_usb_scanner_monitor.cpp` | `[usb_scanner]` | Keymaps, Spoolman pattern parsing |
 | `tests/unit/test_interface_drift_usb.cpp` | `[compile][drift]` | `UsbBackendMock` still satisfies `UsbBackend` |
 
@@ -341,11 +370,11 @@ Add it to the `is_usb_fs` list in `is_usb_mount`. If the automounter should also
 
 ### Another consumer of drive events
 
-`UsbManager` holds exactly one `DriveCallback`, and `set_drive_callback()` replaces it. Do not call it from a second place. Extend the lambda in `SubjectInitializer::init_usb_manager` to fan out to the new consumer, marshal with `helix::ui::queue_update()`, and give it a lifetime guard the way the print select panel has one. Pull-style consumers (like the printer image overlay) can instead read `get_drives()` from the UI thread when they activate.
+`UsbManager` holds exactly one `DriveCallback`, and `set_drive_callback()` replaces it. Do not call it from a second place. Extend the lambda in `SubjectInitializer::init_usb_manager` to fan out to the new consumer, marshal with `helix::ui::queue_update()`, and give it a lifetime guard the way the print select panel has one. Pull-style consumers (like the printer image overlay) can instead read `get_drives()` from the UI thread when they activate, and walk the drive through a `SingleFlightWalk`.
 
 ### A new platform backend
 
-Implement `UsbBackend`, return it from `UsbBackend::create()` under the right preprocessor guard, and fire `EventCallback` from your own thread with the backend mutex released. `get_connected_drives()` should return a cached list rather than touching the disk, since the UI calls it synchronously.
+Implement `UsbBackend`, return it unstarted from `UsbBackend::create()` under the right preprocessor guard, and fire `EventCallback` from your own thread with the backend mutex released. Do not hold the mutex across the `scan_for_gcode()` walk. `get_connected_drives()` should return a cached list rather than touching the disk, since the UI calls it synchronously.
 
 ### A new USB label printer
 

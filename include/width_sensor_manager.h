@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "async_lifetime_guard.h"
 #include "lvgl.h"
 #include "subject_managed_panel.h"
 #include "width_sensor_types.h"
@@ -269,6 +270,8 @@ class WidthSensorManager {
     // LVGL subjects
     bool subjects_initialized_ = false;
     SubjectManager subjects_;
+    // Expires deferred subject updates when the subjects are torn down.
+    helix::AsyncLifetimeGuard lifetime_;
     lv_subject_t diameter_{};
     lv_subject_t sensor_count_{};
     lv_subject_t diameter_text_{};

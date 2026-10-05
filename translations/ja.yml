@@ -301,6 +301,7 @@ translations:
   Bed Heater: ベッドヒーター
   Bed Level: ベッドレベル
   Bed Leveling: ベッドレベリング
+  Bed Map Clearance: ベッドマップの退避高さ
   Bed Mesh: ベッドメッシュ
   Bed Mesh Complete: ベッドメッシュ完了
   Bed Mesh Render: ベッドメッシュ描画
@@ -317,6 +318,7 @@ translations:
   Bed is Level!: ベッドが水平です！
   Bed mesh operation timed out: ベッドメッシュ操作がタイムアウトしました
   Bed mesh...: ベッドメッシュ...
+  Bed tab moves lift to this height first: ベッドタブの移動はまずこの高さまで上昇します
   Bed target set to {}°C: ベッド目標温度を {}°C に設定しました
   Bed temp must be 0-%d°C: ベッド温度は 0〜%d°C にしてください
   Bed warming timed out: ベッド加熱がタイムアウトしました
@@ -364,6 +366,7 @@ translations:
   Buffer Status: バッファーステータス
   Buffer tube problem: バッファーチューブの問題
   'Build Volume: ': '造形サイズ: '
+  'Building preview: %d%%': 'プレビューを作成中: %d%%'
   Bundle Uploaded: バンドルをアップロードしました
   Busy: 'ビジー状態'
   Button taps and navigation sounds: ボタンタップとナビゲーション音
@@ -703,6 +706,9 @@ translations:
   Copy Command: コマンドをコピー
   Copy failed - use SSH manually: コピー失敗 - SSHを手動で使用してください
   Copy it into this filament's slicer profile. The printer keeps nothing.: 'この値をこのフィラメントのスライサー プロファイルに転記してください。プリンターには保存されません。'
+  Copying from USB: 'USB からコピー中'
+  Copying from USB stopped responding: 'USB からのコピーが応答しなくなりました'
+  Copying from USB...: 'USB からコピー中...'
   Corner roundness: 角の丸み
   Correction (Ki): 補正 (Ki)
   Could not add to queue: キューに追加できませんでした
@@ -712,6 +718,7 @@ translations:
   ? "Could not check webcam status.\nCheck printer connection."
   : "ウェブカメラの状態を確認できませんでした。\nプリンター接続を確認してください。"
   Could not confirm cancel: キャンセルを確認できませんでした
+  'Could not copy {} from USB: {}': '{} を USB からコピーできませんでした: {}'
   Could not forget device: デバイスの登録を解除できませんでした
   Could not load printer database: プリンターデータベースを読み込めませんでした
   Could not move the plate: ベッドを動かせませんでした
@@ -1397,6 +1404,7 @@ translations:
   Holding nozzle at {}°C to purge previous filament.: 前のフィラメントをパージするためノズルを {}°C に保持しています。
   Home: ホーム
   Home & Continue: ホーミングして続行
+  Home all axes to use the map: マップを使うには全軸をホーミングしてください
   Home and sweep the cutter to re-find its position: 原点復帰後にカッターを走査して位置を再検出します
   Home failed: ホーミング失敗
   Home printer first?: 先にプリンターをホーミングしますか？
@@ -1455,6 +1463,7 @@ translations:
   Ignore the click that fires when you lift after scrolling: スクロール後に指を離したときに発生するクリックを無視
   'Import failed: {}': 'インポートに失敗しました: {}'
   Imported {}: '{} をインポートしました'
+  Importing {}...: '{} をインポート中...'
   In Progress: 進行中
   Inactive: 非アクティブ
   Include Klipper/Moonraker logs: Klipper/Moonrakerのログを含める
@@ -3503,6 +3512,7 @@ translations:
   Z jog feedrate: Z軸のジョグ移動速度
   Z motor calibration failed: Z モーターの校正に失敗しました
   Z probes for bed leveling and mesh generation: ベッドレベリングとメッシュ生成用 Z プローブ
+  Z {}, will lift to {}mm: 'Z {}、{}mmまで上昇します'
   'Z-Off:': 'Z-Off:'
   Z-Offset: Z-Offset
   Z-Offset Calibration: Z-Offset キャリブレーション

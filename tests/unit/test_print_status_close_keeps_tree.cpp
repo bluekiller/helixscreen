@@ -453,9 +453,11 @@ TEST_CASE_METHOD(PrintStatusCloseFixture,
                  "Reopening print status with no job logs the rebuild at INFO",
                  "[print_status][destroy_on_close][logging]") {
     set_wire_state(PrintJobState::COMPLETE);
-    LogCapture capture;
 
+    // The capture starts after the first tree exists: how a tree built over
+    // whatever an earlier case left behind is logged is not this case's subject.
     lv_obj_t* first = open_print_status();
+    LogCapture capture;
     close_print_status(first);
     REQUIRE(PrintStatusPanel::get_cached_overlay() == nullptr);
     open_print_status();

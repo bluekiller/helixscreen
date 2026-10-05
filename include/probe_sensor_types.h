@@ -45,7 +45,7 @@ struct ProbeSensorConfig {
 
 /// @brief Runtime state for a probe sensor
 struct ProbeSensorState {
-    bool triggered = false;     ///< Current triggered state (from query, not regular status)
+    bool triggered = false;     ///< Last QUERY_PROBE result (status key last_query)
     float last_z_result = 0.0f; ///< Last Z probe result in mm
     float z_offset = 0.0f;      ///< Z offset in mm
     bool available = false;     ///< Sensor available in current config

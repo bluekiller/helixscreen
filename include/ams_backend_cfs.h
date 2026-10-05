@@ -645,6 +645,11 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     std::string current_tnn_;
     bool motor_ready_ = true;
 
+    /// Every stock `box` frame since the last flat one, merged: what the stock
+    /// parse reads, since one frame carries only the units that changed.
+    /// handle_status runs on the main thread only.
+    nlohmann::json stock_box_state_ = nlohmann::json::object();
+
     // K1 vs K2 macro dialect, latched in ctor from PrinterDetector. Most
     // callers route through dispatch_action_script and pull the macro string
     // from the static helpers (load_gcode/unload_gcode/swap_gcode), so this
@@ -691,6 +696,18 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// display state is confirmed by the toolhead sensor. The Fork dialect
     /// never sets it — its firmware owns the external slot natively.
     bool bypass_declared_ = false;
+
+    /// The external-spool lane key last held a record that is not our mirror,
+    /// and that was logged. Reset once the key is ours again. Guarded by mutex_.
+    bool external_key_conflict_logged_ = false;
+
+    /// Lane the external-spool mirror was last published at, -1 for none.
+    /// Guarded by mutex_.
+    int external_lane_published_ = -1;
+
+    /// Loaded external-spool mirrors have been sorted into bay records and
+    /// strays against the first frame of this session. Guarded by mutex_.
+    bool mirrors_sorted_ = false;
 
     /// SUCCESS for stock schemas and the identified Fork dialect; returns
     /// not_supported for an unidentified Flat implementation.
@@ -881,16 +898,16 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// clears it. Guarded by mutex_.
     std::optional<std::vector<int>> flat_backup_edges_;
 
-    /// flat_bay_positions() of the last flat frame that carried slots[]: the
-    /// fork's payload slot index for each bay. Guarded by mutex_.
-    std::unordered_map<int, int> flat_bay_positions_;
-
-    /// The slot number a command names for @p bay: the bay itself on stock
-    /// dialects, the fork's payload index on Fork (box.py registers T<n> and
-    /// takes SLOT= in its global numbering). -1 when Fork has no payload index
-    /// for that bay, which callers refuse rather than guess.
+    /// The slot number a command names for @p bay. A bay's global index is the
+    /// firmware's own slot number on every dialect; -1 for a bay in an absent
+    /// unit, and on Fork for any bay not reported (no frame yet), which
+    /// callers refuse rather than guess.
     /// **Caller must hold mutex_.**
     [[nodiscard]] int firmware_slot_locked(int bay) const;
+
+    /// Make external-spool mirror @p record the record of bay @p bay: drop the
+    /// mark in memory and persist the record without it. Caller holds mutex_.
+    void make_bay_record_locked(int bay, helix::ams::FilamentSlotOverride& record);
 
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
