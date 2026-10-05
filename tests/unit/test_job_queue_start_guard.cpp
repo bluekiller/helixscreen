@@ -259,6 +259,7 @@ TEST_CASE_METHOD(
         ::PrintSelectPanelTestAccess::set_pending_start_attempted(*panel_, true);
         ::PrintSelectPanelTestAccess::hide_detail_view(*panel_);
         drain();
+        lv_timer_handler(); // the close callback runs on the next tick
 
         const std::string* pending = pending_job_id();
         REQUIRE(pending != nullptr);
@@ -269,6 +270,7 @@ TEST_CASE_METHOD(
     SECTION("a plain back-out clears the pending start") {
         ::PrintSelectPanelTestAccess::hide_detail_view(*panel_);
         drain();
+        lv_timer_handler(); // the close callback runs on the next tick
 
         CHECK(pending_job_id() == nullptr);
         CHECK(queue_has("0001"));
@@ -302,6 +304,7 @@ TEST_CASE_METHOD(QueuedStartFixture, "opening a different file discards the pend
     ::PrintSelectPanelTestAccess::set_pending_start_attempted(*panel_, true);
     ::PrintSelectPanelTestAccess::hide_detail_view(*panel_);
     drain();
+    lv_timer_handler(); // the close callback runs on the next tick
     REQUIRE(pending_job_id() != nullptr);
 
     REQUIRE(panel_->select_file_by_name(other_file.name()));
@@ -582,6 +585,7 @@ TEST_CASE_METHOD(QueuedStartFixture,
     // back-out bookkeeping has to land.
     REQUIRE(NavigationManager::instance().go_back());
     drain();
+    lv_timer_handler(); // the close callback runs on the next tick
 
     CHECK(pending_job_id() == nullptr);
     CHECK(queue_has("0001"));

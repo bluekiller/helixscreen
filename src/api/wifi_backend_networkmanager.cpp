@@ -553,7 +553,8 @@ std::vector<WiFiNetwork> WifiBackendNetworkManager::parse_scan_output(const std:
         try {
             signal = std::stoi(signal_str);
         } catch (const std::exception&) {
-            spdlog::trace("[WifiBackend] NM: Invalid signal '{}' for SSID '{}'", signal_str, ssid);
+            spdlog::trace("[WifiBackend] NM: Invalid signal '{}' for SSID '{}'", signal_str,
+                          helix::redact::ssid(ssid));
             continue;
         }
 
@@ -1088,7 +1089,8 @@ std::optional<WifiBackend::ConnectionStatus> WifiBackendNetworkManager::poll_sta
     }
 
     spdlog::trace("[WifiBackend] NM: Status: connected={} ssid='{}' ip='{}' signal={}%",
-                  status.connected, status.ssid, status.ip_address, status.signal_strength);
+                  status.connected, helix::redact::ssid(status.ssid), status.ip_address,
+                  status.signal_strength);
 
     return status;
 }

@@ -8,18 +8,19 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_pthread.h"
 
+#include <atomic>
 #include <pthread.h>
+#include <strings.h>
 #include <utility>
 
 namespace helix::http {
 
 namespace {
 constexpr char TAG[] = "esp_http_lane";
-// Lazily claimed on first submit_get() — NOT at boot. The boot internal-RAM
-// gates are tight (THE PATTERN: no runtime internal-RAM allocation >=32KB
-// after WiFi start); a post-boot 16KB stack claim mirrors app_net_start()'s
-// late pthread spawn in app_boot.cpp.
+// Lazily claimed on first submit_get(), from PSRAM (see
+// ensure_worker_started_locked).
 constexpr size_t WORKER_STACK_BYTES = 16 * 1024;
 constexpr int HTTP_TIMEOUT_MS = 15000;
 // esp_http_client's own internal read-chunk buffer (config.buffer_size) —
@@ -27,7 +28,22 @@ constexpr int HTTP_TIMEOUT_MS = 15000;
 // run_one() below needs to be PSRAM; that's the buffer the R3 "PSRAM buffer,
 // capped" requirement is about.
 constexpr size_t CLIENT_BUFFER_BYTES = 4096;
+
+std::atomic<EspHttpLane::DateHeaderHook> s_date_hook{nullptr};
+
+esp_err_t on_http_event(esp_http_client_event_t* evt) {
+    if (evt->event_id == HTTP_EVENT_ON_HEADER && strcasecmp(evt->header_key, "Date") == 0) {
+        if (auto hook = s_date_hook.load()) {
+            hook(evt->header_value);
+        }
+    }
+    return ESP_OK;
+}
 } // namespace
+
+void EspHttpLane::set_date_header_hook(DateHeaderHook hook) {
+    s_date_hook.store(hook);
+}
 
 EspHttpLane& EspHttpLane::instance() {
     static EspHttpLane lane;
@@ -72,9 +88,30 @@ bool EspHttpLane::ensure_worker_started_locked() {
     pthread_attr_setstacksize(&attr, WORKER_STACK_BYTES);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
+    // The stack goes in PSRAM: after WiFi is up the internal heap's largest
+    // block can be smaller than the stack, and what it has is WiFi/lwIP headroom.
+    // Safe because the worker never starts a flash operation (no esp_partition,
+    // nvs or spi_flash writes, and the ESP32 thumbnail cache writes nothing).
+    // esp_pthread's cfg is thread-local and sticky, so the caller's is restored.
+    esp_pthread_cfg_t saved_cfg{};
+    const bool had_cfg = esp_pthread_get_cfg(&saved_cfg) == ESP_OK;
+    esp_pthread_cfg_t worker_cfg = had_cfg ? saved_cfg : esp_pthread_get_default_config();
+    worker_cfg.stack_size = WORKER_STACK_BYTES;
+    worker_cfg.stack_alloc_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    worker_cfg.inherit_cfg = false;
+    worker_cfg.thread_name = "http_lane";
+    esp_pthread_set_cfg(&worker_cfg);
+
     pthread_t thread;
     int rc = pthread_create(&thread, &attr, &EspHttpLane::worker_main, this);
     pthread_attr_destroy(&attr);
+
+    if (had_cfg) {
+        esp_pthread_set_cfg(&saved_cfg);
+    } else {
+        const esp_pthread_cfg_t default_cfg = esp_pthread_get_default_config();
+        esp_pthread_set_cfg(&default_cfg);
+    }
     if (rc != 0) {
         ESP_LOGE(TAG, "pthread_create failed: %d — rejecting this submission", rc);
         return false; // worker_started_ stays false: a later submit_get() retries the spawn.
@@ -116,6 +153,7 @@ void EspHttpLane::run_one(const Job& job) {
     config.timeout_ms = HTTP_TIMEOUT_MS;
     config.buffer_size = CLIENT_BUFFER_BYTES;
     config.method = HTTP_METHOD_GET;
+    config.event_handler = &on_http_event;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {

@@ -714,6 +714,8 @@ namespace {
 struct RangeFakeSink : ICalibrationSink {
     TouchCalibration stored{};
     bool range_known = true; ///< the device reports the range it runs now
+    TouchRangeSource live_source = TouchRangeSource::Declared;
+    int live_capture_rotation = -1;
     bool range_accepted = true;
     bool range_called = false;
     bool cleared = false;
@@ -743,7 +745,8 @@ struct RangeFakeSink : ICalibrationSink {
         live.range.valid = range_known;
         live.range.max_x = 479;
         live.range.max_y = 799;
-        live.source = TouchRangeSource::Declared;
+        live.range.capture_rotation = live_capture_rotation;
+        live.source = live_source;
         return live;
     }
     bool apply_touch_range(bool swap, int min_x, int min_y, int max_x, int max_y,
@@ -775,6 +778,7 @@ void reset_stored_calibration_keys() {
     Config* cfg = Config::get_instance();
     cfg->set<bool>("/input/calibration/valid", false);
     cfg->set<bool>("/input/touch_range/valid", false);
+    cfg->get_json("/input/touch_range").erase("rotation");
 }
 
 } // namespace
@@ -987,6 +991,117 @@ TEST_CASE("resolve_touch_range_source: a stored range is not live on a rotated d
     CHECK(resolve_touch_range_source(true, stored, 0) == TouchRangeSource::Environment);
     CHECK(resolve_touch_range_source(true, stored, 90) == TouchRangeSource::Environment);
     CHECK(resolve_touch_range_source(false, TouchRangeSettings{}, 0) == TouchRangeSource::Declared);
+}
+
+TEST_CASE("resolve_touch_range_source: a range stamped unrotated is live at any rotation",
+          "[touch][touch-calibration][range-fit][1394][rotated-stored-range]") {
+    // lv_evdev scales into the display's native resolution and the wrapper rotates
+    // afterwards, so a range solved at rotation 0 is native digitizer space.
+    TouchRangeSettings stored{};
+    stored.valid = true;
+    stored.min_x = -11;
+    stored.max_x = 692;
+    stored.min_y = -7;
+    stored.max_y = 479;
+
+    stored.capture_rotation = 0;
+    CHECK(resolve_touch_range_source(false, stored, 90) == TouchRangeSource::Stored);
+    CHECK(resolve_touch_range_source(false, stored, 270) == TouchRangeSource::Stored);
+    CHECK(resolve_touch_range_source(true, stored, 90) == TouchRangeSource::Environment);
+
+    // No basis recorded: it may have been solved through a rotation.
+    stored.capture_rotation = -1;
+    CHECK(resolve_touch_range_source(false, stored, 90) == TouchRangeSource::Declared);
+    CHECK(resolve_touch_range_source(false, stored, 0) == TouchRangeSource::Stored);
+
+    stored.capture_rotation = 90;
+    CHECK(resolve_touch_range_source(false, stored, 90) == TouchRangeSource::Declared);
+}
+
+TEST_CASE("touch range persistence: the capture rotation round-trips",
+          "[touch][touch-calibration][range-fit][rotated-stored-range]") {
+    Config* cfg = Config::get_instance();
+    TouchRangeSettings range{};
+    range.valid = true;
+    range.min_x = -11;
+    range.max_x = 692;
+    range.min_y = -7;
+    range.max_y = 479;
+    range.capture_rotation = 0;
+    cfg->set<int>("/input/calibration/rotation", 90);
+
+    save_touch_range(range);
+    CHECK(cfg->get<int>("/input/touch_range/rotation", -1) == 0);
+    // Its own stamp wins over a later affine-only recalibration's.
+    CHECK(load_touch_range().capture_rotation == 0);
+
+    SECTION("a range with no stamp of its own takes the calibration record's") {
+        cfg->get_json("/input/touch_range").erase("rotation");
+        cfg->set<int>("/input/calibration/rotation", 0);
+        CHECK(load_touch_range().capture_rotation == 0);
+        cfg->set<int>("/input/calibration/rotation", 180);
+        CHECK(load_touch_range().capture_rotation == 180);
+    }
+    SECTION("no stamp anywhere is unknown") {
+        cfg->get_json("/input/touch_range").erase("rotation");
+        cfg->get_json("/input/calibration").erase("rotation");
+        const TouchRangeSettings loaded = load_touch_range();
+        CHECK(loaded.valid);
+        CHECK(loaded.capture_rotation == -1);
+    }
+
+    reset_stored_calibration_keys();
+    cfg->get_json("/input/calibration").erase("rotation");
+}
+
+TEST_CASE("commit_calibration_result: a solved range is stamped with the solve's rotation",
+          "[touch][touch-calibration][range-fit][commit][rotated-stored-range]") {
+    RangeFakeSink sink;
+    TouchCalibration cal = some_affine();
+    cal.capture_rotation = 0;
+    TouchRangeFit fit{};
+    fit.valid = true;
+    fit.max_x = 479;
+    fit.max_y = 799;
+
+    CHECK(commit_calibration_result(&sink, cal, fit));
+    CHECK(Config::get_instance()->get<int>("/input/touch_range/rotation", -1) == 0);
+
+    reset_stored_calibration_keys();
+}
+
+TEST_CASE("commit_calibration_result: no fit keeps a live stored range and its stamp",
+          "[touch][touch-calibration][range-fit][commit][rotated-stored-range]") {
+    // An affine-only recalibration on a rotated display is solved on top of the
+    // stored range that is live there; dropping it would leave the next boot
+    // running that affine over the declared range instead.
+    Config* cfg = Config::get_instance();
+    RangeFakeSink sink;
+    sink.live_source = TouchRangeSource::Stored;
+    sink.live_capture_rotation = 0;
+    TouchCalibration cal = some_affine();
+    cal.capture_rotation = 90;
+    TouchRangeFit fit{}; // valid == false
+
+    CHECK(commit_calibration_result(&sink, cal, fit));
+    CHECK_FALSE(sink.range_called);
+
+    CHECK(cfg->get<bool>("/input/touch_range/valid", false));
+    CHECK(cfg->get<int>("/input/touch_range/max_x", 0) == 479);
+    CHECK(cfg->get<int>("/input/touch_range/max_y", 0) == 799);
+    CHECK(cfg->get<int>("/input/touch_range/rotation", -1) == 0);
+    CHECK(cfg->get<int>("/input/calibration/rotation", -1) == 90);
+    const TouchRangeSettings reloaded = load_touch_range();
+    CHECK(resolve_touch_range_source(false, reloaded, 90) == TouchRangeSource::Stored);
+
+    SECTION("a declared live range is still cleared") {
+        sink.live_source = TouchRangeSource::Declared;
+        CHECK(commit_calibration_result(&sink, cal, fit));
+        CHECK_FALSE(cfg->get<bool>("/input/touch_range/valid", true));
+    }
+
+    reset_stored_calibration_keys();
+    cfg->get_json("/input/calibration").erase("rotation");
 }
 
 // ============================================================================

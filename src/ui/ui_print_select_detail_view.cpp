@@ -9,7 +9,7 @@
 #include "ui_gcode_viewer.h"
 #include "ui_icon.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_print_preparation_manager.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
@@ -110,7 +110,7 @@ PrintSelectDetailView::~PrintSelectDetailView() {
 
     // Unregister from NavigationManager (fallback if cleanup() wasn't called)
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Deinitialize subjects to disconnect observers before widgets are deleted
@@ -555,16 +555,15 @@ void PrintSelectDetailView::show(const std::string& filename, const std::string&
     }
 
     // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    helix::nav::register_overlay(overlay_root_, this);
 
     // Register close callback to destroy widget tree when overlay closes.
     // Frees memory when detail view is dismissed. Subjects survive;
     // next show() call re-creates widgets via lazy creation above.
-    NavigationManager::instance().register_overlay_close_callback(
-        overlay_root_, [this]() { destroy_overlay_ui(overlay_root_); });
+    helix::nav::on_close(overlay_root_, [this]() { destroy_overlay_ui(overlay_root_); });
 
     // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
+    helix::nav::push_overlay(overlay_root_);
 
     if (visible_subject_) {
         lv_subject_set_int(visible_subject_, 1);
@@ -585,7 +584,7 @@ void PrintSelectDetailView::hide() {
     }
 
     // Pop from navigation stack - on_deactivate() will be called by NavigationManager
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 
     if (visible_subject_) {
         lv_subject_set_int(visible_subject_, 0);
@@ -912,7 +911,7 @@ void PrintSelectDetailView::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Deinitialize subjects to disconnect observers

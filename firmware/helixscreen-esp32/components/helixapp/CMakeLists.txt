@@ -80,6 +80,7 @@ set(LOCAL_SRCS
     helix_lvgl_abi_check.c
     link_probe.cpp
     wifi_backend_esp.cpp
+    wall_clock_esp.cpp
     provisioning_esp.cpp)
 
 idf_component_register(

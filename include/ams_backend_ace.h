@@ -412,7 +412,9 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     /// that is not seated, the target is the pending slot and an idle hub
     /// reads as LOADING, so a toolchange the printer started itself (PRINT_START,
     /// a T<n> mid-print, a macro) shows on the path before the tool seats.
-    /// Caller holds mutex_.
+    /// Swapping out a seated tool reads as UNLOADING until the hub sensor
+    /// clears, so the path stays on the outgoing lane while it retracts.
+    /// Caller holds mutex_; parse the path sensors first.
     /// @return true when pending_target_slot or action changed
     bool apply_target_index_locked(const nlohmann::json& data);
 
@@ -552,10 +554,14 @@ class AmsBackendAce : public AmsSubscriptionBackend {
     bool manager_states_seat_ = false;
 
     /// Last `target_index` the manager stated (-1 = no toolchange under way),
-    /// and whether the LOADING currently shown was raised from it rather than
-    /// by this backend's own load command.
+    /// whether the LOADING/UNLOADING currently shown was raised from it rather
+    /// than by this backend's own load command, and whether the outgoing
+    /// strand has cleared the hub during this toolchange. The hub sensor is
+    /// made again once the incoming strand arrives, so only the latch tells
+    /// the two phases apart.
     int target_index_ = -1;
-    bool driver_loading_ = false;
+    bool driver_action_ = false;
+    bool swap_hub_cleared_ = false;
 
     /// Whether the driver has published `ace_pro_enabled`, and its last value.
     /// Absent means this rig has no master switch at all, which is a different

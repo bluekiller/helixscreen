@@ -180,6 +180,24 @@ class PrintStatusWidget : public PanelWidget {
     // Called from the ctor in production, AND from ensure_formatter_for_test so
     // tests that only construct the formatter still get the subjects.
     static void init_static_subjects();
+
+    /// Whether a history entry is the active print. Moonraker records the name
+    /// print_stats reported (@p raw_file), which for a rewritten copy differs
+    /// from the print's identity (@p identity_file); either one matches.
+    [[nodiscard]] static bool history_job_is_active_print(const std::string& history_file,
+                                                          const std::string& raw_file,
+                                                          const std::string& identity_file);
+
+    /// Whether the idle card shows the active print's thumbnail rather than
+    /// resolving one from history. The thumbnail must have been loaded for the
+    /// print (@p thumbnail_file == @p identity_file). While print_stats says
+    /// complete that print is the finished one; otherwise the history head
+    /// (@p history_file, "" when history has none) has to name it.
+    [[nodiscard]] static bool idle_card_shows_active_thumbnail(PrintState state,
+                                                               const std::string& history_file,
+                                                               const std::string& raw_file,
+                                                               const std::string& identity_file,
+                                                               const std::string& thumbnail_file);
     // Take a reference on the shared DetailedFormatter, building it if this is
     // the first. Shared by the ctor and ensure_formatter_for_test() so both go
     // through the same replacement ordering (see the definition).
@@ -359,10 +377,11 @@ class PrintStatusWidget : public PanelWidget {
     ObserverGuard print_thumbnail_path_observer_;
 #if defined(HELIX_PLATFORM_ESP32)
     ObserverGuard print_psram_thumb_observer_; ///< Ditto, via the PSRAM generation counter
-    /// PSRAM-resident thumbnail currently shown in print_card_active_thumb_.
-    /// There is no cache file on this platform, so this shared_ptr is what keeps
-    /// the image src's buffer alive. Main-thread only (its destructor drops the
-    /// LVGL image cache entry).
+    /// PSRAM-resident thumbnail currently shown in print_card_active_thumb_,
+    /// and in the idle thumbs while they show the finished print. There is no
+    /// cache file on this platform, so this shared_ptr is what keeps the image
+    /// src's buffer alive. Main-thread only (its destructor drops the LVGL image
+    /// cache entry).
     std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail_;
 #endif
     ObserverGuard filament_runout_observer_;
@@ -541,6 +560,16 @@ class PrintStatusWidget : public PanelWidget {
     /// Called from the generation observer AND from attach(), because widget
     /// instances are recycled and a fresh attach must re-apply the image.
     void apply_esp_psram_thumbnail();
+    /// Point every thumb still showing @p dsc back at the placeholder, so the
+    /// buffer behind it can be released. lv_image stores a variable source as
+    /// the raw pointer.
+    void unpoint_thumbs_from(const void* dsc);
+    /// The detailed-idle hero image, or nullptr outside that layout.
+    [[nodiscard]] lv_obj_t* idle_hero_thumb() const;
+    /// Show the active print's PSRAM thumbnail on the idle thumbs when the
+    /// history head is that print, which is how a finished print looks. False
+    /// when it is not available, leaving the history resolve.
+    bool show_finished_print_image();
 #endif
     void reset_print_card_to_idle();
     // Publish one resolved idle thumbnail everywhere it is shown: the two

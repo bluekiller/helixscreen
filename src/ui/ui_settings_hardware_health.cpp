@@ -10,7 +10,6 @@
 
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_severity_card.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
