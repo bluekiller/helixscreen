@@ -82,12 +82,12 @@ static int compute_signal_icon_state(int signal_strength, bool is_secured) {
  */
 struct WifiWizardNetworkItemData {
     WiFiNetwork network;
-    lv_subject_t ssid;              // Stack-allocated subject
-    lv_subject_t signal_strength;   // Stack-allocated subject
-    lv_subject_t is_secured;        // Stack-allocated subject
-    lv_subject_t signal_icon_state; // Combined state 1-8 for icon visibility binding
-    lv_subject_t band_text;         // Band badge text ("2.4G" / "5G" / "2.4/5G")
-    lv_subject_t band_visible;      // 1 when the badge should be shown, else 0
+    lv_subject_t ssid{};              // Stack-allocated subject
+    lv_subject_t signal_strength{};   // Stack-allocated subject
+    lv_subject_t is_secured{};        // Stack-allocated subject
+    lv_subject_t signal_icon_state{}; // Combined state 1-8 for icon visibility binding
+    lv_subject_t band_text{};         // Band badge text ("2.4G" / "5G" / "2.4/5G")
+    lv_subject_t band_visible{};      // 1 when the badge should be shown, else 0
     char ssid_buffer[64];
     char band_buffer[16];
     WizardWifiStep* parent; // Back-reference for callbacks
@@ -353,8 +353,9 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
     // Create network items
     static int item_counter = 0;
     for (const auto& network : sorted_networks) {
+        const char* item_attrs[] = {"click_callback", "on_wizard_wifi_network_clicked", nullptr};
         lv_obj_t* item = static_cast<lv_obj_t*>(
-            lv_xml_create(network_list_container_, "wifi_network_item", nullptr));
+            lv_xml_create(network_list_container_, "wifi_network_item", item_attrs));
         if (!item) {
             LOG_ERROR_INTERNAL("Failed to create network item for SSID: {}",
                                helix::redact::ssid(network.ssid));
@@ -550,15 +551,15 @@ void WizardWifiStep::on_network_item_clicked_static(lv_event_t* e) {
     }
 }
 
-void WizardWifiStep::on_modal_cancel_clicked_static(lv_event_t* e) {
-    auto* self = static_cast<WizardWifiStep*>(lv_event_get_user_data(e));
+void WizardWifiStep::on_modal_cancel_clicked_static(lv_event_t*) {
+    WizardWifiStep* self = get_wizard_wifi_step();
     if (self) {
         self->handle_modal_cancel_clicked();
     }
 }
 
-void WizardWifiStep::on_modal_connect_clicked_static(lv_event_t* e) {
-    auto* self = static_cast<WizardWifiStep*>(lv_event_get_user_data(e));
+void WizardWifiStep::on_modal_connect_clicked_static(lv_event_t*) {
+    WizardWifiStep* self = get_wizard_wifi_step();
     if (self) {
         self->handle_modal_connect_clicked();
     }
@@ -871,9 +872,12 @@ void WizardWifiStep::register_callbacks() {
     spdlog::debug("[{}] Registering event callbacks", get_name());
 
     lv_xml_register_event_cb(nullptr, "on_wifi_toggle_changed", on_wifi_toggle_changed_static);
-    lv_xml_register_event_cb(nullptr, "on_network_item_clicked", on_network_item_clicked_static);
-    lv_xml_register_event_cb(nullptr, "on_wifi_password_cancel", on_modal_cancel_clicked_static);
-    lv_xml_register_event_cb(nullptr, "on_wifi_password_connect", on_modal_connect_clicked_static);
+    lv_xml_register_event_cb(nullptr, "on_wizard_wifi_network_clicked",
+                             on_network_item_clicked_static);
+    lv_xml_register_event_cb(nullptr, "on_wizard_wifi_password_cancel",
+                             on_modal_cancel_clicked_static);
+    lv_xml_register_event_cb(nullptr, "on_wizard_wifi_password_connect",
+                             on_modal_connect_clicked_static);
 
     spdlog::debug("[{}] Event callbacks registered", get_name());
 }
@@ -1111,7 +1115,13 @@ void WizardWifiStep::show_password_modal(const char* ssid) {
     // this modal straight into the spinner with nothing to type into.
     lv_subject_set_int(&wifi_connecting_, 0);
 
-    const char* attrs[] = {"ssid", ssid, NULL};
+    const char* attrs[] = {"ssid",
+                           ssid,
+                           "cancel_callback",
+                           "on_wizard_wifi_password_cancel",
+                           "connect_callback",
+                           "on_wizard_wifi_password_connect",
+                           NULL};
     password_modal_ = helix::ui::modal_show("wifi_password_modal", attrs);
 
     if (!password_modal_) {
@@ -1131,16 +1141,6 @@ void WizardWifiStep::show_password_modal(const char* ssid) {
             lv_group_focus_obj(password_input);
             spdlog::debug("[{}] Focused password input via group", get_name());
         }
-    }
-
-    lv_obj_t* cancel_btn = lv_obj_find_by_name(password_modal_, "modal_cancel_btn");
-    if (cancel_btn) {
-        lv_obj_add_event_cb(cancel_btn, on_modal_cancel_clicked_static, LV_EVENT_CLICKED, this);
-    }
-
-    lv_obj_t* connect_btn = lv_obj_find_by_name(password_modal_, "modal_connect_btn");
-    if (connect_btn) {
-        lv_obj_add_event_cb(connect_btn, on_modal_connect_clicked_static, LV_EVENT_CLICKED, this);
     }
 
     spdlog::info("[{}] Password modal shown for SSID: {}", get_name(), helix::redact::ssid(ssid));

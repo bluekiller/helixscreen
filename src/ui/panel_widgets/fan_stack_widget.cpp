@@ -12,6 +12,7 @@
 #include "ui_icon.h"
 #include "ui_icon_codepoints.h"
 #include "ui_icon_picker.h"
+#include "ui_row_text.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -58,12 +59,6 @@ static const char* const FAN_ICONS[] = {
 };
 static constexpr size_t FAN_ICON_COUNT = std::size(FAN_ICONS);
 static constexpr const char* DEFAULT_FAN_ICON = "fan";
-
-/// Resolve a responsive spacing token to pixels, with a fallback.
-int resolve_space_token(const char* name, int fallback) {
-    const char* s = lv_xml_get_const(nullptr, name);
-    return s ? std::atoi(s) : fallback;
-}
 
 } // namespace
 
@@ -961,8 +956,6 @@ void FanStackWidget::show_fan_picker() {
 }
 
 void FanStackWidget::ConfigurePicker::on_created(lv_obj_t* backdrop) {
-    int space_sm = resolve_space_token("space_sm", 6);
-
     // --- Display mode rows ---
     lv_obj_t* mode_list = lv_obj_find_by_name(backdrop, "mode_list");
     if (!mode_list) {
@@ -976,30 +969,17 @@ void FanStackWidget::ConfigurePicker::on_created(lv_obj_t* backdrop) {
     for (int i = 0; i < 2; ++i) {
         bool is_selected = (i == 0) ? !is_carousel : is_carousel;
 
-        lv_obj_t* row = lv_obj_create(mode_list);
-        lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(row, space_sm, 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_radius(row, 6, 0);
-        lv_obj_set_style_bg_opa(row, is_selected ? 30 : 0, 0);
-        if (is_selected) {
-            lv_obj_set_style_bg_color(row, theme_manager_get_color("primary"), 0);
+        const char* attrs[] = {
+            "selected",
+            is_selected ? "true" : "false",
+            nullptr,
+        };
+        lv_obj_t* row =
+            static_cast<lv_obj_t*>(lv_xml_create(mode_list, "picker_option_row", attrs));
+        if (!row) {
+            continue;
         }
-        lv_obj_set_style_bg_color(row, theme_manager_get_color("text_muted"),
-                                  LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_border_width(row, 0, 0);
-
-        lv_obj_t* label = lv_label_create(row);
-        lv_label_set_text(label, lv_tr(mode_labels[i]));
-        lv_obj_set_style_text_font(label, lv_font_get_default(), 0);
-        lv_obj_set_style_text_color(label, theme_manager_get_color("text"), 0);
-        lv_obj_remove_flag(label, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
+        helix::ui::set_row_label_text(row, "option_label", lv_tr(mode_labels[i]));
 
         lv_obj_set_user_data(row, new RowPayload{this, mode_values[i]});
 

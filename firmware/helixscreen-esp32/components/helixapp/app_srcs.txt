@@ -114,7 +114,6 @@ src/print/print_completion.cpp
 src/print/print_file_data.cpp
 src/print/print_history_manager.cpp
 src/print/print_start_analyzer.cpp
-src/print/print_start_enhancer.cpp
 src/print/print_start_navigation.cpp
 src/print/thumbnail_cache.cpp
 src/printer/active_material_provider.cpp
@@ -163,7 +162,6 @@ src/printer/hardware_validator.cpp
 src/printer/hh_defaults.cpp
 src/printer/klipper_error_table.cpp
 src/printer/macro_executor.cpp
-src/printer/macro_modification_manager.cpp
 src/printer/macro_param_cache.cpp
 src/printer/macro_param_defaults.cpp
 src/printer/macro_params.cpp
@@ -451,7 +449,6 @@ src/ui/ui_leader_line.cpp
 src/ui/ui_led_chip_factory.cpp
 src/ui/ui_led_control_overlay.cpp
 src/ui/ui_lock_screen.cpp
-src/ui/ui_macro_enhance_wizard.cpp
 src/ui/ui_manual_pull_prompt.cpp
 src/ui/ui_markdown.cpp
 src/ui/ui_modal.cpp
@@ -584,6 +581,14 @@ src/xml_registration.cpp
 
 # ===== override->real swaps + Moonraker command surface + generated =====
 src/ui/theme_manager.cpp
+src/ui/theme_token_scan.cpp
+src/ui/theme_color_math.cpp
+src/ui/overlay_geometry.cpp
+src/ui/theme_fonts.cpp
+src/ui/theme_responsive.cpp
+src/ui/theme_lvgl_apply.cpp
+src/ui/theme_live_recolor.cpp
+src/ui/theme_tokens_register.cpp
 src/ui/grid_edit_mode.cpp
 src/ui/grid_edit_cross_page.cpp
 src/ui/grid_edit_drop.cpp

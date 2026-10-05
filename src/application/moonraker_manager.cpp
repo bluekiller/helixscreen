@@ -28,7 +28,6 @@
 #include "host_identity.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
-#include "macro_modification_manager.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
 #include "moonraker_event_routing.h"
@@ -167,8 +166,8 @@ void MoonrakerManager::shutdown() {
     m_print_duration_observer.release();
 
     // Destroy client FIRST: its destructor waits for in-flight libhv callbacks
-    // to finish. connect() lambdas hold raw pointers to m_api and m_macro_analysis,
-    // so those must outlive the client to avoid use-after-free (#628).
+    // to finish. connect() lambdas hold a raw pointer to m_api,
+    // so it must outlive the client to avoid use-after-free (#628).
     // The global names the client this manager installed; clearing it also drops the
     // mock alias. A replacement installed by someone else stays.
     if (get_moonraker_client() == m_client.get()) {
@@ -179,7 +178,6 @@ void MoonrakerManager::shutdown() {
     // Safe now — no callbacks can fire after client destruction.
     // Note: m_api holds a MoonrakerClient& that is now dangling, but
     // ~MoonrakerAPI() only joins HTTP threads and deinits subjects.
-    m_macro_analysis.reset();
     m_api.reset();
 
     // Clear notification queue
@@ -223,20 +221,19 @@ int MoonrakerManager::connect(const std::string& websocket_url, const std::strin
     // so we never receive notify_status_update messages (print_stats, temperatures, etc.)
     IMoonrakerClient* client = m_client.get();
     MoonrakerAPI* api = m_api.get();
-    helix::MacroModificationManager* macro_mgr = m_macro_analysis.get();
     // Raw pointers remain valid because shutdown() destroys client first,
-    // waiting for in-flight callbacks before destroying api/macro_analysis.
+    // waiting for in-flight callbacks before destroying api.
     // The alive flag provides early-out for callbacks queued during shutdown (#435, #628).
     auto alive = m_alive;
     return m_client->connect(
         websocket_url.c_str(),
-        [client, api, macro_mgr, alive]() {
+        [client, api, alive]() {
             if (!alive->load())
                 return;
             // Connection established - start printer discovery
             // This queries printer capabilities and subscribes to status updates
             spdlog::info("[MoonrakerManager] Connected, starting printer discovery...");
-            client->discover_printer([api, macro_mgr, alive]() {
+            client->discover_printer([api, alive]() {
                 if (!alive->load())
                     return;
                 spdlog::info("[MoonrakerManager] Printer discovery complete");
@@ -248,12 +245,6 @@ int MoonrakerManager::connect(const std::string& websocket_url, const std::strin
                 // Safety limits + build volume now fetched in
                 // Application::setup_discovery_callbacks() on_discovery_complete,
                 // so all discovery paths (startup + post-wizard) share one call.
-
-                // Trigger macro analysis after discovery
-                if (macro_mgr) {
-                    spdlog::debug("[MoonrakerManager] Triggering PRINT_START macro analysis");
-                    macro_mgr->check_and_notify();
-                }
             });
         },
         [alive]() {
@@ -1058,18 +1049,4 @@ void MoonrakerManager::init_print_start_collector() {
         ObserverGuard(get_printer_state().get_position_z_subject(), position_cb, nullptr);
 
     spdlog::debug("[MoonrakerManager] Print start collector initialized");
-}
-
-void MoonrakerManager::init_macro_analysis(Config* config) {
-    if (!m_api) {
-        spdlog::warn("[MoonrakerManager] Cannot init macro_analysis - no API");
-        return;
-    }
-
-    m_macro_analysis = std::make_unique<helix::MacroModificationManager>(config, m_api.get());
-    spdlog::debug("[MoonrakerManager] Macro modification manager initialized");
-}
-
-helix::MacroModificationManager* MoonrakerManager::macro_analysis() const {
-    return m_macro_analysis.get();
 }

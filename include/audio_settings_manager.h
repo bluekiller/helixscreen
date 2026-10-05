@@ -36,6 +36,9 @@ class AudioSettingsManager {
     /** @brief Initialize LVGL subjects and load from Config */
     void init_subjects();
 
+    /** @brief Re-read every persisted setting from Config; no-op before init_subjects() */
+    void reload_from_config();
+
     /** @brief Deinitialize LVGL subjects (called by StaticSubjectRegistry) */
     void deinit_subjects();
 
@@ -147,7 +150,7 @@ class AudioSettingsManager {
 
     SubjectManager subjects_;
     settings::PersistedSettings<Key, static_cast<size_t>(Key::COUNT)> settings_;
-    lv_subject_t audio_device_available_subject_;
+    lv_subject_t audio_device_available_subject_{};
 
     bool subjects_initialized_ = false;
 };

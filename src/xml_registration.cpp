@@ -405,6 +405,7 @@ void register_xml_components() {
     register_xml("header_bar.xml");
     register_xml("overlay_backdrop.xml");
     register_xml("overlay_panel.xml");
+    register_xml("components/widget_catalog_row.xml");
     register_xml("widget_catalog_overlay.xml");
     register_xml("widget_catalog_category_overlay.xml");
     register_xml("toast_notification.xml");
@@ -463,7 +464,6 @@ void register_xml_components() {
     register_xml("runout_guidance_modal.xml");
     register_xml("shutdown_modal.xml");
     register_xml("plugin_install_modal.xml");
-    register_xml("macro_enhance_modal.xml");
     register_xml("action_prompt_modal.xml");
     register_xml("info_qr_modal.xml");
     register_xml("chamber_dryer_modal.xml");
@@ -549,9 +549,12 @@ void register_xml_components() {
     register_xml("components/clog_detection_config_modal.xml");
     register_xml("components/camera_config_modal.xml");
     register_xml("components/buffer_status_modal.xml");
+    register_xml("components/job_queue_row.xml");
     register_xml("job_queue_modal.xml");
     register_xml("fan_picker.xml");
     register_xml("led_picker.xml");
+    register_xml("components/picker_option_row.xml");
+    register_xml("components/picker_chip.xml");
     register_xml("fan_stack_picker.xml");
     register_xml("tool_switcher_picker.xml");
     register_xml("thermistor_sensor_picker.xml");
@@ -561,6 +564,7 @@ void register_xml_components() {
     register_xml("print_status_nozzle_tool_picker.xml");
     register_xml("favorite_macro_config_modal.xml");
     helix::ui::PrinterSwitchMenu::register_callbacks();
+    register_xml("components/printer_switch_row.xml");
     register_xml("printer_switch_menu.xml");
     register_xml("macro_param_modal.xml");
 
@@ -591,6 +595,7 @@ void register_xml_components() {
     register_xml("led_control_overlay.xml");
     register_xml("ams_current_tool.xml");
     register_xml("components/exclude_object_map.xml");
+    register_xml("components/exclude_object_row.xml");
     register_xml("components/exclude_object_side_list.xml");
     register_xml("print_status_panel.xml");
     register_xml("print_tune_panel.xml");
@@ -756,6 +761,7 @@ void register_xml_components() {
     register_xml("telemetry_data_overlay.xml");
     register_xml("about_settings_overlay.xml");
     register_xml("performance_overlay.xml");
+    register_xml("components/material_temps_row.xml");
     register_xml("material_temps_overlay.xml");
 
     // Printer manager overlay (launched from home screen printer image)

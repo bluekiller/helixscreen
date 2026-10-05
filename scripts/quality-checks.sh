@@ -1866,7 +1866,7 @@ if [ -f "scripts/check_namespace_compliance.py" ]; then
   #
   # tests/shell/test_namespace_gate.bats carries this same number and fails if
   # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2171 --summary >/tmp/namespace_check.out 2>&1; then
+  if python3 scripts/check_namespace_compliance.py --max-allowed 2167 --summary >/tmp/namespace_check.out 2>&1; then
     section_time $SECTION_START
     echo ""
     tail -1 /tmp/namespace_check.out
@@ -2709,10 +2709,10 @@ if [ -n "$PRIV" ]; then
   TOKEN_EXIT=1
 fi
 
-# Hardcoded colors. Exempt: theme_manager (it parses hex into tokens, definitional),
+# Hardcoded colors. Exempt: theme_manager and its src/ui/theme_* files (they parse hex into tokens, definitional),
 # procedural canvas renderers, and helix-splash (a separate binary that does not
 # link ThemeManager). Ratcheting baseline — port these to theme_manager_get_color().
-HEX_ALLOW='theme_manager|src/rendering/|canvas|confetti|glyph|src/helix_splash.cpp'
+HEX_ALLOW='theme_manager|src/ui/theme_|src/rendering/|canvas|confetti|glyph|src/helix_splash.cpp'
 HEX_BASELINE=33
 HEX_COUNT=$(grep -rn 'lv_color_hex(0x' src include 2>/dev/null | grep -vcE "$HEX_ALLOW" || true)
 if [ "$HEX_COUNT" -gt "$HEX_BASELINE" ]; then

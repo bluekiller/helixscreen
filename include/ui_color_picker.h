@@ -129,7 +129,7 @@ class ColorPicker : public Modal {
 
     // === Subjects for XML binding ===
     SubjectManager subjects_;
-    lv_subject_t name_subject_;
+    lv_subject_t name_subject_{};
     char hex_buf_[16] = {0};
     char name_buf_[64] = {0};
     bool subjects_initialized_ = false;

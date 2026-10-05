@@ -7,6 +7,7 @@
 
 #include "../helix_test_fixture.h"
 #include "../mocks/mock_websocket_server.h"
+#include "../test_helpers/mock_printer.h"
 #include "../test_helpers/preprint_config_scope.h"
 #include "../test_helpers/print_preparation_manager_test_access.h"
 #include "../test_helpers/printer_state_test_access.h"
@@ -1359,6 +1360,31 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
         REQUIRE(manager_.is_macro_analysis_in_progress() == false);
         REQUIRE(manager_.get_macro_analysis().has_value()); // Has result with found=false
     }
+}
+
+TEST_CASE_METHOD(MacroAnalysisRetryFixture,
+                 "PrintPreparationManager: a failed analysis runs again on reconnect",
+                 "[print_preparation][retry][eventloop][slow][1233]") {
+    set_list_files_always_fail();
+    std::atomic<bool> landed{false};
+    manager_.set_macro_analysis_callback(
+        [&](const helix::PrintStartAnalysis& /*analysis*/) { landed = true; });
+
+    manager_.analyze_print_start_macro();
+    REQUIRE(wait_for([&]() { return landed.load(); }, 8000));
+    REQUIRE(get_list_files_call_count() == 3);
+    REQUIRE_FALSE(manager_.get_macro_analysis()->found);
+
+    set_list_files_success_empty();
+    landed = false;
+    printer_state_.set_printer_connection_state(static_cast<int>(ConnectionState::DISCONNECTED),
+                                                "Disconnected");
+    printer_state_.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED),
+                                                "Connected");
+
+    REQUIRE(wait_for([&]() { return landed.load(); }, 5000));
+    CHECK(get_list_files_call_count() == 1);
+    CHECK_FALSE(manager_.is_macro_analysis_in_progress());
 }
 
 TEST_CASE_METHOD(MacroAnalysisRetryFixture,
@@ -3268,10 +3294,9 @@ TEST_CASE_METHOD(HelixTestFixture,
                  "[print_preparation][lifecycle][preparing]") {
     // The sibling exit, reached with a live api_ and no cached scan. Separate
     // case because a single test can only ever prove the FIRST guard it hits.
-    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(mock_client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     helix::ui::PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
@@ -3341,10 +3366,9 @@ TEST_CASE_METHOD(HelixTestFixture,
     PrinterStateTestAccess::reset(get_printer_state());
     get_printer_state().init_subjects(false);
 
-    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
-    PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(mock_client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
@@ -3390,10 +3414,9 @@ TEST_CASE_METHOD(HelixTestFixture,
                  "PrintPreparationManager: a remap that changes nothing prints the original",
                  "[print_preparation][remap]") {
     lv_init_safe();
-    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
-    PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(mock_client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
@@ -3421,10 +3444,9 @@ TEST_CASE_METHOD(HelixTestFixture,
                  "manager is destroyed",
                  "[print_preparation][remap][lifetime]") {
     lv_init_safe();
-    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
-    PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(mock_client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     {
         PrintPreparationManager manager;
@@ -3447,10 +3469,9 @@ TEST_CASE_METHOD(HelixTestFixture,
     // it matches on the mod_ prefix inside the gcode_mod cache, so the download
     // has to be named into that shape or nothing ever collects it.
     lv_init_safe();
-    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
-    PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(mock_client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
@@ -3482,10 +3503,9 @@ TEST_CASE_METHOD(HelixTestFixture,
                  "PrintPreparationManager: every remap failure retires the preparing job",
                  "[print_preparation][remap][preparing]") {
     lv_init_safe();
-    MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
-    PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(mock_client, state);
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
 
     PrintPreparationManager manager;
 

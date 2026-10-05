@@ -669,25 +669,32 @@ std::set<MethodHandler> extract_method_callback_pairs(const std::string& body, b
     return pairs;
 }
 
-// Method callbacks whose body reaches a panel, a subject, or a manager-owned pointer
-// that teardown destroys before it releases the MoonrakerClient. The shared
-// teardown_printer_scope() must drop these. Registration is not confined to
-// setup_discovery_callbacks - layer_tracker installs from init_action_prompt - so the registration
-// scan below covers the whole file.
+// Method callbacks registered by name inside application.cpp whose body reaches a panel, a
+// subject, or a manager-owned pointer that teardown destroys before it releases the
+// MoonrakerClient. The shared teardown_printer_scope() must drop these. Registration is not
+// confined to setup_discovery_callbacks - layer_tracker installs from init_action_prompt - so
+// the registration scan below covers the whole file.
 //
-// This is the enforced subset, not the full registration set: a passing run is not a
-// claim that every handler in the file is covered. A handler earns a row here by
-// outliving something; one that reaches only process-global state does not. That is
-// why external_update_restart is absent - it captures nothing and reaches only
-// UpdateChecker statics and the filesystem - though teardown drops it as well.
+// Subscriptions owned by a feature's attach()/detach() pair are not listed: their
+// registration lives in the feature, and tests/unit/test_discovery_attach_detach.cpp proves
+// detach() leaves nothing behind. detach_calls_required_in_teardown() below pins that the
+// teardown calls each one.
 const std::vector<MethodHandler>& handlers_requiring_teardown() {
     static const std::vector<MethodHandler> handlers = {
-        {"notify_timelapse_event", "timelapse_state"},
-        {"notify_history_changed", "AboutOverlay_print_hours"},
-        {"notify_active_spool_set", "external_spool_sync"},
         {"notify_gcode_response", "layer_tracker"},
     };
     return handlers;
+}
+
+// The detach half of every attach()/detach() pair discovery installs.
+const std::vector<std::string>& detach_calls_required_in_teardown() {
+    static const std::vector<std::string> calls = {
+        "TimelapseState::instance().detach(",
+        "UpdateChecker::instance().detach(",
+        "detach_print_hours(",
+        "spoolman_sync::detach(",
+    };
+    return calls;
 }
 
 } // namespace
@@ -764,6 +771,12 @@ TEST_CASE("Method callbacks are unregistered by the shared teardown",
     // Guard the parser: a regex matching nothing would satisfy every check below.
     REQUIRE(registered.size() >= handlers_requiring_teardown().size());
     REQUIRE_FALSE(dropped.empty());
+
+    for (const auto& call : detach_calls_required_in_teardown()) {
+        DYNAMIC_SECTION("teardown calls " << call) {
+            CHECK(scope.find(call) != std::string::npos);
+        }
+    }
 
     for (const auto& handler : handlers_requiring_teardown()) {
         DYNAMIC_SECTION(handler.first << " / " << handler.second) {

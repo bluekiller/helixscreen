@@ -32,7 +32,6 @@
   <translation tag="%s uses %s, which has filament but no material set — the printer will not start until you set it." zh="%s 使用 %s，该位置有耗材但未设置材料 — 设置后打印机才会开始。"/>
   <translation tag="%s: %.0fg of %.0fg needed" zh="%s：%.0fg / 需要 %.0fg"/>
   <translation tag="%u layers" zh="%u 层"/>
-  <translation tag="%zu changes" zh="%zu 项更改"/>
   <translation tag="%zu events queued" zh="%zu 个事件已排队"/>
   <translation tag="%zu plugins failed to load" zh="%zu 个插件加载失败"/>
   <translation tag="&apos;{}&apos; already exists. Replace the stored mesh?" zh="&apos;{}&apos; 已存在。替换已保存的网格？"/>
@@ -113,7 +112,6 @@
   <translation tag="= Loosen" zh="= 松开"/>
   <translation tag="= Tighten" zh="= 拧紧"/>
   <translation tag="A" zh="辅"/>
-  <translation tag="A backup of %s is created before applying" zh="应用前会创建 %s 的备份"/>
   <translation tag="A few minutes, nearly all of it heating. You judge nothing by eye." zh="需要几分钟，几乎全是加热时间。你无需用肉眼判断任何东西。"/>
   <translation tag="A motor IO pin couldn&apos;t be restored. Power-cycle the printer to recover" zh="无法恢复电机 IO 引脚。请重新为打印机上电以恢复"/>
   <translation tag="A motor&apos;s parameters couldn&apos;t be written. Power-cycle the printer to retry" zh="无法写入电机参数。请重新为打印机上电后重试"/>
@@ -236,9 +234,6 @@
   <translation tag="Appearance" zh="外观"/>
   <translation tag="Applies to" zh="适用于"/>
   <translation tag="Apply" zh="应用"/>
-  <translation tag="Apply Changes" zh="应用更改"/>
-  <translation tag="Applying Changes" zh="正在应用更改"/>
-  <translation tag="Applying..." zh="正在应用..."/>
   <translation tag="Archive" zh="归档"/>
   <translation tag="Archive Spool?" zh="归档料盘？"/>
   <translation tag="Are you sure you want to cancel this print? All progress will be lost." zh="确定要取消此打印吗？所有进度将丢失。"/>
@@ -501,7 +496,6 @@
   <translation tag="Change tool" zh="切换工具"/>
   <translation tag="Changes apply immediately. Adjust during print for tuning." zh="更改立即生效。可在打印时调整进行调优。"/>
   <translation tag="Changes are temporary and reset on printer reboot" zh="更改是临时的，打印机重启后会重置"/>
-  <translation tag="Changes can be reversed anytime using the Macro Viewer." zh="可随时使用 Macro Viewer 恢复更改。"/>
   <translation tag="Check AFC configuration" zh="请检查 AFC 配置"/>
   <translation tag="Check Again" zh="重新检查"/>
   <translation tag="Check Klipper console for details" zh="详情请查看 Klipper 控制台"/>
@@ -535,6 +529,7 @@
   <translation tag="Checking for webcam..." zh="正在检查摄像头..."/>
   <translation tag="Checking plugin" zh="正在检查插件"/>
   <translation tag="Checking slots..." zh="正在检查槽位..."/>
+  <translation tag="Checking the printer..." zh="正在检查打印机..."/>
   <translation tag="Checking timelapse plugin..." zh="正在检查延时摄影插件..."/>
   <translation tag="Checking webcam" zh="正在检查摄像头"/>
   <translation tag="Checking..." zh="检查中..."/>
@@ -615,7 +610,6 @@
   <translation tag="Configure G10/G11 firmware retraction" zh="配置 G10/G11 固件回抽"/>
   <translation tag="Configure Graph" zh="配置图表"/>
   <translation tag="Configure Moonraker" zh="配置 Moonraker"/>
-  <translation tag="Configure PRINT_START" zh="配置 PRINT_START"/>
   <translation tag="Configure Spoolman integration and weight sync settings." zh="配置 Spoolman 集成和重量同步设置。"/>
   <translation tag="Configure WiFi for this device, or skip if you&apos;re using Ethernet" zh="为此设备配置 WiFi，如使用以太网可跳过"/>
   <translation tag="Configure devices in Moonraker" zh="在 Moonraker 中配置设备"/>
@@ -851,7 +845,6 @@
   <translation tag="Documentation" zh="文档"/>
   <translation tag="Don&apos;t Save" zh="不保存"/>
   <translation tag="Don&apos;t ask again" zh="不再询问"/>
-  <translation tag="Don&apos;t show again" zh="不再显示"/>
   <translation tag="Done" zh="完成"/>
   <translation tag="Download update?" zh="下载更新？"/>
   <translation tag="Download v{}?" zh="下载 v{}？"/>
@@ -933,10 +926,6 @@
   <translation tag="Ended" zh="已结束"/>
   <translation tag="Endless spool failover cleared for every slot" zh="已清除所有槽位的无限料盘设置"/>
   <translation tag="Endless spool is turned off on this MMU" zh="此 MMU 上的无限料盘已关闭"/>
-  <translation tag="Enhanced {} operation in PRINT_START" zh="增强了 PRINT_START 中的 {} 项操作"/>
-  <translation tag="Enhanced {} operations in PRINT_START" zh="增强了 PRINT_START 中的 {} 项操作"/>
-  <translation tag="Enhancement Complete!" zh="增强完成！"/>
-  <translation tag="Enhancement Failed" zh="增强失败"/>
   <translation tag="Ensure Happy Hare or AFC is installed and configured" zh="请确保已安装并配置 Happy Hare 或 AFC"/>
   <translation tag="Enter Current PIN" zh="输入当前 PIN 码"/>
   <translation tag="Enter G-code command..." zh="输入 G-code 命令..."/>
@@ -1028,7 +1017,6 @@
   <translation tag="FILTERS" zh="筛选"/>
   <translation tag="Factory Reset" zh="恢复出厂设置"/>
   <translation tag="Failed" zh="失败"/>
-  <translation tag="Failed to analyze PRINT_START macro" zh="分析 PRINT_START 宏失败"/>
   <translation tag="Failed to apply limits" zh="应用限制失败"/>
   <translation tag="Failed to apply settings" zh="应用设置失败"/>
   <translation tag="Failed to archive spool" zh="归档料盘失败"/>
@@ -1072,7 +1060,6 @@
   <translation tag="Failed to open history" zh="打开历史记录失败"/>
   <translation tag="Failed to open history list" zh="打开历史列表失败"/>
   <translation tag="Failed to open temperature graph" zh="打开温度图表失败"/>
-  <translation tag="Failed to open wizard" zh="打开向导失败"/>
   <translation tag="Failed to pause print: {}" zh="暂停打印失败: {}"/>
   <translation tag="Failed to purge: {}" zh="清洗失败: {}"/>
   <translation tag="Failed to read G-code for remap" zh="读取用于重新映射的 G-code 失败"/>
@@ -1504,7 +1491,6 @@
   <translation tag="KLICKY CONTROLS" zh="KLICKY 控制"/>
   <translation tag="Keep Navigation Bar" zh="保留导航栏"/>
   <translation tag="Keep Printing" zh="继续打印"/>
-  <translation tag="Keep Required" zh="保持必需"/>
   <translation tag="Keep Spool Info on Eject" zh="弹出时保留料盘信息"/>
   <translation tag="Keep clear of the printer while the toolhead is moving" zh="工具头移动时请远离打印机"/>
   <translation tag="Keep current" zh="保留当前"/>
@@ -1520,8 +1506,8 @@
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." zh="Klipper 已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。"/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." zh="Klipper 将 &apos;default&apos; 保留用于新的校准。请选择其他名称。"/>
   <translation tag="Klipper restarting - macros activating" zh="正在重启 Klipper - 正在启用宏"/>
+  <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again." zh="Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存并使 Klipper 卡住，此时固件重启无法到达。请将打印机断电重启（或通过 SSH 重启 Klipper），然后重试。"/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again." zh="Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存；请重启 Klipper 后重试。"/>
-  <translation tag="Klipper will restart to apply changes" zh="Klipper 将重启以应用更改"/>
   <translation tag="Klipper will restart to apply changes." zh="Klipper 将重启以应用更改。"/>
   <translation tag="Klipper will restart to apply new settings." zh="Klipper 将重启以应用新设置。"/>
   <translation tag="Klipper: " zh="Klipper: "/>
@@ -1656,7 +1642,6 @@
   <translation tag="Macro Browser" zh="宏浏览器"/>
   <translation tag="Macro Button" zh="宏按钮"/>
   <translation tag="Macro Buttons" zh="宏按钮"/>
-  <translation tag="Macro analysis not initialized" zh="宏分析未初始化"/>
   <translation tag="Macro failed: {}" zh="宏执行失败: {}"/>
   <translation tag="Macro for bed mesh calibration" zh="热床网格校准宏"/>
   <translation tag="Macro for chamber/bed heat soak" zh="腔体/热床预热浸泡宏"/>
@@ -1680,9 +1665,6 @@
   <translation tag="Main LED Strip" zh="主 LED 灯带"/>
   <translation tag="Maintaining" zh="保持中"/>
   <translation tag="Maintenance" zh="维护"/>
-  <translation tag="Make %s Optional?" zh="将 %s 设为可选？"/>
-  <translation tag="Make Optional" zh="设为可选"/>
-  <translation tag="Make bed mesh and QGL skippable" zh="使热床网格和 QGL 可跳过"/>
   <translation tag="Make sure every nozzle is clean." zh="请确保所有喷嘴都干净。"/>
   <translation tag="Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats." zh="请确认工具头中没有装入耗材:热床加热时它可能在挤出机中变软。"/>
   <translation tag="MakeID (Bluetooth)" zh="MakeID（蓝牙）"/>
@@ -1835,7 +1817,6 @@
   <translation tag="No Macros Found" zh="未找到宏"/>
   <translation tag="No Multi-Filament System connected" zh="未连接多耗材系统"/>
   <translation tag="No Multi-Filament System connected." zh="未连接多耗材系统。"/>
-  <translation tag="No PRINT_START macro found" zh="未找到 PRINT_START 宏"/>
   <translation tag="No Power Devices" zh="无电源设备"/>
   <translation tag="No Spool" zh="无料盘"/>
   <translation tag="No Spools" zh="无料盘"/>
@@ -1845,7 +1826,6 @@
   <translation tag="No buffer data available" zh="无可用缓冲区数据"/>
   <translation tag="No camera — use USB barcode scanner" zh="无摄像头 — 请使用 USB 条码扫描器"/>
   <translation tag="No chamber temperature sensor detected" zh="未检测到腔体温度传感器"/>
-  <translation tag="No changes selected.&#10;&#10;Click Cancel to close." zh="未选择任何更改。&#10;&#10;点击取消以关闭。"/>
   <translation tag="No changes to revert" zh="没有可撤销的更改"/>
   <translation tag="No color" zh="无颜色"/>
   <translation tag="No dryer available. Store filament in a sealed dry box with desiccant for best results." zh="无可用烘干机。建议将耗材存放在带干燥剂的密封干燥箱中。"/>
@@ -1913,6 +1893,7 @@
   <translation tag="Normal" zh="正常"/>
   <translation tag="Not Connected" zh="未连接"/>
   <translation tag="Not Enough Filament" zh="耗材不足"/>
+  <translation tag="Not Enough Memory" zh="内存不足"/>
   <translation tag="Not Initialized" zh="未初始化"/>
   <translation tag="Not Now" zh="暂不"/>
   <translation tag="Not Supported" zh="不支持"/>
@@ -1986,6 +1967,7 @@
   <translation tag="One tap runs this macro. Dangerous macros still ask." zh="单击即可运行此宏。危险宏仍会询问。"/>
   <translation tag="Only on A: {} Hz" zh="仅 A：{} Hz"/>
   <translation tag="Only on B: {} Hz" zh="仅 B：{} Hz"/>
+  <translation tag="Only {} MB of memory is free, and Klipper&apos;s analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled." zh="可用内存仅 {} MB，而 Klipper 的分析需要约 {} MB。运行测试会使打印机卡住，直到断电重启。"/>
   <translation tag="Ooze Reduction" zh="减少渗漏"/>
   <translation tag="Open" zh="打开"/>
   <translation tag="Open Source Licenses" zh="开源许可证"/>
@@ -2031,8 +2013,6 @@
   <translation tag="PRINTER" zh="打印机"/>
   <translation tag="PRINTER VISUALS" zh="打印机外观"/>
   <translation tag="PRINTERS" zh="打印机"/>
-  <translation tag="PRINT_START has {} skippable operation" zh="PRINT_START 有 {} 项可跳过的操作"/>
-  <translation tag="PRINT_START has {} skippable operations" zh="PRINT_START 有 {} 项可跳过的操作"/>
   <translation tag="PROBE SENSORS" zh="探针传感器"/>
   <translation tag="PTFE tube connection loose" zh="PTFE 管接头松动"/>
   <translation tag="Pair" zh="配对"/>
@@ -2331,7 +2311,6 @@
   <translation tag="Readings from extra temperature sensors" zh="额外温度传感器的读数"/>
   <translation tag="Ready" zh="就绪"/>
   <translation tag="Ready for filament operations" zh="可进行耗材操作"/>
-  <translation tag="Ready to Apply" zh="准备应用"/>
   <translation tag="Ready to calibrate" zh="准备校准"/>
   <translation tag="Rear" zh="后"/>
   <translation tag="Rear Left" zh="左后"/>
@@ -2491,7 +2470,6 @@
   <translation tag="Retry" zh="重试"/>
   <translation tag="Reverse Multiplier" zh="反向倍率"/>
   <translation tag="Review detected hardware validation issues" zh="查看检测到的硬件验证问题"/>
-  <translation tag="Review your changes" zh="查看您的更改"/>
   <translation tag="Review your configuration below, then click Finish to save" zh="请检查以下配置，然后点击完成以保存"/>
   <translation tag="Rewinding" zh="回卷中"/>
   <translation tag="Right" zh="右"/>
@@ -2678,7 +2656,6 @@
   <translation tag="Settings Snapshot" zh="设置快照"/>
   <translation tag="Settings reset to defaults. Restarting..." zh="设置已重置为默认值。正在重启..."/>
   <translation tag="Setup" zh="设置向导"/>
-  <translation tag="Setup Complete!" zh="设置完成！"/>
   <translation tag="Setup Timelapse" zh="设置延时摄影"/>
   <translation tag="Several printers match - choose yours" zh="多台打印机匹配 - 请选择您的打印机"/>
   <translation tag="Shadow Intensity" zh="阴影强度"/>
@@ -2994,6 +2971,7 @@
   <translation tag="Theme changes apply after restart." zh="主题更改在重启后生效。"/>
   <translation tag="Theme reset to defaults" zh="主题已重置为默认值"/>
   <translation tag="Theme: " zh="主题: "/>
+  <translation tag="There is not enough free memory to run this test. Klipper&apos;s analysis would run out of memory and leave the printer stuck until it is power-cycled." zh="可用内存不足，无法运行此测试。Klipper 的分析会耗尽内存，使打印机卡住，直到断电重启。"/>
   <translation tag="These tools have a different filament grade loaded:" zh="以下工具装载的耗材等级不同："/>
   <translation tag="These tools have incompatible materials loaded:" zh="这些工具加载了不兼容的材料："/>
   <translation tag="These tools have no filament loaded:" zh="以下工具未加载耗材:"/>
@@ -3023,7 +3001,7 @@
   <translation tag="This is what data would be sent if enabled" zh="这是启用后将发送的数据"/>
   <translation tag="This may take up to 30 seconds" zh="这可能需要 30 秒"/>
   <translation tag="This plugin asks for no special permissions." zh="此插件不请求任何特殊权限。"/>
-  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps." zh="此插件让 HelixScreen 控制打印启动选项，如热床网格和 QGL。安装后，使用下面的配置 PRINT_START 启用可选步骤。"/>
+  <translation tag="This plugin lets HelixScreen control print start options like bed mesh and QGL." zh="此插件让 HelixScreen 控制打印启动选项，如热床网格和 QGL。"/>
   <translation tag="This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?" zh="本次打印需要约 %.0fg，但料盘仅剩约 %.0fg。仍要开始吗？"/>
   <translation tag="This printer cannot calibrate tool offsets automatically" zh="此打印机无法自动校准工具偏移"/>
   <translation tag="This printer fills its gates from Spoolman. HelixScreen cleared its own copy; remove the spool in Spoolman." zh="此打印机的通道信息来自 Spoolman。HelixScreen 已清除本地副本；请在 Spoolman 中移除该线轴。"/>
@@ -3294,7 +3272,6 @@
   <translation tag="Welcome to HelixScreen" zh="欢迎使用 HelixScreen"/>
   <translation tag="What We Collect" zh="我们收集的内容"/>
   <translation tag="When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs." zh="启用时仅运行宏。禁用时先设置温度，然后运行宏。"/>
-  <translation tag="When starting a print, you&apos;ll be able to choose whether to run %s. This saves time when you&apos;ve already done it recently or want more control over your print preparation." zh="开始打印时，您可以选择是否运行 %s。如果您最近已经执行过或希望对打印准备过程有更多控制，这样可以节省时间。"/>
   <translation tag="Where UI sounds play" zh="界面声音的播放位置"/>
   <translation tag="Whether filament is loaded" zh="耗材是否已装载"/>
   <translation tag="Which macro the Close feeder button sends" zh="“关闭送料器”按钮发送的宏"/>
@@ -3345,12 +3322,9 @@
   <translation tag="YOU WIN!&#10;Score: {}&#10;Tap to play again" zh="你赢了！&#10;得分：{}&#10;点按再玩一次"/>
   <translation tag="Year" zh="年"/>
   <translation tag="Yes" zh="是"/>
-  <translation tag="You can now skip these operations when starting prints.&#10;&#10;Look for the new options in the print details before starting each print.&#10;&#10;A backup of your config was saved automatically." zh="现在开始打印时可以跳过这些操作。&#10;&#10;在每次开始打印前，请在打印详情中查找新的选项。&#10;&#10;已自动保存配置备份。"/>
   <translation tag="You can skip this and calibrate later in Settings." zh="您可以跳过此步骤，稍后在设置中进行校准。"/>
   <translation tag="You have unsaved changes. Discard them?" zh="您有未保存的更改。是否丢弃？"/>
-  <translation tag="Your PRINT_START macro will be updated to give you control over:&#10;&#10;" zh="您的 PRINT_START 宏将被更新，以便您控制以下内容：&#10;&#10;"/>
   <translation tag="Your completed prints will appear here" zh="您完成的打印将显示在此处"/>
-  <translation tag="Your print start is already fully configured!" zh="您的打印启动已完全配置！"/>
   <translation tag="Your printer at a glance" zh="一览您的打印机"/>
   <translation tag="Your printer has an automatic filament changer" zh="您的打印机配有自动换色系统"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" zh="设置期间打印机离线，硬件选项已跳过。现在设置吗？"/>

@@ -15,13 +15,24 @@ namespace helix::ams {
 
 /// A filament position anywhere on the printer. NOT a slot index: several
 /// backends coexist, so a bare slot index would put one backend's lane 0 on
-/// another's.
-using LaneId = int;
+/// another's. A distinct type so that mistake does not compile: lane_id_for()
+/// and AmsBackend::lane_id() are how a slot becomes a lane.
+enum class LaneId : int {};
+
+/// The integer a lane id is stored and logged as.
+[[nodiscard]] constexpr int lane_id_value(LaneId lane) {
+    return static_cast<int>(lane);
+}
+
+/// fmt / spdlog formatting: a lane id logs as its number.
+[[nodiscard]] constexpr int format_as(LaneId lane) {
+    return lane_id_value(lane);
+}
 
 /// Not a lane. Every way of naming a lane yields this when it cannot name a
 /// real one, and the funnels drop it rather than writing, so a position that
 /// cannot be addressed files no record instead of one on a neighbour's lane.
-constexpr LaneId INVALID_LANE_ID = -1;
+constexpr LaneId INVALID_LANE_ID{-1};
 
 /// Ids reserved for one backend's slots. A backend's slot count follows its
 /// firmware rather than AmsState::MAX_SLOTS, which bounds only how many slots
@@ -37,7 +48,7 @@ constexpr int MAX_BACKENDS = 8;
 
 /// The bypass / external spool, which belongs to the printer rather than to a
 /// backend. Above every backend block so adding backends never reaches it.
-constexpr LaneId BYPASS_LANE_ID = 10000;
+constexpr LaneId BYPASS_LANE_ID{10000};
 
 /// The slot index the bypass lane's records carry: the same -2 every backend
 /// reports as current_slot while the external spool feeds the toolhead.
@@ -45,7 +56,7 @@ constexpr int BYPASS_SLOT_INDEX = -2;
 
 /// Direct-drive tools, one id per tool from here up. A tool changer's spools
 /// are lanes like any other and stop needing a parallel store.
-constexpr LaneId FIRST_TOOL_LANE_ID = 20000;
+constexpr LaneId FIRST_TOOL_LANE_ID{20000};
 
 /// Ids the tool block holds. Nothing in the tree caps a tool count -
 /// ToolState::tools_ is an unbounded vector - and the widest tool ceiling that
@@ -55,14 +66,14 @@ constexpr int MAX_TOOL_LANES = 256;
 
 /// One past the last id this scheme assigns. A reserved block added later
 /// starts here; everything from here up is refused.
-constexpr LaneId END_LANE_ID = FIRST_TOOL_LANE_ID + MAX_TOOL_LANES;
+constexpr LaneId END_LANE_ID{lane_id_value(FIRST_TOOL_LANE_ID) + MAX_TOOL_LANES};
 
 /// Every id the scheme can assign: one block per backend, the bypass, and the
 /// tool lanes. This is the store's size bound, since only these ids are
 /// accepted.
 constexpr int MAX_LANES = MAX_BACKENDS * LANES_PER_BACKEND + 1 + MAX_TOOL_LANES;
 
-static_assert(MAX_BACKENDS * LANES_PER_BACKEND <= BYPASS_LANE_ID,
+static_assert(MAX_BACKENDS * LANES_PER_BACKEND <= lane_id_value(BYPASS_LANE_ID),
               "a backend block must not reach the bypass lane id");
 static_assert(BYPASS_LANE_ID < FIRST_TOOL_LANE_ID,
               "the bypass id must not fall inside the tool block");
@@ -77,12 +88,13 @@ static_assert(END_LANE_ID > FIRST_TOOL_LANE_ID,
 /// bypass, not anything from END_LANE_ID up. The funnels drop what this
 /// refuses, so a caller that computes an id wrongly is told about it rather
 /// than handed a lane of its own.
-[[nodiscard]] constexpr bool is_lane_id(LaneId lane) {
+[[nodiscard]] constexpr bool is_lane_id(LaneId id) {
+    const int lane = lane_id_value(id);
     if (lane >= 0 && lane < MAX_BACKENDS * LANES_PER_BACKEND)
         return true;
-    if (lane == BYPASS_LANE_ID)
+    if (id == BYPASS_LANE_ID)
         return true;
-    return lane >= FIRST_TOOL_LANE_ID && lane < END_LANE_ID;
+    return id >= FIRST_TOOL_LANE_ID && id < END_LANE_ID;
 }
 
 /// The lane id for @p slot_index on the backend registered at @p backend_index,
@@ -100,7 +112,7 @@ static_assert(END_LANE_ID > FIRST_TOOL_LANE_ID,
         return INVALID_LANE_ID;
     if (slot_index < 0 || slot_index >= LANES_PER_BACKEND)
         return INVALID_LANE_ID;
-    return backend_index * LANES_PER_BACKEND + slot_index;
+    return LaneId{backend_index * LANES_PER_BACKEND + slot_index};
 }
 
 /// The one way a non-UI source writes this store. Replaces this lane's record

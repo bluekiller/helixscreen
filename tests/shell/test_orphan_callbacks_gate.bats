@@ -83,6 +83,22 @@ CPP
     contains "unregistered:on_other" "$output"
 }
 
+@test "a name handed to a component's callback prop from C++ counts as referenced" {
+    echo '<component><view><x callback="$click_callback"/></view></component>' > "$ROOT/ui_xml/demo.xml"
+    cat > "$ROOT/src/demo.cpp" <<'CPP'
+void reg() { lv_xml_register_event_cb(nullptr, "on_prop_fed", on_prop_fed); }
+void make() {
+    const char* attrs[] = {"click_callback", "on_prop_fed", nullptr};
+    lv_xml_create(parent, "demo", attrs);
+}
+CPP
+    run_gate
+    lacks "on_prop_fed" "$output"
+    sed -i 's/"click_callback", "on_prop_fed"/"label", "x"/' "$ROOT/src/demo.cpp"
+    run_gate
+    contains "unreferenced:on_prop_fed" "$output"
+}
+
 @test "this tree holds its baseline" {
     run python3 "$GATE" --baseline scripts/orphan_callback_baseline.txt
     [ "$status" -eq 0 ]

@@ -36,7 +36,7 @@ ps -eo pid,etime,time,pcpu,comm --sort=-time | head   # abandoned spinners
 - The unit sweep caps how many shards run at once from the same share (`SHARD_CONCURRENCY` overrides). Every make renices itself to 10, so its compilers and test shards yield to the desktop: thelio's system76-scheduler drops `make` to nice 19 `SCHED_IDLE` only when it happens to notice it, and never lists `helix-tests`. `HELIX_NICE=0` opts out.
 - Dying at the same step twice **can** be a resource ceiling, but rule out a peer first: a second `make` in the SAME tree deletes your freshly linked binary (`prune-orphan-test-objs` in `mk/tests.mk` runs `rm -f $(TEST_BIN)` as a sibling prerequisite of the link, so `-j` gives them no order). The tell: `[LD] helix-tests`, then `✓ Unit test binary ready`, NO `✗ Test linking failed!`, then every shard reports `No such file or directory`. Nothing is wrong with your code; a starved link fails loudly and stops make.
 - **A build here goes minutes at a time printing nothing, and that is normal.** Judge liveness by the log growing, and compare its mtime against `date` in the SAME command before calling it stale - an `etime` and an mtime are not comparable by eye. A parent `make` in `do_wait` and a sub-make in `poll_schedule_timeout` are a make waiting on children and a jobserver poll, not a deadlock. Nothing short of a log that has not grown across two checks minutes apart justifies killing someone's build.
-- Who else is building, and in which tree, is a question you ask them: `ListAgents` + `SendMessage` (global CLAUDE.md § Peer Sessions), not a `pgrep` guess.
+- Who else is building, and in which tree, is a question you ask them: `ListAgents` + `SendMessage`, not a `pgrep` guess.
 - **The commit hook builds too.** `scripts/quality-checks.sh` verifies an incremental build of the app at the `helix-claim jobs` share, so N sessions committing never become N unbounded builds; `HELIX_QC_JOBS` overrides it. `scripts/qc_timing.py [--staged-only]` runs the gate and prints where its time went, which is how you find out whether you are waiting on that build or on a check.
 
 ```bash
@@ -60,12 +60,12 @@ make t F='[tag]'                     # Build, then run ONE tag or case (the inne
 #   `make -j` builds the app alone, so after an edit the bare binary reports the
 #   PREVIOUS build's numbers. `make t` costs 5-18s and buys exactly that guarantee.
 make unit-sweep                      # C++ unit tests only, sharded (~50s idle)
-make full-test-run                   # unit-sweep + the 204-file bats suite (~2m) - the completion gate
+make full-test-run                   # unit-sweep + the bats suite (~2m) - the completion gate
 #   Nothing else runs bats locally: not the commit hook, not test-xml. Without this
 #   the shell suite reaches CI unrun. [.] and [slow] stay outside it deliberately -
 #   quality-checks.sh runs [.] on any staged code change, nightly CI runs [slow].
-#   `make test-run` no longer runs anything: it prints which of these fits the
-#   question you have and exits non-zero. Cadence table: tests/CLAUDE.md.
+#   `make test-run` runs nothing: it prints which of these fits the question
+#   you have and exits non-zero. Cadence table: tests/CLAUDE.md.
 
 make dev-timing                      # What the dev loop costs, measured (ledger from transcripts)
 #   Medians for every build, suite and test run, so "is this worth running" is
@@ -171,8 +171,6 @@ scripts/teardown-worktree.sh my-branch -n    # ...or just print the plan
 
 ## Sharing This Tree With Other Sessions
 
-The protocol is global CLAUDE.md § Peer Sessions.
-
 **Message the other session first.** Overlapping work - a claim on a tree you need, a
 branch touching your files - gets a message BEFORE you read their diff, pick a winner or
 plan a rebase, including before you file or comment publicly on it.
@@ -208,7 +206,7 @@ What is shared here:
   for a peer to sweep, and it discards nothing. A non-empty `git diff HEAD` is the case worth
   waiting on; confirm with `pgrep -x git` plus each pid's cwd and `helix-claim check
   worktree:main` before concluding anything about who owns it.
-- **Do not `git add` in this tree: commit the pathspec directly.** `git add` then `git commit` is not atomic: your change sits in the *shared* index for however long your hook runs (20s for a script, minutes for a staged header), and a peer committing in that window takes it into their commit. Measured twice in twenty minutes on 2026-09-10. `git commit -- <paths>` commits those paths' current content without going through the index, so there is no window, though it takes a peer's hunks in the same file too (check `git diff HEAD -- <path>`), and a new file needs `git add -N <path> && git commit -- <path>`, which exposes only an empty intent-to-add entry. The one exception is the stale-index case above, where the content is already in HEAD and staging it exposes nothing.
+- **Do not `git add` in this tree: commit the pathspec directly.** `git add` then `git commit` is not atomic: your change sits in the *shared* index for however long your hook runs (20s for a script, minutes for a staged header), and a peer committing in that window takes it into their commit. `git commit -- <paths>` commits those paths' current content without going through the index, so there is no window, though it takes a peer's hunks in the same file too (check `git diff HEAD -- <path>`), and a new file needs `git add -N <path> && git commit -- <path>`, which exposes only an empty intent-to-add entry. The one exception is the stale-index case above, where the content is already in HEAD and staging it exposes nothing.
 - **A live merge and an abandoned one look identical from outside.** `MERGE_HEAD` present, zero `UU` entries, and an index mtime minutes old and not moving describe a `git commit` whose hook is *building* — the index stops the moment the hook starts, and a staged header takes the full-build path. An absent `ListAgents` row is not evidence either. The only discriminator is process state:
   ```bash
   pgrep -x git | while read p; do echo "$p $(readlink /proc/$p/cwd)"; done
@@ -389,7 +387,7 @@ Issue references are welcome as pointers, not summaries:
 | Overlays | `NavigationManager::instance().push_overlay(root)` / `.go_back()` (`ui_nav_manager.h`) — pair every push with `register_overlay_instance(root, this)` or `on_deactivate()` never fires (tests abort; `HELIX_STRICT_OVERLAY_CHECK=1`) | `src/ui/ui_settings_safety.cpp` |
 | Modals (simple) | `Modal::show("component_name")` / `Modal::hide(dialog)` | `src/ui/ui_job_queue_modal.cpp` |
 | Modals (subclass) | Extend `Modal`, implement `get_name()` + `component_name()`, override `on_ok()`/`on_cancel()` | `include/ui_info_qr_modal.h` + `src/ui/ui_info_qr_modal.cpp` (42 + 62 lines — the whole pattern, nothing else) |
-| Confirmation dialog | `modal_confirm(title, msg, severity, btn_text, on_confirm, ConfirmOptions)` (in `helix::ui`) for new code - `std::function` throughout, closes its own dialog; the options struct carries `on_cancel`/`cancel_text`/`on_dismiss`/`owner_token`, and `owner_token` gates **all three** callbacks. The `lv_event_cb_t` spellings (`modal_show_confirmation()`/`modal_show_alert()`) are gone. All are owned, so a dismissal (backdrop tap, ESC, hot-reload rebuild) reaches `on_dismiss` - **pass it whenever the caller holds a guard/flag/pending entry the buttons were meant to clear**, or that state leaks | `src/ui/ui_change_host_modal.cpp#show_connection_failed_modal`; subclass form: `include/lan_client_auth_router.h` |
+| Confirmation dialog | `modal_confirm(title, msg, severity, btn_text, on_confirm, ConfirmOptions)` (in `helix::ui`) for new code - `std::function` throughout, closes its own dialog; the options struct carries `on_cancel`/`cancel_text`/`on_dismiss`/`owner_token`, and `owner_token` gates **all three** callbacks. All are owned, so a dismissal (backdrop tap, ESC, hot-reload rebuild) reaches `on_dismiss` - **pass it whenever the caller holds a guard/flag/pending entry the buttons were meant to clear**, or that state leaks | `src/ui/ui_change_host_modal.cpp#show_connection_failed_modal`; subclass form: `include/lan_client_auth_router.h` |
 | Modal buttons (XML) | `<modal_button_row primary_text="Save" primary_callback="on_save"/>` | `ui_xml/bed_mesh_rename_modal.xml` |
 | Home-panel widget | Subclass `PanelWidget`; `attach()` + `on_size_changed()`. Instances are **recycled** across rebuilds, so any imperative apply must run from `attach()` too, not only on size change | `src/ui/panel_widgets/motion_widget.cpp` (64 lines) |
 | Background → UI | Never touch LVGL off the main thread; `ui_queue_update()` or `tok.defer()` | `src/printer/printer_state.cpp` `set_*_internal()` |
@@ -486,6 +484,16 @@ beside the binary.
 ## Critical Paths (always MAJOR work)
 
 PrinterState, WebSocket/threading, shutdown, DisplayManager, XML processing
+
+---
+
+## Superpowers Skills Here
+
+Worktrees come from `scripts/setup-worktree.sh` and go away with
+`scripts/teardown-worktree.sh`. These replace the create step in
+`superpowers:using-git-worktrees` (a native or plain `git worktree add` tree has no lib/
+symlinks, submodules or build) and the `git worktree remove` step in
+`superpowers:finishing-a-development-branch`, which refuses here.
 
 ---
 

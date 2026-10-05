@@ -331,8 +331,8 @@ void PIDCalibrationPanel::on_activate() {
     // Fetch current PID values now (while no gcode traffic) for delta display later
     fetch_old_pid_values();
 
-    // Check PrinterDiscovery for Kalico detection (primary source)
-    if (get_printer_state().get_capability_overrides().is_kalico()) {
+    // Discovery's capability answer is the primary source; the control-type query refines it
+    if (get_printer_state().get_capability_overrides().supports_mpc_calibration()) {
         is_kalico_ = true;
         lv_subject_set_int(&subj_is_kalico_, 1);
     }

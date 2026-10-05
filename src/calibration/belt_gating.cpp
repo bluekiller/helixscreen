@@ -10,7 +10,7 @@ BeltGate evaluate_belt_gate(const BeltGateInputs& in) {
     if (!in.has_accelerometer)
         return BeltGate::NO_ACCELEROMETER;
     if (!in.is_corexy)
-        return BeltGate::NOT_COREXY;
+        return in.detecting ? BeltGate::DETECTING : BeltGate::NOT_COREXY;
     if (!in.klippy_socket_reachable)
         return BeltGate::NOT_COLOCATED;
     if (in.print_active)
@@ -26,6 +26,8 @@ const char* belt_gate_message(BeltGate gate) {
         return "Not connected to the printer";
     case BeltGate::NO_ACCELEROMETER:
         return "No accelerometer found in your Klipper config";
+    case BeltGate::DETECTING:
+        return "Checking the printer...";
     case BeltGate::NOT_COREXY:
         return "Belt Tension needs a CoreXY printer.";
     case BeltGate::NOT_COLOCATED:

@@ -144,66 +144,66 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
     SubjectManager subjects_;
 
     /// Subject for system info text (e.g. "System: AFC · v1.2.3")
-    lv_subject_t system_info_subject_;
+    lv_subject_t system_info_subject_{};
 
     /// Buffer for system info text
     char system_info_buf_[128] = {};
 
     /// Subject for status text display
-    lv_subject_t status_subject_;
+    lv_subject_t status_subject_{};
 
     /// Buffer for status text
     char status_buf_[128] = {};
 
     /// Subject for bypass support (0=not supported, 1=supported).
     /// Folds in the force-bypass override, so this is what gates the controls.
-    lv_subject_t supports_bypass_subject_;
+    lv_subject_t supports_bypass_subject_{};
 
     /// Subject for the firmware's own bypass report, override NOT applied
     /// (0=firmware says none, 1=firmware reports one). Gates the override row:
     /// it appears only when the firmware says no, and stays visible once the
     /// user turns the override on so they can turn it back off.
-    lv_subject_t fw_supports_bypass_subject_;
+    lv_subject_t fw_supports_bypass_subject_{};
 
     /// Subject for hardware bypass sensor (0=virtual toggle, 1=hardware sensor)
-    lv_subject_t hw_bypass_sensor_subject_;
+    lv_subject_t hw_bypass_sensor_subject_{};
 
     /// Subject for auto-heat support (0=not supported, 1=supported)
-    lv_subject_t supports_auto_heat_subject_;
+    lv_subject_t supports_auto_heat_subject_{};
 
     /// Subject for backend presence (0=no backend, 1=has backend)
-    lv_subject_t has_backend_subject_;
+    lv_subject_t has_backend_subject_{};
 
     /// 1 when the backend lets the user choose whether it unloads after a
     /// print; gates the unload-after-print toggle.
-    lv_subject_t unload_after_print_configurable_subject_;
+    lv_subject_t unload_after_print_configurable_subject_{};
     /// 1 when the bypass lane is virtual (no physical bypass sensor); gates
     /// the always-show-bypass row.
-    lv_subject_t bypass_is_virtual_subject_;
+    lv_subject_t bypass_is_virtual_subject_{};
 
     /// Subject gating the keep-spool-info-on-eject row (0=hidden, 1=shown).
     /// Set from AmsBackend::printer_reports_spool_ids(), so the row appears
     /// only on systems whose firmware reports spool ids per lane (AFC, Happy
     /// Hare); no backend means hidden.
-    lv_subject_t reports_spool_ids_subject_;
+    lv_subject_t reports_spool_ids_subject_{};
 
     /// Subject disabling the keep-spool-info-on-eject toggle (0=enabled,
     /// 1=firmware retention owns it). Set from
     /// AmsBackend::printer_retains_spool_info(): with AFC's per-lane
     /// remember_spool true everywhere, the toggle has no observable effect,
     /// so it is shown disabled with a note instead of silently lying.
-    lv_subject_t printer_retains_spool_info_subject_;
+    lv_subject_t printer_retains_spool_info_subject_{};
 
     /// Subject for QIDI Box backend detection (0=not QIDI, 1=QIDI) — gates the
     /// eject distance/velocity rows, which only apply to QIDI Box systems
-    lv_subject_t is_qidi_subject_;
+    lv_subject_t is_qidi_subject_{};
 
     /// Display string subject for the QIDI eject distance value (e.g. "878 mm")
-    lv_subject_t qidi_eject_distance_display_subject_;
+    lv_subject_t qidi_eject_distance_display_subject_{};
     char qidi_eject_distance_buf_[32] = {};
 
     /// Display string subject for the QIDI eject velocity value (e.g. "100 mm/s")
-    lv_subject_t qidi_eject_velocity_display_subject_;
+    lv_subject_t qidi_eject_velocity_display_subject_{};
     char qidi_eject_velocity_buf_[32] = {};
 
     /// Subject gating the "Reset Endless Spool" row (0=hidden, 1=shown).
@@ -211,12 +211,12 @@ class AmsDeviceOperationsOverlay : public OverlayBase {
     /// any backend whose endless-spool mapping the UI may write — AFC (per-slot
     /// edges), single-unit Happy Hare (groups) and the mock — and stays hidden
     /// for read-only systems (CFS, AD5X IFS) and backends with no endless spool.
-    lv_subject_t can_reset_endless_spool_subject_;
+    lv_subject_t can_reset_endless_spool_subject_{};
 
     /// Subject enabling Abort (0=disabled, 1=enabled). Set from
     /// AmsBackend::can_cancel_operation() on refresh and on every AMS action
     /// change, since what the backend can cancel follows what it is running.
-    lv_subject_t can_abort_subject_;
+    lv_subject_t can_abort_subject_{};
 
     /// AMS action observer that keeps can_abort_subject_ current while the
     /// overlay exists.

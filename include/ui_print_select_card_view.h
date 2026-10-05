@@ -53,20 +53,20 @@ namespace helix::ui {
  * at pool creation, then updated via lv_subject_copy_string() when card is recycled.
  */
 struct CardWidgetData {
-    lv_subject_t filename_subject;
+    lv_subject_t filename_subject{};
     char filename_buf[128] = {0};
 
-    lv_subject_t time_subject;
+    lv_subject_t time_subject{};
     char time_buf[32] = {0};
 
-    lv_subject_t filament_subject;
+    lv_subject_t filament_subject{};
     char filament_buf[32] = {0};
 
     /// Folder type for declarative binding: 0=file, 1=directory, 2=parent directory (..)
-    lv_subject_t folder_type_subject;
+    lv_subject_t folder_type_subject{};
 
     /// Thumbnail state: 0=real thumbnail, 1=placeholder (show icon), 2=directory (hide both)
-    lv_subject_t thumbnail_state_subject;
+    lv_subject_t thumbnail_state_subject{};
 
     // Observer handles (saved for cleanup before DELETE)
     lv_observer_t* filename_observer = nullptr;
@@ -269,6 +269,7 @@ class PrintSelectCardView : public ContainerDeleteNet {
     int cards_per_row_ = 3;
     int visible_start_row_ = -1;
     int visible_end_row_ = -1;
+    int total_items_ = 0;
 
     // === Cached Spacer Heights (avoid redundant lv_obj_set_height → relayout) ===
     int last_leading_height_ = -1;

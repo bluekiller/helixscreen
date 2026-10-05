@@ -58,7 +58,6 @@ MacrosPanel (overlay)
 | `include/macro_param_modal.h` | Modal for user input when macro has parameters |
 | `include/standard_macros.h` | 10 standard macro slots with auto-detection |
 | `include/macro_manager.h` | HelixScreen helper macro (helix_macros.cfg) install/update |
-| `include/macro_modification_manager.h` | PRINT_START enhancement wizard (beta-gated) |
 | `include/ui_settings_macro_buttons.h` | Settings overlay for quick buttons + standard macro config |
 | `include/favorite_macro_widget.h` | Home panel 1x1 widget for favorite macro execution |
 | `include/favorite_macro_config.h` | Per-instance widget config (macro, icon, color, `require_confirmation`) |
@@ -337,16 +336,6 @@ Extends `lv_button` with API props:
 | `test_notification_macros.cpp` | Toast notifications |
 | `tests/unit/test_macro_buttons_slot_mapping.cpp` | Settings UI |
 | `test_led_macro_backend.cpp` | LED integration |
-
----
-
-## Beta-Gated: PRINT_START Enhancement Wizard
-
-Gated behind `Config::is_beta_features_enabled()`.
-
-- `MacroModificationManager` + `MacroEnhanceWizard`
-- Step-by-step wizard to make PRINT_START operations (bed mesh, QGL, etc.) skippable
-- Future: `create_backup` parameter support, pending Moonraker API support upstream
 
 ---
 

@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>749de04d0</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>809fc7139</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 98 done, 11 in progress, 27 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 107 done, 10 in progress, 19 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -470,10 +470,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-17" data-tag="bug" data-size="1.1" data-status="progress">
-<summary><span class="fid">BUG-17</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">96eb5a726</code><span class="ftitle">26 XML callback names registered from two files, last write wins</span><span class="fimpact">Latent wrong user_data cast in wifi rows</span></summary>
+<details class="f" id="BUG-17" data-tag="bug" data-size="1.1" data-status="done">
+<summary><span class="fid">BUG-17</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">7dc81df44</code><span class="ftitle">26 XML callback names registered from two files, last write wins</span><span class="fimpact">Latent wrong user_data cast in wifi rows</span></summary>
 <div class="fbody">
-<p class="branch">Mostly shipped: <code>fix/audit-bugs-sys</code>, merged at <code>96eb5a726</code>. The SettingsPanel duplicates were already gone; the wizard telemetry and touch-cal duplicates have per-owner names, and <code>check_orphan_callbacks.py</code> fails any new duplicate. Left: three wifi names registered by both owners of a shared component.</p>
+<p class="branch">Shipped: <code>fix/audit-bugs-sys</code> (<code>96eb5a726</code>) gave the wizard duplicates per-owner names; <code>refactor/ini-merge-wifi-callbacks</code> (<code>7dc81df44</code>) gives the wifi item and password modal per-owner callback props. <code>check_orphan_callbacks.py</code> fails any new duplicate.</p>
 <p><span class="badge unv">unverified</span></p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_panel_settings.cpp#register_settings_panel_callbacks</code> vs <code>ui_settings_safety.cpp</code>, <code>ui_settings_hardware.cpp</code>, <code>ui_settings_help.cpp</code>, <code>ui_settings_printing.cpp</code>; <code>src/ui/ui_overlay_network_settings.cpp#register_callbacks</code> vs <code>src/ui/ui_wizard_wifi.cpp#register_callbacks</code>; <code>lib/helix-xml/src/xml/lv_xml.c#lv_xml_register_event_cb</code></dd>
@@ -1072,9 +1072,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FW-10" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">FW-10</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">4 virtual list views repeat window math; compute_window() + RowPool</span><span class="fimpact">~-500 lines, pure function gets a test</span></summary>
+<details class="f" id="FW-10" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">FW-10</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">9cba8ff9d</code><span class="ftitle">4 virtual list views repeat window math; compute_window() + RowPool</span><span class="fimpact">~-500 lines, pure function gets a test</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/render-list-dedup</code>, merged at <code>9cba8ff9d</code>. Four list views share <code>compute_window()</code> and <code>sync_list_spacers()</code>. Unifying them fixed stale print-select rows after a metadata repopulate, stale cards in an empty directory, and a card-view divide by zero. No RowPool: the pool types differ per view.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_history_list_view.cpp</code>, <code>src/ui/ui_spoolman_list_view.cpp</code>, <code>src/ui/ui_print_select_list_view.cpp</code>, <code>src/ui/ui_print_select_card_view.cpp</code></dd>
 <dt>Evidence</dt><dd>Identical member sets (<code>pool_</code>, leading/trailing spacers, <code>visible_start_/end_</code>, <code>BUFFER_ROWS</code>, <code>cached_row_height_</code>) and function lists (<code>init_pool</code>, <code>create_spacers</code>, <code>populate</code>, <code>update_visible</code>, ...). Sizes 447, 464, 530 lines. <code>cpd.py</code> finds 24 identical 10-statement windows between history and spoolman; <code>update_visible</code> is ~100 lines in each. 25 commits across the list views this year.</dd>
@@ -1536,9 +1537,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="REN-8" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">REN-8</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">GLES VBO upload written twice, VBO-create block pasted 4 times</span><span class="fimpact">~-90 lines</span></summary>
+<details class="f" id="REN-8" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">REN-8</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">9cba8ff9d</code><span class="ftitle">GLES VBO upload written twice, VBO-create block pasted 4 times</span><span class="fimpact">~-90 lines</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/render-list-dedup</code>, merged at <code>9cba8ff9d</code>. <code>upload_layer</code> and <code>make_vbo</code> replace the two upload loops and four create blocks.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/gcode_gles_renderer.cpp#upload_geometry</code>, <code>src/rendering/gcode_gles_renderer.cpp#upload_geometry_chunk</code></dd>
 <dt>Evidence</dt><dd><code>upload_geometry</code> uploads all layers (moving mesh only); <code>upload_geometry_chunk</code> uploads a range. Per layer both do "prepared buffer or expand strips", then <code>glGenBuffers/BindBuffer/BufferData/check_gl_error</code> and the error path; the diff is ~20 lines of control flow. Inside each, the GL create/bind/data/check sequence is pasted twice (prepared and expand branches), 4 copies total.</dd>
@@ -1581,10 +1583,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="SYS-3" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">SYS-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">6ac5d8350</code><span class="ftitle">String/file helper twins: trim, lower, atomic write, meminfo, env, INI</span><span class="fimpact">~-800 lines, one truthiness rule</span></summary>
+<details class="f" id="SYS-3" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">SYS-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">7dc81df44</code><span class="ftitle">String/file helper twins: trim, lower, atomic write, meminfo, env, INI</span><span class="fimpact">~-800 lines, one truthiness rule</span></summary>
 <div class="fbody">
-<p class="branch">Mostly shipped: trim, atomic write, meminfo and env earlier (<code>e6e8357f1</code>); case folds through <code>text_io::to_lower/to_upper</code> at <code>6ac5d8350</code>. Left: the INI merge (<code>KlipperConfigParser</code>).</p>
+<p class="branch">Shipped: trim, atomic write, meminfo and env (<code>e6e8357f1</code>); case folds through <code>text_io</code> (<code>6ac5d8350</code>); <code>KlipperConfigParser</code> is a view over <code>KlipperConfigEditor</code> at <code>7dc81df44</code>, which follows Klipper's configfile rules and edits the last duplicate key.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/text_io.h#write_file_atomic</code>, <code>include/operation_patterns.h#to_lower</code>, <code>src/system/memory_utils.cpp#get_system_memory_info</code>, <code>src/app_globals.cpp#helix_parse_truthy_env</code>, <code>src/config/environment_config.cpp</code>, <code>src/system/klipper_config_editor.cpp#KlipperConfigEditor::parse_structure</code></dd>
 <dt>Evidence</dt><dd>trim: 17 local copies, none in text_io (~-120); ASCII lower/upper: ~27 copies while a pair sits in operation_patterns.h (~-130); atomic tmp+rename: 7 hand-rolled (config_storage_file, update_checker, config_backup, telemetry x2, lua_bind_io, wifi_saved_config) with drifting fsync vs 5 users of the helper (~-150); /proc/meminfo: 5-7 parsers with 3 "absent" conventions (-1, 0, false), one compiling a Regex per call (~-90); env: 4 helper APIs, 3 truthiness rules (exactly "1", first char '1', 1/true/yes/on), 197 raw <code>getenv(</code> in 69 files (~-200); INI: 4 parsers (KlipperConfigParser 357 lines, editor ~400, MoonrakerConfigManager, QIDI) (~-350, later).</dd>
@@ -1778,7 +1780,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="VEN-3" data-tag="extensibility" data-size="1.1" data-status="done">
 <summary><span class="fid">VEN-3</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">3d3197b22</code><span class="ftitle">AbortManager branches on is_kalico() instead of a capability</span><span class="fimpact">Ask "supports HEATER_INTERRUPT", not the firmware</span></summary>
 <div class="fbody">
-<p class="branch">Shipped: <code>refactor/vendor-leaks</code>, merged to main at <code>3d3197b22</code>. <code>AbortManager</code> asks <code>supports_heater_interrupt()</code>. PID calibration UI still asks <code>is_kalico()</code> directly.</p>
+<p class="branch">Shipped: <code>refactor/vendor-leaks</code> (<code>3d3197b22</code>): <code>AbortManager</code> asks <code>supports_heater_interrupt()</code>. PID calibration asks <code>supports_mpc_calibration()</code> since <code>fix/subject-ownership-followups</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/abort/abort_manager.cpp#AbortManager::start_abort</code></dd>
 <dt>Evidence</dt><dd><code>start_abort</code> reads <code>printer_state_-&gt;get_capability_overrides().is_kalico()</code> to decide the abort path. The behaviour it gates is "firmware supports HEATER_INTERRUPT"; naming the firmware fork in generic abort code means any other firmware gaining that command needs an edit here.</dd>
@@ -1899,9 +1901,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </details>
 </section>
 <section id="sec-g"><h2>G. God classes</h2><p class="lede">Later; stage behind test decoupling (TB-1).</p>
-<details class="f" id="GOD-1" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
+<details class="f" id="GOD-1" data-tag="god-class" data-size="1.1" data-status="progress">
+<summary><span class="fid">GOD-1</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/god1-printer-session</code><span class="ftitle">Application is 5,371 lines; discovery reactions are a 748-line lambda</span><span class="fimpact">214 commits in 4 months land in one file</span></summary>
 <div class="fbody">
+<p class="branch">First tranche shipped: <code>refactor/god1-application-split</code>, merged at <code>709ec4e11</code>. Discovery reactions are an ordered 24-step table (<code>discovery_steps.cpp</code>); attach/detach pairs for timelapse, update response, print hours and Spoolman active-spool sync; <code>HardwareSetupPrompter</code> with a pure <code>choose_prompt</code>; process guards, demo overlays and SDL shortcuts moved out. application.cpp 5,289 -&gt; 3,855 lines. Left: <code>PrinterSession</code> (switch, teardown, <code>init_printer_state</code>) and <code>init_action_prompt</code>. Plan: <code>docs/devel/plans/2026-10-04-god1-application-split.md</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/application.cpp#Application::setup_discovery_callbacks</code>, <code>#Application::run</code>, <code>#Application::init_action_prompt</code>, <code>include/application.h#Application</code></dd>
 <dt>Evidence</dt><dd>5,371 lines (4.3x the 1,249 #1325 was filed against), 219 includes, 41 members, 554 commits (214 since June; next file 66). Growth is event reactions: discovery 873, hardware prompts 357, action prompt 277, printer session 402. <code>on_discovery_complete</code> runs ~22 jobs in sequence (fingerprint, LED, fans, Spoolman sync ~190 lines, autodetect, HardwareValidator, telemetry...), 19 gated on <code>hw_changed</code>.</dd>
@@ -1969,9 +1972,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-6" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">theme_manager.cpp is 14 jobs over file statics with no class boundary</span><span class="fimpact">enabler for ~700 lines of theme dedup</span></summary>
+<details class="f" id="GOD-6" data-tag="god-class" data-size="1.1" data-status="done">
+<summary><span class="fid">GOD-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">66fd19351</code><span class="ftitle">theme_manager.cpp is 14 jobs over file statics with no class boundary</span><span class="fimpact">enabler for ~700 lines of theme dedup</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/god6-theme-split</code>, merged to main at <code>66fd19351</code>. theme_manager.cpp splits along its statics into token scan, colour math, overlay geometry, fonts, responsive tokens, LVGL apply, live recolor and token registration; <code>ThemeRuntime</code>/<code>ThemeSubjects</code> behind <code>helix::theme_detail</code>; one <code>kSizeSuffixes</code> ladder; a golden const snapshot pins every token. 3,482 -&gt; ~700 lines. ESP32 boot check still to do.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/theme_manager.cpp</code> (free functions + ~35 file-static globals), <code>include/theme_manager.h</code>, <code>src/ui/theme_manager_new.cpp</code></dd>
 <dt>Evidence</dt><dd>The 3.5K file is a free-function module; the <code>ThemeManager</code> class #1328 names is the 259-line <code>theme_manager_new.cpp</code>. 14 seams: color math + WCAG ~287; LVGL extra styles ~294; re-sync statics into the class ~134; XML const registration ~130; responsive px tokens ~336; fonts ~192; semantic colors ~227; runtime palette tree-walk ~482; expat token discovery + validator ~373; ~190 lines of overlay geometry (<code>compute_overlay_*</code>, <code>ui_set_overlay_geometry</code>) that belong in the layout module.</dd>
@@ -2026,9 +2030,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="open">
-<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
+<details class="f" id="GOD-10" data-tag="god-class" data-size="1.1" data-status="done">
+<summary><span class="fid">GOD-10</span><span class="chip t-god-class">god-class</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">ca984533b</code><span class="ftitle">DisplayManager does seven jobs; sleep/dim/screensaver alone is 770 lines</span><span class="fimpact">rotation logic untestable, guarded by ~600 lines of gate</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/god10-display-sleep</code>, merged to main at <code>ca984533b</code>. The idle tick is a pure <code>decide_idle()</code> pinned by a 47-row truth table; sleep, dim, screensaver and wake live in <code>DisplaySleepController</code>; <code>user_brightness()</code> replaces four clamps; <code>RotationProbe</code> is XML plus a class. display_manager.cpp 2,580 -&gt; ~1,470 lines. On-device dim/sleep/wake checks (AD5M, Pi DRM/DSI, K1) are still to do.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/application/display_manager.cpp#DisplayManager::run_rotation_probe</code>, <code>#DisplayManager::enter_sleep</code>, <code>#DisplayManager::init</code>, <code>include/display_manager.h#DisplayManager</code></dd>
 <dt>Evidence</dt><dd>2,580 lines, 146 commits, 969-line header, ~60 members. Jobs: platform preamble ~220; init/shutdown ~535; input ~325; sleep/dim/screensaver ~770; rotation ~455 (probe alone 345, builds labels imperatively with hardcoded colors); resize fan-out ~120; color transform ~100. External use: 34 call sites, 14 methods. <code>scripts/check_rotation_cache_order.py</code> (390) + 295 lines of bats exist because the class cannot be unit-tested (#1593).</dd>
@@ -2071,9 +2076,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-2" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-2</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">70 inline TestAccess classes redefined per file; some with different bodies</span><span class="fimpact">linker silently picks one reset() (ODR)</span></summary>
+<details class="f" id="TB-2" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-2</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">809fc7139</code><span class="ftitle">70 inline TestAccess classes redefined per file; some with different bodies</span><span class="fimpact">linker silently picks one reset() (ODR)</span></summary>
 <div class="fbody">
+<p class="branch">Already satisfied: each <code>*TestAccess</code> class has one definition, enforced by the lint in <code>test_code_lint.bats</code> with no exceptions. Confirmed on <code>refactor/test-dedup</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>tests/unit/test_abort_manager.cpp</code>, <code>tests/unit/test_moonraker_events.cpp</code>, <code>tests/test_helpers/wifi_manager_test_access.h</code>, <code>tests/unit/test_filament_slot_override_store.cpp</code></dd>
 <dt>Evidence</dt><dd>70 TestAccess classes defined inline in .cpp files: <code>FilamentSlotOverrideStoreTestAccess</code> in 8 TUs, <code>MoonrakerRequestTrackerTestAccess</code> x5, <code>LayoutManagerTestAccess</code> x5, two x3, five more pairs. <code>helix::AbortManagerTestAccess::reset</code> has different bodies in two TUs with external linkage; <code>LayoutManagerTestAccess::reset</code> differs across 5 copies, so one file runs the other's <code>reset()</code> by link order (see BUG-5). <code>WiFiManagerTestAccess</code> exists as a header and is redefined inline twice. Also 8 copies of a tmp cache dir struct.</dd>
@@ -2085,9 +2091,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-3" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">252 verbatim copies of the 4-line mock printer setup</span><span class="fimpact">a ctor change is a 400-site edit</span></summary>
+<details class="f" id="TB-3" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-3</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">809fc7139</code><span class="ftitle">252 verbatim copies of the 4-line mock printer setup</span><span class="fimpact">a ctor change is a 400-site edit</span></summary>
 <div class="fbody">
+<p class="branch">Shipped: <code>refactor/test-dedup</code>, merged at <code>809fc7139</code>. 249 copies of the mock printer setup are one <code>MockPrinter</code> fixture; 31 variant copies remain.</p>
 <dl>
 <dt>Locations</dt><dd><code>tests/test_fixtures.h</code> (<code>MoonrakerTestFixture</code>, <code>FullMoonrakerTestFixture</code>, <code>UITestFixture</code>), 19 test files with the verbatim block</dd>
 <dt>Evidence</dt><dd><code>MoonrakerClientMock client(VORON_24); PrinterState state; state.init_subjects(false); MoonrakerAPIMock api(client, state);</code> appears 252 times verbatim in 19 files. Looser: 504 local <code>MoonrakerClientMock</code> in 81 files, 406 local API objects in 68, 542 local <code>PrinterState</code> in 137, 1,785 <code>init_subjects</code> calls. <code>MoonrakerTestFixture</code> has 3 users (drags in LVGL and a real client); the other two fixtures have 0.</dd>
@@ -2099,9 +2106,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-4" data-tag="yagni" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-4</span><span class="chip t-yagni">yagni</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">test_printer_detector.cpp is a 7,514-line data table written as code</span><span class="fimpact">adding a printer costs ~20 lines of C++</span></summary>
+<details class="f" id="TB-4" data-tag="yagni" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-4</span><span class="chip t-yagni">yagni</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">88d8d9799</code><span class="ftitle">test_printer_detector.cpp is a 7,514-line data table written as code</span><span class="fimpact">adding a printer costs ~20 lines of C++</span></summary>
 <div class="fbody">
+<p class="branch">note</p>
 <dl>
 <dt>Locations</dt><dd><code>tests/unit/test_printer_detector.cpp</code>, <code>tests/fixtures/printers/</code></dd>
 <dt>Evidence</dt><dd>223 <code>PrinterDetector::detect(</code> calls, 171 inline <code>PrinterHardwareData</code>, 169 identical <code>CAPTURE(result.type_name, result.confidence, ...)</code> lines, 136 <code>REQUIRE(result.type_name == "...")</code>; each case ~20 lines of the same frame. A corpus already exists: 12 JSON files in <code>tests/fixtures/printers/</code> consumed by the same test file. 63 commits since June.</dd>

@@ -29,10 +29,12 @@
 #include "helix_install_roots.h"
 #include "helix_version.h"
 #include "hv/requests.h"
+#include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "print_lifecycle_state.h"
 #include "printer_state.h"
+#include "replace_method_callback.h"
 #include "spdlog/spdlog.h"
 #include "system/config_trust.h"
 #include "system/helix_paths.h"
@@ -768,6 +770,11 @@ void UpdateChecker::shutdown() {
         std::lock_guard<std::mutex> lock(mutex_);
         pending_callback_ = nullptr;
         config_snapshot_ = {};
+        // The download state describes the run that just ended; the next init()
+        // starts at Idle like the subjects it recreates.
+        download_status_ = DownloadStatus::Idle;
+        download_progress_ = 0;
+        download_error_.clear();
     }
 
     // Cleanup subjects
@@ -2536,7 +2543,8 @@ void UpdateChecker::check_for_updates(Callback callback) {
             // Release lock before dispatching (callback may call back into UpdateChecker)
             lock.unlock();
             // Dispatch to LVGL thread
-            helix::ui::queue_update([callback, status, cached]() { callback(status, cached); });
+            helix::ui::queue_update("UpdateChecker::check_for_updates",
+                                    [callback, status, cached]() { callback(status, cached); });
         }
         return;
     }
@@ -2609,7 +2617,8 @@ void UpdateChecker::check_for_updates(Callback callback) {
             });
         }
         if (cb_to_fire) {
-            helix::ui::queue_update([cb_to_fire]() { cb_to_fire(Status::Error, std::nullopt); });
+            helix::ui::queue_update("UpdateChecker::check_for_updates",
+                                    [cb_to_fire]() { cb_to_fire(Status::Error, std::nullopt); });
         }
     }
 }
@@ -2883,6 +2892,75 @@ void UpdateChecker::dismiss_current_version() {
 // ============================================================================
 // Auto-Check Timer
 // ============================================================================
+
+namespace {
+constexpr const char* UPDATE_RESPONSE_METHOD = "notify_update_response";
+constexpr const char* EXTERNAL_UPDATE_HANDLER = "external_update_restart";
+
+// notify_update_response params: [{"application":"helixscreen",
+//   "proc_id":N, "message":"...", "complete":true/false}]
+// Method callbacks always receive the full JSON-RPC message.
+void handle_update_response(const json& msg) {
+    if (!msg.contains("params") || !msg["params"].is_array() || msg["params"].empty())
+        return;
+    const auto& p = msg["params"][0];
+    if (!p.contains("application") || !p.contains("complete"))
+        return;
+    std::string app = p["application"].get<std::string>();
+    bool complete = p["complete"].get<bool>();
+    if (app != "helixscreen")
+        return;
+    if (!complete) {
+        spdlog::debug("[UpdateChecker] Moonraker updating helixscreen: {}", p.value("message", ""));
+        return;
+    }
+    // Defer to main thread — _exit(0) from a WebSocket callback
+    // would skip flush and leave the display frozen.
+    helix::ui::queue_update("update_checker::handle_update_response",
+                            []() { UpdateChecker::handle_external_update_complete(); });
+}
+} // namespace
+
+void UpdateChecker::on_connected(helix::IMoonrakerClient& client) {
+    {
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        std::string sentinel =
+            AppConstants::Update::backup_fallback_dir() + "/self_restart_sentinel";
+        if (fs::remove(sentinel, ec)) {
+            spdlog::info("[UpdateChecker] Cleaned up self-restart sentinel");
+            // Moonraker re-reads release_info.json only on a refresh, and its
+            // own schedule can be a week apart, so Mainsail keeps showing the
+            // version we just replaced. "helixscreen" is the update_manager
+            // section the installer writes; a missing or renamed section, or a
+            // print in progress, just gets an error back.
+            client.send_jsonrpc(
+                "machine.update.refresh", json{{"name", "helixscreen"}},
+                [](const json&) {
+                    spdlog::info("[UpdateChecker] Moonraker refreshed its HelixScreen "
+                                 "version after the update");
+                },
+                [](const MoonrakerError& err) {
+                    spdlog::debug("[UpdateChecker] Moonraker update refresh declined: {}",
+                                  err.message);
+                },
+                0, /*silent=*/true);
+        }
+        // Legacy: best-effort under PrivateTmp (sees private /tmp,
+        // not real /tmp — stale real sentinels cleaned on reboot)
+        fs::remove("/tmp/helixscreen_self_restart", ec);
+    }
+
+    // Detect when Moonraker finishes updating HelixScreen (e.g. via Mainsail).
+    // On SysV platforms (AD5X, AD5M, K1) there is no systemd path watcher,
+    // so this WebSocket-based detection is the only restart trigger.
+    replace_method_callback(client, UPDATE_RESPONSE_METHOD, EXTERNAL_UPDATE_HANDLER,
+                            handle_update_response);
+}
+
+void UpdateChecker::detach(helix::IMoonrakerClient& client) {
+    client.unregister_method_callback(UPDATE_RESPONSE_METHOD, EXTERNAL_UPDATE_HANDLER);
+}
 
 void UpdateChecker::start_auto_check() {
     // Firmware-managed devices own updates externally — nothing to schedule. A

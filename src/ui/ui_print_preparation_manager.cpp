@@ -16,7 +16,6 @@
 #include "gcode_tool_remapper.h"
 #include "helix_fs.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "macro_modification_manager.h"
 #include "macro_param_cache.h"
 #include "memory_monitor.h"
 #include "memory_utils.h"
@@ -122,19 +121,63 @@ void PrintPreparationManager::set_dependencies(IMoonrakerAPI* api, PrinterState*
     api_ = api;
     printer_state_ = printer_state;
 
-    // Trigger PRINT_START analysis when connected.
-    // analyze_print_start_macro() checks MacroModificationManager's cache first
-    // to avoid a duplicate HTTP download of printer config files.
     if (printer_state_) {
         connection_observer_ = helix::ui::observe<int>(
             printer_state_->get_printer_connection_state_subject(), this,
-            [](PrintPreparationManager* self, int state) {
-                if (state == static_cast<int>(ConnectionState::CONNECTED)) {
-                    self->analyze_print_start_macro();
-                }
-            },
+            [](PrintPreparationManager* self, int state) { self->on_connection_state(state); },
+            printer_state_->get_subjects_lifetime());
+        klippy_observer_ = helix::ui::observe<int>(
+            printer_state_->get_klippy_state_subject(), this,
+            [](PrintPreparationManager* self, int state) { self->on_klippy_state(state); },
             printer_state_->get_subjects_lifetime());
     }
+}
+
+void PrintPreparationManager::on_connection_state(int state) {
+    const int connected = static_cast<int>(ConnectionState::CONNECTED);
+    const bool reconnected = state == connected && last_connection_state_ != connected;
+    last_connection_state_ = state;
+    if (reconnected) {
+        // A new connection can be a different printer, or one whose config changed.
+        klippy_restarting_ = false;
+        refresh_macro_analysis();
+    } else if (state == connected) {
+        analyze_print_start_macro();
+    }
+}
+
+void PrintPreparationManager::on_klippy_state(int state) {
+    // A restart is how an edited macro takes effect. Klippy reads not-ready
+    // before the first connect too; only a dip seen while connected counts.
+    if (state != static_cast<int>(KlippyState::READY)) {
+        klippy_restarting_ = last_connection_state_ == static_cast<int>(ConnectionState::CONNECTED);
+        return;
+    }
+    if (klippy_restarting_) {
+        klippy_restarting_ = false;
+        refresh_macro_analysis();
+    }
+}
+
+void PrintPreparationManager::refresh_macro_analysis() {
+    macro_analysis_.reset();
+    if (macro_analysis_in_progress_) {
+        macro_analysis_stale_ = true;
+        return;
+    }
+    analyze_print_start_macro();
+}
+
+bool PrintPreparationManager::restart_stale_macro_analysis() {
+    if (!macro_analysis_stale_) {
+        return false;
+    }
+    macro_analysis_stale_ = false;
+    macro_analysis_retry_count_ = 0;
+    spdlog::debug("[PrintPreparationManager] Printer changed during PRINT_START analysis, "
+                  "analyzing again");
+    analyze_print_start_macro_internal();
+    return true;
 }
 
 void PrintPreparationManager::ensure_estimate_subject_initialized() {
@@ -241,61 +284,11 @@ void PrintPreparationManager::analyze_print_start_macro() {
         return;
     }
 
-    // Check if MacroModificationManager already has a cached analysis from
-    // the discovery-triggered check_and_notify(). Reusing it avoids a
-    // duplicate HTTP download of printer config files (~500ms saved).
-    if (auto* mgr = get_moonraker_manager()) {
-        if (auto* macro_mgr = mgr->macro_analysis()) {
-            const auto& cached = macro_mgr->get_cached_analysis();
-            if (cached.found) {
-                spdlog::debug(
-                    "[PrintPreparationManager] Reusing MacroModificationManager analysis");
-                macro_analysis_ = cached;
-                if (on_macro_analysis_complete_) {
-                    on_macro_analysis_complete_(cached);
-                }
-                return;
-            }
-        }
-    }
-
-    // Check if MacroModificationManager is currently analyzing — defer to its result
-    // instead of starting a duplicate analysis
-    if (auto* mgr = get_moonraker_manager()) {
-        if (auto* macro_mgr = mgr->macro_analysis()) {
-            if (macro_mgr->is_analyzing()) {
-                spdlog::debug("[PrintPreparationManager] MacroModificationManager analysis in "
-                              "progress, deferring");
-                schedule_deferred_macro_check();
-                return;
-            }
-        }
-    }
-
     // Reset retry counter when starting fresh
     macro_analysis_retry_count_ = 0;
 
     // Delegate to internal implementation
     analyze_print_start_macro_internal();
-}
-
-void PrintPreparationManager::schedule_deferred_macro_check() {
-    struct DeferData {
-        PrintPreparationManager* mgr;
-        helix::LifetimeToken token;
-    };
-    auto data = std::make_unique<DeferData>(DeferData{this, lifetime_.token()});
-
-    lv_timer_t* timer = lv_timer_create(
-        [](lv_timer_t* t) {
-            std::unique_ptr<DeferData> d(static_cast<DeferData*>(lv_timer_get_user_data(t)));
-            lv_timer_delete(t);
-            if (d && !d->token.expired()) {
-                d->mgr->analyze_print_start_macro();
-            }
-        },
-        500, data.release());
-    lv_timer_set_repeat_count(timer, 1);
 }
 
 void PrintPreparationManager::analyze_print_start_macro_internal() {
@@ -307,6 +300,9 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
     // Check if WebSocket connection is actually established
     if (api_->get_connection_state() != ConnectionState::CONNECTED) {
         spdlog::debug("[PrintPreparationManager] Deferring PRINT_START analysis - not connected");
+        // A retry can land here mid-analysis; the next connect starts over.
+        macro_analysis_in_progress_ = false;
+        macro_analysis_stale_ = false;
         return;
     }
 
@@ -324,6 +320,9 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
         // marshals to main via tok.defer (no inline LVGL or member writes).
         [this, token](const helix::PrintStartAnalysis& analysis) {
             token.defer("PrintPreparationManager::macro_analysis_success", [this, analysis]() {
+                if (restart_stale_macro_analysis()) {
+                    return;
+                }
                 spdlog::debug("[PrintPreparationManager] PRINT_START analysis complete: {}",
                               analysis.summary());
                 macro_analysis_ = analysis;
@@ -336,6 +335,9 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
         // Error callback - runs on HTTP thread; same pattern as success.
         [this, token](const MoonrakerError& error) {
             token.defer("PrintPreparationManager::macro_analysis_error", [this, error]() {
+                if (restart_stale_macro_analysis()) {
+                    return;
+                }
                 spdlog::warn(
                     "[PrintPreparationManager] PRINT_START analysis failed (attempt {}): {}",
                     macro_analysis_retry_count_ + 1, error.message);

@@ -32,7 +32,6 @@ translations:
   '%s uses %s, which has filament but no material set — the printer will not start until you set it.': '%s использует %s, где есть филамент, но не задан материал — принтер не начнёт печать, пока вы его не зададите.'
   '%s: %.0fg of %.0fg needed': '%s: %.0fг из %.0fг'
   '%u layers': '%u слоёв'
-  '%zu changes': '%zu изменений'
   '%zu events queued': '%zu событий в очереди'
   '%zu plugins failed to load': Не удалось загрузить %zu плагинов
   "'{}' already exists. Replace the stored mesh?": "'{}' уже существует. Заменить сохранённую сетку?"
@@ -119,7 +118,6 @@ translations:
   = Loosen: = Ослабить
   = Tighten: = Затянуть
   A: A
-  A backup of %s is created before applying: 'Перед применением создаётся резервная копия %s'
   A few minutes, nearly all of it heating. You judge nothing by eye.: 'Несколько минут, почти всё время нагрев. Ничего не нужно оценивать на глаз.'
   A motor IO pin couldn't be restored. Power-cycle the printer to recover: Не удалось восстановить вывод ввода-вывода двигателя. Выключите и включите принтер
   A motor's parameters couldn't be written. Power-cycle the printer to retry: Не удалось записать параметры двигателя. Выключите и включите принтер и повторите попытку
@@ -253,9 +251,6 @@ translations:
   Appearance: Внешний вид
   Applies to: Применяется к
   Apply: Применить
-  Apply Changes: Применить изменения
-  Applying Changes: Применение изменений
-  Applying...: Применение...
   Archive: Архивировать
   Archive Spool?: Архивировать катушку?
   Are you sure you want to cancel this print? All progress will be lost.: Вы уверены,
@@ -550,8 +545,6 @@ translations:
     немедленно. Корректируйте во время печати.
   Changes are temporary and reset on printer reboot: Изменения временные и сбрасываются
     при перезагрузке принтера
-  Changes can be reversed anytime using the Macro Viewer.: Изменения можно отменить
-    в любое время через Macro Viewer.
   Check AFC configuration: 'Проверьте конфигурацию AFC'
   Check Again: Проверить снова
   Check Klipper console for details: Подробности смотрите в консоли Klipper
@@ -586,6 +579,7 @@ translations:
   Checking for webcam...: Проверка веб-камеры...
   Checking plugin: Проверка плагина
   Checking slots...: Проверка слотов...
+  Checking the printer...: "Проверка принтера..."
   Checking timelapse plugin...: Проверка плагина таймлапса...
   Checking webcam: Проверка веб-камеры
   Checking...: Проверка...
@@ -679,7 +673,6 @@ translations:
   Configure G10/G11 firmware retraction: Настроить аппаратный ретракт G10/G11
   Configure Graph: Настроить график
   Configure Moonraker: Настроить Moonraker
-  Configure PRINT_START: Настроить PRINT_START
   Configure Spoolman integration and weight sync settings.: Настройте интеграцию со
     Spoolman и синхронизацию веса.
   Configure WiFi for this device, or skip if you're using Ethernet: Настройте WiFi
@@ -934,7 +927,6 @@ translations:
   Documentation: Документация
   Don't Save: Не сохранять
   Don't ask again: Больше не спрашивать
-  Don't show again: Больше не показывать
   Done: Готово
   Download update?: Загрузить обновление?
   Download v{}?: Загрузить v{}?
@@ -1027,10 +1019,6 @@ translations:
   Ended: Завершено
   Endless spool failover cleared for every slot: 'Резервные катушки очищены для всех слотов'
   Endless spool is turned off on this MMU: 'Бесконечная катушка отключена на этом MMU'
-  Enhanced {} operation in PRINT_START: Улучшена {} операция в PRINT_START
-  Enhanced {} operations in PRINT_START: Улучшено {} операций в PRINT_START
-  Enhancement Complete!: Улучшение завершено!
-  Enhancement Failed: Ошибка улучшения
   Ensure Happy Hare or AFC is installed and configured: Убедитесь, что Happy Hare или AFC установлен и настроен
   Enter Current PIN: Введите текущий PIN
   Enter G-code command...: Введите команду G-code...
@@ -1128,7 +1116,6 @@ translations:
   FILTERS: ФИЛЬТРЫ
   Factory Reset: Сброс к заводским настройкам
   Failed: Ошибка
-  Failed to analyze PRINT_START macro: Не удалось проанализировать макрос PRINT_START
   Failed to apply limits: Не удалось применить ограничения
   Failed to apply settings: Не удалось применить настройки
   Failed to archive spool: Не удалось архивировать катушку
@@ -1177,7 +1164,6 @@ translations:
   Failed to open history: Не удалось открыть историю
   Failed to open history list: Не удалось открыть список истории
   Failed to open temperature graph: Не удалось открыть график температуры
-  Failed to open wizard: Не удалось открыть мастер
   'Failed to pause print: {}': 'Не удалось приостановить печать: {}'
   'Failed to purge: {}': 'Не удалось прочистить: {}'
   Failed to read G-code for remap: Не удалось прочитать G-code для переназначения
@@ -1656,7 +1642,6 @@ translations:
   KLICKY CONTROLS: УПРАВЛЕНИЕ KLICKY
   Keep Navigation Bar: Сохранить панель навигации
   Keep Printing: Продолжить печать
-  Keep Required: Оставить обязательным
   Keep Spool Info on Eject: Сохранять данные катушки при извлечении
   Keep clear of the printer while the toolhead is moving: Не приближайтесь к принтеру, пока перемещается печатающая головка
   Keep current: Оставить текущую
@@ -1680,8 +1665,9 @@ translations:
     разгоном или ошибкой конфигурации.
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper резервирует 'default' для новых калибровок. Выберите другое имя."
   Klipper restarting - macros activating: 'Перезапуск Klipper - активация макросов'
+  ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
+  : "Klipper перестал сообщать о ходе. На небольших принтерах его анализу может не хватить памяти, и Klipper зависнет так, что перезапуск прошивки до него не дойдёт. Выключите и снова включите принтер (или перезапустите Klipper по SSH), затем повторите попытку."
   Klipper stopped reporting progress. Its analysis can run out of memory on small printers; restart Klipper, then try again.: "Klipper перестал сообщать о ходе. На небольших принтерах его анализу может не хватить памяти; перезапустите Klipper и повторите попытку."
-  Klipper will restart to apply changes: Klipper перезапустится для применения изменений
   Klipper will restart to apply changes.: Klipper перезапустится для применения изменений.
   Klipper will restart to apply new settings.: Klipper перезапустится для применения
     новых настроек.
@@ -1827,7 +1813,6 @@ translations:
   Macro Browser: Обзор макросов
   Macro Button: 'Кнопка макроса'
   Macro Buttons: Кнопки макросов
-  Macro analysis not initialized: Анализ макросов не инициализирован
   'Macro failed: {}': 'Ошибка макроса: {}'
   Macro for bed mesh calibration: Макрос для калибровки сетки стола
   Macro for chamber/bed heat soak: Макрос для прогрева камеры/стола
@@ -1853,9 +1838,6 @@ translations:
   Main LED Strip: Основная LED-лента
   Maintaining: Поддержание
   Maintenance: 'Обслуживание'
-  Make %s Optional?: Сделать %s необязательным?
-  Make Optional: Сделать опциональным
-  Make bed mesh and QGL skippable: Сделать сетку стола и QGL пропускаемыми
   Make sure every nozzle is clean.: Убедитесь, что все сопла чистые.
   'Make sure no filament is loaded at the toolhead: it can soften in the extruder while the bed heats.': 'Убедитесь, что в печатающей головке нет филамента: он может размягчиться в экструдере, пока греется стол.'
 
@@ -2020,7 +2002,6 @@ translations:
   No Macros Found: Макросы не найдены
   No Multi-Filament System connected: Мультифиламентная система не подключена
   No Multi-Filament System connected.: Мультифиламентная система не подключена.
-  No PRINT_START macro found: Макрос PRINT_START не найден
   No Power Devices: Нет устройств питания
   No Spool: Нет катушки
   No Spools: Нет катушек
@@ -2030,8 +2011,6 @@ translations:
   No buffer data available: Данные буфера недоступны
   No camera — use USB barcode scanner: Нет камеры — используйте USB сканер штрих-кодов
   No chamber temperature sensor detected: 'Датчик температуры камеры не обнаружен'
-  ? "No changes selected.\n\nClick Cancel to close."
-  : "Изменения не выбраны.\n\nНажмите «Отмена», чтобы закрыть."
   No changes to revert: Нет изменений для отката
   No color: Без цвета
   No dryer available. Store filament in a sealed dry box with desiccant for best results.: Сушилка
@@ -2106,6 +2085,7 @@ translations:
   Normal: Обычная
   Not Connected: 'Не подключено'
   Not Enough Filament: Недостаточно филамента
+  Not Enough Memory: "Недостаточно памяти"
   Not Initialized: 'Не инициализировано'
   Not Now: Не сейчас
   Not Supported: 'Не поддерживается'
@@ -2179,6 +2159,8 @@ translations:
   One tap runs this macro. Dangerous macros still ask.: 'Один тап запускает этот макрос. Опасные макросы всё равно запрашивают подтверждение.'
   'Only on A: {} Hz': "Только на A: {} Гц"
   'Only on B: {} Hz': "Только на B: {} Гц"
+  ? Only {} MB of memory is free, and Klipper's analysis needs about {} MB. Running the test would leave the printer stuck until it is power-cycled.
+  : "Свободно всего {} МБ памяти, а анализу Klipper нужно около {} МБ. Тест оставит принтер зависшим, пока его не выключат и снова не включат."
   Ooze Reduction: 'Снижение подтекания'
   Open: Открыть
   Open Source Licenses: Лицензии с открытым кодом
@@ -2228,8 +2210,6 @@ translations:
   PRINTER: ПРИНТЕР
   PRINTER VISUALS: ВНЕШНИЙ ВИД ПРИНТЕРА
   PRINTERS: ПРИНТЕРЫ
-  PRINT_START has {} skippable operation: В PRINT_START есть {} пропускаемая операция
-  PRINT_START has {} skippable operations: В PRINT_START есть {} пропускаемых операций
   PROBE SENSORS: ДАТЧИКИ ЗОНДА
   PTFE tube connection loose: Соединение трубки PTFE ослабло
   Pair: Сопряжение
@@ -2555,7 +2535,6 @@ translations:
   Readings from extra temperature sensors: Показания доп. датчиков температуры
   Ready: Готов
   Ready for filament operations: Готово к операциям с филаментом
-  Ready to Apply: Готово к применению
   Ready to calibrate: Готов к калибровке
   Rear: 'Сзади'
   Rear Left: 'Сзади слева'
@@ -2728,7 +2707,6 @@ translations:
   Reverse Multiplier: 'Множитель обратного хода'
   Review detected hardware validation issues: Просмотр обнаруженных проблем валидации
     оборудования
-  Review your changes: Просмотр ваших изменений
   Review your configuration below, then click Finish to save: Проверьте конфигурацию
     ниже, затем нажмите «Готово» для сохранения
   Rewinding: Перемотка
@@ -2946,7 +2924,6 @@ translations:
   Settings reset to defaults. Restarting...: Настройки сброшены к значениям по умолчанию.
     Перезапуск...
   Setup: 'Настройка'
-  Setup Complete!: Настройка завершена!
   Setup Timelapse: Настроить таймлапс
   Several printers match - choose yours: Подходят несколько принтеров - выберите свой
   Shadow Intensity: Интенсивность тени
@@ -3321,6 +3298,8 @@ translations:
   Theme changes apply after restart.: Изменения темы применяются после перезапуска.
   Theme reset to defaults: Тема сброшена к настройкам по умолчанию
   'Theme: ': 'Тема: '
+  ? There is not enough free memory to run this test. Klipper's analysis would run out of memory and leave the printer stuck until it is power-cycled.
+  : "Для этого теста недостаточно свободной памяти. Анализу Klipper не хватит памяти, и принтер зависнет, пока его не выключат и снова не включат."
   'These tools have a different filament grade loaded:': 'В этих инструментах загружен филамент другой марки:'
   'These tools have incompatible materials loaded:': 'В этих инструментах загружены
     несовместимые материалы:'
@@ -3359,11 +3338,7 @@ translations:
   This is what data would be sent if enabled: Эти данные были бы отправлены при включении
   This may take up to 30 seconds: Это может занять до 30 секунд
   This plugin asks for no special permissions.: 'Этот плагин не запрашивает специальных разрешений.'
-  ? This plugin lets HelixScreen control print start options like bed mesh and QGL.
-    Once installed, use Configure PRINT_START below to enable optional steps.
-  : Этот плагин позволяет HelixScreen управлять опциями начала печати, такими как
-    сетка стола и QGL. После установки используйте «Настроить PRINT_START» ниже для
-    включения опциональных шагов.
+  This plugin lets HelixScreen control print start options like bed mesh and QGL.: 'Этот плагин позволяет HelixScreen управлять опциями начала печати, такими как сетка стола и QGL.'
   This print needs about %.0fg but the spool has about %.0fg remaining. Start anyway?: Для
     этой печати нужно около %.0fг, но на катушке осталось около %.0fг. Всё равно начать?
   This printer cannot calibrate tool offsets automatically: Этот принтер не может калибровать смещения инструментов автоматически
@@ -3668,11 +3643,6 @@ translations:
   When enabled, only the macro runs. When disabled, temperatures are set first, then the macro runs.: Когда
     включено, запускается только макрос. Когда выключено, сначала задаются температуры,
     затем запускается макрос.
-  ? When starting a print, you'll be able to choose whether to run %s. This saves
-    time when you've already done it recently or want more control over your print
-    preparation.
-  : При запуске печати вы сможете выбрать, запускать ли %s. Это экономит время, если
-    вы уже делали это недавно или хотите больше контроля над подготовкой печати.
   Where UI sounds play: Где воспроизводятся звуки интерфейса
   Whether filament is loaded: Загружен ли филамент
   Which macro the Close feeder button sends: Какой макрос отправляет кнопка «Закрыть фидер»
@@ -3725,16 +3695,11 @@ translations:
   : "ПОБЕДА!\nСчёт: {}\nНажмите, чтобы сыграть снова"
   Year: Год
   'Yes': Да
-  ? "You can now skip these operations when starting prints.\n\nLook for the new options in the print details before starting each print.\n\nA backup of your config was saved automatically."
-  : "Теперь вы можете пропускать эти операции при запуске печати.\n\nИщите новые параметры в деталях печати перед началом каждой печати.\n\nРезервная копия вашей конфигурации была сохранена автоматически."
   You can skip this and calibrate later in Settings.: Вы можете пропустить это и откалибровать
     позже в настройках.
   You have unsaved changes. Discard them?: У вас есть несохранённые изменения. Отменить
     их?
-  ? "Your PRINT_START macro will be updated to give you control over:\n\n"
-  : "Ваш макрос PRINT_START будет обновлён, чтобы дать вам контроль над:\n\n"
   Your completed prints will appear here: Ваши завершённые печати появятся здесь
-  Your print start is already fully configured!: Ваш старт печати уже полностью настроен!
   Your printer at a glance: Ваш принтер одним взглядом
   Your printer has an automatic filament changer: Ваш принтер оснащён автоматическим
     сменщиком филамента

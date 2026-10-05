@@ -10,8 +10,9 @@
 # quietly never reached disk. helix::json_util::safe_dump() replaces the
 # offending bytes instead.
 #
-# Both halves of the contract are pinned here. The flagged shapes are the two
-# ways a document leaves this process — a stream write and an HTTP body. The
+# Both halves of the contract are pinned here. The flagged shapes are the
+# ways a document leaves this process — a stream write, an HTTP body and a
+# socket send. The
 # quiet ones matter just as much: a gate that fires on the correct form, on a
 # log line, or on an annotated site is a gate somebody switches off.
 
@@ -90,6 +91,22 @@ bool post(const json& payload) {
     flagged
 }
 
+@test "flags a dump passed straight to a websocket send" {
+    run_gate ws_send '
+int send(hv::WebSocketClient& ws, const json& rpc) {
+    return ws.send(rpc.dump());
+}'
+    flagged
+}
+
+@test "flags a dump sent through a pointer" {
+    run_gate ptr_send '
+void notify(const json& msg) {
+    client_->send(msg.dump());
+}'
+    flagged
+}
+
 # -------------------------------------------- shapes that must stay SILENT
 
 @test "does not flag the safe_dump helper itself" {
@@ -97,6 +114,7 @@ bool post(const json& payload) {
 void save(const json& doc) {
     ofs << helix::json_util::safe_dump(doc, 2);
     req->body = helix::json_util::safe_dump(doc);
+    ws.send(helix::json_util::safe_dump(doc));
 }'
     quiet
 }

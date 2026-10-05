@@ -765,10 +765,9 @@ TEST_CASE("BackgroundGhostBuilder error handling", "[gcode][streaming][ghost]") 
 
 namespace {
 
-// A file big enough that indexing it takes a measurable fraction of a second.
-// Indexing throughput is ~300 MB/s on current dev hardware, so ~100 MB buys a
-// ~300 ms full build: long enough that a cancelled build finishing at full
-// speed is clearly distinguishable, short enough to keep the suite quick.
+// A file spanning many progress-callback intervals. The tests below assert on
+// what the build did (callbacks seen, result returned), never on wall-clock
+// time, which a loaded box running sharded suites in parallel cannot promise.
 class BigGCodeFile {
   public:
     explicit BigGCodeFile(uint64_t target_bytes) {
@@ -815,45 +814,39 @@ class BigGCodeFile {
     std::string path_;
 };
 
-using SteadyClock = std::chrono::steady_clock;
-
-template <typename F> SteadyClock::duration timed(F&& f) {
-    const auto start = SteadyClock::now();
-    f();
-    return SteadyClock::now() - start;
-}
-
-long ms_of(SteadyClock::duration d) {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
-}
-
 } // namespace
 
 TEST_CASE("index build stops when the progress callback withdraws consent",
           "[gcode][streaming][cancel]") {
-    BigGCodeFile file(100ull * 1024 * 1024);
+    BigGCodeFile file(20ull * 1024 * 1024);
     GCodeLayerIndex index;
 
-    const auto full = timed([&] { REQUIRE(index.build_from_file(file.path())); });
+    int full_calls = 0;
+    REQUIRE(index.build_from_file(file.path(), [&](float) {
+        ++full_calls;
+        return true;
+    }));
+    REQUIRE(full_calls > 1);
 
-    bool completed = true;
-    const auto cancelled =
-        timed([&] { completed = index.build_from_file(file.path(), [](float) { return false; }); });
-    REQUIRE_FALSE(completed);
-    REQUIRE(ms_of(cancelled) * 2 < ms_of(full));
+    // The first false unwinds the build: no further callbacks, no further scanning.
+    int cancelled_calls = 0;
+    REQUIRE_FALSE(index.build_from_file(file.path(), [&](float) {
+        ++cancelled_calls;
+        return false;
+    }));
+    REQUIRE(cancelled_calls == 1);
 }
 
-TEST_CASE("close during async indexing returns promptly", "[gcode][streaming][cancel]") {
+TEST_CASE("close during async indexing cancels the build", "[gcode][streaming][cancel]") {
     BigGCodeFile file(200ull * 1024 * 1024);
     GCodeStreamingController controller;
 
-    // Time one full synchronous build on THIS machine; the bound for a
-    // mid-index close is derived from it so the test holds at any host speed.
-    const auto full = timed([&] { REQUIRE(controller.open_file(file.path())); });
-    controller.close();
-
     std::atomic<bool> completed{false};
-    controller.open_file_async(file.path(), [&](bool) { completed.store(true); });
+    std::atomic<bool> result{true};
+    controller.open_file_async(file.path(), [&](bool ok) {
+        result.store(ok);
+        completed.store(true);
+    });
 
     while (!completed.load() && !controller.is_indexing()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -864,8 +857,14 @@ TEST_CASE("close during async indexing returns promptly", "[gcode][streaming][ca
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 
-    const auto close_time = timed([&] { controller.close(); });
-    REQUIRE(ms_of(close_time) * 2 < ms_of(full));
+    if (completed.load()) {
+        SKIP("Build finished before the close could land; nothing to cancel");
+    }
+
+    // A close that waited out the build would see it succeed.
+    controller.close();
+    REQUIRE(completed.load());
+    REQUIRE_FALSE(result.load());
 }
 
 TEST_CASE("close in the async launch window still cancels the build",
@@ -877,11 +876,8 @@ TEST_CASE("close in the async launch window still cancels the build",
     // runs to completion anyway under it (#1706: backing out of a preview
     // must not freeze the UI for the rest of the build). The gate parks the
     // worker inside that window so the scheduling race is deterministic.
-    BigGCodeFile file(200ull * 1024 * 1024);
+    BigGCodeFile file(20ull * 1024 * 1024);
     GCodeStreamingController controller;
-
-    const auto full = timed([&] { REQUIRE(controller.open_file(file.path())); });
-    controller.close();
 
     std::promise<void> parked_promise;
     auto parked = parked_promise.get_future();
@@ -912,12 +908,10 @@ TEST_CASE("close in the async launch window still cancels the build",
     // launch window and must not wait out a full build once it is let go.
     std::thread closer([&] { controller.close(); });
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    const auto released = SteadyClock::now();
     release_promise.set_value();
     closer.join();
-    const long wait_ms = ms_of(SteadyClock::now() - released);
 
+    // A build that ran to completion under the close would report success.
     REQUIRE(completed.load());
     REQUIRE_FALSE(result.load());
-    REQUIRE(wait_ms * 3 < ms_of(full));
 }

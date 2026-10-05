@@ -7,7 +7,7 @@ All developer documentation lives here. When working on features, look up the re
 | Doc | When to read |
 |-----|-------------|
 | `DEVELOPMENT.md` | Build setup, dev environment, contributing |
-| `HELIXCTL.md` | Driving the UI / screenshots via `helix-screen ctl` (replaces the old `-p`/`--panel` flags). **Read the socket-isolation box first** — a bare `ctl` drives whichever instance started first and still reports success |
+| `HELIXCTL.md` | Driving the UI / screenshots via `helix-screen ctl`. **Read the socket-isolation box first** — a bare `ctl` drives whichever instance started first and still reports success |
 | `ARCHITECTURE.md` | The 15-minute whole-app model (XML → Subjects → C++) + the routing table into the chapter series. Start here for "how does the app fit together" |
 | `architecture/` | The 16-chapter architecture guide — one subsystem per chapter, ~1 hour each. `architecture/README.md` is the "I want to work on..." index |
 | `THREADING.md` | **Single source of truth** for threading, async-callback, and object-lifetime rules. Read before any code that crosses a thread boundary, observes a subject, or destroys a widget |
@@ -22,7 +22,6 @@ All developer documentation lives here. When working on features, look up the re
 | `COPYRIGHT_HEADERS.md` | SPDX license headers |
 | `RELEASE_PROCESS.md` | Release workflow, versioning |
 | `CHANGELOG_STYLE.md` | How `CHANGELOG.md` entries are written: user-facing voice, hyphen separator, bare `(#N)` links, daily vs milestone shapes. Read before drafting a release's changelog section |
-| `RELEASE_1_0_CHECKLIST.md` | Everything blocking `v1.0.0` and the 1.1 devel track — the atomic `release/1.0` branch cut + `RELEASE_CHANNEL` flip, open milestone issues, what is and is not verified. Delete once 1.0 ships |
 | `CHANGELOG_1_1_DRAFT.md` | Running release notes for everything on `main` that is not in the 1.0 release. Kept out of `CHANGELOG.md` so the release tooling owns that file; becomes the `## [1.1]` entry at release, then delete |
 | `CI_CD_GUIDE.md` | CI pipeline, GitHub Actions |
 | `ANDROID_PLAY_STORE.md` | Play Store publishing pipeline, one-time setup, promotion flow |
@@ -87,6 +86,10 @@ All developer documentation lives here. When working on features, look up the re
 | `SOUND_SYSTEM.md` | Audio architecture, JSON themes, backends (SDL, ALSA, PWM, M300). User guide: `../user/guide/settings/sound.md` |
 | `SCREENSAVERS.md` | Screensavers: the registry, shared overlay/canvas/timer/pixel writer, the CPU gate and stored levels, color depth in builds, adding a saver |
 | `LED_CONTROL.md` | LED control system: 5 backends, auto-state lighting, control/settings overlays, home panel widget |
+| `SENSOR_MANAGEMENT.md` | Sensor managers (filament, temperature, humidity, probe, accel, width, load cell): discovery inputs, the `for_each_sensor_manager` fan-out, subject encodings, runout vs presence, toast suppression, bypass arming, config persistence, `SensorState`, adding a sensor |
+| `ACTION_PROMPTS.md` | Klipper `action:prompt_*` / `action:notify` macros: parser and state machine, the ActionPromptModal layout and colors, how button gcode reaches the printer, unsupported directives, mock/demo knobs, adding a directive |
+| `BLUETOOTH_SYSTEM.md` | Bluetooth plugin internals: dlopen loader and C ABI versioning, BusThread and which thread each call runs on, context ownership, discovery filtering, pairing/bonding, RFCOMM/SDP and BLE GATT data paths, failure modes, adding an ABI function |
+| `USB_MANAGEMENT.md` | USB drives (mount-table detection, classification, the root-only fallback automounter), the print-select USB source and its subjects, USB label printer detection/transport, HID scanner choice, the `--test` mock drive |
 | `CHAMBER_HEATER.md` | Chamber heaters: backend registry (generic/dragonbreath/panda_breath), discovery, diagnostics subjects + card, ceiling rules, arbitration, verification logs |
 | `BED_DRYING.md` | Drying filament on the heated bed: the enclosure capability, the flow, the spools-on-the-bed latch and its five send-layer choke points, persistence across restarts and power loss |
 | `PRINTER_MANAGER.md` | Printer overlay, custom images, inline name editing |

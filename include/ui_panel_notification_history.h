@@ -112,7 +112,7 @@ class NotificationHistoryPanel : public PanelBase {
     SubjectManager subjects_;
 
     /// Has entries subject (1 = has entries, 0 = empty)
-    lv_subject_t has_entries_subject_;
+    lv_subject_t has_entries_subject_{};
 
     /// Fires refresh() when a notification arrives while the panel is open.
     /// No paired SubjectLifetime: the subject belongs to the NotificationManager

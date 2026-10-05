@@ -4631,92 +4631,72 @@ bool MoonrakerClientMock::simulate_tool_offset_calibration(
         "[MoonrakerClientMock] CALIBRATE_TOOL_OFFSETS: {} tools{}", tool_count,
         fail_tool >= 0 ? fmt::format(", T{} will fail (HELIX_MOCK_TOOL_CAL_FAIL)", fail_tool) : "");
 
-    // Two ticks per tool - select, then measure - and a final park on T0.
-    struct CalSimState {
-        MoonrakerClientMock* mock;
-        int tool_count;
-        int fail_tool;
-        int tick = 0;
-        std::function<void(const nlohmann::json&)> success_cb;
-        std::function<void(const MoonrakerError&)> error_cb;
+    // Two ticks per tool - select, then measure - and a final park on T0. A
+    // failing tool's measure tick ends the run instead.
+    const auto select = [this](int tool) {
+        dispatch_gcode_response(fmt::format("Selected tool {} (T{})", tool, tool));
+        dispatch_toolchanger_tool(tool);
     };
-    auto* sim =
-        new CalSimState{this, tool_count, fail_tool, 0, std::move(success_cb), std::move(error_cb)};
-    const int total_ticks = tool_count * 2 + 1;
+    // Measuring. The probe prints a contact per sample; the numbers only
+    // need to look like a nozzle near the sensor.
+    const double sensor_x = 229.0, sensor_y = 2.5, sensor_z = 1.25;
+    const auto probe = [this, sensor_x, sensor_y, sensor_z](int tool) {
+        // Distinct from the per-tool seed on EVERY axis (see tool_offset()):
+        // a measured value equal to the seed leaves that axis clean after a
+        // run, so nothing stages it and the save path's handling of it is
+        // never exercised.
+        const double dx = 0.12 * tool, dy = -0.07 * tool, dz = -0.03 * tool;
+        for (int sample = 0; sample < 3; ++sample) {
+            dispatch_gcode_response(fmt::format("Probe made contact at {:.6f},{:.6f},{:.6f}",
+                                                sensor_x + dx + 0.001 * sample, sensor_y + dy,
+                                                sensor_z + dz));
+        }
+    };
+    const auto measure = [this, probe, sensor_x, sensor_y, sensor_z](int tool) {
+        probe(tool);
+        if (tool == 0) {
+            dispatch_gcode_response(fmt::format("Sensor location at {:.6f},{:.6f},{:.6f}", sensor_x,
+                                                sensor_y, sensor_z));
+            return;
+        }
+        const double dx = 0.12 * tool, dy = -0.07 * tool, dz = -0.03 * tool;
+        dispatch_gcode_response(fmt::format("Tool offset is {:.6f},{:.6f},{:.6f}", dx, dy, dz));
+        apply_calibrated_tool_offset(tool, dx, dy, dz);
+    };
 
-    lv_timer_t* timer = lv_timer_create(
-        [](lv_timer_t* t) {
-            auto* s = static_cast<CalSimState*>(lv_timer_get_user_data(t));
-            const int tick = s->tick++;
-            const int tool = tick / 2;
-            const bool selecting = (tick % 2) == 0;
+    const bool fails = fail_tool >= 0 && fail_tool < tool_count;
+    const int last_tool = fails ? fail_tool : tool_count - 1;
+    std::vector<std::function<void()>> steps;
+    for (int tool = 0; tool <= last_tool; ++tool) {
+        steps.emplace_back([select, tool] { select(tool); });
+        if (tool != fail_tool) {
+            steps.emplace_back([measure, tool] { measure(tool); });
+        }
+    }
 
-            auto finish = [&](bool ok, const std::string& error) {
-                if (ok) {
-                    if (s->success_cb) {
-                        s->success_cb(json{{"result", "ok"}});
-                    }
-                } else {
-                    s->mock->dispatch_gcode_response("!! " + error);
-                    if (s->error_cb) {
-                        MoonrakerError err;
-                        err.message = error;
-                        s->error_cb(err);
-                    }
-                }
-                // Natural completion frees its own payload and drops the
-                // tracking entry, as the shaper sim does; the destructor's
-                // deleter is only for a teardown that catches the timer armed.
-                auto& timers = s->mock->calibration_timers_;
-                timers.erase(
-                    std::remove_if(timers.begin(), timers.end(),
-                                   [t](const CalibrationTimer& ct) { return ct.timer == t; }),
-                    timers.end());
-                delete s;
-                lv_timer_delete(t);
-            };
-
-            if (tool >= s->tool_count) {
-                // Park on the reference tool, as the macro's last SELECT_TOOL does.
-                s->mock->dispatch_gcode_response("Selected tool 0 (T0)");
-                s->mock->dispatch_toolchanger_tool(0);
-                finish(true, "");
-                return;
+    std::function<void()> on_done;
+    if (fails) {
+        on_done = [this, probe, fail_tool, error_cb = std::move(error_cb)] {
+            probe(fail_tool);
+            const std::string error = "Probe samples exceed samples_tolerance";
+            dispatch_gcode_response("!! " + error);
+            if (error_cb) {
+                MoonrakerError err;
+                err.message = error;
+                error_cb(err);
             }
-            if (selecting) {
-                s->mock->dispatch_gcode_response(fmt::format("Selected tool {} (T{})", tool, tool));
-                s->mock->dispatch_toolchanger_tool(tool);
-                return;
+        };
+    } else {
+        on_done = [this, success_cb = std::move(success_cb)] {
+            // Park on the reference tool, as the macro's last SELECT_TOOL does.
+            dispatch_gcode_response("Selected tool 0 (T0)");
+            dispatch_toolchanger_tool(0);
+            if (success_cb) {
+                success_cb(json{{"result", "ok"}});
             }
-            // Measuring. The probe prints a contact per sample; the numbers only
-            // need to look like a nozzle near the sensor.
-            const double sensor_x = 229.0, sensor_y = 2.5, sensor_z = 1.25;
-            // Distinct from the per-tool seed on EVERY axis (see tool_offset()):
-            // a measured value equal to the seed leaves that axis clean after a
-            // run, so nothing stages it and the save path's handling of it is
-            // never exercised.
-            const double dx = 0.12 * tool, dy = -0.07 * tool, dz = -0.03 * tool;
-            for (int sample = 0; sample < 3; ++sample) {
-                s->mock->dispatch_gcode_response(
-                    fmt::format("Probe made contact at {:.6f},{:.6f},{:.6f}",
-                                sensor_x + dx + 0.001 * sample, sensor_y + dy, sensor_z + dz));
-            }
-            if (tool == s->fail_tool) {
-                finish(false, "Probe samples exceed samples_tolerance");
-                return;
-            }
-            if (tool == 0) {
-                s->mock->dispatch_gcode_response(fmt::format(
-                    "Sensor location at {:.6f},{:.6f},{:.6f}", sensor_x, sensor_y, sensor_z));
-                return;
-            }
-            s->mock->dispatch_gcode_response(
-                fmt::format("Tool offset is {:.6f},{:.6f},{:.6f}", dx, dy, dz));
-            s->mock->apply_calibrated_tool_offset(tool, dx, dy, dz);
-        },
-        600, sim);
-    lv_timer_set_repeat_count(timer, total_ticks);
-    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+        };
+    }
+    play_console_steps(std::move(steps), 600, std::move(on_done));
     return true;
 }
 
@@ -5211,9 +5191,51 @@ json MoonrakerClientMock::build_input_shaper_config() const {
     };
 }
 
+void MoonrakerClientMock::play_console_lines(std::vector<std::string> lines, uint32_t interval_ms,
+                                             std::function<void()> on_done) {
+    std::vector<std::function<void()>> steps;
+    steps.reserve(lines.size());
+    for (auto& line : lines) {
+        steps.emplace_back([this, line = std::move(line)] { dispatch_gcode_response(line); });
+    }
+    play_console_steps(std::move(steps), interval_ms, std::move(on_done));
+}
+
+void MoonrakerClientMock::play_console_steps(std::vector<std::function<void()>> steps,
+                                             uint32_t interval_ms, std::function<void()> on_done) {
+    struct PlaybackState {
+        MoonrakerClientMock* mock;
+        std::vector<std::function<void()>> steps;
+        std::function<void()> on_done;
+        size_t index;
+    };
+    auto* sim = new PlaybackState{this, std::move(steps), std::move(on_done), 0};
+    const auto total_ticks = static_cast<int32_t>(sim->steps.size()) + 1; // + on_done
+
+    lv_timer_t* timer = lv_timer_create(
+        [](lv_timer_t* t) {
+            auto* s = static_cast<PlaybackState*>(lv_timer_get_user_data(t));
+
+            if (s->index < s->steps.size()) {
+                s->steps[s->index++]();
+                return;
+            }
+
+            s->on_done();
+            auto& timers = s->mock->calibration_timers_;
+            timers.erase(std::remove_if(timers.begin(), timers.end(),
+                                        [t](const CalibrationTimer& ct) { return ct.timer == t; }),
+                         timers.end());
+            delete s;
+            lv_timer_delete(t);
+        },
+        interval_ms, sim);
+
+    lv_timer_set_repeat_count(timer, total_ticks);
+    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+}
+
 void MoonrakerClientMock::dispatch_shaper_calibrate_response(char axis) {
-    // Timer-based dispatch for realistic progress animation
-    // Matches PID_CALIBRATE timer pattern (line 1389)
     char axis_lower = static_cast<char>(std::tolower(static_cast<unsigned char>(axis)));
 
     // Build the whole console transcript up front, then play it back one line
@@ -5282,53 +5304,21 @@ void MoonrakerClientMock::dispatch_shaper_calibrate_response(char axis) {
              shaper_csv_path(axis_lower).c_str());
     const std::string csv_line(buf);
 
-    struct ShaperSimState {
-        MoonrakerClientMock* mock;
-        char axis_lower;
-        std::vector<std::string> lines;
-        std::string csv_line;
-        size_t index;
-    };
-
-    auto* sim = new ShaperSimState{this, axis_lower, std::move(lines), csv_line, 0};
-    const int total_steps = static_cast<int>(sim->lines.size()) + 1; // + the CSV line
-
-    lv_timer_t* timer = lv_timer_create(
-        [](lv_timer_t* t) {
-            auto* s = static_cast<ShaperSimState*>(lv_timer_get_user_data(t));
-
-            if (s->index < s->lines.size()) {
-                s->mock->dispatch_gcode_response(s->lines[s->index]);
-                s->index++;
-                return;
-            }
-
-            // Write actual CSV file so frequency response chart has data.
-            // When shaper_csv_writable_ is false, simulate Klipper's /tmp
-            // output being unreadable (e.g. PrivateTmp) by removing any
-            // stale file at the path instead of writing it.
-            std::string csv_path = shaper_csv_path(s->axis_lower);
-            if (s->mock->shaper_csv_writable_) {
-                write_mock_shaper_csv(csv_path, s->axis_lower);
-            } else {
-                std::remove(csv_path.c_str());
-            }
-            s->mock->dispatch_gcode_response(s->csv_line);
-
-            spdlog::info(
-                "[MoonrakerClientMock] Dispatched SHAPER_CALIBRATE response for axis {}",
-                static_cast<char>(std::toupper(static_cast<unsigned char>(s->axis_lower))));
-            auto& timers = s->mock->calibration_timers_;
-            timers.erase(std::remove_if(timers.begin(), timers.end(),
-                                        [t](const CalibrationTimer& ct) { return ct.timer == t; }),
-                         timers.end());
-            delete s;
-            lv_timer_delete(t);
-        },
-        100, sim); // 100ms between lines for snappy animation
-
-    lv_timer_set_repeat_count(timer, total_steps);
-    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+    play_console_lines(std::move(lines), 100, [this, axis_lower, csv_line] {
+        // Write actual CSV file so frequency response chart has data.
+        // When shaper_csv_writable_ is false, simulate Klipper's /tmp
+        // output being unreadable (e.g. PrivateTmp) by removing any
+        // stale file at the path instead of writing it.
+        const std::string csv_path = shaper_csv_path(axis_lower);
+        if (shaper_csv_writable_) {
+            write_mock_shaper_csv(csv_path, axis_lower);
+        } else {
+            std::remove(csv_path.c_str());
+        }
+        dispatch_gcode_response(csv_line);
+        spdlog::info("[MoonrakerClientMock] Dispatched SHAPER_CALIBRATE response for axis {}",
+                     static_cast<char>(std::toupper(static_cast<unsigned char>(axis_lower))));
+    });
 
     spdlog::info("[MoonrakerClientMock] Started SHAPER_CALIBRATE timer for axis {} ({:.0f}-{:.0f} "
                  "Hz sweep)",
@@ -5402,82 +5392,41 @@ void MoonrakerClientMock::dispatch_test_resonances_response(const std::string& g
         final_line = buf;
     }
 
-    struct BeltSimState {
-        MoonrakerClientMock* mock;
-        std::vector<std::string> lines;
-        std::string final_line;
-        std::string csv_path;
-        char path_letter;
-        float peak_hz;
-        double max_freq;
-        bool write;
-        BeltMockFailure mode;
-        size_t index;
-    };
-    auto* sim = new BeltSimState{this,
-                                 std::move(lines),
-                                 std::move(final_line),
-                                 csv_path,
-                                 path_letter,
-                                 belt_peaks_hz_[idx],
-                                 resonance_max_freq_,
-                                 write,
-                                 belt_failure_,
-                                 0};
-
     const uint32_t interval = belt_line_interval_ms_ != 0
                                   ? belt_line_interval_ms_
                                   : static_cast<uint32_t>(std::max(
                                         1, sim_speed().shorten_wait_ms(static_cast<int>(
                                                1000.0 / std::max(1.0, resonance_hz_per_sec_)))));
 
-    lv_timer_t* timer = lv_timer_create(
-        [](lv_timer_t* t) {
-            auto* s = static_cast<BeltSimState*>(lv_timer_get_user_data(t));
-
-            if (s->index < s->lines.size()) {
-                s->mock->dispatch_gcode_response(s->lines[s->index]);
-                s->index++;
-                return;
-            }
-
-            if (!s->final_line.empty()) {
-                if (s->write) {
+    play_console_lines(
+        std::move(lines), interval,
+        [this, final_line, csv_path, path_letter, peak_hz = belt_peaks_hz_[idx],
+         max_freq = resonance_max_freq_, write, mode = belt_failure_] {
+            if (!final_line.empty()) {
+                if (write) {
                     // HELIX_MOCK_BELT_CSV_A/_B replay a real capture for that
                     // path instead of the synthetic curve.
-                    const char* replay = std::getenv(
-                        s->path_letter == 'A' ? "HELIX_MOCK_BELT_CSV_A" : "HELIX_MOCK_BELT_CSV_B");
+                    const char* replay = std::getenv(path_letter == 'A' ? "HELIX_MOCK_BELT_CSV_A"
+                                                                        : "HELIX_MOCK_BELT_CSV_B");
                     std::ifstream src(replay ? replay : "");
-                    if (src && s->mode == BeltMockFailure::NONE) {
-                        std::ofstream(s->csv_path) << src.rdbuf();
+                    if (src && mode == BeltMockFailure::NONE) {
+                        std::ofstream(csv_path) << src.rdbuf();
                         spdlog::info("[MoonrakerClientMock] Replayed belt CSV {} to {}", replay,
-                                     s->csv_path);
+                                     csv_path);
                     } else {
-                        write_mock_belt_csv(s->csv_path, s->path_letter, s->peak_hz, s->max_freq,
-                                            s->mode);
+                        write_mock_belt_csv(csv_path, path_letter, peak_hz, max_freq, mode);
                     }
                 } else {
                     // No file may survive at the path the terminal line names,
                     // or a caller would read stale data as this run's result.
-                    std::remove(s->csv_path.c_str());
+                    std::remove(csv_path.c_str());
                 }
-                s->mock->dispatch_gcode_response(s->final_line);
+                dispatch_gcode_response(final_line);
             }
-
             spdlog::info("[MoonrakerClientMock] Dispatched TEST_RESONANCES response for belt "
                          "path {}",
-                         s->path_letter);
-            auto& timers = s->mock->calibration_timers_;
-            timers.erase(std::remove_if(timers.begin(), timers.end(),
-                                        [t](const CalibrationTimer& ct) { return ct.timer == t; }),
-                         timers.end());
-            delete s;
-            lv_timer_delete(t);
-        },
-        interval, sim);
-
-    lv_timer_set_repeat_count(timer, static_cast<int32_t>(sim->lines.size()) + 1);
-    calibration_timers_.push_back({timer, [sim] { delete sim; }});
+                         path_letter);
+        });
 
     spdlog::info("[MoonrakerClientMock] Started TEST_RESONANCES timer for belt path {} "
                  "({:.0f}-{:.0f} Hz sweep, name '{}')",

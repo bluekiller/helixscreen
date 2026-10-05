@@ -128,9 +128,9 @@ class PrinterManagerOverlay : public OverlayBase {
 
     SubjectManager subjects_;
 
-    lv_subject_t printer_manager_name_;
-    lv_subject_t printer_manager_model_;
-    lv_subject_t helix_version_;
+    lv_subject_t printer_manager_name_{};
+    lv_subject_t printer_manager_model_{};
+    lv_subject_t helix_version_{};
 
     char name_buf_[128] = {};
     char model_buf_[128] = {};
@@ -144,7 +144,7 @@ class PrinterManagerOverlay : public OverlayBase {
     lv_obj_t* printer_image_obj_ = nullptr;
 
     // Name editing state (subject-driven visibility via bind_flag_if_eq in XML)
-    lv_subject_t name_editing_;
+    lv_subject_t name_editing_{};
     lv_obj_t* name_input_ = nullptr;
 
     void start_name_edit();

@@ -2041,8 +2041,10 @@ predicate `AmsContextMenu::decide_show_backup_row(caps, has_relation)`:
 - `editable()` - shown, because there is something to write even before anything is set.
 - Read-only **and** there is a relation to display - shown, but the dropdown gets
   `LV_STATE_DISABLED`.
-- Read-only with no relation - hidden. This is the CFS and AD5X IFS case: the firmware picks
-  the backup and publishes no mapping, so a visible dropdown could only ever read "None".
+- Read-only with no relation - hidden. This is the stock CFS and AD5X IFS case: the firmware
+  picks the backup and publishes no mapping, so a visible dropdown could only ever read "None".
+  The CFS fork dialect does publish one (`box.runout.chain`), so with swapping on and a bay
+  loaded its row shows `loaded slot -> chain[0]`, disabled (#1464).
 
 Backup options are tagged from `AmsBackend::endless_spool_backup_eligibility()`, so a backend
 that tightens the rule (AD5X IFS) tightens the label too. The verdict is tri-state and the two

@@ -210,7 +210,7 @@ variant (`font_heading_medium`, `font_body_large`) names a face the theme regist
 from its breakpoint tier upward, so on most screens the XML engine silently substitutes the
 default font - a trap an author cannot see on an oversized dev display. The policy rejects
 a suffixed token on `style_text_font`, and `helix.canvas` text enforces the same rule
-(`src/ui/theme_manager.cpp#theme_manager_font_token_is_base`).
+(`src/ui/theme_fonts.cpp#theme_manager_font_token_is_base`).
 
 ### plugin_canvas
 

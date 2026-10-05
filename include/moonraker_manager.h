@@ -32,10 +32,6 @@ class PrintStartCollector;
 // Need full enum definition for inline helper function
 #include "printer_state.h"
 
-namespace helix {
-class MacroModificationManager;
-}
-
 /**
  * @brief Manages Moonraker client and API lifecycle
  *
@@ -62,7 +58,7 @@ class MacroModificationManager;
 class MoonrakerManager {
   public:
     // Out-of-line on purpose: the class holds unique_ptr members of
-    // forward-declared types (e.g. MacroModificationManager), and a defaulted
+    // forward-declared types (MoonrakerAPI, IMoonrakerClient), and a defaulted
     // constructor here would instantiate in every TU that constructs the
     // manager, requiring those types to be complete there.
     MoonrakerManager();
@@ -372,20 +368,6 @@ class MoonrakerManager {
         return print_duration > 0;
     }
 
-    /**
-     * @brief Initialize macro analysis manager
-     *
-     * Creates the manager for PRINT_START macro analysis and wizard.
-     * Call after init() but before connect().
-     */
-    void init_macro_analysis(helix::Config* config);
-
-    /**
-     * @brief Get macro modification manager
-     * @return Pointer to manager, or nullptr if not initialized
-     */
-    helix::MacroModificationManager* macro_analysis() const;
-
   private:
     // Initialization helpers
     void create_client(const RuntimeConfig& runtime_config);
@@ -437,9 +419,6 @@ class MoonrakerManager {
     // Snapmaker U1).
     ObserverGuard m_print_layer_observer;
     ObserverGuard m_print_duration_observer;
-
-    // Macro modification manager (PRINT_START wizard integration)
-    std::unique_ptr<helix::MacroModificationManager> m_macro_analysis;
 
 #ifdef HELIX_ENABLE_MOCKS
     /// Loopback HTTP server backing thumbnail/gcode downloads under --test.

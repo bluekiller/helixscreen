@@ -4,10 +4,12 @@
 #pragma once
 
 #include "ui_observer_guard.h"
+#include "ui_timer_guard.h"
 
 #include "belt_gating.h"
 #include "belt_tension_calibrator.h"
 #include "belt_tension_types.h"
+#include "memory_utils.h"
 #include "operation_timeout_guard.h"
 #include "overlay_base.h"
 #include "platform_capabilities.h"
@@ -115,9 +117,9 @@ class BeltTensionPanel : public OverlayBase {
     /// PlatformCapabilities::detect() when the first measurement starts.
     void set_render_tier_for_test(helix::PlatformTier tier, bool supports_animations);
 
-    /// Pin the RAM size the low-memory warning checks. Production reads the
-    /// host's own memory, which is the printer's: the check only runs co-located.
-    void set_total_ram_mb_for_test(size_t total_mb);
+    /// Pin the memory the low-memory check reads. Production reads the host's
+    /// own memory, which is the printer's: the check only runs co-located.
+    void set_memory_for_test(const helix::MemoryInfo& mem);
 
     //
     // === Event Handlers (public for XML callbacks) ===
@@ -175,7 +177,6 @@ class BeltTensionPanel : public OverlayBase {
     void refresh_notes();
     void refresh_run_detail();
     void start_elapsed_timer();
-    void cancel_elapsed_timer();
 
     //
     // === Gate ===
@@ -204,6 +205,8 @@ class BeltTensionPanel : public OverlayBase {
     /// the tier forbids a chart or the view carries no host.
     ui_frequency_response_chart_t* ensure_chart();
     void destroy_chart();
+    /// Re-read belt_path_a/b into the chart's series after a theme change.
+    void apply_path_colors();
     /// Park the chart obj in the RUNNING host; called when a new run starts.
     void chart_to_running_host();
     /// Fit the chart's axes to the curves it holds (or the sweep range before any).
@@ -258,6 +261,7 @@ class BeltTensionPanel : public OverlayBase {
     ObserverGuard print_active_observer_;
     ObserverGuard connected_observer_;
     ObserverGuard klippy_observer_;
+    ObserverGuard theme_observer_;
     bool gate_observers_wired_ = false;
 
     // Klippy's UDS path, from Moonraker's /server/config. Reachability is
@@ -286,6 +290,7 @@ class BeltTensionPanel : public OverlayBase {
 
     // Hardware detection cache. Feeds BeltGateInputs::is_corexy.
     helix::calibration::BeltTensionHardware detected_hw_;
+    bool detection_pending_ = false; ///< detect_hardware() has not answered yet
 
     // Run state
     PathRun runs_[2];
@@ -294,7 +299,7 @@ class BeltTensionPanel : public OverlayBase {
     // " · was N%" from it.
     float similarity_percent_ = 0.0f;
     float was_similarity_percent_ = 0.0f;
-    std::optional<size_t> ram_mb_override_;
+    std::optional<helix::MemoryInfo> mem_override_;
     lv_obj_t* low_ram_dialog_ = nullptr;
     std::vector<helix::calibration::BeltPath> queue_;
     /// Size of the queue this run started with, for "2 of 2" detail lines.
@@ -303,7 +308,7 @@ class BeltTensionPanel : public OverlayBase {
     /// a cancel belong to a run this panel has already abandoned.
     bool run_active_ = false;
     uint32_t run_started_ms_ = 0;
-    lv_timer_t* elapsed_timer_ = nullptr;
+    helix::ui::LvglTimerGuard elapsed_timer_;
     OperationTimeoutGuard stall_guard_;
 
     friend class BeltPanelFixture;

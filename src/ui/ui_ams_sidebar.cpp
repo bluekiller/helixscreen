@@ -54,11 +54,11 @@ namespace {
  * live binding. Registered once, deinit'd via StaticSubjectRegistry (which runs
  * before lv_deinit()), same shape as ScrewsTiltShareModal's row subjects.
  */
-lv_subject_t s_unload_disabled;
-lv_subject_t s_load_disabled;
-lv_subject_t s_reset_disabled;
-lv_subject_t s_check_gates_disabled;
-lv_subject_t s_supports_batch;
+lv_subject_t s_unload_disabled{};
+lv_subject_t s_load_disabled{};
+lv_subject_t s_reset_disabled{};
+lv_subject_t s_check_gates_disabled{};
+lv_subject_t s_supports_batch{};
 bool s_gating_subjects_initialized = false;
 
 void init_button_gating_subjects() {

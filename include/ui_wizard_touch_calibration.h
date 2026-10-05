@@ -146,8 +146,8 @@ class WizardTouchCalibrationStep : public helix::wizard::Step,
     helix::ui::TouchCalibrationController controller_;
 
     // Subjects for UI state (instruction text uses wizard_subtitle instead)
-    lv_subject_t current_step_; // 0, 1, 2, 3 (3 = verify)
-    lv_subject_t calibration_valid_;
+    lv_subject_t current_step_{}; // 0, 1, 2, 3 (3 = verify)
+    lv_subject_t calibration_valid_{};
 
     bool subjects_initialized_ = false;
     bool calibration_failed_ = false; // True after failed attempt, cleared on first point capture

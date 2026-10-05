@@ -36,7 +36,7 @@ void BrotherQLBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize
     auto& loader = helix::bluetooth::BluetoothLoader::instance();
     if (!loader.is_available()) {
         spdlog::error("Brother QL BT: Bluetooth not available");
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("BrotherQLBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, "Bluetooth not available");
         });
@@ -45,7 +45,7 @@ void BrotherQLBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize
 
     if (mac_.empty()) {
         spdlog::error("Brother QL BT: No device configured");
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("BrotherQLBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, "Bluetooth device not configured");
         });
@@ -66,14 +66,14 @@ void BrotherQLBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize
         std::thread([mac, channel, commands = std::move(commands), callback]() {
             auto result = helix::bluetooth::rfcomm_send(mac, channel, commands, "Brother QL BT");
 
-            helix::ui::queue_update([callback, result]() {
+            helix::ui::queue_update("BrotherQLBluetoothPrinter::print", [callback, result]() {
                 if (callback)
                     callback(result.success, result.error);
             });
         }).detach();
     } catch (const std::system_error& e) {
         spdlog::error("Brother QL BT: failed to spawn print thread: {}", e.what());
-        helix::ui::queue_update([callback]() {
+        helix::ui::queue_update("BrotherQLBluetoothPrinter::print", [callback]() {
             if (callback)
                 callback(false, "System busy — please try again");
         });

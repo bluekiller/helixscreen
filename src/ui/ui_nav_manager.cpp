@@ -698,7 +698,8 @@ NavigationManager::PanelRequest NavigationManager::request_panel(PanelId panel_i
     if (dispatch == SwitchDispatch::Queued) {
         // Queued: the switch runs in a later UpdateQueue drain, never during a render
         spdlog::trace("[NavigationManager] Queuing switch to panel {}", id);
-        helix::ui::queue_update([id]() { NavigationManager::instance().switch_to_panel_impl(id); });
+        helix::ui::queue_update("NavigationManager::request_panel",
+                                [id]() { NavigationManager::instance().switch_to_panel_impl(id); });
     } else {
         spdlog::trace("[NavigationManager] Switching to panel {} inline", id);
         switch_to_panel_impl(id);
@@ -1774,7 +1775,8 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
 
     // Always queue - this is the safest pattern for overlay operations
     // which can be triggered from various contexts (events, observers, etc.)
-    helix::ui::queue_update([overlay_panel, hide_previous]() mutable {
+    helix::ui::queue_update("NavigationManager::push_overlay", [overlay_panel,
+                                                                hide_previous]() mutable {
         // Resolved when the push runs, on the UI thread: a rebuild can land
         // between the queueing and now.
         overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
@@ -1943,7 +1945,8 @@ void NavigationManager::unregister_overlay_close_callback(lv_obj_t* overlay_pane
 }
 
 bool NavigationManager::go_back() {
-    helix::ui::queue_update([]() { NavigationManager::instance().go_back_now(); });
+    helix::ui::queue_update("NavigationManager::go_back",
+                            []() { NavigationManager::instance().go_back_now(); });
     return true;
 }
 
@@ -1952,7 +1955,7 @@ void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
         spdlog::error("[NavigationManager] Cannot close NULL overlay panel");
         return;
     }
-    helix::ui::queue_update([overlay_panel]() {
+    helix::ui::queue_update("NavigationManager::close_overlay", [overlay_panel]() {
         // Decided here, in queue order: pushes queued ahead of this operation
         // have landed by now, so "on top" means what the user actually sees,
         // not what was on top when the caller asked.

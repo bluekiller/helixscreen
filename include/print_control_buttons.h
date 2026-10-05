@@ -126,11 +126,11 @@ class PrintControlButtons {
     lv_timer_t* pending_action_timeout_ = nullptr;
 
     SubjectManager subjects_;
-    lv_subject_t primary_icon_subject_;
-    lv_subject_t primary_label_subject_;
-    lv_subject_t primary_enabled_subject_;
-    lv_subject_t stop_enabled_subject_;
-    lv_subject_t pending_action_subject_;
+    lv_subject_t primary_icon_subject_{};
+    lv_subject_t primary_label_subject_{};
+    lv_subject_t primary_enabled_subject_{};
+    lv_subject_t stop_enabled_subject_{};
+    lv_subject_t pending_action_subject_{};
     char primary_icon_buf_[32] = "\xF3\xB0\x8F\xA4";
     char primary_label_buf_[16] = "Pause";
 
