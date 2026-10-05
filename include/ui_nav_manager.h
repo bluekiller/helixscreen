@@ -597,6 +597,9 @@ class NavigationManager {
     // Check if panel requires Moonraker connection
     static bool panel_requires_connection(helix::PanelId panel);
 
+    // True when @p obj is one of the registered main panel widgets.
+    bool is_main_panel(lv_obj_t* obj) const;
+
     // Check if printer is connected
     bool is_printer_connected() const;
 

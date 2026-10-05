@@ -154,6 +154,18 @@ void defer_close_callback(OverlayCloseCallback callback) {
         }
     });
 }
+
+// Back to the resting transform and opacity, so a hidden overlay shows up
+// correctly the next time it is reused. Written unconditionally: reading the
+// current transform and skipping the write when it looks clean leaves stale
+// scale values behind under SDL's logical scaling on Android, which corrupts the
+// display, and the four writes cost less than that.
+void reset_overlay_transform(lv_obj_t* obj) {
+    lv_obj_set_style_translate_x(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_translate_y(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_transform_scale(obj, 256, LV_PART_MAIN);
+    lv_obj_set_style_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
+}
 } // namespace
 
 void NavigationManager::set_overlay_registration_strict(bool enabled) noexcept {
@@ -196,6 +208,15 @@ bool NavigationManager::panel_requires_connection(PanelId panel) {
     return panel == PanelId::Controls || panel == PanelId::Filament;
 }
 
+bool NavigationManager::is_main_panel(lv_obj_t* obj) const {
+    for (int i = 0; i < UI_PANEL_COUNT; i++) {
+        if (panel_widgets_[i] == obj) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool NavigationManager::is_printer_connected() const {
     auto* subject = get_printer_state().get_printer_connection_state_subject();
     return lv_subject_get_int(subject) == 2;
@@ -218,9 +239,7 @@ void NavigationManager::clear_overlay_stack() {
     while (panel_stack_.size() > 1) {
         lv_obj_t* overlay = panel_stack_.back();
         lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
-        // Reset transform and opacity for potential reuse
-        lv_obj_set_style_translate_x(overlay, 0, LV_PART_MAIN);
-        lv_obj_set_style_opa(overlay, LV_OPA_COVER, LV_PART_MAIN);
+        reset_overlay_transform(overlay);
 
         // Deactivate the overlay to stop background work (camera, timers, etc.)
         // and invalidate lifetime tokens. Without this, overlays like QrScanner
@@ -281,11 +300,7 @@ void NavigationManager::overlay_slide_out_complete_cb(lv_anim_t* anim) {
         return;
     }
     lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
-    // Reset all transform and opacity properties for potential reuse
-    lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
-    lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
+    reset_overlay_transform(panel);
     spdlog::trace("[NavigationManager] Overlay slide+fade-out complete, panel {} hidden",
                   (void*)panel);
 
@@ -397,11 +412,7 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
     // Skip animation if disabled - hide panel immediately and invoke callback
     if (!DisplaySettingsManager::instance().get_animations_enabled()) {
         lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
-        // Reset all transform and opacity properties for potential reuse
-        lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
-        lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
+        reset_overlay_transform(panel);
         spdlog::trace("[NavigationManager] Animations disabled - hiding overlay instantly");
 
         // Invoke close callback if registered
@@ -744,19 +755,9 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 continue;
             }
 
-            bool is_main_panel = false;
-            for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                if (panel_widgets_[j] == child) {
-                    is_main_panel = true;
-                    break;
-                }
-            }
-
-            if (!is_main_panel) {
+            if (!is_main_panel(child)) {
                 lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-                // Reset transform and opacity for potential reuse
-                lv_obj_set_style_translate_x(child, 0, LV_PART_MAIN);
-                lv_obj_set_style_opa(child, LV_OPA_COVER, LV_PART_MAIN);
+                reset_overlay_transform(child);
                 spdlog::trace("[NavigationManager] Hiding overlay panel {} (nav button clicked)",
                               (void*)child);
             }
@@ -1968,10 +1969,8 @@ void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
         if (it == mgr.panel_stack_.end()) {
             return; // already left the stack some other way
         }
-        for (int j = 0; j < UI_PANEL_COUNT; j++) {
-            if (mgr.panel_widgets_[j] == root) {
-                return; // a main panel is not an overlay to close
-            }
+        if (mgr.is_main_panel(root)) {
+            return; // a main panel is not an overlay to close
         }
         if (it == mgr.panel_stack_.end() - 1) {
             mgr.go_back_now(); // on top: normal pop with restore path
@@ -2017,16 +2016,7 @@ void NavigationManager::go_back_now() {
         lv_obj_t* current_top = mgr.panel_stack_.empty() ? nullptr : mgr.panel_stack_.back();
 
         // Check if current top is an overlay
-        bool is_overlay = false;
-        if (current_top) {
-            is_overlay = true;
-            for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                if (mgr.panel_widgets_[j] == current_top) {
-                    is_overlay = false;
-                    break;
-                }
-            }
-        }
+        const bool is_overlay = current_top && !mgr.is_main_panel(current_top);
 
         // Lifecycle: Deactivate the closing overlay before animation
         if (is_overlay && current_top) {
@@ -2084,23 +2074,9 @@ void NavigationManager::go_back_now() {
                     helix::ui::is_screen_chrome(child)) {
                     continue;
                 }
-                bool is_main = false;
-                for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                    if (mgr.panel_widgets_[j] == child) {
-                        is_main = true;
-                        break;
-                    }
-                }
-                if (!is_main && !lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+                if (!mgr.is_main_panel(child) && !lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
                     lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-                    // Reset unconditionally. Reading the current transform first and
-                    // skipping the write when it looks clean leaves stale scale values
-                    // behind under SDL's logical scaling on Android, which corrupts the
-                    // display; the four writes cost less than that.
-                    lv_obj_set_style_translate_x(child, 0, LV_PART_MAIN);
-                    lv_obj_set_style_translate_y(child, 0, LV_PART_MAIN);
-                    lv_obj_set_style_transform_scale(child, 256, LV_PART_MAIN);
-                    lv_obj_set_style_opa(child, LV_OPA_COVER, LV_PART_MAIN);
+                    reset_overlay_transform(child);
                 }
             }
         }
