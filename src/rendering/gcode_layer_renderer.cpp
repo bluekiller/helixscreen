@@ -359,11 +359,6 @@ void GCodeLayerRenderer::apply_selection_scope(InvalidationScope scope) {
     switch (scope) {
     case InvalidationScope::Nothing:
         return;
-    case InvalidationScope::SolidCache:
-        // Highlight only. The ghost pass never draws highlight, so leaving its cache
-        // and its worker alone saves a multi-second re-render of an identical image.
-        invalidate_solid_cache();
-        return;
     case InvalidationScope::SolidAndGhost:
         invalidate_cache();
         return;

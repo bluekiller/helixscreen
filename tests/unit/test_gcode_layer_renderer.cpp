@@ -1299,9 +1299,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "clearing the selection removes the halo",
     };
 
     REQUIRE(draw() > 0);
-    // Deselecting must invalidate the solid cache, or the halo would persist as a
-    // stale cached image -- the exact bug the InvalidationScope split could cause
-    // if SolidCache were mishandled.
+    // Deselecting must invalidate the solid cache, or the rim would persist as
+    // stale cached pixels.
     renderer.set_highlighted_objects({});
     REQUIRE(draw() == 0);
 }
