@@ -645,6 +645,39 @@ void HomePanel::populate_page(int page_index, bool force) {
     populating_widgets_ = false;
 }
 
+bool HomePanel::relayout_edit_page(const std::string& resized_id) {
+    const int page = grid_edit_mode_.page_index();
+    if (page < 0 || page >= static_cast<int>(pages_.size()) ||
+        !grid_edit_mode_.is_scoped_to(pages_[static_cast<size_t>(page)].container)) {
+        return false;
+    }
+    auto& entry = pages_[static_cast<size_t>(page)];
+    auto fresh = helix::PanelWidgetManager::instance().relayout_tiles("home", entry.container, page,
+                                                                      resized_id, entry.widgets);
+    if (!fresh) {
+        return false;
+    }
+    for (PanelWidget* w : *fresh) {
+        // As populate_page() treats a built page: bubbling for edit mode's
+        // handlers, and disarmed, since a session is live. The tile root is the
+        // page container's child, so the recursive helpers, which start below
+        // the object they are given, do not reach it.
+        if (lv_obj_t* tile = w->root()) {
+            lv_obj_add_flag(tile, LV_OBJ_FLAG_EVENT_BUBBLE);
+            set_event_bubble_recursive(tile);
+            if (lv_obj_has_flag(tile, LV_OBJ_FLAG_CLICKABLE)) {
+                lv_obj_remove_flag(tile, LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_add_flag(tile, helix::ui::EDIT_CLICK_SUPPRESSED_FLAG);
+            }
+            disable_widget_clicks_recursive(tile);
+        }
+        if (panel_active_ && page == active_page_index_) {
+            w->on_activate();
+        }
+    }
+    return true;
+}
+
 void HomePanel::on_page_changed(int new_page) {
     if (new_page == active_page_index_) {
         return;
@@ -843,6 +876,8 @@ void HomePanel::finalize_setup() {
 void HomePanel::wire_grid_edit_page_callbacks() {
     // The rebuild edit mode schedules after it rearranges widgets
     grid_edit_mode_.set_rebuild_callback([this]() { populate_widgets(); });
+    grid_edit_mode_.set_relayout_callback(
+        [this](const std::string& resized_id) { return relayout_edit_page(resized_id); });
 
     grid_edit_mode_.set_delete_page_callback([]() {
         helix::ui::modal_confirm("Delete Page", "Remove this page and all its widgets?",
@@ -1161,6 +1196,19 @@ void HomePanel::exit_grid_edit_mode() {
     // carried back to its page before the session is gone.
     grid_edit_mode_.end_gesture_uncommitted();
     grid_edit_mode_.exit();
+    // The widgets are left as edit mode arranged them; every page was disarmed
+    // at entry, so every page is armed again.
+    for (const CarouselPage& page : pages_) {
+        helix::ui::enable_widget_clicks_recursive(page.container);
+    }
+    // Gate and settings rebuilds wait out a session. On the next tick, outside
+    // the input dispatch that ended it, catch up on any that changed a page;
+    // a page whose widget list is unchanged is left alone.
+    helix::ui::run_next_tick(lifetime_.token(), [this]() {
+        if (!grid_edit_mode_.is_active()) {
+            populate_widgets(/*force=*/false);
+        }
+    });
     // Hand the carousel swipe back to its page count, and take the next-page
     // slot out of reach
     apply_edit_swipe_policy();

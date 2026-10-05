@@ -327,3 +327,94 @@ TEST_CASE_METHOD(XMLTestFixture, "Card merge: a tall widget beside a short row i
     size_t cards = check_card_containment("test_card_merge_tall", widgets, ids, test_screen());
     CHECK(cards >= 2);
 }
+
+// Edit mode re-seats a page in place after a move instead of populating it
+// again. The tiles keep their objects, and a card the new arrangement still
+// has keeps its object too: a replaced card repaints everything behind it.
+TEST_CASE_METHOD(XMLTestFixture, "Card merge: an in-place relayout replaces only changed cards",
+                 "[manager][card_merge]") {
+    helix::init_widget_registrations();
+    lv_xml_register_component_from_data(
+        "test_card_merge_stub",
+        "<component><view extends=\"lv_obj\" width=\"100%\" height=\"100%\"/></component>");
+    REQUIRE(theme_manager_get_spacing("space_xs") > 0);
+
+    ScopedWidgetFactory a("shutdown", stub_factory());
+    ScopedWidgetFactory b("lock", stub_factory());
+
+    // Two whole-cell widgets one cell apart: two components, two cards.
+    const std::string panel_id = "test_card_merge_relayout";
+    auto* cfg = Config::get_instance();
+    cfg->set<nlohmann::json>(
+        cfg->df() + "panel_widgets/" + panel_id,
+        nlohmann::json{{"main_page_index", 0},
+                       {"next_page_id", 2},
+                       {"pages",
+                        {{{"id", "main"}, {"widgets", nlohmann::json::array()}},
+                         {{"id", "spy"},
+                          {"widgets",
+                           {{{"id", "shutdown"},
+                             {"enabled", true},
+                             {"col", 0},
+                             {"row", 0},
+                             {"colspan", TPC},
+                             {"rowspan", TPC}},
+                            {{"id", "lock"},
+                             {"enabled", true},
+                             {"col", 2 * TPC},
+                             {"row", 0},
+                             {"colspan", TPC},
+                             {"rowspan", TPC}}}}}}}});
+    auto& mgr = PanelWidgetManager::instance();
+    mgr.get_widget_config(panel_id).mark_dirty();
+    mgr.clear_panel_config(panel_id);
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_set_size(container, 800, 480);
+    lv_obj_update_layout(container);
+    auto held = mgr.populate_widgets(panel_id, container, /*page_index=*/1);
+    lv_obj_update_layout(container);
+
+    const std::vector<std::string> ids = {"shutdown", "lock"};
+    lv_obj_t* shutdown = lv_obj_find_by_name(container, "shutdown");
+    lv_obj_t* lock = lv_obj_find_by_name(container, "lock");
+    REQUIRE(shutdown != nullptr);
+    REQUIRE(lock != nullptr);
+    auto card_behind = [&](lv_obj_t* widget) -> lv_obj_t* {
+        lv_area_t w_area;
+        lv_obj_get_coords(widget, &w_area);
+        for (lv_obj_t* card : card_backgrounds(container, ids)) {
+            lv_area_t c_area;
+            lv_obj_get_coords(card, &c_area);
+            if (area_contains(c_area, w_area)) {
+                return card;
+            }
+        }
+        return nullptr;
+    };
+    REQUIRE(card_backgrounds(container, ids).size() == 2);
+    lv_obj_t* shutdown_card = card_behind(shutdown);
+    REQUIRE(shutdown_card != nullptr);
+
+    // lock moves one cell down: shutdown's card is unchanged, lock's moves.
+    REQUIRE(mgr.get_widget_config(panel_id).place_entry("lock", 1, 2 * TPC, TPC, TPC, TPC) >= 0);
+    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, "", held).has_value());
+    lv_obj_update_layout(container);
+
+    CHECK(lv_obj_find_by_name(container, "shutdown") == shutdown);
+    CHECK(lv_obj_find_by_name(container, "lock") == lock);
+    CHECK(lv_obj_get_style_grid_cell_row_pos(lock, LV_PART_MAIN) == TPC);
+    CHECK(card_backgrounds(container, ids).size() == 2);
+    CHECK(card_behind(shutdown) == shutdown_card);
+    CHECK(card_behind(lock) != nullptr);
+
+    // lock beside shutdown: the two fuse into one card behind both.
+    REQUIRE(mgr.get_widget_config(panel_id).place_entry("lock", 1, TPC, 0, TPC, TPC) >= 0);
+    REQUIRE(mgr.relayout_tiles(panel_id, container, 1, "", held).has_value());
+    lv_obj_update_layout(container);
+    REQUIRE(card_backgrounds(container, ids).size() == 1);
+    CHECK(card_behind(shutdown) == card_behind(lock));
+
+    mgr.clear_panel_config(panel_id);
+    held.clear();
+    lv_obj_delete(container);
+}

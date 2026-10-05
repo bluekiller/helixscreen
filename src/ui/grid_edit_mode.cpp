@@ -72,7 +72,7 @@ GridEditMode::~GridEditMode() {
     cancel_snap_animation();
 }
 
-void GridEditMode::cancel_snap_animation() {
+bool GridEditMode::cancel_snap_animation() {
     // Drop our handle BEFORE cancelling. lv_anim_delete() runs the animation's
     // deleted_cb synchronously and that callback writes this same member, so
     // the order keeps it from racing us back to a stale value.
@@ -106,7 +106,9 @@ void GridEditMode::cancel_snap_animation() {
         // other owner remains; retire it or it stays drawn wherever the
         // interruption left it.
         delete_resize_outline(outline);
+        return widget != nullptr;
     }
+    return false;
 }
 
 void GridEditMode::finish_resize_snap() {
@@ -116,8 +118,7 @@ void GridEditMode::finish_resize_snap() {
     // Copied first: the cancel clears it.
     std::string widget_id = snap_anim_widget_id_;
     cancel_snap_animation();
-    forget_container_children();
-    rebuild_then_select(std::move(widget_id));
+    relayout_then_select(std::move(widget_id), /*resized=*/true);
 }
 
 void GridEditMode::stop_page_flip_timers() {
@@ -301,10 +302,12 @@ void GridEditMode::switch_page(lv_obj_t* container, int page_index) {
                       page_index_);
         return;
     }
-    // A resize snap animation in flight stops here: its completion forgets and
-    // rebuilds the objects this session is about to take to the new page. The
-    // stop lays the resized widget out at its committed cell in place.
-    cancel_snap_animation();
+    // A resize snap animation in flight stops here: its completion re-seats the
+    // page this session is about to leave. The stop lays the resized widget out
+    // at its committed cell in place, and exit() rebuilds its content.
+    if (cancel_snap_animation()) {
+        rebuild_on_exit_ = true;
+    }
     const bool carry = dragging_;
     if (carry) {
         // The dragged widget is FLOATING (drag positioning ignores layout) and
@@ -354,18 +357,29 @@ void GridEditMode::exit() {
         WidgetCatalogOverlay::close();
     }
 
-    // Pointers into the container are forgotten, not deleted: the deferred
-    // rebuild below replaces the children of every page. The owner ends a live
-    // gesture before exiting (HomePanel::exit_grid_edit_mode), so what is left
-    // of one here is its state and the dragged widget's float.
+    // The owner ends a live gesture before exiting
+    // (HomePanel::exit_grid_edit_mode), so what is left of one here is its
+    // state and the dragged widget's float.
     if (dragging_ && selected_) {
         lv_obj_remove_flag(selected_, LV_OBJ_FLAG_FLOATING);
     }
     clear_gesture_state();
     // Before config_ is nulled below: the snap animation's completion callback
-    // dereferences it unconditionally, and the deferred rebuild scheduled here
-    // is what destroys the widget that animation is driving.
-    cancel_snap_animation();
+    // dereferences it unconditionally.
+    const bool rebuild = cancel_snap_animation() || rebuild_on_exit_;
+    rebuild_on_exit_ = false;
+
+    // The widgets stay as they are; only the session's own objects go: the
+    // shield (its lattice and delete-page button are its children), the
+    // selection chrome and both previews. Deferred, since an exit can run
+    // inside input dispatch (#814). Restoring the widgets' clicks is the
+    // owner's, which disarmed every page.
+    if (lv_is_initialized()) {
+        destroy_selection_chrome();
+        destroy_snap_preview();
+        delete_resize_outline(resize_outline_);
+        helix::ui::safe_delete_deferred(shield_);
+    }
     forget_container_children();
 
     lv_subject_set_int(&get_home_edit_mode_subject(), 0);
@@ -373,10 +387,10 @@ void GridEditMode::exit() {
     if (config_) {
         config_->save();
     }
-    // Defer the rebuild to the next timer tick so lv_obj_clean runs outside
-    // indev_proc_release — synchronous deletion during input processing
-    // corrupts LVGL's child list iteration (#814).
-    schedule_deferred_rebuild();
+    if (rebuild) {
+        // On the next tick, outside indev_proc_release (#814).
+        schedule_deferred_rebuild();
+    }
 
     container_ = nullptr;
     config_ = nullptr;
@@ -1517,11 +1531,12 @@ void GridEditMode::begin_press() {
         end_gesture_uncommitted();
     }
     clear_gesture_state();
-    // A resize still easing into its cell owes the rebuild that lays the
-    // resized widget out, and that rebuild replaces the objects this press
-    // lands on, its target among them. The press finishes the snap, which
-    // schedules the rebuild for the next tick, and takes no grid action, so no
-    // gesture owns the pointer when the rebuild runs.
+    // A resize still easing into its cell owes the relayout that re-creates
+    // the resized tile, and when the relayout falls back to a full rebuild
+    // that replaces the objects this press lands on, its target among them.
+    // The press finishes the snap, which schedules the relayout for the next
+    // tick, and takes no grid action, so no gesture owns the pointer when it
+    // runs.
     if (snap_anim_outline_[0]) {
         finish_resize_snap();
         gesture_inert_ = true;
@@ -1889,7 +1904,13 @@ void GridEditMode::handle_drag_end(lv_event_t* /*e*/) {
         notify_pages_changed(change);
         return;
     }
-    // A move that leaves the page set alone lands on the scoped page.
+    // A move that leaves the page set alone lands on the scoped page. Within
+    // its own page only cells changed; a move onto another page takes the
+    // widget out of its origin page too, which the full rebuild restores.
+    if (landed_page == origin_page) {
+        relayout_then_select(moved_id, /*resized=*/false);
+        return;
+    }
     forget_container_children();
     rebuild_then_select(moved_id);
 }
@@ -2235,18 +2256,13 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
     // depend on the animation finishing.
     config_->save();
 
-    // Clean up resize state (before animation or rebuild)
+    // Clean up resize state. The snap preview goes now; the outline eases into
+    // the committed cell first.
+    destroy_snap_preview();
     clear_gesture_state();
 
-    // Prepare rebuild context for deferred execution
-    auto do_rebuild = [this, resized_id]() {
-        forget_container_children();
-        rebuild_then_select(resized_id);
-    };
-
-    // Animate preview to final grid position, then rebuild on completion.
-    // The rebuild destroys all container children, so it MUST NOT run while
-    // the animation is still in flight (the preview is a container child).
+    // Animate the outline to its final grid position, then re-seat the page on
+    // completion, which re-creates the resized tile at its new span.
     if (resize_outline_[0] && DisplaySettingsManager::instance().get_animations_enabled()) {
         struct SnapData {
             int target_x, target_y, target_w, target_h;
@@ -2308,12 +2324,12 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
             delete d;
         });
         lv_anim_set_completed_cb(&anim, [](lv_anim_t* a) {
-            auto* self = static_cast<SnapData*>(a->user_data)->self;
-            // The rebuild destroys the preview with the container's other
-            // children, and SnapData is freed by deleted_cb, which LVGL calls
-            // right after this returns. The span was saved at commit.
-            self->forget_container_children();
-            self->rebuild_then_select(self->snap_anim_widget_id_);
+            auto* d = static_cast<SnapData*>(a->user_data);
+            // SnapData is freed by deleted_cb, which LVGL calls right after
+            // this returns. The span was saved at commit.
+            std::string widget_id = d->self->snap_anim_widget_id_;
+            delete_resize_outline(d->outline);
+            d->self->relayout_then_select(std::move(widget_id), /*resized=*/true);
         });
         lv_anim_start(&anim);
         // The exec callback writes every bar, so the death of any bar ends the
@@ -2335,9 +2351,8 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
         // rebuild.
         resize_outline_ = {};
     } else {
-        // No animation: clean up and rebuild immediately
         delete_resize_outline(resize_outline_);
-        do_rebuild();
+        relayout_then_select(resized_id, /*resized=*/true);
     }
 }
 
@@ -2459,6 +2474,33 @@ void GridEditMode::rebuild_then_select(std::string widget_id) {
             select_widget(widget);
         }
     });
+}
+
+void GridEditMode::relayout_then_select(std::string widget_id, bool resized) {
+    // The chrome outlines the widget where it was; it is drawn again around
+    // where the relayout leaves it.
+    destroy_selection_chrome();
+    selected_ = nullptr;
+    helix::ui::run_next_tick(
+        lifetime_.token(), [this, widget_id = std::move(widget_id), resized]() {
+            if (!active_ || !container_) {
+                return;
+            }
+            if (!relayout_cb_ || !relayout_cb_(resized ? widget_id : std::string{})) {
+                forget_container_children();
+                rebuild_then_select(widget_id);
+                return;
+            }
+            if (!shield_) {
+                ensure_shield();
+            }
+            // Layout first: the selection chrome is placed from the widget's
+            // coordinates, and a re-created tile has none until it runs.
+            lv_obj_update_layout(container_);
+            if (lv_obj_t* widget = lv_obj_get_child_by_name(container_, widget_id.c_str())) {
+                select_widget(widget);
+            }
+        });
 }
 
 void GridEditMode::ensure_shield() {

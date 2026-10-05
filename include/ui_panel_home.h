@@ -161,7 +161,8 @@ class HomePanel : public PanelBase {
     void update_populated_pages_subject();
 
     /// Give edit mode the page work it asks the panel for: the rebuild that
-    /// repopulates every page from config, and the page-deletion confirmation.
+    /// repopulates every page from config, the in-place relayout of the edited
+    /// page (relayout_edit_page()), and the page-deletion confirmation.
     /// Part of finalize_setup(); the constructor wires the callbacks that must
     /// work before a carousel exists.
     void wire_grid_edit_page_callbacks();
@@ -190,6 +191,12 @@ class HomePanel : public PanelBase {
     void add_page_from_slot();
     void update_arrow_visibility(int page);
     void populate_page(int page_index, bool force);
+    /// Re-seat the edit session's page in place after a move or resize
+    /// (PanelWidgetManager::relayout_tiles), re-creating the tile named
+    /// @p resized_id (empty for none). A re-created tile is disarmed for edit
+    /// mode and activated like a populate's. False when the page needs a full
+    /// populate instead.
+    bool relayout_edit_page(const std::string& resized_id);
 
     /// Apply the carousel swipe policy for the edit session: Disabled while an
     /// edit gesture owns the pointer or the widget catalog is open, Auto (swipe

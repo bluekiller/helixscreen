@@ -520,6 +520,7 @@ class EditHomeFixture : public LVGLTestFixture {
         // Back to a panel finalize_setup() has not wired: the global panel
         // outlives this case, and later cases seed pages of their own.
         grid().set_rebuild_callback(nullptr);
+        grid().set_relayout_callback(nullptr);
         grid().set_delete_page_callback(nullptr);
         HomePanelTestAccess::release_finalize(home);
         HomePanelTestAccess::release_carousel(home);
@@ -1632,6 +1633,30 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(entry_on_page(0, "temperature").col == origin.col + 2 * CELL_TRACKS);
 }
 
+TEST_CASE_METHOD(EditHomeFixture, "leaving edit mode re-arms every page without rebuilding it",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    lv_obj_t* far_widget = widget_on(1, "fan");
+    REQUIRE(is_clickable(widget));
+    REQUIRE(is_clickable(far_widget));
+    enter_edit_mode();
+    REQUIRE_FALSE(is_clickable(widget));
+    REQUIRE_FALSE(is_clickable(far_widget));
+    lv_obj_t* shield = GridEditModeTestAccess::shield(grid());
+    REQUIRE(shield != nullptr);
+
+    panel().exit_grid_edit_mode();
+    settle();
+
+    // The pages keep the objects the session arranged; only its own go.
+    CHECK(widget_on(0, "temperature") == widget);
+    CHECK(widget_on(1, "fan") == far_widget);
+    CHECK(is_clickable(widget));
+    CHECK(is_clickable(far_widget));
+    CHECK_FALSE(lv_obj_is_valid(shield));
+}
+
 TEST_CASE_METHOD(EditHomeFixture, "entering edit mode disarms clicks on every page",
                  "[1638][edit-swipe][home][grid_edit]") {
     build_home();
@@ -1692,6 +1717,15 @@ TEST_CASE_METHOD(EditHomeFixture, "a multi-frame resize commits and tears down i
     CHECK(committed.rowspan == orig.rowspan + CELL_TRACKS); // one cell taller
     CHECK(GridEditModeTestAccess::resize_preview(grid()) == nullptr);
     CHECK_FALSE(lv_obj_is_valid(preview)); // nothing it drew is left
+    CHECK(GridEditModeTestAccess::snap_preview(grid()) == nullptr);
+
+    // Only the resized tile is built again, at its new span, disarmed like the
+    // rest of the page while the session lasts, and selected.
+    lv_obj_t* resized = widget_on(0, "temperature");
+    CHECK(resized != widget);
+    CHECK(lv_obj_get_style_grid_cell_row_span(resized, LV_PART_MAIN) == committed.rowspan);
+    CHECK_FALSE(is_clickable(resized));
+    CHECK(grid().selected_widget() == resized);
 }
 
 TEST_CASE_METHOD(EditHomeFixture, "a multi-frame drag commits its landing cell",
@@ -1728,11 +1762,12 @@ TEST_CASE_METHOD(EditHomeFixture, "a multi-frame drag commits its landing cell",
     CHECK(committed.col == expected_col);
     CHECK(committed.row == orig.row);
 
-    // The commit's rebuild replaced the widget's object, and the rebuilt object
-    // is selected.
-    lv_obj_t* rebuilt = widget_on(0, "temperature");
-    CHECK(rebuilt != widget);
-    CHECK(grid().selected_widget() == rebuilt);
+    // A move within its page re-seats the page in place: the widget keeps its
+    // object, laid out at the landing cell, and is selected again.
+    lv_obj_t* moved = widget_on(0, "temperature");
+    CHECK(moved == widget);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(moved, LV_PART_MAIN) == expected_col);
+    CHECK(grid().selected_widget() == moved);
 }
 
 TEST_CASE_METHOD(EditHomeFixture,

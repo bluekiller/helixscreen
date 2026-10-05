@@ -83,6 +83,13 @@ class GridEditMode {
     /// then shows the focus page; the grid skips its own deferred rebuild.
     using PagesChangedCallback = std::function<void(const helix::PageSetChange& change)>;
 
+    /// Asked, on the tick after a move or resize committed on the scoped page,
+    /// to re-seat that page's tiles at their config cells in place
+    /// (PanelWidgetManager::relayout_tiles), re-creating the tile named by the
+    /// argument (empty for none) at its new span. Returns false when the page
+    /// needs the full rebuild instead, which then runs.
+    using RelayoutCallback = std::function<bool(const std::string& resized_id)>;
+
     GridEditMode() = default;
     ~GridEditMode();
 
@@ -154,6 +161,10 @@ class GridEditMode {
 
     void set_rebuild_callback(RebuildCallback cb) {
         rebuild_cb_ = std::move(cb);
+    }
+
+    void set_relayout_callback(RelayoutCallback cb) {
+        relayout_cb_ = std::move(cb);
     }
 
     void set_delete_page_callback(DeletePageCallback cb) {
@@ -484,6 +495,13 @@ class GridEditMode {
     /// before the rebuild ran.
     void rebuild_then_select(std::string widget_id);
 
+    /// After a commit that changed only cells on the scoped page: drop the
+    /// selection now, then on the next tick ask relayout_cb_ to re-seat the
+    /// page in place (re-creating @p widget_id's tile when @p resized) and
+    /// select @p widget_id again. Falls back to rebuild_then_select() when the
+    /// relayout is refused or there is no callback.
+    void relayout_then_select(std::string widget_id, bool resized);
+
     // Resize helpers
     bool is_selected_widget_resizable() const;
     void handle_resize_move(lv_event_t* e);
@@ -501,10 +519,12 @@ class GridEditMode {
     /// in-place layout is a grid cell write that creates and deletes nothing,
     /// so a stop no rebuild follows (switch_page) still shows the committed
     /// span, from inside input dispatch or under a live gesture alike.
-    void cancel_snap_animation();
+    /// @return Whether a widget was laid out at its committed cell, which leaves
+    ///         its content sized for the old span until something rebuilds it.
+    bool cancel_snap_animation();
 
     /// Finish a resize snap animation in flight: stop it, retire its preview,
-    /// and schedule the rebuild its completion would have run, re-selecting
+    /// and schedule the relayout its completion would have run, re-selecting
     /// the resized widget. Nothing when no snap is in flight.
     void finish_resize_snap();
 
@@ -526,6 +546,7 @@ class GridEditMode {
     PanelWidgetConfig* config_ = nullptr;
     int page_index_ = 0;
     RebuildCallback rebuild_cb_;
+    RelayoutCallback relayout_cb_;
     DeletePageCallback delete_page_cb_;
     GestureOwnershipCallback gesture_ownership_cb_;
     ShowPageCallback show_page_cb_;
@@ -605,7 +626,8 @@ class GridEditMode {
     /// neither arm nor select, and its holds neither grab nor open the
     /// catalog. Set for the hold that entered edit mode, which has made its
     /// one selection, and for a press that finished a resize snap, whose
-    /// rebuild replaces the objects under it on the next tick.
+    /// relayout replaces the resized tile, and possibly every object under the
+    /// press, on the next tick.
     /// clear_gesture_state() resets it.
     bool gesture_inert_ = false;
 
@@ -660,6 +682,9 @@ class GridEditMode {
 
     /// A deferred rebuild is scheduled and has not run yet.
     bool rebuild_pending_ = false;
+    /// A stopped resize snap left a widget at its new cell with content sized
+    /// for the old span (see cancel_snap_animation()); exit() rebuilds it.
+    bool rebuild_on_exit_ = false;
     /// Work to run after the pending rebuild, in request order.
     std::vector<std::function<void()>> rebuild_posts_;
 
