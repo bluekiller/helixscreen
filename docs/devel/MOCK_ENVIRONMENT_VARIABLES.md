@@ -831,15 +831,17 @@ Choose which Z-probe the mock printer advertises. Controls both the Klipper obje
 |----------|-------|
 | **Values** | `cartographer`, `beacon`, `bltouch`, `loadcell`, `tap`, `klicky`, `standard`, `none` |
 | **Default** | `cartographer` |
-| **File** | `src/api/moonraker_client_mock.cpp` |
+| **File** | `src/api/moonraker_client_mock_objects.cpp` |
 
-| Value | Object exposed | Status detail |
-|-------|----------------|---------------|
-| `cartographer` *(default)* | `cartographer` | `last_z_result: -0.425`, `z_offset: 0.0` |
-| `beacon` | `beacon` | `last_z_result: -0.312`, `z_offset: 0.0` |
-| `bltouch` | `bltouch` | `last_z_result: 0.130`, `z_offset: -1.850` |
-| `loadcell` | generic `probe` | `z_offset: null` (the load-cell-probe case) |
-| `tap` / `klicky` / `standard` / anything else | generic `probe` | `last_z_result: 0.0`, `z_offset: -0.250` |
+Each value exposes the objects and full `get_status()` payload the real module publishes (`helix::sim::mock_probe_status()`; per-type table in `docs/devel/SENSOR_MANAGEMENT.md` § Probe status keys).
+
+| Value | Objects exposed | Status detail |
+|-------|-----------------|---------------|
+| `cartographer` *(default)* | `cartographer`, `probe` | `cartographer`: `scan`/`touch`/`mcu`; `probe`: `last_query: 0`, `last_z_result: -0.425` |
+| `beacon` | `beacon`, `probe` | `beacon`: `last_z_result: -0.312` plus Beacon's other keys; `probe`: `{name: "beacon"}` |
+| `bltouch` | `bltouch`, `probe` (same payload) | `last_query: false`, `last_z_result: 0.130` |
+| `loadcell` | generic `probe` | `last_z_result: 0.0`, `z_offset: null` (the Flashforge shape) |
+| `tap` / `klicky` / `standard` / anything else | generic `probe` | `last_query: false`, `last_z_result: 0.0` |
 | `none` | *(no probe object)* | *(no probe status)* |
 
 ```bash
