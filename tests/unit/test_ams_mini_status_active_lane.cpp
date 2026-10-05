@@ -78,8 +78,10 @@ class ActiveLaneMock : public AmsBackendMock {
         }
     }
 
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return per_slot_authority;
+    [[nodiscard]] BackendTraits traits() const override {
+        BackendTraits t = AmsBackendMock::traits();
+        t.has_per_slot_loaded_authority = per_slot_authority;
+        return t;
     }
     [[nodiscard]] bool is_filament_loaded() const override {
         return aggregate_loaded;

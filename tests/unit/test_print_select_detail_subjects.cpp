@@ -29,6 +29,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/mock_bypass.h"
 #include "../test_helpers/printer_state_test_access.h"
 #include "ams_backend_mock.h"
 #include "ams_remap.h"
@@ -779,6 +780,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "A bypassed single-lane print renders no fil
     REQUIRE(card != nullptr);
 
     SECTION("bypass engaged: no chip, no card, no tap affordance") {
+        REQUIRE(helix::test::unload_for_bypass(*ams.backend));
         REQUIRE(ams.backend->enable_bypass().success());
         REQUIRE(ams.backend->is_bypass_active());
         REQUIRE(helix::AmsState::instance().any_bypass_active());
