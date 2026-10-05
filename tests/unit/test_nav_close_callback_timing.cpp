@@ -189,3 +189,18 @@ TEST_CASE_METHOD(CloseTimingFixture, "A close callback still runs when its owner
     CHECK(upper_closes_ == 1);
     nav().unregister_overlay_instance(upper_);
 }
+
+TEST_CASE_METHOD(CloseTimingFixture,
+                 "A close callback still runs when a hot-reload rebuild rekeys the root first",
+                 "[navigation][overlay][close_timing]") {
+    nav().register_overlay_instance(upper_, nullptr);
+    NavigationManagerTestAccess::set_panel_stack(nav(), {home_});
+    NavigationManagerTestAccess::slide_out_complete(upper_);
+
+    lv_obj_t* rebuilt = lv_obj_create(test_screen());
+    nav().rekey_overlay_widget(upper_, rebuilt);
+    process_lvgl(50);
+
+    CHECK(upper_closes_ == 1);
+    nav().unregister_overlay_instance(rebuilt);
+}
