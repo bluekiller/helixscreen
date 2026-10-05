@@ -954,13 +954,17 @@ jobs:
         ### ESP32 (BTT K-Touch) - alpha
         Firmware for the BigTreeTech K-Touch, flashed over USB with esptool. Not built for 1.0.x releases.
         - `helixscreen-esp32-ktouch-${{ steps.version.outputs.version }}.zip`: unzip it and follow `README.txt` inside, or see the [install guide](https://github.com/${{ github.repository }}/blob/main/docs/user/INSTALL.md#esp32-touchscreen-btt-k-touch---alpha)
-
-        ## Checksums
-
-        ```
-        $(cd release-files && sha256sum *.tar.gz *.zip *.apk *.aab 2>/dev/null)
-        ```
         EOF
+          # The heredoc above is quoted so the notes' backticks stay literal, so
+          # the checksums are appended by a real command.
+          {
+            echo
+            echo "## Checksums"
+            echo
+            echo '```'
+            (cd release-files && sha256sum *.tar.gz *.zip *.apk *.aab 2>/dev/null) || true
+            echo '```'
+          } >> release-notes.md
         fi
 
     - name: Create GitHub Release
@@ -1697,18 +1701,17 @@ jobs:
         echo "=== Symbol pruning complete ==="
 
   # ============================================================================
-  # Trigger docs rebuild + deploy on helixscreen-website for stable releases.
-  # Gated on the channel declared by RELEASE_CHANNEL, so helixscreen.org tracks
-  # the latest stable docs rather than in-flight devel content. A tag-string gate
-  # cannot express this: the devel track also tags plain vX.Y.Z versions, so
-  # `tag has no hyphen` would deploy devel-track docs.
+  # Trigger a docs rebuild + deploy on helixscreen-website for every published
+  # release. The website ignores the dispatched tag: it resolves each docs
+  # version (stable at the root, the beta line under /<version>/) from its own
+  # release-tag prefix, so any release rebuilds every version correctly.
   # Requires WEBSITE_DISPATCH_TOKEN: PAT with contents:write on helixscreen-website.
   # ============================================================================
   notify-website:
     name: Trigger Docs Deploy
     runs-on: ubuntu-latest
     needs: [release, plan]
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.mode == 'publish' && needs.release.outputs.channel == 'stable' }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.mode == 'publish' }}
 
     steps:
     - name: Record dispatch time
