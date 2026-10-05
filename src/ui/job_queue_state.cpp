@@ -202,15 +202,17 @@ void JobQueueState::fetch_automatic_transition() {
     client_->send_jsonrpc(
         "server.config", json::object(),
         [this, token](const json& response) {
-            token.defer("JobQueueState::on_server_config", [this, response]() {
-                automatic_transition_ = helix::parse_automatic_transition(response);
-                if (subjects_initialized_) {
-                    lv_subject_set_int(&job_queue_automatic_transition_subject_,
-                                       automatic_transition_ ? 1 : 0);
-                }
-                spdlog::debug("[JobQueueState] job_queue automatic_transition={}",
-                              automatic_transition_);
-            });
+            // Parsed here so the deferred body carries a bool, not the config DOM.
+            token.defer("JobQueueState::on_server_config",
+                        [this, automatic = helix::parse_automatic_transition(response)]() {
+                            automatic_transition_ = automatic;
+                            if (subjects_initialized_) {
+                                lv_subject_set_int(&job_queue_automatic_transition_subject_,
+                                                   automatic_transition_ ? 1 : 0);
+                            }
+                            spdlog::debug("[JobQueueState] job_queue automatic_transition={}",
+                                          automatic_transition_);
+                        });
         },
         [token](const MoonrakerError& err) {
             spdlog::debug("[JobQueueState] server.config read failed: {}", err.message);

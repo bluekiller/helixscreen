@@ -128,6 +128,8 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // Moonraker does not chunk at the protocol level, so an oversized response's
     // RPC will simply time out (see brief). 256 KiB.
     static constexpr size_t MAX_MESSAGE_BYTES = 262144;
+    /// Reassembly capacity kept between messages; anything larger is released.
+    static constexpr size_t RX_BUF_KEEP_BYTES = 32768;
     // Own request-tracker cap — far below desktop's 500 (RAM-bound). On overflow
     // the error callback fires synchronously with a CONNECTION_LOST error.
     static constexpr size_t MAX_PENDING_REQUESTS = 64;
