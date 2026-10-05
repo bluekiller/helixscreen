@@ -1011,6 +1011,14 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         [](NavigationManager* mgr, int /* shown */) { mgr->refresh_overlay_backdrop(); },
         SettingsManager::instance().get_subjects_lifetime());
 
+    // A live theme or mode switch from inside an overlay (Settings > Appearance)
+    // repaints the navbar widget the snapshot hides, so re-take it too. The
+    // change subject fires after the repaint, so the new shot shows the new mode.
+    theme_observer_ = observe<int>(
+        theme_manager_get_changed_subject(), this,
+        [](NavigationManager* mgr, int /* generation */) { mgr->refresh_overlay_backdrop(); },
+        subject_never_freed());
+
     create_rail_estop(navbar);
 
     spdlog::trace(

@@ -22,9 +22,12 @@
 #include "ui_nav_manager.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/navigation_manager_test_access.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/lvgl.h"
 #include "settings_manager.h"
+#include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -52,17 +55,23 @@ struct Rgb {
     uint8_t r, g, b;
 };
 
-Rgb backdrop_center_pixel(lv_obj_t* backdrop) {
+Rgb backdrop_pixel(lv_obj_t* backdrop, uint32_t x, uint32_t y) {
     REQUIRE(backdrop != nullptr);
     const auto* buf = static_cast<const lv_draw_buf_t*>(lv_image_get_src(backdrop));
     REQUIRE(buf != nullptr);
     REQUIRE(buf->header.cf == LV_COLOR_FORMAT_ARGB8888);
+    REQUIRE(x < buf->header.w);
+    REQUIRE(y < buf->header.h);
 
-    uint32_t x = buf->header.w / 2;
-    uint32_t y = buf->header.h / 2;
     const auto* row = static_cast<const uint8_t*>(buf->data) + y * buf->header.stride;
     const uint8_t* px = row + x * 4; // BGRA byte order in LVGL's ARGB8888
     return Rgb{px[2], px[1], px[0]};
+}
+
+Rgb backdrop_center_pixel(lv_obj_t* backdrop) {
+    const auto* buf = static_cast<const lv_draw_buf_t*>(lv_image_get_src(backdrop));
+    REQUIRE(buf != nullptr);
+    return backdrop_pixel(backdrop, buf->header.w / 2, buf->header.h / 2);
 }
 
 } // namespace
@@ -137,4 +146,51 @@ TEST_CASE_METHOD(LVGLTestFixture, "Backdrop refresh is a no-op with no backdrop 
     // No overlay is open, so there is nothing to re-photograph — refreshing must
     // not conjure a backdrop that would then dim the whole screen.
     CHECK(NavigationManagerTestAccess::overlay_backdrop(nav) == nullptr);
+}
+
+// The navbar beside an open overlay is the backdrop's picture of it, so a live
+// mode switch from inside an overlay (Settings > Appearance) has to re-take it.
+TEST_CASE_METHOD(LVGLUITestFixture, "a theme switch under an open overlay re-snapshots the navbar",
+                 "[navigation][backdrop][theme]") {
+    auto& nav = NavigationManager::instance();
+    const helix::ThemeData theme = theme_manager_get_active_theme();
+    const bool was_dark = theme_manager_is_dark_mode();
+    lv_obj_t* saved_layout = NavigationManagerTestAccess::app_layout_widget(nav);
+    theme_manager_apply_theme(theme, true);
+
+    lv_obj_t* layout = lv_obj_create(test_screen());
+    lv_obj_remove_style_all(layout);
+    lv_obj_set_size(layout, LV_PCT(100), LV_PCT(100));
+    lv_obj_t* navbar = static_cast<lv_obj_t*>(lv_xml_create(layout, "navigation_bar", nullptr));
+    REQUIRE(navbar != nullptr);
+    nav.set_app_layout(layout);
+    nav.wire_events(navbar);
+    lv_obj_update_layout(test_screen());
+    process_lvgl(20);
+
+    lv_area_t a;
+    lv_obj_get_coords(navbar, &a);
+    const auto x = static_cast<uint32_t>(a.x1 + 2);
+    const auto y = static_cast<uint32_t>((a.y1 + a.y2) / 2);
+
+    NavigationManagerTestAccess::adopt_overlay_backdrop(nav, test_screen());
+    lv_obj_t* backdrop = NavigationManagerTestAccess::overlay_backdrop(nav);
+    REQUIRE(backdrop != nullptr);
+    const Rgb dark_px = backdrop_pixel(backdrop, x, y);
+
+    theme_manager_apply_theme(theme, false);
+    process_lvgl(20);
+
+    lv_obj_t* after = NavigationManagerTestAccess::overlay_backdrop(nav);
+    REQUIRE(after != nullptr);
+    CHECK(after != backdrop);
+    const Rgb light_px = backdrop_pixel(after, x, y);
+    INFO("navbar in backdrop: dark " << int(dark_px.r) << "," << int(dark_px.g) << ","
+                                     << int(dark_px.b) << " light " << int(light_px.r) << ","
+                                     << int(light_px.g) << "," << int(light_px.b));
+    CHECK(light_px.r + light_px.g + light_px.b > dark_px.r + dark_px.g + dark_px.b + 150);
+
+    NavigationManagerTestAccess::set_panel_stack(nav, {});
+    nav.set_app_layout(saved_layout);
+    theme_manager_apply_theme(theme, was_dark);
 }
