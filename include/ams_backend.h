@@ -174,10 +174,10 @@ class AmsBackend {
     }
 
   private:
-    /// Registration stamps this exactly once, from AmsBackendRegistry::add().
+    /// Registration stamps this exactly once, from AmsState::add_backend().
     /// A second writer would re-file every later declaration on this backend
     /// onto another backend's block, with nothing to report it.
-    friend class AmsBackendRegistry;
+    friend class AmsState;
     void set_backend_index(int index) {
         backend_index_ = index;
     }

@@ -31,7 +31,8 @@ class AmsBackendRegistry {
     using EventCallback =
         std::function<void(int backend_index, const std::string& event, const std::string& data)>;
 
-    /// Register @p backend at the next index: stamp the index, route its events
+    /// Register @p backend at the next index (the caller has already stamped
+    /// it with AmsBackend::set_backend_index()): route its events
     /// to @p on_event, hand it the stored gcode callback, and register one
     /// consumption sink per slot. A null backend still takes an index.
     int add(std::unique_ptr<AmsBackend> backend, EventCallback on_event);

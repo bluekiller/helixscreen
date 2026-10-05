@@ -285,6 +285,11 @@ void AmsState::set_backend(std::unique_ptr<AmsBackend> backend) {
 int AmsState::add_backend(std::unique_ptr<AmsBackend> backend) {
     assert_main_thread();
 
+    // Stamped before registration: only AmsState may set a backend's index,
+    // and add() is main-thread only, so count() is the index add() assigns.
+    if (backend) {
+        backend->set_backend_index(registry_.count());
+    }
     const int index = registry_.add(
         std::move(backend), [this](int i, const std::string& event, const std::string& data) {
             on_backend_event(i, event, data);

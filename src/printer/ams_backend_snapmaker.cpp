@@ -1690,10 +1690,13 @@ void AmsBackendSnapmaker::apply_channel_outcome_locked(int i, const std::string&
             // bare INNER_FILAMENT_UNLOAD, which the firmware
             // runs on T0.
             if (op_state == "unload_finish" && outcome_is_new) {
-                // Deferred to after the lock, as emit_event is:
-                // calls into AmsState stay outside our mutex,
-                // because the backend registry takes its own
-                // lock before ours (AmsBackendRegistry).
+                // Deferred to after the lock for the same
+                // reason emit_event is: this reaches into
+                // AmsState, which takes its own mutex, while
+                // AmsState::add_backend() takes that mutex
+                // first and then ours via set_event_callback().
+                // Calling it here closed the cycle and TSan
+                // reported the deadlock (nightly, 2026-08-16).
                 fx.unloaded_lanes.push_back(i);
             }
             if (outcome_is_new && (system_info_.action == AmsAction::LOADING ||

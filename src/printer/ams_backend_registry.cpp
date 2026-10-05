@@ -22,7 +22,6 @@ int AmsBackendRegistry::add(std::unique_ptr<AmsBackend> backend, EventCallback o
         if (!b) {
             return index;
         }
-        b->set_backend_index(index);
         b->set_event_callback([on_event = std::move(on_event), index](const std::string& event,
                                                                       const std::string& data) {
             on_event(index, event, data);
