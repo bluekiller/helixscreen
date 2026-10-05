@@ -10,6 +10,7 @@
 #include "lane_echo.h"
 #include "lane_observation.h"
 #include "snapmaker_print_preferences.h"
+#include "snapmaker_status_parse.h"
 
 #include <array>
 #include <map>
@@ -42,18 +43,6 @@ class RunoutScopeTestAccess;
  *
  * Path topology is PARALLEL (each tool has its own independent path).
  */
-
-/// Per-extruder tool state from Snapmaker custom Klipper fields
-struct ExtruderToolState {
-    std::string state;                                ///< e.g., "PARKED", "ACTIVE", "ACTIVATING"
-    bool park_pin = false;                            ///< Tool is in park position
-    bool active_pin = false;                          ///< Tool is in active position
-    bool activating_move = false;                     ///< Tool change move in progress
-    std::array<float, 3> extruder_offset = {0, 0, 0}; ///< XYZ offset
-    int switch_count = 0;                             ///< Total tool changes for this extruder
-    int retry_count = 0;                              ///< Tool change retries
-    int error_count = 0;                              ///< Tool change errors
-};
 
 /// RFID tag data parsed from filament_detect info
 struct SnapmakerRfidInfo {
@@ -487,10 +476,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                                                      const std::any& value) const;
 
     // Static parsers (public for testing)
-    /// Overlays the fields @p json carries onto @p state; an omitted field
-    /// keeps its value.
-    static ExtruderToolState parse_extruder_state(const nlohmann::json& json,
-                                                  ExtruderToolState state = {});
     static SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
 
   protected:
@@ -539,6 +524,12 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     };
 
     void dispatch_effects(const FrameEffects& fx);
+
+    // The sections of one status frame, applied under mutex_ in this order.
+    // Each reads only its slice of the parsed frame plus the state held from
+    // earlier frames.
+    void apply_extruders_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_active_tool_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
 
     /// RPC timeout budget for ONE batch feed op. AUTO_FEEDING heats from cold +
     /// feeds + flushes; measured ~86s live (see prepare_for_resume), so 150s is

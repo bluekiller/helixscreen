@@ -1717,7 +1717,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "retry_count": 0,
             "error_count": 1
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state == "PARKED");
         REQUIRE(state.park_pin == true);
         REQUIRE(state.active_pin == false);
@@ -1741,7 +1742,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "retry_count": 2,
             "error_count": 0
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state == "ACTIVE");
         REQUIRE(state.park_pin == false);
         REQUIRE(state.active_pin == true);
@@ -1761,14 +1763,16 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "retry_count": 0,
             "error_count": 0
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state == "ACTIVATING");
         REQUIRE(state.activating_move == true);
     }
 
     SECTION("handles missing fields gracefully") {
         auto j = nlohmann::json::parse("{}");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state.empty());
         REQUIRE(state.park_pin == false);
         REQUIRE(state.active_pin == false);
@@ -1786,7 +1790,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "state": "PARKED",
             "extruder_offset": [1.5]
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.extruder_offset[0] == Catch::Approx(1.5f));
         // Missing indices stay at default
         REQUIRE(state.extruder_offset[1] == Catch::Approx(0.0f));

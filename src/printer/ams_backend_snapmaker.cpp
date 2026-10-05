@@ -26,6 +26,7 @@
 #include "settings_manager.h"
 #include "snapmaker_channel_state.h"
 #include "snapmaker_resume.h"
+#include "snapmaker_status_parse.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -1135,41 +1136,6 @@ AmsError AmsBackendSnapmaker::disable_bypass() {
 // Static Parsers
 // ============================================================================
 
-ExtruderToolState AmsBackendSnapmaker::parse_extruder_state(const nlohmann::json& json,
-                                                            ExtruderToolState state) {
-    if (json.contains("state") && json["state"].is_string()) {
-        state.state = json["state"].get<std::string>();
-    }
-    if (json.contains("park_pin") && json["park_pin"].is_boolean()) {
-        state.park_pin = json["park_pin"].get<bool>();
-    }
-    if (json.contains("active_pin") && json["active_pin"].is_boolean()) {
-        state.active_pin = json["active_pin"].get<bool>();
-    }
-    if (json.contains("activating_move") && json["activating_move"].is_boolean()) {
-        state.activating_move = json["activating_move"].get<bool>();
-    }
-    if (json.contains("extruder_offset") && json["extruder_offset"].is_array()) {
-        const auto& arr = json["extruder_offset"];
-        for (size_t i = 0; i < std::min(arr.size(), size_t{3}); i++) {
-            if (arr[i].is_number()) {
-                state.extruder_offset[i] = arr[i].get<float>();
-            }
-        }
-    }
-    if (json.contains("switch_count") && json["switch_count"].is_number()) {
-        state.switch_count = json["switch_count"].get<int>();
-    }
-    if (json.contains("retry_count") && json["retry_count"].is_number()) {
-        state.retry_count = json["retry_count"].get<int>();
-    }
-    if (json.contains("error_count") && json["error_count"].is_number()) {
-        state.error_count = json["error_count"].get<int>();
-    }
-
-    return state;
-}
-
 SnapmakerRfidInfo AmsBackendSnapmaker::parse_rfid_info(const nlohmann::json& json) {
     SnapmakerRfidInfo info;
 
@@ -1288,82 +1254,78 @@ std::optional<helix::ams::SpoolEvidence> evidence_from_fingerprint(const std::st
 // Status Update Handling
 // ============================================================================
 
+void AmsBackendSnapmaker::apply_extruders_locked(const snapmaker::StatusDelta& delta,
+                                                 FrameEffects& fx) {
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        const auto& extruder = delta.extruders[i];
+        if (!extruder) {
+            continue;
+        }
+
+        // A parked tool is not the loaded one. LOADED itself is written only by
+        // the per-frame recompute after the sensor parse: an active pin says the
+        // tool is on the carriage, not that it has filament at the nozzle.
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot && extruder->park_pin.value_or(false) && slot->status != SlotStatus::AVAILABLE) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        }
+
+        extruder_states_[i].apply(*extruder);
+    }
+}
+
+void AmsBackendSnapmaker::apply_active_tool_locked(const snapmaker::StatusDelta& delta,
+                                                   FrameEffects& fx) {
+    // Detect active tool from extruder pin state and toolhead.extruder. Only
+    // update when we have actual evidence: incremental status updates may omit
+    // extruder/toolhead keys, so preserve the current value when no relevant
+    // data is present (prevents oscillation between valid and -1).
+    bool has_extruder_data = false;
+    int active = -1;
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (extruder_states_[i].active_pin ||
+            (!extruder_states_[i].state.empty() && extruder_states_[i].state != "PARKED")) {
+            active = i;
+            has_extruder_data = true;
+            break;
+        }
+    }
+    if (delta.toolhead_extruder) {
+        // "extruder" = 0, "extruder1" = 1, etc. An unparseable name leaves
+        // whatever the per-extruder state decided above.
+        if (const auto tool_number = helix::tool_number_for_extruder(*delta.toolhead_extruder)) {
+            active = *tool_number;
+        }
+        has_extruder_data = true;
+    }
+    if (has_extruder_data && active != system_info_.current_tool) {
+        // Demote previous active tool from LOADED to AVAILABLE
+        if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
+            auto* prev_slot = system_info_.units[0].get_slot(system_info_.current_tool);
+            if (prev_slot && prev_slot->status == SlotStatus::LOADED) {
+                prev_slot->status = SlotStatus::AVAILABLE;
+            }
+        }
+        // A pick alone says nothing about filament; the active tool's LOADED
+        // status and filament_loaded are derived after the sensor parse, from the
+        // latch and the toolhead switch.
+        system_info_.current_tool = active;
+        system_info_.current_slot = active; // 1:1 tool-to-slot on Snapmaker
+        fx.changed = true;
+    }
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
+    const snapmaker::StatusDelta delta = snapmaker::parse_status(status);
 
     { // Scope lock — emit_event MUST be called outside mutex_ to avoid deadlock
       // with sync_from_backend() which acquires mutex_ via get_system_info()
         std::lock_guard<std::mutex> lock(mutex_);
 
-        // Parse extruder0..3 state
-        // Klipper uses "extruder" for T0, "extruder1" for T1, etc.
-        static const std::string extruder_keys[] = {"extruder", "extruder1", "extruder2",
-                                                    "extruder3"};
-        for (int i = 0; i < NUM_TOOLS; i++) {
-            const auto& key = extruder_keys[i];
-            if (status.contains(key) && status[key].is_object()) {
-                // Status frames are deltas: fields this frame omits keep the
-                // values already held for the tool.
-                auto new_state = parse_extruder_state(status[key], extruder_states_[i]);
-                const auto park_it = status[key].find("park_pin");
-                const bool parked_in_frame =
-                    park_it != status[key].end() && park_it->is_boolean() && park_it->get<bool>();
-
-                // A parked tool is not the loaded one. LOADED itself is written
-                // only by the per-frame recompute after the sensor parse: an
-                // active pin says the tool is on the carriage, not that it has
-                // filament at the nozzle.
-                auto* slot = system_info_.units[0].get_slot(i);
-                if (slot && parked_in_frame && slot->status != SlotStatus::AVAILABLE) {
-                    slot->status = SlotStatus::AVAILABLE;
-                    fx.changed = true;
-                }
-
-                extruder_states_[i] = std::move(new_state);
-            }
-        }
-
-        // Detect active tool from extruder pin state and toolhead.extruder.
-        // Only update when we have actual evidence — incremental status updates
-        // may omit extruder/toolhead keys, so preserve the current value when
-        // no relevant data is present (prevents oscillation between valid and -1).
-        bool has_extruder_data = false;
-        int active = -1;
-        for (int i = 0; i < NUM_TOOLS; i++) {
-            if (extruder_states_[i].active_pin ||
-                (!extruder_states_[i].state.empty() && extruder_states_[i].state != "PARKED")) {
-                active = i;
-                has_extruder_data = true;
-                break;
-            }
-        }
-        if (status.contains("toolhead") && status["toolhead"].is_object()) {
-            const auto& th = status["toolhead"];
-            if (th.contains("extruder") && th["extruder"].is_string()) {
-                auto ext_name = th["extruder"].get<std::string>();
-                // "extruder" = 0, "extruder1" = 1, etc. An unparseable name
-                // leaves whatever the per-extruder state loop above decided.
-                if (const auto tool_number = helix::tool_number_for_extruder(ext_name)) {
-                    active = *tool_number;
-                }
-                has_extruder_data = true;
-            }
-        }
-        if (has_extruder_data && active != system_info_.current_tool) {
-            // Demote previous active tool from LOADED to AVAILABLE
-            if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
-                auto* prev_slot = system_info_.units[0].get_slot(system_info_.current_tool);
-                if (prev_slot && prev_slot->status == SlotStatus::LOADED) {
-                    prev_slot->status = SlotStatus::AVAILABLE;
-                }
-            }
-            // A pick alone says nothing about filament; the active tool's
-            // LOADED status and filament_loaded are derived after the sensor
-            // parse, from the latch and the toolhead switch.
-            system_info_.current_tool = active;
-            system_info_.current_slot = active; // 1:1 tool-to-slot on Snapmaker
-            fx.changed = true;
-        }
+        apply_extruders_locked(delta, fx);
+        apply_active_tool_locked(delta, fx);
 
         // Parse filament_detect info (RFID data per channel)
         if (status.contains("filament_detect") && status["filament_detect"].is_object()) {
