@@ -16,15 +16,20 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/abort_manager_test_access.h"
+#include "../test_helpers/afc_test_access.h"
 #include "../test_helpers/moonraker_request_tracker_test_access.h"
 #include "../test_helpers/scoped_language.h"
 #include "../ui_test_utils.h"
 #include "abort_manager.h"
+#include "ams_backend_afc.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "moonraker_api_mock.h"
+#include "moonraker_client_mock.h"
 #include "moonraker_error.h"
 #include "moonraker_events.h"
 #include "moonraker_manager.h"
 #include "moonraker_request_tracker.h"
+#include "printer_state.h"
 #include "rpc_error_policy.h"
 #include "translation_loader.h"
 
@@ -83,6 +88,56 @@ TEST_CASE_METHOD(LVGLTestFixture, "notify_error_tr translates on the main thread
     REQUIRE(calls == 1);
     CHECK(shown.find("Zeitüberschreitung der Anfrage") != std::string::npos);
     CHECK(shown.find("Request timed out") == std::string::npos);
+}
+
+namespace {
+
+/// Holds the error callback so the test can answer from a thread of its choosing.
+class HeldErrorApi : public MoonrakerAPIMock {
+  public:
+    using MoonrakerAPIMock::MoonrakerAPIMock;
+
+    void execute_gcode(const std::string& /*gcode*/, SuccessCallback /*on_success*/,
+                       ErrorCallback on_error, uint32_t /*timeout_ms*/ = 0, bool /*silent*/ = false,
+                       SuccessCallback /*on_queued*/ = nullptr,
+                       bool /*caller_surfaces_errors*/ = true,
+                       bool /*bypass_busy_gate*/ = false) override {
+        held_error = std::move(on_error);
+    }
+
+    ErrorCallback held_error;
+};
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "AFC G-code timeout toast translates on the main thread",
+                 "[api-error-i18n][i18n][afc]") {
+    MoonrakerClientMock client;
+    helix::PrinterState state;
+    HeldErrorApi api{client, state};
+    AmsBackendAfc backend{&api, &client};
+
+    std::string shown;
+    int calls = 0;
+    helix::ui::set_test_notification_warning_hook([&](const std::string& m) {
+        shown = m;
+        ++calls;
+    });
+
+    AfcTestAccess::execute_gcode_notify(backend, std::string("AFC_RESET"), std::string(),
+                                        std::string("AFC reset"));
+    REQUIRE(api.held_error);
+
+    std::thread ws(
+        [&api]() { api.held_error(MoonrakerError::timeout("printer.gcode.script", 30000)); });
+    ws.join();
+    // The WebSocket thread neither translates nor shows anything.
+    CHECK(calls == 0);
+
+    helix::ui::UpdateQueue::instance().drain();
+    helix::ui::set_test_notification_warning_hook(nullptr);
+    REQUIRE(calls == 1);
+    CHECK(shown.find("AFC reset") == 0);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "Tracker RPC_ERROR event renders in the active language",

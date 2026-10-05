@@ -413,8 +413,11 @@ void EmergencyStopOverlay::execute_emergency_stop() {
     api_->emergency_stop(
         []() {
             spdlog::info("[EmergencyStop] Emergency stop command sent successfully");
-            ToastManager::instance().show(ToastSeverity::WARNING, lv_tr("Emergency stop activated"),
-                                          5000);
+            // The callback can run on the WebSocket thread; lv_tr is main-thread only.
+            helix::ui::run_on_main("EmergencyStop::activated", []() {
+                ToastManager::instance().show(ToastSeverity::WARNING,
+                                              lv_tr("Emergency stop activated"), 5000);
+            });
 
             // Proactively show recovery dialog after E-stop
             // We know Klipper will be in SHUTDOWN state - don't wait for notification

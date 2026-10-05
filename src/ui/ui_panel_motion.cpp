@@ -1169,9 +1169,9 @@ void MotionPanel::home(char axis) {
             axes_str,
             [axis]() {
                 if (axis == 'A') {
-                    NOTIFY_SUCCESS(lv_tr("All axes homed"));
+                    helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("All axes homed"));
                 } else {
-                    NOTIFY_SUCCESS(lv_tr("{} axis homed"), axis);
+                    helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("{} axis homed"), axis);
                 }
             },
             [](const MoonrakerError& err) {
