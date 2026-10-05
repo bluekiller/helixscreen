@@ -382,7 +382,7 @@ class MoonrakerManager {
 
     /// Present one Moonraker event. MAIN THREAD ONLY — the registered event
     /// handler marshals here through lifetime_.bg_cb(), because everything this
-    /// touches (lv_tr, toasts, modals) is LVGL-facing while the handler itself
+    /// touches (toasts, modals) is LVGL-facing while the handler itself
     /// runs on whatever thread raised the event (#1219).
     void present_event(const MoonrakerEvent& evt);
 

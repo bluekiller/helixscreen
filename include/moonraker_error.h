@@ -138,11 +138,7 @@ struct MoonrakerError {
     }
 
     /**
-     * @brief user_message() in the active language. MAIN THREAD ONLY.
-     *
-     * lv_tr() reads translation state that a language switch frees on the main
-     * thread (#1219). Error callbacks often run on the WebSocket thread: capture
-     * the error by value and call this from the deferred main-thread body.
+     * @brief user_message() in the active language. Safe from any thread.
      */
     std::string localized_message() const;
 

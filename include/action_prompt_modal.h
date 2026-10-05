@@ -173,7 +173,7 @@ class ActionPromptModal : public Modal {
  * this toast would leave the failure with no surface at all. See
  * include/rpc_error_policy.h.
  *
- * Main thread only: the toast format goes through lv_tr().
+ * Main thread only: it shows a toast.
  *
  * @param error_message Klipper's message from the failed RPC (MoonrakerError::
  *                      localized_message()). Empty falls back to a generic string

@@ -392,8 +392,8 @@ bool StandardMacros::execute(StandardMacroSlot slot, IMoonrakerAPI* api,
     }
 
     spdlog::info("[StandardMacros] Executing {} via {}", info.slot_name, macro_name);
-    // Callers toast through lv_tr, which is main-thread only (#1219), while the
-    // printer's answer arrives on the WebSocket thread. A null callback stays
+    // Callers toast, which is main-thread only, while the printer's answer
+    // arrives on the WebSocket thread. A null callback stays
     // null: whether one exists is what tells the API who reports the error.
     if (on_success) {
         on_success = [cb = std::move(on_success)]() {

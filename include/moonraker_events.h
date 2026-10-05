@@ -45,8 +45,7 @@ struct MoonrakerEvent {
     std::vector<std::string> message_args;
 
     /// @p tmpl with each `{}` replaced by the next of `message_args`. The
-    /// presenter passes lv_tr(message_tag), on the main thread: the emitter runs
-    /// on the WebSocket thread, where lv_tr() is unsafe (#1219). A translation
+    /// presenter passes lv_tr(message_tag) when it shows the event. A translation
     /// with fewer placeholders drops the surplus args rather than failing.
     std::string render(const char* tmpl) const {
         std::string out;

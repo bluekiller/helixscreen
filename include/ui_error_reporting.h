@@ -4,7 +4,9 @@
 #pragma once
 
 #include "ui_notification.h"
+#ifndef HELIX_SPLASH_ONLY
 #include "ui_update_queue.h"
+#endif
 
 #include "ams_error.h"
 #include "moonraker_error.h"
@@ -174,6 +176,8 @@
 // Translated errors from callbacks on any thread
 // ============================================================================
 
+// The splash binary links no UpdateQueue, so it gets the macros above only.
+#ifndef HELIX_SPLASH_ONLY
 namespace helix::ui {
 
 namespace detail {
@@ -188,10 +192,10 @@ template <typename T> const T& localize_arg(const T& value) {
 /**
  * @brief A toast with a translated format string, callable from any thread
  *
- * lv_tr() and MoonrakerError::localized_message() are main-thread only (#1219),
- * while a Moonraker callback runs on whichever thread answered: the caller's
- * for a local refusal, the WebSocket thread for a printer reply. The
- * translation and the toast run on the main thread, inline when already there.
+ * A toast is main-thread only, while a Moonraker callback runs on whichever
+ * thread answered: the caller's for a local refusal, the WebSocket thread for a
+ * printer reply. The translation and the toast run on the main thread, inline
+ * when already there.
  * A MoonrakerError argument renders as its localized_message().
  *
  * Arguments are copied into a callback that may run later, so a char pointer
@@ -228,6 +232,7 @@ template <typename... Args> void notify_error_tr(const char* fmt_tag, Args... ar
 }
 
 } // namespace helix::ui
+#endif // HELIX_SPLASH_ONLY
 
 // ============================================================================
 // AMS errors — the one place an AmsError becomes user-visible

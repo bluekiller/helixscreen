@@ -298,7 +298,7 @@ void WiFiManager::handle_init_failed(bool silent, const std::string& msg) {
 #endif
     // Backend initialization failed asynchronously - notify user (unless silent)
     if (!silent) {
-        // INIT_FAILED fires on the backend's init worker; lv_tr is main-thread only.
+        // INIT_FAILED fires on the backend's init worker; the toast is main-thread only.
         helix::ui::queue_update("WiFiManager::init_failed_toast", [msg]() {
             NOTIFY_ERROR(lv_tr("WiFi initialization failed: {}"), msg);
         });

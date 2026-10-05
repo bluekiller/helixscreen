@@ -823,8 +823,7 @@ void ToolState::request_tool_change(int tool_index, IMoonrakerAPI* api,
         [on_error](const MoonrakerError& error) {
             if (!on_error)
                 return;
-            // localized_message() is main-thread only; Klipper's reply arrives on the WebSocket
-            // thread.
+            // on_error is UI-facing; Klipper's reply arrives on the WebSocket thread.
             helix::ui::run_on_main("ToolState::tool_change_error",
                                    [on_error, error]() { on_error(error.localized_message()); });
         });

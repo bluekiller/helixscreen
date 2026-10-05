@@ -608,16 +608,11 @@ void MoonrakerManager::register_callbacks() {
     // This fires on whatever thread raised the event: MoonrakerClient::emit_event()
     // invokes it synchronously from on_ws_close, the health-check timer, and
     // set_connection_state — i.e. the libhv event-loop thread. Everything the
-    // handler goes on to do is LVGL-facing (translation lookup, toasts, modals),
-    // so the entire body is marshalled to the main thread in ONE hop here rather
-    // than each sink marshalling itself. Doing it per-sink is what left lv_tr()
-    // running off-thread: lv_translation_get() reads the file-scope selected_lang
-    // that lv_translation_set_language() frees and replaces, so a language change
-    // overlapping an error event was a read of freed memory (#1219).
-    // bg_cb() defers the WHOLE call to the main thread behind a generation guard,
-    // which is what makes present_event()'s lv_tr() safe. It also decays the
-    // MoonrakerEvent& into a value, so the body never sees a reference that died
-    // with the raising thread's stack frame.
+    // handler goes on to do is LVGL-facing (toasts, modals), so the entire body
+    // is marshalled to the main thread in ONE hop here rather than each sink
+    // marshalling itself. bg_cb() defers the WHOLE call to the main thread behind
+    // a generation guard. It also decays the MoonrakerEvent& into a value, so the
+    // body never sees a reference that died with the raising thread's stack frame.
     m_client->register_event_handler(lifetime_.bg_cb(
         "MoonrakerManager::event", [this](const MoonrakerEvent& evt) { present_event(evt); }));
 

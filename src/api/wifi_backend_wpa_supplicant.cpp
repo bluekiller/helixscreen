@@ -442,7 +442,7 @@ WiFiError WifiBackendWpaSupplicant::start() {
             spdlog::debug("[WifiBackend] Pre-flight failed (silent mode): {}",
                           preflight_result.technical_msg);
         } else if (preflight_result.result == WiFiResult::SERVICE_NOT_RUNNING) {
-            // start() runs on the async init worker; lv_tr is main-thread only.
+            // start() runs on the async init worker; the modal is main-thread only.
             helix::ui::queue_update("WifiBackend::service_not_running", []() {
                 NOTIFY_ERROR_MODAL(
                     lv_tr("WiFi Service Not Running"), "{}",

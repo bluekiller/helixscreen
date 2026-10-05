@@ -1169,13 +1169,13 @@ void MotionPanel::home(char axis) {
             axes_str,
             [axis]() {
                 if (axis == 'A') {
-                    NOTIFY_SUCCESS(lv_tr("All axes homed"));
+                    helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("All axes homed"));
                 } else {
-                    NOTIFY_SUCCESS(lv_tr("{} axis homed"), axis);
+                    helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("{} axis homed"), axis);
                 }
             },
             [](const MoonrakerError& err) {
-                // home_axes() answers on the WebSocket thread; lv_tr is main-thread only.
+                // home_axes() answers on the WebSocket thread; the toast is main-thread only.
                 helix::ui::run_on_main("MotionPanel::home_failed", [err]() {
                     NOTIFY_ERROR(lv_tr("Homing failed: {}"),
                                  clean_gcode_error(err.localized_message()));
