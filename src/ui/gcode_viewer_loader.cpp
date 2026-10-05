@@ -46,14 +46,12 @@ constexpr size_t CANCEL_POLL_LINES = 2048;
 #ifdef ENABLE_3D_RENDERER
 /// Hand freshly built geometry for st->gcode_file to the 3D renderer. The
 /// renderer writes per-tool overrides into a mesh's palette, so the AMS colors
-/// the viewer already holds have to be written into each new mesh; the
-/// viewer's own setter skips a vector it has already applied.
+/// the viewer holds have to be written into each new mesh.
 static void install_3d_geometry(gcode_viewer_state_t* st,
                                 std::unique_ptr<helix::gcode::RibbonGeometry> geometry) {
     st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
-    if (!st->tool_color_overrides.empty()) {
-        st->renderer_->set_tool_color_overrides(st->tool_color_overrides);
-    }
+    st->applied_3d.tool_colors.clear();
+    apply_view_options(st);
 }
 #endif
 
@@ -361,55 +359,53 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
             result->success = success;
             result->path = path_copy;
 
-            helix::ui::queue_update<
-                StreamingResult>(obj, std::move(result), [gen](lv_obj_t* obj, StreamingResult* r) {
-                gcode_viewer_state_t* st = get_state(obj);
-                if (!st) {
-                    return;
-                }
+            helix::ui::queue_update<StreamingResult>(
+                obj, std::move(result), [gen](lv_obj_t* obj, StreamingResult* r) {
+                    gcode_viewer_state_t* st = get_state(obj);
+                    if (!st) {
+                        return;
+                    }
 
-                // Reject stale callbacks from superseded loads
-                if (st->load_generation() != gen) {
-                    spdlog::debug("[GCode Viewer] Stale streaming callback (gen {} vs current {}), "
-                                  "skipping",
-                                  gen, st->load_generation());
-                    return;
-                }
+                    // Reject stale callbacks from superseded loads
+                    if (st->load_generation() != gen) {
+                        spdlog::debug(
+                            "[GCode Viewer] Stale streaming callback (gen {} vs current {}), "
+                            "skipping",
+                            gen, st->load_generation());
+                        return;
+                    }
 
-                // Clean up loading UI — deferred to next frame to avoid deleting
-                // the spinner while its animation timer events may be in-flight
-                remove_loading_ui(st);
+                    // Clean up loading UI — deferred to next frame to avoid deleting
+                    // the spinner while its animation timer events may be in-flight
+                    remove_loading_ui(st);
 
-                if (r->success && st->streaming_controller_ &&
-                    st->streaming_controller_->is_open()) {
-                    spdlog::info("[GCode Viewer] Streaming mode: indexed {} layers",
-                                 st->streaming_controller_->get_layer_count());
+                    if (r->success && st->streaming_controller_ &&
+                        st->streaming_controller_->is_open()) {
+                        spdlog::info("[GCode Viewer] Streaming mode: indexed {} layers",
+                                     st->streaming_controller_->get_layer_count());
 
-                    // The layer scan collected this file's scheduled pauses on
-                    // the same pass; remember them for the load callback.
-                    const auto& stats = st->streaming_controller_->get_index_stats();
-                    st->scheduled_pauses = stats.scheduled_pauses;
-                    st->scheduled_pauses_axis = stats.has_m73
-                                                    ? helix::gcode::ProgressAxis::SlicerTime
-                                                    : helix::gcode::ProgressAxis::BytePosition;
-                    st->has_pause_scan = true;
+                        // The layer scan collected this file's scheduled pauses on
+                        // the same pass; remember them for the load callback.
+                        const auto& stats = st->streaming_controller_->get_index_stats();
+                        st->scheduled_pauses = stats.scheduled_pauses;
+                        st->scheduled_pauses_axis = stats.has_m73
+                                                        ? helix::gcode::ProgressAxis::SlicerTime
+                                                        : helix::gcode::ProgressAxis::BytePosition;
+                        st->has_pause_scan = true;
 
-                    // Initialize 2D renderer with streaming controller
-                    st->layer_renderer_2d_ = std::make_unique<helix::gcode::GCodeLayerRenderer>();
-                    st->layer_renderer_2d_->set_streaming_controller(
-                        st->streaming_controller_.get());
+                        // Initialize 2D renderer with streaming controller
+                        st->layer_renderer_2d_ =
+                            std::make_unique<helix::gcode::GCodeLayerRenderer>();
+                        st->layer_renderer_2d_->set_streaming_controller(
+                            st->streaming_controller_.get());
 
-                    // Apply color: external override (AMS/Spoolman) takes priority
-                    if (st->has_external_color_override) {
-                        st->layer_renderer_2d_->set_extrusion_color(st->external_color_override);
-                        spdlog::info("[GCode Viewer] Streaming 2D using external color override");
-                    } else {
+                        st->applied_2d = {};
+
                         // The file's color answer, classified once. A per-tool palette goes to
                         // the renderer whole so each tool's segments render in its own color;
                         // collapsing it to a single set_extrusion_color() would paint
                         // everything in palette[initial_tool], which on a dark filament (e.g.
                         // #080A0D, a near-black PLA) looks like a uniformly black model.
-                        const auto& stats = st->streaming_controller_->get_index_stats();
                         const auto file_colors = helix::gcode::classify_file_colors(
                             stats.filament_palette, stats.filament_color, stats.initial_tool_index);
                         if (file_colors.has_palette()) {
@@ -431,51 +427,46 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                                              file_colors.single_color);
                             }
                         }
+
+                        // AMS-known slot colors layer over the metadata palette: they are
+                        // typically more accurate than the slicer's, which can lag
+                        // firmware-side filament swaps.
+                        apply_view_options(st);
+
+                        // Canvas, framing and shading tier — the half of the seed
+                        // that does not depend on where the layer data comes from.
+                        lv_area_t coords;
+                        lv_obj_get_coords(obj, &coords);
+                        seed_2d_renderer_view(st, lv_area_get_width(&coords),
+                                              lv_area_get_height(&coords));
+
+                        st->viewer_state = GcodeViewerState::Loaded;
+                        st->first_render = false;
+                        helix::telemetry_context::gcode_renderer_loaded.store(
+                            true, std::memory_order_relaxed);
+
+                        // Trigger initial render
+                        lv_obj_invalidate(obj);
+
+                        // Invoke load callback
+                        if (st->load_callback) {
+                            st->load_callback(obj, st->load_callback_user_data, true);
+                        }
+                    } else {
+                        spdlog::error("[GCode Viewer] Streaming mode: failed to index {}", r->path);
+                        st->viewer_state = GcodeViewerState::Error;
+                        st->streaming_controller_.reset();
+
+                        ToastManager::instance().show(ToastSeverity::ERROR,
+                                                      lv_tr("Failed to load G-code preview"));
+                        TelemetryManager::instance().record_error("gcode_viewer",
+                                                                  "streaming_load_failed", r->path);
+
+                        if (st->load_callback) {
+                            st->load_callback(obj, st->load_callback_user_data, false);
+                        }
                     }
-
-                    // Apply AMS tool color overrides on top of the metadata palette when
-                    // available. AMS-known slot colors are typically more accurate than
-                    // slicer-emitted palette (which can lag firmware-side filament swaps).
-                    if (!st->tool_color_overrides.empty()) {
-                        st->layer_renderer_2d_->set_tool_color_overrides(st->tool_color_overrides);
-                        spdlog::debug("[GCode Viewer] Streaming 2D applied {} AMS color overrides",
-                                      st->tool_color_overrides.size());
-                    }
-
-                    // Canvas, framing and shading tier — the half of the seed
-                    // that does not depend on where the layer data comes from.
-                    lv_area_t coords;
-                    lv_obj_get_coords(obj, &coords);
-                    seed_2d_renderer_view(st, lv_area_get_width(&coords),
-                                          lv_area_get_height(&coords));
-
-                    st->viewer_state = GcodeViewerState::Loaded;
-                    st->first_render = false;
-                    helix::telemetry_context::gcode_renderer_loaded.store(
-                        true, std::memory_order_relaxed);
-
-                    // Trigger initial render
-                    lv_obj_invalidate(obj);
-
-                    // Invoke load callback
-                    if (st->load_callback) {
-                        st->load_callback(obj, st->load_callback_user_data, true);
-                    }
-                } else {
-                    spdlog::error("[GCode Viewer] Streaming mode: failed to index {}", r->path);
-                    st->viewer_state = GcodeViewerState::Error;
-                    st->streaming_controller_.reset();
-
-                    ToastManager::instance().show(ToastSeverity::ERROR,
-                                                  lv_tr("Failed to load G-code preview"));
-                    TelemetryManager::instance().record_error("gcode_viewer",
-                                                              "streaming_load_failed", r->path);
-
-                    if (st->load_callback) {
-                        st->load_callback(obj, st->load_callback_user_data, false);
-                    }
-                }
-            });
+                });
         });
 
         return; // Streaming path handles everything asynchronously
@@ -655,8 +646,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     st->viewer_state = GcodeViewerState::Loaded;
                     spdlog::debug("[GCode Viewer] State set to LOADED");
 
-                    // Auto-apply filament color from gcode metadata (unless
-                    // AMS/Spoolman has already set an external override)
+                    // Auto-apply filament color from gcode metadata.
                     // Both renderers, not just the 3D one. The 2D renderer draws on
                     // every build without GLES and on any device the user has put in
                     // 2D mode, and until this it kept the theme default for
@@ -664,17 +654,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     // parsed tool palette lands on.
                     const auto file_colors = helix::gcode::classify_file_colors(
                         st->gcode_file->tool_color_palette, st->gcode_file->filament_color_hex);
-                    if (st->has_external_color_override) {
-#ifdef ENABLE_3D_RENDERER
-                        st->renderer_->set_extrusion_color(st->external_color_override);
-#endif
-                        if (st->layer_renderer_2d_) {
-                            st->layer_renderer_2d_->set_extrusion_color(
-                                st->external_color_override);
-                        }
-                        spdlog::debug(
-                            "[GCode Viewer] Applied external color override (AMS/Spoolman)");
-                    } else if (st->use_filament_color && file_colors.has_single_color()) {
+                    if (file_colors.has_single_color()) {
                         uint32_t rgb = 0;
                         if (helix::parse_hex_color(file_colors.single_color.c_str(), rgb)) {
                             const lv_color_t color = lv_color_hex(rgb);

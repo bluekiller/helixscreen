@@ -136,8 +136,8 @@ void helix::gcode_viewer::remove_loading_ui(gcode_viewer_state_t* st) {
  * Dispatches to either the 3D GLES renderer or the 2D layer renderer
  * based on current render mode and AUTO fallback state.
  */
-// Apply the colour priority chain to the 2D renderer: per-tool AMS overrides, then a
-// single external (AMS/Spoolman) override, then the colour the file was sliced for.
+// Apply the colour priority chain to the 2D renderer: per-tool AMS overrides, then the
+// colour the file was sliced for.
 //
 // Must run every time the 2D renderer is created, not just on load: a render-mode
 // switch constructs it lazily, and a renderer given only the file's own palette shows
@@ -162,14 +162,12 @@ void helix::gcode_viewer::apply_2d_renderer_colors(gcode_viewer_state_t* st) {
     // there is genuinely nothing to install and nothing to clear.
     st->layer_renderer_2d_->set_tool_color_palette(file_colors.palette);
 
-    if (!st->tool_color_overrides.empty()) {
-        st->layer_renderer_2d_->set_tool_color_overrides(st->tool_color_overrides);
-        spdlog::debug("[GCode Viewer] 2D renderer using {} tool color overrides",
-                      st->tool_color_overrides.size());
-    } else if (st->has_external_color_override) {
-        st->layer_renderer_2d_->set_extrusion_color(st->external_color_override);
-        spdlog::debug("[GCode Viewer] 2D renderer using external color override");
-    } else if (st->use_filament_color && file_colors.has_single_color()) {
+    const auto& overrides = st->view_options.tool_colors;
+    st->applied_2d.tool_colors = overrides;
+    if (!overrides.empty()) {
+        st->layer_renderer_2d_->set_tool_color_overrides(overrides);
+        spdlog::debug("[GCode Viewer] 2D renderer using {} tool color overrides", overrides.size());
+    } else if (file_colors.has_single_color()) {
         uint32_t rgb = 0;
         if (helix::parse_hex_color(file_colors.single_color.c_str(), rgb)) {
             st->layer_renderer_2d_->set_extrusion_color(lv_color_hex(rgb));
@@ -179,6 +177,57 @@ void helix::gcode_viewer::apply_2d_renderer_colors(gcode_viewer_state_t* st) {
             spdlog::warn("[GCode Viewer] 2D renderer: unusable filament color '{}' - "
                          "keeping current extrusion color",
                          file_colors.single_color);
+        }
+    }
+}
+
+template <typename Renderer>
+static void push_selection(const ViewOptions& want, ViewOptions& have, Renderer& renderer) {
+    if (want.highlighted != have.highlighted) {
+        renderer.set_highlighted_objects(want.highlighted);
+        have.highlighted = want.highlighted;
+    }
+    if (want.excluded != have.excluded) {
+        renderer.set_excluded_objects(want.excluded);
+        have.excluded = want.excluded;
+    }
+}
+
+void helix::gcode_viewer::apply_view_options(gcode_viewer_state_t* st) {
+    const ViewOptions& want = st->view_options;
+
+#ifdef ENABLE_3D_RENDERER
+    if (st->renderer_) {
+        auto& renderer = *st->renderer_;
+        auto& have = st->applied_3d;
+        push_selection(want, have, renderer);
+        if (want.tool_colors != have.tool_colors) {
+            if (want.tool_colors.empty()) {
+                // The overrides were written into the baked palette in place, so
+                // only the renderer's own snapshot puts the slicer colors back.
+                renderer.clear_tool_color_overrides();
+                have.tool_colors.clear();
+            } else if (renderer.has_geometry()) {
+                renderer.set_tool_color_overrides(want.tool_colors);
+                have.tool_colors = want.tool_colors;
+            }
+            // No geometry yet: install_3d_geometry() applies them to the new mesh.
+        }
+    }
+#endif
+
+    if (st->layer_renderer_2d_) {
+        auto& have = st->applied_2d;
+        push_selection(want, have, *st->layer_renderer_2d_);
+        if (want.tool_colors != have.tool_colors) {
+            if (want.tool_colors.empty()) {
+                // Empty means retract: rebuild palette-then-fallback from the file,
+                // the same order a fresh load takes.
+                apply_2d_renderer_colors(st);
+            } else {
+                st->layer_renderer_2d_->set_tool_color_overrides(want.tool_colors);
+            }
+            have.tool_colors = want.tool_colors;
         }
     }
 }
@@ -211,8 +260,10 @@ void helix::gcode_viewer::seed_2d_renderer_view(gcode_viewer_state_t* st, int wi
 // index stats, which apply_2d_renderer_colors() cannot read.
 static void create_2d_renderer_for_file(gcode_viewer_state_t* st, int width, int height) {
     st->layer_renderer_2d_ = std::make_unique<helix::gcode::GCodeLayerRenderer>();
+    st->applied_2d = {};
     st->layer_renderer_2d_->set_gcode(st->gcode_file.get());
     apply_2d_renderer_colors(st);
+    apply_view_options(st);
     seed_2d_renderer_view(st, width, height);
     spdlog::debug("[GCode Viewer] Initialized 2D layer renderer ({}x{})", width, height);
 }
@@ -819,8 +870,8 @@ void ui_gcode_viewer_clear(lv_obj_t* obj) {
     remove_loading_ui(st);
     st->gcode_file.reset();
     st->streaming_controller_.reset();
-    st->has_external_color_override = false; // Clear external color override
-    st->tool_color_overrides.clear();        // Clear per-tool AMS colors
+    st->view_options.tool_colors.clear(); // Per-tool AMS colors belong to one load
+    st->applied_3d.tool_colors.clear();
     st->viewer_state = GcodeViewerState::Empty;
     helix::telemetry_context::gcode_renderer_loaded.store(false, std::memory_order_relaxed);
 
@@ -1007,12 +1058,8 @@ void ui_gcode_viewer_set_highlighted_objects(lv_obj_t* obj,
     if (!st)
         return;
 
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_highlighted_objects(object_names);
-#endif
-    if (st->layer_renderer_2d_) {
-        st->layer_renderer_2d_->set_highlighted_objects(object_names);
-    }
+    st->view_options.highlighted = object_names;
+    apply_view_options(st);
     lv_obj_invalidate(obj);
 }
 
@@ -1023,17 +1070,12 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
         return;
 
     // Skip if excluded set hasn't changed (avoids expensive cache invalidation)
-    if (object_names == st->excluded_objects) {
+    if (object_names == st->view_options.excluded) {
         return;
     }
 
-    st->excluded_objects = object_names;
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_excluded_objects(object_names);
-#endif
-    if (st->layer_renderer_2d_) {
-        st->layer_renderer_2d_->set_excluded_objects(object_names);
-    }
+    st->view_options.excluded = object_names;
+    apply_view_options(st);
     lv_obj_invalidate(obj);
 
     spdlog::debug("[GCode Viewer] Excluded objects updated ({} objects)", object_names.size());
@@ -1077,28 +1119,15 @@ void ui_gcode_viewer_set_tool_colors(lv_obj_t* obj, const std::vector<uint32_t>&
     // observers that drive recoloring (active-lane color, tool map, slot data)
     // all fire together during a toolchange, which is exactly when the preview
     // is on screen. The comparison lives here rather than in a caller because
-    // tool_color_overrides is already the viewer's record of what is applied,
+    // view_options.tool_colors is already the viewer's record of what is applied,
     // and it is cleared by ui_gcode_viewer_clear() — so a reload correctly
     // re-applies even when the colors are unchanged.
-    if (!st->tool_color_overrides.empty() && st->tool_color_overrides == colors) {
+    if (!st->view_options.tool_colors.empty() && st->view_options.tool_colors == colors) {
         return;
     }
 
-    // Store for lazy-init paths
-    st->tool_color_overrides = colors;
-
-    // Per-tool overrides supersede the single-color external override
-    st->has_external_color_override = false;
-
-    // Apply to 3D renderer
-#ifdef ENABLE_3D_RENDERER
-    st->renderer_->set_tool_color_overrides(colors);
-#endif
-
-    // Apply to 2D renderer
-    if (st->layer_renderer_2d_) {
-        st->layer_renderer_2d_->set_tool_color_overrides(colors);
-    }
+    st->view_options.tool_colors = colors;
+    apply_view_options(st);
 
     lv_obj_invalidate(obj);
     spdlog::debug("[GCode Viewer] Applied {} per-tool AMS color overrides", colors.size());
@@ -1109,7 +1138,7 @@ static void ui_gcode_viewer_clear_tool_colors(lv_obj_t* obj) {
         return;
     }
     gcode_viewer_state_t* st = get_state(obj);
-    if (!st || st->tool_color_overrides.empty()) {
+    if (!st || st->view_options.tool_colors.empty()) {
         return;
     }
 
@@ -1117,19 +1146,8 @@ static void ui_gcode_viewer_clear_tool_colors(lv_obj_t* obj) {
     // an empty vector already means "no information" everywhere below, and every
     // layer correctly refuses to act on it so that a FIRST apply with no AMS data
     // leaves the slicer palette alone. The two meanings cannot share a call.
-    st->tool_color_overrides.clear();
-
-#ifdef ENABLE_3D_RENDERER
-    // 3D: the overrides were written into the baked palette in place, so only
-    // the renderer's own snapshot can put the slicer colors back.
-    st->renderer_->clear_tool_color_overrides();
-#endif
-
-    // 2D: rebuild palette-then-override from the file. With tool_color_overrides
-    // now empty this lands on the slicer palette, or the single filament color -
-    // the same fallback order a fresh load takes, which is why it reuses the
-    // loader's helper instead of restating it.
-    apply_2d_renderer_colors(st);
+    st->view_options.tool_colors.clear();
+    apply_view_options(st);
 
     lv_obj_invalidate(obj);
     spdlog::debug("[GCode Viewer] Retracted per-tool AMS color overrides");
@@ -1580,11 +1598,26 @@ void gcode_viewer_wait_for_build(lv_obj_t* viewer) {
 
 std::vector<uint32_t> gcode_viewer_tool_colors(lv_obj_t* viewer) {
     gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
-    return st ? st->tool_color_overrides : std::vector<uint32_t>{};
+    return st ? st->view_options.tool_colors : std::vector<uint32_t>{};
 }
 
 void gcode_viewer_clear_tool_colors(lv_obj_t* viewer) {
     ui_gcode_viewer_clear_tool_colors(viewer);
+}
+
+const helix::gcode::GCodeLayerRenderer* gcode_viewer_2d_renderer(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->layer_renderer_2d_.get() : nullptr;
+}
+
+helix::gcode::GCodeGLESRenderer* gcode_viewer_3d_renderer(lv_obj_t* viewer) {
+#ifdef ENABLE_3D_RENDERER
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->renderer_.get() : nullptr;
+#else
+    (void)viewer;
+    return nullptr;
+#endif
 }
 
 std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer) {

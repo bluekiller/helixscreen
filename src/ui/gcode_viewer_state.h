@@ -41,6 +41,13 @@ using GCode3DRenderer = helix::gcode::GCodeGLESRenderer;
 
 namespace helix::gcode_viewer {
 
+/// What the viewer was told to show, held apart from whichever renderers exist.
+struct ViewOptions {
+    std::unordered_set<std::string> highlighted;
+    std::unordered_set<std::string> excluded;
+    std::vector<uint32_t> tool_colors; ///< Per-tool AMS colors (0xRRGGBB); empty = the file's own
+};
+
 /**
  * @brief GCode Viewer widget state with proper RAII thread management
  *
@@ -240,9 +247,14 @@ class GCodeViewerState {
         false}; ///< Sticky until all fingers lift: gates rotate, tap, long-press
 #endif
 
-    // Selection and exclusion state
+    // Touch selection: what the viewer's own taps and long presses picked
     std::unordered_set<std::string> selected_objects;
-    std::unordered_set<std::string> excluded_objects;
+
+    /// What every renderer of this viewer should show, and what each was last
+    /// given, so applying it again pushes only what changed.
+    ViewOptions view_options;
+    ViewOptions applied_3d;
+    ViewOptions applied_2d;
 
     // Callbacks
     gcode_viewer_object_tap_callback_t object_tap_callback{nullptr};
@@ -265,10 +277,6 @@ class GCodeViewerState {
     std::string long_press_object_name;
 
     // Rendering settings
-    bool use_filament_color{true};
-    bool has_external_color_override{false};    ///< True when external color (AMS/Spoolman) is set
-    lv_color_t external_color_override{};       ///< Stored override color for lazy-init renderers
-    std::vector<uint32_t> tool_color_overrides; ///< Per-tool AMS colors for lazy-init renderers
     bool first_render{true};
     bool needs_3d_refresh_{false}; ///< Force one extra frame after first GPU render
     bool rendering_paused_{
@@ -446,6 +454,10 @@ void apply_2d_renderer_colors(gcode_viewer_state_t* st);
 void seed_2d_renderer_view(gcode_viewer_state_t* st, int width, int height);
 /// Route the current file to the 2D renderer because the memory budget refused 3D.
 void apply_budget_forced_2d(gcode_viewer_state_t* st, lv_obj_t* obj);
+/// Give each renderer the parts of view_options it has not been given yet. Call after
+/// changing view_options and after creating a renderer; an unchanged option costs the
+/// 3D renderer nothing (a changed color list re-uploads its VBOs).
+void apply_view_options(gcode_viewer_state_t* st);
 /// Forget what the stall watchdog has observed.
 void gcode_viewer_watchdog_restart(gcode_viewer_state_t* st);
 

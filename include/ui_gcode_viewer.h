@@ -592,6 +592,7 @@ bool ui_gcode_viewer_pump_offscreen_2d(lv_obj_t* obj);
 
 namespace helix::gcode {
 class GCodeLayerRenderer;
+class GCodeGLESRenderer;
 } // namespace helix::gcode
 
 namespace helix::test_access {
@@ -626,6 +627,12 @@ std::vector<uint32_t> gcode_viewer_tool_colors(lv_obj_t* viewer);
 /// are applied. set_tool_colors() cannot express this: an empty vector means
 /// "nothing knowable" to every layer below.
 void gcode_viewer_clear_tool_colors(lv_obj_t* viewer);
+
+/// The viewer's 2D layer renderer, or null while it has none.
+const helix::gcode::GCodeLayerRenderer* gcode_viewer_2d_renderer(lv_obj_t* viewer);
+
+/// The viewer's 3D renderer; null in a build without one.
+helix::gcode::GCodeGLESRenderer* gcode_viewer_3d_renderer(lv_obj_t* viewer);
 
 /// The 3D renderer's geometry palette; empty with no geometry or no 3D renderer.
 std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer);
