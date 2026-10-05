@@ -9,6 +9,7 @@
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
+#include "observer_factory.h"
 #include "printer_state.h"
 #include "replace_method_callback.h"
 #include "state/subject_macros.h"
@@ -66,6 +67,15 @@ void TimelapseState::init_subjects(bool register_xml) {
 
     subjects_initialized_ = true;
 
+    // RAW_PRINT_STATE_OK: the plugin captures frames only while the printer
+    // runs a job, so the wire state is what decides where one print ends.
+    PrinterState& printer = get_printer_state();
+    print_in_progress_ = false;
+    print_state_obs_ = helix::ui::observe_print_state<TimelapseState>(
+        printer.print_state().get_print_state_enum_subject(), this,
+        [](TimelapseState* self, PrintJobState state) { self->on_print_state_changed(state); },
+        printer.get_subjects_lifetime());
+
     // Self-register cleanup — ensures deinit runs before lv_deinit()
     StaticSubjectRegistry::instance().register_deinit(
         "TimelapseState", []() { TimelapseState::instance().deinit_subjects(); });
@@ -83,10 +93,30 @@ void TimelapseState::deinit_subjects() {
     // next drain writes into a deinited subject and lv_subject_notify walks a
     // stale observer list (#1165, #1146).
     async_lifetime_.invalidate();
+    print_state_obs_.reset();
 
     subjects_.deinit_all();
     subjects_initialized_ = false;
     last_notified_progress_ = -1;
+}
+
+void TimelapseState::on_print_state_changed(PrintJobState state) {
+    // RAW_PRINT_STATE_OK: wire state by design, see init_subjects().
+    switch (state) {
+    case PrintJobState::PRINTING:
+        // PAUSED -> PRINTING is the same print resuming; only a print that
+        // was not already running starts the count over.
+        if (!print_in_progress_) {
+            print_in_progress_ = true;
+            reset();
+        }
+        break;
+    case PrintJobState::PAUSED:
+        break;
+    default:
+        print_in_progress_ = false;
+        break;
+    }
 }
 
 void TimelapseState::handle_timelapse_event(const nlohmann::json& event) {

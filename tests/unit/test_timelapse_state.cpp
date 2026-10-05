@@ -1,8 +1,11 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/print_state_test_drivers.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
+#include "app_globals.h"
+#include "printer_state.h"
 #include "timelapse_state.h"
 
 #include "../catch_amalgamated.hpp"
@@ -312,4 +315,94 @@ TEST_CASE("TimelapseState: render progress notifications throttled to 25% bounda
     }
 
     state.deinit_subjects();
+}
+
+// ============================================================================
+// New print resets the per-print capture state
+// ============================================================================
+
+namespace {
+
+struct TimelapsePrintFixture {
+    TimelapsePrintFixture() {
+        lv_init_safe();
+        auto& ps = get_printer_state();
+        ps.init_subjects(false);
+        test::set_wire_state(ps, PrintJobState::STANDBY);
+        UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        // Re-init so the print-state observer binds to this PrinterState's subjects.
+        TimelapseState::instance().deinit_subjects();
+        TimelapseState::instance().init_subjects(false);
+    }
+    ~TimelapsePrintFixture() {
+        test::set_wire_state(get_printer_state(), PrintJobState::STANDBY);
+        UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        TimelapseState::instance().deinit_subjects();
+    }
+
+    void wire(PrintJobState s) {
+        test::set_wire_state(get_printer_state(), s);
+        UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    }
+    void frames(int n) {
+        for (int i = 0; i < n; ++i) {
+            TimelapseState::instance().handle_timelapse_event(
+                json{{"action", "newframe"}, {"framefile", "f.jpg"}});
+            UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+        }
+    }
+    int frame_count() {
+        return lv_subject_get_int(TimelapseState::instance().get_frame_count_subject());
+    }
+    std::string capture_info() {
+        return lv_subject_get_string(TimelapseState::instance().get_capture_info_subject());
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(TimelapsePrintFixture,
+                 "TimelapseState: a new print starts the frame count over when nothing rendered",
+                 "[timelapse_state][new_print]") {
+    // Autorender off: no render event ever clears the previous print's frames.
+    wire(PrintJobState::PRINTING);
+    frames(3);
+    REQUIRE(frame_count() == 3);
+    REQUIRE_FALSE(capture_info().empty());
+    wire(PrintJobState::COMPLETE);
+
+    wire(PrintJobState::PRINTING);
+    CHECK(frame_count() == 0);
+    CHECK(capture_info().empty());
+    frames(1);
+    CHECK(frame_count() == 1);
+}
+
+TEST_CASE_METHOD(TimelapsePrintFixture,
+                 "TimelapseState: a new print starts over after a failed render",
+                 "[timelapse_state][new_print]") {
+    wire(PrintJobState::PRINTING);
+    frames(4);
+    wire(PrintJobState::COMPLETE);
+    TimelapseState::instance().handle_timelapse_event(
+        json{{"action", "render"}, {"status", "error"}, {"msg", "ffmpeg failed"}});
+    UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(frame_count() == 4);
+
+    wire(PrintJobState::PRINTING);
+    CHECK(frame_count() == 0);
+    CHECK(capture_info().empty());
+}
+
+TEST_CASE_METHOD(TimelapsePrintFixture, "TimelapseState: resuming a paused print keeps its frames",
+                 "[timelapse_state][new_print]") {
+    wire(PrintJobState::PRINTING);
+    frames(2);
+    const std::string info = capture_info();
+    REQUIRE_FALSE(info.empty());
+
+    wire(PrintJobState::PAUSED);
+    wire(PrintJobState::PRINTING);
+    CHECK(frame_count() == 2);
+    CHECK(capture_info() == info);
 }
