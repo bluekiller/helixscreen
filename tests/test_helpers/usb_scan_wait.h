@@ -33,6 +33,9 @@ inline void wait_for_usb_scan(const std::function<bool()>& scanning) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
         helix::ui::UpdateQueue::instance().drain();
     }
+    // The predicate can turn false between a drain and its check, with the
+    // result already queued.
+    helix::ui::UpdateQueue::instance().drain();
 }
 
 } // namespace helix::test

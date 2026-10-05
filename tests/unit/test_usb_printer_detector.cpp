@@ -84,7 +84,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "USB printer polling enumerates the bus off th
             UsbPrinterDetector doomed;
             doomed.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
         }
-        // The detector is gone, so only the lane can say the scan ended.
+        // The detector is gone, so only the lane can say the scan ended. An
+        // idle lane cannot come before the scan's item finishes, and the item
+        // queues its result before it does; other work only lengthens the wait.
         helix::test::wait_for_usb_scan(
             [] { return helix::http::HttpExecutor::fast().inflight() > 0; });
         CHECK(calls == 0);
@@ -100,17 +102,28 @@ TEST_CASE_METHOD(LVGLTestFixture, "USB printer polling enumerates the bus off th
 
 TEST_CASE_METHOD(LVGLTestFixture, "a USB spool label enumerates the bus off the UI thread",
                  "[label-printer][usb-detect]") {
+    if (!UsbPrinterDetector::scan().empty()) {
+        SKIP("a real USB label printer is attached; this test would print to it");
+    }
     Config::get_instance();
     auto& settings = LabelPrinterSettingsManager::instance();
     settings.init_subjects();
-    const std::string previous_type = settings.get_printer_type();
+    struct RestoreType {
+        LabelPrinterSettingsManager& settings;
+        std::string previous;
+        ~RestoreType() {
+            settings.set_printer_type(previous);
+            settings.deinit_subjects();
+        }
+    } restore{settings, settings.get_printer_type()};
     settings.set_printer_type("usb");
 
     auto& lane = helix::http::HttpExecutor::fast();
     REQUIRE(lane.running());
+    // Start from an idle lane so the count below is this test's alone.
+    helix::test::wait_for_usb_scan([&] { return lane.inflight() > 0; });
     std::promise<void> gate;
     std::shared_future<void> open = gate.get_future().share();
-    const size_t busy = lane.inflight();
     for (int i = 0; i < 4; ++i) {
         lane.submit([open] { open.wait(); });
     }
@@ -122,13 +135,10 @@ TEST_CASE_METHOD(LVGLTestFixture, "a USB spool label enumerates the bus off the 
     print_spool_label(spool, [&](bool, const std::string&) { ++answers; });
 
     // Every worker is held, so a scan handed to the lane is still queued here.
-    CHECK(lane.inflight() == busy + 5);
+    CHECK(lane.inflight() == 5);
     CHECK(answers == 0);
 
     gate.set_value();
-    helix::test::wait_for_usb_scan([&] { return lane.inflight() > busy; });
+    helix::test::wait_for_usb_scan([&] { return answers == 0; });
     CHECK(answers == 1);
-
-    settings.set_printer_type(previous_type);
-    settings.deinit_subjects();
 }

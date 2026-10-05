@@ -62,6 +62,11 @@ class PrinterImageOverlay : public OverlayBase {
     /// Re-populate custom images list (public for async callback)
     void refresh_custom_images();
 
+    /// A stick image walk is running or its result has not been shown yet.
+    [[nodiscard]] bool usb_scan_in_flight() const {
+        return usb_walk_.in_flight();
+    }
+
   private:
     //
     // === Internal Methods ===

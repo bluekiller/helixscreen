@@ -47,7 +47,6 @@ TEST_CASE_METHOD(LVGLUITestFixture, "printer image overlay walks the stick off t
     // Hold every fast-lane worker so a walk handed to the lane cannot finish.
     auto& lane = helix::http::HttpExecutor::fast();
     REQUIRE(lane.running());
-    const size_t busy = lane.inflight();
     std::promise<void> release;
     std::shared_future<void> gate = release.get_future().share();
     for (int i = 0; i < 4; ++i) {
@@ -61,7 +60,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "printer image overlay walks the stick off t
     CHECK(lv_obj_get_child_count(list) == 0);
 
     release.set_value();
-    helix::test::wait_for_usb_scan([&] { return lane.inflight() > busy; });
+    helix::test::wait_for_usb_scan([&] { return overlay.usb_scan_in_flight(); });
     CHECK(lv_obj_get_child_count(list) == 1);
 
     overlay.close();
