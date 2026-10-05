@@ -9,6 +9,7 @@
 #include "lane_binding.h"
 #include "lane_echo.h"
 #include "lane_observation.h"
+#include "snapmaker_channel_state.h"
 #include "snapmaker_print_preferences.h"
 #include "snapmaker_status_parse.h"
 
@@ -513,6 +514,22 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     void apply_active_tool_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     void apply_filament_detect_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     void apply_rfid_entry_locked(int slot_index, const SnapmakerRfidInfo& rfid, FrameEffects& fx);
+    void apply_feed_channels_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_feed_channel_locked(const snapmaker::FeedChannelDelta& channel, FrameEffects& fx);
+    /// The feed-port flag: its false -> true edge is an insert into the channel.
+    void apply_port_presence_locked(int slot_index, bool detected, FrameEffects& fx);
+    /// Step-bar phase, working head and the loaded-at-toolhead latch, all driven
+    /// by the channel_state the frame reported.
+    void apply_channel_progress_locked(int slot_index, const std::string& state,
+                                       const snapmaker::ChannelStateInfo& info, FrameEffects& fx);
+    /// Error surfacing and the operation's action lifecycle for the op outcome.
+    void apply_channel_outcome_locked(int slot_index, const std::string& op_state,
+                                      const snapmaker::ChannelStateInfo& op_info,
+                                      const std::string& error, bool outcome_is_new,
+                                      FrameEffects& fx);
+    /// Verifies the batch plan's cursor head against the op outcome.
+    void advance_batch_locked(int slot_index, const std::string& op_state,
+                              const snapmaker::ChannelStateInfo& op_info, FrameEffects& fx);
 
     /// RPC timeout budget for ONE batch feed op. AUTO_FEEDING heats from cold +
     /// feeds + flushes; measured ~86s live (see prepare_for_resume), so 150s is

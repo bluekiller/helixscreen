@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "hv/json.hpp"
 
@@ -78,6 +79,17 @@ struct FilamentDetectDelta {
     std::array<std::optional<int>, kToolCount> state;
 };
 
+/// One lane's entry in a `filament_feed left` / `filament_feed right` object.
+struct FeedChannelDelta {
+    int lane = 0;
+    std::optional<bool> filament_detected; ///< the port sensor
+    std::optional<std::string> channel_state;
+    std::optional<std::string> channel_action_state;
+    std::optional<std::string> channel_error;
+    std::optional<bool> module_exist;
+    std::optional<bool> disable_auto;
+};
+
 /// Everything the backend reads from one status frame, parsed up front.
 struct StatusDelta {
     /// extruder, extruder1 .. extruder3; nullopt when the frame has no such
@@ -87,6 +99,9 @@ struct StatusDelta {
     std::optional<std::string> toolhead_extruder;
     /// nullopt when the frame has no filament_detect object.
     std::optional<FilamentDetectDelta> filament_detect;
+    /// Every lane entry the frame carried, in the order the backend applies
+    /// them: `filament_feed left` then `filament_feed right`, each by lane.
+    std::vector<FeedChannelDelta> feed_channels;
 };
 
 [[nodiscard]] ExtruderDelta parse_extruder_delta(const nlohmann::json& extruder);
@@ -94,6 +109,8 @@ struct StatusDelta {
 [[nodiscard]] SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
 
 [[nodiscard]] FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect);
+
+[[nodiscard]] std::vector<FeedChannelDelta> parse_feed_channels(const nlohmann::json& status);
 
 [[nodiscard]] StatusDelta parse_status(const nlohmann::json& status);
 

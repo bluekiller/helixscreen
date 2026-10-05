@@ -101,3 +101,39 @@ TEST_CASE("Snapmaker status parse reads filament_detect entries independently",
 
     CHECK_FALSE(snapmaker::parse_status(json{{"filament_detect", 3}}).filament_detect);
 }
+
+TEST_CASE("Snapmaker status parse reads feed channels left then right, by lane",
+          "[snapmaker][status_parse]") {
+    const auto d = snapmaker::parse_status(
+        json{{"filament_feed right",
+              json{{"extruder3", json{{"channel_state", "wait_insert"}, {"module_exist", true}}},
+                   {"extruder2", json{{"filament_detected", false}}}}},
+             {"filament_feed left",
+              json{{"extruder1", json{{"channel_state", "load_finish"}, {"channel_error", "ok"}}},
+                   {"extruder0",
+                    json{{"filament_detected", true}, {"channel_action_state", "load"}}}}}});
+    REQUIRE(d.feed_channels.size() == 4);
+    CHECK(d.feed_channels[0].lane == 0);
+    CHECK(d.feed_channels[1].lane == 1);
+    CHECK(d.feed_channels[2].lane == 2);
+    CHECK(d.feed_channels[3].lane == 3);
+
+    CHECK(d.feed_channels[0].filament_detected == true);
+    CHECK(d.feed_channels[0].channel_action_state == "load");
+    CHECK_FALSE(d.feed_channels[0].channel_state);
+    CHECK(d.feed_channels[1].channel_state == "load_finish");
+    CHECK_FALSE(d.feed_channels[1].filament_detected);
+    CHECK(d.feed_channels[2].filament_detected == false);
+    CHECK(d.feed_channels[3].module_exist == true);
+}
+
+TEST_CASE("Snapmaker status parse reads a null feed field as absent", "[snapmaker][status_parse]") {
+    const auto d = snapmaker::parse_status(
+        json{{"filament_feed left", json{{"extruder0", json{{"filament_detected", nullptr},
+                                                            {"channel_state", nullptr},
+                                                            {"channel_error", nullptr}}}}}});
+    REQUIRE(d.feed_channels.size() == 1);
+    CHECK_FALSE(d.feed_channels[0].filament_detected);
+    CHECK_FALSE(d.feed_channels[0].channel_state);
+    CHECK_FALSE(d.feed_channels[0].channel_error);
+}

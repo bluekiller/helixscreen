@@ -1420,6 +1420,344 @@ void AmsBackendSnapmaker::apply_rfid_entry_locked(int i, const SnapmakerRfidInfo
     fx.changed = true;
 }
 
+void AmsBackendSnapmaker::apply_feed_channels_locked(const snapmaker::StatusDelta& delta,
+                                                     FrameEffects& fx) {
+    for (const auto& channel : delta.feed_channels) {
+        apply_feed_channel_locked(channel, fx);
+    }
+}
+
+void AmsBackendSnapmaker::apply_feed_channel_locked(const snapmaker::FeedChannelDelta& channel,
+                                                    FrameEffects& fx) {
+    const int i = channel.lane;
+    if (channel.filament_detected) {
+        apply_port_presence_locked(i, *channel.filament_detected, fx);
+    }
+
+    // channel_state is the single authoritative signal for load state and
+    // operation progress. classify_channel_state maps every firmware state (39
+    // total) to {action, phase, terminal, fail, latch set/clear}; the parse
+    // reads off that one table rather than scattered string compares. The
+    // defaults are the intended "nothing to report" sentinels: "" is checked by
+    // the !state.empty() gate, "ok" by classify_channel_state.
+    const std::string state = channel.channel_state.value_or("");
+    const std::string error = channel.channel_error.value_or("ok");
+
+    // Keep the raw fields for eligibility queries; the latch below collapses
+    // them to a single bit. Status frames are deltas: start from the previous
+    // snapshot and overwrite only the keys this frame carries, so a
+    // channel_state-only frame leaves filament_detected/module_exist standing
+    // and a filament_detected-only frame does not blank state (the feeder frame
+    // never carries the motion sensor's enabled flag, so that field rides the
+    // same rule).
+    ChannelSnapshot snap = channel_snapshots_[static_cast<size_t>(i)];
+    const std::string prev_state = snap.state;
+    const std::string prev_action_state = snap.action_state;
+    if (channel.channel_state) {
+        snap.state = *channel.channel_state;
+    }
+    if (channel.channel_action_state) {
+        snap.action_state = *channel.channel_action_state;
+    }
+    if (channel.channel_error) {
+        snap.error = *channel.channel_error;
+    }
+    if (channel.filament_detected) {
+        snap.filament_detected = *channel.filament_detected;
+    }
+    if (channel.module_exist) {
+        snap.module_exist = *channel.module_exist;
+    }
+    if (channel.disable_auto) {
+        snap.disable_auto = *channel.disable_auto;
+    }
+    // The op lifecycle, error surfacing and batch
+    // verification read the op's outcome; the latch and the
+    // step bar read where the filament is. They differ only
+    // when the outcome survives in channel_action_state alone.
+    const std::optional<std::string> settled_outcome =
+        helix::snapmaker::settled_op_outcome(snap.state, prev_action_state, snap.action_state);
+    channel_snapshots_[static_cast<size_t>(i)] = std::move(snap);
+    // A terminal ends the op or marks the lane only when this
+    // frame moved the channel to it; see observed_change.
+    const bool outcome_is_new =
+        settled_outcome.has_value() || helix::snapmaker::observed_change(prev_state, state);
+
+    const ChannelStateInfo info = classify_channel_state(state);
+    const std::string& op_state = settled_outcome ? *settled_outcome : state;
+    ChannelStateInfo op_info = settled_outcome ? classify_channel_state(op_state) : info;
+    if (!settled_outcome && state == "preload_finish" && preload_in_flight_[i]) {
+        op_info.is_terminal = true;
+    }
+    if (helix::snapmaker::channel_state_in_progress(state)) {
+        preload_in_flight_[i] = state.rfind("preload_", 0) == 0;
+    } else if (!state.empty()) {
+        preload_in_flight_[i] = false;
+    }
+
+    apply_channel_progress_locked(i, state, info, fx);
+    apply_channel_outcome_locked(i, op_state, op_info, error, outcome_is_new, fx);
+    advance_batch_locked(i, op_state, op_info, fx);
+
+    // Trace the firmware channel_state sequence during a load/unload: the
+    // true physical completion is a different event from an intermediate
+    // one (preload_finish is staged-in-buffer), and the order is
+    // firmware-specific.
+    if (!state.empty() || settled_outcome) {
+        spdlog::debug("[AmsBackendSnapmaker] tool {} channel_state='{}' "
+                      "op_state='{}' error='{}' -> action={} current_slot={}",
+                      i, state, op_state, error, ams_action_to_string(system_info_.action),
+                      system_info_.current_slot);
+    }
+}
+
+void AmsBackendSnapmaker::apply_port_presence_locked(int i, bool detected, FrameEffects& fx) {
+    // The port flag mirrors into port_sensor_filament_present_ so
+    // is_stuck_motion_sensor_runout can distinguish a real runout (both sensors
+    // false) from a stale motion-sensor false positive (motion=false,
+    // port=true).
+    // Mirror into port_sensor_filament_present_ so
+    // is_stuck_motion_sensor_runout can distinguish a real
+    // runout (both sensors false) from a stale motion-sensor
+    // false positive (motion=false, port=true). Tracked
+    // independent of slot->status because slot status flips
+    // to AVAILABLE/LOADED based on extruder pin state which
+    // is orthogonal to the port sensor reading.
+    if (i >= 0 && i < NUM_TOOLS) {
+        // The port flag's false -> true edge is an
+        // insert into the channel; the first sighting
+        // is the baseline, not an edge. The tag
+        // reader's answer lands a frame or two later,
+        // so the edge holds a pending verdict for the
+        // info loop to judge (#1710). A drop cancels
+        // one: the spool left before any read.
+        //
+        // A feed the firmware itself drives - its own
+        // tool-change unload/load, or one of our
+        // batch ops - drops and raises this flag too,
+        // and no spool changed hands, so it arms
+        // nothing. The edge runs before this frame's
+        // channel_state parse, so the gate reads the
+        // channel's last reported state; the state
+        // parse below cancels anything the ordering
+        // missed.
+        const bool firmware_driven = batch_.active || helix::snapmaker::channel_state_in_progress(
+                                                          channel_snapshots_[i].state);
+        if (detected && feed_presence_seen_[i] && !port_sensor_filament_present_[i] &&
+            !firmware_driven) {
+            pending_insert_passes_[i] = 1;
+        } else if (!detected) {
+            pending_insert_passes_[i] = 0;
+        }
+        port_sensor_filament_present_[i] = detected;
+        feed_presence_seen_[i] = true;
+    }
+    auto* slot = system_info_.units[0].get_slot(i);
+    if (slot) {
+        if (detected &&
+            (slot->status == SlotStatus::EMPTY || slot->status == SlotStatus::UNKNOWN)) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        } else if (!detected && slot->status != SlotStatus::LOADED) {
+            slot->status = SlotStatus::EMPTY;
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_channel_progress_locked(int i, const std::string& state,
+                                                        const ChannelStateInfo& info,
+                                                        FrameEffects& fx) {
+    // A feed under way on this channel is the firmware
+    // moving filament itself, so a presence edge that
+    // armed a pending verdict this parse was not a user
+    // insert; the spool never left.
+    if (pending_insert_passes_[i] > 0 &&
+        (info.action == AmsAction::LOADING || info.action == AmsAction::UNLOADING)) {
+        pending_insert_passes_[i] = 0;
+    }
+
+    // A channel reporting any state at all makes the
+    // lane's presence inputs live for the
+    // convergence-point ingest below.
+    if (!state.empty()) {
+        feed_presence_seen_[i] = true;
+    }
+
+    // Mirror the granular firmware sub-phase into the system
+    // info so the sidebar step bar can show the real
+    // Home/Select/Heat/Move sequence. -1 for any non-active
+    // state (idle, *_finish, *_fail, preload_finish). Updated
+    // only when the firmware actually reports a channel_state,
+    // so an incremental status omitting it doesn't clear the
+    // phase spuriously.
+    if (!state.empty()) {
+        if (system_info_.operation_phase != info.phase) {
+            system_info_.operation_phase = info.phase;
+            fx.changed = true;
+        }
+    }
+
+    // Capture the head whose channel is mid-op; the single
+    // derivation of operation_working_slot below decides
+    // what the header names from it (batch cursor wins).
+    if (fx.in_progress_head < 0 &&
+        (info.action == AmsAction::LOADING || info.action == AmsAction::UNLOADING)) {
+        fx.in_progress_head = i;
+    }
+
+    // "Loaded at toolhead" latch (the core fix). Driven purely
+    // from channel_state transitions, NOT the motion sensor
+    // (which fails to clear after an unload on current firmware).
+    // SET on load_finish; CLEAR on unload_finish / wait_insert /
+    // preload_finish; KEEP on every transient / in-progress /
+    // fail state. Mirrors the firmware's persisted
+    // config['load_finish'].
+    if (!state.empty() && !info.ignore) {
+        if (info.sets_loaded && !loaded_at_toolhead_[i]) {
+            loaded_at_toolhead_[i] = true;
+            fx.changed = true;
+        } else if (info.clears_loaded && loaded_at_toolhead_[i]) {
+            loaded_at_toolhead_[i] = false;
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_channel_outcome_locked(int i, const std::string& op_state,
+                                                       const ChannelStateInfo& op_info,
+                                                       const std::string& error,
+                                                       bool outcome_is_new, FrameEffects& fx) {
+    // Error surfacing: either a firmware channel_error token OR
+    // a *_fail channel_state (Change 2). Preserve the multi-color
+    // false-alarm guard — the firmware reports
+    // channel_error="no_filament" for ANY empty lane, and briefly
+    // a *_fail channel_state when it auto-feeds a lane deliberately
+    // left unloaded for a multi-color print (heads 0+2 used, head 1
+    // empty). Neither must latch the whole backend into
+    // action=Error and pop a spurious modal on such an idle empty
+    // non-active lane. An error is real when the lane holds
+    // filament (lane not empty), is the active lane, or an
+    // operation is genuinely underway on it (an in-progress
+    // LOADING/UNLOADING state — a *_fail is terminal, so the same
+    // empty-lane guard applies to it as to the no_filament token).
+    const bool has_error_token = error != "ok" && !error.empty() && error != "none";
+    if (has_error_token || op_info.is_fail) {
+        const auto* slot = system_info_.units[0].get_slot(i);
+        const bool lane_empty = slot == nullptr || !slot->is_present();
+        const bool active_lane = system_info_.current_slot == i || system_info_.current_tool == i;
+        const bool op_in_progress =
+            op_info.action == AmsAction::LOADING || op_info.action == AmsAction::UNLOADING;
+        if (lane_empty && !op_in_progress && !active_lane) {
+            spdlog::debug("[AmsBackendSnapmaker] ignoring error (token='{}' state='{}') "
+                          "on idle empty lane {} (not operating, not active)",
+                          error, op_state, i);
+        } else {
+            system_info_.action = AmsAction::ERROR;
+            system_info_.operation_detail =
+                has_error_token ? friendly_channel_error(error, lane_noun(), i)
+                                : friendly_channel_state_fail(op_state, lane_noun(), i);
+            fx.changed = true;
+        }
+    } else if (!op_state.empty() && !op_info.ignore) {
+        // No error — drive the action / operation lifecycle from
+        // the classifier.
+        if (op_info.action == AmsAction::LOADING) {
+            if (system_info_.action != AmsAction::LOADING) {
+                system_info_.action = AmsAction::LOADING;
+                fx.changed = true;
+            }
+        } else if (op_info.action == AmsAction::UNLOADING) {
+            if (system_info_.action != AmsAction::UNLOADING) {
+                system_info_.action = AmsAction::UNLOADING;
+                fx.changed = true;
+            }
+        } else if (op_info.is_terminal) {
+            // A *_finish state resolves the operation. The
+            // latch above carries its load meaning; the active
+            // tool's LOADED status and filament_loaded are
+            // derived from it after the sensor parse.
+            //
+            // current_slot / current_tool are NOT reset here:
+            // they track which toolhead is picked up on the
+            // carriage (toolhead.extruder is the authority, set
+            // in the extruder-pin parse above), which is
+            // independent of whether feeder filament is at the
+            // nozzle. A tool fed without the feeders (TPU loaded
+            // straight into the toolhead) stays picked up while
+            // its channel reports unload_finish permanently, and
+            // unload_active_filament() needs current_slot to
+            // name that tool: with no slot it dispatches the
+            // bare INNER_FILAMENT_UNLOAD, which the firmware
+            // runs on T0.
+            if (op_state == "unload_finish" && outcome_is_new) {
+                // Deferred to after the lock for the same
+                // reason emit_event is: this reaches into
+                // AmsState, which takes its own mutex, while
+                // AmsState::add_backend() takes that mutex
+                // first and then ours via set_event_callback().
+                // Calling it here closed the cycle and TSan
+                // reported the deadlock (nightly, 2026-08-16).
+                fx.unloaded_lanes.push_back(i);
+            }
+            if (outcome_is_new && (system_info_.action == AmsAction::LOADING ||
+                                   system_info_.action == AmsAction::UNLOADING)) {
+                system_info_.action = AmsAction::IDLE;
+                system_info_.operation_detail.clear();
+                PostOpCooldownManager::instance().schedule();
+                fx.changed = true;
+            }
+        }
+        // A resting state (none / inited / wait_insert, and
+        // preload_finish after anything but a preload) leaves
+        // the action untouched: one also appears while the
+        // nozzle heats for an unload, and the op's own
+        // outcome, when a resting state hides it, arrives as
+        // settled_outcome above. The latch already handled
+        // the resting states' clears.
+    }
+}
+
+void AmsBackendSnapmaker::advance_batch_locked(int i, const std::string& op_state,
+                                               const ChannelStateInfo& op_info, FrameEffects& fx) {
+    // Batch verification. Only the plan's cursor head can
+    // advance the cursor, so a sibling channel repeating its
+    // settled state in this frame is inert. The direction's
+    // own terminal is matched exactly: manual_sta_finish ends
+    // a single-op lifecycle but a load
+    // batch counts a head only at load_finish (unload at
+    // unload_finish). A *_fail on the cursor head stops the
+    // batch where it stands; the error branch above has
+    // already set operation_detail to the failure message,
+    // which must win over a progress line. Runs after the
+    // terminal resolution so its operation_detail.clear()
+    // cannot wipe the progress string this writes.
+    if (batch_.active && i == batch_.heads[batch_.cursor]) {
+        if (op_info.is_fail) {
+            batch_.active = false;
+            fx.batch_failed_head = i;
+            fx.batch_failed_state = op_state;
+        } else if (op_state == (batch_.load ? "load_finish" : "unload_finish")) {
+            ++batch_.cursor;
+            batch_.active = batch_.cursor < batch_.heads.size();
+            if (batch_.active) {
+                // "Load 2 of 4" — the head now in progress.
+                // The words arrive pretranslated from dispatch, so
+                // this parse makes no LVGL calls.
+                system_info_.operation_detail =
+                    fmt::format("{} {} {} {}", batch_.direction_label, batch_.cursor + 1,
+                                batch_.of_label, batch_.heads.size());
+            } else {
+                // Every head verified. Nothing is in
+                // progress, and no later frame clears the
+                // line once the action is IDLE.
+                system_info_.operation_detail.clear();
+            }
+            fx.changed = true;
+        }
+    }
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
     const snapmaker::StatusDelta delta = snapmaker::parse_status(status);
@@ -1433,364 +1771,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
 
         apply_filament_detect_locked(delta, fx);
 
-        // Parse filament_feed left/right — top-level Klipper objects (not nested in
-        // filament_detect) Each contains per-extruder state: filament_detected, channel_state,
-        // channel_error
-        for (const auto& feed_key : {"filament_feed left", "filament_feed right"}) {
-            if (status.contains(feed_key) && status[feed_key].is_object()) {
-                const auto& feed = status[feed_key];
-                for (int i = 0; i < NUM_TOOLS; i++) {
-                    std::string ext_key = (i == 0) ? "extruder0" : fmt::format("extruder{}", i);
-                    if (feed.contains(ext_key) && feed[ext_key].is_object()) {
-                        const auto& ch = feed[ext_key];
-                        // filament_detected: use .find() + is_boolean() (per
-                        // [L087], matching the motion-sensor loop below) rather
-                        // than .value(), which throws on the null Klipper
-                        // publishes before the sensor's first reading. Because
-                        // status frames are deltas, an omitted field means "no
-                        // change" — treating it as false would clear the port
-                        // sensor and drop the slot to EMPTY on a frame that
-                        // said nothing about filament at all.
-                        std::optional<bool> detected_opt;
-                        auto fd_it = ch.find("filament_detected");
-                        if (fd_it != ch.end() && fd_it->is_boolean()) {
-                            const bool detected = fd_it->get<bool>();
-                            detected_opt = detected;
-                            // Mirror into port_sensor_filament_present_ so
-                            // is_stuck_motion_sensor_runout can distinguish a real
-                            // runout (both sensors false) from a stale motion-sensor
-                            // false positive (motion=false, port=true). Tracked
-                            // independent of slot->status because slot status flips
-                            // to AVAILABLE/LOADED based on extruder pin state which
-                            // is orthogonal to the port sensor reading.
-                            if (i >= 0 && i < NUM_TOOLS) {
-                                // The port flag's false -> true edge is an
-                                // insert into the channel; the first sighting
-                                // is the baseline, not an edge. The tag
-                                // reader's answer lands a frame or two later,
-                                // so the edge holds a pending verdict for the
-                                // info loop to judge (#1710). A drop cancels
-                                // one: the spool left before any read.
-                                //
-                                // A feed the firmware itself drives - its own
-                                // tool-change unload/load, or one of our
-                                // batch ops - drops and raises this flag too,
-                                // and no spool changed hands, so it arms
-                                // nothing. The edge runs before this frame's
-                                // channel_state parse, so the gate reads the
-                                // channel's last reported state; the state
-                                // parse below cancels anything the ordering
-                                // missed.
-                                const bool firmware_driven =
-                                    batch_.active || helix::snapmaker::channel_state_in_progress(
-                                                         channel_snapshots_[i].state);
-                                if (detected && feed_presence_seen_[i] &&
-                                    !port_sensor_filament_present_[i] && !firmware_driven) {
-                                    pending_insert_passes_[i] = 1;
-                                } else if (!detected) {
-                                    pending_insert_passes_[i] = 0;
-                                }
-                                port_sensor_filament_present_[i] = detected;
-                                feed_presence_seen_[i] = true;
-                            }
-                            auto* slot = system_info_.units[0].get_slot(i);
-                            if (slot) {
-                                if (detected && (slot->status == SlotStatus::EMPTY ||
-                                                 slot->status == SlotStatus::UNKNOWN)) {
-                                    slot->status = SlotStatus::AVAILABLE;
-                                    fx.changed = true;
-                                } else if (!detected && slot->status != SlotStatus::LOADED) {
-                                    slot->status = SlotStatus::EMPTY;
-                                    fx.changed = true;
-                                }
-                            }
-                        }
-
-                        // Parse channel_state — the single authoritative signal
-                        // for load state and operation progress. classify_channel_state
-                        // maps every firmware state (39 total) to {action, phase,
-                        // terminal, fail, latch set/clear}; the parse reads off that
-                        // one table rather than scattered string compares. See
-                        // u1_channel_state_reference.md.
-                        // safe_string, not .value(): both fields are string-or-null
-                        // on U1 firmware, and .value() throws on the null. The
-                        // defaults below are already the intended "nothing to
-                        // report" sentinels — "" is checked by the !state.empty()
-                        // gate, "ok" by classify_channel_state.
-                        auto state = helix::json_util::safe_string(ch, "channel_state", "");
-                        auto error = helix::json_util::safe_string(ch, "channel_error", "ok");
-
-                        // Keep the raw fields for eligibility queries; the
-                        // latch below collapses them to a single bit.
-                        // Status frames are deltas: start from the previous
-                        // snapshot and overwrite only the keys this frame
-                        // carries, so a channel_state-only frame leaves
-                        // filament_detected/module_exist standing and a
-                        // filament_detected-only frame does not blank state
-                        // (the feeder frame never carries the motion sensor's
-                        // enabled flag, so that field rides the same rule).
-                        // Absent-or-null is "no change" for every field.
-                        ChannelSnapshot snap = channel_snapshots_[static_cast<size_t>(i)];
-                        const std::string prev_state = snap.state;
-                        const std::string prev_action_state = snap.action_state;
-                        const auto state_it = ch.find("channel_state");
-                        if (state_it != ch.end() && state_it->is_string()) {
-                            snap.state = state_it->get_ref<const std::string&>();
-                        }
-                        const auto action_it = ch.find("channel_action_state");
-                        if (action_it != ch.end() && action_it->is_string()) {
-                            snap.action_state = action_it->get_ref<const std::string&>();
-                        }
-                        const auto error_it = ch.find("channel_error");
-                        if (error_it != ch.end() && error_it->is_string()) {
-                            snap.error = error_it->get_ref<const std::string&>();
-                        }
-                        if (detected_opt.has_value()) {
-                            snap.filament_detected = *detected_opt;
-                        }
-                        const auto module_it = ch.find("module_exist");
-                        if (module_it != ch.end() && module_it->is_boolean()) {
-                            snap.module_exist = module_it->get<bool>();
-                        }
-                        const auto disable_it = ch.find("disable_auto");
-                        if (disable_it != ch.end() && disable_it->is_boolean()) {
-                            snap.disable_auto = disable_it->get<bool>();
-                        }
-                        // The op lifecycle, error surfacing and batch
-                        // verification read the op's outcome; the latch and the
-                        // step bar read where the filament is. They differ only
-                        // when the outcome survives in channel_action_state alone.
-                        const std::optional<std::string> settled_outcome =
-                            helix::snapmaker::settled_op_outcome(snap.state, prev_action_state,
-                                                                 snap.action_state);
-                        channel_snapshots_[static_cast<size_t>(i)] = std::move(snap);
-                        // A terminal ends the op or marks the lane only when this
-                        // frame moved the channel to it; see observed_change.
-                        const bool outcome_is_new =
-                            settled_outcome.has_value() ||
-                            helix::snapmaker::observed_change(prev_state, state);
-
-                        const ChannelStateInfo info = classify_channel_state(state);
-                        const std::string& op_state = settled_outcome ? *settled_outcome : state;
-                        ChannelStateInfo op_info =
-                            settled_outcome ? classify_channel_state(op_state) : info;
-                        if (!settled_outcome && state == "preload_finish" &&
-                            preload_in_flight_[i]) {
-                            op_info.is_terminal = true;
-                        }
-                        if (helix::snapmaker::channel_state_in_progress(state)) {
-                            preload_in_flight_[i] = state.rfind("preload_", 0) == 0;
-                        } else if (!state.empty()) {
-                            preload_in_flight_[i] = false;
-                        }
-
-                        // A feed under way on this channel is the firmware
-                        // moving filament itself, so a presence edge that
-                        // armed a pending verdict this parse was not a user
-                        // insert; the spool never left.
-                        if (pending_insert_passes_[i] > 0 &&
-                            (info.action == AmsAction::LOADING ||
-                             info.action == AmsAction::UNLOADING)) {
-                            pending_insert_passes_[i] = 0;
-                        }
-
-                        // A channel reporting any state at all makes the
-                        // lane's presence inputs live for the
-                        // convergence-point ingest below.
-                        if (!state.empty()) {
-                            feed_presence_seen_[i] = true;
-                        }
-
-                        // Mirror the granular firmware sub-phase into the system
-                        // info so the sidebar step bar can show the real
-                        // Home/Select/Heat/Move sequence. -1 for any non-active
-                        // state (idle, *_finish, *_fail, preload_finish). Updated
-                        // only when the firmware actually reports a channel_state,
-                        // so an incremental status omitting it doesn't clear the
-                        // phase spuriously.
-                        if (!state.empty()) {
-                            if (system_info_.operation_phase != info.phase) {
-                                system_info_.operation_phase = info.phase;
-                                fx.changed = true;
-                            }
-                        }
-
-                        // Capture the head whose channel is mid-op; the single
-                        // derivation of operation_working_slot below decides
-                        // what the header names from it (batch cursor wins).
-                        if (fx.in_progress_head < 0 && (info.action == AmsAction::LOADING ||
-                                                        info.action == AmsAction::UNLOADING)) {
-                            fx.in_progress_head = i;
-                        }
-
-                        // "Loaded at toolhead" latch (the core fix). Driven purely
-                        // from channel_state transitions, NOT the motion sensor
-                        // (which fails to clear after an unload on current firmware).
-                        // SET on load_finish; CLEAR on unload_finish / wait_insert /
-                        // preload_finish; KEEP on every transient / in-progress /
-                        // fail state. Mirrors the firmware's persisted
-                        // config['load_finish'].
-                        if (!state.empty() && !info.ignore) {
-                            if (info.sets_loaded && !loaded_at_toolhead_[i]) {
-                                loaded_at_toolhead_[i] = true;
-                                fx.changed = true;
-                            } else if (info.clears_loaded && loaded_at_toolhead_[i]) {
-                                loaded_at_toolhead_[i] = false;
-                                fx.changed = true;
-                            }
-                        }
-
-                        // Error surfacing: either a firmware channel_error token OR
-                        // a *_fail channel_state (Change 2). Preserve the multi-color
-                        // false-alarm guard — the firmware reports
-                        // channel_error="no_filament" for ANY empty lane, and briefly
-                        // a *_fail channel_state when it auto-feeds a lane deliberately
-                        // left unloaded for a multi-color print (heads 0+2 used, head 1
-                        // empty). Neither must latch the whole backend into
-                        // action=Error and pop a spurious modal on such an idle empty
-                        // non-active lane. An error is real when the lane holds
-                        // filament (lane not empty), is the active lane, or an
-                        // operation is genuinely underway on it (an in-progress
-                        // LOADING/UNLOADING state — a *_fail is terminal, so the same
-                        // empty-lane guard applies to it as to the no_filament token).
-                        const bool has_error_token =
-                            error != "ok" && !error.empty() && error != "none";
-                        if (has_error_token || op_info.is_fail) {
-                            const auto* slot = system_info_.units[0].get_slot(i);
-                            const bool lane_empty = slot == nullptr || !slot->is_present();
-                            const bool active_lane =
-                                system_info_.current_slot == i || system_info_.current_tool == i;
-                            const bool op_in_progress = op_info.action == AmsAction::LOADING ||
-                                                        op_info.action == AmsAction::UNLOADING;
-                            if (lane_empty && !op_in_progress && !active_lane) {
-                                spdlog::debug(
-                                    "[AmsBackendSnapmaker] ignoring error (token='{}' state='{}') "
-                                    "on idle empty lane {} (not operating, not active)",
-                                    error, op_state, i);
-                            } else {
-                                system_info_.action = AmsAction::ERROR;
-                                system_info_.operation_detail =
-                                    has_error_token
-                                        ? friendly_channel_error(error, lane_noun(), i)
-                                        : friendly_channel_state_fail(op_state, lane_noun(), i);
-                                fx.changed = true;
-                            }
-                        } else if (!op_state.empty() && !op_info.ignore) {
-                            // No error — drive the action / operation lifecycle from
-                            // the classifier.
-                            if (op_info.action == AmsAction::LOADING) {
-                                if (system_info_.action != AmsAction::LOADING) {
-                                    system_info_.action = AmsAction::LOADING;
-                                    fx.changed = true;
-                                }
-                            } else if (op_info.action == AmsAction::UNLOADING) {
-                                if (system_info_.action != AmsAction::UNLOADING) {
-                                    system_info_.action = AmsAction::UNLOADING;
-                                    fx.changed = true;
-                                }
-                            } else if (op_info.is_terminal) {
-                                // A *_finish state resolves the operation. The
-                                // latch above carries its load meaning; the active
-                                // tool's LOADED status and filament_loaded are
-                                // derived from it after the sensor parse.
-                                //
-                                // current_slot / current_tool are NOT reset here:
-                                // they track which toolhead is picked up on the
-                                // carriage (toolhead.extruder is the authority, set
-                                // in the extruder-pin parse above), which is
-                                // independent of whether feeder filament is at the
-                                // nozzle. A tool fed without the feeders (TPU loaded
-                                // straight into the toolhead) stays picked up while
-                                // its channel reports unload_finish permanently, and
-                                // unload_active_filament() needs current_slot to
-                                // name that tool: with no slot it dispatches the
-                                // bare INNER_FILAMENT_UNLOAD, which the firmware
-                                // runs on T0.
-                                if (op_state == "unload_finish" && outcome_is_new) {
-                                    // Deferred to after the lock for the same
-                                    // reason emit_event is: this reaches into
-                                    // AmsState, which takes its own mutex, while
-                                    // AmsState::add_backend() takes that mutex
-                                    // first and then ours via set_event_callback().
-                                    // Calling it here closed the cycle and TSan
-                                    // reported the deadlock (nightly, 2026-08-16).
-                                    fx.unloaded_lanes.push_back(i);
-                                }
-                                if (outcome_is_new &&
-                                    (system_info_.action == AmsAction::LOADING ||
-                                     system_info_.action == AmsAction::UNLOADING)) {
-                                    system_info_.action = AmsAction::IDLE;
-                                    system_info_.operation_detail.clear();
-                                    PostOpCooldownManager::instance().schedule();
-                                    fx.changed = true;
-                                }
-                            }
-                            // A resting state (none / inited / wait_insert, and
-                            // preload_finish after anything but a preload) leaves
-                            // the action untouched: one also appears while the
-                            // nozzle heats for an unload, and the op's own
-                            // outcome, when a resting state hides it, arrives as
-                            // settled_outcome above. The latch already handled
-                            // the resting states' clears.
-                        }
-
-                        // Batch verification. Only the plan's cursor head can
-                        // advance the cursor, so a sibling channel repeating its
-                        // settled state in this frame is inert. The direction's
-                        // own terminal is matched exactly: manual_sta_finish ends
-                        // a single-op lifecycle but a load
-                        // batch counts a head only at load_finish (unload at
-                        // unload_finish). A *_fail on the cursor head stops the
-                        // batch where it stands; the error branch above has
-                        // already set operation_detail to the failure message,
-                        // which must win over a progress line. Runs after the
-                        // terminal resolution so its operation_detail.clear()
-                        // cannot wipe the progress string this writes.
-                        if (batch_.active && i == batch_.heads[batch_.cursor]) {
-                            if (op_info.is_fail) {
-                                batch_.active = false;
-                                fx.batch_failed_head = i;
-                                fx.batch_failed_state = op_state;
-                            } else if (op_state ==
-                                       (batch_.load ? "load_finish" : "unload_finish")) {
-                                ++batch_.cursor;
-                                batch_.active = batch_.cursor < batch_.heads.size();
-                                if (batch_.active) {
-                                    // "Load 2 of 4" — the head now in progress.
-                                    // The words arrive pretranslated from
-                                    // dispatch (main thread); this parse runs
-                                    // on the WebSocket thread, which must not
-                                    // call lv_tr.
-                                    system_info_.operation_detail = fmt::format(
-                                        "{} {} {} {}", batch_.direction_label, batch_.cursor + 1,
-                                        batch_.of_label, batch_.heads.size());
-                                } else {
-                                    // Every head verified. Nothing is in
-                                    // progress, and no later frame clears the
-                                    // line once the action is IDLE.
-                                    system_info_.operation_detail.clear();
-                                }
-                                fx.changed = true;
-                            }
-                        }
-
-                        // Diagnostic: trace the firmware channel_state sequence during
-                        // a load/unload so we can tell which event is the TRUE physical
-                        // completion vs an intermediate (preload_finish staged-in-buffer).
-                        // The on-screen step bar / status was dropping to Idle before the
-                        // physical unload finished; the real event order is firmware-
-                        // specific and was previously unlogged. (#u1-unload-steps)
-                        if (!state.empty() || settled_outcome) {
-                            spdlog::debug("[AmsBackendSnapmaker] tool {} channel_state='{}' "
-                                          "op_state='{}' error='{}' -> action={} current_slot={}",
-                                          i, state, op_state, error,
-                                          ams_action_to_string(system_info_.action),
-                                          system_info_.current_slot);
-                        }
-                    }
-                }
-            }
-        }
+        apply_feed_channels_locked(delta, fx);
 
         // The batch macro's `doing` save-variable is the firmware's own word
         // on whether a batch script is running. A false reading retires any

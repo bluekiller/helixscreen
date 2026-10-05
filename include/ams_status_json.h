@@ -31,6 +31,15 @@ template <typename T> [[nodiscard]] std::optional<T> read_scalar(const nlohmann:
     return std::nullopt;
 }
 
+/// The member @p key of @p obj as a T, or nullopt when it is absent, null or of
+/// another type. A delta frame omits what did not change, so absent is "no
+/// change" and never a default.
+template <typename T>
+[[nodiscard]] std::optional<T> read_field(const nlohmann::json& obj, const char* key) {
+    const auto it = obj.find(key);
+    return it == obj.end() ? std::nullopt : read_scalar<T>(*it);
+}
+
 /// The first N entries of the array @p obj[key], each read by @p reader. An
 /// entry is nullopt when the array is missing, shorter than its index, or holds
 /// something @p reader refuses, so a delta frame that omits or mistypes a lane

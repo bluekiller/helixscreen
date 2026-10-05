@@ -145,6 +145,37 @@ FilamentDetectDelta parse_filament_detect(const nlohmann::json& detect) {
     return d;
 }
 
+std::vector<FeedChannelDelta> parse_feed_channels(const nlohmann::json& status) {
+    std::vector<FeedChannelDelta> channels;
+    for (const char* feed_key : {"filament_feed left", "filament_feed right"}) {
+        if (!status.contains(feed_key) || !status[feed_key].is_object()) {
+            continue;
+        }
+        const auto& feed = status[feed_key];
+        for (int lane = 0; lane < kToolCount; lane++) {
+            const std::string ext_key = "extruder" + std::to_string(lane);
+            if (!feed.contains(ext_key) || !feed[ext_key].is_object()) {
+                continue;
+            }
+            const auto& ch = feed[ext_key];
+            FeedChannelDelta d;
+            d.lane = lane;
+            // Klipper publishes null for these before a sensor's first
+            // reading, which reads as absent rather than as false/empty: a
+            // frame that said nothing about filament must not clear the port
+            // sensor and drop the slot to EMPTY.
+            d.filament_detected = ams::read_field<bool>(ch, "filament_detected");
+            d.channel_state = ams::read_field<std::string>(ch, "channel_state");
+            d.channel_action_state = ams::read_field<std::string>(ch, "channel_action_state");
+            d.channel_error = ams::read_field<std::string>(ch, "channel_error");
+            d.module_exist = ams::read_field<bool>(ch, "module_exist");
+            d.disable_auto = ams::read_field<bool>(ch, "disable_auto");
+            channels.push_back(std::move(d));
+        }
+    }
+    return channels;
+}
+
 StatusDelta parse_status(const nlohmann::json& status) {
     StatusDelta d;
 
@@ -167,6 +198,8 @@ StatusDelta parse_status(const nlohmann::json& status) {
     if (status.contains("filament_detect") && status["filament_detect"].is_object()) {
         d.filament_detect = parse_filament_detect(status["filament_detect"]);
     }
+
+    d.feed_channels = parse_feed_channels(status);
 
     return d;
 }
