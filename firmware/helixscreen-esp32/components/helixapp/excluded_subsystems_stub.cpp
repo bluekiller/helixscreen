@@ -268,6 +268,9 @@ bool get_last_raw_touch(Point&) {
 // write config nothing reads back.
 void save_touch_range(const TouchRangeSettings&) {}
 
+// No evdev range stage to hold still during a capture.
+void set_touch_capture_active(bool) {}
+
 // ===========================================================================
 // MacroManager — helper-macro install/update subsystem
 // (src/printer/macro_manager.cpp, not in the v1 Core+AMS cut).
