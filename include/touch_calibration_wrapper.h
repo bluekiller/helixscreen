@@ -69,14 +69,16 @@ struct CalibrationContext {
     /// Same mutex.
     bool capture_active = false;
 
-    /// Changed pressed samples that each disproved a DisplaySize range on their
-    /// own, counted toward kTransposedGuessCorroboration. Same mutex.
+    /// Changed pressed samples in the current press that each disproved a
+    /// DisplaySize range on their own, counted toward
+    /// kTransposedGuessCorroboration. Cleared on release. Same mutex.
     int transposed_guess_votes = 0;
 };
 
-/// Samples that must each disprove a DisplaySize range before it is replaced:
-/// one glitch reading must not persist a wrong range, and a real touch near the
-/// edge yields several changed samples within one press.
+/// Samples within one press that must each disprove a DisplaySize range before
+/// it is replaced: isolated glitch readings, even across a long uptime, must not
+/// persist a wrong range, and a real touch near the edge yields several changed
+/// samples within one press.
 inline constexpr int kTransposedGuessCorroboration = 3;
 
 /// Read callback wrapper that applies affine touch calibration.

@@ -160,6 +160,13 @@ void calibrated_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
         ctx->original_read_cb(indev, data);
     }
 
+    // Corroboration against a DisplaySize range counts within one press. Only
+    // this thread writes the count, so the unlocked read cannot miss a vote.
+    if (data->state == LV_INDEV_STATE_RELEASED && ctx->transposed_guess_votes != 0) {
+        std::lock_guard<std::mutex> lock(s_diag_mutex);
+        ctx->transposed_guess_votes = 0;
+    }
+
     // Stash the pre-swap, pre-scale digitizer reading behind the coordinate we
     // just got, before the affine below rewrites it. Calibration needs this to
     // solve for the evdev range; the clamped coordinate alone cannot tell it what

@@ -552,6 +552,12 @@ struct TransposedGuessRig {
         Config::get_instance()->set<bool>("/input/touch_range/valid", false);
     }
 
+    void release() {
+        lv_indev_data_t data{};
+        data.state = LV_INDEV_STATE_RELEASED;
+        calibrated_read_cb(indev, &data);
+    }
+
     void press(int rx, int ry) {
         raw_x = rx;
         raw_y = ry;
@@ -652,6 +658,27 @@ TEST_CASE_METHOD(LVGLTestFixture,
     rig.press(561, 300);
     CHECK(rig.reprograms == 0);
     rig.press(562, 301);
+    CHECK(rig.reprograms == 1);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "touch diagnostics: glitches past the edge in separate presses do not add up",
+                 "[touch][touch-diagnostics][wrapper][transposed-guess]") {
+    // A C5 Pro left up for weeks: one stray reading per press, never three in one.
+    TransposedGuessRig rig(make_display_size_pipeline(799, 479, 480, 800), 480, 800);
+
+    for (int i = 0; i < 5; i++) {
+        rig.press(600 + i, 300);
+        rig.press(100 + i, 400);
+        rig.release();
+    }
+    CHECK(rig.reprograms == 0);
+    CHECK_FALSE(load_touch_range().valid);
+
+    // Three in one press is a touch.
+    rig.press(610, 300);
+    rig.press(611, 301);
+    rig.press(612, 302);
     CHECK(rig.reprograms == 1);
 }
 
