@@ -127,4 +127,15 @@ TEST_CASE_METHOD(LVGLTestFixture, "CameraConfigModal: rows mirror the named webc
     CHECK(Access::source(modal) == "Gone");
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "CameraConfigModal: destroying the modal withdraws its XML names",
+                 "[camera][modal][xml_name]") {
+    {
+        CameraConfigModal modal("camera", TEST_PANEL, [](const nlohmann::json&) {});
+        REQUIRE(lv_xml_get_subject(nullptr, "cam_rot_0_active") != nullptr);
+        REQUIRE(lv_xml_get_subject(nullptr, "cam_source_0_name") != nullptr);
+    }
+    CHECK(lv_xml_get_subject(nullptr, "cam_rot_0_active") == nullptr);
+    CHECK(lv_xml_get_subject(nullptr, "cam_source_0_name") == nullptr);
+}
+
 #endif // HELIX_HAS_CAMERA

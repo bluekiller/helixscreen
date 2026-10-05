@@ -22,10 +22,13 @@
 #include "app_globals.h"
 #include "filament_sensor_manager.h"
 #include "humidity_sensor_manager.h"
+#include "panel_widget_manager.h"
+#include "panel_widget_registry.h"
 #include "printer_state.h"
 #include "probe_sensor_manager.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
+#include "subject_managed_panel.h"
 #include "temperature_sensor_manager.h"
 #include "timelapse_state.h"
 #include "tool_state.h"
@@ -250,14 +253,50 @@ TEST_CASE("XMLTestFixture leaves no PrinterState entry behind in the registry",
 // XML names are withdrawn with their owner
 // ============================================================================
 
+TEST_CASE("SubjectManager::publish withdraws the name on deinit_all", "[shutdown][xml_name]") {
+    LVGLTestFixture fixture;
+    lv_subject_t subject{};
+    SubjectManager subjects;
+    lv_subject_init_int(&subject, 0);
+    subjects.publish("test_publish_withdraw", &subject);
+    REQUIRE(lv_xml_get_subject(nullptr, "test_publish_withdraw") == &subject);
+
+    subjects.deinit_all();
+    REQUIRE(lv_xml_get_subject(nullptr, "test_publish_withdraw") == nullptr);
+}
+
+namespace helix {
+void register_clock_widget();
+}
+
+// A printer switch deinits widget subjects through StaticSubjectRegistry, which
+// withdraws their names; the rebuild binds those names again, so every hook has to
+// run on each init, not only the first.
+TEST_CASE("init_widget_subjects runs every widget subject hook on each call",
+          "[shutdown][xml_name]") {
+    LVGLTestFixture fixture;
+    auto& widgets = PanelWidgetManager::instance();
+    widgets.init_widget_subjects();
+
+    int calls = 0;
+    register_widget_subjects("clock", [&calls]() { ++calls; });
+    widgets.init_widget_subjects();
+    widgets.init_widget_subjects();
+    register_clock_widget();
+
+    REQUIRE(calls == 2);
+}
+
 TEST_CASE("AmsState deinit withdraws the ams_-prefixed XML names", "[shutdown][xml_name]") {
     LVGLTestFixture fixture;
     AmsState::instance().deinit_subjects();
     AmsState::instance().init_subjects(true);
 
-    const char* names[] = {"ams_supports_bypass",      "ams_bypass_active",
-                           "ams_filament_loaded",      "ams_filament_runout",
-                           "ams_external_spool_color", "ams_external_spool_material"};
+    const char* names[] = {
+        "ams_supports_bypass",   "ams_bypass_active",         "ams_filament_loaded",
+        "ams_filament_runout",   "ams_external_spool_color",  "ams_external_spool_material",
+        "ams_system_name",       "ams_slot_0_color",          "ams_unit_0_temp",
+        "ams_env_ind_0_visible", "ams_env_ind_detail_visible"};
     for (const char* name : names) {
         INFO(name);
         REQUIRE(lv_xml_get_subject(nullptr, name) != nullptr);

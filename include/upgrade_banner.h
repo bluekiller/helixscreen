@@ -7,6 +7,7 @@
 
 #include "async_lifetime_guard.h"
 #include "lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 
@@ -62,6 +63,7 @@ class UpgradeBanner {
     lv_obj_t* banner_ = nullptr;
     lv_subject_t message_subject_{};
     bool message_subject_initialized_ = false;
+    SubjectManager subjects_;
 
     ObserverGuard status_observer_;
     ObserverGuard version_observer_;

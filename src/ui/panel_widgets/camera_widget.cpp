@@ -20,6 +20,7 @@
 #include "printer_state.h"
 #include "static_subject_registry.h"
 #include "subject_debug_registry.h"
+#include "subject_managed_panel.h"
 #include "system/telemetry_manager.h"
 #include "translation_loader.h"
 #include "ui/ui_cleanup_helpers.h"
@@ -35,6 +36,7 @@
 static lv_subject_t s_camera_status_subject;
 static char s_camera_status_buffer[64];
 static bool s_subjects_initialized = false;
+static SubjectManager s_subjects;
 // The translation key the status text was produced from, so a language switch
 // can render it again; nullptr while it shows text that is not a key.
 static const char* s_camera_status_key = TR_NOOP("No Camera");
@@ -46,7 +48,7 @@ static void camera_widget_init_subjects() {
 
     lv_subject_init_string(&s_camera_status_subject, s_camera_status_buffer, nullptr,
                            sizeof(s_camera_status_buffer), lv_tr(s_camera_status_key));
-    lv_xml_register_subject(nullptr, "camera_status_text", &s_camera_status_subject);
+    s_subjects.publish("camera_status_text", &s_camera_status_subject);
     SubjectDebugRegistry::instance().register_subject(
         &s_camera_status_subject, "camera_status_text", LV_SUBJECT_TYPE_STRING, __FILE__, __LINE__);
 
@@ -54,7 +56,7 @@ static void camera_widget_init_subjects() {
 
     StaticSubjectRegistry::instance().register_deinit("CameraWidgetSubjects", []() {
         if (s_subjects_initialized && lv_is_initialized()) {
-            lv_subject_deinit(&s_camera_status_subject);
+            s_subjects.deinit_all();
             s_subjects_initialized = false;
             spdlog::trace("[CameraWidget] Subjects deinitialized");
         }

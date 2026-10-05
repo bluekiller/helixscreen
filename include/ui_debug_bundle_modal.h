@@ -51,6 +51,7 @@ class DebugBundleModal : public Modal {
     lv_subject_t error_subject_{};
     lv_subject_t include_logs_subject_{};
     bool subjects_initialized_ = false;
+    SubjectManager subjects_;
 
     // Subject string buffers
     char status_buf_[256] = {};
