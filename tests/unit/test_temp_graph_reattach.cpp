@@ -84,7 +84,7 @@ class TempGraphReattachFixture : public LVGLTestFixture {
     /// Drive a disconnect → reconnect transition past the controller's
     /// connection observer, then let everything it scheduled run.
     static void reconnect() {
-        auto* conn = get_printer_state().get_printer_connection_state_subject();
+        auto* conn = get_printer_state().network_state().get_printer_connection_state_subject();
         REQUIRE(conn != nullptr);
         lv_subject_set_int(conn, CONN_DISCONNECTED);
         settle();

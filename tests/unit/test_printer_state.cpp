@@ -47,7 +47,7 @@ TEST_CASE("PrinterState: Singleton persists modifications", "[core][state][singl
 
     // Read it back through another reference
     PrinterState& state2 = get_printer_state();
-    REQUIRE(lv_subject_get_int(state2.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state2.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(ConnectionState::CONNECTED));
 }
 
@@ -58,10 +58,10 @@ TEST_CASE("PrinterState: Singleton subjects have consistent addresses",
     PrinterState& state1 = get_printer_state();
     state1.init_subjects();
 
-    lv_subject_t* subject1 = state1.get_printer_connection_state_subject();
+    lv_subject_t* subject1 = state1.network_state().get_printer_connection_state_subject();
 
     PrinterState& state2 = get_printer_state();
-    lv_subject_t* subject2 = state2.get_printer_connection_state_subject();
+    lv_subject_t* subject2 = state2.network_state().get_printer_connection_state_subject();
 
     // Subject pointers must be identical (not just equal values)
     REQUIRE(subject1 == subject2);
@@ -90,8 +90,8 @@ TEST_CASE("PrinterState: Observer fires when printer connection state changes",
 
     int user_data[2] = {0, -1}; // [callback_count, last_value]
 
-    lv_observer_t* observer = lv_subject_add_observer(state.get_printer_connection_state_subject(),
-                                                      observer_cb, user_data);
+    lv_observer_t* observer = lv_subject_add_observer(
+        state.network_state().get_printer_connection_state_subject(), observer_cb, user_data);
 
     // LVGL auto-notifies observers when first added (fires immediately with current value)
     REQUIRE(user_data[0] == 1); // Callback fired immediately with initial value (0)
@@ -130,18 +130,18 @@ TEST_CASE("PrinterState: Observer fires when network status changes",
         (*count_ptr)++;
     };
 
-    lv_observer_t* observer =
-        lv_subject_add_observer(state.get_network_status_subject(), observer_cb, &callback_count);
+    lv_observer_t* observer = lv_subject_add_observer(
+        state.network_state().get_network_status_subject(), observer_cb, &callback_count);
 
     // LVGL auto-notifies observers when first added (fires immediately with current value)
     // Note: init_subjects() initializes network_status to CONNECTED (2) as mock mode default
     REQUIRE(callback_count == 1); // Callback fired immediately with initial value
 
     // Change network status to a DIFFERENT value - should trigger observer again
-    state.set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
+    state.network_state().set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
 
     REQUIRE(callback_count == 2); // Callback fired again with new value
-    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
             static_cast<int>(NetworkStatus::DISCONNECTED));
 
     lv_observer_remove(observer);
@@ -162,12 +162,12 @@ TEST_CASE("PrinterState: Multiple observers on same subject all fire", "[state][
     };
 
     // Register three observers on printer connection state
-    lv_observer_t* observer1 =
-        lv_subject_add_observer(state.get_printer_connection_state_subject(), observer_cb, &count1);
-    lv_observer_t* observer2 =
-        lv_subject_add_observer(state.get_printer_connection_state_subject(), observer_cb, &count2);
-    lv_observer_t* observer3 =
-        lv_subject_add_observer(state.get_printer_connection_state_subject(), observer_cb, &count3);
+    lv_observer_t* observer1 = lv_subject_add_observer(
+        state.network_state().get_printer_connection_state_subject(), observer_cb, &count1);
+    lv_observer_t* observer2 = lv_subject_add_observer(
+        state.network_state().get_printer_connection_state_subject(), observer_cb, &count2);
+    lv_observer_t* observer3 = lv_subject_add_observer(
+        state.network_state().get_printer_connection_state_subject(), observer_cb, &count3);
 
     // LVGL auto-notifies observers when first added (each fires immediately with current value)
     REQUIRE(count1 == 1); // First observer fired immediately
@@ -223,12 +223,12 @@ TEST_CASE("PrinterState: Initialization sets default values", "[state][init]") {
     REQUIRE(lv_subject_get_int(state.fan_state().get_fan_speed_subject()) == 0);
 
     // Printer connection state should be DISCONNECTED
-    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(ConnectionState::DISCONNECTED));
 
     // Network status is initialized to CONNECTED (mock mode default)
     // In production, actual network status comes from EthernetManager/WiFiManager
-    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
             static_cast<int>(NetworkStatus::CONNECTED));
 }
 
@@ -692,10 +692,11 @@ TEST_CASE("PrinterState: Set printer connection state", "[state][connection]") {
     state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(ConnectionState::CONNECTED));
 
-    const char* message = lv_subject_get_string(state.get_printer_connection_message_subject());
+    const char* message =
+        lv_subject_get_string(state.network_state().get_printer_connection_message_subject());
     REQUIRE(std::string(message) == "Connected");
 }
 
@@ -710,7 +711,7 @@ TEST_CASE("PrinterState: Connection state transitions", "[state][connection]") {
         state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTING),
                                            "Connecting...");
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
-        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+        REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
                 static_cast<int>(ConnectionState::CONNECTING));
     }
 
@@ -719,7 +720,7 @@ TEST_CASE("PrinterState: Connection state transitions", "[state][connection]") {
                                            "Connecting...");
         state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Ready");
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
-        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+        REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
                 static_cast<int>(ConnectionState::CONNECTED));
     }
 
@@ -728,7 +729,7 @@ TEST_CASE("PrinterState: Connection state transitions", "[state][connection]") {
         state.set_printer_connection_state(static_cast<int>(ConnectionState::RECONNECTING),
                                            "Reconnecting...");
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
-        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+        REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
                 static_cast<int>(ConnectionState::RECONNECTING));
     }
 
@@ -736,7 +737,7 @@ TEST_CASE("PrinterState: Connection state transitions", "[state][connection]") {
         state.set_printer_connection_state(static_cast<int>(ConnectionState::FAILED),
                                            "Connection failed");
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
-        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+        REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
                 static_cast<int>(ConnectionState::FAILED));
     }
 }
@@ -754,7 +755,7 @@ TEST_CASE("PrinterState: Network status initialization", "[state][network]") {
 
     // Network status is initialized to CONNECTED (mock mode default)
     // In production, actual network status comes from EthernetManager/WiFiManager
-    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
             static_cast<int>(NetworkStatus::CONNECTED));
 }
 
@@ -764,9 +765,9 @@ TEST_CASE("PrinterState: Set network status updates subject", "[state][network]"
     PrinterState& state = get_printer_state();
     state.init_subjects();
 
-    state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+    state.network_state().set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
 
-    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
             static_cast<int>(NetworkStatus::CONNECTED));
 }
 
@@ -777,20 +778,20 @@ TEST_CASE("PrinterState: Network status enum values", "[state][network]") {
     state.init_subjects();
 
     SECTION("DISCONNECTED") {
-        state.set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
-        REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+        state.network_state().set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
+        REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
                 static_cast<int>(NetworkStatus::DISCONNECTED));
     }
 
     SECTION("CONNECTING") {
-        state.set_network_status(static_cast<int>(NetworkStatus::CONNECTING));
-        REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+        state.network_state().set_network_status(static_cast<int>(NetworkStatus::CONNECTING));
+        REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
                 static_cast<int>(NetworkStatus::CONNECTING));
     }
 
     SECTION("CONNECTED") {
-        state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
-        REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+        state.network_state().set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+        REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
                 static_cast<int>(NetworkStatus::CONNECTED));
     }
 }
@@ -803,23 +804,23 @@ TEST_CASE("PrinterState: Printer and network status are independent", "[state][i
 
     // Set printer connected but network disconnected
     state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
-    state.set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
+    state.network_state().set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(ConnectionState::CONNECTED));
-    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
             static_cast<int>(NetworkStatus::DISCONNECTED));
 
     // Set network connected but printer disconnected
     state.set_printer_connection_state(static_cast<int>(ConnectionState::DISCONNECTED),
                                        "Disconnected");
-    state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+    state.network_state().set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(ConnectionState::DISCONNECTED));
-    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_network_status_subject()) ==
             static_cast<int>(NetworkStatus::CONNECTED));
 }
 
@@ -1108,7 +1109,7 @@ TEST_CASE("PrinterState: Klippy state initialization defaults to SHUTDOWN", "[st
     state.init_subjects(false);
 
     // Default should be SHUTDOWN (2) - assume disconnected until confirmed ready
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::SHUTDOWN));
 }
 
@@ -1120,27 +1121,27 @@ TEST_CASE("PrinterState: set_klippy_state_sync changes subject value", "[state][
     state.init_subjects(false);
 
     // Default should be SHUTDOWN (assume disconnected until confirmed)
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::SHUTDOWN));
 
     // Call set_klippy_state_sync (direct call, no async)
     state.set_klippy_state_sync(KlippyState::SHUTDOWN);
 
     // Subject should now be SHUTDOWN
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::SHUTDOWN));
 
     // Test other states
     state.set_klippy_state_sync(KlippyState::STARTUP);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::STARTUP));
 
     state.set_klippy_state_sync(KlippyState::ERROR);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::ERROR));
 
     state.set_klippy_state_sync(KlippyState::READY);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::READY));
 }
 
@@ -1162,8 +1163,8 @@ TEST_CASE("PrinterState: Observer fires when klippy state changes", "[state][kli
 
     int user_data[2] = {0, -1}; // [callback_count, last_value]
 
-    lv_observer_t* observer =
-        lv_subject_add_observer(state.get_klippy_state_subject(), observer_cb, user_data);
+    lv_observer_t* observer = lv_subject_add_observer(
+        state.network_state().get_klippy_state_subject(), observer_cb, user_data);
 
     // LVGL auto-notifies observers when first added (fires immediately with current value)
     REQUIRE(user_data[0] == 1);
@@ -1199,7 +1200,7 @@ TEST_CASE("PrinterState: Update klippy state from webhooks notification",
         {"params",
          {{{"webhooks", {{"state", "startup"}, {"state_message", "Klipper restart"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::STARTUP));
 
     // Test "ready" state (restart complete)
@@ -1208,7 +1209,7 @@ TEST_CASE("PrinterState: Update klippy state from webhooks notification",
         {"params",
          {{{"webhooks", {{"state", "ready"}, {"state_message", "Printer is ready"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::READY));
 
     // Test "shutdown" state (M112 emergency stop)
@@ -1217,7 +1218,7 @@ TEST_CASE("PrinterState: Update klippy state from webhooks notification",
         {"params",
          {{{"webhooks", {{"state", "shutdown"}, {"state_message", "Emergency stop"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::SHUTDOWN));
 
     // Test "error" state (Klipper error)
@@ -1226,7 +1227,7 @@ TEST_CASE("PrinterState: Update klippy state from webhooks notification",
         {"params",
          {{{"webhooks", {{"state", "error"}, {"state_message", "Check klippy.log"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::ERROR));
 }
 
@@ -1243,7 +1244,7 @@ TEST_CASE("PrinterState: Unknown webhooks state defaults to READY", "[state][kli
                                    {"params", {{{"webhooks", {{"state", "unknown_state"}}}}, 0.0}}};
     state.update_from_status(notification["params"][0]);
     // Unknown state should remain READY (no change from previous value)
-    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(state.network_state().get_klippy_state_subject()) ==
             static_cast<int>(KlippyState::READY));
 }
 

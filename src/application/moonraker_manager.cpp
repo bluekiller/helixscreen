@@ -664,7 +664,8 @@ void MoonrakerManager::register_callbacks() {
         std::lock_guard<std::mutex> lock(m_notification_mutex);
         // Stamped on the WebSocket thread, the thread that resets the klippy
         // freshness on close, so a frame always carries the session it arrived in.
-        m_notification_queue.push({notification, get_printer_state().klippy_epoch()});
+        m_notification_queue.push(
+            {notification, get_printer_state().network_state().klippy_epoch()});
     });
 }
 
@@ -937,7 +938,7 @@ void MoonrakerManager::init_print_start_collector() {
     // A Klipper shutdown or error ends the print even when print_stats keeps
     // reporting a job, so the collector cannot rely on the print-state observer.
     m_print_klippy_state_observer = ObserverGuard(
-        get_printer_state().get_klippy_state_subject(),
+        get_printer_state().network_state().get_klippy_state_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector || !collector->is_active())

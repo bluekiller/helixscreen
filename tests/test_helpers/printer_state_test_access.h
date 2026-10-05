@@ -277,7 +277,7 @@ class PrinterStateTestAccess {
         ps.last_kinematics_.clear();
         ps.capability_overrides_ = CapabilityOverrides();
         ps.discovery_ = helix::PrinterDiscovery();
-        ps.reset_klippy_state_freshness();
+        ps.network_state().reset_klippy_state_freshness();
     }
 
     /// Every domain member, in declaration order.

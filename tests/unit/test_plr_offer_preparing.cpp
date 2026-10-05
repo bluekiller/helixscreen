@@ -261,7 +261,7 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR: a disconnect reset lets a recon
     // CONNECTED before construction: the controller seeds its connection
     // baseline from the live subject, so only then does the drop below count
     // as a CONNECTED -> not-CONNECTED edge.
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::CONNECTED));
 
     PlrOfferController controller;
@@ -271,7 +271,7 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR: a disconnect reset lets a recon
     // Printer drops: the controller must force the PLR subjects back to 0, or
     // the subjects' same-value guard swallows the reconnect's identical
     // status and no observer ever fires again.
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::DISCONNECTED));
     settle();
     CHECK_FALSE(ps.is_plr_resume_macro_present());
@@ -280,7 +280,7 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR: a disconnect reset lets a recon
     // Reconnect: discovery re-runs (the macro subject) and the boot status
     // re-arrives (was_interrupted), each a genuine 0 -> 1 edge back into the
     // observers, so the one-shot latch re-arms and the offer fires again.
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::CONNECTED));
     lv_subject_set_int(ps.get_plr_resume_macro_subject(), 1);
     ps.update_from_status(json{{"save_variables", {{"variables", {{"was_interrupted", true}}}}}});

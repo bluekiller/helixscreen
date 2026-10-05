@@ -500,7 +500,7 @@ TEST_CASE_METHOD(AutoStateTargetFixture,
     pin.is_pwm = true;
     ctrl.output_pin().add_pin(pin);
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(helix::KlippyState::READY);
     drain();
@@ -556,7 +556,7 @@ TEST_CASE_METHOD(AutoStateTargetFixture,
     auto* print_subj = ps.get_print_state_enum_subject();
     REQUIRE(print_subj != nullptr);
     lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
-    if (auto* klippy_subj = ps.get_klippy_state_subject()) {
+    if (auto* klippy_subj = ps.network_state().get_klippy_state_subject()) {
         lv_subject_set_int(klippy_subj, static_cast<int>(helix::KlippyState::READY));
     }
     if (auto* ext_target = ps.get_active_extruder_target_subject()) {

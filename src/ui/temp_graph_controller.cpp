@@ -713,7 +713,7 @@ void TempGraphController::setup_connection_observer() {
     // triggers another re-attach — an infinite loop. By tracking prev_state,
     // only ACTUAL state changes (disconnect → reconnect) trigger re-attach.
     // This ensures ALL controllers re-attach, not just the first one (#1245).
-    auto* conn_subj = ps.get_printer_connection_state_subject();
+    auto* conn_subj = ps.network_state().get_printer_connection_state_subject();
     if (conn_subj) {
         auto conn_token = lifetime_.token();
         uint32_t conn_gen = generation_;

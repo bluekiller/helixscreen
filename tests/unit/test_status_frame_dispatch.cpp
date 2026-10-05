@@ -58,7 +58,7 @@ TEST_CASE_METHOD(DispatchFixture, "dispatch_status_frame reaches every status co
     frame.status = &status;
     frame.eventtime = 10.0;
 
-    dispatch_status_frame(frame, ps.klippy_epoch());
+    dispatch_status_frame(frame, ps.network_state().klippy_epoch());
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 
     CHECK(lv_subject_get_int(ps.temperature_state().get_bed_temp_subject()) == 615);

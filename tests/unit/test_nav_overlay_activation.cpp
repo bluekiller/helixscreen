@@ -380,7 +380,7 @@ class ConnectionGatingFixture : public OverlayActivationFixture {
         fake_navbar_ = lv_obj_create(test_screen());
         NavigationManager::instance().wire_events(fake_navbar_);
 
-        conn_ = get_printer_state().get_printer_connection_state_subject();
+        conn_ = get_printer_state().network_state().get_printer_connection_state_subject();
         REQUIRE(conn_ != nullptr);
 
         // Known-not-connected starting point, fully drained.

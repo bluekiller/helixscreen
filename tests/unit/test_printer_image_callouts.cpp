@@ -922,7 +922,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: the disconnected overlay is centr
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_printer_connection_state_subject(), 0);
+    lv_subject_set_int(state().network_state().get_printer_connection_state_subject(), 0);
     settle();
     lv_obj_update_layout(h.root());
     lv_obj_t* overlay = h.child("disconnected_overlay");

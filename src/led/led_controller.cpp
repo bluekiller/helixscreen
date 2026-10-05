@@ -113,7 +113,7 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
     // Prevents toggle buttons staying greyed forever when a WebSocket drop
     // arrives while an LED command ACK is pending.
     conn_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_printer_connection_state_subject(), this,
+        get_printer_state().network_state().get_printer_connection_state_subject(), this,
         [](LedController* self, int state) {
             if (state != static_cast<int>(helix::ConnectionState::CONNECTED)) {
                 self->force_clear_in_flight();
@@ -130,7 +130,7 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
     // force_clear_in_flight() is a no-op at count 0, so a simultaneous
     // disconnect firing both observers is harmless.
     klippy_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](LedController* self, int state) {
             if (state != static_cast<int>(helix::KlippyState::READY)) {
                 self->force_clear_in_flight();

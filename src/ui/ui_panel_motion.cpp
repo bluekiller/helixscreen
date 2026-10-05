@@ -774,7 +774,7 @@ void MotionPanel::register_position_observers() {
     // subject greys the surrounding panel content via motion_panel.xml, but the
     // custom-drawn jog pad has no XML binding, so drive it here.
     jog_ready_observer_ = observe<int>(
-        get_printer_state().get_nav_buttons_enabled_subject(), this,
+        get_printer_state().network_state().get_nav_buttons_enabled_subject(), this,
         [](MotionPanel* self, int) {
             if (!self->subjects_initialized_)
                 return;
@@ -794,7 +794,8 @@ void MotionPanel::register_position_observers() {
 void MotionPanel::update_jog_pad_enabled() {
     if (!jog_pad_)
         return;
-    bool ready = lv_subject_get_int(get_printer_state().get_nav_buttons_enabled_subject()) != 0;
+    bool ready = lv_subject_get_int(
+                     get_printer_state().network_state().get_nav_buttons_enabled_subject()) != 0;
     ui_jog_pad_set_enabled(jog_pad_, ready);
 }
 
@@ -1200,7 +1201,8 @@ void MotionPanel::open_axis_keypad(char axis) {
     // Same gate as the jog controls: while the printer is not connected or
     // klippy is not ready, a jog would be refused, so the keypad must not
     // open either.
-    if (lv_subject_get_int(get_printer_state().get_nav_buttons_enabled_subject()) == 0) {
+    if (lv_subject_get_int(get_printer_state().network_state().get_nav_buttons_enabled_subject()) ==
+        0) {
         spdlog::debug("[{}] Axis keypad refused: printer not ready", get_name());
         return;
     }
@@ -1303,7 +1305,7 @@ void MotionPanel::sync_motion_tab_subjects() {
 
 bool MotionPanel::moves_allowed() const {
     auto& ps = get_printer_state();
-    return lv_subject_get_int(ps.get_nav_buttons_enabled_subject()) != 0 &&
+    return lv_subject_get_int(ps.network_state().get_nav_buttons_enabled_subject()) != 0 &&
            lv_subject_get_int(ps.get_machine_motion_blocked_subject()) == 0;
 }
 

@@ -371,7 +371,7 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
                  "Queued rebuild callback safely no-ops after synchronous destroy (#1117)",
                  "[controller][temp_graph_controller][regression][uaf]") {
     auto& ps = get_printer_state();
-    auto* conn_subj = ps.get_printer_connection_state_subject();
+    auto* conn_subj = ps.network_state().get_printer_connection_state_subject();
     REQUIRE(conn_subj != nullptr);
 
     TempGraphControllerConfig cfg;
@@ -410,7 +410,7 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
                  "Detach + release + deferred-delete race is safe (#1117)",
                  "[controller][temp_graph_controller][regression][uaf]") {
     auto& ps = get_printer_state();
-    auto* conn_subj = ps.get_printer_connection_state_subject();
+    auto* conn_subj = ps.network_state().get_printer_connection_state_subject();
     REQUIRE(conn_subj != nullptr);
 
     TempGraphControllerConfig cfg;

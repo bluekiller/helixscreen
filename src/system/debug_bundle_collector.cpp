@@ -562,9 +562,9 @@ PrinterSnapshot DebugBundleCollector::snapshot_printer_state() {
         if (!ps.versions_state().get_klipper_version_raw().empty()) {
             snap.klipper_version = ps.versions_state().get_klipper_version_raw();
         }
-        if (auto* conn_subj = ps.get_printer_connection_state_subject())
+        if (auto* conn_subj = ps.network_state().get_printer_connection_state_subject())
             snap.connection_state = lv_subject_get_int(conn_subj);
-        if (auto* klippy_subj = ps.get_klippy_state_subject())
+        if (auto* klippy_subj = ps.network_state().get_klippy_state_subject())
             snap.klippy_state = lv_subject_get_int(klippy_subj);
 
         // Discovery is read here with the subjects, on the main thread, so the

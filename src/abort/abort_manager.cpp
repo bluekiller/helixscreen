@@ -422,7 +422,7 @@ void AbortManager::wait_for_reconnect() {
     // Register observer on klippy_state subject to detect when klippy becomes ready
     if (printer_state_) {
         klippy_observer_ = helix::ui::observe<int>(
-            printer_state_->get_klippy_state_subject(), this,
+            printer_state_->network_state().get_klippy_state_subject(), this,
             [](AbortManager* self, int value) {
                 self->on_klippy_state_changed(static_cast<KlippyState>(value));
             },
@@ -468,7 +468,7 @@ void AbortManager::complete_abort(const char* message) {
     // time the user would otherwise get no recovery UI at all.
     if (was_handling_shutdown && printer_state_) {
         auto ks = static_cast<KlippyState>(
-            lv_subject_get_int(printer_state_->get_klippy_state_subject()));
+            lv_subject_get_int(printer_state_->network_state().get_klippy_state_subject()));
         if (ks == KlippyState::SHUTDOWN || ks == KlippyState::ERROR) {
             spdlog::warn("[AbortManager] Klippy still {} after abort — surfacing recovery dialog",
                          ks == KlippyState::SHUTDOWN ? "SHUTDOWN" : "ERROR");

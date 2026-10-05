@@ -733,7 +733,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register observer on connection state to refresh files when printer connects
     // This handles the race condition where panel activates before WebSocket connection
     using helix::ui::observe;
-    lv_subject_t* connection_subject = printer_state_.get_printer_connection_state_subject();
+    lv_subject_t* connection_subject =
+        printer_state_.network_state().get_printer_connection_state_subject();
     if (connection_subject) {
         connection_observer_ = observe<int>(
             connection_subject, this,

@@ -119,7 +119,7 @@ std::string LedAutoState::compute_state_key() const {
     }
 
     // Check klippy state first — error takes priority
-    auto* klippy_subj = printer_state_->get_klippy_state_subject();
+    auto* klippy_subj = printer_state_->network_state().get_klippy_state_subject();
     if (klippy_subj) {
         auto klippy = static_cast<KlippyState>(lv_subject_get_int(klippy_subj));
         if (klippy == KlippyState::ERROR) {
@@ -228,7 +228,7 @@ void LedAutoState::subscribe_observers() {
             printer_state_->get_subjects_lifetime());
     }
 
-    auto* klippy_subj = printer_state_->get_klippy_state_subject();
+    auto* klippy_subj = printer_state_->network_state().get_klippy_state_subject();
     if (klippy_subj) {
         klippy_state_observer_ = observe<int>(
             klippy_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },

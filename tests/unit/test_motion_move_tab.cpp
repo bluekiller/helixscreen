@@ -118,7 +118,8 @@ class MoveTabFixture : public LVGLUITestFixture {
                            static_cast<int>(helix::PrintJobState::STANDBY));
         // No live connection exists in the fixture, so the derived gate would
         // stay shut; set it the way a connected READY printer would.
-        lv_subject_set_int(get_printer_state().get_nav_buttons_enabled_subject(), 1);
+        lv_subject_set_int(get_printer_state().network_state().get_nav_buttons_enabled_subject(),
+                           1);
         drain();
     }
 
@@ -396,11 +397,11 @@ TEST_CASE_METHOD(MoveTabFixture, "a print or disabled nav gates the move grid",
     CHECK(lv_obj_has_state(park, LV_STATE_DISABLED));
 
     ps.update_from_status({{"print_stats", {{"state", "standby"}}}});
-    lv_subject_set_int(ps.get_nav_buttons_enabled_subject(), 0);
+    lv_subject_set_int(ps.network_state().get_nav_buttons_enabled_subject(), 0);
     drain();
     CHECK(lv_obj_has_state(preset, LV_STATE_DISABLED));
 
-    lv_subject_set_int(ps.get_nav_buttons_enabled_subject(), 1);
+    lv_subject_set_int(ps.network_state().get_nav_buttons_enabled_subject(), 1);
     drain();
     CHECK_FALSE(lv_obj_has_state(preset, LV_STATE_DISABLED));
 

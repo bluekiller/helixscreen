@@ -279,13 +279,6 @@ class PrinterState {
                             bool from_cached_snapshot = false,
                             std::optional<uint64_t> frame_epoch = std::nullopt);
 
-    /// Which connection session a status frame belongs to. Advances on every
-    /// reset_klippy_state_freshness(); stamp a frame with it where it is
-    /// received, and hand the stamp to update_from_status().
-    [[nodiscard]] uint64_t klippy_epoch() const {
-        return network_state_.klippy_epoch();
-    }
-
     //
     // Domain components. Each owns its subjects and the state behind them;
     // reach a domain's subjects and queries through its accessor. Setters the
@@ -1403,41 +1396,6 @@ class PrinterState {
         return motion_state_.get_gcode_axis_bounds();
     }
 
-    // Printer connection state subjects (Moonraker WebSocket) - delegated to PrinterNetworkState
-    lv_subject_t* get_printer_connection_state_subject() {
-        return network_state_.get_printer_connection_state_subject();
-    } // 0=disconnected, 1=connecting, 2=connected, 3=reconnecting, 4=failed
-    lv_subject_t* get_printer_connection_message_subject() {
-        return network_state_.get_printer_connection_message_subject();
-    } // Status message
-
-    // Network connectivity subject (WiFi/Ethernet) - delegated to PrinterNetworkState
-    lv_subject_t* get_network_status_subject() {
-        return network_state_.get_network_status_subject();
-    } // 0=disconnected, 1=connecting, 2=connected (matches NetworkStatus enum)
-
-    // Klipper firmware state subject - delegated to PrinterNetworkState
-    lv_subject_t* get_klippy_state_subject() {
-        return network_state_.get_klippy_state_subject();
-    } // 0=ready, 1=startup, 2=shutdown, 3=error (matches KlippyState enum)
-
-    // Klipper state message (error/shutdown reason from webhooks)
-    // Main-thread only — called from update_from_status() via ui_queue_update
-    const std::string& get_klippy_state_message() const {
-        return network_state_.get_klippy_state_message();
-    }
-
-    // Main-thread only — production writes go through update_from_status()
-    void set_klippy_state_message(const std::string& message) {
-        network_state_.set_klippy_state_message(message);
-    }
-
-    // Combined nav button enabled subject (for navbar icon visibility) - delegated to
-    // PrinterNetworkState
-    lv_subject_t* get_nav_buttons_enabled_subject() {
-        return network_state_.get_nav_buttons_enabled_subject();
-    } // 1=enabled (connected AND klippy ready), 0=disabled
-
     /**
      * @brief Set printer connection state (Moonraker WebSocket)
      *
@@ -1449,12 +1407,6 @@ class PrinterState {
      */
     void set_printer_connection_state(int state, const char* message);
 
-    /**
-     * @brief Internal: set connection state on main thread
-     * @note Called via ui_queue_update() from set_printer_connection_state()
-     */
-    void set_printer_connection_state_internal(int state, const char* message);
-
     /// Remote-screen verdict from the live websocket endpoint (thread-safe;
     /// defers the subject write to the main thread). Published by
     /// MoonrakerManager on CONNECTED edges.
@@ -1464,17 +1416,6 @@ class PrinterState {
     /// not this host). For UI decision points; background code uses
     /// helix::is_moonraker_on_same_host() directly.
     bool is_moonraker_remote();
-
-    /**
-     * @brief Check if printer has ever connected this session
-     *
-     * Returns true if we've successfully connected to Moonraker at least once.
-     * Used to distinguish "never connected" (gray icon) from "disconnected after
-     * being connected" (yellow warning icon).
-     */
-    bool was_ever_connected() const {
-        return network_state_.was_ever_connected();
-    }
 
     /**
      * @brief Set Klipper firmware state (thread-safe, async)
@@ -1510,29 +1451,6 @@ class PrinterState {
      * @param state KlippyState enum value
      */
     void set_klippy_state_if_unseeded(KlippyState state);
-
-    /**
-     * @brief Forget the klippy-state freshness watermark
-     *
-     * Klipper's eventtime is monotonic within one host uptime. A host reboot
-     * rewinds it, and every reboot drops the WebSocket, so the connection close
-     * is the point where the watermark stops being comparable. Without this the
-     * next session's genuinely-current frames would look older than the previous
-     * session's and be rejected forever.
-     *
-     * Safe from any thread; takes effect immediately.
-     */
-    void reset_klippy_state_freshness();
-
-    /**
-     * @brief Set network connectivity status
-     *
-     * Updates network_status_ subject based on WiFi/Ethernet availability.
-     * Called periodically from main.cpp to reflect actual network state.
-     *
-     * @param status 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED (NetworkStatus enum)
-     */
-    void set_network_status(int status);
 
     /**
      * @brief Update printer capability subjects from PrinterDiscovery

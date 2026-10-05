@@ -379,7 +379,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Observe connection state to fetch history once connected (widget may
     // attach before the WebSocket connection is established)
     connection_observer_ = helix::ui::observe<int>(
-        printer_state_.get_printer_connection_state_subject(), this,
+        printer_state_.network_state().get_printer_connection_state_subject(), this,
         [](PrintStatusWidget* /*self*/, int state) {
             if (state == static_cast<int>(ConnectionState::CONNECTED)) {
                 if (auto* hm = get_print_history_manager()) {

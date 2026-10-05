@@ -457,13 +457,8 @@ void PrinterState::set_printer_connection_state(int state, const char* message) 
     // Thread-safe wrapper: defer LVGL subject updates to main thread
     std::string msg = message ? message : "";
     async_lifetime_.defer("PrinterState::set_printer_connection_state", [this, state, msg]() {
-        set_printer_connection_state_internal(state, msg.c_str());
+        network_state_.set_printer_connection_state_internal(state, msg.c_str());
     });
-}
-
-void PrinterState::set_printer_connection_state_internal(int state, const char* message) {
-    // Delegate to network_state_ component
-    network_state_.set_printer_connection_state_internal(state, message);
 }
 
 void PrinterState::set_moonraker_is_remote(bool remote) {
@@ -476,11 +471,6 @@ void PrinterState::set_moonraker_is_remote(bool remote) {
 bool PrinterState::is_moonraker_remote() {
     // Main-thread convenience read; UI decision points only.
     return lv_subject_get_int(network_state_.get_moonraker_is_remote_subject()) != 0;
-}
-
-void PrinterState::set_network_status(int status) {
-    // Delegate to network_state_ component
-    network_state_.set_network_status(status);
 }
 
 void PrinterState::set_klippy_state(KlippyState state) {
@@ -518,10 +508,6 @@ void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
     // subscription snapshot that follows it on the same connection is strictly
     // newer, so it must still be allowed to correct this value.
     set_klippy_state_internal(state);
-}
-
-void PrinterState::reset_klippy_state_freshness() {
-    network_state_.reset_klippy_state_freshness();
 }
 
 void PrinterState::set_klippy_state_internal(KlippyState state) {

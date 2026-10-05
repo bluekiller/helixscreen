@@ -197,12 +197,12 @@ bool NavigationManager::panel_requires_connection(PanelId panel) {
 }
 
 bool NavigationManager::is_printer_connected() const {
-    auto* subject = get_printer_state().get_printer_connection_state_subject();
+    auto* subject = get_printer_state().network_state().get_printer_connection_state_subject();
     return lv_subject_get_int(subject) == 2;
 }
 
 bool NavigationManager::is_klippy_ready() const {
-    auto* subject = get_printer_state().get_klippy_state_subject();
+    auto* subject = get_printer_state().network_state().get_klippy_state_subject();
     return lv_subject_get_int(subject) == 0; // KlippyState::READY
 }
 
@@ -905,13 +905,13 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
 
     // Register connection state observer for redirect on disconnect
     connection_state_observer_ = observe<int>(
-        get_printer_state().get_printer_connection_state_subject(), this,
+        get_printer_state().network_state().get_printer_connection_state_subject(), this,
         [](NavigationManager* mgr, int value) { mgr->handle_connection_state_change(value); },
         get_printer_state().get_subjects_lifetime());
 
     // Register klippy state observer for redirect on SHUTDOWN/ERROR
     klippy_state_observer_ = observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](NavigationManager* mgr, int value) { mgr->handle_klippy_state_change(value); },
         get_printer_state().get_subjects_lifetime());
 

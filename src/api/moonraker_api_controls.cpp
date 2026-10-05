@@ -212,7 +212,7 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
     // CONNECTION_LOST (#909).
     {
         const bool connected = client_.get_connection_state() == helix::ConnectionState::CONNECTED;
-        const int klippy = lv_subject_get_int(state_.get_klippy_state_subject());
+        const int klippy = lv_subject_get_int(state_.network_state().get_klippy_state_subject());
         if (connected && (klippy == static_cast<int>(helix::KlippyState::SHUTDOWN) ||
                           klippy == static_cast<int>(helix::KlippyState::ERROR))) {
             if (!silent) {

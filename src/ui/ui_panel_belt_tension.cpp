@@ -867,9 +867,9 @@ void BeltTensionPanel::refresh_gate() {
     // "Connected" has to mean commands will actually run: Moonraker up but
     // klippy down (an emergency stop, a crash) refuses gcode, so a sweep
     // started then would stall until the guard fired.
-    in.connected =
-        lv_subject_get_int(ps.get_nav_buttons_enabled_subject()) != 0 &&
-        lv_subject_get_int(ps.get_klippy_state_subject()) == static_cast<int>(KlippyState::READY);
+    in.connected = lv_subject_get_int(ps.network_state().get_nav_buttons_enabled_subject()) != 0 &&
+                   lv_subject_get_int(ps.network_state().get_klippy_state_subject()) ==
+                       static_cast<int>(KlippyState::READY);
     in.has_accelerometer = accel_subj && lv_subject_get_int(accel_subj) != 0;
     in.is_corexy = detected_hw_.kinematics == helix::calibration::KinematicsType::COREXY;
     in.detecting = detection_pending_ &&
@@ -932,10 +932,10 @@ void BeltTensionPanel::ensure_gate_observers() {
         ps.get_print_active_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
     connected_observer_ = helix::ui::observe<int>(
-        ps.get_nav_buttons_enabled_subject(), this,
+        ps.network_state().get_nav_buttons_enabled_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
     klippy_observer_ = helix::ui::observe<int>(
-        ps.get_klippy_state_subject(), this,
+        ps.network_state().get_klippy_state_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
 
     gate_observers_wired_ = true;

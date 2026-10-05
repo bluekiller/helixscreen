@@ -264,7 +264,7 @@ void EmergencyStopOverlay::create() {
 
     // Subscribe to klippy state changes for recovery dialog auto-popup
     klippy_state_observer_ = observe<int>(
-        printer_state_->get_klippy_state_subject(), this,
+        printer_state_->network_state().get_klippy_state_subject(), this,
         [](EmergencyStopOverlay* self, int state) {
             auto klippy_state = static_cast<KlippyState>(state);
 
@@ -770,7 +770,7 @@ void EmergencyStopOverlay::update_recovery_dialog_content() {
     std::string code;
     if (printer_state_ && (recovery_reason_ == RecoveryReason::SHUTDOWN ||
                            recovery_reason_ == RecoveryReason::ERROR)) {
-        const auto& state_msg = printer_state_->get_klippy_state_message();
+        const auto& state_msg = printer_state_->network_state().get_klippy_state_message();
         if (!state_msg.empty()) {
             message = state_msg;
             // Klipper sometimes reports the reason as a JSON envelope

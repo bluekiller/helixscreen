@@ -124,11 +124,11 @@ void PrintPreparationManager::set_dependencies(IMoonrakerAPI* api, PrinterState*
 
     if (printer_state_) {
         connection_observer_ = helix::ui::observe<int>(
-            printer_state_->get_printer_connection_state_subject(), this,
+            printer_state_->network_state().get_printer_connection_state_subject(), this,
             [](PrintPreparationManager* self, int state) { self->on_connection_state(state); },
             printer_state_->get_subjects_lifetime());
         klippy_observer_ = helix::ui::observe<int>(
-            printer_state_->get_klippy_state_subject(), this,
+            printer_state_->network_state().get_klippy_state_subject(), this,
             [](PrintPreparationManager* self, int state) { self->on_klippy_state(state); },
             printer_state_->get_subjects_lifetime());
     }

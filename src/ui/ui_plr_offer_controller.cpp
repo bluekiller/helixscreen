@@ -23,7 +23,8 @@ PlrOfferController::PlrOfferController() {
     // observer. observe<int> fires once at registration with the current
     // value, so seeding here means that first firing sees prev == next and does
     // not spuriously re-arm the latch.
-    last_conn_state_ = lv_subject_get_int(ps.get_printer_connection_state_subject());
+    last_conn_state_ =
+        lv_subject_get_int(ps.network_state().get_printer_connection_state_subject());
 
     // pl_env_valid is the PRIMARY Snapmaker trigger. observe<int> fires once
     // at registration with the current value (deferred via the update queue), so
@@ -55,7 +56,7 @@ PlrOfferController::PlrOfferController() {
         ps.get_subjects_lifetime());
 
     conn_observer_ = observe<int>(
-        ps.get_printer_connection_state_subject(), this,
+        ps.network_state().get_printer_connection_state_subject(), this,
         [](PlrOfferController* self, int value) { self->on_connection_state_changed(value); },
         ps.get_subjects_lifetime());
 

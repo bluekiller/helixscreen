@@ -445,7 +445,7 @@ void BedDryingController::hold_idle(int seconds) {
 }
 
 bool BedDryingController::klipper_ready() const {
-    lv_subject_t* klippy = state_.get_klippy_state_subject();
+    lv_subject_t* klippy = state_.network_state().get_klippy_state_subject();
     return klippy && lv_subject_get_int(klippy) == static_cast<int>(KlippyState::READY);
 }
 

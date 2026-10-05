@@ -462,7 +462,7 @@ void MoonrakerMotionAPI::execute_gcode(const std::string& gcode, SuccessCallback
     // klippy gate in MoonrakerAPI::execute_gcode, which lets STARTUP through so
     // queued recovery gcode can run — jog moves must NOT queue-and-fire-late.
     {
-        const int klippy = lv_subject_get_int(state_.get_klippy_state_subject());
+        const int klippy = lv_subject_get_int(state_.network_state().get_klippy_state_subject());
         if (klippy != static_cast<int>(helix::KlippyState::READY)) {
             if (!silent) {
                 spdlog::warn("[Motion API] Refusing motion G-code while Klipper not ready "

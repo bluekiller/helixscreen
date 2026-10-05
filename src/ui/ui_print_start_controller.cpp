@@ -857,7 +857,7 @@ void PrintStartController::observe_klippy_state_for_restore() {
         return; // Already waiting — a second deferral must not stack observers
     }
 
-    auto* subject = printer_state_.get_klippy_state_subject();
+    auto* subject = printer_state_.network_state().get_klippy_state_subject();
     if (!subject) {
         spdlog::warn("[PrintStartController] No klippy state subject — deferred restore cannot "
                      "self-resolve; pending_remap.json will replay on next startup");
@@ -898,8 +898,8 @@ void PrintStartController::restore_filament_mapping() {
     // the recovery record deleted (#1270), and a halted Klipper at print end is
     // the normal shape of a cancelled or errored print — precisely when restore
     // runs.
-    const auto klippy =
-        static_cast<KlippyState>(lv_subject_get_int(printer_state_.get_klippy_state_subject()));
+    const auto klippy = static_cast<KlippyState>(
+        lv_subject_get_int(printer_state_.network_state().get_klippy_state_subject()));
     if (klippy != KlippyState::READY) {
         spdlog::info("[PrintStartController] Klipper not ready (state={}) — deferring restore of "
                      "{} mapping(s); snapshot and pending_remap.json retained",

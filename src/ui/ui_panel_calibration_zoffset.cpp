@@ -370,7 +370,7 @@ void ZOffsetCalibrationPanel::begin_saving_restart_watch() {
     //     fires — without this the panel burns the full extension budget and
     //     then fails a save that actually succeeded.
     klippy_state_observer_ = observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](ZOffsetCalibrationPanel* self, int state) {
             if (self->state_ != State::SAVING) {
                 return; // Stale fire after the save settled
