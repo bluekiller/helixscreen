@@ -297,7 +297,7 @@ class PrinterState {
     /// reset_klippy_state_freshness(); stamp a frame with it where it is
     /// received, and hand the stamp to update_from_status().
     [[nodiscard]] uint64_t klippy_epoch() const {
-        return klippy_epoch_.load();
+        return network_state_.klippy_epoch();
     }
 
     //
@@ -2609,34 +2609,6 @@ class PrinterState {
 
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;
-
-    /// Freshness watermark for klippy state. Written from the WebSocket thread
-    /// (set_klippy_state, reset_klippy_state_freshness) and the main thread (the
-    /// webhooks parse). klippy_freshness_mutex_ guards only the eventtime, and is
-    /// never held across anything else, so an observer can call back in.
-    ///
-    /// Highest Klipper eventtime that has carried a webhooks klippy state. Klipper
-    /// derives it from the monotonic clock, so it survives a Klipper restart and only
-    /// rewinds on a host reboot.
-    double klippy_state_eventtime_ = 0.0;
-    std::mutex klippy_freshness_mutex_;
-
-    /// Session counter behind klippy_epoch(). A frame stamped with an older
-    /// value was received before the last reset.
-    std::atomic<uint64_t> klippy_epoch_{0};
-
-    /// True once a live-sourced klippy state has been applied. Latches the state
-    /// against replayed snapshots (discovery re-dispatches its subscription
-    /// response at the end of discovery) while still allowing that same snapshot
-    /// to SEED the state when nothing live has arrived yet — which is the normal
-    /// cold-start ordering.
-    std::atomic<bool> klippy_state_from_live_{false};
-    /// Last unrecognised webhooks.state string, so the warning fires once per
-    /// distinct value rather than once per status frame.
-    std::string last_unknown_klippy_state_;
-
-    /// Last unrecognised webhooks.state string, so the warning fires on change
-    /// rather than on every status frame. Main-thread only (webhooks parse).
 
     /// Default state for the synthesized timelapse pre-print option, seeded from
     /// the global moonraker-timelapse `enabled` setting at discovery (#1094).

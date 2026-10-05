@@ -425,99 +425,10 @@ void PrinterState::update_from_status(const json& state, double eventtime,
 
     excluded_objects_state_.update_from_status(state);
 
-    // Update klippy state from webhooks (shutdown/error detection).
-    //
-    // Klippy state is a liveness signal written by two queues that are not ordered
-    // against each other: live WebSocket frames, and the discovery subscription
-    // snapshot replayed at the end of discovery. Last-write-wins let the replay
-    // resurrect READY over a live SHUTDOWN — nav re-enabled, the recovery dialog
-    // auto-dismissed, and the gcode guards re-opened against a dead printer.
-    //
-    // The state_message is gated with the state because they arrive in the same
-    // blob: a snapshot too stale to set the state carries an equally stale reason.
-    if (state.contains("webhooks")) {
-        const auto& webhooks = state["webhooks"];
-
-        // Provenance is STATED by the caller, never inferred from a zero eventtime:
-        // the mock client drives its simulated shutdown/recovery through the same
-        // untimestamped dispatch, and those are the current truth for their session.
-        // The eventtime watermark covers the other case — two genuinely live frames
-        // arriving out of order across the queues.
-        double watermark;
-        {
-            std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-            watermark = klippy_state_eventtime_;
-        }
-        const bool stale = (from_cached_snapshot && klippy_state_from_live_.load()) ||
-                           (eventtime > 0.0 && eventtime < watermark);
-
-        if (stale) {
-            spdlog::debug("[PrinterState] Ignoring stale klippy webhooks (state='{}', "
-                          "eventtime={} vs watermark={}, cached_snapshot={})",
-                          helix::json_util::safe_string(webhooks, "state", "<absent>"), eventtime,
-                          watermark, from_cached_snapshot);
-        } else {
-            bool applied_state = false;
-
-            if (webhooks.contains("state") && webhooks["state"].is_string()) {
-                std::string klippy_state_str = webhooks["state"].get<std::string>();
-                KlippyState new_state = KlippyState::READY;
-                bool recognized = true;
-
-                if (klippy_state_str == "ready") {
-                    new_state = KlippyState::READY;
-                } else if (klippy_state_str == "startup") {
-                    new_state = KlippyState::STARTUP;
-                } else if (klippy_state_str == "shutdown") {
-                    new_state = KlippyState::SHUTDOWN;
-                } else if (klippy_state_str == "error") {
-                    new_state = KlippyState::ERROR;
-                } else {
-                    // Klipper documents exactly ready/startup/shutdown/error. An
-                    // unrecognised value used to resolve to READY, which is
-                    // fail-OPEN on a liveness signal: an unknown string re-enabled
-                    // nav and re-opened the gcode guards. Leave the current state
-                    // alone instead — a stale-but-known state is safer than an
-                    // invented READY. Deduped on the string so a value Klipper
-                    // repeats every frame warns once, not per frame.
-                    recognized = false;
-                    if (last_unknown_klippy_state_ != klippy_state_str) {
-                        last_unknown_klippy_state_ = klippy_state_str;
-                        spdlog::warn("[PrinterState] Unrecognised webhooks.state '{}' — leaving "
-                                     "klippy state unchanged",
-                                     klippy_state_str);
-                    }
-                }
-
-                if (recognized) {
-                    set_klippy_state_internal(new_state);
-                    applied_state = true;
-                }
-            }
-
-            // Capture state_message (error/shutdown reason text)
-            if (webhooks.contains("state_message") && webhooks["state_message"].is_string()) {
-                network_state_.set_klippy_state_message(
-                    webhooks["state_message"].get<std::string>());
-            }
-
-            // Only a frame that actually carried a usable state moves the guard.
-            // A delta carrying just state_message must not latch "live seen" and
-            // lock out the snapshot that still has to seed the state.
-            if (applied_state) {
-                // A frame received before the last reset belongs to the previous
-                // session, whose clock the watermark no longer measures, so it does
-                // not move the guard. Checked under the lock the reset takes.
-                std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-                if (!frame_epoch || *frame_epoch == klippy_epoch_.load()) {
-                    if (eventtime > 0.0) {
-                        klippy_state_eventtime_ = eventtime;
-                    }
-                    if (!from_cached_snapshot) {
-                        klippy_state_from_live_ = true;
-                    }
-                }
-            }
+    // Klippy state from webhooks (shutdown/error detection), gated on freshness.
+    if (auto it = state.find("webhooks"); it != state.end()) {
+        if (network_state_.apply_webhooks(*it, eventtime, from_cached_snapshot, frame_epoch)) {
+            calibration_state_.reset_klippy_volatile();
         }
     }
 
@@ -593,13 +504,13 @@ void PrinterState::set_klippy_state(KlippyState state) {
     // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
     // authoritative, and they must outrank any replayed snapshot from here on,
     // including one already waiting in the notification queue.
-    klippy_state_from_live_.store(true);
+    network_state_.mark_klippy_state_live();
     async_lifetime_.defer("PrinterState::set_klippy_state",
                           [this, state]() { set_klippy_state_internal(state); });
 }
 
 void PrinterState::set_klippy_state_sync(KlippyState state) {
-    klippy_state_from_live_.store(true);
+    network_state_.mark_klippy_state_live();
     set_klippy_state_internal(state);
 }
 
@@ -613,7 +524,7 @@ void PrinterState::set_klippy_state_if_unseeded(KlippyState state) {
 }
 
 void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
-    if (klippy_state_from_live_.load()) {
+    if (network_state_.klippy_state_from_live()) {
         spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
                       "has already been applied",
                       static_cast<int>(state));
@@ -627,18 +538,13 @@ void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
 }
 
 void PrinterState::reset_klippy_state_freshness() {
-    // Synchronous on the caller's thread: the next session's frames arrive
-    // through a different queue than deferred UI work, so a queued reset could
-    // land after them and wipe their watermark.
-    std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-    klippy_state_eventtime_ = 0.0;
-    klippy_state_from_live_.store(false);
-    ++klippy_epoch_;
+    network_state_.reset_klippy_state_freshness();
 }
 
 void PrinterState::set_klippy_state_internal(KlippyState state) {
-    // Single chokepoint for every Klippy state change: the webhooks JSON parse, the
-    // deferred set_klippy_state(), and set_klippy_state_sync all land here.
+    // Chokepoint for the deferred set_klippy_state(), set_klippy_state_sync() and
+    // printer.info seed. The webhooks parse applies the same reset in
+    // update_from_status() when PrinterNetworkState::apply_webhooks() reports a change.
     const bool changed = network_state_.set_klippy_state_internal(state);
     if (!changed) {
         return;

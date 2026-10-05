@@ -169,6 +169,7 @@ class PrinterNetworkStateTestAccess {
     static void clear_data(PrinterNetworkState& s) {
         s.klippy_state_message_.clear();
         s.was_ever_connected_ = false;
+        s.last_unknown_klippy_state_.clear();
     }
 };
 
@@ -258,7 +259,6 @@ class PrinterStateTestAccess {
         ps.last_kinematics_.clear();
         ps.capability_overrides_ = CapabilityOverrides();
         ps.discovery_ = helix::PrinterDiscovery();
-        ps.last_unknown_klippy_state_.clear();
         ps.timelapse_default_enabled_ = false;
         ps.reset_klippy_state_freshness();
     }
