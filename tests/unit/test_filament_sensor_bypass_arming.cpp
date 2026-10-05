@@ -33,6 +33,7 @@
 #include "printer_state.h"
 #include "test_helpers/ad5x_ifs_test_access.h"
 #include "test_helpers/afc_test_access.h"
+#include "test_helpers/backend_user_edit.h"
 #include "test_helpers/cfs_test_access.h"
 
 #include <filesystem>
@@ -610,6 +611,41 @@ TEST_CASE("External spool mirror: one kept as a bay's record stops being ours",
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
     CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == persisted);
+}
+
+// Our mirror's key turning into a reported bay in any frame makes the record
+// that bay's: unmarked there and then, so a later save of the bay is not
+// written marked and the next publish does not clear it (#1464).
+TEST_CASE("CFS external spool lane: our mirror on a returning box's bay becomes the bay's",
+          "[ams][cfs][bypass-arming][1464]") {
+    CfsPublishFixture fx;
+    fx.send_fork_frame(8);
+    // A named spool: the record carries identity, so the returning bay reading
+    // empty keeps it as the bay's record rather than clearing it.
+    SlotInfo spool = CfsPublishFixture::asa();
+    spool.spool_name = "External ASA";
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(fx.api->mock_get_db_value("lane_data", "lane9")["helix_external"] == true);
+
+    // Box 3 returns within the session: 8 is its bay A.
+    fx.send_fork_frame(12);
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(CfsTestAccess::get_override(*fx.backend, 8).has_value());
+    CHECK_FALSE(CfsTestAccess::get_override(*fx.backend, 8)->external_mirror);
+    CHECK_FALSE(fx.api->mock_get_db_value("lane_data", "lane9").contains("helix_external"));
+
+    SlotInfo edit = fx.backend->get_slot_info(8);
+    edit.spool_name = "Box 3 A spool";
+    REQUIRE(helix::test::apply_edit(*fx.backend, 8, edit).success());
+    helix::ui::UpdateQueue::instance().drain();
+
+    fx.backend->publish_external_spool_lane(&spool);
+    helix::ui::UpdateQueue::instance().drain();
+    const json rec = fx.api->mock_get_db_value("lane_data", "lane9");
+    REQUIRE_FALSE(rec.is_null());
+    CHECK_FALSE(rec.contains("helix_external"));
+    CHECK_FALSE(fx.api->mock_get_db_value("lane_data", "lane13").is_null());
 }
 
 // The old key is cleared only where we hold our own marked mirror; a key we

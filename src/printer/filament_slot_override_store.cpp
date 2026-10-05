@@ -2151,6 +2151,27 @@ bool record_describes_spool(const FilamentSlotOverride& record, const SlotInfo& 
     return record.brand.empty() || spool.brand.empty() || record.brand == spool.brand;
 }
 
+FilamentSlotOverride external_lane_record(const SlotInfo& spool) {
+    FilamentSlotOverride ovr;
+    ovr.external_mirror = true;
+    ovr.material = spool.material;
+    ovr.brand = spool.brand;
+    ovr.spool_name = spool.spool_name;
+    ovr.spoolman_id = spool.spoolman_id;
+    ovr.spoolman_filament_id = spool.spoolman_filament_id;
+    ovr.spoolman_vendor_id = spool.spoolman_vendor_id;
+    ovr.remaining_weight_g = spool.remaining_weight_g;
+    ovr.total_weight_g = spool.total_weight_g;
+    ovr.catalog_id = spool.catalog_id;
+    ovr.product_name = spool.product_name;
+    // User-set data (settings store / Spoolman): default gray = never picked,
+    // black = picked.
+    ovr.color_rgb = spool.color_rgb;
+    ovr.color_set = is_declarable_color(spool.color_rgb);
+    populate_temps_from_slot_info(ovr, spool);
+    return ovr;
+}
+
 bool publish_external_lane(FilamentSlotOverrideStore* store, int lane_index, const SlotInfo* spool,
                            const std::string& log_tag) {
     if (!store || lane_index < 0) {
@@ -2176,24 +2197,7 @@ bool publish_external_lane(FilamentSlotOverrideStore* store, int lane_index, con
         return false;
     }
 
-    FilamentSlotOverride ovr;
-    ovr.external_mirror = true;
-    ovr.material = spool->material;
-    ovr.brand = spool->brand;
-    ovr.spool_name = spool->spool_name;
-    ovr.spoolman_id = spool->spoolman_id;
-    ovr.spoolman_filament_id = spool->spoolman_filament_id;
-    ovr.spoolman_vendor_id = spool->spoolman_vendor_id;
-    ovr.remaining_weight_g = spool->remaining_weight_g;
-    ovr.total_weight_g = spool->total_weight_g;
-    ovr.catalog_id = spool->catalog_id;
-    ovr.product_name = spool->product_name;
-    // User-set data (settings store / Spoolman), same sentinel rule as
-    // has_identity: default gray = never picked, black = picked.
-    ovr.color_rgb = spool->color_rgb;
-    ovr.color_set = color_picked;
-    populate_temps_from_slot_info(ovr, *spool);
-
+    const FilamentSlotOverride ovr = external_lane_record(*spool);
     store->save_async(lane_index, ovr, [log_tag, lane_index](bool ok, std::string err) {
         if (!ok) {
             spdlog::warn("{} external-spool lane publish failed ({}): {}", log_tag, lane_index,

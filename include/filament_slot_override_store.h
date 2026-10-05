@@ -460,6 +460,9 @@ bool persist_override_external_identity(FilamentSlotOverrideStore* store,
 bool publish_external_lane(FilamentSlotOverrideStore* store, int lane_index, const SlotInfo* spool,
                            const std::string& log_tag);
 
+/// The marked lane_data record publish_external_lane() writes for @p spool.
+[[nodiscard]] FilamentSlotOverride external_lane_record(const SlotInfo& spool);
+
 /// Whether unmarked @p record is an external-spool mirror written before the
 /// `helix_external` mark existed: it names @p spool. The same Spoolman id when
 /// either side has one; otherwise the same material and colour, and the same

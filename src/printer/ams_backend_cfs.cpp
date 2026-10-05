@@ -571,6 +571,19 @@ static AmsError firmware_slot_unknown(int bay) {
                     lv_tr("It has not reported its slots yet. Try again in a moment."), bay);
 }
 
+void AmsBackendCfs::make_bay_record_locked(int bay, helix::ams::FilamentSlotOverride& record) {
+    record.external_mirror = false;
+    if (!override_store_) {
+        return;
+    }
+    override_store_->save_async(
+        bay, record, [tag = backend_log_tag(), bay](bool ok, const std::string& err) {
+            if (!ok) {
+                spdlog::warn("{} unmarking the record at bay {} failed: {}", tag, bay, err);
+            }
+        });
+}
+
 int AmsBackendCfs::firmware_slot_locked(int bay) const {
     if (system_info_.slot_absent(bay)) {
         return -1;
@@ -1664,23 +1677,19 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
                         } else if (!system_info_.slot_exists(it->first)) {
                             it = overrides_.erase(it);
                         } else {
-                            it->second.external_mirror = false;
-                            if (override_store_) {
-                                const int bay = it->first;
-                                override_store_->save_async(
-                                    bay, it->second,
-                                    [tag = backend_log_tag(), bay](bool ok,
-                                                                   const std::string& err) {
-                                        if (!ok) {
-                                            spdlog::warn("{} unmarking the record at bay {} "
-                                                         "failed: {}",
-                                                         tag, bay, err);
-                                        }
-                                    });
-                            }
+                            make_bay_record_locked(it->first, it->second);
                             ++it;
                         }
                     }
+                }
+                // The same rule for the mirror published this session: once its
+                // key is a bay the box reports (the top box came back), the
+                // record there is that bay's, so a later save of the bay is not
+                // written marked and the next publish does not clear it.
+                if (auto it = overrides_.find(external_lane_published_);
+                    it != overrides_.end() && it->second.external_mirror &&
+                    system_info_.slot_exists(it->first)) {
+                    make_bay_record_locked(it->first, it->second);
                 }
                 // Presence-gated like filament_runout below. Moonraker
                 // subscribes `box: null`, so a frame that changed only a slot
@@ -5039,9 +5048,7 @@ void AmsBackendCfs::publish_external_spool_lane(const SlotInfo* spool) {
     // filed there by its mark: the guard above and the old-key clear read it.
     std::lock_guard<std::mutex> lock(mutex_);
     if (published) {
-        helix::ams::FilamentSlotOverride mirror;
-        mirror.external_mirror = true;
-        overrides_[lane_index] = mirror;
+        overrides_[lane_index] = helix::ams::external_lane_record(*spool);
     } else if (auto it = overrides_.find(lane_index);
                it != overrides_.end() && it->second.external_mirror) {
         overrides_.erase(it);

@@ -905,6 +905,10 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// **Caller must hold mutex_.**
     [[nodiscard]] int firmware_slot_locked(int bay) const;
 
+    /// Make external-spool mirror @p record the record of bay @p bay: drop the
+    /// mark in memory and persist the record without it. Caller holds mutex_.
+    void make_bay_record_locked(int bay, helix::ams::FilamentSlotOverride& record);
+
     /// The shared lane_data namespace this backend co-authors. request_resync()
     /// re-reads it only where firmware states no identity of its own.
     helix::ams::FilamentSlotOverrideStore* lane_record_store() override {
