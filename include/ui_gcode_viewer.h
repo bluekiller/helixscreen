@@ -628,6 +628,9 @@ std::vector<uint32_t> gcode_viewer_tool_colors(lv_obj_t* viewer);
 /// "nothing knowable" to every layer below.
 void gcode_viewer_clear_tool_colors(lv_obj_t* viewer);
 
+/// The viewer's current load generation (0 for a non-viewer).
+uint64_t gcode_viewer_load_generation(lv_obj_t* viewer);
+
 /// The viewer's 2D layer renderer, or null while it has none.
 const helix::gcode::GCodeLayerRenderer* gcode_viewer_2d_renderer(lv_obj_t* viewer);
 

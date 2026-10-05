@@ -41,6 +41,15 @@ using GCode3DRenderer = helix::gcode::GCodeGLESRenderer;
 
 namespace helix::gcode_viewer {
 
+/// A fresh range of load generations for one viewer. A queued result names its
+/// widget by address, and LVGL reuses a deleted widget's address, so a generation
+/// that restarted at zero would match the result queued for the viewer that held
+/// the address before.
+inline uint64_t next_generation_base() {
+    static std::atomic<uint64_t> epoch{0};
+    return (epoch.fetch_add(1) + 1) << 32;
+}
+
 /// What the viewer was told to show, held apart from whichever renderers exist.
 struct ViewOptions {
     std::unordered_set<std::string> highlighted;
@@ -434,7 +443,7 @@ class GCodeViewerState {
     std::thread build_thread_;
     std::atomic<bool> building_{false};
     std::atomic<bool> cancel_flag_{false};
-    std::atomic<uint64_t> load_generation_{0};
+    std::atomic<uint64_t> load_generation_{next_generation_base()};
 };
 
 using gcode_viewer_state_t = GCodeViewerState;

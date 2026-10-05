@@ -1605,6 +1605,11 @@ void gcode_viewer_clear_tool_colors(lv_obj_t* viewer) {
     ui_gcode_viewer_clear_tool_colors(viewer);
 }
 
+uint64_t gcode_viewer_load_generation(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->load_generation() : 0;
+}
+
 const helix::gcode::GCodeLayerRenderer* gcode_viewer_2d_renderer(lv_obj_t* viewer) {
     gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
     return st ? st->layer_renderer_2d_.get() : nullptr;
