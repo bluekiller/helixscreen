@@ -492,6 +492,18 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
 
 #ifdef ENABLE_3D_RENDERER
 static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj);
+
+/// Hand freshly built geometry for st->gcode_file to the 3D renderer. The
+/// renderer writes per-tool overrides into a mesh's palette, so the AMS colors
+/// the viewer already holds have to be written into each new mesh; the
+/// viewer's own setter skips a vector it has already applied.
+static void install_3d_geometry(gcode_viewer_state_t* st,
+                                std::unique_ptr<helix::gcode::RibbonGeometry> geometry) {
+    st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
+    if (!st->tool_color_overrides.empty()) {
+        st->renderer_->set_tool_color_overrides(st->tool_color_overrides);
+    }
+}
 #endif
 
 /// The 2D renderer's default extrusion color as 0xRRGGBB. Reads the theme, so
@@ -2149,8 +2161,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                 // Set pre-built geometry on renderer
 #ifdef ENABLE_3D_RENDERER
                     if (r->geometry) {
-                        st->renderer_->set_prebuilt_geometry(std::move(r->geometry),
-                                                             st->gcode_file->filename);
+                        install_3d_geometry(st, std::move(r->geometry));
                     } else if (!st->is_using_2d_mode()) {
                         // The mode went to 3D after this parse passed its own
                         // build step.
@@ -2441,7 +2452,7 @@ static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj) {
                     return;
                 }
                 if (r->geometry) {
-                    state->renderer_->set_prebuilt_geometry(std::move(r->geometry), file->filename);
+                    install_3d_geometry(state, std::move(r->geometry));
                     if (state->camera_) {
                         state->camera_->fit_to_bounds(file->global_bounding_box);
                     }
@@ -3307,6 +3318,18 @@ void gcode_viewer_wait_for_build(lv_obj_t* viewer) {
     if (st) {
         st->wait_for_build();
     }
+}
+
+std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer) {
+#ifdef ENABLE_3D_RENDERER
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (st && st->renderer_) {
+        return st->renderer_->get_geometry_color_palette();
+    }
+#else
+    (void)viewer;
+#endif
+    return {};
 }
 
 helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer) {

@@ -48,7 +48,83 @@ std::unique_ptr<ParsedGCodeFile> make_over_budget_file() {
     return file;
 }
 
+/// Two tools on two segments, small enough for any budget.
+std::unique_ptr<ParsedGCodeFile> make_two_tool_file() {
+    auto file = std::make_unique<ParsedGCodeFile>();
+    file->filename = "two_tool.gcode";
+    file->tool_color_palette = {"#112233", "#445566"};
+
+    Layer layer;
+    layer.z_height = 0.2f;
+    for (int tool = 0; tool < 2; ++tool) {
+        ToolpathSegment seg;
+        const float y = 10.0f + 20.0f * static_cast<float>(tool);
+        seg.start = glm::vec3(10.0f, y, 0.2f);
+        seg.end = glm::vec3(50.0f, y, 0.2f);
+        seg.is_extrusion = true;
+        seg.extrusion_amount = 1.0f;
+        seg.width = 0.4f;
+        seg.tool_index = static_cast<int8_t>(tool);
+        layer.segments.push_back(seg);
+        layer.bounding_box.expand(seg.start);
+        layer.bounding_box.expand(seg.end);
+        file->global_bounding_box.expand(seg.start);
+        file->global_bounding_box.expand(seg.end);
+    }
+    layer.segment_count_extrusion = 2;
+    file->layers.push_back(std::move(layer));
+    file->total_segments = 2;
+    file->drawable_segments = 2;
+    return file;
+}
+
+lv_obj_t* make_2d_viewer_with(lv_obj_t* parent, std::unique_ptr<ParsedGCodeFile> file) {
+    lv_obj_t* viewer = ui_gcode_viewer_create(parent);
+    REQUIRE(viewer != nullptr);
+    lv_obj_set_size(viewer, 400, 300);
+    lv_obj_update_layout(viewer);
+    ui_gcode_viewer_set_render_mode(viewer, GcodeViewerRenderMode::Layer2D);
+    helix::test_access::gcode_viewer_install_loaded_file(viewer, std::move(file));
+    REQUIRE(ui_gcode_viewer_is_using_2d_mode(viewer));
+    return viewer;
+}
+
+constexpr uint32_t kLaneT0 = 0xED1C24u;
+constexpr uint32_t kLaneT1 = 0x00A651u;
+
 } // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "a live 3D switch installs the geometry with the AMS tool colors already applied",
+                 "[gcode_viewer][gcode][render_mode][colors]") {
+    lv_obj_t* parent = lv_obj_create(lv_screen_active());
+    lv_obj_t* viewer = make_2d_viewer_with(parent, make_two_tool_file());
+
+    // Applied while the 3D renderer has no mesh to write them into.
+    ui_gcode_viewer_set_tool_colors(viewer, {kLaneT0, kLaneT1});
+
+    ui_gcode_viewer_set_render_mode(viewer, GcodeViewerRenderMode::Render3D);
+    helix::test_access::gcode_viewer_wait_for_build(viewer);
+    helix::ui::UpdateQueue::instance().drain();
+
+    CHECK_FALSE(ui_gcode_viewer_is_using_2d_mode(viewer));
+    const auto palette = helix::test_access::gcode_viewer_3d_palette(viewer);
+    REQUIRE_FALSE(palette.empty());
+    auto has = [&palette](uint32_t rgb) {
+        for (uint32_t c : palette) {
+            if ((c & 0xFFFFFFu) == rgb) {
+                return true;
+            }
+        }
+        return false;
+    };
+    CHECK(has(kLaneT0));
+    CHECK(has(kLaneT1));
+    CHECK_FALSE(has(0x112233u));
+    CHECK_FALSE(has(0x445566u));
+
+    lv_obj_delete(parent);
+}
 
 TEST_CASE_METHOD(LVGLTestFixture,
                  "a refused live 3D switch falls back to 2D for this file without the LVGL "

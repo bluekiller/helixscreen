@@ -786,6 +786,9 @@ void gcode_viewer_install_loaded_file(lv_obj_t* viewer,
 /// result it queued is still delivered.
 void gcode_viewer_wait_for_build(lv_obj_t* viewer);
 
+/// The 3D renderer's geometry palette; empty with no geometry or no 3D renderer.
+std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer);
+
 /// The render mode last set on the viewer, before per-file fallbacks.
 helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer);
 

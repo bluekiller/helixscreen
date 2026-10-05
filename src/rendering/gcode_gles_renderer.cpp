@@ -2254,6 +2254,11 @@ size_t GCodeGLESRenderer::get_geometry_color_count() const {
     return 0;
 }
 
+std::vector<uint32_t> GCodeGLESRenderer::get_geometry_color_palette() const {
+    std::lock_guard<std::mutex> lock(palette_mutex_);
+    return geometry_ ? geometry_->color_palette : std::vector<uint32_t>{};
+}
+
 helix::gcode::RenderMemoryReport GCodeGLESRenderer::memory_report() const {
     helix::gcode::RenderMemoryReport r;
 
