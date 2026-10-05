@@ -13,11 +13,20 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/controls_panel_test_access.h"
+#include "../test_helpers/moonraker_client_test_access.h"
+#include "../test_helpers/printer_state_test_access.h"
 #include "app_globals.h"
+#include "moonraker_api.h"
+#include "moonraker_client_mock.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "tool_state.h"
 #include "z_offset_utils.h"
+
+#include <algorithm>
+#include <string>
+#include <thread>
 
 #include "../catch_amalgamated.hpp"
 #include "hv/json.hpp"
@@ -31,7 +40,17 @@ namespace {
 
 class ControlsSaveZOffsetFixture : public LVGLUITestFixture {
   public:
-    ControlsSaveZOffsetFixture() : panel(state(), nullptr) {
+    ControlsSaveZOffsetFixture()
+        : client(MoonrakerClientMock::PrinterType::VORON_24), api(client, state()),
+          panel(state(), &api) {
+        MoonrakerClientTestAccess::force_connection_state(client, ConnectionState::CONNECTED);
+        previous_api = get_moonraker_api();
+        set_moonraker_api(&api);
+        // The XML callbacks resolve to the global panel, not to `panel`.
+        get_global_controls_panel().set_api(&api);
+        state().set_klippy_state_sync(helix::KlippyState::READY);
+        helix::PrinterStateTestAccess::pin_z_offset_strategy(
+            state(), ZOffsetCalibrationStrategy::PROBE_CALIBRATE);
         ToolState::instance().deinit_subjects();
         ToolState::instance().init_subjects(true);
 
@@ -54,6 +73,9 @@ class ControlsSaveZOffsetFixture : public LVGLUITestFixture {
     }
 
     ~ControlsSaveZOffsetFixture() override {
+        helix::ui::ControlsPanelTestAccess::end_save_z_offset_guard(get_global_controls_panel());
+        get_global_controls_panel().set_api(nullptr);
+        set_moonraker_api(previous_api);
         ModalStack::instance().clear();
         if (panel_obj) {
             panel.on_deactivate(DeactivateReason::NavigateAway);
@@ -98,6 +120,40 @@ class ControlsSaveZOffsetFixture : public LVGLUITestFixture {
         settle();
     }
 
+    /// Confirm the modal the save button raised.
+    void confirm_save() {
+        lv_obj_t* dialog = ModalStack::instance().top_dialog();
+        REQUIRE(dialog != nullptr);
+        lv_obj_t* btn = lv_obj_find_by_name(dialog, "btn_primary");
+        REQUIRE(btn != nullptr);
+        lv_obj_send_event(btn, LV_EVENT_CLICKED, nullptr);
+    }
+
+    /// How many times @p command went to the printer.
+    int sent(const std::string& command) {
+        const auto& history = client.gcode_script_history();
+        return static_cast<int>(
+            std::count_if(history.begin(), history.end(), [&](const std::string& script) {
+                return script.find(command) != std::string::npos;
+            }));
+    }
+
+    /// Pump until @p command has been sent, or give up after ~2s.
+    bool wait_for_sent(const std::string& command) {
+        for (int i = 0; i < 200 && sent(command) == 0; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            settle();
+        }
+
+        for (const auto& script : client.gcode_script_history()) {
+            UNSCOPED_INFO("sent: " << script);
+        }
+        return sent(command) > 0;
+    }
+
+    MoonrakerClientMock client;
+    MoonrakerAPI api;
+    IMoonrakerAPI* previous_api = nullptr;
     ControlsPanel panel;
     lv_obj_t* panel_obj = nullptr;
 };
@@ -143,4 +199,54 @@ TEST_CASE_METHOD(ControlsSaveZOffsetFixture,
 
     set_global_offset_mm(0.0);
     CHECK_FALSE(save_button_visible());
+}
+
+TEST_CASE_METHOD(ControlsSaveZOffsetFixture,
+                 "Controls save applies the offset and then saves the config once confirmed",
+                 "[controls][zoffset][save-flow]") {
+    set_global_offset_mm(-0.15);
+    click_save();
+    REQUIRE(ModalStack::instance().top_dialog() != nullptr);
+
+    // Nothing goes out until the user answers the restart warning.
+    CHECK(sent("Z_OFFSET_APPLY_PROBE") == 0);
+
+    confirm_save();
+    REQUIRE(wait_for_sent("SAVE_CONFIG"));
+    CHECK(sent("Z_OFFSET_APPLY_PROBE") == 1);
+    CHECK(sent("SAVE_CONFIG") == 1);
+}
+
+TEST_CASE_METHOD(ControlsSaveZOffsetFixture, "Controls save cancelled sends nothing",
+                 "[controls][zoffset][save-flow]") {
+    set_global_offset_mm(-0.15);
+    click_save();
+    lv_obj_t* dialog = ModalStack::instance().top_dialog();
+    REQUIRE(dialog != nullptr);
+    lv_obj_t* cancel = lv_obj_find_by_name(dialog, "btn_secondary");
+    REQUIRE(cancel != nullptr);
+    lv_obj_send_event(cancel, LV_EVENT_CLICKED, nullptr);
+    settle();
+
+    CHECK(sent("Z_OFFSET_APPLY_PROBE") == 0);
+    CHECK(sent("SAVE_CONFIG") == 0);
+}
+
+TEST_CASE_METHOD(ControlsSaveZOffsetFixture,
+                 "Controls save ignores a second click while one is in flight",
+                 "[controls][zoffset][save-flow]") {
+    set_global_offset_mm(-0.15);
+    click_save();
+    confirm_save();
+
+    // The first save is still running: a second tap, and its confirmation if a
+    // dialog appears at all, must not start another apply.
+    lv_obj_send_event(save_button(), LV_EVENT_CLICKED, nullptr);
+    if (ModalStack::instance().top_dialog() != nullptr) {
+        confirm_save();
+    }
+    REQUIRE(wait_for_sent("SAVE_CONFIG"));
+    settle();
+
+    CHECK(sent("Z_OFFSET_APPLY_PROBE") == 1);
 }

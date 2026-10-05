@@ -90,6 +90,13 @@ struct ControlsPanelTestAccess {
         p.handle_calibration_bed_mesh();
     }
 
+    /// Abandon an in-flight Save Z-Offset: SAVE_CONFIG's dropped rpc leaves the
+    /// re-entry guard and the restart watch armed until their own timeouts.
+    static void end_save_z_offset_guard(ControlsPanel& p) {
+        p.save_z_offset_guard_.end();
+        p.save_config_watch_.end();
+    }
+
     static bool guard_active(ControlsPanel& p) {
         return p.operation_guard_.is_active();
     }
