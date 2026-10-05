@@ -297,6 +297,10 @@ void check_row_fits_at(int32_t screen_w, int32_t screen_h) {
         reset_material_temps_singleton();
         MaterialSettingsManager::instance().clear_override("ABS");
         set_capability("printer_has_chamber_heater", 1);
+        // The overlay is built on these and requires overlay_header; register
+        // them here so the case does not depend on an earlier test doing it.
+        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/header_bar.xml") == LV_RESULT_OK);
+        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/overlay_panel.xml") == LV_RESULT_OK);
         REQUIRE(lv_xml_register_component_from_file("A:ui_xml/material_temps_overlay.xml") ==
                 LV_RESULT_OK);
 
@@ -360,6 +364,10 @@ void check_row_capped_at(int32_t screen_w, int32_t screen_h) {
         reset_material_temps_singleton();
         MaterialSettingsManager::instance().clear_override("ABS");
         set_capability("printer_has_chamber_heater", 1);
+        // The overlay is built on these and requires overlay_header; register
+        // them here so the case does not depend on an earlier test doing it.
+        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/header_bar.xml") == LV_RESULT_OK);
+        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/overlay_panel.xml") == LV_RESULT_OK);
         REQUIRE(lv_xml_register_component_from_file("A:ui_xml/material_temps_overlay.xml") ==
                 LV_RESULT_OK);
 
