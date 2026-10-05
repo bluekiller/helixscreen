@@ -51,7 +51,8 @@ class PrinterDiscovery;
  * Thread Safety:
  * Main thread only, asserted, except where a method says otherwise. The
  * exceptions answer from state with its own guard: the backend registry
- * (get_backend, backend_count, primary_type, any_filament_batch_in_flight),
+ * (backend_count, primary_type, any_filament_batch_in_flight; get_backend
+ * returns a raw pointer and is main-thread only),
  * RunoutGrace (the unload grace and per-slot unload stamps), the action and
  * step-operation atomics, and the setters that marshal themselves to the main
  * thread (set_pending_target_slot, set_active_tool_port_present).
