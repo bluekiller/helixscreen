@@ -61,8 +61,8 @@ void set_hardware_step(DiscoveryContext& ctx) {
     get_printer_state().set_hardware(std::move(ctx.snapshot));
     crash_handler::breadcrumb::note("disc", "post_set_hw", ctx.n);
     const auto& fans = ctx.hw.fans();
-    get_printer_state().init_fans(fans, FanRoleConfig::from_config(Config::get_instance(), fans),
-                                  ctx.hw.fan_max_power());
+    get_printer_state().fan_state().init_fans(
+        fans, FanRoleConfig::from_config(Config::get_instance(), fans), ctx.hw.fan_max_power());
     crash_handler::breadcrumb::note("disc", "post_init_fans", static_cast<long>(fans.size()));
 }
 

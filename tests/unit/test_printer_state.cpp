@@ -220,7 +220,7 @@ TEST_CASE("PrinterState: Initialization sets default values", "[state][init]") {
     REQUIRE(lv_subject_get_int(state.get_flow_factor_subject()) == 100);
 
     // Fan speed should be 0
-    REQUIRE(lv_subject_get_int(state.get_fan_speed_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.fan_state().get_fan_speed_subject()) == 0);
 
     // Printer connection state should be DISCONNECTED
     REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) ==
@@ -677,7 +677,7 @@ TEST_CASE("PrinterState: Update fan speed", "[state][fan]") {
 
     state.update_from_status(notification["params"][0]);
 
-    REQUIRE(lv_subject_get_int(state.get_fan_speed_subject()) == 75);
+    REQUIRE(lv_subject_get_int(state.fan_state().get_fan_speed_subject()) == 75);
 }
 
 // ============================================================================
@@ -909,7 +909,7 @@ TEST_CASE("PrinterState: Complete printing state update", "[state][integration]"
     REQUIRE(std::string(lv_subject_get_string(state.get_homed_axes_subject())) == "xyz");
     REQUIRE(lv_subject_get_int(state.get_speed_factor_subject()) == 100);
     REQUIRE(lv_subject_get_int(state.get_flow_factor_subject()) == 100);
-    REQUIRE(lv_subject_get_int(state.get_fan_speed_subject()) == 50);
+    REQUIRE(lv_subject_get_int(state.fan_state().get_fan_speed_subject()) == 50);
 }
 
 // ============================================================================

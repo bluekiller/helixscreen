@@ -621,7 +621,7 @@ void PrintStatusPanel::init_subjects() {
     {
         auto token = lifetime_.token();
         fans_version_observer_ = observe<int>(
-            printer_state_.get_fans_version_subject(), this,
+            printer_state_.fan_state().get_fans_version_subject(), this,
             [token](PrintStatusPanel* self, int /*v*/) {
                 if (token.expired())
                     return;
@@ -632,7 +632,7 @@ void PrintStatusPanel::init_subjects() {
     {
         auto token = lifetime_.token();
         primary_fans_version_observer_ = observe<int>(
-            printer_state_.get_primary_fans_version_subject(), this,
+            printer_state_.fan_state().get_primary_fans_version_subject(), this,
             [token](PrintStatusPanel* self, int /*v*/) {
                 if (token.expired())
                     return;
@@ -2105,7 +2105,7 @@ void PrintStatusPanel::rebind_single_fan(ObserverGuard& guard, SubjectLifetime& 
         update_fan_speed_display(speed_label_widget_name, icon_widget_name, 0);
         return;
     }
-    lv_subject_t* subj = printer_state_.get_fan_speed_subject(object_name, lt);
+    lv_subject_t* subj = printer_state_.fan_state().get_fan_speed_subject(object_name, lt);
     if (!subj) {
         spdlog::warn("[{}] Fan '{}' subject not available", get_name(), object_name);
         return;
@@ -2152,7 +2152,7 @@ void PrintStatusPanel::refresh_fan_animations() {
     auto refresh_one = [this](const std::string& name, const char* icon_widget) {
         if (name.empty())
             return;
-        lv_subject_t* s = printer_state_.get_fan_speed_subject(name);
+        lv_subject_t* s = printer_state_.fan_state().get_fan_speed_subject(name);
         if (!s)
             return;
         lv_obj_t* icon = lv_obj_find_by_name(overlay_root_, icon_widget);

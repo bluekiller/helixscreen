@@ -206,7 +206,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: idle cold printer shows no chips"
     lv_subject_set_int(state().get_bed_target_subject(), 0);
     lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
     lv_subject_set_int(state().get_active_extruder_target_subject(), 0);
-    lv_subject_set_int(state().get_fan_speed_subject(), 0);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 0);
     settle();
     CHECK_FALSE(shown(h, "callout_chip_bed"));
     CHECK_FALSE(shown(h, "callout_chip_nozzle"));
@@ -266,7 +266,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(has_led);
     lv_subject_set_int(state().get_active_extruder_target_subject(), 0);
     lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
-    lv_subject_set_int(state().get_fan_speed_subject(), 80);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 80);
     ScopedLedStrips::report("neopixel chamber_light", true);
     lv_subject_set_int(has_led, 0);
     settle();
@@ -307,7 +307,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     h.resize(4, 4, 160, 160);
     lv_subject_set_int(state().get_active_extruder_temp_subject(), 1800);
     lv_subject_set_int(state().get_active_extruder_target_subject(), 2200);
-    lv_subject_set_int(state().get_fan_speed_subject(), 50);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 50);
     settle();
     CHECK(shown(h, "callout_chip_toolhead"));
     CHECK_FALSE(shown(h, "callout_chip_nozzle"));
@@ -452,7 +452,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: the nozzle chip budgets the tool 
     lv_subject_set_int(tools.get_show_tool_badge_subject(), 1);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_fan_speed_subject(), 0);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 0);
     lv_subject_set_int(state().get_active_extruder_temp_subject(), 1800);
     lv_subject_set_int(state().get_active_extruder_target_subject(), 2200);
     settle();
@@ -487,7 +487,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a recycled instance drives its ne
     widget.on_size_changed(4, 4, 160, 160);
     lv_subject_set_int(get_printer_state().get_bed_target_subject(), 600);
     lv_subject_set_int(get_printer_state().get_bed_temp_subject(), 400);
-    lv_subject_set_int(get_printer_state().get_fan_speed_subject(), 60);
+    lv_subject_set_int(get_printer_state().fan_state().get_fan_speed_subject(), 60);
     settle();
     REQUIRE(lv_anim_get(lv_obj_find_by_name(comp1, "callout_bed_glow"), nullptr) != nullptr);
 

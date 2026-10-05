@@ -490,7 +490,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to fan updates (skip formatting when hidden)
     fan_observer_ = observe<int>(
-        printer_state_.get_fan_speed_subject(), this,
+        printer_state_.fan_state().get_fan_speed_subject(), this,
         [](ControlsPanel* self, int /* value */) {
             if (self->active_)
                 self->update_fan_display();
@@ -500,7 +500,7 @@ void ControlsPanel::register_observers() {
     // Subscribe to multi-fan list changes (fires when fans are discovered/updated)
     // Skip widget rebuilds when hidden; on_activate() calls populate_secondary_fans()
     fans_version_observer_ = observe<int>(
-        printer_state_.get_fans_version_subject(), this,
+        printer_state_.fan_state().get_fans_version_subject(), this,
         [](ControlsPanel* self, int /* version */) {
             if (!self->active_)
                 return;
@@ -703,8 +703,8 @@ void ControlsPanel::update_fan_display() {
         return;
     }
 
-    int fan_pct = printer_state_.get_fan_speed_subject()
-                      ? lv_subject_get_int(printer_state_.get_fan_speed_subject())
+    int fan_pct = printer_state_.fan_state().get_fan_speed_subject()
+                      ? lv_subject_get_int(printer_state_.fan_state().get_fan_speed_subject())
                       : 0;
 
     format_fan_speed(fan_pct, fan_speed_buf_, sizeof(fan_speed_buf_));
@@ -757,7 +757,7 @@ void ControlsPanel::populate_secondary_fans() {
     helix::ui::safe_clean_children(secondary_fans_list_);
 
     // Collect non-part-cooling fans and sort by display priority
-    const auto& fans = printer_state_.get_fans();
+    const auto& fans = printer_state_.fan_state().get_fans();
     std::vector<const helix::FanInfo*> secondary_fans;
     for (const auto& fan : fans) {
         if (fan.type != helix::FanType::PART_COOLING) {
@@ -1204,7 +1204,8 @@ void ControlsPanel::subscribe_to_secondary_fan_speeds() {
         // expire the guard's weak_ptr immediately, leaving a dangling observer that
         // corrupts the subject's observer list when reset() later removes it).
         SubjectLifetime& lifetime = secondary_fan_lifetimes_.emplace_back();
-        if (auto* subject = printer_state_.get_fan_speed_subject(row.object_name, lifetime)) {
+        if (auto* subject =
+                printer_state_.fan_state().get_fan_speed_subject(row.object_name, lifetime)) {
             secondary_fan_observers_.push_back(observe<int>(
                 subject, this,
                 [name = row.object_name, gen](ControlsPanel* self, int speed_pct) {

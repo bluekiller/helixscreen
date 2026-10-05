@@ -721,8 +721,9 @@ void PrinterImageWidget::arm_callout_observers() {
     auto& ps = get_printer_state();
     const auto on_change = [](PrinterImageWidget* w, int) { w->update_callouts(); };
     const SubjectLifetime life = ps.get_subjects_lifetime();
-    for (lv_subject_t* s : {ps.get_active_extruder_temp_subject(),
-                            ps.get_active_extruder_target_subject(), ps.get_fan_speed_subject()}) {
+    for (lv_subject_t* s :
+         {ps.get_active_extruder_temp_subject(), ps.get_active_extruder_target_subject(),
+          ps.fan_state().get_fan_speed_subject()}) {
         callout_observers_.push_back(helix::ui::observe<int>(s, this, on_change, life));
     }
     auto& leds = helix::led::LedController::instance();
@@ -809,7 +810,7 @@ void PrinterImageWidget::update_callouts() {
            read_int_or_zero(ps.get_printer_has_chamber_heater_subject()) != 0,
            &s_callout_chamber_shown, &s_callout_chamber_text);
 
-    const int fan = read_int_or_zero(ps.get_fan_speed_subject());
+    const int fan = read_int_or_zero(ps.fan_state().get_fan_speed_subject());
     char fan_buf[8];
     snprintf(fan_buf, sizeof(fan_buf), "%d%%", fan);
     publish(&s_callout_fan_shown, fan > 0 ? 1 : 0, &s_callout_fan_text, fan > 0 ? fan_buf : "");

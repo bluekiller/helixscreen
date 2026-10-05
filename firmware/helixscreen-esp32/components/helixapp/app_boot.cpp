@@ -446,9 +446,9 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 ps.set_hardware(*snapshot);
 
                 const auto& fans = snapshot->fans();
-                ps.init_fans(fans,
-                             helix::FanRoleConfig::from_config(helix::Config::get_instance(), fans),
-                             snapshot->fan_max_power());
+                ps.fan_state().init_fans(
+                    fans, helix::FanRoleConfig::from_config(helix::Config::get_instance(), fans),
+                    snapshot->fan_max_power());
                 ps.init_extruders(snapshot->heaters());
 
                 ps.set_klipper_version(snapshot->software_version());

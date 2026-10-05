@@ -59,18 +59,18 @@ TEST_CASE_METHOD(RussianFixture, "Discovered fan names re-translate; a user's ow
     const std::string orig = config->get<std::string>(key, "");
     config->set(key, std::string("My Fan"));
 
-    state().init_fans({"fan", "output_pin fan1"});
-    REQUIRE(state().get_fans()[0].display_name == "Part Cooling Fan");
-    REQUIRE(state().get_fans()[1].display_name == "My Fan");
-    const int version = lv_subject_get_int(state().get_fans_version_subject());
+    state().fan_state().init_fans({"fan", "output_pin fan1"});
+    REQUIRE(state().fan_state().get_fans()[0].display_name == "Part Cooling Fan");
+    REQUIRE(state().fan_state().get_fans()[1].display_name == "My Fan");
+    const int version = lv_subject_get_int(state().fan_state().get_fans_version_subject());
 
     SystemSettingsManager::instance().set_language("ru");
     REQUIRE(std::string(lv_tr("Part Cooling Fan")) != "Part Cooling Fan");
     state().refresh_translated_texts();
 
-    CHECK(state().get_fans()[0].display_name == lv_tr("Part Cooling Fan"));
-    CHECK(state().get_fans()[1].display_name == "My Fan");
-    CHECK(lv_subject_get_int(state().get_fans_version_subject()) != version);
+    CHECK(state().fan_state().get_fans()[0].display_name == lv_tr("Part Cooling Fan"));
+    CHECK(state().fan_state().get_fans()[1].display_name == "My Fan");
+    CHECK(lv_subject_get_int(state().fan_state().get_fans_version_subject()) != version);
 
     config->set(key, orig);
 }

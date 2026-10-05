@@ -1280,87 +1280,10 @@ class PrinterState {
     lv_subject_t* get_live_velocity_subject() {
         return motion_state_.get_live_velocity_subject();
     }
-    lv_subject_t* get_fan_speed_subject() {
-        return fan_state_.get_fan_speed_subject();
-    }
 
     // ========================================================================
     // MULTI-FAN API - Delegated to PrinterFanState component
     // ========================================================================
-
-    /**
-     * @brief Get all tracked fans
-     * @return Const reference to fan info vector
-     */
-    const std::vector<helix::FanInfo>& get_fans() const {
-        return fan_state_.get_fans();
-    }
-
-    /// Rename a fan: saves to config, updates display name, bumps fans_version
-    void rename_fan(const std::string& object_name, const std::string& new_name) {
-        fan_state_.rename_fan(object_name, new_name);
-    }
-
-    /**
-     * @brief Get fans version subject for UI change notification
-     *
-     * Incremented when fan list changes or speeds update.
-     * UI should observe this to rebuild dynamic fan list.
-     */
-    lv_subject_t* get_fans_version_subject() {
-        return fan_state_.get_fans_version_subject();
-    }
-
-    lv_subject_t* get_primary_fans_version_subject() {
-        return fan_state_.get_primary_fans_version_subject();
-    }
-
-    /**
-     * @brief Get speed subject for a specific fan (with lifetime token for observer safety)
-     *
-     * IMPORTANT: Use this overload when creating observers on the returned subject.
-     * Dynamic fan subjects may be destroyed during reconnection — the lifetime token
-     * prevents use-after-free crashes in ObserverGuard.
-     *
-     * @param object_name Moonraker object name (e.g., "fan", "heater_fan hotend_fan")
-     * @param[out] lifetime Receives the subject's lifetime token
-     * @return Pointer to subject, or nullptr if fan not found
-     */
-    lv_subject_t* get_fan_speed_subject(const std::string& object_name, SubjectLifetime& lifetime) {
-        return fan_state_.get_fan_speed_subject(object_name, lifetime);
-    }
-
-    /// Get speed subject without lifetime token (only for non-observer uses like reading values)
-    lv_subject_t* get_fan_speed_subject(const std::string& object_name) {
-        return fan_state_.get_fan_speed_subject(object_name);
-    }
-
-    /**
-     * @brief Initialize fan list from discovered fan objects
-     * @param fan_objects List of Moonraker fan object names
-     * @param roles Wizard-configured fan role assignments
-     */
-    void init_fans(const std::vector<std::string>& fan_objects,
-                   const helix::FanRoleConfig& roles = {},
-                   const std::unordered_map<std::string, double>& max_power = {}) {
-        fan_state_.init_fans(fan_objects, roles, max_power);
-    }
-
-    /// Re-apply fan roles to the already-discovered fans. See
-    /// PrinterFanState::apply_roles — use this, not init_fans, when the hardware
-    /// has not changed and only the role mapping has.
-    void apply_fan_roles(const helix::FanRoleConfig& roles) {
-        fan_state_.apply_roles(roles);
-    }
-
-    /**
-     * @brief Update speed for a specific fan (optimistic UI updates)
-     * @param object_name Moonraker object name (e.g., "fan_generic chamber_fan")
-     * @param speed Speed as 0.0-1.0 (Moonraker format)
-     */
-    void update_fan_speed(const std::string& object_name, double speed) {
-        fan_state_.update_fan_speed(object_name, speed);
-    }
 
     /**
      * @brief Get G-code Z offset subject for tune panel
