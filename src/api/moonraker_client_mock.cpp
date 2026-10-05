@@ -148,6 +148,11 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor
     if (const char* kin_env = std::getenv("HELIX_MOCK_KINEMATICS"); kin_env && kin_env[0]) {
         kinematics_override_ = kin_env;
     }
+    dragonbreath_fault_ = helix::env_flag("HELIX_MOCK_DRAGONBREATH_FAULT");
+    dragonbreath_offline_ = helix::env_flag("HELIX_MOCK_DRAGONBREATH_OFFLINE");
+    dragonbreath_external_ = helix::env_flag("HELIX_MOCK_DRAGONBREATH_EXTERNAL");
+    panda_breath_offline_ = helix::env_flag("HELIX_MOCK_PANDA_BREATH_OFFLINE");
+    panda_breath_auto_ = helix::env_flag("HELIX_MOCK_PANDA_BREATH_AUTO");
 
     // Initialize idle timeout tracking
     last_activity_time_ = std::chrono::steady_clock::now();
@@ -556,14 +561,12 @@ void MoonrakerClientMock::append_chamber_backend_status(json& status_obj, double
             // The pin is only a request: while the device heats it runs the
             // filter fan itself and reports why, leaving our pin untouched.
             const bool device_fan = !filter_on && chamber_target > 0.0;
-            // Test hooks. Read per frame so one client crosses the
-            // transition rather than having to be rebuilt.
-            const bool mock_fault = helix::env_flag("HELIX_MOCK_DRAGONBREATH_FAULT");
-            const bool mock_offline = helix::env_flag("HELIX_MOCK_DRAGONBREATH_OFFLINE");
+            const bool mock_fault = dragonbreath_fault_.load();
+            const bool mock_offline = dragonbreath_offline_.load();
             // The appliance holding its own target with neither our lease nor
             // a klipper source: the only frame shape that raises the External
             // marker (heating && !ours in the backend parse).
-            const bool mock_external = helix::env_flag("HELIX_MOCK_DRAGONBREATH_EXTERNAL");
+            const bool mock_external = dragonbreath_external_.load();
             // PTC element rides a few degrees above chamber air, drifting
             // with the same slow sine the other mock sensors use.
             const double ptc_temp =
@@ -588,11 +591,11 @@ void MoonrakerClientMock::append_chamber_backend_status(json& status_obj, double
             // object as captured live on the U1 rig (issue #1290).
             const double chamber_temp = chamber_temp_.load();
             const double chamber_target = chamber_target_.load();
-            const bool mock_offline = helix::env_flag("HELIX_MOCK_PANDA_BREATH_OFFLINE");
+            const bool mock_offline = panda_breath_offline_.load();
             // Test hook: the appliance holding its own auto target while our
             // target reads 0 — the state the rig sits in at rest, and the
             // only one that raises the External badge.
-            const bool mock_auto = helix::env_flag("HELIX_MOCK_PANDA_BREATH_AUTO");
+            const bool mock_auto = panda_breath_auto_.load();
             const bool klipper_driving = chamber_target > 0.0;
             // A drying cycle counts down on the simulated clock and ends by
             // itself, the way the appliance's own timer does.

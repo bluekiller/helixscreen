@@ -2259,6 +2259,18 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     std::atomic<int> chamber_dry_hours_{0};
     std::atomic<double> chamber_dry_start_{0.0};
 
+    // Chamber appliance test hooks (HELIX_MOCK_DRAGONBREATH_* and
+    // HELIX_MOCK_PANDA_BREATH_*). Read from the environment once, at
+    // construction: the simulation thread builds a frame every tick, and a
+    // getenv() there races a setenv() on the main thread. A test that crosses
+    // a transition on one client flips the atomic through
+    // MoonrakerClientMockTestAccess instead.
+    std::atomic<bool> dragonbreath_fault_{false};
+    std::atomic<bool> dragonbreath_offline_{false};
+    std::atomic<bool> dragonbreath_external_{false};
+    std::atomic<bool> panda_breath_offline_{false};
+    std::atomic<bool> panda_breath_auto_{false};
+
     // Calibration simulation timers (PID, MPC, shaper) — must be cleaned up
     // in destructor to prevent use-after-free when mock is destroyed before
     // LVGL timers fire in a subsequent test's process_lvgl(). Each entry also
