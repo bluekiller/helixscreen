@@ -183,6 +183,23 @@ TEST_CASE("LVGL log handler: a repeated broken-asset retry drops below the ring"
     CHECK(logs.total(path) == 10);
 }
 
+TEST_CASE("LVGL log handler: repeats at different times still dedupe", "[logging][lvgl][bundle]") {
+    helix::logging::register_lvgl_log_handler();
+    LevelCapture logs;
+
+    // LVGL stamps every record with its time and the gap since the previous one,
+    // and a render-frame retry arrives at a different time each frame. Only the
+    // text may decide whether it is a repeat.
+    const std::string path = unique_tag("timed_asset") + ".png";
+    for (int i = 0; i < 10; ++i) {
+        warn_asset_open_failed(path);
+        lv_tick_inc(7);
+    }
+
+    CHECK(logs.in_ring(path) == 1);
+    CHECK(logs.total(path) == 10);
+}
+
 TEST_CASE("LVGL log handler: init-time suppression does not spend a tag's one report",
           "[logging][lvgl][bundle]") {
     helix::logging::register_lvgl_log_handler();

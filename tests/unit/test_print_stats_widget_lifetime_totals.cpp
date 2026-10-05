@@ -81,6 +81,15 @@ class PrintStatsLifetimeFixture : public LVGLTestFixture {
     }
 
     ~PrintStatsLifetimeFixture() override {
+        // The widget's subjects outlive the case. A mode poked straight onto the
+        // subject never reaches the title the widget derives from it, so a later
+        // case would read the weekly title beside lifetime mode.
+        if (lv_subject_t* view_mode = lv_xml_get_subject(nullptr, "print_stats_view_mode")) {
+            lv_subject_set_int(view_mode, 0);
+        }
+        if (lv_subject_t* title = lv_xml_get_subject(nullptr, "print_stats_title")) {
+            lv_subject_copy_string(title, lv_tr("Lifetime Print Stats"));
+        }
         set_print_history_manager(nullptr);
         set_moonraker_api(nullptr);
         manager_.reset();
