@@ -55,6 +55,12 @@ class UsbPrinterDetector {
     /// Scan once for known USB printers (synchronous; blocks on libusb)
     static std::vector<UsbPrinterInfo> scan();
 
+    using ScanCallback = std::function<void(std::vector<UsbPrinterInfo>)>;
+
+    /// Scan once on HttpExecutor::fast(); @p on_done runs on the UI thread.
+    /// Runs inline when the executor is not running.
+    static void scan_async(ScanCallback on_done);
+
     /// Start periodic scanning. Callback fires on the UI thread.
     void start_polling(DetectionCallback callback, int interval_ms = 3000);
 
