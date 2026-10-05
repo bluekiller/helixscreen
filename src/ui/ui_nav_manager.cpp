@@ -2083,6 +2083,10 @@ void clear_on_close(lv_obj_t* overlay) {
     }
 }
 
+void set_overlay_width_unmanaged(lv_obj_t* overlay) {
+    NavigationManager::instance().set_overlay_width_unmanaged(overlay);
+}
+
 void set_active(PanelId panel_id) {
     NavigationManager::instance().set_active(panel_id);
 }

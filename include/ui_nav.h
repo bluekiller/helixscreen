@@ -76,6 +76,9 @@ void on_close(lv_obj_t* overlay, OverlayCloseCallback callback);
 /// Drop @p overlay's close callback; a no-op once NavigationManager is destroyed.
 void clear_on_close(lv_obj_t* overlay);
 
+/// Leave @p overlay's width to its owner; push_overlay() will not resize it.
+void set_overlay_width_unmanaged(lv_obj_t* overlay);
+
 /// Swap the base panel. See NavigationManager::set_active().
 void set_active(PanelId panel_id);
 

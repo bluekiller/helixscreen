@@ -3212,3 +3212,22 @@ own_endpoint_http_offenders() {
     run bash -c "grep -rn -A 1 --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' -E 'register_subject_in_current_scope\(|UI_MANAGED_SUBJECT_[A-Z_]+\(|UI_SUBJECT_INIT_AND_REGISTER_[A-Z_]+\(' src/ include/ | grep -E '\"[^\"]*__'"
     [ "$status" -eq 1 ]
 }
+
+# --- The full NavigationManager header is for what ui_nav.h does not carry ---
+# ui_nav.h holds the navigation calls most callers need (push, go_back, close,
+# overlay registration, close callbacks, set_active). Editing ui_nav_manager.h
+# rebuilds every file that includes it, so a caller that only needs those takes
+# helix::nav::* and ui_nav.h. The count may fall, never rise: lower the limit when
+# an includer narrows.
+@test "ui_nav_manager.h is included by no more src/include files than it needs" {
+    local limit=15 includers count
+    includers=$(grep -rlE '^#include "ui_nav_manager\.h"' src include | sort)
+    count=$(printf '%s\n' "$includers" | grep -c .)
+    if [ "$count" -gt "$limit" ]; then
+        echo "ui_nav_manager.h has $count includers in src/ and include/, limit $limit." >&2
+        echo "Use helix::nav::* and ui_nav.h for push_overlay/go_back/close_overlay/" >&2
+        echo "register_overlay/unregister_overlay/on_close/clear_on_close/set_active/is_on_top/is_in_stack." >&2
+        printf '%s\n' "$includers" >&2
+    fi
+    [ "$count" -le "$limit" ]
+}

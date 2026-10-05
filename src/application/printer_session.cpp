@@ -127,7 +127,7 @@ PrinterSession::PrinterSession(Config*& config, AsyncLifetimeGuard& async, lv_ob
                                Host host)
     : m_config(config), m_async(async), m_host(std::move(host)),
       m_restart{[this] { tear_down_printer_state(); }, [this] { rebuild(); },
-                [] { NavigationManager::instance().set_active(PanelId::Home); }},
+                [] { helix::nav::set_active(PanelId::Home); }},
       m_screen(screen), m_prompter(
                             async, [this] { return m_screen; },
                             [this] { return m_moonraker ? m_moonraker->api() : nullptr; }) {}

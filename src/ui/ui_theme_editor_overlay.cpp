@@ -8,7 +8,7 @@
 #include "ui_event_safety.h"
 #include "ui_keyboard_manager.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_settings_appearance.h"
 #include "ui_toast_manager.h"
 
@@ -391,10 +391,10 @@ void ThemeEditorOverlay::on_back_clicked(lv_event_t* e) {
 void ThemeEditorOverlay::handle_back_clicked() {
     if (dirty_) {
         // Show confirmation before closing
-        show_discard_confirmation([]() { NavigationManager::instance().go_back(); });
+        show_discard_confirmation([]() { helix::nav::go_back(); });
     } else {
         // Not dirty, close immediately
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 }
 
@@ -471,7 +471,7 @@ void ThemeEditorOverlay::handle_save_clicked() {
         helix::settings::get_appearance_settings_overlay().sync_explorer_to_active_theme();
 
         // Close the editor overlay
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     } else {
         spdlog::error("[{}] Failed to save theme to '{}'", get_name(), filepath);
     }
@@ -779,7 +779,7 @@ void ThemeEditorOverlay::handle_save_as_confirm() {
     helix::settings::get_appearance_settings_overlay().sync_explorer_to_active_theme();
 
     // Close the editor overlay
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 // ============================================================================

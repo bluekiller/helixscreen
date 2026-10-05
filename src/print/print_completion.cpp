@@ -10,7 +10,7 @@
 #include "ui_heater_config.h"
 #include "ui_icon.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_print_status.h"
 #include "ui_toast_manager.h"
 
@@ -399,7 +399,7 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
 
         // Check if user is on print status panel
         lv_obj_t* print_status_panel = get_global_print_status_panel().get_panel();
-        bool on_print_status = NavigationManager::instance().is_panel_in_stack(print_status_panel);
+        bool on_print_status = helix::nav::is_in_stack(print_status_panel);
 
         auto mode = AudioSettingsManager::instance().get_completion_alert_mode();
 

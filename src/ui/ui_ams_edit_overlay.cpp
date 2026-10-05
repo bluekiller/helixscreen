@@ -8,7 +8,7 @@
 #include "ui_color_picker.h"
 #include "ui_error_reporting.h"
 #include "ui_hsv_picker.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_swatch.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -129,7 +129,7 @@ bool AmsEditOverlay::show_for_slot(lv_obj_t* parent, int slot_index, const SlotI
     // It has to be ONE combined callback: NavigationManager keeps a single close
     // callback per widget, so a separate destroy_on_close registration would
     // just overwrite this one (or be overwritten by it).
-    NavigationManager::instance().register_overlay_close_callback(overlay_root_, []() {
+    helix::nav::on_close(overlay_root_, []() {
         auto& overlay = get_ams_edit_overlay();
         overlay.fire_completion(false);
         overlay.destroy_overlay_ui();
@@ -1737,7 +1737,7 @@ void AmsEditOverlay::fire_completion(bool saved) {
 
 void AmsEditOverlay::close_editor(bool saved) {
     fire_completion(saved);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 // ============================================================================

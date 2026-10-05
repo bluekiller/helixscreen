@@ -128,3 +128,28 @@ TEST_CASE_METHOD(NavForwardsFixture, "nav::set_active swaps the base panel",
     drain();
     CHECK(NavigationManager::instance().get_active() == PanelId::Home);
 }
+
+TEST_CASE_METHOD(NavForwardsFixture,
+                 "nav::set_overlay_width_unmanaged exempts an overlay from push-time width",
+                 "[navigation][nav_forwards]") {
+    constexpr int32_t kCustomWidth = 123;
+    lv_obj_t* managed = lv_obj_create(test_screen());
+    lv_obj_add_flag(managed, LV_OBJ_FLAG_HIDDEN);
+    for (lv_obj_t* o : {overlay_, managed}) {
+        lv_obj_set_style_width(o, kCustomWidth, LV_PART_MAIN);
+        nav::register_overlay(o, &lifecycle_);
+    }
+    nav::set_overlay_width_unmanaged(overlay_);
+
+    nav::push_overlay(managed);
+    drain();
+    nav::go_back();
+    drain();
+    nav::push_overlay(overlay_);
+    drain();
+
+    CHECK(lv_obj_get_style_width(overlay_, LV_PART_MAIN) == kCustomWidth);
+    CHECK(lv_obj_get_style_width(managed, LV_PART_MAIN) != kCustomWidth);
+
+    nav::unregister_overlay(managed);
+}

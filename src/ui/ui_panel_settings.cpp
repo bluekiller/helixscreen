@@ -11,7 +11,7 @@
 #if HELIX_HAS_PLUGINS
 #include "plugins_overlay.h"
 #endif
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_overlay_network_settings.h"
 #include "ui_overlay_performance.h"
 #include "ui_panel_memory_stats.h"
@@ -94,9 +94,8 @@ SettingsPanel::~SettingsPanel() {
     // Note: Klipper/Moonraker/OS version observers bound declaratively in XML
     if (lv_is_initialized()) {
         // Unregister overlay callbacks to prevent dangling 'this' in callbacks
-        auto& nav = NavigationManager::instance();
         if (factory_reset_dialog_) {
-            nav.unregister_overlay_close_callback(factory_reset_dialog_);
+            helix::nav::clear_on_close(factory_reset_dialog_);
         }
     }
     // Note: Don't log here - spdlog may be destroyed during static destruction
@@ -470,15 +469,15 @@ void SettingsPanel::handle_factory_reset_clicked() {
 
             // Register as a function-based (nullptr-lifecycle) overlay so
             // crash crumbs show "anon" instead of "unreg".
-            NavigationManager::instance().register_overlay_instance(factory_reset_dialog_, nullptr);
+            helix::nav::register_overlay(factory_reset_dialog_, nullptr);
 
             // Register close callback to delete dialog when animation completes.
             // Must use safe_delete_deferred — this lambda runs inside
             // UpdateQueue::process_pending(), and synchronous deletion
             // during a batch corrupts LVGL's event linked list (#356, #491).
-            NavigationManager::instance().register_overlay_close_callback(
-                factory_reset_dialog_,
-                [this]() { helix::ui::safe_delete_deferred(factory_reset_dialog_); });
+            helix::nav::on_close(factory_reset_dialog_, [this]() {
+                helix::ui::safe_delete_deferred(factory_reset_dialog_);
+            });
 
             spdlog::info("[{}] Factory reset dialog created", get_name());
         } else {
@@ -489,7 +488,7 @@ void SettingsPanel::handle_factory_reset_clicked() {
 
     // Show the dialog via navigation stack
     if (factory_reset_dialog_) {
-        NavigationManager::instance().push_overlay(factory_reset_dialog_);
+        helix::nav::push_overlay(factory_reset_dialog_);
     }
 }
 
@@ -504,7 +503,7 @@ void SettingsPanel::perform_factory_reset() {
 
     // Hide the dialog - animation + callback will handle cleanup
     if (factory_reset_dialog_) {
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 
     // Show confirmation toast and restart
@@ -539,8 +538,8 @@ void SettingsPanel::handle_performance_clicked() {
     // lifecycle: that is what separates an intentional lifecycle-less overlay from a
     // caller who forgot to register. Without it the push is recorded as "unreg" in
     // panel telemetry and crash breadcrumbs, and strict mode aborts.
-    NavigationManager::instance().register_overlay_instance(overlay, nullptr);
-    NavigationManager::instance().push_overlay(overlay);
+    helix::nav::register_overlay(overlay, nullptr);
+    helix::nav::push_overlay(overlay);
 }
 
 // ============================================================================
@@ -695,9 +694,9 @@ void register_settings_panel_callbacks() {
         {"on_factory_reset_cancel",
          [](lv_event_t*) {
              if (get_global_settings_panel().factory_reset_dialog_) {
-                 NavigationManager::instance().go_back(); // Animation + callback clean up
+                 helix::nav::go_back(); // Animation + callback clean up
              }
          }},
-        {"on_header_back_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
+        {"on_header_back_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
     });
 }

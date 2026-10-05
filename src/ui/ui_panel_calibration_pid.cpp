@@ -7,7 +7,7 @@
 #include "ui_emergency_stop.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_temperature_utils.h"
 #include "ui_timer_guard.h"
 
@@ -390,7 +390,7 @@ void PIDCalibrationPanel::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Clear slider references
@@ -897,7 +897,7 @@ void PIDCalibrationPanel::handle_preset_clicked(int temp, const char* material_n
 void PIDCalibrationPanel::handle_done_clicked() {
     spdlog::debug("[PIDCal] Done clicked");
     set_state(State::IDLE);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void PIDCalibrationPanel::handle_retry_clicked() {

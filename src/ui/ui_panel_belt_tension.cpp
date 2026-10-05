@@ -6,7 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_frequency_response_chart.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_timer_guard.h"
 #include "ui_update_queue.h"
 
@@ -248,10 +248,10 @@ void BeltTensionPanel::show() {
     spdlog::debug("[BeltTension] Showing overlay");
 
     // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    helix::nav::register_overlay(overlay_root_, this);
 
     // Push onto navigation stack
-    NavigationManager::instance().push_overlay(overlay_root_);
+    helix::nav::push_overlay(overlay_root_);
 
     spdlog::info("[BeltTension] Overlay shown");
 }
@@ -347,7 +347,7 @@ void BeltTensionPanel::cleanup() {
 
     // Unregister from NavigationManager
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     OverlayBase::cleanup();

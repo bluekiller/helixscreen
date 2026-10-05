@@ -209,7 +209,7 @@ static void try_reclaim_cached_print_status() {
         if (!s_cached_panel) {
             return;
         }
-        if (NavigationManager::instance().is_panel_in_stack(s_cached_panel)) {
+        if (helix::nav::is_in_stack(s_cached_panel)) {
             spdlog::debug(
                 "[PrintStatusPanel] Cached tree is currently visible, skipping memory reclaim");
             return;
@@ -1524,14 +1524,12 @@ void PrintStatusPanel::on_overlay_closed() {
         return;
     }
     PrintStatusPanel& panel = *g_print_status_panel;
-    NavigationManager& nav = NavigationManager::instance();
-
     // A close callback runs late: when the slide-out completes, or on the next
     // tick for a navbar or connection-loss close. The tree can be back on screen
     // by then, where this close no longer applies, and a slide-out completion
     // consumes whichever callback the re-push registered.
-    if (nav.is_panel_in_stack(s_cached_panel)) {
-        nav.register_overlay_close_callback(s_cached_panel, on_overlay_closed);
+    if (helix::nav::is_in_stack(s_cached_panel)) {
+        helix::nav::on_close(s_cached_panel, on_overlay_closed);
         return;
     }
 
@@ -1579,7 +1577,7 @@ void PrintStatusPanel::release_kept_tree_after_job() {
         if (!panel.kept_tree_job_observer_) {
             return;
         }
-        if (NavigationManager::instance().is_panel_in_stack(s_cached_panel)) {
+        if (helix::nav::is_in_stack(s_cached_panel)) {
             return;
         }
         if (!helix::ui::print_status_destroy_on_close(memory_info_source_().is_low_memory(),
@@ -1612,7 +1610,7 @@ bool PrintStatusPanel::push_overlay(lv_obj_t* parent_screen) {
 
         // Register with NavigationManager for lifecycle callbacks (persistent
         // so the registration survives navbar panel switches while cached)
-        NavigationManager::instance().register_overlay_instance(s_cached_panel, &panel, true);
+        helix::nav::register_overlay(s_cached_panel, &panel, true);
 
         // Register the pressure responder once. A close keeps the tree whenever
         // memory is plentiful or a job holds the machine; this is what drops a
@@ -1644,10 +1642,9 @@ bool PrintStatusPanel::push_overlay(lv_obj_t* parent_screen) {
     // NavigationManager consumes the callback when it fires, and a tree that
     // close kept comes back through here without being re-created, so it is
     // registered on every push.
-    NavigationManager::instance().register_overlay_close_callback(s_cached_panel,
-                                                                  on_overlay_closed);
+    helix::nav::on_close(s_cached_panel, on_overlay_closed);
 
-    NavigationManager::instance().push_overlay(s_cached_panel);
+    helix::nav::push_overlay(s_cached_panel);
     return true;
 }
 

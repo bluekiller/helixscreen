@@ -8,7 +8,7 @@
 #include "ui_event_safety.h"
 #include "ui_frequency_response_chart.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
@@ -496,7 +496,7 @@ void InputShaperPanel::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Call base class to set cleanup_called_ flag
@@ -2069,7 +2069,7 @@ void InputShaperPanel::handle_close_clicked() {
     spdlog::debug("[InputShaper] Close clicked");
     clear_results();
     set_state(State::IDLE);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void InputShaperPanel::handle_retry_clicked() {
@@ -2086,7 +2086,7 @@ void InputShaperPanel::handle_save_clicked() {
     save_configuration();
     clear_results();
     set_state(State::IDLE);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void InputShaperPanel::handle_print_test_pattern_clicked() {
