@@ -3,8 +3,12 @@
 
 #pragma once
 
+#include "ui_nav.h"
+#include "ui_nav_backdrop.h"
+#include "ui_nav_panel_registry.h"
+#include "ui_nav_printer_badge.h"
+#include "ui_nav_rail_estop.h"
 #include "ui_observer_guard.h"
-#include "ui_printer_switch_menu.h"
 #include "ui_widget_ref.h"
 
 #include "lvgl/lvgl.h"
@@ -21,46 +25,6 @@
 // Forward declarations for lifecycle dispatch
 class PanelBase;
 class OverlayBase;
-class IPanelLifecycle;
-
-namespace helix {
-/// Callback type for overlay close notifications
-using OverlayCloseCallback = std::function<void()>;
-} // namespace helix
-
-/**
- * @brief Navigation panel identifiers
- *
- * Order matches app_layout.xml panel children for index-based access.
- */
-namespace helix {
-enum class PanelId {
-    Home = 0,    ///< Panel 0: Home
-    PrintSelect, ///< Panel 1: Print Select (beneath Home)
-    Controls,    ///< Panel 2: Controls
-    Filament,    ///< Panel 3: Filament
-    Settings,    ///< Panel 4: Settings
-    Advanced,    ///< Panel 5: Advanced
-    Count        ///< Total number of panels
-};
-
-/**
- * @brief Whether overlays pushed from a nav root are destinations by default.
- *
- * Settings is the one root users navigate *within* rather than launch things
- * from: Settings > Connection > Network is a sub-screen of Settings, not a layer
- * over it, so it renders at destination width (iOS push semantics). Every other root
- * launches tools you return from, which get the gapped transient width.
- *
- * See include/overlay_class.h and prestonbrown/helixscreen#1178.
- */
-constexpr bool nav_root_is_destination(PanelId id) {
-    return id == PanelId::Settings;
-}
-} // namespace helix
-
-// Legacy aliases for backward compatibility
-constexpr int UI_PANEL_COUNT = static_cast<int>(helix::PanelId::Count);
 
 /**
  * @brief Singleton manager for navigation and panel management
@@ -158,7 +122,7 @@ class NavigationManager {
 
     /// The E-stop kept over the rail's nav_estop_slot, or nullptr.
     [[nodiscard]] lv_obj_t* rail_estop() const {
-        return rail_estop_;
+        return rail_estop_.widget();
     }
 
     /**
@@ -227,7 +191,7 @@ class NavigationManager {
     /**
      * @brief Find the PanelId owned by a given PanelBase instance
      *
-     * Searches panel_instances_ for a matching pointer. Used by
+     * Searches the registered panel instances for a matching pointer. Used by
      * hot-reload rebuild to let panels locate themselves without
      * needing per-subclass get_panel_id() overrides.
      *
@@ -243,7 +207,7 @@ class NavigationManager {
      * caller is responsible for teardown (via safe_delete_deferred).
      *
      * @param id Panel identifier
-     * @param new_widget New widget to register in panel_widgets_[id]
+     * @param new_widget New widget to register as panel @p id
      */
     void replace_panel_widget(helix::PanelId id, lv_obj_t* new_widget);
 
@@ -276,7 +240,7 @@ class NavigationManager {
      * @brief Re-key overlay maps: swap old_widget → new_widget for the same lifecycle.
      *
      * Used by hot-reload overlay rebuild. Touches overlay_instances_,
-     * persistent_overlay_instances_, overlay_backdrops_, overlay_close_callbacks_,
+     * persistent_overlay_instances_, the nested backdrops, overlay_close_callbacks_,
      * and panel_stack_. Does NOT free either widget —
      * caller handles old widget teardown.
      */
@@ -594,8 +558,8 @@ class NavigationManager {
     void set_backdrop_visible(bool visible);
 
     /// Callback type for printer switch/add actions from the navbar badge menu
-    using PrinterSwitchCallback = std::function<void(const std::string& printer_id)>;
-    using AddPrinterCallback = std::function<void()>;
+    using PrinterSwitchCallback = helix::ui::PrinterBadgeMenu::SwitchCallback;
+    using AddPrinterCallback = helix::ui::PrinterBadgeMenu::AddCallback;
 
     /**
      * @brief Register callbacks for printer switching from navbar badge menu
@@ -643,6 +607,15 @@ class NavigationManager {
     // Check if klippy is in READY state
     bool is_klippy_ready() const;
 
+    // Tear down what an overlay leaving the stack owns: its nested-overlay
+    // backdrop is deleted and its close callback runs, both on the next tick.
+    void retire_overlay(lv_obj_t* overlay);
+
+    // Run @p callback on the next tick, unless @p overlay's owner unregistered
+    // in the meantime.
+    void defer_close_callback(helix::OverlayCloseCallback callback, lv_obj_t* overlay);
+    bool is_overlay_registered(lv_obj_t* overlay) const;
+
     // Clear overlay stack (used during connection loss)
     void clear_overlay_stack();
 
@@ -681,19 +654,19 @@ class NavigationManager {
     // memory is freed. scrub_deleted_widget() erases the widget from every
     // widget-keyed bookkeeping container, so panel_stack_.back() on the next
     // push_overlay() cannot dereference freed memory. The scalars
-    // (overlay_backdrop_, app_layout_widget_, panel_widgets_) are WidgetRefs
+    // (app_layout_widget_, the panel slots) are WidgetRefs
     // and clear themselves.
     void scrub_deleted_widget(lv_obj_t* widget);
     // Attach the LV_EVENT_DELETE scrub callback to a widget exactly once.
     void ensure_delete_hook(lv_obj_t* widget);
     static void overlay_delete_event_cb(lv_event_t* e);
     // Create the darkened backdrop over `screen` and adopt it as
-    // overlay_backdrop_, wiring its click handlers. `arriving` (the overlay
+    // the primary backdrop, wiring its click handlers. `arriving` (the overlay
     // being pushed) and the rail E-stop are hidden for the snapshot: both sit
     // above the backdrop, and a dimmed copy baked into the image would trail
     // the live overlay wherever it does not cover it. The backdrop is a child
     // of `screen`, so any path that deletes the screen frees it without going
-    // through go_back(); overlay_backdrop_ clears itself when that happens.
+    // through go_back(); the backdrop clears itself when that happens.
     void adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriving);
     /**
      * @brief Re-take the overlay backdrop snapshot from the live widget tree
@@ -714,12 +687,7 @@ class NavigationManager {
      */
     void refresh_overlay_backdrop();
 
-    /// Build the screen-level E-stop over @p navbar's nav_estop_slot.
-    void create_rail_estop(lv_obj_t* navbar);
-    /// Move the E-stop onto the slot's current position.
-    void sync_rail_estop();
-    lv_obj_t* rail_estop_ = nullptr;
-    int32_t rail_estop_keyboard_top_ = -1;
+    helix::ui::RailEstop rail_estop_;
 
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);
@@ -750,29 +718,12 @@ class NavigationManager {
     helix::PanelId active_panel_ = helix::PanelId::Home;
     bool suspended_ = false; // True when screensaver has suspended lifecycle
 
-    // Panel widget tracking for show/hide
-    helix::ui::WidgetRef panel_widgets_[UI_PANEL_COUNT];
-
-    // C++ panel instances for lifecycle dispatch (on_activate/on_deactivate)
-    std::array<PanelBase*, UI_PANEL_COUNT> panel_instances_ = {};
-
-    // Lazy panel builder (ESP32 deferred-panel bring-up). Empty on desktop.
-    // Invoked by switch_to_panel_impl() when a target panel's widget slot is
-    // still null, to build it on first navigation. See set_deferred_panel_builder().
-    std::function<void(int)> deferred_panel_builder_;
-    bool building_deferred_panel_ = false; // re-entrancy guard for the builder
+    // Main panel widgets, their lifecycle instances and the lazy builder
+    helix::ui::PanelRegistry panels_;
     // Outermost-transition guard for the ESP32 nav busy scrim (NavTransitionScrim
     // in ui_nav_manager.cpp): switch_to_panel_impl can cascade into
     // handle_active_panel_change, and only the outer one owns/tears down a scrim.
     bool nav_scrim_active_ = false;
-
-    // If panel_id has no widget yet and a deferred builder is set, build it now
-    // (first-navigation lazy bring-up). No-op on desktop (builder unset) and for
-    // already-built panels. Guarded against re-entrancy. Called from both
-    // navigation choke points (switch_to_panel_impl + handle_active_panel_change).
-    void ensure_panel_built(int panel_id);
-    // Whether ensure_panel_built(panel_id) would build anything.
-    bool needs_build(int panel_id) const;
 
     // C++ overlay instances for lifecycle dispatch (on_activate/on_deactivate)
     std::unordered_map<lv_obj_t*, IPanelLifecycle*> overlay_instances_;
@@ -790,22 +741,8 @@ class NavigationManager {
     // Overlay close callbacks (called when overlay is popped from stack)
     std::unordered_map<lv_obj_t*, helix::OverlayCloseCallback> overlay_close_callbacks_;
 
-    // Shared overlay backdrop widget (for first overlay)
-    helix::ui::WidgetRef overlay_backdrop_;
-    // The theme palette the backdrop's snapshot was taken under.
-    std::string backdrop_palette_key_;
-
-    // Latched at the dismiss-backdrop's LV_EVENT_PRESSED with the on-screen
-    // keyboard's visibility. LVGL's click-focus DEFOCUS (which hides the
-    // keyboard) fires between PRESSED and CLICKED, so is_visible() is already
-    // false by the time backdrop_click_event_cb handles CLICKED — the visibility
-    // must be captured at press time. Consumed one-shot by
-    // take_backdrop_keyboard_dismiss(): a tap that hides the keyboard must not
-    // also dismiss the overlay behind it.
-    bool backdrop_press_keyboard_visible_ = false;
-
-    // Dynamic backdrops for nested overlays (overlay → its backdrop)
-    std::unordered_map<lv_obj_t*, lv_obj_t*> overlay_backdrops_;
+    // The dismiss backdrop behind the overlay stack, and its bookkeeping
+    helix::ui::OverlayBackdrop backdrop_;
 
     // Resolved width class per overlay (overlay → is_destination). Written by
     // apply_overlay_width() on every push, read by the next push to inherit and
@@ -845,12 +782,8 @@ class NavigationManager {
     ObserverGuard active_panel_observer_;
     ObserverGuard connection_state_observer_;
     ObserverGuard klippy_state_observer_;
-    ObserverGuard printer_dot_observer_;
     ObserverGuard printer_switcher_observer_;
     ObserverGuard theme_observer_;
-
-    // Printer connection status dot widget
-    lv_obj_t* printer_dot_widget_ = nullptr;
 
     // Track previous states for detecting transitions
     int previous_connection_state_ = -1;
@@ -887,9 +820,6 @@ class NavigationManager {
     // Shutdown flag — overlays should skip destructive actions (e.g. ABORT)
     bool shutting_down_ = false;
 
-    // Printer badge menu
-    helix::ui::PrinterSwitchMenu printer_switch_menu_;
-    void on_printer_badge_clicked();
-    PrinterSwitchCallback printer_switch_cb_;
-    AddPrinterCallback add_printer_cb_;
+    // Printer badge: connection dot and the switch/add menu
+    helix::ui::PrinterBadgeMenu printer_badge_;
 };

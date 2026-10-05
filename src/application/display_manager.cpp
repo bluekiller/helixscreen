@@ -43,7 +43,6 @@
 #include "tap_latch.h"
 #include "touch_calibration_wrapper.h"
 #ifdef HELIX_ENABLE_SCREENSAVER
-#include "ui_nav_manager.h"
 
 #include "screensaver.h"
 #endif

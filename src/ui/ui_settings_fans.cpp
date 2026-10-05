@@ -12,7 +12,6 @@
 #include "ui_event_safety.h"
 #include "ui_fan_control_overlay.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_status_pill.h"
 #include "ui_utils.h"
 

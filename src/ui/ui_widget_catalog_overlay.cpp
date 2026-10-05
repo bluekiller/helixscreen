@@ -4,7 +4,7 @@
 
 #include "ui_effects.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_row_text.h"
 #include "ui_selector_model.h"
 #include "ui_subject_registry.h"
@@ -133,7 +133,7 @@ void retire_overlay(lv_obj_t* overlay, const char* tag) {
     if (!overlay) {
         return;
     }
-    NavigationManager::instance().unregister_overlay_instance(overlay);
+    helix::nav::unregister_overlay(overlay);
     helix::ui::queue_update(tag, [overlay]() { // QUEUE_TAG_OK: callers pass literals
         lv_obj_t* condemned = overlay;
         helix::ui::safe_delete_deferred(condemned);
@@ -153,20 +153,19 @@ bool pop_category_page() {
     }
     g_catalog_state.category_root = nullptr;
 
-    auto& nav = NavigationManager::instance();
     // We drive this teardown ourselves — stop the page's own close callback from
     // racing us into retire_category_page().
-    nav.unregister_overlay_close_callback(page);
+    helix::nav::clear_on_close(page);
 
     // #1221 guard. If something is stacked above the sub-page we must not pop it
     // — and must not reclaim it either, since the nav stack still points at it.
     // Leaking one widget beats deleting one the stack will unwind through.
-    if (!nav.is_panel_on_top(page)) {
+    if (!helix::nav::is_on_top(page)) {
         spdlog::warn("[WidgetCatalog] Category page is not on top of the nav stack; "
                      "leaving it for the stack to unwind");
         return false;
     }
-    nav.go_back();
+    helix::nav::go_back();
     retire_category_page(page);
     return true;
 }
@@ -176,7 +175,6 @@ void close_catalog() {
         return;
     }
     lv_obj_t* root = g_catalog_state.overlay_root;
-    auto& nav = NavigationManager::instance();
 
     // Two-level teardown. go_back() queues its entire body, so two calls made
     // back to back would both evaluate is_panel_on_top() against the *pre-pop*
@@ -186,7 +184,7 @@ void close_catalog() {
     bool popped_page = pop_category_page();
 
     // Unregister the close callback so the pop below cannot double-fire on_close.
-    nav.unregister_overlay_close_callback(root);
+    helix::nav::clear_on_close(root);
 
     // Retire in the same scope as the pop that removed it, exactly as
     // pop_category_page() does. Queueing the reclaim separately would race
@@ -194,14 +192,13 @@ void close_catalog() {
     // from panel_stack_ first would make that pop take the wrong overlay.
     if (popped_page) {
         helix::ui::queue_update("catalog_close_pop", [root]() {
-            auto& n = NavigationManager::instance();
-            if (n.is_panel_on_top(root)) {
-                n.go_back();
+            if (helix::nav::is_on_top(root)) {
+                helix::nav::go_back();
                 retire_overlay(root, "catalog_root_reclaim");
             }
         });
-    } else if (nav.is_panel_on_top(root)) {
-        nav.go_back();
+    } else if (helix::nav::is_on_top(root)) {
+        helix::nav::go_back();
         retire_overlay(root, "catalog_root_reclaim");
     }
 
@@ -732,7 +729,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     // 70% by design — the home grid stays visible behind the list while you drag
     // a widget out of it. Neither navigation width class applies, so opt out of
     // push-time width management (#1178).
-    NavigationManager::instance().set_overlay_width_unmanaged(overlay);
+    helix::nav::set_overlay_width_unmanaged(overlay);
 
     // Initially hidden (NavigationManager will unhide during push)
     lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
@@ -789,22 +786,22 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     populate_rows(results, config, all_widget_def_ptrs());
 
     // Register with nullptr lifecycle — this overlay is function-based, not class-based
-    NavigationManager::instance().register_overlay_instance(overlay, nullptr);
+    helix::nav::register_overlay(overlay, nullptr);
 
     // Push onto navigation stack — keep the home panel visible behind the catalog
-    NavigationManager::instance().push_overlay(overlay, /*hide_previous=*/false);
+    helix::nav::push_overlay(overlay, /*hide_previous=*/false);
 
     // Register close callback with NavigationManager so that go_back() (e.g., from
     // the header back button) properly cleans up catalog state. NavigationManager hides
     // overlays rather than deleting them, so LV_EVENT_DELETE alone is insufficient.
-    NavigationManager::instance().register_overlay_close_callback(overlay, [overlay]() {
+    helix::nav::on_close(overlay, [overlay]() {
         if (g_catalog_state.overlay_root == overlay) {
             // A sub-page can only be popped before its parent, so nothing should
             // be dived in here. Retire one anyway rather than leak it if the nav
             // stack was unwound from underneath us.
             if (lv_obj_t* page = g_catalog_state.category_root) {
                 g_catalog_state.category_root = nullptr;
-                NavigationManager::instance().unregister_overlay_close_callback(page);
+                helix::nav::clear_on_close(page);
                 retire_category_page(page);
             }
             release_catalog_state();
@@ -870,10 +867,9 @@ void WidgetCatalogOverlay::show_widget_page(const char* title, const char* title
         return;
     }
 
-    auto& nav = NavigationManager::instance();
     // Same 70% opt-out as the catalog beneath it: without this the push would
     // inherit the parent's destination class and go full width (#1178).
-    nav.set_overlay_width_unmanaged(page);
+    helix::nav::set_overlay_width_unmanaged(page);
     lv_obj_add_flag(page, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t* scroll = lv_obj_find_by_name(page, "catalog_scroll");
@@ -888,13 +884,13 @@ void WidgetCatalogOverlay::show_widget_page(const char* title, const char* title
     g_catalog_state.category_root = page;
     g_catalog_state.page_category = category;
 
-    nav.register_overlay_instance(page, nullptr);
-    nav.push_overlay(page, /*hide_previous=*/false);
+    helix::nav::register_overlay(page, nullptr);
+    helix::nav::push_overlay(page, /*hide_previous=*/false);
 
     // Back out of the sub-page: return to the category list with the catalog
     // still open. Deliberately does NOT touch on_close — only leaving the
     // catalog itself closes it.
-    nav.register_overlay_close_callback(page, [page]() {
+    helix::nav::on_close(page, [page]() {
         if (g_catalog_state.category_root != page) {
             return;
         }

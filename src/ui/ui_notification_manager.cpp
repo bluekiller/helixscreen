@@ -2,7 +2,7 @@
 
 #include "ui_notification_manager.h"
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_notification_history.h"
 #include "ui_panel_notification_history.h"
 #include "ui_toast_manager.h"
@@ -83,9 +83,9 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
     panel.setup(panel_obj, parent);
 
     // Register with nullptr lifecycle — notification history extends PanelBase, not OverlayBase
-    NavigationManager::instance().register_overlay_instance(panel_obj, nullptr);
+    helix::nav::register_overlay(panel_obj, nullptr);
 
-    NavigationManager::instance().push_overlay(panel_obj);
+    helix::nav::push_overlay(panel_obj);
 }
 
 // ============================================================================

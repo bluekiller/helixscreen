@@ -6,7 +6,7 @@
  *        mode, mock-printer toggles. A no-op on builds without the SDL display.
  */
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_memory_stats.h"
 #include "ui_toast_manager.h"
 
@@ -133,8 +133,7 @@ void Application::handle_keyboard_shortcuts() {
         // Android back button — pop navigation stack (overlay/modal/panel)
         // At root panel, do nothing (Android convention: don't exit on back)
         shortcuts.register_key(SDL_SCANCODE_AC_BACK, []() {
-            auto& nav = NavigationManager::instance();
-            if (nav.go_back()) {
+            if (helix::nav::go_back()) {
                 spdlog::debug("[Application] Android back button - popped navigation");
             } else {
                 spdlog::trace("[Application] Android back button - at root, ignoring");

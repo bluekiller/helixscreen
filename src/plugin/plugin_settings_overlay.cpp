@@ -6,7 +6,7 @@
 #include "plugin_settings_overlay.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_utils.h"
 
 #include "helix-xml/src/xml/lv_xml.h"
@@ -154,10 +154,8 @@ PluginSettingsOverlay::~PluginSettingsOverlay() {
     // the root, so it deletes it here.
     if (!overlay_root_ || StaticPanelRegistry::is_destroying_all())
         return; // inside destroy_all the registry's caller owns the widget
-    if (!NavigationManager::is_destroyed()) {
-        NavigationManager::instance().unregister_overlay_close_callback(overlay_root_);
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
-    }
+    helix::nav::clear_on_close(overlay_root_);
+    helix::nav::unregister_overlay(overlay_root_);
     helix::ui::safe_delete_deferred(overlay_root_);
 }
 

@@ -13,7 +13,7 @@
 #include "ui_component_keypad.h"
 #include "ui_error_reporting.h"
 #include "ui_keyboard_manager.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_zone_presentation.h"
 
 #include "ams_backend.h"
@@ -140,8 +140,8 @@ void AmsEnvironmentOverlay::register_callbacks() {
              // later row click's show_zone() finds this singleton already in the stack
              // and NavigationManager ignores the push as a duplicate, so the row tap
              // would silently do nothing.
-             if (NavigationManager::instance().is_panel_on_top(overlay.get_root())) {
-                 NavigationManager::instance().go_back();
+             if (helix::nav::is_on_top(overlay.get_root())) {
+                 helix::nav::go_back();
              }
              get_ams_zone_overview_overlay().show(lv_screen_active(),
                                                   backend->get_environment_zones(-1));
@@ -653,7 +653,7 @@ void AmsEnvironmentOverlay::publish_selected_zone() {
     // Cross-unit affordance: reached from the overview, Back is already the way to the
     // list, so offering a second route would stack a duplicate.
     const bool overview_beneath =
-        NavigationManager::instance().is_panel_in_stack(get_ams_zone_overview_overlay().get_root());
+        helix::nav::is_in_stack(get_ams_zone_overview_overlay().get_root());
     const size_t total = backend ? backend->get_environment_zones(-1).size() : zones_.size();
     const bool offer_all_zones = !overview_beneath && total > zones_.size();
     snprintf(all_zones_text_buf_, sizeof(all_zones_text_buf_), "%s", lv_tr("View all boxes"));

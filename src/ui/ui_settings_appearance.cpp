@@ -10,7 +10,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_theme_editor_overlay.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
@@ -268,24 +268,23 @@ void AppearanceSettingsOverlay::handle_theme_settings_clicked() {
 
         lv_obj_add_flag(theme_explorer_overlay_, LV_OBJ_FLAG_HIDDEN);
 
-        NavigationManager::instance().register_overlay_instance(theme_explorer_overlay_, nullptr);
-        NavigationManager::instance().register_overlay_close_callback(
-            theme_explorer_overlay_, [this]() {
-                theme_manager_apply_theme(original_theme_, theme_manager_is_dark_mode());
-                if (theme_explorer_overlay_) {
-                    helix::ui::defocus_tree(theme_explorer_overlay_);
-                    lv_obj_add_flag(theme_explorer_overlay_, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_t* to_delete = theme_explorer_overlay_;
-                    theme_explorer_overlay_ = nullptr;
-                    lv_obj_delete_async(to_delete);
-                }
-                cached_themes_.clear();
-            });
+        helix::nav::register_overlay(theme_explorer_overlay_, nullptr);
+        helix::nav::on_close(theme_explorer_overlay_, [this]() {
+            theme_manager_apply_theme(original_theme_, theme_manager_is_dark_mode());
+            if (theme_explorer_overlay_) {
+                helix::ui::defocus_tree(theme_explorer_overlay_);
+                lv_obj_add_flag(theme_explorer_overlay_, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_t* to_delete = theme_explorer_overlay_;
+                theme_explorer_overlay_ = nullptr;
+                lv_obj_delete_async(to_delete);
+            }
+            cached_themes_.clear();
+        });
     }
 
     sync_explorer_to_active_theme();
 
-    NavigationManager::instance().push_overlay(theme_explorer_overlay_);
+    helix::nav::push_overlay(theme_explorer_overlay_);
 }
 
 void AppearanceSettingsOverlay::sync_explorer_to_active_theme() {
@@ -348,7 +347,7 @@ void AppearanceSettingsOverlay::handle_apply_theme_clicked() {
     std::string toast_msg = "Theme set to " + display_name;
     ToastManager::instance().show(ToastSeverity::SUCCESS, toast_msg.c_str());
 
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void AppearanceSettingsOverlay::handle_edit_colors_clicked() {

@@ -7,7 +7,7 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_led_chip_factory.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
 #include "ui_update_queue.h"
@@ -519,7 +519,7 @@ lv_obj_t* PowerPanel::get_or_create_overlay(lv_obj_t* parent_screen) {
         // unregistered (invisible to lifecycle machinery, no on_deactivate on
         // dismiss). Idempotent (keyed by widget). All push sites call this
         // immediately before push_overlay().
-        NavigationManager::instance().register_overlay_instance(cached_overlay_, this);
+        helix::nav::register_overlay(cached_overlay_, this);
         return cached_overlay_;
     }
 
@@ -538,7 +538,7 @@ lv_obj_t* PowerPanel::get_or_create_overlay(lv_obj_t* parent_screen) {
     }
 
     setup(obj, parent_screen);
-    NavigationManager::instance().register_overlay_instance(obj, this);
+    helix::nav::register_overlay(obj, this);
     cached_overlay_ = obj;
     return cached_overlay_;
 }

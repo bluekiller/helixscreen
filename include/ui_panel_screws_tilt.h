@@ -35,7 +35,7 @@ class IMoonrakerAPI;
  * ```cpp
  * ScrewsTiltPanel& panel = get_global_screws_tilt_panel();
  * panel.setup(lv_obj, parent_screen, moonraker_client, moonraker_api);
- * NavigationManager::instance().push_overlay(lv_obj);
+ * helix::nav::push_overlay(lv_obj);
  * ```
  */
 class ScrewsTiltPanel : public OverlayBase {
