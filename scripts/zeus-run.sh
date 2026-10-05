@@ -219,7 +219,7 @@ HELIX_J=\$(awk -v per=$GB_PER_JOB -v cpus="\$(nproc)" '
 echo "→ MemAvailable \$(awk '/^MemAvailable/{printf "%.0fGB", \$2/1048576}' /proc/meminfo), using -j\$HELIX_J"
 
 # The container is long-lived but has no restart policy, so it is stopped after
-# every NAS reboot and `docker exec` fails with a message about the container
+# every NAS reboot and docker exec fails with a message about the container
 # not running, several steps before anything explains why. Starting it is
 # idempotent and costs nothing when it is already up.
 if ! sudo -n docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then

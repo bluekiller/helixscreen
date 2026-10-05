@@ -165,6 +165,17 @@ wait_for_line() { # <substring> <file>
     grep -qF "pgrep -x -r R,S,D,T,t make" "$MOCK_PGREP_LOG"
 }
 
+@test "every docker exec names the container and a command" {
+    # The heredoc is unquoted, so a backtick or $( ) left unescaped in it runs
+    # on the caller's machine before ssh starts.
+    run "$SCRIPT" mutate
+    [ "$status" -eq 0 ]
+    lacks "requires at least" "$output"
+    [ -s "$MOCK_DOCKER_LOG" ]
+    run grep -v ' helix-tsan bash -lc ' "$MOCK_DOCKER_LOG"
+    [ "$status" -eq 1 ]
+}
+
 @test "the checkout's local main is brought level with origin/main before the reset" {
     # mutate_diff.py's default base reads the local main; a stale one yields a
     # base that refuses the run.
