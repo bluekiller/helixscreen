@@ -111,8 +111,7 @@ void PrinterNameSync::write_back(IMoonrakerAPI* api, const std::string& name) {
         MAINSAIL_NAMESPACE, MAINSAIL_KEY, name,
         [name]() { spdlog::debug("[PrinterNameSync] Wrote '{}' to Mainsail DB", name); },
         [](const MoonrakerError& err) {
-            spdlog::warn("[PrinterNameSync] Failed to write to Mainsail DB: {}",
-                         err.user_message());
+            spdlog::warn("[PrinterNameSync] Failed to write to Mainsail DB: {}", err.message);
         });
 
     api->database_post_item(

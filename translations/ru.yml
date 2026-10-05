@@ -129,6 +129,7 @@ translations:
   A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: АКСЕЛЕРОМЕТРЫ
+  'ACCEPT failed: {}': 'Ошибка ACCEPT: {}'
   ACE Moonraker bridge not found. Install ace_status.py for full support.: Мост ACE Moonraker не найден. Установите ace_status.py для полной поддержки.
   ACTIONS: ДЕЙСТВИЯ
   ADXL: ADXL
@@ -235,6 +236,7 @@ translations:
   ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
   : Произошла внутренняя ошибка. Приложение продолжает работать. Отправьте отладочный пакет из «Настройки > Помощь и о программе», если она повторится.
   An unexpected printer error occurred.: Произошла непредвиденная ошибка принтера.
+  An unknown error occurred.: Произошла неизвестная ошибка.
   An update is available: Доступно обновление
   Analyzing data...: Анализ данных...
   Analyzing data... {}s: Анализ данных... {} с
@@ -735,9 +737,12 @@ translations:
   Connection lost — probe accuracy result unavailable: 'Соединение потеряно — результат теста точности датчика недоступен'
   Connection must be tested successfully to continue: Для продолжения соединение должно
     быть успешно проверено
+  Connection restored: Соединение восстановлено
   Connection successful!: Соединение успешно!
   Connection timeout: Тайм-аут соединения
+  Connection to printer lost - attempting to reconnect...: Соединение с принтером потеряно - переподключение...
   Connection to printer lost — operation may still be running: 'Связь с принтером потеряна — операция может ещё выполняться'
+  Connection to printer lost.: Соединение с принтером потеряно.
   Connects: Подключения
   Console: Консоль
   Console Settings: Настройки консоли
@@ -990,6 +995,7 @@ translations:
   Emergency Stop?: Аварийная остановка?
   Emergency stop activated: Аварийная остановка активирована
   'Emergency stop failed: not connected': 'Аварийная остановка не удалась: нет подключения'
+  'Emergency stop failed: {}': 'Ошибка аварийной остановки: {}'
   Empty: Пусто
   Empty slots disable the associated functionality: Пустые слоты отключают связанный
     функционал
@@ -1209,6 +1215,7 @@ translations:
   'Failed to start installer: ': 'Не удалось запустить установщик: '
   'Failed to start print: {}': 'Не удалось начать печать: {}'
   'Failed to start uninstaller: ': 'Не удалось запустить деинсталлятор: '
+  'Failed to subscribe to printer updates: {}': 'Не удалось подписаться на обновления принтера: {}'
   Failed to toggle %s: Не удалось переключить %s
   'Failed to toggle timelapse: {}': 'Не удалось переключить таймлапс: {}'
   'Failed to turn off heaters: {}': 'Не удалось выключить нагреватели: {}'
@@ -1299,6 +1306,7 @@ translations:
   Filament ran out. Auto-refill is off, so the CFS will not switch spools on its own. Load filament, then resume.: 'Филамент закончился. Автопополнение выключено, поэтому CFS не сменит катушку сам. Загрузите филамент и продолжите печать.'
   Filament ran out. The CFS knows which spools match, but those slots are empty. Load one of them, then resume.: Филамент закончился. CFS знает, какие катушки подходят, но эти слоты пусты. Загрузите одну из них, затем продолжите печать.
   Filament reload failed: Не удалось повторно подать филамент
+  Filament remap not supported on this printer — print will use the firmware's current tool mapping: Этот принтер не поддерживает переназначение филамента — печать будет использовать текущее назначение инструментов в прошивке
   Filament remapping is unavailable: Переназначение филамента недоступно
   Filament runout: Окончание филамента
   Filament runout and motion detection sensors: Датчики окончания и движения филамента
@@ -1317,6 +1325,7 @@ translations:
   File: Файл
   File Size: Размер файла
   File Will Stop the Printer: 'Файл остановит принтер'
+  File not found on printer.: Файл не найден на принтере.
   'File not found: {}': 'Файл не найден: {}'
   Filename: Имя файла
   Fine: Точно
@@ -1329,6 +1338,7 @@ translations:
   Fireworks: Фейерверк
   Firmware Restart: Перезапуск прошивки
   Firmware reports no bypass. Enable if you feed filament straight to the extruder: Прошивка не сообщает о байпасе. Включите, если филамент подаётся прямо в экструдер.
+  'Firmware restart failed: {}': 'Ошибка перезапуска прошивки: {}'
   Firmware restarting...: Перезапуск прошивки...
   Firmware saved X = Y's value; the measured X result was discarded: Прошивка сохранила для X значение Y; результат измерения X был отброшен
   'Fix: chmod 644 {}, then restart': 'Исправление: chmod 644 {}, затем перезапустите'
@@ -1500,6 +1510,7 @@ translations:
   'Homing failed: ': 'Парковка не удалась: '
   'Homing failed: {}': 'Ошибка парковки: {}'
   Homing first...: Парковка...
+  Homing is disabled while a print is in progress: Парковка недоступна во время печати
   Homing may still be running — response timed out: Парковка может ещё выполняться
     — время ожидания истекло
   Homing selector: 'Парковка селектора'
@@ -1665,13 +1676,16 @@ translations:
   Klipper firmware has disconnected from the host. Try restarting Klipper or performing a firmware restart.: Прошивка
     Klipper отключилась от хоста. Попробуйте перезапустить Klipper или выполнить перезапуск
     прошивки.
+  Klipper has disconnected from Moonraker. Check for errors in your printer interface.: Klipper отключился от Moonraker. Проверьте ошибки в интерфейсе принтера.
   ? Klipper has entered an error state. This is typically caused by an MCU connection
     failure or configuration error. Try a firmware restart.
   : Klipper перешёл в состояние ошибки. Обычно это вызвано сбоем соединения MCU или
     ошибкой конфигурации. Попробуйте перезапустить прошивку.
+  Klipper has entered shutdown state.: Klipper перешёл в состояние остановки.
   Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error.: Klipper
     перешёл в состояние остановки. Это может быть вызвано аварийной остановкой, тепловым
     разгоном или ошибкой конфигурации.
+  Klipper is halted — restart firmware to continue: Klipper остановлен — перезапустите прошивку, чтобы продолжить
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper резервирует 'default' для новых калибровок. Выберите другое имя."
   Klipper restarting - macros activating: 'Перезапуск Klipper - активация макросов'
   ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
@@ -1914,6 +1928,7 @@ translations:
   Monitoring: Мониторинг
   Month: Месяц
   Moonraker: Moonraker
+  Moonraker is not responding at {}. It runs on this printer, so check that the Klipper and Moonraker services started.: Moonraker не отвечает по адресу {}. Он работает на этом принтере, поэтому проверьте, запущены ли службы Klipper и Moonraker.
   Moonraker restarted but Spoolman not connected. Check server.: Moonraker перезапущен,
     но Spoolman не подключен. Проверьте сервер.
   ? "Moonraker restarting...\nWaiting for reconnection..."
@@ -2260,6 +2275,7 @@ translations:
   'Peak:': 'Пик:'
   Peaks {} Hz: "Пики {} Гц"
   Performance: Производительность
+  Permission denied. Check printer configuration.: Доступ запрещён. Проверьте конфигурацию принтера.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
   Pick: Выбрать
@@ -2413,6 +2429,8 @@ translations:
   Printer accepted job but isn't printing — check cover, paper, and label type (firmware status=0x{:02X} error=0x{:02X}): Принтер
     принял задание, но не печатает — проверьте крышку, бумагу и тип этикеток (статус
     прошивки=0x{:02X} ошибка=0x{:02X})
+  'Printer command ''{}'' failed: {}': 'Команда принтера ''{}'' не выполнена: {}'
+  Printer command '{}' timed out after {}ms: Время ожидания команды принтера '{}' истекло через {} мс
   Printer connection unavailable: Подключение к принтеру недоступно
   Printer database format error: Ошибка формата базы данных принтеров
   Printer database is corrupt: База данных принтеров повреждена
@@ -2424,7 +2442,9 @@ translations:
   Printer hardware detected: Обнаружено оборудование принтера
   Printer image set to auto-detect: Изображение принтера — автоопределение
   Printer is busy - {} stays in the queue: 'Принтер занят – {} остаётся в очереди'
+  Printer is busy — try again in a moment: Принтер занят — повторите попытку чуть позже
   Printer is not paired — pair it first: Принтер не сопряжён — сначала выполните сопряжение
+  Printer is not ready. Please wait for initialization.: Принтер не готов. Дождитесь инициализации.
   'Printer message: {}': 'Сообщение принтера: {}'
   Printer name: Название принтера
   Printer not connected: Принтер не подключен
@@ -2556,6 +2576,7 @@ translations:
   Reboot failed — host is still reachable: Ошибка перезагрузки — хост всё ещё доступен
   Recalibrate or view detailed results anytime in Settings.: Перекалибруйте или просмотрите
     подробные результаты в любое время в Настройках.
+  Received oversized data from printer ({} bytes). This may indicate a communication error.: От принтера получены слишком большие данные ({} байт). Возможна ошибка связи.
   Recent Prints: Недавние печати
   Recently Printed: Недавно напечатано
   Reconnect: Переподключиться
@@ -2629,6 +2650,7 @@ translations:
   Reprint: Повторить печать
   Reprint Last: Перепечатать последнюю
   Request Failed: Запрос не выполнен
+  Request timed out. The printer may be busy.: Время ожидания запроса истекло. Возможно, принтер занят.
   Require Confirmation?: Запрашивать подтверждение?
   Require confirmation before emergency stop: Требовать подтверждение перед аварийной
     остановкой
@@ -2671,6 +2693,7 @@ translations:
   Restart Now: Перезапустить сейчас
   Restart Required: Требуется перезапуск
   'Restart failed: not connected': 'Перезапуск не удался: нет подключения'
+  'Restart failed: {}': 'Ошибка перезапуска: {}'
   Restart from the beginning to recover: Чтобы восстановить печать, запустите её с начала
   Restart pending: 'Ожидается перезапуск'
   Restart the display application: Перезапустить приложение дисплея
@@ -3050,6 +3073,7 @@ translations:
   Spoolman was not configured.: Spoolman не был настроен.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu катушк%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu катушк%s'
+  'Spools are on the bed: remove them and confirm before moving the printer': 'На столе лежат катушки: уберите их и подтвердите, прежде чем двигать принтер'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'На столе катушки: нажмите на баннер сушки, чтобы подтвердить, что они сняты, затем перезапустите.'
 
   'Spools on the bed: start drying, or confirm none were placed': 'Катушки на столе: начните сушку или подтвердите, что ничего не положено'
@@ -3500,6 +3524,8 @@ translations:
   USB drive removed: USB-накопитель извлечён
   USB printer access denied — check permissions: Доступ к USB-принтеру запрещён —
     проверьте разрешения
+  Unable to reach printer at {}. Check that the printer is powered on and that this address is correct.: Не удаётся связаться с принтером по адресу {}. Убедитесь, что принтер включён и адрес указан верно.
+  Unable to reach printer. Check power and network connection.: Не удаётся связаться с принтером. Проверьте питание и сетевое подключение.
   Unavailable: Недоступно
   Unavailable on this printer: Недоступно на этом принтере
   Undo: Шаг назад

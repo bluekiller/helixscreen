@@ -123,6 +123,7 @@
   <translation tag="A · 1,-1" zh="A · 1,-1"/>
   <translation tag="ABS" zh="ABS"/>
   <translation tag="ACCELEROMETERS" zh="加速度计"/>
+  <translation tag="ACCEPT failed: {}" zh="ACCEPT 失败: {}"/>
   <translation tag="ACE Moonraker bridge not found. Install ace_status.py for full support." zh="未找到 ACE Moonraker 桥接。请安装 ace_status.py 以获得完整支持。"/>
   <translation tag="ACTIONS" zh="操作"/>
   <translation tag="ADXL" zh="ADXL"/>
@@ -220,6 +221,7 @@
   <translation tag="An error occurred." zh="发生错误。"/>
   <translation tag="An internal error occurred. The app continues running. Please send a debug bundle from Settings &gt; Help &amp; About if it repeats." zh="发生了内部错误。应用程序继续运行。如果反复出现，请从设置 &gt; 帮助与关于发送调试捆绑包。"/>
   <translation tag="An unexpected printer error occurred." zh="发生了意外的打印机错误。"/>
+  <translation tag="An unknown error occurred." zh="发生未知错误。"/>
   <translation tag="An update is available" zh="有可用更新"/>
   <translation tag="Analyzing data..." zh="正在分析数据..."/>
   <translation tag="Analyzing data... {}s" zh="正在分析数据... {} 秒"/>
@@ -664,9 +666,12 @@
   <translation tag="Connection failed: %s" zh="连接失败：%s"/>
   <translation tag="Connection lost — probe accuracy result unavailable" zh="连接已丢失 — 探针精度测试结果不可用"/>
   <translation tag="Connection must be tested successfully to continue" zh="必须成功测试连接才能继续"/>
+  <translation tag="Connection restored" zh="连接已恢复"/>
   <translation tag="Connection successful!" zh="连接成功！"/>
   <translation tag="Connection timeout" zh="连接超时"/>
+  <translation tag="Connection to printer lost - attempting to reconnect..." zh="与打印机的连接已断开 - 正在尝试重新连接..."/>
   <translation tag="Connection to printer lost — operation may still be running" zh="与打印机的连接已丢失 — 操作可能仍在运行"/>
+  <translation tag="Connection to printer lost." zh="与打印机的连接已断开。"/>
   <translation tag="Connects" zh="连接次数"/>
   <translation tag="Console" zh="控制台"/>
   <translation tag="Console Settings" zh="控制台设置"/>
@@ -900,6 +905,7 @@
   <translation tag="Emergency Stop?" zh="紧急停止？"/>
   <translation tag="Emergency stop activated" zh="紧急停止已激活"/>
   <translation tag="Emergency stop failed: not connected" zh="紧急停止失败: 未连接"/>
+  <translation tag="Emergency stop failed: {}" zh="紧急停止失败: {}"/>
   <translation tag="Empty" zh="空"/>
   <translation tag="Empty slots disable the associated functionality" zh="空槽位将禁用相关功能"/>
   <translation tag="Enable" zh="启用"/>
@@ -1104,6 +1110,7 @@
   <translation tag="Failed to start installer: " zh="启动安装程序失败: "/>
   <translation tag="Failed to start print: {}" zh="开始打印失败: {}"/>
   <translation tag="Failed to start uninstaller: " zh="启动卸载程序失败: "/>
+  <translation tag="Failed to subscribe to printer updates: {}" zh="无法接收打印机更新: {}"/>
   <translation tag="Failed to toggle %s" zh="切换 %s 失败"/>
   <translation tag="Failed to toggle timelapse: {}" zh="切换延时摄影失败: {}"/>
   <translation tag="Failed to turn off heaters: {}" zh="关闭加热器失败: {}"/>
@@ -1185,6 +1192,7 @@
   <translation tag="Filament ran out. Auto-refill is off, so the CFS will not switch spools on its own. Load filament, then resume." zh="耗材已用尽。自动续料已关闭，CFS 不会自行更换料盘。请装入耗材后恢复打印。"/>
   <translation tag="Filament ran out. The CFS knows which spools match, but those slots are empty. Load one of them, then resume." zh="耗材已用尽。CFS 知道哪些料盘匹配，但这些槽位都是空的。请装载其中一个，然后恢复打印。"/>
   <translation tag="Filament reload failed" zh="耗材重新装载失败"/>
+  <translation tag="Filament remap not supported on this printer — print will use the firmware&apos;s current tool mapping" zh="此打印机不支持重新映射耗材 — 打印将使用固件当前的工具映射"/>
   <translation tag="Filament remapping is unavailable" zh="耗材重新映射不可用"/>
   <translation tag="Filament runout" zh="耗材用尽"/>
   <translation tag="Filament runout and motion detection sensors" zh="耗材用尽和运动检测传感器"/>
@@ -1202,6 +1210,7 @@
   <translation tag="File" zh="文件"/>
   <translation tag="File Size" zh="文件大小"/>
   <translation tag="File Will Stop the Printer" zh="文件会使打印机停止"/>
+  <translation tag="File not found on printer." zh="打印机上未找到文件。"/>
   <translation tag="File not found: {}" zh="未找到文件: {}"/>
   <translation tag="Filename" zh="文件名"/>
   <translation tag="Fine" zh="细调"/>
@@ -1214,6 +1223,7 @@
   <translation tag="Fireworks" zh="烟花"/>
   <translation tag="Firmware Restart" zh="固件重启"/>
   <translation tag="Firmware reports no bypass. Enable if you feed filament straight to the extruder" zh="固件报告未配置旁路。如果您将耗材直接送入挤出机，请启用此选项"/>
+  <translation tag="Firmware restart failed: {}" zh="固件重启失败: {}"/>
   <translation tag="Firmware restarting..." zh="固件重启中..."/>
   <translation tag="Firmware saved X = Y&apos;s value; the measured X result was discarded" zh="固件将 X 轴保存为 Y 轴的值；实测的 X 轴结果已被丢弃"/>
   <translation tag="Fix: chmod 644 {}, then restart" zh="修复：chmod 644 {}，然后重启"/>
@@ -1373,6 +1383,7 @@
   <translation tag="Homing failed: " zh="回零失败: "/>
   <translation tag="Homing failed: {}" zh="归位失败: {}"/>
   <translation tag="Homing first..." zh="正在先归位..."/>
+  <translation tag="Homing is disabled while a print is in progress" zh="打印进行中，无法归位"/>
   <translation tag="Homing may still be running — response timed out" zh="归位可能仍在运行 — 响应超时"/>
   <translation tag="Homing selector" zh="选择器回零"/>
   <translation tag="Homing timed out" zh="归位超时"/>
@@ -1511,8 +1522,11 @@
   <translation tag="Klipper" zh="Klipper"/>
   <translation tag="Klipper Error" zh="Klipper 错误"/>
   <translation tag="Klipper firmware has disconnected from the host. Try restarting Klipper or performing a firmware restart." zh="Klipper 固件已与主机断开连接。请尝试重启 Klipper 或执行固件重启。"/>
+  <translation tag="Klipper has disconnected from Moonraker. Check for errors in your printer interface." zh="Klipper 已与 Moonraker 断开连接。请在打印机界面中检查错误。"/>
   <translation tag="Klipper has entered an error state. This is typically caused by an MCU connection failure or configuration error. Try a firmware restart." zh="Klipper 已进入错误状态。这通常是由 MCU 连接失败或配置错误引起的。请尝试固件重启。"/>
+  <translation tag="Klipper has entered shutdown state." zh="Klipper 已进入关闭状态。"/>
   <translation tag="Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error." zh="Klipper 已进入关机状态。这可能是由于紧急停止、热失控或配置错误引起的。"/>
+  <translation tag="Klipper is halted — restart firmware to continue" zh="Klipper 已停止 — 请重启固件以继续"/>
   <translation tag="Klipper reserves &apos;default&apos; for new calibrations. Choose another name." zh="Klipper 将 &apos;default&apos; 保留用于新的校准。请选择其他名称。"/>
   <translation tag="Klipper restarting - macros activating" zh="正在重启 Klipper - 正在启用宏"/>
   <translation tag="Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again." zh="Klipper 停止报告进度。在小型打印机上，其分析可能耗尽内存并使 Klipper 卡住，此时固件重启无法到达。请将打印机断电重启（或通过 SSH 重启 Klipper），然后重试。"/>
@@ -1741,6 +1755,7 @@
   <translation tag="Monitoring" zh="监控中"/>
   <translation tag="Month" zh="月"/>
   <translation tag="Moonraker" zh="Moonraker"/>
+  <translation tag="Moonraker is not responding at {}. It runs on this printer, so check that the Klipper and Moonraker services started." zh="Moonraker 在 {} 无响应。它运行在这台打印机上，请检查 Klipper 和 Moonraker 服务是否已启动。"/>
   <translation tag="Moonraker restarted but Spoolman not connected. Check server." zh="Moonraker 已重启但 Spoolman 未连接。请检查服务器。"/>
   <translation tag="Moonraker restarting...&#10;Waiting for reconnection..." zh="Moonraker 重启中...&#10;等待重新连接..."/>
   <translation tag="Moonraker: " zh="Moonraker: "/>
@@ -2061,6 +2076,7 @@
   <translation tag="Peak:" zh="峰值："/>
   <translation tag="Peaks {} Hz" zh="峰值 {} Hz"/>
   <translation tag="Performance" zh="性能"/>
+  <translation tag="Permission denied. Check printer configuration." zh="权限被拒绝。请检查打印机配置。"/>
   <translation tag="Phomemo (Bluetooth)" zh="Phomemo（蓝牙）"/>
   <translation tag="Phomemo M110" zh="Phomemo M110"/>
   <translation tag="Pick" zh="选取"/>
@@ -2200,6 +2216,8 @@
   <translation tag="Printer Shutdown" zh="打印机关机"/>
   <translation tag="Printer Type" zh="打印机类型"/>
   <translation tag="Printer accepted job but isn&apos;t printing — check cover, paper, and label type (firmware status=0x{:02X} error=0x{:02X})" zh="打印机已接受作业但未开始打印 — 请检查盖板、纸张和标签类型 (firmware status=0x{:02X} error=0x{:02X})"/>
+  <translation tag="Printer command &apos;{}&apos; failed: {}" zh="打印机命令 &apos;{}&apos; 失败: {}"/>
+  <translation tag="Printer command &apos;{}&apos; timed out after {}ms" zh="打印机命令 &apos;{}&apos; 在 {} 毫秒后超时"/>
   <translation tag="Printer connection unavailable" zh="打印机连接不可用"/>
   <translation tag="Printer database format error" zh="打印机数据库格式错误"/>
   <translation tag="Printer database is corrupt" zh="打印机数据库已损坏"/>
@@ -2209,7 +2227,9 @@
   <translation tag="Printer hardware detected" zh="检测到打印机硬件"/>
   <translation tag="Printer image set to auto-detect" zh="打印机图片已设为自动检测"/>
   <translation tag="Printer is busy - {} stays in the queue" zh="打印机忙碌中 – {} 保留在队列中"/>
+  <translation tag="Printer is busy — try again in a moment" zh="打印机忙 — 请稍后重试"/>
   <translation tag="Printer is not paired — pair it first" zh="打印机未配对 — 请先进行配对"/>
+  <translation tag="Printer is not ready. Please wait for initialization." zh="打印机未就绪。请等待初始化完成。"/>
   <translation tag="Printer message: {}" zh="打印机消息：{}"/>
   <translation tag="Printer name" zh="打印机名称"/>
   <translation tag="Printer not connected" zh="打印机未连接"/>
@@ -2330,6 +2350,7 @@
   <translation tag="Reboot failed" zh="重启失败"/>
   <translation tag="Reboot failed — host is still reachable" zh="重启失败 — 主机仍可访问"/>
   <translation tag="Recalibrate or view detailed results anytime in Settings." zh="可随时在设置中重新校准或查看详细结果。"/>
+  <translation tag="Received oversized data from printer ({} bytes). This may indicate a communication error." zh="从打印机收到的数据过大（{} 字节）。这可能表示通信错误。"/>
   <translation tag="Recent Prints" zh="最近打印"/>
   <translation tag="Recently Printed" zh="最近打印过的"/>
   <translation tag="Reconnect" zh="重新连接"/>
@@ -2395,6 +2416,7 @@
   <translation tag="Reprint" zh="重新打印"/>
   <translation tag="Reprint Last" zh="重印上次"/>
   <translation tag="Request Failed" zh="请求失败"/>
+  <translation tag="Request timed out. The printer may be busy." zh="请求超时。打印机可能正忙。"/>
   <translation tag="Require Confirmation?" zh="需要确认？"/>
   <translation tag="Require confirmation before emergency stop" zh="紧急停止前需要确认"/>
   <translation tag="Requires Moonraker power device" zh="需要 Moonraker 电源设备"/>
@@ -2436,6 +2458,7 @@
   <translation tag="Restart Now" zh="立即重启"/>
   <translation tag="Restart Required" zh="需要重启"/>
   <translation tag="Restart failed: not connected" zh="重启失败: 未连接"/>
+  <translation tag="Restart failed: {}" zh="重启失败: {}"/>
   <translation tag="Restart from the beginning to recover" zh="请从头重新开始以恢复打印"/>
   <translation tag="Restart pending" zh="重启待执行"/>
   <translation tag="Restart the display application" zh="重启显示应用程序"/>
@@ -2768,6 +2791,7 @@
   <translation tag="Spoolman was not configured." zh="Spoolman 未配置。"/>
   <translation tag="Spoolman: %zu Spool%s" zh="Spoolman: %zu 个线轴%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" zh="Spoolman: %zu/%zu 个线轴%s"/>
+  <translation tag="Spools are on the bed: remove them and confirm before moving the printer" zh="热床上有料盘：请先移除并确认，再移动打印机"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." zh="热床上有料盘:点击烘干横幅确认已取下,然后再重启。"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" zh="料盘在热床上:开始烘干,或确认未放置料盘"/>
   <translation tag="Spools removed" zh="料盘已取下"/>
@@ -3139,6 +3163,8 @@
   <translation tag="USB drive connected" zh="U 盘已连接"/>
   <translation tag="USB drive removed" zh="U 盘已移除"/>
   <translation tag="USB printer access denied — check permissions" zh="USB 打印机访问被拒绝 — 请检查权限"/>
+  <translation tag="Unable to reach printer at {}. Check that the printer is powered on and that this address is correct." zh="无法连接到位于 {} 的打印机。请检查打印机是否已开机以及此地址是否正确。"/>
+  <translation tag="Unable to reach printer. Check power and network connection." zh="无法连接到打印机。请检查电源和网络连接。"/>
   <translation tag="Unavailable" zh="不可用"/>
   <translation tag="Unavailable on this printer" zh="此打印机上不可用"/>
   <translation tag="Undo" zh="撤销"/>

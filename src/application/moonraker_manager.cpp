@@ -543,6 +543,7 @@ void MoonrakerManager::present_event(const MoonrakerEvent& evt) {
     // Every lv_tr() below depends on that.
     const auto decision = helix::decide_moonraker_event(evt.type, evt.is_error, is_wizard_active(),
                                                         !ModalStack::instance().empty());
+    const std::string text = evt.message_tag ? evt.render(lv_tr(evt.message_tag)) : evt.message;
 
     switch (decision.route) {
     case helix::MoonrakerEventRoute::Ignore:
@@ -578,18 +579,18 @@ void MoonrakerManager::present_event(const MoonrakerEvent& evt) {
         // prompt carries a "Change Address" action straight to the host setting.
         const char* title = lv_tr(decision.title_tag);
         spdlog::error("[CRITICAL] {}: {}", title, evt.message);
-        helix::ui::show_connection_failed_modal(title, evt.message);
+        helix::ui::show_connection_failed_modal(title, text);
         return;
     }
 
     case helix::MoonrakerEventRoute::ErrorToast: {
         const char* title = lv_tr(decision.title_tag);
-        NOTIFY_ERROR_T(title, "{}", evt.message);
+        NOTIFY_ERROR_T(title, "{}", text);
         return;
     }
 
     case helix::MoonrakerEventRoute::WarningToast:
-        NOTIFY_WARNING("{}", evt.message);
+        NOTIFY_WARNING("{}", text);
         return;
     }
 }

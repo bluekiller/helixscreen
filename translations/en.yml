@@ -124,6 +124,7 @@ translations:
   A · 1,-1: A · 1,-1
   ABS: ABS
   ACCELEROMETERS: ACCELEROMETERS
+  'ACCEPT failed: {}': 'ACCEPT failed: {}'
   ACE Moonraker bridge not found. Install ace_status.py for full support.: ACE Moonraker bridge not found. Install ace_status.py for full support.
   ACTIONS: ACTIONS
   ADXL: ADXL
@@ -232,6 +233,7 @@ translations:
   ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
   : An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
   An unexpected printer error occurred.: An unexpected printer error occurred.
+  An unknown error occurred.: An unknown error occurred.
   An update is available: An update is available
   Analyzing data...: Analyzing data...
   Analyzing data... {}s: Analyzing data... {}s
@@ -720,9 +722,12 @@ translations:
   Connection lost — probe accuracy result unavailable: Connection lost — probe accuracy result unavailable
   Connection must be tested successfully to continue: Connection must be tested successfully
     to continue
+  Connection restored: Connection restored
   Connection successful!: Connection successful!
   Connection timeout: Connection timeout
+  Connection to printer lost - attempting to reconnect...: Connection to printer lost - attempting to reconnect...
   Connection to printer lost — operation may still be running: Connection to printer lost — operation may still be running
+  Connection to printer lost.: Connection to printer lost.
   Connects: Connects
   Console: Console
   Console Settings: Console Settings
@@ -964,6 +969,7 @@ translations:
   Emergency Stop?: Emergency Stop?
   Emergency stop activated: Emergency stop activated
   'Emergency stop failed: not connected': 'Emergency stop failed: not connected'
+  'Emergency stop failed: {}': 'Emergency stop failed: {}'
   Empty: Empty
   Empty slots disable the associated functionality: Empty slots disable the associated
     functionality
@@ -1180,6 +1186,7 @@ translations:
   'Failed to start installer: ': 'Failed to start installer: '
   'Failed to start print: {}': 'Failed to start print: {}'
   'Failed to start uninstaller: ': 'Failed to start uninstaller: '
+  'Failed to subscribe to printer updates: {}': 'Failed to subscribe to printer updates: {}'
   Failed to toggle %s: Failed to toggle %s
   'Failed to toggle timelapse: {}': 'Failed to toggle timelapse: {}'
   'Failed to turn off heaters: {}': 'Failed to turn off heaters: {}'
@@ -1267,6 +1274,7 @@ translations:
   Filament ran out. Auto-refill is off, so the CFS will not switch spools on its own. Load filament, then resume.: Filament ran out. Auto-refill is off, so the CFS will not switch spools on its own. Load filament, then resume.
   Filament ran out. The CFS knows which spools match, but those slots are empty. Load one of them, then resume.: Filament ran out. The CFS knows which spools match, but those slots are empty. Load one of them, then resume.
   Filament reload failed: Filament reload failed
+  Filament remap not supported on this printer — print will use the firmware's current tool mapping: Filament remap not supported on this printer — print will use the firmware's current tool mapping
   Filament remapping is unavailable: Filament remapping is unavailable
   Filament runout: Filament runout
   Filament runout and motion detection sensors: Filament runout and motion detection
@@ -1286,6 +1294,7 @@ translations:
   File: File
   File Size: File Size
   File Will Stop the Printer: File Will Stop the Printer
+  File not found on printer.: File not found on printer.
   'File not found: {}': 'File not found: {}'
   Filename: Filename
   Fine: Fine
@@ -1298,6 +1307,7 @@ translations:
   Fireworks: Fireworks
   Firmware Restart: Firmware Restart
   Firmware reports no bypass. Enable if you feed filament straight to the extruder: Firmware reports no bypass. Enable if you feed filament straight to the extruder
+  'Firmware restart failed: {}': 'Firmware restart failed: {}'
   Firmware restarting...: Firmware restarting...
   Firmware saved X = Y's value; the measured X result was discarded: Firmware saved X = Y's value; the measured X result was discarded
   'Fix: chmod 644 {}, then restart': 'Fix: chmod 644 {}, then restart'
@@ -1467,6 +1477,7 @@ translations:
   'Homing failed: ': 'Homing failed: '
   'Homing failed: {}': 'Homing failed: {}'
   Homing first...: Homing first...
+  Homing is disabled while a print is in progress: Homing is disabled while a print is in progress
   Homing may still be running — response timed out: Homing may still be running —
     response timed out
   Homing selector: Homing selector
@@ -1628,13 +1639,16 @@ translations:
   Klipper firmware has disconnected from the host. Try restarting Klipper or performing a firmware restart.: Klipper
     firmware has disconnected from the host. Try restarting Klipper or performing
     a firmware restart.
+  Klipper has disconnected from Moonraker. Check for errors in your printer interface.: Klipper has disconnected from Moonraker. Check for errors in your printer interface.
   ? Klipper has entered an error state. This is typically caused by an MCU connection
     failure or configuration error. Try a firmware restart.
   : Klipper has entered an error state. This is typically caused by an MCU connection
     failure or configuration error. Try a firmware restart.
+  Klipper has entered shutdown state.: Klipper has entered shutdown state.
   Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error.: Klipper
     has entered shutdown state. This may be due to an emergency stop, thermal runaway,
     or configuration error.
+  Klipper is halted — restart firmware to continue: Klipper is halted — restart firmware to continue
   Klipper reserves 'default' for new calibrations. Choose another name.: Klipper reserves 'default' for new calibrations. Choose another name.
   Klipper restarting - macros activating: Klipper restarting - macros activating
   ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
@@ -1872,6 +1886,7 @@ translations:
   Monitoring: Monitoring
   Month: Month
   Moonraker: Moonraker
+  Moonraker is not responding at {}. It runs on this printer, so check that the Klipper and Moonraker services started.: Moonraker is not responding at {}. It runs on this printer, so check that the Klipper and Moonraker services started.
   Moonraker restarted but Spoolman not connected. Check server.: Moonraker restarted
     but Spoolman not connected. Check server.
   ? "Moonraker restarting...\nWaiting for reconnection..."
@@ -2214,6 +2229,7 @@ translations:
   'Peak:': 'Peak:'
   Peaks {} Hz: Peaks {} Hz
   Performance: Performance
+  Permission denied. Check printer configuration.: Permission denied. Check printer configuration.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
   Pick: Pick
@@ -2364,6 +2380,8 @@ translations:
   Printer accepted job but isn't printing — check cover, paper, and label type (firmware status=0x{:02X} error=0x{:02X}): Printer
     accepted job but isn't printing — check cover, paper, and label type (firmware
     status=0x{:02X} error=0x{:02X})
+  "Printer command '{}' failed: {}": "Printer command '{}' failed: {}"
+  Printer command '{}' timed out after {}ms: Printer command '{}' timed out after {}ms
   Printer connection unavailable: Printer connection unavailable
   Printer database format error: Printer database format error
   Printer database is corrupt: Printer database is corrupt
@@ -2375,7 +2393,9 @@ translations:
   Printer hardware detected: Printer hardware detected
   Printer image set to auto-detect: Printer image set to auto-detect
   Printer is busy - {} stays in the queue: Printer is busy - {} stays in the queue
+  Printer is busy — try again in a moment: Printer is busy — try again in a moment
   Printer is not paired — pair it first: Printer is not paired — pair it first
+  Printer is not ready. Please wait for initialization.: Printer is not ready. Please wait for initialization.
   'Printer message: {}': 'Printer message: {}'
   Printer name: Printer name
   Printer not connected: Printer not connected
@@ -2504,6 +2524,7 @@ translations:
   Reboot failed — host is still reachable: Reboot failed — host is still reachable
   Recalibrate or view detailed results anytime in Settings.: Recalibrate or view detailed
     results anytime in Settings.
+  Received oversized data from printer ({} bytes). This may indicate a communication error.: Received oversized data from printer ({} bytes). This may indicate a communication error.
   Recent Prints: Recent Prints
   Recently Printed: Recently Printed
   Reconnect: Reconnect
@@ -2574,6 +2595,7 @@ translations:
   Reprint: Reprint
   Reprint Last: Reprint Last
   Request Failed: Request Failed
+  Request timed out. The printer may be busy.: Request timed out. The printer may be busy.
   Require Confirmation?: Require Confirmation?
   Require confirmation before emergency stop: Require confirmation before emergency
     stop
@@ -2616,6 +2638,7 @@ translations:
   Restart Now: Restart Now
   Restart Required: Restart Required
   'Restart failed: not connected': 'Restart failed: not connected'
+  'Restart failed: {}': 'Restart failed: {}'
   Restart from the beginning to recover: Restart from the beginning to recover
   Restart pending: Restart pending
   Restart the display application: Restart the display application
@@ -2989,6 +3012,7 @@ translations:
   Spoolman was not configured.: Spoolman was not configured.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Spool%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Spool%s'
+  'Spools are on the bed: remove them and confirm before moving the printer': 'Spools are on the bed: remove them and confirm before moving the printer'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Spools are on the bed: tap the drying banner to confirm they are off, then restart.'
   'Spools on the bed: start drying, or confirm none were placed': 'Spools on the bed: start drying, or confirm none were placed'
   Spools removed: Spools removed
@@ -3429,6 +3453,8 @@ translations:
   USB drive removed: USB drive removed
   USB printer access denied — check permissions: USB printer access denied — check
     permissions
+  Unable to reach printer at {}. Check that the printer is powered on and that this address is correct.: Unable to reach printer at {}. Check that the printer is powered on and that this address is correct.
+  Unable to reach printer. Check power and network connection.: Unable to reach printer. Check power and network connection.
   Unavailable: Unavailable
   Unavailable on this printer: Unavailable on this printer
   Undo: Undo

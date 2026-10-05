@@ -132,6 +132,7 @@ translations:
   A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: ACCÉLÉROMÈTRES
+  'ACCEPT failed: {}': 'Échec de ACCEPT : {}'
   ACE Moonraker bridge not found. Install ace_status.py for full support.: Pont
     ACE Moonraker introuvable. Installez ace_status.py pour un support complet.
   ACTIONS: ACTIONS
@@ -243,6 +244,7 @@ translations:
   : Une erreur interne s'est produite. L'application continue de fonctionner. Veuillez envoyer un paquet de débogage depuis Paramètres > Aide et à propos si cela se reproduit.
   An unexpected printer error occurred.: Une erreur inattendue de l'imprimante s'est
     produite.
+  An unknown error occurred.: Une erreur inconnue s'est produite.
   An update is available: Une mise à jour est disponible
   Analyzing data...: Analyse des données...
   Analyzing data... {}s: Analyse des données... {}s
@@ -753,9 +755,12 @@ translations:
   Connection lost — probe accuracy result unavailable: 'Connexion perdue — résultat du test de précision de la sonde indisponible'
   Connection must be tested successfully to continue: La connexion doit être testée
     avec succès pour continuer
+  Connection restored: Connexion rétablie
   Connection successful!: Connexion réussie !
   Connection timeout: Délai de connexion dépassé
+  Connection to printer lost - attempting to reconnect...: Connexion à l'imprimante perdue - tentative de reconnexion...
   Connection to printer lost — operation may still be running: 'Connexion à l''imprimante perdue — l''opération est peut-être encore en cours'
+  Connection to printer lost.: Connexion à l'imprimante perdue.
   Connects: Connexions
   Console: Console
   Console Settings: Paramètres de la console
@@ -1010,6 +1015,7 @@ translations:
   Emergency Stop?: Arrêt d'urgence ?
   Emergency stop activated: Arrêt d'urgence activé
   'Emergency stop failed: not connected': 'Échec de l''arrêt d''urgence : non connecté'
+  'Emergency stop failed: {}': 'Échec de l''arrêt d''urgence : {}'
   Empty: Vide
   Empty slots disable the associated functionality: Les slots vides désactivent la
     fonctionnalité associée
@@ -1240,6 +1246,7 @@ translations:
   'Failed to start installer: ': 'Échec du démarrage de l''installateur : '
   'Failed to start print: {}': 'Échec du démarrage de l''impression : {}'
   'Failed to start uninstaller: ': 'Échec du démarrage du désinstallateur : '
+  'Failed to subscribe to printer updates: {}': 'Impossible de s''abonner aux mises à jour de l''imprimante : {}'
   Failed to toggle %s: Échec du basculement de %s
   'Failed to toggle timelapse: {}': 'Échec de la bascule timelapse : {}'
   'Failed to turn off heaters: {}': 'Échec de l''arrêt des chauffages : {}'
@@ -1328,6 +1335,7 @@ translations:
   Filament ran out. Auto-refill is off, so the CFS will not switch spools on its own. Load filament, then resume.: 'Filament épuisé. Le réapprovisionnement automatique est désactivé, le CFS ne changera donc pas de bobine tout seul. Chargez du filament, puis reprenez.'
   Filament ran out. The CFS knows which spools match, but those slots are empty. Load one of them, then resume.: Filament épuisé. Le CFS sait quelles bobines correspondent, mais ces slots sont vides. Chargez-en une, puis reprenez.
   Filament reload failed: Échec du rechargement du filament
+  Filament remap not supported on this printer — print will use the firmware's current tool mapping: Cette imprimante ne prend pas en charge la réaffectation du filament — l'impression utilisera l'affectation des outils actuelle du firmware
   Filament remapping is unavailable: Le remappage du filament est indisponible
   Filament runout: Fin de filament
   Filament runout and motion detection sensors: Capteurs de fin de filament et de
@@ -1347,6 +1355,7 @@ translations:
   File: Fichier
   File Size: Taille du fichier
   File Will Stop the Printer: 'Le fichier arrêtera l''imprimante'
+  File not found on printer.: Fichier introuvable sur l'imprimante.
   'File not found: {}': 'Fichier introuvable : {}'
   Filename: Nom du fichier
   Fine: Fin
@@ -1359,6 +1368,7 @@ translations:
   Fireworks: Feux d'artifice
   Firmware Restart: Redémarrage firmware
   Firmware reports no bypass. Enable if you feed filament straight to the extruder: Le firmware ne signale aucun bypass. Activez cette option si vous alimentez l'extrudeur directement en filament
+  'Firmware restart failed: {}': 'Échec du redémarrage firmware : {}'
   Firmware restarting...: Redémarrage du firmware...
   Firmware saved X = Y's value; the measured X result was discarded: Le firmware a enregistré la valeur de Y pour X ; le résultat mesuré de X a été écarté
   'Fix: chmod 644 {}, then restart': 'Solution : chmod 644 {}, puis redémarrez'
@@ -1532,6 +1542,7 @@ translations:
   'Homing failed: ': 'Échec de la prise d''origine : '
   'Homing failed: {}': 'Échec de la référence : {}'
   Homing first...: Référence en cours...
+  Homing is disabled while a print is in progress: La prise de référence est désactivée pendant une impression
   Homing may still be running — response timed out: Référence peut-être encore en
     cours — délai dépassé
   Homing selector: 'Prise d''origine du sélecteur'
@@ -1697,13 +1708,16 @@ translations:
   Klipper firmware has disconnected from the host. Try restarting Klipper or performing a firmware restart.: Le
     firmware Klipper s'est déconnecté de l'hôte. Essayez de redémarrer Klipper ou
     d'effectuer un redémarrage du firmware.
+  Klipper has disconnected from Moonraker. Check for errors in your printer interface.: Klipper s'est déconnecté de Moonraker. Vérifiez les erreurs dans l'interface de votre imprimante.
   ? Klipper has entered an error state. This is typically caused by an MCU connection
     failure or configuration error. Try a firmware restart.
   : Klipper est entré dans un état d'erreur. Cela est généralement causé par un échec
     de connexion MCU ou une erreur de configuration. Essayez un redémarrage du firmware.
+  Klipper has entered shutdown state.: Klipper est passé en état d'arrêt.
   Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error.: Klipper
     est passé en état d'arrêt. Cela peut être dû à un arrêt d'urgence, à un emballement
     thermique ou à une erreur de configuration.
+  Klipper is halted — restart firmware to continue: Klipper est arrêté — redémarrez le firmware pour continuer
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper réserve 'default' aux nouvelles calibrations. Choisissez un autre nom."
   Klipper restarting - macros activating: 'Redémarrage de Klipper - activation des macros'
   ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
@@ -1947,6 +1961,7 @@ translations:
   Monitoring: Surveillance
   Month: Mois
   Moonraker: Moonraker
+  Moonraker is not responding at {}. It runs on this printer, so check that the Klipper and Moonraker services started.: 'Moonraker ne répond pas à {}. Il tourne sur cette imprimante : vérifiez que les services Klipper et Moonraker ont démarré.'
   Moonraker restarted but Spoolman not connected. Check server.: Moonraker a redémarré
     mais Spoolman n'est pas connecté. Vérifiez le serveur.
   ? "Moonraker restarting...\nWaiting for reconnection..."
@@ -2297,6 +2312,7 @@ translations:
   'Peak:': 'Pic :'
   Peaks {} Hz: "Pics {} Hz"
   Performance: Performance
+  Permission denied. Check printer configuration.: Permission refusée. Vérifiez la configuration de l'imprimante.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
   Pick: Choisir
@@ -2453,6 +2469,8 @@ translations:
   Printer accepted job but isn't printing — check cover, paper, and label type (firmware status=0x{:02X} error=0x{:02X}): L'imprimante
     a accepté la tâche mais n'imprime pas — vérifiez le capot, le papier et le type
     d'étiquette (état firmware=0x{:02X} erreur=0x{:02X})
+  'Printer command ''{}'' failed: {}': 'La commande d''imprimante ''{}'' a échoué : {}'
+  Printer command '{}' timed out after {}ms: La commande d'imprimante '{}' a expiré après {} ms
   Printer connection unavailable: Connexion à l'imprimante indisponible
   Printer database format error: Erreur de format de la base de données d'imprimantes
   Printer database is corrupt: La base de données d'imprimantes est corrompue
@@ -2464,8 +2482,10 @@ translations:
   Printer hardware detected: Matériel d'imprimante détecté
   Printer image set to auto-detect: Image de l'imprimante en auto-détection
   Printer is busy - {} stays in the queue: 'L''imprimante est occupée – {} reste dans la file'
+  Printer is busy — try again in a moment: L'imprimante est occupée — réessayez dans un instant
   Printer is not paired — pair it first: L'imprimante n'est pas appairée — appairez-la
     d'abord
+  Printer is not ready. Please wait for initialization.: L'imprimante n'est pas prête. Veuillez attendre l'initialisation.
   'Printer message: {}': 'Message de l''imprimante : {}'
   Printer name: Nom de l'imprimante
   Printer not connected: Imprimante non connectée
@@ -2598,6 +2618,7 @@ translations:
     joignable
   Recalibrate or view detailed results anytime in Settings.: Recalibrez ou consultez
     les résultats détaillés à tout moment dans les paramètres.
+  Received oversized data from printer ({} bytes). This may indicate a communication error.: Données trop volumineuses reçues de l'imprimante ({} octets). Cela peut indiquer une erreur de communication.
   Recent Prints: Impressions récentes
   Recently Printed: Récemment imprimé
   Reconnect: Reconnecter
@@ -2672,6 +2693,7 @@ translations:
   Reprint: Réimprimer
   Reprint Last: Réimprimer la dernière
   Request Failed: Requête échouée
+  Request timed out. The printer may be busy.: La requête a expiré. L'imprimante est peut-être occupée.
   Require Confirmation?: Demander une confirmation ?
   Require confirmation before emergency stop: Demander confirmation avant l'arrêt
     d'urgence
@@ -2715,6 +2737,7 @@ translations:
   Restart Now: Redémarrer maintenant
   Restart Required: Redémarrage requis
   'Restart failed: not connected': 'Échec du redémarrage : non connecté'
+  'Restart failed: {}': 'Échec du redémarrage : {}'
   Restart from the beginning to recover: Relancez depuis le début pour récupérer l'impression
   Restart pending: 'Redémarrage en attente'
   Restart the display application: Redémarrer l'application d'affichage
@@ -3102,6 +3125,7 @@ translations:
   Spoolman was not configured.: 'Spoolman n''était pas configuré.'
   'Spoolman: %zu Spool%s': 'Spoolman : %zu bobine%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman : %zu/%zu bobine%s'
+  'Spools are on the bed: remove them and confirm before moving the printer': 'Des bobines sont sur le plateau : retirez-les et confirmez avant de déplacer l''imprimante'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': "Des bobines sont sur le plateau : touchez le bandeau de séchage pour confirmer qu'elles sont retirées, puis redémarrez."
 
   'Spools on the bed: start drying, or confirm none were placed': "Bobines sur le plateau : démarrez le séchage ou confirmez qu'aucune n'a été posée"
@@ -3570,6 +3594,8 @@ translations:
   USB drive removed: Clé USB retirée
   USB printer access denied — check permissions: Accès à l'imprimante USB refusé —
     vérifiez les autorisations
+  Unable to reach printer at {}. Check that the printer is powered on and that this address is correct.: Impossible de joindre l'imprimante à {}. Vérifiez qu'elle est allumée et que cette adresse est correcte.
+  Unable to reach printer. Check power and network connection.: Impossible de joindre l'imprimante. Vérifiez l'alimentation et la connexion réseau.
   Unavailable: Indisponible
   Unavailable on this printer: Non disponible sur cette imprimante
   Undo: Défaire

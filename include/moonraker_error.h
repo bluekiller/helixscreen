@@ -5,6 +5,7 @@
 
 #include "format_utils.h"
 #include "json_fwd.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 
 #include <string>
 
@@ -88,13 +89,16 @@ struct MoonrakerError {
 
     /**
      * @brief Get user-friendly error message
-     * @return Localized error message suitable for display to users
+     * @return Error message suitable for display to users. The curated strings
+     *         are translated; `message` is passed through as-is (it is Klipper's,
+     *         Moonraker's, or a guard's already-translated text). For logs, use
+     *         `message`.
      */
     std::string user_message() const {
         if (type == MoonrakerErrorType::TIMEOUT) {
-            return "Request timed out. The printer may be busy.";
+            return lv_tr("Request timed out. The printer may be busy.");
         } else if (type == MoonrakerErrorType::CONNECTION_LOST) {
-            return "Connection to printer lost.";
+            return lv_tr("Connection to printer lost.");
         } else if (type == MoonrakerErrorType::NOT_READY) {
             // A populated NOT_READY message is always more specific than the
             // generic fallback, and the fallback is actively misleading for the
@@ -106,16 +110,16 @@ struct MoonrakerError {
             // Deliberately narrow: TIMEOUT/CONNECTION_LOST above keep their
             // curated strings because their `message` fields hold diagnostic
             // detail ("WebSocket connection lost"), which reads as jargon.
-            return message.empty() ? "Printer is not ready. Please wait for initialization."
+            return message.empty() ? lv_tr("Printer is not ready. Please wait for initialization.")
                                    : message;
         } else if (type == MoonrakerErrorType::FILE_NOT_FOUND) {
-            return "File not found on printer.";
+            return lv_tr("File not found on printer.");
         } else if (type == MoonrakerErrorType::PERMISSION_DENIED) {
-            return "Permission denied. Check printer configuration.";
+            return lv_tr("Permission denied. Check printer configuration.");
         } else if (!message.empty()) {
             return message;
         } else {
-            return "An unknown error occurred.";
+            return lv_tr("An unknown error occurred.");
         }
     }
 

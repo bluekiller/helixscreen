@@ -41,6 +41,7 @@
 #include "text_io.h"
 #include "tool_offsets.h"
 #include "toolchanger_addon.h"
+#include "translation_loader.h"
 #include "unit_conversions.h"
 #include "webcam_service_health.h"
 #include "z_offset_persistence.h"
@@ -1790,9 +1791,10 @@ void MoonrakerDiscoverySequence::finish_discovery_subscription(const PrinterDisc
 
         // Emit discovery failed event (subscription is part of discovery)
         std::string error_msg = sub_response["error"].dump();
-        client_.emit_event(MoonrakerEventType::DISCOVERY_FAILED,
-                           fmt::format("Failed to subscribe to printer updates: {}", error_msg),
-                           false); // Warning, not error - discovery still completes
+        client_.emit_event(MoonrakerEvent::translatable(
+            MoonrakerEventType::DISCOVERY_FAILED,
+            TR_NOOP("Failed to subscribe to printer updates: {}"), {error_msg},
+            false)); // Warning, not error - discovery still completes
     }
 
     // Discovery complete - pass initial status to the callback so the caller

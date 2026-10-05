@@ -222,7 +222,8 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
             }
             if (on_error) {
                 on_error(MoonrakerError::not_ready(
-                    "printer.gcode.script", "Klipper is halted — restart firmware to continue"));
+                    "printer.gcode.script",
+                    lv_tr("Klipper is halted — restart firmware to continue")));
             }
             return;
         }
@@ -271,8 +272,8 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
                              gcode.substr(0, 60));
             }
             if (on_error) {
-                on_error(MoonrakerError::not_ready("printer.gcode.script",
-                                                   "Printer is busy — try again in a moment"));
+                on_error(MoonrakerError::not_ready(
+                    "printer.gcode.script", lv_tr("Printer is busy — try again in a moment")));
             }
             return;
         }

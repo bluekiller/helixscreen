@@ -423,9 +423,9 @@ void EmergencyStopOverlay::execute_emergency_stop() {
         },
         [](const MoonrakerError& err) {
             spdlog::error("[EmergencyStop] Emergency stop failed: {}", err.message);
-            ToastManager::instance().show(ToastSeverity::ERROR,
-                                          ("Emergency stop failed: " + err.user_message()).c_str(),
-                                          5000);
+            ToastManager::instance().show(
+                ToastSeverity::ERROR,
+                fmt::format(lv_tr("Emergency stop failed: {}"), err.user_message()).c_str(), 5000);
         });
 }
 
@@ -807,8 +807,9 @@ void EmergencyStopOverlay::restart_klipper() {
         },
         [](const MoonrakerError& err) {
             spdlog::error("[KlipperRecovery] Klipper restart failed: {}", err.message);
-            ToastManager::instance().show(ToastSeverity::ERROR,
-                                          ("Restart failed: " + err.user_message()).c_str(), 5000);
+            ToastManager::instance().show(
+                ToastSeverity::ERROR,
+                fmt::format(lv_tr("Restart failed: {}"), err.user_message()).c_str(), 5000);
         });
 }
 
@@ -840,7 +841,8 @@ void EmergencyStopOverlay::firmware_restart() {
         [](const MoonrakerError& err) {
             spdlog::error("[KlipperRecovery] Recovery failed: {}", err.message);
             ToastManager::instance().show(
-                ToastSeverity::ERROR, ("Firmware restart failed: " + err.user_message()).c_str(),
+                ToastSeverity::ERROR,
+                fmt::format(lv_tr("Firmware restart failed: {}"), err.user_message()).c_str(),
                 5000);
         });
 }

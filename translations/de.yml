@@ -132,6 +132,7 @@ translations:
   A · 1,-1: "A · 1,-1"
   ABS: ABS
   ACCELEROMETERS: BESCHLEUNIGUNGSSENSOREN
+  'ACCEPT failed: {}': 'ACCEPT fehlgeschlagen: {}'
   ACE Moonraker bridge not found. Install ace_status.py for full support.: ACE Moonraker-Bridge
     nicht gefunden. Installieren Sie ace_status.py für volle Unterstützung.
   ACTIONS: AKTIONEN
@@ -242,6 +243,7 @@ translations:
   ? An internal error occurred. The app continues running. Please send a debug bundle from Settings > Help & About if it repeats.
   : Ein interner Fehler ist aufgetreten. Die App läuft weiter. Bitte senden Sie ein Debug-Paket über Einstellungen > Hilfe & Über, falls er erneut auftritt.
   An unexpected printer error occurred.: Ein unerwarteter Druckerfehler ist aufgetreten.
+  An unknown error occurred.: Ein unbekannter Fehler ist aufgetreten.
   An update is available: Eine Aktualisierung ist verfügbar
   Analyzing data...: Analysiere Daten...
   Analyzing data... {}s: Analysiere Daten... {}s
@@ -751,9 +753,12 @@ translations:
   Connection lost — probe accuracy result unavailable: 'Verbindung verloren — Ergebnis des Taster-Genauigkeitstests nicht verfügbar'
   Connection must be tested successfully to continue: Verbindung muss erfolgreich
     getestet werden, um fortzufahren
+  Connection restored: Verbindung wiederhergestellt
   Connection successful!: Verbindung erfolgreich!
   Connection timeout: Verbindungs-Zeitüberschreitung
+  Connection to printer lost - attempting to reconnect...: Verbindung zum Drucker verloren - Verbindung wird wiederhergestellt...
   Connection to printer lost — operation may still be running: 'Verbindung zum Drucker verloren — Vorgang läuft möglicherweise noch'
+  Connection to printer lost.: Verbindung zum Drucker verloren.
   Connects: Verbindungen
   Console: Konsole
   Console Settings: Konsoleneinstellungen
@@ -1007,6 +1012,7 @@ translations:
   Emergency Stop?: Notaus?
   Emergency stop activated: Notaus aktiviert
   'Emergency stop failed: not connected': 'Notaus fehlgeschlagen: nicht verbunden'
+  'Emergency stop failed: {}': 'Notaus fehlgeschlagen: {}'
   Empty: Leer
   Empty slots disable the associated functionality: Leere Slots deaktivieren die zugehörige
     Funktionalität
@@ -1235,6 +1241,7 @@ translations:
   'Failed to start print: {}': 'Druck starten fehlgeschlagen: {}'
   'Failed to start uninstaller: ': 'Deinstallationsprogramm konnte nicht gestartet
     werden: '
+  'Failed to subscribe to printer updates: {}': 'Abonnieren der Druckeraktualisierungen fehlgeschlagen: {}'
   Failed to toggle %s: '%s konnte nicht umgeschaltet werden'
   'Failed to toggle timelapse: {}': 'Timelapse umschalten fehlgeschlagen: {}'
   'Failed to turn off heaters: {}': 'Heizungen ausschalten fehlgeschlagen: {}'
@@ -1325,6 +1332,7 @@ translations:
   Filament ran out. Auto-refill is off, so the CFS will not switch spools on its own. Load filament, then resume.: 'Filament zu Ende. Automatisches Nachfüllen ist aus, daher wechselt das CFS die Spule nicht von selbst. Filament laden und dann fortsetzen.'
   Filament ran out. The CFS knows which spools match, but those slots are empty. Load one of them, then resume.: Das Filament ist zu Ende. Das CFS weiß, welche Spulen passen, aber diese Slots sind leer. Laden Sie eine davon und setzen Sie dann fort.
   Filament reload failed: Erneutes Laden des Filaments fehlgeschlagen
+  Filament remap not supported on this printer — print will use the firmware's current tool mapping: Filament-Neuzuordnung wird von diesem Drucker nicht unterstützt — der Druck verwendet die aktuelle Werkzeugzuordnung der Firmware
   Filament remapping is unavailable: Filament-Neuzuordnung ist nicht verfügbar
   Filament runout: Filament aufgebraucht
   Filament runout and motion detection sensors: Filament-Auslauf- und Bewegungserkennungssensoren
@@ -1343,6 +1351,7 @@ translations:
   File: Datei
   File Size: Dateigröße
   File Will Stop the Printer: 'Datei stoppt den Drucker'
+  File not found on printer.: Datei auf dem Drucker nicht gefunden.
   'File not found: {}': 'Datei nicht gefunden: {}'
   Filename: Dateiname
   Fine: Fein
@@ -1355,6 +1364,7 @@ translations:
   Fireworks: Feuerwerk
   Firmware Restart: Firmware-Neustart
   Firmware reports no bypass. Enable if you feed filament straight to the extruder: Firmware meldet keinen Bypass. Aktivieren Sie dies, wenn Sie das Filament direkt zum Extruder führen
+  'Firmware restart failed: {}': 'Firmware-Neustart fehlgeschlagen: {}'
   Firmware restarting...: Firmware wird neu gestartet...
   Firmware saved X = Y's value; the measured X result was discarded: Die Firmware hat X mit dem Wert von Y gespeichert; das gemessene X-Ergebnis wurde verworfen
   'Fix: chmod 644 {}, then restart': 'Beheben: chmod 644 {}, dann neu starten'
@@ -1528,6 +1538,7 @@ translations:
   'Homing failed: ': 'Referenzfahrt fehlgeschlagen: '
   'Homing failed: {}': 'Referenzfahrt fehlgeschlagen: {}'
   Homing first...: Referenzfahrt zuerst...
+  Homing is disabled while a print is in progress: Referenzfahrt ist während eines laufenden Drucks deaktiviert
   Homing may still be running — response timed out: Referenzfahrt läuft möglicherweise
     noch — Zeitüberschreitung
   Homing selector: 'Referenzfahrt des Selektors'
@@ -1692,14 +1703,17 @@ translations:
   Klipper firmware has disconnected from the host. Try restarting Klipper or performing a firmware restart.: Klipper-Firmware
     hat die Verbindung zum Host getrennt. Versuchen Sie, Klipper neu zu starten oder
     einen Firmware-Neustart durchzuführen.
+  Klipper has disconnected from Moonraker. Check for errors in your printer interface.: Klipper hat die Verbindung zu Moonraker getrennt. Prüfe die Druckeroberfläche auf Fehler.
   ? Klipper has entered an error state. This is typically caused by an MCU connection
     failure or configuration error. Try a firmware restart.
   : Klipper ist in einen Fehlerzustand eingetreten. Dies wird typischerweise durch
     einen MCU-Verbindungsfehler oder einen Konfigurationsfehler verursacht. Versuchen
     Sie einen Firmware-Neustart.
+  Klipper has entered shutdown state.: Klipper ist in den Shutdown-Zustand gewechselt.
   Klipper has entered shutdown state. This may be due to an emergency stop, thermal runaway, or configuration error.: Klipper
     ist in den Shutdown-Zustand gewechselt. Dies kann auf einen Notaus, thermisches
     Durchgehen oder einen Konfigurationsfehler zurückzuführen sein.
+  Klipper is halted — restart firmware to continue: Klipper ist angehalten — Firmware neu starten, um fortzufahren
   Klipper reserves 'default' for new calibrations. Choose another name.: "Klipper reserviert 'default' für neue Kalibrierungen. Wählen Sie einen anderen Namen."
   Klipper restarting - macros activating: 'Klipper startet neu - Makros werden aktiviert'
   ? Klipper stopped reporting progress. Its analysis can run out of memory on small printers and leave Klipper stuck, where a firmware restart cannot reach it. Power-cycle the printer (or restart Klipper over SSH), then try again.
@@ -1942,6 +1956,7 @@ translations:
   Monitoring: Überwachung
   Month: Monat
   Moonraker: Moonraker
+  Moonraker is not responding at {}. It runs on this printer, so check that the Klipper and Moonraker services started.: Moonraker antwortet nicht unter {}. Es läuft auf diesem Drucker, prüfe also, ob die Dienste Klipper und Moonraker gestartet sind.
   Moonraker restarted but Spoolman not connected. Check server.: Moonraker neu gestartet,
     aber Spoolman nicht verbunden. Server prüfen.
   ? "Moonraker restarting...\nWaiting for reconnection..."
@@ -2291,6 +2306,7 @@ translations:
   'Peak:': 'Spitze:'
   Peaks {} Hz: "Spitzen {} Hz"
   Performance: Leistung
+  Permission denied. Check printer configuration.: Zugriff verweigert. Prüfe die Druckerkonfiguration.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
   Pick: Auswählen
@@ -2446,6 +2462,8 @@ translations:
   Printer accepted job but isn't printing — check cover, paper, and label type (firmware status=0x{:02X} error=0x{:02X}): Drucker
     hat Auftrag angenommen, druckt aber nicht – prüfen Sie Abdeckung, Papier und Etikettentyp
     (firmware status=0x{:02X} error=0x{:02X})
+  'Printer command ''{}'' failed: {}': 'Druckerbefehl ''{}'' fehlgeschlagen: {}'
+  Printer command '{}' timed out after {}ms: Druckerbefehl '{}' nach {} ms abgelaufen
   Printer connection unavailable: Druckerverbindung nicht verfügbar
   Printer database format error: Formatfehler der Druckerdatenbank
   Printer database is corrupt: Druckerdatenbank ist beschädigt
@@ -2457,7 +2475,9 @@ translations:
   Printer hardware detected: Druckerhardware erkannt
   Printer image set to auto-detect: Druckerbild auf Auto-Erkennung gesetzt
   Printer is busy - {} stays in the queue: 'Drucker ist beschäftigt – {} bleibt in der Warteschlange'
+  Printer is busy — try again in a moment: Drucker ist beschäftigt — versuche es gleich noch einmal
   Printer is not paired — pair it first: Drucker ist nicht gekoppelt — zuerst koppeln
+  Printer is not ready. Please wait for initialization.: Drucker ist nicht bereit. Bitte warte auf die Initialisierung.
   'Printer message: {}': 'Druckermeldung: {}'
   Printer name: Druckername
   Printer not connected: Drucker nicht verbunden
@@ -2589,6 +2609,7 @@ translations:
     erreichbar
   Recalibrate or view detailed results anytime in Settings.: Jederzeit in den Einstellungen
     neu kalibrieren oder detaillierte Ergebnisse anzeigen.
+  Received oversized data from printer ({} bytes). This may indicate a communication error.: Zu große Daten vom Drucker empfangen ({} Bytes). Das kann auf einen Kommunikationsfehler hinweisen.
   Recent Prints: Letzte Drucke
   Recently Printed: Zuletzt gedruckt
   Reconnect: Erneut verbinden
@@ -2662,6 +2683,7 @@ translations:
   Reprint: Erneut drucken
   Reprint Last: Letzten nachdrucken
   Request Failed: Anfrage fehlgeschlagen
+  Request timed out. The printer may be busy.: Zeitüberschreitung der Anfrage. Der Drucker ist möglicherweise beschäftigt.
   Require Confirmation?: Bestätigung erforderlich?
   Require confirmation before emergency stop: Bestätigung vor Notaus erforderlich
   Requires Moonraker power device: 'Erfordert ein Moonraker-Stromgerät'
@@ -2704,6 +2726,7 @@ translations:
   Restart Now: Jetzt neu starten
   Restart Required: Neustart erforderlich
   'Restart failed: not connected': 'Neustart fehlgeschlagen: nicht verbunden'
+  'Restart failed: {}': 'Neustart fehlgeschlagen: {}'
   Restart from the beginning to recover: Starten Sie zum Wiederherstellen von vorne neu
   Restart pending: 'Neustart ausstehend'
   Restart the display application: Anzeigeanwendung neu starten
@@ -3088,6 +3111,7 @@ translations:
   Spoolman was not configured.: Spoolman war nicht konfiguriert.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Spule%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Spule%s'
+  'Spools are on the bed: remove them and confirm before moving the printer': 'Spulen liegen auf dem Heizbett: entferne sie und bestätige, bevor der Drucker bewegt wird'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Spulen liegen auf dem Heizbett: Tippe auf das Trocknungsbanner, um zu bestätigen, dass sie entnommen sind, und starte dann neu.'
 
   'Spools on the bed: start drying, or confirm none were placed': 'Spulen auf dem Heizbett: Trocknung starten oder bestätigen, dass keine eingelegt wurden'
@@ -3548,6 +3572,8 @@ translations:
   USB drive removed: USB-Laufwerk entfernt
   USB printer access denied — check permissions: USB-Drucker-Zugriff verweigert —
     Berechtigungen prüfen
+  Unable to reach printer at {}. Check that the printer is powered on and that this address is correct.: Drucker unter {} nicht erreichbar. Prüfe, ob der Drucker eingeschaltet und diese Adresse korrekt ist.
+  Unable to reach printer. Check power and network connection.: Drucker nicht erreichbar. Prüfe Stromversorgung und Netzwerkverbindung.
   Unavailable: Nicht verfügbar
   Unavailable on this printer: Auf diesem Drucker nicht verfügbar
   Undo: Rückgängig
