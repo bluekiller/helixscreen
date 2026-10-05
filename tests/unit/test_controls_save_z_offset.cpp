@@ -13,7 +13,6 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
-#include "../test_helpers/controls_panel_test_access.h"
 #include "../test_helpers/moonraker_client_test_access.h"
 #include "../test_helpers/printer_state_test_access.h"
 #include "app_globals.h"
@@ -44,6 +43,7 @@ class ControlsSaveZOffsetFixture : public LVGLUITestFixture {
         : client(MoonrakerClientMock::PrinterType::VORON_24), api(client, state()),
           panel(state(), &api) {
         MoonrakerClientTestAccess::force_connection_state(client, ConnectionState::CONNECTED);
+        helix::zoffset::reset_shared_save();
         previous_api = get_moonraker_api();
         set_moonraker_api(&api);
         // The XML callbacks resolve to the global panel, not to `panel`.
@@ -73,7 +73,7 @@ class ControlsSaveZOffsetFixture : public LVGLUITestFixture {
     }
 
     ~ControlsSaveZOffsetFixture() override {
-        helix::ui::ControlsPanelTestAccess::end_save_z_offset_guard(get_global_controls_panel());
+        helix::zoffset::reset_shared_save();
         get_global_controls_panel().set_api(nullptr);
         set_moonraker_api(previous_api);
         ModalStack::instance().clear();
@@ -188,7 +188,9 @@ TEST_CASE_METHOD(ControlsSaveZOffsetFixture,
 
     CHECK(save_button_visible());
     click_save();
-    CHECK(ModalStack::instance().top_dialog() != nullptr);
+    // This firmware persists tool offsets without a restart, so there is
+    // nothing to warn about and the save runs on the tap.
+    CHECK(ModalStack::instance().stack_empty());
 }
 
 TEST_CASE_METHOD(ControlsSaveZOffsetFixture,

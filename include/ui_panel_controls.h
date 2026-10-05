@@ -15,7 +15,6 @@
 #include "i_moonraker_api.h"
 #include "operation_timeout_guard.h"
 #include "quick_action_slots.h"
-#include "save_config_restart.h"
 #include "standard_macros.h"
 #include "subject_managed_panel.h"
 #include "ui/position_observer_bundle.h"
@@ -299,28 +298,9 @@ class ControlsPanel : public PanelBase {
     // === Modal Dialog State ===
     //
 
-    /// Owns the SAVE_CONFIG contract for the z-offset save: absorbs the rpc the
-    /// restart drops and reports success only once Klipper is back (#1359).
-    helix::ui::SaveConfigWatch save_config_watch_;
-
     helix::ui::ModalGuard motors_confirmation_dialog_;
-    helix::ui::ModalGuard save_z_offset_confirmation_dialog_;
     helix::ui::ModalGuard macro_run_confirmation_dialog_;
     OperationTimeoutGuard operation_guard_;
-
-    /// Guards against a double-click race on Save Z-Offset.
-    ///
-    /// A bounded timeout rather than a bare bool: SAVE_CONFIG restarts Klipper,
-    /// and MoonrakerClient::notify_klippy_disconnected() calls
-    /// tracker_.cleanup_all(), which drops the pending RPC — so neither the
-    /// success nor the error callback ever fires and a plain flag stayed latched
-    /// until app restart, leaving the Save button dead. The guard self-clears.
-    OperationTimeoutGuard save_z_offset_guard_;
-
-    /// Covers Z_OFFSET_APPLY_PROBE + SAVE_CONFIG plus the Klipper restart, with
-    /// headroom for stock code that chains a second config write (Creality K2 +
-    /// CFS writes CFS Tn_data via CXSAVE_CONFIG ~50s later).
-    static constexpr uint32_t SAVE_Z_OFFSET_TIMEOUT_MS = 90000;
 
     //
     // === Dynamic UI Containers ===
@@ -441,10 +421,7 @@ class ControlsPanel : public PanelBase {
     void populate_secondary_fans(); // Build fan list from helix::PrinterState
     void update_z_offset_delta_display(int delta_microns); // Format delta for banner
 
-    // Z-Offset save handler
     void handle_save_z_offset();
-    void handle_save_z_offset_confirm();
-    void handle_save_z_offset_cancel();
 
     //
     // === V2 Card Click Handlers (navigation to full panels) ===
