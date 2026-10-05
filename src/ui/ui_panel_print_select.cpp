@@ -2985,8 +2985,8 @@ void PrintSelectPanel::copy_usb_file_to_printer(std::function<void(const std::st
                               return;
                           }
                           end_usb_copy();
-                          NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), req.filename,
-                                       err.user_message());
+                          helix::ui::notify_error_tr(TR_NOOP("Could not copy {} from USB: {}"),
+                                                     req.filename, err);
                       });
         });
 }
@@ -3020,8 +3020,8 @@ void PrintSelectPanel::upload_usb_copy(UsbCopyRequest req,
             tok.defer("PrintSelectPanel::usb_copy_failed", [this, generation, filename, err]() {
                 if (usb_copy_current(generation)) {
                     end_usb_copy();
-                    NOTIFY_ERROR(lv_tr("Could not copy {} from USB: {}"), filename,
-                                 err.user_message());
+                    helix::ui::notify_error_tr(TR_NOOP("Could not copy {} from USB: {}"), filename,
+                                               err);
                 }
             });
         },

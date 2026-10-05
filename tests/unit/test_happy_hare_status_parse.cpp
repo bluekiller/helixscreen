@@ -1,0 +1,195 @@
+// Copyright (C) 2025-2026 356C LLC
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "happy_hare_status_parse.h"
+
+#include "../catch_amalgamated.hpp"
+
+using json = nlohmann::json;
+using namespace helix;
+
+TEST_CASE("Happy Hare status parse leaves every omitted field unset",
+          "[happy_hare][status_parse]") {
+    const auto d = happy_hare::parse_mmu_status(json::object());
+    CHECK_FALSE(d.core.gate);
+    CHECK_FALSE(d.core.tool);
+    CHECK_FALSE(d.core.filament_loaded);
+    CHECK_FALSE(d.core.reason_for_pause);
+    CHECK_FALSE(d.core.action);
+    CHECK_FALSE(d.core.filament_pos);
+    CHECK_FALSE(d.core.bowden_progress);
+    CHECK_FALSE(d.core.has_bypass);
+    CHECK_FALSE(d.topology.num_units);
+    CHECK_FALSE(d.topology.gate_counts);
+    CHECK_FALSE(d.topology.ttg_map);
+    CHECK_FALSE(d.identity.gate_status);
+    CHECK_FALSE(d.identity.color_rgb);
+    CHECK_FALSE(d.telemetry.espooler_active);
+    CHECK_FALSE(d.telemetry.encoder);
+    CHECK_FALSE(d.telemetry.number_of_toolchanges);
+    CHECK_FALSE(d.sensors);
+    CHECK_FALSE(d.drying);
+    CHECK_FALSE(d.endless_spool_enabled);
+}
+
+TEST_CASE("Happy Hare status parse core fields", "[happy_hare][status_parse]") {
+    const auto c = happy_hare::parse_core(json{{"gate", -2},
+                                               {"tool", 3.5},
+                                               {"filament", "Unloaded"},
+                                               {"action", "Forming Tip"},
+                                               {"filament_pos", 4},
+                                               {"bowden_progress", 250},
+                                               {"has_bypass", false}});
+    CHECK(c.gate == -2);
+    CHECK_FALSE(c.tool); // a float is not a tool number
+    CHECK(c.filament_loaded == false);
+    CHECK(c.action == "Forming Tip");
+    CHECK(c.filament_pos == 4);
+    CHECK(c.bowden_progress == 100);
+    CHECK(c.has_bypass == false);
+
+    CHECK(happy_hare::parse_core(json{{"filament", "Loaded"}}).filament_loaded == true);
+    CHECK(happy_hare::parse_core(json{{"bowden_progress", -9}}).bowden_progress == -1);
+    CHECK_FALSE(happy_hare::parse_core(json{{"has_bypass", "yes"}}).has_bypass);
+}
+
+TEST_CASE("Happy Hare status parse topology reads each gate-count spelling",
+          "[happy_hare][status_parse]") {
+    using happy_hare::parse_topology;
+
+    CHECK(*parse_topology(json{{"num_gates", "6,4"}}).gate_counts == std::vector<int>{6, 4});
+    CHECK(*parse_topology(json{{"num_gates", "6,x,0,4"}}).gate_counts == std::vector<int>{6, 4});
+    CHECK(*parse_topology(json{{"num_gates", 8}}).gate_counts == std::vector<int>{8});
+    CHECK(*parse_topology(json{{"num_gates", json::array({6, 0, 4})}}).gate_counts ==
+          std::vector<int>{6, 4});
+    CHECK_FALSE(parse_topology(json{{"num_gates", 0}}).gate_counts);
+    CHECK_FALSE(parse_topology(json{{"num_gates", "x"}}).gate_counts);
+
+    // unit_gate_counts wins over num_gates when it names any, and keeps a
+    // non-positive entry that num_gates would have dropped.
+    CHECK(*parse_topology(json{{"num_gates", "6,4"}, {"unit_gate_counts", json::array({2, 0})}})
+               .gate_counts == std::vector<int>{2, 0});
+    CHECK(*parse_topology(json{{"num_gates", "6,4"}, {"unit_gate_counts", json::array()}})
+               .gate_counts == std::vector<int>{6, 4});
+
+    CHECK(parse_topology(json{{"num_units", 0}}).num_units == 1);
+    CHECK(parse_topology(json{{"num_units", 3}, {"unit", 2}}).active_unit == 2);
+
+    // An empty ttg_map is a map, not an absent one.
+    const auto empty = parse_topology(json{{"ttg_map", json::array()}});
+    REQUIRE(empty.ttg_map);
+    CHECK(empty.ttg_map->empty());
+    CHECK(*parse_topology(json{{"ttg_map", json::array({1, "x", 0})}}).ttg_map ==
+          std::vector<int>{1, 0});
+}
+
+TEST_CASE("Happy Hare status parse gate arrays keep the frame's length and skip bad entries",
+          "[happy_hare][status_parse]") {
+    const auto id = happy_hare::parse_gate_identity(json{
+        {"gate_status", json::array({1, "x", 2.5, -1})},
+        {"gate_color_rgb",
+         json::array({0xFF0000, json::array({1.0, 0.5, 0.0}), json::array({1.0, 0.5}), "red"})},
+        {"gate_color", json::array({"ff0000", "", "zzz", 5})},
+        {"gate_material", json::array({"PLA", 3})},
+        {"gate_temperature", json::array({210, 215.7, "hot"})},
+        {"gate_spool_id", json::array({12, 0})}});
+
+    REQUIRE(id.gate_status);
+    CHECK(id.gate_status->size() == 4);
+    CHECK((*id.gate_status)[0] == 1);
+    CHECK_FALSE((*id.gate_status)[1]);
+    CHECK_FALSE((*id.gate_status)[2]); // a float is not a status
+    CHECK((*id.gate_status)[3] == -1);
+
+    REQUIRE(id.color_rgb);
+    CHECK((*id.color_rgb)[0] == 0xFF0000u);
+    CHECK((*id.color_rgb)[1] == 0xFF8000u); // 0.5 * 255 + 0.5 rounds to 128
+    CHECK_FALSE((*id.color_rgb)[2]);
+    CHECK_FALSE((*id.color_rgb)[3]);
+
+    REQUIRE(id.color);
+    CHECK((*id.color)[0]->kind == ams::ColorReadingKind::Observed);
+    CHECK((*id.color)[0]->rgb == 0xFF0000u);
+    CHECK((*id.color)[1]->kind == ams::ColorReadingKind::Cleared);
+    CHECK((*id.color)[2]->kind == ams::ColorReadingKind::NoReading);
+    CHECK_FALSE((*id.color)[3]);
+
+    CHECK((*id.material)[0] == "PLA");
+    CHECK_FALSE((*id.material)[1]);
+    CHECK((*id.temperature)[1] == 215);
+    CHECK_FALSE((*id.temperature)[2]);
+    CHECK((*id.spool_id)[1] == 0);
+    CHECK_FALSE(id.name);
+}
+
+TEST_CASE("Happy Hare status parse telemetry reads nested objects field by field",
+          "[happy_hare][status_parse]") {
+    const auto t = happy_hare::parse_telemetry(
+        json{{"espooler_active", "assist"},
+             {"sync_drive", true},
+             {"clog_detection_enabled", 2},
+             {"encoder", json{{"flow_rate", 97}, {"headroom", 12.5}}},
+             {"flowguard", json{{"enabled", true}, {"encoder_mode", 1}}},
+             {"leds", json{{"unit0", json{{"exit_effect", "gate_status"}}}}},
+             {"num_toolchanges", 3},
+             {"slicer_tool_map", json{{"total_toolchanges", nullptr}}},
+             {"spoolman_support", "pull"},
+             {"pending_spool_id", 7}});
+    CHECK(t.espooler_active == "assist");
+    CHECK(t.sync_drive == true);
+    CHECK(t.clog_detection_enabled == 2);
+    REQUIRE(t.encoder);
+    CHECK(t.encoder->flow_rate == 97);
+    CHECK(t.encoder->headroom == Catch::Approx(12.5f));
+    CHECK_FALSE(t.encoder->min_headroom);
+    REQUIRE(t.flowguard);
+    CHECK(t.flowguard->enabled == true);
+    CHECK_FALSE(t.flowguard->active);
+    CHECK(t.flowguard->encoder_mode == 1);
+    CHECK(t.led_exit_effect == "gate_status");
+    CHECK(t.current_toolchange == 2);
+    // The slicer object without a total says there is none.
+    CHECK(t.number_of_toolchanges == 0);
+    CHECK(t.spoolman_mode == SpoolmanMode::PULL);
+    CHECK(t.pending_spool_id == 7);
+
+    CHECK(happy_hare::parse_telemetry(json{{"num_toolchanges", 0}}).current_toolchange == -1);
+    CHECK_FALSE(happy_hare::parse_telemetry(json{{"slicer_tool_map", 3}}).number_of_toolchanges);
+}
+
+TEST_CASE("Happy Hare status parse sensors, drying and the endless-spool bit",
+          "[happy_hare][status_parse]") {
+    const auto d =
+        happy_hare::parse_mmu_status(json{{"sensors", json{{"mmu_pre_gate_0", true},
+                                                           {"mmu_pre_gate_2", nullptr},
+                                                           {"mmu_pre_gate_x", true},
+                                                           {"mmu_pre_gate_-1", true},
+                                                           {"mmu_gear", true}}},
+                                          {"drying_state", json::array({"active", 4, "queued"})},
+                                          {"endless_spool", 1}});
+    REQUIRE(d.sensors);
+    REQUIRE(d.sensors->pre_gate.size() == 2);
+    CHECK(d.sensors->pre_gate[0] == std::pair<int, bool>{0, true});
+    CHECK(d.sensors->pre_gate[1] == std::pair<int, bool>{2, false});
+    CHECK_FALSE(d.sensors->aggregate_pre_gate);
+
+    REQUIRE(d.drying);
+    CHECK_FALSE(d.drying->object);
+    CHECK(*d.drying->per_gate == std::vector<std::string>{"active", "", "queued"});
+    CHECK(d.endless_spool_enabled == true);
+
+    const auto emu =
+        happy_hare::parse_mmu_status(json{{"sensors", json{{"mmu_pre_gate", true}}},
+                                          {"drying_state", json{{"active", true}, {"fan_pct", 30}}},
+                                          {"endless_spool_enabled", nullptr},
+                                          {"endless_spool", false}});
+    REQUIRE(emu.sensors);
+    CHECK(emu.sensors->aggregate_pre_gate == true);
+    REQUIRE(emu.drying);
+    REQUIRE(emu.drying->object);
+    CHECK(emu.drying->object->active == true);
+    CHECK(emu.drying->object->fan_pct == 30);
+    CHECK_FALSE(emu.drying->object->current_temp_c);
+    // The newer key is null, so the older spelling answers.
+    CHECK(emu.endless_spool_enabled == false);
+}

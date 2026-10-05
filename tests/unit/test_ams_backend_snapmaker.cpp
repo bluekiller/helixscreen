@@ -1717,7 +1717,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "retry_count": 0,
             "error_count": 1
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state == "PARKED");
         REQUIRE(state.park_pin == true);
         REQUIRE(state.active_pin == false);
@@ -1741,7 +1742,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "retry_count": 2,
             "error_count": 0
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state == "ACTIVE");
         REQUIRE(state.park_pin == false);
         REQUIRE(state.active_pin == true);
@@ -1761,14 +1763,16 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "retry_count": 0,
             "error_count": 0
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state == "ACTIVATING");
         REQUIRE(state.activating_move == true);
     }
 
     SECTION("handles missing fields gracefully") {
         auto j = nlohmann::json::parse("{}");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.state.empty());
         REQUIRE(state.park_pin == false);
         REQUIRE(state.active_pin == false);
@@ -1786,7 +1790,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder state parsing", "[ams][sn
             "state": "PARKED",
             "extruder_offset": [1.5]
         })");
-        auto state = AmsBackendSnapmaker::parse_extruder_state(j);
+        ExtruderToolState state;
+        state.apply(snapmaker::parse_extruder_delta(j));
         REQUIRE(state.extruder_offset[0] == Catch::Approx(1.5f));
         // Missing indices stay at default
         REQUIRE(state.extruder_offset[1] == Catch::Approx(0.0f));
@@ -1815,7 +1820,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "BED_TEMP": 60,
             "OFFICIAL": true
         })");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.main_type == "PLA");
         REQUIRE(info.sub_type == "SnapSpeed");
         REQUIRE(info.manufacturer == "Polymaker");
@@ -1831,7 +1836,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
     SECTION("ARGB alpha byte is masked to produce RGB") {
         // 0xFF0000FF (opaque blue) -> 0x0000FF
         auto j = nlohmann::json::parse(R"({"ARGB_COLOR": 4278190335})");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.color_rgb == 0x0000FFu);
     }
 
@@ -1841,7 +1846,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "MANUFACTURER": "",
             "MAIN_TYPE": "PETG"
         })");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         // Parser stores fields as-is; brand fallback logic is in handle_status
         REQUIRE(info.vendor == "Generic");
         REQUIRE(info.manufacturer.empty());
@@ -1850,7 +1855,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
 
     SECTION("handles missing RFID fields with safe defaults") {
         auto j = nlohmann::json::parse("{}");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.main_type.empty());
         REQUIRE(info.sub_type.empty());
         REQUIRE(info.manufacturer.empty());
@@ -1873,7 +1878,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
             "BED_TEMP": 80,
             "WEIGHT": 1000
         })");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.main_type == "PETG");
         REQUIRE(info.sub_type == "Basic");
         REQUIRE(info.manufacturer == "Generic3D");
@@ -1885,13 +1890,13 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker RFID info parsing", "[ams][snapmak
 
     SECTION("parses CARD_UID array as comma-joined string") {
         auto j = json::parse(R"({"CARD_UID": [144, 32, 196, 2]})");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.uid == "144,32,196,2");
     }
 
     SECTION("missing CARD_UID leaves uid empty") {
         auto j = json::parse(R"({"MAIN_TYPE": "PLA"})");
-        auto info = AmsBackendSnapmaker::parse_rfid_info(j);
+        auto info = snapmaker::parse_rfid_info(j);
         REQUIRE(info.uid.empty());
     }
 }
@@ -3739,4 +3744,375 @@ TEST_CASE_METHOD(SnapmakerInsertFixture,
 
     REQUIRE(toasts.size() == 1);
     CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
+}
+
+// ============================================================================
+// Golden sequence: one full status frame, then the deltas a U1 sends for a
+// load, an unload, an RFID insert, a failed batch head and a temperature-only
+// extruder update. Each frame is pinned as a text snapshot of what the parse
+// leaves behind (slots, action, working slot, latch, pending-insert state)
+// plus the side effects it dispatches after releasing the lock. Any reordering
+// of the parse sections shows up here as a changed line.
+// ============================================================================
+
+namespace {
+
+struct SnapmakerGoldenFixture : public LVGLUITestFixture {
+    SnapmakerGoldenFixture()
+        : client(MoonrakerClientMock::PrinterType::VORON_24), api(client, state) {
+        state.init_subjects(false);
+
+        auto store = std::make_unique<helix::ams::FilamentSlotOverrideStore>(
+            &api, "snapmaker", helix::ams::LaneKeyStyle::Tool);
+        FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
+        SnapmakerTestAccess::inject_override_store(backend, std::move(store));
+
+        helix::ams::FilamentSlotOverride ovr;
+        ovr.brand = "Polymaker";
+        ovr.spool_name = "PolyLite Orange";
+        ovr.material = "PLA";
+        ovr.color_rgb = 0xFF5500;
+        SnapmakerTestAccess::seed_override(backend, 0, ovr);
+
+        SnapmakerTestAccess::set_use_batch_macro(backend, true);
+        SnapmakerTestAccess::set_batch_macro_object(backend, "gcode_macro AUTO_FEEDING_BATCH");
+        backend.set_event_callback(
+            [this](const std::string& name, const std::string&) { events.push_back(name); });
+        helix::ui::set_test_toast_hook(
+            [this](ToastSeverity, const std::string&, uint32_t) { ++toasts; });
+    }
+
+    ~SnapmakerGoldenFixture() override {
+        helix::ui::set_test_toast_hook(nullptr);
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    /// Feeds one frame and returns the snapshot line block for it.
+    std::string feed(const json& frame) {
+        events.clear();
+        backend.captured_gcodes.clear();
+        toasts = 0;
+        SnapmakerTestAccess::handle_status(backend, frame);
+        helix::ui::UpdateQueue::instance().drain();
+        return snapshot();
+    }
+
+    std::string snapshot() {
+        const AmsSystemInfo info = backend.get_system_info();
+        std::string out =
+            fmt::format("action={} phase={} detail='{}' working={} tool={} slot={} loaded={}\n",
+                        ams_action_to_string(info.action), info.operation_phase,
+                        info.operation_detail, info.operation_working_slot, info.current_tool,
+                        info.current_slot, info.filament_loaded);
+        for (int i = 0; i < 4; ++i) {
+            const SlotInfo slot = backend.get_slot_info(i);
+            const auto snap = backend.channel_snapshot(i);
+            out += fmt::format(
+                "  s{} {} {}/{}/{} #{:06X} n{}-{} b{} w{:.0f} latch={} pend={} state={} "
+                "detected={}\n",
+                i, slot_status_to_string(slot.status), slot.material, slot.brand, slot.spool_name,
+                slot.color_rgb, slot.nozzle_temp_min, slot.nozzle_temp_max, slot.bed_temp,
+                slot.total_weight_g, SnapmakerTestAccess::loaded_at_toolhead(backend, i),
+                SnapmakerTestAccess::pending_insert_passes(backend, i), snap.state,
+                snap.filament_detected);
+        }
+        std::string gcodes;
+        for (const auto& g : backend.captured_gcodes) {
+            gcodes += (gcodes.empty() ? "" : "|") + g;
+        }
+        std::string unloaded;
+        for (int i = 0; i < 4; ++i) {
+            if (AmsState::instance().was_slot_recently_unloaded(i)) {
+                unloaded += std::to_string(i);
+            }
+        }
+        out += fmt::format(
+            "  batch_active={} port_present={} events={} gcodes={} toasts={} unloaded={}",
+            backend.batch_plan().active, SnapmakerTestAccess::last_published_port_present(backend),
+            events.size(), gcodes, toasts, unloaded);
+        return out;
+    }
+
+    SnapmakerTmpCacheDir tmp{"golden_sequence"};
+    MoonrakerClientMock client;
+    helix::PrinterState state;
+    MoonrakerAPIMock api;
+    helix::test::RegisteredBackend<CapturingSnapmakerBackend> backend_reg{};
+    CapturingSnapmakerBackend& backend = *backend_reg;
+    std::vector<std::string> events;
+    int toasts = 0;
+};
+
+json golden_extruder(const char* state, bool park, bool active) {
+    return json{{"state", state},
+                {"park_pin", park},
+                {"active_pin", active},
+                {"activating_move", false},
+                {"extruder_offset", json::array({0.0, 0.0, 0.0})},
+                {"switch_count", 3},
+                {"retry_count", 0},
+                {"error_count", 0}};
+}
+
+json golden_full_frame() {
+    json info = json::array();
+    info.push_back(json{{"MAIN_TYPE", "PLA"},
+                        {"SUB_TYPE", "SnapSpeed"},
+                        {"MANUFACTURER", "Snapmaker"},
+                        {"VENDOR", "Snapmaker"},
+                        {"ARGB_COLOR", 0xFF112233u},
+                        {"HOTEND_MIN_TEMP", 190},
+                        {"HOTEND_MAX_TEMP", 230},
+                        {"BED_TEMP", 60},
+                        {"WEIGHT", 1000},
+                        {"CARD_UID", json::array({1, 2, 3, 4})}});
+    for (int i = 1; i < 4; ++i) {
+        info.push_back(json{{"MAIN_TYPE", "NONE"}});
+    }
+    return json{
+        {"toolhead", json{{"extruder", "extruder"}}},
+        {"extruder", golden_extruder("ACTIVE", false, true)},
+        {"extruder1", golden_extruder("PARKED", true, false)},
+        {"extruder2", golden_extruder("PARKED", true, false)},
+        {"extruder3", golden_extruder("PARKED", true, false)},
+        {"filament_detect", json{{"info", info}, {"state", json::array({1, 1, 1, 0})}}},
+        {"filament_feed left", json{{"extruder0", json{{"filament_detected", true},
+                                                       {"channel_state", "load_finish"},
+                                                       {"channel_error", "ok"},
+                                                       {"module_exist", true}}},
+                                    {"extruder1", json{{"filament_detected", true},
+                                                       {"channel_state", "preload_finish"}}}}},
+        {"filament_feed right",
+         json{{"extruder2", json{{"filament_detected", true}, {"channel_state", "preload_finish"}}},
+              {"extruder3", json{{"filament_detected", false}, {"channel_state", "wait_insert"}}}}},
+        {"print_task_config",
+         json{
+             {"filament_exist", json::array({true, true, true, false})},
+             {"filament_type", json::array({"PLA", "PETG", "ABS", ""})},
+             {"filament_vendor", json::array({"Snapmaker", "Generic", "Generic", ""})},
+             {"filament_color_rgba", json::array({"112233FF", "AA0000FF", "00BB00FF", "FFFFFFFF"})},
+             {"extruder_map_table", json::array({0, 1, 2, 3})},
+             {"extruders_used", json::array({true, false, false, false})},
+             {"auto_replenish_filament", true},
+             {"filament_entangle_sen", "medium"},
+             {"end_unload_filament", json::array({false, true})}}},
+        {"filament_motion_sensor e0_filament",
+         json{{"enabled", true}, {"filament_detected", true}}},
+        {"filament_motion_sensor e1_filament",
+         json{{"enabled", true}, {"filament_detected", true}}},
+        {"filament_motion_sensor e2_filament",
+         json{{"enabled", true}, {"filament_detected", true}}},
+        {"filament_motion_sensor e3_filament",
+         json{{"enabled", true}, {"filament_detected", false}}},
+        {"gcode_macro AUTO_FEEDING_BATCH", json{{"doing", false}}}};
+}
+
+json golden_feed(int ext, const char* state, std::optional<bool> detected = std::nullopt) {
+    json ch{{"channel_state", state}};
+    if (detected) {
+        ch["filament_detected"] = *detected;
+    }
+    return json{{ext <= 1 ? "filament_feed left" : "filament_feed right",
+                 json{{"extruder" + std::to_string(ext), ch}}}};
+}
+
+} // namespace
+
+namespace {
+const std::string kGolden = R"GOLD(full frame
+action=Idle phase=-1 detail='' working=-1 tool=0 slot=0 loaded=true
+  s0 Loaded PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=
+load: pick
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=
+load: feeding
+action=Loading phase=2 detail='' working=1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=load_feeding detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=
+load: heating
+action=Heating phase=3 detail='' working=1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=load_heating detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=
+load: finish
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Loaded PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=true pend=0 state=load_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=
+unload: prepare
+action=Unloading phase=0 detail='' working=1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Loaded PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=true pend=0 state=unload_prepare detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=
+unload: finish
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=true pend=0 state=load_finish detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=1
+insert: port drops
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Empty PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=wait_insert detected=false
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=1
+insert: port rises
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=2 state=wait_insert detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=1
+insert: reader answers NONE
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=wait_insert detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Empty // #FFFFFF n0-0 b0 w-1 latch=false pend=0 state=wait_insert detected=false
+  batch_active=false port_present=1 events=0 gcodes= toasts=1 unloaded=1
+insert: head 3 rises
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=wait_insert detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Available // #FFFFFF n0-0 b0 w-1 latch=false pend=2 state=wait_insert detected=true
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=1
+insert: head 3 tag read
+action=Idle phase=-1 detail='' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=wait_insert detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Available PETG/Snapmaker/Basic #445566 n0-0 b0 w500 latch=false pend=0 state=wait_insert detected=true
+  batch_active=false port_present=1 events=1 gcodes= toasts=0 unloaded=1
+batch: head 0 mid-load
+action=Loading phase=2 detail='' working=0 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=load_feeding detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Available PETG/Snapmaker/Basic #445566 n0-0 b0 w500 latch=false pend=0 state=wait_insert detected=true
+  batch_active=true port_present=1 events=1 gcodes= toasts=0 unloaded=1
+batch: head 0 fails
+action=Error phase=-1 detail='Feeder 1: Load failed' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=load_fail detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Available PETG/Snapmaker/Basic #445566 n0-0 b0 w500 latch=false pend=0 state=wait_insert detected=true
+  batch_active=false port_present=1 events=1 gcodes=AUTO_FEEDING_BATCH ACTION=END toasts=0 unloaded=1
+extruder: temperature only
+action=Error phase=-1 detail='Feeder 1: Load failed' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=load_fail detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Available PETG/Snapmaker/Basic #445566 n0-0 b0 w500 latch=false pend=0 state=wait_insert detected=true
+  batch_active=false port_present=1 events=0 gcodes= toasts=0 unloaded=1
+extruder: idle frame
+action=Error phase=-1 detail='Feeder 1: Load failed' working=-1 tool=1 slot=1 loaded=true
+  s0 Available PLA/Snapmaker/PolyLite Orange #112233 n190-230 b60 w1000 latch=false pend=0 state=load_fail detected=true
+  s1 Available PETG/Generic/ #AA0000 n0-0 b0 w-1 latch=false pend=0 state=unload_finish detected=true
+  s2 Available ABS/Generic/ #00BB00 n0-0 b0 w-1 latch=false pend=0 state=preload_finish detected=true
+  s3 Available PETG/Snapmaker/Basic #445566 n0-0 b0 w500 latch=false pend=0 state=wait_insert detected=true
+  batch_active=false port_present=1 events=0 gcodes= toasts=0 unloaded=1
+)GOLD";
+} // namespace
+
+TEST_CASE_METHOD(SnapmakerGoldenFixture, "Snapmaker golden status sequence",
+                 "[ams][snapmaker][golden]") {
+    const std::vector<std::pair<std::string, json>> frames = {
+        {"full frame", golden_full_frame()},
+        // Load on head 1: the carriage picks it, the channel walks to finish.
+        {"load: pick", json{{"toolhead", json{{"extruder", "extruder1"}}},
+                            {"extruder", golden_extruder("PARKED", true, false)},
+                            {"extruder1", golden_extruder("ACTIVE", false, true)}}},
+        {"load: feeding", golden_feed(1, "load_feeding")},
+        {"load: heating", golden_feed(1, "load_heating")},
+        {"load: finish", golden_feed(1, "load_finish")},
+        // Unload of head 1.
+        {"unload: prepare", golden_feed(1, "unload_prepare")},
+        {"unload: finish", golden_feed(1, "unload_finish")},
+        // Head 0 loses its spool and a tagless one goes in, then a tagged one in head 3.
+        {"insert: port drops", golden_feed(0, "wait_insert", false)},
+        {"insert: port rises", golden_feed(0, "wait_insert", true)},
+        {"insert: reader answers NONE",
+         json{{"filament_detect",
+               json{{"info",
+                     json::array({json{{"MAIN_TYPE", "NONE"}}, json{{"MAIN_TYPE", "NONE"}},
+                                  json{{"MAIN_TYPE", "NONE"}}, json{{"MAIN_TYPE", "NONE"}}})}}}}},
+        {"insert: head 3 rises", golden_feed(3, "wait_insert", true)},
+        {"insert: head 3 tag read",
+         json{{"filament_detect",
+               json{{"info", json::array({json{{"MAIN_TYPE", "NONE"}}, json{{"MAIN_TYPE", "NONE"}},
+                                          json{{"MAIN_TYPE", "NONE"}},
+                                          json{{"MAIN_TYPE", "PETG"},
+                                               {"SUB_TYPE", "Basic"},
+                                               {"VENDOR", "Snapmaker"},
+                                               {"ARGB_COLOR", 0xFF445566u},
+                                               {"WEIGHT", 500},
+                                               {"CARD_UID", json::array({9, 8, 7, 6})}}})}}}}},
+        // A two-head load batch whose first head fails.
+        {"batch: head 0 mid-load", golden_feed(0, "load_feeding")},
+        {"batch: head 0 fails", golden_feed(0, "load_fail")},
+        // Temperature-only extruder update on the active tool.
+        {"extruder: temperature only", json{{"extruder1", json{{"temperature", 215.5}}}}},
+        {"extruder: idle frame", json{{"extruder", json{{"temperature", 25.0}}}}},
+    };
+
+    std::vector<std::string> got;
+    for (const auto& [name, frame] : frames) {
+        if (name == "batch: head 0 mid-load") {
+            SnapmakerTestAccess::set_batch_plan(backend, {0, 2}, /*load=*/true, "Load", "of");
+        }
+        got.push_back(name + "\n" + feed(frame));
+    }
+
+    std::string all;
+    for (const auto& g : got) {
+        all += g + "\n";
+    }
+    CHECK(all == kGolden);
+}
+
+TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker extruder delta frames keep the fields they omit",
+                 "[ams][snapmaker][extruder][delta]") {
+    helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
+    AmsBackendSnapmaker& backend = *backend_reg;
+
+    SnapmakerTestAccess::handle_status(backend, json{{"extruder1", json{{"state", "PARKED"},
+                                                                        {"park_pin", true},
+                                                                        {"active_pin", false},
+                                                                        {"switch_count", 7}}}});
+    REQUIRE(SnapmakerTestAccess::extruder_state(backend, 1).park_pin);
+
+    // A temperature-only update names none of the tool-changer fields.
+    SnapmakerTestAccess::handle_status(backend, json{{"extruder1", json{{"temperature", 215.5}}}});
+    auto held = SnapmakerTestAccess::extruder_state(backend, 1);
+    CHECK(held.state == "PARKED");
+    CHECK(held.park_pin);
+    CHECK(held.switch_count == 7);
+
+    // A frame that does name a field overwrites only that field.
+    SnapmakerTestAccess::handle_status(
+        backend, json{{"extruder1", json{{"state", "ACTIVE"}, {"park_pin", false}}}});
+    held = SnapmakerTestAccess::extruder_state(backend, 1);
+    CHECK(held.state == "ACTIVE");
+    CHECK_FALSE(held.park_pin);
+    CHECK(held.switch_count == 7);
 }

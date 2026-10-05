@@ -580,7 +580,6 @@ not expire the guard's `weak_ptr`.
 
 Correct-today examples that the old rule would have flagged:
 `FanStackWidget::bind_fan_observer()` (`src/ui/panel_widgets/fan_stack_widget.cpp`),
-`ControlsPanel::subscribe_to_secondary_temp_subjects()` (`src/ui/ui_panel_controls.cpp`),
 `FanControlOverlay::subscribe_to_fan_speeds()` (`src/ui/ui_fan_control_overlay.cpp`),
 `src/ui/widgets/power_device_widget.cpp`.
 

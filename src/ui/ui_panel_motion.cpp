@@ -1138,7 +1138,7 @@ bool MotionPanel::send_jog_move(const helix::JogCoalescer::CoalescedMove& move) 
         // The printer refused the move: a hold-to-repeat still ticking would
         // re-send it every interval and raise one error toast per tick.
         stop_hold_repeat();
-        NOTIFY_ERROR(lv_tr("Jog failed: {}"), clean_gcode_error(err.user_message()));
+        NOTIFY_ERROR(lv_tr("Jog failed: {}"), clean_gcode_error(err.localized_message()));
     });
 
     if (const auto* delta = std::get_if<helix::AxisMove>(&move)) {
@@ -1168,13 +1168,17 @@ void MotionPanel::home(char axis) {
             axes_str,
             [axis]() {
                 if (axis == 'A') {
-                    NOTIFY_SUCCESS(lv_tr("All axes homed"));
+                    helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("All axes homed"));
                 } else {
-                    NOTIFY_SUCCESS(lv_tr("{} axis homed"), axis);
+                    helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("{} axis homed"), axis);
                 }
             },
             [](const MoonrakerError& err) {
-                NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+                // home_axes() answers on the WebSocket thread; the toast is main-thread only.
+                helix::ui::run_on_main("MotionPanel::home_failed", [err]() {
+                    NOTIFY_ERROR(lv_tr("Homing failed: {}"),
+                                 clean_gcode_error(err.localized_message()));
+                });
             });
     }
 }
@@ -1263,7 +1267,7 @@ void MotionPanel::request_axis_target(char axis, double mm) {
     helix::ensure_homed_then(
         get_moonraker_api(), lifetime_, [this, target]() { dispatch_target(target); },
         lifetime_.bg_cb("MotionPanel::coord_home_failed", [](const MoonrakerError& err) {
-            NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+            NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.localized_message()));
         }));
 }
 
@@ -1315,7 +1319,7 @@ static void ensure_xy_homed_then(AsyncLifetimeGuard& lifetime, std::function<voi
     helix::ensure_homed_then(
         get_moonraker_api(), lifetime, std::move(then),
         lifetime.bg_cb("MotionPanel::xy_home_failed", [](const MoonrakerError& err) {
-            NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+            NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.localized_message()));
         }));
 }
 
@@ -1363,7 +1367,8 @@ void MotionPanel::handle_park() {
         helix::ensure_homed_then(
             api, lifetime_, [this, lift_z]() { park_over_plate(lift_z); },
             lifetime_.bg_cb("MotionPanel::park_home_failed", [](const MoonrakerError& err) {
-                NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+                NOTIFY_ERROR(lv_tr("Homing failed: {}"),
+                             clean_gcode_error(err.localized_message()));
             }));
         return;
     }
@@ -1377,13 +1382,13 @@ void MotionPanel::handle_park() {
                     [name]() { NOTIFY_SUCCESS(lv_tr("{} complete"), name.c_str()); },
                     lifetime_.bg_cb("MotionPanel::park_failed", [name](const MoonrakerError& err) {
                         NOTIFY_ERROR(lv_tr("Macro failed: {}"),
-                                     clean_gcode_error(err.user_message()));
+                                     clean_gcode_error(err.localized_message()));
                     }))) {
                 NOTIFY_WARNING(lv_tr("{} macro not configured"), name.c_str());
             }
         },
         lifetime_.bg_cb("MotionPanel::park_home_failed", [](const MoonrakerError& err) {
-            NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+            NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.localized_message()));
         }));
 }
 
@@ -1660,7 +1665,8 @@ void MotionPanel::commit_bed_target(helix::AxisTarget target, std::optional<doub
         helix::ensure_homed_then(
             get_moonraker_api(), lifetime_, [this, target]() { dispatch_target(target); },
             lifetime_.bg_cb("MotionPanel::bed_home_failed", [](const MoonrakerError& err) {
-                NOTIFY_ERROR(lv_tr("Homing failed: {}"), clean_gcode_error(err.user_message()));
+                NOTIFY_ERROR(lv_tr("Homing failed: {}"),
+                             clean_gcode_error(err.localized_message()));
             }));
         return;
     }

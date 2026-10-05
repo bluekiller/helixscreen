@@ -241,6 +241,15 @@ lv_subject_t* get_save_available_subject();
 /// ObserverGuard::reset()) after LVGL was gone (#705).
 void save_dirty_offsets_shared();
 
+/// True while a save started by save_dirty_offsets_shared() is running, for at
+/// most a bounded window: SAVE_CONFIG's restart drops the rpc, so a bare flag
+/// would stay latched when no callback fires.
+[[nodiscard]] bool shared_save_in_flight();
+
+/// Drop the shared save's restart watch and in-flight mark. The teardown hook
+/// StaticSubjectRegistry runs, and what a test calls between cases.
+void reset_shared_save();
+
 void save_dirty_offsets(IMoonrakerAPI* api, helix::ui::SaveConfigWatch& save_watch,
                         ZOffsetCalibrationStrategy strategy, const PrinterDiscovery& hw,
                         bool global_dirty, std::function<void()> on_success,

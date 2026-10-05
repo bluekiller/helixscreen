@@ -6,6 +6,7 @@
 
 #include "ams_subscription_backend.h"
 #include "async_lifetime_guard.h"
+#include "cfs_status_parse.h"
 #include "filament_slot_override.h"
 #include "filament_slot_override_store.h"
 #include "lane_binding.h"
@@ -641,6 +642,33 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
 
   private:
     friend class helix::CfsTestAccess;
+
+    // The box frame and its sibling objects, one named step each.
+    struct BoxFrame;
+    /// A `box` object: classify, latch the schema, merge stock deltas, parse,
+    /// then apply the full frames under mutex_. Inserts to probe land in
+    /// @p insert_probes for dispatch after the lock.
+    void handle_box_frame(const nlohmann::json& box, bool print_holds_machine,
+                          std::map<int, int>& insert_probes);
+    /// Files firmware's own account of every bay the frame described as lane
+    /// readings; takes mutex_ itself.
+    void file_box_readings(const AmsSystemInfo& new_info);
+    void apply_box_frame_locked(BoxFrame& frame);
+    /// Replaces the unit list, tool map and endless-spool state with the parse.
+    void apply_box_units_locked(BoxFrame& frame);
+    /// Bypass capability and the cross-UI drop of a stale declaration.
+    void converge_box_bypass_locked(BoxFrame& frame);
+    /// The runout latch; true when the frame carried the field.
+    bool apply_box_runout_locked(BoxFrame& frame);
+    /// Defers insert probes while the box is busy and releases them when idle.
+    void gate_insert_probes_locked(BoxFrame& frame);
+    void apply_box_active_slot_locked(BoxFrame& frame);
+    /// The lane resolve convergence point, once per bay.
+    void converge_box_lanes_locked(BoxFrame& frame);
+    void apply_filament_sensor(const cfs::FilamentSensorDelta& sensor);
+    /// True when the extruder temperature moved the action.
+    bool apply_extruder_telemetry(const cfs::ExtruderTempDelta& extruder);
+    void apply_motor_control(const cfs::MotorControlDelta& motor);
 
     std::string current_tnn_;
     bool motor_ready_ = true;
