@@ -166,6 +166,7 @@ namespace {
 void close_editor_overlay() {
     NavigationManager::instance().go_back();
     UpdateQueue::instance().drain();
+    lv_timer_handler(); // the overlay close callback runs on the next tick
 }
 
 SlotInfo untracked_slot() {

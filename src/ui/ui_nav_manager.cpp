@@ -396,16 +396,7 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
         reset_overlay_transform(panel);
         spdlog::trace("[NavigationManager] Animations disabled - hiding overlay instantly");
 
-        // Invoke close callback if registered
-        auto& mgr = NavigationManager::instance();
-        auto it = mgr.overlay_close_callbacks_.find(panel);
-        if (it != mgr.overlay_close_callbacks_.end()) {
-            spdlog::trace("[NavigationManager] Invoking close callback for overlay {}",
-                          (void*)panel);
-            auto callback = std::move(it->second);
-            mgr.overlay_close_callbacks_.erase(it);
-            callback();
-        }
+        retire_overlay(panel);
 
         // Deliberately NO activation here. This runs from inside go_back(),
         // which un-hides the restored panel *after* this returns; an

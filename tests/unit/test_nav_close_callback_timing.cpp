@@ -17,6 +17,7 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/navigation_manager_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "display_settings_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
@@ -129,4 +130,27 @@ TEST_CASE_METHOD(CloseTimingFixture, "Closing a buried overlay deletes its backd
 
     process_lvgl(50);
     CHECK_FALSE(lv_obj_is_valid(backdrop));
+}
+
+TEST_CASE_METHOD(CloseTimingFixture, "A close with animations off defers the close callback",
+                 "[navigation][overlay][close_timing]") {
+    auto& settings = DisplaySettingsManager::instance();
+    const bool animations_were_enabled = settings.get_animations_enabled();
+    settings.set_animations_enabled(false);
+
+    nav().register_overlay_instance(upper_, nullptr);
+    nav().push_overlay(upper_);
+    drain();
+    REQUIRE(nav().is_panel_on_top(upper_));
+
+    nav().go_back();
+    drain();
+    CHECK_FALSE(nav().is_panel_in_stack(upper_));
+    CHECK(upper_closes_ == 0);
+
+    process_lvgl(50);
+    CHECK(upper_closes_ == 1);
+
+    nav().unregister_overlay_instance(upper_);
+    settings.set_animations_enabled(animations_were_enabled);
 }
