@@ -601,7 +601,7 @@ TouchRangeSource resolve_touch_range_source(bool env_range_override,
     if (env_range_override) {
         return TouchRangeSource::Environment;
     }
-    if (stored.valid && applied_rotation == 0) {
+    if (stored.valid && (applied_rotation == 0 || stored.capture_rotation == 0)) {
         return TouchRangeSource::Stored;
     }
     return TouchRangeSource::Declared;

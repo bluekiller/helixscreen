@@ -450,6 +450,8 @@ struct TouchRangeSettings {
     int max_x = 0;
     int min_y = 0;
     int max_y = 0;
+    /// Display rotation the range was solved at; -1 when the record does not say.
+    int capture_rotation = -1;
 };
 
 /**
@@ -473,8 +475,11 @@ const char* touch_range_source_name(TouchRangeSource source);
 /// Which ABS range an evdev touch device runs, loudest first: an environment
 /// override, then a stored calibration range, then the declared one.
 ///
-/// A stored range is never programmed on a rotated display: one solved there
-/// folds the rotation into (min,max,swap) and double-applies it at runtime
+/// lv_evdev scales into the display's native resolution and the rotation runs
+/// after it, so a range solved on an unrotated display is native digitizer space
+/// and holds at any rotation. One solved on a rotated display folds the rotation
+/// into (min,max,swap) and would double-apply it, so a range whose capture
+/// rotation is unknown is programmed only while the display is unrotated
 /// (prestonbrown/helixscreen#1394). Both the programming and the recorded
 /// pipeline go through this, so what the diagnostics (and a calibration
 /// session's range snapshot) report is the range actually live.
