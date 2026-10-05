@@ -5,6 +5,7 @@
 
 #include "gcode_streaming_controller.h"
 
+#include "helix_thread.h"
 #include "memory_monitor.h"
 #include "memory_utils.h"
 #include "system/crash_handler.h"
@@ -48,7 +49,7 @@ void BackgroundGhostBuilder::start(GCodeStreamingController* controller,
     spdlog::info("[GhostBuilder] Starting background ghost build for {} layers",
                  total_layers_.load());
 
-    worker_ = std::thread(&BackgroundGhostBuilder::worker_thread, this);
+    worker_ = helix::make_thread(&BackgroundGhostBuilder::worker_thread, this);
 }
 
 void BackgroundGhostBuilder::cancel() {
@@ -314,7 +315,8 @@ void GCodeStreamingController::open_file_async(const std::string& filepath,
     // through std::async's noexcept boundary and terminate the process. On
     // constrained devices (AD5M/AD5X) allocations during indexing of a large
     // gcode file can fail — surface that as a failed load, not a crash.
-    index_future_ = std::async(std::launch::async, [this, filepath]() {
+    index_future_ = std::async(std::launch::async, [this, filepath]() { // THREAD_OK: below
+        helix::install_thread_altstack();
         bool success = false;
         try {
             if (index_worker_gate) {
@@ -528,7 +530,7 @@ void GCodeStreamingController::start_prefetch_worker() {
     if (prefetch_thread_.joinable() || stop_prefetch_) {
         return;
     }
-    prefetch_thread_ = std::thread(&GCodeStreamingController::prefetch_worker, this);
+    prefetch_thread_ = helix::make_thread(&GCodeStreamingController::prefetch_worker, this);
 }
 
 void GCodeStreamingController::stop_prefetch_worker(bool permanent) {

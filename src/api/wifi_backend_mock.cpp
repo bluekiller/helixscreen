@@ -5,6 +5,7 @@
 
 #include "ui_error_reporting.h"
 
+#include "helix_thread.h"
 #include "safe_log.h"
 #include "spdlog/spdlog.h"
 #include "wifi_saved_config.h"
@@ -99,7 +100,7 @@ WiFiError WifiBackendMock::trigger_scan() {
 
     // Launch async scan thread (simulates 2-second scan delay)
     scan_active_ = true;
-    scan_thread_ = std::thread(&WifiBackendMock::scan_thread_func, this);
+    scan_thread_ = helix::make_thread(&WifiBackendMock::scan_thread_func, this);
 
     spdlog::debug("[WifiBackend] Mock: Scan thread started");
     return WiFiErrorHelper::success();
@@ -205,7 +206,7 @@ WiFiError WifiBackendMock::connect_network(const std::string& ssid, const std::s
 
     // Launch async connect thread (simulates 2-3 second delay)
     connect_active_ = true;
-    connect_thread_ = std::thread(&WifiBackendMock::connect_thread_func, this);
+    connect_thread_ = helix::make_thread(&WifiBackendMock::connect_thread_func, this);
 
     return WiFiErrorHelper::success();
 }

@@ -6,6 +6,7 @@
 #include "ui_error_reporting.h"
 #include "ui_update_queue.h"
 
+#include "helix_thread.h"
 #include "log_redact.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "spdlog/fmt/fmt.h"
@@ -482,6 +483,7 @@ WiFiError WifiBackendWpaSupplicant::start() {
         init_complete_ = false;
         try {
             hv::EventLoopThread::start(true, [this]() -> int {
+                helix::install_thread_altstack();
                 WifiBackendWpaSupplicant::init_wpa();
                 return 0;
             });
@@ -547,7 +549,7 @@ void WifiBackendWpaSupplicant::start_async() {
 
     // Wrap — EAGAIN under thread exhaustion throws std::system_error ([L083]).
     try {
-        async_init_thread_ = std::thread([this]() {
+        async_init_thread_ = helix::make_thread([this]() {
             WiFiError result = start();
             bool ran_init = init_complete_.load();
             async_init_in_progress_ = false;

@@ -3,6 +3,8 @@
 
 #include "socket_server_base.h"
 
+#include "helix_thread.h"
+
 #include <spdlog/spdlog.h>
 
 #include <cerrno>
@@ -53,7 +55,7 @@ bool SocketServerBase::start(RequestHandler handler) {
     }
 
     running_.store(true);
-    accept_thread_ = std::thread(&SocketServerBase::accept_loop, this);
+    accept_thread_ = helix::make_thread(&SocketServerBase::accept_loop, this);
     spdlog::info("[RemoteControl] Transport started on {}", endpoint());
     return true;
 }

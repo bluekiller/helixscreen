@@ -3,6 +3,7 @@
 
 #include "system/crash_handler.h"
 
+#include "helix_thread.h"
 #include "helix_version.h"
 
 #include <spdlog/spdlog.h>
@@ -1739,15 +1740,14 @@ void crash_handler::install(const std::string& crash_file_path) {
 
     // A stack overflow leaves no room to run the handler on the faulting stack,
     // so it runs on its own. sigaltstack is per thread: this covers the
-    // installing (main) thread only, and an overflow on any other thread still
-    // dies without a crash file.
+    // installing (main) thread, and helix::install_thread_altstack() covers the rest.
 #ifdef __linux__
     if (s_probe_pipe[0] < 0 && pipe2(s_probe_pipe, O_NONBLOCK | O_CLOEXEC) != 0) {
         s_probe_pipe[0] = s_probe_pipe[1] = -1;
     }
 #endif
 
-    static char s_alt_stack[64 * 1024];
+    static char s_alt_stack[helix::kAltStackSize];
     stack_t ss{};
     ss.ss_sp = s_alt_stack;
     ss.ss_size = sizeof(s_alt_stack);

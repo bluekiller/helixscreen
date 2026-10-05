@@ -3,6 +3,8 @@
 
 #include "usb_backend_mock.h"
 
+#include "helix_thread.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -36,7 +38,7 @@ UsbError UsbBackendMock::start() {
     // Schedule demo drives to be added after UI is ready (1.5s delay)
     // This matches the timing previously done in subject_initializer.cpp
     demo_cancelled_.store(false);
-    demo_thread_ = std::thread([this]() {
+    demo_thread_ = helix::make_thread([this]() {
         // Sleep in small increments to allow cancellation
         for (int i = 0; i < 15 && !demo_cancelled_.load(); ++i) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));

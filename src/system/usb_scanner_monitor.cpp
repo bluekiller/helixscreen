@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "usb_scanner_monitor.h"
 
+#include "helix_thread.h"
 #include "input_device_scanner.h"
 #include "log_redact.h"
 #include "qr_decoder.h"
@@ -278,7 +279,7 @@ void UsbScannerMonitor::start(ScanCallback on_scan) {
     }
 
     running_.store(true);
-    monitor_thread_ = std::thread(&UsbScannerMonitor::monitor_thread_func, this);
+    monitor_thread_ = helix::make_thread(&UsbScannerMonitor::monitor_thread_func, this);
     spdlog::info("UsbScannerMonitor: started");
 }
 

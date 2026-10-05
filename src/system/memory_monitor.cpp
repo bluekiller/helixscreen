@@ -6,6 +6,7 @@
 #include "ui_update_queue.h"
 
 #include "exception_policy.h"
+#include "helix_thread.h"
 #include "text_io.h"
 
 #include <spdlog/spdlog.h>
@@ -122,7 +123,7 @@ void MemoryMonitor::start(int interval_ms) {
 
     // EAGAIN under thread exhaustion throws std::system_error ([L083]).
     if (!helix::contain_exceptions("[MemoryMonitor] Spawning the monitor thread", [&] {
-            monitor_thread_ = std::thread([this]() { monitor_loop(); });
+            monitor_thread_ = helix::make_thread([this]() { monitor_loop(); });
         })) {
         running_.store(false);
         return;

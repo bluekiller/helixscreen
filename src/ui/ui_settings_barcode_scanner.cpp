@@ -10,6 +10,7 @@
 #include "ui_utils.h"
 
 #include "bluetooth_loader.h"
+#include "helix_thread.h"
 #include "input_device_scanner.h"
 #include "log_redact.h"
 #include "settings_manager.h"
@@ -212,7 +213,7 @@ void BarcodeScannerSettingsOverlay::seed_known_bt_devices() {
     auto shared_ctx = bt_ctx_;
     auto tok = lifetime_.token();
     try {
-        std::thread([this, shared_ctx, tok]() {
+        helix::make_thread([this, shared_ctx, tok]() {
             std::vector<BtDeviceInfo> known;
             auto& ldr = helix::bluetooth::BluetoothLoader::instance();
             if (auto* ctx = shared_ctx->get()) {
@@ -560,7 +561,7 @@ void BarcodeScannerSettingsOverlay::pair_bt_device(const std::string& mac,
 
                 // Wrap spawn in try/catch per feedback_no_bare_threads_arm.md (#724).
                 try {
-                    std::thread([mac, name, shared_ctx, token]() {
+                    helix::make_thread([mac, name, shared_ctx, token]() {
                         auto& ldr = helix::bluetooth::BluetoothLoader::instance();
                         auto* bt_ctx = shared_ctx->get();
                         int ret = bt_ctx ? ldr.pair(bt_ctx, mac.c_str()) : -ENODEV;
@@ -717,7 +718,7 @@ void BarcodeScannerSettingsOverlay::handle_bt_forget(const std::string& mac) {
     // it is never dereferenced on the BG thread, and tok.defer silently drops
     // if the overlay has been destroyed (singleton lifetime + token guard).
     try {
-        std::thread([this, tok, mac]() {
+        helix::make_thread([this, tok, mac]() {
             auto& loader = helix::bluetooth::BluetoothLoader::instance();
             if (!loader.is_available() || !loader.remove_device) {
                 spdlog::error("[BarcodeScannerSettings] remove_device symbol missing");

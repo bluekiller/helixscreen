@@ -7,6 +7,7 @@
 #include "ui_update_queue.h"
 
 #include "bluetooth_loader.h"
+#include "helix_thread.h"
 #include "log_redact.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "niimbot_protocol.h"
@@ -201,7 +202,7 @@ void NiimbotBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
     // (AD5M/CC1) throws std::system_error which aborts with std::terminate if it
     // escapes an LVGL event frame (#724, #837, [L083]).
     try {
-        std::thread([mac, job = std::move(job), callback]() {
+        helix::make_thread([mac, job = std::move(job), callback]() {
             std::lock_guard<std::mutex> lock(s_print_mutex);
 
             auto& loader = helix::bluetooth::BluetoothLoader::instance();
