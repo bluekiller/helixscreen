@@ -338,20 +338,20 @@ void EmergencyStopOverlay::create() {
                             spdlog::info("[KlipperRecovery] Klipper is READY, dismissing recovery "
                                          "dialog");
                             inst.dismiss_recovery_dialog();
-                            ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                          lv_tr("Printer ready"), 3000);
+                            helix::ui::notifications::show_transient_success(lv_tr("Printer ready"),
+                                                                             3000);
                         }
                     } else if (expected_restart) {
                         // The restart completed with the dialog suppressed
-                        // by its initiating flow, so still say so. Direct
-                        // ToastManager call, deliberately not
+                        // by its initiating flow, so still say so. A transient
+                        // toast, deliberately not
                         // ui_notification_*: every severity there writes a
                         // history row, and klippy-being-ready is not
                         // history. A READY with nothing expected (first
                         // ready at app start) stays silent - the status
                         // icon already carries it.
-                        ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                      lv_tr("Printer ready"), 3000);
+                        helix::ui::notifications::show_transient_success(lv_tr("Printer ready"),
+                                                                         3000);
                     }
                 });
             }

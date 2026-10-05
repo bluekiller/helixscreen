@@ -7,7 +7,6 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
-#include "ui_nav_manager.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_temp_display.h"
 #include "ui_update_queue.h"

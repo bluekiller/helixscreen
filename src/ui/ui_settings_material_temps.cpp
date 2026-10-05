@@ -5,7 +5,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_row_text.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
@@ -422,7 +422,7 @@ void MaterialTempsOverlay::handle_back_clicked() {
         }
     } else {
         // In list view — close overlay
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 }
 

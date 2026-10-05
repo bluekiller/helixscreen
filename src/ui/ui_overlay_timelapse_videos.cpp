@@ -12,7 +12,6 @@
 #include "ui_format_utils.h"
 #include "ui_gradient_canvas.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_notification.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"

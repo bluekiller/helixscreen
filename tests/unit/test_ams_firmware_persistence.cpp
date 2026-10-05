@@ -57,9 +57,8 @@ TEST_CASE("AmsBackendAd5xIfs: no firmware spool persistence", "[ams][backend][sp
 // =============================================================================
 
 TEST_CASE("printer_reports_spool_ids capability", "[ams][capabilities]") {
-    // Qualified call pins the BASE default (false), not the AFC override.
+    CHECK_FALSE(helix::BackendTraits{}.printer_reports_spool_ids);
     auto afc = std::make_unique<helix::AmsBackendAfc>(nullptr, nullptr);
-    CHECK_FALSE(afc->AmsBackend::printer_reports_spool_ids());
     CHECK(afc->printer_reports_spool_ids());
     auto hh = std::make_unique<helix::AmsBackendHappyHare>(nullptr, nullptr);
     CHECK(hh->printer_reports_spool_ids());

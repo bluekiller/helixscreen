@@ -3,7 +3,7 @@
 
 #include "upgrade_banner.h"
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_settings_updates.h"
 
 #include "app_globals.h"
@@ -158,7 +158,7 @@ void UpgradeBanner::evaluate_visibility() {
 
 void UpgradeBanner::on_update_clicked(lv_event_t* /*e*/) {
     spdlog::info("[UpgradeBanner] Update clicked - opening Settings > Updates");
-    NavigationManager::instance().set_active(PanelId::Settings);
+    helix::nav::set_active(PanelId::Settings);
     helix::settings::get_updates_settings_overlay().show(lv_display_get_screen_active(nullptr));
 }
 

@@ -15,7 +15,7 @@
 #include "ui_effects.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_utils.h"
 
 #include "helix-xml/src/xml/lv_xml.h"
@@ -213,8 +213,8 @@ void ui_keypad_show(const ui_keypad_config_t* config) {
     // The panel authors its own width (#keypad_width, 320-400px by breakpoint): a pad of
     // three digit columns, not a screen. Neither navigation width class applies, so opt
     // out of push-time width management or the push stretches it to overlay width.
-    NavigationManager::instance().set_overlay_width_unmanaged(keypad_widget);
-    NavigationManager::instance().register_overlay_instance(keypad_widget, nullptr);
+    helix::nav::set_overlay_width_unmanaged(keypad_widget);
+    helix::nav::register_overlay(keypad_widget, nullptr);
 
     // Same dimming the navigation layer gives a first overlay. Raised before the push so
     // the pad lands above it, and torn down from the close callback rather than
@@ -230,11 +230,10 @@ void ui_keypad_show(const ui_keypad_config_t* config) {
             helix::ui::bring_to_front(keypad_backdrop);
         }
     }
-    NavigationManager::instance().register_overlay_close_callback(
-        keypad_widget, []() { destroy_keypad_backdrop(); });
+    helix::nav::on_close(keypad_widget, []() { destroy_keypad_backdrop(); });
 
     // Show via overlay navigation, but keep previous panel visible (transparent overlay)
-    NavigationManager::instance().push_overlay(keypad_widget, false /* hide_previous */);
+    helix::nav::push_overlay(keypad_widget, false /* hide_previous */);
 
     spdlog::info("[Keypad] Showing (initial={:.1f}, range={:.0f}-{:.0f})", config->initial_value,
                  config->min_value, config->max_value);
@@ -242,7 +241,7 @@ void ui_keypad_show(const ui_keypad_config_t* config) {
 
 void ui_keypad_hide() {
     if (keypad_widget && ui_keypad_is_visible()) {
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 }
 

@@ -6,7 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_temperature_utils.h"
 #include "ui_z_offset_indicator.h"
 
@@ -282,7 +282,7 @@ void ZOffsetCalibrationPanel::cleanup() {
 
     // Unregister from NavigationManager while overlay_root_ is still valid
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Nullify widget pointers BEFORE resetting observers — any cascading
@@ -826,7 +826,7 @@ void ZOffsetCalibrationPanel::handle_abort_clicked() {
 void ZOffsetCalibrationPanel::handle_done_clicked() {
     spdlog::debug("[ZOffsetCal] Done clicked");
     set_state(State::IDLE);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void ZOffsetCalibrationPanel::handle_retry_clicked() {

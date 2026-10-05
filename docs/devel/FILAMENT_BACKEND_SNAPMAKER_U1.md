@@ -166,9 +166,10 @@ ACE-Pro adapter, #974).
 
 ### Batch Load/Unload
 
-The U1 is the only backend whose sidebar offers multi-slot Load/Unload All: it overrides
-`supports_batch_filament_ops()` to true (`include/ams_backend_snapmaker.h#AmsBackendSnapmaker`;
-the base default is false and no other backend overrides it, mock aside). The sidebar opens
+The U1 is the only backend whose sidebar offers multi-slot Load/Unload All: its `kTraits`
+sets `supports_batch_filament_ops` (`include/ams_backend_snapmaker.h#AmsBackendSnapmaker`;
+the default is false and no other backend sets it; the mock's Snapmaker persona copies the
+U1's `kTraits`). The sidebar opens
 `BatchFilamentModal` (`include/ui_batch_filament_modal.h`), which dispatches the whole ticked
 set in one call; `load_filament_batch()` / `unload_filament_batch()` route it through the shared
 `run_filament_op()` executor, so the operation bar, error surfacing and skip handling are the

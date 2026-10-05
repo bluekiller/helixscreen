@@ -9,7 +9,7 @@
 #include "ui_gcode_viewer.h"
 #include "ui_icon.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_print_preparation_manager.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
@@ -24,6 +24,7 @@
 #include "display_settings_manager.h"
 #include "gcode_footer_summary.h"
 #include "gcode_parser.h"
+#include "gcode_preview_fetcher.h"
 #include "gcode_preview_setup.h"
 #include "gcode_temp_reclaim.h"
 #include "host_identity.h"
@@ -109,7 +110,7 @@ PrintSelectDetailView::~PrintSelectDetailView() {
 
     // Unregister from NavigationManager (fallback if cleanup() wasn't called)
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Deinitialize subjects to disconnect observers before widgets are deleted
@@ -406,6 +407,7 @@ void PrintSelectDetailView::set_dependencies(IMoonrakerAPI* api, PrinterState* p
 void PrintSelectDetailView::set_analysis_dependencies(IMoonrakerAPI* api,
                                                       PrinterState* printer_state) {
     api_ = api;
+    gcode_fetcher_.set_api(api);
     printer_state_ = printer_state;
 
     // Not tied to the widget tree: the panel wires dependencies at setup, before
@@ -553,16 +555,15 @@ void PrintSelectDetailView::show(const std::string& filename, const std::string&
     }
 
     // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    helix::nav::register_overlay(overlay_root_, this);
 
     // Register close callback to destroy widget tree when overlay closes.
     // Frees memory when detail view is dismissed. Subjects survive;
     // next show() call re-creates widgets via lazy creation above.
-    NavigationManager::instance().register_overlay_close_callback(
-        overlay_root_, [this]() { destroy_overlay_ui(overlay_root_); });
+    helix::nav::on_close(overlay_root_, [this]() { destroy_overlay_ui(overlay_root_); });
 
     // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
+    helix::nav::push_overlay(overlay_root_);
 
     if (visible_subject_) {
         lv_subject_set_int(visible_subject_, 1);
@@ -583,7 +584,7 @@ void PrintSelectDetailView::hide() {
     }
 
     // Pop from navigation stack - on_deactivate() will be called by NavigationManager
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 
     if (visible_subject_) {
         lv_subject_set_int(visible_subject_, 0);
@@ -597,10 +598,10 @@ void PrintSelectDetailView::hide() {
 // ============================================================================
 
 std::string PrintSelectDetailView::canonical_gcode_path() const {
-    // Hash the FULL relative path (not just the filename) so same-name files
+    // Keyed on the FULL relative path (not just the filename) so same-name files
     // in different directories never collide on one temp file.
-    return get_helix_cache_dir("gcode_temp") + "/detail_" +
-           std::to_string(std::hash<std::string>{}(current_file_key())) + ".gcode";
+    return get_helix_cache_dir("gcode_temp") + "/" +
+           helix::ui::GcodePreviewFetcher::cache_file_name("detail_", current_file_key());
 }
 
 void PrintSelectDetailView::resolve_local_gcodes_root() {
@@ -732,74 +733,29 @@ void PrintSelectDetailView::ensure_gcode_downloaded(
         return;
     }
 
+    // One shared copy and one shared transfer per open: the fetcher joins a
+    // transfer already running and keeps a copy only when its size matches the
+    // file on the server, so a re-sliced or truncated copy is never scanned.
     const std::string path = canonical_gcode_path();
-
-    // 1. A transfer is already running — join it. Checked BEFORE the disk
-    //    probe: the in-flight file is partially written, and a non-empty
-    //    tellg() on it must not be mistaken for a complete copy.
-    if (gcode_download_in_flight_) {
-        gcode_download_waiters_.push_back(std::move(cb));
-        return;
-    }
-
-    // 2. Already on disk (cached from a previous open of this file). When the
-    //    expected size is known, a mismatch means the local copy is stale or
-    //    partial — the server file was re-sliced onto the same path, or the
-    //    app died mid-transfer and left a truncated download behind. Trusting
-    //    those bytes would scan the OLD file and store the wrong tool set
-    //    under the NEW (size, mtime) cache key, so drop the copy and
-    //    re-download instead of scanning stale bytes.
-    const size_t on_disk_bytes =
-        tio::open_file(path, "rb") ? static_cast<size_t>(tio::file_size(path).value_or(0)) : 0;
-    if (on_disk_bytes > 0) {
-        if (helix::ui::preview_cache_is_current(on_disk_bytes, current_file_size_bytes_)) {
-            cb(true, path);
-            return;
-        }
-        spdlog::warn("[DetailView] Cached G-code size mismatch (disk={}, expected={}) - "
-                     "re-downloading",
-                     on_disk_bytes, current_file_size_bytes_);
-        reclaim_download(path);
-        // Fall through to a fresh transfer below.
-    }
-
-    // 3. Start the single shared transfer; later callers join via 1.
-    gcode_download_in_flight_ = true;
-    gcode_download_waiters_.push_back(std::move(cb));
-    const std::string file_path =
-        current_path_.empty() ? current_filename_ : current_path_ + "/" + current_filename_;
-    auto tok = lifetime_.token();
-    api_->transfers().download_file_to_path(
-        "gcodes", file_path, path,
-        [this, tok](const std::string& local) {
-            // HTTP thread — marshal member writes + waiter fan-out to the
-            // main thread (no bg-thread `this` access, L081 Mechanism C).
-            tok.defer("DetailView::gcode_shared_download_done", [this, local]() {
-                // Retire the previous file's temp copy (kept from the old
-                // pre-download cleanup) and adopt this one for teardown.
+    gcode_fetcher_.ensure_local(
+        "gcodes", current_file_key(), path, current_file_size_bytes_,
+        [this, cb](const std::string& local, helix::ui::GcodePreviewFetcher::Source source) {
+            if (source == helix::ui::GcodePreviewFetcher::Source::Download) {
+                // Retire the previous file's temp copy and adopt this one for
+                // teardown.
                 if (!temp_gcode_path_.empty() && temp_gcode_path_ != local) {
                     reclaim_download(temp_gcode_path_);
                 }
                 temp_gcode_path_ = local;
-                gcode_download_in_flight_ = false;
-                auto waiters = std::move(gcode_download_waiters_);
-                gcode_download_waiters_.clear();
-                for (auto& w : waiters)
-                    w(true, local);
-            });
+            }
+            cb(true, local);
         },
-        [this, tok, path](const MoonrakerError& err) {
-            tok.defer("DetailView::gcode_shared_download_fail", [this, err, path]() {
-                spdlog::warn("[DetailView] Shared G-code download failed: {}", err.message);
-                // Drop any partial file the failed transfer left behind so a
-                // later open doesn't mistake it for a complete cached copy.
-                reclaim_download(path);
-                gcode_download_in_flight_ = false;
-                auto waiters = std::move(gcode_download_waiters_);
-                gcode_download_waiters_.clear();
-                for (auto& w : waiters)
-                    w(false, {});
-            });
+        [this, path, cb](helix::ui::GcodePreviewFetcher::Unavailable) {
+            spdlog::warn("[DetailView] Shared G-code download failed");
+            // Drop any partial file the failed transfer left behind so a later
+            // open doesn't mistake it for a complete cached copy.
+            reclaim_download(path);
+            cb(false, {});
         });
 }
 
@@ -955,7 +911,7 @@ void PrintSelectDetailView::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Deinitialize subjects to disconnect observers
@@ -1002,15 +958,15 @@ void PrintSelectDetailView::on_ui_destroyed() {
         temp_gcode_path_.clear();
     }
 
-    // A shared download still in flight for the destroyed session can no
-    // longer deliver (its deferred completion was dropped with the token
-    // above) and leaves a partial file behind. Drop the waiters so a fresh
-    // open starts a new transfer instead of joining a dead one, and remove
-    // the canonical file — temp_gcode_path_ above only tracks a COMPLETED
-    // download, so the in-flight partial needs its own removal.
-    gcode_download_in_flight_ = false;
-    gcode_download_waiters_.clear();
-    reclaim_download(canonical_gcode_path());
+    // The destroyed session's callers no longer want a shared download still in
+    // flight: drop them. A running transfer finishes on its own and removes the
+    // file when nobody claims it, and a fresh open joins it meanwhile, so the
+    // canonical file is removed here only when no transfer is writing it.
+    // temp_gcode_path_ above only tracks a COMPLETED download.
+    gcode_fetcher_.cancel();
+    if (!gcode_fetcher_.is_downloading(canonical_gcode_path())) {
+        reclaim_download(canonical_gcode_path());
+    }
 
     // Null all child widget pointers (widget tree already deleted by base class)
     // Note: parent_screen_ is NOT nulled — it's the parent screen (not a child

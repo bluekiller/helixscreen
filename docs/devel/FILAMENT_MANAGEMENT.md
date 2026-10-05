@@ -1365,8 +1365,8 @@ None of the five surfaces navigate away to dispatch anymore. `plan_load()` /
 `plan_unload()` answer the tier decision for all of them; `filament_op_execute.h` runs
 that decision for the three surfaces above that don't own a per-surface execution ladder.
 
-**Batch load/unload** is a sixth surface, gated per backend: only a backend overriding
-`supports_batch_filament_ops()` to true gets the multi-slot Load All / Unload All button in
+**Batch load/unload** is a sixth surface, gated per backend: only a backend whose `kTraits`
+sets `supports_batch_filament_ops` gets the multi-slot Load All / Unload All button in
 the AMS operation sidebar, which opens `BatchFilamentModal`
 (`include/ui_batch_filament_modal.h`). The Snapmaker U1 is the only real backend that
 qualifies today. The modal dispatches the whole selected set through the backend's
@@ -2543,6 +2543,29 @@ Create include/ams_backend_mysystem.h and src/printer/ams_backend_mysystem.cpp. 
 - `apply_user_edit()`, `sync_external_identity()`, `set_tool_mapping()` -- Configuration
 - `enable_bypass()`, `disable_bypass()`, `is_bypass_active()` -- Bypass mode
 
+**Constant capabilities go in `kTraits`, not in overrides.** A capability your backend
+answers the same way for its whole life (`has_physical_tray`, `supports_auto_heat_on_load`,
+`has_per_slot_loaded_authority`, ...) is a field of `BackendTraits` (`include/ams_backend.h#BackendTraits`).
+Declare one `static constexpr BackendTraits kTraits` that sets the fields you differ on, and
+return it from `traits()`; the predicates of the same names read it and cannot be overridden.
+Any field you leave alone keeps the base answer. A capability that depends on discovery,
+configuration that arrives later, or live status (`manages_active_spool()`,
+`supports_lane_eject()` on QIDI, `delegates_homing_to_printer()` on AFC, ...) is still a
+virtual: override it instead. The mock persona standing in for your system copies your
+`kTraits` (step 5), and `tests/unit/test_ams_backend_traits.cpp` pins that.
+
+```cpp
+static constexpr BackendTraits kTraits = [] {
+    BackendTraits t;
+    t.has_per_slot_loaded_authority = true;
+    t.supports_auto_heat_on_load = true;
+    return t;
+}();
+[[nodiscard]] BackendTraits traits() const override {
+    return kTraits;
+}
+```
+
 **Optional overrides (with default implementations):**
 
 - `clear_fault()` -- Clear a latched fault, bookkeeping only (default: forwards to `cancel()`)
@@ -2552,9 +2575,9 @@ Create include/ams_backend_mysystem.h and src/printer/ams_backend_mysystem.cpp. 
 - `get_remap_strategy()`, `remap_ready()`, `owns_tool_mapping_table()`, `get_tool_mapping()` -- Tool mapping. **Three questions, one spelling each.** `get_remap_strategy()` says HOW a user's tool->lane pick is carried out (`Native` writes your table, `GcodeRewrite` rewrites the job, `PrePrintSend` is a firmware pre-print send, `None` means it cannot be). `remap_ready()` says whether that route is usable YET -- default true, override only where discovery gates it, as AD5X IFS does on `_IFS_VARS`. `owns_tool_mapping_table()` says whether you hold a tool->slot table for `ToolState` to adopt; the Snapmaker U1 answers **no** and still honors every pick, through its pre-print send, which is why this is not the same question as the first two. Ask them through `ams_remap.h` -- never by combining them at a call site, which is how one question came to have six answers that could disagree. Three named predicates there, and the difference between them is `GcodeRewrite`: `can_remap()` asks whether the user's pick will be honored at all (yes), `remap_is_persistent()` whether the answer outlives the send (yes, it is in the job file), `can_write_mapping_table()` whether a `set_tool_mapping()` write lands (no, there is no table).
 - `get_device_sections()`, `get_device_actions()`, `execute_device_action()` -- Device-specific actions
 - `set_discovery()` -- Discovery configuration: pull and resolve what this backend needs from the `PrinterDiscovery` snapshot, before `start()`
-- `supports_auto_heat_on_load()` -- Auto-heat capability. It is one of three reasons a surface skips its own preheat, and **no surface should read it directly**: ask `helix::ui::preheat_skip_reason()` (`include/filament_op_execute.h`), which also covers the "Allow cold load/unload" setting and a stock macro that heats in its own body (`helix::filament_macros::macro_heats_hotend()`, `include/filament_macro_profiles.h`). The AMS sidebar reading only this one is what left that setting ignored on the AMS panel (prestonbrown/helixscreen#1494).
+- `supports_auto_heat_on_load` (`kTraits`) -- Auto-heat capability. It is one of three reasons a surface skips its own preheat, and **no surface should read it directly**: ask `helix::ui::preheat_skip_reason()` (`include/filament_op_execute.h`), which also covers the "Allow cold load/unload" setting and a stock macro that heats in its own body (`helix::filament_macros::macro_heats_hotend()`, `include/filament_macro_profiles.h`). The AMS sidebar reading only this one is what left that setting ignored on the AMS panel (prestonbrown/helixscreen#1494).
 - `supports_lane_eject()` + `eject_lane()` -- Cold retract of a lane's filament back to the spool. Without the predicate the context menu never offers Eject, whatever `eject_lane()` does.
-- `has_per_slot_loaded_authority()` -- Return true only when the firmware reports load state **per slot**. Leave it false when your per-slot answer is derived from an aggregate "current slot" pointer, or a mid-toolchange null will drop the highlight.
+- `has_per_slot_loaded_authority` (`kTraits`) -- Set true only when the firmware reports load state **per slot**. Leave it false when your per-slot answer is derived from an aggregate "current slot" pointer, or a mid-toolchange null will drop the highlight.
 - `reset_button_label()` -- Sidebar Reset button text (default `"Reset"`; Happy Hare uses `"Home"`)
 
 **The error seam.** All optional, all defaulted to "nothing", and a backend that skips the
@@ -2576,7 +2599,7 @@ sidebar's legacy `AmsAction`-driven hardcoded step list, which is a valid choice
 **Runout and spool-assignment routing.** Both default to something reasonable; override
 only if your hardware model diverges:
 
-- `recovers_filament_on_resume()` -- True when Resume itself re-feeds filament (Snapmaker U1 runs `AUTO_FEEDING` then `RESUME`). Such backends present Resume as the runout dialog's primary action and demote manual Load/Unload/Purge. Default false, which keeps Load prominent. That is correct for AFC, Happy Hare, and every basic runout sensor.
+- `recovers_filament_on_resume` (`kTraits`) -- True when Resume itself re-feeds filament (Snapmaker U1 runs `AUTO_FEEDING` then `RESUME`). Such backends present Resume as the runout dialog's primary action and demote manual Load/Unload/Purge. Default false, which keeps Load prominent. That is correct for AFC, Happy Hare, and every basic runout sensor.
 - `supports_per_tool_spool_assignment()` -- Whether each tool owns its own spool assignment. Default is `is_tool_changer(get_type())`; no backend currently overrides it.
 
 ### 4. Wire into the Factory
@@ -2598,7 +2621,7 @@ if (type_str == "mysystem") {
 }
 ```
 
-Add corresponding `set_my_system_mode()` to `AmsBackendMock` if the new system has unique UI characteristics that need simulation.
+Add corresponding `set_my_system_mode()` to `AmsBackendMock` if the new system has unique UI characteristics that need simulation. A new persona also gets a case in `AmsBackendMock::traits()` returning your `kTraits`, and a section in `tests/unit/test_ams_backend_traits.cpp`.
 
 ### 6. Update AmsState (if needed)
 

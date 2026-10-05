@@ -5,7 +5,7 @@
 
 #include "ui_error_reporting.h"
 #include "ui_keyboard_manager.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_panel_home.h"
 #include "ui_subject_registry.h"
@@ -165,7 +165,7 @@ void helix::WizardCompletionTimers::arm_home_navigation() {
             self->home_nav_timer_ = nullptr;
 
             spdlog::info("[Wizard] Deferred navigation to Home panel");
-            NavigationManager::instance().set_active(PanelId::Home);
+            helix::nav::set_active(PanelId::Home);
             // Home is already the active panel here, so set_active() returns
             // without running on_activate(), which is the tour's only other
             // entry point. Finishing the wizard is what opens the tour's gate,

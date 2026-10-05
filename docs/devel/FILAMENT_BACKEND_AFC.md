@@ -784,7 +784,7 @@ absent from `src/` and `include/`, and is recorded here so the reasoning is not 
 | Dryer | No | -- |
 | Device Actions | Yes | Setup, Speed, Toolhead, Maintenance, Hub & Cutter, Tip Forming, Purge & Wipe (see [Device Operations Overlay](FILAMENT_MANAGEMENT.md#device-operations-overlay)) |
 
-`recovers_filament_on_resume()` is **not** overridden (default `false`), so an AFC runout
+`recovers_filament_on_resume()` is left at its `kTraits` default (`false`), so an AFC runout
 gets the dialog with manual **Load** kept prominent, because Resume alone does not re-feed.
 `supports_per_tool_spool_assignment()` is not overridden either; it falls through to
 `is_tool_changer(get_type())`, which is false for AFC.
