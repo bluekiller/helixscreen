@@ -167,6 +167,7 @@ src/system/brother_pt_protocol.cpp  # not in the v1 Core+AMS cut
 src/system/brother_ql_bt_printer.cpp  # not in the v1 Core+AMS cut
 src/system/brother_ql_printer.cpp  # not in the v1 Core+AMS cut
 src/system/brother_ql_protocol.cpp  # not in the v1 Core+AMS cut
+src/system/bt_discovery_run.cpp  # not in the v1 Core+AMS cut
 src/system/bt_print_utils.cpp  # not in the v1 Core+AMS cut
 src/system/camera_stream.cpp  # not in the v1 Core+AMS cut
 src/system/cli_args.cpp  # not in the v1 Core+AMS cut

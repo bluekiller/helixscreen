@@ -4,6 +4,7 @@
 #pragma once
 
 #include "bluetooth_plugin.h"
+#include "bt_discovery_run.h"
 #include "lvgl/lvgl.h"
 #include "mdns_discovery.h"
 #include "overlay_base.h"
@@ -106,14 +107,9 @@ class LabelPrinterSettingsOverlay : public OverlayBase {
         bool is_scanner = false; ///< HID barcode scanner — exclude from printer dropdown
     };
 
-    /// C callback safety: prevent use-after-free when overlay is destroyed during discovery
-    struct BtDiscoveryContext {
-        std::atomic<bool> alive{true};
-        LabelPrinterSettingsOverlay* overlay = nullptr;
-    };
-
-    helix_bt_context* bt_ctx_ = nullptr;
-    std::unique_ptr<BtDiscoveryContext> bt_discovery_ctx_;
+    std::shared_ptr<helix::bluetooth::SharedContext> bt_ctx_ =
+        std::make_shared<helix::bluetooth::SharedContext>();
+    helix::bluetooth::DiscoveryRun bt_discovery_;
     std::vector<BtDeviceInfo> bt_devices_;
     bool bt_discovering_ = false;
     lv_subject_t bt_scanning_subject_{};   ///< 0=idle, 1=scanning

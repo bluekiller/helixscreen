@@ -7,6 +7,11 @@
 
 namespace helix::bluetooth {
 
+/// Whether to load the plugin, given HELIX_BLUETOOTH's value (null when unset). `0` always
+/// skips it and `1` always allows it. Otherwise production loads it and a --test run does
+/// not, so a dev run never registers a BlueZ agent on the developer's machine.
+bool bluetooth_enabled(const char* env_value, bool test_mode);
+
 /// Runtime loader for libhelix-bluetooth.so.
 /// Checks for BT hardware, loads plugin via dlopen, resolves function pointers.
 /// Zero overhead when BT unavailable — is_available() returns false, all ops are no-ops.

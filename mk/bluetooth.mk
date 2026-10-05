@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Bluetooth plugin shared library — runtime-loaded via dlopen()
 #
-# Builds libhelix-bluetooth.so from src/bluetooth/*.cpp.
+# Builds libhelix-bluetooth.so from src/bluetooth/*.cpp into $(BIN_DIR), beside the binary
+# that dlopen()s it, which is where a release puts it too.
 # Links against libsystemd (sd-bus for BlueZ D-Bus) and libbluetooth (RFCOMM).
 #
 # Built as part of 'all' when dependencies are available, silently skipped otherwise.
 
 BT_SRCS := $(wildcard src/bluetooth/*.cpp)
 BT_OBJS := $(BT_SRCS:src/bluetooth/%.cpp=$(OBJ_DIR)/bluetooth/%.o)
-BT_SO   := $(BUILD_DIR)/lib/libhelix-bluetooth.so
+BT_SO   := $(BIN_DIR)/libhelix-bluetooth.so
 
 # miniLZO (LZO1X compression for MakeID protocol, compiled into the BT plugin)
 MINILZO_OBJ := $(OBJ_DIR)/bluetooth/minilzo.o
@@ -63,8 +64,9 @@ else
 	@echo "$(YELLOW)Bluetooth plugin: skipped (missing libbluetooth-dev or libsystemd-dev)$(RESET)"
 endif
 
-$(BT_SO): $(BT_OBJS) $(MINILZO_OBJ) | $(BUILD_DIR)/lib
+$(BT_SO): $(BT_OBJS) $(MINILZO_OBJ)
 	$(ECHO) "$(GREEN)[LD] $@$(RESET)"
+	$(Q)mkdir -p $(dir $@)
 	$(Q)$(CXX) -o $@ $^ $(BT_LDFLAGS)
 
 $(OBJ_DIR)/bluetooth/%.o: src/bluetooth/%.cpp $(ABI_STAMP) $(FLAGS_STAMP) | $(OBJ_DIR)/bluetooth

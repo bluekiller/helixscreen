@@ -108,6 +108,16 @@ __attribute__((constructor(101))) static void helix_disarm_test_usb_automount() 
     setenv("HELIX_USB_AUTOMOUNT", "0", 1);
 }
 
+/// Keep the Bluetooth plugin unloaded for the whole binary.
+///
+/// The plugin is built beside helix-tests, so on a host with an adapter the loader
+/// would open the system bus and register a BlueZ pairing agent on the developer's
+/// machine the first time a test reaches a plugin context. Tests that exercise
+/// plugin consumers swap fakes into BluetoothLoader's function pointers instead.
+__attribute__((constructor(101))) static void helix_disable_test_bluetooth_plugin() {
+    setenv("HELIX_BLUETOOTH", "0", 1);
+}
+
 namespace {
 
 /// Remove the sandbox once the run is over. Only the teardown lives in a
