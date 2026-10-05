@@ -143,18 +143,6 @@ bool overlay_registration_strict() {
 #endif
 }
 
-// Runs an overlay close callback on the next LVGL tick. Close callbacks delete
-// widgets, and the paths that fire them run inside UpdateQueue drains or LVGL
-// animation callbacks, where a synchronous delete corrupts LVGL's event list
-// (prestonbrown/helixscreen#637).
-void defer_close_callback(OverlayCloseCallback callback) {
-    helix::ui::run_next_tick([cb = std::move(callback)]() {
-        if (!g_nav_manager_destroyed) {
-            cb();
-        }
-    });
-}
-
 // Back to the resting transform and opacity, so a hidden overlay shows up
 // correctly the next time it is reused. Written unconditionally: reading the
 // current transform and skipping the write when it looks clean leaves stale
@@ -218,6 +206,33 @@ bool NavigationManager::is_klippy_ready() const {
     return lv_subject_get_int(subject) == 0; // KlippyState::READY
 }
 
+// Runs an overlay close callback on the next LVGL tick. Close callbacks delete
+// widgets, and the paths that fire them run inside UpdateQueue drains or LVGL
+// animation callbacks, where a synchronous delete corrupts LVGL's event list
+// (prestonbrown/helixscreen#637). An overlay registered when it closes and
+// unregistered by the tick lost its owner in between, and the callback captures
+// that owner, so it is dropped.
+void NavigationManager::defer_close_callback(OverlayCloseCallback callback, lv_obj_t* overlay) {
+    const bool had_owner = is_overlay_registered(overlay);
+    helix::ui::run_next_tick([cb = std::move(callback), overlay, had_owner]() {
+        if (g_nav_manager_destroyed) {
+            return;
+        }
+        if (had_owner && !NavigationManager::instance().is_overlay_registered(overlay)) {
+            spdlog::debug("[NavigationManager] Owner of overlay {} left before its close "
+                          "callback ran; dropping it",
+                          (void*)overlay);
+            return;
+        }
+        cb();
+    });
+}
+
+bool NavigationManager::is_overlay_registered(lv_obj_t* overlay) const {
+    return overlay_instances_.count(overlay) > 0 ||
+           persistent_overlay_instances_.count(overlay) > 0;
+}
+
 void NavigationManager::retire_overlay(lv_obj_t* overlay) {
     // Both run inside UpdateQueue drains or LVGL animation callbacks, where a
     // synchronous delete corrupts LVGL's event list (#637, #620).
@@ -227,7 +242,7 @@ void NavigationManager::retire_overlay(lv_obj_t* overlay) {
     if (callback_it != overlay_close_callbacks_.end()) {
         spdlog::trace("[NavigationManager] Deferring close callback for overlay {}",
                       (void*)overlay);
-        defer_close_callback(std::move(callback_it->second));
+        defer_close_callback(std::move(callback_it->second), overlay);
         overlay_close_callbacks_.erase(callback_it);
     }
 }
@@ -763,8 +778,8 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
     // callbacks would run when the slide-out ends, and that completion finds
     // nothing once the map is cleared. Run them now instead, so each overlay's
     // owner still tears it down.
-    for (auto& [_, callback] : overlay_close_callbacks_) {
-        defer_close_callback(std::move(callback));
+    for (auto& [overlay, callback] : overlay_close_callbacks_) {
+        defer_close_callback(std::move(callback), overlay);
     }
     overlay_close_callbacks_.clear();
     // Delete any remaining dynamic backdrops the loop above didn't reach

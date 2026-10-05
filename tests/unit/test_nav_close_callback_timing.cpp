@@ -154,3 +154,38 @@ TEST_CASE_METHOD(CloseTimingFixture, "A close with animations off defers the clo
     nav().unregister_overlay_instance(upper_);
     settings.set_animations_enabled(animations_were_enabled);
 }
+
+TEST_CASE_METHOD(CloseTimingFixture,
+                 "A close callback is dropped when its owner unregisters before the tick",
+                 "[navigation][overlay][close_timing]") {
+    auto& settings = DisplaySettingsManager::instance();
+    const bool animations_were_enabled = settings.get_animations_enabled();
+    settings.set_animations_enabled(false);
+
+    nav().register_overlay_instance(upper_, nullptr);
+    nav().push_overlay(upper_);
+    drain();
+    nav().go_back();
+    drain();
+    REQUIRE(upper_closes_ == 0);
+
+    // The owner is destroyed in the same drain: its destructor unregisters.
+    nav().unregister_overlay_instance(upper_);
+    process_lvgl(50);
+
+    CHECK(upper_closes_ == 0);
+
+    settings.set_animations_enabled(animations_were_enabled);
+}
+
+TEST_CASE_METHOD(CloseTimingFixture, "A close callback still runs when its owner stays registered",
+                 "[navigation][overlay][close_timing]") {
+    nav().register_overlay_instance(upper_, nullptr);
+    NavigationManagerTestAccess::set_panel_stack(nav(), {home_});
+
+    NavigationManagerTestAccess::slide_out_complete(upper_);
+    process_lvgl(50);
+
+    CHECK(upper_closes_ == 1);
+    nav().unregister_overlay_instance(upper_);
+}

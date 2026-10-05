@@ -611,6 +611,11 @@ class NavigationManager {
     // backdrop is deleted and its close callback runs, both on the next tick.
     void retire_overlay(lv_obj_t* overlay);
 
+    // Run @p callback on the next tick, unless @p overlay's owner unregistered
+    // in the meantime.
+    void defer_close_callback(helix::OverlayCloseCallback callback, lv_obj_t* overlay);
+    bool is_overlay_registered(lv_obj_t* overlay) const;
+
     // Clear overlay stack (used during connection loss)
     void clear_overlay_stack();
 

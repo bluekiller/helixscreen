@@ -117,7 +117,6 @@ struct CloseOnExit {
     ~CloseOnExit() {
         v.hide();
         helix::ui::UpdateQueue::instance().drain();
-        lv_timer_handler(); // the close callback runs on the next tick
     }
 };
 

@@ -300,7 +300,6 @@ class DetailDownloadFixture : public LVGLUITestFixture {
     void pop_and_drain() {
         view_.hide();
         helix::ui::UpdateQueue::instance().drain();
-        lv_timer_handler(); // the close callback runs on the next tick
     }
 
     /// Canonical shared-download path for `key` — mirrors

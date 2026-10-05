@@ -92,7 +92,6 @@ TEST_CASE_METHOD(PrintSelectPanelFixture,
     panel_->show_delete_confirmation();
     panel_->delete_file();
     drain();
-    process_lvgl(50); // the detail overlay's close callback runs on the next tick
 
     REQUIRE(NavigationManager::instance().get_active() == PanelId::PrintSelect);
     REQUIRE(NavigationManagerTestAccess::panel_stack(NavigationManager::instance()).size() == 1);
