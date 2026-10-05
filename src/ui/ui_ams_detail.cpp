@@ -23,6 +23,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <string>
@@ -903,8 +904,18 @@ struct InsertOfferSnapshot {
     }
 };
 
-std::unordered_map<int, InsertOfferSnapshot>& insert_offers() {
-    static std::unordered_map<int, InsertOfferSnapshot> offers;
+struct InsertOffer {
+    InsertOfferSnapshot shown;
+    std::chrono::steady_clock::time_point asked_at;
+};
+
+/// A flapping gate sensor reports an insert on every rising edge, so the same
+/// lane, still showing the same details, is asked about at most once per this
+/// window. Without it, each flap re-raises a notice the user just dismissed.
+constexpr auto kInsertOfferQuiet = std::chrono::minutes(5);
+
+std::unordered_map<int, InsertOffer>& insert_offers() {
+    static std::unordered_map<int, InsertOffer> offers;
     return offers;
 }
 
@@ -914,7 +925,7 @@ void clear_if_lane_unchanged(int slot) {
     if (it == offers.end()) {
         return;
     }
-    const InsertOfferSnapshot shown = it->second;
+    const InsertOfferSnapshot shown = it->second.shown;
     offers.erase(it);
     AmsBackend* backend = AmsState::instance().get_backend();
     if (!backend || !(InsertOfferSnapshot::of(backend->get_slot_info(slot)) == shown)) {
@@ -925,6 +936,10 @@ void clear_if_lane_unchanged(int slot) {
 }
 
 } // namespace
+
+void reset_insert_offers_for_test() {
+    insert_offers().clear();
+}
 
 void offer_clear_after_unverified_insert(int slot) {
     AmsBackend* backend = AmsState::instance().get_backend();
@@ -937,7 +952,15 @@ void offer_clear_after_unverified_insert(int slot) {
     if (!info.has_filament_info() && info.spoolman_id <= 0) {
         return;
     }
-    insert_offers()[slot] = InsertOfferSnapshot::of(info);
+    const auto snapshot = InsertOfferSnapshot::of(info);
+    const auto now = std::chrono::steady_clock::now();
+    auto& offers = insert_offers();
+    if (const auto it = offers.find(slot); it != offers.end() && it->second.shown == snapshot &&
+                                           now - it->second.asked_at < kInsertOfferQuiet) {
+        spdlog::debug("[AMS] Slot {} same-spool notice already asked; not re-raised", slot);
+        return;
+    }
+    offers[slot] = {snapshot, now};
     const std::string message =
         fmt::format(lv_tr("Same spool in {}? Tap Clear if it is a new one."),
                     lane_label(backend->lane_noun(), slot));

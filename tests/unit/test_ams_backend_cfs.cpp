@@ -6600,6 +6600,7 @@ TEST_CASE("CFS untagged insert offers Clear (#1710)", "[ams][cfs][1710]") {
     CfsTestAccess::inject_override_store(backend, std::move(store));
 
     std::vector<std::pair<ToastSeverity, std::string>> toasts;
+    helix::ui::reset_insert_offers_for_test();
     helix::ui::set_test_toast_hook([&](ToastSeverity severity, const std::string& msg, uint32_t) {
         toasts.emplace_back(severity, msg);
     });
@@ -6711,6 +6712,7 @@ struct CfsInsertRuleRig {
         FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
         CfsTestAccess::inject_override_store(backend, std::move(store));
 
+        helix::ui::reset_insert_offers_for_test();
         helix::ui::set_test_toast_hook([this](ToastSeverity severity, const std::string& msg,
                                               uint32_t) { toasts.emplace_back(severity, msg); });
 
@@ -6847,6 +6849,7 @@ TEST_CASE("CFS flat insert edge verdicts (#1710)", "[ams][cfs][1710]") {
     CfsRemapHelper& backend = *backend_reg;
 
     std::vector<std::pair<ToastSeverity, std::string>> toasts;
+    helix::ui::reset_insert_offers_for_test();
     helix::ui::set_test_toast_hook([&](ToastSeverity severity, const std::string& msg, uint32_t) {
         toasts.emplace_back(severity, msg);
     });
