@@ -24,7 +24,6 @@
 #include "hardware_validator.h"
 #include "i_moonraker_client.h" // for helix::CACHED_SNAPSHOT_MARKER
 #include "json_utils.h"
-#include "led/led_controller.h"
 #include "lvgl.h"
 #include "lvgl/src/display/lv_display_private.h" // For rendering_in_progress check
 #include "lvgl_debug_invalidate.h"
@@ -34,7 +33,6 @@
 #include "printer_cache_registry.h"
 #include "probe_sensor_manager.h"
 #include "runtime_config.h"
-#include "sensor_managers.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
 #include "system/crash_handler.h"
@@ -417,12 +415,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // Delegate fan state updates to fan component
     fan_state_.update_from_status(state);
 
-    // Update LED controller per-strip color cache
-    auto& led_ctrl = helix::led::LedController::instance();
-    if (led_ctrl.is_initialized()) {
-        led_ctrl.update_from_status(state);
-    }
-
     excluded_objects_state_.update_from_status(state);
 
     // Klippy state from webhooks (shutdown/error detection), gated on freshness.
@@ -458,8 +450,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     if (!is_blocking_operation_active() && !is_in_print_start()) {
         calibration_state_.arm_busy_queue_toast();
     }
-
-    helix::sensors::for_each_sensor_manager([&state](auto& m) { m.update_from_status(state); });
 }
 
 void PrinterState::reset_for_new_print() {

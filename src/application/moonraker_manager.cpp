@@ -40,6 +40,7 @@
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #endif
+#include "led/led_controller.h"
 #include "print_collector_arming.h"
 #include "print_completion.h"
 #include "print_start_collector.h"
@@ -47,6 +48,7 @@
 #include "printer_detector.h"
 #include "printer_state.h"
 #include "runtime_config.h"
+#include "sensor_managers.h"
 #include "simulated_clock.h"
 #include "sound_manager.h"
 #include "spoolman_manager.h"
@@ -324,12 +326,24 @@ void MoonrakerManager::process_notifications() {
             }
         } else {
             if (auto frame = helix::parse_status_notification(notification)) {
-                get_printer_state().update_from_status(*frame->status, frame->eventtime,
-                                                       frame->from_cached_snapshot, klippy_epoch);
-                helix::ToolState::instance().update_from_status(*frame->status);
+                helix::dispatch_status_frame(*frame, klippy_epoch);
             }
         }
     }
+}
+
+void helix::dispatch_status_frame(const StatusFrame& frame, std::optional<uint64_t> klippy_epoch) {
+    const json& status = *frame.status;
+    get_printer_state().update_from_status(status, frame.eventtime, frame.from_cached_snapshot,
+                                           klippy_epoch);
+    helix::ToolState::instance().update_from_status(status);
+
+    auto& led_ctrl = helix::led::LedController::instance();
+    if (led_ctrl.is_initialized()) {
+        led_ctrl.update_from_status(status);
+    }
+
+    helix::sensors::for_each_sensor_manager([&status](auto& m) { m.update_from_status(status); });
 }
 
 void MoonrakerManager::process_timeouts() {

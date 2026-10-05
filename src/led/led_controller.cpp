@@ -1304,7 +1304,7 @@ void OutputPinBackend::set_brightness(const std::string& pin_id, int brightness_
               silent);
 }
 
-// Called from UI thread (via UpdateQueue dispatch in printer_state.cpp)
+// Called from UI thread (via dispatch_status_frame in moonraker_manager.cpp)
 bool OutputPinBackend::update_from_status(const nlohmann::json& status) {
     bool carried = false;
     for (const auto& pin : pins_) {
