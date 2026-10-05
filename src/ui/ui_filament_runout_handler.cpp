@@ -80,18 +80,14 @@ void FilamentRunoutHandler::check_and_show_runout_guidance() {
     // has_real_runout() so an intentionally-empty AMS lane (e.g. head 1 left
     // unloaded for a multi-color print) doesn't pop guidance when the print is
     // paused for an unrelated reason. A loaded lane that lost filament still
-    // counts. (Snapmaker U1 false-alarm fix.)
+    // counts.
     if (sensor_mgr.has_real_runout()) {
-        // Auto-recover-on-pause was previously gated on `motion=false AND
-        // port=true` but field testing exposed two failure modes: (a) the
-        // "port=true" signal alone doesn't prove filament reached the
-        // extruder gear (e.g., Snapmaker assist motor pre-loads to ~4
-        // inches short of the toolhead and stops); (b) firmware load
-        // macros (AUTO_FEEDING/MANUAL_FEEDING) silently no-op outside an
-        // active print, so the recovery chain can't actually move filament
-        // either. Net result: silent air-prints. Pulled until we have a
-        // verified detection signal AND a recovery path that observably
-        // moves filament. Modal-driven Resume (user-initiated) still uses
+        // A runout during pause always asks the user; nothing recovers on its
+        // own. A lane sensor reporting filament does not prove it reached the
+        // extruder gear (the Snapmaker assist motor stops a few inches short
+        // of the toolhead), and firmware load macros (AUTO_FEEDING /
+        // MANUAL_FEEDING) no-op outside an active print, so an automatic
+        // recovery would air-print. The modal's Resume goes through
         // backend->prepare_for_resume.
         spdlog::info(
             "[FilamentRunoutHandler] Runout detected during pause - showing guidance modal");
@@ -213,8 +209,8 @@ void FilamentRunoutHandler::show_runout_guidance_modal() {
         spdlog::info("[FilamentRunoutHandler] User chose to cancel print after runout");
         // Shared with the home Filament tile's paused modal, which offers the
         // same button. Raises the same confirmation the Stop button does and
-        // sends nothing until the user accepts — this dialog used to cancel on
-        // the first tap, alone among the printer's three cancel affordances.
+        // sends nothing until the user accepts, like every other cancel
+        // affordance on the printer.
         //
         // This dialog stays up behind the confirmation so declining returns to
         // it; closing it is the confirmed path's job. Without that the decline
@@ -257,7 +253,7 @@ void FilamentRunoutHandler::show_runout_guidance_modal() {
     // int: 1=runout, 0=clear. observe<int> fires its INITIAL read the moment
     // it's installed and again on every change — and the sensor can momentarily
     // read 0 during its startup-grace window (e.g. right after a UI restart),
-    // which previously closed the modal immediately (#991). Guards, in order:
+    // which must not close the modal (#991). Guards, in order:
     //   - value==1: latch a confirmed active runout for THIS modal (never closes)
     //   - startup-grace window: ignore (sensor not yet stabilized)
     //   - require runout_confirmed_active_: only a genuine confirmed runout→clear
@@ -349,8 +345,7 @@ void FilamentRunoutHandler::dispatch_unload() {
 void FilamentRunoutHandler::dispatch_purge() {
     spdlog::info("[FilamentRunoutHandler] User chose to purge after runout");
     // Same shared two-tier ladder (configured PURGE macro, then raw gcode) the
-    // home Filament tile uses — execute_filament_purge() was extracted from the
-    // body that used to live here.
+    // home Filament tile uses.
     helix::ui::execute_filament_purge("[FilamentRunoutHandler]");
 }
 

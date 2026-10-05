@@ -82,12 +82,37 @@ lv_obj_report_style_change(nullptr)      ← CRITICAL: invalidates LVGL style ca
     ↓
 Re-register XML color/property consts; update screen bg
     ↓
+lv_xml_reapply_style_tokens() + lv_xml_reapply_token_styles()  ← <style> and inline #token colors re-resolve
+    ↓
 theme_manager_refresh_widget_tree()      ← lv_obj_refresh_style() on every widget (picks up inline styles)
     ↓
 theme_apply_current_palette_to_tree()    ← re-colors widgets with baked XML inline colors
     ↓
 theme_manager_notify_change()            ← bumps the theme-changed subject (generation counter)
 ```
+
+### Authored Inline Colors
+
+helix-xml records every inline `style_*` color an XML author writes, per object, property
+and selector: a global token (`style_text_color="#text_muted"`) with its name, a literal
+(`style_bg_color="0x000000"`, `"#FFFFFF"`) without one. Two things follow on a theme switch:
+
+- `lv_xml_reapply_token_styles()` rewrites each token color with its const's new value, unless
+  C++ has changed that color since the XML wrote it (an error-red label, a selection
+  highlight keeps its value).
+- The palette walker (`src/ui/theme_live_recolor.cpp`) writes every local color through one
+  helper that skips a property+selector `lv_xml_obj_has_authored_style()` reports. A token
+  is already right after the re-apply, and a literal such as the QR scanner's white status
+  text stays as written. Widgets with no inline color are themed by the walker as before.
+- `lv_xml_reapply_style_tokens()` rewrites the `#token` colors of every named `<style>` in
+  place, so widgets using the style, and ones built from it later, take the new mode.
+- The walker also leaves a label's text color alone when a style someone chose provides it
+  (a bound style, on or off at the time, a component `<style>`, one added from C++). ThemeManager's shared semantic
+  text styles do not count: a plain `text_body` on a dark ancestor still turns white.
+
+A color passed through a component `$prop` is resolved at the instance tag, where the token
+name is lost, so it counts as a literal: kept, never re-applied. Colors set from C++ are not
+recorded and stay the walker's to theme.
 
 ---
 

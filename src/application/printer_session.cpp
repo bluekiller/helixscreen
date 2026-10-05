@@ -852,7 +852,7 @@ bool PrinterSession::connect_moonraker() {
 
     // G-code response routing: action prompts, error and narration routers, layer tracking
     if (m_moonraker->client()) {
-        m_routing.attach(m_moonraker->client(), m_moonraker->api(), m_async);
+        m_routing.attach(m_moonraker->client(), m_moonraker->api());
     } else {
         spdlog::warn("[Application] Cannot init G-code response routing - no client");
     }

@@ -15,9 +15,9 @@
 
 // CRITICAL: Subject updates trigger lv_obj_invalidate() which asserts if called
 // during LVGL rendering. WebSocket callbacks run on libhv's event loop thread,
-// not the main LVGL thread. We must defer subject updates to the main thread
-// via ui_queue_update() to avoid the "Invalidate area not allowed during rendering"
-// assertion.
+// not the main LVGL thread. Subject updates are deferred to the main thread
+// through lifetime_.token().defer() to avoid the "Invalidate area not allowed
+// during rendering" assertion, and dropped once deinit_subjects() runs.
 
 namespace helix::sensors {
 
@@ -102,9 +102,9 @@ void HumiditySensorManager::discover(const std::vector<std::string>& klipper_obj
 
     spdlog::info("[HumiditySensorManager] Discovered {} humidity sensors", sensors_.size());
 
-    // Auto-assign roles based on sensor name when no roles are configured yet.
-    // If a sensor name contains "chamber", assign CHAMBER role; "dryer" gets DRYER role.
-    // Only auto-assigns if no sensor already holds that role (respects saved config).
+    // Auto-assign roles from the sensor name: the first "chamber" sensor gets CHAMBER,
+    // the first "dryer" sensor gets DRYER. sensors_ was rebuilt above, so every
+    // sensor starts at NONE here and the result depends only on the names.
     if (!sensors_.empty()) {
         bool has_chamber_role = find_config_by_role(HumiditySensorRole::CHAMBER) != nullptr;
         bool has_dryer_role = find_config_by_role(HumiditySensorRole::DRYER) != nullptr;
@@ -187,8 +187,8 @@ void HumiditySensorManager::update_from_status(const nlohmann::json& status) {
                 spdlog::debug("[HumiditySensorManager] sync_mode: updating subjects synchronously");
                 update_subjects();
             } else {
-                spdlog::trace("[HumiditySensorManager] async_mode: deferring via ui_queue_update");
-                helix::ui::queue_update("HumiditySensorManager::update_from_status", [] {
+                spdlog::trace("[HumiditySensorManager] async_mode: deferring via lifetime token");
+                lifetime_.token().defer("HumiditySensorManager::update_from_status", [] {
                     HumiditySensorManager::instance().update_subjects_on_main_thread();
                 });
             }
@@ -288,6 +288,8 @@ void HumiditySensorManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
+
+    lifetime_.invalidate();
 
     spdlog::trace("[HumiditySensorManager] Deinitializing subjects");
     subjects_.deinit_all();

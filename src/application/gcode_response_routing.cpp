@@ -4,14 +4,12 @@
 #include "gcode_response_routing.h"
 
 #include "ui_toast_manager.h"
-#include "ui_update_queue.h"
 
 #include "action_prompt_manager.h"
 #include "action_prompt_modal.h"
 #include "ams_error_bridge.h"
 #include "ams_state.h"
 #include "app_globals.h"
-#include "async_lifetime_guard.h"
 #include "gcode_error_router.h"
 #include "gcode_narration_router.h"
 #include "gcode_response_lines.h"
@@ -29,10 +27,7 @@ namespace helix {
 GcodeResponseRouting::GcodeResponseRouting() = default;
 GcodeResponseRouting::~GcodeResponseRouting() = default;
 
-void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api,
-                                  AsyncLifetimeGuard& async) {
-    m_async = &async;
-
+void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api) {
     // Create ActionPromptManager and register global instance for cross-TU access
     m_action_prompt_manager = std::make_unique<ActionPromptManager>();
     ActionPromptManager::set_instance(m_action_prompt_manager.get());
@@ -62,48 +57,51 @@ void GcodeResponseRouting::attach(IMoonrakerClient* client, IMoonrakerAPI* api,
         });
     }
 
-    // Wire on_show callback to display modal (uses ui_queue_update() for thread safety)
+    // The dialog closed on this screen. The manager decides what that means for
+    // the prompt and whether Klipper is told, the way Mainsail tells it.
+    m_action_prompt_modal->set_dismiss_callback([this, api](PromptCloseKind kind) {
+        if (!m_action_prompt_manager || !m_action_prompt_manager->closed_on_screen(kind) || !api) {
+            return;
+        }
+        spdlog::info("[ActionPrompt] Closed on screen, sending prompt_end");
+        api->execute_gcode(
+            ActionPromptManager::PROMPT_END_GCODE, nullptr,
+            [](const MoonrakerError& err) {
+                spdlog::warn("[ActionPrompt] prompt_end failed: {}", err.message);
+            },
+            0, false, nullptr, /*caller_surfaces_errors=*/false);
+    });
+
+    // The manager runs on the main thread, so the modal follows it in lock-step.
     m_action_prompt_manager->set_on_show([this](const PromptData& data) {
         spdlog::info("[ActionPrompt] Showing prompt: {}", data.title);
-        // WebSocket callbacks run on background thread - must use ui_queue_update
-        m_async->defer("GcodeResponseRouting::action_prompt_show", [this, data]() {
-            lv_obj_t* screen = lv_screen_active();
-            if (m_action_prompt_modal && screen) {
-                m_action_prompt_modal->show_prompt(screen, data);
-            }
-        });
+        lv_obj_t* screen = lv_screen_active();
+        if (m_action_prompt_modal && screen) {
+            m_action_prompt_modal->show_prompt(screen, data);
+        }
     });
 
-    // Wire on_close callback to hide modal
     m_action_prompt_manager->set_on_close([this]() {
         spdlog::info("[ActionPrompt] Closing prompt");
-        m_async->defer("GcodeResponseRouting::action_prompt_close", [this]() {
-            if (m_action_prompt_modal) {
-                m_action_prompt_modal->hide();
-            }
-        });
+        if (m_action_prompt_modal) {
+            m_action_prompt_modal->hide();
+        }
     });
 
-    // Wire on_notify callback for standalone notifications (action:notify)
     m_action_prompt_manager->set_on_notify([](const std::string& message) {
         spdlog::info("[ActionPrompt] Notification: {}", message);
-        ui::queue_update("GcodeResponseRouting::attach", [message]() {
-            ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
-        });
+        ToastManager::instance().show(ToastSeverity::INFO, message.c_str(), 5000);
     });
 
-    // Allow mock AMS backends to inject action_prompt lines (e.g., calibration wizard)
-    auto* prompt_mgr = m_action_prompt_manager.get();
-    AmsState::instance().set_gcode_response_callback(
-        [prompt_mgr](const std::string& line) { prompt_mgr->process_line(line); });
+    // Lines arrive on the WebSocket thread (and from mock AMS backends, e.g. the
+    // calibration wizard); the sink hops them to the main thread.
+    auto feed_line = m_action_prompt_manager->make_line_sink();
+    AmsState::instance().set_gcode_response_callback(feed_line);
 
     // Every line of G-code console output arrives through notify_gcode_response
     client->register_method_callback(
-        "notify_gcode_response", "action_prompt_manager", [this](const nlohmann::json& msg) {
-            for_each_gcode_response_line(msg, [this](const std::string& line) {
-                m_action_prompt_manager->process_line(line);
-            });
-        });
+        "notify_gcode_response", "action_prompt_manager",
+        [feed_line](const nlohmann::json& msg) { for_each_gcode_response_line(msg, feed_line); });
 
     // Recovery modal presenter: source-agnostic owner of the CRITICAL recovery
     // modal (AFC jam, CFS key840, etc.). Created before GcodeErrorRouter so the

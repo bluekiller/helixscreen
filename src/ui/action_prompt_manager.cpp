@@ -55,7 +55,7 @@ size_t glued_command_length(std::string_view token) {
 
 } // namespace
 
-// Static instance pointer for cross-TU access (atomic for thread-safe reads from websocket thread)
+// Static instance pointer for cross-TU access (atomic for reads from other threads)
 std::atomic<ActionPromptManager*> ActionPromptManager::s_instance{nullptr};
 
 // ============================================================================
@@ -181,6 +181,65 @@ const PromptData* ActionPromptManager::get_current_prompt() const {
     return nullptr;
 }
 
+void ActionPromptManager::set_state(State state) {
+    std::shared_ptr<const std::string> title;
+    if (state == State::SHOWING && m_current_prompt) {
+        title = std::make_shared<const std::string>(m_current_prompt->title);
+    }
+    std::atomic_store(&m_showing_title, std::move(title));
+    m_state = state;
+}
+
+std::function<void(const std::string&)> ActionPromptManager::make_line_sink() {
+    return [this, tok = m_lifetime.token()](const std::string& line) {
+        // Every console line passes through here; only the action lines are
+        // worth a trip to the main thread.
+        if (!parse_action_line(line).has_value()) {
+            return;
+        }
+        tok.defer("ActionPromptManager::process_line", [this, line]() { process_line(line); });
+    };
+}
+
+void ActionPromptManager::end_showing() {
+    m_current_prompt.reset();
+    m_in_group = false;
+    set_state(State::IDLE);
+}
+
+bool ActionPromptManager::closed_on_screen(PromptCloseKind kind) {
+    if (m_state != State::SHOWING) {
+        return false;
+    }
+    switch (kind) {
+    case PromptCloseKind::HotReload: {
+        // The prompt is still live on the printer; show it again in the rebuilt
+        // XML. Deferred because this runs inside Modal::hide(), which must not
+        // show a modal. A prompt shown in the meantime has had its own on_show.
+        const uint64_t shown = m_show_count;
+        m_lifetime.defer("ActionPromptManager::reshow", [this, shown]() {
+            if (m_state == State::SHOWING && m_show_count == shown && m_on_show) {
+                m_on_show(*m_current_prompt);
+            }
+        });
+        return false;
+    }
+    case PromptCloseKind::ButtonWithGcode:
+        // The button's own macro is expected to end or replace the prompt; a
+        // prompt_end sent after it could close the dialog that macro raises next.
+    case PromptCloseKind::External:
+        // A sweep (ctl reset, fault-modal dismissal) clears the screen; the user
+        // did not answer the printer, so nothing is sent.
+        end_showing();
+        return false;
+    case PromptCloseKind::ButtonWithoutGcode:
+    case PromptCloseKind::UserDismiss:
+        end_showing();
+        return true;
+    }
+    return false;
+}
+
 void ActionPromptManager::process_line(const std::string& line) {
     auto result = parse_action_line(line);
     if (!result.has_value()) {
@@ -233,7 +292,7 @@ void ActionPromptManager::handle_prompt_begin(const std::string& payload) {
     m_in_group = false;
     // Note: m_next_group_id is NOT reset - it keeps incrementing across prompts
 
-    m_state = State::BUILDING;
+    set_state(State::BUILDING);
 }
 
 void ActionPromptManager::handle_prompt_text(const std::string& payload) {
@@ -287,7 +346,8 @@ void ActionPromptManager::handle_prompt_show() {
         return; // Ignore show without a prompt being built
     }
 
-    m_state = State::SHOWING;
+    set_state(State::SHOWING);
+    ++m_show_count;
 
     if (m_on_show) {
         m_on_show(*m_current_prompt);
@@ -307,7 +367,7 @@ void ActionPromptManager::handle_prompt_end() {
     // Clear the prompt and return to IDLE
     m_current_prompt.reset();
     m_in_group = false;
-    m_state = State::IDLE;
+    set_state(State::IDLE);
 }
 
 void ActionPromptManager::handle_notify(const std::string& payload) {

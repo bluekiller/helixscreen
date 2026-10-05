@@ -866,6 +866,71 @@ void GCodeGLESRenderer::destroy_gl() {
 // Geometry Upload
 // ============================================================
 
+// Creates a static VBO holding `bytes` of `data`. Returns an empty handle when GL reports an error.
+static GLBufferHandle make_vbo(const void* data, size_t bytes, const char* what) {
+    GLBufferHandle vbo;
+    glGenBuffers(1, &vbo.id);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo.id);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(bytes), data, GL_STATIC_DRAW);
+    bool ok = check_gl_error(what);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    return ok ? std::move(vbo) : GLBufferHandle();
+}
+
+void GCodeGLESRenderer::upload_layer(const RibbonGeometry& geom, size_t layer,
+                                     std::vector<uint8_t>& buf, LayerVBO& out) {
+    constexpr size_t VERTEX_STRIDE = PackedVertex::stride();
+
+    out.vbo = GLBufferHandle();
+    out.vertex_count = 0;
+
+    size_t first_strip = 0;
+    size_t strip_count = geom.strips.size();
+
+    if (!geom.layer_strip_ranges.empty()) {
+        auto [fs, sc] = geom.layer_strip_ranges[layer];
+        first_strip = fs;
+        strip_count = sc;
+    }
+
+    if (strip_count == 0) {
+        return;
+    }
+
+    // Use pre-computed buffers if available (prepared on background thread)
+    if (!geom.prepared_buffers.empty() && layer < geom.prepared_buffers.size() &&
+        geom.prepared_buffers[layer].vertex_count > 0) {
+        const auto& prepared = geom.prepared_buffers[layer];
+        GLBufferHandle vbo = make_vbo(prepared.data.data(), prepared.vertex_count * VERTEX_STRIDE,
+                                      "glBufferData (prepared)");
+        if (!vbo.id) {
+            spdlog::error("[GCode GLES] VBO creation failed for layer {} (prepared)", layer);
+            return;
+        }
+        out.vbo = std::move(vbo);
+        out.vertex_count = prepared.vertex_count;
+        return;
+    }
+
+    // CPU fallback: expand strips inline. Each strip = 4 vertices -> 2 triangles -> 6 vertices
+    // (for GL_TRIANGLES).
+    size_t total_verts = strip_count * 6;
+    size_t buf_bytes = total_verts * VERTEX_STRIDE;
+    if (buf.size() < buf_bytes) {
+        buf.resize(buf_bytes);
+    }
+
+    geom.expand_strips(first_strip, strip_count, reinterpret_cast<PackedVertex*>(buf.data()));
+
+    GLBufferHandle vbo = make_vbo(buf.data(), buf_bytes, "glBufferData");
+    if (!vbo.id) {
+        spdlog::error("[GCode GLES] VBO creation failed for layer {}", layer);
+        return;
+    }
+    out.vbo = std::move(vbo);
+    out.vertex_count = total_verts;
+}
+
 void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<LayerVBO>& vbos) {
     // Lock palette during read to prevent data races with set_tool_color_overrides
     std::lock_guard<std::mutex> lock(palette_mutex_);
@@ -876,83 +941,14 @@ void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<
         return;
     }
 
-    // Determine number of layers
     size_t num_layers = geom.layer_strip_ranges.empty() ? 1 : geom.layer_strip_ranges.size();
 
     vbos.resize(num_layers);
 
-    constexpr size_t VERTEX_STRIDE = PackedVertex::stride();
-
     // Reuse upload buffer across layers (sized to largest layer)
     std::vector<uint8_t> buf;
-
     for (size_t layer = 0; layer < num_layers; ++layer) {
-        size_t first_strip = 0;
-        size_t strip_count = geom.strips.size();
-
-        if (!geom.layer_strip_ranges.empty()) {
-            auto [fs, sc] = geom.layer_strip_ranges[layer];
-            first_strip = fs;
-            strip_count = sc;
-        }
-
-        if (strip_count == 0) {
-            vbos[layer].vbo = GLBufferHandle();
-            vbos[layer].vertex_count = 0;
-            continue;
-        }
-
-        // Use pre-computed buffers if available (prepared on background thread)
-        if (!geom.prepared_buffers.empty() && layer < geom.prepared_buffers.size() &&
-            geom.prepared_buffers[layer].vertex_count > 0) {
-            const auto& prepared = geom.prepared_buffers[layer];
-            GLBufferHandle vbo_handle;
-            glGenBuffers(1, &vbo_handle.id);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo_handle.id);
-            glBufferData(GL_ARRAY_BUFFER,
-                         static_cast<GLsizeiptr>(prepared.vertex_count * VERTEX_STRIDE),
-                         prepared.data.data(), GL_STATIC_DRAW);
-            bool buf_ok = check_gl_error("glBufferData (prepared)");
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-            if (!buf_ok) {
-                spdlog::error("[GCode GLES] VBO creation failed for layer {} (prepared)", layer);
-                vbos[layer].vbo = GLBufferHandle();
-                vbos[layer].vertex_count = 0;
-                continue;
-            }
-
-            vbos[layer].vbo = std::move(vbo_handle);
-            vbos[layer].vertex_count = prepared.vertex_count;
-            continue;
-        }
-
-        // Each strip = 4 vertices → 2 triangles → 6 vertices (for GL_TRIANGLES)
-        size_t total_verts = strip_count * 6;
-        size_t buf_bytes = total_verts * VERTEX_STRIDE;
-        if (buf.size() < buf_bytes) {
-            buf.resize(buf_bytes);
-        }
-
-        geom.expand_strips(first_strip, strip_count, reinterpret_cast<PackedVertex*>(buf.data()));
-
-        GLBufferHandle vbo_handle;
-        glGenBuffers(1, &vbo_handle.id);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_handle.id);
-        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(total_verts * VERTEX_STRIDE),
-                     buf.data(), GL_STATIC_DRAW);
-        bool buf_ok = check_gl_error("glBufferData");
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        if (!buf_ok) {
-            spdlog::error("[GCode GLES] VBO creation failed for layer {}", layer);
-            vbos[layer].vbo = GLBufferHandle();
-            vbos[layer].vertex_count = 0;
-            continue;
-        }
-
-        vbos[layer].vbo = std::move(vbo_handle);
-        vbos[layer].vertex_count = total_verts;
+        upload_layer(geom, layer, buf, vbos[layer]);
     }
 
     spdlog::debug("[GCode GLES] Uploaded {} layers, {} total strips to VBOs", num_layers,
@@ -986,79 +982,11 @@ bool GCodeGLESRenderer::upload_geometry_chunk(const RibbonGeometry& geom,
     // Lock palette during read to prevent data races with set_tool_color_overrides
     std::lock_guard<std::mutex> lock(palette_mutex_);
 
-    constexpr size_t VERTEX_STRIDE = PackedVertex::stride();
     // Reuse CPU buffer for layers that don't have prepared data
     std::vector<uint8_t> buf;
 
     while (next_layer < total_layers) {
-        size_t layer = next_layer;
-
-        size_t first_strip = 0;
-        size_t strip_count = geom.strips.size();
-
-        if (!geom.layer_strip_ranges.empty()) {
-            auto [fs, sc] = geom.layer_strip_ranges[layer];
-            first_strip = fs;
-            strip_count = sc;
-        }
-
-        if (strip_count == 0) {
-            vbos[layer].vbo = GLBufferHandle();
-            vbos[layer].vertex_count = 0;
-            ++next_layer;
-            continue;
-        }
-
-        // Use pre-computed buffers if available (prepared on background thread)
-        if (!geom.prepared_buffers.empty() && layer < geom.prepared_buffers.size() &&
-            geom.prepared_buffers[layer].vertex_count > 0) {
-            const auto& prepared = geom.prepared_buffers[layer];
-            GLBufferHandle vbo_handle;
-            glGenBuffers(1, &vbo_handle.id);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo_handle.id);
-            glBufferData(GL_ARRAY_BUFFER,
-                         static_cast<GLsizeiptr>(prepared.vertex_count * VERTEX_STRIDE),
-                         prepared.data.data(), GL_STATIC_DRAW);
-            bool buf_ok = check_gl_error("glBufferData (prepared)");
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-            if (!buf_ok) {
-                spdlog::error("[GCode GLES] VBO creation failed for layer {} (prepared)", layer);
-                vbos[layer].vbo = GLBufferHandle();
-                vbos[layer].vertex_count = 0;
-            } else {
-                vbos[layer].vbo = std::move(vbo_handle);
-                vbos[layer].vertex_count = prepared.vertex_count;
-            }
-        } else {
-            // CPU fallback: expand strips inline (for color re-upload case)
-            size_t total_verts = strip_count * 6;
-            size_t buf_bytes = total_verts * VERTEX_STRIDE;
-            if (buf.size() < buf_bytes) {
-                buf.resize(buf_bytes);
-            }
-
-            geom.expand_strips(first_strip, strip_count,
-                               reinterpret_cast<PackedVertex*>(buf.data()));
-
-            GLBufferHandle vbo_handle;
-            glGenBuffers(1, &vbo_handle.id);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo_handle.id);
-            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(total_verts * VERTEX_STRIDE),
-                         buf.data(), GL_STATIC_DRAW);
-            bool buf_ok = check_gl_error("glBufferData");
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-            if (!buf_ok) {
-                spdlog::error("[GCode GLES] VBO creation failed for layer {}", layer);
-                vbos[layer].vbo = GLBufferHandle();
-                vbos[layer].vertex_count = 0;
-            } else {
-                vbos[layer].vbo = std::move(vbo_handle);
-                vbos[layer].vertex_count = total_verts;
-            }
-        }
-
+        upload_layer(geom, next_layer, buf, vbos[next_layer]);
         ++next_layer;
 
         // Check time budget (check every layer, glBufferData can be slow)

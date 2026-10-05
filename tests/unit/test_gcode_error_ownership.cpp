@@ -24,6 +24,7 @@
  */
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/mock_printer.h"
 #include "ams_backend_cfs.h"
 #include "app_globals.h"
 #include "async_lifetime_guard.h"
@@ -139,10 +140,9 @@ TEST_CASE_METHOD(OwnershipFixture,
 TEST_CASE_METHOD(OwnershipFixture,
                  "CFS action script does not claim the report for a rejected payload",
                  "[error-center][gcode-ownership][ams][cfs]") {
-    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
-    helix::PrinterState state;
-    state.init_subjects(false);
-    MoonrakerAPIMock api(client, state);
+    MockPrinter mock_printer;
+    auto& client = mock_printer.client;
+    auto& api = mock_printer.api;
 
     helix::printer::AmsBackendCfs backend(&api, nullptr);
 

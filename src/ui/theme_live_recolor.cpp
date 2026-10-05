@@ -11,6 +11,8 @@
 
 #include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/lvgl.h"
+#include "lvgl/src/core/lv_obj_private.h"       // obj->styles: LVGL has no style iterator
+#include "lvgl/src/core/lv_obj_style_private.h" // lv_obj_style_t fields
 #include "theme_manager.h"
 #include "theme_manager_internal.h"
 
@@ -50,6 +52,46 @@ static void swap_map_add(std::vector<ColorSwapEntry>& map, lv_color_t from, lv_c
         }
     }
     map.push_back({from, to});
+}
+
+/// True when a label's text color at `selector` comes from a style someone
+/// chose for it: a bound style, a component <style> or one added from C++.
+/// A local value, an LVGL theme style and ThemeManager's shared semantic text
+/// styles do not count; those are what the walker is there to replace.
+static bool label_text_color_from_chosen_style(lv_obj_t* obj, lv_style_selector_t selector) {
+    if (!lv_obj_check_type(obj, &lv_label_class))
+        return false;
+    const lv_style_t* primary = ThemeManager::instance().get_style(StyleRole::TextPrimary);
+    const lv_style_t* muted = ThemeManager::instance().get_style(StyleRole::TextMuted);
+    for (uint32_t i = 0; i < obj->style_cnt; i++) {
+        const lv_obj_style_t& entry = obj->styles[i];
+        // A disabled entry still counts: lv_obj_bind_style toggles its style
+        // disabled, and a local value written now would hide it once enabled.
+        if (entry.is_local || entry.is_trans || entry.is_theme)
+            continue;
+        if (entry.selector != selector || entry.style == primary || entry.style == muted)
+            continue;
+        lv_style_value_t value;
+        if (lv_style_get_prop(entry.style, LV_STYLE_TEXT_COLOR, &value) == LV_STYLE_RES_FOUND)
+            return true;
+    }
+    return false;
+}
+
+// Every local colour this file writes goes through here.
+static void set_palette_color(lv_obj_t* obj, lv_style_prop_t prop, lv_color_t color,
+                              lv_style_selector_t selector) {
+    // A color the XML author wrote inline (a token or a literal) is theirs: a
+    // token follows a theme switch through lv_xml_reapply_token_styles(), and a
+    // literal (white on a black camera backdrop) must not follow it at all.
+    if (lv_xml_obj_has_authored_style(obj, prop, selector))
+        return;
+    // A local value outranks every normal style, so writing one would hide it.
+    if (prop == LV_STYLE_TEXT_COLOR && label_text_color_from_chosen_style(obj, selector))
+        return;
+    lv_style_value_t value{};
+    value.color = color;
+    lv_obj_set_local_style_prop(obj, prop, value, selector);
 }
 
 namespace helix::theme_detail {
@@ -159,13 +201,14 @@ static void apply_button_text_contrast(lv_obj_t* btn) {
                 // Icon: only apply contrast if it's using text/muted variant
                 lv_color_t icon_color = lv_obj_get_style_text_color(child, LV_PART_MAIN);
                 if (is_text_variant_color(icon_color)) {
-                    lv_obj_set_style_text_color(child, text_color, LV_PART_MAIN);
+                    set_palette_color(child, LV_STYLE_TEXT_COLOR, text_color, LV_PART_MAIN);
                 }
             } else {
                 // Regular label: use muted color for muted-style fonts, contrast for others
                 const lv_font_t* font = lv_obj_get_style_text_font(child, LV_PART_MAIN);
-                lv_obj_set_style_text_color(
-                    child, is_muted_text_font(font) ? current_muted : text_color, LV_PART_MAIN);
+                set_palette_color(child, LV_STYLE_TEXT_COLOR,
+                                  is_muted_text_font(font) ? current_muted : text_color,
+                                  LV_PART_MAIN);
             }
         }
         // Also check nested containers (some buttons have container > label structure)
@@ -177,12 +220,12 @@ static void apply_button_text_contrast(lv_obj_t* btn) {
                 if (helix::ui::is_icon_font(nested_font)) {
                     lv_color_t icon_color = lv_obj_get_style_text_color(nested, LV_PART_MAIN);
                     if (is_text_variant_color(icon_color)) {
-                        lv_obj_set_style_text_color(nested, text_color, LV_PART_MAIN);
+                        set_palette_color(nested, LV_STYLE_TEXT_COLOR, text_color, LV_PART_MAIN);
                     }
                 } else {
-                    lv_obj_set_style_text_color(
-                        nested, is_muted_text_font(nested_font) ? current_muted : text_color,
-                        LV_PART_MAIN);
+                    set_palette_color(nested, LV_STYLE_TEXT_COLOR,
+                                      is_muted_text_font(nested_font) ? current_muted : text_color,
+                                      LV_PART_MAIN);
                 }
             }
         }
@@ -284,12 +327,6 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
             return;
         }
 
-        // ponytail: an inline token color is resolved once at creation and is not
-        // re-resolved on a live dark/light switch; store the token if that shows.
-        if (lv_obj_has_flag(obj, helix::ui::AUTHORED_TEXT_COLOR_FLAG)) {
-            return;
-        }
-
         // Labels inside buttons get auto-contrast based on button background
         lv_obj_t* parent = lv_obj_get_parent(obj);
         if (parent && lv_obj_check_type(parent, &lv_button_class)) {
@@ -305,7 +342,7 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
             if (anc_opa >= LV_OPA_50) {
                 lv_color_t anc_bg = lv_obj_get_style_bg_color(anc, LV_PART_MAIN);
                 if (theme_compute_brightness(anc_bg) < 80) {
-                    lv_obj_set_style_text_color(obj, lv_color_white(), LV_PART_MAIN);
+                    set_palette_color(obj, LV_STYLE_TEXT_COLOR, lv_color_white(), LV_PART_MAIN);
                     return;
                 }
                 break; // found opaque ancestor, not dark — fall through to normal
@@ -314,9 +351,9 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
 
         // Small/heading fonts get muted color, body fonts get primary
         if (is_muted_text_font(font)) {
-            lv_obj_set_style_text_color(obj, text_muted, LV_PART_MAIN);
+            set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_muted, LV_PART_MAIN);
         } else {
-            lv_obj_set_style_text_color(obj, text_primary, LV_PART_MAIN);
+            set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
         }
         return;
     }
@@ -339,10 +376,10 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
 
         // If saturation is low (<30), this is a neutral/gray button - apply elevated_bg
         if (saturation < 30) {
-            lv_obj_set_style_bg_color(obj, elevated_bg, LV_PART_MAIN);
+            set_palette_color(obj, LV_STYLE_BG_COLOR, elevated_bg, LV_PART_MAIN);
         }
 
-        lv_obj_set_style_border_color(obj, border, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BORDER_COLOR, border, LV_PART_MAIN);
         apply_button_text_contrast(obj);
         return;
     }
@@ -353,33 +390,35 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
 
     // Checkboxes - box border, primary bg when checked, contrast checkmark
     if (lv_obj_check_type(obj, &lv_checkbox_class)) {
-        lv_obj_set_style_text_color(obj, text_primary, LV_PART_MAIN);
-        lv_obj_set_style_border_color(obj, border, LV_PART_INDICATOR);
-        lv_obj_set_style_bg_color(obj, elevated_bg, LV_PART_INDICATOR);
+        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BORDER_COLOR, border, LV_PART_INDICATOR);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, elevated_bg, LV_PART_INDICATOR);
         // Checked state: primary background with contrasting checkmark
-        lv_obj_set_style_bg_color(obj, primary, LV_PART_INDICATOR | LV_STATE_CHECKED);
-        lv_obj_set_style_border_color(obj, primary, LV_PART_INDICATOR | LV_STATE_CHECKED);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, primary, LV_PART_INDICATOR | LV_STATE_CHECKED);
+        set_palette_color(obj, LV_STYLE_BORDER_COLOR, primary,
+                          LV_PART_INDICATOR | LV_STATE_CHECKED);
         uint8_t lum = lv_color_luminance(primary);
         lv_color_t check_color = (lum > 140) ? lv_color_black() : lv_color_white();
-        lv_obj_set_style_text_color(obj, check_color, LV_PART_INDICATOR | LV_STATE_CHECKED);
+        set_palette_color(obj, LV_STYLE_TEXT_COLOR, check_color,
+                          LV_PART_INDICATOR | LV_STATE_CHECKED);
         return;
     }
 
     // Switches - track, indicator, knob
     if (lv_obj_check_type(obj, &lv_switch_class)) {
-        lv_obj_set_style_bg_color(obj, border, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(obj, secondary, LV_PART_INDICATOR | LV_STATE_CHECKED);
-        lv_obj_set_style_bg_color(obj, knob_color, LV_PART_KNOB);
-        lv_obj_set_style_bg_color(obj, knob_color, LV_PART_KNOB | LV_STATE_CHECKED);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, border, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, secondary, LV_PART_INDICATOR | LV_STATE_CHECKED);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, knob_color, LV_PART_KNOB);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, knob_color, LV_PART_KNOB | LV_STATE_CHECKED);
         return;
     }
 
     // Sliders - track, indicator, knob
     if (lv_obj_check_type(obj, &lv_slider_class)) {
-        lv_obj_set_style_bg_color(obj, border, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(obj, secondary, LV_PART_INDICATOR);
-        lv_obj_set_style_bg_color(obj, knob_color, LV_PART_KNOB);
-        lv_obj_set_style_shadow_color(obj, screen_bg, LV_PART_KNOB);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, border, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, secondary, LV_PART_INDICATOR);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, knob_color, LV_PART_KNOB);
+        set_palette_color(obj, LV_STYLE_SHADOW_COLOR, screen_bg, LV_PART_KNOB);
         return;
     }
 
@@ -387,9 +426,9 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
     // On elevated surfaces (dialogs, raised cards), use overlay_bg for contrast
     if (lv_obj_check_type(obj, &lv_dropdown_class)) {
         lv_color_t bg = is_on_elevated_surface(obj) ? overlay_bg : elevated_bg;
-        lv_obj_set_style_bg_color(obj, bg, LV_PART_MAIN);
-        lv_obj_set_style_border_color(obj, border, LV_PART_MAIN);
-        lv_obj_set_style_text_color(obj, text_primary, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, bg, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BORDER_COLOR, border, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
         return;
     }
 
@@ -397,8 +436,8 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
     // On elevated surfaces (dialogs, raised cards), use overlay_bg for contrast
     if (lv_obj_check_type(obj, &lv_textarea_class)) {
         lv_color_t bg = is_on_elevated_surface(obj) ? overlay_bg : elevated_bg;
-        lv_obj_set_style_bg_color(obj, bg, LV_PART_MAIN);
-        lv_obj_set_style_text_color(obj, text_primary, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, bg, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
         return;
     }
 
@@ -406,18 +445,18 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
     // On elevated surfaces (dialogs, raised cards), use overlay_bg for contrast
     if (lv_obj_check_type(obj, &lv_spinbox_class)) {
         lv_color_t bg = is_on_elevated_surface(obj) ? overlay_bg : elevated_bg;
-        lv_obj_set_style_bg_color(obj, bg, LV_PART_MAIN);
-        lv_obj_set_style_text_color(obj, text_primary, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, bg, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
         return;
     }
 
     // Dropdown lists (popup menus)
     if (lv_obj_check_type(obj, &lv_dropdownlist_class)) {
         lv_color_t dropdown_accent = theme_compute_more_saturated(primary, secondary);
-        lv_obj_set_style_bg_color(obj, elevated_bg, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, elevated_bg, LV_PART_MAIN);
         lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_text_color(obj, text_primary, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(obj, dropdown_accent, LV_PART_SELECTED);
+        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
+        set_palette_color(obj, LV_STYLE_BG_COLOR, dropdown_accent, LV_PART_SELECTED);
         return;
     }
 
@@ -437,7 +476,7 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
             (is_thin_horizontal || is_thin_vertical) && bg_opa > 0 && child_count == 0;
 
         if (is_divider) {
-            lv_obj_set_style_bg_color(obj, border, LV_PART_MAIN);
+            set_palette_color(obj, LV_STYLE_BG_COLOR, border, LV_PART_MAIN);
             return;
         }
     }
@@ -451,7 +490,7 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
         lv_color_t current_bg = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
         for (const auto& entry : bg_swap_map) {
             if (color_eq(current_bg, entry.from)) {
-                lv_obj_set_style_bg_color(obj, entry.to, LV_PART_MAIN);
+                set_palette_color(obj, LV_STYLE_BG_COLOR, entry.to, LV_PART_MAIN);
                 break;
             }
         }
@@ -463,7 +502,7 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
         lv_color_t current_border = lv_obj_get_style_border_color(obj, LV_PART_MAIN);
         for (const auto& entry : border_swap_map) {
             if (color_eq(current_border, entry.from)) {
-                lv_obj_set_style_border_color(obj, entry.to, LV_PART_MAIN);
+                set_palette_color(obj, LV_STYLE_BORDER_COLOR, entry.to, LV_PART_MAIN);
                 break;
             }
         }
@@ -481,6 +520,53 @@ void theme_apply_palette_to_tree(lv_obj_t* root, const helix::ModePalette& palet
     uint32_t child_count = lv_obj_get_child_count(root);
     for (uint32_t i = 0; i < child_count; i++) {
         lv_obj_t* child = lv_obj_get_child(root, i);
+        theme_apply_palette_to_tree(child, palette);
+    }
+}
+
+void theme_apply_palette_to_screen_dropdowns(const helix::ModePalette& palette) {
+    // Style any screen-level popups (dropdown lists, modals, etc.)
+    // These are direct children of the screen, not part of the overlay tree
+    lv_color_t elevated_bg = theme_manager_parse_hex_color(palette.elevated_bg.c_str());
+    lv_color_t text_color = theme_manager_parse_hex_color(palette.text.c_str());
+    lv_color_t border = theme_manager_parse_hex_color(palette.border.c_str());
+    lv_color_t primary = theme_manager_parse_hex_color(palette.primary.c_str());
+    lv_color_t secondary = theme_manager_parse_hex_color(palette.secondary.c_str());
+
+    // Use more saturated of primary/secondary for highlight (avoids white/gray primaries)
+    lv_color_t dropdown_accent = theme_compute_more_saturated(primary, secondary);
+
+    // Text color for selected based on accent luminance
+    uint8_t lum = lv_color_luminance(dropdown_accent);
+    lv_color_t selected_text = (lum > 140) ? lv_color_black() : lv_color_white();
+
+    lv_obj_t* screen = lv_screen_active();
+    uint32_t child_count = lv_obj_get_child_count(screen);
+    spdlog::debug("[Theme] Screen has {} children", child_count);
+    for (uint32_t i = 0; i < child_count; i++) {
+        lv_obj_t* child = lv_obj_get_child(screen, i);
+
+        // Dropdown lists get special treatment for selection highlighting
+        if (lv_obj_check_type(child, &lv_dropdownlist_class)) {
+            set_palette_color(child, LV_STYLE_BG_COLOR, elevated_bg, LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(child, LV_OPA_COVER, LV_PART_MAIN);
+            set_palette_color(child, LV_STYLE_TEXT_COLOR, text_color, LV_PART_MAIN);
+            set_palette_color(child, LV_STYLE_BORDER_COLOR, border, LV_PART_MAIN);
+            set_palette_color(child, LV_STYLE_BG_COLOR, dropdown_accent, LV_PART_SELECTED);
+            lv_obj_set_style_bg_opa(child, LV_OPA_COVER, LV_PART_SELECTED);
+            set_palette_color(child, LV_STYLE_TEXT_COLOR, selected_text, LV_PART_SELECTED);
+            continue;
+        }
+
+        // Other screen-level children (modals, etc.) - apply palette to entire tree
+        // Skip the main app layout (it's handled separately by the overlay system)
+        const char* name = lv_obj_get_name(child);
+        if (name && strcmp(name, "app_layout") == 0) {
+            continue;
+        }
+
+        // Apply palette to this popup and all its children
+        spdlog::debug("[Theme] Applying palette to screen popup: {}", name ? name : "(unnamed)");
         theme_apply_palette_to_tree(child, palette);
     }
 }

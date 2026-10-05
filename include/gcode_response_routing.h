@@ -10,7 +10,6 @@ class IMoonrakerAPI; // NAMESPACE_OK: the interface is declared at global scope
 namespace helix {
 class ActionPromptManager;
 class AmsErrorBridge;
-class AsyncLifetimeGuard;
 class GcodeErrorRouter;
 class GcodeNarrationRouter;
 class IMoonrakerClient;
@@ -39,8 +38,7 @@ class GcodeResponseRouting {
 
     /// Builds the seven objects and registers the `action_prompt_manager` and `layer_tracker`
     /// `notify_gcode_response` handlers. `client` must be non-null; `api` may be null.
-    /// `async` expires the main-thread hops the prompt modal defers.
-    void attach(IMoonrakerClient* client, IMoonrakerAPI* api, AsyncLifetimeGuard& async);
+    void attach(IMoonrakerClient* client, IMoonrakerAPI* api);
 
     /// First detach, with the client still alive: unregisters both `notify_gcode_response`
     /// handlers, clears AmsState's injected-line callback, and destroys the prompt modal and
@@ -59,8 +57,6 @@ class GcodeResponseRouting {
     }
 
   private:
-    AsyncLifetimeGuard* m_async = nullptr;
-
     std::unique_ptr<ActionPromptManager> m_action_prompt_manager;
     std::unique_ptr<ui::ActionPromptModal> m_action_prompt_modal;
 
