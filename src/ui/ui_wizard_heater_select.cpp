@@ -64,10 +64,14 @@ WizardHeaterSelectStep::~WizardHeaterSelectStep() {
 void WizardHeaterSelectStep::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
+    // Each visit re-initializes; drop the previous visit's subjects and names first.
+    subjects_.deinit_all();
+
     // Initialize subjects with default index 0
     // Actual selection will be restored from config during create() after hardware is discovered
-    helix::ui::wizard::init_int_subject(&bed_heater_selected_, 0, "bed_heater_selected");
-    helix::ui::wizard::init_int_subject(&hotend_heater_selected_, 0, "hotend_heater_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &bed_heater_selected_, 0, "bed_heater_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &hotend_heater_selected_, 0,
+                                        "hotend_heater_selected");
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());

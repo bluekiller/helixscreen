@@ -5,6 +5,7 @@
 
 #include "filament_sensor_types.h"
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 #include "wizard_step.h"
 
 #include <memory>
@@ -200,6 +201,7 @@ class WizardFilamentSensorSelectStep : public helix::wizard::Step {
 
     // Track initialization
     bool subjects_initialized_ = false;
+    SubjectManager subjects_;
 };
 
 // ============================================================================

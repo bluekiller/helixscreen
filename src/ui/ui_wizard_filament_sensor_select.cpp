@@ -105,7 +105,8 @@ void WizardFilamentSensorSelectStep::init_subjects() {
     }
 
     spdlog::debug("[{}] Initializing subjects", get_name());
-    helix::ui::wizard::init_int_subject(&runout_sensor_selected_, 0, "runout_sensor_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &runout_sensor_selected_, 0,
+                                        "runout_sensor_selected");
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());

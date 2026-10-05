@@ -14,6 +14,7 @@
  */
 
 #include "ui_nav_manager.h"
+#include "ui_wizard_fan_select.h"
 
 #include "../lvgl_test_fixture.h"
 #include "../test_fixtures.h"
@@ -285,6 +286,17 @@ TEST_CASE("init_widget_subjects runs every widget subject hook on each call",
     register_clock_widget();
 
     REQUIRE(calls == 2);
+}
+
+TEST_CASE("A destroyed wizard step withdraws its XML names", "[shutdown][xml_name]") {
+    LVGLTestFixture fixture;
+    {
+        WizardFanSelectStep step;
+        step.init_subjects();
+        step.init_subjects(); // a second visit to the step
+        REQUIRE(lv_xml_get_subject(nullptr, "part_fan_selected") != nullptr);
+    }
+    REQUIRE(lv_xml_get_subject(nullptr, "part_fan_selected") == nullptr);
 }
 
 TEST_CASE("AmsState deinit withdraws the ams_-prefixed XML names", "[shutdown][xml_name]") {

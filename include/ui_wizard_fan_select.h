@@ -4,6 +4,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 #include "wizard_step.h"
 
 #include <memory>
@@ -150,6 +151,7 @@ class WizardFanSelectStep : public helix::wizard::Step {
 
     // Track initialization
     bool subjects_initialized_ = false;
+    SubjectManager subjects_;
 };
 
 // ============================================================================

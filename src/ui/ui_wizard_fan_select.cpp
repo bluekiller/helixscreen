@@ -70,12 +70,17 @@ WizardFanSelectStep::~WizardFanSelectStep() {
 void WizardFanSelectStep::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
+    // Each visit re-initializes; drop the previous visit's subjects and names first.
+    subjects_.deinit_all();
+
     // Initialize subjects with default index 0
     // Actual selection will be restored from config during create() after hardware is discovered
-    helix::ui::wizard::init_int_subject(&hotend_fan_selected_, 0, "hotend_fan_selected");
-    helix::ui::wizard::init_int_subject(&part_fan_selected_, 0, "part_fan_selected");
-    helix::ui::wizard::init_int_subject(&chamber_fan_selected_, 0, "chamber_fan_selected");
-    helix::ui::wizard::init_int_subject(&exhaust_fan_selected_, 0, "exhaust_fan_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &hotend_fan_selected_, 0, "hotend_fan_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &part_fan_selected_, 0, "part_fan_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &chamber_fan_selected_, 0,
+                                        "chamber_fan_selected");
+    helix::ui::wizard::init_int_subject(subjects_, &exhaust_fan_selected_, 0,
+                                        "exhaust_fan_selected");
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
