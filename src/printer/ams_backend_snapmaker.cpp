@@ -1956,6 +1956,165 @@ void AmsBackendSnapmaker::apply_toolhead_sensors_locked(const snapmaker::StatusD
     }
 }
 
+void AmsBackendSnapmaker::derive_active_tool_loaded_locked(FrameEffects& fx) {
+    // The active tool's loaded answers, derived from held state on every
+    // frame so they cannot depend on which fields this frame carried: a
+    // pick and the channel_state it pairs with often arrive in different
+    // frames. filament_loaded ("filament in the toolhead") follows a
+    // reported toolhead switch, which also breaks the canvas line on a
+    // mid-print runout, and falls back to the latch. LOADED status (loaded
+    // to the nozzle, the Load gate) needs the latch and no runout.
+    if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
+        const int t = system_info_.current_tool;
+        const bool switch_known = toolhead_switch_reported_[t];
+        const bool in_toolhead =
+            switch_known ? sensor_filament_present_[t] : loaded_at_toolhead_[t];
+        if (system_info_.filament_loaded != in_toolhead) {
+            system_info_.filament_loaded = in_toolhead;
+            fx.changed = true;
+        }
+        const bool at_nozzle =
+            loaded_at_toolhead_[t] && (!switch_known || sensor_filament_present_[t]);
+        auto* slot = system_info_.units[0].get_slot(t);
+        if (slot && at_nozzle && slot->status == SlotStatus::AVAILABLE) {
+            slot->status = SlotStatus::LOADED;
+            fx.changed = true;
+        } else if (slot && !at_nozzle && slot->status == SlotStatus::LOADED) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        }
+    } else if (system_info_.filament_loaded) {
+        system_info_.filament_loaded = false;
+        fx.changed = true;
+    }
+}
+
+void AmsBackendSnapmaker::demote_runout_slots_locked(FrameEffects& fx) {
+    // Per-slot runout demotion: any slot whose motion sensor reports
+    // no filament should be AVAILABLE (spool present, ready to feed), not
+    // LOADED. Without this, the AMS context menu's Load button is gated off
+    // (pending_is_loaded_ from slot.status==LOADED disables it) and the user
+    // has no way to re-feed filament from the UI after a runout — they get
+    // Unload/Reset on a slot that has no filament between feeder and nozzle.
+    // EMPTY is wrong here because the slot's RFID/print_task_config still
+    // reports a spool present; AVAILABLE accurately captures "spool yes,
+    // filament-at-toolhead no".
+    for (int i = 0; i < NUM_TOOLS; ++i) {
+        if (sensor_filament_present_[i])
+            continue;
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot && slot->status == SlotStatus::LOADED) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::converge_lanes_locked(FrameEffects& fx) {
+    // Parse convergence point. After every firmware-sourced field on the
+    // SlotInfo has been populated above, loop through slots and lay each
+    // lane's resolved values on top. check_hardware_event_clear must run
+    // FIRST so it sees firmware-truth fields (not the resolved view) and
+    // can clear a stale override when a physical spool swap is detected.
+    // apply_resolved_lane runs after, so the final SlotInfo the UI reads
+    // through get_slot_info / the emitted event reflects what the lane
+    // resolves to.
+    //
+    // Snapmaker has multiple parse paths feeding the same slot (RFID info,
+    // print_task_config, filament_feed). Rather than hook the override logic
+    // into each one, we run it once here at the tail — the tradeoff is that
+    // get_slot_info during a partial parse would observe uncleared overrides,
+    // but since everything runs under mutex_ and handle_status is the
+    // only writer, there's no observable window.
+    for (int i = 0; i < NUM_TOOLS; ++i) {
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (!slot)
+            continue;
+
+        // A pending insert ages one pass per parse. A read that never
+        // lands (reader disabled, the channel's entry never came) must
+        // not hold its verdict forever: past the bound, ask (#1710).
+        if (pending_insert_passes_[i] > 0 &&
+            ++pending_insert_passes_[i] > kSnapPendingInsertPasses) {
+            pending_insert_passes_[i] = 0;
+            fx.unverified_insert_lanes.push_back(i);
+        }
+
+        // A channel this parse carried no filament_detect.info for keeps
+        // its default evidence, which the insert rule reads as no signal -
+        // so the call is unconditional rather than gated on which keys the
+        // notification happened to carry.
+        check_hardware_event_clear(*slot, i, fx.observed_evidence[i]);
+        // Mirror firmware-truth color/material into lane_data so OrcaSlicer's
+        // MoonrakerPrinterAgent sees the spool. OverwriteAlways policy: user
+        // edits via apply_user_edit round-trip through firmware via the
+        // POST /printer/filament_detect/set endpoint (paxx12 Extended Firmware),
+        // so firmware-truth and user-truth converge, and overwriting lane_data
+        // is safe and also catches external edits (CHANGE_ZCOLOR
+        // from a print, manual gcode, OrcaSlicer, etc). On stock firmware the
+        // POST 404s, but the override is still persisted to lane_data
+        // separately, so this overwrite is the only path that could theoretically
+        // de-sync — accept that tradeoff in exchange for picking up external
+        // edits on extension-enabled firmware. See mirror_firmware_to_lane_data
+        // docs and AD5X IFS for the same pattern.
+        //
+        // The stored override defers to what a declaring lane source holds,
+        // so the store reads the lane here. A Spoolman record or a user's
+        // value never reaches firmware, and firmware's reading must not
+        // overwrite it in the override or in the lane_data record it
+        // persists.
+        helix::ams::mirror_firmware_to_lane_data(
+            override_store_.get(), overrides_, i, slot->color_rgb, slot->material,
+            slot->status == SlotStatus::AVAILABLE, helix::ams::MirrorPolicy::OverwriteAlways,
+            backend_log_tag(), helix::ams::declared_on_lane(lane_id(i)));
+
+        // Lane presence: the port/buffer sensor OR the loaded-at-toolhead
+        // latch. The port sensor is the spool-side reading; the latch
+        // carries filament fed through to the nozzle — the point at which
+        // the entrance/tag reader (filament_detect.state) drops to 0, so
+        // that array is not a presence source. Declared here, at the
+        // tail of the parse, so both member arrays already hold this
+        // frame's values when the lane resolves below; the arrays persist
+        // across delta frames, so a frame silent on both signals leaves
+        // the last reading standing. A lane filament_feed has never
+        // reported stays silent too: the array defaults are "no reading
+        // yet", not "no filament".
+        if (feed_presence_seen_[i]) {
+            helix::ams::Observation sensed(helix::ams::ObservationSource::Sensed);
+            sensed.present = port_sensor_filament_present_[i] || loaded_at_toolhead_[i];
+            helix::ams::ingest(lane_id(i), sensed);
+        }
+
+        apply_resolved_lane(*slot, i);
+    }
+}
+
+void AmsBackendSnapmaker::track_active_port_present_locked(FrameEffects& fx) {
+    // First-gate (port) filament presence for the ACTIVE tool (#991). The
+    // runout dialog gates Resume on THIS signal — the port/buffer sensor that
+    // flips true the moment a user re-feeds a spool — NOT the toolhead motion
+    // sensor (sensor_filament_present_), which stays "runout" until extrusion.
+    // No active tool → treat as present (1) so Resume is never gated. Computed
+    // under mutex_ (reads current_tool + the port array); published after the
+    // mutex is released. Only publish on an actual change to avoid spamming
+    // the UpdateQueue on every incremental notify.
+    int active_tool = system_info_.current_tool;
+    bool active_port_present = !(active_tool >= 0 && active_tool < NUM_TOOLS) ||
+                               port_sensor_filament_present_[active_tool];
+    int port_val = active_port_present ? 1 : 0;
+    if (port_val != last_published_port_present_) {
+        last_published_port_present_ = port_val;
+        fx.port_present_changed = true;
+    }
+}
+
+void AmsBackendSnapmaker::converge_locked(FrameEffects& fx) {
+    derive_active_tool_loaded_locked(fx);
+    demote_runout_slots_locked(fx);
+    converge_lanes_locked(fx);
+    track_active_port_present_locked(fx);
+}
+
 void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     FrameEffects fx;
     std::string batch_macro_object;
@@ -1983,150 +2142,7 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
 
         apply_toolhead_sensors_locked(delta, fx);
 
-        // The active tool's loaded answers, derived from held state on every
-        // frame so they cannot depend on which fields this frame carried: a
-        // pick and the channel_state it pairs with often arrive in different
-        // frames. filament_loaded ("filament in the toolhead") follows a
-        // reported toolhead switch, which also breaks the canvas line on a
-        // mid-print runout, and falls back to the latch. LOADED status (loaded
-        // to the nozzle, the Load gate) needs the latch and no runout.
-        if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
-            const int t = system_info_.current_tool;
-            const bool switch_known = toolhead_switch_reported_[t];
-            const bool in_toolhead =
-                switch_known ? sensor_filament_present_[t] : loaded_at_toolhead_[t];
-            if (system_info_.filament_loaded != in_toolhead) {
-                system_info_.filament_loaded = in_toolhead;
-                fx.changed = true;
-            }
-            const bool at_nozzle =
-                loaded_at_toolhead_[t] && (!switch_known || sensor_filament_present_[t]);
-            auto* slot = system_info_.units[0].get_slot(t);
-            if (slot && at_nozzle && slot->status == SlotStatus::AVAILABLE) {
-                slot->status = SlotStatus::LOADED;
-                fx.changed = true;
-            } else if (slot && !at_nozzle && slot->status == SlotStatus::LOADED) {
-                slot->status = SlotStatus::AVAILABLE;
-                fx.changed = true;
-            }
-        } else if (system_info_.filament_loaded) {
-            system_info_.filament_loaded = false;
-            fx.changed = true;
-        }
-
-        // Per-slot runout demotion: any slot whose motion sensor reports
-        // no filament should be AVAILABLE (spool present, ready to feed), not
-        // LOADED. Without this, the AMS context menu's Load button is gated off
-        // (pending_is_loaded_ from slot.status==LOADED disables it) and the user
-        // has no way to re-feed filament from the UI after a runout — they get
-        // Unload/Reset on a slot that has no filament between feeder and nozzle.
-        // EMPTY is wrong here because the slot's RFID/print_task_config still
-        // reports a spool present; AVAILABLE accurately captures "spool yes,
-        // filament-at-toolhead no".
-        for (int i = 0; i < NUM_TOOLS; ++i) {
-            if (sensor_filament_present_[i])
-                continue;
-            auto* slot = system_info_.units[0].get_slot(i);
-            if (slot && slot->status == SlotStatus::LOADED) {
-                slot->status = SlotStatus::AVAILABLE;
-                fx.changed = true;
-            }
-        }
-
-        // Parse convergence point. After every firmware-sourced field on the
-        // SlotInfo has been populated above, loop through slots and lay each
-        // lane's resolved values on top. check_hardware_event_clear must run
-        // FIRST so it sees firmware-truth fields (not the resolved view) and
-        // can clear a stale override when a physical spool swap is detected.
-        // apply_resolved_lane runs after, so the final SlotInfo the UI reads
-        // through get_slot_info / the emitted event reflects what the lane
-        // resolves to.
-        //
-        // Snapmaker has multiple parse paths feeding the same slot (RFID info,
-        // print_task_config, filament_feed). Rather than hook the override logic
-        // into each one, we run it once here at the tail — the tradeoff is that
-        // get_slot_info during a partial parse would observe uncleared overrides,
-        // but since everything runs under mutex_ and handle_status is the
-        // only writer, there's no observable window.
-        for (int i = 0; i < NUM_TOOLS; ++i) {
-            auto* slot = system_info_.units[0].get_slot(i);
-            if (!slot)
-                continue;
-
-            // A pending insert ages one pass per parse. A read that never
-            // lands (reader disabled, the channel's entry never came) must
-            // not hold its verdict forever: past the bound, ask (#1710).
-            if (pending_insert_passes_[i] > 0 &&
-                ++pending_insert_passes_[i] > kSnapPendingInsertPasses) {
-                pending_insert_passes_[i] = 0;
-                fx.unverified_insert_lanes.push_back(i);
-            }
-
-            // A channel this parse carried no filament_detect.info for keeps
-            // its default evidence, which the insert rule reads as no signal -
-            // so the call is unconditional rather than gated on which keys the
-            // notification happened to carry.
-            check_hardware_event_clear(*slot, i, fx.observed_evidence[i]);
-            // Mirror firmware-truth color/material into lane_data so OrcaSlicer's
-            // MoonrakerPrinterAgent sees the spool. OverwriteAlways policy: user
-            // edits via apply_user_edit round-trip through firmware via the
-            // POST /printer/filament_detect/set endpoint (paxx12 Extended Firmware),
-            // so firmware-truth and user-truth converge, and overwriting lane_data
-            // is safe and also catches external edits (CHANGE_ZCOLOR
-            // from a print, manual gcode, OrcaSlicer, etc). On stock firmware the
-            // POST 404s, but the override is still persisted to lane_data
-            // separately, so this overwrite is the only path that could theoretically
-            // de-sync — accept that tradeoff in exchange for picking up external
-            // edits on extension-enabled firmware. See mirror_firmware_to_lane_data
-            // docs and AD5X IFS for the same pattern.
-            //
-            // The stored override defers to what a declaring lane source holds,
-            // so the store reads the lane here. A Spoolman record or a user's
-            // value never reaches firmware, and firmware's reading must not
-            // overwrite it in the override or in the lane_data record it
-            // persists.
-            helix::ams::mirror_firmware_to_lane_data(
-                override_store_.get(), overrides_, i, slot->color_rgb, slot->material,
-                slot->status == SlotStatus::AVAILABLE, helix::ams::MirrorPolicy::OverwriteAlways,
-                backend_log_tag(), helix::ams::declared_on_lane(lane_id(i)));
-
-            // Lane presence: the port/buffer sensor OR the loaded-at-toolhead
-            // latch. The port sensor is the spool-side reading; the latch
-            // carries filament fed through to the nozzle — the point at which
-            // the entrance/tag reader (filament_detect.state) drops to 0, so
-            // that array is not a presence source. Declared here, at the
-            // tail of the parse, so both member arrays already hold this
-            // frame's values when the lane resolves below; the arrays persist
-            // across delta frames, so a frame silent on both signals leaves
-            // the last reading standing. A lane filament_feed has never
-            // reported stays silent too: the array defaults are "no reading
-            // yet", not "no filament".
-            if (feed_presence_seen_[i]) {
-                helix::ams::Observation sensed(helix::ams::ObservationSource::Sensed);
-                sensed.present = port_sensor_filament_present_[i] || loaded_at_toolhead_[i];
-                helix::ams::ingest(lane_id(i), sensed);
-            }
-
-            apply_resolved_lane(*slot, i);
-        }
-
-        // First-gate (port) filament presence for the ACTIVE tool (#991). The
-        // runout dialog gates Resume on THIS signal — the port/buffer sensor that
-        // flips true the moment a user re-feeds a spool — NOT the toolhead motion
-        // sensor (sensor_filament_present_), which stays "runout" until extrusion.
-        // No active tool → treat as present (1) so Resume is never gated. Computed
-        // under mutex_ (reads current_tool + the port array); published after the
-        // mutex is released. Only publish on an actual change to avoid spamming
-        // the UpdateQueue on every incremental notify.
-        int active_tool = system_info_.current_tool;
-        bool active_port_present = !(active_tool >= 0 && active_tool < NUM_TOOLS) ||
-                                   port_sensor_filament_present_[active_tool];
-        int port_val = active_port_present ? 1 : 0;
-        if (port_val != last_published_port_present_) {
-            last_published_port_present_ = port_val;
-            fx.port_present_changed = true;
-        }
-
+        converge_locked(fx);
     } // Release mutex_ before emitting event
 
     dispatch_effects(fx);

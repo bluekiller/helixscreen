@@ -535,6 +535,20 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
                                          FrameEffects& fx);
     /// The per-tool runout sensors: enabled flag and filament present/runout.
     void apply_toolhead_sensors_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    /// The tail of every frame: derives what no single section owns from the
+    /// state the sections left, and lays each lane's resolved values on its
+    /// slot.
+    void converge_locked(FrameEffects& fx);
+    /// filament_loaded and the active tool's LOADED status, from the latch and
+    /// the toolhead switch.
+    void derive_active_tool_loaded_locked(FrameEffects& fx);
+    /// A slot whose runout sensor reports no filament is AVAILABLE, not LOADED.
+    void demote_runout_slots_locked(FrameEffects& fx);
+    /// Override layering and the lane-model ingest, once per slot.
+    void converge_lanes_locked(FrameEffects& fx);
+    /// The active tool's first-gate (port) presence, flagged for publication
+    /// when it changed.
+    void track_active_port_present_locked(FrameEffects& fx);
     /// Retires an active batch plan the firmware reports no longer running.
     void apply_batch_state_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
     /// The head an operation is working on, from the batch cursor or the
