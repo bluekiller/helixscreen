@@ -582,6 +582,13 @@ static void* ui_thread_main(void* arg) {
     return NULL;
 }
 
+const uint8_t* lvgl_glue_frame(uint32_t* w, uint32_t* h, size_t* stride) {
+    *w = BOARD_LCD_H_RES;
+    *h = BOARD_LCD_V_RES;
+    *stride = FB_STRIDE;
+    return s_shadow;
+}
+
 void lvgl_glue_start(void (*ui_build)(void), void (*ui_tick)(void)) {
     s_ui_build = ui_build;
     s_ui_tick = ui_tick;
