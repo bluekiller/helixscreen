@@ -240,13 +240,16 @@ void TemperatureController::set_target(const std::string& klipper_name, double c
     if (!api_ || klipper_name.empty()) {
         return;
     }
+    // Callers' callbacks toast through lv_tr, which is main-thread only (#1219);
+    // the printer's answer arrives on the WebSocket thread.
     auto on_ok = [opts]() {
         if (opts.on_success)
-            opts.on_success();
+            helix::ui::run_on_main("TemperatureController::on_success", opts.on_success);
     };
     auto on_err = [opts](const MoonrakerError& e) {
         if (opts.on_error)
-            opts.on_error(e);
+            helix::ui::run_on_main("TemperatureController::on_error",
+                                   [cb = opts.on_error, e]() { cb(e); });
         if (opts.toast) {
             helix::ui::notify_error_tr(TR_NOOP("Failed to set temperature: {}"), e);
         }

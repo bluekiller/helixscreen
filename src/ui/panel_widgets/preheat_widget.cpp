@@ -371,7 +371,8 @@ void PreheatWidget::handle_cooldown() {
 
     spdlog::info("[PreheatWidget] Cooldown requested - executing: {}", cooldown.gcode);
     api->execute_gcode(
-        cooldown.gcode, []() { NOTIFY_SUCCESS(lv_tr("Heaters off")); },
+        cooldown.gcode,
+        []() { helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("Heaters off")); },
         [](const MoonrakerError& error) {
             helix::ui::notify_error_tr(TR_NOOP("Failed to cool down: {}"), error);
         });

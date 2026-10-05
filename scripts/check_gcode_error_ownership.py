@@ -48,6 +48,7 @@ EXPLICIT_PARAM = "caller_surfaces_errors"
 UI_MARKERS = (
     "NOTIFY_",
     "notify_error_tr",
+    "notify_tr",
     "ui_notification_",
     "ToastManager",
     "show_toast",

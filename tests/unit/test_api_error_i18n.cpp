@@ -17,6 +17,7 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/abort_manager_test_access.h"
 #include "../test_helpers/moonraker_request_tracker_test_access.h"
+#include "../test_helpers/scoped_language.h"
 #include "../ui_test_utils.h"
 #include "abort_manager.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -33,27 +34,10 @@
 
 using namespace helix;
 
-namespace {
-
-class ScopedGerman {
-  public:
-    ScopedGerman() {
-        helix::ui::ensure_translation_loaded("de");
-        lv_translation_set_language("de");
-    }
-    ~ScopedGerman() {
-        lv_translation_set_language(helix::ui::kIdentityLocale);
-    }
-    ScopedGerman(const ScopedGerman&) = delete;
-    ScopedGerman& operator=(const ScopedGerman&) = delete;
-};
-
-} // namespace
-
 TEST_CASE_METHOD(LVGLTestFixture,
                  "MoonrakerError text: localized on the main thread, English elsewhere",
                  "[api-error-i18n][i18n]") {
-    ScopedGerman de;
+    ScopedLanguage de("de");
 
     const MoonrakerError timeout = MoonrakerError::timeout("printer.gcode.script", 30000);
     CHECK(timeout.localized_message() ==
@@ -79,7 +63,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
 TEST_CASE_METHOD(LVGLTestFixture, "notify_error_tr translates on the main thread",
                  "[api-error-i18n][i18n]") {
-    ScopedGerman de;
+    ScopedLanguage de("de");
     std::string shown;
     int calls = 0;
     helix::ui::set_test_notification_error_hook([&](const std::string& m) {
@@ -131,7 +115,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "Tracker RPC_ERROR event renders in the active
     CHECK(evt.message == "Printer command 'printer.objects.query' failed: Klippy not ready");
     REQUIRE(evt.message_tag != nullptr);
 
-    ScopedGerman de;
+    ScopedLanguage de("de");
     CHECK(evt.render(lv_tr(evt.message_tag)) ==
           "Druckerbefehl 'printer.objects.query' fehlgeschlagen: Klippy not ready");
 }
@@ -165,7 +149,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "MoonrakerManager presents an event in the act
         MoonrakerEventType::RPC_ERROR, TR_NOOP("Printer command '{}' failed: {}"),
         {"printer.objects.query", "Klippy not ready"}, true, "printer.objects.query");
     {
-        ScopedGerman de;
+        ScopedLanguage de("de");
         MoonrakerManagerTestAccess::present_event(mgr, evt);
     }
     helix::ui::set_test_notification_error_hook(nullptr);

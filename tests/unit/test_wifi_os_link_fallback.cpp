@@ -16,13 +16,12 @@
 
 #include "ui_update_queue.h"
 
+#include "../test_helpers/scoped_language.h"
 #include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/wifi_manager_test_access.h"
 #include "../ui_test_utils.h"
 #include "log_redact.h"
-#include "lvgl/src/others/translation/lv_translation.h"
 #include "runtime_config.h"
-#include "translation_loader.h"
 #include "wifi_manager.h"
 #include "wifi_ui_utils.h"
 
@@ -329,8 +328,7 @@ TEST_CASE("WiFi failure toasts render in the active language",
     helix::WiFiManagerTestAccess::stop_backend(*wm);
     helix::WiFiManagerTestAccess::set_os_link_probe([]() { return false; });
 
-    helix::ui::ensure_translation_loaded("de");
-    lv_translation_set_language("de");
+    ScopedLanguage de("de");
 
     std::string warning;
     std::string error;
@@ -345,7 +343,6 @@ TEST_CASE("WiFi failure toasts render in the active language",
     CHECK(error.rfind("Verbindung mit WiFi-Netzwerk '", 0) == 0);
     CHECK(error.find(helix::redact::ssid("HomeNet")) != std::string::npos);
 
-    lv_translation_set_language(helix::ui::kIdentityLocale);
     helix::ui::set_test_notification_warning_hook(nullptr);
     helix::ui::set_test_notification_error_hook(nullptr);
     wm->stop_scan();

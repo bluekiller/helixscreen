@@ -2477,7 +2477,8 @@ void FilamentPanel::handle_cooldown() {
         }
 
         api_->execute_gcode(
-            cooldown.gcode, []() { NOTIFY_SUCCESS(lv_tr("Heaters off")); },
+            cooldown.gcode,
+            []() { helix::ui::notify_tr(ToastSeverity::SUCCESS, TR_NOOP("Heaters off")); },
             [](const MoonrakerError& error) {
                 helix::ui::notify_error_tr(TR_NOOP("Failed to turn off heaters: {}"), error);
             });
