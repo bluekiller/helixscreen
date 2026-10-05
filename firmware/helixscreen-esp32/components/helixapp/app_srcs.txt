@@ -190,6 +190,7 @@ src/printer/printer_motion_state.cpp
 src/printer/printer_network_state.cpp
 src/printer/printer_plugin_status_state.cpp
 src/printer/printer_print_state.cpp
+src/printer/printer_profile_state.cpp
 src/printer/printer_recovery_service.cpp
 src/printer/printer_state.cpp
 src/printer/printer_temperature_state.cpp

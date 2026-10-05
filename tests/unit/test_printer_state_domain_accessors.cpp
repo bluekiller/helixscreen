@@ -29,6 +29,7 @@ TEST_CASE("PrinterState domain accessors return the owned members",
         {&ps.network_state(), &cps.network_state()},
         {&ps.versions_state(), &cps.versions_state()},
         {&ps.excluded_objects_state(), &cps.excluded_objects_state()},
+        {&ps.profile_state(), &cps.profile_state()},
     };
 
     REQUIRE(accessed.size() == members.size());

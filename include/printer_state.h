@@ -24,6 +24,7 @@
 #include "printer_network_state.h"
 #include "printer_plugin_status_state.h"
 #include "printer_print_state.h"
+#include "printer_profile_state.h"
 #include "printer_temperature_state.h"
 #include "printer_versions_state.h"
 #include "spdlog/spdlog.h"
@@ -152,21 +153,6 @@ enum class PrintOutcome {
  * @return Corresponding PrintJobState enum value
  */
 PrintJobState parse_print_job_state(const char* state_str);
-
-/**
- * @brief Z-offset calibration strategy — determines gcode commands for calibration and save
- *
- * Different printers need different approaches to calibrate and persist Z-offset.
- * FIRMWARE_MANAGED: firmware or macros auto-persist (FlashForge, Snapmaker U1, Artillery M1,
- * ForgeX-mod). PROBE_CALIBRATE: standard Klipper PROBE_CALIBRATE -> ACCEPT -> SAVE_CONFIG. ENDSTOP:
- * Z_ENDSTOP_CALIBRATE -> ACCEPT -> Z_OFFSET_APPLY_ENDSTOP -> SAVE_CONFIG.
- */
-enum class ZOffsetCalibrationStrategy {
-    PROBE_CALIBRATE,  ///< Standard Klipper: PROBE_CALIBRATE -> ACCEPT -> SAVE_CONFIG
-    FIRMWARE_MANAGED, ///< Firmware/macros auto-persist (FlashForge, Snapmaker U1, Artillery M1,
-                      ///< ForgeX-mod)
-    ENDSTOP ///< Endstop: Z_ENDSTOP_CALIBRATE -> ACCEPT -> Z_OFFSET_APPLY_ENDSTOP -> SAVE_CONFIG
-};
 
 /**
  * @brief Convert PrintJobState enum to display string
@@ -377,6 +363,12 @@ class PrinterState {
     }
     const helix::PrinterExcludedObjectsState& excluded_objects_state() const {
         return excluded_objects_state_;
+    }
+    helix::PrinterProfileState& profile_state() {
+        return profile_state_;
+    }
+    const helix::PrinterProfileState& profile_state() const {
+        return profile_state_;
     }
 
     //
@@ -1444,7 +1436,7 @@ class PrinterState {
      * Used in XML to hide the "Save Z-Offset" button for auto-saved printers.
      */
     lv_subject_t* get_z_offset_can_save_subject() {
-        return &z_offset_can_save_;
+        return profile_state_.get_z_offset_can_save_subject();
     }
 
     /**
@@ -2391,7 +2383,9 @@ class PrinterState {
      *
      * @return Const reference to the stored printer type string
      */
-    const std::string& get_printer_type() const;
+    const std::string& get_printer_type() const {
+        return profile_state_.printer_type();
+    }
 
     /**
      * @brief Get the pre-print option set for the current printer type
@@ -2402,12 +2396,16 @@ class PrinterState {
      *
      * @return Const reference to the PrePrintOptionSet
      */
-    const PrePrintOptionSet& get_pre_print_option_set() const;
+    const PrePrintOptionSet& get_pre_print_option_set() const {
+        return profile_state_.pre_print_option_set();
+    }
 
     /**
      * @brief Get the Z-offset calibration strategy for this printer
      */
-    ZOffsetCalibrationStrategy get_z_offset_calibration_strategy() const;
+    ZOffsetCalibrationStrategy get_z_offset_calibration_strategy() const {
+        return profile_state_.z_offset_calibration_strategy();
+    }
 
     // ========================================================================
     // MULTI-PRINTER SUBJECTS
@@ -2438,7 +2436,7 @@ class PrinterState {
      * read the value from Config or get_printer_type().
      */
     lv_subject_t* get_printer_type_subject() {
-        return &printer_type_subject_;
+        return profile_state_.get_printer_type_subject();
     }
 
     /**
@@ -2498,6 +2496,9 @@ class PrinterState {
 
     /// Excluded objects state component (excluded_objects_version, excluded_objects set)
     helix::PrinterExcludedObjectsState excluded_objects_state_;
+
+    /// Printer type, its pre-print option set and z-offset calibration strategy
+    helix::PrinterProfileState profile_state_;
 
     // Note: Print subjects are now managed by print_domain_ component
     // (print_progress_, print_filename_, print_state_, print_state_enum_,
@@ -2559,9 +2560,6 @@ class PrinterState {
     lv_subject_t active_printer_name_{};
     char active_printer_name_buf_[128];
 
-    lv_subject_t printer_type_subject_{};
-    char printer_type_subject_buf_[128];
-
     // Initialization guard to prevent multiple subject initializations
     bool subjects_initialized_ = false;
 
@@ -2584,41 +2582,14 @@ class PrinterState {
     // Cached hardware discovery result (for UI access to heater/sensor lists)
     helix::PrinterDiscovery discovery_;
 
-    // Printer type and pre-print option set
-    std::string printer_type_;               ///< Selected printer type name
-    PrePrintOptionSet pre_print_option_set_; ///< Cached option set for current type
-    ZOffsetCalibrationStrategy z_offset_calibration_strategy_ =
-        ZOffsetCalibrationStrategy::PROBE_CALIBRATE;
-    lv_subject_t z_offset_can_save_{}; ///< 1 when manual save needed, 0 when auto-saved
-
-    /// An installed SET_GCODE_OFFSET wrapper (Helper-Script save-zoffset,
-    /// ZMOD, Forge-X) persists the z-offset itself. Folding the gcode offset
-    /// into the probe on top of that double-applies it on every restart
-    /// (prestonbrown/helixscreen#1401), so the strategy resolves to
-    /// FIRMWARE_MANAGED regardless of printer type. Set by discovery via
-    /// set_z_offset_external_persistence() when zoffset:: matches a provider.
-    bool z_offset_external_persistence_ = false;
-
     /// Last kinematics string (to skip redundant recomputation)
     std::string last_kinematics_;
 
     /// Auto-detected bed_moves value from kinematics (before user override)
     bool auto_detected_bed_moves_ = false;
-    /// The printer database says this printer type is enclosed.
-    bool printer_db_enclosed_ = false;
 
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;
-
-    /// Default state for the synthesized timelapse pre-print option, seeded from
-    /// the global moonraker-timelapse `enabled` setting at discovery (#1094).
-    /// Main-thread-only: written and read inside apply_dynamic_options() and its
-    /// setter, both of which run on the main thread via queue_update.
-    bool timelapse_default_enabled_ = false;
-
-    /// What the firmware reports for each pre-print option it stores itself.
-    /// Main thread only. Empty on printers whose firmware stores none.
-    std::map<std::string, bool> firmware_option_defaults_;
 
     // ============================================================================
     // Main-thread internal methods (run from queued callbacks)
@@ -2663,6 +2634,9 @@ class PrinterState {
      * the ones that should currently be present.
      */
     void apply_dynamic_options();
+
+    /// The moonraker-timelapse plugin is available (main thread only).
+    bool timelapse_available();
 
     /**
      * @brief Update combined nav_buttons_enabled subject

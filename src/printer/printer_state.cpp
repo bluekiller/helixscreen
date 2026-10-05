@@ -182,6 +182,7 @@ void PrinterState::deinit_subjects() {
     network_state_.deinit_subjects();
     versions_state_.deinit_subjects();
     excluded_objects_state_.deinit_subjects();
+    profile_state_.deinit_subjects();
 
     // Deinit PrinterState's own subjects (multi-printer)
     lv_subject_deinit(&active_printer_name_);
@@ -280,16 +281,11 @@ void PrinterState::init_subjects(bool register_xml) {
     // motor state subjects are registered by calibration_state_.init_subjects()
     // Note: Version subjects are registered by versions_state_.init_subjects()
 
+    // Printer type, its pre-print options and z-offset strategy
+    profile_state_.init_subjects(register_xml);
+
     // Multi-printer subjects (owned directly by PrinterState)
     INIT_SUBJECT_STRING(active_printer_name, "", subjects_, register_xml);
-
-    // Resolved printer type. Not XML-registered: the name collides with the
-    // connection-transport int subject ("network"/"usb"/"bluetooth"), and no
-    // XML binds it — observers attach programmatically (printer artwork).
-    INIT_SUBJECT_STRING(printer_type_subject, "", subjects_, false);
-
-    // Z-offset save visibility (1 = manual save needed, 0 = firmware auto-saves)
-    INIT_SUBJECT_INT(z_offset_can_save, 1, subjects_, register_xml);
 
     spdlog::trace("[PrinterState] Registered {} subjects with SubjectManager", subjects_.count());
 
@@ -373,7 +369,7 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // positively proves the store is absent is what relaxes the latch back to
     // the type-derived strategy. Gated on the flag, so this fires at most once
     // per latch instead of thrashing on every later frame.
-    if (z_offset_external_persistence_ &&
+    if (profile_state_.external_persistence() &&
         helix::zoffset::status_refutes_persistence(discovery_, state)) {
         spdlog::info("[PrinterState] Status refutes the detected z-offset persistence provider "
                      "({}): the wrapper stores no offset",
@@ -687,7 +683,7 @@ void PrinterState::set_timelapse_default_enabled(bool enabled) {
     // moonraker-timelapse `enabled` setting. Both the member write and the
     // resynthesis must run on the main thread (#1094).
     async_lifetime_.defer("PrinterState::set_timelapse_default_enabled", [this, enabled]() {
-        timelapse_default_enabled_ = enabled;
+        profile_state_.set_timelapse_default_enabled(enabled);
         apply_dynamic_options();
         update_gcode_modification_visibility();
     });
@@ -699,22 +695,14 @@ void PrinterState::merge_firmware_option_defaults(std::map<std::string, bool> de
     }
     // Both the member write and the resynthesis touch LVGL subjects, and status
     // frames arrive on the websocket thread.
-    async_lifetime_.defer(
-        "PrinterState::merge_firmware_option_defaults", [this, defaults = std::move(defaults)]() {
-            bool changed = false;
-            for (const auto& [option_id, enabled] : defaults) {
-                auto it = firmware_option_defaults_.find(option_id);
-                if (it == firmware_option_defaults_.end() || it->second != enabled) {
-                    firmware_option_defaults_[option_id] = enabled;
-                    changed = true;
-                }
-            }
-            if (!changed) {
-                return;
-            }
-            apply_dynamic_options();
-            update_gcode_modification_visibility();
-        });
+    async_lifetime_.defer("PrinterState::merge_firmware_option_defaults",
+                          [this, defaults = std::move(defaults)]() {
+                              if (!profile_state_.merge_firmware_option_defaults(defaults)) {
+                                  return;
+                              }
+                              apply_dynamic_options();
+                              update_gcode_modification_visibility();
+                          });
 }
 
 void PrinterState::set_helix_plugin_installed(bool installed) {
@@ -745,8 +733,8 @@ void PrinterState::set_helix_macros_restart_pending(bool pending) {
 void PrinterState::update_gcode_modification_visibility() {
     // Delegate to composite visibility component
     bool plugin = plugin_status_state_.service_has_helix_plugin();
-    composite_visibility_state_.update_visibility(plugin, capabilities_state_,
-                                                  pre_print_option_set_.options.size());
+    composite_visibility_state_.update_visibility(
+        plugin, capabilities_state_, profile_state_.pre_print_option_set().options.size());
 }
 
 // Note: update_print_show_progress() is now in print_domain_ component
@@ -858,7 +846,7 @@ void PrinterState::refresh_bed_drying_capability() {
         return;
     }
     const bool enclosed = bed_drying::is_enclosed(
-        SettingsManager::instance().get_enclosure_style(), printer_db_enclosed_,
+        SettingsManager::instance().get_enclosure_style(), profile_state_.db_enclosed(),
         lv_subject_get_int(capabilities_state_.subject(Capability::HasChamberHeater)) != 0);
     const AxisBounds bounds = motion_state_.get_axis_bounds();
     const bool can_dry = bed_drying::available(
@@ -961,81 +949,38 @@ void PrinterState::clear_z_offset_external_persistence() {
 }
 
 void PrinterState::clear_z_offset_external_persistence_internal() {
-    if (!z_offset_external_persistence_) {
+    if (!profile_state_.set_external_persistence(false)) {
         return;
     }
-    z_offset_external_persistence_ = false;
     // Two callers with different reasons - rediscovery finding no provider, and
     // a status frame refuting one - so each logs its own reason and this stays
     // neutral about which happened.
     spdlog::info("[PrinterState] No external z-offset persistence provider - Save Z Offset "
                  "returns to the type-derived strategy");
-    if (!printer_type_.empty()) {
-        set_printer_type_internal(printer_type_);
+    if (!profile_state_.printer_type().empty()) {
+        set_printer_type_internal(profile_state_.printer_type());
     }
 }
 
 void PrinterState::set_z_offset_external_persistence_internal(const std::string& provider_name) {
-    if (z_offset_external_persistence_) {
+    if (!profile_state_.set_external_persistence(true)) {
         return;
     }
-    z_offset_external_persistence_ = true;
     spdlog::info("[PrinterState] {} persists the z-offset externally - Save Z Offset stands down",
                  provider_name.empty() ? std::string("An installed module") : provider_name);
     // Re-resolve now; set_printer_type_internal also honors the flag on every
     // later type change.
-    if (!printer_type_.empty()) {
-        set_printer_type_internal(printer_type_);
+    if (!profile_state_.printer_type().empty()) {
+        set_printer_type_internal(profile_state_.printer_type());
     }
 }
 
 void PrinterState::set_printer_type_internal(const std::string& type) {
-    // Determine what the z-cal strategy would be for this type so we can
-    // skip redundant updates (auto-detect often confirms the saved type).
-    auto new_options = PrinterDetector::get_pre_print_option_set(type);
-    std::string strategy_str = PrinterDetector::get_z_offset_calibration_strategy(type);
-    ZOffsetCalibrationStrategy new_strategy;
-    if (strategy_str == "firmware_managed") {
-        new_strategy = ZOffsetCalibrationStrategy::FIRMWARE_MANAGED;
-    } else if (strategy_str == "endstop") {
-        new_strategy = ZOffsetCalibrationStrategy::ENDSTOP;
-    } else if (strategy_str == "probe_calibrate") {
-        new_strategy = ZOffsetCalibrationStrategy::PROBE_CALIBRATE;
-    } else {
-        new_strategy = capabilities_state_.has_probe() ? ZOffsetCalibrationStrategy::PROBE_CALIBRATE
-                                                       : ZOffsetCalibrationStrategy::ENDSTOP;
-    }
-
-    // An installed SET_GCODE_OFFSET wrapper persists the offset itself; the
-    // type-derived strategy would fold the gcode offset into the probe and the
-    // wrapper's boot gcode would re-apply it - runaway stacking
-    // (prestonbrown/helixscreen#1401).
-    if (z_offset_external_persistence_) {
-        new_strategy = ZOffsetCalibrationStrategy::FIRMWARE_MANAGED;
-    }
-
-    if (type == printer_type_ && new_strategy == z_offset_calibration_strategy_) {
+    if (!profile_state_.set_printer_type(type, capabilities_state_.has_probe(),
+                                         discovery_.has_exclude_object(), timelapse_available())) {
         return;
     }
-
-    printer_type_ = type;
-    pre_print_option_set_ = new_options;
-    z_offset_calibration_strategy_ = new_strategy;
-    printer_db_enclosed_ = PrinterDetector::is_enclosed(type);
     refresh_bed_drying_capability();
-
-    if (subjects_initialized_) {
-        lv_subject_copy_string(&printer_type_subject_, type.c_str());
-    }
-
-    // Synthesize runtime-dependent options (timelapse) on top of the DB load.
-    apply_dynamic_options();
-
-    // Update z_offset_can_save subject: 0 when firmware/macros auto-persist (FIRMWARE_MANAGED)
-    int can_save = (new_strategy != ZOffsetCalibrationStrategy::FIRMWARE_MANAGED) ? 1 : 0;
-    if (subjects_initialized_) {
-        lv_subject_set_int(&z_offset_can_save_, can_save);
-    }
 
     // Apply probe type override from database (e.g., prtouch_v2 for K1 series)
     std::string probe_type_str = PrinterDetector::get_probe_type(type);
@@ -1049,8 +994,9 @@ void PrinterState::set_printer_type_internal(const std::string& type) {
     // Update printer_has_purge_line_ based on the option set.
     // "priming" is the option id for purge/prime line in the database (also accept legacy
     // "nozzle_priming" as an alias).
-    bool has_priming = (pre_print_option_set_.find("priming") != nullptr) ||
-                       (pre_print_option_set_.find("nozzle_priming") != nullptr);
+    const auto& options = profile_state_.pre_print_option_set();
+    bool has_priming =
+        (options.find("priming") != nullptr) || (options.find("nozzle_priming") != nullptr);
     capabilities_state_.set_purge_line(has_priming);
 
     // Does the automatic tool offset calibration make the paper test redundant?
@@ -1064,113 +1010,16 @@ void PrinterState::set_printer_type_internal(const std::string& type) {
     const char* strategy_names[] = {"probe_calibrate", "firmware_managed", "endstop"};
     spdlog::info(
         "[PrinterState] Printer type set to: '{}' (pre_print_options: {}, priming={}, z_cal={})",
-        type, pre_print_option_set_.empty() ? "none" : pre_print_option_set_.macro_name,
-        has_priming, strategy_names[static_cast<int>(z_offset_calibration_strategy_)]);
+        type, options.empty() ? "none" : options.macro_name, has_priming,
+        strategy_names[static_cast<int>(profile_state_.z_offset_calibration_strategy())]);
 }
 
 void PrinterState::apply_dynamic_options() {
-    // Strip any previously synthesized dynamic options before re-adding so
-    // this method is idempotent and handles capability changes (e.g.
-    // moonraker-timelapse plugin going from absent to present).
-    pre_print_option_set_.options.erase(
-        std::remove_if(pre_print_option_set_.options.begin(), pre_print_option_set_.options.end(),
-                       [](const PrePrintOption& opt) { return opt.id == "timelapse"; }),
-        pre_print_option_set_.options.end());
-
-    // Adaptive bed mesh: a property of the SINGLE bed_mesh toggle, not a separate
-    // row. When ALL hold, the bed_mesh option is relabeled "Adaptive Bed Mesh"
-    // and emits its adaptive token (e.g. ADAPTIVE=1) alongside the enable param
-    // when ON; otherwise it stays the plain "Auto Bed Mesh" with unchanged
-    // behavior. Conditions (so it's never a silent no-op):
-    //   1. the bed_mesh option is a MacroParam declaring an adaptive_param (the
-    //      START_PRINT forwarding signal — the macro passes the token into
-    //      BED_MESH_CALIBRATE),
-    //   2. the firmware exposes [exclude_object] (adaptive maps printed objects),
-    //   3. no custom calibration.bed_mesh_gcode template is in use (that path
-    //      runs verbatim and ignores ADAPTIVE).
-    // Recomputed each run (idempotent, non-destructive) so it tracks capability
-    // changes — e.g. exclude_object only becomes known once hardware arrives.
-    for (auto& opt : pre_print_option_set_.options) {
-        if (opt.id != "bed_mesh") {
-            continue;
-        }
-        const auto* mp = std::get_if<PrePrintStrategyMacroParam>(&opt.strategy);
-        const bool has_adaptive_param = mp && !mp->adaptive_param.empty();
-        const bool firmware_forwards = discovery_.has_exclude_object();
-        const bool custom_template =
-            !PrinterDetector::get_bed_mesh_calibrate_gcode(printer_type_).empty();
-        opt.adaptive_active = has_adaptive_param && firmware_forwards && !custom_template;
-        break;
-    }
-
-    // Firmware that stores these settings itself is the authority on what each
-    // toggle shows. A database default would otherwise claim a state the
-    // machine does not hold, and disagree with every other client reading the
-    // same printer.
-    for (auto& opt : pre_print_option_set_.options) {
-        auto it = firmware_option_defaults_.find(opt.id);
-        if (it != firmware_option_defaults_.end()) {
-            opt.default_enabled = it->second;
-        }
-    }
-
-    // A printer whose firmware owns timelapse declares its own option for that
-    // capability in the database, and that option is the one that works: it
-    // writes a firmware preference, where the plugin row writes through
-    // Moonraker. Synthesising on top of it gives the user two timelapse
-    // toggles, and on firmware that ships a compatibility stub for the plugin
-    // API the synthesised one silently does nothing. The database wins.
-    const bool database_owns_timelapse = pre_print_option_set_.declares_capability("timelapse");
-
-    // Timelapse: append when the moonraker-timelapse plugin reports available.
-    // Strategy is RuntimeCommand with sentinel values that
-    // PrintPreparationManager::start_print() recognizes (see the dispatch
-    // for command_enabled / command_disabled prefixed with "timelapse:").
-    // These are NOT gcode lines — start_print() routes them to
-    // `api_->timelapse().set_timelapse_enabled(...)`.
-    if (!database_owns_timelapse &&
-        lv_subject_get_int(capabilities_state_.subject(Capability::HasTimelapse)) == 1) {
-        PrePrintOption tl;
-        tl.id = "timelapse";
-        tl.label_key = "Timelapse";
-        tl.category = PrePrintCategory::Monitoring;
-        tl.order = 100;
-        // Default reflects the global moonraker-timelapse `enabled` setting
-        // (seeded at discovery via set_timelapse_default_enabled). The plugin
-        // has no per-print concept — the toggle writes the global `enabled` at
-        // print start — so defaulting to a hardcoded false silently disabled a
-        // user's global timelapse on every print start (#1094).
-        tl.default_enabled = timelapse_default_enabled_;
-        tl.strategy_kind = PrePrintStrategyKind::RuntimeCommand;
-        PrePrintStrategyRuntimeCommand cmd;
-        cmd.command_enabled = "timelapse:on";
-        cmd.command_disabled = "timelapse:off";
-        tl.strategy = cmd;
-        pre_print_option_set_.options.push_back(std::move(tl));
-    }
-
-    // Maintain the (category, order) sort guarantee from
-    // parse_pre_print_option_set so renderers still see options in their
-    // documented order (covers both synthesized options above).
-    std::sort(pre_print_option_set_.options.begin(), pre_print_option_set_.options.end(),
-              [](const PrePrintOption& a, const PrePrintOption& b) {
-                  if (a.category != b.category) {
-                      return static_cast<int>(a.category) < static_cast<int>(b.category);
-                  }
-                  return a.order < b.order;
-              });
+    profile_state_.apply_dynamic_options(discovery_.has_exclude_object(), timelapse_available());
 }
 
-const std::string& PrinterState::get_printer_type() const {
-    return printer_type_;
-}
-
-const PrePrintOptionSet& PrinterState::get_pre_print_option_set() const {
-    return pre_print_option_set_;
-}
-
-ZOffsetCalibrationStrategy PrinterState::get_z_offset_calibration_strategy() const {
-    return z_offset_calibration_strategy_;
+bool PrinterState::timelapse_available() {
+    return lv_subject_get_int(capabilities_state_.subject(Capability::HasTimelapse)) == 1;
 }
 
 // ============================================================================
