@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -840,36 +841,66 @@ TEST_CASE_METHOD(CrashTestFixture, "Crash: recent ERROR log lines captured into 
 // Install / Uninstall (no real signals) [telemetry][crash]
 // ============================================================================
 
+namespace {
+
+/// The SIGSEGV disposition currently installed, as one comparable pointer.
+void* current_segv_handler() {
+    struct sigaction sa {};
+    sigaction(SIGSEGV, nullptr, &sa);
+    return (sa.sa_flags & SA_SIGINFO) != 0 ? reinterpret_cast<void*>(sa.sa_sigaction)
+                                           : reinterpret_cast<void*>(sa.sa_handler);
+}
+
+} // namespace
+
 TEST_CASE_METHOD(CrashTestFixture, "Crash: install and uninstall do not crash",
                  "[telemetry][crash]") {
-    // Just verify install/uninstall is safe (no actual signal triggering)
-    crash_handler::install(crash_path());
-    crash_handler::uninstall();
+    void* const before = current_segv_handler();
 
-    // Double uninstall should be safe
+    crash_handler::install(crash_path());
+    REQUIRE(current_segv_handler() != before);
+
     crash_handler::uninstall();
+    REQUIRE(current_segv_handler() == before);
+
+    // A second uninstall leaves the restored disposition alone.
+    crash_handler::uninstall();
+    REQUIRE(current_segv_handler() == before);
 }
 
 TEST_CASE_METHOD(CrashTestFixture, "Crash: install with long path does not crash",
                  "[telemetry][crash]") {
-    // Test with a path longer than typical but within buffer limits
-    std::string long_path = temp_dir().string() + "/" + std::string(200, 'a') + "/crash.txt";
+    // Longer than typical but within the handler's path buffer.
+    const auto dir = temp_dir() / std::string(200, 'a');
+    std::filesystem::create_directories(dir);
+    const std::string long_path = (dir / "crash.txt").string();
+
     crash_handler::install(long_path);
+    crash_handler::write_exception_record("long path");
     crash_handler::uninstall();
+
+    REQUIRE(crash_handler::has_crash_file(long_path));
 }
 
 TEST_CASE_METHOD(CrashTestFixture, "Crash: install with very long path truncates safely",
                  "[telemetry][crash]") {
-    // Path longer than MAX_PATH_LEN (512) -- should truncate, not crash
+    // Longer than MAX_PATH_LEN (512): the path is truncated and the handlers still go in.
+    void* const before = current_segv_handler();
     std::string very_long_path = "/" + std::string(600, 'x') + "/crash.txt";
     crash_handler::install(very_long_path);
+    REQUIRE(current_segv_handler() != before);
     crash_handler::uninstall();
+    REQUIRE(current_segv_handler() == before);
 }
 
 TEST_CASE_METHOD(CrashTestFixture, "Crash: double install is idempotent", "[telemetry][crash]") {
+    void* const before = current_segv_handler();
     crash_handler::install(crash_path());
-    crash_handler::install(crash_path()); // Should be safe
+    crash_handler::install(crash_path());
+    // One uninstall restores the original: the second install did not save the
+    // crash handler itself as the disposition to restore.
     crash_handler::uninstall();
+    REQUIRE(current_segv_handler() == before);
 }
 
 // ============================================================================

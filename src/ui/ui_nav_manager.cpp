@@ -229,6 +229,7 @@ void NavigationManager::defer_close_callback(OverlayCloseCallback callback, lv_o
 }
 
 bool NavigationManager::is_overlay_registered(lv_obj_t* overlay) const {
+    overlay = resolve_rebuilt(overlay);
     return overlay_instances_.count(overlay) > 0 ||
            persistent_overlay_instances_.count(overlay) > 0;
 }

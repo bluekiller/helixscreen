@@ -5,6 +5,7 @@
 
 #include "../lvgl_test_fixture.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -58,7 +59,13 @@ TEST_CASE_METHOD(LVGLTestFixture,
 TEST_CASE_METHOD(LVGLTestFixture, "icon grid: deleting the grid frees the cells cleanly",
                  "[icon_picker]") {
     lv_obj_t* grid = lv_obj_create(test_screen());
-    populate_icon_grid(grid, kIcons, 3, "", [](const char*) {});
+    // Every cell holds a copy of the callback; the token lives as long as any copy does.
+    auto token = std::make_shared<int>(0);
+    std::weak_ptr<int> alive = token;
+    populate_icon_grid(grid, kIcons, 3, "", [token](const char*) {});
+    token.reset();
+    REQUIRE_FALSE(alive.expired());
+
     lv_obj_delete(grid);
-    SUCCEED();
+    REQUIRE(alive.expired());
 }

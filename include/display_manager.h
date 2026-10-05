@@ -13,6 +13,7 @@
 #include "scroll_click_guard.h"
 #include "touch_calibration.h"
 #include "touch_calibration_session.h"
+#include "touch_calibration_wrapper.h"
 
 #include <functional>
 #include <lvgl.h>
@@ -454,9 +455,11 @@ class DisplayManager : public helix::ICalibrationSink {
     void set_touch_calibration_active(bool active) {
         m_touch_calibration_active = active;
     }
-    /// ICalibrationSink spelling of set_touch_calibration_active().
+    /// ICalibrationSink spelling of set_touch_calibration_active(). Also holds the
+    /// evdev range still for the capture (helix::set_touch_capture_active).
     void set_capture_active(bool active) override {
         set_touch_calibration_active(active);
+        helix::set_touch_capture_active(active);
     }
     bool is_touch_calibration_active() const {
         return m_touch_calibration_active;
