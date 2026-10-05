@@ -110,13 +110,20 @@ bool label_contains(lv_obj_t* row, const std::string& needle) {
     return false;
 }
 
-/// The search-result rows are built for every def at open, named by def id,
-/// so a fit test can address its row without drilling into a category.
+/// The search-result rows cover every def, named by def id, so a fit test can
+/// address its row without drilling into a category. The catalog builds them on
+/// the first query, which this types and clears.
 lv_obj_t* result_row(const char* widget_id) {
     lv_obj_t* root = WidgetCatalogOverlay::active_root();
     REQUIRE(root != nullptr);
     lv_obj_t* results = lv_obj_find_by_name(root, "search_results");
     REQUIRE(results != nullptr);
+    if (lv_obj_get_child_count(results) == 0) {
+        lv_obj_t* input = lv_obj_find_by_name(root, "catalog_search_input");
+        REQUIRE(input != nullptr);
+        lv_textarea_set_text(input, "zzqq no such widget");
+        lv_textarea_set_text(input, "");
+    }
     lv_obj_t* row = lv_obj_find_by_name(results, widget_id);
     INFO("no search-result row for '" << widget_id << "'");
     REQUIRE(row != nullptr);
