@@ -1610,6 +1610,18 @@ struct AmsSystemInfo {
         return count;
     }
 
+    /// The global indices of every bay that exists, ascending: what a list of
+    /// bays offered to the user walks.
+    [[nodiscard]] std::vector<int> present_slots() const {
+        std::vector<int> slots;
+        for (int i = 0; i < total_slots; ++i) {
+            if (slot_exists(i)) {
+                slots.push_back(i);
+            }
+        }
+        return slots;
+    }
+
     [[nodiscard]] const AmsUnit* unit_for_slot(int global_index) const {
         for (const auto& unit : units) {
             if (global_index >= unit.first_slot_global_index &&

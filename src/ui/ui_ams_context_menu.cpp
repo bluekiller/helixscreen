@@ -161,11 +161,7 @@ bool AmsContextMenu::show_near_widget(lv_obj_t* parent, int slot_index, lv_obj_t
     if (backend_) {
         const AmsSystemInfo info = backend_->get_system_info();
         total_slots_ = info.total_slots;
-        for (int i = 0; i < total_slots_; ++i) {
-            if (info.slot_exists(i)) {
-                bays_.push_back(i);
-            }
-        }
+        bays_ = info.present_slots();
     } else {
         total_slots_ = 0;
     }
@@ -1308,6 +1304,12 @@ void open_slot_context_menu(AmsContextMenu& menu, const SlotMenuHost& host, int 
     if (!host.parent_screen || !near_widget) {
         return;
     }
+    AmsBackend* backend = AmsState::instance().get_backend();
+    // A bay of a box that is not on the bus offers nothing to act on.
+    if (backend && backend->get_system_info().slot_absent(slot_index)) {
+        spdlog::debug("{} Slot {} belongs to an absent unit - no menu", host.log_tag, slot_index);
+        return;
+    }
 
     menu.set_action_callback([host](AmsContextMenu::MenuAction action, int slot) {
         dispatch_slot_menu_action(host, action, slot);
@@ -1316,7 +1318,6 @@ void open_slot_context_menu(AmsContextMenu& menu, const SlotMenuHost& host, int 
     // Whether to offer Unload is decoupled from the display LOADED status, so a runout
     // that clears the head sensor does not disable Unload on the firmware's active slot
     // (#995).
-    AmsBackend* backend = AmsState::instance().get_backend();
     const bool is_loaded = backend && backend->can_unload_from_toolhead(slot_index);
 
     menu.set_click_point(click_pt);
