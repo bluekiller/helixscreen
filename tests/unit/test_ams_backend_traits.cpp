@@ -83,3 +83,52 @@ TEST_CASE("A backend that sets no traits answers the base defaults", "[ams][trai
     CHECK_FALSE(t.supports_auto_heat_on_load);
     CHECK_FALSE(t.has_per_slot_loaded_authority);
 }
+
+TEST_CASE("Real kTraits keep the answers the UI branches on", "[ams][traits]") {
+    // The persona cases above compare the mock with these structs, so they
+    // cannot catch a wrong value here. These pin the ones a lane-per-tool
+    // system must keep.
+    CHECK(AmsBackendHappyHare::kTraits.has_physical_tray);
+    CHECK_FALSE(AmsBackendHappyHare::kTraits.recovers_filament_on_resume);
+    CHECK_FALSE(AmsBackendHappyHare::kTraits.should_suppress_idle_runout_modal);
+    CHECK_FALSE(AmsBackendHappyHare::kTraits.supports_batch_filament_ops);
+    CHECK_FALSE(AmsBackendHappyHare::kTraits.allows_implicit_chaining);
+    CHECK_FALSE(AmsBackendSnapmaker::kTraits.has_physical_tray);
+    CHECK(AmsBackendSnapmaker::kTraits.supports_batch_filament_ops);
+}
+
+TEST_CASE("The mock leaves spool persistence to ToolState in every persona",
+          "[ams][mock][traits]") {
+    AmsBackendMock mock(4);
+    mock.set_afc_mode(true);
+    REQUIRE(AmsBackendAfc::kTraits.has_firmware_spool_persistence);
+    CHECK_FALSE(mock.has_firmware_spool_persistence());
+}
+
+TEST_CASE("Mock AFC load leaves only the new lane loaded", "[ams][mock][traits]") {
+    AmsBackendMock mock(4);
+    mock.set_afc_mode(true);
+    mock.set_operation_delay(0);
+    REQUIRE(mock.start());
+    REQUIRE(mock.has_per_slot_loaded_authority());
+
+    const int prior = mock.get_current_slot();
+    REQUIRE(prior >= 0);
+    REQUIRE(mock.slot_is_actively_loaded(prior));
+
+    int target = -1;
+    for (int i = 0; i < mock.get_system_info().total_slots; ++i) {
+        if (i != prior && mock.get_slot_info(i).status == SlotStatus::AVAILABLE) {
+            target = i;
+            break;
+        }
+    }
+    REQUIRE(target >= 0);
+
+    REQUIRE(mock.load_filament(target).success());
+    mock.wait_for_operation_thread();
+
+    CHECK(mock.slot_is_actively_loaded(target));
+    CHECK_FALSE(mock.slot_is_actively_loaded(prior));
+    mock.stop();
+}

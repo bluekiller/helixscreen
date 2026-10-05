@@ -7,7 +7,9 @@
 #if HELIX_HAS_SNAPMAKER
 #include "ams_backend_snapmaker.h"
 #endif
+#if HELIX_HAS_IFS
 #include "ams_backend_ad5x_ifs.h"
+#endif
 #include "ams_backend_afc.h"
 #include "ams_backend_happy_hare.h"
 #include "ams_backend_toolchanger.h"
@@ -330,6 +332,11 @@ AmsError AmsBackendMock::start() {
                                           [this] { return shutdown_requested_.load(); });
                 }
                 if (running_ && !shutdown_requested_) {
+                    // Bypass needs an empty toolhead on a persona that refuses
+                    // it loaded, so the scenario unloads first.
+                    if (unload_active_filament().success()) {
+                        wait_for_operation_thread();
+                    }
                     enable_bypass();
                 }
                 scenario_thread_running_ = false;
@@ -679,6 +686,16 @@ AmsError AmsBackendMock::load_filament(int slot_index) {
             return AmsErrorHelper::slot_not_available(lane_noun_locked(), slot_index);
         }
 
+        // The firmware unloads the lane it had seated before loading another, so
+        // one load never leaves two lanes reading LOADED.
+        const int prior = system_info_.current_slot;
+        if (prior >= 0 && prior != slot_index) {
+            auto* prior_entry = slots_.get_mut(prior);
+            if (prior_entry && prior_entry->info.status == SlotStatus::LOADED) {
+                prior_entry->info.status = SlotStatus::AVAILABLE;
+            }
+        }
+
         // Start loading. Status string is 1-based to match the slot numbering
         // shown on the panel (slot circles 1..N); slot_index is 0-based.
         system_info_.action = AmsAction::LOADING;
@@ -737,9 +754,11 @@ BackendTraits AmsBackendMock::traits() const {
     case AmsType::TOOL_CHANGER:
         t = AmsBackendToolChanger::kTraits;
         break;
+#if HELIX_HAS_IFS
     case AmsType::AD5X_IFS:
         t = AmsBackendAd5xIfs::kTraits;
         break;
+#endif
 #if HELIX_HAS_SNAPMAKER
     case AmsType::SNAPMAKER:
         t = AmsBackendSnapmaker::kTraits;
@@ -756,8 +775,10 @@ BackendTraits AmsBackendMock::traits() const {
     t.has_firmware_spool_persistence = false;
     // Environment data is faked for every persona (HELIX_MOCK_AMS_ENV) so the
     // environment UI is drivable in --test whatever the emulated firmware has.
-    const std::string mode = resolve_environment_mode();
-    t.has_environment_sensors = mode == "passive" || mode == "dryer" || mode == "slot";
+    // An empty mode resolves to "dryer" or "passive", both of which have sensors.
+    const std::string& mode = environment_mode_;
+    t.has_environment_sensors =
+        mode.empty() || mode == "passive" || mode == "dryer" || mode == "slot";
     return t;
 }
 
@@ -1262,6 +1283,8 @@ AmsError AmsBackendMock::set_tool_mapping_impl(int tool_number, int slot_index) 
 }
 
 AmsError AmsBackendMock::enable_bypass() {
+    // Asked before taking mutex_: traits() takes it, and a subclass may answer.
+    const bool chains = traits().allows_implicit_chaining;
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -1276,6 +1299,15 @@ AmsError AmsBackendMock::enable_bypass() {
 
         if (system_info_.action != AmsAction::IDLE) {
             return AmsErrorHelper::busy(ams_action_to_string(system_info_.action));
+        }
+
+        // A system that does not chain an unload in front of bypass refuses
+        // bypass with filament at the toolhead itself, as Happy Hare and AFC do.
+        if (!chains && system_info_.filament_loaded && system_info_.current_slot != -2) {
+            return AmsError(AmsResult::WRONG_STATE, "Unload filament first",
+                            lv_tr("Filament is loaded at the toolhead. Unload it before enabling "
+                                  "bypass."),
+                            "");
         }
 
         // Enable bypass mode: current_slot = -2 indicates bypass

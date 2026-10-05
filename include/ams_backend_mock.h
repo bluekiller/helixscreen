@@ -285,13 +285,10 @@ class AmsBackendMock : public AmsBackend {
     /// otherwise.
     ///
     /// Load-bearing, not cosmetic. requires_preprint_send() tells the
-    /// controller there is work to do; while this was left to the base's ""
-    /// return, every --test run of the U1 remap ended at "U1 pre-print config
-    /// empty - starting print directly" and the user's pick reached nothing.
-    /// Picking a head in the modal still logged a stored mapping, so the feature
-    /// LOOKED like it worked while the one step that carries it to the printer
-    /// was skipped. Delegates to AmsBackendSnapmaker::preprint_gcode so the
-    /// bytes are the real ones.
+    /// controller there is work to do, and an empty answer here makes it start
+    /// the print directly, so the user's head pick never reaches the printer
+    /// even though the modal logs a stored mapping. Delegates to
+    /// AmsBackendSnapmaker::preprint_gcode so the bytes are the real ones.
     [[nodiscard]] std::string build_preprint_gcode(const std::set<int>& tools_used,
                                                    const std::map<int, int>& remap) const override;
 
