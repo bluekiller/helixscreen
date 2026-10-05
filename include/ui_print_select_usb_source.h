@@ -157,6 +157,11 @@ class PrintSelectUsbSource {
         return current_source_;
     }
 
+    /// A walk is running or its result has not been delivered yet (UI thread).
+    [[nodiscard]] bool is_scanning() const {
+        return scan_in_flight_;
+    }
+
     /**
      * @brief Check if USB source is currently active
      */

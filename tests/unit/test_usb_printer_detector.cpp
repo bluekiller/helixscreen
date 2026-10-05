@@ -3,6 +3,7 @@
 
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/usb_scan_wait.h"
+#include "http_executor.h"
 #include "usb_printer_detector.h"
 
 #include "../catch_amalgamated.hpp"
@@ -69,7 +70,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "USB printer polling enumerates the bus off th
     SECTION("the first result arrives through the UI queue, not inside start_polling") {
         detector.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
         CHECK(calls == 0);
-        helix::test::wait_for_usb_scan();
+        helix::test::wait_for_usb_scan([&] { return detector.is_scanning(); });
         CHECK(calls == 1);
     }
 
@@ -78,14 +79,16 @@ TEST_CASE_METHOD(LVGLTestFixture, "USB printer polling enumerates the bus off th
             UsbPrinterDetector doomed;
             doomed.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
         }
-        helix::test::wait_for_usb_scan();
+        // The detector is gone, so only the lane can say the scan ended.
+        helix::test::wait_for_usb_scan(
+            [] { return helix::http::HttpExecutor::fast().inflight() > 0; });
         CHECK(calls == 0);
     }
 
     SECTION("a scan still running when polling stops reports nothing") {
         detector.start_polling([&](const std::vector<UsbPrinterInfo>&) { ++calls; });
         detector.stop_polling();
-        helix::test::wait_for_usb_scan();
+        helix::test::wait_for_usb_scan([&] { return detector.is_scanning(); });
         CHECK(calls == 0);
     }
 }

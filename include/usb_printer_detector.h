@@ -64,6 +64,11 @@ class UsbPrinterDetector {
     /// Whether periodic polling is active
     [[nodiscard]] bool is_polling() const;
 
+    /// A bus scan is running or its result has not been applied yet (UI thread).
+    [[nodiscard]] bool is_scanning() const {
+        return scan_in_flight_;
+    }
+
     /// Known printer VID:PID table
     static const std::vector<KnownUsbPrinter>& known_printers();
 

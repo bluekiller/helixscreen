@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -70,7 +71,8 @@ class UsbPrintFixture : private helix::PrintSelectGlobalStateReset,
 
         panel_->set_usb_manager(&usb_);
         panel_->on_source_usb_clicked();
-        helix::test::wait_for_usb_scan();
+        helix::test::wait_for_usb_scan(
+            [&] { return PrintSelectPanelTestAccess::usb_scanning(*panel_); });
         drain();
         REQUIRE(PrintSelectPanelTestAccess::list_contains(*panel_, "part.gcode"));
         REQUIRE(panel_->select_file_by_name("part.gcode"));
@@ -126,7 +128,8 @@ class UsbPrintFixture : private helix::PrintSelectGlobalStateReset,
         return static_cast<MoonrakerAPIMock&>(*api_).transfers_mock();
     }
 
-    fs::path root_ = fs::temp_directory_path() / "helix_usb_print_stick";
+    fs::path root_ =
+        fs::temp_directory_path() / ("helix_usb_print_stick_" + std::to_string(::getpid()));
     UsbManager usb_;
 };
 
