@@ -6,6 +6,7 @@
 
 #include "ams_subscription_backend.h"
 #include "async_lifetime_guard.h"
+#include "cfs_status_parse.h"
 #include "filament_slot_override.h"
 #include "filament_slot_override_store.h"
 #include "lane_binding.h"
@@ -165,14 +166,27 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     [[nodiscard]] PathSegment get_slot_filament_segment(int slot_index) const override;
     [[nodiscard]] PathSegment infer_error_segment() const override;
 
-    /// handle_status() stamps SlotStatus::LOADED on the seated bay —
-    /// the lane a unit names in T{n}.filament, once the toolhead switch says
-    /// filament actually arrived — so the per-slot status carries the answer
-    /// the aggregate pair used to hold alone. Before that stamp existed the
-    /// parse wrote only AVAILABLE/EMPTY, which left the inherited
-    /// can_unload_from_toolhead() false on every CFS slot (#1199).
-    [[nodiscard]] bool has_per_slot_loaded_authority() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // handle_status() stamps SlotStatus::LOADED on the seated bay —
+        // the lane a unit names in T{n}.filament, once the toolhead switch says
+        // filament actually arrived - so the per-slot status answers the
+        // per-slot question (#1199).
+        t.has_per_slot_loaded_authority = true;
+        t.supports_auto_heat_on_load = true;
+        t.has_environment_sensors = true;
+        // True: the CFS clears the toolhead without a lane. bypass_unload_gcode()
+        // is exactly that script - QUIT_MATERIAL (heat, cut, retract) plus the
+        // retract Creality's macro leaves out, or a CR_BOX_CUT/BOX_CUT_MATERIAL
+        // fallback - and it is built deliberately WITHOUT the bay envelopes,
+        // because a stood-down box has no answer for a bay operation. An
+        // unaccounted toolhead is that same lane-free situation.
+        t.can_clear_unaccounted_toolhead = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
 
   protected:
@@ -281,12 +295,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     [[nodiscard]] bool reports_firmware_tool_mapping() const override;
 
     [[nodiscard]] uint64_t firmware_tool_mapping_generation() const override;
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
-        return true;
-    }
-    [[nodiscard]] bool has_environment_sensors() const override {
-        return true;
-    }
     [[nodiscard]] bool manages_active_spool() const override {
         return false;
     }
@@ -573,16 +581,6 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
     /// print_start_checks.cpp) — do not narrow to == -1.
     [[nodiscard]] std::optional<bool> toolhead_filament_unaccounted() const override;
 
-    /// True: the CFS clears the toolhead without a lane. bypass_unload_gcode()
-    /// is exactly that script - QUIT_MATERIAL (heat, cut, retract) plus the
-    /// retract Creality's macro leaves out, or a CR_BOX_CUT/BOX_CUT_MATERIAL
-    /// fallback - and it is built deliberately WITHOUT the bay envelopes,
-    /// because a stood-down box has no answer for a bay operation. An
-    /// unaccounted toolhead is that same lane-free situation.
-    [[nodiscard]] bool can_clear_unaccounted_toolhead() const override {
-        return true;
-    }
-
   protected:
     /// Recovery buttons for a CFS runout. **Caller must hold mutex_** (base
     /// contract; this override takes no lock of its own and mutex_ is not
@@ -641,6 +639,33 @@ class AmsBackendCfs : public AmsSubscriptionBackend {
 
   private:
     friend class helix::CfsTestAccess;
+
+    // The box frame and its sibling objects, one named step each.
+    struct BoxFrame;
+    /// A `box` object: classify, latch the schema, merge stock deltas, parse,
+    /// then apply the full frames under mutex_. Inserts to probe land in
+    /// @p insert_probes for dispatch after the lock.
+    void handle_box_frame(const nlohmann::json& box, bool print_holds_machine,
+                          std::map<int, int>& insert_probes);
+    /// Files firmware's own account of every bay the frame described as lane
+    /// readings; takes mutex_ itself.
+    void file_box_readings(const AmsSystemInfo& new_info);
+    void apply_box_frame_locked(BoxFrame& frame);
+    /// Replaces the unit list, tool map and endless-spool state with the parse.
+    void apply_box_units_locked(BoxFrame& frame);
+    /// Bypass capability and the cross-UI drop of a stale declaration.
+    void converge_box_bypass_locked(BoxFrame& frame);
+    /// The runout latch; true when the frame carried the field.
+    bool apply_box_runout_locked(BoxFrame& frame);
+    /// Defers insert probes while the box is busy and releases them when idle.
+    void gate_insert_probes_locked(BoxFrame& frame);
+    void apply_box_active_slot_locked(BoxFrame& frame);
+    /// The lane resolve convergence point, once per bay.
+    void converge_box_lanes_locked(BoxFrame& frame);
+    void apply_filament_sensor(const cfs::FilamentSensorDelta& sensor);
+    /// True when the extruder temperature moved the action.
+    bool apply_extruder_telemetry(const cfs::ExtruderTempDelta& extruder);
+    void apply_motor_control(const cfs::MotorControlDelta& motor);
 
     std::string current_tnn_;
     bool motor_ready_ = true;

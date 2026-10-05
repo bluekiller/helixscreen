@@ -12,9 +12,8 @@
  * - Log level
  * - Restart / Factory reset
  *
- * Its callbacks are registered by the global SettingsPanel, which owns the
- * complex logic (factory reset dialog, etc.).
- * The telemetry and log-level rows bind to their SystemSettingsManager subjects.
+ * The telemetry and log-level rows bind to their SystemSettingsManager subjects;
+ * this overlay owns the row callbacks and the factory reset dialog.
  *
  * @pattern Overlay (lazy init)
  * @threading Main thread only
@@ -38,12 +37,27 @@ namespace helix::settings {
  */
 class SystemSettingsOverlay : public OverlayBase {
   public:
+    ~SystemSettingsOverlay() override;
+
     const char* get_name() const override {
         return "System";
     }
     const char* xml_component() const override {
         return "settings_system_overlay";
     }
+
+    void register_callbacks() override;
+
+    /// The Performance row's action: open the Performance overlay.
+    void open_performance();
+
+  private:
+    void handle_restart_helix_clicked();
+    void handle_factory_reset_clicked();
+    void perform_factory_reset();
+
+    /// Created on first use, deleted when its close animation finishes.
+    lv_obj_t* factory_reset_dialog_ = nullptr;
 };
 
 inline SystemSettingsOverlay& get_system_settings_overlay() {

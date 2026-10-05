@@ -137,6 +137,7 @@ src/printer/ams_environment_zone.cpp
 src/printer/ams_state.cpp
 src/printer/ams_subscription_backend.cpp
 src/printer/batch_feed_reconcile.cpp
+src/printer/cfs_status_parse.cpp
 src/printer/lane_echo.cpp
 src/printer/lane_resolver.cpp
 src/printer/lane_apply.cpp
@@ -160,6 +161,7 @@ src/printer/filament_variants.cpp
 src/printer/firmware_fault_codes.cpp
 src/printer/hardware_role_registry.cpp
 src/printer/hardware_validator.cpp
+src/printer/happy_hare_status_parse.cpp
 src/printer/hh_defaults.cpp
 src/printer/klipper_error_table.cpp
 src/printer/macro_executor.cpp
@@ -198,6 +200,7 @@ src/printer/snapmaker_channel_state.cpp
 src/printer/snapmaker_exceptions.cpp
 src/printer/snapmaker_print_preferences.cpp
 src/printer/snapmaker_resume.cpp
+src/printer/snapmaker_status_parse.cpp
 src/printer/z_offset_persistence.cpp
 src/printer/plr_backend.cpp
 src/printer/plr_offer.cpp
@@ -356,6 +359,8 @@ src/ui/shared_font_style.cpp
 src/ui/text_metrics.cpp
 src/ui/style_configs.cpp
 src/ui/temp_graph_controller.cpp
+src/ui/print_progress_text.cpp
+src/ui/print_status_layout_fitter.cpp
 src/ui/temp_graph_tooltip.cpp
 src/ui/temperature_controller.cpp
 src/ui/bed_drying_controller.cpp
@@ -475,6 +480,7 @@ src/ui/ui_panel_common.cpp
 src/ui/ui_panel_console.cpp
 src/ui/ui_panel_controls.cpp
 src/ui/quick_action_slots.cpp
+src/ui/quick_action_buttons.cpp
 src/ui/ui_motors_off.cpp
 src/ui/ui_panel_filament.cpp
 src/ui/ui_panel_history_dashboard.cpp
@@ -537,6 +543,8 @@ src/ui/ui_settings_sensors.cpp
 src/ui/ui_settings_sound.cpp
 src/ui/ui_settings_telemetry_data.cpp
 src/ui/ui_settings_touch.cpp
+src/ui/ui_settings_system.cpp
+src/ui/ui_settings_connection.cpp
 src/ui/ui_settings_updates.cpp
 src/ui/ui_severity_card.cpp
 src/ui/ui_snake_game.cpp
@@ -669,7 +677,9 @@ src/ui/ui_gcode_viewer.cpp
 #   mode ladder + bottom-occluder handoff). Both those panels are in this build
 #   and call it ungated; its only deps are the ui_gcode_viewer_* API above (the
 #   no-op branch defines all of it), DisplaySettingsManager and RuntimeConfig.
+src/ui/gcode_preview_fetcher.cpp
 src/ui/gcode_preview_setup.cpp
+src/ui/print_preview_controller.cpp
 #   bed-mesh viewer, compiled-out branch (HELIX_HAS_BED_MESH_3D=0): same trick
 #   as ui_gcode_viewer above — its #else no-op defines ui_bed_mesh_register()
 #   (registers a stub <bed_mesh> widget so layouts parse) plus the rest of the

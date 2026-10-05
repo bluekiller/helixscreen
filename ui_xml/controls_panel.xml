@@ -286,11 +286,17 @@
               <bind_flag_if_eq subject="printer_has_chamber" flag="hidden" ref_value="0"/>
               <heater_status state_subject="controls_chamber_status_state" duty_subject="controls_chamber_status"/>
             </lv_obj>
-            <!-- Secondary temperature sensors list (populated dynamically) -->
+            <!-- "N more sensors" link to the sensors overlay; hidden when there are none -->
             <lv_obj name="secondary_temps_list"
-                    width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="column"
-                    style_pad_gap="#space_xxs" style_pad_top="#space_xxs">
-              <!-- Dynamic temp sensor rows will be added here by C++ -->
+                    width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="row"
+                    style_flex_main_place="space_between" style_flex_cross_place="center" style_pad_top="#space_xxs"
+                    clickable="true">
+              <bind_flag_if_eq subject="controls_more_sensors_count" flag="hidden" ref_value="0"/>
+              <event_cb trigger="clicked" callback="on_controls_more_sensors"/>
+              <text_small name="more_sensors_label"
+                          bind_text="controls_more_sensors" style_text_color="#text_muted" clickable="false"
+                          event_bubble="true"/>
+              <icon src="chevron_right" size="xs" variant="secondary" clickable="false" event_bubble="true"/>
             </lv_obj>
           </ui_card>
           <!-- Card 3: Cooling (Multi-Fan) -->
@@ -327,8 +333,9 @@
             <!-- Secondary fans list (populated dynamically) -->
             <lv_obj name="secondary_fans_list"
                     width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="column"
-                    style_pad_gap="#space_xxs" style_pad_top="#space_xs">
-              <!-- Dynamic fan rows will be added here by C++ -->
+                    style_pad_gap="#space_xxs" style_pad_top="#space_xs" clickable="true">
+              <event_cb trigger="clicked" callback="on_controls_secondary_fans"/>
+              <!-- Fan rows are added here by C++ -->
             </lv_obj>
           </ui_card>
         </lv_obj>

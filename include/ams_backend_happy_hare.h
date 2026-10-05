@@ -8,6 +8,7 @@
 #include "async_lifetime_guard.h"
 #include "error_event.h"
 #include "filament_slot_override_store.h"
+#include "happy_hare_status_parse.h"
 #include "lane_echo.h"
 #include "lane_observation.h"
 #include "slot_registry.h"
@@ -128,9 +129,33 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     AmsError reset() override;
     AmsError clear_fault(int slot_index) override;
     AmsError recover_with_state(const RecoverStateRequest& request) override;
-    [[nodiscard]] bool supports_recover_with_state() const override {
-        return true;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        t.supports_recover_with_state = true;
+        t.supports_lane_preload = true;
+        t.supports_gate_select = true;
+        t.supports_gate_check = true;
+        // reset() sends bare MMU_HOME. With no FORCE_UNLOAD parameter Happy Hare
+        // takes its automatic-unload branch whenever filament_pos is not UNLOADED,
+        // so the filament comes out of the toolhead before the selector homes.
+        t.reset_moves_filament = true;
+        // Happy Hare users have a console; the screen passes their command through
+        // rather than synthesising a prerequisite operation they never asked for
+        // (#1229).
+        t.allows_implicit_chaining = false;
+        // Live temp/target read from heater_generic via Moonraker subscriptions
+        t.has_environment_sensors = true;
+        // Happy Hare persists via MMU_GATE_MAP SPOOLID
+        t.has_firmware_spool_persistence = true;
+        // Happy Hare publishes gate spool_id in mmu status
+        t.printer_reports_spool_ids = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
+
     /**
      * @brief The MMU_RECOVER line asserting @p request.
      *
@@ -149,9 +174,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * @brief Park a gate's filament ready for a later load (MMU_PRELOAD GATE=n).
      */
     AmsError preload_lane(int slot_index) override;
-    [[nodiscard]] bool supports_lane_preload() const override {
-        return true;
-    }
     /**
      * @brief Move the selector to a gate without loading filament (MMU_SELECT).
      */
@@ -160,20 +182,8 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * @brief Jog the selector relative to the current gate (MMU_SELECT, clamped).
      */
     AmsError move_selector(int delta) override;
-    [[nodiscard]] bool supports_gate_select() const override {
-        return true;
-    }
-    [[nodiscard]] bool supports_gate_check() const override {
-        return true;
-    }
     [[nodiscard]] std::string reset_button_label() const override {
         return "Home";
-    }
-    /// reset() sends bare MMU_HOME. With no FORCE_UNLOAD parameter Happy Hare
-    /// takes its automatic-unload branch whenever filament_pos is not UNLOADED,
-    /// so the filament comes out of the toolhead before the selector homes.
-    [[nodiscard]] bool reset_moves_filament() const override {
-        return true;
     }
     /**
      * @brief Probe a single gate's sensor (MMU_CHECK_GATE GATE=n).
@@ -213,12 +223,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// mmu.filament "Loaded" while mmu.gate names no gate (-1). Gate -2 is
     /// bypass — accounted there (the gate layer also silences under bypass).
     [[nodiscard]] std::optional<bool> toolhead_filament_unaccounted() const override;
-    /// Happy Hare users have a console; the screen passes their command through
-    /// rather than synthesising a prerequisite operation they never asked for
-    /// (#1229).
-    [[nodiscard]] bool allows_implicit_chaining() const override {
-        return false;
-    }
 
     // === Endless Spool ===
     //
@@ -270,9 +274,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     AmsError stop_drying(int unit = 0) override;
     AmsError update_drying(float temp_c = -1, int duration_min = -1, int fan_pct = -1,
                            int unit = 0) override;
-    [[nodiscard]] bool has_environment_sensors() const override {
-        return true; // Live temp/target read from heater_generic via Moonraker subscriptions
-    }
 
     /// Delete this gate's user override ("Clear Spool").
     void clear_slot_override(int slot_index) override;
@@ -284,14 +285,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// HH boot; the AmsState event triggers (bypass engage, external-spool
     /// edit) re-publish.
     void publish_external_spool_lane(const SlotInfo* spool) override;
-
-    [[nodiscard]] bool has_firmware_spool_persistence() const override {
-        return true; // Happy Hare persists via MMU_GATE_MAP SPOOLID
-    }
-
-    [[nodiscard]] bool printer_reports_spool_ids() const override {
-        return true; // Happy Hare publishes gate spool_id in mmu status
-    }
 
     [[nodiscard]] RemapStrategy get_remap_strategy() const override {
         return RemapStrategy::Native;
@@ -431,14 +424,62 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // no // narration, so the backend drives the bar itself. Caller holds mutex_.
     void sync_narration_step();
 
-    /**
-     * @brief Parse MMU state from Moonraker JSON
-     *
-     * Extracts mmu object from notification and updates system_info_.
-     *
-     * @param mmu_data JSON object containing printer.mmu data
-     */
-    void parse_mmu_state(const nlohmann::json& mmu_data);
+    /// What one printer.mmu frame accumulates while it is applied: the gate
+    /// identity it stated and cleared, which the echo guard judges at the
+    /// filing step, and what must happen once mutex_ is released.
+    ///
+    /// The accumulator gate_readings_ carries the gate map's last word on every
+    /// key, so a frame silent about material would otherwise offer the pre-edit
+    /// material as this frame's statement and release the material declaration
+    /// before its echo lands. The echo guard therefore judges these instead.
+    struct MmuFrame {
+        /// A fault stood when the frame began (reason_for_pause was non-empty).
+        bool was_faulted = false;
+        std::map<int, helix::ams::Observation> stated;
+        std::map<int, helix::ams::Observation> cleared;
+        /// Gates that went from empty to holding filament with no spool
+        /// binding to say what went in.
+        std::vector<int> unverified_insert_gates;
+
+        /// Observation has no default constructor, so every entry is created
+        /// through these with a definite source.
+        helix::ams::Observation& stated_for(int gate) {
+            return stated
+                .try_emplace(gate,
+                             helix::ams::Observation{helix::ams::ObservationSource::VendorCache})
+                .first->second;
+        }
+        helix::ams::Observation& cleared_for(int gate) {
+            return cleared
+                .try_emplace(gate,
+                             helix::ams::Observation{helix::ams::ObservationSource::VendorCache})
+                .first->second;
+        }
+    };
+
+    // The sections of one printer.mmu frame, applied under mutex_ in this order.
+    void apply_mmu_status_locked(const happy_hare::MmuStatusDelta& delta, MmuFrame& frame);
+    /// The standing identity record for @p gate, created on first mention.
+    helix::ams::Observation& gate_reading_locked(int gate);
+    void apply_mmu_selector_locked(const happy_hare::MmuCoreDelta& core);
+    void apply_mmu_path_locked(const happy_hare::MmuCoreDelta& core);
+    void apply_mmu_topology_locked(const happy_hare::MmuTopologyDelta& topology);
+    void apply_gate_status_locked(const happy_hare::GateIdentityDelta& identity);
+    /// gate_color_rgb / gate_color / gate_material.
+    void apply_gate_appearance_locked(const happy_hare::GateIdentityDelta& identity,
+                                      MmuFrame& frame);
+    /// Spool binding (with its reconcile), temperature, names, tool map and
+    /// endless-spool groups.
+    void apply_gate_binding_locked(const happy_hare::MmuStatusDelta& delta, MmuFrame& frame);
+    void apply_mmu_telemetry_locked(const happy_hare::MmuTelemetryDelta& telemetry);
+    /// Pre-gate sensors, drying and the endless-spool enable bit.
+    void apply_mmu_sensors_locked(const happy_hare::MmuStatusDelta& delta);
+    void apply_mmu_drying_locked(const happy_hare::DryingDelta& drying);
+    /// The tail of every frame: file readings, repaint each gate, re-derive
+    /// statuses, mark the fault edge.
+    void converge_mmu_locked(MmuFrame& frame);
+    void file_gate_readings_locked(MmuFrame& frame);
+    void apply_fault_edge_locked(const MmuFrame& frame);
 
     /**
      * @brief Re-derive every gate's SlotStatus from gate_status + the loaded gate
@@ -448,7 +489,7 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * the latter two alone. Deriving the LOADED stamp inside the gate_status
      * branch therefore pinned it to whichever gate was loaded the last time a
      * gate's fill state happened to change (#1199). Called at the end of every
-     * parse_mmu_state() instead, off the cached gate_status_raw_.
+     * apply_mmu_status_locked() instead, off the cached gate_status_raw_.
      *
      * Caller must hold mutex_.
      */
@@ -459,7 +500,7 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      *
      * reconcile_lane_binding() drops the Spoolman, user and remembered records
      * from a gate's lane the moment the gate map stops agreeing with them. The
-     * fields below are the ones parse_mmu_state() never writes, so with those
+     * fields below are the ones apply_mmu_status_locked() never writes, so with those
      * records gone nothing can restate them, and apply_resolved() does not
      * write a field no source observed. They would otherwise stand on a gate
      * describing a spool that has nothing to do with it - on a re-bind, the
@@ -469,7 +510,7 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * Colour, material, gate name and the spool id are left alone: the gate map
      * states each of them and this frame has already written them.
      *
-     * Caller must hold mutex_. The paint at the end of parse_mmu_state() is
+     * Caller must hold mutex_. The paint at the end of apply_mmu_status_locked() is
      * what fills these back in from whatever still speaks for the gate.
      */
     void retire_departed_identity_locked(int gate);

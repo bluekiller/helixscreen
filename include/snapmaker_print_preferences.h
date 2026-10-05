@@ -33,6 +33,11 @@ struct PrintPreferences {
     std::vector<bool> end_unload_filament;            ///< one per toolhead
 
     [[nodiscard]] bool empty() const;
+
+    /// Overlays what @p incoming sets onto this record. A delta frame that
+    /// mentions one setting says nothing about the others, so a field @p
+    /// incoming leaves unset keeps its value here.
+    void merge(const PrintPreferences& incoming);
 };
 
 /// Pull whatever this status frame says about the stored preferences.

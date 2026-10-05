@@ -207,10 +207,7 @@ TEST_CASE("Mock Snapmaker answers capability questions like the U1",
     // Compared against the real backend, never a literal: a capability whose
     // right answer changes on hardware must not need editing in two places.
     CHECK(mock.lane_noun() == real.lane_noun());
-    CHECK(mock.has_physical_tray() == real.has_physical_tray());
-    CHECK(mock.recovers_filament_on_resume() == real.recovers_filament_on_resume());
-    CHECK(mock.should_suppress_idle_runout_modal() == real.should_suppress_idle_runout_modal());
-    CHECK(mock.supports_batch_filament_ops() == real.supports_batch_filament_ops());
+    // The BackendTraits answers are pinned in test_ams_backend_traits.cpp.
 }
 
 TEST_CASE("A non-Snapmaker mock keeps the base capability answers",
@@ -220,8 +217,5 @@ TEST_CASE("A non-Snapmaker mock keeps the base capability answers",
     // would describe hardware it is not standing in for.
     AmsBackendMock mock(4); // defaults to Happy Hare
     CHECK(mock.lane_noun() == helix::ui::LaneNoun::Gate);
-    CHECK(mock.has_physical_tray());
-    CHECK_FALSE(mock.recovers_filament_on_resume());
-    CHECK_FALSE(mock.should_suppress_idle_runout_modal());
-    CHECK_FALSE(mock.supports_batch_filament_ops());
+    // The BackendTraits answers are pinned in test_ams_backend_traits.cpp.
 }

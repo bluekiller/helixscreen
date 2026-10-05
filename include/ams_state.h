@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -283,6 +284,15 @@ class AmsState {
      * @return Pointer to backend (may be nullptr)
      */
     [[nodiscard]] AmsBackend* get_backend() const;
+
+    /**
+     * @brief Type of the primary backend, read under mutex_
+     *
+     * For callers off the main thread: they cannot keep get_backend()'s pointer
+     * past the lock, since clear_backends() frees it.
+     * @return nullopt when no backend is registered
+     */
+    [[nodiscard]] std::optional<AmsType> primary_type() const;
 
     /**
      * @brief Add a backend to the multi-backend list
@@ -1824,6 +1834,9 @@ class AmsState {
     lv_subject_t ams_is_tool_changer_{};
     lv_subject_t ams_is_filament_system_{};
     lv_subject_t ams_action_{};
+    /// Copy of ams_action_ for readers off the main thread. Every write to the
+    /// subject updates it.
+    std::atomic<AmsAction> action_mirror_{AmsAction::IDLE};
     /// Granular load/unload sub-phase (-1=none, 0=Home, 1=Select, 2=Heat,
     /// 3=Move). Snapmaker U1 only; registered with subjects_.
     lv_subject_t ams_operation_phase_{};

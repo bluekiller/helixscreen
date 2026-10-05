@@ -13,7 +13,7 @@
 
 #include "ui_nav_manager.h"
 #include "ui_overlay_performance.h"
-#include "ui_panel_settings.h"
+#include "ui_settings_system.h"
 #include "ui_update_queue.h"
 
 #include "../test_fixtures.h"
@@ -355,7 +355,7 @@ TEST_CASE_METHOD(PerfOverlayFixture, "PerformanceOverlay registers with the nav 
     REQUIRE_FALSE(nav.has_open_overlays());
 
     // The real production path behind the System settings Performance row.
-    get_global_settings_panel().handle_performance_clicked();
+    helix::settings::get_system_settings_overlay().open_performance();
 
     // push_overlay() queues its whole body through UpdateQueue.
     UpdateQueueTestAccess::drain(UpdateQueue::instance());

@@ -3,6 +3,7 @@
 
 #include "../helix_test_fixture.h"
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/mock_bypass.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "ams_types.h"
@@ -619,6 +620,7 @@ TEST_CASE("active_spool_describes_bypass: true when the AMS is feeding from its 
     AmsBackendMock* raw = mock.get();
     AmsState::instance().set_backend(std::move(mock));
     REQUIRE(raw->start());
+    REQUIRE(helix::test::unload_for_bypass(*raw));
     REQUIRE(raw->enable_bypass().success());
     REQUIRE(AmsState::instance().any_bypass_active());
 

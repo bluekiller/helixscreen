@@ -9,7 +9,9 @@
 #include "lane_binding.h"
 #include "lane_echo.h"
 #include "lane_observation.h"
+#include "snapmaker_channel_state.h"
 #include "snapmaker_print_preferences.h"
+#include "snapmaker_status_parse.h"
 
 #include <array>
 #include <map>
@@ -42,36 +44,6 @@ class RunoutScopeTestAccess;
  *
  * Path topology is PARALLEL (each tool has its own independent path).
  */
-
-/// Per-extruder tool state from Snapmaker custom Klipper fields
-struct ExtruderToolState {
-    std::string state;                                ///< e.g., "PARKED", "ACTIVE", "ACTIVATING"
-    bool park_pin = false;                            ///< Tool is in park position
-    bool active_pin = false;                          ///< Tool is in active position
-    bool activating_move = false;                     ///< Tool change move in progress
-    std::array<float, 3> extruder_offset = {0, 0, 0}; ///< XYZ offset
-    int switch_count = 0;                             ///< Total tool changes for this extruder
-    int retry_count = 0;                              ///< Tool change retries
-    int error_count = 0;                              ///< Tool change errors
-};
-
-/// RFID tag data parsed from filament_detect info
-struct SnapmakerRfidInfo {
-    std::string main_type;         ///< e.g., "PLA", "PETG"
-    std::string sub_type;          ///< e.g., "SnapSpeed", "Basic"
-    std::string manufacturer;      ///< e.g., "Polymaker"
-    std::string vendor;            ///< e.g., "Snapmaker"
-    uint32_t color_rgb = 0x808080; ///< RGB color (ARGB masked to 0x00FFFFFF)
-    int hotend_min_temp = 0;
-    int hotend_max_temp = 0;
-    int bed_temp = 0;
-    int weight_g = 0; ///< Spool weight in grams
-    /// Canonical string form of CARD_UID (e.g. "144,32,196,2"). Empty when no
-    /// tag is present, the RFID reader is disabled, or the field is missing.
-    /// Used by the override system as the hardware-event signal: a change
-    /// means the physical spool was swapped.
-    std::string uid;
-};
 
 class AmsBackendSnapmaker : public AmsSubscriptionBackend {
   public:
@@ -152,21 +124,44 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
         return PathTopology::PARALLEL;
     }
 
-    // The U1 has no shared tray or housing: spools mount on the left and right
-    // of the machine and feed through bowdens into a lane-assist motor unit on
-    // each side. The detail view's tray graphic draws a container that is not
-    // there.
-    [[nodiscard]] bool has_physical_tray() const override {
-        return false;
+    /// Constant capability answers; see BackendTraits.
+    static constexpr BackendTraits kTraits = [] {
+        BackendTraits t;
+        // The U1 has no shared tray or housing: spools mount on the left and right
+        // of the machine and feed through bowdens into a lane-assist motor unit on
+        // each side. The detail view's tray graphic draws a container that is not
+        // there.
+        t.has_physical_tray = false;
+        t.supports_auto_heat_on_load = true;
+        // Snapmaker U1's Resume runs AUTO_FEEDING (loads filament to the nozzle)
+        // before RESUME, so Resume alone recovers a runout. The runout dialog uses
+        // this to present Resume as primary and demote manual Load/Unload/Purge.
+        t.recovers_filament_on_resume = true;
+        // The U1 drives load/unload entirely on its own, so an idle lane going empty
+        // (a hand-pull, or a lane left unloaded) needs no operator action and the
+        // idle runout-guidance modal is just noise. Mid-print runout is a separate
+        // path and is unaffected.
+        t.should_suppress_idle_runout_modal = true;
+        // Snapmaker U1's firmware errors if SET_PRINT_USED_EXTRUDERS /
+        // SET_PRINT_EXTRUDER_MAP arrive mid-print, so the config must be sent before
+        // PRINT_START. Always-on (even with no remap) to suppress a spurious-feed
+        // runout — the slicer auto-feeds heads the print doesn't use → empty head →
+        // runout cancel.
+        t.requires_preprint_send = true;
+        // The U1's four independent feeders can be driven as one batch: the
+        // firmware sequences per-extruder AUTO_FEEDING itself. Gates the batch
+        // Load/Unload affordance in the UI.
+        t.supports_batch_filament_ops = true;
+        return t;
+    }();
+    [[nodiscard]] BackendTraits traits() const override {
+        return kTraits;
     }
 
     // FEED_AUTO homes and sets its own nozzle target from the lane's material:
     // a load reports load_homing then load_heating, an unload unload_homing then
     // unload_heating. A G28 or UI preheat in front of it is a second wait.
     [[nodiscard]] bool delegates_homing_to_printer() const override {
-        return true;
-    }
-    [[nodiscard]] bool supports_auto_heat_on_load() const override {
         return true;
     }
 
@@ -286,21 +281,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     // showing the modal.
     [[nodiscard]] bool is_stuck_motion_sensor_runout(int slot_index) const override;
 
-    // Snapmaker U1's Resume runs AUTO_FEEDING (loads filament to the nozzle)
-    // before RESUME, so Resume alone recovers a runout. The runout dialog uses
-    // this to present Resume as primary and demote manual Load/Unload/Purge.
-    [[nodiscard]] bool recovers_filament_on_resume() const override {
-        return true;
-    }
-
-    // The U1 drives load/unload entirely on its own, so an idle lane going empty
-    // (a hand-pull, or a lane left unloaded) needs no operator action and the
-    // idle runout-guidance modal is just noise. Mid-print runout is a separate
-    // path and is unaffected.
-    [[nodiscard]] bool should_suppress_idle_runout_modal() const override {
-        return true;
-    }
-
     // Snapmaker U1 uses firmware-native print_task_config gcode
     // (SET_PRINT_USED_EXTRUDERS / SET_PRINT_EXTRUDER_MAP) emitted before
     // PRINT_START; no gcode-file rewrite is needed.
@@ -334,15 +314,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     AmsError disable_bypass() override;
     [[nodiscard]] bool is_bypass_active() const override {
         return false;
-    }
-
-    // Snapmaker U1's firmware errors if SET_PRINT_USED_EXTRUDERS /
-    // SET_PRINT_EXTRUDER_MAP arrive mid-print, so the config must be sent before
-    // PRINT_START. Always-on (even with no remap) to suppress a spurious-feed
-    // runout — the slicer auto-feeds heads the print doesn't use → empty head →
-    // runout cancel.
-    [[nodiscard]] bool requires_preprint_send() const override {
-        return true;
     }
 
     // Builds the firmware-native pre-print command sequence for print_task_config.
@@ -385,13 +356,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     [[nodiscard]] static std::string batch_feed_gcode(const std::vector<int>& slots, bool load,
                                                       bool use_batch_macro = false);
 
-    /// The U1's four independent feeders can be driven as one batch: the
-    /// firmware sequences per-extruder AUTO_FEEDING itself. Gates the batch
-    /// Load/Unload affordance in the UI.
-    [[nodiscard]] bool supports_batch_filament_ops() const override {
-        return true;
-    }
-
     /// Caches the batch-macro capability from @p discovery. Must run before
     /// start(): the status parse and the batch dispatch both read
     /// use_batch_macro_ / batch_macro_object_, and PrinterState publishes its
@@ -407,9 +371,9 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
         bool load{false};
         size_t cursor{0}; ///< how many heads have reached their terminal state
         bool active{false};
-        /// Progress-line words, translated at dispatch time (main thread): the
-        /// cursor-advance parse that renders them runs on the WebSocket
-        /// thread, which must not call lv_tr into LVGL's pack list.
+        /// Progress-line words, translated at dispatch time: the
+        /// cursor-advance parse that renders them only formats them and makes
+        /// no LVGL calls.
         std::string direction_label; ///< "Load" / "Unload"
         std::string of_label;        ///< "of", as in "Load 2 of 4"
         /// Identifies THIS dispatch. The deferred RPC-failure recovery
@@ -459,8 +423,8 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
 
     /// What the firmware last reported for its stored print preferences
     /// (print_task_config). Empty until a frame carrying one arrives.
-    /// Returns a copy under mutex_: the member is written on the WebSocket
-    /// thread, so a reference would hand a UI-thread caller a torn read.
+    /// Returns a copy under mutex_: every status frame rewrites the member, so
+    /// a reference would hand a caller a torn read.
     [[nodiscard]] snapmaker::PrintPreferences print_preferences() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return print_preferences_;
@@ -486,10 +450,6 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     [[nodiscard]] std::string build_preference_gcode(const std::string& action_id,
                                                      const std::any& value) const;
 
-    // Static parsers (public for testing)
-    static ExtruderToolState parse_extruder_state(const nlohmann::json& json);
-    static SnapmakerRfidInfo parse_rfid_info(const nlohmann::json& json);
-
   protected:
     void on_started() override;
     void handle_status(const nlohmann::json& status) override;
@@ -505,6 +465,88 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     friend class RunoutScopeTestAccess;
 
     static constexpr int NUM_TOOLS = 4;
+
+    /// What one status frame decides, collected under mutex_ and acted on by
+    /// dispatch_effects() after it is released, plus the frame-local values the
+    /// parse sections hand to each other.
+    struct FrameEffects {
+        bool changed = false;
+        /// The active-tool port-present flag changed (#991): published to
+        /// AmsState exactly once.
+        bool port_present_changed = false;
+        /// Lanes that reached "unload_finish".
+        std::vector<int> unloaded_lanes;
+        /// Channels whose feed-port presence rose with no tag evidence behind
+        /// it.
+        std::vector<int> unverified_insert_lanes;
+        /// The cursor head's *_fail state when the active batch hit one;
+        /// end_firmware_batch() sends gcode, which must not run under mutex_.
+        int batch_failed_head = -1;
+        std::string batch_failed_state;
+
+        /// What this frame physically read off each channel's spool. A default
+        /// entry (no UID, read not finished) means the frame carried no
+        /// filament_detect.info for that channel, which the insert rule reads
+        /// as no signal.
+        std::array<helix::ams::SpoolEvidence, NUM_TOOLS> observed_evidence{};
+        /// The head whose channel reported an in-progress state this frame.
+        int in_progress_head = -1;
+        /// The batch macro reported doing=false and retired the active plan.
+        bool batch_retired = false;
+    };
+
+    void dispatch_effects(const FrameEffects& fx);
+
+    // The sections of one status frame, applied under mutex_ in this order.
+    // Each reads only its slice of the parsed frame plus the state held from
+    // earlier frames.
+    void apply_extruders_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_active_tool_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_filament_detect_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_rfid_entry_locked(int slot_index, const SnapmakerRfidInfo& rfid, FrameEffects& fx);
+    void apply_feed_channels_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_feed_channel_locked(const snapmaker::FeedChannelDelta& channel, FrameEffects& fx);
+    /// The feed-port flag: its false -> true edge is an insert into the channel.
+    void apply_port_presence_locked(int slot_index, bool detected, FrameEffects& fx);
+    /// Step-bar phase, working head and the loaded-at-toolhead latch, all driven
+    /// by the channel_state the frame reported.
+    void apply_channel_progress_locked(int slot_index, const std::string& state,
+                                       const snapmaker::ChannelStateInfo& info, FrameEffects& fx);
+    /// Error surfacing and the operation's action lifecycle for the op outcome.
+    void apply_channel_outcome_locked(int slot_index, const std::string& op_state,
+                                      const snapmaker::ChannelStateInfo& op_info,
+                                      const std::string& error, bool outcome_is_new,
+                                      FrameEffects& fx);
+    /// The task manager's record: stored preferences, routing, and each head's
+    /// configured material, brand and colour.
+    void apply_print_task_config_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    void apply_task_routing_locked(const snapmaker::PrintTaskConfigDelta& ptc, FrameEffects& fx);
+    void apply_task_slot_identity_locked(const snapmaker::PrintTaskConfigDelta& ptc,
+                                         FrameEffects& fx);
+    /// The per-tool runout sensors: enabled flag and filament present/runout.
+    void apply_toolhead_sensors_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    /// The tail of every frame: derives what no single section owns from the
+    /// state the sections left, and lays each lane's resolved values on its
+    /// slot.
+    void converge_locked(FrameEffects& fx);
+    /// filament_loaded and the active tool's LOADED status, from the latch and
+    /// the toolhead switch.
+    void derive_active_tool_loaded_locked(FrameEffects& fx);
+    /// A slot whose runout sensor reports no filament is AVAILABLE, not LOADED.
+    void demote_runout_slots_locked(FrameEffects& fx);
+    /// Override layering and the lane-model ingest, once per slot.
+    void converge_lanes_locked(FrameEffects& fx);
+    /// The active tool's first-gate (port) presence, flagged for publication
+    /// when it changed.
+    void track_active_port_present_locked(FrameEffects& fx);
+    /// Retires an active batch plan the firmware reports no longer running.
+    void apply_batch_state_locked(const snapmaker::StatusDelta& delta, FrameEffects& fx);
+    /// The head an operation is working on, from the batch cursor or the
+    /// in-progress channel this frame found.
+    void apply_working_slot_locked(FrameEffects& fx);
+    /// Verifies the batch plan's cursor head against the op outcome.
+    void advance_batch_locked(int slot_index, const std::string& op_state,
+                              const snapmaker::ChannelStateInfo& op_info, FrameEffects& fx);
 
     /// RPC timeout budget for ONE batch feed op. AUTO_FEEDING heats from cold +
     /// feeds + flushes; measured ~86s live (see prepare_for_resume), so 150s is
@@ -604,7 +646,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// Last value published to AmsState::set_active_tool_port_present for the
     /// active tool (#991). Tracks the active-tool port flag so we only push to
     /// the UI subject on an actual change. -1 = nothing published yet. Written
-    /// only from handle_status (the single WS-thread writer).
+    /// only from handle_status (the single writer).
     int last_published_port_present_ = -1;
 
     /// Per-slot "filament is loaded to THIS tool's nozzle" latch, driven
@@ -642,7 +684,7 @@ class AmsBackendSnapmaker : public AmsSubscriptionBackend {
     /// parses (reader disabled, read never landed) asks too. Presence dropping
     /// cancels it: the spool left before any read. A feed the firmware itself
     /// drives (tool-change load/unload, one of our batch ops) never arms it.
-    /// Written only from handle_status (the single WS-thread writer).
+    /// Written only from handle_status (the single writer).
     std::array<int, NUM_TOOLS> pending_insert_passes_{{0, 0, 0, 0}};
 
     /// Last filament_feed frame's raw per-channel fields (channel_state,

@@ -25,6 +25,7 @@
 #include "ui_update_queue.h"
 
 #include "../mapping_card_render_fixture.h"
+#include "../test_helpers/mock_bypass.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "printer_discovery.h"
@@ -89,6 +90,7 @@ TEST_CASE_METHOD(MappingCardRenderFixture, "Card hides a single-lane print while
                  "[filament_mapping][visibility]") {
     // With bypass engaged a single-tool print takes filament from the external
     // spool, so offering a lane mapping claims something the print will not do.
+    REQUIRE(helix::test::unload_for_bypass(*mock));
     REQUIRE(mock->enable_bypass().success());
     REQUIRE(mock->is_bypass_active());
     card.update({"#FF0000"}, {"PLA"});

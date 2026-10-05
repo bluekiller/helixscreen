@@ -1000,10 +1000,7 @@ void FilamentSensorManager::update_from_status(const json& status) {
     // below need it.
     const auto lifecycle = get_printer_state().get_print_lifecycle();
     const bool job_owns_machine = job_holds_machine(lifecycle);
-    AmsType backend_type = AmsType::NONE;
-    if (auto* backend = AmsState::instance().get_backend()) {
-        backend_type = backend->get_type();
-    }
+    const AmsType backend_type = AmsState::instance().primary_type().value_or(AmsType::NONE);
     // AD5X-IFS auto-unloads filament back into the IFS between prints. The head
     // sensor going empty when the printer is idle is firmware behaviour, not a
     // user-facing event. "Between prints" is the lifecycle's Idle/terminal side,

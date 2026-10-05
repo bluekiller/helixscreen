@@ -26,6 +26,7 @@
 #include "settings_manager.h"
 #include "snapmaker_channel_state.h"
 #include "snapmaker_resume.h"
+#include "snapmaker_status_parse.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -456,9 +457,8 @@ AmsError AmsBackendSnapmaker::do_filament_batch(const std::vector<int>& slots, b
                 ams_action_to_string(batch_.load ? AmsAction::LOADING : AmsAction::UNLOADING));
         }
         use_batch_macro = use_batch_macro_;
-        // Resolve the progress words here on the caller's (main) thread: the
-        // cursor-advance parse reads them from the WebSocket thread, which
-        // must not call lv_tr into LVGL's pack list.
+        // Resolve the progress words here, at dispatch: the cursor-advance
+        // parse only formats them and makes no LVGL calls.
         batch_ = BatchPlan{slots,           load,
                            /*cursor=*/0,
                            /*active=*/true, load ? lv_tr("Load") : lv_tr("Unload"),
@@ -1132,103 +1132,6 @@ AmsError AmsBackendSnapmaker::disable_bypass() {
 }
 
 // ============================================================================
-// Static Parsers
-// ============================================================================
-
-ExtruderToolState AmsBackendSnapmaker::parse_extruder_state(const nlohmann::json& json) {
-    ExtruderToolState state;
-
-    if (json.contains("state") && json["state"].is_string()) {
-        state.state = json["state"].get<std::string>();
-    }
-    if (json.contains("park_pin") && json["park_pin"].is_boolean()) {
-        state.park_pin = json["park_pin"].get<bool>();
-    }
-    if (json.contains("active_pin") && json["active_pin"].is_boolean()) {
-        state.active_pin = json["active_pin"].get<bool>();
-    }
-    if (json.contains("activating_move") && json["activating_move"].is_boolean()) {
-        state.activating_move = json["activating_move"].get<bool>();
-    }
-    if (json.contains("extruder_offset") && json["extruder_offset"].is_array()) {
-        const auto& arr = json["extruder_offset"];
-        for (size_t i = 0; i < std::min(arr.size(), size_t{3}); i++) {
-            if (arr[i].is_number()) {
-                state.extruder_offset[i] = arr[i].get<float>();
-            }
-        }
-    }
-    if (json.contains("switch_count") && json["switch_count"].is_number()) {
-        state.switch_count = json["switch_count"].get<int>();
-    }
-    if (json.contains("retry_count") && json["retry_count"].is_number()) {
-        state.retry_count = json["retry_count"].get<int>();
-    }
-    if (json.contains("error_count") && json["error_count"].is_number()) {
-        state.error_count = json["error_count"].get<int>();
-    }
-
-    return state;
-}
-
-SnapmakerRfidInfo AmsBackendSnapmaker::parse_rfid_info(const nlohmann::json& json) {
-    SnapmakerRfidInfo info;
-
-    if (json.contains("MAIN_TYPE") && json["MAIN_TYPE"].is_string()) {
-        info.main_type = json["MAIN_TYPE"].get<std::string>();
-    }
-    if (json.contains("SUB_TYPE") && json["SUB_TYPE"].is_string()) {
-        info.sub_type = json["SUB_TYPE"].get<std::string>();
-    }
-    if (json.contains("MANUFACTURER") && json["MANUFACTURER"].is_string()) {
-        info.manufacturer = json["MANUFACTURER"].get<std::string>();
-    }
-    if (json.contains("VENDOR") && json["VENDOR"].is_string()) {
-        info.vendor = json["VENDOR"].get<std::string>();
-    }
-    if (json.contains("ARGB_COLOR") && json["ARGB_COLOR"].is_number()) {
-        // ARGB -> RGB: mask off the alpha byte
-        uint32_t argb = json["ARGB_COLOR"].get<uint32_t>();
-        info.color_rgb = argb & 0x00FFFFFF;
-    }
-    if (json.contains("HOTEND_MIN_TEMP") && json["HOTEND_MIN_TEMP"].is_number()) {
-        info.hotend_min_temp = json["HOTEND_MIN_TEMP"].get<int>();
-    }
-    if (json.contains("HOTEND_MAX_TEMP") && json["HOTEND_MAX_TEMP"].is_number()) {
-        info.hotend_max_temp = json["HOTEND_MAX_TEMP"].get<int>();
-    }
-    if (json.contains("BED_TEMP") && json["BED_TEMP"].is_number()) {
-        info.bed_temp = json["BED_TEMP"].get<int>();
-    }
-    if (json.contains("WEIGHT") && json["WEIGHT"].is_number()) {
-        info.weight_g = json["WEIGHT"].get<int>();
-    }
-    // CARD_UID is a 4-byte array like [144, 32, 196, 2]. Canonicalize to a
-    // comma-joined string so the override system's baseline comparison is a
-    // simple string == string check. Empty / missing array stays as empty
-    // string (treated as "no tag / unread" by check_hardware_event_clear).
-    if (json.contains("CARD_UID") && json["CARD_UID"].is_array()) {
-        const auto& arr = json["CARD_UID"];
-        std::string uid;
-        for (size_t i = 0; i < arr.size(); ++i) {
-            if (!arr[i].is_number()) {
-                // If any byte isn't a number, bail out — partial UIDs aren't
-                // safe to compare. Leave info.uid empty so the check is a
-                // no-op for this parse.
-                uid.clear();
-                break;
-            }
-            if (!uid.empty())
-                uid.push_back(',');
-            uid += std::to_string(arr[i].get<int>());
-        }
-        info.uid = std::move(uid);
-    }
-
-    return info;
-}
-
-// ============================================================================
 namespace {
 
 /// The tracker fingerprint for one RFID reading, built from exactly the fields
@@ -1289,1086 +1192,974 @@ std::optional<helix::ams::SpoolEvidence> evidence_from_fingerprint(const std::st
 // Status Update Handling
 // ============================================================================
 
-void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
-    bool changed = false;
-    // Set when the active-tool port-present flag changed this parse (#991), so
-    // we publish to AmsState exactly once after releasing the mutex.
-    bool port_present_changed = false;
-    // Lanes that reached "unload_finish" this parse. Same deferral rule as
-    // port_present_changed: collected under mutex_, published to AmsState after
-    // it is released, because reaching into AmsState while holding ours inverts
-    // the order add_backend() acquires them in.
-    std::vector<int> unloaded_lanes;
-    // Channels whose feed-port presence rose this parse with no tag evidence
-    // behind it. Same deferral rule as unloaded_lanes: the notice reaches
-    // through AmsState and the UI queue, which must not run under mutex_.
-    std::vector<int> unverified_insert_lanes;
-    // The cursor head's *_fail state, when the active batch hit one this
-    // parse. Same deferral rule as unloaded_lanes: end_firmware_batch() sends
-    // gcode, which must not run under mutex_.
-    int batch_failed_head = -1;
-    std::string batch_failed_state;
+void AmsBackendSnapmaker::apply_extruders_locked(const snapmaker::StatusDelta& delta,
+                                                 FrameEffects& fx) {
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        const auto& extruder = delta.extruders[i];
+        if (!extruder) {
+            continue;
+        }
 
-    // What this parse physically read off each channel's spool. A default
-    // entry (no UID, read not finished) means the notification carried no
-    // filament_detect.info for that channel, which the insert rule reads as
-    // no signal.
-    std::array<helix::ams::SpoolEvidence, NUM_TOOLS> observed_evidence{};
+        // A parked tool is not the loaded one. LOADED itself is written only by
+        // the per-frame recompute after the sensor parse: an active pin says the
+        // tool is on the carriage, not that it has filament at the nozzle.
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot && extruder->park_pin.value_or(false) && slot->status != SlotStatus::AVAILABLE) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        }
+
+        extruder_states_[i].apply(*extruder);
+    }
+}
+
+void AmsBackendSnapmaker::apply_active_tool_locked(const snapmaker::StatusDelta& delta,
+                                                   FrameEffects& fx) {
+    // Detect active tool from extruder pin state and toolhead.extruder. Only
+    // update when we have actual evidence: incremental status updates may omit
+    // extruder/toolhead keys, so preserve the current value when no relevant
+    // data is present (prevents oscillation between valid and -1).
+    bool has_extruder_data = false;
+    int active = -1;
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (extruder_states_[i].active_pin ||
+            (!extruder_states_[i].state.empty() && extruder_states_[i].state != "PARKED")) {
+            active = i;
+            has_extruder_data = true;
+            break;
+        }
+    }
+    if (delta.toolhead_extruder) {
+        // "extruder" = 0, "extruder1" = 1, etc. An unparseable name leaves
+        // whatever the per-extruder state decided above.
+        if (const auto tool_number = helix::tool_number_for_extruder(*delta.toolhead_extruder)) {
+            active = *tool_number;
+        }
+        has_extruder_data = true;
+    }
+    if (has_extruder_data && active != system_info_.current_tool) {
+        // Demote previous active tool from LOADED to AVAILABLE
+        if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
+            auto* prev_slot = system_info_.units[0].get_slot(system_info_.current_tool);
+            if (prev_slot && prev_slot->status == SlotStatus::LOADED) {
+                prev_slot->status = SlotStatus::AVAILABLE;
+            }
+        }
+        // A pick alone says nothing about filament; the active tool's LOADED
+        // status and filament_loaded are derived after the sensor parse, from the
+        // latch and the toolhead switch.
+        system_info_.current_tool = active;
+        system_info_.current_slot = active; // 1:1 tool-to-slot on Snapmaker
+        fx.changed = true;
+    }
+}
+
+void AmsBackendSnapmaker::apply_filament_detect_locked(const snapmaker::StatusDelta& delta,
+                                                       FrameEffects& fx) {
+    if (!delta.filament_detect) {
+        return;
+    }
+    const auto& detect = *delta.filament_detect;
+
+    // RFID info per channel. Only apply it when it carries real values (not
+    // "NONE"): print_task_config is the authoritative source, and RFID
+    // supplements it when tags are present.
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (detect.info[i]) {
+            apply_rfid_entry_locked(i, *detect.info[i], fx);
+        }
+    }
+
+    // Filament state per channel: [int, int, int, int], the entrance/tag reader
+    // per channel. It reads 0 once filament has been fed THROUGH it to the
+    // toolhead, so a 0 is not "no filament": lane presence is declared at the
+    // parse convergence point from the port sensor and the loaded-at-toolhead
+    // latch, and this array only seeds a status for slots nothing better has
+    // spoken for.
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (!detect.state[i]) {
+            continue;
+        }
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot) {
+            // Only set from filament_detect if extruder state hasn't already
+            // provided a more authoritative status (LOADED/AVAILABLE via
+            // park_pin/active_pin)
+            if (slot->status == SlotStatus::UNKNOWN) {
+                slot->status = (*detect.state[i] != 0) ? SlotStatus::AVAILABLE : SlotStatus::EMPTY;
+            }
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_rfid_entry_locked(int i, const SnapmakerRfidInfo& rfid,
+                                                  FrameEffects& fx) {
+    // Capture what this reading physically got off the spool,
+    // before any early exit, so the insert rule sees it
+    // regardless of whether the rest of the RFID fields apply.
+    // A read is finished only when it named a tag: a UID names
+    // it, and a decoded MAIN_TYPE with no UID leaves the UID
+    // the one part still outstanding (material and colour
+    // stand as evidence without it). A NONE entry with no UID
+    // is three indistinguishable states - reader disabled,
+    // untagged spool, empty channel - so it files no evidence
+    // at all and the fingerprint comes out empty (no signal).
+    helix::ams::SpoolEvidence& evidence = fx.observed_evidence[i];
+    evidence.tag_uid = rfid.uid;
+    if (!rfid.uid.empty()) {
+        evidence.tag_read_complete = true;
+    }
+    // A pending insert is judged HERE: this entry is the
+    // reader's answer for the spool that just went in, which
+    // the port edge could not know. A UID or a decoded
+    // MAIN_TYPE verifies it - the tail's
+    // check_hardware_event_clear judges any swap from this
+    // very reading - and an entry that files nothing is the
+    // reader saying no tag is behind the insert, so the stored
+    // record could describe a spool that left (#1710).
+    if (pending_insert_passes_[i] > 0) {
+        pending_insert_passes_[i] = 0;
+        if (rfid.uid.empty() && rfid.main_type == "NONE") {
+            fx.unverified_insert_lanes.push_back(i);
+        }
+    }
+    if (rfid.main_type != "NONE") {
+        evidence.material = rfid.main_type;
+        if (helix::ams::is_declarable_color(rfid.color_rgb)) {
+            evidence.color_rgb = rfid.color_rgb;
+        }
+    }
+
+    // Skip entirely if RFID reader is disabled or no tag present
+    if (rfid.main_type == "NONE")
+        return;
+
+    auto* slot = system_info_.units[0].get_slot(i);
+    if (slot) {
+        slot->material = rfid.main_type;
+        auto brand = !rfid.manufacturer.empty() ? rfid.manufacturer : rfid.vendor;
+        if (brand != "NONE")
+            slot->brand = brand;
+        slot->color_rgb = rfid.color_rgb;
+        // SUB_TYPE is Snapmaker's filament product-line name (e.g.
+        // "SnapSpeed" for their PLA line — akin to Polymaker's
+        // "PolyLite"). Maps to spool_name, NOT color_name. The
+        // Snapmaker RFID doesn't expose a dedicated color-name
+        // field — color_name stays unset here and is user-editable
+        // via the edit modal's color picker.
+        if (rfid.sub_type != "NONE")
+            slot->spool_name = rfid.sub_type;
+        slot->nozzle_temp_min = rfid.hotend_min_temp;
+        slot->nozzle_temp_max = rfid.hotend_max_temp;
+        slot->bed_temp = rfid.bed_temp;
+        slot->total_weight_g = static_cast<float>(rfid.weight_g);
+
+        // A tag read is a cache of what a vendor printed, not a
+        // sensor of identity: it survives the spool leaving the
+        // channel, so it never carries presence.
+        //
+        // Every value here is this parse's own, never slot->*.
+        // SlotInfo persists across frames and
+        // apply_resolved_lane rewrites it in place at the tail
+        // of every one, so
+        // reading the struct back would file a user's edit as
+        // something the tag says.
+        //
+        helix::ams::Observation cache(helix::ams::ObservationSource::VendorCache);
+        if (!rfid.main_type.empty())
+            cache.material = rfid.main_type;
+        // Both spellings of "the tag named no vendor" retract
+        // the brand here: whole-record replacement means this
+        // record states what THIS read said, and a field the
+        // read is silent about is not one it still stands
+        // behind. SlotInfo above tests only the literal "NONE",
+        // so it blanks on an absent key and KEEPS its last
+        // value on the literal. That one input is the only
+        // place the two layers disagree.
+        if (!brand.empty() && brand != "NONE")
+            cache.brand = brand;
+        // SnapmakerRfidInfo::color_rgb rests on
+        // AMS_DEFAULT_SLOT_COLOR when the tag carried no
+        // ARGB_COLOR, which is that struct's "no reading" and
+        // not a grey anybody chose.
+        if (helix::ams::is_declarable_color(rfid.color_rgb))
+            cache.color_rgb = rfid.color_rgb;
+        // SUB_TYPE names the product line inside MAIN_TYPE
+        // ("Silk" inside "PLA"), so it is the branded product
+        // and routing it to material would destroy the
+        // material. The SlotInfo field above keeps its own
+        // spelling, and splits from this record on the
+        // literal "NONE" for the same reason the brand guard
+        // does.
+        if (!rfid.sub_type.empty() && rfid.sub_type != "NONE")
+            cache.product_name = rfid.sub_type;
+        if (rfid.weight_g > 0)
+            cache.total_weight_g = static_cast<float>(rfid.weight_g);
+        // What this backend POSTed to filament_detect/set
+        // lands in this same object, spelled the same way, so
+        // a field repeating our own write is not a reading.
+        // Withholding it matters most AFTER the user clears
+        // their override: resolve() would otherwise fall
+        // through to a VendorCache record still holding the
+        // abandoned edit, and the lane could never get back to
+        // what the machine says. WEIGHT is nobody's
+        // declaration and passes through. The boundary rides
+        // the fingerprint spelling, the same one arm() takes
+        // from the tracker baseline, so a reading whose UID
+        // did not decode still names a spool boundary.
+        const int withheld = own_write_echoes_.withhold(
+            i, fingerprint_from_evidence(fx.observed_evidence[i]), cache);
+        if (withheld > 0) {
+            spdlog::debug("{} Slot {} withheld {} field(s) echoing our own write",
+                          backend_log_tag(), i, withheld);
+        }
+        helix::ams::ingest(lane_id(i), cache);
+    }
+    fx.changed = true;
+}
+
+void AmsBackendSnapmaker::apply_feed_channels_locked(const snapmaker::StatusDelta& delta,
+                                                     FrameEffects& fx) {
+    for (const auto& channel : delta.feed_channels) {
+        apply_feed_channel_locked(channel, fx);
+    }
+}
+
+void AmsBackendSnapmaker::apply_feed_channel_locked(const snapmaker::FeedChannelDelta& channel,
+                                                    FrameEffects& fx) {
+    const int i = channel.lane;
+    if (channel.filament_detected) {
+        apply_port_presence_locked(i, *channel.filament_detected, fx);
+    }
+
+    // channel_state is the single authoritative signal for load state and
+    // operation progress. classify_channel_state maps every firmware state (39
+    // total) to {action, phase, terminal, fail, latch set/clear}; the parse
+    // reads off that one table rather than scattered string compares. The
+    // defaults are the intended "nothing to report" sentinels: "" is checked by
+    // the !state.empty() gate, "ok" by classify_channel_state.
+    const std::string state = channel.channel_state.value_or("");
+    const std::string error = channel.channel_error.value_or("ok");
+
+    // Keep the raw fields for eligibility queries; the latch below collapses
+    // them to a single bit. Status frames are deltas: start from the previous
+    // snapshot and overwrite only the keys this frame carries, so a
+    // channel_state-only frame leaves filament_detected/module_exist standing
+    // and a filament_detected-only frame does not blank state (the feeder frame
+    // never carries the motion sensor's enabled flag, so that field rides the
+    // same rule).
+    ChannelSnapshot snap = channel_snapshots_[static_cast<size_t>(i)];
+    const std::string prev_state = snap.state;
+    const std::string prev_action_state = snap.action_state;
+    if (channel.channel_state) {
+        snap.state = *channel.channel_state;
+    }
+    if (channel.channel_action_state) {
+        snap.action_state = *channel.channel_action_state;
+    }
+    if (channel.channel_error) {
+        snap.error = *channel.channel_error;
+    }
+    if (channel.filament_detected) {
+        snap.filament_detected = *channel.filament_detected;
+    }
+    if (channel.module_exist) {
+        snap.module_exist = *channel.module_exist;
+    }
+    if (channel.disable_auto) {
+        snap.disable_auto = *channel.disable_auto;
+    }
+    // The op lifecycle, error surfacing and batch
+    // verification read the op's outcome; the latch and the
+    // step bar read where the filament is. They differ only
+    // when the outcome survives in channel_action_state alone.
+    const std::optional<std::string> settled_outcome =
+        helix::snapmaker::settled_op_outcome(snap.state, prev_action_state, snap.action_state);
+    channel_snapshots_[static_cast<size_t>(i)] = std::move(snap);
+    // A terminal ends the op or marks the lane only when this
+    // frame moved the channel to it; see observed_change.
+    const bool outcome_is_new =
+        settled_outcome.has_value() || helix::snapmaker::observed_change(prev_state, state);
+
+    const ChannelStateInfo info = classify_channel_state(state);
+    const std::string& op_state = settled_outcome ? *settled_outcome : state;
+    ChannelStateInfo op_info = settled_outcome ? classify_channel_state(op_state) : info;
+    if (!settled_outcome && state == "preload_finish" && preload_in_flight_[i]) {
+        op_info.is_terminal = true;
+    }
+    if (helix::snapmaker::channel_state_in_progress(state)) {
+        preload_in_flight_[i] = state.rfind("preload_", 0) == 0;
+    } else if (!state.empty()) {
+        preload_in_flight_[i] = false;
+    }
+
+    apply_channel_progress_locked(i, state, info, fx);
+    apply_channel_outcome_locked(i, op_state, op_info, error, outcome_is_new, fx);
+    advance_batch_locked(i, op_state, op_info, fx);
+
+    // Trace the firmware channel_state sequence during a load/unload: the
+    // true physical completion is a different event from an intermediate
+    // one (preload_finish is staged-in-buffer), and the order is
+    // firmware-specific.
+    if (!state.empty() || settled_outcome) {
+        spdlog::debug("[AmsBackendSnapmaker] tool {} channel_state='{}' "
+                      "op_state='{}' error='{}' -> action={} current_slot={}",
+                      i, state, op_state, error, ams_action_to_string(system_info_.action),
+                      system_info_.current_slot);
+    }
+}
+
+void AmsBackendSnapmaker::apply_port_presence_locked(int i, bool detected, FrameEffects& fx) {
+    // The port flag mirrors into port_sensor_filament_present_ so
+    // is_stuck_motion_sensor_runout can distinguish a real runout (both sensors
+    // false) from a stale motion-sensor false positive (motion=false,
+    // port=true).
+    // Mirror into port_sensor_filament_present_ so
+    // is_stuck_motion_sensor_runout can distinguish a real
+    // runout (both sensors false) from a stale motion-sensor
+    // false positive (motion=false, port=true). Tracked
+    // independent of slot->status because slot status flips
+    // to AVAILABLE/LOADED based on extruder pin state which
+    // is orthogonal to the port sensor reading.
+    if (i >= 0 && i < NUM_TOOLS) {
+        // The port flag's false -> true edge is an
+        // insert into the channel; the first sighting
+        // is the baseline, not an edge. The tag
+        // reader's answer lands a frame or two later,
+        // so the edge holds a pending verdict for the
+        // info loop to judge (#1710). A drop cancels
+        // one: the spool left before any read.
+        //
+        // A feed the firmware itself drives - its own
+        // tool-change unload/load, or one of our
+        // batch ops - drops and raises this flag too,
+        // and no spool changed hands, so it arms
+        // nothing. The edge runs before this frame's
+        // channel_state parse, so the gate reads the
+        // channel's last reported state; the state
+        // parse below cancels anything the ordering
+        // missed.
+        const bool firmware_driven = batch_.active || helix::snapmaker::channel_state_in_progress(
+                                                          channel_snapshots_[i].state);
+        if (detected && feed_presence_seen_[i] && !port_sensor_filament_present_[i] &&
+            !firmware_driven) {
+            pending_insert_passes_[i] = 1;
+        } else if (!detected) {
+            pending_insert_passes_[i] = 0;
+        }
+        port_sensor_filament_present_[i] = detected;
+        feed_presence_seen_[i] = true;
+    }
+    auto* slot = system_info_.units[0].get_slot(i);
+    if (slot) {
+        if (detected &&
+            (slot->status == SlotStatus::EMPTY || slot->status == SlotStatus::UNKNOWN)) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        } else if (!detected && slot->status != SlotStatus::LOADED) {
+            slot->status = SlotStatus::EMPTY;
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_channel_progress_locked(int i, const std::string& state,
+                                                        const ChannelStateInfo& info,
+                                                        FrameEffects& fx) {
+    // A feed under way on this channel is the firmware
+    // moving filament itself, so a presence edge that
+    // armed a pending verdict this parse was not a user
+    // insert; the spool never left.
+    if (pending_insert_passes_[i] > 0 &&
+        (info.action == AmsAction::LOADING || info.action == AmsAction::UNLOADING)) {
+        pending_insert_passes_[i] = 0;
+    }
+
+    // A channel reporting any state at all makes the
+    // lane's presence inputs live for the
+    // convergence-point ingest below.
+    if (!state.empty()) {
+        feed_presence_seen_[i] = true;
+    }
+
+    // Mirror the granular firmware sub-phase into the system
+    // info so the sidebar step bar can show the real
+    // Home/Select/Heat/Move sequence. -1 for any non-active
+    // state (idle, *_finish, *_fail, preload_finish). Updated
+    // only when the firmware actually reports a channel_state,
+    // so an incremental status omitting it doesn't clear the
+    // phase spuriously.
+    if (!state.empty()) {
+        if (system_info_.operation_phase != info.phase) {
+            system_info_.operation_phase = info.phase;
+            fx.changed = true;
+        }
+    }
+
+    // Capture the head whose channel is mid-op; the single
+    // derivation of operation_working_slot below decides
+    // what the header names from it (batch cursor wins).
+    if (fx.in_progress_head < 0 &&
+        (info.action == AmsAction::LOADING || info.action == AmsAction::UNLOADING)) {
+        fx.in_progress_head = i;
+    }
+
+    // "Loaded at toolhead" latch (the core fix). Driven purely
+    // from channel_state transitions, NOT the motion sensor
+    // (which fails to clear after an unload on current firmware).
+    // SET on load_finish; CLEAR on unload_finish / wait_insert /
+    // preload_finish; KEEP on every transient / in-progress /
+    // fail state. Mirrors the firmware's persisted
+    // config['load_finish'].
+    if (!state.empty() && !info.ignore) {
+        if (info.sets_loaded && !loaded_at_toolhead_[i]) {
+            loaded_at_toolhead_[i] = true;
+            fx.changed = true;
+        } else if (info.clears_loaded && loaded_at_toolhead_[i]) {
+            loaded_at_toolhead_[i] = false;
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_channel_outcome_locked(int i, const std::string& op_state,
+                                                       const ChannelStateInfo& op_info,
+                                                       const std::string& error,
+                                                       bool outcome_is_new, FrameEffects& fx) {
+    // Error surfacing: either a firmware channel_error token OR
+    // a *_fail channel_state (Change 2). Preserve the multi-color
+    // false-alarm guard — the firmware reports
+    // channel_error="no_filament" for ANY empty lane, and briefly
+    // a *_fail channel_state when it auto-feeds a lane deliberately
+    // left unloaded for a multi-color print (heads 0+2 used, head 1
+    // empty). Neither must latch the whole backend into
+    // action=Error and pop a spurious modal on such an idle empty
+    // non-active lane. An error is real when the lane holds
+    // filament (lane not empty), is the active lane, or an
+    // operation is genuinely underway on it (an in-progress
+    // LOADING/UNLOADING state — a *_fail is terminal, so the same
+    // empty-lane guard applies to it as to the no_filament token).
+    const bool has_error_token = error != "ok" && !error.empty() && error != "none";
+    if (has_error_token || op_info.is_fail) {
+        const auto* slot = system_info_.units[0].get_slot(i);
+        const bool lane_empty = slot == nullptr || !slot->is_present();
+        const bool active_lane = system_info_.current_slot == i || system_info_.current_tool == i;
+        const bool op_in_progress =
+            op_info.action == AmsAction::LOADING || op_info.action == AmsAction::UNLOADING;
+        if (lane_empty && !op_in_progress && !active_lane) {
+            spdlog::debug("[AmsBackendSnapmaker] ignoring error (token='{}' state='{}') "
+                          "on idle empty lane {} (not operating, not active)",
+                          error, op_state, i);
+        } else {
+            system_info_.action = AmsAction::ERROR;
+            system_info_.operation_detail =
+                has_error_token ? friendly_channel_error(error, lane_noun(), i)
+                                : friendly_channel_state_fail(op_state, lane_noun(), i);
+            fx.changed = true;
+        }
+    } else if (!op_state.empty() && !op_info.ignore) {
+        // No error — drive the action / operation lifecycle from
+        // the classifier.
+        if (op_info.action == AmsAction::LOADING) {
+            if (system_info_.action != AmsAction::LOADING) {
+                system_info_.action = AmsAction::LOADING;
+                fx.changed = true;
+            }
+        } else if (op_info.action == AmsAction::UNLOADING) {
+            if (system_info_.action != AmsAction::UNLOADING) {
+                system_info_.action = AmsAction::UNLOADING;
+                fx.changed = true;
+            }
+        } else if (op_info.is_terminal) {
+            // A *_finish state resolves the operation. The
+            // latch above carries its load meaning; the active
+            // tool's LOADED status and filament_loaded are
+            // derived from it after the sensor parse.
+            //
+            // current_slot / current_tool are NOT reset here:
+            // they track which toolhead is picked up on the
+            // carriage (toolhead.extruder is the authority, set
+            // in the extruder-pin parse above), which is
+            // independent of whether feeder filament is at the
+            // nozzle. A tool fed without the feeders (TPU loaded
+            // straight into the toolhead) stays picked up while
+            // its channel reports unload_finish permanently, and
+            // unload_active_filament() needs current_slot to
+            // name that tool: with no slot it dispatches the
+            // bare INNER_FILAMENT_UNLOAD, which the firmware
+            // runs on T0.
+            if (op_state == "unload_finish" && outcome_is_new) {
+                // Deferred to after the lock for the same
+                // reason emit_event is: this reaches into
+                // AmsState, which takes its own mutex, while
+                // AmsState::add_backend() takes that mutex
+                // first and then ours via set_event_callback().
+                // Calling it here closed the cycle and TSan
+                // reported the deadlock (nightly, 2026-08-16).
+                fx.unloaded_lanes.push_back(i);
+            }
+            if (outcome_is_new && (system_info_.action == AmsAction::LOADING ||
+                                   system_info_.action == AmsAction::UNLOADING)) {
+                system_info_.action = AmsAction::IDLE;
+                system_info_.operation_detail.clear();
+                PostOpCooldownManager::instance().schedule();
+                fx.changed = true;
+            }
+        }
+        // A resting state (none / inited / wait_insert, and
+        // preload_finish after anything but a preload) leaves
+        // the action untouched: one also appears while the
+        // nozzle heats for an unload, and the op's own
+        // outcome, when a resting state hides it, arrives as
+        // settled_outcome above. The latch already handled
+        // the resting states' clears.
+    }
+}
+
+void AmsBackendSnapmaker::advance_batch_locked(int i, const std::string& op_state,
+                                               const ChannelStateInfo& op_info, FrameEffects& fx) {
+    // Batch verification. Only the plan's cursor head can
+    // advance the cursor, so a sibling channel repeating its
+    // settled state in this frame is inert. The direction's
+    // own terminal is matched exactly: manual_sta_finish ends
+    // a single-op lifecycle but a load
+    // batch counts a head only at load_finish (unload at
+    // unload_finish). A *_fail on the cursor head stops the
+    // batch where it stands; the error branch above has
+    // already set operation_detail to the failure message,
+    // which must win over a progress line. Runs after the
+    // terminal resolution so its operation_detail.clear()
+    // cannot wipe the progress string this writes.
+    if (batch_.active && i == batch_.heads[batch_.cursor]) {
+        if (op_info.is_fail) {
+            batch_.active = false;
+            fx.batch_failed_head = i;
+            fx.batch_failed_state = op_state;
+        } else if (op_state == (batch_.load ? "load_finish" : "unload_finish")) {
+            ++batch_.cursor;
+            batch_.active = batch_.cursor < batch_.heads.size();
+            if (batch_.active) {
+                // "Load 2 of 4" — the head now in progress.
+                // The words arrive pretranslated from dispatch, so
+                // this parse makes no LVGL calls.
+                system_info_.operation_detail =
+                    fmt::format("{} {} {} {}", batch_.direction_label, batch_.cursor + 1,
+                                batch_.of_label, batch_.heads.size());
+            } else {
+                // Every head verified. Nothing is in
+                // progress, and no later frame clears the
+                // line once the action is IDLE.
+                system_info_.operation_detail.clear();
+            }
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_batch_state_locked(const snapmaker::StatusDelta& delta,
+                                                   FrameEffects& fx) {
+    // The batch macro's `doing` save-variable is the firmware's own word on
+    // whether a batch script is running. A false reading retires any plan this
+    // process still holds active: the script ended without the cursor head
+    // reaching a terminal or a *_fail (lost response, script abort, a feeder
+    // wedging mid-feed), and no channel_state detector covers that end.
+    if (delta.batch_doing && !*delta.batch_doing && batch_.active) {
+        batch_.active = false;
+        fx.batch_retired = true;
+        fx.changed = true;
+        spdlog::info("{} batch macro reports doing=false — retiring the active plan",
+                     backend_log_tag());
+    }
+}
+
+void AmsBackendSnapmaker::apply_working_slot_locked(FrameEffects& fx) {
+    // ONE derivation of "the head an operation is working on": the batch cursor
+    // while a plan is active, else the head whose channel reported an
+    // in-progress state, else none. A toolhead-only delta carries no channel
+    // evidence, so mid-op it keeps the previous answer instead of flapping the
+    // header back to the carriage tool; a batch the firmware just reported
+    // ended carries nothing forward. current_slot is NOT touched here: it stays
+    // the carriage answer its other consumers (bypass unload, filament panel
+    // gating, the loaded card) read.
+    int working_slot = -1;
+    if (batch_.active) {
+        working_slot = batch_.heads[batch_.cursor];
+    } else if (system_info_.action == AmsAction::LOADING ||
+               system_info_.action == AmsAction::UNLOADING) {
+        if (fx.in_progress_head >= 0) {
+            working_slot = fx.in_progress_head;
+        } else if (!fx.batch_retired) {
+            working_slot = system_info_.operation_working_slot;
+        }
+    }
+    if (system_info_.operation_working_slot != working_slot) {
+        system_info_.operation_working_slot = working_slot;
+        fx.changed = true;
+    }
+}
+
+void AmsBackendSnapmaker::apply_print_task_config_locked(const snapmaker::StatusDelta& delta,
+                                                         FrameEffects& fx) {
+    // print_task_config is the authoritative filament record from Snapmaker's
+    // task manager: per-extruder type, vendor, color and presence, plus the
+    // routing of the running print.
+    if (!delta.print_task_config) {
+        return;
+    }
+    const auto& ptc = *delta.print_task_config;
+
+    // Firmware-stored preferences are held as told, never filed as lane
+    // observations: they are a write surface like the filament_type/vendor/color
+    // fields below.
+    print_preferences_.merge(ptc.preferences);
+
+    apply_task_routing_locked(ptc, fx);
+    apply_task_slot_identity_locked(ptc, fx);
+}
+
+void AmsBackendSnapmaker::apply_task_routing_locked(const snapmaker::PrintTaskConfigDelta& ptc,
+                                                    FrameEffects& fx) {
+    // extruder_map_table: [int x32], logical tool -> physical head. The
+    // firmware's own routing authority for the running print (see the member's
+    // doc comment). Mirrored verbatim; interpretation belongs to
+    // get_tool_mapping()'s callers, not here.
+    if (ptc.extruder_map_table && *ptc.extruder_map_table != extruder_map_table_) {
+        spdlog::debug("[AMS Snapmaker] extruder_map_table changed ({} entries)",
+                      ptc.extruder_map_table->size());
+        extruder_map_table_ = *ptc.extruder_map_table;
+        fx.changed = true;
+    }
+
+    // extruders_used: [bool x4], the heads this task uses. Gates whether the map
+    // above may be read at all (see the member's doc comment).
+    if (ptc.extruders_used && *ptc.extruders_used != extruders_used_) {
+        extruders_used_ = *ptc.extruders_used;
+        fx.changed = true;
+    }
+
+    // Snapshot the routing while the task is still configured. Both fields are
+    // members, so this is evaluated against the accumulated state rather than
+    // only what THIS frame carried: an incremental update that names one of
+    // them still lands on the right answer.
+    //
+    // This is the only moment the routing is knowable. Once the print ends the
+    // firmware clears extruders_used and resets the table, and a reprint has
+    // nothing left to read: no detail view, no picker, no colour match to
+    // recompute. An empty table is never snapshotted: "known: nothing" is
+    // indistinguishable from a real answer to the caller, and the honest value
+    // is "not known".
+    const bool task_configured_now =
+        std::any_of(extruders_used_.begin(), extruders_used_.end(), [](bool b) { return b; });
+    if (task_configured_now && !extruder_map_table_.empty() &&
+        last_task_extruder_map_ != extruder_map_table_) {
+        last_task_extruder_map_ = extruder_map_table_;
+        spdlog::debug("[AMS Snapmaker] recorded task routing ({} entries) for reprint",
+                      last_task_extruder_map_.size());
+    }
+}
+
+void AmsBackendSnapmaker::apply_task_slot_identity_locked(
+    const snapmaker::PrintTaskConfigDelta& ptc, FrameEffects& fx) {
+    // filament_exist: whether filament is loaded per slot
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        if (!ptc.filament_exist[i]) {
+            continue;
+        }
+        const bool exists = *ptc.filament_exist[i];
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot) {
+            if (exists && slot->status != SlotStatus::LOADED) {
+                slot->status = SlotStatus::AVAILABLE;
+            } else if (!exists) {
+                slot->status = SlotStatus::EMPTY;
+            }
+            fx.changed = true;
+        }
+    }
+
+    // These three fields write SlotInfo and deliberately file NO lane
+    // observation, unlike the RFID parse.
+    //
+    // print_task_config is a write surface, not a sensor.
+    // SET_PRINT_FILAMENT_CONFIG takes VENDOR / FILAMENT_TYPE / FILAMENT_SUBTYPE /
+    // FILAMENT_COLOR_RGBA as gcode parameters and persists them, so whoever sent
+    // that command set these values: the machine's own screen, a slicer, a
+    // console, or this backend's write-back through /printer/filament_detect/set,
+    // which firmware mirrors into this same struct. Filing any of it as
+    // VendorCache would return a user's own edit as firmware truth.
+    //
+    // The firmware carries the provenance bit itself, and it shows the channel is
+    // redundant rather than merely unsafe: filament_official marks a head whose
+    // entry came from a Snapmaker RFID spool, and SET_PRINT_FILAMENT_CONFIG is
+    // refused on such a head without FORCE. An official entry is the tag
+    // filament_detect.info already reports, which the RFID parse files; an
+    // unofficial one is somebody's declaration. Neither is a reading this key can
+    // contribute.
+    //
+    // A user's declaration reaches the lane model through commit_slot_edit, which
+    // is the funnel that records authorship.
+    for (int i = 0; i < NUM_TOOLS; i++) {
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (!slot) {
+            continue;
+        }
+        if (ptc.filament_type[i]) {
+            slot->material =
+                *ptc.filament_type[i]; // Base type only (e.g., "PLA") for compact display
+            fx.changed = true;
+        }
+        if (ptc.filament_vendor[i]) {
+            slot->brand = *ptc.filament_vendor[i];
+            fx.changed = true;
+        }
+        if (ptc.filament_color_rgba[i]) {
+            if (const auto rgb = snapmaker::rgb_from_rgba_hex(*ptc.filament_color_rgba[i])) {
+                slot->color_rgb = *rgb;
+            }
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::apply_toolhead_sensors_locked(const snapmaker::StatusDelta& delta,
+                                                        FrameEffects& fx) {
+    // The U1's [filament_motion_sensor e{N}_filament] is a motion runout during
+    // a print (filament_detected:false when extrusion outruns the encoder, then
+    // PAUSE via pause_on_runout) and a presence switch otherwise (it copies the
+    // toolhead pin). Mirror the flag: the path canvas breaks the spool->toolhead
+    // line on runout, and outside a print it answers whether filament sits in
+    // the toolhead.
+    for (const auto& sensor : delta.toolhead_sensors) {
+        const int tool_idx = sensor.tool;
+
+        // `enabled` rides the same status objects and gates loading: a sensor
+        // the firmware has disabled cannot confirm feed.
+        if (sensor.enabled) {
+            channel_snapshots_[static_cast<size_t>(tool_idx)].sensor_enabled = *sensor.enabled;
+        }
+        if (!sensor.filament_detected) {
+            continue;
+        }
+        const bool present = *sensor.filament_detected;
+        if (!toolhead_switch_reported_[tool_idx]) {
+            toolhead_switch_reported_[tool_idx] = true;
+            fx.changed = true;
+        }
+        if (sensor_filament_present_[tool_idx] != present) {
+            sensor_filament_present_[tool_idx] = present;
+            fx.changed = true;
+            spdlog::info("{} Tool {} filament sensor: {} ({})", backend_log_tag(), tool_idx,
+                         present ? "PRESENT" : "RUNOUT", sensor.object);
+        }
+    }
+}
+
+void AmsBackendSnapmaker::derive_active_tool_loaded_locked(FrameEffects& fx) {
+    // The active tool's loaded answers, derived from held state on every
+    // frame so they cannot depend on which fields this frame carried: a
+    // pick and the channel_state it pairs with often arrive in different
+    // frames. filament_loaded ("filament in the toolhead") follows a
+    // reported toolhead switch, which also breaks the canvas line on a
+    // mid-print runout, and falls back to the latch. LOADED status (loaded
+    // to the nozzle, the Load gate) needs the latch and no runout.
+    if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
+        const int t = system_info_.current_tool;
+        const bool switch_known = toolhead_switch_reported_[t];
+        const bool in_toolhead =
+            switch_known ? sensor_filament_present_[t] : loaded_at_toolhead_[t];
+        if (system_info_.filament_loaded != in_toolhead) {
+            system_info_.filament_loaded = in_toolhead;
+            fx.changed = true;
+        }
+        const bool at_nozzle =
+            loaded_at_toolhead_[t] && (!switch_known || sensor_filament_present_[t]);
+        auto* slot = system_info_.units[0].get_slot(t);
+        if (slot && at_nozzle && slot->status == SlotStatus::AVAILABLE) {
+            slot->status = SlotStatus::LOADED;
+            fx.changed = true;
+        } else if (slot && !at_nozzle && slot->status == SlotStatus::LOADED) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        }
+    } else if (system_info_.filament_loaded) {
+        system_info_.filament_loaded = false;
+        fx.changed = true;
+    }
+}
+
+void AmsBackendSnapmaker::demote_runout_slots_locked(FrameEffects& fx) {
+    // Per-slot runout demotion: any slot whose motion sensor reports
+    // no filament should be AVAILABLE (spool present, ready to feed), not
+    // LOADED. Without this, the AMS context menu's Load button is gated off
+    // (pending_is_loaded_ from slot.status==LOADED disables it) and the user
+    // has no way to re-feed filament from the UI after a runout — they get
+    // Unload/Reset on a slot that has no filament between feeder and nozzle.
+    // EMPTY is wrong here because the slot's RFID/print_task_config still
+    // reports a spool present; AVAILABLE accurately captures "spool yes,
+    // filament-at-toolhead no".
+    for (int i = 0; i < NUM_TOOLS; ++i) {
+        if (sensor_filament_present_[i])
+            continue;
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (slot && slot->status == SlotStatus::LOADED) {
+            slot->status = SlotStatus::AVAILABLE;
+            fx.changed = true;
+        }
+    }
+}
+
+void AmsBackendSnapmaker::converge_lanes_locked(FrameEffects& fx) {
+    // Parse convergence point. After every firmware-sourced field on the
+    // SlotInfo has been populated above, loop through slots and lay each
+    // lane's resolved values on top. check_hardware_event_clear must run
+    // FIRST so it sees firmware-truth fields (not the resolved view) and
+    // can clear a stale override when a physical spool swap is detected.
+    // apply_resolved_lane runs after, so the final SlotInfo the UI reads
+    // through get_slot_info / the emitted event reflects what the lane
+    // resolves to.
+    //
+    // Snapmaker has multiple parse paths feeding the same slot (RFID info,
+    // print_task_config, filament_feed). Rather than hook the override logic
+    // into each one, we run it once here at the tail — the tradeoff is that
+    // get_slot_info during a partial parse would observe uncleared overrides,
+    // but since everything runs under mutex_ and handle_status is the
+    // only writer, there's no observable window.
+    for (int i = 0; i < NUM_TOOLS; ++i) {
+        auto* slot = system_info_.units[0].get_slot(i);
+        if (!slot)
+            continue;
+
+        // A pending insert ages one pass per parse. A read that never
+        // lands (reader disabled, the channel's entry never came) must
+        // not hold its verdict forever: past the bound, ask (#1710).
+        if (pending_insert_passes_[i] > 0 &&
+            ++pending_insert_passes_[i] > kSnapPendingInsertPasses) {
+            pending_insert_passes_[i] = 0;
+            fx.unverified_insert_lanes.push_back(i);
+        }
+
+        // A channel this parse carried no filament_detect.info for keeps
+        // its default evidence, which the insert rule reads as no signal -
+        // so the call is unconditional rather than gated on which keys the
+        // notification happened to carry.
+        check_hardware_event_clear(*slot, i, fx.observed_evidence[i]);
+        // Mirror firmware-truth color/material into lane_data so OrcaSlicer's
+        // MoonrakerPrinterAgent sees the spool. OverwriteAlways policy: user
+        // edits via apply_user_edit round-trip through firmware via the
+        // POST /printer/filament_detect/set endpoint (paxx12 Extended Firmware),
+        // so firmware-truth and user-truth converge, and overwriting lane_data
+        // is safe and also catches external edits (CHANGE_ZCOLOR
+        // from a print, manual gcode, OrcaSlicer, etc). On stock firmware the
+        // POST 404s, but the override is still persisted to lane_data
+        // separately, so this overwrite is the only path that could theoretically
+        // de-sync — accept that tradeoff in exchange for picking up external
+        // edits on extension-enabled firmware. See mirror_firmware_to_lane_data
+        // docs and AD5X IFS for the same pattern.
+        //
+        // The stored override defers to what a declaring lane source holds,
+        // so the store reads the lane here. A Spoolman record or a user's
+        // value never reaches firmware, and firmware's reading must not
+        // overwrite it in the override or in the lane_data record it
+        // persists.
+        helix::ams::mirror_firmware_to_lane_data(
+            override_store_.get(), overrides_, i, slot->color_rgb, slot->material,
+            slot->status == SlotStatus::AVAILABLE, helix::ams::MirrorPolicy::OverwriteAlways,
+            backend_log_tag(), helix::ams::declared_on_lane(lane_id(i)));
+
+        // Lane presence: the port/buffer sensor OR the loaded-at-toolhead
+        // latch. The port sensor is the spool-side reading; the latch
+        // carries filament fed through to the nozzle — the point at which
+        // the entrance/tag reader (filament_detect.state) drops to 0, so
+        // that array is not a presence source. Declared here, at the
+        // tail of the parse, so both member arrays already hold this
+        // frame's values when the lane resolves below; the arrays persist
+        // across delta frames, so a frame silent on both signals leaves
+        // the last reading standing. A lane filament_feed has never
+        // reported stays silent too: the array defaults are "no reading
+        // yet", not "no filament".
+        if (feed_presence_seen_[i]) {
+            helix::ams::Observation sensed(helix::ams::ObservationSource::Sensed);
+            sensed.present = port_sensor_filament_present_[i] || loaded_at_toolhead_[i];
+            helix::ams::ingest(lane_id(i), sensed);
+        }
+
+        apply_resolved_lane(*slot, i);
+    }
+}
+
+void AmsBackendSnapmaker::track_active_port_present_locked(FrameEffects& fx) {
+    // First-gate (port) filament presence for the ACTIVE tool (#991). The
+    // runout dialog gates Resume on THIS signal — the port/buffer sensor that
+    // flips true the moment a user re-feeds a spool — NOT the toolhead motion
+    // sensor (sensor_filament_present_), which stays "runout" until extrusion.
+    // No active tool → treat as present (1) so Resume is never gated. Computed
+    // under mutex_ (reads current_tool + the port array); published after the
+    // mutex is released. Only publish on an actual change to avoid spamming
+    // the UpdateQueue on every incremental notify.
+    int active_tool = system_info_.current_tool;
+    bool active_port_present = !(active_tool >= 0 && active_tool < NUM_TOOLS) ||
+                               port_sensor_filament_present_[active_tool];
+    int port_val = active_port_present ? 1 : 0;
+    if (port_val != last_published_port_present_) {
+        last_published_port_present_ = port_val;
+        fx.port_present_changed = true;
+    }
+}
+
+void AmsBackendSnapmaker::converge_locked(FrameEffects& fx) {
+    derive_active_tool_loaded_locked(fx);
+    demote_runout_slots_locked(fx);
+    converge_lanes_locked(fx);
+    track_active_port_present_locked(fx);
+}
+
+void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
+    FrameEffects fx;
+    std::string batch_macro_object;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        batch_macro_object = batch_macro_object_;
+    }
+    const snapmaker::StatusDelta delta = snapmaker::parse_status(status, batch_macro_object);
 
     { // Scope lock — emit_event MUST be called outside mutex_ to avoid deadlock
       // with sync_from_backend() which acquires mutex_ via get_system_info()
         std::lock_guard<std::mutex> lock(mutex_);
 
-        // Parse extruder0..3 state
-        // Klipper uses "extruder" for T0, "extruder1" for T1, etc.
-        static const std::string extruder_keys[] = {"extruder", "extruder1", "extruder2",
-                                                    "extruder3"};
-        for (int i = 0; i < NUM_TOOLS; i++) {
-            const auto& key = extruder_keys[i];
-            if (status.contains(key) && status[key].is_object()) {
-                auto new_state = parse_extruder_state(status[key]);
+        apply_extruders_locked(delta, fx);
+        apply_active_tool_locked(delta, fx);
 
-                // A parked tool is not the loaded one. LOADED itself is written
-                // only by the per-frame recompute after the sensor parse: an
-                // active pin says the tool is on the carriage, not that it has
-                // filament at the nozzle.
-                auto* slot = system_info_.units[0].get_slot(i);
-                if (slot && new_state.park_pin && slot->status != SlotStatus::AVAILABLE) {
-                    slot->status = SlotStatus::AVAILABLE;
-                    changed = true;
-                }
+        apply_filament_detect_locked(delta, fx);
 
-                extruder_states_[i] = std::move(new_state);
-            }
-        }
+        apply_feed_channels_locked(delta, fx);
 
-        // Detect active tool from extruder pin state and toolhead.extruder.
-        // Only update when we have actual evidence — incremental status updates
-        // may omit extruder/toolhead keys, so preserve the current value when
-        // no relevant data is present (prevents oscillation between valid and -1).
-        bool has_extruder_data = false;
-        int active = -1;
-        for (int i = 0; i < NUM_TOOLS; i++) {
-            if (extruder_states_[i].active_pin ||
-                (!extruder_states_[i].state.empty() && extruder_states_[i].state != "PARKED")) {
-                active = i;
-                has_extruder_data = true;
-                break;
-            }
-        }
-        if (status.contains("toolhead") && status["toolhead"].is_object()) {
-            const auto& th = status["toolhead"];
-            if (th.contains("extruder") && th["extruder"].is_string()) {
-                auto ext_name = th["extruder"].get<std::string>();
-                // "extruder" = 0, "extruder1" = 1, etc. An unparseable name
-                // leaves whatever the per-extruder state loop above decided.
-                if (const auto tool_number = helix::tool_number_for_extruder(ext_name)) {
-                    active = *tool_number;
-                }
-                has_extruder_data = true;
-            }
-        }
-        if (has_extruder_data && active != system_info_.current_tool) {
-            // Demote previous active tool from LOADED to AVAILABLE
-            if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
-                auto* prev_slot = system_info_.units[0].get_slot(system_info_.current_tool);
-                if (prev_slot && prev_slot->status == SlotStatus::LOADED) {
-                    prev_slot->status = SlotStatus::AVAILABLE;
-                }
-            }
-            // A pick alone says nothing about filament; the active tool's
-            // LOADED status and filament_loaded are derived after the sensor
-            // parse, from the latch and the toolhead switch.
-            system_info_.current_tool = active;
-            system_info_.current_slot = active; // 1:1 tool-to-slot on Snapmaker
-            changed = true;
-        }
+        apply_batch_state_locked(delta, fx);
+        apply_working_slot_locked(fx);
 
-        // Parse filament_detect info (RFID data per channel)
-        if (status.contains("filament_detect") && status["filament_detect"].is_object()) {
-            const auto& fd = status["filament_detect"];
+        apply_print_task_config_locked(delta, fx);
 
-            // Parse RFID info per channel — filament_detect.info is a JSON array [ch0, ch1, ch2,
-            // ch3] Only apply RFID data when it contains real values (not "NONE").
-            // print_task_config is the authoritative source; RFID supplements it when tags are
-            // present.
-            if (fd.contains("info") && fd["info"].is_array()) {
-                const auto& info_arr = fd["info"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(info_arr.size()); i++) {
-                    if (!info_arr[i].is_object())
-                        continue;
-                    auto rfid = parse_rfid_info(info_arr[i]);
+        apply_toolhead_sensors_locked(delta, fx);
 
-                    // Capture what this reading physically got off the spool,
-                    // before any early exit, so the insert rule sees it
-                    // regardless of whether the rest of the RFID fields apply.
-                    // A read is finished only when it named a tag: a UID names
-                    // it, and a decoded MAIN_TYPE with no UID leaves the UID
-                    // the one part still outstanding (material and colour
-                    // stand as evidence without it). A NONE entry with no UID
-                    // is three indistinguishable states - reader disabled,
-                    // untagged spool, empty channel - so it files no evidence
-                    // at all and the fingerprint comes out empty (no signal).
-                    helix::ams::SpoolEvidence& evidence = observed_evidence[i];
-                    evidence.tag_uid = rfid.uid;
-                    if (!rfid.uid.empty()) {
-                        evidence.tag_read_complete = true;
-                    }
-                    // A pending insert is judged HERE: this entry is the
-                    // reader's answer for the spool that just went in, which
-                    // the port edge could not know. A UID or a decoded
-                    // MAIN_TYPE verifies it - the tail's
-                    // check_hardware_event_clear judges any swap from this
-                    // very reading - and an entry that files nothing is the
-                    // reader saying no tag is behind the insert, so the stored
-                    // record could describe a spool that left (#1710).
-                    if (pending_insert_passes_[i] > 0) {
-                        pending_insert_passes_[i] = 0;
-                        if (rfid.uid.empty() && rfid.main_type == "NONE") {
-                            unverified_insert_lanes.push_back(i);
-                        }
-                    }
-                    if (rfid.main_type != "NONE") {
-                        evidence.material = rfid.main_type;
-                        if (helix::ams::is_declarable_color(rfid.color_rgb)) {
-                            evidence.color_rgb = rfid.color_rgb;
-                        }
-                    }
-
-                    // Skip entirely if RFID reader is disabled or no tag present
-                    if (rfid.main_type == "NONE")
-                        continue;
-
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        slot->material = rfid.main_type;
-                        auto brand = !rfid.manufacturer.empty() ? rfid.manufacturer : rfid.vendor;
-                        if (brand != "NONE")
-                            slot->brand = brand;
-                        slot->color_rgb = rfid.color_rgb;
-                        // SUB_TYPE is Snapmaker's filament product-line name (e.g.
-                        // "SnapSpeed" for their PLA line — akin to Polymaker's
-                        // "PolyLite"). Maps to spool_name, NOT color_name. The
-                        // Snapmaker RFID doesn't expose a dedicated color-name
-                        // field — color_name stays unset here and is user-editable
-                        // via the edit modal's color picker.
-                        if (rfid.sub_type != "NONE")
-                            slot->spool_name = rfid.sub_type;
-                        slot->nozzle_temp_min = rfid.hotend_min_temp;
-                        slot->nozzle_temp_max = rfid.hotend_max_temp;
-                        slot->bed_temp = rfid.bed_temp;
-                        slot->total_weight_g = static_cast<float>(rfid.weight_g);
-
-                        // A tag read is a cache of what a vendor printed, not a
-                        // sensor of identity: it survives the spool leaving the
-                        // channel, so it never carries presence.
-                        //
-                        // Every value here is this parse's own, never slot->*.
-                        // SlotInfo persists across frames and
-                        // apply_resolved_lane rewrites it in place at the tail
-                        // of every one, so
-                        // reading the struct back would file a user's edit as
-                        // something the tag says.
-                        //
-                        helix::ams::Observation cache(helix::ams::ObservationSource::VendorCache);
-                        if (!rfid.main_type.empty())
-                            cache.material = rfid.main_type;
-                        // Both spellings of "the tag named no vendor" retract
-                        // the brand here: whole-record replacement means this
-                        // record states what THIS read said, and a field the
-                        // read is silent about is not one it still stands
-                        // behind. SlotInfo above tests only the literal "NONE",
-                        // so it blanks on an absent key and KEEPS its last
-                        // value on the literal. That one input is the only
-                        // place the two layers disagree.
-                        if (!brand.empty() && brand != "NONE")
-                            cache.brand = brand;
-                        // SnapmakerRfidInfo::color_rgb rests on
-                        // AMS_DEFAULT_SLOT_COLOR when the tag carried no
-                        // ARGB_COLOR, which is that struct's "no reading" and
-                        // not a grey anybody chose.
-                        if (helix::ams::is_declarable_color(rfid.color_rgb))
-                            cache.color_rgb = rfid.color_rgb;
-                        // SUB_TYPE names the product line inside MAIN_TYPE
-                        // ("Silk" inside "PLA"), so it is the branded product
-                        // and routing it to material would destroy the
-                        // material. The SlotInfo field above keeps its own
-                        // spelling, and splits from this record on the
-                        // literal "NONE" for the same reason the brand guard
-                        // does.
-                        if (!rfid.sub_type.empty() && rfid.sub_type != "NONE")
-                            cache.product_name = rfid.sub_type;
-                        if (rfid.weight_g > 0)
-                            cache.total_weight_g = static_cast<float>(rfid.weight_g);
-                        // What this backend POSTed to filament_detect/set
-                        // lands in this same object, spelled the same way, so
-                        // a field repeating our own write is not a reading.
-                        // Withholding it matters most AFTER the user clears
-                        // their override: resolve() would otherwise fall
-                        // through to a VendorCache record still holding the
-                        // abandoned edit, and the lane could never get back to
-                        // what the machine says. WEIGHT is nobody's
-                        // declaration and passes through. The boundary rides
-                        // the fingerprint spelling, the same one arm() takes
-                        // from the tracker baseline, so a reading whose UID
-                        // did not decode still names a spool boundary.
-                        const int withheld = own_write_echoes_.withhold(
-                            i, fingerprint_from_evidence(observed_evidence[i]), cache);
-                        if (withheld > 0) {
-                            spdlog::debug("{} Slot {} withheld {} field(s) echoing our own write",
-                                          backend_log_tag(), i, withheld);
-                        }
-                        helix::ams::ingest(lane_id(i), cache);
-                    }
-                    changed = true;
-                }
-            }
-
-            // Parse filament state per channel — filament_detect.state is
-            // [int, int, int, int], the entrance/tag reader per channel. It
-            // reads 0 once filament has been fed THROUGH it to the toolhead,
-            // so a 0 is not "no filament": lane presence is declared at the
-            // parse convergence point from the port sensor and the
-            // loaded-at-toolhead latch, and this array only seeds a status
-            // for slots nothing better has spoken for.
-            if (fd.contains("state") && fd["state"].is_array()) {
-                const auto& state_arr = fd["state"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(state_arr.size()); i++) {
-                    if (!state_arr[i].is_number())
-                        continue;
-                    int state_val = state_arr[i].get<int>();
-
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        // Only set from filament_detect if extruder state hasn't already
-                        // provided a more authoritative status (LOADED/AVAILABLE via
-                        // park_pin/active_pin)
-                        if (slot->status == SlotStatus::UNKNOWN) {
-                            slot->status =
-                                (state_val != 0) ? SlotStatus::AVAILABLE : SlotStatus::EMPTY;
-                        }
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        // Parse filament_feed left/right — top-level Klipper objects (not nested in
-        // filament_detect) Each contains per-extruder state: filament_detected, channel_state,
-        // channel_error
-        int in_progress_head = -1;
-        for (const auto& feed_key : {"filament_feed left", "filament_feed right"}) {
-            if (status.contains(feed_key) && status[feed_key].is_object()) {
-                const auto& feed = status[feed_key];
-                for (int i = 0; i < NUM_TOOLS; i++) {
-                    std::string ext_key = (i == 0) ? "extruder0" : fmt::format("extruder{}", i);
-                    if (feed.contains(ext_key) && feed[ext_key].is_object()) {
-                        const auto& ch = feed[ext_key];
-                        // filament_detected: use .find() + is_boolean() (per
-                        // [L087], matching the motion-sensor loop below) rather
-                        // than .value(), which throws on the null Klipper
-                        // publishes before the sensor's first reading. Because
-                        // status frames are deltas, an omitted field means "no
-                        // change" — treating it as false would clear the port
-                        // sensor and drop the slot to EMPTY on a frame that
-                        // said nothing about filament at all.
-                        std::optional<bool> detected_opt;
-                        auto fd_it = ch.find("filament_detected");
-                        if (fd_it != ch.end() && fd_it->is_boolean()) {
-                            const bool detected = fd_it->get<bool>();
-                            detected_opt = detected;
-                            // Mirror into port_sensor_filament_present_ so
-                            // is_stuck_motion_sensor_runout can distinguish a real
-                            // runout (both sensors false) from a stale motion-sensor
-                            // false positive (motion=false, port=true). Tracked
-                            // independent of slot->status because slot status flips
-                            // to AVAILABLE/LOADED based on extruder pin state which
-                            // is orthogonal to the port sensor reading.
-                            if (i >= 0 && i < NUM_TOOLS) {
-                                // The port flag's false -> true edge is an
-                                // insert into the channel; the first sighting
-                                // is the baseline, not an edge. The tag
-                                // reader's answer lands a frame or two later,
-                                // so the edge holds a pending verdict for the
-                                // info loop to judge (#1710). A drop cancels
-                                // one: the spool left before any read.
-                                //
-                                // A feed the firmware itself drives - its own
-                                // tool-change unload/load, or one of our
-                                // batch ops - drops and raises this flag too,
-                                // and no spool changed hands, so it arms
-                                // nothing. The edge runs before this frame's
-                                // channel_state parse, so the gate reads the
-                                // channel's last reported state; the state
-                                // parse below cancels anything the ordering
-                                // missed.
-                                const bool firmware_driven =
-                                    batch_.active || helix::snapmaker::channel_state_in_progress(
-                                                         channel_snapshots_[i].state);
-                                if (detected && feed_presence_seen_[i] &&
-                                    !port_sensor_filament_present_[i] && !firmware_driven) {
-                                    pending_insert_passes_[i] = 1;
-                                } else if (!detected) {
-                                    pending_insert_passes_[i] = 0;
-                                }
-                                port_sensor_filament_present_[i] = detected;
-                                feed_presence_seen_[i] = true;
-                            }
-                            auto* slot = system_info_.units[0].get_slot(i);
-                            if (slot) {
-                                if (detected && (slot->status == SlotStatus::EMPTY ||
-                                                 slot->status == SlotStatus::UNKNOWN)) {
-                                    slot->status = SlotStatus::AVAILABLE;
-                                    changed = true;
-                                } else if (!detected && slot->status != SlotStatus::LOADED) {
-                                    slot->status = SlotStatus::EMPTY;
-                                    changed = true;
-                                }
-                            }
-                        }
-
-                        // Parse channel_state — the single authoritative signal
-                        // for load state and operation progress. classify_channel_state
-                        // maps every firmware state (39 total) to {action, phase,
-                        // terminal, fail, latch set/clear}; the parse reads off that
-                        // one table rather than scattered string compares. See
-                        // u1_channel_state_reference.md.
-                        // safe_string, not .value(): both fields are string-or-null
-                        // on U1 firmware, and .value() throws on the null. The
-                        // defaults below are already the intended "nothing to
-                        // report" sentinels — "" is checked by the !state.empty()
-                        // gate, "ok" by classify_channel_state.
-                        auto state = helix::json_util::safe_string(ch, "channel_state", "");
-                        auto error = helix::json_util::safe_string(ch, "channel_error", "ok");
-
-                        // Keep the raw fields for eligibility queries; the
-                        // latch below collapses them to a single bit.
-                        // Status frames are deltas: start from the previous
-                        // snapshot and overwrite only the keys this frame
-                        // carries, so a channel_state-only frame leaves
-                        // filament_detected/module_exist standing and a
-                        // filament_detected-only frame does not blank state
-                        // (the feeder frame never carries the motion sensor's
-                        // enabled flag, so that field rides the same rule).
-                        // Absent-or-null is "no change" for every field.
-                        ChannelSnapshot snap = channel_snapshots_[static_cast<size_t>(i)];
-                        const std::string prev_state = snap.state;
-                        const std::string prev_action_state = snap.action_state;
-                        const auto state_it = ch.find("channel_state");
-                        if (state_it != ch.end() && state_it->is_string()) {
-                            snap.state = state_it->get_ref<const std::string&>();
-                        }
-                        const auto action_it = ch.find("channel_action_state");
-                        if (action_it != ch.end() && action_it->is_string()) {
-                            snap.action_state = action_it->get_ref<const std::string&>();
-                        }
-                        const auto error_it = ch.find("channel_error");
-                        if (error_it != ch.end() && error_it->is_string()) {
-                            snap.error = error_it->get_ref<const std::string&>();
-                        }
-                        if (detected_opt.has_value()) {
-                            snap.filament_detected = *detected_opt;
-                        }
-                        const auto module_it = ch.find("module_exist");
-                        if (module_it != ch.end() && module_it->is_boolean()) {
-                            snap.module_exist = module_it->get<bool>();
-                        }
-                        const auto disable_it = ch.find("disable_auto");
-                        if (disable_it != ch.end() && disable_it->is_boolean()) {
-                            snap.disable_auto = disable_it->get<bool>();
-                        }
-                        // The op lifecycle, error surfacing and batch
-                        // verification read the op's outcome; the latch and the
-                        // step bar read where the filament is. They differ only
-                        // when the outcome survives in channel_action_state alone.
-                        const std::optional<std::string> settled_outcome =
-                            helix::snapmaker::settled_op_outcome(snap.state, prev_action_state,
-                                                                 snap.action_state);
-                        channel_snapshots_[static_cast<size_t>(i)] = std::move(snap);
-                        // A terminal ends the op or marks the lane only when this
-                        // frame moved the channel to it; see observed_change.
-                        const bool outcome_is_new =
-                            settled_outcome.has_value() ||
-                            helix::snapmaker::observed_change(prev_state, state);
-
-                        const ChannelStateInfo info = classify_channel_state(state);
-                        const std::string& op_state = settled_outcome ? *settled_outcome : state;
-                        ChannelStateInfo op_info =
-                            settled_outcome ? classify_channel_state(op_state) : info;
-                        if (!settled_outcome && state == "preload_finish" &&
-                            preload_in_flight_[i]) {
-                            op_info.is_terminal = true;
-                        }
-                        if (helix::snapmaker::channel_state_in_progress(state)) {
-                            preload_in_flight_[i] = state.rfind("preload_", 0) == 0;
-                        } else if (!state.empty()) {
-                            preload_in_flight_[i] = false;
-                        }
-
-                        // A feed under way on this channel is the firmware
-                        // moving filament itself, so a presence edge that
-                        // armed a pending verdict this parse was not a user
-                        // insert; the spool never left.
-                        if (pending_insert_passes_[i] > 0 &&
-                            (info.action == AmsAction::LOADING ||
-                             info.action == AmsAction::UNLOADING)) {
-                            pending_insert_passes_[i] = 0;
-                        }
-
-                        // A channel reporting any state at all makes the
-                        // lane's presence inputs live for the
-                        // convergence-point ingest below.
-                        if (!state.empty()) {
-                            feed_presence_seen_[i] = true;
-                        }
-
-                        // Mirror the granular firmware sub-phase into the system
-                        // info so the sidebar step bar can show the real
-                        // Home/Select/Heat/Move sequence. -1 for any non-active
-                        // state (idle, *_finish, *_fail, preload_finish). Updated
-                        // only when the firmware actually reports a channel_state,
-                        // so an incremental status omitting it doesn't clear the
-                        // phase spuriously.
-                        if (!state.empty()) {
-                            if (system_info_.operation_phase != info.phase) {
-                                system_info_.operation_phase = info.phase;
-                                changed = true;
-                            }
-                        }
-
-                        // Capture the head whose channel is mid-op; the single
-                        // derivation of operation_working_slot below decides
-                        // what the header names from it (batch cursor wins).
-                        if (in_progress_head < 0 && (info.action == AmsAction::LOADING ||
-                                                     info.action == AmsAction::UNLOADING)) {
-                            in_progress_head = i;
-                        }
-
-                        // "Loaded at toolhead" latch (the core fix). Driven purely
-                        // from channel_state transitions, NOT the motion sensor
-                        // (which fails to clear after an unload on current firmware).
-                        // SET on load_finish; CLEAR on unload_finish / wait_insert /
-                        // preload_finish; KEEP on every transient / in-progress /
-                        // fail state. Mirrors the firmware's persisted
-                        // config['load_finish'].
-                        if (!state.empty() && !info.ignore) {
-                            if (info.sets_loaded && !loaded_at_toolhead_[i]) {
-                                loaded_at_toolhead_[i] = true;
-                                changed = true;
-                            } else if (info.clears_loaded && loaded_at_toolhead_[i]) {
-                                loaded_at_toolhead_[i] = false;
-                                changed = true;
-                            }
-                        }
-
-                        // Error surfacing: either a firmware channel_error token OR
-                        // a *_fail channel_state (Change 2). Preserve the multi-color
-                        // false-alarm guard — the firmware reports
-                        // channel_error="no_filament" for ANY empty lane, and briefly
-                        // a *_fail channel_state when it auto-feeds a lane deliberately
-                        // left unloaded for a multi-color print (heads 0+2 used, head 1
-                        // empty). Neither must latch the whole backend into
-                        // action=Error and pop a spurious modal on such an idle empty
-                        // non-active lane. An error is real when the lane holds
-                        // filament (lane not empty), is the active lane, or an
-                        // operation is genuinely underway on it (an in-progress
-                        // LOADING/UNLOADING state — a *_fail is terminal, so the same
-                        // empty-lane guard applies to it as to the no_filament token).
-                        const bool has_error_token =
-                            error != "ok" && !error.empty() && error != "none";
-                        if (has_error_token || op_info.is_fail) {
-                            const auto* slot = system_info_.units[0].get_slot(i);
-                            const bool lane_empty = slot == nullptr || !slot->is_present();
-                            const bool active_lane =
-                                system_info_.current_slot == i || system_info_.current_tool == i;
-                            const bool op_in_progress = op_info.action == AmsAction::LOADING ||
-                                                        op_info.action == AmsAction::UNLOADING;
-                            if (lane_empty && !op_in_progress && !active_lane) {
-                                spdlog::debug(
-                                    "[AmsBackendSnapmaker] ignoring error (token='{}' state='{}') "
-                                    "on idle empty lane {} (not operating, not active)",
-                                    error, op_state, i);
-                            } else {
-                                system_info_.action = AmsAction::ERROR;
-                                system_info_.operation_detail =
-                                    has_error_token
-                                        ? friendly_channel_error(error, lane_noun(), i)
-                                        : friendly_channel_state_fail(op_state, lane_noun(), i);
-                                changed = true;
-                            }
-                        } else if (!op_state.empty() && !op_info.ignore) {
-                            // No error — drive the action / operation lifecycle from
-                            // the classifier.
-                            if (op_info.action == AmsAction::LOADING) {
-                                if (system_info_.action != AmsAction::LOADING) {
-                                    system_info_.action = AmsAction::LOADING;
-                                    changed = true;
-                                }
-                            } else if (op_info.action == AmsAction::UNLOADING) {
-                                if (system_info_.action != AmsAction::UNLOADING) {
-                                    system_info_.action = AmsAction::UNLOADING;
-                                    changed = true;
-                                }
-                            } else if (op_info.is_terminal) {
-                                // A *_finish state resolves the operation. The
-                                // latch above carries its load meaning; the active
-                                // tool's LOADED status and filament_loaded are
-                                // derived from it after the sensor parse.
-                                //
-                                // current_slot / current_tool are NOT reset here:
-                                // they track which toolhead is picked up on the
-                                // carriage (toolhead.extruder is the authority, set
-                                // in the extruder-pin parse above), which is
-                                // independent of whether feeder filament is at the
-                                // nozzle. A tool fed without the feeders (TPU loaded
-                                // straight into the toolhead) stays picked up while
-                                // its channel reports unload_finish permanently, and
-                                // unload_active_filament() needs current_slot to
-                                // name that tool: with no slot it dispatches the
-                                // bare INNER_FILAMENT_UNLOAD, which the firmware
-                                // runs on T0.
-                                if (op_state == "unload_finish" && outcome_is_new) {
-                                    // Deferred to after the lock for the same
-                                    // reason emit_event is: this reaches into
-                                    // AmsState, which takes its own mutex, while
-                                    // AmsState::add_backend() takes that mutex
-                                    // first and then ours via set_event_callback().
-                                    // Calling it here closed the cycle and TSan
-                                    // reported the deadlock (nightly, 2026-08-16).
-                                    unloaded_lanes.push_back(i);
-                                }
-                                if (outcome_is_new &&
-                                    (system_info_.action == AmsAction::LOADING ||
-                                     system_info_.action == AmsAction::UNLOADING)) {
-                                    system_info_.action = AmsAction::IDLE;
-                                    system_info_.operation_detail.clear();
-                                    PostOpCooldownManager::instance().schedule();
-                                    changed = true;
-                                }
-                            }
-                            // A resting state (none / inited / wait_insert, and
-                            // preload_finish after anything but a preload) leaves
-                            // the action untouched: one also appears while the
-                            // nozzle heats for an unload, and the op's own
-                            // outcome, when a resting state hides it, arrives as
-                            // settled_outcome above. The latch already handled
-                            // the resting states' clears.
-                        }
-
-                        // Batch verification. Only the plan's cursor head can
-                        // advance the cursor, so a sibling channel repeating its
-                        // settled state in this frame is inert. The direction's
-                        // own terminal is matched exactly: manual_sta_finish ends
-                        // a single-op lifecycle but a load
-                        // batch counts a head only at load_finish (unload at
-                        // unload_finish). A *_fail on the cursor head stops the
-                        // batch where it stands; the error branch above has
-                        // already set operation_detail to the failure message,
-                        // which must win over a progress line. Runs after the
-                        // terminal resolution so its operation_detail.clear()
-                        // cannot wipe the progress string this writes.
-                        if (batch_.active && i == batch_.heads[batch_.cursor]) {
-                            if (op_info.is_fail) {
-                                batch_.active = false;
-                                batch_failed_head = i;
-                                batch_failed_state = op_state;
-                            } else if (op_state ==
-                                       (batch_.load ? "load_finish" : "unload_finish")) {
-                                ++batch_.cursor;
-                                batch_.active = batch_.cursor < batch_.heads.size();
-                                if (batch_.active) {
-                                    // "Load 2 of 4" — the head now in progress.
-                                    // The words arrive pretranslated from
-                                    // dispatch (main thread); this parse runs
-                                    // on the WebSocket thread, which must not
-                                    // call lv_tr.
-                                    system_info_.operation_detail = fmt::format(
-                                        "{} {} {} {}", batch_.direction_label, batch_.cursor + 1,
-                                        batch_.of_label, batch_.heads.size());
-                                } else {
-                                    // Every head verified. Nothing is in
-                                    // progress, and no later frame clears the
-                                    // line once the action is IDLE.
-                                    system_info_.operation_detail.clear();
-                                }
-                                changed = true;
-                            }
-                        }
-
-                        // Diagnostic: trace the firmware channel_state sequence during
-                        // a load/unload so we can tell which event is the TRUE physical
-                        // completion vs an intermediate (preload_finish staged-in-buffer).
-                        // The on-screen step bar / status was dropping to Idle before the
-                        // physical unload finished; the real event order is firmware-
-                        // specific and was previously unlogged. (#u1-unload-steps)
-                        if (!state.empty() || settled_outcome) {
-                            spdlog::debug("[AmsBackendSnapmaker] tool {} channel_state='{}' "
-                                          "op_state='{}' error='{}' -> action={} current_slot={}",
-                                          i, state, op_state, error,
-                                          ams_action_to_string(system_info_.action),
-                                          system_info_.current_slot);
-                        }
-                    }
-                }
-            }
-        }
-
-        // The batch macro's `doing` save-variable is the firmware's own word
-        // on whether a batch script is running. A false reading retires any
-        // plan this process still holds active: the script ended without the
-        // cursor head reaching a terminal or a *_fail (lost response, script
-        // abort, a feeder wedging mid-feed), and no channel_state detector
-        // covers that end.
-        bool batch_retired = false;
-        if (!batch_macro_object_.empty()) {
-            const auto macro = status.find(batch_macro_object_);
-            if (macro != status.end() && macro->is_object()) {
-                const auto doing = macro->find("doing");
-                if (doing != macro->end() && doing->is_boolean() && !doing->get<bool>() &&
-                    batch_.active) {
-                    batch_.active = false;
-                    batch_retired = true;
-                    changed = true;
-                    spdlog::info("{} batch macro reports doing=false — retiring the active plan",
-                                 backend_log_tag());
-                }
-            }
-        }
-
-        // ONE derivation of "the head an operation is working on": the batch
-        // cursor while a plan is active, else the head whose channel reported
-        // an in-progress state, else none. A toolhead-only delta carries no
-        // channel evidence, so mid-op it keeps the previous answer instead of
-        // flapping the header back to the carriage tool; a batch the firmware
-        // just reported ended carries nothing forward. current_slot is NOT
-        // touched here: it stays the carriage answer its other consumers
-        // (bypass unload, filament panel gating, the loaded card) read.
-        int working_slot = -1;
-        if (batch_.active) {
-            working_slot = batch_.heads[batch_.cursor];
-        } else if (system_info_.action == AmsAction::LOADING ||
-                   system_info_.action == AmsAction::UNLOADING) {
-            if (in_progress_head >= 0) {
-                working_slot = in_progress_head;
-            } else if (!batch_retired) {
-                working_slot = system_info_.operation_working_slot;
-            }
-        }
-        if (system_info_.operation_working_slot != working_slot) {
-            system_info_.operation_working_slot = working_slot;
-            changed = true;
-        }
-
-        // Parse print_task_config — authoritative filament info from Snapmaker's task manager
-        // Contains per-extruder filament type, vendor, color, and presence data
-        if (status.contains("print_task_config") && status["print_task_config"].is_object()) {
-            const auto& ptc = status["print_task_config"];
-
-            // Firmware-stored preferences. Merged field by field, because a delta
-            // frame that mentions one setting says nothing about the others.
-            // Held as told, never filed as lane observations — these are a write
-            // surface like the filament_type/vendor/color fields below.
-            const auto incoming = snapmaker::read_print_preferences(status);
-            if (incoming.auto_replenish) {
-                print_preferences_.auto_replenish = incoming.auto_replenish;
-            }
-            if (incoming.replenish_ignore_color) {
-                print_preferences_.replenish_ignore_color = incoming.replenish_ignore_color;
-            }
-            if (incoming.filament_entangle_detect) {
-                print_preferences_.filament_entangle_detect = incoming.filament_entangle_detect;
-            }
-            if (incoming.end_led_turn_off) {
-                print_preferences_.end_led_turn_off = incoming.end_led_turn_off;
-            }
-            if (incoming.filament_entangle_sen) {
-                print_preferences_.filament_entangle_sen = incoming.filament_entangle_sen;
-            }
-            if (!incoming.end_unload_filament.empty()) {
-                print_preferences_.end_unload_filament = incoming.end_unload_filament;
-            }
-
-            // extruder_map_table: [int x32] — logical tool -> physical head. The
-            // firmware's own routing authority for the running print (see the
-            // member's doc comment). Mirrored verbatim; interpretation belongs to
-            // get_tool_mapping()'s callers, not here.
-            if (ptc.contains("extruder_map_table") && ptc["extruder_map_table"].is_array()) {
-                std::vector<int> table;
-                table.reserve(ptc["extruder_map_table"].size());
-                for (const auto& entry : ptc["extruder_map_table"]) {
-                    // A non-integer or out-of-range head is recorded as -1 ("no
-                    // opinion") rather than clamped: silently substituting head 0
-                    // is the identity-as-truth mistake this whole path exists to
-                    // stop making.
-                    if (!entry.is_number_integer()) {
-                        table.push_back(-1);
-                        continue;
-                    }
-                    const int head = entry.get<int>();
-                    table.push_back((head >= 0 && head < NUM_TOOLS) ? head : -1);
-                }
-                if (table != extruder_map_table_) {
-                    spdlog::debug("[AMS Snapmaker] extruder_map_table changed ({} entries)",
-                                  table.size());
-                    extruder_map_table_ = std::move(table);
-                    changed = true;
-                }
-            }
-
-            // extruders_used: [bool x4] — heads this task uses. Gates whether the
-            // map above may be read at all (see the member's doc comment).
-            if (ptc.contains("extruders_used") && ptc["extruders_used"].is_array()) {
-                std::vector<bool> used;
-                used.reserve(ptc["extruders_used"].size());
-                for (const auto& entry : ptc["extruders_used"]) {
-                    used.push_back(entry.is_boolean() && entry.get<bool>());
-                }
-                if (used != extruders_used_) {
-                    extruders_used_ = std::move(used);
-                    changed = true;
-                }
-            }
-
-            // Snapshot the routing while the task is still configured. Both
-            // fields are members, so this is evaluated against the accumulated
-            // state rather than only what THIS frame carried — an incremental
-            // update that names one of them still lands on the right answer.
-            //
-            // This is the only moment the routing is knowable. Once the print
-            // ends the firmware clears extruders_used and resets the table, and a
-            // reprint has nothing left to read: no detail view, no picker, no
-            // colour match to recompute. An empty table is never snapshotted —
-            // "known: nothing" is indistinguishable from a real answer to the
-            // caller, and the honest value is "not known".
-            const bool task_configured_now = std::any_of(
-                extruders_used_.begin(), extruders_used_.end(), [](bool b) { return b; });
-            if (task_configured_now && !extruder_map_table_.empty() &&
-                last_task_extruder_map_ != extruder_map_table_) {
-                last_task_extruder_map_ = extruder_map_table_;
-                spdlog::debug("[AMS Snapmaker] recorded task routing ({} entries) for reprint",
-                              last_task_extruder_map_.size());
-            }
-
-            // filament_exist: [bool, bool, bool, bool] — whether filament is loaded per slot
-            if (ptc.contains("filament_exist") && ptc["filament_exist"].is_array()) {
-                const auto& exist_arr = ptc["filament_exist"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(exist_arr.size()); i++) {
-                    if (!exist_arr[i].is_boolean())
-                        continue;
-                    bool exists = exist_arr[i].get<bool>();
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        if (exists && slot->status != SlotStatus::LOADED) {
-                            slot->status = SlotStatus::AVAILABLE;
-                        } else if (!exists) {
-                            slot->status = SlotStatus::EMPTY;
-                        }
-                        changed = true;
-                    }
-                }
-            }
-
-            // These three fields write SlotInfo and deliberately file NO lane
-            // observation, unlike the RFID parse above.
-            //
-            // print_task_config is a write surface, not a sensor.
-            // SET_PRINT_FILAMENT_CONFIG takes VENDOR / FILAMENT_TYPE /
-            // FILAMENT_SUBTYPE / FILAMENT_COLOR_RGBA as gcode parameters and
-            // persists them, so whoever sent that command set these values: the
-            // machine's own screen, a slicer, a console, or this backend's
-            // write-back through /printer/filament_detect/set, which firmware
-            // mirrors into this same struct. Filing any of it as VendorCache
-            // would return a user's own edit as firmware truth.
-            //
-            // The firmware carries the provenance bit itself, and it shows the
-            // channel is redundant rather than merely unsafe: filament_official
-            // marks a head whose entry came from a Snapmaker RFID spool, and
-            // SET_PRINT_FILAMENT_CONFIG is refused on such a head without
-            // FORCE. An official entry is the tag filament_detect.info already
-            // reports, which the RFID parse files; an unofficial one is
-            // somebody's declaration. Neither is a reading this key can
-            // contribute.
-            //
-            // A user's declaration reaches the lane model through
-            // commit_slot_edit, which is the funnel that records authorship.
-            //
-            // filament_type: ["PLA", "PLA", ...] — material type per slot
-            if (ptc.contains("filament_type") && ptc["filament_type"].is_array()) {
-                const auto& type_arr = ptc["filament_type"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(type_arr.size()); i++) {
-                    if (!type_arr[i].is_string())
-                        continue;
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        auto type = type_arr[i].get<std::string>();
-                        slot->material = type; // Base type only (e.g., "PLA") for compact display
-                        changed = true;
-                    }
-                }
-            }
-
-            // filament_vendor: ["Snapmaker", ...] — brand per slot
-            if (ptc.contains("filament_vendor") && ptc["filament_vendor"].is_array()) {
-                const auto& vendor_arr = ptc["filament_vendor"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(vendor_arr.size()); i++) {
-                    if (!vendor_arr[i].is_string())
-                        continue;
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        slot->brand = vendor_arr[i].get<std::string>();
-                        changed = true;
-                    }
-                }
-            }
-
-            // filament_color_rgba: ["080A0DFF", "E2DEDBFF", ...] — hex RGBA color per slot
-            if (ptc.contains("filament_color_rgba") && ptc["filament_color_rgba"].is_array()) {
-                const auto& color_arr = ptc["filament_color_rgba"];
-                for (int i = 0; i < NUM_TOOLS && i < static_cast<int>(color_arr.size()); i++) {
-                    if (!color_arr[i].is_string())
-                        continue;
-                    auto* slot = system_info_.units[0].get_slot(i);
-                    if (slot) {
-                        auto hex = color_arr[i].get<std::string>();
-                        // RGBA hex string → RGB uint32: take first 6 chars
-                        if (hex.size() >= 6) {
-                            const auto rgb =
-                                helix::text_io::parse_leading<unsigned long>(hex.substr(0, 6), 16);
-                            if (rgb) {
-                                slot->color_rgb = *rgb;
-                            }
-                        }
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        // Parse filament_motion_sensor / filament_switch_sensor per tool. The U1's
-        // [filament_motion_sensor e{N}_filament] is a motion runout during a
-        // print (filament_detected:false when extrusion outruns the encoder,
-        // then PAUSE via pause_on_runout) and a presence switch otherwise (it
-        // copies the toolhead pin). Mirror the flag: the path canvas breaks the
-        // spool→toolhead line on runout, and outside a print it answers whether
-        // filament sits in the toolhead.
-        //
-        // Match both prefixes (motion is the Snapmaker default; switch is the
-        // generic fallback) and any "e{N}_filament" / "e{N}" sensor name suffix.
-        for (auto it = status.begin(); it != status.end(); ++it) {
-            const std::string& key = it.key();
-            const auto motion_prefix = std::string_view("filament_motion_sensor ");
-            const auto switch_prefix = std::string_view("filament_switch_sensor ");
-            std::string_view sensor_name;
-            if (key.compare(0, motion_prefix.size(), motion_prefix) == 0) {
-                sensor_name = std::string_view(key).substr(motion_prefix.size());
-            } else if (key.compare(0, switch_prefix.size(), switch_prefix) == 0) {
-                sensor_name = std::string_view(key).substr(switch_prefix.size());
-            } else {
-                continue;
-            }
-            // Expect "e{N}_filament" or "e{N}". Anything else (toolhead_sensor,
-            // bypass_sensor, custom names) is unrelated to per-tool runout.
-            if (sensor_name.size() < 2 || sensor_name[0] != 'e')
-                continue;
-            size_t digit_end = 1;
-            while (digit_end < sensor_name.size() &&
-                   std::isdigit(static_cast<unsigned char>(sensor_name[digit_end]))) {
-                ++digit_end;
-            }
-            if (digit_end == 1)
-                continue; // no digits
-            const auto parsed_tool_idx =
-                helix::text_io::parse_leading<int>(sensor_name.substr(1, digit_end - 1));
-            if (!parsed_tool_idx) {
-                continue;
-            }
-            const int tool_idx = *parsed_tool_idx;
-            if (tool_idx < 0 || tool_idx >= NUM_TOOLS)
-                continue;
-            if (!it.value().is_object())
-                continue;
-            // `enabled` rides the same status objects and gates loading: a
-            // sensor the firmware has disabled cannot confirm feed. Absent
-            // means no change (delta frames omit held values).
-            auto enabled_it = it.value().find("enabled");
-            if (enabled_it != it.value().end() && enabled_it->is_boolean()) {
-                channel_snapshots_[static_cast<size_t>(tool_idx)].sensor_enabled =
-                    enabled_it->get<bool>();
-            }
-            // filament_detected: Klipper emits as bool; default true (no runout)
-            // so missing field == "no change" via the contains check. Use .find()
-            // + is_boolean() (per [L087]) rather than .value() which would throw
-            // on a null payload.
-            auto fd_it = it.value().find("filament_detected");
-            if (fd_it == it.value().end() || !fd_it->is_boolean())
-                continue;
-            bool present = fd_it->get<bool>();
-            if (!toolhead_switch_reported_[tool_idx]) {
-                toolhead_switch_reported_[tool_idx] = true;
-                changed = true;
-            }
-            if (sensor_filament_present_[tool_idx] != present) {
-                sensor_filament_present_[tool_idx] = present;
-                changed = true;
-                spdlog::info("{} Tool {} filament sensor: {} ({})", backend_log_tag(), tool_idx,
-                             present ? "PRESENT" : "RUNOUT", key);
-            }
-        }
-
-        // The active tool's loaded answers, derived from held state on every
-        // frame so they cannot depend on which fields this frame carried: a
-        // pick and the channel_state it pairs with often arrive in different
-        // frames. filament_loaded ("filament in the toolhead") follows a
-        // reported toolhead switch, which also breaks the canvas line on a
-        // mid-print runout, and falls back to the latch. LOADED status (loaded
-        // to the nozzle, the Load gate) needs the latch and no runout.
-        if (system_info_.current_tool >= 0 && system_info_.current_tool < NUM_TOOLS) {
-            const int t = system_info_.current_tool;
-            const bool switch_known = toolhead_switch_reported_[t];
-            const bool in_toolhead =
-                switch_known ? sensor_filament_present_[t] : loaded_at_toolhead_[t];
-            if (system_info_.filament_loaded != in_toolhead) {
-                system_info_.filament_loaded = in_toolhead;
-                changed = true;
-            }
-            const bool at_nozzle =
-                loaded_at_toolhead_[t] && (!switch_known || sensor_filament_present_[t]);
-            auto* slot = system_info_.units[0].get_slot(t);
-            if (slot && at_nozzle && slot->status == SlotStatus::AVAILABLE) {
-                slot->status = SlotStatus::LOADED;
-                changed = true;
-            } else if (slot && !at_nozzle && slot->status == SlotStatus::LOADED) {
-                slot->status = SlotStatus::AVAILABLE;
-                changed = true;
-            }
-        } else if (system_info_.filament_loaded) {
-            system_info_.filament_loaded = false;
-            changed = true;
-        }
-
-        // Per-slot runout demotion: any slot whose motion sensor reports
-        // no filament should be AVAILABLE (spool present, ready to feed), not
-        // LOADED. Without this, the AMS context menu's Load button is gated off
-        // (pending_is_loaded_ from slot.status==LOADED disables it) and the user
-        // has no way to re-feed filament from the UI after a runout — they get
-        // Unload/Reset on a slot that has no filament between feeder and nozzle.
-        // EMPTY is wrong here because the slot's RFID/print_task_config still
-        // reports a spool present; AVAILABLE accurately captures "spool yes,
-        // filament-at-toolhead no".
-        for (int i = 0; i < NUM_TOOLS; ++i) {
-            if (sensor_filament_present_[i])
-                continue;
-            auto* slot = system_info_.units[0].get_slot(i);
-            if (slot && slot->status == SlotStatus::LOADED) {
-                slot->status = SlotStatus::AVAILABLE;
-                changed = true;
-            }
-        }
-
-        // Parse convergence point. After every firmware-sourced field on the
-        // SlotInfo has been populated above, loop through slots and lay each
-        // lane's resolved values on top. check_hardware_event_clear must run
-        // FIRST so it sees firmware-truth fields (not the resolved view) and
-        // can clear a stale override when a physical spool swap is detected.
-        // apply_resolved_lane runs after, so the final SlotInfo the UI reads
-        // through get_slot_info / the emitted event reflects what the lane
-        // resolves to.
-        //
-        // Snapmaker has multiple parse paths feeding the same slot (RFID info,
-        // print_task_config, filament_feed). Rather than hook the override logic
-        // into each one, we run it once here at the tail — the tradeoff is that
-        // get_slot_info during a partial parse would observe uncleared overrides,
-        // but since everything runs under mutex_ and handle_status is the
-        // only writer, there's no observable window.
-        for (int i = 0; i < NUM_TOOLS; ++i) {
-            auto* slot = system_info_.units[0].get_slot(i);
-            if (!slot)
-                continue;
-
-            // A pending insert ages one pass per parse. A read that never
-            // lands (reader disabled, the channel's entry never came) must
-            // not hold its verdict forever: past the bound, ask (#1710).
-            if (pending_insert_passes_[i] > 0 &&
-                ++pending_insert_passes_[i] > kSnapPendingInsertPasses) {
-                pending_insert_passes_[i] = 0;
-                unverified_insert_lanes.push_back(i);
-            }
-
-            // A channel this parse carried no filament_detect.info for keeps
-            // its default evidence, which the insert rule reads as no signal -
-            // so the call is unconditional rather than gated on which keys the
-            // notification happened to carry.
-            check_hardware_event_clear(*slot, i, observed_evidence[i]);
-            // Mirror firmware-truth color/material into lane_data so OrcaSlicer's
-            // MoonrakerPrinterAgent sees the spool. OverwriteAlways policy: user
-            // edits via apply_user_edit round-trip through firmware via the
-            // POST /printer/filament_detect/set endpoint (paxx12 Extended Firmware),
-            // so firmware-truth and user-truth converge, and overwriting lane_data
-            // is safe and also catches external edits (CHANGE_ZCOLOR
-            // from a print, manual gcode, OrcaSlicer, etc). On stock firmware the
-            // POST 404s, but the override is still persisted to lane_data
-            // separately, so this overwrite is the only path that could theoretically
-            // de-sync — accept that tradeoff in exchange for picking up external
-            // edits on extension-enabled firmware. See mirror_firmware_to_lane_data
-            // docs and AD5X IFS for the same pattern.
-            //
-            // The stored override defers to what a declaring lane source holds,
-            // so the store reads the lane here. A Spoolman record or a user's
-            // value never reaches firmware, and firmware's reading must not
-            // overwrite it in the override or in the lane_data record it
-            // persists.
-            helix::ams::mirror_firmware_to_lane_data(
-                override_store_.get(), overrides_, i, slot->color_rgb, slot->material,
-                slot->status == SlotStatus::AVAILABLE, helix::ams::MirrorPolicy::OverwriteAlways,
-                backend_log_tag(), helix::ams::declared_on_lane(lane_id(i)));
-
-            // Lane presence: the port/buffer sensor OR the loaded-at-toolhead
-            // latch. The port sensor is the spool-side reading; the latch
-            // carries filament fed through to the nozzle — the point at which
-            // the entrance/tag reader (filament_detect.state) drops to 0, so
-            // that array is not a presence source. Declared here, at the
-            // tail of the parse, so both member arrays already hold this
-            // frame's values when the lane resolves below; the arrays persist
-            // across delta frames, so a frame silent on both signals leaves
-            // the last reading standing. A lane filament_feed has never
-            // reported stays silent too: the array defaults are "no reading
-            // yet", not "no filament".
-            if (feed_presence_seen_[i]) {
-                helix::ams::Observation sensed(helix::ams::ObservationSource::Sensed);
-                sensed.present = port_sensor_filament_present_[i] || loaded_at_toolhead_[i];
-                helix::ams::ingest(lane_id(i), sensed);
-            }
-
-            apply_resolved_lane(*slot, i);
-        }
-
-        // First-gate (port) filament presence for the ACTIVE tool (#991). The
-        // runout dialog gates Resume on THIS signal — the port/buffer sensor that
-        // flips true the moment a user re-feeds a spool — NOT the toolhead motion
-        // sensor (sensor_filament_present_), which stays "runout" until extrusion.
-        // No active tool → treat as present (1) so Resume is never gated. Computed
-        // under mutex_ (reads current_tool + the port array); published after the
-        // mutex is released. Only publish on an actual change to avoid spamming
-        // the UpdateQueue on every incremental notify.
-        int active_tool = system_info_.current_tool;
-        bool active_port_present = !(active_tool >= 0 && active_tool < NUM_TOOLS) ||
-                                   port_sensor_filament_present_[active_tool];
-        int port_val = active_port_present ? 1 : 0;
-        if (port_val != last_published_port_present_) {
-            last_published_port_present_ = port_val;
-            port_present_changed = true;
-        }
-
+        converge_locked(fx);
     } // Release mutex_ before emitting event
 
-    if (port_present_changed) {
+    dispatch_effects(fx);
+}
+
+// Everything a frame decided that reaches outside mutex_: AmsState takes its own
+// mutex and AmsState::add_backend() takes that one first and then ours via
+// set_event_callback(), the UI queue and gcode dispatch must not run under
+// either, and emit_event() re-enters get_system_info().
+void AmsBackendSnapmaker::dispatch_effects(const FrameEffects& fx) {
+    if (fx.port_present_changed) {
         AmsState::instance().set_active_tool_port_present(last_published_port_present_ != 0);
     }
 
     // Record the just-unloaded lanes so FilamentSensorManager suppresses the
     // runout modal during the grace window when the user is EXPECTED to pull
     // filament out of the lane.
-    for (int lane : unloaded_lanes) {
+    for (int lane : fx.unloaded_lanes) {
         AmsState::instance().mark_slot_unloaded(lane);
     }
 
@@ -2376,18 +2167,18 @@ void AmsBackendSnapmaker::handle_status(const nlohmann::json& status) {
     // record still describes the spool that went in (#1710). The notice
     // re-checks its own guards (print-feeding lane, lane with nothing to
     // clear) on the UI thread.
-    for (int lane : unverified_insert_lanes) {
+    for (int lane : fx.unverified_insert_lanes) {
         helix::ui::queue_update("AmsBackendSnapmaker::handle_status",
                                 [lane] { helix::ui::offer_clear_after_unverified_insert(lane); });
     }
 
-    if (batch_failed_head >= 0) {
+    if (fx.batch_failed_head >= 0) {
         spdlog::warn("{} head {} reached '{}' — clearing the firmware batch interlock",
-                     backend_log_tag(), batch_failed_head, batch_failed_state);
+                     backend_log_tag(), fx.batch_failed_head, fx.batch_failed_state);
         end_firmware_batch();
     }
 
-    if (changed) {
+    if (fx.changed) {
         emit_event(EVENT_STATE_CHANGED);
     }
 }
@@ -2690,7 +2481,7 @@ std::vector<helix::printer::DeviceAction> AmsBackendSnapmaker::get_device_action
     using helix::printer::ActionType;
     using helix::printer::DeviceAction;
 
-    // A copy taken under mutex_: the member is written on the WebSocket thread.
+    // A copy taken under mutex_: every status frame rewrites the member.
     const auto p = print_preferences();
     std::vector<DeviceAction> out;
 
