@@ -643,7 +643,6 @@ class GridEditMode {
     int drag_orig_colspan_ = 1;
     int drag_orig_rowspan_ = 1;
     lv_point_t drag_offset_ = {0, 0};
-    lv_obj_t* snap_preview_ = nullptr;
     int snap_preview_col_ = -1;
     int snap_preview_row_ = -1;
     /// The cell, span and validity snap_preview_ is drawn for: {col, row,
@@ -653,22 +652,25 @@ class GridEditMode {
     // Resize state
     bool resizing_ = false;
     ResizeEdge resize_edge_ = ResizeEdge::None;
-    /// The pixel-tracking resize outline: four edge bars (top, bottom, left,
-    /// right), children of the scoped container. Bars rather than one bordered
-    /// box, because LVGL repaints an object's whole area when it moves or
-    /// resizes: a box repaints everything it outlines on every pointer step, a
-    /// bar only its own strip. All null, or all live.
+    /// An edit preview's four edge bars (top, bottom, left, right) on the top
+    /// layer (ensure_outline() in grid_edit_mode.cpp says why). All null, or
+    /// all live.
     using ResizeOutline = std::array<lv_obj_t*, 4>;
+    /// The pixel-tracking resize outline.
     ResizeOutline resize_outline_{};
-    /// The box resize_outline_ is drawn around, relative to the container's
-    /// content area.
+    /// The box resize_outline_ is drawn around, in screen coordinates.
     lv_area_t resize_outline_box_{};
+    /// The grid-snapped landing preview of a drag or resize.
+    ResizeOutline snap_preview_{};
 
     // Outline the resize snap animation is driving, all null when none is in
     // flight. Bar 0 is the animation's `var`, which is what lets LVGL
     // auto-cancel on its deletion and what cancel_snap_animation() cancels by;
     // deleting any other bar cancels it too.
     ResizeOutline snap_anim_outline_{};
+    /// The page the animating resize ran on, where a stopped snap lays the
+    /// widget out (cancel_snap_animation). Checked live before use.
+    lv_obj_t* snap_anim_page_ = nullptr;
     /// The widget that snap animation resized, which the rebuild after it
     /// selects again. Empty when no snap is in flight.
     std::string snap_anim_widget_id_;

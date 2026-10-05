@@ -34,6 +34,7 @@ void flush_invalidation() {
 int32_t invalidated_px() {
     lv_display_t* disp = lv_display_get_default();
     lv_obj_update_layout(lv_display_get_screen_active(disp));
+    lv_obj_update_layout(lv_display_get_layer_top(disp));
     int32_t px = 0;
     for (uint32_t i = 0; i < disp->inv_p; ++i) {
         if (!disp->inv_area_joined[i]) {
@@ -62,13 +63,22 @@ TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: an unchanged snap preview repain
     CHECK(GridEditModeTestAccess::snap_preview(em) == preview);
     CHECK(invalidated_px() == 0);
 
-    // A new cell moves the same rect instead of creating another.
+    // A new cell moves the same bars instead of creating others, and repaints
+    // their strips, not the cell they outline.
     const helix::CellMetrics m = GridEditModeTestAccess::cell_metrics(em);
     GridEditModeTestAccess::update_snap_preview(em, SPAN, 0, SPAN, SPAN, false);
     CHECK(GridEditModeTestAccess::snap_preview(em) == preview);
-    lv_obj_update_layout(scene.container);
-    CHECK(lv_obj_get_x(preview) == static_cast<int>(grid_track_origin(m.cell_w, m.gutter, SPAN)));
-    CHECK(invalidated_px() > 0);
+    const int32_t repainted = invalidated_px();
+    CHECK(repainted > 0);
+    const int cell_w = static_cast<int>(grid_track_extent(m.cell_w, m.gutter, SPAN));
+    const int cell_h = static_cast<int>(grid_track_extent(m.cell_h, m.gutter, SPAN));
+    CHECK(repainted < cell_w * cell_h);
+    lv_area_t content;
+    lv_obj_get_content_coords(scene.container, &content);
+    lv_area_t top;
+    lv_obj_get_coords(preview, &top);
+    CHECK(top.x1 == content.x1 + static_cast<int>(grid_track_origin(m.cell_w, m.gutter, SPAN)));
+    CHECK(top.y1 == content.y1);
 
     em.exit();
     process_lvgl(50);
@@ -97,11 +107,14 @@ TEST_CASE_METHOD(XMLTestFixture,
     CHECK(repainted < W * H / 8);
 
     // Still drawn where asked: the right bar sits on the box's right edge.
-    lv_obj_update_layout(scene.container);
     lv_obj_t* right = GridEditModeTestAccess::resize_outline(em)[3];
     REQUIRE(right != nullptr);
-    CHECK(lv_obj_get_x(right) + lv_obj_get_width(right) == W);
-    CHECK(lv_obj_get_height(right) == H);
+    lv_area_t content;
+    lv_obj_get_content_coords(scene.container, &content);
+    lv_area_t bar;
+    lv_obj_get_coords(right, &bar);
+    CHECK(bar.x2 + 1 == content.x1 + W);
+    CHECK(lv_area_get_height(&bar) == H);
 
     em.exit();
     process_lvgl(50);
@@ -164,6 +177,30 @@ TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: a drop that moves nothing repain
     const int32_t repainted = invalidated_px();
     INFO("repainted " << repainted << " of the page's " << page_px << " px");
     CHECK(repainted < page_px / 2);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: a resize step leaves the page's layout alone",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_layout");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    GridEditModeTestAccess::make_resize_preview(em, 0, 0, 200, 150);
+    GridEditModeTestAccess::update_snap_preview(em, 0, 0, GridEditScene::COLSPAN,
+                                                GridEditScene::ROWSPAN, true);
+    flush_invalidation();
+    lv_obj_t* screen = lv_obj_get_screen(scene.container);
+    REQUIRE_FALSE(screen->scr_layout_inv);
+
+    // Each pointer move runs both. A preview inside the page dirties its grid,
+    // and the next refresh lays out every object on the screen for it.
+    GridEditModeTestAccess::make_resize_preview(em, 0, 0, 260, 150);
+    GridEditModeTestAccess::update_snap_preview(
+        em, GridEditScene::COLSPAN, 0, GridEditScene::COLSPAN, GridEditScene::ROWSPAN, true);
+    CHECK_FALSE(screen->scr_layout_inv);
 
     em.exit();
     process_lvgl(50);

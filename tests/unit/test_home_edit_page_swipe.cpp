@@ -3125,7 +3125,12 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(GridEditModeTestAccess::snap_row(grid()) == previewed_row);
     lv_obj_t* preview = GridEditModeTestAccess::snap_preview(grid());
     REQUIRE(preview != nullptr);
-    CHECK(lv_obj_get_parent(preview) == page(1));
+    // The preview lives on the top layer, drawn where the landing page settles.
+    CHECK(lv_obj_get_parent(preview) == lv_display_get_layer_top(lv_obj_get_display(page(1))));
+    lv_obj_update_layout(preview);
+    const lv_area_t drawn = area_of(preview);
+    CHECK(drawn.x1 >= frame.x1);
+    CHECK(drawn.x1 <= frame.x2);
     indev.move(x, c.y);
     CHECK(GridEditModeTestAccess::snap_col(grid()) == previewed_col);
     CHECK(GridEditModeTestAccess::snap_row(grid()) == previewed_row);

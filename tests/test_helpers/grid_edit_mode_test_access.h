@@ -147,6 +147,11 @@ struct GridEditModeTestAccess {
 
     /// The live drag's grid-snapped drop preview, or nullptr when none is drawn.
     static lv_obj_t* snap_preview(const GridEditMode& em) {
+        return em.snap_preview_[0];
+    }
+
+    /// All four bars of the snap preview.
+    static std::array<lv_obj_t*, 4> snap_preview_bars(const GridEditMode& em) {
         return em.snap_preview_;
     }
 
