@@ -949,40 +949,7 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         [](NavigationManager* mgr, int value) { mgr->handle_klippy_state_change(value); },
         get_printer_state().get_subjects_lifetime());
 
-    // Printer badge click handler
-    lv_obj_t* printer_badge = lv_obj_find_by_name(navbar, "nav_printer_badge");
-    if (printer_badge) {
-        lv_obj_add_event_cb(
-            printer_badge,
-            [](lv_event_t*) { NavigationManager::instance().on_printer_badge_clicked(); },
-            LV_EVENT_CLICKED, nullptr);
-    }
-
-    // Connection status dot — color reflects WebSocket connection state
-    printer_dot_widget_ = lv_obj_find_by_name(navbar, "nav_printer_dot");
-    if (printer_dot_widget_) {
-        printer_dot_observer_ = observe<int>(
-            get_printer_state().get_printer_connection_state_subject(), this,
-            [](NavigationManager* mgr, int state) {
-                if (!mgr->printer_dot_widget_)
-                    return;
-                lv_color_t color;
-                switch (state) {
-                case 2: // connected
-                    color = theme_manager_get_color("success");
-                    break;
-                case 1: // connecting
-                case 3: // reconnecting
-                    color = theme_manager_get_color("warning");
-                    break;
-                default: // disconnected, failed
-                    color = theme_manager_get_color("danger");
-                    break;
-                }
-                lv_obj_set_style_bg_color(mgr->printer_dot_widget_, color, 0);
-            },
-            get_printer_state().get_subjects_lifetime());
-    }
+    printer_badge_.wire(navbar);
 
     // The printer badge is the one navbar element a setting can add or remove
     // while the user is looking at it, and its toggle lives inside an overlay —
@@ -2132,8 +2099,7 @@ void NavigationManager::shutdown() {
     spdlog::trace("[NavigationManager] Shutting down...");
     shutting_down_ = true;
 
-    // Hide printer switch menu if open (its widget is a child of the screen)
-    printer_switch_menu_.hide();
+    printer_badge_.shutdown();
 
     // Deactivate any overlays in the stack
     for (lv_obj_t* overlay_widget : panel_stack_) {
@@ -2155,19 +2121,10 @@ void NavigationManager::shutdown() {
         panel = nullptr;
     }
 
-    // Clear connection status dot observer
-    printer_dot_observer_.reset();
-    printer_dot_widget_ = nullptr;
-
     // Clear panel stack
     panel_stack_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
-
-    // Clear printer callbacks — they capture Application pointers that become
-    // invalid after soft restart tears down and rebuilds printer state
-    printer_switch_cb_ = nullptr;
-    add_printer_cb_ = nullptr;
 
     spdlog::trace("[NavigationManager] Shutdown complete");
 }
@@ -2185,59 +2142,15 @@ void NavigationManager::set_backdrop_visible(bool visible) {
 
 void NavigationManager::set_printer_callbacks(PrinterSwitchCallback switch_cb,
                                               AddPrinterCallback add_cb) {
-    printer_switch_cb_ = std::move(switch_cb);
-    add_printer_cb_ = std::move(add_cb);
+    printer_badge_.set_callbacks(std::move(switch_cb), std::move(add_cb));
 }
 
 void NavigationManager::trigger_printer_switch(const std::string& printer_id) {
-    if (printer_switch_cb_) {
-        printer_switch_cb_(printer_id);
-    } else {
-        spdlog::warn("[NavigationManager] No printer switch callback registered");
-    }
+    printer_badge_.trigger_switch(printer_id);
 }
 
 void NavigationManager::trigger_add_printer() {
-    if (add_printer_cb_) {
-        add_printer_cb_();
-    } else {
-        spdlog::warn("[NavigationManager] No add printer callback registered");
-    }
-}
-
-void NavigationManager::on_printer_badge_clicked() {
-    if (printer_switch_menu_.is_visible()) {
-        printer_switch_menu_.hide();
-        return;
-    }
-
-    lv_obj_t* badge = lv_obj_find_by_name(navbar_widget_, "nav_printer_badge");
-    if (!badge)
-        return;
-
-    lv_obj_t* screen = lv_obj_get_screen(navbar_widget_);
-
-    printer_switch_menu_.set_switch_callback(
-        [this](helix::ui::PrinterSwitchMenu::MenuAction action, const std::string& printer_id) {
-            switch (action) {
-            case helix::ui::PrinterSwitchMenu::MenuAction::SWITCH:
-                spdlog::info("[Nav] Switching to printer '{}'", printer_id);
-                if (printer_switch_cb_) {
-                    printer_switch_cb_(printer_id);
-                }
-                break;
-            case helix::ui::PrinterSwitchMenu::MenuAction::ADD_PRINTER:
-                spdlog::info("[Nav] Adding new printer via wizard");
-                if (add_printer_cb_) {
-                    add_printer_cb_();
-                }
-                break;
-            case helix::ui::PrinterSwitchMenu::MenuAction::CANCELLED:
-                break;
-            }
-        });
-
-    printer_switch_menu_.show(screen, badge);
+    printer_badge_.trigger_add();
 }
 
 void NavigationManager::deinit_subjects() {

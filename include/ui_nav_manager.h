@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ui_nav.h"
+#include "ui_nav_printer_badge.h"
 #include "ui_observer_guard.h"
-#include "ui_printer_switch_menu.h"
 #include "ui_widget_ref.h"
 
 #include "lvgl/lvgl.h"
@@ -554,8 +554,8 @@ class NavigationManager {
     void set_backdrop_visible(bool visible);
 
     /// Callback type for printer switch/add actions from the navbar badge menu
-    using PrinterSwitchCallback = std::function<void(const std::string& printer_id)>;
-    using AddPrinterCallback = std::function<void()>;
+    using PrinterSwitchCallback = helix::ui::PrinterBadgeMenu::SwitchCallback;
+    using AddPrinterCallback = helix::ui::PrinterBadgeMenu::AddCallback;
 
     /**
      * @brief Register callbacks for printer switching from navbar badge menu
@@ -807,12 +807,8 @@ class NavigationManager {
     ObserverGuard active_panel_observer_;
     ObserverGuard connection_state_observer_;
     ObserverGuard klippy_state_observer_;
-    ObserverGuard printer_dot_observer_;
     ObserverGuard printer_switcher_observer_;
     ObserverGuard theme_observer_;
-
-    // Printer connection status dot widget
-    lv_obj_t* printer_dot_widget_ = nullptr;
 
     // Track previous states for detecting transitions
     int previous_connection_state_ = -1;
@@ -849,9 +845,6 @@ class NavigationManager {
     // Shutdown flag — overlays should skip destructive actions (e.g. ABORT)
     bool shutting_down_ = false;
 
-    // Printer badge menu
-    helix::ui::PrinterSwitchMenu printer_switch_menu_;
-    void on_printer_badge_clicked();
-    PrinterSwitchCallback printer_switch_cb_;
-    AddPrinterCallback add_printer_cb_;
+    // Printer badge: connection dot and the switch/add menu
+    helix::ui::PrinterBadgeMenu printer_badge_;
 };
