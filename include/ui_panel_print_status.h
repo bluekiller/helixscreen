@@ -30,7 +30,7 @@ struct MemoryInfo;
 } // namespace helix
 
 #include "filament_mapper.h" // helix::GcodeToolInfo
-#include "gcode_preview_fetcher.h"
+#include "print_preview_controller.h"
 
 #include <functional>
 #include <memory>
@@ -247,7 +247,7 @@ class PrintStatusPanel : public OverlayBase {
      */
     void set_api(IMoonrakerAPI* api) {
         api_ = api;
-        preview_fetcher_.set_api(api);
+        preview_.set_api(api);
         if (exclude_manager_) {
             exclude_manager_->set_api(api);
         }
@@ -470,19 +470,7 @@ class PrintStatusPanel : public OverlayBase {
     /// Pure-logic state machine (no LVGL deps) — owns all print state variables
     PrintLifecycleState lifecycle_;
 
-    // Thumbnail loading state
     std::string current_print_filename_; ///< Full path to current print file (for metadata fetch)
-    /// Path most recently accepted from the shared thumbnail subject. Kept so
-    /// on_activate() can re-apply it without a refetch.
-    std::string cached_thumbnail_path_;
-
-#if defined(HELIX_PLATFORM_ESP32)
-    /// PSRAM-resident thumbnail currently shown in print_thumbnail_. There is
-    /// no cache file on this platform, so cached_thumbnail_path_ stays empty
-    /// and this shared_ptr is what keeps the image src's buffer alive.
-    /// Main-thread only (its destructor drops the LVGL image cache entry).
-    std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail_;
-#endif
 
     // Child widgets
     lv_obj_t* progress_bar_ = nullptr;
@@ -491,35 +479,8 @@ class PrintStatusPanel : public OverlayBase {
     lv_obj_t* print_thumbnail_ = nullptr;
     lv_obj_t* gradient_background_ = nullptr;
 
-    // Per-asset "what is on screen" markers. The thumbnail (fallback image) and
-    // the gcode viewer (3D/2D geometry) load on independent paths with very
-    // different latencies — the thumbnail subject observer can advance its marker
-    // even while the panel is hidden, while the gcode load is deferred and only
-    // scheduled when active. A SINGLE shared marker let the thumbnail mask a
-    // stale gcode render from the previous print (metadata+thumbnail correct, 3D
-    // render still the old model), so the two are tracked separately and
-    // reconciled independently in ensure_preview_current(). Empty when that
-    // widget shows nothing; cleared in lockstep with widget destruction
-    // (on_ui_destroyed) and geometry clearing (clear callback) so the
-    // reconciliation never trusts a stale "showing X" claim against a blank
-    // widget.
-    std::string displayed_file_;       // file whose image is in the thumbnail
-    std::string gcode_displayed_file_; // file whose geometry is in the viewer
-    // Print whose gcode the viewer's current load is for. load_gcode_file()
-    // writes it in the same call that starts the viewer load, and the viewer
-    // reports only its newest load, so the load callback always reads the name
-    // of the load it is reporting. The callback records gcode_displayed_file_
-    // and publishes the scan's pauses under this name.
-    std::string gcode_load_filename_;
-
-    // Deferred G-code loading: filename to load when panel becomes visible
-    // Set in set_filename(), consumed in on_activate() - avoids downloading
-    // large files unless user actually navigates to print status panel
-    std::string pending_gcode_filename_;
-
-    // One-shot timer for deferred G-code loading (5s delay after print start)
-    // Prevents memory spike during homing/heating phase
-    lv_timer_t* gcode_load_timer_ = nullptr;
+    /// What the thumbnail and G-code viewer show for the running print.
+    helix::ui::PrintPreviewController preview_;
 
     /**
      * @brief Withholds the preparing overlay until preparation is worth showing
@@ -537,14 +498,6 @@ class PrintStatusPanel : public OverlayBase {
 
     /// How long Preparing must persist before the overlay is shown.
     static constexpr uint32_t PREPARING_SHOW_DELAY_MS = 750;
-    void schedule_deferred_gcode_load();
-
-    // Reconcile the preview widgets against the current print state. Reads the
-    // ACTUAL widget state (thumbnail image source, gcode viewer geometry) and
-    // (re)loads only what is missing or stale. Safe and idempotent to call any
-    // time; called unconditionally on every on_activate() so re-entry after a
-    // destroy-on-close / memory-reclaim cycle is self-healing.
-    void ensure_preview_current();
 
     bool complete_view_mode_ = false;
 
@@ -562,10 +515,6 @@ class PrintStatusPanel : public OverlayBase {
     // Track whether panel is currently active (visible and receiving updates)
     // Used to load gcode immediately if already active when print starts
     bool is_active_ = false;
-
-    // Gets the print's G-code onto disk for the viewer; owns the downloaded
-    // copy (deleted on print end)
-    helix::ui::GcodePreviewFetcher preview_fetcher_{"PrintStatus"};
 
     // Control buttons (stored for enable/disable on state changes)
     lv_obj_t* btn_timelapse_ = nullptr;
@@ -639,22 +588,6 @@ class PrintStatusPanel : public OverlayBase {
     void update_all_displays();
     void update_heater_status_rows();
     void show_gcode_viewer(bool show);
-    /// True when @p print_filename still names the print PrinterState reports as
-    /// effective. A gcode fetch crosses a metadata lookup, a download and the
-    /// viewer's own async build, and the print can change at any point along
-    /// that chain; every stage that is about to act on @p print_filename checks
-    /// this first and drops the load instead of applying it to the wrong print.
-    bool is_load_for_effective_print(const std::string& print_filename) const;
-    /// Load @p file_path into the viewer as the gcode of print @p print_filename.
-    void load_gcode_file(const char* file_path, const std::string& print_filename);
-#if defined(HELIX_PLATFORM_ESP32)
-    /// Pull the current PSRAM thumbnail from PrinterState, hold a reference,
-    /// and point print_thumbnail_ at its descriptor. Main thread only; no-op
-    /// when the widget is absent or no thumbnail has been fetched yet.
-    void apply_esp_psram_thumbnail();
-#endif
-    void
-    load_gcode_for_viewing(const std::string& filename); ///< Download and load G-code into viewer
     void update_button_states(); ///< Enable/disable buttons based on current print state
 
     /// "Cam"/"Camera" per ui_breakpoint — full word only where Row 2 has room
@@ -669,13 +602,11 @@ class PrintStatusPanel : public OverlayBase {
     void
     update_view_toggle_position(bool objects_visible); ///< Shift view toggle when objects btn shown
     void animate_badge_pop_in(lv_obj_t* badge, const char* label); ///< Pop-in animation for badges
-    void animate_print_complete();      ///< Celebratory animation when print finishes
-    void animate_print_cancelled();     ///< Warning animation when print is cancelled
-    void animate_print_error();         ///< Error animation when print fails
-    void cleanup_temp_gcode();          ///< Remove temp G-code file downloaded for viewing
-    void show_exclude_map_view();       ///< Show overhead map view of print objects
-    void hide_exclude_map_view();       ///< Destroy map view and restore thumbnail/gradient
-    bool build_and_apply_tool_colors(); ///< Build per-tool AMS color map and apply to viewer
+    void animate_print_complete();  ///< Celebratory animation when print finishes
+    void animate_print_cancelled(); ///< Warning animation when print is cancelled
+    void animate_print_error();     ///< Error animation when print fails
+    void show_exclude_map_view();   ///< Show overhead map view of print objects
+    void hide_exclude_map_view();   ///< Destroy map view and restore thumbnail/gradient
 
     static void format_time(int seconds, char* buf, size_t buf_size);
 

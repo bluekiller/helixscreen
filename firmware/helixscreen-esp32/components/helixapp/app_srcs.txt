@@ -669,6 +669,7 @@ src/ui/ui_gcode_viewer.cpp
 #   no-op branch defines all of it), DisplaySettingsManager and RuntimeConfig.
 src/ui/gcode_preview_fetcher.cpp
 src/ui/gcode_preview_setup.cpp
+src/ui/print_preview_controller.cpp
 #   bed-mesh viewer, compiled-out branch (HELIX_HAS_BED_MESH_3D=0): same trick
 #   as ui_gcode_viewer above — its #else no-op defines ui_bed_mesh_register()
 #   (registers a stub <bed_mesh> widget so layouts parse) plus the rest of the

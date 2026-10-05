@@ -60,14 +60,15 @@ class PrintStatusPanelTestAccess {
 
     static void set_thumbnail_widget(PrintStatusPanel& panel, lv_obj_t* image) {
         panel.print_thumbnail_ = image;
+        panel.preview_.attach_widgets(panel.print_thumbnail_, panel.gcode_viewer_);
     }
 
     static const std::string& displayed_file(const PrintStatusPanel& panel) {
-        return panel.displayed_file_;
+        return panel.preview_.displayed_file();
     }
 
     static const std::string& cached_thumbnail_path(const PrintStatusPanel& panel) {
-        return panel.cached_thumbnail_path_;
+        return panel.preview_.cached_thumbnail_path();
     }
 
     /// The panel's own copy of the thumbnail source override. Distinct from the
@@ -118,6 +119,7 @@ class PrintStatusPanelTestAccess {
     /// wiring a tools-used test needs.
     static void set_gcode_viewer(PrintStatusPanel& panel, lv_obj_t* viewer) {
         panel.gcode_viewer_ = viewer;
+        panel.preview_.attach_widgets(panel.print_thumbnail_, viewer);
     }
 
     /// The tool set the panel answers with - what the print-scoped runout badge
@@ -136,7 +138,7 @@ class PrintStatusPanelTestAccess {
     /// The deferred gcode load's entry point: fetch @p filename's gcode and
     /// load it into the viewer.
     static void load_gcode_for_viewing(PrintStatusPanel& panel, const std::string& filename) {
-        panel.load_gcode_for_viewing(filename);
+        panel.preview_.load_for_viewing(filename);
     }
 
     /// The tree teardown the overlay's destroy-on-close runs.
@@ -146,7 +148,7 @@ class PrintStatusPanelTestAccess {
 
     /// The file whose geometry the panel records as loaded in the viewer.
     static const std::string& gcode_displayed_file(const PrintStatusPanel& panel) {
-        return panel.gcode_displayed_file_;
+        return panel.preview_.gcode_displayed_file();
     }
 
     /// The image source actually set on the panel's thumbnail widget, or "" when

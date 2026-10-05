@@ -84,19 +84,6 @@ namespace tio = helix::text_io;
 #include <set>
 #include <vector>
 
-// The shared thumbnail path subject never carries the empty string: a file with
-// no thumbnail (yet) is published as no_thumbnail_placeholder(). That value is a
-// perfectly good image to PUT ON SCREEN, but it is not this print's thumbnail,
-// so it must never stamp displayed_file_. ActivePrintMediaManager draws the same
-// distinction in has_thumbnail_for() and says why: take the placeholder for a
-// thumbnail and "every print would stop at the placeholder", because the marker
-// it leaves behind is what tells decide_preview_action() there is nothing left
-// to load.
-static bool is_no_thumbnail_placeholder(const char* path) {
-    return path != nullptr &&
-           std::strcmp(path, helix::PrinterPrintState::no_thumbnail_placeholder()) == 0;
-}
-
 #if HELIX_HAS_CAMERA
 // Defined in src/ui/panel_widgets/camera_widget.cpp; that directory is not on
 // this file's include path, so forward-declare rather than including the
@@ -225,10 +212,11 @@ static void try_reclaim_cached_print_status() {
 }
 
 PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* api)
-    : printer_state_(printer_state), api_(api) {
-    preview_fetcher_.set_api(api);
-    preview_fetcher_.set_rendered_probe(
-        [this]() { return gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_); });
+    : printer_state_(printer_state), api_(api),
+      preview_(get_name(), printer_state, lifecycle_,
+               {[this](bool show) { show_gcode_viewer(show); },
+                [this]() { recompute_scoped_runout(); }, [this]() { return is_active_; }}) {
+    preview_.set_api(api);
     // Pre-init local subject used by observer callback below (fires immediately on subscribe)
     lv_subject_init_int(&exclude_objects_available_subject_, 0);
 
@@ -286,7 +274,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
             // is stale; clearing by hand duplicates that, and clearing only the
             // thumbnail marker leaves the viewer holding the previous print's
             // geometry.
-            self->ensure_preview_current();
+            self->preview_.ensure_current();
         },
         ps_subjects);
 
@@ -388,19 +376,19 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // use it instead of the gcode metadata color for the 2D/3D render
     ams_color_observer_ = observe<int>(
         AmsState::instance().get_current_color_subject(), this,
-        [](PrintStatusPanel* self, int /*color_rgb*/) { self->build_and_apply_tool_colors(); },
+        [](PrintStatusPanel* self, int /*color_rgb*/) { self->preview_.apply_tool_colors(); },
         AmsState::instance().get_subjects_lifetime());
 
     // Also refresh gcode viewer colors when tool_to_slot_map changes (user remap)
     tool_map_version_observer_ = observe<int>(
         AmsState::instance().get_tool_map_version_subject(), this,
-        [](PrintStatusPanel* self, int /*version*/) { self->build_and_apply_tool_colors(); },
+        [](PrintStatusPanel* self, int /*version*/) { self->preview_.apply_tool_colors(); },
         AmsState::instance().get_subjects_lifetime());
 
     // Adopt the preparing job's identity the moment a job starts preparing,
     // mirroring the observer ActivePrintMediaManager already has for the same
     // purpose. Without it the panel's `desired` stays on the PREVIOUS print
-    // for the whole commit-to-confirmation window, so ensure_preview_current()
+    // for the whole commit-to-confirmation window, so ensure_current()
     // compares the viewer against the finished print, finds no mismatch, and
     // clear_gcode never fires - leaving the previous print's model on screen
     // exactly when it was meant to be dropped.
@@ -418,40 +406,7 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     print_thumbnail_path_observer_ = ui::observe<const char*>(
         printer_state_.get_print_thumbnail_path_subject(), this,
         [](PrintStatusPanel* self, const char* path) {
-            // No empty-path branch: ActivePrintMediaManager publishes
-            // no_thumbnail_placeholder() for a file with no thumbnail and the
-            // subject is seeded with it, so the value is always an image.
-            // The subject carries the file the path was produced FOR
-            // (set_print_thumbnail writes it before publishing the path), so
-            // compare identity instead of assuming the value is ours. A result
-            // that lands for the previous print must not be applied, and above
-            // all must not advance displayed_file_ — that stamp is what
-            // convinced ensure_preview_current() the current file was already
-            // on screen, turning activation and print start into no-ops.
-            const std::string& for_file = self->printer_state_.get_print_thumbnail_file();
-            const std::string& effective = self->printer_state_.get_effective_print_filename();
-            if (!effective.empty() && for_file != effective) {
-                spdlog::debug("[{}] Ignoring thumbnail published for '{}' (showing '{}')",
-                              self->get_name(), for_file, effective);
-                return;
-            }
-            self->cached_thumbnail_path_ = path;
-            if (self->print_thumbnail_) {
-                lv_image_set_src(self->print_thumbnail_, path);
-                spdlog::debug("[{}] Thumbnail updated from shared subject: {}", self->get_name(),
-                              path);
-                // Record what is ACTUALLY on screen, not what the panel wishes
-                // were on screen. The manager publishes the placeholder FOR the
-                // incoming file as its clear, so identity matches here even
-                // though no thumbnail has been fetched yet; stamping that would
-                // retire the reconcile before the real image ever arrives.
-                // Clearing is the honest marker: no file's thumbnail is up.
-                if (is_no_thumbnail_placeholder(path)) {
-                    self->displayed_file_.clear();
-                } else {
-                    self->displayed_file_ = for_file;
-                }
-            }
+            self->preview_.on_thumbnail_published(path);
         },
         ps_subjects, ui::Dispatch::Immediate);
 
@@ -465,8 +420,8 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     // extra deferral would only add a frame and a stale-read window.
     print_psram_thumb_observer_ = ui::observe<int>(
         printer_state_.get_print_psram_thumb_gen_subject(), this,
-        [](PrintStatusPanel* self, int /*gen*/) { self->apply_esp_psram_thumbnail(); }, ps_subjects,
-        ui::Dispatch::Immediate);
+        [](PrintStatusPanel* self, int /*gen*/) { self->preview_.apply_psram_thumbnail(); },
+        ps_subjects, ui::Dispatch::Immediate);
 #endif
 
     spdlog::debug("[{}] Subscribed to PrinterState subjects", get_name());
@@ -541,17 +496,13 @@ PrintStatusPanel::~PrintStatusPanel() {
     // Expire all outstanding async callback tokens before destroying resources
     lifetime_.invalidate();
 
-    // Cancel pending deferred G-code load timer
-    if (gcode_load_timer_) {
-        lv_timer_delete(gcode_load_timer_);
-        gcode_load_timer_ = nullptr;
-    }
+    preview_.cancel_pending_load();
     cancel_preparing_show_timer();
 
     // ObserverGuard handles observer cleanup automatically
     resize_registered_ = false;
 
-    cleanup_temp_gcode();
+    preview_.discard_file();
 
     // CRITICAL: Check if LVGL is still initialized before calling LVGL functions.
     // During static destruction, LVGL may already be torn down.
@@ -798,7 +749,7 @@ void PrintStatusPanel::init_subjects() {
                     // PrintSelectDetailView already refreshes its preview from
                     // this subject, which is why the file browser updated and
                     // print-status did not.
-                    self->build_and_apply_tool_colors();
+                    self->preview_.apply_tool_colors();
                 },
                 AmsState::instance().get_subjects_lifetime());
         }
@@ -1052,6 +1003,8 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
     print_thumbnail_ = lv_obj_find_by_name(thumbnail_section, "print_thumbnail");
     gradient_background_ = lv_obj_find_by_name(thumbnail_section, "gradient_background");
 
+    preview_.attach_widgets(print_thumbnail_, gcode_viewer_);
+
     if (gcode_viewer_) {
         spdlog::debug("[{}]   ✓ G-code viewer widget found", get_name());
 
@@ -1078,10 +1031,7 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
                 auto* panel = static_cast<PrintStatusPanel*>(ud);
                 panel->show_gcode_viewer(false);
                 panel->lifecycle_.set_gcode_loaded(false);
-                // Viewer geometry is gone; clear the GCODE marker so the next
-                // ensure_preview_current() reloads it. The thumbnail (fallback)
-                // survives, so its marker is left intact.
-                panel->gcode_displayed_file_.clear();
+                panel->preview_.forget_gcode();
             },
             this);
     } else {
@@ -1181,8 +1131,8 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
             if (helix::is_gcode_2d_streaming_safe(file_size)) {
                 spdlog::info("[{}] Loading G-code file from command line: {}", get_name(),
                              config->gcode_test_file);
-                load_gcode_file(config->gcode_test_file,
-                                printer_state_.get_effective_print_filename());
+                preview_.load_file(config->gcode_test_file,
+                                   printer_state_.get_effective_print_filename());
             } else {
                 spdlog::warn("[{}] G-code file too large for 2D streaming: {} ({} bytes) - using "
                              "thumbnail only",
@@ -1191,18 +1141,9 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
         }
     }
 
-    // Restore cached thumbnail if a print was already in progress before panel was displayed
-    // This handles the case where a print was started from Mainsail while on the Home panel
-#if defined(HELIX_PLATFORM_ESP32)
-    // cached_thumbnail_path_ is always empty here (no disk cache) — restore from
-    // the PSRAM buffer PrinterState is holding instead.
-    apply_esp_psram_thumbnail();
-#else
-    if (print_thumbnail_ && !cached_thumbnail_path_.empty()) {
-        lv_image_set_src(print_thumbnail_, cached_thumbnail_path_.c_str());
-        spdlog::info("[{}] Restored cached thumbnail: {}", get_name(), cached_thumbnail_path_);
-    }
-#endif
+    // Restore the thumbnail if a print was already in progress before the panel was
+    // displayed (e.g. one started from Mainsail while on the Home panel).
+    preview_.restore_cached_thumbnail();
 
     // Hide initially - NavigationManager will show when pushed
     lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
@@ -1261,7 +1202,7 @@ void PrintStatusPanel::on_activate() {
     // recreated widget always reloads — re-entry after destroy-on-close or a
     // memory-reclaim cycle is self-healing.
     crash_handler::breadcrumb::note("pstat_act", "ensure_preview");
-    ensure_preview_current();
+    preview_.ensure_current();
 
     // Sync button enabled/visibility state with current print state and outcome.
     // XML bindings may have been lost during overlay lifecycle transitions (#546).
@@ -1330,11 +1271,8 @@ void PrintStatusPanel::on_deactivating(DeactivateReason) {
     is_active_ = false;
     spdlog::debug("[{}] on_deactivating()", get_name());
 
-    // Cancel pending deferred G-code load (panel is no longer visible)
-    if (gcode_load_timer_) {
-        lv_timer_delete(gcode_load_timer_);
-        gcode_load_timer_ = nullptr;
-    }
+    // The panel is no longer visible: drop the queued G-code load
+    preview_.cancel_pending_load();
 
     // Note: bar animation cancellation is handled by lv_bar_destructor()
     // when widgets are deleted. Manual lv_anim_delete(bar_ptr) uses the wrong
@@ -1358,10 +1296,7 @@ void PrintStatusPanel::on_deactivating(DeactivateReason) {
             state != PrintState::Preparing) {
             ui_gcode_viewer_clear(gcode_viewer_);
             lifecycle_.set_gcode_loaded(false);
-            // Viewer geometry is gone; drop the GCODE marker so the next
-            // ensure_preview_current() (on re-activation) reloads it. The
-            // thumbnail survives, so its marker is left intact.
-            gcode_displayed_file_.clear();
+            preview_.forget_gcode();
             spdlog::debug("[{}] Cleared gcode viewer on deactivate (terminal state)", get_name());
         }
     }
@@ -1380,11 +1315,7 @@ void PrintStatusPanel::on_deactivating(DeactivateReason) {
 }
 
 void PrintStatusPanel::cleanup() {
-    // Cancel pending deferred G-code load
-    if (gcode_load_timer_) {
-        lv_timer_delete(gcode_load_timer_);
-        gcode_load_timer_ = nullptr;
-    }
+    preview_.cancel_pending_load();
     cancel_preparing_show_timer();
 
     OverlayBase::cleanup(); // Sets cleanup_called_ = true
@@ -1400,12 +1331,9 @@ void PrintStatusPanel::on_ui_destroyed() {
     // safe_delete_deferred() cleared it — hence the dedicated hook copy.
     uninstall_root_delete_hook(delete_hook_root_, on_root_deleted, this);
 
-    // Cancel pending deferred G-code load
-    if (gcode_load_timer_) {
-        lv_timer_delete(gcode_load_timer_);
-        gcode_load_timer_ = nullptr;
-    }
-    preview_fetcher_.cancel();
+    // Drops the queued and in-flight G-code load, the viewer reference and both
+    // markers, so the next open reloads everything.
+    preview_.on_tree_destroyed();
 
     // Note: LVGL animations are already cancelled by lv_obj_delete() in the base
     // class destroy_overlay_ui() call, so no need to cancel them here.
@@ -1453,13 +1381,6 @@ void PrintStatusPanel::on_ui_destroyed() {
     is_active_ = false;
     lifecycle_.set_gcode_loaded(false);
     complete_view_mode_ = false;
-    // The widget tree is gone, so nothing is displayed. Clearing both markers
-    // forces ensure_preview_current() to reload thumbnail + gcode on next open
-    // after destroy-on-close. pending_gcode_filename_ is a stale timer payload
-    // for a now-deleted viewer — drop it too.
-    displayed_file_.clear();
-    gcode_displayed_file_.clear();
-    pending_gcode_filename_.clear();
 }
 
 void PrintStatusPanel::on_root_deleted(lv_event_t* e) {
@@ -1489,6 +1410,7 @@ void PrintStatusPanel::on_root_deleted(lv_event_t* e) {
 }
 
 void PrintStatusPanel::forget_cached_widgets() {
+    preview_.detach_widgets();
     overlay_root_ = nullptr;
     progress_bar_ = nullptr;
     preparing_progress_bar_ = nullptr;
@@ -1661,10 +1583,6 @@ void PrintStatusPanel::format_time(int seconds, char* buf, size_t buf_size) {
     std::snprintf(buf, buf_size, "%s", formatted.c_str());
 }
 
-void PrintStatusPanel::cleanup_temp_gcode() {
-    preview_fetcher_.discard_file();
-}
-
 void PrintStatusPanel::show_gcode_viewer(bool show) {
     // Update viewer mode subject - XML bindings handle visibility reactively
     // Mode 0 = thumbnail (gradient + thumbnail visible, gcode viewer hidden)
@@ -1679,23 +1597,11 @@ void PrintStatusPanel::show_gcode_viewer(bool show) {
     lv_subject_set_int(&gcode_viewer_mode_subject_, mode);
 
     // When falling back to thumbnail mode, ensure the image source is applied.
-    // During async gcode reload the gradient covers the area — the user should
+    // During async gcode reload the gradient covers the area - the user should
     // at least see the cached thumbnail underneath.
-#if defined(HELIX_PLATFORM_ESP32)
-    if (mode == 0 && print_thumbnail_ && esp_thumbnail_) {
-        const void* current_src = lv_image_get_src(print_thumbnail_);
-        if (!current_src) {
-            lv_image_set_src(print_thumbnail_, esp_thumbnail_->dsc());
-        }
+    if (mode == 0) {
+        preview_.reapply_thumbnail_if_blank();
     }
-#else
-    if (mode == 0 && print_thumbnail_ && !cached_thumbnail_path_.empty()) {
-        const void* current_src = lv_image_get_src(print_thumbnail_);
-        if (!current_src) {
-            lv_image_set_src(print_thumbnail_, cached_thumbnail_path_.c_str());
-        }
-    }
-#endif
 
     // Pause/resume rendering based on visibility mode (CPU optimization)
     if (gcode_viewer_) {
@@ -1843,172 +1749,6 @@ void PrintStatusPanel::hide_exclude_map_view() {
     }
     // Un-hides thumbnail/gradient via the XML bindings on exclude_map_active.
     lv_subject_set_int(&exclude_map_active_subject_, 0);
-}
-
-bool PrintStatusPanel::is_load_for_effective_print(const std::string& print_filename) const {
-    return print_filename == printer_state_.get_effective_print_filename();
-}
-
-void PrintStatusPanel::load_gcode_file(const char* file_path, const std::string& print_filename) {
-    // A fetch that started for the print showing when it was requested can
-    // reach this point after the print has moved on - the metadata lookup and
-    // the download both cross the network. Calling ui_gcode_viewer_load_file()
-    // here would replace whatever the viewer currently shows with this stale
-    // print's geometry, so route to ensure_preview_current() instead: it
-    // reconciles against whichever print is effective NOW.
-    if (!is_load_for_effective_print(print_filename)) {
-        spdlog::debug("[{}] Dropping G-code load for '{}': no longer the effective print ('{}')",
-                      get_name(), print_filename, printer_state_.get_effective_print_filename());
-        ensure_preview_current();
-        return;
-    }
-
-    if (!gcode_viewer_ || !file_path) {
-        spdlog::warn("[{}] Cannot load G-code: viewer={}, path={}", get_name(),
-                     gcode_viewer_ != nullptr, file_path != nullptr);
-        return;
-    }
-
-    spdlog::debug("[{}] Loading G-code file: {}", get_name(), file_path);
-
-    // Register callback to be notified when loading completes
-    ui_gcode_viewer_set_load_callback(
-        gcode_viewer_,
-        [](lv_obj_t* viewer, void* user_data, bool success) {
-            auto* self = static_cast<PrintStatusPanel*>(user_data);
-
-            // The print can change again while the viewer builds this load in
-            // the background - the entry check in load_gcode_file() only knew
-            // the print was current when the load STARTED. Applying this
-            // result now would swap the already-displayed print's geometry for
-            // one that is no longer running, so drop it here too and let
-            // ensure_preview_current() (re)load whichever print is effective.
-            if (!self->is_load_for_effective_print(self->gcode_load_filename_)) {
-                spdlog::debug(
-                    "[{}] Dropping G-code load result for '{}': no longer the effective print "
-                    "('{}')",
-                    self->get_name(), self->gcode_load_filename_,
-                    self->printer_state_.get_effective_print_filename());
-                self->ensure_preview_current();
-                return;
-            }
-
-            if (!success) {
-                spdlog::error("[{}] G-code load failed", self->get_name());
-                self->lifecycle_.set_gcode_loaded(false);
-                return;
-            }
-
-            // Get layer count from loaded geometry
-            int max_layer = ui_gcode_viewer_get_max_layer(viewer);
-            if (max_layer >= 0)
-                spdlog::debug("[{}] G-code loaded: {} layers", self->get_name(), max_layer);
-            else
-                spdlog::debug("[{}] G-code loaded (renderer pending)", self->get_name());
-
-            // Mark G-code as successfully loaded (enables viewer mode on state changes)
-            self->lifecycle_.set_gcode_loaded(true);
-            // The viewer now holds the geometry of the print this load was for.
-            // Record that name as the GCODE marker: ensure_preview_current() then
-            // treats the viewer as current only for that print, and a load that
-            // landed for an earlier print reads as stale. (The thumbnail marker
-            // is recorded independently by the thumbnail path.)
-            self->gcode_displayed_file_ = self->gcode_load_filename_;
-
-            // Hand the scan's scheduled pauses to print state, where both
-            // progress surfaces read them, under the same name: a load that
-            // lands after the print switched publishes a list that does not
-            // match the new print, and its markers stay hidden.
-            {
-                std::vector<helix::gcode::ScheduledPause> pauses;
-                helix::gcode::ProgressAxis axis = helix::gcode::ProgressAxis::BytePosition;
-                if (helix::ui_gcode_viewer_get_scheduled_pauses(viewer, pauses, axis)) {
-                    self->printer_state_.set_scheduled_pauses(std::move(pauses), axis,
-                                                              self->gcode_load_filename_);
-                }
-            }
-
-            // Override extrusion colors with AMS filament colors.
-            // For multi-tool prints, applies per-tool AMS slot colors.
-            // For single-tool, falls back to current AMS color subject.
-            self->build_and_apply_tool_colors();
-
-            // The parsed file now carries the tools this print uses — refresh the
-            // print-scoped runout badge (FIX B) so it reflects only those tools.
-            self->recompute_scoped_runout();
-
-            // Show viewer if print is active or in terminal state (user can see
-            // where print stopped). Only skip in Idle.
-            if (self->lifecycle_.want_viewer()) {
-                self->show_gcode_viewer(true);
-            }
-
-            // Force layout recalculation now that viewer is visible
-            lv_obj_update_layout(viewer);
-            // Reset camera to fit model to new viewport dimensions
-            ui_gcode_viewer_reset_camera(viewer);
-
-            // Set print progress to current layer (not 0!) when joining a print in progress.
-            // Read directly from PrinterState subjects to get the latest values.
-            int viewer_max_layer = ui_gcode_viewer_get_max_layer(viewer);
-            int current_layer =
-                lv_subject_get_int(self->printer_state_.get_print_layer_current_subject());
-            int total_layers =
-                lv_subject_get_int(self->printer_state_.get_print_layer_total_subject());
-
-            // Fallback: if Moonraker metadata didn't provide layer count,
-            // use the count from the parsed/indexed gcode file
-            if (total_layers == 0 && viewer_max_layer > 0) {
-                int layer_count = viewer_max_layer + 1; // max_layer is 0-based
-                self->printer_state_.set_print_layer_total(layer_count);
-                spdlog::info("[{}] Set total layers from gcode viewer: {}", self->get_name(),
-                             layer_count);
-            }
-
-            // Update lifecycle state while we're at it
-            self->lifecycle_.on_layer_changed(current_layer, total_layers,
-                                              self->printer_state_.has_real_layer_data());
-
-            // Map from Moonraker layer count to viewer layer count
-            // Note: viewer_max_layer may be -1 if 2D renderer not yet initialized (lazy init)
-            int viewer_layer = 0;
-            if (viewer_max_layer > 0 && total_layers > 0) {
-                viewer_layer = (current_layer * viewer_max_layer) / total_layers;
-            } else if (viewer_max_layer <= 0 && current_layer > 0) {
-                // 2D renderer not ready yet - use raw current layer, will be corrected later
-                // The 2D renderer will use this value when it initializes on first render
-                viewer_layer = current_layer;
-            }
-
-            // CRITICAL: Defer to avoid lv_obj_invalidate() during render phase
-            // This callback runs during lv_timer_handler() which may be mid-render
-            struct ViewerProgressCtx {
-                lv_obj_t* viewer;
-                int layer;
-            };
-            auto ctx = std::make_unique<ViewerProgressCtx>(ViewerProgressCtx{viewer, viewer_layer});
-            helix::ui::queue_update<ViewerProgressCtx>(std::move(ctx), [](ViewerProgressCtx* c) {
-                if (c->viewer && lv_obj_is_valid(c->viewer)) {
-                    ui_gcode_viewer_set_print_progress(c->viewer, c->layer);
-                }
-            });
-
-            spdlog::debug("[{}] G-code loaded: initial layer progress set to {} "
-                          "(current={}/{}, viewer_max={})",
-                          self->get_name(), viewer_layer, current_layer, total_layers,
-                          viewer_max_layer);
-
-            // NOTE: PrintStatusPanel does NOT start prints - it only VIEWS them.
-            // Prints are started from PrintSelectPanel via the Print button.
-            // This callback is for loading G-code into the viewer for visualization only.
-            spdlog::debug("[{}] G-code loaded for viewing: {}", self->get_name(),
-                          ui_gcode_viewer_get_filename(viewer));
-        },
-        this);
-
-    // Start loading the file
-    gcode_load_filename_ = print_filename;
-    ui_gcode_viewer_load_file(gcode_viewer_, file_path);
 }
 
 void PrintStatusPanel::update_layer_text() {
@@ -2218,13 +1958,13 @@ void PrintStatusPanel::recompute_scoped_runout() {
         return;
     }
 
-    // The viewer's parsed file can lag a print switch until ensure_preview_current()
-    // reloads it: a load's completion only advances gcode_displayed_file_ to name
+    // The viewer's parsed file can lag a print switch until ensure_current()
+    // reloads it: a load's completion only advances the displayed G-code file to name
     // the print it was actually for (load_gcode_file's callback), so a mismatch
     // here means the geometry in the viewer belongs to a different print. Reading
     // get_tools_used() in that window would scope the badge to the wrong print's
     // tools, so treat it the same as no file loaded yet.
-    if (gcode_displayed_file_ != printer_state_.get_effective_print_filename()) {
+    if (preview_.gcode_displayed_file() != printer_state_.get_effective_print_filename()) {
         fsm.set_scoped_runout(-1);
         return;
     }
@@ -3065,45 +2805,9 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
 
     // Clear thumbnail and G-code tracking when print ends
     if (result.print_ended) {
-        if (!displayed_file_.empty() || !gcode_displayed_file_.empty() ||
-            lifecycle_.gcode_loaded() || preview_fetcher_.owns_file() ||
-            !pending_gcode_filename_.empty()) {
-            spdlog::debug("[{}] Clearing thumbnail/gcode tracking (print ended)", get_name());
-            // Cancel pending deferred G-code load (print is over)
-            if (gcode_load_timer_) {
-                lv_timer_delete(gcode_load_timer_);
-                gcode_load_timer_ = nullptr;
-            }
-            cached_thumbnail_path_.clear();
-#if defined(HELIX_PLATFORM_ESP32)
-            // Release our reference to the PSRAM buffer. Main thread (job-state
-            // handler), as EspPsramThumbnail's destructor requires.
-            //
-            // The src must stop naming the descriptor BEFORE the release: for a
-            // variable source lv_image stores the raw pointer (it only strdups
-            // paths), and ours can be the last reference — PrinterState drops
-            // its own the moment the filename changes, and no replacement
-            // arrives at all when the next file has no thumbnail or the fetch
-            // fails. The placeholder is what the shared path subject publishes
-            // for a file with no thumbnail, so it is a valid src here.
-            if (esp_thumbnail_ && print_thumbnail_ &&
-                lv_image_get_src(print_thumbnail_) == esp_thumbnail_->dsc()) {
-                lv_image_set_src(print_thumbnail_,
-                                 helix::PrinterPrintState::no_thumbnail_placeholder());
-            }
-            esp_thumbnail_.reset();
-#endif
-            pending_gcode_filename_.clear();
-            // The print is over. lifecycle_ already reset its own gcode_loaded
-            // flag inside on_job_state_changed(). The
-            // widgets keep showing the final frame; the desired file becomes
-            // empty, so leave displayed_file_ as-is — a new print's filename
-            // change clears it.
-            cleanup_temp_gcode();
-
-            // Note: Shared subjects (print_thumbnail_path, print_display_filename)
-            // are cleared by ActivePrintMediaManager when print_filename_ becomes empty
-        }
+        // Note: Shared subjects (print_thumbnail_path, print_display_filename)
+        // are cleared by ActivePrintMediaManager when print_filename_ becomes empty
+        preview_.on_print_ended();
     }
 
     if (from_terminal_to_idle) {
@@ -3467,9 +3171,9 @@ void PrintStatusPanel::on_print_start_phase_changed(int phase) {
 
         // Reconcile the preview now that the print is no longer preparing. The
         // viewer may need the deferred gcode load kicked and the thumbnail
-        // confirmed. ensure_preview_current() reads the real widget state and
+        // confirmed. ensure_current() reads the real widget state and
         // reloads only what is missing.
-        ensure_preview_current();
+        preview_.ensure_current();
 
         spdlog::debug("[{}] Restored state to {} after preparation complete", get_name(),
                       static_cast<int>(lifecycle_.state()));
@@ -3682,102 +3386,8 @@ void PrintStatusPanel::animate_print_error() {
 // XML callbacks are registered in ui_print_tune_overlay.cpp on first show()
 
 // ============================================================================
-// THUMBNAIL LOADING
-// ============================================================================
-
-#if defined(HELIX_PLATFORM_ESP32)
-void PrintStatusPanel::apply_esp_psram_thumbnail() {
-    auto thumb = printer_state_.get_print_psram_thumbnail();
-    if (!thumb) {
-        return;
-    }
-    // Hold the reference for as long as print_thumbnail_'s src points at the
-    // descriptor. `previous` keeps the outgoing buffer alive until after the
-    // widget stops pointing at it — otherwise the last release could free the
-    // descriptor the widget's src still names. Both releases happen here, on
-    // the main thread, which is what EspPsramThumbnail's destructor requires.
-    auto previous = std::move(esp_thumbnail_);
-    esp_thumbnail_ = std::move(thumb);
-    if (!print_thumbnail_) {
-        spdlog::info("[{}] PSRAM thumbnail held (panel not yet displayed)", get_name());
-        return;
-    }
-    lv_image_set_src(print_thumbnail_, esp_thumbnail_->dsc());
-    spdlog::info("[{}] PSRAM thumbnail displayed", get_name());
-    // Fallback content for the current print is now on screen; record it so
-    // ensure_preview_current() treats the thumbnail as current (mirrors the
-    // print_thumbnail_path observer on other platforms).
-    const std::string& effective = printer_state_.get_effective_print_filename();
-    if (!effective.empty()) {
-        displayed_file_ = effective;
-    }
-}
-#endif
-
-// ============================================================================
-// G-CODE VIEWER LOADING
-// ============================================================================
-
-void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
-    spdlog::debug("[{}] Loading G-code for viewing: {}", get_name(), filename);
-
-    // Skip if no viewer widget
-    if (!gcode_viewer_) {
-        spdlog::debug("[{}] No gcode_viewer_ widget - skipping G-code load", get_name());
-        return;
-    }
-
-    // Skip if no API available
-    if (!api_) {
-        spdlog::debug("[{}] No API available - skipping G-code load", get_name());
-        return;
-    }
-
-    // ensure_preview_current() queues this fetch through a debounce timer (up
-    // to 5s), and the print can move on before the timer fires. Checking here
-    // avoids starting a cache lookup, metadata fetch or download for a print
-    // that is already known to be the wrong one.
-    if (!is_load_for_effective_print(filename)) {
-        spdlog::debug("[{}] Skipping G-code fetch for '{}': no longer the effective print ('{}')",
-                      get_name(), filename, printer_state_.get_effective_print_filename());
-        ensure_preview_current();
-        return;
-    }
-
-    preview_fetcher_.fetch(
-        filename,
-        [this, filename](const std::string& path) { load_gcode_file(path.c_str(), filename); },
-        [this](helix::ui::GcodePreviewFetcher::Unavailable) { show_gcode_viewer(false); });
-}
-
-// ============================================================================
 // FILAMENT COLOR OVERRIDE
 // ============================================================================
-
-bool PrintStatusPanel::build_and_apply_tool_colors() {
-    if (!gcode_viewer_ || !ui_gcode_viewer_has_content(gcode_viewer_)) {
-        return false;
-    }
-
-    // ONE rule, any tool count: color(tool N) = the color of the lane that
-    // actually prints N. No palette, no tool-count branch, no active-lane
-    // special case — a 1-tool file and an N-tool file take this exact path.
-    //
-    // What used to be here asked "what mapping SHOULD this print use" (the
-    // slicer palette matched against lane colors) and then patched the gaps with
-    // fallbacks. That is the right question BEFORE a print, and it still lives
-    // in PrintSelectDetailView where it decides what to send. Once the print is
-    // underway the question is "what mapping IS in effect", and the firmware
-    // answers it exactly — so inferring it here was guessing at something already
-    // known, and the guess is what forced the special cases.
-    if (ui_gcode_viewer_apply_ams_tool_colors(gcode_viewer_)) {
-        return true;
-    }
-
-    // Nothing knowable (no routing published, or no lane knows a color). Leave
-    // the renderer's slicer colors alone rather than painting a plausible lie.
-    return false;
-}
 
 // ============================================================================
 // PUBLIC API
@@ -3788,188 +3398,14 @@ void PrintStatusPanel::set_temp_control_panel(TemperatureService* temp_panel) {
     spdlog::trace("[{}] TemperatureService reference set", get_name());
 }
 
-void PrintStatusPanel::schedule_deferred_gcode_load() {
-    // Cancel any existing timer (debounce: if filename changes rapidly, only load the latest)
-    if (gcode_load_timer_) {
-        lv_timer_delete(gcode_load_timer_);
-        gcode_load_timer_ = nullptr;
-    }
-
-    if (pending_gcode_filename_.empty())
-        return;
-
-    // Short delay if already printing (user is actively viewing), longer during
-    // homing/heating to avoid memory spike while printer is still preparing
-    uint32_t delay_ms =
-        (lifecycle_.state() == PrintState::Printing || lifecycle_.state() == PrintState::Paused)
-            ? 500
-            : 5000;
-
-    spdlog::debug("[{}] Scheduling deferred G-code load in {}ms: {}", get_name(), delay_ms,
-                  pending_gcode_filename_);
-
-    gcode_load_timer_ = lv_timer_create(
-        [](lv_timer_t* timer) {
-            auto* self = static_cast<PrintStatusPanel*>(lv_timer_get_user_data(timer));
-            self->gcode_load_timer_ = nullptr; // timer is auto-deleted after one-shot
-            if (!self->pending_gcode_filename_.empty()) {
-                spdlog::info("[{}] Deferred G-code load firing: {}", self->get_name(),
-                             self->pending_gcode_filename_);
-                self->load_gcode_for_viewing(self->pending_gcode_filename_);
-                self->pending_gcode_filename_.clear();
-            }
-        },
-        delay_ms, this);
-    lv_timer_set_repeat_count(gcode_load_timer_, 1); // one-shot
-}
-
 void PrintStatusPanel::set_filename(const char* filename) {
     // Store the actual filename (may be a temp file path)
     current_print_filename_ = filename ? filename : "";
 
     // The identity of the running print - including retiring an override that
     // stopped describing it, and resolving a rewritten temp path - is decided by
-    // PrinterPrintState before print_filename_ is ever published. The panel used
-    // to redo all of it from its own copy and compare its answer against the one
-    // the media manager published; any divergence dropped the thumbnail with no
-    // retry (prestonbrown/helixscreen#1339).
-    const std::string& effective_filename = printer_state_.get_effective_print_filename();
-
-    // Note: Display filename is now handled by ActivePrintMediaManager
-    // PrintStatusPanel only needs to load local resources (gcode viewer, local thumbnail)
-
-    // When the effective filename CHANGES, the widgets are showing the old file
-    // (or nothing). Clear each stale per-asset marker so ensure_preview_current()
-    // sees the mismatch and reloads that asset. Each marker is cleared only when
-    // ITS OWN asset is stale — the thumbnail can already be current while the
-    // gcode viewer still holds the previous print, so clearing them together
-    // would force a needless thumbnail re-fetch. Idempotent: a repeated observer
-    // fire with the same effective filename leaves the markers untouched and
-    // ensure_preview_current() becomes a no-op if the widgets already hold valid
-    // content.
-    if (!effective_filename.empty() && effective_filename != displayed_file_) {
-        // Clear stale cached thumbnail from previous print
-        cached_thumbnail_path_.clear();
-        displayed_file_.clear();
-    }
-    if (!effective_filename.empty() && effective_filename != gcode_displayed_file_) {
-        gcode_displayed_file_.clear();
-    }
-    ensure_preview_current();
-}
-
-void PrintStatusPanel::ensure_preview_current() {
-    // Desired state = the effective filename of the current print.
-    const std::string& desired = printer_state_.get_effective_print_filename();
-
-    // Read ACTUAL widget state — not intent bools, which can lie after a
-    // destroy-on-close / memory-reclaim cycle. This is what makes re-entry
-    // self-healing.
-    bool thumbnail_has_src = print_thumbnail_ && lv_image_get_src(print_thumbnail_) != nullptr;
-    bool gcode_has_content = gcode_viewer_ && ui_gcode_viewer_has_content(gcode_viewer_);
-
-    bool want_viewer = lifecycle_.want_viewer();
-
-    // Thumbnail Only answers for the whole G-code pipeline, not just what is
-    // drawn: skipping the fetch here is what keeps a large file off the disk,
-    // out of the layer indexer and away from the background render pass while
-    // the printer needs the CPU.
-    bool viewer_enabled = helix::ui::preview_viewer_enabled();
-
-    helix::ui::PreviewAction action = helix::ui::decide_preview_action(
-        displayed_file_, gcode_displayed_file_, desired, thumbnail_has_src, gcode_has_content,
-        want_viewer, viewer_enabled);
-
-    spdlog::debug("[{}] ensure_preview_current: thumb_file='{}' gcode_file='{}' desired='{}' "
-                  "thumb_src={} gcode_content={} want_viewer={} viewer_enabled={} -> "
-                  "load_thumb={} load_gcode={} clear_gcode={}",
-                  get_name(), displayed_file_, gcode_displayed_file_, desired, thumbnail_has_src,
-                  gcode_has_content, want_viewer, viewer_enabled, action.load_thumbnail,
-                  action.load_gcode, action.clear_gcode);
-
-    if (desired.empty()) {
-        return; // Nothing to show.
-    }
-
-    // Drop the previous print's geometry FIRST. The reload below is deferred by
-    // seconds while the printer is still preparing, and the viewer keeps
-    // rendering what it holds until then, so without this the user watches the
-    // last print's model for the whole deferral (#1337-adjacent report: "the
-    // image from the previous print is displayed first"). ui_gcode_viewer_clear()
-    // fires the clear callback, which flips the view mode back to the thumbnail,
-    // so the fallback the user lands on is this print's slicer preview.
-    if (action.clear_gcode && gcode_viewer_) {
-        spdlog::debug("[{}] Clearing stale G-code geometry (viewer holds another print, "
-                      "desired '{}')",
-                      get_name(), desired);
-        ui_gcode_viewer_clear(gcode_viewer_);
-    }
-
-    if (action.load_thumbnail && print_thumbnail_ &&
-        helix::ui::is_on_active_screen(print_thumbnail_)) {
-        // The overlay root is parented under the active screen, so a thumbnail
-        // that no longer roots there has been reparented onto lv_layer_top() to
-        // await deletion. Setting its image src would cascade lv_image_set_src →
-        // update_align → lv_obj_update_layout across the layer and recurse into
-        // sibling condemned grid subtrees whose children may already be freed
-        // (#1001). Same guard the home-panel widget applies to its own thumbs.
-        //
-        // Nothing here fetches: that belongs to ActivePrintMediaManager, the
-        // single writer of the shared subject. The only two sources are our own
-        // cache and that subject's current value.
-        if (!cached_thumbnail_path_.empty() && displayed_file_ == desired) {
-            // Cheap re-apply of a thumbnail we already hold for this file.
-            crash_handler::breadcrumb::note("pstat_thm", "set_src_pre");
-            lv_image_set_src(print_thumbnail_, cached_thumbnail_path_.c_str());
-            crash_handler::breadcrumb::note("pstat_thm", "set_src_post");
-            displayed_file_ = desired;
-        } else if (printer_state_.get_print_thumbnail_file() == desired) {
-            // The subject already carries this file's image, but it was
-            // published BEFORE our own view of the filename caught up: the
-            // manager observes print_filename synchronously while this panel's
-            // filename observer is deferred, so print_thumbnail_path_observer_
-            // compared against the PREVIOUS filename and correctly dropped it.
-            // Re-reading the subject once the filename lands is what makes that
-            // ordering self-healing instead of leaving the previous print's
-            // image on the new print's card.
-            const char* published =
-                lv_subject_get_string(printer_state_.get_print_thumbnail_path_subject());
-            cached_thumbnail_path_ = published;
-            crash_handler::breadcrumb::note("pstat_thm", "set_src_pre");
-            lv_image_set_src(print_thumbnail_, published);
-            crash_handler::breadcrumb::note("pstat_thm", "set_src_post");
-            if (is_no_thumbnail_placeholder(published)) {
-                // Identity matches but there is nothing to adopt: this is the
-                // manager's "no thumbnail for this file yet" clear. Show it,
-                // leave the marker empty so the next reconcile tries again.
-                displayed_file_.clear();
-                spdlog::debug("[{}] Published path for '{}' is the no-thumbnail placeholder; "
-                              "showing it without marking the preview current",
-                              get_name(), desired);
-            } else {
-                displayed_file_ = desired;
-                spdlog::debug("[{}] Adopted already-published thumbnail for '{}': {}", get_name(),
-                              desired, published);
-            }
-        } else {
-            // Neither source could supply an image, and nothing here retries:
-            // the next reconcile is whatever the manager publishes or the next
-            // filename change. Name both identities, because in a log the
-            // resulting symptom - the previous print's image sitting under the
-            // correct filename - is otherwise indistinguishable from a fetch
-            // that simply has not landed yet (#1339).
-            spdlog::debug("[{}] No thumbnail source for '{}': subject holds one for '{}'",
-                          get_name(), desired, printer_state_.get_print_thumbnail_file());
-        }
-    }
-
-    if (action.load_gcode) {
-        // Queue the (expensive) gcode download. The deferred timer debounces and
-        // load_gcode_file's success callback records gcode_displayed_file_.
-        // Schedule immediately when active; otherwise on_activate() runs this again.
-        pending_gcode_filename_ = desired;
-        if (is_active_) {
-            schedule_deferred_gcode_load();
-        }
-    }
+    // PrinterPrintState before print_filename_ is ever published. The panel
+    // only reconciles its local resources (G-code viewer, thumbnail) against it
+    // (prestonbrown/helixscreen#1339).
+    preview_.on_filename_changed();
 }
