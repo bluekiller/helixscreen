@@ -258,7 +258,7 @@ Subjects are the plugin's whole output: XML binds to them, Lua sets them.
 | `helix.ui.on(name, fn)` | | registers the handler a `plugin_event` or an `action` setting row fires; `name` is 1-48 chars of `[a-z0-9_-]`; `fn(arg)` receives the `user_data` argument string or `nil` |
 | `helix.ui.toast(msg[, severity])` | | `severity` is `"info"` (default), `"success"`, `"warning"` or `"error"` |
 | `helix.ui.confirm(title, msg[, opts])` | | `opts.severity` (`"info"`, `"warning"`, `"error"`), `opts.confirm_text` (default `"OK"`), `opts.on_confirm`, `opts.on_cancel`; a dismissed dialog runs `on_cancel` too; at most one open dialog per plugin; not during `on_unload` |
-| `helix.ui.overlay(component[, attrs])` | handle | opens one of the plugin's own components full-screen; `attrs` is a table of string attributes passed to the component plus an optional `on_close` function; `handle.close()` closes it; the plugin unloading closes every open overlay; not during `on_unload` |
+| `helix.ui.overlay(component[, attrs])` | handle | opens one of the plugin's own components full-screen; a component the plugin already has open is a no-op returning the same handle (the showing overlay keeps its attrs and `on_close`); `attrs` is a table of string attributes passed to the component plus an optional `on_close` function; `handle.close()` closes it; the plugin unloading closes every open overlay; not during `on_unload` |
 
 ### helix.widget (`src/plugin/lua_bind_widget.cpp`)
 

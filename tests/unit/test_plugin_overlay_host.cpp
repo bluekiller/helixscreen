@@ -84,6 +84,65 @@ TEST_CASE_METHOD(OverlayFx, "unload pops the plugin's overlays", "[plugin][overl
     CHECK(rig.host->overlays().open_count("widget-demo") == 0);
 }
 
+TEST_CASE_METHOD(OverlayFx, "a second open of a showing overlay is a no-op", "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    REQUIRE(rt->run_string(R"(
+        first_closes = 0
+        a = helix.ui.overlay("widget-demo__panel", {on_close = function() first_closes = first_closes + 1 end}))",
+                           "t"));
+    drain();
+    REQUIRE(rig.host->overlays().open_count("widget-demo") == 1);
+
+    // A re-fired open handler must not stack a buried twin of the showing
+    // overlay: the count must not move, the handle is the one already open, and
+    // this on_close is dropped, not kept for a close it will never see.
+    REQUIRE(rt->run_string(R"(
+        b = helix.ui.overlay("widget-demo__panel", {on_close = function() second_ran = true end}))",
+                           "t"));
+    drain();
+    CHECK(rig.host->overlays().open_count("widget-demo") == 1);
+    lua_getglobal(rt->state(), "a");
+    lua_getglobal(rt->state(), "b");
+    CHECK(lua_tointeger(rt->state(), -1) == lua_tointeger(rt->state(), -2));
+    lua_pop(rt->state(), 2);
+
+    REQUIRE(rt->run_string("a:close()", "t"));
+    drain();
+    process_lvgl(500);
+    CHECK(rig.host->overlays().open_count("widget-demo") == 0);
+    CHECK_FALSE(NavigationManager::instance().has_open_overlays());
+    lua_getglobal(rt->state(), "first_closes");
+    CHECK(lua_tointeger(rt->state(), -1) == 1);
+    lua_pop(rt->state(), 1);
+    lua_getglobal(rt->state(), "second_ran");
+    CHECK(lua_isnil(rt->state(), -1)); // the no-op's on_close never ran
+    lua_pop(rt->state(), 1);
+    CHECK_FALSE(rt->faulted());
+}
+
+TEST_CASE_METHOD(OverlayFx, "an opened overlay stays hidden until the push shows it",
+                 "[plugin][overlay]") {
+    HostRig rig(enabled("widget-demo", {}));
+    rig.host->load_from("tests/fixtures/plugins");
+    LuaRuntime* rt = rig.host->runtime("widget-demo");
+    REQUIRE(rt);
+    // No drain yet: between the open and the queued push, a render must not be
+    // able to draw the root on the bare screen or into the backdrop snapshot.
+    REQUIRE(rt->run_string(R"(h = helix.ui.overlay("widget-demo__panel"))", "t"));
+    lv_obj_t* screen = lv_screen_active();
+    REQUIRE(lv_obj_get_child_count(screen) > 0);
+    lv_obj_t* root = lv_obj_get_child(screen, lv_obj_get_child_count(screen) - 1);
+    REQUIRE(root);
+    CHECK(lv_obj_has_flag(root, LV_OBJ_FLAG_HIDDEN));
+
+    drain();
+    CHECK_FALSE(lv_obj_has_flag(root, LV_OBJ_FLAG_HIDDEN));
+    CHECK(NavigationManager::instance().has_open_overlays());
+}
+
 TEST_CASE_METHOD(OverlayFx, "an overlay of another plugin's component is refused",
                  "[plugin][overlay]") {
     HostRig rig(enabled("widget-demo", {}));
@@ -253,7 +312,7 @@ TEST_CASE_METHOD(OverlayFx, "closing a buried overlay pops it, not whatever is o
     // ahead of it, and must not run B's on_close.
     REQUIRE(rt->run_string(R"(
         b_closed = false
-        b = helix.ui.overlay("widget-demo__panel", {on_close = function() b_closed = true end})
+        b = helix.ui.overlay("widget-demo__panel2", {on_close = function() b_closed = true end})
         a:close())",
                            "t"));
     drain();
@@ -283,7 +342,7 @@ TEST_CASE_METHOD(OverlayFx, "unload pops a buried overlay a close already claime
     REQUIRE(rt->run_string(R"(a = helix.ui.overlay("widget-demo__panel"))", "t"));
     drain();
     REQUIRE(rt->run_string(R"(
-        b = helix.ui.overlay("widget-demo__panel")
+        b = helix.ui.overlay("widget-demo__panel2")
         a:close())",
                            "t"));
     drain();
@@ -306,7 +365,7 @@ TEST_CASE_METHOD(OverlayFx, "a host destroyed over a claimed overlay leaves noth
     REQUIRE(rt->run_string(R"(a = helix.ui.overlay("widget-demo__panel"))", "t"));
     drain();
     REQUIRE(rt->run_string(R"(
-        b = helix.ui.overlay("widget-demo__panel")
+        b = helix.ui.overlay("widget-demo__panel2")
         a:close())",
                            "t"));
     drain();

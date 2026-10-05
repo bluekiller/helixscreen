@@ -127,6 +127,31 @@ TEST_CASE_METHOD(LVGLTestFixture, "Backdrop refresh re-snapshots the live base c
     NavigationManagerTestAccess::set_panel_stack(nav, {});
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "The backdrop snapshot excludes the arriving overlay",
+                 "[navigation][backdrop]") {
+    auto& nav = NavigationManager::instance();
+    lv_obj_t* screen = test_screen();
+
+    lv_obj_t* base = make_flat_layer(screen, BASE_COLOR);
+    // An overlay root left visible at push time, as a caller that skips the
+    // create-hidden convention produces: the snapshot must not bake it in.
+    lv_obj_t* arriving = make_flat_layer(screen, OVERLAY_COLOR);
+    process_lvgl(20);
+
+    NavigationManagerTestAccess::adopt_overlay_backdrop(nav, screen, arriving);
+    lv_obj_t* backdrop = NavigationManagerTestAccess::overlay_backdrop(nav);
+    REQUIRE(backdrop != nullptr);
+
+    // Green here means the arriving overlay is its own backdrop ghost: a dimmed
+    // copy sitting behind the live panel for as long as it is open.
+    Rgb px = backdrop_center_pixel(backdrop);
+    CHECK(px.g < px.r);
+    // The arriving overlay leaves the snapshot in the visibility it started in.
+    CHECK_FALSE(lv_obj_has_flag(arriving, LV_OBJ_FLAG_HIDDEN));
+
+    NavigationManagerTestAccess::set_panel_stack(nav, {});
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "Backdrop refresh is a no-op with no backdrop live",
                  "[navigation][backdrop][refresh]") {
     auto& nav = NavigationManager::instance();

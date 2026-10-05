@@ -347,6 +347,9 @@ bool PluginHost::load(PluginInfo& info) {
                            const PluginUi::Attrs& attrs) {
         return overlays_.open(id, component, std::move(on_closed), attrs);
     };
+    l.ui.open_count = [this](const std::string& plugin_id) {
+        return overlays_.open_count(plugin_id);
+    };
     l.ui.close = [this](int handle) { overlays_.close(handle); };
     l.ctx->ui = &l.ui;
     for (Installer install :
