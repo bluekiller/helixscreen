@@ -380,8 +380,12 @@ TEST_CASE_METHOD(ToolStateFixture, "ToolState: update_from_status with no tools 
     ts.init_subjects(false);
 
     // No init_tools called, tools_ is empty
+    const int before = ts.active_tool_index();
     nlohmann::json status = {{"toolchanger", {{"tool_number", 1}}}};
-    ts.update_from_status(status); // Should not crash
+    ts.update_from_status(status);
+
+    // With no tools there is nothing for tool_number to select.
+    REQUIRE(ts.active_tool_index() == before);
 }
 
 TEST_CASE_METHOD(ToolStateFixture, "ToolState: update_from_status tool_number -1 means no tool",

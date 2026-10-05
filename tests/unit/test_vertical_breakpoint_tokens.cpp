@@ -69,6 +69,7 @@ lv_display_t* make_test_display(int32_t w, int32_t h) {
     return lv_display_create(w, h);
 }
 
+// TEST_MIRROR_OK: token() reads an XML const; it shares only its name with log_redact token()
 /// Read a token out of the "globals" XML scope, failing the test if absent.
 std::string token(const char* name) {
     const char* v = lv_xml_get_const(nullptr, name);
