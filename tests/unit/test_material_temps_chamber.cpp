@@ -60,6 +60,13 @@ lv_subject_t* set_capability(const char* name, int value) {
     return subject;
 }
 
+/// Components the overlay's XML instantiates; each case registers them itself
+/// so it runs alone as well as inside the sweep.
+void register_overlay_deps(XMLTestFixture& f) {
+    REQUIRE(f.register_component("header_bar"));
+    REQUIRE(f.register_component("overlay_panel"));
+}
+
 lv_obj_t* find_widget(const char* name) {
     return lv_obj_find_by_name(lv_screen_active(), name);
 }
@@ -90,8 +97,7 @@ void open_abs_edit_view(XMLTestFixture& f) {
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
-    REQUIRE(f.register_component("header_bar"));
-    REQUIRE(f.register_component("overlay_panel"));
+    register_overlay_deps(f);
     REQUIRE(f.register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -108,8 +114,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
-    REQUIRE(register_component("header_bar"));
-    REQUIRE(register_component("overlay_panel"));
+    register_overlay_deps(*this);
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -134,8 +139,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
-    REQUIRE(register_component("header_bar"));
-    REQUIRE(register_component("overlay_panel"));
+    register_overlay_deps(*this);
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -195,8 +199,7 @@ TEST_CASE_METHOD(XMLTestFixture, "Chamber row is absent when the printer has no 
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 0);
-    REQUIRE(register_component("header_bar"));
-    REQUIRE(register_component("overlay_panel"));
+    register_overlay_deps(*this);
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -223,8 +226,7 @@ void check_two_by_two_reflow(const char* variant_path, XMLTestFixture& f) {
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", 1);
-    REQUIRE(f.register_component("header_bar"));
-    REQUIRE(f.register_component("overlay_panel"));
+    register_overlay_deps(f);
     REQUIRE(lv_xml_register_component_from_file(variant_path) == LV_RESULT_OK);
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -286,7 +288,7 @@ Bounds bounds_of(lv_obj_t* obj) {
     return {area.x1, area.x1 + lv_obj_get_width(obj)};
 }
 
-void check_row_fits_at(int32_t screen_w, int32_t screen_h) {
+void check_row_fits_at(XMLTestFixture& f, int32_t screen_w, int32_t screen_h) {
     lv_display_t* disp = lv_display_get_default();
     REQUIRE(disp != nullptr);
 
@@ -297,10 +299,7 @@ void check_row_fits_at(int32_t screen_w, int32_t screen_h) {
         reset_material_temps_singleton();
         MaterialSettingsManager::instance().clear_override("ABS");
         set_capability("printer_has_chamber_heater", 1);
-        // The overlay is built on these and requires overlay_header; register
-        // them here so the case does not depend on an earlier test doing it.
-        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/header_bar.xml") == LV_RESULT_OK);
-        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/overlay_panel.xml") == LV_RESULT_OK);
+        register_overlay_deps(f);
         REQUIRE(lv_xml_register_component_from_file("A:ui_xml/material_temps_overlay.xml") ==
                 LV_RESULT_OK);
 
@@ -339,12 +338,12 @@ void check_row_fits_at(int32_t screen_w, int32_t screen_h) {
 
 TEST_CASE_METHOD(XMLTestFixture, "Base layout row fits at TINY with a chamber heater",
                  "[material_temps][chamber]") {
-    check_row_fits_at(480, 320);
+    check_row_fits_at(*this, 480, 320);
 }
 
 TEST_CASE_METHOD(XMLTestFixture, "Base layout row fits at TINY_PORTRAIT with a chamber heater",
                  "[material_temps][chamber]") {
-    check_row_fits_at(320, 480);
+    check_row_fits_at(*this, 320, 480);
 }
 
 // The inputs must shrink below 120px on a narrow screen (above) but never grow
@@ -353,7 +352,7 @@ TEST_CASE_METHOD(XMLTestFixture, "Base layout row fits at TINY_PORTRAIT with a c
 // every screen that was never part of this finding.
 namespace {
 
-void check_row_capped_at(int32_t screen_w, int32_t screen_h) {
+void check_row_capped_at(XMLTestFixture& f, int32_t screen_w, int32_t screen_h) {
     lv_display_t* disp = lv_display_get_default();
     REQUIRE(disp != nullptr);
 
@@ -364,10 +363,7 @@ void check_row_capped_at(int32_t screen_w, int32_t screen_h) {
         reset_material_temps_singleton();
         MaterialSettingsManager::instance().clear_override("ABS");
         set_capability("printer_has_chamber_heater", 1);
-        // The overlay is built on these and requires overlay_header; register
-        // them here so the case does not depend on an earlier test doing it.
-        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/header_bar.xml") == LV_RESULT_OK);
-        REQUIRE(lv_xml_register_component_from_file("A:ui_xml/overlay_panel.xml") == LV_RESULT_OK);
+        register_overlay_deps(f);
         REQUIRE(lv_xml_register_component_from_file("A:ui_xml/material_temps_overlay.xml") ==
                 LV_RESULT_OK);
 
@@ -395,7 +391,7 @@ void check_row_capped_at(int32_t screen_w, int32_t screen_h) {
 
 TEST_CASE_METHOD(XMLTestFixture, "Base layout row inputs stay capped at 120px at 1024x600",
                  "[material_temps][chamber]") {
-    check_row_capped_at(1024, 600);
+    check_row_capped_at(*this, 1024, 600);
 }
 
 // The printer's cap is a send-time authority, not a database bound: a value
@@ -444,8 +440,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     reset_material_temps_singleton();
     MaterialSettingsManager::instance().clear_override("ABS");
     set_capability("printer_has_chamber_heater", chamber_heater);
-    REQUIRE(register_component("header_bar"));
-    REQUIRE(register_component("overlay_panel"));
+    register_overlay_deps(*this);
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -480,8 +475,7 @@ TEST_CASE_METHOD(XMLTestFixture, "A hidden chamber override cannot block the edi
 
     reset_material_temps_singleton();
     set_capability("printer_has_chamber_heater", 0);
-    REQUIRE(register_component("header_bar"));
-    REQUIRE(register_component("overlay_panel"));
+    register_overlay_deps(*this);
     REQUIRE(register_component("material_temps_overlay"));
 
     auto& overlay = helix::settings::get_material_temps_overlay();
@@ -668,8 +662,7 @@ TEST_CASE_METHOD(XMLTestFixture,
                  "A material row presses with the shared wash and a tap opens its editor",
                  "[material_temps][press_wash][1297]") {
     reset_material_temps_singleton();
-    REQUIRE(register_component("header_bar"));
-    REQUIRE(register_component("overlay_panel"));
+    register_overlay_deps(*this);
     REQUIRE(register_component("components/material_temps_row"));
     REQUIRE(register_component("material_temps_overlay"));
 
