@@ -139,3 +139,40 @@ TEST_CASE_METHOD(LVGLTestFixture, "GCode viewer: a load superseded by a newer on
     lv_obj_delete(viewer);
     process_lvgl(50);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture, "GCode viewer: clear drops a queued load result and its spinner",
+                 "[gcode][viewer][gcode_viewer][slow]") {
+    const std::string path = find_test_asset("pause_markers_demo.gcode");
+    REQUIRE_FALSE(path.empty()); // run helix-tests from the repo root
+
+    helix::ScopedEnv restore_streaming("HELIX_GCODE_STREAMING");
+    ::setenv("HELIX_GCODE_STREAMING", "off", 1);
+
+    lv_obj_t* viewer = ui_gcode_viewer_create(test_screen());
+    REQUIRE(viewer != nullptr);
+    lv_obj_set_size(viewer, 240, 240);
+    lv_obj_update_layout(viewer);
+    const uint32_t children_before = lv_obj_get_child_count(viewer);
+
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    g_reports.clear();
+    ui_gcode_viewer_set_load_callback(viewer, on_load_done, nullptr);
+
+    ui_gcode_viewer_load_file(viewer, path.c_str());
+    // The loading UI is up and the finished result is waiting in the queue.
+    REQUIRE(lv_obj_get_child_count(viewer) > children_before);
+    REQUIRE(wait_for_queued_result(std::chrono::seconds(30)));
+    helix::test_access::gcode_viewer_wait_for_build(viewer);
+
+    ui_gcode_viewer_clear(viewer);
+    wait_until([] { return false; }, 300);
+
+    CHECK(g_reports.empty());
+    CHECK_FALSE(ui_gcode_viewer_has_content(viewer));
+    CHECK(ui_gcode_viewer_get_parsed_file(viewer) == nullptr);
+    CHECK(lv_obj_get_child_count(viewer) == children_before);
+
+    ui_gcode_viewer_set_load_callback(viewer, nullptr, nullptr);
+    lv_obj_delete(viewer);
+    process_lvgl(50);
+}

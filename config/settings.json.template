@@ -39,7 +39,7 @@
   },
   "gcode_viewer": {
     "tube_sides": 4,
-    "_tube_sides_comment": "Number of sides for tube cross-section. Options: 4 (diamond, fastest, default), 8 (octagonal, balanced), 16 (circular, highest quality, matches OrcaSlicer)",
+    "_tube_sides_comment": "Number of sides for tube cross-section. Options: 4 (rectangular, fastest, default), 8 (octagonal, balanced), 16 (circular, highest quality, matches OrcaSlicer)",
     "streaming_mode": "auto",
     "_streaming_mode_comment": "G-code streaming mode for large files. 'auto' (calculate based on RAM), 'on' (always stream), 'off' (always full load). Override with HELIX_GCODE_STREAMING env var.",
     "streaming_threshold_percent": 40,

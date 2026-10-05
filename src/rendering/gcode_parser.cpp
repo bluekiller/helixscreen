@@ -1048,10 +1048,9 @@ void GCodeParser::add_segment(const glm::vec3& start, const glm::vec3& end, bool
     }
 
     // Travels never frame a layer either: the approach and departure travels
-    // around a prime tower would inject its coordinates right back in. The
-    // global box has always been extrusion-only; this brings the layer box
-    // in line (a travel-only layer leaves the box empty, which fit_layer and
-    // the single-layer centering already handle with the plate fallback).
+    // around a prime tower would inject its coordinates right back in. Like
+    // the global box, the layer box is extrusion-only, so a travel-only layer
+    // leaves it empty.
     if (is_extrusion && !auxiliary) {
         if (!is_first_segment) {
             current_layer.bounding_box.expand(start);

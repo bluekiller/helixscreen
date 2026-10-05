@@ -239,6 +239,13 @@ class GCodeViewerState {
         return building_.load();
     }
 
+    /// Join the build thread without cancelling it (test seam).
+    void wait_for_build() {
+        if (build_thread_.joinable()) {
+            build_thread_.join();
+        }
+    }
+
     // ========================================================================
     // Public State (accessed by static callbacks)
     // ========================================================================
@@ -385,12 +392,13 @@ class GCodeViewerState {
     bool ssao_enabled_at_init_{false};
     bool antialias_enabled_at_init_{false};
 
-    /// Render mode setting - set by constructor based on HELIX_GCODE_MODE env var
-    /// Render mode setting - configurable via HELIX_GCODE_MODE env var
-    GcodeViewerRenderMode render_mode_{GcodeViewerRenderMode::Layer2D};
+    /// Render mode setting, seeded from HELIX_GCODE_MODE by the constructor.
+    /// Atomic, like budget_forced_2d_: the load worker reads both through
+    /// is_using_2d_mode() while the main thread may be setting them.
+    std::atomic<GcodeViewerRenderMode> render_mode_{GcodeViewerRenderMode::Layer2D};
 
     /// Budget system forced 2D for current file (reset on each new load)
-    bool budget_forced_2d_{false};
+    std::atomic<bool> budget_forced_2d_{false};
 
     /// GPU 3D path persistently blocked after a driver crash-loop (issues
     /// #966 / #1084 / #1085). Read once at construction from
@@ -478,9 +486,77 @@ static void gcode_viewer_refresh_content_offset(gcode_viewer_state_t* st, lv_obj
 /// viewer's own delete handler can detach it before this object is freed.
 static void gcode_viewer_occluder_delete_cb(lv_event_t* e);
 
+/// The centered spinner card shown while the viewer has nothing to draw yet.
+static void create_loading_ui(gcode_viewer_state_t* st, lv_obj_t* obj, const char* text) {
+    st->loading_container = lv_obj_create(obj);
+    lv_obj_set_size(st->loading_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_center(st->loading_container);
+    lv_obj_set_flex_flow(st->loading_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(st->loading_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_color(st->loading_container, theme_manager_get_color("card_bg"),
+                              LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(st->loading_container, 220, LV_PART_MAIN);
+    lv_obj_set_style_border_width(st->loading_container, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(st->loading_container, 8, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(st->loading_container, theme_manager_get_spacing("space_xl"),
+                             LV_PART_MAIN);
+    lv_obj_set_style_pad_gap(st->loading_container, theme_manager_get_spacing("space_md"),
+                             LV_PART_MAIN);
+
+    st->loading_spinner = lv_spinner_create(st->loading_container);
+    int32_t spinner_size = theme_manager_get_spacing("spinner_lg");
+    if (spinner_size <= 0)
+        spinner_size = 48;
+    int32_t spinner_arc = theme_manager_get_spacing("spinner_arc_lg");
+    if (spinner_arc <= 0)
+        spinner_arc = 4;
+    lv_obj_set_size(st->loading_spinner, spinner_size, spinner_size);
+    lv_color_t primary = theme_manager_get_color("primary");
+    lv_obj_set_style_arc_color(st->loading_spinner, primary, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(st->loading_spinner, spinner_arc, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_opa(st->loading_spinner, LV_OPA_0, LV_PART_MAIN);
+
+    st->loading_label = lv_label_create(st->loading_container);
+    lv_label_set_text(st->loading_label, text);
+    lv_obj_set_style_text_color(st->loading_label, theme_manager_get_color("text"), LV_PART_MAIN);
+}
+
+/// Take down the loading spinner, deferred: callers run inside queued
+/// callbacks, where a synchronous delete corrupts LVGL's event list.
+static void remove_loading_ui(gcode_viewer_state_t* st) {
+    if (st->loading_container) {
+        st->loading_spinner = nullptr;
+        st->loading_label = nullptr;
+        helix::ui::safe_delete_deferred(st->loading_container);
+    }
+}
+
 // Helper: Check if viewer has any G-code data (full file or streaming)
 static bool has_gcode_data(const gcode_viewer_state_t* st) {
     return st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
+}
+
+#ifdef ENABLE_3D_RENDERER
+static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj);
+
+/// Hand freshly built geometry for st->gcode_file to the 3D renderer. The
+/// renderer writes per-tool overrides into a mesh's palette, so the AMS colors
+/// the viewer already holds have to be written into each new mesh; the
+/// viewer's own setter skips a vector it has already applied.
+static void install_3d_geometry(gcode_viewer_state_t* st,
+                                std::unique_ptr<helix::gcode::RibbonGeometry> geometry) {
+    st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
+    if (!st->tool_color_overrides.empty()) {
+        st->renderer_->set_tool_color_overrides(st->tool_color_overrides);
+    }
+}
+#endif
+
+/// The 2D renderer's default extrusion color as 0xRRGGBB. Reads the theme, so
+/// call it on the main thread and hand the value to the build thread.
+static uint32_t default_3d_extrusion_rgb() {
+    return lv_color_to_int(helix::gcode::GCodeLayerRenderer::default_extrusion_color());
 }
 
 #ifdef ENABLE_3D_RENDERER
@@ -517,9 +593,12 @@ static BandSegmentCounts count_band_segments(const helix::gcode::ParsedGCodeFile
 /// system. Returns nullptr if the budget tier forces 2D or the build exceeds
 /// the budget. Shared between the initial async-load path and the on-demand
 /// path that fires when the user switches to 3D mode after starting in 2D.
+///
+/// @p default_rgb colors every segment the file's tool palette does not cover.
+/// Pass default_3d_extrusion_rgb(), resolved on the main thread.
 static std::unique_ptr<helix::gcode::RibbonGeometry>
 build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const char* context_tag,
-                            const std::function<bool()>& should_cancel = {}) {
+                            uint32_t default_rgb, const std::function<bool()>& should_cancel = {}) {
     helix::gcode::GeometryBudgetManager budget_mgr;
     size_t available_kb = budget_mgr.read_system_available_kb();
     size_t budget = budget_mgr.calculate_budget(available_kb);
@@ -567,7 +646,8 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
     helix::gcode::GeometryBuilder builder;
     // Palette, width and layer height describe the file, so the moving mesh
     // builds with the same values as the main geometry.
-    auto configure = [&file](helix::gcode::GeometryBuilder& b) {
+    auto configure = [&file, default_rgb](helix::gcode::GeometryBuilder& b) {
+        b.set_filament_rgb(default_rgb);
         if (!file.tool_color_palette.empty()) {
             b.set_tool_color_palette(file.tool_color_palette);
         }
@@ -668,10 +748,9 @@ build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const cha
 // Apply the colour priority chain to the 2D renderer: per-tool AMS overrides, then a
 // single external (AMS/Spoolman) override, then the colour the file was sliced for.
 //
-// Must run every time the 2D renderer is created, not just on load. Switching render
-// mode lazily constructs it and used to apply only the G-code's own tool palette, so
-// flipping 3D -> 2D silently reverted the view from the loaded filament colour to the
-// sliced-for colour.
+// Must run every time the 2D renderer is created, not just on load: a render-mode
+// switch constructs it lazily, and a renderer given only the file's own palette shows
+// the sliced-for colour instead of the loaded filament.
 static void apply_2d_renderer_colors(gcode_viewer_state_t* st) {
     if (!st || !st->layer_renderer_2d_ || !st->gcode_file) {
         return;
@@ -807,7 +886,7 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
 
     // Dispatch to appropriate renderer based on mode
     if (st->is_using_2d_mode()) {
-        // 2D Layer Renderer (orthographic top-down view)
+        // 2D layer renderer (orthographic FRONT corner view)
         if (!st->layer_renderer_2d_) {
             // Lazy initialization of 2D renderer (non-streaming mode only)
             // In streaming mode, layer_renderer_2d_ is already initialized in open_file_async
@@ -1700,8 +1779,17 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
     st->streaming_controller_.reset();
     crash_handler::breadcrumb::note("layer_renderer", "stream_reset_post");
     crash_handler::breadcrumb::note("layer_renderer", "file_reset_pre");
+    // An on-demand 3D build reads the file in place; join it before freeing.
+    st->cancel_build();
     st->gcode_file.reset();
     crash_handler::breadcrumb::note("layer_renderer", "file_reset_post");
+#ifdef ENABLE_3D_RENDERER
+    // The previous file's mesh would otherwise satisfy has_geometry() and
+    // stand in for this file on a later switch to 3D.
+    if (st->renderer_) {
+        st->renderer_->release_geometry();
+    }
+#endif
     st->scheduled_pauses.clear();
     st->scheduled_pauses_axis = helix::gcode::ProgressAxis::BytePosition;
     st->has_pause_scan = false;
@@ -1747,40 +1835,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
     // Ideal for large files on memory-constrained devices.
     // =========================================================================
     if (use_streaming) {
-        // Create loading UI
-        st->loading_container = lv_obj_create(obj);
-        lv_obj_set_size(st->loading_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_center(st->loading_container);
-        lv_obj_set_flex_flow(st->loading_container, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(st->loading_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_bg_color(st->loading_container, theme_manager_get_color("card_bg"),
-                                  LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(st->loading_container, 220, LV_PART_MAIN);
-        lv_obj_set_style_border_width(st->loading_container, 0, LV_PART_MAIN);
-        lv_obj_set_style_radius(st->loading_container, 8, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(st->loading_container, theme_manager_get_spacing("space_xl"),
-                                 LV_PART_MAIN);
-        lv_obj_set_style_pad_gap(st->loading_container, theme_manager_get_spacing("space_md"),
-                                 LV_PART_MAIN);
-
-        st->loading_spinner = lv_spinner_create(st->loading_container);
-        int32_t spinner_size = theme_manager_get_spacing("spinner_lg");
-        if (spinner_size <= 0)
-            spinner_size = 48;
-        int32_t spinner_arc = theme_manager_get_spacing("spinner_arc_lg");
-        if (spinner_arc <= 0)
-            spinner_arc = 4;
-        lv_obj_set_size(st->loading_spinner, spinner_size, spinner_size);
-        lv_color_t primary = theme_manager_get_color("primary");
-        lv_obj_set_style_arc_color(st->loading_spinner, primary, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_width(st->loading_spinner, spinner_arc, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_opa(st->loading_spinner, LV_OPA_0, LV_PART_MAIN);
-
-        st->loading_label = lv_label_create(st->loading_container);
-        lv_label_set_text(st->loading_label, lv_tr("Indexing G-code..."));
-        lv_obj_set_style_text_color(st->loading_label, theme_manager_get_color("text"),
-                                    LV_PART_MAIN);
+        create_loading_ui(st, obj, lv_tr("Indexing G-code..."));
 
         // Create streaming controller
         st->streaming_controller_ = std::make_unique<helix::gcode::GCodeStreamingController>();
@@ -1815,11 +1870,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
                 // Clean up loading UI — deferred to next frame to avoid deleting
                 // the spinner while its animation timer events may be in-flight
-                if (st->loading_container) {
-                    st->loading_spinner = nullptr;
-                    st->loading_label = nullptr;
-                    helix::ui::safe_delete_deferred(st->loading_container);
-                }
+                remove_loading_ui(st);
 
                 if (r->success && st->streaming_controller_ &&
                     st->streaming_controller_->is_open()) {
@@ -1932,46 +1983,13 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
     // LVGL spinner child causes crashes during deletion — the spinner's animation
     // timer events corrupt the event list during safe_delete in the async callback.
     if (!lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
-        st->loading_container = lv_obj_create(obj);
-        lv_obj_set_size(st->loading_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_center(st->loading_container);
-        lv_obj_set_flex_flow(st->loading_container, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(st->loading_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-
-        lv_obj_set_style_bg_color(st->loading_container, theme_manager_get_color("card_bg"),
-                                  LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(st->loading_container, 220, LV_PART_MAIN);
-        lv_obj_set_style_border_width(st->loading_container, 0, LV_PART_MAIN);
-        lv_obj_set_style_radius(st->loading_container, 8, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(st->loading_container, theme_manager_get_spacing("space_xl"),
-                                 LV_PART_MAIN);
-        lv_obj_set_style_pad_gap(st->loading_container, theme_manager_get_spacing("space_md"),
-                                 LV_PART_MAIN);
-
-        st->loading_spinner = lv_spinner_create(st->loading_container);
-        int32_t spinner_size = theme_manager_get_spacing("spinner_lg");
-        if (spinner_size <= 0)
-            spinner_size = 48;
-        int32_t spinner_arc = theme_manager_get_spacing("spinner_arc_lg");
-        if (spinner_arc <= 0)
-            spinner_arc = 4;
-        lv_obj_set_size(st->loading_spinner, spinner_size, spinner_size);
-
-        lv_color_t primary = theme_manager_get_color("primary");
-        lv_obj_set_style_arc_color(st->loading_spinner, primary, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_width(st->loading_spinner, spinner_arc, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_opa(st->loading_spinner, LV_OPA_0, LV_PART_MAIN);
-
-        st->loading_label = lv_label_create(st->loading_container);
-        lv_label_set_text(st->loading_label, lv_tr("Loading G-code..."));
-        lv_obj_set_style_text_color(st->loading_label, theme_manager_get_color("text"),
-                                    LV_PART_MAIN);
+        create_loading_ui(st, obj, lv_tr("Loading G-code..."));
     }
 
     // Launch worker thread via RAII-managed start_build()
     // Automatically cancels any existing build and joins the thread
-    st->start_build([st, obj, path = std::string(file_path), gen]() {
+    const uint32_t default_rgb = default_3d_extrusion_rgb();
+    st->start_build([st, obj, path = std::string(file_path), gen, default_rgb]() {
         auto result = std::make_unique<AsyncBuildResult>();
 
         try {
@@ -2042,7 +2060,8 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                 // renderer can walk them when the user switches back.
                 if (!st->is_using_2d_mode()) {
                     result->geometry = build_3d_geometry_in_budget(
-                        *result->gcode_file, "Initial load", [st]() { return st->is_cancelled(); });
+                        *result->gcode_file, "Initial load", default_rgb,
+                        [st]() { return st->is_cancelled(); });
                     if (!result->geometry) {
                         result->force_2d = true;
                     }
@@ -2050,6 +2069,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     spdlog::debug("[GCode Viewer] 2D mode - skipping 3D geometry build");
                 }
 #else
+                (void)default_rgb;
                 spdlog::debug("[GCode Viewer] 2D renderer - skipping geometry build");
 #endif
             }
@@ -2084,11 +2104,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
                 // Clean up loading UI — deferred to next frame to avoid deleting
                 // the spinner while its animation timer events may be in-flight
-                if (st->loading_container) {
-                    st->loading_spinner = nullptr;
-                    st->loading_label = nullptr;
-                    helix::ui::safe_delete_deferred(st->loading_container);
-                }
+                remove_loading_ui(st);
 
                 if (r->success) {
                     spdlog::debug("[GCode Viewer] Async callback - setting up geometry");
@@ -2117,8 +2133,11 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                 // Set pre-built geometry on renderer
 #ifdef ENABLE_3D_RENDERER
                     if (r->geometry) {
-                        st->renderer_->set_prebuilt_geometry(std::move(r->geometry),
-                                                             st->gcode_file->filename);
+                        install_3d_geometry(st, std::move(r->geometry));
+                    } else if (!st->is_using_2d_mode()) {
+                        // The mode went to 3D after this parse passed its own
+                        // build step.
+                        start_on_demand_3d_build(st, obj);
                     }
 #endif
 
@@ -2254,6 +2273,13 @@ void ui_gcode_viewer_clear(lv_obj_t* obj) {
     crash_handler::breadcrumb::note("layer_renderer", "clear_reset_pre");
     st->layer_renderer_2d_.reset();
     crash_handler::breadcrumb::note("layer_renderer", "clear_reset_post");
+    // An on-demand 3D build reads the file in place; join it before freeing.
+    st->cancel_build();
+    // A result queued before the cancel would otherwise pass the generation
+    // check and reinstall the file this call is clearing.
+    st->bump_generation();
+    // Nothing will deliver a result now, so nothing else takes the spinner down.
+    remove_loading_ui(st);
     st->gcode_file.reset();
     st->streaming_controller_.reset();
     st->has_external_color_override = false; // Clear external color override
@@ -2374,6 +2400,57 @@ void ui_gcode_viewer_force_redraw(lv_obj_t* obj) {
 // Render Mode Control
 // ==============================================
 
+#ifdef ENABLE_3D_RENDERER
+/// Build 3D geometry for the file already loaded, on the viewer's build thread.
+/// The result lands through the UpdateQueue: the geometry, or, when the budget
+/// refuses, the same per-file 2D fallback a refused initial load takes.
+static void start_on_demand_3d_build(gcode_viewer_state_t* st, lv_obj_t* obj) {
+    const uint64_t gen = st->load_generation();
+    const helix::gcode::ParsedGCodeFile* file = st->gcode_file.get();
+    const uint32_t default_rgb = default_3d_extrusion_rgb();
+
+    struct OnDemandBuild {
+        std::unique_ptr<helix::gcode::RibbonGeometry> geometry;
+    };
+
+    // The 3D view has no mesh to draw until the result lands.
+    if (!st->loading_container && !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+        create_loading_ui(st, obj, lv_tr("Loading G-code..."));
+    }
+
+    // Every path that frees st->gcode_file joins this thread first
+    // (cancel_build), so `file` outlives the build.
+    st->start_build([st, obj, file, gen, default_rgb]() {
+        auto result = std::make_unique<OnDemandBuild>();
+        result->geometry = build_3d_geometry_in_budget(*file, "On-demand 3D switch", default_rgb,
+                                                       [st]() { return st->is_cancelled(); });
+        if (st->is_cancelled()) {
+            return;
+        }
+        helix::ui::queue_update<OnDemandBuild>(
+            obj, std::move(result), [gen, file](lv_obj_t* viewer, OnDemandBuild* r) {
+                gcode_viewer_state_t* state = get_state(viewer);
+                if (!state || state->load_generation() != gen || state->gcode_file.get() != file) {
+                    return;
+                }
+                remove_loading_ui(state);
+                if (r->geometry) {
+                    install_3d_geometry(state, std::move(r->geometry));
+                    if (state->camera_) {
+                        state->camera_->fit_to_bounds(file->global_bounding_box);
+                    }
+                    state->needs_3d_refresh_ = true;
+                    lv_obj_invalidate(viewer);
+                } else {
+                    spdlog::warn("[GCode Viewer] 3D switch refused by memory budget; this file "
+                                 "renders in 2D");
+                    apply_budget_forced_2d(state, viewer);
+                }
+            });
+    });
+}
+#endif
+
 void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode) {
     gcode_viewer_state_t* st = get_state(obj);
     if (!st)
@@ -2392,24 +2469,11 @@ void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode) 
     }
 
 #ifdef ENABLE_3D_RENDERER
-    // If switching to 3D and the GLES renderer has no geometry (file was loaded
-    // in 2D mode so the build was skipped), build it on demand now. Without this
-    // the 3D viewer paints an empty background after a live 2D→3D switch.
+    // A file loaded in 2D skipped the 3D build. A full load still running builds
+    // it itself when it reaches that point, so only start one when idle.
     if (!st->is_using_2d_mode() && st->gcode_file && st->renderer_ &&
-        !st->renderer_->has_geometry()) {
-        auto geometry = build_3d_geometry_in_budget(*st->gcode_file, "On-demand 3D switch");
-        if (geometry) {
-            st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
-            if (st->camera_) {
-                st->camera_->fit_to_bounds(st->gcode_file->global_bounding_box);
-            }
-            st->needs_3d_refresh_ = true;
-        } else {
-            // Budget refused — stay in 2D and revert the mode flag so future state
-            // queries (is_using_2d_mode, draw_cb dispatch) keep using the 2D path.
-            spdlog::warn("[GCode Viewer] 3D switch refused by memory budget; staying in 2D");
-            st->render_mode_ = GcodeViewerRenderMode::Layer2D;
-        }
+        !st->renderer_->has_geometry() && !st->is_building()) {
+        start_on_demand_3d_build(st, obj);
     }
 #endif
 
@@ -2708,10 +2772,9 @@ bool ui_gcode_viewer_apply_ams_tool_colors(lv_obj_t* obj) {
         return false;
     }
     // Pure adapter over the ONE color rule: color(tool N) = the color of the lane
-    // that actually prints N. It used to walk AmsSystemInfo::tool_to_slot_map
-    // itself, which made it a second, dumber implementation of the same question
-    // — and a wrong one on a tool changer, where that map is physical attachment
-    // rather than print routing. Empty means "nothing knowable": leave the
+    // that actually prints N. AmsSystemInfo::tool_to_slot_map is not that
+    // answer on a tool changer, where it is physical attachment rather than
+    // print routing. Empty means "nothing knowable": leave the
     // renderer's slicer palette alone rather than painting over it.
     const auto colors = AmsState::instance().routed_tool_colors();
     if (colors.empty()) {
@@ -3221,6 +3284,40 @@ gcode_viewer_budget_force_2d(lv_obj_t* viewer,
     st->gcode_file = std::move(file);
     apply_budget_forced_2d(st, viewer);
     return st->layer_renderer_2d_.get();
+}
+
+void gcode_viewer_install_loaded_file(lv_obj_t* viewer,
+                                      std::unique_ptr<helix::gcode::ParsedGCodeFile> file) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (!st) {
+        return;
+    }
+    st->gcode_file = std::move(file);
+    st->viewer_state = GcodeViewerState::Loaded;
+}
+
+void gcode_viewer_wait_for_build(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (st) {
+        st->wait_for_build();
+    }
+}
+
+std::vector<uint32_t> gcode_viewer_3d_palette(lv_obj_t* viewer) {
+#ifdef ENABLE_3D_RENDERER
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (st && st->renderer_) {
+        return st->renderer_->get_geometry_color_palette();
+    }
+#else
+    (void)viewer;
+#endif
+    return {};
+}
+
+helix::GcodeViewerRenderMode gcode_viewer_render_mode(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->render_mode_.load() : helix::GcodeViewerRenderMode::Auto;
 }
 
 GcodeViewerWatchdogTrack gcode_viewer_watchdog_track(lv_obj_t* viewer) {

@@ -35,10 +35,6 @@ namespace gcode {
 
 namespace {
 
-/// Core stroke width the lv_draw_line path uses for an extrusion move. Named so
-/// the fallback halo pre-pass widens the same number render_segment() draws.
-constexpr int DRAW_LINE_EXTRUSION_WIDTH = 2;
-
 /// Ghost-look tuning. The goal is a faint, translucent, see-through apparition — NOT a
 /// dimmer solid copy and NOT a washed-out gray. The transparency cue comes from letting
 /// the black canvas show THROUGH the shell: the sparse internal infill is rendered nearly
@@ -222,8 +218,14 @@ void GCodeLayerRenderer::set_content_offset_y(float offset_percent) {
 // ============================================================================
 
 void GCodeLayerRenderer::set_extrusion_color(lv_color_t color) {
+    if (use_custom_extrusion_color_ && lv_color_eq(color_extrusion_, color)) {
+        // Unchanged: keep a healthy ghost build rather than restarting it.
+        return;
+    }
     color_extrusion_ = color;
     use_custom_extrusion_color_ = true;
+    // Both caches hold pixels painted in the old color.
+    invalidate_cache();
 }
 
 void GCodeLayerRenderer::set_travel_color(lv_color_t color) {
@@ -253,6 +255,8 @@ void GCodeLayerRenderer::set_tool_color_palette(const std::vector<std::string>& 
     // set_gcode()/set_streaming_controller().
     cancel_background_ghost_render();
     tool_palette_.set_from_hex_palette(hex_colors);
+    // Both caches hold pixels painted from the previous palette.
+    invalidate_cache();
     if (tool_palette_.has_tool_colors()) {
         spdlog::debug("[GCodeLayerRenderer] Set tool color palette: {} colors", hex_colors.size());
     }
@@ -293,14 +297,17 @@ void GCodeLayerRenderer::set_tool_color_overrides(const std::vector<uint32_t>& a
                   applied);
 }
 
+lv_color_t GCodeLayerRenderer::default_extrusion_color() {
+    // Info blue reads against the dark preview background.
+    return theme_manager_get_color("info");
+}
+
 void GCodeLayerRenderer::reset_colors() {
     // Join the background ghost-render worker before clearing tool_palette_ below: the worker
     // copy-reads this member without a lock, so freeing its backing vector here would race.
     cancel_background_ghost_render();
 
-    // Use theme colors for default appearance
-    // Extrusion: info blue for visibility against dark background
-    color_extrusion_ = theme_manager_get_color("info");
+    color_extrusion_ = default_extrusion_color();
 
     // Travel: subtle secondary color (grey)
     color_travel_ = theme_manager_get_color("text_muted");
@@ -352,11 +359,6 @@ void GCodeLayerRenderer::apply_selection_scope(InvalidationScope scope) {
     switch (scope) {
     case InvalidationScope::Nothing:
         return;
-    case InvalidationScope::SolidCache:
-        // Highlight only. The ghost pass never draws highlight, so leaving its cache
-        // and its worker alone saves a multi-second re-render of an identical image.
-        invalidate_solid_cache();
-        return;
     case InvalidationScope::SolidAndGhost:
         invalidate_cache();
         return;
@@ -405,12 +407,9 @@ void GCodeLayerRenderer::auto_fit() {
     AABB bb;
     if (streaming_controller_) {
         // The index scan accumulates true XY bounds over every extruding move,
-        // filtered the same way the full-file parser filters global_bounding_box.
-        // This used to sample three layers (first/middle/last) and union their
-        // segments, which framed spiral-vase prints against a 3-point hull
-        // (#1127) and mis-framed anything whose widest cross-section wasn't one
-        // of the three. Using the index also avoids loading three layers — no
-        // cache churn, no blocking reads, on the auto-fit path.
+        // filtered the same way the full-file parser filters global_bounding_box,
+        // so the fit covers the widest cross-section wherever it is (#1127)
+        // without loading a single layer on the auto-fit path.
         const auto& stats = streaming_controller_->get_index_stats();
 
         if (stats.has_z_bounds()) {
@@ -479,40 +478,6 @@ void GCodeLayerRenderer::auto_fit() {
                   canvas_width_, canvas_height_, static_cast<int>(current_view), scale_, offset_x_,
                   offset_y_, offset_z_, fit.content_height, bottom_occlusion_ * 100.0f,
                   fit.elongated, fit.content_offset_y_percent * 100.0f);
-}
-
-void GCodeLayerRenderer::fit_layer() {
-    if (!gcode_ || gcode_->layers.empty()) {
-        scale_ = 1.0f;
-        offset_x_ = 0.0f;
-        offset_y_ = 0.0f;
-        return;
-    }
-
-    if (current_layer_ < 0 || current_layer_ >= static_cast<int>(gcode_->layers.size())) {
-        return;
-    }
-
-    // Use current layer's bounding box with shared auto-fit (always top-down for single layer)
-    AABB bb = gcode_->layers[current_layer_].bounding_box;
-    if (bb.is_empty()) {
-        // Layer holds only travel moves — same ±inf NaN trap as auto_fit().
-        bb = AABB::default_plate_bbox();
-    }
-
-    bounds_min_x_ = bb.min.x;
-    bounds_max_x_ = bb.max.x;
-    bounds_min_y_ = bb.min.y;
-    bounds_max_y_ = bb.max.y;
-
-    auto fit = helix::gcode::compute_auto_fit(bb, ViewMode::TOP_DOWN, canvas_width_, canvas_height_,
-                                              0.05f, bottom_occlusion_, framing_);
-    scale_ = fit.scale;
-    offset_x_ = fit.offset_x;
-    offset_y_ = fit.offset_y;
-    content_offset_y_percent_ = fit.content_offset_y_percent;
-
-    bounds_valid_ = true;
 }
 
 void GCodeLayerRenderer::set_scale(float scale) {
@@ -652,7 +617,6 @@ void GCodeLayerRenderer::invalidate_cache() {
         lv_draw_buf_clear(ghost_buf_, nullptr);
     }
     ghost_cache_valid_ = false;
-    ghost_rendered_up_to_ = -1;
 }
 
 // ============================================================================
@@ -732,8 +696,7 @@ void GCodeLayerRenderer::apply_ssao() {
     // Runs IN PLACE on the render cache. That is safe for one specific reason:
     // the pass reads only the ALPHA of its neighbours and writes only RGB, so a
     // pixel it has already rewritten still answers every later neighbour test
-    // identically. It used to memcpy the whole canvas into a second buffer to
-    // get that guarantee, which the channel split already provides for free.
+    // identically, so no second buffer is needed.
     // =========================================================================
     constexpr float OUTLINE_DARKEN = 0.3f; // Outline brightness (0=black, 1=original)
 
@@ -1038,13 +1001,12 @@ void GCodeLayerRenderer::blit_cache(lv_layer_t* target) {
 // ============================================================================
 
 void GCodeLayerRenderer::destroy_ghost_cache() {
-    // ghost_buf_ feeds dsc.src in render_ghost_layers's blit — same
+    // ghost_buf_ feeds dsc.src in blit_ghost_cache() — same
     // parallel-render UAF pattern as cache_buf_ (#929).
     helix::safe_draw_buf_destroy(ghost_buf_, "ghost_buf");
     ghost_cached_width_ = 0;
     ghost_cached_height_ = 0;
     ghost_cache_valid_ = false;
-    ghost_rendered_up_to_ = -1;
 }
 
 void GCodeLayerRenderer::ensure_ghost_cache(int width, int height) {
@@ -1069,60 +1031,6 @@ void GCodeLayerRenderer::ensure_ghost_cache(int width, int height) {
         helix::MemoryMonitor::log_now("gcode_ghost_buffer_created");
         log_memory_report("ghost cache created");
     }
-}
-
-void GCodeLayerRenderer::render_ghost_layers(int from_layer, int to_layer) {
-    if (!ghost_buf_ || !gcode_)
-        return;
-
-    // Manually initialize layer for offscreen rendering (no canvas widget)
-    // This avoids clip area contamination from overlays/toasts on lv_layer_top()
-    lv_layer_t ghost_layer;
-    lv_memzero(&ghost_layer, sizeof(ghost_layer));
-    ghost_layer.draw_buf = ghost_buf_;
-    ghost_layer.color_format = LV_COLOR_FORMAT_ARGB8888;
-    ghost_layer.buf_area.x1 = 0;
-    ghost_layer.buf_area.y1 = 0;
-    ghost_layer.buf_area.x2 = ghost_cached_width_ - 1;
-    ghost_layer.buf_area.y2 = ghost_cached_height_ - 1;
-    ghost_layer._clip_area = ghost_layer.buf_area; // Full buffer as clip area
-    ghost_layer.phy_clip_area = ghost_layer.buf_area;
-
-    int saved_offset_x = widget_offset_x_;
-    int saved_offset_y = widget_offset_y_;
-    widget_offset_x_ = 0;
-    widget_offset_y_ = 0;
-
-    size_t segments_rendered = 0;
-    for (int layer_idx = from_layer; layer_idx <= to_layer; ++layer_idx) {
-        if (layer_idx < 0 || layer_idx >= static_cast<int>(gcode_->layers.size()))
-            continue;
-
-        const Layer& layer_data = gcode_->layers[layer_idx];
-        for (const auto& seg : layer_data.segments) {
-            if (should_render_segment(seg)) {
-                // Render with reduced opacity for ghost effect
-                render_segment(&ghost_layer, seg, true); // ghost=true
-                ++segments_rendered;
-            }
-        }
-    }
-
-    // Dispatch pending draw tasks (equivalent to lv_canvas_finish_layer)
-    lv_draw_dispatch_wait_for_request();
-    while (ghost_layer.draw_task_head) {
-        lv_draw_dispatch_layer(nullptr, &ghost_layer);
-        if (ghost_layer.draw_task_head) {
-            lv_draw_dispatch_wait_for_request();
-        }
-    }
-
-    widget_offset_x_ = saved_offset_x;
-    widget_offset_y_ = saved_offset_y;
-
-    spdlog::trace("[GCodeLayerRenderer] Rendered ghost layers {}-{}: {} segments", from_layer,
-                  to_layer, segments_rendered);
-    helix::MemoryMonitor::log_now("gcode_ghost_render_done");
 }
 
 void GCodeLayerRenderer::blit_ghost_cache(lv_layer_t* target) {
@@ -1174,223 +1082,137 @@ void GCodeLayerRenderer::render(lv_layer_t* layer, const lv_area_t* widget_area)
 
     size_t segments_rendered = 0;
 
-    // Snapshot view mode once per frame for consistent use throughout render()
-    ViewMode current_view_mode = get_view_mode();
+    // Incremental cache with progressive rendering
+    int target_layer = std::min(current_layer_, layer_count - 1);
 
-    // For FRONT view, use incremental cache with progressive rendering
-    if (current_view_mode == ViewMode::FRONT) {
-        int target_layer = std::min(current_layer_, layer_count - 1);
+    // Ensure cache buffers exist and are correct size
+    ensure_cache(canvas_width_, canvas_height_);
+    if (ghost_mode_enabled_.load(std::memory_order_relaxed)) {
+        ensure_ghost_cache(canvas_width_, canvas_height_);
+    }
 
-        // Ensure cache buffers exist and are correct size
-        ensure_cache(canvas_width_, canvas_height_);
-        if (ghost_mode_enabled_.load(std::memory_order_relaxed)) {
-            ensure_ghost_cache(canvas_width_, canvas_height_);
+    // =====================================================================
+    // GHOST CACHE: Background thread rendering (non-blocking)
+    // Uses unified background thread for both streaming and non-streaming modes.
+    // The background thread renders all layers to a raw buffer, then we copy
+    // to LVGL buffer on main thread when ready.
+    // =====================================================================
+    bool ghost_enabled = ghost_mode_enabled_.load(std::memory_order_relaxed);
+    if (ghost_enabled && ghost_buf_ && !ghost_cache_valid_) {
+        if (ghost_thread_ready_.load()) {
+            // Background thread finished - copy to LVGL buffer
+            copy_raw_to_ghost_buf();
+        } else if (!ghost_thread_running_.load()) {
+            // Start background thread if not running
+            start_background_ghost_render();
         }
+        // else: background thread is running, wait for it
+    }
 
-        // =====================================================================
-        // GHOST CACHE: Background thread rendering (non-blocking)
-        // Uses unified background thread for both streaming and non-streaming modes.
-        // The background thread renders all layers to a raw buffer, then we copy
-        // to LVGL buffer on main thread when ready.
-        // =====================================================================
-        bool ghost_enabled = ghost_mode_enabled_.load(std::memory_order_relaxed);
-        if (ghost_enabled && ghost_buf_ && !ghost_cache_valid_) {
-            if (ghost_thread_ready_.load()) {
-                // Background thread finished - copy to LVGL buffer
-                copy_raw_to_ghost_buf();
-            } else if (!ghost_thread_running_.load()) {
-                // Start background thread if not running
-                start_background_ghost_render();
-            }
-            // else: background thread is running, wait for it
+    // =====================================================================
+    // WARM-UP FRAMES: Skip heavy rendering to let panel layout complete
+    // =====================================================================
+    if (warmup_frames_remaining_ > 0) {
+        warmup_frames_remaining_--;
+        // Just blit ghost cache (if available) and return - no heavy caching yet
+        if (ghost_enabled && ghost_buf_) {
+            blit_ghost_cache(layer);
         }
+        // Request another frame to continue after warmup
+        last_frame_render_ms_ = 1; // Minimal time so adaptation doesn't spike
+        return;
+    }
 
-        // =====================================================================
-        // WARM-UP FRAMES: Skip heavy rendering to let panel layout complete
-        // =====================================================================
-        if (warmup_frames_remaining_ > 0) {
-            warmup_frames_remaining_--;
-            // Just blit ghost cache (if available) and return - no heavy caching yet
-            if (ghost_enabled && ghost_buf_) {
-                blit_ghost_cache(layer);
-            }
-            // Request another frame to continue after warmup
-            last_frame_render_ms_ = 1; // Minimal time so adaptation doesn't spike
-            return;
-        }
-
-        // =====================================================================
-        // SOLID CACHE: Progressive rendering up to current print layer
-        // =====================================================================
-        if (cache_buf_) {
-            // Check if we need to render new layers
-            if (target_layer > cached_up_to_layer_) {
-                // The rim is stamped into the cache as pixels, so appending onto a
-                // cache that already carries one leaves white behind wherever the
-                // old boundary was — the print grows upward and the stale rim
-                // becomes interior. Start over instead. Only reachable while an
-                // object is selected, which is a transient interaction.
-                if (selection_rim_stamped_) {
-                    invalidate_solid_cache();
-                }
-
-                // Progressive rendering: only render up to layers_per_frame_ at a time
-                // This prevents UI freezing during initial load or big jumps
-                int from_layer = cached_up_to_layer_ + 1;
-                int to_layer = std::min(from_layer + layers_per_frame_ - 1, target_layer);
-
-                // Advance cache only as far as the renderer actually rendered.
-                // In streaming mode a transient load miss returns < to_layer so
-                // the next frame retries the missing layer.
-                cached_up_to_layer_ = render_layers_to_cache(from_layer, to_layer);
-
-                // If we haven't caught up yet, caller should check needs_more_frames()
-                // and invalidate the widget to trigger another frame
-                if (cached_up_to_layer_ < target_layer) {
-                    spdlog::debug(
-                        "[GCodeLayerRenderer] Progressive: rendered to layer {}/{}, more needed",
-                        cached_up_to_layer_, target_layer);
-                }
-            } else if (target_layer < cached_up_to_layer_) {
-                // Going backwards - need to re-render from scratch (progressively).
-                // Same reset as the forward branch above, and it has to be the
-                // same one: the rim and the SSAO shading are baked into these
-                // pixels, so clearing them without dropping both flags leaves the
-                // next pass treating a blank buffer as already decorated.
+    // =====================================================================
+    // SOLID CACHE: Progressive rendering up to current print layer
+    // =====================================================================
+    if (cache_buf_) {
+        // Check if we need to render new layers
+        if (target_layer > cached_up_to_layer_) {
+            // The rim is stamped into the cache as pixels, so appending onto a
+            // cache that already carries one leaves white behind wherever the
+            // old boundary was — the print grows upward and the stale rim
+            // becomes interior. Start over instead. Only reachable while an
+            // object is selected, which is a transient interaction.
+            if (selection_rim_stamped_) {
                 invalidate_solid_cache();
-
-                int to_layer = std::min(layers_per_frame_ - 1, target_layer);
-                cached_up_to_layer_ = render_layers_to_cache(0, to_layer);
-                // Caller checks needs_more_frames() for continuation
-            }
-            // else: same layer, just blit cached image
-
-            // =====================================================================
-            // SELECTION RIM: derive the white silhouette from the alpha tag.
-            //
-            // Only on a complete cache — a rim over a half-built stack would
-            // trace the top of whatever has been drawn so far. Runs once per
-            // build, and only while something is selected.
-            // =====================================================================
-            if (!cache_build_reported_ && cached_up_to_layer_ >= target_layer &&
-                cache_build_start_ms_ != 0) {
-                cache_build_reported_ = true;
-                spdlog::debug("[GCodeLayerRenderer] Cache build complete: {} layers in {}ms "
-                              "({} segments, aa={}, layers_per_frame={})",
-                              cached_up_to_layer_ + 1, lv_tick_elaps(cache_build_start_ms_),
-                              last_segment_count_,
-                              antialias_enabled_.load(std::memory_order_relaxed) ? "on" : "off",
-                              layers_per_frame_);
             }
 
-            if (selection_.any_highlighted() && !selection_rim_stamped_ &&
-                cached_up_to_layer_ >= target_layer) {
-                const int rim = selection::outline_width_px(cached_width_);
-                helix::gcode::stroke_selection_rim(cache_target(), rim, rim, sel_palette_.outline,
-                                                   helix::gcode::ChannelOrder::Bgra);
-                selection_rim_stamped_ = true;
-                ssao_cache_valid_ = false;
-            }
+            // Progressive rendering: only render up to layers_per_frame_ at a time
+            // This prevents UI freezing during initial load or big jumps
+            int from_layer = cached_up_to_layer_ + 1;
+            int to_layer = std::min(from_layer + layers_per_frame_ - 1, target_layer);
 
-            // =====================================================================
-            // BLIT: Ghost first (underneath), then solid on top
-            // =====================================================================
-            if (ghost_enabled && ghost_buf_) {
-                blit_ghost_cache(layer);
-            }
+            // Advance cache only as far as the renderer actually rendered.
+            // In streaming mode a transient load miss returns < to_layer so
+            // the next frame retries the missing layer.
+            cached_up_to_layer_ = render_layers_to_cache(from_layer, to_layer);
 
-            // Apply SSAO post-processing when enabled and cache is fully built.
-            // There is one buffer now, so both branches blit the same thing; the
-            // difference is only whether the shading has been applied to it.
-            const bool ssao_on = ssao_enabled_.load(std::memory_order_relaxed);
-            const bool cache_complete = (cached_up_to_layer_ >= target_layer);
-            if (ssao_on && cache_complete && !ssao_cache_valid_) {
-                apply_ssao();
+            // If we haven't caught up yet, caller should check needs_more_frames()
+            // and invalidate the widget to trigger another frame
+            if (cached_up_to_layer_ < target_layer) {
+                spdlog::debug(
+                    "[GCodeLayerRenderer] Progressive: rendered to layer {}/{}, more needed",
+                    cached_up_to_layer_, target_layer);
             }
-            blit_cache(layer);
-            segments_rendered = last_segment_count_;
+        } else if (target_layer < cached_up_to_layer_) {
+            // Going backwards - need to re-render from scratch (progressively).
+            // Same reset as the forward branch above, and it has to be the
+            // same one: the rim and the SSAO shading are baked into these
+            // pixels, so clearing them without dropping both flags leaves the
+            // next pass treating a blank buffer as already decorated.
+            invalidate_solid_cache();
+
+            int to_layer = std::min(layers_per_frame_ - 1, target_layer);
+            cached_up_to_layer_ = render_layers_to_cache(0, to_layer);
+            // Caller checks needs_more_frames() for continuation
         }
-    } else {
-        // TOP_DOWN or ISOMETRIC: render single layer directly (no caching needed)
-        // Get segments from appropriate source
-        // For streaming mode, hold shared_ptr to keep data alive during iteration
-        std::shared_ptr<const std::vector<ToolpathSegment>> segments_holder;
-        const std::vector<ToolpathSegment>* segments = nullptr;
+        // else: same layer, just blit cached image
 
-        if (streaming_controller_) {
-            // Streaming mode: get segments from controller (returns shared_ptr)
-            segments_holder =
-                streaming_controller_->get_layer_segments(static_cast<size_t>(current_layer_));
-            segments = segments_holder.get();
-            // Use default centering for streaming mode
-            // (Could be improved by computing bounds from segments if needed)
-        } else if (gcode_) {
-            // Full file mode: get segments and bounding box from parsed file
-            const auto& layer_bb = gcode_->layers[current_layer_].bounding_box;
-            if (layer_bb.is_empty()) {
-                // Auxiliary-only or travel-only layer: min/max still hold the
-                // ±inf sentinels and their midpoint is NaN. Center the plate
-                // instead, the same guard fit_layer() applies.
-                const auto plate = AABB::default_plate_bbox();
-                offset_x_ = (plate.min.x + plate.max.x) / 2.0f;
-                offset_y_ = (plate.min.y + plate.max.y) / 2.0f;
-            } else {
-                offset_x_ = (layer_bb.min.x + layer_bb.max.x) / 2.0f;
-                offset_y_ = (layer_bb.min.y + layer_bb.max.y) / 2.0f;
-            }
-            segments = &gcode_->layers[current_layer_].segments;
+        // =====================================================================
+        // SELECTION RIM: derive the white silhouette from the alpha tag.
+        //
+        // Only on a complete cache — a rim over a half-built stack would
+        // trace the top of whatever has been drawn so far. Runs once per
+        // build, and only while something is selected.
+        // =====================================================================
+        if (!cache_build_reported_ && cached_up_to_layer_ >= target_layer &&
+            cache_build_start_ms_ != 0) {
+            cache_build_reported_ = true;
+            spdlog::debug("[GCodeLayerRenderer] Cache build complete: {} layers in {}ms "
+                          "({} segments, aa={}, layers_per_frame={})",
+                          cached_up_to_layer_ + 1, lv_tick_elaps(cache_build_start_ms_),
+                          last_segment_count_,
+                          antialias_enabled_.load(std::memory_order_relaxed) ? "on" : "off",
+                          layers_per_frame_);
         }
 
-        if (segments) {
-            // Streaming may have interned new names while loading this layer.
-            if (streaming_controller_) {
-                refresh_selection_index_map();
-            }
-
-            // Halo pre-pass, same mechanism as render_layers_to_cache(): white
-            // and wider first, normal strokes over the top, only the rim left.
-            // See that comment for why it cannot be folded into the loop below.
-            // Without it these view modes would show no selection at all, since
-            // the blue recolour render_segment() used to apply is gone.
-            if (selection_.any_highlighted()) {
-                lv_draw_line_dsc_t halo_dsc;
-                lv_draw_line_dsc_init(&halo_dsc);
-                halo_dsc.color = lv_color_hex(sel_palette_.outline);
-                halo_dsc.opa = LV_OPA_COVER;
-                halo_dsc.width = static_cast<int32_t>(
-                    selection::halo_width(DRAW_LINE_EXTRUSION_WIDTH, is_small_panel()));
-                for (const auto& seg : *segments) {
-                    if (!should_render_segment(seg))
-                        continue;
-
-                    const SelectionFlags sel = selection_.classify(seg.object_name_index);
-                    const auto style = selection::resolve(sel_palette_, sel.excluded,
-                                                          sel.highlighted, seg.is_extrusion);
-                    if (!style.fallback_halo)
-                        continue;
-                    if (!selection::halo_feature(seg.feature_type))
-                        continue;
-
-                    glm::ivec2 h1 = world_to_screen(seg.start.x, seg.start.y, seg.start.z);
-                    glm::ivec2 h2 = world_to_screen(seg.end.x, seg.end.y, seg.end.z);
-                    if (h1.x == h2.x && h1.y == h2.y)
-                        continue;
-
-                    halo_dsc.p1.x = static_cast<lv_value_precise_t>(h1.x);
-                    halo_dsc.p1.y = static_cast<lv_value_precise_t>(h1.y);
-                    halo_dsc.p2.x = static_cast<lv_value_precise_t>(h2.x);
-                    halo_dsc.p2.y = static_cast<lv_value_precise_t>(h2.y);
-                    lv_draw_line(layer, &halo_dsc);
-                }
-            }
-
-            for (const auto& seg : *segments) {
-                if (!should_render_segment(seg))
-                    continue;
-                render_segment(layer, seg);
-                ++segments_rendered;
-            }
+        if (selection_.any_highlighted() && !selection_rim_stamped_ &&
+            cached_up_to_layer_ >= target_layer) {
+            const int rim = selection::outline_width_px(cached_width_);
+            helix::gcode::stroke_selection_rim(cache_target(), rim, rim, sel_palette_.outline,
+                                               helix::gcode::ChannelOrder::Bgra);
+            selection_rim_stamped_ = true;
+            ssao_cache_valid_ = false;
         }
+
+        // =====================================================================
+        // BLIT: Ghost first (underneath), then solid on top
+        // =====================================================================
+        if (ghost_enabled && ghost_buf_) {
+            blit_ghost_cache(layer);
+        }
+
+        // Apply SSAO post-processing when enabled and cache is fully built.
+        // There is one buffer now, so both branches blit the same thing; the
+        // difference is only whether the shading has been applied to it.
+        const bool ssao_on = ssao_enabled_.load(std::memory_order_relaxed);
+        const bool cache_complete = (cached_up_to_layer_ >= target_layer);
+        if (ssao_on && cache_complete && !ssao_cache_valid_) {
+            apply_ssao();
+        }
+        blit_cache(layer);
+        segments_rendered = last_segment_count_;
     }
 
     // Draw selection brackets on top of everything
@@ -1402,7 +1224,7 @@ void GCodeLayerRenderer::render(lv_layer_t* layer, const lv_area_t* widget_area)
     last_segment_count_ = segments_rendered;
 
     // Adapt layers_per_frame for next frame (if in adaptive mode)
-    if (config_layers_per_frame_ == 0 && current_view_mode == ViewMode::FRONT) {
+    if (config_layers_per_frame_ == 0) {
         adapt_layers_per_frame();
     }
 
@@ -1417,11 +1239,6 @@ void GCodeLayerRenderer::render(lv_layer_t* layer, const lv_area_t* widget_area)
 bool GCodeLayerRenderer::needs_more_frames() const {
     int layer_count = get_layer_count();
     if (layer_count == 0) {
-        return false;
-    }
-
-    // Only relevant for FRONT view mode (uses caching)
-    if (get_view_mode() != ViewMode::FRONT) {
         return false;
     }
 
@@ -1450,79 +1267,6 @@ bool GCodeLayerRenderer::should_render_segment(const ToolpathSegment& seg) const
     return segment_drawable(seg, support, show_supports_.load(std::memory_order_relaxed),
                             show_extrusions_.load(std::memory_order_relaxed),
                             show_travels_.load(std::memory_order_relaxed));
-}
-
-void GCodeLayerRenderer::render_segment(lv_layer_t* layer, const ToolpathSegment& seg, bool ghost) {
-    // Convert world coordinates to screen (uses Z for FRONT view)
-    glm::ivec2 p1 = world_to_screen(seg.start.x, seg.start.y, seg.start.z);
-    glm::ivec2 p2 = world_to_screen(seg.end.x, seg.end.y, seg.end.z);
-
-    // Skip zero-length segments
-    if (p1.x == p2.x && p1.y == p2.y) {
-        return;
-    }
-
-    // Initialize line drawing descriptor
-    lv_draw_line_dsc_t dsc;
-    lv_draw_line_dsc_init(&dsc);
-
-    lv_color_t base_color;
-    if (ghost) {
-        // Ghost mode: outer walls keep full base brightness (the silhouette outline);
-        // infill is dimmed so it sits faintly behind the walls. The translucency comes
-        // from the 40% ghost-cache blit, not from darkening the color toward black.
-        lv_color_t model_color = color_extrusion_;
-        const int bright_pct = is_ghost_solid_surface(seg.feature_type)
-                                   ? GHOST_WALL_BRIGHT_PERCENT
-                                   : GHOST_INFILL_BRIGHT_PERCENT;
-        base_color =
-            lv_color_make(wash_to_white(model_color.red, GHOST_WASH_PERCENT) * bright_pct / 100,
-                          wash_to_white(model_color.green, GHOST_WASH_PERCENT) * bright_pct / 100,
-                          wash_to_white(model_color.blue, GHOST_WASH_PERCENT) * bright_pct / 100);
-    } else {
-        base_color = get_segment_color(seg);
-    }
-
-    // Apply depth shading for 3D-like appearance
-    if (depth_shading_.load(std::memory_order_relaxed) && get_view_mode() == ViewMode::FRONT) {
-        float avg_z = (seg.start.z + seg.end.z) * 0.5f;
-        float avg_y = (seg.start.y + seg.end.y) * 0.5f;
-        float brightness = compute_depth_brightness(avg_z, bounds_min_z_, bounds_max_z_, avg_y,
-                                                    bounds_min_y_, bounds_max_y_);
-
-        uint8_t r = static_cast<uint8_t>(base_color.red * brightness);
-        uint8_t g = static_cast<uint8_t>(base_color.green * brightness);
-        uint8_t b = static_cast<uint8_t>(base_color.blue * brightness);
-        dsc.color = lv_color_make(r, g, b);
-    } else {
-        dsc.color = base_color;
-    }
-
-    // Check excluded state for width/opacity. A highlighted object draws exactly
-    // like an unselected one: this is the draw-API fallback, where the halo
-    // pre-pass in render() carries selection, so the core stroke must NOT widen -
-    // a wider core would eat its own halo.
-    const SelectionFlags sel = selection_.classify(seg.object_name_index);
-    const bool is_excluded = sel.excluded;
-
-    if (is_excluded) {
-        dsc.width = 1;
-        dsc.opa = LV_OPA_60;
-    } else if (seg.is_extrusion) {
-        dsc.width = DRAW_LINE_EXTRUSION_WIDTH;
-        dsc.opa = LV_OPA_COVER;
-    } else {
-        dsc.width = 1;
-        dsc.opa = LV_OPA_50;
-    }
-
-    // LVGL 9: points are stored in the descriptor struct
-    dsc.p1.x = static_cast<lv_value_precise_t>(p1.x);
-    dsc.p1.y = static_cast<lv_value_precise_t>(p1.y);
-    dsc.p2.x = static_cast<lv_value_precise_t>(p2.x);
-    dsc.p2.y = static_cast<lv_value_precise_t>(p2.y);
-
-    lv_draw_line(layer, &dsc);
 }
 
 // ============================================================================
@@ -1937,6 +1681,8 @@ void GCodeLayerRenderer::start_background_ghost_render() {
     // Reset flags
     ghost_thread_cancel_.store(false);
     ghost_thread_ready_.store(false);
+    ghost_layers_done_.store(0);
+    ghost_layers_total_.store(0);
 
     // Claim the running flag BEFORE the worker can exist, never after. The
     // worker clears this same flag when it finishes, and std::thread's
@@ -1984,10 +1730,15 @@ void GCodeLayerRenderer::cancel_background_ghost_render() {
 // =============================================================================
 
 float GCodeLayerRenderer::get_ghost_build_progress() const {
-    // Background thread running: return 0.5 (in progress)
-    // Background thread ready: return 1.0 (complete)
-    // Otherwise: return 1.0 (nothing to do or already done)
-    return ghost_thread_ready_.load() ? 1.0f : (ghost_thread_running_.load() ? 0.5f : 1.0f);
+    if (ghost_thread_ready_.load() || !ghost_thread_running_.load()) {
+        return 1.0f;
+    }
+    const int total = ghost_layers_total_.load();
+    if (total <= 0) {
+        return 0.0f;
+    }
+    return std::clamp(static_cast<float>(ghost_layers_done_.load()) / static_cast<float>(total),
+                      0.0f, 1.0f);
 }
 
 bool GCodeLayerRenderer::is_ghost_build_complete() const {
@@ -2060,16 +1811,14 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
     // capture_ghost_snapshot() on the MAIN thread before the thread was spawned.
     // Read it from `snap`, never from a member.
     //
-    // The members that remain legal to touch below are exactly three, and all of
-    // them are safe by construction:
-    //   - ghost_thread_cancel_ / ghost_thread_ready_ / ghost_thread_running_,
-    //     which are atomics
+    // The members that remain legal to touch below are all safe by construction:
+    //   - ghost_thread_cancel_ / ghost_thread_ready_ / ghost_thread_running_ and
+    //     the ghost_layers_done_ / ghost_layers_total_ progress counters, which
+    //     are atomics
     //   - ghost_raw_buffer_ and its dimensions, which are only reallocated by
     //     start_background_ghost_render() after it has joined this thread
-    // Anything else is a data race, and this file used to have several: the
-    // capture block that lived here read color_extrusion_, tool_palette_, and
-    // the whole transform straight off the object, on this thread, while the
-    // main thread was free to be writing them.
+    // Anything else is a data race: the main thread is free to write the
+    // colors, palette and transform while this runs.
     // =========================================================================
     const TransformParams& transform = snap.transform;
     const bool local_show_travels = snap.show_travels;
@@ -2126,7 +1875,7 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
     uint8_t ghost_r = wash_r * GHOST_INFILL_BRIGHT_PERCENT / 100;
     uint8_t ghost_g = wash_g * GHOST_INFILL_BRIGHT_PERCENT / 100;
     uint8_t ghost_b = wash_b * GHOST_INFILL_BRIGHT_PERCENT / 100;
-    uint8_t ghost_a = 255; // Full alpha, we'll apply 40% when blitting
+    uint8_t ghost_a = 255; // Full alpha; blit_ghost_cache() applies the translucency
     uint32_t ghost_color = (ghost_a << 24) | (ghost_r << 16) | (ghost_g << 8) | ghost_b;
 
     uint8_t wall_r = wash_r * GHOST_WALL_BRIGHT_PERCENT / 100;
@@ -2152,6 +1901,7 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
         spdlog::debug("[GCodeLayerRenderer] Ghost sampling {} of {} layers (every {})",
                       ghost_plan.count, total_layers, ghost_plan.step);
     }
+    ghost_layers_total_.store(ghost_plan.count);
 
     for (int sample = 0; sample < ghost_plan.count; ++sample) {
         const int layer_idx = sample * ghost_plan.step;
@@ -2258,6 +2008,7 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
         if (local_streaming) {
             std::this_thread::sleep_for(std::chrono::milliseconds(GHOST_STREAM_YIELD_MS));
         }
+        ghost_layers_done_.store(sample + 1);
     }
 
     // The ghost buffer is rendered whole on every pass, so the rim can be stamped
