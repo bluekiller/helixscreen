@@ -995,10 +995,8 @@ void NavigationManager::set_active(PanelId panel_id) {
 
     PanelId old_panel = active_panel_;
 
-    // Update panel stack
-    // IMPORTANT: Only update the base panel in the stack, preserving any overlays.
-    // This fixes the bug where closing an overlay from Controls would return to Home
-    // because set_active() was clearing the entire stack unconditionally.
+    // Replace only the base panel and keep any overlays above it: closing an
+    // overlay must reveal the panel it was opened over, not Home.
     if (lv_obj_t* new_base = panels_.widget(static_cast<int>(panel_id))) {
         if (panel_stack_.empty()) {
             // Stack is empty - just push the new panel
