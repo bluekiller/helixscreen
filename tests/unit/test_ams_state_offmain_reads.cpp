@@ -83,3 +83,45 @@ TEST_CASE_METHOD(OffMainFixture, "AmsState backend type query is safe against cl
     ams.clear_backends();
     CHECK_FALSE(ams.primary_type().has_value());
 }
+
+// Every query the WebSocket thread makes, hammered together while main runs
+// the two mutations that race them: the action edge and a reconnect's
+// clear_backends()/add_backend(). Snapmaker's status handler also stamps
+// unload times from that thread, so the writer side is off-main here too.
+TEST_CASE_METHOD(OffMainFixture, "AmsState off-main queries survive action and backend churn",
+                 "[ams][threading]") {
+    auto& ams = AmsState::instance();
+    std::atomic<bool> stop{false};
+    std::atomic<int> reads{0};
+
+    std::thread ws([&] {
+        while (!stop.load()) {
+            (void)ams.is_filament_operation_active();
+            (void)ams.primary_type();
+            (void)ams.any_filament_batch_in_flight();
+            (void)ams.post_unload_runout_grace_armed();
+            ams.mark_slot_unloaded(1);
+            (void)ams.was_slot_recently_unloaded(1);
+            reads.fetch_add(1);
+        }
+    });
+
+    for (int i = 0; i < kCycles; ++i) {
+        ams.set_action(i % 2 ? AmsAction::UNLOADING : AmsAction::IDLE);
+        ams.clear_backends();
+        ams.add_backend(std::make_unique<AmsBackendMock>(4));
+    }
+    while (reads.load() == 0) {
+        std::this_thread::yield();
+    }
+    stop = true;
+    ws.join();
+
+    REQUIRE(ams.backend_count() == 1);
+    CHECK_FALSE(ams.any_filament_batch_in_flight());
+    ams.mark_slot_unloaded(1);
+    CHECK(ams.was_slot_recently_unloaded(1));
+    ams.clear_backends();
+    CHECK_FALSE(ams.primary_type().has_value());
+    CHECK_FALSE(ams.was_slot_recently_unloaded(1));
+}
