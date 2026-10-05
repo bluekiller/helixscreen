@@ -71,6 +71,12 @@ class ActionPromptModal : public Modal {
     bool show_prompt(lv_obj_t* parent, const PromptData& data);
 
     /**
+     * @brief Show a one-shot prompt whose instance the modal stack owns and frees on close
+     * @return true if shown; on failure the instance is freed
+     */
+    static bool show_owned_prompt(lv_obj_t* parent, const PromptData& data);
+
+    /**
      * @brief Set callback for when a button is clicked
      *
      * The callback receives the gcode string associated with the button.
