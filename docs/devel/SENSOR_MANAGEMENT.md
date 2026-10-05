@@ -122,7 +122,7 @@ A manager only sees fields that `MoonrakerDiscoverySequence::build_subscription_
 | `load_cell *` | `force_g` |
 | filament switch/motion sensors | `filament_detected`, `enabled`, `detection_count` |
 | width sensors | `Diameter`, `Raw` |
-| probe objects (`probe`, `bltouch`, `beacon`, ...) | `last_z_result`, `z_offset`, from `ProbeSensorManager::required_status_objects()` |
+| probe objects (`probe`, `bltouch`, `beacon`, ...), one per physical probe | `last_z_result`, `z_offset`, from `ProbeSensorManager::required_status_objects()` |
 
 `ProbeSensorManager` owns which object names are probes, so the builder asks it rather than listing them. Mainline Klipper's probe status carries `last_z_result` but no `z_offset`; Moonraker answers that field with `null`, the parser skips it, and the offset seeded by `discover_from_config()` stands. Accelerometers have no `get_status()` and are never subscribed; `AccelSensorManager::update_from_status()` is a no-op that exists only for the shared fan-out.
 
@@ -290,7 +290,7 @@ Roles are CHAMBER and DRYER, auto-assigned at discovery to the first sensor whos
 
 ## Probe, Accelerometer, Width and Load Cell
 
-**Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. `load_config_from_file()` auto-assigns Z_PROBE when exactly one probe exists and no saved config gave one the role; with several probes the subjects read -1 until the user picks one in Settings > Sensors (persisted under `probe_sensors`). `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
+**Probe.** `parse_klipper_name()` matches exact object names (`probe`, `bltouch`, `smart_effector`, `cartographer`, `beacon`) and the `probe_eddy_current <name>` prefix. One physical probe often registers several objects: every Klipper probe module also registers the generic `probe`, and Cartographer and Beacon add a `probe_eddy_current` companion. `probes_in()` keeps only the most specific object, and both `discover()` and the status subscription go through it, so such a printer has one probe sensor, subscribed once. `load_config_from_file()` applies a saved `probe_sensors` role first, then auto-assigns Z_PROBE when exactly one probe remains and none holds it. Nothing in the UI assigns probe roles, so a printer with two genuinely distinct probes and no saved choice reads -1 on the probe subjects. `set_probe_type_override()` lets the printer database retype a generic `probe` as the real hardware; `PrinterState` calls it after detection. `ui_probe_overlay.cpp` reads `get_z_offset()`.
 
 **Accelerometer.** Found only in `configfile.config` sections (`adxl345`, `adxl345 bed`, `lis2dw hotend`, ...). A `beacon` section with `accel_scale` or `accel_axes_map` adds Beacon's onboard LIS2DW. The role INPUT_SHAPER backs `is_sensor_available(AccelSensorRole::INPUT_SHAPER)`.
 

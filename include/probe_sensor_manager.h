@@ -79,7 +79,7 @@ class ProbeSensorManager {
     /**
      * @brief Status subscription for every probe object in an objects list
      *
-     * Maps each name parse_klipper_name() accepts to the fields
+     * Maps each probe probes_in() keeps to the fields
      * update_from_status() reads. Mainline Klipper publishes last_z_result but
      * not z_offset; Moonraker answers the missing field with null, which the
      * parser skips, so the config-seeded offset survives.
@@ -261,6 +261,11 @@ class ProbeSensorManager {
      * @param[out] type Detected sensor type
      * @return true if successfully parsed as probe sensor
      */
+    /// Probe configs for an objects list, one per physical probe: alias objects
+    /// ([probe], a Cartographer/Beacon probe_eddy_current companion) are dropped.
+    static std::vector<ProbeSensorConfig>
+    probes_in(const std::vector<std::string>& klipper_objects);
+
     static bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
                                    ProbeSensorType& type);
 
