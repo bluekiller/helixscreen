@@ -283,6 +283,23 @@ TEST_CASE("describe_color: grayscale", "[color][describe]") {
     REQUIRE(gray.find("Gray") != std::string::npos);
 }
 
+TEST_CASE("describe_color: near-blacks read as Black", "[color][describe]") {
+    for (uint32_t rgb : {0x1A1A1A, 0x111111, 0x0B0D14, 0x1E1E2E, 0x02061A}) {
+        INFO(std::hex << rgb);
+        REQUIRE(helix::describe_color(rgb) == "Black");
+    }
+    REQUIRE(helix::describe_color(0x4A4A4A) == "Deep Gray");
+    REQUIRE(helix::describe_color(0x282828) == "Black");
+    // Saturated dark colors keep their hue.
+    REQUIRE(helix::describe_color(0x1A237E).find("Blue") != std::string::npos);
+}
+
+TEST_CASE("describe_color: near-whites read as White", "[color][describe]") {
+    REQUIRE(helix::describe_color(0xF5F5F5) == "White");
+    REQUIRE(helix::describe_color(0xFFFFFF) == "White");
+    REQUIRE(helix::describe_color(0xE8E8E8) == "Pale Gray");
+}
+
 // ============================================================================
 // nearest_palette_key Tests
 // ============================================================================
