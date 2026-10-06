@@ -9,6 +9,7 @@
 #include "ui_keyboard_manager.h"
 #include "ui_modal.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_settings_appearance.h"
 #include "ui_toast_manager.h"
 
@@ -51,7 +52,7 @@ void ThemeEditorOverlay::set_editing_dark_mode(bool is_dark) {
 
 lv_obj_t* ThemeEditorOverlay::create(lv_obj_t* parent) {
     // Create overlay root from XML (uses theme_editor_overlay component)
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "theme_editor_overlay", nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, "theme_editor_overlay");
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;

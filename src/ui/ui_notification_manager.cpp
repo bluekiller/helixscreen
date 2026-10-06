@@ -46,9 +46,8 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
 
     auto& mgr = NotificationManager::instance();
 
-    // One panel at a time: open, or built with its push still queued (hidden until then)
-    if (mgr.notification_panel_obj_ && (helix::nav::is_in_stack(mgr.notification_panel_obj_) ||
-                                        helix::nav::is_push_pending(mgr.notification_panel_obj_))) {
+    // One panel at a time: queued, open, or still sliding out
+    if (helix::nav::is_showing(mgr.notification_panel_obj_)) {
         spdlog::debug("[NotificationManager] Notification panel already open, ignoring click");
         return;
     }
