@@ -15,6 +15,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <fstream>
 #include <optional>
 #include <string_view>
 #include <sys/stat.h>
@@ -1590,8 +1592,20 @@ std::string get_cached_thumbnail(const std::string& gcode_path, const std::strin
     struct stat gcode_stat, cache_stat;
     if (stat(gcode_path.c_str(), &gcode_stat) == 0 && stat(cache_path.c_str(), &cache_stat) == 0) {
         if (cache_stat.st_mtime >= gcode_stat.st_mtime) {
-            spdlog::trace("[GCode Parser] Using cached thumbnail: {}", cache_path);
-            return cache_path;
+            // The consumer decodes the file as a PNG, so a fresh-looking entry that
+            // is not one (e.g. raw JPEG bytes) is as useless as a missing entry.
+            static constexpr unsigned char kPngMagic[8] = {0x89, 'P',  'N',  'G',
+                                                           '\r', '\n', 0x1a, '\n'};
+            unsigned char head[8] = {};
+            std::ifstream in(cache_path, std::ios::binary);
+            in.read(reinterpret_cast<char*>(head), sizeof(head));
+            if (in.gcount() == 8 && std::memcmp(head, kPngMagic, 8) == 0) {
+                spdlog::trace("[GCode Parser] Using cached thumbnail: {}", cache_path);
+                return cache_path;
+            }
+            spdlog::warn("[GCode Parser] Cached thumbnail {} is not a PNG, regenerating",
+                         cache_path);
+            std::remove(cache_path.c_str());
         }
     }
 
