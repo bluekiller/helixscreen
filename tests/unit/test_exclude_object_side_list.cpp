@@ -152,3 +152,33 @@ TEST_CASE_METHOD(SideListFixture, "Side list rebuilds its rows when the defined 
         CHECK(std::find(before.begin(), before.end(), row) == before.end());
     }
 }
+
+TEST_CASE_METHOD(SideListFixture, "Side list rows keep their height as the printing object moves",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    // Whatever the name length, showing "Printing now" must not reflow the
+    // name: sweep lengths across the point where a name stops fitting beside
+    // a status, since that is where a row would grow.
+    for (int len = 4; len <= 64; len += 2) {
+        const std::string name = "Part_" + std::string(static_cast<size_t>(len), 'm');
+        INFO("name length " << name.size());
+        objects().set_defined_objects({name, "obj_1"});
+        objects().set_current_object("");
+        settle();
+        auto rows = rows_of(container);
+        REQUIRE(rows.size() == 2);
+        lv_obj_update_layout(container);
+        const int32_t idle_h = lv_obj_get_height(rows[0]);
+
+        objects().set_current_object(name);
+        settle();
+        lv_obj_update_layout(container);
+        CHECK(lv_obj_get_height(rows[0]) == idle_h);
+
+        objects().set_excluded_objects({name});
+        settle();
+        lv_obj_update_layout(container);
+        CHECK(lv_obj_get_height(rows[0]) == idle_h);
+        objects().set_excluded_objects({});
+    }
+}

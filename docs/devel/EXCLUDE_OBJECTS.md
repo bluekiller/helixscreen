@@ -201,9 +201,12 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 
 `ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by `PrintStatusPanel`. Each row shows:
 
-- **Numbered chip**: the object's 1-based position in the defined list, on its object-palette colour (`object_color_1`..`object_color_8`, cycling)
-- **Object name**
-- **Status text** ("Printing now", "Excluded", or blank); excluded rows are dimmed
+- **Numbered chip**: the object's number and colour from `compute_object_badges()` (below), so it matches the badge on the map and the render
+- **Object name**, with the full row width
+- **Status line** under the name ("Printing now", "Excluded", or blank); excluded rows are dimmed
+
+The status line keeps its height when blank, so a row's height depends on its name alone and
+never changes as the printing object moves.
 
 ### Behavior
 
@@ -222,6 +225,8 @@ the object's **defined index**, its position in
 current flags, and a world anchor. It is pure: callers only map the anchor to their own
 screen and draw.
 
+- **Side list** (`ExcludeObjectSideList`): each row's chip number and colour, and its idle /
+  printing / excluded state.
 - **Thumbnail map** (`ExcludeObjectMapView`): a numbered disc in each object's rect, and the
   key bar's dot + number. An object with no bounding box gets no rect but keeps its number,
   so later objects do not renumber.
@@ -230,10 +235,17 @@ screen and draw.
   `defined_objects_version` / `excluded_objects_version` bump (the current object bumps the
   latter). Closing the list pushes an empty set. The viewer draws them in its
   `LV_EVENT_DRAW_POST` pass after the renderer (`src/ui/ui_gcode_viewer.cpp#draw_object_badges`),
-  projecting each anchor through the live transform, so they follow pan, zoom and rotation:
-  `GCodeLayerRenderer::project_to_screen()` in 2D, `GCodeGLESRenderer::project_to_screen()`
-  (the MVP the FBO was drawn with) in 3D. Changing badges only invalidates the widget; the
-  renderers repaint from their caches.
+  projecting each anchor through the transform of the image on screen, so they follow pan,
+  zoom and rotation. In 2D that is `GCodeLayerRenderer::project_to_screen()`: every 2D
+  transform change invalidates both caches, so what is drawn always uses the live transform.
+  In 3D it is `GCodeGLESRenderer::project_to_shown_image()`, which uses the MVP latched when
+  the last finished frame was blitted. The 3D renderer keeps showing that frame during VBO
+  upload, render deferral and refinement, and the badges stay on it rather than running
+  ahead to the live camera. Setting badges equal to the current ones does nothing; a change
+  only invalidates the widget, and the renderers repaint from their caches.
+- **Parsed file arriving later**: the preview controller's `parsed_file_loaded` hook calls
+  `refresh_render_badges()` too, so a file that finishes loading after the list opened gives
+  its objects parsed anchors and a top Z.
 
 Anchor priority: Klipper `CENTER`, the parsed file's `CENTER`, Klipper's bbox centre, the
 parsed toolpath bbox centre. Parsed objects are looked up by name; `ParsedGCodeFile::objects`
@@ -242,12 +254,13 @@ screen: the lower of the object's parsed top and the current layer, so a badge r
 print while the object is growing. Streaming 2D has no parsed objects, so it uses Klipper's
 geometry and the current layer's Z.
 
+The badge of the object printing now carries a `success`-coloured outline, `space_xxs` wide.
 Excluded objects' badges are drawn at `LV_OPA_30`, the same fade the map applies to an
 excluded rect (`object_badge_opa()`). Anchors that project outside the widget are skipped.
 Badges can overlap when objects sit close together; nothing spreads them apart.
 
 A tap inside a drawn (non-excluded) badge picks that badge's object before the renderer's
-own picker runs (`src/ui/gcode_viewer_input.cpp#ui_gcode_viewer_pick_object`), since a badge
+own picker runs, checking badges in reverse paint order so the one on top wins (`src/ui/gcode_viewer_input.cpp#ui_gcode_viewer_pick_object`), since a badge
 can sit over empty space, e.g. the hole of a ring. Badges are drawn, not widgets, so they
 never take input themselves.
 
@@ -423,7 +436,9 @@ Tests are run with:
 | `tests/unit/test_exclude_object_long_press_gate.cpp` | `[exclude_object]` | Long-press gate: pending object, timer arming, clear |
 | `tests/unit/test_excluded_objects_char.cpp` | `[excluded_objects]` | `PrinterExcludedObjectsState`: version subjects, set change detection, observer notification |
 | `tests/unit/test_moonraker_api_exclude_object.cpp` | `[security]`, `[mock]` | Input validation, injection prevention, mock client integration |
-| `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, palette colour, map key numbering with a bbox-less object, 2D anchor projection + pick at the badge |
+| `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, map key numbering with a bbox-less object; the viewer's draw pass (drawn-top Z, off-screen skip, no stale pick targets), pick precedence (badge over geometry, top badge wins, excluded not pickable), equal badges not invalidating, exclusion dropping selection, the 3D shown-image transform |
+| `tests/unit/test_print_status_exclude_badges.cpp` | `[exclude_badges]` | Panel lifecycle: badges appear with the side list, match its chips, follow version bumps, clear on close |
+| `tests/unit/test_exclude_object_side_list.cpp` | `[exclude_side_list]` | Rows restyle in place, keep scroll and height as the printing object moves |
 
 ### Test G-code
 
@@ -490,7 +505,7 @@ theme.
 |-------|-----------------|
 | Normal | Default filament color, standard line width |
 | Highlighted (selected) | **Keeps its own filament color**, plus a white silhouette rim tracing the object's contour and the corner-bracket wireframe around its bounding box |
-| Excluded | Shading kept, hue drained to grey (`selection::excluded_grey`), red stripes (`gcode_selection_excluded`, `#FF3B30`) every 6px at 45 degrees. Line width is **unchanged**. Same in 2D, the 2D ghost and 3D; the 3D ghost (about 2% opacity) is left as is, and a 3D frame drawn while the camera is moving shows filament color until the still render lands |
+| Excluded | Selection dropped (`ui_gcode_viewer_set_excluded_objects()` removes it from the highlight and the tap toggle). Shading kept, hue drained to grey (`selection::excluded_grey`), red stripes (`gcode_selection_excluded`, `#FF3B30`) every 6px at 45 degrees. Line width is **unchanged**. Same in 2D, the 2D ghost and 3D; the 3D ghost (about 2% opacity) is left as is, and a 3D frame drawn while the camera is moving shows filament color until the still render lands |
 | Excluded *and* selected | Grey inside the white rim, without stripes: a pixel carries one alpha tag and the selection tag wins, because seeing what you picked matters more |
 | Pending exclusion | Same as excluded (visual preview before API call) |
 

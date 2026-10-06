@@ -3,7 +3,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <component>
   <!-- One printed object in the exclude-object side list:
-       [numbered disc] [object name ....] [status].
+       [numbered disc] [object name ...]
+                       [status         ].
        The disc carries the same number and color the map gives the object.
        state_subject names the row's int state: 0 idle, 1 printing now, 2 excluded.
        An excluded object is dimmed, muted and not clickable. The row restyles in
@@ -34,19 +35,34 @@
       <lv_label align="center"
                 text="$badge_text" style_text_color="#FFFFFF" style_text_font="#font_small" event_bubble="true"/>
     </lv_obj>
-    <lv_label name="object_name" text="" flex_grow="1" long_mode="wrap" style_text_font="#font_body" event_bubble="true">
-      <bind_style_if_not_eq name="name_idle" subject="$state_subject" ref_value="2"/>
-      <bind_style_if_eq name="name_excluded" subject="$state_subject" ref_value="2"/>
-    </lv_label>
-    <text_small name="status_printing"
-                text="Printing now" translation_tag="Printing now" style_text_color="#success" hidden="true"
-                event_bubble="true">
-      <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="1"/>
-    </text_small>
-    <text_small name="status_excluded"
-                text="Excluded" translation_tag="Excluded" style_text_color="#text_muted" hidden="true"
-                event_bubble="true">
-      <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="2"/>
-    </text_small>
+    <!-- Name over status. The name has the row's full width, and the status line
+         keeps its height when the status is blank, so a row's height depends on
+         its name alone: it never changes as the printing object moves, and the
+         rows below it never shift. -->
+    <lv_obj name="text_column"
+            height="content" flex_grow="1" flex_flow="column" style_pad_all="0" style_pad_gap="0" style_bg_opa="0"
+            style_border_width="0" scrollable="false" clickable="false" event_bubble="true">
+      <lv_label name="object_name"
+                width="100%" text="" long_mode="wrap" style_text_font="#font_body" event_bubble="true">
+        <bind_style_if_not_eq name="name_idle" subject="$state_subject" ref_value="2"/>
+        <bind_style_if_eq name="name_excluded" subject="$state_subject" ref_value="2"/>
+      </lv_label>
+      <lv_obj name="status_line"
+              width="100%" height="content" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"
+              clickable="false" event_bubble="true">
+        <!-- Holds the line's height while both statuses are hidden. -->
+        <text_small text=" " event_bubble="true"/>
+        <text_small name="status_printing"
+                    text="Printing now" translation_tag="Printing now" style_text_color="#success" hidden="true"
+                    event_bubble="true">
+          <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="1"/>
+        </text_small>
+        <text_small name="status_excluded"
+                    text="Excluded" translation_tag="Excluded" style_text_color="#text_muted" hidden="true"
+                    event_bubble="true">
+          <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="2"/>
+        </text_small>
+      </lv_obj>
+    </lv_obj>
   </view>
 </component>
