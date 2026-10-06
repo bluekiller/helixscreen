@@ -2034,12 +2034,12 @@ TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[
     // Spoolman's external routes are /external/filament, /external/filament/search
     // and /external/material.
     MoonrakerClientMock client;
-    int code = 0;
+    MoonrakerError got;
     client.send_jsonrpc(
         "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/external/vendor"}},
         [](const nlohmann::json&) { FAIL("Spoolman serves no external vendor list"); },
-        [&](const MoonrakerError& err) { code = err.code; });
-    CHECK(code == -32601);
+        [&](const MoonrakerError& err) { got = err; });
+    CHECK(got.is_not_found());
 }
 
 TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[spoolman][mock]") {
@@ -2167,11 +2167,11 @@ TEST_CASE("search_spoolman_external_filaments searches the catalog through the p
 
     SECTION("an older server answers not-found") {
         client.spoolman_mock().set_external_search_supported(false);
-        int code = 0;
+        MoonrakerError got;
         api.spoolman().search_spoolman_external_filaments(
             "poly", 25, [](const std::vector<ExternalFilament>&) { FAIL("no route"); },
-            [&](const MoonrakerError& err) { code = err.code; });
-        CHECK(code == -32601);
+            [&](const MoonrakerError& err) { got = err; });
+        CHECK(got.is_not_found());
     }
 }
 

@@ -1782,10 +1782,14 @@ void SpoolWizardOverlay::search_timer_cb(lv_timer_t* timer) {
 }
 
 void SpoolWizardOverlay::cancel_search_timer() {
-    if (search_timer_) {
+    if (search_timer_ && lv_is_initialized()) {
+        // A kept one-shot: hand it back to LVGL's reaping, which deletes an
+        // auto-delete timer whose count is spent but never runs a paused one.
+        lv_timer_set_auto_delete(search_timer_, true);
+        lv_timer_resume(search_timer_);
         helix::ui::lv_timer_cancel_safe(search_timer_);
-        search_timer_ = nullptr;
     }
+    search_timer_ = nullptr;
 }
 
 void SpoolWizardOverlay::apply_search_text() {

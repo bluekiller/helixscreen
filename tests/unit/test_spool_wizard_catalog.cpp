@@ -321,3 +321,22 @@ TEST_CASE_METHOD(WizardCatalogFixture,
         std::any_of(wizard.all_filaments().begin(), wizard.all_filaments().end(),
                     [](const SpoolWizardOverlay::FilamentEntry& e) { return e.server_id == 70; }));
 }
+
+TEST_CASE_METHOD(WizardCatalogFixture, "closing the wizard frees its search timer",
+                 "[spool_wizard][spoolman_db]") {
+    auto timer_count = []() {
+        int n = 0;
+        for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) {
+            ++n;
+        }
+        return n;
+    };
+    process_lvgl(20);
+    const int before = timer_count();
+    for (int i = 0; i < 5; ++i) {
+        wizard.on_search_key();
+        wizard.on_deactivating(DeactivateReason::NavigateAway);
+        process_lvgl(20);
+    }
+    CHECK(timer_count() <= before);
+}
