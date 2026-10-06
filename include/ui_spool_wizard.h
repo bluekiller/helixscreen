@@ -169,6 +169,9 @@ class SpoolWizardOverlay : public OverlayBase {
     merge_filaments(const std::vector<FilamentInfo>& server_filaments,
                     const std::vector<FilamentInfo>& external_filaments);
 
+    /// The POST /v1/vendor body for a new vendor named @p name with website @p url
+    static nlohmann::json vendor_create_payload(const std::string& name, const std::string& url);
+
     /// The POST /v1/filament body for @p f under @p vendor_id
     static nlohmann::json filament_create_payload(const FilamentEntry& f, int vendor_id);
 

@@ -91,7 +91,6 @@ static VendorInfo parse_vendor_info(const nlohmann::json& vendor_json) {
     VendorInfo info;
     info.id = safe_int(vendor_json, "id", 0);
     info.name = safe_string(vendor_json, "name");
-    info.url = safe_string(vendor_json, "url");
     return info;
 }
 

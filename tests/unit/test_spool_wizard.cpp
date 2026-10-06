@@ -810,3 +810,28 @@ TEST_CASE("filament_create_payload omits unset temperatures", "[spool_wizard][sp
     CHECK(payload["settings_extruder_temp"] == 215);
     CHECK_FALSE(payload.contains("settings_bed_temp"));
 }
+
+TEST_CASE("vendor_create_payload keeps the website Spoolman has no field for",
+          "[spool_wizard][spoolman]") {
+    // Spoolman's vendor has no url field and silently drops unknown keys, so
+    // the website lands in the vendor's comment.
+    helix::PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    const nlohmann::json payload =
+        SpoolWizardOverlay::vendor_create_payload("Acme", "https://acme.example");
+    int vendor_id = 0;
+    api.spoolman().create_spoolman_vendor(
+        payload, [&](const VendorInfo& v) { vendor_id = v.id; }, nullptr);
+    REQUIRE(vendor_id > 0);
+
+    nlohmann::json served;
+    client.send_jsonrpc(
+        "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/vendor"}},
+        [&](const nlohmann::json& r) { served = r["result"]; }, [](const MoonrakerError&) {});
+    const auto it = std::find_if(served.begin(), served.end(),
+                                 [&](const nlohmann::json& v) { return v["id"] == vendor_id; });
+    REQUIRE(it != served.end());
+    CHECK((*it)["comment"] == "https://acme.example");
+}

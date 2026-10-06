@@ -28,16 +28,14 @@ json or_null(int v) {
     return v > 0 ? json(v) : json(nullptr);
 }
 
-json vendor_json(const VendorInfo& v) {
-    json j = {{"id", v.id},
-              {"registered", "2025-01-01T00:00:00Z"},
-              {"name", v.name},
-              {"external_id", nullptr},
-              {"extra", json::object()}};
-    if (!v.url.empty()) {
-        j["url"] = v.url;
-    }
-    return j;
+json vendor_json(const VendorInfo& v, const std::string& comment = "") {
+    return {{"id", v.id},
+            {"registered", "2025-01-01T00:00:00Z"},
+            {"name", v.name},
+            {"comment", or_null(comment)},
+            {"empty_spool_weight", nullptr},
+            {"external_id", nullptr},
+            {"extra", json::object()}};
 }
 
 /// Spoolman keeps one temperature per filament. A range held in the mock's
@@ -65,7 +63,7 @@ json filament_json(const FilamentInfo& f) {
               {"external_id", nullptr},
               {"extra", json::object()}};
     if (f.vendor_id > 0 || !f.vendor_name.empty()) {
-        j["vendor"] = vendor_json(VendorInfo{f.vendor_id, f.vendor_name, ""});
+        j["vendor"] = vendor_json(VendorInfo{f.vendor_id, f.vendor_name});
     } else {
         j["vendor"] = nullptr;
     }
@@ -238,7 +236,7 @@ json MockSpoolmanServer::spool_json(const SpoolInfo& s) const {
         {"external_id", nullptr},
         {"extra", json::object()}};
     filament["vendor"] = (!s.vendor.empty() || s.vendor_id > 0)
-                             ? vendor_json(VendorInfo{s.vendor_id, s.vendor, ""})
+                             ? vendor_json(VendorInfo{s.vendor_id, s.vendor})
                              : json(nullptr);
     const double used = std::max(0.0, s.initial_weight_g - s.remaining_weight_g);
     return {{"id", s.id},
@@ -395,7 +393,8 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
     if (method == "GET" && path == "/v1/vendor") {
         result = json::array();
         for (const auto& v : vendor_list()) {
-            result.push_back(vendor_json(v));
+            auto c = vendor_comments_.find(v.id);
+            result.push_back(vendor_json(v, c == vendor_comments_.end() ? "" : c->second));
         }
         return true;
     }
@@ -405,9 +404,12 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         vendor.id = next_created_vendor_id > 0 ? next_created_vendor_id
                                                : static_cast<int>(spools_.size()) + 100;
         vendor.name = body.value("name", "");
-        vendor.url = body.value("url", "");
+        const std::string comment = body.contains("comment") && body["comment"].is_string()
+                                        ? body["comment"].get<std::string>()
+                                        : "";
+        vendor_comments_[vendor.id] = comment;
         vendors_.push_back(vendor);
-        result = vendor_json(vendor);
+        result = vendor_json(vendor, comment);
         return true;
     }
     if (method == "DELETE" && id_after(path, "/v1/vendor/")) {

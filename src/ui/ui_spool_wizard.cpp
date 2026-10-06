@@ -543,6 +543,18 @@ void SpoolWizardOverlay::set_creating(bool val) {
     }
 }
 
+nlohmann::json SpoolWizardOverlay::vendor_create_payload(const std::string& name,
+                                                         const std::string& url) {
+    nlohmann::json data;
+    data["name"] = name;
+    // Spoolman's vendor has no URL field and drops unknown keys, so the
+    // website the user typed goes in the vendor's comment.
+    if (!url.empty()) {
+        data["comment"] = url;
+    }
+    return data;
+}
+
 void SpoolWizardOverlay::create_vendor_then_filament_then_spool() {
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api) {
@@ -550,11 +562,7 @@ void SpoolWizardOverlay::create_vendor_then_filament_then_spool() {
         return;
     }
 
-    nlohmann::json data;
-    data["name"] = selected_vendor_.name;
-    if (!new_vendor_url_.empty()) {
-        data["url"] = new_vendor_url_;
-    }
+    const nlohmann::json data = vendor_create_payload(selected_vendor_.name, new_vendor_url_);
 
     api->spoolman().create_spoolman_vendor(
         data,

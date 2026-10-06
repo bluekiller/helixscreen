@@ -205,7 +205,6 @@ TEST_CASE("VendorInfo - default initialization", "[filament]") {
     SECTION("All fields default correctly") {
         REQUIRE(vendor.id == 0);
         REQUIRE(vendor.name.empty());
-        REQUIRE(vendor.url.empty());
     }
 }
 
@@ -486,7 +485,6 @@ TEST_CASE("MoonrakerAPIMock - create_spoolman_vendor", "[filament][mock]") {
     SECTION("Creates vendor and returns it") {
         nlohmann::json data;
         data["name"] = "Test Vendor";
-        data["url"] = "https://example.com";
 
         bool callback_called = false;
         api.spoolman().create_spoolman_vendor(
@@ -495,7 +493,6 @@ TEST_CASE("MoonrakerAPIMock - create_spoolman_vendor", "[filament][mock]") {
                 callback_called = true;
                 REQUIRE(vendor.id > 0);
                 REQUIRE(vendor.name == "Test Vendor");
-                REQUIRE(vendor.url == "https://example.com");
             },
             [](const MoonrakerError&) { FAIL("Error callback should not be called"); });
 
