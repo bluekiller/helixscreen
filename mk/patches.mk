@@ -612,7 +612,7 @@ $(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
 	$(Q)$(APPLY_PATCH) $(LIBHV_DIR) $(PATCH_DIR)/libhv-hlog-thread-safe-localtime.patch "libhv hlog localtime_r patch" "Without it every logging thread races on localtime()'s shared struct tm and tzset's TZ string (nightly TSAN, logger_print)."
 	$(Q)$(APPLY_PATCH) $(LIBHV_DIR) $(PATCH_DIR)/libhv-http-request-cancel-atomic.patch "libhv HttpRequest cancel atomic patch" "Without it CameraStream::stop() races the stream thread's ParseUrl() (nightly TSAN in HttpRequest::Cancel)."
 	$(Q)$(APPLY_PATCH) $(LIBHV_DIR) $(PATCH_DIR)/libhv-hloop-preallocate-ios.patch "libhv hloop ios preallocation patch" "Without it a client connecting right after its loop thread starts can lose its io to a concurrent first allocation and fault in iowatcher_add_event."
-	$(Q)$(APPLY_PATCH) $(LIBHV_DIR) $(PATCH_DIR)/libhv-websocket-open-install-once.patch "libhv WebSocketClient install-once patch" "Without it concurrent connect() corrupts the heap (SIGABRT free(): invalid next size)."
+	$(Q)$(APPLY_PATCH) $(LIBHV_DIR) $(PATCH_DIR)/libhv-websocket-open-install-once.patch "libhv WebSocketClient install-once patch" "Without it a reconnect from another thread overwrites onConnection while the loop thread is running it, and a redirect reassigns onMessage from inside onMessage."
 	$(Q)if [ -d "$(LIBHV_DIR)/include/hv" ]; then \
 		for h in evpp/TcpClient.h http/client/WebSocketClient.h cpputil/hthreadpool.h http/HttpMessage.h; do \
 			base=$$(basename $$h); \

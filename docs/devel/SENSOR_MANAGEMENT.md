@@ -38,7 +38,7 @@ Each manager has a matching `*_types.h` header (`filament_sensor_types.h`, `humi
 | `include/sensor_managers.h` | `for_each_sensor_manager()`: the one list of manager singletons, walked for subject init and the status fan-out |
 | `src/printer/printer_discovery.cpp` | `init_subsystems_from_hardware()`: calls each manager's `discover()` from the Klipper object list |
 | `src/api/moonraker_discovery_sequence.cpp` | Buckets sensor objects during object-list parsing, builds their status subscriptions, and queues the `configfile.config` discovery arm |
-| `src/printer/printer_state.cpp` | `PrinterState::update_from_status()` ends with the fan-out to every manager |
+| `src/application/moonraker_manager.cpp` | `dispatch_status_frame()` hands every status frame to each manager after `PrinterState` |
 | `src/application/subject_initializer.cpp` | `init_ams_subjects()` calls every manager's `init_subjects()` before any panel XML exists |
 | `include/printer_hardware.h` | `PrinterHardware::is_ams_sensor()`: hides filament sensors an AMS backend owns |
 | `src/ui/ui_settings_sensors.cpp`, `ui_xml/sensors_overlay.xml` | Settings > Sensors overlay, one section per manager |
@@ -62,7 +62,7 @@ PrinterDiscovery ──► init_subsystems_from_hardware()
                          ├─ HumiditySensorManager::discover()
                          └─ WidthSensorManager::discover() + load_config_from_file()
 
-notify_status_update ──► PrinterState::update_from_status()
+notify_status_update ──► dispatch_status_frame()
                               └─ for_each_sensor_manager(m.update_from_status(status))
                                      │  parse under the manager's mutex
                                      └─ lifetime_.token().defer ──► update_subjects() on the main thread

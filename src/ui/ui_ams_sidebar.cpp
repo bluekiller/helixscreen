@@ -374,9 +374,9 @@ void AmsOperationSidebar::init_observers() {
         [](AmsOperationSidebar* self, int) { self->refresh_button_gating(); },
         AmsState::instance().get_subjects_lifetime());
     print_state_observer_ = observe<int>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [](AmsOperationSidebar* self, int) { self->refresh_button_gating(); },
-        printer_state_.get_static_print_subjects_lifetime());
+        printer_state_.print_state().get_static_subjects_lifetime());
 
     // Active backend observer: re-syncs reset button label when the user switches backend tabs
     active_backend_observer_ = observe<int>(
@@ -419,7 +419,7 @@ void AmsOperationSidebar::init_observers() {
 
     // Extruder temp observer: checks pending preheat load + refreshes heat step
     extruder_temp_observer_ = observe<int>(
-        printer_state_.get_active_extruder_temp_subject(), this,
+        printer_state_.temperature_state().get_active_extruder_temp_subject(), this,
         [](AmsOperationSidebar* self, int /*temp_deci*/) {
             if (!self->active_)
                 return;
@@ -431,7 +431,7 @@ void AmsOperationSidebar::init_observers() {
     // Extruder target observer: refreshes heat step when target temp changes
     // (the macro raises the target before any visible action change)
     extruder_target_observer_ = observe<int>(
-        printer_state_.get_active_extruder_target_subject(), this,
+        printer_state_.temperature_state().get_active_extruder_target_subject(), this,
         [](AmsOperationSidebar* self, int target_deci) {
             if (!self->active_)
                 return;
@@ -877,10 +877,10 @@ void AmsOperationSidebar::refresh_live_temp_step_label(int current_index) {
         if (indeterminate) {
             snprintf(label_buf, sizeof(label_buf), "%s %s", base_label, lv_tr("Working..."));
         } else {
-            int current_deci =
-                lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
-            int target_deci =
-                lv_subject_get_int(printer_state_.get_active_extruder_target_subject());
+            int current_deci = lv_subject_get_int(
+                printer_state_.temperature_state().get_active_extruder_temp_subject());
+            int target_deci = lv_subject_get_int(
+                printer_state_.temperature_state().get_active_extruder_target_subject());
             char temp_buf[32];
             temperature::format_temperature_pair(temperature::deci_to_degrees(current_deci),
                                                  temperature::deci_to_degrees(target_deci),
@@ -1126,8 +1126,10 @@ void AmsOperationSidebar::update_step_progress(AmsAction action) {
     // step 0 with a live "X / Y°C" label until the extruder reaches its target.
     if (is_extruder_below_target()) {
         step_index = 0;
-        int current_deci = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
-        int target_deci = lv_subject_get_int(printer_state_.get_active_extruder_target_subject());
+        int current_deci = lv_subject_get_int(
+            printer_state_.temperature_state().get_active_extruder_temp_subject());
+        int target_deci = lv_subject_get_int(
+            printer_state_.temperature_state().get_active_extruder_target_subject());
         char temp_buf[32];
         temperature::format_temperature_pair(temperature::deci_to_degrees(current_deci),
                                              temperature::deci_to_degrees(target_deci), temp_buf,
@@ -1147,11 +1149,13 @@ void AmsOperationSidebar::update_step_progress(AmsAction action) {
 }
 
 bool AmsOperationSidebar::is_extruder_below_target() const {
-    int target_deci = lv_subject_get_int(printer_state_.get_active_extruder_target_subject());
+    int target_deci =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_target_subject());
     if (target_deci <= 0) {
         return false;
     }
-    int current_deci = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
+    int current_deci =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_temp_subject());
     return current_deci < (target_deci - PREHEAT_MARGIN_C * 10);
 }
 
@@ -1200,7 +1204,7 @@ AmsOperationSidebar::OpInputs AmsOperationSidebar::read_op_inputs() const {
     // AmsSystemInfo::is_busy(): the same predicate check_preconditions()
     // refuses on, instead of a fourth open-coded `action != IDLE && != ERROR`.
     return {/*system_busy=*/backend && backend->get_system_info().is_busy(),
-            printer_state_.get_print_lifecycle(),
+            printer_state_.print_state().get_print_lifecycle(),
             /*backend_self_homes=*/backend && backend->filament_ops_self_home()};
 }
 
@@ -1231,7 +1235,7 @@ helix::ui::OpButtonState AmsOperationSidebar::read_batch_load_gating_state() con
 helix::ui::MachineOpGating AmsOperationSidebar::read_machine_op_gating() const {
     AmsBackend* backend = AmsState::instance().get_backend();
     return helix::ui::compute_machine_op_gating(
-        helix::ui::print_blocks_filament_op(printer_state_.get_print_lifecycle(),
+        helix::ui::print_blocks_filament_op(printer_state_.print_state().get_print_lifecycle(),
                                             backend && backend->filament_ops_self_home()),
         /*reset_moves_filament=*/backend && backend->reset_moves_filament());
 }
@@ -1348,7 +1352,7 @@ void AmsOperationSidebar::handle_unload(int slot_index) {
     // computes its hold-temp fresh instead of inheriting this material's target.
     // Cleared once we know something will actually be dispatched, never on a
     // refusal.
-    printer_state_.clear_nozzle_load_latch();
+    printer_state_.temperature_state().clear_load_latch();
 
     if (plan.tier != helix::ui::FilamentTier::AmsBackend) {
         dispatch_unload_outside_backend(plan, target_slot);
@@ -1589,7 +1593,8 @@ void AmsOperationSidebar::handle_load_with_preheat(int slot_index) {
     // Otherwise, UI handles preheat
     int target = get_load_temp_for_slot(slot_index);
 
-    int current_deci = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
+    int current_deci =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_temp_subject());
     int current = temperature::deci_to_degrees(current_deci);
 
     // Swap-preheat: the effective load temp is the hotter of the requested
@@ -1597,8 +1602,8 @@ void AmsOperationSidebar::handle_load_with_preheat(int slot_index) {
     // cooled below the previous material's temp still reheats to purge it. Fold the
     // latch into the skip/wait decision; the controller applies the same max()
     // (against latch AND actual) when we send, via keep_previous_hot.
-    int latch =
-        static_cast<int>(std::lround(printer_state_.get_active_extruder_last_nonzero_target()));
+    int latch = static_cast<int>(
+        std::lround(printer_state_.temperature_state().get_active_extruder_last_nonzero_target()));
     int effective_target = helix::ui::filament_op_nozzle_temp(target, latch);
 
     if (current >= (effective_target - PREHEAT_MARGIN_C)) {
@@ -1634,7 +1639,8 @@ void AmsOperationSidebar::check_pending_load() {
         return;
     }
 
-    int current_deci = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
+    int current_deci =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_temp_subject());
     int current = temperature::deci_to_degrees(current_deci);
 
     // Update display with current temperature while waiting
@@ -1828,7 +1834,8 @@ void AmsOperationSidebar::handle_load_complete() {
 void AmsOperationSidebar::show_preheat_feedback(int slot_index, int target_temp) {
     LV_UNUSED(slot_index);
 
-    int current_deci = lv_subject_get_int(printer_state_.get_active_extruder_temp_subject());
+    int current_deci =
+        lv_subject_get_int(printer_state_.temperature_state().get_active_extruder_temp_subject());
     int current_temp = temperature::deci_to_degrees(current_deci);
 
     char temp_buf[32];

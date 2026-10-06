@@ -262,7 +262,8 @@ class NavbarIconTestFixture : public LVGLUITestFixture {
      * @brief Set nav buttons enabled state directly (combined subject)
      */
     void set_nav_buttons_enabled(bool enabled) {
-        lv_subject_set_int(state().get_nav_buttons_enabled_subject(), enabled ? 1 : 0);
+        lv_subject_set_int(state().network_state().get_nav_buttons_enabled_subject(),
+                           enabled ? 1 : 0);
     }
 
     /**

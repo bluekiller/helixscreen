@@ -1322,7 +1322,7 @@ nlohmann::json TelemetryManager::build_session_event() const {
 
         // Detected printer type (generic model name, not PII)
         {
-            const auto& ptype = get_printer_state().get_printer_type();
+            const auto& ptype = get_printer_state().profile_state().printer_type();
             if (!ptype.empty()) {
                 printer["detected_model"] = ptype;
             }
@@ -1373,7 +1373,7 @@ nlohmann::json TelemetryManager::build_session_event() const {
         if (spoolman_subj && lv_subject_get_int(spoolman_subj) > 0) {
             features.push_back("spoolman");
         }
-        if (ps.service_has_helix_plugin()) {
+        if (ps.plugin_status_state().service_has_helix_plugin()) {
             features.push_back("helix_plugin");
         }
 
@@ -1757,7 +1757,7 @@ nlohmann::json TelemetryManager::build_hardware_profile_event() const {
         // ---- printer section ----
         json printer;
         {
-            const auto& ptype = get_printer_state().get_printer_type();
+            const auto& ptype = get_printer_state().profile_state().printer_type();
             if (!ptype.empty()) {
                 printer["detected_model"] = ptype;
             }
@@ -1875,7 +1875,8 @@ nlohmann::json TelemetryManager::build_hardware_profile_event() const {
 
         // ---- plugins section ----
         json plugins;
-        plugins["helix_plugin_installed"] = get_printer_state().service_has_helix_plugin();
+        plugins["helix_plugin_installed"] =
+            get_printer_state().plugin_status_state().service_has_helix_plugin();
         event["plugins"] = plugins;
 
         // ---- display_backend ----
@@ -2811,7 +2812,7 @@ void on_print_state_changed_for_telemetry(lv_observer_t* observer, lv_subject_t*
     // Track the highest print start phase reached during this print.
     // Read it on every state change so we capture the max before it resets to IDLE.
     auto& ps = get_printer_state();
-    int phase = lv_subject_get_int(ps.get_print_start_phase_subject());
+    int phase = lv_subject_get_int(ps.print_state().get_print_start_phase_subject());
     if (phase > s_telemetry_max_phase) {
         s_telemetry_max_phase = phase;
     }
@@ -2825,7 +2826,7 @@ void on_print_state_changed_for_telemetry(lv_observer_t* observer, lv_subject_t*
     if (current == PrintJobState::PRINTING && s_telemetry_prev_state != PrintJobState::PAUSED) {
         s_telemetry_max_phase = 0;
         // Re-read phase in case it's already set
-        phase = lv_subject_get_int(ps.get_print_start_phase_subject());
+        phase = lv_subject_get_int(ps.print_state().get_print_start_phase_subject());
         if (phase > s_telemetry_max_phase) {
             s_telemetry_max_phase = phase;
         }
@@ -2837,7 +2838,7 @@ void on_print_state_changed_for_telemetry(lv_observer_t* observer, lv_subject_t*
         // Fetch file metadata to populate filament info for this print.
         // Note: if print ends before the async callback arrives, filament data
         // will be empty — this is acceptable (benign race, telemetry best-effort).
-        const char* filename = lv_subject_get_string(ps.get_print_filename_subject());
+        const char* filename = lv_subject_get_string(ps.print_state().get_print_filename_subject());
         if (filename && filename[0] != '\0') {
             std::string fname(filename);
             spdlog::debug("[Telemetry] Fetching metadata for filament info: {}", fname);
@@ -2916,12 +2917,13 @@ void on_print_state_changed_for_telemetry(lv_observer_t* observer, lv_subject_t*
         }
 
         // Gather data from PrinterState subjects
-        int duration_sec = lv_subject_get_int(ps.get_print_elapsed_subject());
+        int duration_sec = lv_subject_get_int(ps.print_state().get_print_elapsed_subject());
         int phases_completed = s_telemetry_max_phase;
 
         // Temperatures: subjects store decidegrees (value * 10), divide by 10
-        int nozzle_temp_deci = lv_subject_get_int(ps.get_active_extruder_target_subject());
-        int bed_temp_deci = lv_subject_get_int(ps.get_bed_target_subject());
+        int nozzle_temp_deci =
+            lv_subject_get_int(ps.temperature_state().get_active_extruder_target_subject());
+        int bed_temp_deci = lv_subject_get_int(ps.temperature_state().get_bed_target_subject());
         int nozzle_temp = helix::ui::temperature::deci_to_degrees(nozzle_temp_deci);
         int bed_temp = helix::ui::temperature::deci_to_degrees(bed_temp_deci);
 
@@ -2957,6 +2959,6 @@ ObserverGuard TelemetryManager::init_print_outcome_observer() {
     s_telemetry_filament_used_mm = 0.0f;
 
     spdlog::debug("[Telemetry] Print outcome observer registered");
-    return ObserverGuard(get_printer_state().get_print_state_enum_subject(),
+    return ObserverGuard(get_printer_state().print_state().get_print_state_enum_subject(),
                          on_print_state_changed_for_telemetry, nullptr);
 }

@@ -49,7 +49,7 @@ bool active_nozzle_ready_for_extrusion(const SafetyLimits& limits) {
     if (helix::SafetySettingsManager::instance().get_allow_cold_extrude()) {
         return true;
     }
-    auto* subj = get_printer_state().get_active_extruder_temp_subject();
+    auto* subj = get_printer_state().temperature_state().get_active_extruder_temp_subject();
     const int current = subj ? deci_to_degrees(lv_subject_get_int(subj)) : 0;
     return is_extrusion_safe(current, extrusion_floor_c(limits));
 }

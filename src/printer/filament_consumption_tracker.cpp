@@ -32,14 +32,14 @@ void FilamentConsumptionTracker::start() {
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - tracks material actually
     // extruded; nothing is consumed during a preparing window.
     print_state_obs_ = helix::ui::observe_print_state<FilamentConsumptionTracker>(
-        printer.get_print_state_enum_subject(), this,
+        printer.print_state().get_print_state_enum_subject(), this,
         [](FilamentConsumptionTracker* self, PrintJobState state) {
             self->on_print_state_changed(state);
         },
         printer.get_subjects_lifetime());
 
     filament_used_obs_ = helix::ui::observe<int>(
-        printer.get_print_filament_used_subject(), this,
+        printer.print_state().get_print_filament_used_subject(), this,
         [](FilamentConsumptionTracker* self, int mm) { self->on_filament_used_changed(mm); },
         printer.get_subjects_lifetime());
 
@@ -47,7 +47,8 @@ void FilamentConsumptionTracker::start() {
     // ([L077]) and share one lifetime token so a single reset() in stop()
     // invalidates every observer before the subjects are deinit'd.
     for (int idx = 0; idx < MAX_TRACKED_EXTRUDERS; ++idx) {
-        auto* subj = printer.get_extruder_filament_used_subject(idx, extruder_lifetime_);
+        auto* subj =
+            printer.print_state().get_extruder_filament_used_subject(idx, extruder_lifetime_);
         if (!subj) {
             continue;
         }
@@ -132,7 +133,7 @@ FilamentConsumptionTracker::register_sink(std::unique_ptr<IConsumptionSink> sink
     // per-extruder stream. No gram is lost in that rebase because the
     // remaining_weight_g snapshot reads the backend's current value each time.
     if (print_in_progress_) {
-        auto* subj = get_printer_state().get_print_filament_used_subject();
+        auto* subj = get_printer_state().print_state().get_print_filament_used_subject();
         const float mm = static_cast<float>(lv_subject_get_int(subj));
         raw->snapshot(mm);
         if (raw->is_trackable()) {
@@ -163,7 +164,7 @@ void FilamentConsumptionTracker::unregister_sink(SinkHandle handle) {
 }
 
 void FilamentConsumptionTracker::on_print_state_changed(PrintJobState state) {
-    auto* printer_mm = get_printer_state().get_print_filament_used_subject();
+    auto* printer_mm = get_printer_state().print_state().get_print_filament_used_subject();
     const float mm = static_cast<float>(lv_subject_get_int(printer_mm));
 
     // RAW_PRINT_STATE_OK: this tracks material actually extruded, so it keys on
@@ -289,7 +290,7 @@ void FilamentConsumptionTracker::on_extruder_filament_used_changed(int extruder_
 int FilamentConsumptionTracker::warn_unreported_extruder_mappings() {
     // Deltas arrive per reported extruder, so a slot mapped past that count
     // never accrues. Zero means discovery has not run, not "no extruders".
-    const int reported = get_printer_state().extruder_count();
+    const int reported = get_printer_state().temperature_state().extruder_count();
     if (reported <= 0) {
         return 0;
     }

@@ -175,8 +175,8 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     auto& ps = get_printer_state();
 
     // Set chamber temp/target subjects to known values
-    lv_subject_set_int(ps.get_chamber_temp_subject(), 423);   // 42.3°C
-    lv_subject_set_int(ps.get_chamber_target_subject(), 500); // 50.0°C
+    lv_subject_set_int(ps.temperature_state().get_chamber_temp_subject(), 423);   // 42.3°C
+    lv_subject_set_int(ps.temperature_state().get_chamber_target_subject(), 500); // 50.0°C
 
     TempGraphControllerConfig cfg;
     cfg.series = {
@@ -220,8 +220,8 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     auto& ps = get_printer_state();
 
     // Set chamber temp/target to known values
-    lv_subject_set_int(ps.get_chamber_temp_subject(), 385);   // 38.5°C
-    lv_subject_set_int(ps.get_chamber_target_subject(), 450); // 45.0°C
+    lv_subject_set_int(ps.temperature_state().get_chamber_temp_subject(), 385);   // 38.5°C
+    lv_subject_set_int(ps.temperature_state().get_chamber_target_subject(), 450); // 45.0°C
 
     TempGraphControllerConfig cfg;
     cfg.series = {
@@ -371,7 +371,7 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
                  "Queued rebuild callback safely no-ops after synchronous destroy (#1117)",
                  "[controller][temp_graph_controller][regression][uaf]") {
     auto& ps = get_printer_state();
-    auto* conn_subj = ps.get_printer_connection_state_subject();
+    auto* conn_subj = ps.network_state().get_printer_connection_state_subject();
     REQUIRE(conn_subj != nullptr);
 
     TempGraphControllerConfig cfg;
@@ -410,7 +410,7 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
                  "Detach + release + deferred-delete race is safe (#1117)",
                  "[controller][temp_graph_controller][regression][uaf]") {
     auto& ps = get_printer_state();
-    auto* conn_subj = ps.get_printer_connection_state_subject();
+    auto* conn_subj = ps.network_state().get_printer_connection_state_subject();
     REQUIRE(conn_subj != nullptr);
 
     TempGraphControllerConfig cfg;
@@ -467,11 +467,11 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
 
     // PrinterState is a process-global here and other cases discover tools into
     // it, so reset to the pre-discovery state this case is about.
-    ps.init_extruders({});
+    ps.temperature_state().init_extruders({});
     queue.drain();
 
     // Given: a graph built BEFORE discovery — "extruder1" does not exist yet
-    REQUIRE(ps.get_extruder_temp_subject("extruder1") == nullptr);
+    REQUIRE(ps.temperature_state().get_extruder_temp_subject("extruder1") == nullptr);
 
     TempGraphControllerConfig cfg;
     cfg.series = {
@@ -482,11 +482,11 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     REQUIRE(controller->series_id_for("extruder1") >= 0);
 
     // When: discovery lands and extruder1 reports a temperature
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
     queue.drain();
     lv_timer_handler_safe();
 
-    lv_subject_set_int(ps.get_extruder_temp_subject("extruder1"), 2295);
+    lv_subject_set_int(ps.temperature_state().get_extruder_temp_subject("extruder1"), 2295);
     queue.drain();
     lv_timer_handler_safe();
 

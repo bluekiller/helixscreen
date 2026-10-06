@@ -114,11 +114,12 @@ class MoveTabFixture : public LVGLUITestFixture {
 
         get_printer_state().update_from_status(ready_status("xyz"));
         get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
-        lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+        lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                            static_cast<int>(helix::PrintJobState::STANDBY));
         // No live connection exists in the fixture, so the derived gate would
         // stay shut; set it the way a connected READY printer would.
-        lv_subject_set_int(get_printer_state().get_nav_buttons_enabled_subject(), 1);
+        lv_subject_set_int(get_printer_state().network_state().get_nav_buttons_enabled_subject(),
+                           1);
         drain();
     }
 
@@ -391,16 +392,16 @@ TEST_CASE_METHOD(MoveTabFixture, "a print or disabled nav gates the move grid",
     // while a host-side pre-print block is already homing the toolhead.
     ps.update_from_status({{"print_stats", {{"state", "printing"}}}});
     drain();
-    CHECK(lv_subject_get_int(ps.get_machine_motion_blocked_subject()) == 1);
+    CHECK(lv_subject_get_int(ps.print_state().get_machine_motion_blocked_subject()) == 1);
     CHECK(lv_obj_has_state(preset, LV_STATE_DISABLED));
     CHECK(lv_obj_has_state(park, LV_STATE_DISABLED));
 
     ps.update_from_status({{"print_stats", {{"state", "standby"}}}});
-    lv_subject_set_int(ps.get_nav_buttons_enabled_subject(), 0);
+    lv_subject_set_int(ps.network_state().get_nav_buttons_enabled_subject(), 0);
     drain();
     CHECK(lv_obj_has_state(preset, LV_STATE_DISABLED));
 
-    lv_subject_set_int(ps.get_nav_buttons_enabled_subject(), 1);
+    lv_subject_set_int(ps.network_state().get_nav_buttons_enabled_subject(), 1);
     drain();
     CHECK_FALSE(lv_obj_has_state(preset, LV_STATE_DISABLED));
 
@@ -755,7 +756,7 @@ TEST_CASE_METHOD(MoveTabFixture,
 
     // A manual probe session holds the head absolutely: no recent app motion
     // can excuse it the way it excuses idle_timeout.
-    lv_subject_t* probe = get_printer_state().get_manual_probe_active_subject();
+    lv_subject_t* probe = get_printer_state().calibration_state().get_manual_probe_active_subject();
     lv_subject_set_int(probe, 1);
     REQUIRE(get_printer_state().is_external_blocking_operation_active());
     auto& panel = get_global_motion_panel();

@@ -180,7 +180,7 @@ class DispatchSurfaceFixture : public LVGLTestFixture {
 
     /// The extruder target Klipper reports, in degrees.
     void set_extruder_target(double degrees) {
-        state.init_extruders({"extruder"});
+        state.temperature_state().init_extruders({"extruder"});
         state.update_from_status({{"extruder", {{"target", degrees}}}});
     }
 

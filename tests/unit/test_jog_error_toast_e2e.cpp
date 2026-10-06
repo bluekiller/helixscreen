@@ -67,7 +67,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "mock jog rejection surfaces exactly one reada
     PrinterState state;
     state.init_subjects(false);
     state.set_klippy_state_sync(KlippyState::READY);
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::STANDBY));
     helix::PrinterStateTestAccess::set_sustained_idle_timeout_printing(state, false);
     mock.connect("ws://mock/websocket", []() {}, []() {});

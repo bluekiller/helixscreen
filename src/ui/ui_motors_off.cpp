@@ -36,7 +36,8 @@ void show_motors_off_confirm(IMoonrakerAPI* api, ModalGuard& stored,
             }
             // A print can start while the dialog is open (Mainsail, the job
             // queue), and the button's gate was only checked when it opened.
-            if (lv_subject_get_int(get_printer_state().get_machine_motion_blocked_subject()) != 0) {
+            if (lv_subject_get_int(
+                    get_printer_state().print_state().get_machine_motion_blocked_subject()) != 0) {
                 NOTIFY_WARNING(lv_tr("Motors stay on while a print is active"));
                 return;
             }

@@ -124,7 +124,7 @@ class HistoryManagerTestFixture {
     /// the cache whenever the socket is down, which is not the state a printer
     /// announcing a finished job is in.
     void set_connected() {
-        lv_subject_set_int(printer_state_.get_printer_connection_state_subject(),
+        lv_subject_set_int(printer_state_.network_state().get_printer_connection_state_subject(),
                            static_cast<int>(ConnectionState::CONNECTED));
     }
 
@@ -975,7 +975,7 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
     manager_->fetch(HistoryScope::COMPLETE);
     REQUIRE(wait_for_loaded());
 
-    lv_subject_t* conn = printer_state_.get_printer_connection_state_subject();
+    lv_subject_t* conn = printer_state_.network_state().get_printer_connection_state_subject();
     REQUIRE(conn != nullptr);
     lv_subject_set_int(conn, static_cast<int>(ConnectionState::CONNECTED));
     pump();
@@ -1000,7 +1000,7 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
     manager_->fetch(HistoryScope::COMPLETE);
     REQUIRE(wait_for_loaded());
 
-    lv_subject_t* conn = printer_state_.get_printer_connection_state_subject();
+    lv_subject_t* conn = printer_state_.network_state().get_printer_connection_state_subject();
     REQUIRE(conn != nullptr);
     for (int i = 0; i < 3; ++i) {
         lv_subject_set_int(conn, static_cast<int>(ConnectionState::CONNECTED));

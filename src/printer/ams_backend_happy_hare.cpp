@@ -2624,7 +2624,7 @@ AmsError AmsBackendHappyHare::apply_user_edit(int slot_index, const SlotInfo& in
         // the machine, so one reaching here is a backstop - rewriting the gate
         // map under a running print is the one thing that must not happen.
         if (api_ && slot_index == current_slot &&
-            job_holds_machine(api_->printer_state().get_print_lifecycle())) {
+            job_holds_machine(api_->printer_state().print_state().get_print_lifecycle())) {
             spdlog::warn("[AMS HappyHare] Clear of gate {} reached us mid-print; firmware "
                          "write skipped",
                          slot_index);

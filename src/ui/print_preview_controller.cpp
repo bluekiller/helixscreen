@@ -76,7 +76,8 @@ void PrintPreviewController::cancel_pending_load() {
 }
 
 void PrintPreviewController::on_filename_changed() {
-    const std::string& effective_filename = printer_state_.get_effective_print_filename();
+    const std::string& effective_filename =
+        printer_state_.print_state().get_effective_print_filename();
 
     // When the effective filename CHANGES, the widgets are showing the old file
     // (or nothing). Clear each stale per-asset marker so ensure_current() sees
@@ -104,8 +105,8 @@ void PrintPreviewController::on_thumbnail_published(const char* path) {
     // assuming the value is ours. A result that lands for the previous print must
     // not be applied, and above all must not advance displayed_file_: that stamp
     // is what convinces ensure_current() the current file is already on screen.
-    const std::string& for_file = printer_state_.get_print_thumbnail_file();
-    const std::string& effective = printer_state_.get_effective_print_filename();
+    const std::string& for_file = printer_state_.print_state().get_print_thumbnail_file();
+    const std::string& effective = printer_state_.print_state().get_effective_print_filename();
     if (!effective.empty() && for_file != effective) {
         spdlog::debug("[{}] Ignoring thumbnail published for '{}' (showing '{}')", log_tag_,
                       for_file, effective);
@@ -187,7 +188,7 @@ void PrintPreviewController::on_print_ended() {
 }
 
 bool PrintPreviewController::is_load_for_effective_print(const std::string& print_filename) const {
-    return print_filename == printer_state_.get_effective_print_filename();
+    return print_filename == printer_state_.print_state().get_effective_print_filename();
 }
 
 void PrintPreviewController::load_file(const char* file_path, const std::string& print_filename) {
@@ -199,7 +200,8 @@ void PrintPreviewController::load_file(const char* file_path, const std::string&
     // reconciles against whichever print is effective NOW.
     if (!is_load_for_effective_print(print_filename)) {
         spdlog::debug("[{}] Dropping G-code load for '{}': no longer the effective print ('{}')",
-                      log_tag_, print_filename, printer_state_.get_effective_print_filename());
+                      log_tag_, print_filename,
+                      printer_state_.print_state().get_effective_print_filename());
         ensure_current();
         return;
     }
@@ -234,7 +236,7 @@ void PrintPreviewController::on_viewer_loaded(lv_obj_t* viewer, void* user_data,
         spdlog::debug("[{}] Dropping G-code load result for '{}': no longer the effective print "
                       "('{}')",
                       self->log_tag_, self->gcode_load_filename_,
-                      self->printer_state_.get_effective_print_filename());
+                      self->printer_state_.print_state().get_effective_print_filename());
         self->ensure_current();
         return;
     }
@@ -269,8 +271,8 @@ void PrintPreviewController::on_viewer_loaded(lv_obj_t* viewer, void* user_data,
         std::vector<helix::gcode::ScheduledPause> pauses;
         helix::gcode::ProgressAxis axis = helix::gcode::ProgressAxis::BytePosition;
         if (helix::ui_gcode_viewer_get_scheduled_pauses(viewer, pauses, axis)) {
-            self->printer_state_.set_scheduled_pauses(std::move(pauses), axis,
-                                                      self->gcode_load_filename_);
+            self->printer_state_.print_state().set_scheduled_pauses(std::move(pauses), axis,
+                                                                    self->gcode_load_filename_);
         }
     }
 
@@ -297,20 +299,22 @@ void PrintPreviewController::on_viewer_loaded(lv_obj_t* viewer, void* user_data,
     // Set print progress to current layer (not 0!) when joining a print in progress.
     // Read directly from PrinterState subjects to get the latest values.
     int viewer_max_layer = ui_gcode_viewer_get_max_layer(viewer);
-    int current_layer = lv_subject_get_int(self->printer_state_.get_print_layer_current_subject());
-    int total_layers = lv_subject_get_int(self->printer_state_.get_print_layer_total_subject());
+    int current_layer =
+        lv_subject_get_int(self->printer_state_.print_state().get_print_layer_current_subject());
+    int total_layers =
+        lv_subject_get_int(self->printer_state_.print_state().get_print_layer_total_subject());
 
     // Fallback: if Moonraker metadata didn't provide layer count,
     // use the count from the parsed/indexed gcode file
     if (total_layers == 0 && viewer_max_layer > 0) {
         int layer_count = viewer_max_layer + 1; // max_layer is 0-based
-        self->printer_state_.set_print_layer_total(layer_count);
+        self->printer_state_.print_state().set_print_layer_total(layer_count);
         spdlog::info("[{}] Set total layers from gcode viewer: {}", self->log_tag_, layer_count);
     }
 
     // Update lifecycle state while we're at it
     self->lifecycle_.on_layer_changed(current_layer, total_layers,
-                                      self->printer_state_.has_real_layer_data());
+                                      self->printer_state_.print_state().has_real_layer_data());
 
     // Map from Moonraker layer count to viewer layer count
     // Note: viewer_max_layer may be -1 if 2D renderer not yet initialized (lazy init)
@@ -368,7 +372,8 @@ void PrintPreviewController::load_for_viewing(const std::string& filename) {
     // that is already known to be the wrong one.
     if (!is_load_for_effective_print(filename)) {
         spdlog::debug("[{}] Skipping G-code fetch for '{}': no longer the effective print ('{}')",
-                      log_tag_, filename, printer_state_.get_effective_print_filename());
+                      log_tag_, filename,
+                      printer_state_.print_state().get_effective_print_filename());
         ensure_current();
         return;
     }
@@ -440,7 +445,7 @@ void PrintPreviewController::schedule_deferred_load() {
 
 #if defined(HELIX_PLATFORM_ESP32)
 void PrintPreviewController::apply_psram_thumbnail() {
-    auto thumb = printer_state_.get_print_psram_thumbnail();
+    auto thumb = printer_state_.print_state().get_print_psram_thumbnail();
     if (!thumb) {
         return;
     }
@@ -460,7 +465,7 @@ void PrintPreviewController::apply_psram_thumbnail() {
     // Fallback content for the current print is now on screen; record it so
     // ensure_current() treats the thumbnail as current (mirrors the
     // print_thumbnail_path observer on other platforms).
-    const std::string& effective = printer_state_.get_effective_print_filename();
+    const std::string& effective = printer_state_.print_state().get_effective_print_filename();
     if (!effective.empty()) {
         displayed_file_ = effective;
     }
@@ -469,7 +474,7 @@ void PrintPreviewController::apply_psram_thumbnail() {
 
 void PrintPreviewController::ensure_current() {
     // Desired state = the effective filename of the current print.
-    const std::string& desired = printer_state_.get_effective_print_filename();
+    const std::string& desired = printer_state_.print_state().get_effective_print_filename();
 
     // Read ACTUAL widget state — not intent bools, which can lie after a
     // destroy-on-close / memory-reclaim cycle. This is what makes re-entry
@@ -532,7 +537,7 @@ void PrintPreviewController::ensure_current() {
             lv_image_set_src(print_thumbnail_, cached_thumbnail_path_.c_str());
             crash_handler::breadcrumb::note("pstat_thm", "set_src_post");
             displayed_file_ = desired;
-        } else if (printer_state_.get_print_thumbnail_file() == desired) {
+        } else if (printer_state_.print_state().get_print_thumbnail_file() == desired) {
             // The subject already carries this file's image, but it was
             // published BEFORE our own view of the filename caught up: the
             // manager observes print_filename synchronously while this panel's
@@ -541,8 +546,8 @@ void PrintPreviewController::ensure_current() {
             // Re-reading the subject once the filename lands is what makes that
             // ordering self-healing instead of leaving the previous print's
             // image on the new print's card.
-            const char* published =
-                lv_subject_get_string(printer_state_.get_print_thumbnail_path_subject());
+            const char* published = lv_subject_get_string(
+                printer_state_.print_state().get_print_thumbnail_path_subject());
             cached_thumbnail_path_ = published;
             crash_handler::breadcrumb::note("pstat_thm", "set_src_pre");
             lv_image_set_src(print_thumbnail_, published);
@@ -568,7 +573,7 @@ void PrintPreviewController::ensure_current() {
             // correct filename - is otherwise indistinguishable from a fetch
             // that simply has not landed yet (#1339).
             spdlog::debug("[{}] No thumbnail source for '{}': subject holds one for '{}'", log_tag_,
-                          desired, printer_state_.get_print_thumbnail_file());
+                          desired, printer_state_.print_state().get_print_thumbnail_file());
         }
     }
 

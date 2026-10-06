@@ -468,10 +468,13 @@ class LedController {
                         bool silent = false);
 
     /// Route a Moonraker status frame to the backends; bumps led_state_version
-    /// when it carried an LED object. Main thread only, and called under
-    /// PrinterState's state_mutex_, so led_state_version observers must not call
-    /// back into PrinterState synchronously.
+    /// when it carried an LED object. Main thread only; dispatch_status_frame()
+    /// is the caller.
     void update_from_status(const nlohmann::json& status);
+
+    /// Hand a printer.objects.query response for LED objects to every status
+    /// consumer, as a notification would be. Callable from any thread.
+    static void apply_query_response(const nlohmann::json& response);
 
     /// Poll WLED state over Moonraker, then bump led_state_version on the main
     /// thread and run @p on_done there.

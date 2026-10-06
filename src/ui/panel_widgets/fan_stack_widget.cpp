@@ -502,13 +502,13 @@ void FanStackWidget::bind_fans() {
     hotend_speed_ = 0;
     aux_speed_ = 0;
 
-    const auto& fans = printer_state_.get_fans();
+    const auto& fans = printer_state_.fan_state().get_fans();
     if (fans.empty()) {
         spdlog::debug("[FanStackWidget] No fans discovered yet");
         return;
     }
 
-    auto primary = printer_state_.get_fan_state().classify_primary_fans();
+    auto primary = printer_state_.fan_state().classify_primary_fans();
     part_fan_name_ = primary.part;
     hotend_fan_name_ = primary.hotend;
     aux_fan_name_ = primary.aux;
@@ -608,7 +608,7 @@ void FanStackWidget::bind_carousel_fans() {
         }
     }
 
-    const auto& fans = printer_state_.get_fans();
+    const auto& fans = printer_state_.fan_state().get_fans();
 
     // When no fans are discovered yet (e.g. disconnected), use placeholder
     // entries so the carousel still shows arc widgets at 0%.
@@ -802,7 +802,7 @@ ObserverGuard FanStackWidget::bind_fan_observer(const std::string& fan_name,
         return {};
 
     SubjectLifetime lifetime;
-    lv_subject_t* subject = printer_state_.get_fan_speed_subject(fan_name, lifetime);
+    lv_subject_t* subject = printer_state_.fan_state().get_fan_speed_subject(fan_name, lifetime);
     if (!subject)
         return {};
 
@@ -838,7 +838,7 @@ void FanStackWidget::setup_common_observers(std::function<void()> on_anim_change
         DisplaySettingsManager::instance().get_subjects_lifetime());
 
     version_observer_ = helix::ui::observe<int>(
-        printer_state_.get_fans_version_subject(), this,
+        printer_state_.fan_state().get_fans_version_subject(), this,
         [token, on_fans_version](FanStackWidget* /*self*/, int /*version*/) {
             if (token.expired())
                 return;
@@ -919,7 +919,8 @@ void FanStackWidget::send_carousel_fan_speed(const std::string& object_name, int
 
     // Optimistic PrinterState update so sibling consumers refresh immediately;
     // mirrors FanControlOverlay::send_fan_speed.
-    printer_state_.update_fan_speed(object_name, static_cast<double>(speed_percent) / 100.0);
+    printer_state_.fan_state().update_fan_speed(object_name,
+                                                static_cast<double>(speed_percent) / 100.0);
 
     api->set_fan_speed(
         object_name, static_cast<double>(speed_percent), []() {},

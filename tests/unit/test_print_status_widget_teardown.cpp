@@ -98,7 +98,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
         // The observers are still subscribed: a new active-print thumbnail and
         // an idle reset both reach the widget after its tree is gone.
-        lv_subject_copy_string(get_printer_state().get_print_thumbnail_path_subject(),
+        lv_subject_copy_string(get_printer_state().print_state().get_print_thumbnail_path_subject(),
                                "A:assets/images/benchy_thumbnail_white.png");
         Access::reset_to_idle(widget);
         process_lvgl(30);

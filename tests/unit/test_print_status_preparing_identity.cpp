@@ -99,7 +99,7 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
 
     // Print B is committed. Moonraker still reports print A - that lag is the
     // whole reason the identity is recorded at commit.
-    state().begin_preparing(PrintJobRef{"printB.gcode", "", ""});
+    state().print_state().begin_preparing(PrintJobRef{"printB.gcode", "", ""});
     drain();
 
     REQUIRE(Access::identity_override(panel()) == "printB.gcode");
@@ -108,13 +108,13 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
 TEST_CASE_METHOD(PreparingIdentityFixture,
                  "An abandoned preparing job releases the panel's identity",
                  "[print_status][preparing_identity][1339]") {
-    state().begin_preparing(PrintJobRef{"never_ran.gcode", "", ""});
+    state().print_state().begin_preparing(PrintJobRef{"never_ran.gcode", "", ""});
     drain();
     REQUIRE(Access::identity_override(panel()) == "never_ran.gcode");
 
     // Superseded, not Confirmed: the printer did not take this job. Leaving the
     // source set would resolve the NEXT print through a job that never ran.
-    state().retire_preparing(PreparingExit::Superseded);
+    state().print_state().retire_preparing(PreparingExit::Superseded);
     drain();
 
     REQUIRE(Access::identity_override(panel()).empty());
@@ -124,8 +124,8 @@ TEST_CASE_METHOD(PreparingIdentityFixture, "A confirmed preparing job keeps the 
                  "[print_status][preparing_identity][1339]") {
     // Confirmed means the printer took OUR job, so the source still describes
     // what is printing - print_stats may report a rewritten temp name for it.
-    state().begin_preparing(PrintJobRef{"mine.gcode", "", ""});
-    state().retire_preparing(PreparingExit::Confirmed);
+    state().print_state().begin_preparing(PrintJobRef{"mine.gcode", "", ""});
+    state().print_state().retire_preparing(PreparingExit::Confirmed);
     drain();
 
     REQUIRE(Access::identity_override(panel()) == "mine.gcode");
@@ -140,8 +140,8 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
                  "A print started outside the app retires the panel's stale identity",
                  "[print_status][preparing_identity][1339]") {
     // Print A started FROM the app records the identity and keeps it (Confirmed).
-    state().begin_preparing(PrintJobRef{"printA.gcode", "", ""});
-    state().retire_preparing(PreparingExit::Confirmed);
+    state().print_state().begin_preparing(PrintJobRef{"printA.gcode", "", ""});
+    state().print_state().retire_preparing(PreparingExit::Confirmed);
     drain();
     report_filename("printA.gcode");
     drain();
@@ -161,8 +161,8 @@ TEST_CASE_METHOD(PreparingIdentityFixture, "Reprinting the same file keeps the p
                  "[print_status][preparing_identity][1339]") {
     // Retirement must not fire on a reprint, where the identity still describes
     // exactly what is printing.
-    state().begin_preparing(PrintJobRef{"repeat.gcode", "", ""});
-    state().retire_preparing(PreparingExit::Confirmed);
+    state().print_state().begin_preparing(PrintJobRef{"repeat.gcode", "", ""});
+    state().print_state().retire_preparing(PreparingExit::Confirmed);
     drain();
     report_filename("repeat.gcode");
     drain();
