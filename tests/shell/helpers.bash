@@ -8,6 +8,9 @@ log_warn() { :; }
 log_error() { :; }
 log_success() { :; }
 export -f log_info log_warn log_error log_success
+# The installer's log_info prints to the terminal only when verbose; tests
+# assert on its text, so they run verbose unless a test unsets this.
+export HELIX_INSTALL_VERBOSE=1
 
 # Ensure BATS_TEST_TMPDIR exists (added in bats 1.4.1, Ubuntu 22.04 ships 1.2.1)
 # Each bats test runs in a subshell, so this creates a fresh dir per test.

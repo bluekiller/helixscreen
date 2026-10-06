@@ -242,34 +242,96 @@ CLEANUP_TMP=false
 BACKUP_CONFIG=""
 BACKUP_ENV=""
 
-# Colors (if terminal supports it)
-setup_colors() {
-    if [ -t 1 ]; then
-        RED='\033[0;31m'
-        GREEN='\033[0;32m'
-        YELLOW='\033[1;33m'
-        CYAN='\033[0;36m'
-        BOLD='\033[1m'
-        NC='\033[0m'
+# Output is decided by stderr, where every log line goes: under `curl | sh`
+# stdin is the script and stdout may be a pipe while stderr is the terminal.
+# HELIX_INSTALL_TTY=0|1 overrides the probe (tests, and callers that know).
+# shellcheck disable=SC2034  # UI_UTF8, BOLD and DIM are consumed by the step layer and main.sh
+ui_detect() {
+    case "${HELIX_INSTALL_TTY:-}" in
+        0) UI_TTY=0 ;;
+        1) UI_TTY=1 ;;
+        *) if [ -t 2 ]; then UI_TTY=1; else UI_TTY=0; fi ;;
+    esac
+
+    _ui_locale="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"
+    case "$_ui_locale" in
+        *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) UI_UTF8=1 ;;
+        *) UI_UTF8=0 ;;
+    esac
+
+    UI_COLOR=0
+    if [ "$UI_TTY" = 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ]; then
+        case "${TERM:-}:${COLORTERM:-}" in
+            *256color*|*:truecolor|*:24bit) UI_COLOR=256 ;;
+            *) UI_COLOR=16 ;;
+        esac
+    fi
+
+    if [ "$UI_COLOR" != 0 ]; then
+        RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+        CYAN='\033[0;36m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
     else
-        RED=''
-        GREEN=''
-        YELLOW=''
-        CYAN=''
-        # shellcheck disable=SC2034  # consumed by main.sh (installer banner) and release.sh
-        BOLD=''
-        NC=''
+        RED=''; GREEN=''; YELLOW=''; CYAN=''; BOLD=''; DIM=''; NC=''
+    fi
+}
+ui_detect
+
+# The log file. Lines logged before log_open (detection runs before the
+# install has anywhere to write) are held in _LOG_BUFFER and flushed by it.
+INSTALL_LOG=""
+_LOG_BUFFER=""
+
+_log_write() {
+    _lw_line="[$(date +%H:%M:%S)] $1"
+    if [ -n "$INSTALL_LOG" ]; then
+        printf '%s\n' "$_lw_line" >> "$INSTALL_LOG" 2>/dev/null || true
+    else
+        _LOG_BUFFER="${_LOG_BUFFER}${_lw_line}
+"
     fi
 }
 
-# Initialize colors immediately
-setup_colors
+# UNCALLED_OK: callers land in Task 8/9
+log_open() {
+    INSTALL_LOG="$1"
+    : > "$INSTALL_LOG" 2>/dev/null || { INSTALL_LOG=""; return 1; }
+    printf '%s' "$_LOG_BUFFER" >> "$INSTALL_LOG"
+    _LOG_BUFFER=""
+}
 
-# Logging functions (printf %b interprets \033 escapes; BusyBox echo does not)
-log_info() { printf '%b\n' "${CYAN}[INFO]${NC} $1" >&2; }
-log_success() { printf '%b\n' "${GREEN}[OK]${NC} $1" >&2; }
-log_warn() { printf '%b\n' "${YELLOW}[WARN]${NC} $1" >&2; }
-log_error() { printf '%b\n' "${RED}[ERROR]${NC} $1" >&2; }
+# Strip \033[...m sequences from a message before it reaches the log. The ESC
+# byte comes from printf: BusyBox sed does not understand \x1b.
+_ESC=$(printf '\033')
+_log_plain() { printf '%b' "$1" | sed "s/${_ESC}\\[[0-9;]*m//g"; }
+
+# Screen output for the four levels. _ui_emit is redefined by the step layer
+# to indent under an open step; here it prints the line as given.
+_ui_emit() { printf '%b\n' "$1" >&2; }
+
+log_info() {
+    _log_write "INFO $(_log_plain "$1")"
+    [ "${HELIX_INSTALL_VERBOSE:-0}" = 1 ] && _ui_emit "${CYAN}[INFO]${NC} $1"
+    return 0
+}
+log_success() {
+    _log_write "OK $(_log_plain "$1")"
+    [ "${HELIX_INSTALL_VERBOSE:-0}" = 1 ] && _ui_emit "${GREEN}[OK]${NC} $1"
+    return 0
+}
+log_warn() {
+    _log_write "WARN $(_log_plain "$1")"
+    _ui_emit "${YELLOW}[WARN]${NC} $1"
+}
+log_error() {
+    _log_write "ERROR $(_log_plain "$1")"
+    _ui_emit "${RED}[ERROR]${NC} $1"
+}
+# A detail line a regular user should see. Used sparingly.
+# UNCALLED_OK: callers land in Task 8/9
+log_note() {
+    _log_write "NOTE $(_log_plain "$1")"
+    _ui_emit "    $1"
+}
 
 # Error handler - cleanup and report what went wrong
 # Usage: trap 'error_handler $LINENO' ERR
