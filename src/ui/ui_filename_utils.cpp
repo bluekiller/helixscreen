@@ -94,11 +94,27 @@ std::string get_display_filename(const std::string& path) {
 // recognise them through is_uploaded_rewrite_path(), so neither side can spell
 // it differently from the other.
 static const std::string helix_temp_prefix = ".helix_temp/modified_";
+// Where the HelixPrint plugin links a staged copy under the original's
+// gcodes-relative path; the remainder after it IS that path.
+static const std::string helix_print_prefix = ".helix_print/";
 static const std::string gcode_mod_prefix = "/gcode_mod/mod_";
 static const std::string legacy_prefix = "/tmp/helixscreen_mod_";
 
+// Start of the original's path inside a plugin symlink path, or npos. The
+// prefix counts only as a whole leading path segment, so a user folder that
+// merely ends in ".helix_print" is not mistaken for one.
+static size_t helix_print_original_pos(const std::string& path) {
+    const size_t pos = path.find(helix_print_prefix);
+    if (pos == std::string::npos || (pos > 0 && path[pos - 1] != '/')) {
+        return std::string::npos;
+    }
+    const size_t start = pos + helix_print_prefix.size();
+    return start < path.size() ? start : std::string::npos;
+}
+
 bool is_rewritten_gcode_path(const std::string& path) {
     return path.find(helix_temp_prefix) != std::string::npos ||
+           helix_print_original_pos(path) != std::string::npos ||
            path.find(gcode_mod_prefix) != std::string::npos ||
            path.find(legacy_prefix) != std::string::npos;
 }
@@ -138,6 +154,13 @@ static std::string unescape_path(const std::string& name) {
 
 std::string resolve_gcode_filename(const std::string& path) {
     size_t underscore_pos = std::string::npos;
+
+    if (const size_t start = helix_print_original_pos(path); start != std::string::npos) {
+        // .helix_print/parts/benchy.gcode -> parts/benchy.gcode
+        std::string original = path.substr(start);
+        spdlog::debug("[resolve_gcode_filename] '{}' -> '{}'", path, original);
+        return original;
+    }
 
     if (path.find(helix_temp_prefix) != std::string::npos) {
         // .helix_temp/modified_<ts>p_parts~sbenchy.gcode -> parts/benchy.gcode

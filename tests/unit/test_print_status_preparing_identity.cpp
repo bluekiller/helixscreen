@@ -195,4 +195,10 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
 
         REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
     }
+
+    SECTION("after a restart, printed through the HelixPrint plugin") {
+        report_filename(".helix_print/parts/benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
+    }
 }

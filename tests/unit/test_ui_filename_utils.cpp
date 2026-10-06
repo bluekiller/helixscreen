@@ -142,6 +142,21 @@ TEST_CASE("resolve_gcode_filename() decodes a staged subfolder path",
     CHECK(resolve_gcode_filename(".helix_temp/modified_1748_a~sb.gcode") == "a~sb.gcode");
 }
 
+TEST_CASE("resolve_gcode_filename() unwraps a HelixPrint plugin symlink path",
+          "[filename_utils][identity][reprint]") {
+    CHECK(resolve_gcode_filename(".helix_print/parts/benchy.gcode") == "parts/benchy.gcode");
+    CHECK(resolve_gcode_filename(".helix_print/benchy.gcode") == "benchy.gcode");
+    CHECK(resolve_gcode_filename("gcodes/.helix_print/a/b.gcode") == "a/b.gcode");
+    // Only the plugin's own directory, as a whole segment.
+    CHECK(resolve_gcode_filename("my.helix_print/b.gcode") == "my.helix_print/b.gcode");
+    CHECK(resolve_gcode_filename(".helix_print/") == ".helix_print/");
+
+    // A plugin-started print is ours, but its symlink is the plugin's to remove.
+    CHECK(helix::gcode::is_rewritten_gcode_path(".helix_print/parts/benchy.gcode"));
+    CHECK_FALSE(helix::gcode::is_uploaded_rewrite_path(".helix_print/parts/benchy.gcode"));
+    CHECK_FALSE(helix::gcode::is_rewritten_gcode_path("my.helix_print/b.gcode"));
+}
+
 TEST_CASE("resolve_gcode_filename() finds the prefix anywhere in the path",
           "[filename_utils][identity]") {
     // print_stats reports the path relative to the gcodes root, so the marker is
