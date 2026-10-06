@@ -106,7 +106,9 @@ TEST_CASE_METHOD(PagingFixture, "load_older asks for the page before the oldest 
     manager_->load_older();
     REQUIRE(history().requests.size() == 1);
     CHECK(history().requests[0].limit == PrintHistoryManager::kOlderPageJobs);
-    CHECK(history().requests[0].before == manager_->get_jobs().back().start_time);
+    // Just past the oldest cached job, so jobs sharing its start time are kept.
+    CHECK(history().requests[0].before > manager_->get_jobs().back().start_time);
+    CHECK(history().requests[0].before < manager_->get_jobs().back().start_time + 1.0);
 
     // A short page: the printer has no more jobs than these.
     history().answer(jobs_from(3, 2, 3.0));
@@ -209,5 +211,64 @@ TEST_CASE_METHOD(PagingFixture, "paging stops at the cached-job budget and cover
     CHECK_FALSE(manager_->holds_every_job());
 
     manager_->load_older();
+    CHECK(history().requests.empty());
+}
+
+TEST_CASE_METHOD(PagingFixture, "a full page of jobs already cached ends paging",
+                 "[history_manager][paging]") {
+    install_capped(3);
+    const double window = kNow - 1000.0 * kHour;
+    manager_->ensure_covers_since(window);
+    REQUIRE(history().requests.size() == 1);
+
+    // A server ignoring before= answers with the newest jobs again: a full page,
+    // nothing new. Asking again would get the same page forever.
+    std::vector<PrintHistoryJob> same;
+    for (int i = 0; i < PrintHistoryManager::kOlderPageJobs; ++i) {
+        same.push_back(jobs_from(i % 3, 1, static_cast<double>(i % 3))[0]);
+    }
+    history().answer(same);
+    pump();
+
+    CHECK(history().requests.empty());
+    CHECK(manager_->get_jobs().size() == 3);
+    CHECK_FALSE(manager_->holds_every_job()); // stopped, not complete
+
+    manager_->load_older();
+    CHECK(history().requests.empty());
+}
+
+TEST_CASE_METHOD(PagingFixture, "a job sharing the boundary start time is not skipped",
+                 "[history_manager][paging]") {
+    install_capped(3);
+    manager_->load_older();
+    REQUIRE(history().requests.size() == 1);
+
+    // job2 is the oldest cached; job2b started at the same instant.
+    PrintHistoryJob twin = manager_->get_jobs().back();
+    twin.job_id = "job2b";
+    std::vector<PrintHistoryJob> page{manager_->get_jobs().back(), twin};
+    history().answer(page);
+    pump();
+
+    CHECK(manager_->get_jobs().size() == 4);
+    CHECK(manager_->get_jobs().back().job_id == "job2b");
+}
+
+TEST_CASE_METHOD(PagingFixture, "a reload nobody asked to cover does not page back",
+                 "[history_manager][paging]") {
+    install_capped(3);
+    manager_->ensure_covers_since(kNow - 1000.0 * kHour);
+    REQUIRE(history().requests.size() == 1);
+    history().answer(jobs_from(3, PrintHistoryManager::kOlderPageJobs, 3.0));
+    pump();
+    REQUIRE(history().requests.size() == 1); // still paging toward the window
+
+    // A history event replaces the cache with the newest jobs. The window that
+    // wanted coverage is not asking any more, so nothing pages back.
+    history().answer({}); // the in-flight page lands after the reload; dropped
+    PrintHistoryManagerTestAccess::complete_fetch(*manager_, jobs_from(0, 3, 0.0),
+                                                  HistoryScope::COMPLETE, 3);
+    pump();
     CHECK(history().requests.empty());
 }

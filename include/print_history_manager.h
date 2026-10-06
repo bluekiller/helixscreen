@@ -509,6 +509,13 @@ class PrintHistoryManager {
     // was replaced is not appended to a list it no longer extends.
     uint64_t cache_generation_ = 0;
     size_t job_budget_ = kCachedJobBudget;
+    // An older page added nothing new (a server ignoring before=): paging stops
+    // until the next full load, without claiming every job is held.
+    bool older_exhausted_ = false;
+    // A full load was requested by ensure_covers_since(), so its landing keeps
+    // paging toward wanted_since_. Any other full load drops the target: a
+    // consumer that still needs the window asks again.
+    bool coverage_load_pending_ = false;
     // Atomic because we clear it on the WebSocket BG thread (before posting the
     // main-thread defer) to survive UpdateQueue freeze-drops — otherwise a dropped
     // fetch_success strands the guard and blocks every subsequent fetch.

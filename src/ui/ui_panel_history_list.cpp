@@ -240,11 +240,7 @@ void HistoryListPanel::on_activate() {
             }
 
             spdlog::debug("[{}] History manager notified - refreshing", get_name());
-            // Get fresh data from manager and re-apply filters
-            if (history_manager_->is_loaded(HistoryScope::COMPLETE)) {
-                jobs_ = history_manager_->get_jobs();
-                apply_filters_and_sort();
-            }
+            refresh_from_manager();
         };
         history_manager_->add_observer(&history_observer_);
     }
@@ -532,7 +528,16 @@ void HistoryListPanel::associate_timelapse_files(const std::vector<FileInfo>& ti
 // Internal Methods
 // ============================================================================
 
-void HistoryListPanel::populate_list() {
+void HistoryListPanel::refresh_from_manager() {
+    if (history_manager_ && history_manager_->is_loaded(HistoryScope::COMPLETE)) {
+        jobs_ = history_manager_->get_jobs();
+        // A page of older jobs lands while the user is reading the bottom of
+        // the list; jumping back to the top would lose their place.
+        apply_filters_and_sort(/*preserve_scroll=*/true);
+    }
+}
+
+void HistoryListPanel::populate_list(bool preserve_scroll) {
     if (!list_rows_) {
         spdlog::error("[{}] Cannot populate: list_rows container is null", get_name());
         return;
@@ -555,7 +560,7 @@ void HistoryListPanel::populate_list() {
                           [this](size_t index) { handle_row_click(index); });
     }
 
-    list_view_->populate(filtered_jobs_);
+    list_view_->populate(filtered_jobs_, preserve_scroll);
 
     spdlog::debug("[{}] List populated with {} jobs via virtual scroll", get_name(),
                   filtered_jobs_.size());
@@ -660,7 +665,7 @@ void HistoryListPanel::handle_row_click(size_t index) {
 // Filter/Sort Implementation
 // ============================================================================
 
-void HistoryListPanel::apply_filters_and_sort() {
+void HistoryListPanel::apply_filters_and_sort(bool preserve_scroll) {
     spdlog::debug("[{}] Applying filters - search: '{}', status: {}, sort: {} {}", get_name(),
                   search_query_, static_cast<int>(status_filter_), static_cast<int>(sort_column_),
                   sort_direction_ == HistorySortDirection::DESC ? "DESC" : "ASC");
@@ -678,7 +683,7 @@ void HistoryListPanel::apply_filters_and_sort() {
     spdlog::debug("[{}] Filter result: {} jobs -> {} filtered", get_name(), jobs_.size(),
                   filtered_jobs_.size());
 
-    populate_list();
+    populate_list(preserve_scroll);
 }
 
 std::vector<PrintHistoryJob>

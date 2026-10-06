@@ -189,6 +189,7 @@ void PrintHistoryManager::ensure_covers_since(double since) {
             wanted_since_ = since;
         }
         if (!is_loaded(HistoryScope::COMPLETE)) {
+            coverage_load_pending_ = true;
             ensure_loaded(HistoryScope::COMPLETE);
         } else {
             load_older();
@@ -199,7 +200,7 @@ void PrintHistoryManager::ensure_covers_since(double since) {
 }
 
 void PrintHistoryManager::load_older() {
-    if (!api_ || !is_loaded_ || holds_every_job_ || cached_jobs_.empty() ||
+    if (!api_ || !is_loaded_ || holds_every_job_ || older_exhausted_ || cached_jobs_.empty() ||
         cached_jobs_.size() >= job_budget_) {
         return;
     }
@@ -208,8 +209,10 @@ void PrintHistoryManager::load_older() {
         return; // its response notifies, and an ensure_covers_since() target asks again
     }
 
-    // Moonraker's `before` is strict, so the oldest cached job is not repeated.
-    const double before = cached_jobs_.back().start_time;
+    // Moonraker's `before` is strict. Nudging it past the oldest cached job
+    // keeps jobs that share its start time; the job_id dedupe drops the repeat.
+    constexpr double kBoundarySlackSeconds = 0.001;
+    const double before = cached_jobs_.back().start_time + kBoundarySlackSeconds;
     const uint64_t generation = cache_generation_;
     spdlog::debug("[HistoryManager] Fetching older jobs (before={})", before);
 
@@ -241,13 +244,18 @@ void PrintHistoryManager::load_older() {
 void PrintHistoryManager::on_older_page(std::vector<PrintHistoryJob>&& jobs, uint64_t generation) {
     if (generation == cache_generation_ && is_loaded_) {
         const bool short_page = static_cast<int>(jobs.size()) < kOlderPageJobs;
+        size_t added = 0;
         for (auto& job : jobs) {
             auto same_id = [&job](const PrintHistoryJob& j) { return j.job_id == job.job_id; };
             if (std::none_of(cached_jobs_.begin(), cached_jobs_.end(), same_id)) {
                 cached_jobs_.push_back(std::move(job));
+                ++added;
             }
         }
         holds_every_job_ = short_page;
+        // A full page of jobs already cached cannot move `before` on, so asking
+        // again would return it forever.
+        older_exhausted_ = !short_page && added == 0;
         build_filename_stats();
         notify_observers();
     }
@@ -266,8 +274,12 @@ void PrintHistoryManager::continue_coverage() {
     }
     if (covers_since(wanted_since_)) {
         wanted_since_ = 0.0;
-    } else if (is_loaded(HistoryScope::COMPLETE)) {
+    } else if (!is_loaded(HistoryScope::COMPLETE)) {
+        return; // the escalation to the whole list is still to land
+    } else if (!older_exhausted_ && cached_jobs_.size() < job_budget_) {
         load_older();
+    } else {
+        wanted_since_ = 0.0; // nothing more can come: stop asking
     }
 }
 
@@ -338,6 +350,11 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
 
     cached_jobs_ = std::move(jobs);
     ++cache_generation_;
+    older_exhausted_ = false;
+    if (!coverage_load_pending_) {
+        wanted_since_ = 0.0;
+    }
+    coverage_load_pending_ = false;
     // Moonraker fills a page up to the limit and stops, so a short response is
     // the whole history and the cache answers COMPLETE however narrow the
     // request was.
