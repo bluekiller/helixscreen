@@ -40,12 +40,12 @@ static void* ui_card_xml_create(lv_xml_parser_state_t* state, const char** attrs
     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 
     // Pressed state: scale-down for touch feedback (avoids per-frame opacity blending).
-    // A scaled card renders through a TRANSFORM layer, which the limited tiers
-    // cannot afford: a file card's press frame costs ~115ms on the K-Touch against
-    // ~27ms unscaled. The tier is seeded once at startup, so reading it at create
-    // time is as current as a binding.
+    // A file card's press frame costs ~115ms on the K-Touch scaled against ~27ms
+    // unscaled. The tier is seeded once at startup, so reading it at create time
+    // is as current as a binding.
     lv_subject_t* tier = lv_xml_get_subject(nullptr, "platform_tier");
-    if (!tier || lv_subject_get_int(tier) >= static_cast<int>(helix::PlatformTier::STANDARD)) {
+    if (!tier ||
+        helix::pressed_scale_allowed(static_cast<helix::PlatformTier>(lv_subject_get_int(tier)))) {
         lv_obj_set_style_transform_scale_x(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED); // 96%
         lv_obj_set_style_transform_scale_y(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED);
         lv_obj_set_style_transform_pivot_x(obj, LV_PCT(50), LV_PART_MAIN | LV_STATE_PRESSED);

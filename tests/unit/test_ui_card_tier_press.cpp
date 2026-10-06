@@ -9,6 +9,10 @@
 
 using helix::PlatformTier;
 
+namespace helix {
+void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier);
+}
+
 namespace {
 int32_t pressed_scale_for_tier(lv_obj_t* screen, lv_subject_t* tier, PlatformTier t) {
     lv_subject_set_int(tier, static_cast<int>(t));
@@ -35,4 +39,27 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ui_card: pressed scale-down on the capable 
 
     lv_subject_set_int(tier, saved);
     helix::ui::UpdateQueue::instance().drain();
+}
+
+TEST_CASE("pressed_scale_allowed: capable tier only", "[ui_card][platform_tier]") {
+    CHECK(helix::pressed_scale_allowed(PlatformTier::STANDARD));
+    CHECK_FALSE(helix::pressed_scale_allowed(PlatformTier::BASIC));
+    CHECK_FALSE(helix::pressed_scale_allowed(PlatformTier::EMBEDDED));
+}
+
+// The theme's Pressed style lands on every lv_button's PRESSED state.
+TEST_CASE("button Pressed style: scale-down on the capable tier only", "[ui_card][platform_tier]") {
+    auto has_scale = [](PlatformTier t) {
+        lv_style_t style;
+        lv_style_init(&style);
+        helix::configure_pressed_for_tier(&style, t);
+        lv_style_value_t v;
+        const bool found =
+            lv_style_get_prop(&style, LV_STYLE_TRANSFORM_SCALE_X, &v) == LV_STYLE_RES_FOUND;
+        lv_style_reset(&style);
+        return found;
+    };
+    CHECK(has_scale(PlatformTier::STANDARD));
+    CHECK_FALSE(has_scale(PlatformTier::BASIC));
+    CHECK_FALSE(has_scale(PlatformTier::EMBEDDED));
 }

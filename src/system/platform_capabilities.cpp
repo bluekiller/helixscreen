@@ -268,6 +268,10 @@ PlatformCapabilities PlatformCapabilities::from_metrics(size_t ram_mb, int cores
 // Utility functions
 // ============================================================================
 
+bool pressed_scale_allowed(PlatformTier tier) {
+    return tier == PlatformTier::STANDARD;
+}
+
 std::string platform_tier_to_string(PlatformTier tier) {
     switch (tier) {
     case PlatformTier::EMBEDDED:
