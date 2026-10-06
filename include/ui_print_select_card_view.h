@@ -132,7 +132,7 @@ class PrintSelectCardView : public ContainerDeleteNet {
 
     // === Configuration ===
 
-    static constexpr int BUFFER_ROWS = 1;        ///< Extra rows above/below viewport
+    static constexpr int BUFFER_ROWS = 0;        ///< Extra rows above/below viewport
     static constexpr int MIN_WIDTH = 150;        ///< Minimum card width
     static constexpr int MAX_WIDTH = 230;        ///< Maximum card width
     static constexpr int DEFAULT_HEIGHT = 245;   ///< Default card height
@@ -325,6 +325,11 @@ class PrintSelectCardView : public ContainerDeleteNet {
      */
     void configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
                         const PrintFileData& file, const CardDimensions& dims);
+
+#if defined(HELIX_PLATFORM_ESP32)
+    /// Drops a card's thumbnail, so the window's budget is all that holds them.
+    static void release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data);
+#endif
 
     /**
      * @brief Create spacers for virtualization

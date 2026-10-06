@@ -397,7 +397,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         // File click callback
         [self](size_t file_index) { self->handle_file_click(file_index); },
         // Metadata fetch callback
-        [self](size_t start, size_t end) { self->fetch_metadata_range(start, end); });
+        [self](size_t start, size_t end) {
+            self->fetch_metadata_range(start, end);
+#if defined(HELIX_PLATFORM_ESP32)
+            self->sync_esp_thumbnails(start, end);
+#endif
+        });
 
     // Long-press on a file card → delete confirmation (card view only; list view unchanged).
     card_view_->set_on_file_long_press(
@@ -1512,11 +1517,8 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                                          self->get_name(), filename_copy, error);
                         });
 #else
-                    // ESP32: no disk thumbnail cache; see fetch_esp_thumbnail().
-                    if (!self->fetch_esp_thumbnail(d->index, d->filename, d->thumb_path)) {
-                        self->defer_esp_thumbnail({d->index, d->filename, d->thumb_path},
-                                                  /*front=*/false);
-                    }
+                    // ESP32: no disk thumbnail cache; see sync_esp_thumbnails().
+                    self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
 #endif
                 }
             } else if (self->api_) {
@@ -3655,7 +3657,7 @@ bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& file
         [this, tok, index, filename, target](const std::string& png_bytes) {
             helix::ThumbnailDecodeFailure failure{};
             auto thumb = helix::ui::EspPsramThumbnail::create_decoded(png_bytes, target.width,
-                                                                     target.height, failure);
+                                                                      target.height, failure);
             if (!thumb) {
                 spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
                              failure == helix::ThumbnailDecodeFailure::OutOfMemory
@@ -3665,8 +3667,10 @@ bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& file
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
                       [this, index, filename, thumb = std::move(thumb)]() mutable {
                           --esp_thumbnails_in_flight_;
+                          // Kept only while its card is still on screen.
                           if (thumb && index < file_list_.size() &&
-                              file_list_[index].filename == filename) {
+                              file_list_[index].filename == filename &&
+                              file_list_[index].esp_thumbnail_tried) {
                               file_list_[index].esp_thumbnail = std::move(thumb);
                               schedule_view_refresh();
                           }
@@ -3693,6 +3697,50 @@ bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& file
     return true;
 }
 
+size_t PrintSelectPanel::esp_thumbnail_bytes() const {
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    size_t bytes = static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)) *
+                   helix::rgb565a8_size({target.width, target.height});
+    for (const auto& f : file_list_) {
+        if (f.esp_thumbnail) {
+            bytes += f.esp_thumbnail->bytes();
+        }
+    }
+    return bytes;
+}
+
+void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
+    end = std::min(end, file_list_.size());
+    first = std::min(first, end);
+    esp_window_first_ = first;
+    esp_window_end_ = end;
+
+    // Cards off screen hold nothing; a card coming back fetches again.
+    for (size_t i = 0; i < file_list_.size(); ++i) {
+        if (i < first || i >= end) {
+            file_list_[i].esp_thumbnail.reset();
+            file_list_[i].esp_thumbnail_tried = false;
+        }
+    }
+
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    const size_t estimate = helix::rgb565a8_size({target.width, target.height});
+    for (size_t i = first; i < end; ++i) {
+        PrintFileData& f = file_list_[i];
+        if (f.is_dir || f.esp_thumbnail || f.esp_thumbnail_tried ||
+            f.original_thumbnail_url.empty()) {
+            continue;
+        }
+        if (!helix::card_thumbnail_fits_budget(esp_thumbnail_bytes(), estimate)) {
+            return; // the rest keep the placeholder until a card frees its share
+        }
+        f.esp_thumbnail_tried = true;
+        if (!fetch_esp_thumbnail(i, f.filename, f.original_thumbnail_url)) {
+            defer_esp_thumbnail({i, f.filename, f.original_thumbnail_url}, /*front=*/false);
+        }
+    }
+}
+
 void PrintSelectPanel::defer_esp_thumbnail(PendingEspThumbnail pending, bool front) {
     if (esp_thumbnails_in_flight_ > 0) {
         if (front) {
@@ -3708,6 +3756,7 @@ void PrintSelectPanel::defer_esp_thumbnail(PendingEspThumbnail pending, bool fro
     if (pending.index < file_list_.size() &&
         file_list_[pending.index].filename == pending.filename) {
         file_list_[pending.index].metadata_fetched = false;
+        file_list_[pending.index].esp_thumbnail_tried = false;
     }
 }
 

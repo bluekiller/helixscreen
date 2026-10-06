@@ -87,6 +87,36 @@ class PngRowDecoder {
     bool failed_ = false;
 };
 
+/// Least PSRAM a thumbnail decode leaves in the largest free block. The rest of
+/// the app allocates without a fallback, so decodes stop well before it can run
+/// out; a decode refused here keeps the placeholder and is tried again later.
+inline constexpr size_t THUMBNAIL_PSRAM_FLOOR = 256 * 1024;
+
+/// Working memory a decode takes beside the image it keeps: the inflater state
+/// (about 11KB for tinfl), its 32KB window, two rows and the downscale's sums.
+inline size_t thumbnail_decode_working_bytes(int src_w, ThumbnailDims dst) {
+    return 11 * 1024 + 32 * 1024 + static_cast<size_t>(src_w) * 4 * 3 +
+           static_cast<size_t>(dst.w) * 24;
+}
+
+/// True when a decode keeping @p kept bytes, and briefly using @p working more,
+/// still leaves @p floor in the largest free block.
+inline bool thumbnail_decode_fits(size_t largest_free, size_t kept, size_t working,
+                                  size_t floor = THUMBNAIL_PSRAM_FLOOR) {
+    return largest_free >= floor && largest_free - floor >= kept + working;
+}
+
+/// Bytes card thumbnails may hold at once. Only cards on screen hold one, and
+/// this caps them even when the screen shows many.
+inline constexpr size_t CARD_THUMBNAIL_BUDGET = 960 * 1024;
+
+/// True when one more card thumbnail of @p kept bytes fits the budget beside
+/// the @p held bytes card thumbnails hold or have in flight.
+inline bool card_thumbnail_fits_budget(size_t held, size_t kept,
+                                       size_t budget = CARD_THUMBNAIL_BUDGET) {
+    return held <= budget && budget - held >= kept;
+}
+
 /// What decode_png_thumbnail() produced.
 struct DecodedThumbnail {
     uint8_t* pixels = nullptr; ///< RGB565A8, allocated with the Inflate's alloc()
@@ -104,7 +134,9 @@ struct DecodedThumbnail {
  *   - `static int step(Decompressor*, const uint8_t* in, size_t* in_size,
  *      uint8_t* window, uint8_t* next, size_t* out_size, bool more_input)`,
  *     returning tinfl's status: 0 done, 1 needs input, 2 more output, <0 failed;
- *   - `static void* alloc(size_t)` returning nullptr on failure, and `free(void*)`.
+ *   - `static void* alloc(size_t)` returning nullptr on failure, and `free(void*)`;
+ *   - `static size_t largest_free()`, the largest block alloc() could return: a
+ *     decode that would leave less than THUMBNAIL_PSRAM_FLOOR is not started.
  */
 template <class Inflate>
 DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w, int max_h) {
@@ -118,6 +150,11 @@ DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w
         return result;
     }
     result.dims = fit_thumbnail(header.width, header.height, max_w, max_h);
+    if (!thumbnail_decode_fits(Inflate::largest_free(), rgb565a8_size(result.dims),
+                               thumbnail_decode_working_bytes(header.width, result.dims))) {
+        result.failure = ThumbnailDecodeFailure::OutOfMemory;
+        return result;
+    }
 
     struct Owned {
         void* p = nullptr;

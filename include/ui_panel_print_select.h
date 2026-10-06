@@ -867,6 +867,15 @@ class PrintSelectPanel : public PanelBase {
     /// flight, leave the file for the next visible-range metadata pass.
     void defer_esp_thumbnail(PendingEspThumbnail pending, bool front);
     void drain_esp_thumbnail_backlog();
+
+    /// The card window [first, end) the last sync saw.
+    size_t esp_window_first_ = 0;
+    size_t esp_window_end_ = 0;
+    /// Fetches thumbnails for the cards in [first, end), within
+    /// CARD_THUMBNAIL_BUDGET, and drops every thumbnail outside it.
+    void sync_esp_thumbnails(size_t first, size_t end);
+    /// Card thumbnail bytes held, plus an estimate for each fetch in flight.
+    size_t esp_thumbnail_bytes() const;
 #endif
 
     /// Navigation generation counter: incremented on each directory change.

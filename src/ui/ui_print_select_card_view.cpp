@@ -372,6 +372,19 @@ void PrintSelectCardView::create_spacers() {
 // Card Configuration
 // ============================================================================
 
+#if defined(HELIX_PLATFORM_ESP32)
+void PrintSelectCardView::release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data) {
+    if (!data.esp_thumbnail) {
+        return;
+    }
+    // The image must stop pointing at the buffer before the buffer can go.
+    if (lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail")) {
+        lv_image_set_src(thumb_img, nullptr);
+    }
+    data.esp_thumbnail.reset();
+}
+#endif
+
 void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
                                          const PrintFileData& file, const CardDimensions& dims) {
     if (!card || pool_index >= card_data_pool_.size()) {
@@ -407,6 +420,11 @@ void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size
 
     // Update thumbnail state (observers handle visibility declaratively)
     // 0=real thumbnail, 1=placeholder (show cube icon), 2=directory (hide both)
+#if defined(HELIX_PLATFORM_ESP32)
+    if (file.is_dir || !file.esp_thumbnail) {
+        release_esp_thumbnail(card, *data);
+    }
+#endif
     if (file.is_dir) {
         lv_subject_set_int(&data->thumbnail_state_subject, 2);
     } else {
@@ -604,6 +622,9 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
     // Hide unused pool cards
     for (; pool_idx < card_pool_.size(); pool_idx++) {
         lv_obj_add_flag(card_pool_[pool_idx], LV_OBJ_FLAG_HIDDEN);
+#if defined(HELIX_PLATFORM_ESP32)
+        release_esp_thumbnail(card_pool_[pool_idx], *card_data_pool_[pool_idx]);
+#endif
         card_pool_indices_[pool_idx] = -1;
     }
 

@@ -6,6 +6,7 @@
 #include "thumbnail_downscale.h"
 #include "thumbnail_png_stream.h"
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -58,6 +59,10 @@ struct TestInflate {
             --live;
         }
         std::free(p);
+    }
+    static inline size_t largest = SIZE_MAX / 2;
+    static size_t largest_free() {
+        return largest;
     }
 };
 
@@ -289,4 +294,38 @@ TEST_CASE("mutated PNGs never crash the decoder", "[thumbnail][png_stream]") {
         TestInflate::free(got.pixels);
     }
     CHECK(TestInflate::live == 0);
+}
+
+TEST_CASE("a decode that would cut into the PSRAM floor is not started",
+          "[thumbnail][png_stream][budget]") {
+    TestInflate::live = 0;
+    const auto png = fixture("thumbnail_300_rgba.png");
+    const ThumbnailDims dims = helix::fit_thumbnail(300, 300, 166, 166);
+    const size_t need =
+        helix::rgb565a8_size(dims) + helix::thumbnail_decode_working_bytes(300, dims);
+
+    TestInflate::largest = helix::THUMBNAIL_PSRAM_FLOOR + need - 1;
+    const DecodedThumbnail refused = decode(png, 166, 166);
+    CHECK(refused.pixels == nullptr);
+    CHECK(refused.failure == ThumbnailDecodeFailure::OutOfMemory);
+    CHECK(TestInflate::live == 0); // nothing was even allocated
+
+    TestInflate::largest = helix::THUMBNAIL_PSRAM_FLOOR + need;
+    const DecodedThumbnail ok = decode(png, 166, 166);
+    CHECK(ok.failure == ThumbnailDecodeFailure::None);
+    TestInflate::free(ok.pixels);
+    TestInflate::largest = SIZE_MAX / 2;
+}
+
+TEST_CASE("the floor and the card budget are hard edges", "[thumbnail][budget]") {
+    using helix::card_thumbnail_fits_budget;
+    using helix::thumbnail_decode_fits;
+    CHECK(thumbnail_decode_fits(300 * 1024, 40 * 1024, 4 * 1024, 256 * 1024));
+    CHECK_FALSE(thumbnail_decode_fits(300 * 1024, 40 * 1024, 4 * 1024 + 1, 256 * 1024));
+    CHECK_FALSE(thumbnail_decode_fits(100 * 1024, 0, 0, 256 * 1024)); // already under the floor
+
+    CHECK(card_thumbnail_fits_budget(0, 960 * 1024, 960 * 1024));
+    CHECK(card_thumbnail_fits_budget(880 * 1024, 80 * 1024, 960 * 1024));
+    CHECK_FALSE(card_thumbnail_fits_budget(880 * 1024, 80 * 1024 + 1, 960 * 1024));
+    CHECK_FALSE(card_thumbnail_fits_budget(970 * 1024, 0, 960 * 1024)); // already over
 }

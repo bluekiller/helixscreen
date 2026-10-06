@@ -100,6 +100,11 @@ class EspPsramThumbnail {
         return std::shared_ptr<EspPsramThumbnail>(thumb);
     }
 
+    /// Bytes the kept image holds.
+    size_t bytes() const {
+        return dsc_.data_size;
+    }
+
     /// Pointer suitable for lv_image_set_src().
     const lv_image_dsc_t* dsc() const {
         return &dsc_;
@@ -124,6 +129,9 @@ class EspPsramThumbnail {
         }
         static void free(void* p) {
             heap_caps_free(p);
+        }
+        static size_t largest_free() {
+            return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
         }
     };
 
