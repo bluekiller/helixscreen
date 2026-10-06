@@ -1350,6 +1350,7 @@ translations:
   Found 1 printer: Found 1 printer
   Framerate: Framerate
   From Buffer: From Buffer
+  From SpoolmanDB: From SpoolmanDB
   From Version: From Version
   Front: Front
   Front Left: Front Left
@@ -2028,6 +2029,7 @@ translations:
   No jobs in queue: No jobs in queue
   No macro devices configured: No macro devices configured
   No macros available: No macros available
+  No matches in SpoolmanDB: No matches in SpoolmanDB
   No matching prints: No matching prints
   No media installed: No media installed
   No mesh data: No mesh data
@@ -2820,6 +2822,7 @@ translations:
   Search spools...: Search spools...
   Search vendors...: Search vendors...
   Search widgets...: Search widgets...
+  Searching SpoolmanDB...: Searching SpoolmanDB...
   Searching...: Searching...
   Secondary: Secondary
   Section Detail: Section Detail
@@ -3025,6 +3028,7 @@ translations:
   Spoolman was not configured.: Spoolman was not configured.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Spool%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Spool%s'
+  SpoolmanDB search failed: SpoolmanDB search failed
   Spools are off: Spools are off
   'Spools are on the bed: remove them and confirm before moving the printer': 'Spools are on the bed: remove them and confirm before moving the printer'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Spools are on the bed: tap the drying banner to confirm they are off, then restart.'

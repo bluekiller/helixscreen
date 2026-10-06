@@ -1408,6 +1408,7 @@ translations:
   Found 1 printer: 1 Drucker gefunden
   Framerate: Bildrate
   From Buffer: Aus Puffer
+  From SpoolmanDB: 'Aus SpoolmanDB'
   From Version: Von Version
   Front: 'Vorne'
   Front Left: 'Vorne links'
@@ -2101,6 +2102,7 @@ translations:
   No jobs in queue: Keine Aufträge in der Warteschlange
   No macro devices configured: Keine Makro-Geräte konfiguriert
   No macros available: Keine Makros verfügbar
+  No matches in SpoolmanDB: 'Keine Treffer in SpoolmanDB'
   No matching prints: Keine passenden Drucke
   No media installed: Kein Medium eingelegt
   No mesh data: Keine Mesh-Daten
@@ -2913,6 +2915,7 @@ translations:
   Search spools...: Spulen suchen...
   Search vendors...: Hersteller suchen...
   Search widgets...: Widgets suchen...
+  Searching SpoolmanDB...: 'SpoolmanDB wird durchsucht...'
   Searching...: Suche...
   Secondary: Sekundär
   Section Detail: Abschnittdetails
@@ -3124,6 +3127,7 @@ translations:
   Spoolman was not configured.: Spoolman war nicht konfiguriert.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Spule%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Spule%s'
+  SpoolmanDB search failed: 'SpoolmanDB-Suche fehlgeschlagen'
   Spools are off: "Spulen sind entnommen"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Spulen liegen auf dem Heizbett: entferne sie und bestätige, bevor der Drucker bewegt wird'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Spulen liegen auf dem Heizbett: Tippe auf das Trocknungsbanner, um zu bestätigen, dass sie entnommen sind, und starte dann neu.'

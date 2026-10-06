@@ -1396,6 +1396,7 @@ translations:
   Found 1 printer: 1 stampante trovata
   Framerate: Frequenza fotogrammi
   From Buffer: Dal buffer
+  From SpoolmanDB: 'Da SpoolmanDB'
   From Version: Dalla versione
   Front: 'Davanti'
   Front Left: 'Davanti sinistra'
@@ -2092,6 +2093,7 @@ translations:
   No jobs in queue: Nessun lavoro in coda
   No macro devices configured: Nessun dispositivo macro configurato
   No macros available: Nessuna macro disponibile
+  No matches in SpoolmanDB: 'Nessun risultato in SpoolmanDB'
   No matching prints: Nessuna stampa corrispondente
   No media installed: Nessun supporto installato
   No mesh data: Nessun dato mesh
@@ -2903,6 +2905,7 @@ translations:
   Search spools...: Cerca bobine...
   Search vendors...: Cerca fornitori...
   Search widgets...: Cerca widget...
+  Searching SpoolmanDB...: 'Ricerca in SpoolmanDB...'
   Searching...: Ricerca...
   Secondary: Secondario
   Section Detail: Dettaglio sezione
@@ -3114,6 +3117,7 @@ translations:
   Spoolman was not configured.: Spoolman non era configurato.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu bobina%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu bobina%s'
+  SpoolmanDB search failed: 'Ricerca in SpoolmanDB non riuscita'
   Spools are off: "Bobine tolte"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Ci sono bobine sul piano: rimuovile e conferma prima di muovere la stampante'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': "Ci sono bobine sul piano: tocca il banner dell'essiccazione per confermare di averle tolte, poi riavvia."

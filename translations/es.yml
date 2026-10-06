@@ -1399,6 +1399,7 @@ translations:
   Found 1 printer: 1 impresora encontrada
   Framerate: Cuadros por segundo
   From Buffer: Desde búfer
+  From SpoolmanDB: 'De SpoolmanDB'
   From Version: Desde la versión
   Front: 'Delante'
   Front Left: 'Delante izquierda'
@@ -2092,6 +2093,7 @@ translations:
   No jobs in queue: Sin trabajos en cola
   No macro devices configured: No hay dispositivos de macro configurados
   No macros available: No hay macros disponibles
+  No matches in SpoolmanDB: 'Sin resultados en SpoolmanDB'
   No matching prints: Sin impresiones coincidentes
   No media installed: Sin medio instalado
   No mesh data: Sin datos de malla
@@ -2906,6 +2908,7 @@ translations:
   Search spools...: Buscar bobinas...
   Search vendors...: Buscar proveedores...
   Search widgets...: Buscar widgets...
+  Searching SpoolmanDB...: 'Buscando en SpoolmanDB...'
   Searching...: Buscando...
   Secondary: Secundario
   Section Detail: Detalle de sección
@@ -3114,6 +3117,7 @@ translations:
   Spoolman was not configured.: Spoolman no estaba configurado.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu bobina%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu bobina%s'
+  SpoolmanDB search failed: 'Falló la búsqueda en SpoolmanDB'
   Spools are off: "Bobinas retiradas"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Hay bobinas sobre la cama: retíralas y confirma antes de mover la impresora'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Hay bobinas en la cama: toca el aviso de secado para confirmar que las has quitado y luego reinicia.'

@@ -1266,6 +1266,7 @@
   <translation tag="Found 1 printer" es="1 impresora encontrada"/>
   <translation tag="Framerate" es="Cuadros por segundo"/>
   <translation tag="From Buffer" es="Desde búfer"/>
+  <translation tag="From SpoolmanDB" es="De SpoolmanDB"/>
   <translation tag="From Version" es="Desde la versión"/>
   <translation tag="Front" es="Delante"/>
   <translation tag="Front Left" es="Delante izquierda"/>
@@ -1885,6 +1886,7 @@
   <translation tag="No jobs in queue" es="Sin trabajos en cola"/>
   <translation tag="No macro devices configured" es="No hay dispositivos de macro configurados"/>
   <translation tag="No macros available" es="No hay macros disponibles"/>
+  <translation tag="No matches in SpoolmanDB" es="Sin resultados en SpoolmanDB"/>
   <translation tag="No matching prints" es="Sin impresiones coincidentes"/>
   <translation tag="No media installed" es="Sin medio instalado"/>
   <translation tag="No mesh data" es="Sin datos de malla"/>
@@ -2620,6 +2622,7 @@
   <translation tag="Search spools..." es="Buscar bobinas..."/>
   <translation tag="Search vendors..." es="Buscar proveedores..."/>
   <translation tag="Search widgets..." es="Buscar widgets..."/>
+  <translation tag="Searching SpoolmanDB..." es="Buscando en SpoolmanDB..."/>
   <translation tag="Searching..." es="Buscando..."/>
   <translation tag="Secondary" es="Secundario"/>
   <translation tag="Section Detail" es="Detalle de sección"/>
@@ -2804,6 +2807,7 @@
   <translation tag="Spoolman was not configured." es="Spoolman no estaba configurado."/>
   <translation tag="Spoolman: %zu Spool%s" es="Spoolman: %zu bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" es="Spoolman: %zu/%zu bobina%s"/>
+  <translation tag="SpoolmanDB search failed" es="Falló la búsqueda en SpoolmanDB"/>
   <translation tag="Spools are off" es="Bobinas retiradas"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" es="Hay bobinas sobre la cama: retíralas y confirma antes de mover la impresora"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." es="Hay bobinas en la cama: toca el aviso de secado para confirmar que las has quitado y luego reinicia."/>

@@ -40,6 +40,42 @@
                 width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
                 style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_sm"/>
 
+        <!-- SpoolmanDB search: the same query searched in Spoolman's catalog.
+             Hidden on a server without the route and while the query is too short. -->
+        <lv_obj name="catalog_section"
+                width="100%" flex_grow="1" flex_flow="column" style_pad_all="0" style_pad_gap="#space_xs"
+                scrollable="false" hidden="true">
+          <bind_flag_if cond="spool_db_available eq 0 or spool_db_state eq 0" flag="hidden"/>
+          <text_small text="From SpoolmanDB" translation_tag="From SpoolmanDB" style_text_color="#text_muted"/>
+          <lv_obj name="catalog_results"
+                  width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
+                  style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"
+                  hidden="true">
+            <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="2"/>
+            <repeat count="spool_db_result_count">
+              <wizard_catalog_row index="$i"/>
+            </repeat>
+          </lv_obj>
+          <centered_column name="catalog_loading_state" flex_grow="1" hidden="true">
+            <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="1"/>
+            <spinner size="md"/>
+            <text_small text="Searching SpoolmanDB..."
+                        translation_tag="Searching SpoolmanDB..." style_text_align="center"/>
+          </centered_column>
+          <centered_column name="catalog_empty_state" flex_grow="1" hidden="true">
+            <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="3"/>
+            <text_small text="No matches in SpoolmanDB"
+                        translation_tag="No matches in SpoolmanDB" style_text_align="center"
+                        style_text_color="#text_muted"/>
+          </centered_column>
+          <centered_column name="catalog_error_state" flex_grow="1" hidden="true">
+            <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="4"/>
+            <text_small text="SpoolmanDB search failed"
+                        translation_tag="SpoolmanDB search failed" style_text_align="center"
+                        style_text_color="#text_muted"/>
+          </centered_column>
+        </lv_obj>
+
         <!-- Empty state for vendor list -->
         <centered_column name="vendor_empty_state" flex_grow="1" hidden="true">
           <bind_flag_if_not_eq subject="spool_wizard_vendor_count" flag="hidden" ref_value="0"/>

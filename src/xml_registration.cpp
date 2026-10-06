@@ -368,6 +368,7 @@ void register_xml_components() {
     // Spool wizard components
     register_xml("wizard_vendor_row.xml");
     register_xml("wizard_filament_row.xml");
+    register_xml("wizard_catalog_row.xml");
     register_xml("create_vendor_modal.xml");
     register_xml("create_filament_modal.xml");
     register_xml("spool_wizard.xml");

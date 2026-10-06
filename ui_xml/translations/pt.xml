@@ -1266,6 +1266,7 @@
   <translation tag="Found 1 printer" pt="1 impressora encontrada"/>
   <translation tag="Framerate" pt="Taxa de Quadros"/>
   <translation tag="From Buffer" pt="Do buffer"/>
+  <translation tag="From SpoolmanDB" pt="Do SpoolmanDB"/>
   <translation tag="From Version" pt="Da Versão"/>
   <translation tag="Front" pt="Frente"/>
   <translation tag="Front Left" pt="Frente esquerda"/>
@@ -1885,6 +1886,7 @@
   <translation tag="No jobs in queue" pt="Nenhum trabalho na fila"/>
   <translation tag="No macro devices configured" pt="Nenhum dispositivo de macro configurado"/>
   <translation tag="No macros available" pt="Nenhuma macro disponível"/>
+  <translation tag="No matches in SpoolmanDB" pt="Nenhum resultado no SpoolmanDB"/>
   <translation tag="No matching prints" pt="Nenhuma impressão correspondente"/>
   <translation tag="No media installed" pt="Nenhuma mídia instalada"/>
   <translation tag="No mesh data" pt="Sem dados de malha"/>
@@ -2620,6 +2622,7 @@
   <translation tag="Search spools..." pt="Procurar bobinas..."/>
   <translation tag="Search vendors..." pt="Buscar fornecedores..."/>
   <translation tag="Search widgets..." pt="Buscar widgets..."/>
+  <translation tag="Searching SpoolmanDB..." pt="Buscando no SpoolmanDB..."/>
   <translation tag="Searching..." pt="Buscando..."/>
   <translation tag="Secondary" pt="Secundário"/>
   <translation tag="Section Detail" pt="Detalhe da Seção"/>
@@ -2804,6 +2807,7 @@
   <translation tag="Spoolman was not configured." pt="Spoolman não estava configurado."/>
   <translation tag="Spoolman: %zu Spool%s" pt="Spoolman: %zu Bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" pt="Spoolman: %zu/%zu Bobina%s"/>
+  <translation tag="SpoolmanDB search failed" pt="Falha na busca no SpoolmanDB"/>
   <translation tag="Spools are off" pt="Carretéis retirados"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" pt="Há carretéis na mesa: remova-os e confirme antes de mover a impressora"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." pt="Há carretéis na mesa: toque no aviso de secagem para confirmar que foram retirados e depois reinicie."/>
