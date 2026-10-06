@@ -107,6 +107,9 @@ scripts/setup-worktree.sh feature/my-branch  # Symlinks shared deps, builds fast
 #   (patches/ is per-branch); everything else in lib/ is a symlink shared with
 #   the main tree. Also writes .claude/settings.local.json with PROJECT_DIR set
 #   to the MAIN tree so claude-recall writes lessons and stats there.
+#   The directory is named after the branch's LAST segment, so it refuses an
+#   existing .worktrees/<name>: a re-setup needs --setup-only, the same branch,
+#   and no other session's live worktree: claim on it.
 #   A worktree the harness makes on its own (EnterWorktree → .claude/worktrees/)
 #   gets NONE of this: no lib/ symlinks, no submodules, no build. Prefer this
 #   script; if you are already in one, `git submodule update --init --recursive`
