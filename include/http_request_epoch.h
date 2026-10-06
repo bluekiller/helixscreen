@@ -38,12 +38,13 @@ inline size_t printer_key() {
     return printer_key_storage().load();
 }
 
-/// Points REST at @p base_url: a new address starts a new epoch and a new printer key.
-inline void set_base_url(const std::string& base_url, const std::string& previous) {
-    if (base_url != previous) {
+/// Records that REST now goes to @p base_url, after the owner has stored it, so a request
+/// that reads the new epoch also reads the new URL. @p moved starts a new epoch.
+inline void set_base_url(const std::string& base_url, bool moved) {
+    printer_key_storage().store(std::hash<std::string>{}(base_url));
+    if (moved) {
         advance();
     }
-    printer_key_storage().store(std::hash<std::string>{}(base_url));
 }
 
 /// Wraps a REST request's success callback, taken when the request starts: a reply that

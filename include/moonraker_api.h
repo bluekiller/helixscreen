@@ -476,8 +476,9 @@ class MoonrakerAPI : public IMoonrakerAPI {
      * @param base_url HTTP base URL (e.g., "http://192.168.1.100:7125")
      */
     void set_http_base_url(const std::string& base_url) override {
-        helix::http_epoch::set_base_url(base_url, http_base_url_);
+        const bool moved = base_url != http_base_url_;
         http_base_url_ = base_url;
+        helix::http_epoch::set_base_url(base_url, moved);
     }
 
     /**

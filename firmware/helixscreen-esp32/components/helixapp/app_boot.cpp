@@ -72,6 +72,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "helix_sparkline.h"
+#include "http_request_epoch.h"
 #include "i_moonraker_client.h"
 #include "job_queue_state.h"
 #include "led/led_controller.h"
@@ -146,10 +147,6 @@ namespace {
 // file scope so app_boot_tick() can pump its notification/timeout queues from
 // the render loop. Set once app_boot_ui() completes; null before then.
 MoonrakerManager* g_manager = nullptr;
-
-// Bumped by every live printer switch. Discovery work queued for the previous printer
-// carries the old value and is dropped instead of landing on the new one.
-std::atomic<unsigned> g_printer_epoch{0};
 
 // When the current live switch started, for the tap-to-connected log; 0 when none is running.
 int64_t g_switch_started_us = 0;
@@ -295,7 +292,6 @@ helix::PrinterSwitchFlow& switch_flow() {
         config, lifetime,
         {[] { g_switch_started_us = esp_timer_get_time(); },
          [] {
-             g_printer_epoch.fetch_add(1);
              if (!helix::retarget_printer_connection(ws_stack_available)) {
                  restart_into_active_printer();
              }
@@ -541,9 +537,12 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
         // Copy on the BG thread so the queued main-thread callback owns a stable,
         // non-aliased snapshot (desktop #761/#789 lesson).
         auto snapshot = std::make_shared<helix::PrinterDiscovery>(hardware);
-        const unsigned epoch = g_printer_epoch.load();
+        // Read on the WebSocket task. A switch stops the previous printer's task before
+        // connect() moves the epoch, so the previous printer's work carries the old value
+        // and is dropped when it reaches the UI thread.
+        const uint64_t epoch = helix::http_epoch::current();
         helix::ui::queue_update("app_boot::on_hardware_discovered", [snapshot, epoch]() {
-            if (epoch != g_printer_epoch.load()) {
+            if (epoch != helix::http_epoch::current()) {
                 return;
             }
             helix::sensors::TemperatureSensorManager::instance().discover(snapshot->sensors());
@@ -557,10 +556,10 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                           initial_status.is_object() ? initial_status.size() : 0);
             auto snapshot = std::make_shared<helix::PrinterDiscovery>(hardware);
             auto status_snapshot = std::make_shared<const nlohmann::json>(initial_status);
-            const unsigned epoch = g_printer_epoch.load();
+            const uint64_t epoch = helix::http_epoch::current();
             helix::ui::queue_update("app_boot::on_discovery_complete", [mgr, snapshot,
                                                                         status_snapshot, epoch]() {
-                if (epoch != g_printer_epoch.load()) {
+                if (epoch != helix::http_epoch::current()) {
                     spdlog::info("[app_boot] dropping discovery queued for the previous printer");
                     return;
                 }
