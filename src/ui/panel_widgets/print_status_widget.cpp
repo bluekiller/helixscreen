@@ -990,7 +990,7 @@ void PrintStatusWidget::defer_apply_active_thumbnail(const char* path) {
             // file and replaced through the PSRAM buffer. The observer's initial
             // notification on attach lands a tick after the held buffer was
             // applied, so a loaded buffer wins over the path.
-            if (self->printer_state_.get_print_psram_thumbnail()) {
+            if (self->printer_state_.print_state().get_print_psram_thumbnail()) {
                 self->apply_esp_psram_thumbnail();
                 return;
             }
