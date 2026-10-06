@@ -14,6 +14,7 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "printer_state.h"
 
 #include <algorithm>
@@ -181,4 +182,53 @@ TEST_CASE_METHOD(SideListFixture, "Side list rows keep their height as the print
         CHECK(lv_obj_get_height(rows[0]) == idle_h);
         objects().set_excluded_objects({});
     }
+}
+
+namespace {
+struct StateWatch {
+    lv_obj_t* container = nullptr;
+    std::vector<std::string> row_names_at_publish;
+};
+
+void record_rows(lv_observer_t* observer, lv_subject_t*) {
+    auto* w = static_cast<StateWatch*>(lv_observer_get_user_data(observer));
+    std::string names;
+    const uint32_t n = lv_obj_get_child_count(w->container);
+    for (uint32_t i = 0; i < n; ++i) {
+        lv_obj_t* label = lv_obj_find_by_name(
+            lv_obj_get_child(w->container, static_cast<int32_t>(i)), "object_name");
+        names += label ? lv_label_get_text(label) : "?";
+        names += ",";
+    }
+    w->row_names_at_publish.push_back(names);
+}
+} // namespace
+
+TEST_CASE_METHOD(SideListFixture, "Side list never publishes a new object's state onto an old row",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    objects().set_defined_objects({"old_a", "old_b"});
+    objects().set_current_object("old_a");
+    settle();
+    REQUIRE(rows_of(container).size() == 2);
+
+    lv_subject_t* row1 = lv_xml_get_subject(nullptr, "exclude_row_state_1");
+    REQUIRE(row1 != nullptr);
+    StateWatch watch{container, {}};
+    lv_observer_t* obs = lv_subject_add_observer(row1, record_rows, &watch);
+    watch.row_names_at_publish.clear(); // the add fires once
+
+    // The excluded-version observer is queued before the defined-version one,
+    // so it runs while the rows still show the old list.
+    objects().set_excluded_objects({"new_d"});
+    objects().set_defined_objects({"new_c", "new_d"});
+    settle();
+    lv_observer_remove(obs);
+
+    REQUIRE_FALSE(watch.row_names_at_publish.empty());
+    for (const auto& names : watch.row_names_at_publish) {
+        INFO("rows when row 1's state was published: " << names);
+        CHECK(names.find("old_") == std::string::npos);
+    }
+    CHECK(shows_text(rows_of(container)[1], "Excluded"));
 }

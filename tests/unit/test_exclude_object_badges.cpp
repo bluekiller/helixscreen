@@ -9,6 +9,7 @@
 #include "ui_exclude_object_map_view.h"
 #include "ui_gcode_viewer.h"
 
+#include "../lvgl_ui_test_fixture.h"
 #include "../test_fixtures.h"
 #include "../test_helpers/gcode_layer_renderer_test_access.h"
 #include "../test_helpers/scoped_pointer_indev.h"
@@ -569,4 +570,50 @@ TEST_CASE("3D badges project through the image on screen, not the live camera",
     renderer.clear_cached_frame();
     CHECK_FALSE(renderer.project_to_shown_image(corner).has_value());
 }
+
+TEST_CASE("Releasing 3D geometry drops the shown image's transform", "[exclude_badges][gles]") {
+    helix::gcode::GCodeGLESRenderer renderer;
+    renderer.set_viewport_size(400, 300);
+    helix::gcode::GCodeCamera camera;
+    camera.set_viewport_size(400, 300);
+    helix::gcode::AABB box;
+    box.expand({0.0f, 0.0f, 0.0f});
+    box.expand({100.0f, 100.0f, 20.0f});
+    camera.fit_to_bounds(box);
+    helix::gcode::GCodeGLESRendererTestAccess::show_frame(renderer, camera, 400, 300);
+    REQUIRE(renderer.project_to_shown_image(box.center()).has_value());
+
+    // A reload releases the old file: its image must not place the new file's badges.
+    renderer.release_geometry();
+    CHECK_FALSE(renderer.project_to_shown_image(box.center()).has_value());
+}
 #endif
+
+TEST_CASE_METHOD(LVGLUITestFixture, "A theme switch re-resolves the badge colours",
+                 "[exclude_badges][gcode_viewer]") {
+    BadgeViewer v;
+    std::vector<ObjectBadge> badges;
+    for (int i = 0; i < 8; ++i) {
+        badges.push_back(make_badge(i, "obj_" + std::to_string(i), kLeftCenter));
+    }
+    ui_gcode_viewer_set_object_badges(v.viewer, badges);
+    v.draw();
+    const auto before = helix::test_access::gcode_viewer_badge_texts(v.viewer);
+    REQUIRE(before.size() == 8);
+
+    theme_manager_toggle_dark_mode();
+    v.draw(); // same badge list, new theme
+    const auto fills = helix::test_access::gcode_viewer_badge_fills(v.viewer);
+    const auto after = helix::test_access::gcode_viewer_badge_texts(v.viewer);
+    REQUIRE(after.size() == 8);
+    bool any_changed = false;
+    for (size_t i = 0; i < 8; ++i) {
+        INFO("badge " << i);
+        CHECK(lv_color_eq(fills[i], helix::ui::object_badge_color(static_cast<int>(i))));
+        CHECK(lv_color_eq(after[i], helix::ui::object_badge_text_color(fills[i])));
+        any_changed = any_changed || !lv_color_eq(after[i], before[i]);
+    }
+    theme_manager_toggle_dark_mode();
+    // The theme moved at least one number colour, or this test proves nothing.
+    REQUIRE(any_changed);
+}

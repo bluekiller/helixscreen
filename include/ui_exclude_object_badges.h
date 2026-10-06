@@ -81,8 +81,12 @@ struct BadgeLook {
     int32_t ring_width = 0;
     std::vector<lv_color_t> fill; ///< Per badge, parallel to the badge list
     std::vector<lv_color_t> text;
+    int theme_generation = -1; ///< theme_manager_get_changed_subject() when resolved
+    int breakpoint = -1;       ///< theme_manager_get_breakpoint_subject() when resolved
 };
 BadgeLook resolve_badge_look(const std::vector<ObjectBadge>& badges);
+/// False once the theme or size class has changed since @p look was resolved.
+bool badge_look_current(const BadgeLook& look);
 
 /// Draw badge @p i of the list @p look was resolved for, centred on (@p cx, @p cy).
 void draw_object_badge(lv_layer_t* layer, const BadgeLook& look, size_t i, const ObjectBadge& badge,

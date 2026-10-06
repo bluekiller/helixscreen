@@ -79,8 +79,19 @@ int32_t object_badge_diameter() {
     return font ? lv_font_get_line_height(font) : 0;
 }
 
+static int look_subject_int(lv_subject_t* subject) {
+    return subject ? lv_subject_get_int(subject) : -1;
+}
+
+bool badge_look_current(const BadgeLook& look) {
+    return look.theme_generation == look_subject_int(theme_manager_get_changed_subject()) &&
+           look.breakpoint == look_subject_int(theme_manager_get_breakpoint_subject());
+}
+
 BadgeLook resolve_badge_look(const std::vector<ObjectBadge>& badges) {
     BadgeLook look;
+    look.theme_generation = look_subject_int(theme_manager_get_changed_subject());
+    look.breakpoint = look_subject_int(theme_manager_get_breakpoint_subject());
     look.font = object_badge_font();
     look.diameter = object_badge_diameter();
     look.ring_color = theme_manager_get_color("success");

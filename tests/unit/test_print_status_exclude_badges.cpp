@@ -63,7 +63,9 @@ TEST_CASE_METHOD(PrintStatusPanelFixture,
     REQUIRE(rows != nullptr);
     REQUIRE(lv_obj_get_child_count(rows) == 3);
     const auto fills = helix::test_access::gcode_viewer_badge_fills(viewer);
+    const auto texts = helix::test_access::gcode_viewer_badge_texts(viewer);
     REQUIRE(fills.size() == 3);
+    REQUIRE(texts.size() == 3);
     for (int i = 0; i < 3; ++i) {
         INFO("row " << i);
         lv_obj_t* row = lv_obj_get_child(rows, i);
@@ -72,6 +74,8 @@ TEST_CASE_METHOD(PrintStatusPanelFixture,
         CHECK(std::string(lv_label_get_text(number)) == badges[static_cast<size_t>(i)].number);
         CHECK(lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN),
                           fills[static_cast<size_t>(i)]));
+        CHECK(lv_color_eq(lv_obj_get_style_text_color(number, LV_PART_MAIN),
+                          texts[static_cast<size_t>(i)]));
     }
     CHECK_FALSE(lv_color_eq(fills[0], fills[1]));
 

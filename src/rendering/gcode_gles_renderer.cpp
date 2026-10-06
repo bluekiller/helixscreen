@@ -2152,6 +2152,9 @@ void GCodeGLESRenderer::release_geometry() {
     }
     active_geometry_ = nullptr;
     current_filename_.clear();
+    // The image on screen belongs to the file being released; badges for the
+    // next one must not project through its transform.
+    has_shown_image_ = false;
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;

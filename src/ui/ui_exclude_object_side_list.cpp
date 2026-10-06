@@ -239,8 +239,14 @@ void ExcludeObjectSideList::update_row_states() {
     if (!printer_state_) {
         return;
     }
+    // Rows are matched to objects by position, which only holds while they
+    // show the current list. A rebuild for the new list is already queued and
+    // publishes the states itself.
+    if (printer_state_->excluded_objects_state().get_defined_objects() != row_names_) {
+        return;
+    }
     const auto badges = compute_object_badges(printer_state_->excluded_objects_state(), nullptr);
-    for (size_t i = 0; i < row_names_.size() && i < badges.size(); ++i) {
+    for (size_t i = 0; i < badges.size(); ++i) {
         const int state = badges[i].excluded ? 2 : (badges[i].current ? 1 : 0);
         if (lv_subject_get_int(row_states_.at(i)) != state) {
             row_states_.set_int(i, state);
@@ -250,13 +256,16 @@ void ExcludeObjectSideList::update_row_states() {
 
 void ExcludeObjectSideList::create_row(lv_obj_t* parent, const ObjectBadge& badge) {
     const std::string& name = badge.name;
-    const std::string badge_color =
-        helix::color_to_hex_string(lv_color_to_u32(object_badge_color(badge.defined_index)));
+    const lv_color_t fill = object_badge_color(badge.defined_index);
+    const std::string badge_color = helix::color_to_hex_string(lv_color_to_u32(fill));
+    const std::string badge_text_color =
+        helix::color_to_hex_string(lv_color_to_u32(object_badge_text_color(fill)));
     const std::string state_subject = "exclude_row_state_" + std::to_string(badge.defined_index);
 
     const char* attrs[] = {
-        "badge_text",    badge.number.c_str(),  "badge_color", badge_color.c_str(),
-        "state_subject", state_subject.c_str(), nullptr,
+        "badge_text",        badge.number.c_str(),  "badge_color",
+        badge_color.c_str(), "badge_text_color",    badge_text_color.c_str(),
+        "state_subject",     state_subject.c_str(), nullptr,
     };
     lv_obj_t* row = static_cast<lv_obj_t*>(lv_xml_create(parent, "exclude_object_row", attrs));
     if (!row) {

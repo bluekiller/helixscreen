@@ -300,6 +300,10 @@ static void draw_object_badges(gcode_viewer_state_t* st, lv_layer_t* layer,
     if (st->object_badges.empty()) {
         return;
     }
+    // A theme or size-class switch redraws the screen with the same badge list.
+    if (!helix::ui::badge_look_current(st->badge_look)) {
+        st->badge_look = helix::ui::resolve_badge_look(st->object_badges);
+    }
 
     // The top of what is on screen: badges sit on the current layer while an
     // object is still printing, and on the object's own top once it is done.
@@ -1777,6 +1781,11 @@ std::vector<helix::ui::ObjectBadge> gcode_viewer_object_badges(lv_obj_t* viewer)
 std::vector<lv_color_t> gcode_viewer_badge_fills(lv_obj_t* viewer) {
     gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
     return st ? st->badge_look.fill : std::vector<lv_color_t>{};
+}
+
+std::vector<lv_color_t> gcode_viewer_badge_texts(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->badge_look.text : std::vector<lv_color_t>{};
 }
 
 std::vector<GcodeViewerDrawnBadge> gcode_viewer_drawn_badges(lv_obj_t* viewer) {

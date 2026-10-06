@@ -19,6 +19,7 @@
   <api>
     <prop name="badge_text" type="string" default=""/>
     <prop name="badge_color" type="string" default="#primary"/>
+    <prop name="badge_text_color" type="string" default="#text"/>
     <prop name="state_subject" type="string" default=""/>
   </api>
   <view extends="lv_obj"
@@ -33,7 +34,8 @@
             height="24" style_radius="12" style_bg_color="$badge_color" style_bg_opa="255" style_border_width="0"
             style_pad_all="0" scrollable="false" clickable="false" event_bubble="true">
       <lv_label align="center"
-                text="$badge_text" style_text_color="#FFFFFF" style_text_font="#font_small" event_bubble="true"/>
+                text="$badge_text" style_text_color="$badge_text_color" style_text_font="#font_small"
+                event_bubble="true"/>
     </lv_obj>
     <!-- Name over status. The name has the row's full width, and the status line
          keeps its height when the status is blank, so a row's height depends on

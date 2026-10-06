@@ -255,6 +255,9 @@ print while the object is growing. Streaming 2D has no parsed objects, so it use
 geometry and the current layer's Z.
 
 The badge of the object printing now carries a `success`-coloured outline, `space_xxs` wide.
+The viewer resolves badge colours and styling once per badge list, and again on the next draw
+after the theme or size class changes. A side-list chip takes its number colour from the same
+`object_badge_text_color()` as the badges.
 Excluded objects' badges are drawn at `LV_OPA_30`, the same fade the map applies to an
 excluded rect (`object_badge_opa()`). Anchors that project outside the widget are skipped.
 Badges can overlap when objects sit close together; nothing spreads them apart.

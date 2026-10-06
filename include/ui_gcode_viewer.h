@@ -676,6 +676,7 @@ gcode_viewer_show_2d(lv_obj_t* viewer, std::unique_ptr<helix::gcode::ParsedGCode
 /// The exclude badges the viewer holds and the fill colour it resolved for each.
 std::vector<helix::ui::ObjectBadge> gcode_viewer_object_badges(lv_obj_t* viewer);
 std::vector<lv_color_t> gcode_viewer_badge_fills(lv_obj_t* viewer);
+std::vector<lv_color_t> gcode_viewer_badge_texts(lv_obj_t* viewer);
 
 /// A badge the last frame drew: its object and widget-local centre.
 struct GcodeViewerDrawnBadge {
