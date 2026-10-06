@@ -118,6 +118,11 @@ def is_button_row(el):
     """
     if el.tag in BUTTON_ROW_TAGS:
         return True
+    # A wrapper whose only widget is the row, so the row and its leading divider
+    # hide as a unit (klipper_recovery_dialog). Bindings are not widgets.
+    widgets = [c for c in el if not c.tag.startswith('bind_')]
+    if len(widgets) == 1 and widgets[0].tag in BUTTON_ROW_TAGS:
+        return True
     if el.get('height') == '#button_height':
         return True
     name = el.get('name') or ''
