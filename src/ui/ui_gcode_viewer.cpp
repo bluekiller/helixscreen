@@ -37,6 +37,8 @@
 #include "view_gestures.h"
 
 #include <cerrno>
+#include <cmath>
+#include <functional>
 
 // FPS tracking constants (for diagnostic logging, not mode selection)
 constexpr float MIN_ACTUAL_RENDER_MS = 2.0f; // Minimum render time to count as actual render
@@ -289,6 +291,76 @@ void helix::gcode_viewer::apply_budget_forced_2d(gcode_viewer_state_t* st, lv_ob
     lv_obj_invalidate(obj);
 }
 
+// Exclude-mode badges, drawn on top of whichever renderer painted this frame.
+// Anchors are projected through that renderer's live transform, so the badges
+// follow pan, zoom and rotation; ones landing outside the widget are skipped.
+// Overlapping badges are drawn as-is.
+static void draw_object_badges(gcode_viewer_state_t* st, lv_layer_t* layer,
+                               const lv_area_t& widget_coords) {
+    st->drawn_badge_centers.clear();
+    st->drawn_badge_names.clear();
+    if (st->object_badges.empty()) {
+        return;
+    }
+
+    // The top of what is on screen: badges sit on the current layer while an
+    // object is still printing, and on the object's own top once it is done.
+    std::function<std::optional<glm::vec2>(const helix::ui::ObjectBadge&)> project;
+    if (st->is_using_2d_mode()) {
+        if (!st->layer_renderer_2d_) {
+            return;
+        }
+        const auto* r = st->layer_renderer_2d_.get();
+        const float drawn_top = r->current_layer_z();
+        project = [r, drawn_top](const helix::ui::ObjectBadge& b) -> std::optional<glm::vec2> {
+            const float z = std::min(b.top_z.value_or(drawn_top), drawn_top);
+            return glm::vec2(r->project_to_screen(b.anchor.x, b.anchor.y, z));
+        };
+    }
+#ifdef ENABLE_3D_RENDERER
+    else {
+        if (!st->renderer_ || !st->camera_ || !st->gcode_file || st->gcode_file->layers.empty()) {
+            return;
+        }
+        const auto& layers = st->gcode_file->layers;
+        const int top_layer =
+            st->print_progress_layer_ >= 0
+                ? std::min<int>(st->print_progress_layer_, static_cast<int>(layers.size()) - 1)
+                : static_cast<int>(layers.size()) - 1;
+        const float drawn_top = layers[static_cast<size_t>(top_layer)].z_height;
+        const auto* r = st->renderer_.get();
+        const auto* cam = st->camera_.get();
+        project = [r, cam, drawn_top](const helix::ui::ObjectBadge& b) {
+            const float z = std::min(b.top_z.value_or(drawn_top), drawn_top);
+            return r->project_to_screen(glm::vec3(b.anchor, z), *cam);
+        };
+    }
+#else
+    else {
+        return;
+    }
+#endif
+
+    const float w = static_cast<float>(lv_area_get_width(&widget_coords));
+    const float h = static_cast<float>(lv_area_get_height(&widget_coords));
+    for (const auto& badge : st->object_badges) {
+        if (!badge.has_anchor) {
+            continue;
+        }
+        const auto p = project(badge);
+        if (!p || p->x < 0.0f || p->y < 0.0f || p->x >= w || p->y >= h) {
+            continue;
+        }
+        helix::ui::draw_object_badge(layer, badge,
+                                     widget_coords.x1 + static_cast<int32_t>(std::lround(p->x)),
+                                     widget_coords.y1 + static_cast<int32_t>(std::lround(p->y)));
+        if (!badge.excluded) {
+            st->drawn_badge_centers.push_back(*p);
+            st->drawn_badge_names.push_back(badge.name);
+        }
+    }
+}
+
 static void gcode_viewer_draw_cb(lv_event_t* e) {
     lv_obj_t* obj = lv_event_get_target_obj(e);
     lv_layer_t* layer = lv_event_get_layer(e);
@@ -472,6 +544,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
         }
     }
 #endif
+
+    draw_object_badges(st, layer, widget_coords);
 
     // Fire the one-shot first-frame callback once the viewer has real content
     // on its canvas (not during VBO upload, not on a skipped/failed frame).
@@ -1079,6 +1153,20 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
     lv_obj_invalidate(obj);
 
     spdlog::debug("[GCode Viewer] Excluded objects updated ({} objects)", object_names.size());
+}
+
+// NAMESPACE_OK: joins this file's global ui_gcode_viewer_* API
+void ui_gcode_viewer_set_object_badges(lv_obj_t* obj, std::vector<helix::ui::ObjectBadge> badges) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+    st->object_badges = std::move(badges);
+    if (st->object_badges.empty()) {
+        st->drawn_badge_centers.clear();
+        st->drawn_badge_names.clear();
+    }
+    // Only the overlay changed: the renderers repaint from their caches.
+    lv_obj_invalidate(obj);
 }
 
 void ui_gcode_viewer_set_object_tap_callback(lv_obj_t* obj,
@@ -1762,6 +1850,9 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t*, const std::unordered_set<st
 
 void ui_gcode_viewer_set_object_tap_callback(lv_obj_t*, gcode_viewer_object_tap_callback_t, void*) {
 }
+
+// NAMESPACE_OK: joins this file's global ui_gcode_viewer_* API
+void ui_gcode_viewer_set_object_badges(lv_obj_t*, std::vector<helix::ui::ObjectBadge>) {}
 
 void ui_gcode_viewer_set_object_long_press_callback(lv_obj_t*,
                                                     gcode_viewer_object_long_press_callback_t,

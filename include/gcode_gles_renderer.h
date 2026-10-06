@@ -248,6 +248,11 @@ class GCodeGLESRenderer {
                                            const ParsedGCodeFile& gcode,
                                            const GCodeCamera& camera) const;
 
+    /// World point -> widget-local pixel through the MVP render() draws with;
+    /// nullopt behind the camera.
+    std::optional<glm::vec2> project_to_screen(const glm::vec3& world,
+                                               const GCodeCamera& camera) const;
+
     // ====== Ghost Layer / Print Progress ======
 
     void set_print_progress_layer(int current_layer);

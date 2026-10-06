@@ -405,8 +405,13 @@ static const char* ui_gcode_viewer_pick_object(lv_obj_t* obj, int x, int y) {
 
     std::optional<std::string> result;
 
-    // Use 2D renderer's pick_object_at in 2D mode
-    if (st->is_using_2d_mode() && st->layer_renderer_2d_) {
+    // A badge can sit over empty space (the hole of a ring), so it picks first.
+    const int badge = helix::ui::badge_hit_index(
+        st->drawn_badge_centers, static_cast<float>(local_x), static_cast<float>(local_y),
+        static_cast<float>(helix::ui::object_badge_diameter()) / 2.0f);
+    if (badge >= 0) {
+        result = st->drawn_badge_names[static_cast<size_t>(badge)];
+    } else if (st->is_using_2d_mode() && st->layer_renderer_2d_) {
         result = st->layer_renderer_2d_->pick_object_at(local_x, local_y);
     }
 #ifdef ENABLE_3D_RENDERER

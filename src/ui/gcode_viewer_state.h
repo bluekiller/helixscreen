@@ -8,6 +8,7 @@
 
 #if HELIX_HAS_GCODE_VIEWER
 
+#include "ui_exclude_object_badges.h"
 #include "ui_gcode_viewer.h"
 
 #include "config.h"
@@ -269,6 +270,13 @@ class GCodeViewerState {
     // Callbacks
     gcode_viewer_object_tap_callback_t object_tap_callback{nullptr};
     void* object_tap_user_data{nullptr};
+
+    /// Exclude-mode badges drawn over the render; empty when exclude mode is off.
+    std::vector<helix::ui::ObjectBadge> object_badges;
+    /// Widget-local centres of the badges drawn last frame, parallel to
+    /// drawn_badge_names, so a tap on a badge picks its object.
+    std::vector<glm::vec2> drawn_badge_centers;
+    std::vector<std::string> drawn_badge_names;
     gcode_viewer_object_long_press_callback_t object_long_press_callback{nullptr};
     void* object_long_press_user_data{nullptr};
     gcode_viewer_load_callback_t load_callback{nullptr};

@@ -66,7 +66,9 @@ UI entry points:
 | `src/ui/ui_exclude_object_side_list.cpp` | List population, tap-to-exclude |
 | `include/ui_exclude_object_map_view.h` | Object map view with 3D selection brackets |
 | `src/ui/ui_exclude_object_map_view.cpp` | Map rendering and hit-testing |
-| `src/api/moonraker_motion_api.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
+| `include/ui_exclude_object_badges.h` | `compute_object_badges()`: each object's number, colour, excluded flag and anchor, plus the shared badge styling and draw call |
+| `src/ui/ui_exclude_object_badges.cpp` | Badge decision (pure) and the disc drawn on the map and the 2D/3D render |
+| `src/api/moonraker_api_controls.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
 | `src/api/moonraker_client_mock.cpp` | Mock mode: EXCLUDE_OBJECT handling and status dispatch |
 
 ---
@@ -199,9 +201,9 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 
 `ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by `PrintStatusPanel`. Each row shows:
 
-- **Status dot** (green = idle/printing, red = excluded)
+- **Numbered chip**: the object's 1-based position in the defined list, on its object-palette colour (`object_color_1`..`object_color_8`, cycling)
 - **Object name**
-- **Status text** ("Printing", "Excluded", or blank)
+- **Status text** ("Printing now", "Excluded", or blank); excluded rows are dimmed
 
 ### Behavior
 
@@ -209,6 +211,48 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 - Excluded rows are non-clickable and displayed at reduced opacity
 - The list auto-refreshes via observers on both `excluded_objects_version_` and `defined_objects_version_`
 - The list is accessed from PrintStatusPanel via `on_objects_clicked()` event callback
+
+### Object numbers on the map and the render
+
+The chip number and colour identify an object everywhere it appears. All of them key on
+the object's **defined index**, its position in
+`PrinterExcludedObjectsState::get_defined_objects()`, through one decision:
+`helix::ui::compute_object_badges()` (`include/ui_exclude_object_badges.h`). It returns one
+`ObjectBadge` per defined object with the number text, the palette index, the excluded and
+current flags, and a world anchor. It is pure: callers only map the anchor to their own
+screen and draw.
+
+- **Thumbnail map** (`ExcludeObjectMapView`): a numbered disc in each object's rect, and the
+  key bar's dot + number. An object with no bounding box gets no rect but keeps its number,
+  so later objects do not renumber.
+- **2D/3D render**: while the side list is open, `PrintStatusPanel::refresh_render_badges()`
+  pushes the badges to the viewer (`ui_gcode_viewer_set_object_badges()`), and again on every
+  `defined_objects_version` / `excluded_objects_version` bump (the current object bumps the
+  latter). Closing the list pushes an empty set. The viewer draws them in its
+  `LV_EVENT_DRAW_POST` pass after the renderer (`src/ui/ui_gcode_viewer.cpp#draw_object_badges`),
+  projecting each anchor through the live transform, so they follow pan, zoom and rotation:
+  `GCodeLayerRenderer::project_to_screen()` in 2D, `GCodeGLESRenderer::project_to_screen()`
+  (the MVP the FBO was drawn with) in 3D. Changing badges only invalidates the widget; the
+  renderers repaint from their caches.
+
+Anchor priority: Klipper `CENTER`, the parsed file's `CENTER`, Klipper's bbox centre, the
+parsed toolpath bbox centre. Parsed objects are looked up by name; `ParsedGCodeFile::objects`
+is a name-sorted map and never decides a number. The anchor's Z is the top of what is on
+screen: the lower of the object's parsed top and the current layer, so a badge rides the
+print while the object is growing. Streaming 2D has no parsed objects, so it uses Klipper's
+geometry and the current layer's Z.
+
+Excluded objects' badges are drawn at `LV_OPA_30`, the same fade the map applies to an
+excluded rect (`object_badge_opa()`). Anchors that project outside the widget are skipped.
+Badges can overlap when objects sit close together; nothing spreads them apart.
+
+A tap inside a drawn (non-excluded) badge picks that badge's object before the renderer's
+own picker runs (`src/ui/gcode_viewer_input.cpp#ui_gcode_viewer_pick_object`), since a badge
+can sit over empty space, e.g. the hole of a ring. Badges are drawn, not widgets, so they
+never take input themselves.
+
+The disc's diameter is one line of `font_small`, so it scales with the breakpoint like the
+rest of the UI.
 
 ### XML Layout
 
@@ -278,6 +322,15 @@ The `MoonrakerClientMock` fully simulates the `exclude_object` feature for testi
 ```
 
 Start a mock print, then long-press objects in the G-code viewer or open the Print Objects side list to test the exclusion flow.
+
+To see the render badges on a real three-object plate, print that file directly. The 3D
+renderer needs a GL context, which `SDL_VIDEODRIVER=dummy` lacks (the viewer falls back to
+2D); `offscreen` provides one without opening a window:
+
+```bash
+HELIX_MOCK_AUTO_PRINT=1 SDL_VIDEODRIVER=offscreen ./build/bin/helix-screen --test \
+  --sim-speed 6 -vv --render-3d --gcode-file assets/test_gcodes/exclude_object_test.gcode
+```
 
 ---
 
@@ -370,6 +423,7 @@ Tests are run with:
 | `tests/unit/test_exclude_object_long_press_gate.cpp` | `[exclude_object]` | Long-press gate: pending object, timer arming, clear |
 | `tests/unit/test_excluded_objects_char.cpp` | `[excluded_objects]` | `PrinterExcludedObjectsState`: version subjects, set change detection, observer notification |
 | `tests/unit/test_moonraker_api_exclude_object.cpp` | `[security]`, `[mock]` | Input validation, injection prevention, mock client integration |
+| `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, palette colour, map key numbering with a bbox-less object, 2D anchor projection + pick at the badge |
 
 ### Test G-code
 

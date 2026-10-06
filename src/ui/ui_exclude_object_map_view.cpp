@@ -6,7 +6,6 @@
 #include "ui_utils.h"
 
 #include "bed_dimensions.h"
-#include "display_numbering.h"
 #include "lv_draw_buf_guard.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
@@ -320,11 +319,11 @@ void ExcludeObjectMapView::build_object_rects() {
     helix::ui::safe_clean_children(object_container_);
     object_rects_.clear();
 
-    const auto& defined = state_->get_defined_objects();
-    int index = 0;
+    const auto badges = compute_object_badges(*state_, parsed_file_.get());
     int rects_created = 0;
 
-    for (const auto& name : defined) {
+    for (const auto& badge : badges) {
+        const std::string& name = badge.name;
         glm::vec2 bbox_min{0.0f, 0.0f};
         glm::vec2 bbox_max{0.0f, 0.0f};
         bool have_bbox = false;
@@ -353,21 +352,19 @@ void ExcludeObjectMapView::build_object_rects() {
 
         if (!have_bbox) {
             spdlog::trace("[ExcludeObjectMapView] No bbox for '{}', skipping", name);
-            ++index;
             continue;
         }
 
         PixelRect pr = mapper_->bbox_to_rect(bbox_min, bbox_max);
-        lv_obj_t* rect = create_object_rect(object_container_, index, name, pr);
+        lv_obj_t* rect = create_object_rect(object_container_, badge, pr);
         if (rect) {
-            object_rects_.push_back({name, rect});
+            object_rects_.push_back({name, badge.defined_index, rect});
             ++rects_created;
         }
-        ++index;
     }
 
     spdlog::debug("[ExcludeObjectMapView] Built {} rects from {} defined objects", rects_created,
-                  defined.size());
+                  badges.size());
 
     // Show or hide the empty message imperatively. The XML component scope
     // persists across create/destroy cycles, so we cannot use lv_xml_register_subject
@@ -510,7 +507,7 @@ void ExcludeObjectMapView::draw_first_layer_outlines() {
         if (polygon.size() < 3)
             continue;
 
-        lv_color_t color = get_object_color(it->second);
+        lv_color_t color = object_badge_color(it->second);
 
         // Draw closed polygon edges
         for (size_t i = 0; i < polygon.size(); ++i) {
@@ -544,20 +541,17 @@ void ExcludeObjectMapView::draw_first_layer_outlines() {
 // create_object_rect
 // ============================================================================
 
-lv_obj_t* ExcludeObjectMapView::create_object_rect(lv_obj_t* parent, int index,
-                                                   const std::string& name, const PixelRect& rect) {
-    // Main rect
-    (void)name; // name is tracked in object_rects_ by the caller
-
+lv_obj_t* ExcludeObjectMapView::create_object_rect(lv_obj_t* parent, const ObjectBadge& badge,
+                                                   const PixelRect& rect) {
     lv_obj_t* obj = lv_obj_create(parent);
     lv_obj_set_pos(obj, static_cast<int32_t>(rect.x), static_cast<int32_t>(rect.y));
     lv_obj_set_size(obj, static_cast<int32_t>(rect.w), static_cast<int32_t>(rect.h));
 
     char obj_name[32];
-    snprintf(obj_name, sizeof(obj_name), "obj_rect_%d", index);
+    snprintf(obj_name, sizeof(obj_name), "obj_rect_%d", badge.defined_index);
     lv_obj_set_name(obj, obj_name);
 
-    lv_color_t color = get_object_color(index);
+    lv_color_t color = object_badge_color(badge.defined_index);
     lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_color(obj, color, 0);
     lv_obj_set_style_border_width(obj, 2, 0);
@@ -567,28 +561,24 @@ lv_obj_t* ExcludeObjectMapView::create_object_rect(lv_obj_t* parent, int index,
     lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
 
-    // Number badge — 22x22 circle centered in the rect
-    lv_obj_t* badge = lv_obj_create(obj);
-    lv_obj_set_size(badge, 22, 22);
-    lv_obj_align(badge, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(badge, color, 0);
-    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(badge, 11, 0); // circle
-    lv_obj_set_style_border_width(badge, 0, 0);
-    lv_obj_set_style_pad_all(badge, 0, 0);
-    lv_obj_remove_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_remove_flag(badge, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(badge, LV_OBJ_FLAG_EVENT_BUBBLE);
+    // Number badge — the same disc the 2D/3D render draws (ui_exclude_object_badges.h)
+    const int32_t diameter = object_badge_diameter();
+    lv_obj_t* disc = lv_obj_create(obj);
+    lv_obj_set_size(disc, diameter, diameter);
+    lv_obj_align(disc, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(disc, color, 0);
+    lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(disc, 0, 0);
+    lv_obj_set_style_pad_all(disc, 0, 0);
+    lv_obj_remove_flag(disc, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(disc, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(disc, LV_OBJ_FLAG_EVENT_BUBBLE);
 
-    // Number label inside badge
-    lv_obj_t* num_label = lv_label_create(badge);
-    char num_buf[16];
-    snprintf(num_buf, sizeof(num_buf), "%d", lane_number(index));
-    lv_label_set_text(num_label, num_buf);
-    lv_obj_set_style_text_font(num_label, theme_manager_get_font("font_small"), 0);
-    lv_obj_set_style_text_color(
-        num_label, theme_manager_get_contrast_adjusted_text(theme_manager_get_color("text"), color),
-        0);
+    lv_obj_t* num_label = lv_label_create(disc);
+    lv_label_set_text(num_label, badge.number.c_str());
+    lv_obj_set_style_text_font(num_label, object_badge_font(), 0);
+    lv_obj_set_style_text_color(num_label, object_badge_text_color(color), 0);
     lv_obj_align(num_label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_remove_flag(num_label, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(num_label, LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -627,7 +617,7 @@ void ExcludeObjectMapView::update_visual_states() {
             // Canvas handles visuals — rects are invisible tap targets only
             lv_obj_set_style_border_width(rect, 0, 0);
             lv_obj_set_style_bg_opa(rect, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_opa(rect, is_excluded ? LV_OPA_30 : LV_OPA_COVER, 0);
+            lv_obj_set_style_opa(rect, object_badge_opa(is_excluded), 0);
             if (is_excluded) {
                 lv_obj_remove_flag(rect, LV_OBJ_FLAG_CLICKABLE);
             } else {
@@ -636,7 +626,7 @@ void ExcludeObjectMapView::update_visual_states() {
         } else if (is_excluded) {
             lv_obj_set_style_border_color(rect, danger_color, 0);
             lv_obj_set_style_bg_opa(rect, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_opa(rect, LV_OPA_30, 0);
+            lv_obj_set_style_opa(rect, object_badge_opa(true), 0);
             lv_obj_remove_flag(rect, LV_OBJ_FLAG_CLICKABLE);
         } else if (is_current) {
             lv_obj_set_style_border_color(rect, primary_color, 0);
@@ -645,7 +635,7 @@ void ExcludeObjectMapView::update_visual_states() {
             lv_obj_set_style_opa(rect, LV_OPA_COVER, 0);
             lv_obj_add_flag(rect, LV_OBJ_FLAG_CLICKABLE);
         } else {
-            lv_color_t color = get_object_color(i);
+            lv_color_t color = object_badge_color(entry.defined_index);
             lv_obj_set_style_border_color(rect, color, 0);
             lv_obj_set_style_bg_opa(rect, LV_OPA_TRANSP, 0);
             lv_obj_set_style_opa(rect, LV_OPA_COVER, 0);
@@ -696,11 +686,8 @@ void ExcludeObjectMapView::build_key_bar() {
     }
 
     // FullNames or Abbreviated: colored dot + number + name per object
-    const auto& excluded = state_->get_excluded_objects();
-
-    for (int i = 0; i < count && i < static_cast<int>(object_rects_.size()); ++i) {
-        const auto& entry = object_rects_[i];
-        bool is_excluded = excluded.count(entry.name) > 0;
+    for (const auto& badge : compute_object_badges(*state_, parsed_file_.get())) {
+        const bool is_excluded = badge.excluded;
 
         // Key entry container — dim excluded objects to signal they are skipped
         lv_obj_t* entry_row = lv_obj_create(key_bar_);
@@ -719,7 +706,7 @@ void ExcludeObjectMapView::build_key_bar() {
         }
 
         // Colored dot
-        lv_color_t color = get_object_color(i);
+        lv_color_t color = object_badge_color(badge.defined_index);
         lv_obj_t* dot = lv_obj_create(entry_row);
         lv_obj_set_size(dot, 8, 8);
         lv_obj_set_style_radius(dot, 4, 0);
@@ -743,7 +730,7 @@ void ExcludeObjectMapView::build_key_bar() {
         if (mode == KeyBarMode::FullNames) {
             // Show number + name, auto-truncate with LVGL dot mode
             char buf[64];
-            snprintf(buf, sizeof(buf), "%d %s", lane_number(i), entry.name.c_str());
+            snprintf(buf, sizeof(buf), "%s %s", badge.number.c_str(), badge.name.c_str());
             lv_label_set_text(name_label, buf);
             lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
             // Limit width to share space among entries
@@ -753,19 +740,9 @@ void ExcludeObjectMapView::build_key_bar() {
             }
         } else {
             // Abbreviated: just the number
-            char buf[8];
-            snprintf(buf, sizeof(buf), "%d", lane_number(i));
-            lv_label_set_text(name_label, buf);
+            lv_label_set_text(name_label, badge.number.c_str());
         }
     }
-}
-
-// ============================================================================
-// get_object_color
-// ============================================================================
-
-lv_color_t ExcludeObjectMapView::get_object_color(int index) const {
-    return theme_manager_get_object_palette_color(index);
 }
 
 // ============================================================================

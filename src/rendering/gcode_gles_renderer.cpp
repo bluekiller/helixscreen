@@ -2270,6 +2270,11 @@ glm::mat4 GCodeGLESRenderer::build_mvp(const GCodeCamera& camera) const {
     return proj * camera.get_view_matrix() * model;
 }
 
+std::optional<glm::vec2> GCodeGLESRenderer::project_to_screen(const glm::vec3& world,
+                                                              const GCodeCamera& camera) const {
+    return project_clip_to_screen(build_mvp(camera), world, viewport_width_, viewport_height_);
+}
+
 // ============================================================
 // Selection Brackets (3D, GPU-side — drawn inside the FBO)
 // ============================================================

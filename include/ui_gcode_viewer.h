@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ui_exclude_object_badges.h"
+
 #include "gcode_pause_scan.h"
 
 #include <lvgl/lvgl.h>
@@ -429,6 +431,17 @@ void ui_gcode_viewer_set_highlighted_objects(lv_obj_t* obj,
  */
 void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
                                           const std::unordered_set<std::string>& object_names);
+
+/**
+ * @brief Numbered badges drawn over each object while exclude mode is open
+ * @param obj Viewer widget
+ * @param badges From helix::ui::compute_object_badges(); empty hides them
+ *
+ * Drawn after the 2D/3D render at each anchor's projected point, so they follow
+ * pan, zoom and rotation. A tap on a badge picks the object it labels.
+ */
+// NAMESPACE_OK: joins this file's global ui_gcode_viewer_* API
+void ui_gcode_viewer_set_object_badges(lv_obj_t* obj, std::vector<helix::ui::ObjectBadge> badges);
 
 /**
  * @brief Callback type for object tap events

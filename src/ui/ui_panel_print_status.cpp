@@ -8,6 +8,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
+#include "ui_exclude_object_badges.h"
 #include "ui_exclude_object_map_view.h"
 #include "ui_fan_control_overlay.h"
 #include "ui_filament_mapping_card.h"
@@ -367,13 +368,18 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
             lv_subject_set_int(&self->exclude_objects_available_subject_, available);
             self->update_objects_text();
             self->update_view_toggle_position(available != 0);
+            self->refresh_render_badges();
         },
         ps_subjects);
 
     // Subscribe to excluded objects changes (for "X of Y obj" count updates)
     excluded_objects_version_observer_ = observe<int>(
         printer_state_.excluded_objects_state().get_excluded_objects_version_subject(), this,
-        [](PrintStatusPanel* self, int) { self->update_objects_text(); }, ps_subjects);
+        [](PrintStatusPanel* self, int) {
+            self->update_objects_text();
+            self->refresh_render_badges();
+        },
+        ps_subjects);
 
     // Subscribe to AMS current filament color for gcode viewer color override
     // When a known filament color is available (from Spoolman spool or AMS lane),
@@ -1725,8 +1731,24 @@ void PrintStatusPanel::show_exclude_map_view() {
             },
             nullptr);
     }
+    refresh_render_badges();
 
     spdlog::debug("[{}] Showed exclude panel (mode={})", get_name(), viewer_mode);
+}
+
+void PrintStatusPanel::refresh_render_badges() {
+    if (!gcode_viewer_) {
+        return;
+    }
+    // The side list is what "exclude mode open" means; the badges label its chips.
+    if (!side_list_ || !side_list_->is_active()) {
+        ui_gcode_viewer_set_object_badges(gcode_viewer_, {});
+        return;
+    }
+    ui_gcode_viewer_set_object_badges(
+        gcode_viewer_,
+        helix::ui::compute_object_badges(printer_state_.excluded_objects_state(),
+                                         ui_gcode_viewer_get_parsed_file(gcode_viewer_)));
 }
 
 void PrintStatusPanel::hide_exclude_map_view() {
@@ -1735,6 +1757,7 @@ void PrintStatusPanel::hide_exclude_map_view() {
     if (gcode_viewer_) {
         ui_gcode_viewer_set_object_tap_callback(gcode_viewer_, nullptr, nullptr);
         ui_gcode_viewer_set_highlighted_objects(gcode_viewer_, {});
+        ui_gcode_viewer_set_object_badges(gcode_viewer_, {});
     }
 
     if (side_list_) {
