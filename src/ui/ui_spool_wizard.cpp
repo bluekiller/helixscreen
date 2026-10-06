@@ -1460,7 +1460,8 @@ void SpoolWizardOverlay::populate_filament_list() {
         lv_obj_t* temps_label = lv_obj_find_by_name(row, "filament_temps");
         if (temps_label) {
             char temp_buf[32] = {};
-            if (fil.nozzle_temp_min > 0 && fil.nozzle_temp_max > 0) {
+            // Spoolman's single temperature arrives as min == max.
+            if (fil.nozzle_temp_min > 0 && fil.nozzle_temp_max > fil.nozzle_temp_min) {
                 std::snprintf(temp_buf, sizeof(temp_buf), "%d-%d\u00B0C", fil.nozzle_temp_min,
                               fil.nozzle_temp_max);
             } else if (fil.nozzle_temp_max > 0) {
