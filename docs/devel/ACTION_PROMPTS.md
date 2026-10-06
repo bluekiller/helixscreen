@@ -28,7 +28,7 @@ protocol itself is Klipper's: [G-Codes: action commands](https://www.klipper3d.o
 | `src/ui/action_prompt_modal.cpp` | Builds text labels and buttons from `PromptData`, button layout, color mapping, click handling |
 | `ui_xml/action_prompt_modal.xml` | Dialog shell: title, scrollable text area, AFC fault diagram, button rows, footer row |
 | `ui_xml/action_prompt_button_row.xml` | One row of regular buttons: a button group, or a run of ungrouped buttons |
-| `src/application/application.cpp#init_action_prompt` | Wiring: creates manager and modal, registers the `notify_gcode_response` handler, sends button gcode and `prompt_end` |
+| `src/application/gcode_response_routing.cpp#attach` | Wiring: creates manager and modal, registers the `notify_gcode_response` handler, sends button gcode and `prompt_end` |
 | `src/application/application_sdl_shortcuts.cpp` | `A` and `N` keys raise a test prompt and a test notification in `--test` |
 | `src/application/demo_overlays.cpp` | `ctl demo action-prompt-worst` and `action-prompt-many` |
 | `src/printer/ams_backend_mock.cpp#execute_device_action` | Mock AFC calibration wizard that injects a full prompt sequence |
@@ -92,7 +92,7 @@ thread.
 
 `AmsState::set_gcode_response_callback()` is pointed at the same sink, which is how a mock AMS
 backend injects prompt lines without a Moonraker connection. Both registrations are
-undone in `src/application/application.cpp#teardown_printer_scope` before the manager is destroyed.
+undone in `src/application/printer_session.cpp#teardown_printer_scope` before the manager is destroyed.
 The teardown rule for `notify_gcode_response` handlers is in
 [architecture/12-system-services.md](architecture/12-system-services.md).
 
