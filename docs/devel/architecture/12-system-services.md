@@ -86,7 +86,7 @@ When each one comes up is chapter 11's ladder; the service-eye view, with the ca
 
 | Boot phase | Services wired | Call sites ([`src/application/application.cpp`](../../../src/application/application.cpp)) |
 |------------|----------------|--------------------------------------------------|
-| 9b | UpdateChecker, UpgradeBanner, CrashHistory + CrashReporter, TelemetryManager, PrintHistoryManager | `src/application/application.cpp#"UpdateChecker::instance().init()"`, `src/application/application.cpp#"UpgradeBanner::instance().init()"`, `src/application/application.cpp#"CrashHistory::instance().init"`-`src/application/application.cpp#"TelemetryManager::instance().init(user_config_dir)"`, `src/application/application.cpp#"std::make_unique<PrintHistoryManager>"` |
+| 9b | UpdateChecker, UpgradeBanner, CrashHistory + CrashReporter, TelemetryManager, PrintHistoryManager | `src/application/application.cpp#"UpdateChecker::instance().init()"`, `src/application/application.cpp#"UpgradeBanner::instance().init()"`, `src/application/application.cpp#"CrashHistory::instance().init"`-`src/application/application.cpp#"TelemetryManager::instance().init(user_config_dir)"`, `src/application/printer_session.cpp#"std::make_unique<PrintHistoryManager>"` |
 | 9d follow-on | SoundManager (backend pick + startup tone), PostOpCooldownManager | `src/application/application.cpp#"Initialize SoundManager (audio feedback)"`, `src/application/application.cpp#"PostOpCooldownManager::instance().init()"` |
 | 11b | CrashReportModal — only if a pending crash survives suppression | `src/application/application.cpp#"bool show_crash_dialog ="`-`src/application/application.cpp#"CrashReportModal::show_owned(report)"` |
 | during connect | Timelapse subscription; telemetry `start_auto_send()` | `src/application/printer_session.cpp#setup_discovery_callbacks`, `src/application/printer_session.cpp#connect_moonraker` |
@@ -225,7 +225,7 @@ Plugins load at boot from the per-printer cache, with or without a printer conne
 Read in this order; about 30 minutes total.
 
 1. [`include/system/update_checker.h#UpdateChecker`](../../../include/system/update_checker.h#L80) — the class doc plus `Status`/`UpdateChannel`/`DownloadStatus`: the whole pipeline as three enums.
-2. [`src/system/update_checker.cpp#start_download`](../../../src/system/update_checker.cpp#L1242) — the print-guard block and its telemetry report; then `src/system/update_checker.cpp#"download_thread_ = std::thread"` where `download_thread_` spawns and `src/system/update_checker.cpp#"Previous download worker still running"` for the re-entry guard.
+2. [`src/system/update_checker.cpp#start_download`](../../../src/system/update_checker.cpp#L1242) — the print-guard block and its telemetry report; then `src/system/update_checker.cpp#"download_thread_ = helix::make_thread"` where `download_thread_` spawns and `src/system/update_checker.cpp#"Previous download worker still running"` for the re-entry guard.
 3. [`src/system/sound_manager.cpp#create_backend`](../../../src/system/sound_manager.cpp#L402) — `create_backend()`: the SDL → ALSA → PWM ladder and the per-platform PWM gating comment.
 4. [`src/system/sound_manager.cpp#finalize_backend_setup`](../../../src/system/sound_manager.cpp#L171) — the M300 install gate and the feedback-loop comment above it.
 5. [`src/led/led_auto_state.cpp#compute_state_key`](../../../src/led/led_auto_state.cpp#L112) — `compute_state_key()`: the six-key priority chain in 45 lines.
