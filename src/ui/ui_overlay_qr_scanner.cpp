@@ -320,7 +320,7 @@ void QrScannerOverlay::start_scanning() {
     // No compiled camera support — try snapshot polling as fallback
     {
         auto& state = get_printer_state();
-        std::string snapshot_url = state.get_webcam_snapshot_url();
+        std::string snapshot_url = state.capabilities_state().get_webcam_snapshot_url();
         auto* api = get_moonraker_api();
         if (api && !snapshot_url.empty()) {
             api->resolve_webcam_url(snapshot_url);

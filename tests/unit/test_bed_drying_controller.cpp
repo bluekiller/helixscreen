@@ -661,3 +661,48 @@ TEST_CASE_METHOD(BedDryingFixture, "Stop while placing sends no chamber off",
 
     CHECK_FALSE(sent("HEATER=chamber"));
 }
+
+TEST_CASE_METHOD(BedDryingFixture,
+                 "a print taking the machine while spools are latched raises one alarm",
+                 "[bed_drying][print_alarm]") {
+    int alarms = 0;
+    ctrl->set_on_print_while_latched([&] { ++alarms; });
+    start_pla();
+    REQUIRE(alarms == 0);
+
+    // Started from another client: the latch cannot refuse it.
+    frame({{"print_stats", {{"state", "printing"}, {"filename", "part.gcode"}}}});
+    CHECK(alarms == 1);
+
+    // Once per print, not once per status frame.
+    frame({{"print_stats", {{"state", "printing"}, {"filename", "part.gcode"}}}});
+    CHECK(alarms == 1);
+
+    frame({{"print_stats", {{"state", "cancelled"}, {"filename", "part.gcode"}}}});
+    frame({{"print_stats", {{"state", "printing"}, {"filename", "part.gcode"}}}});
+    CHECK(alarms == 2);
+}
+
+TEST_CASE_METHOD(BedDryingFixture, "a print with no spools latched raises no alarm",
+                 "[bed_drying][print_alarm]") {
+    int alarms = 0;
+    ctrl->set_on_print_while_latched([&] { ++alarms; });
+    frame({{"print_stats", {{"state", "printing"}, {"filename", "part.gcode"}}}});
+    CHECK(alarms == 0);
+}
+
+TEST_CASE_METHOD(BedDryingFixture,
+                 "a restart into a running print with spools latched raises the alarm",
+                 "[bed_drying][print_alarm]") {
+    start_pla();
+    ctrl.reset();
+    state.print_state().set_spool_latch(false);
+    frame({{"print_stats", {{"state", "printing"}, {"filename", "part.gcode"}}}});
+
+    int alarms = 0;
+    ctrl = make_controller();
+    ctrl->set_on_print_while_latched([&] { ++alarms; });
+    ctrl->restore();
+    drain();
+    CHECK(alarms == 1);
+}

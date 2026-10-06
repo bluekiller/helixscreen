@@ -71,6 +71,22 @@ void BedDryingController::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(bed_drying_chamber_text_, chamber_text_buf_, "",
                               "bed_drying_chamber_text", subjects_);
     subjects_initialized_ = true;
+    print_watch_ = ui::observe<int>(
+        state_.print_state().get_print_lifecycle_subject(), this,
+        [](BedDryingController* self, int /*lifecycle*/) { self->check_print_alarm(); },
+        state_.get_subjects_lifetime());
+}
+
+void BedDryingController::check_print_alarm() {
+    const bool alarm =
+        record_.latched && job_holds_machine(state_.print_state().get_print_lifecycle());
+    if (alarm && !print_alarm_raised_) {
+        spdlog::warn("[BedDrying] A print holds the machine while spools are latched on the bed");
+        if (on_print_while_latched_) {
+            on_print_while_latched_();
+        }
+    }
+    print_alarm_raised_ = alarm;
 }
 
 void BedDryingController::await_unload(std::function<void()> on_done,
@@ -557,6 +573,7 @@ void BedDryingController::publish() {
     if (!subjects_initialized_) {
         return;
     }
+    check_print_alarm();
     const State s = state();
     std::string text;
     switch (s) {

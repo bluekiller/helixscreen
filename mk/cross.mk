@@ -2080,15 +2080,15 @@ deploy-ad5m:
 	@# Transfer assets via tar (uses shared DEPLOY_TAR_EXCLUDES and DEPLOY_ASSET_DIRS)
 	@# AD5M now has tracker support (PWM PCM mode) — include .mod files
 	@echo "$(DIM)Transferring assets...$(RESET)"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_ASSET_DIRS) | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xof -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_ASSET_DIRS) | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xof - && chmod -R go-w ."
 	@# Transfer pre-rendered images
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
 		ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/assets/images/prerendered $(AD5M_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images && tar -xof - && chmod -R go-w ."; \
 	fi
 	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images/printers && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images/printers && tar -xof - && chmod -R go-w ."; \
 	fi
 	@# Deploy CA certificates for HTTPS verification
 	@if [ -f build/ad5m/certs/ca-certificates.crt ]; then \
@@ -2269,16 +2269,16 @@ deploy-cc1:
 	cat $(INSTALLER_BUNDLE) | ssh $(CC1_SSH_TARGET) "cat > $(CC1_DEPLOY_DIR)/$(INSTALLER_FILENAME) && chmod +x $(CC1_DEPLOY_DIR)/$(INSTALLER_FILENAME)"
 	@# Transfer assets via tar (uses shared DEPLOY_TAR_EXCLUDES and DEPLOY_ASSET_DIRS)
 	@echo "$(DIM)Transferring assets...$(RESET)"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR) && tar -xof -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR) && tar -xof - && chmod -R go-w ."
 	$(call deploy-platform-hooks,$(CC1_SSH_TARGET),$(CC1_DEPLOY_DIR),cc1)
 	@# Transfer pre-rendered images
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
 		ssh $(CC1_SSH_TARGET) "mkdir -p $(CC1_DEPLOY_DIR)/assets/images/prerendered $(CC1_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR)/assets/images && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR)/assets/images && tar -xof - && chmod -R go-w ."; \
 	fi
 	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR)/assets/images/printers && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(CC1_SSH_TARGET) "cd $(CC1_DEPLOY_DIR)/assets/images/printers && tar -xof - && chmod -R go-w ."; \
 	fi
 	@# Deploy CA certificates for HTTPS verification
 	@if [ -f build/cc1/certs/ca-certificates.crt ]; then \
@@ -2351,7 +2351,7 @@ define snapmaker-u1-deploy-common
 	@if [ -f build/snapmaker-u1/bin/helix-splash ]; then scp build/snapmaker-u1/bin/helix-splash $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)/bin/; fi
 	@if [ -f build/snapmaker-u1/bin/helix-watchdog ]; then scp build/snapmaker-u1/bin/helix-watchdog $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)/bin/; fi
 	ssh $(SNAPMAKER_U1_SSH_TARGET) "chmod +x $(SNAPMAKER_U1_DEPLOY_DIR)/bin/helix-*"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(SNAPMAKER_U1_SSH_TARGET) "cd $(SNAPMAKER_U1_DEPLOY_DIR) && tar -xof -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(SNAPMAKER_U1_SSH_TARGET) "cd $(SNAPMAKER_U1_DEPLOY_DIR) && tar -xof - && chmod -R go-w ."
 	$(call deploy-platform-hooks,$(SNAPMAKER_U1_SSH_TARGET),$(SNAPMAKER_U1_DEPLOY_DIR),snapmaker-u1)
 	scp scripts/helix-launcher.sh $(SNAPMAKER_U1_SSH_TARGET):$(SNAPMAKER_U1_DEPLOY_DIR)/bin/ && ssh $(SNAPMAKER_U1_SSH_TARGET) "chmod +x $(SNAPMAKER_U1_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Patch the init script AT THE PATH THE INSTALLER USES — config/helixscreen.init.
@@ -2475,16 +2475,16 @@ deploy-k1:
 	cat scripts/helix-launcher.sh | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/bin/helix-launcher.sh && chmod +x $(K1_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Transfer assets via tar
 	@echo "$(DIM)Transferring assets...$(RESET)"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && tar -xof -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && tar -xof - && chmod -R go-w ."
 	$(call deploy-platform-hooks,$(K1_SSH_TARGET),$(K1_DEPLOY_DIR),k1)
 	@# Transfer pre-rendered images
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
 		ssh $(K1_SSH_TARGET) "mkdir -p $(K1_DEPLOY_DIR)/assets/images/prerendered $(K1_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images && tar -xof - && chmod -R go-w ."; \
 	fi
 	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images/printers && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images/printers && tar -xof - && chmod -R go-w ."; \
 	fi
 	@# Install/update init script for boot persistence
 	@echo "$(DIM)Installing init script...$(RESET)"
@@ -2566,16 +2566,16 @@ deploy-k1-dynamic:
 	cat scripts/helix-launcher.sh | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/bin/helix-launcher.sh && chmod +x $(K1_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Transfer assets via tar
 	@echo "$(DIM)Transferring assets...$(RESET)"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && tar -xof -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && tar -xof - && chmod -R go-w ."
 	$(call deploy-platform-hooks,$(K1_SSH_TARGET),$(K1_DEPLOY_DIR),k1)
 	@# Transfer pre-rendered images
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
 		ssh $(K1_SSH_TARGET) "mkdir -p $(K1_DEPLOY_DIR)/assets/images/prerendered $(K1_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images && tar -xof - && chmod -R go-w ."; \
 	fi
 	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images/printers && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images/printers && tar -xof - && chmod -R go-w ."; \
 	fi
 	@echo "$(GREEN)✓ Deployed to $(K1_HOST):$(K1_DEPLOY_DIR)$(RESET)"
 	$(call sync-device-features,$(K1_SSH_TARGET),$(K1_DEPLOY_DIR),build/k1-dynamic/bin)
@@ -2673,15 +2673,15 @@ deploy-k2:
 	cat scripts/helix-launcher.sh | ssh $(K2_SSH_TARGET) "cat > $(K2_DEPLOY_DIR)/bin/helix-launcher.sh && chmod +x $(K2_DEPLOY_DIR)/bin/helix-launcher.sh"
 	@# Transfer assets via tar
 	@echo "$(DIM)Transferring assets...$(RESET)"
-	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(K2_SSH_TARGET) "cd $(K2_DEPLOY_DIR) && tar -xof -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_TAR_NO_TRACKER) $(DEPLOY_ASSET_DIRS) | ssh $(K2_SSH_TARGET) "cd $(K2_DEPLOY_DIR) && tar -xof - && chmod -R go-w ."
 	@# Transfer pre-rendered images
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
 		ssh $(K2_SSH_TARGET) "mkdir -p $(K2_DEPLOY_DIR)/assets/images/prerendered $(K2_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K2_SSH_TARGET) "cd $(K2_DEPLOY_DIR)/assets/images && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K2_SSH_TARGET) "cd $(K2_DEPLOY_DIR)/assets/images && tar -xof - && chmod -R go-w ."; \
 	fi
 	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K2_SSH_TARGET) "cd $(K2_DEPLOY_DIR)/assets/images/printers && tar -xof -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K2_SSH_TARGET) "cd $(K2_DEPLOY_DIR)/assets/images/printers && tar -xof - && chmod -R go-w ."; \
 	fi
 	@# Install/update init script + procd shim for boot persistence, plus
 	@# the web-server carve-out (prestonbrown/helixscreen#1617): the runtime
