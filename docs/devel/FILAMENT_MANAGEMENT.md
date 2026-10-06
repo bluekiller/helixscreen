@@ -1198,10 +1198,28 @@ Per-slot error indicators and per-unit error badges, driven by `SlotInfo.error` 
 
 ### Clog / flow meter
 
-Three sources (encoder, Flowguard, AFC buffer) feed one set of `clog_meter_*`
-subjects, derived in `AmsState::sync_clog_meter_from_info()`
-(`src/printer/ams_state.cpp`). Source precedence is **flowguard > encoder > AFC
-buffer**, overridable per-widget via `set_source_override()`.
+`AmsState::sync_clog_meter_from_info()` (`src/printer/ams_state_clog.cpp`) builds
+up to two samples with one code path and publishes each through the same function:
+
+| Sample (`ClogSample`) | Subjects | What it carries |
+|---|---|---|
+| `Primary` | `clog_meter_*` (XML-bound) | The clog detector: **flowguard > encoder > AFC buffer** (then the legacy flag), overridable per widget via `set_source_override()` (0 auto, 1 encoder, 2 flowguard, 3 AFC). With no detector, the pressure reading |
+| `Pressure` | `AmsState::clog_meter_subjects(ClogSample::Pressure)`, no XML names yet | The buffer's position whenever `sync_feedback_bias` is valid: Happy Hare sync feedback, or a filament pressure sensor (AFC `FPS_PSF`, OpenAMS) via `AmsSystemInfo::pressure_sensor_bias()` |
+
+Pressure is not an override choice: when a detector exists, pressure already has
+its own sample to draw, and when none exists it is the primary on its own.
+`ClogMeterModel` takes the sample it reads (`Primary` by default), so either
+renderer can draw either one. How surfaces present the second sample is an open
+design question; today nothing draws it but the model.
+
+Pressure is `ClogMeterMode::Pressure`, symmetrical (-100..+100) like Flowguard,
+with `TIGHT` / `LOOSE` ends, mode text `FPS` (pressure sensor, centre = raw
+pressure) or `Sync` (Happy Hare, centre = the bias). Its bands, `kPressureWarningPct`
+(30) and `kPressureFaultPct` (70) in `clog_meter_geometry.h`, are one decision via
+`pressure_status()`: the meter's status and tint, and the path canvas's buffer-box
+tint, read it. The Buffer Status modal's balanced / pulling tight / loose line comes
+from `buffer_lean()` beside it. The modal re-reads the backend on every
+`ams_data_revision` and `backend_count` change, so it is live while open.
 
 **Two presentations, one model.** `UiClogBar` draws a wide horizontal scale,
 `UiClogMeter` a compact arc. Neither owns any interpretation:
@@ -1244,7 +1262,8 @@ linear modes** (only Flowguard's two directions mean different faults).
 **Mock scenarios:** `helix-screen ctl scenario <name>` drives the mock *backend*,
 so the whole derivation runs — `clog_healthy`, `clog_warning`, `clog_blocked`,
 `flowguard_neutral`, `flowguard_tangle`, `flowguard_clog`, `buffer_safe`,
-`buffer_fault`, `buffer_fps` (a pressure sensor under its set point), `clog_off`.
+`buffer_fault`, `buffer_fps` / `buffer_fps_loose` (a pressure sensor under / over its
+set point; any mock type but Happy Hare), `sync_feedback_tight` (Happy Hare), `clog_off`.
 
 ### AFC buffers: switched vs FPS_PSF
 

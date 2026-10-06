@@ -40,7 +40,9 @@ class ClogMeterModel {
     /// read: the subclass is still constructing. Call relayout (or whatever
     /// the renderer's draw entry point is) once after construction, which the
     /// renderers already did for their own first paint.
-    explicit ClogMeterModel(Callback on_change);
+    /// @p which picks the sample: the primary clog reading, or the filament
+    /// pressure reading drawn beside it.
+    explicit ClogMeterModel(Callback on_change, ClogSample which = ClogSample::Primary);
     ~ClogMeterModel();
 
     ClogMeterModel(const ClogMeterModel&) = delete;

@@ -24,11 +24,9 @@ void register_clog_detection_widget() {
     });
 
     lv_xml_register_event_cb(nullptr, "on_clog_detection_widget_clicked", [](lv_event_t* /*e*/) {
-        auto* backend = AmsState::instance().get_backend();
-        if (!backend)
+        if (!AmsState::instance().get_backend())
             return;
-        auto info = backend->get_system_info();
-        BufferStatusModal::show_for(info, 0);
+        BufferStatusModal::show_for(0);
     });
 }
 } // namespace helix

@@ -1682,6 +1682,7 @@ translations:
   LOAD CELLS: LOAD CELLS
   LOADED: LOADED
   LOCKED: LOCKED
+  LOOSE: LOOSE
   LOT-2024-001: LOT-2024-001
   Label Printer: Label Printer
   Label Size: Label Size
@@ -3111,6 +3112,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.
   Switching to MPC requires a config change and Klipper restart.: Switching to MPC
     requires a config change and Klipper restart.
+  Sync: Sync
   Sync during printing: Sync during printing
   Sync with Spoolman: Sync with Spoolman
   Sysfs: Sysfs
@@ -3125,6 +3127,7 @@ translations:
   TD-1 filament color detection: TD-1 filament color detection
   TEMPERATURE SENSORS: TEMPERATURE SENSORS
   THEME COLORS: THEME COLORS
+  TIGHT: TIGHT
   'TOGGLE: {}': 'TOGGLE: {}'
   TOOLS: TOOLS
   TPU: TPU

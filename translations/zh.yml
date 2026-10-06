@@ -1617,6 +1617,7 @@ translations:
   LOAD CELLS: '称重传感器'
   LOADED: 已加载
   LOCKED: 已锁定
+  LOOSE: 松弛
   LOT-2024-001: LOT-2024-001
   Label Printer: 标签打印机
   Label Size: 标签尺寸
@@ -2993,6 +2994,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: 切换到 MPC 会改变此加热器的控制方式，随后会进行校准。这需要在工作温度下耗时数分钟。
   Switching to MPC requires a config change and Klipper restart.: 切换到 MPC 需要修改配置并重启
     Klipper。
+  Sync: 同步
   Sync during printing: 打印期间同步
   Sync with Spoolman: 与 Spoolman 同步
   Sysfs: Sysfs
@@ -3007,6 +3009,7 @@ translations:
   TD-1 filament color detection: TD-1 耗材颜色检测
   TEMPERATURE SENSORS: 温度传感器
   THEME COLORS: 主题颜色
+  TIGHT: 拉紧
   'TOGGLE: {}': '切换: {}'
   TOOLS: 工具
   TPU: TPU

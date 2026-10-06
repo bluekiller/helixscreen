@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ui_modal.h"
+#include "ui_observer_guard.h"
 
 #include "ams_types.h"
 
@@ -14,6 +15,9 @@ class UiClogBar;
 /**
  * @brief Read-only modal showing buffer/sync status for Happy Hare, AFC or a
  *        filament pressure sensor (OpenAMS)
+ *
+ * Live while open: every row is re-read from the backend on each AmsState data
+ * revision or backend-count change.
  *
  * Subjects are static (shared across instances) because lv_xml_register_subject
  * rejects duplicate names — the first registration wins and the pointer persists.
@@ -31,9 +35,9 @@ class BufferStatusModal : public Modal {
         return "buffer_status_modal";
     }
 
-    /// Convenience: create modal, populate from info, and show. One-shot and
-    /// stack-owned - ModalStack frees the instance when its entry goes (#1382).
-    static void show_for(const helix::AmsSystemInfo& info, int effective_unit);
+    /// Convenience: create the modal for one unit's buffer and show it. One-shot
+    /// and stack-owned - ModalStack frees the instance when its entry goes (#1382).
+    static void show_for(int effective_unit);
 
   protected:
     void on_show() override;
@@ -43,6 +47,9 @@ class BufferStatusModal : public Modal {
 
     static void init_subjects();
     void populate(const helix::AmsSystemInfo& info, int effective_unit);
+    /// populate() from the active backend's current snapshot, and keep the
+    /// meter on the same reading.
+    void refresh();
 
     static bool subjects_initialized_;
     helix::ui::UiBufferMeter* meter_ = nullptr;
@@ -76,7 +83,7 @@ class BufferStatusModal : public Modal {
     static lv_subject_t afc_distance_subject_;
     static char afc_distance_buf_[128];
 
-    // Stored info for post-show meter creation
-    helix::AmsSystemInfo info_;
     int effective_unit_ = 0;
+    ObserverGuard revision_observer_;
+    ObserverGuard backend_observer_;
 };

@@ -5,6 +5,10 @@
 #include "ui_buffer_meter.h"
 #include "ui_clog_bar.h"
 
+#include "ams_backend.h"
+#include "ams_state.h"
+#include "clog_meter_geometry.h"
+#include "observer_factory.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -104,12 +108,17 @@ const BufferHealth* pressure_sensor(const AmsSystemInfo& info, int unit) {
 }
 
 /// What a sync-feedback bias means for the filament, whichever backend
-/// produced it.
+/// produced it: the lean the clog meter's TIGHT / LOOSE ends label.
 const char* bias_description(float bias) {
-    if (std::fabs(bias) < 0.02f) {
-        return lv_tr("Filament tension is balanced");
+    switch (helix::ui::buffer_lean(bias)) {
+    case helix::ui::BufferLean::Tight:
+        return lv_tr("Filament is pulling tight");
+    case helix::ui::BufferLean::Loose:
+        return lv_tr("Filament is loose");
+    case helix::ui::BufferLean::Balanced:
+        break;
     }
-    return bias < 0 ? lv_tr("Filament is pulling tight") : lv_tr("Filament is loose");
+    return lv_tr("Filament tension is balanced");
 }
 
 } // namespace
@@ -236,7 +245,7 @@ void BufferStatusModal::on_show() {
     wire_cancel_button("btn_close");
     wire_cancel_button("btn_secondary");
 
-    populate(info_, effective_unit_);
+    refresh();
 
     // Apply label/value color distinction AFTER theme_apply_current_palette_to_tree
     // (which runs in Modal::show and forces all labels white on dark backgrounds)
@@ -251,14 +260,16 @@ void BufferStatusModal::on_show() {
         }
     }
 
-    // Create UiBufferMeter programmatically in the meter column populate() showed
-    if (lv_subject_get_int(&show_meter_subject_) != 0 && dialog()) {
-        lv_obj_t* meter_col = lv_obj_find_by_name(dialog(), "meter_col");
-        if (meter_col) {
-            meter_ = new helix::ui::UiBufferMeter(meter_col);
-            meter_->set_bias(info_.buffer_bias(effective_unit_));
-        }
-    }
+    // Every row is re-read whenever a backend sync lands or a backend appears
+    // or vanishes, so the modal stays live while it is open. The handler
+    // re-reads the backend rather than trusting the tick.
+    auto& ams = helix::AmsState::instance();
+    revision_observer_ = helix::ui::observe<int>(
+        ams.get_ams_data_revision_subject(), this,
+        [](BufferStatusModal* self, int) { self->refresh(); }, ams.get_subjects_lifetime());
+    backend_observer_ = helix::ui::observe<int>(
+        ams.get_backend_count_subject(), this,
+        [](BufferStatusModal* self, int) { self->refresh(); }, ams.get_subjects_lifetime());
 
     // Drive the clog bar the dialog authored. Unconditional: it reads the same
     // AmsState subjects the home tile does, and clog_bar_body hides itself when
@@ -268,9 +279,26 @@ void BufferStatusModal::on_show() {
     }
 }
 
-void BufferStatusModal::show_for(const helix::AmsSystemInfo& info, int effective_unit) {
+void BufferStatusModal::refresh() {
+    // A vanished backend reads as an empty snapshot, which is the unsupported
+    // message rather than whatever the last backend said.
+    auto* backend = helix::AmsState::instance().get_backend();
+    const auto info = backend ? backend->get_system_info() : helix::AmsSystemInfo{};
+    populate(info, effective_unit_);
+
+    // The meter column populate() showed, created the first time a bias appears.
+    if (lv_subject_get_int(&show_meter_subject_) != 0 && !meter_ && dialog()) {
+        if (lv_obj_t* meter_col = lv_obj_find_by_name(dialog(), "meter_col")) {
+            meter_ = new helix::ui::UiBufferMeter(meter_col);
+        }
+    }
+    if (meter_) {
+        meter_->set_bias(info.buffer_bias(effective_unit_));
+    }
+}
+
+void BufferStatusModal::show_for(int effective_unit) {
     auto modal = std::make_unique<BufferStatusModal>();
-    modal->info_ = info;
     modal->effective_unit_ = effective_unit;
     // Stack-owned one-shot: ModalStack frees the instance when its entry goes
     // (#1382); a failed show leaves the unique_ptr to free it.
