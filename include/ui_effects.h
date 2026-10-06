@@ -72,7 +72,7 @@ lv_obj_t* create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity = 180);
 /**
  * @brief Register a screen object that stays in front of every backdrop
  *
- * The navigation rail's buttons (the E-stop, the spools-on-the-bed button):
+ * The navbar's buttons (the E-stop, the spools-on-the-bed button):
  * they have to stay tappable above any overlay, modal or keypad backdrop.
  */
 void add_always_on_top(lv_obj_t* obj);
