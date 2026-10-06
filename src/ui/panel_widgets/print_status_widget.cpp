@@ -386,7 +386,8 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         },
         printer_state_.get_subjects_lifetime());
 
-    spdlog::debug("[PrintStatusWidget] Subscribed to print state/progress/time/thumbnail/runout");
+    spdlog::info("[PrintStatusWidget] Attached (lifecycle {})",
+                 static_cast<int>(printer_state_.print_state().get_print_lifecycle()));
 
     // Check initial print state
     if (print_card_thumb_ && print_card_active_thumb_) {
@@ -982,6 +983,7 @@ void PrintStatusWidget::apply_active_thumbnail() {
     if (esp_thumbnail_) {
         unpoint_thumbs_from(esp_thumbnail_->dsc());
         esp_thumbnail_.reset();
+        spdlog::info("[PrintStatusWidget] Released previous PSRAM thumbnail");
     }
 #endif
     // No empty-path branch: ActivePrintMediaManager publishes
@@ -990,7 +992,7 @@ void PrintStatusWidget::apply_active_thumbnail() {
     const char* path =
         lv_subject_get_string(printer_state_.print_state().get_print_thumbnail_path_subject());
     lv_image_set_src(print_card_active_thumb_, path);
-    spdlog::info("[PrintStatusWidget] Active print thumbnail updated: {}", path);
+    spdlog::info("[PrintStatusWidget] Active print thumbnail updated from path: {}", path);
 }
 
 void PrintStatusWidget::reset_print_card_to_idle() {

@@ -1104,8 +1104,8 @@ void PrinterPrintState::set_print_psram_thumbnail(
     // Main thread only (see header). The assignment below may run the previous
     // thumbnail's destructor, which calls lv_image_cache_drop().
     print_psram_thumbnail_ = std::move(thumb);
-    spdlog::debug("[PrinterPrintState] PSRAM thumbnail {}",
-                  print_psram_thumbnail_ ? "installed" : "cleared");
+    spdlog::info("[PrinterPrintState] PSRAM thumbnail {}",
+                 print_psram_thumbnail_ ? "installed" : "cleared");
     lv_subject_set_int(&print_psram_thumb_gen_, lv_subject_get_int(&print_psram_thumb_gen_) + 1);
 }
 #endif
