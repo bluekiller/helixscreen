@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" it="Stato del cambio a bobina di riserva sconosciuto"/>
   <translation tag="Barcode Scanner" it="Scanner codici a barre"/>
   <translation tag="Base" it="Riferimento"/>
+  <translation tag="Based on the newest {} prints" it="Basato sulle {} stampe più recenti"/>
   <translation tag="Batch load failed" it="Caricamento multiplo non riuscito"/>
   <translation tag="Batch unload failed" it="Scaricamento multiplo non riuscito"/>
   <translation tag="Beacon auto-calibrate sent" it="Beacon auto-calibrazione inviata"/>

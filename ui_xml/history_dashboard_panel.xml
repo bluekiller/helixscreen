@@ -102,6 +102,9 @@
           </lv_obj>
         </ui_card>
       </lv_obj>
+      <text_small name="history_coverage_note" width="100%" bind_text="history_coverage" style_text_color="#text_muted">
+        <bind_flag_if_eq subject="history_coverage_partial" flag="hidden" ref_value="0"/>
+      </text_small>
       <!-- Prints Trend Sparkline (full width, below stats and chart) - hidden when no jobs -->
       <ui_card name="card_prints_trend"
                width="100%" height="content" style_radius="#border_radius" style_pad_all="#space_sm"
