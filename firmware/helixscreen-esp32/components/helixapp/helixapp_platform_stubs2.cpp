@@ -349,9 +349,6 @@ void ThumbnailProcessor::process_async(const std::vector<uint8_t>&, const std::s
                                        const ThumbnailTarget&, ProcessSuccessCallback,
                                        ProcessErrorCallback) {}
 void ThumbnailProcessor::set_cache_dir(const std::string&) {}
-ThumbnailTarget ThumbnailProcessor::get_target_for_display(ThumbnailSize) {
-    return {};
-}
 
 } // namespace helix
 
@@ -578,15 +575,11 @@ namespace helix {
 
 // --- ThumbnailProcessor, third batch (see round 2) ----------------------------
 void ThumbnailProcessor::set_write_journal(std::weak_ptr<ThumbnailWriteJournal>) {}
-void ThumbnailProcessor::set_card_size_hint(int, int) {}
 // Callbacks intentionally never invoked — same contract as process_async above.
 void ThumbnailProcessor::process_file_async(const std::string&, const std::string&,
                                             const ThumbnailTarget&,
                                             std::function<void(const std::string&)>,
                                             std::function<void(const std::string&)>) {}
-ThumbnailTarget ThumbnailProcessor::get_target_for_resolution(int, int, ThumbnailSize) {
-    return {};
-}
 std::string ThumbnailProcessor::get_if_processed(const std::string&, const ThumbnailTarget&) const {
     return {}; // empty string = "not cached", the documented miss value
 }
