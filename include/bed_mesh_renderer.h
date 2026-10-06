@@ -28,7 +28,7 @@ extern "C" {
 
 /**
  * @file bed_mesh_renderer.h
- * @brief 3D bed mesh visualization renderer using LVGL canvas
+ * @brief Bed mesh visualization renderer (3D perspective view and 2D heatmap)
  *
  * Implements complete 3D rendering pipeline for printer bed mesh height maps:
  * - Perspective projection with interactive rotation
@@ -285,7 +285,7 @@ void bed_mesh_renderer_set_dragging(bed_mesh_renderer_t* renderer, bool is_dragg
 /**
  * @brief Set the layer offset used for screen-space positioning
  *
- * In async (buffer) rendering the mesh is rendered at (0,0).  Overlay
+ * Buffer rendering projects the mesh at (0,0).  Overlay
  * elements drawn on the LVGL layer (axis labels, tick marks) need the
  * widget's actual screen position.  Call this before rendering overlays
  * in async mode so projected 3D→2D coordinates land at the correct
@@ -306,30 +306,6 @@ void bed_mesh_renderer_set_layer_offset(bed_mesh_renderer_t* renderer, int offse
  */
 void bed_mesh_renderer_get_layer_offset(const bed_mesh_renderer_t* renderer, int* offset_x,
                                         int* offset_y);
-
-/**
- * @brief Main rendering function
- *
- * Renders the 3D bed mesh to the provided LVGL layer (DRAW_POST pattern).
- *
- * Rendering pipeline:
- * 1. Clear background
- * 2. Compute projection parameters (Z-scale, FOV-scale)
- * 3. Generate 3D quads from mesh data with colors
- * 4. Project quads to 2D screen space
- * 5. Sort quads by depth (painter's algorithm)
- * 6. Render quads (gradient or solid based on dragging state)
- *
- * @param renderer Renderer instance
- * @param layer LVGL draw layer (from DRAW_POST event callback)
- * @param canvas_width Viewport width in pixels
- * @param canvas_height Viewport height in pixels
- * @param widget_x Widget's absolute screen X position (from lv_obj_get_coords)
- * @param widget_y Widget's absolute screen Y position (from lv_obj_get_coords)
- * @return true on success, false on error (NULL pointers, no mesh data)
- */
-bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, int canvas_width,
-                              int canvas_height, int widget_x, int widget_y);
 
 /**
  * @brief Set render mode (auto, force 3D, or force 2D)
@@ -444,12 +420,12 @@ struct bed_mesh_render_colors_t {
 /**
  * @brief Render full mesh into an off-screen pixel buffer
  *
- * Thread-safe: does NOT call any lv_* functions. Runs the full 3D rendering
- * pipeline (projection, sorting, rasterization, overlays) into a PixelBuffer.
- * The buffer should already be allocated at the correct size.
+ * Thread-safe: does NOT call any lv_* functions. Renders the 3D view (projection,
+ * sorting, rasterization, grids) or, when bed_mesh_renderer_is_using_2d(), the 2D
+ * heatmap cells into a PixelBuffer already allocated at the canvas size.
  *
- * Does NOT handle 2D heatmap fallback (stays on main thread).
- * Does NOT call lv_obj_invalidate() or any LVGL function.
+ * Text and the heatmap touch overlay are drawn on the main thread
+ * (bed_mesh_overlays.h).
  *
  * @param renderer Renderer instance with valid mesh data
  * @param buffer   Target pixel buffer (must be allocated at canvas dimensions)
