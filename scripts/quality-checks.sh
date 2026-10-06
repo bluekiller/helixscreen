@@ -1006,12 +1006,18 @@ else
 fi
 
 # Transparent margin on printer art is width the home widget's contain-fit spends
-# on nothing, which can push its callout chips off their leader lines.
-if python3 -c "import PIL" 2>/dev/null; then
-  if ! python3 scripts/trim_printer_images.py --check >/tmp/printer_trim.out 2>&1; then
-    cat /tmp/printer_trim.out
+# on nothing, which can push its callout chips off their leader lines. A commit
+# runs it only when it stages printer art or the script.
+if [ "$STAGED_ONLY" = true ] &&
+  ! printf '%s\n' "$QC_STAGED_ALL" | grep -qE '^assets/images/printers/|^scripts/trim_printer_images\.py$'; then
+  :
+elif python3 -c "import PIL" 2>/dev/null; then
+  TRIM_OUT="$(mktemp)"
+  if ! python3 scripts/trim_printer_images.py --check >"$TRIM_OUT" 2>&1; then
+    cat "$TRIM_OUT"
     EXIT_CODE=1
   fi
+  rm -f "$TRIM_OUT"
 else
   echo "⚠️  Pillow not installed — skipping printer image trim check"
 fi
