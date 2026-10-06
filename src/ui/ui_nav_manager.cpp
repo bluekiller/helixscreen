@@ -1316,6 +1316,12 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
     // is a later tenant of the address, and a dead successor ends its entries.
     if (condemned_roots_.erase(widget) == 0) {
         rebuilt_overlays_.erase(widget);
+        // A replaced root's pushes forward to its successor; any other dead
+        // root's pushes have nothing left to show.
+        pending_pushes_.erase(
+            std::remove_if(pending_pushes_.begin(), pending_pushes_.end(),
+                           [widget](const PendingPush& p) { return p.panel == widget; }),
+            pending_pushes_.end());
     }
     for (auto it = rebuilt_overlays_.begin(); it != rebuilt_overlays_.end();) {
         it = it->second == widget ? rebuilt_overlays_.erase(it) : std::next(it);
@@ -1495,16 +1501,25 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         return;
     }
 
-    pending_pushes_.push_back(overlay_panel);
+    const uint64_t serial = ++next_push_serial_;
+    pending_pushes_.push_back({overlay_panel, serial});
+    // Its delete hook is what cancels the push if the root dies first.
+    if (lv_obj_is_valid(overlay_panel)) {
+        ensure_delete_hook(overlay_panel);
+    }
     // Always queue - this is the safest pattern for overlay operations
     // which can be triggered from various contexts (events, observers, etc.)
-    helix::ui::queue_update("NavigationManager::push_overlay", [overlay_panel,
+    helix::ui::queue_update("NavigationManager::push_overlay", [overlay_panel, serial,
                                                                 hide_previous]() mutable {
         auto& pending = NavigationManager::instance().pending_pushes_;
-        if (auto it = std::find(pending.begin(), pending.end(), overlay_panel);
-            it != pending.end()) {
-            pending.erase(it);
+        auto entry = std::find_if(pending.begin(), pending.end(),
+                                  [serial](const PendingPush& p) { return p.serial == serial; });
+        if (entry == pending.end()) {
+            spdlog::debug("[NavigationManager] push_overlay: push of {} was cancelled",
+                          (void*)overlay_panel);
+            return;
         }
+        pending.erase(entry);
         // Resolved when the push runs, on the UI thread: a rebuild can land
         // between the queueing and now.
         overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
@@ -1678,6 +1693,16 @@ void NavigationManager::unregister_overlay_close_callback(lv_obj_t* overlay_pane
 }
 
 bool NavigationManager::go_back() {
+    // In queue order the newest pending push lands first and this pops it, so
+    // that pair cancels out. A duplicate push of a stacked overlay is a no-op
+    // when it lands, so the pop still has to run.
+    if (!pending_pushes_.empty()) {
+        lv_obj_t* newest = pending_pushes_.back().panel;
+        if (!is_panel_in_stack(newest)) {
+            cancel_pending_push(newest);
+            return true;
+        }
+    }
     helix::ui::queue_update("NavigationManager::go_back",
                             []() { NavigationManager::instance().go_back_now(); });
     return true;
@@ -1688,6 +1713,7 @@ void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
         spdlog::error("[NavigationManager] Cannot close NULL overlay panel");
         return;
     }
+    cancel_pending_push(overlay_panel);
     helix::ui::queue_update("NavigationManager::close_overlay", [overlay_panel]() {
         // Decided here, in queue order: pushes queued ahead of this operation
         // have landed by now, so "on top" means what the user actually sees,
@@ -1842,8 +1868,35 @@ void NavigationManager::go_back_now() {
 }
 
 bool NavigationManager::is_push_pending(lv_obj_t* panel) const {
-    return std::find(pending_pushes_.begin(), pending_pushes_.end(), panel) !=
-           pending_pushes_.end();
+    return std::any_of(pending_pushes_.begin(), pending_pushes_.end(),
+                       [panel](const PendingPush& p) { return p.panel == panel; });
+}
+
+void NavigationManager::cancel_pending_push(lv_obj_t* panel) {
+    lv_obj_t* root = resolve_rebuilt(panel);
+    const auto before = pending_pushes_.size();
+    pending_pushes_.erase(
+        std::remove_if(pending_pushes_.begin(), pending_pushes_.end(),
+                       [&](const PendingPush& p) { return resolve_rebuilt(p.panel) == root; }),
+        pending_pushes_.end());
+    if (pending_pushes_.size() == before) {
+        return;
+    }
+    spdlog::debug("[NavigationManager] Cancelled pending push of overlay {}", (void*)root);
+    // The caller sees an overlay that opened and closed: owners prime state in
+    // show() and release it in on_deactivate() and the close callback, so both
+    // run, in queue order like any close. The overlay itself was never shown,
+    // activated or stacked.
+    helix::ui::queue_update("NavigationManager::cancel_pending_push", [root]() {
+        if (!lv_obj_is_valid(root)) {
+            return;
+        }
+        auto& mgr = NavigationManager::instance();
+        if (auto* lifecycle = mgr.resolve_overlay_lifecycle(root)) {
+            lifecycle->on_deactivate(DeactivateReason::NavigateAway);
+        }
+        mgr.retire_overlay(root);
+    });
 }
 
 bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
