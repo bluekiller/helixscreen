@@ -64,9 +64,9 @@ re-init clears the observer list. An observer registered there would never fire.
 This is the part to read before you change anything.
 
 `on_root_shown(root)` is called from three places in `NavigationManager`, all of
-them "a root just became visible": `src/ui/ui_nav_manager.cpp#set_active` (panel
+them "a root just became visible": `src/ui/ui_nav_manager.cpp#"NavigationManager::set_active("` (panel
 activate), `src/ui/ui_nav_manager.cpp#activate_initial_panel` (initial panel) and
-`src/ui/ui_nav_manager.cpp#push_overlay` (overlay push). It reads
+`src/ui/ui_nav_manager.cpp#"NavigationManager::push_overlay("` (overlay push). It reads
 the setting live, prunes dead controllers, forces a layout pass so overflow is
 measurable, then walks.
 
