@@ -378,8 +378,12 @@ void PrintSelectCardView::release_esp_thumbnails() {
     for (size_t i = 0; i < card_pool_.size() && i < card_data_pool_.size(); ++i) {
         release_esp_thumbnail(card_pool_[i], *card_data_pool_[i]);
         lv_subject_set_int(&card_data_pool_[i]->thumbnail_state_subject, 1);
-        card_pool_indices_[i] = -1; // rebind on the next pass
+        card_pool_indices_[i] = -1;
     }
+    // The next pass rebinds every card and reports the window again, which is
+    // what fetches the thumbnails back.
+    visible_start_row_ = -1;
+    visible_end_row_ = -1;
 }
 
 void PrintSelectCardView::release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data) {

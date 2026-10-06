@@ -612,6 +612,13 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 panel->populate_current_view(same_dir);
             } else {
                 spdlog::trace("[{}] File list unchanged, skipping repopulation", panel->get_name());
+#if defined(HELIX_PLATFORM_ESP32)
+                // Leaving the panel released the card thumbnails and reset the
+                // card window; rebinding it here fetches them again.
+                if (panel->current_view_mode_ == PrintSelectViewMode::CARD) {
+                    panel->handle_scroll(panel->card_view_container_);
+                }
+#endif
             }
             panel->last_populated_path_ = panel->current_path_;
             panel->file_list_loaded_ = true;
