@@ -322,6 +322,18 @@ _set_e_script() {
     ! printf '%s' "$output" | grep -qP '[\x{2800}-\x{28FF}]'
 }
 
+@test "logo.sh is exactly what render-installer-logo.sh generates" {
+    command -v chafa >/dev/null || skip "no chafa"
+    python3 -c 'import PIL' 2>/dev/null || skip "no Pillow"
+    local t="$BATS_TEST_TMPDIR/tree"
+    mkdir -p "$t/scripts/lib/installer" "$t/assets/images"
+    cp "$WORKTREE_ROOT/scripts/render-installer-logo.sh" "$t/scripts/"
+    cp "$WORKTREE_ROOT/assets/images/helix-icon-256.png" "$t/assets/images/"
+    bash "$t/scripts/render-installer-logo.sh" >/dev/null
+    cmp "$t/scripts/lib/installer/logo.sh" "$WORKTREE_ROOT/scripts/lib/installer/logo.sh" \
+        || fail "logo.sh differs from the generator's output"
+}
+
 @test "the generated logo module is in the bundle" {
     grep -q 'logo.sh' "$WORKTREE_ROOT/scripts/bundle-installer.sh"
 }
