@@ -182,7 +182,7 @@ void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
         });
 
     if (!queued) {
-        moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN,
+        moonraker_internal::report_error(on_error, MoonrakerErrorType::QUEUE_FULL,
                                          "download_file_partial",
                                          "HTTP request could not be queued — try again");
     }
@@ -228,7 +228,7 @@ void MoonrakerFileTransferAPI::download_file(const std::string& root, const std:
                                              message);
         });
     if (!queued) {
-        moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_file",
+        moonraker_internal::report_error(on_error, MoonrakerErrorType::QUEUE_FULL, "download_file",
                                          "HTTP request could not be queued — try again");
     }
 }

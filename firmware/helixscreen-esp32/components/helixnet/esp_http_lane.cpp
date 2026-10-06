@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_pthread.h"
 
+#include <algorithm>
 #include <atomic>
 #include <pthread.h>
 #include <strings.h>
@@ -200,8 +201,11 @@ void EspHttpLane::run_one(const Job& job) {
     size_t total = 0;
     bool alloc_failed = !try_reserve(body, initial_buffer_bytes(job.cap, content_length));
     bool read_failed = false;
+    // reserve() can hand back more than asked for, so the cap bounds the bytes
+    // read, never the capacity.
+    auto room = [&body, &job]() { return std::min(body.capacity(), job.cap); };
     while (!alloc_failed && total < job.cap) {
-        if (total == body.capacity()) {
+        if (total == room()) {
             if (esp_http_client_is_complete_data_received(client)) {
                 break;
             }
@@ -210,7 +214,7 @@ void EspHttpLane::run_one(const Job& job) {
                 break;
             }
         }
-        body.resize(body.capacity()); // within capacity: no allocation
+        body.resize(room()); // within capacity: no allocation
         int n = esp_http_client_read(client, &body[total], static_cast<int>(body.size() - total));
         if (n < 0) {
             read_failed = true;

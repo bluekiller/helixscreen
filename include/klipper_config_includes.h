@@ -66,10 +66,11 @@ using ActiveFilesWithContentCallback =
     std::function<void(const std::set<std::string>&, const std::map<std::string, std::string>&)>;
 
 /// Downloads one config file and calls exactly one of @p on_ok (content) or
-/// @p on_fail (message). Either may run before the call returns.
+/// @p on_fail (message, and whether the transport refused it for a full queue).
+/// Either may run before the call returns.
 using ConfigDownloadFn =
     std::function<void(const std::string& path, std::function<void(std::string)> on_ok,
-                       std::function<void(std::string)> on_fail)>;
+                       std::function<void(std::string, bool queue_full)> on_fail)>;
 
 /// Config downloads outstanding at once. The ESP32 HTTP lane queues 8 requests
 /// for every caller, thumbnails included, and frees a slot only after the
@@ -79,8 +80,8 @@ inline constexpr size_t kMaxConfigDownloadsInFlight = 4;
 /// Download @p root_file and every file its [include] chain reaches, following
 /// globs against @p listing (every path in the config root) and paths relative
 /// to the including file. Files outside the chain are never fetched. A download
-/// refused before @p download returns is retried when an in-flight one completes;
-/// with nothing in flight, and for any other failure, the whole walk fails through
+/// refused for a full queue is retried when an in-flight one completes; with
+/// nothing in flight, and for any other failure, the whole walk fails through
 /// @p on_error once the outstanding downloads have returned. A partial set would
 /// read as a config without the missing files.
 void download_include_graph(std::vector<std::string> listing, const std::string& root_file,

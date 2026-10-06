@@ -153,3 +153,20 @@ TEST_CASE("try_reserve reports an impossible allocation instead of aborting",
     CHECK(s.capacity() >= 64 * 1024);
     CHECK(s == "kept");
 }
+
+TEST_CASE("reserve_allocation_bytes predicts what reserve() really allocates",
+          "[esp32][http][lane_buffer]") {
+    using helix::http::reserve_allocation_bytes;
+    std::string s;
+    s.reserve(128 * 1024);
+    const size_t before = s.capacity();
+    REQUIRE(before >= 128 * 1024);
+    REQUIRE(before < 200 * 1024);
+
+    // libstdc++ grows to at least twice the old capacity, so asking for 200 KB
+    // from 128 KB allocates 256 KB: the probe has to cover that, not 200 KB.
+    const size_t predicted = reserve_allocation_bytes(before, 200 * 1024, s.max_size());
+    s.reserve(200 * 1024);
+    CHECK(predicted == s.capacity());
+    CHECK(predicted > 200 * 1024);
+}
