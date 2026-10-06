@@ -20,7 +20,7 @@
 #include "data_root_resolver.h"
 #include "helix_fs.h"
 #include "host_identity.h"
-#include "input_settings_manager.h"
+#include "input_defaults.h"
 #include "json_utils.h"
 #include "printer_detector.h"
 #include "runtime_config.h"
@@ -543,7 +543,7 @@ json get_default_config(const std::string& moonraker_host, bool include_user_pre
                    {"display", get_default_display_config()},
                    {"gcode_viewer", {{"tube_sides", 4}}},
                    {"input",
-                    {{"scroll_throw", InputSettingsManager::DEFAULT_SCROLL_THROW},
+                    {{"scroll_throw", helix::input_defaults::SCROLL_THROW},
                      {"scroll_limit", 10},
                      {"long_press_time", 500},
                      {"touch_device", ""},
@@ -1083,7 +1083,7 @@ void Config::init(const std::string& config_path) {
 
     // Ensure input section exists with defaults (scroll settings + touch calibration)
     if (!data.contains("input") || !data["input"].is_object()) {
-        data["input"] = {{"scroll_throw", InputSettingsManager::DEFAULT_SCROLL_THROW},
+        data["input"] = {{"scroll_throw", helix::input_defaults::SCROLL_THROW},
                          {"scroll_limit", 10},
                          {"long_press_time", 500},
                          {"touch_device", ""},
@@ -1102,7 +1102,7 @@ void Config::init(const std::string& config_path) {
 
         // Ensure scroll settings exist
         if (!input.contains("scroll_throw")) {
-            input["scroll_throw"] = InputSettingsManager::DEFAULT_SCROLL_THROW;
+            input["scroll_throw"] = helix::input_defaults::SCROLL_THROW;
             config_modified = true;
         }
         if (!input.contains("scroll_limit")) {
