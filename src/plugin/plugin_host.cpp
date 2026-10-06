@@ -371,12 +371,12 @@ bool PluginHost::load(PluginInfo& info) {
         def.display_name = d.name;
         def.icon = d.icon.empty() ? "puzzle_outline" : d.icon;
         def.description = d.description;
-        // Manifest spans are cells; the registry stores grid tracks.
-        constexpr int kT = helix::GridLayout::TRACKS_PER_CELL;
-        def.colspan = d.colspan * kT;
-        def.rowspan = d.rowspan * kT;
-        def.max_colspan = d.max_colspan * kT;
-        def.max_rowspan = d.max_rowspan * kT;
+        def.colspan = d.colspan;
+        def.rowspan = d.rowspan;
+        def.max_colspan = d.max_colspan;
+        def.max_rowspan = d.max_rowspan;
+        def.supports_half_col = d.half_cells;
+        def.supports_half_row = d.half_cells;
         def.factory = [pid = id, wid = d.id, comp = d.component,
                        tok = l.rt->token()](const std::string&) {
             return std::make_unique<LuaPanelWidget>(pid, wid, comp, tok);

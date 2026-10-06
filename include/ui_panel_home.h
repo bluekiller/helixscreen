@@ -92,6 +92,10 @@ class HomePanel : public PanelBase {
     /// Open widget catalog overlay (called by navbar + button)
     void open_widget_catalog();
 
+    /// Track counts page @p page is laid out with; {0, 0} for a page with no
+    /// grid container.
+    helix::GridDimensions page_grid(int page) const;
+
   private:
     SubjectManager subjects_;
     bool populating_widgets_ = false; // Reentrancy guard for populate_widgets()

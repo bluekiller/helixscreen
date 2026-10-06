@@ -34,7 +34,6 @@ setup() {
     export INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
     export SUDO=""
     export BACKUP_CONFIG=""
-    export ORIGINAL_INSTALL_EXISTS=""
 
     mkdir -p "$TMP_DIR"
 
@@ -260,7 +259,6 @@ esac
 @test "cleanup_old_install: refuses to remove a non-helixscreen-rollback path" {
     mkdir -p "$INSTALL_DIR/config"
     echo '{"user": true}' > "$INSTALL_DIR/config/settings.json"
-    ORIGINAL_INSTALL_EXISTS=true
 
     local bogus="$BATS_TEST_TMPDIR/some-mount-root"
     mkdir -p "$bogus"

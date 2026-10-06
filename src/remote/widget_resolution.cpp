@@ -9,6 +9,7 @@
 // has_own_click_handler() needs it to tell a click target from scaffolding.
 #include "lvgl/src/misc/lv_event_private.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace helix {
@@ -281,6 +282,33 @@ std::string path_of(lv_obj_t* o, lv_obj_t* base) {
             return suffix.substr(1); // relative: drop the leading '/'
         }
     }
+}
+
+std::vector<Overflow> find_overflow(lv_obj_t* root) {
+    std::vector<Overflow> found;
+    std::function<void(lv_obj_t*)> walk = [&](lv_obj_t* o) {
+        if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) {
+            return;
+        }
+        // LVGL reports a short content box as a negative remainder.
+        const auto past = [](int32_t px) { return std::max<int32_t>(px, 0); };
+        Overflow ov{o, past(lv_obj_get_scroll_top(o)), past(lv_obj_get_scroll_bottom(o)),
+                    past(lv_obj_get_scroll_left(o)), past(lv_obj_get_scroll_right(o))};
+        // A label that dots, scrolls or clips its text truncates by design.
+        const bool truncates = lv_obj_check_type(o, &lv_label_class) &&
+                               lv_label_get_long_mode(o) != LV_LABEL_LONG_MODE_WRAP;
+        if (!truncates && (ov.top > 0 || ov.bottom > 0 || ov.left > 0 || ov.right > 0)) {
+            found.push_back(ov);
+        }
+        const uint32_t n = lv_obj_get_child_count(o);
+        for (uint32_t i = 0; i < n; ++i) {
+            walk(lv_obj_get_child(o, static_cast<int32_t>(i)));
+        }
+    };
+    if (root) {
+        walk(root);
+    }
+    return found;
 }
 
 lv_obj_t* resolve_path(const std::string& path, lv_obj_t* base, std::vector<lv_obj_t*>* ambiguous) {

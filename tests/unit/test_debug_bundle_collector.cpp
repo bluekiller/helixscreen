@@ -638,7 +638,8 @@ TEST_CASE("DebugBundleCollector: is_sensitive_key matches serial_number but not 
 TEST_CASE("DebugBundleCollector: collect_moonraker_info returns object with expected keys",
           "[debug-bundle][moonraker]") {
     // When not connected, should return an object with error sub-keys (not crash)
-    json mr = helix::DebugBundleCollector::collect_moonraker_info(helix::PrinterSnapshot{});
+    json mr = helix::DebugBundleCollector::collect_moonraker_info(helix::PrinterSnapshot{},
+                                                                  json::array());
     REQUIRE(mr.is_object());
 
     // Should always have these keys, even if errored
@@ -646,6 +647,8 @@ TEST_CASE("DebugBundleCollector: collect_moonraker_info returns object with expe
     REQUIRE(mr.contains("printer_info"));
     REQUIRE(mr.contains("system_info"));
     REQUIRE(mr.contains("printer_state"));
+    REQUIRE(mr.contains("klipper_status"));
+    REQUIRE(mr.contains("update_status"));
     REQUIRE(mr.contains("config"));
 }
 
@@ -656,13 +659,13 @@ TEST_CASE("DebugBundleCollector: collect includes moonraker section", "[debug-bu
 }
 
 // ============================================================================
-// collect_filament_system_info() tests [debug-bundle][filament]
+// collect_filament_system_info(json::array()) tests [debug-bundle][filament]
 // ============================================================================
 
 TEST_CASE("DebugBundleCollector: collect_filament_system_info returns object with expected keys",
           "[debug-bundle][filament]") {
     // When not connected, should return an object with error/empty sub-keys (not crash)
-    json filament = helix::DebugBundleCollector::collect_filament_system_info();
+    json filament = helix::DebugBundleCollector::collect_filament_system_info(json::array());
     REQUIRE(filament.is_object());
     REQUIRE(filament.contains("object_list"));
     REQUIRE(filament["object_list"].is_array());
@@ -672,7 +675,7 @@ TEST_CASE("DebugBundleCollector: collect_filament_system_info returns object wit
 
 TEST_CASE("DebugBundleCollector: collect_filament_system_info has all keys when disconnected",
           "[debug-bundle][filament]") {
-    json filament = helix::DebugBundleCollector::collect_filament_system_info();
+    json filament = helix::DebugBundleCollector::collect_filament_system_info(json::array());
     REQUIRE(filament.contains("afc_version"));
     REQUIRE(filament.contains("mmu_version"));
 }
@@ -720,6 +723,157 @@ TEST_CASE("DebugBundleCollector: filter_filament_objects matches expected prefix
         REQUIRE(name != "print_stats");
         REQUIRE(name != "toolhead");
     }
+}
+
+TEST_CASE("DebugBundleCollector: filter_filament_objects covers every supported backend",
+          "[debug-bundle][filament][klipper-status]") {
+    const std::vector<std::string> wanted = {"oams_manager",
+                                             "oams oams1",
+                                             "fps fps1",
+                                             "filament_group T0",
+                                             "ace",
+                                             "ace_instance_1",
+                                             "filament_hub",
+                                             "ifs",
+                                             "zmod_ifs",
+                                             "box_stepper slot1",
+                                             "filament_rack",
+                                             "filament_detect",
+                                             "filament_feed left",
+                                             "print_task_config",
+                                             "pin_watch",
+                                             "medusahc"};
+    json objects = json::array({"extruder", "heater_bed", "gcode_macro OPENAMS_LOAD", "fan"});
+    for (const auto& name : wanted)
+        objects.push_back(name);
+
+    auto filtered = helix::DebugBundleCollector::filter_filament_objects(objects);
+    CHECK(filtered == json(wanted));
+}
+
+TEST_CASE("DebugBundleCollector: filter_triage_objects picks triage objects and their instances",
+          "[debug-bundle][klipper-status]") {
+    json objects = json::array(
+        {"webhooks", "configfile", "idle_timeout", "pause_resume", "gcode_move", "bed_mesh",
+         "probe", "beacon", "probe_eddy_current btt", "heaters", "z_tilt", "exclude_object",
+         "system_stats", "mcu", "mcu nhk",
+         // Not triage objects, including ones that share a base's first letters.
+         "extruder", "toolhead", "gcode_macro PROBE_CALIBRATE", "temperature_sensor mcu_temp",
+         "mcu_temp", "bed_mesh_calibrate", "save_variables", "oams_manager"});
+
+    auto filtered = helix::DebugBundleCollector::filter_triage_objects(objects);
+    CHECK(filtered ==
+          json::array({"webhooks", "configfile", "idle_timeout", "pause_resume", "gcode_move",
+                       "bed_mesh", "probe", "beacon", "probe_eddy_current btt", "heaters", "z_tilt",
+                       "exclude_object", "system_stats", "mcu", "mcu nhk"}));
+    CHECK(helix::DebugBundleCollector::filter_triage_objects(json(42)).empty());
+}
+
+TEST_CASE("DebugBundleCollector: objects_query_path encodes names and narrows configfile",
+          "[debug-bundle][klipper-status]") {
+    CHECK(helix::DebugBundleCollector::objects_query_path(
+              json::array({"webhooks", "configfile", "mcu nhk"})) ==
+          "/printer/objects/query?webhooks&configfile=warnings&mcu%20nhk");
+}
+
+TEST_CASE("DebugBundleCollector: bound_status summarizes oversized fields",
+          "[debug-bundle][klipper-status]") {
+    json matrix = json::array();
+    for (int r = 0; r < 40; ++r) {
+        json row = json::array();
+        for (int c = 0; c < 30; ++c)
+            row.push_back(0.123456 * r * c);
+        matrix.push_back(row);
+    }
+    json status = {{"bed_mesh", {{"profile_name", "default"}, {"mesh_matrix", matrix}}},
+                   {"oams_manager", {{"lanes", json::array({{{"pressure", 0.42}}})}}}};
+
+    json bounded = helix::DebugBundleCollector::bound_status(status);
+
+    CHECK(bounded["bed_mesh"]["profile_name"] == "default");
+    CHECK(bounded["oams_manager"] == status["oams_manager"]);
+    const json& mm = bounded["bed_mesh"]["mesh_matrix"];
+    CHECK(mm["shape"] == json::array({40, 30}));
+    CHECK(mm["length"] == 40);
+    CHECK(mm["omitted_bytes"].get<size_t>() == matrix.dump().size());
+    CHECK(bounded.dump().size() < 1024);
+}
+
+TEST_CASE("DebugBundleCollector: bound_status drops the largest objects past the total cap",
+          "[debug-bundle][klipper-status]") {
+    // Each object is under the field cap, so only the total cap can act.
+    json status = json::object();
+    status["small"] = {{"state", "ready"}};
+    for (int i = 0; i < 4; ++i)
+        status["big" + std::to_string(i)] = {{"blob", std::string(3000 + i * 10, 'x')}};
+
+    json bounded = helix::DebugBundleCollector::bound_status(status, 4096, 7000);
+
+    CHECK(bounded["small"] == status["small"]);
+    CHECK(bounded["big3"].contains("omitted_bytes"));
+    CHECK(bounded["big2"].contains("omitted_bytes"));
+    CHECK(bounded["big1"] == status["big1"]);
+    CHECK(bounded["big0"] == status["big0"]);
+    CHECK(helix::DebugBundleCollector::bound_status(json("x")) == json("x"));
+}
+
+TEST_CASE("DebugBundleCollector: bound_response bounds and redacts update status",
+          "[debug-bundle][klipper-status]") {
+    json resp = {
+        {"result",
+         {{"busy", false},
+          {"version_info",
+           {{"klipper_openams",
+             {{"version", "v1.2.0-3-gabc1234"},
+              {"remote_url", "https://user:hunter2@github.com/openams/klipper_openams.git"},
+              {"api_key", "abcdef"},
+              {"commits_behind", json::array({{{"message", std::string(5000, 'm')}}})}}}}}}}};
+
+    json out = helix::DebugBundleCollector::bound_response(resp, "version_info");
+    const json& repo = out["result"]["version_info"]["klipper_openams"];
+
+    CHECK(repo["version"] == "v1.2.0-3-gabc1234");
+    CHECK(repo["remote_url"].get<std::string>().find("hunter2") == std::string::npos);
+    CHECK(repo["api_key"] == "[REDACTED]");
+    CHECK(repo["commits_behind"]["length"] == 1);
+    CHECK(out["result"]["busy"] == false);
+}
+
+TEST_CASE("DebugBundleCollector: bound_response keeps klippy webhooks state",
+          "[debug-bundle][klipper-status]") {
+    json resp = {{"result",
+                  {{"status",
+                    {{"webhooks", {{"state", "shutdown"}, {"state_message", "MCU 'nhk' shutdown"}}},
+                     {"moonraker_notifier",
+                      {{"webhook", "https://discord.com/api/webhooks/123/abc"},
+                       {"url", "https://discord.com/api/webhooks/456/def"}}}}}}}};
+
+    json out = helix::DebugBundleCollector::bound_response(resp, "status");
+    const json& status = out["result"]["status"];
+
+    CHECK(status["webhooks"]["state"] == "shutdown");
+    CHECK(status["webhooks"]["state_message"] == "MCU 'nhk' shutdown");
+    CHECK(status["moonraker_notifier"]["webhook"] == "[REDACTED]");
+    CHECK(status["moonraker_notifier"]["url"] == "[REDACTED_WEBHOOK]");
+}
+
+TEST_CASE("DebugBundleCollector: sanitize_value keeps git SHAs and redacts token-shaped strings",
+          "[debug-bundle][klipper-status]") {
+    const std::string sha = "3e887b9ee0c1d2a4b5f6e7d8c9b0a1f2e3d4c5b6";
+    REQUIRE(sha.size() == 40);
+    CHECK(helix::DebugBundleCollector::sanitize_value(sha) == sha);
+    CHECK(helix::DebugBundleCollector::sanitize_value("3E887b9ee0c1d2a4b5f6e7d8c9b0a1f2e3d4c5b6") ==
+          "[REDACTED_TOKEN]");
+    CHECK(helix::DebugBundleCollector::sanitize_value("aZ9kQ2mX7pL4vB8nR1tY6wE3uI5oP0sDfGhJkLzx") ==
+          "[REDACTED_TOKEN]");
+}
+
+TEST_CASE("DebugBundleCollector: collect_klipper_status carries an object-list error",
+          "[debug-bundle][klipper-status]") {
+    json err = {{"error", "HTTP 500 from /printer/objects/list"}};
+    CHECK(helix::DebugBundleCollector::collect_klipper_status("", err) == err);
+    CHECK(helix::DebugBundleCollector::collect_klipper_status("", json::array()) == json::object());
+    CHECK(helix::DebugBundleCollector::fetch_object_list("").contains("error"));
 }
 
 TEST_CASE("DebugBundleCollector: filter_filament_objects handles empty and non-array input",
