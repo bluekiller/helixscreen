@@ -16,7 +16,6 @@
 
 #include "ui_update_queue.h"
 
-#include "external_thread_stack.h"
 #include "helix_thread.h"
 #include "mdns/mdns.h"
 
@@ -40,9 +39,6 @@ constexpr auto QUERY_INTERVAL = std::chrono::milliseconds(3000);
 
 // Buffer size for mDNS operations (must be 32-bit aligned)
 constexpr size_t MDNS_BUFFER_SIZE = 2048;
-
-// The discovery thread's stack, which holds the receive buffer.
-constexpr size_t DISCOVERY_STACK_BYTES = 8 * 1024;
 
 // Timeout for socket receive operations (milliseconds)
 constexpr int SOCKET_TIMEOUT_MS = 500;
@@ -133,22 +129,17 @@ class MdnsDiscovery::Impl {
             thread_.join();
         }
 
+        // Start discovery thread. Wrap — EAGAIN under thread exhaustion
+        // throws std::system_error ([L083]).
         running_.store(true);
         initial_update_sent_.store(false); // Reset so first query dispatches even if empty
-        ScopedExternalThreadStack external_stack("mdns", DISCOVERY_STACK_BYTES);
-#if defined(__cpp_exceptions)
-        // EAGAIN under thread exhaustion throws std::system_error ([L083]).
         try {
             thread_ = helix::make_thread(&Impl::discovery_loop, this);
+            spdlog::info("[MdnsDiscovery] Started discovery for {}", service_type_);
         } catch (const std::system_error& e) {
             spdlog::error("[MdnsDiscovery] Failed to spawn discovery thread: {}", e.what());
             running_.store(false);
-            return;
         }
-#else
-        thread_ = helix::make_thread(&Impl::discovery_loop, this);
-#endif
-        spdlog::info("[MdnsDiscovery] Started discovery for {}", service_type_);
     }
 
     void stop() {
