@@ -68,32 +68,34 @@ index 5ce041854..28c051b51 100644
          lv_obj_t * scroll_obj;   /*The object being scrolled*/
          lv_obj_t * last_pressed; /*The lastly pressed object*/
 diff --git a/src/indev/lv_indev_scroll.c b/src/indev/lv_indev_scroll.c
-index ae7d27537..f9c321d68 100644
+index ae7d27537..bd0736525 100644
 --- a/src/indev/lv_indev_scroll.c
 +++ b/src/indev/lv_indev_scroll.c
 @@ -30,6 +30,8 @@ static int32_t find_snap_point_y(const lv_obj_t * obj, int32_t min, int32_t max,
  static void scroll_limit_diff(lv_indev_t * indev, int32_t * diff_x, int32_t * diff_y);
  static int32_t elastic_diff(lv_obj_t * scroll_obj, int32_t diff, int32_t scroll_start, int32_t scroll_end,
                              lv_dir_t dir);
-+static int32_t throw_steps(lv_obj_t * scroll_obj, int32_t * vect, int32_t scroll_throw, uint32_t elapsed,
++static int32_t throw_steps(lv_obj_t * scroll_obj, int32_t * vect, int32_t scroll_throw, uint32_t steps,
 +                           int32_t scroll_start, int32_t scroll_end, lv_dir_t dir);
  static void has_more_snap_points(lv_obj_t * scroll_obj, lv_dir_t dir, bool * has_start_snap, bool * has_end_snap);
  
  /**********************
-@@ -129,6 +131,12 @@ void lv_indev_scroll_throw_handler(lv_indev_t * indev)
+@@ -129,6 +131,14 @@ void lv_indev_scroll_throw_handler(lv_indev_t * indev)
  
      int32_t scroll_throw = indev->scroll_throw;
  
-+    /*HelixScreen: momentum advances by the time since the last step, not by one
-+     *step per call, so a slow frame rate does not stretch the glide*/
++    /*HelixScreen: momentum advances one step per whole LV_DEF_REFR_PERIOD since
++     *the last step, not one step per call, so a slow frame rate does not stretch
++     *the glide. The remainder carries to the next call.*/
 +    uint32_t now = lv_tick_get();
 +    uint32_t elapsed = lv_tick_diff(now, indev->pointer.scroll_throw_timestamp);
-+    indev->pointer.scroll_throw_timestamp = now;
++    uint32_t steps = elapsed / LV_DEF_REFR_PERIOD;
++    indev->pointer.scroll_throw_timestamp = now - elapsed % LV_DEF_REFR_PERIOD;
 +
      if(lv_obj_has_flag(scroll_obj, LV_OBJ_FLAG_SCROLL_MOMENTUM) == false) {
          indev->pointer.scroll_throw_vect.y = 0;
          indev->pointer.scroll_throw_vect.x = 0;
-@@ -141,16 +149,13 @@ void lv_indev_scroll_throw_handler(lv_indev_t * indev)
+@@ -141,16 +151,13 @@ void lv_indev_scroll_throw_handler(lv_indev_t * indev)
          indev->pointer.scroll_throw_vect.x = 0;
          /*If no snapping "throw"*/
          if(align_y == LV_SCROLL_SNAP_NONE) {
@@ -105,7 +107,7 @@ index ae7d27537..f9c321d68 100644
  
 -            indev->pointer.scroll_throw_vect.y = elastic_diff(scroll_obj, indev->pointer.scroll_throw_vect.y, st, sb,
 -                                                              LV_DIR_VER);
-+            int32_t diff_y = throw_steps(scroll_obj, &indev->pointer.scroll_throw_vect.y, scroll_throw, elapsed, st, sb,
++            int32_t diff_y = throw_steps(scroll_obj, &indev->pointer.scroll_throw_vect.y, scroll_throw, steps, st, sb,
 +                                         LV_DIR_VER);
  
 -            lv_obj_scroll_by_raw(scroll_obj, 0,  indev->pointer.scroll_throw_vect.y);
@@ -113,7 +115,7 @@ index ae7d27537..f9c321d68 100644
              if(indev->reset_query) return;
          }
          /*With snapping find the nearest snap point and scroll there*/
-@@ -167,16 +172,13 @@ void lv_indev_scroll_throw_handler(lv_indev_t * indev)
+@@ -167,16 +174,13 @@ void lv_indev_scroll_throw_handler(lv_indev_t * indev)
          indev->pointer.scroll_throw_vect.y = 0;
          /*If no snapping "throw"*/
          if(align_x == LV_SCROLL_SNAP_NONE) {
@@ -125,7 +127,7 @@ index ae7d27537..f9c321d68 100644
  
 -            indev->pointer.scroll_throw_vect.x = elastic_diff(scroll_obj, indev->pointer.scroll_throw_vect.x, sl, sr,
 -                                                              LV_DIR_HOR);
-+            int32_t diff_x = throw_steps(scroll_obj, &indev->pointer.scroll_throw_vect.x, scroll_throw, elapsed, sl, sr,
++            int32_t diff_x = throw_steps(scroll_obj, &indev->pointer.scroll_throw_vect.x, scroll_throw, steps, sl, sr,
 +                                         LV_DIR_HOR);
  
 -            lv_obj_scroll_by_raw(scroll_obj, indev->pointer.scroll_throw_vect.x, 0);
@@ -133,32 +135,27 @@ index ae7d27537..f9c321d68 100644
              if(indev->reset_query) return;
          }
          /*With snapping find the nearest snap point and scroll there*/
-@@ -638,6 +640,33 @@ static void scroll_limit_diff(lv_indev_t * indev, int32_t * diff_x, int32_t * di
+@@ -638,6 +642,28 @@ static void scroll_limit_diff(lv_indev_t * indev, int32_t * diff_x, int32_t * di
      }
  }
  
 +/**
-+ * HelixScreen: advance a scroll throw by `elapsed` ms in LV_DEF_REFR_PERIOD
-+ * steps. A full step is LVGL's per-call throw step: decay the vector by
-+ * `scroll_throw` percent, limit it at the edges, move by it. A trailing partial
-+ * step decays and moves in proportion to its length.
++ * HelixScreen: advance a scroll throw by `steps` of LVGL's per-call throw step:
++ * decay the vector by `scroll_throw` percent, limit it at the edges, move by it.
 + * @param vect      throw vector component in pixels per period, updated in place
 + * @param scroll_start  scroll position from the start edge before the move
 + * @param scroll_end    scroll position from the end edge before the move
 + * @return the distance to scroll by
 + */
-+static int32_t throw_steps(lv_obj_t * scroll_obj, int32_t * vect, int32_t scroll_throw, uint32_t elapsed,
++static int32_t throw_steps(lv_obj_t * scroll_obj, int32_t * vect, int32_t scroll_throw, uint32_t steps,
 +                           int32_t scroll_start, int32_t scroll_end, lv_dir_t dir)
 +{
-+    const int32_t period = LV_DEF_REFR_PERIOD;
 +    int32_t v = *vect;
 +    int32_t moved = 0;
-+    while(elapsed > 0 && v != 0) {
-+        int32_t step = elapsed < (uint32_t)period ? (int32_t)elapsed : period;
-+        elapsed -= step;
-+        v = v * (100 * period - scroll_throw * step) / (100 * period);
++    for(; steps > 0 && v != 0; steps--) {
++        v = v * (100 - scroll_throw) / 100;
 +        v = elastic_diff(scroll_obj, v, scroll_start - moved, scroll_end + moved, dir);
-+        moved += v * step / period;
++        moved += v;
 +    }
 +    *vect = v;
 +    return moved;

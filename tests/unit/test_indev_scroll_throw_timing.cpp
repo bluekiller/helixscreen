@@ -16,7 +16,9 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/scoped_pointer_indev.h"
 
+#include <algorithm>
 #include <cstdlib>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -79,6 +81,57 @@ Glide flick(lv_obj_t* screen, uint32_t period_ms) {
     return g;
 }
 
+struct Jittered {
+    int32_t total = 0;   ///< glide distance once momentum has run out
+    int32_t deepest = 0; ///< lowest scroll_y during the glide (negative = past the top)
+};
+
+/// A 300 ms flick read every 33 ms from scroll_y @p start, moving the content
+/// down when @p down, then momentum stepped with the repeating @p frames_ms
+/// pattern for 3300 ms.
+Jittered flick_jittered(lv_obj_t* screen, int32_t start, bool down,
+                        const std::vector<uint32_t>& frames_ms) {
+    lv_obj_t* list = lv_obj_create(screen);
+    lv_obj_set_pos(list, 0, 0);
+    lv_obj_set_size(list, TEST_DISPLAY_WIDTH, TEST_DISPLAY_HEIGHT);
+    lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_t* content = lv_obj_create(list);
+    lv_obj_set_size(content, TEST_DISPLAY_WIDTH, 5000);
+    lv_obj_update_layout(screen);
+    lv_obj_scroll_to_y(list, start, LV_ANIM_OFF);
+
+    helix_test::ScopedPointerIndev pointer;
+    lv_indev_set_scroll_throw(pointer.indev(), SCROLL_THROW);
+
+    int y = down ? 60 : 420;
+    pointer.press(400, y);
+    for (uint32_t t = 0; t < 300; t += NOMINAL_MS) {
+        lv_tick_inc(NOMINAL_MS);
+        y += down ? px_per_read(NOMINAL_MS) : -px_per_read(NOMINAL_MS);
+        pointer.move(400, y);
+    }
+    lv_tick_inc(NOMINAL_MS);
+    const int32_t released_at = lv_obj_get_scroll_y(list);
+    pointer.release(400, y);
+
+    Jittered j;
+    j.deepest = lv_obj_get_scroll_y(list);
+    uint32_t t = 0;
+    for (size_t i = 0; t < 3300; ++i) {
+        const uint32_t frame = frames_ms[i % frames_ms.size()];
+        t += frame;
+        lv_tick_inc(frame);
+        lv_anim_refr_now();
+        j.deepest = std::min(j.deepest, lv_obj_get_scroll_y(list));
+        if (pointer.indev()->pointer.scroll_throw_vect.y == 0 && j.total == 0) {
+            j.total = lv_obj_get_scroll_y(list) - released_at;
+        }
+    }
+
+    lv_obj_delete(list);
+    return j;
+}
+
 } // namespace
 
 TEST_CASE_METHOD(LVGLTestFixture, "Scroll throw glides the same distance at any frame rate",
@@ -122,4 +175,26 @@ TEST_CASE_METHOD(LVGLTestFixture,
         expected += v;
     }
     CHECK(nominal.total == -expected);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Scroll throw under frame jitter matches the nominal period",
+                 "[indev][scroll_throw]") {
+    const std::vector<uint32_t> stock{NOMINAL_MS};
+    const std::vector<uint32_t> jitter{34, 35, 40};
+
+    SECTION("the glide covers the same distance") {
+        const Jittered nominal = flick_jittered(test_screen(), 0, false, stock);
+        const Jittered late = flick_jittered(test_screen(), 0, false, jitter);
+        INFO("nominal " << nominal.total << " jittered " << late.total);
+        REQUIRE(nominal.total > 100);
+        CHECK(std::abs(late.total - nominal.total) <= 2);
+    }
+
+    SECTION("an elastic edge bounces as deep") {
+        const Jittered nominal = flick_jittered(test_screen(), 400, true, stock);
+        const Jittered late = flick_jittered(test_screen(), 400, true, jitter);
+        INFO("nominal deepest " << nominal.deepest << " jittered " << late.deepest);
+        REQUIRE(nominal.deepest < -10);
+        CHECK(std::abs(late.deepest - nominal.deepest) <= 2);
+    }
 }
