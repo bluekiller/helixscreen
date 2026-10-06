@@ -144,6 +144,7 @@ struct RuntimeWidgetDef {
     std::string icon;
     std::string description;
     int colspan = 2, rowspan = 2, max_colspan = 0, max_rowspan = 0;
+    bool supports_half_col = false, supports_half_row = false;
     WidgetFactory factory;
 };
 

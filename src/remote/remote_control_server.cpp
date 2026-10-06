@@ -6,12 +6,14 @@
 #include "ui_keyboard_manager.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
+#include "ui_panel_home.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
 #include "demo_overlays.h"
 #include "display_settings_manager.h"
+#include "grid_edit_drop.h"
 #include "http_executor.h"
 #include "input_settings_manager.h"
 #include "klipper_config_includes.h"
@@ -21,6 +23,10 @@
 #include "moonraker_client_mock.h"
 #endif
 #include "panel_factory.h"
+#include "panel_widget_config.h"
+#include "panel_widget_manager.h"
+#include "panel_widget_registry.h"
+#include "panel_widget_size.h"
 #include "printer_state.h"
 #include "remote_client.h"
 #include "remote_pointer.h"
@@ -343,6 +349,9 @@ void RemoteControlServer::register_builtin_handlers() {
     handlers_["pointer_release"] = [this](const nlohmann::json& p) {
         return handle_pointer_release(p);
     };
+    handlers_["pointer_tap"] = [this](const nlohmann::json& p) { return handle_pointer_tap(p); };
+    handlers_["overflow"] = [this](const nlohmann::json& p) { return handle_overflow(p); };
+    handlers_["home"] = [this](const nlohmann::json& p) { return handle_home(p); };
     handlers_["geom"] = [this](const nlohmann::json& p) { return handle_geom(p); };
     handlers_["text"] = [this](const nlohmann::json& p) { return handle_text(p); };
     handlers_["state"] = [this](const nlohmann::json& p) { return handle_state(p); };
@@ -1819,6 +1828,147 @@ nlohmann::json RemoteControlServer::handle_describe_screen(const nlohmann::json&
     });
 }
 
+nlohmann::json RemoteControlServer::handle_overflow(const nlohmann::json& params) {
+    const bool scoped = params.contains("name") || params.contains("path");
+    return execute_on_ui_thread([params, scoped]() -> nlohmann::json {
+        std::vector<lv_obj_t*> roots;
+        if (scoped) {
+            lv_obj_t* one = resolve_widget(params);
+            if (!one) {
+                throw std::invalid_argument("Widget not found: " + target_label(params));
+            }
+            roots.push_back(one);
+        } else {
+            roots = {lv_screen_active(), lv_layer_top()};
+        }
+        nlohmann::json out = nlohmann::json::array();
+        for (lv_obj_t* root : roots) {
+            for (const auto& ov : helix::find_overflow(root)) {
+                out.push_back({{"name", resolved_name(ov.obj)},
+                               {"path", path_of(ov.obj)},
+                               {"layer", layer_of(ov.obj)},
+                               {"scrollable", lv_obj_has_flag(ov.obj, LV_OBJ_FLAG_SCROLLABLE)},
+                               {"top", ov.top},
+                               {"bottom", ov.bottom},
+                               {"left", ov.left},
+                               {"right", ov.right}});
+            }
+        }
+        return {{"overflowing", out}, {"count", out.size()}, {"topmost_layer", topmost_layer()}};
+    });
+}
+
+// Home-grid layout editing without Edit Mode's gestures. Spans and positions
+// cross the wire in cells, 1.5 included, and are stored in tracks.
+nlohmann::json RemoteControlServer::handle_home(const nlohmann::json& params) {
+    return execute_on_ui_thread([params]() -> nlohmann::json {
+        constexpr int kTracks = helix::GridLayout::TRACKS_PER_CELL;
+        auto& config = helix::PanelWidgetManager::instance().get_widget_config("home");
+        auto& home = get_global_home_panel();
+        const std::string action = params.value("action", "list");
+
+        const auto cells = [](int tracks) {
+            return tracks % kTracks == 0 ? nlohmann::json(tracks / kTracks)
+                                         : nlohmann::json(static_cast<double>(tracks) / kTracks);
+        };
+        if (action == "list") {
+            nlohmann::json pages = nlohmann::json::array();
+            for (size_t p = 0; p < config.page_count(); ++p) {
+                const auto grid = home.page_grid(static_cast<int>(p));
+                nlohmann::json widgets = nlohmann::json::array();
+                for (const auto& e : config.page_entries(p)) {
+                    if (!e.is_placed()) {
+                        continue;
+                    }
+                    widgets.push_back({{"id", e.id},
+                                       {"col", cells(e.col)},
+                                       {"row", cells(e.row)},
+                                       {"w", cells(e.colspan)},
+                                       {"h", cells(e.rowspan)}});
+                }
+                pages.push_back({{"page", p},
+                                 {"cols", cells(grid.cols)},
+                                 {"rows", cells(grid.rows)},
+                                 {"widgets", widgets}});
+            }
+            return {{"pages", pages}};
+        }
+
+        const std::string id = params.value("id", "");
+        if (id.empty()) {
+            throw std::invalid_argument("Missing required parameter: id");
+        }
+        // The entry's page and index, or the page given and -1 for an entry
+        // that is not placed anywhere yet.
+        int page = -1, index = -1;
+        for (size_t p = 0; p < config.page_count() && index < 0; ++p) {
+            const auto& entries = config.page_entries(p);
+            for (size_t i = 0; i < entries.size(); ++i) {
+                if (entries[i].id == id && entries[i].is_placed()) {
+                    page = static_cast<int>(p);
+                    index = static_cast<int>(i);
+                    break;
+                }
+            }
+        }
+
+        if (action == "remove") {
+            if (index < 0) {
+                throw std::invalid_argument("Not on the home grid: " + id);
+            }
+            config.remove_from_page(static_cast<size_t>(page), static_cast<size_t>(index));
+        } else if (action == "place") {
+            const auto* def = helix::find_widget_def(id);
+            if (!def) {
+                throw std::invalid_argument("No such widget: " + id);
+            }
+            const auto tracks = [&](const char* key, int fallback) {
+                if (!params.contains(key)) {
+                    return fallback;
+                }
+                const double t = params[key].get<double>() * kTracks;
+                if (t != static_cast<int>(t)) {
+                    throw std::invalid_argument(std::string(key) + " must be a whole or half cell");
+                }
+                return static_cast<int>(t);
+            };
+            const auto* cur =
+                index >= 0
+                    ? &config.page_entries(static_cast<size_t>(page))[static_cast<size_t>(index)]
+                    : nullptr;
+            page = params.contains("page") ? params["page"].get<int>() : std::max(page, 0);
+            if (page < 0 || page >= static_cast<int>(config.page_count())) {
+                throw std::invalid_argument("No page " + std::to_string(page));
+            }
+            const int col = tracks("col", cur ? cur->col : -1);
+            const int row = tracks("row", cur ? cur->row : -1);
+            const int colspan = tracks("w", cur ? cur->colspan : def->colspan);
+            const int rowspan = tracks("h", cur ? cur->rowspan : def->rowspan);
+            if (col < 0 || row < 0) {
+                throw std::invalid_argument(id + " is not placed: give col and row");
+            }
+            helix::GridLayout occupancy(helix::widget_size::current_breakpoint(),
+                                        home.page_grid(page));
+            for (const auto& e : config.page_entries(static_cast<size_t>(page))) {
+                if (e.is_placed() && e.id != id) {
+                    occupancy.place({e.id, e.col, e.row, e.colspan, e.rowspan});
+                }
+            }
+            const std::string why =
+                helix::placement_refusal(*def, occupancy, col, row, colspan, rowspan);
+            if (!why.empty()) {
+                throw std::invalid_argument(why);
+            }
+            config.place_entry(id, static_cast<size_t>(page), col, row, colspan, rowspan);
+        } else {
+            throw std::invalid_argument("Unknown home action: " + action);
+        }
+        config.save();
+        helix::PanelWidgetManager::instance().notify_config_changed("home");
+        return {{"action", action}, {"id", id}, {"page", page}};
+    });
+}
+
 // `cd <target>` needs the absolute locator of wherever it landed, so the client
 // can hold it as a working directory. Read-only — unlike the old `cd`, which
 // reached its destination by clicking.
@@ -2114,6 +2264,16 @@ nlohmann::json RemoteControlServer::handle_pointer_release(const nlohmann::json&
     const int32_t x = params.contains("x") ? params["x"].get<int32_t>() : pointer.x();
     const int32_t y = params.contains("y") ? params["y"].get<int32_t>() : pointer.y();
     return apply_pointer_state(x, y, false, "release");
+}
+
+nlohmann::json RemoteControlServer::handle_pointer_tap(const nlohmann::json& params) {
+    if (!params.contains("x") || !params.contains("y")) {
+        throw std::invalid_argument("Missing required parameters: x and y");
+    }
+    const int32_t x = params["x"].get<int32_t>();
+    const int32_t y = params["y"].get<int32_t>();
+    apply_pointer_state(x, y, true, "tap");
+    return apply_pointer_state(x, y, false, "tap");
 }
 
 nlohmann::json RemoteControlServer::handle_pointer_long_press(const nlohmann::json& params) {

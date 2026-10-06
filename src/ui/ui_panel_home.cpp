@@ -1216,6 +1216,15 @@ void HomePanel::exit_grid_edit_mode() {
     apply_edit_swipe_policy();
 }
 
+helix::GridDimensions HomePanel::page_grid(int page) const {
+    if (page < 0 || page >= static_cast<int>(pages_.size()) || !pages_[page].container) {
+        return {0, 0};
+    }
+    lv_obj_t* c = pages_[page].container;
+    return {helix::grid_count_tracks(lv_obj_get_style_grid_column_dsc_array(c, LV_PART_MAIN)),
+            helix::grid_count_tracks(lv_obj_get_style_grid_row_dsc_array(c, LV_PART_MAIN))};
+}
+
 void HomePanel::open_widget_catalog() {
     if (grid_edit_mode_.is_active() && parent_screen_) {
         grid_edit_mode_.open_widget_catalog(parent_screen_);
