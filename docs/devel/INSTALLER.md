@@ -112,26 +112,42 @@ From a repo checkout, the modular installer sources modules directly:
 
 ## Installation Flow
 
-The `main()` function orchestrates this sequence:
+`main()` (`scripts/lib/installer/main.sh#main`) is split at the confirm point (`scripts/lib/installer/plan.sh#confirm_point`). Everything before it only reads; everything after it, `apply_install()`, changes the machine. `tests/shell/test_installer_confirm_point.bats` holds every call before the confirm point to a read-only allowlist, so a new detection step has to be allowlisted there (its header says what is covered).
 
-1. **Platform detection** -- `detect_platform()` returns one of `cc1`, `k2`, `ad5m`, `ad5x`, `k1`, `snapmaker-u1`, `m1`, `pi`, `pi32`, `x86`, or `unsupported` (plus zmod/guilouz sub-detectors)
-2. **Firmware detection** -- AD5M: `klipper_mod` or `forge_x`; K1: `simple_af` or `stock_klipper`
-3. **Path configuration** -- `set_install_paths()` sets `INSTALL_DIR`, `INIT_SCRIPT_DEST`, `PREVIOUS_UI_SCRIPT`, `TMP_DIR`
-4. **Permission check** -- Root required on AD5M/K1; sudo on Pi
-5. **Pre-flight checks** -- Required commands, runtime deps (libdrm2/libinput10 on Pi), disk space, init system detection
-6. **Klipper ecosystem check** -- Verifies Klipper/Moonraker running (AD5M/K1 only, warns if missing)
-7. **Platform configuration** -- ForgeX: display mode, screen.sh patching, logged wrapper
-8. **Stop competing UIs** -- GuppyScreen, KlipperScreen, Xorg, stock FlashForge UI
-9. **Download release** -- R2 CDN primary (`releases.helixscreen.org`), GitHub Releases fallback
-10. **Extract with atomic swap** -- Validates ELF architecture, backs up config, `mv` old to `.old`, re-checks free space when the swap crosses filesystems, rollback on failure
-11. **Platform hooks** -- Deploys `hooks-{platform}.sh` to `$INSTALL_DIR/platform/hooks.sh`
-12. **Install service** -- systemd unit or SysV init script (templated with `@@HELIX_USER@@`, etc.)
-13. **Moonraker integration** -- Adds `[update_manager helixscreen]` section, writes release_info.json
-14. **KIAUH extension** -- Auto-installs if KIAUH detected. `main.sh` calls `install_kiauh_extension` (honoring a `--skip-kiauh-registration` flag), as described in the "How the Extension Gets Installed" section below.
-15. **Install-time printer detection** -- Tier-1 model fingerprint, falling back to Tier-2 Moonraker detection with a B/C confidence gate. Seeds device defaults (and, when confident, a full preset) into `settings.json` before first launch. See [Install-Time Printer Detection](#install-time-printer-detection) below.
-16. **Config symlink** -- `printer_data/config/helixscreen` symlink for Mainsail/Fluidd access
-17. **Start service** -- Waits up to 5 seconds for startup confirmation
-18. **Cleanup** -- Remove temp files, remove `.old` backup
+### Before the confirm point (read-only)
+
+1. **Host probe and arguments** -- `host_profile_probe`, `parse_installer_args`, `mod_payload_autodetect`
+2. **Guards** -- refuse an uninstall run from the install dir; refuse to install over a firmware-managed HelixScreen
+3. **Platform detection** -- `detect_platform()` returns one of `cc1`, `k2`, `ad5m`, `ad5x`, `k1`, `snapmaker-u1`, `m1`, `pi`, `pi32`, `x86`, or `unsupported` (plus zmod/guilouz sub-detectors); `unsupported` exits
+4. **Firmware detection** -- AD5M/AD5X: `detect_mod_flavor`; K1: `detect_k1_firmware`
+5. **Path configuration** -- `set_install_paths()` sets `INSTALL_DIR`, `INIT_SCRIPT_DEST`, `PREVIOUS_UI_SCRIPT`, `TMP_DIR`; `mod_payload_mode_block` settles payload mode
+6. **Permission check** -- Root required on AD5M/K1; sudo on Pi. `--uninstall` branches off here and exits
+7. **Pre-flight checks** -- `detect_missing_unzip`, `check_requirements`, `detect_missing_runtime_deps`, `check_disk_space`, `detect_init_system`, `check_klipper_ecosystem`
+8. **Version and release** -- `resolve_update_channel` (update or existing install), then `--local` filename, `--version` or `get_latest_version`; `probe_release` HEADs the archive so the plan only offers a release that exists
+9. **Detection for the plan** -- `detect_competing_uis`, `detect_moonraker_integration`, `detect_kiauh`
+
+### The confirm point
+
+`confirm_point` prints the logo banner and the plan screen (Printer, Found, Install or `Update A -> B`, Remove, Libraries, Disable, Add, Disk, sudo). Then:
+
+- `--dry-run` prints "Dry run, nothing changed." and exits 0. A check that would stop the install has already exited non-zero before this.
+- A fresh install with a terminal asks `Continue? [Y/n]`, read from `/dev/tty` (`HELIX_TTY_DEVICE` overrides it). EOF means no. `--yes`, no terminal and `--update` do not ask.
+- If sudo is needed it asks for the password once, so later steps do not stall on a prompt.
+- It sets `HELIX_CONFIRMED=1`, counts the steps (`plan_count_steps`), closes the "Checking system" step and opens the log.
+
+### After the confirm point (`apply_install`)
+
+One numbered step per phase; a step with nothing to do is skipped under the same conditions that left it out of the count.
+
+1. **Installing libraries** -- apt for unzip and runtime deps (libdrm2/libinput10 on Pi)
+2. **Downloading** (or **Unpacking local archive**) -- R2 CDN primary (`releases.helixscreen.org`), GitHub Releases fallback. This runs before anything touches the running printer, so a failed download leaves it as it was.
+3. **Stopping the stock screen** -- `configure_platform` (ForgeX: display mode, screen.sh patching, logged wrapper), then `stop_competing_uis` (GuppyScreen, KlipperScreen, Xorg, stock FlashForge UI)
+4. **Installing files** -- `--clean` removal, `stop_service` on update, state migration, then `extract_release`: validates ELF architecture, backs up config, `mv` old to `.old`, re-checks free space when the swap crosses filesystems, rollback on failure
+5. **Setting up service** -- systemd unit or SysV init script (templated with `@@HELIX_USER@@`, etc.), `hooks-{platform}.sh` to `$INSTALL_DIR/platform/hooks.sh`, udev/polkit rules, KIAUH extension (`install_kiauh_extension`, honoring `--skip-kiauh-registration`; see "How the Extension Gets Installed"), K1 extras, `verify_binary_deps`
+6. **Connecting to Moonraker** -- `printer_data/config/helixscreen` symlink for Mainsail/Fluidd, `[update_manager helixscreen]` section, the release info file
+7. **Starting HelixScreen** -- recovery script, install-time printer detection (see [Install-Time Printer Detection](#install-time-printer-detection)), then `start_service`, which waits up to 5 seconds for startup confirmation. Skipped on a payload install, where the mod starts the UI.
+
+Then `INSTALL_COMPLETE=1`, the old-install cleanups, `finalize_install_log`, `cleanup_on_success` and `print_summary`.
 
 ### Install-Time Printer Detection
 
@@ -319,6 +335,19 @@ sudo rm -rf ~/helixscreen.old
 **Design principle:** Under `NoNewPrivileges`, the installer must complete the core swap (`mv old → .old`, `mv new → INSTALL_DIR`, restore config) without `sudo`. Anything that requires `sudo` must be either non-fatal or deferred to a manual step.
 
 ---
+
+## Output and logging
+
+The output layer is in `scripts/lib/installer/common.sh` (steps, logging), `plan.sh` (plan, summary) and `logo.sh` (banner).
+
+- **Banner and plan.** `print_banner` draws the braille logo from `scripts/lib/installer/logo.sh`, a generated file (`scripts/render-installer-logo.sh`, needs chafa). `print_plan` (`plan.sh`) lists the rows `confirm_point` set with `plan_set`.
+- **Steps.** `step "running title" ["done title"]` opens a step; `step_done [detail]`, `step_fail` and `step_skip` close it. On a terminal the open step is a spinner that becomes a check mark or cross (ASCII marks when the locale is not UTF-8). Without a terminal each step prints one line, `[n/N] <title> ... ok (<detail>)`. A run ends with `print_summary`.
+- **Terminal probe.** `ui_detect` looks at stderr, where every log line goes. `HELIX_INSTALL_TTY=0|1` forces no-terminal or terminal.
+- **`log_info` vs `log_note`.** `log_info`/`log_success` go to the log file and reach the screen only with `--verbose` or `HELIX_INSTALL_VERBOSE=1`. `log_warn` and `log_error` always show. `log_note` is always shown and always logged; use it for the rare line a regular user must see.
+- **`run_logged cmd...`.** Runs a command with its output captured to a temp file and appended to the log. Silent on success; on failure it prints the command, its exit status and the last `RUN_LOGGED_TAIL` (15) lines. With verbose on, the output streams as it arrives. Use it for apt, systemctl and helper scripts instead of letting them write to the terminal.
+- **Failure report.** The EXIT trap (`installer_exit_report`) runs only for a run that passed the confirm point. It prints the failed step, a state line from `install_state_line` saying what the run actually changed (nothing, what was stopped, the new install in place but not set up, rolled back), and `Full log: <path>`.
+- **Log location.** The log is written to the scratch dir while the run is going, then `finalize_install_log` moves it to `install_log_dest`: `$KLIPPER_HOME/printer_data/logs/helixscreen-install.log` when `printer_data` exists (Mainsail and Fluidd list it), otherwise `logs/helixscreen-install.log` under `install_state_root` (outside the install dir, which an update replaces whole). The previous run's log is kept as `.1`.
+- **Environment.** `HELIX_INSTALL_VERBOSE`, `HELIX_INSTALL_TTY`, and `HELIX_TTY_DEVICE` (the file the `Continue?` prompt reads; tests point it at a nonexistent path so no prompt can block).
 
 ## Mod-Managed Hosts: the Payload Contract (Forge-X)
 
@@ -761,7 +790,10 @@ _The table above is a representative subset; the suite has well over 100 bats fi
 - **`setup_mock_pi`** -- Create temp directory structure mimicking a Pi system
 - **`create_fake_elf`** / **`create_fake_arm32_elf`** / **`create_fake_aarch64_elf`** -- Generate minimal ELF headers for architecture validation tests
 - **`SUDO=""`** -- Exported no-op for tests that call `$SUDO`
+- **`HELIX_INSTALL_VERBOSE=1`** -- Exported so `log_info` and command output reach the screen, where `run`/`assert_output` can see them
+- **`HELIX_TTY_DEVICE`** -- Set to a nonexistent path so the `Continue?` prompt never reads a real terminal
 - Logging stubs (`log_info`, `log_warn`, etc.) suppressed during tests
+- End-to-end golden transcripts of whole installer runs live in `tests/shell/fixtures/install_transcripts/`
 
 ### Writing New Tests
 

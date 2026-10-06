@@ -206,6 +206,24 @@ The installer automatically:
 5. Configures and starts the systemd service
 6. Sets up Moonraker update_manager for web UI updates
 
+The installer prints the plan first (your printer, what it found, what it will install, and what it will change) and asks `Continue? [Y/n]`. Then it shows one line per step as it goes. If something fails, it tells you what state your printer is left in and where the log is.
+
+To see the plan without changing anything, add `--dry-run`:
+
+```bash
+curl -sSL https://releases.helixscreen.org/install.sh | sh -s -- --dry-run
+```
+
+It prints the plan and "Dry run, nothing changed." If a check would stop the install, it exits with an error instead.
+
+To watch every detail line and command output as it happens, add `--verbose` (or `-v`):
+
+```bash
+curl -sSL https://releases.helixscreen.org/install.sh | sh -s -- --verbose
+```
+
+The full log is saved either way, to `~/printer_data/logs/helixscreen-install.log` (it shows up in Mainsail and Fluidd's log list). The previous run's log is kept as `helixscreen-install.log.1`. On printers without a `printer_data` folder, the log is in a `logs` folder next to the HelixScreen install.
+
 > **Where does it install?** The installer puts HelixScreen in your home directory when it runs as a normal user (with or without a Klipper ecosystem alongside), and in `/opt` when it runs as root. Override with `INSTALL_DIR=/custom/path/helixscreen` (the directory name must contain `helixscreen`).
 
 ### Step 3: Complete the Setup Wizard
@@ -615,6 +633,8 @@ sudo journalctl -u helixscreen -f
 # Filter by error/warning level
 sudo journalctl -u helixscreen -p err
 ```
+
+If the install itself failed or did something odd, read the install log first: `~/printer_data/logs/helixscreen-install.log` (the failure message prints the exact path as `Full log:`). Attach it to a bug report.
 
 Log locations for the other platforms (K1, K2, AD5M, AD5X, CC1, Snapmaker U1) are in your printer's install guide: each has a launcher/crash log plus a platform-specific app log.
 
