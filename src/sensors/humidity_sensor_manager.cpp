@@ -5,7 +5,6 @@
 
 #include "ui_update_queue.h"
 
-#include "json_utils.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
 
