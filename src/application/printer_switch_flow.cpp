@@ -15,6 +15,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <string>
 
 #include "hv/json.hpp"
@@ -69,7 +70,12 @@ void PrinterSwitchFlow::request_switch(const std::string& printer_id) {
     if (printer_id == m_connected_printer_id) {
         return;
     }
-    if (!active_printer_is_printing()) {
+    // A connected printer that is no longer in the list was removed, and its removal was
+    // already confirmed; nothing is left to ask about.
+    const auto ids = m_config->get_printer_ids();
+    const bool connected_removed =
+        std::find(ids.begin(), ids.end(), m_connected_printer_id) == ids.end();
+    if (connected_removed || !active_printer_is_printing()) {
         switch_printer(printer_id);
         return;
     }

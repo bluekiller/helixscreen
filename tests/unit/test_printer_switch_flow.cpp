@@ -254,3 +254,17 @@ TEST_CASE_METHOD(SwitchFlowFixture,
     CHECK(cfg_->get_active_printer_id() == "alpha");
     CHECK(events_.empty());
 }
+
+TEST_CASE_METHOD(SwitchFlowFixture,
+                 "Switch flow: deleting the connected printer while it prints does not ask again",
+                 "[multi-printer][switch_flow]") {
+    // The Printers list already confirmed the removal; "still printing" would name a printer
+    // the list no longer has, and Cancel would leave the app on it.
+    set_job(PrintJobState::PRINTING);
+    cfg_->remove_printer("alpha");
+
+    flow_.request_switch("beta");
+
+    CHECK(Modal::get_top() == nullptr);
+    CHECK(events_ == kFullRestart);
+}
