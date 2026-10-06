@@ -405,8 +405,23 @@ static const char* ui_gcode_viewer_pick_object(lv_obj_t* obj, int x, int y) {
 
     std::optional<std::string> result;
 
-    // Use 2D renderer's pick_object_at in 2D mode
-    if (st->is_using_2d_mode() && st->layer_renderer_2d_) {
+    // A badge can sit over empty space (the hole of a ring), so it picks first.
+    // Reverse paint order: where badges overlap, the one drawn on top wins.
+    // An excluded badge is drawn faded and is not a pick target.
+    int badge = -1;
+    const float radius = static_cast<float>(st->badge_look.diameter) / 2.0f;
+    const glm::vec2 tap(static_cast<float>(local_x), static_cast<float>(local_y));
+    for (size_t i = st->drawn_badge_index.size(); i-- > 0;) {
+        const int idx = st->drawn_badge_index[i];
+        if (!st->object_badges[static_cast<size_t>(idx)].excluded &&
+            glm::distance(st->drawn_badge_centers[i], tap) <= radius) {
+            badge = idx;
+            break;
+        }
+    }
+    if (badge >= 0) {
+        result = st->object_badges[static_cast<size_t>(badge)].name;
+    } else if (st->is_using_2d_mode() && st->layer_renderer_2d_) {
         result = st->layer_renderer_2d_->pick_object_at(local_x, local_y);
     }
 #ifdef ENABLE_3D_RENDERER

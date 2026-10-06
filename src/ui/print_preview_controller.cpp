@@ -268,9 +268,9 @@ void PrintPreviewController::on_viewer_loaded(lv_obj_t* viewer, void* user_data,
     // For single-tool, falls back to current AMS color subject.
     self->apply_tool_colors();
 
-    // The parsed file now carries the tools this print uses — refresh the
-    // print-scoped runout badge (FIX B) so it reflects only those tools.
-    self->host_.refresh_scoped_runout();
+    // The parsed file now carries the tools this print uses and its objects'
+    // geometry; the panel re-derives what reads them.
+    self->host_.parsed_file_loaded();
 
     // Show viewer if print is active or in terminal state (user can see
     // where print stopped). Only skip in Idle.

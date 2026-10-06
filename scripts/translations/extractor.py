@@ -124,8 +124,9 @@ CARET_DIRECTION_PATTERN = re.compile(r'^\^')  # Direction labels like ^ FRONT
 SNAKE_CASE_PATTERN = re.compile(r'^[a-z][a-z0-9]*(_[a-z0-9]+)+$')  # snake_case identifiers
 URL_PATTERN = re.compile(r'https?://')  # URLs
 MATERIAL_TEMP_PATTERN = re.compile(r'^[A-Z]+ \d+$')  # Material presets like "PLA 205", "ABS 100"
-# Temperature values: "60°C", "200°C", "210°C / 60°C", "200-230°C"
-TEMP_VALUE_PATTERN = re.compile(r'^\d[\d\-–]*°C(\s*/\s*\d+°C)?$')
+# Temperature values: "60°C", "200°C", "210°C / 60°C", "200-230°C", and the
+# compact callout chip's "215°" or "215°  100%" (temperature, then fan speed)
+TEMP_VALUE_PATTERN = re.compile(r'^\d[\d\-–]*°C?(\s*/\s*\d+°C?)?(\s+\d+%)?$')
 # Pure measurement values: "10mm", "5mm", "850g" (units handled by formatters)
 MEASUREMENT_PATTERN = re.compile(r'^\d+(\.\d+)?\s*(mm|cm|g|kg|ml|l|s|ms)$')
 # Numeric data placeholders: " 0 / 0", "0 / 0"

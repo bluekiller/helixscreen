@@ -235,23 +235,6 @@ class MoonrakerSpoolmanAPI : public ISpoolmanAPI {
     void delete_spoolman_filament(int filament_id, SuccessCallback on_success,
                                   ErrorCallback on_error) override;
 
-    // ========================================================================
-    // External Database Operations (SpoolmanDB)
-    // ========================================================================
-
-    /**
-     * @brief Get list of vendors from SpoolmanDB (external database)
-     */
-    void get_spoolman_external_vendors(helix::VendorListCallback on_success,
-                                       ErrorCallback on_error) override;
-
-    /**
-     * @brief Get list of filaments from SpoolmanDB filtered by vendor name
-     */
-    void get_spoolman_external_filaments(const std::string& vendor_name,
-                                         helix::FilamentListCallback on_success,
-                                         ErrorCallback on_error) override;
-
   protected:
     helix::IMoonrakerClient& client_;
 };

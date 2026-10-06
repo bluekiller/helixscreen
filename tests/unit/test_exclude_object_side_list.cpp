@@ -14,7 +14,9 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "printer_state.h"
+#include "theme_manager.h"
 
 #include <algorithm>
 #include <cstring>
@@ -51,7 +53,8 @@ bool shows_text(lv_obj_t* row, const char* text) {
     const uint32_t n = lv_obj_get_child_count(row);
     for (uint32_t i = 0; i < n; ++i) {
         lv_obj_t* child = lv_obj_get_child(row, static_cast<int32_t>(i));
-        if (lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN) ||
+            lv_obj_get_style_opa(child, LV_PART_MAIN) == LV_OPA_TRANSP) {
             continue;
         }
         if (lv_obj_check_type(child, &lv_label_class)) {
@@ -151,4 +154,165 @@ TEST_CASE_METHOD(SideListFixture, "Side list rebuilds its rows when the defined 
     for (lv_obj_t* row : after) {
         CHECK(std::find(before.begin(), before.end(), row) == before.end());
     }
+}
+
+namespace {
+/// Whatever the name length, a status appearing must not reflow the name:
+/// sweep lengths across the point where a name stops fitting beside a status,
+/// since that is where a row would grow.
+void check_row_heights_hold(SideListFixture& f) {
+    for (int len = 4; len <= 64; len += 2) {
+        const std::string name = "Part_" + std::string(static_cast<size_t>(len), 'm');
+        INFO("name length " << name.size());
+        f.objects().set_defined_objects({name, "obj_1"});
+        f.objects().set_current_object("");
+        f.settle();
+        auto rows = rows_of(f.container);
+        REQUIRE(rows.size() == 2);
+        lv_obj_update_layout(f.container);
+        const int32_t idle_h = lv_obj_get_height(rows[0]);
+
+        f.objects().set_current_object(name);
+        f.settle();
+        lv_obj_update_layout(f.container);
+        CHECK(lv_obj_get_height(rows[0]) == idle_h);
+
+        f.objects().set_excluded_objects({name});
+        f.settle();
+        lv_obj_update_layout(f.container);
+        CHECK(lv_obj_get_height(rows[0]) == idle_h);
+        f.objects().set_excluded_objects({});
+    }
+}
+} // namespace
+
+TEST_CASE_METHOD(SideListFixture, "Side list rows keep their height as the printing object moves",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    check_row_heights_hold(*this);
+}
+
+TEST_CASE_METHOD(SideListFixture,
+                 "Portrait side list rows keep their height and put the status beside the name",
+                 "[exclude_side_list]") {
+    lv_subject_t* portrait = lv_xml_get_subject(nullptr, "ui_is_portrait");
+    REQUIRE(portrait != nullptr);
+    const int was = lv_subject_get_int(portrait);
+    lv_subject_set_int(portrait, 1);
+    list.destroy();
+    settle();
+    list.create(test_screen(), &state(), &manager, exclude_side_list_geometry(true));
+    settle();
+    container = lv_obj_find_by_name(list.root(), "rows_container");
+    REQUIRE(container != nullptr);
+
+    check_row_heights_hold(*this);
+
+    // Side by side: the status slot sits right of the name, on the same line.
+    objects().set_defined_objects({"Cube_id_1_copy_0", "obj_1"});
+    objects().set_current_object("Cube_id_1_copy_0");
+    settle();
+    lv_obj_t* row = rows_of(container)[0];
+    lv_obj_update_layout(row);
+    lv_obj_t* name = lv_obj_find_by_name(row, "object_name");
+    lv_obj_t* status = lv_obj_find_by_name(row, "status_printing");
+    REQUIRE(name != nullptr);
+    REQUIRE(status != nullptr);
+    lv_area_t na, sa;
+    lv_obj_get_coords(name, &na);
+    lv_obj_get_coords(status, &sa);
+    CHECK(sa.x1 > na.x2);                                      // right of the name
+    CHECK(lv_area_get_width(&na) > lv_obj_get_width(row) / 2); // the name keeps most of the row
+    const int32_t status_mid = (sa.y1 + sa.y2) / 2;
+    CHECK(status_mid >= na.y1); // level with the name, not below it
+    CHECK(status_mid <= na.y2);
+
+    lv_subject_set_int(portrait, was);
+}
+
+namespace {
+struct StateWatch {
+    lv_obj_t* container = nullptr;
+    std::vector<std::string> row_names_at_publish;
+};
+
+void record_rows(lv_observer_t* observer, lv_subject_t*) {
+    auto* w = static_cast<StateWatch*>(lv_observer_get_user_data(observer));
+    std::string names;
+    const uint32_t n = lv_obj_get_child_count(w->container);
+    for (uint32_t i = 0; i < n; ++i) {
+        lv_obj_t* label = lv_obj_find_by_name(
+            lv_obj_get_child(w->container, static_cast<int32_t>(i)), "object_name");
+        names += label ? lv_label_get_text(label) : "?";
+        names += ",";
+    }
+    w->row_names_at_publish.push_back(names);
+}
+} // namespace
+
+TEST_CASE_METHOD(SideListFixture, "Side list never publishes a new object's state onto an old row",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    objects().set_defined_objects({"old_a", "old_b"});
+    objects().set_current_object("old_a");
+    settle();
+    REQUIRE(rows_of(container).size() == 2);
+
+    lv_subject_t* row1 = lv_xml_get_subject(nullptr, "exclude_row_state_1");
+    REQUIRE(row1 != nullptr);
+    StateWatch watch{container, {}};
+    lv_observer_t* obs = lv_subject_add_observer(row1, record_rows, &watch);
+    watch.row_names_at_publish.clear(); // the add fires once
+
+    // The excluded-version observer is queued before the defined-version one,
+    // so it runs while the rows still show the old list.
+    objects().set_excluded_objects({"new_d"});
+    objects().set_defined_objects({"new_c", "new_d"});
+    settle();
+    lv_observer_remove(obs);
+
+    REQUIRE_FALSE(watch.row_names_at_publish.empty());
+    for (const auto& names : watch.row_names_at_publish) {
+        INFO("rows when row 1's state was published: " << names);
+        CHECK(names.find("old_") == std::string::npos);
+    }
+    CHECK(shows_text(rows_of(container)[1], "Excluded"));
+}
+
+TEST_CASE_METHOD(SideListFixture, "Side list chips follow a theme switch and keep the scroll",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    REQUIRE(rows_of(container).size() == 20);
+    lv_obj_scroll_to_y(container, 60, LV_ANIM_OFF);
+    REQUIRE(lv_obj_get_scroll_y(container) == 60);
+
+    auto chip_text = [](lv_obj_t* row) {
+        return lv_obj_get_style_text_color(lv_obj_get_child(lv_obj_get_child(row, 0), 0),
+                                           LV_PART_MAIN);
+    };
+    std::vector<lv_color_t> before;
+    for (lv_obj_t* row : rows_of(container)) {
+        before.push_back(chip_text(row));
+    }
+
+    theme_manager_toggle_dark_mode(); // the defined list is unchanged
+    settle();
+
+    const auto rows = rows_of(container);
+    REQUIRE(rows.size() == 20);
+    bool any_changed = false;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        INFO("row " << i);
+        lv_obj_t* disc = lv_obj_get_child(rows[i], 0);
+        const lv_color_t fill = object_badge_color(static_cast<int>(i));
+        CHECK(lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN), fill));
+        CHECK(lv_color_eq(chip_text(rows[i]), object_badge_text_color(fill)));
+        any_changed = any_changed || !lv_color_eq(chip_text(rows[i]), before[i]);
+    }
+    CHECK(lv_obj_get_scroll_y(container) == 60);
+
+    theme_manager_toggle_dark_mode();
+    settle();
+    // The theme moved at least one chip's number colour, or this proves nothing.
+    REQUIRE(any_changed);
 }

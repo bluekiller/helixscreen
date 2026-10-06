@@ -98,9 +98,6 @@ class RecordingSpoolman : public ISpoolmanAPI {
     void delete_spoolman_spool(int, SuccessCallback, ErrorCallback) override {}
     void delete_spoolman_vendor(int, SuccessCallback, ErrorCallback) override {}
     void delete_spoolman_filament(int, SuccessCallback, ErrorCallback) override {}
-    void get_spoolman_external_vendors(helix::VendorListCallback, ErrorCallback) override {}
-    void get_spoolman_external_filaments(const std::string&, helix::FilamentListCallback,
-                                         ErrorCallback) override {}
 };
 
 struct SyncFixture : LVGLTestFixture {
