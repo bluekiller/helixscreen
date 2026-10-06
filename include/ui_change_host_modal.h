@@ -43,6 +43,15 @@ namespace helix::ui {
 void show_change_host_modal(std::function<void(bool changed)> extra_on_complete = nullptr);
 
 /**
+ * @brief Show the same modal for adding a printer
+ *
+ * Starts from an empty host and writes nothing to the active printer's config: Save hands
+ * the tested host and port to `on_add`, deferred past the modal's exit. Leaving any other way
+ * reconnects the saved printer if Test Connection moved the client.
+ */
+void show_add_printer_modal(std::function<void(const std::string& host, int port)> on_add);
+
+/**
  * @brief Prompt that the printer is unreachable, offering to fix the address
  *
  * Replaces an OK-only error modal for CONNECTION_FAILED: on a stale address,
@@ -62,6 +71,7 @@ void show_connection_failed_modal(const std::string& title, const std::string& m
 class ChangeHostModal : public Modal {
   public:
     using CompletionCallback = std::function<void(bool changed)>;
+    using AddCallback = std::function<void(const std::string& host, int port)>;
 
     ChangeHostModal();
     ~ChangeHostModal() override;
@@ -75,7 +85,8 @@ class ChangeHostModal : public Modal {
      * @param parent Parent screen for the modal
      * @return true if modal was created successfully
      */
-    bool show_modal(lv_obj_t* parent);
+    /// With `on_add` set the modal adds a printer instead of changing the active one's host.
+    bool show_modal(lv_obj_t* parent, AddCallback on_add = nullptr);
 
     /**
      * @brief Set callback for when modal closes
@@ -102,6 +113,7 @@ class ChangeHostModal : public Modal {
     lv_subject_t host_port_subject_{};
     lv_subject_t testing_subject_{};
     lv_subject_t validated_subject_{};
+    lv_subject_t adding_subject_{};
 
     char host_ip_buf_[256] = {0};
     char host_port_buf_[8] = {0};
@@ -112,6 +124,7 @@ class ChangeHostModal : public Modal {
 
     // === Completion callback ===
     CompletionCallback completion_callback_;
+    AddCallback add_callback_;
 
     // === Input change observers (reset validation on edit) ===
     ObserverGuard host_ip_observer_;

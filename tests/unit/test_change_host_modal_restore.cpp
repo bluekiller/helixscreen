@@ -156,3 +156,57 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host: Save keeps the tested h
     CHECK(Config::get_instance()->get<std::string>(Config::get_instance()->df() +
                                                    "moonraker_host") == "10.9.9.9");
 }
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Add printer: Save hands over the tested host and leaves the active printer alone",
+                 "[change_host][connection][multi-printer]") {
+    std::string added_host;
+    int added_port = 0;
+    helix::ui::show_add_printer_modal([&](const std::string& host, int port) {
+        added_host = host;
+        added_port = port;
+    });
+    UpdateQueue::instance().drain();
+    lv_obj_t* dialog = Modal::get_top();
+    REQUIRE(dialog != nullptr);
+
+    // A new printer starts from an empty host, under its own title.
+    lv_subject_t* ip = lv_xml_get_subject(nullptr, "change_host_ip");
+    REQUIRE(ip != nullptr);
+    CHECK(std::string(lv_subject_get_string(ip)).empty());
+    lv_obj_t* add_title = lv_obj_find_by_name(dialog, "title_add_printer");
+    lv_obj_t* change_title = lv_obj_find_by_name(dialog, "title_change_host");
+    REQUIRE(add_title != nullptr);
+    REQUIRE(change_title != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(add_title, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(change_title, LV_OBJ_FLAG_HIDDEN));
+
+    lv_subject_copy_string(ip, "10.9.9.9");
+    click(dialog, "btn_test_connection");
+    REQUIRE(client_->get_last_url() == kTestedUrl);
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "change_host_validated"), 1);
+    click(dialog, "modal_save_btn");
+    UpdateQueue::instance().drain();
+
+    CHECK(added_host == "10.9.9.9");
+    CHECK(added_port == 7125);
+    Config* cfg = Config::get_instance();
+    CHECK(cfg->get<std::string>(cfg->df() + "moonraker_host") == kSavedHost);
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host after Add shows the saved host again",
+                 "[change_host][connection][multi-printer]") {
+    helix::ui::show_add_printer_modal([](const std::string&, int) {});
+    UpdateQueue::instance().drain();
+    click(Modal::get_top(), "modal_cancel_btn");
+
+    helix::ui::show_change_host_modal();
+    UpdateQueue::instance().drain();
+    lv_obj_t* dialog = Modal::get_top();
+    REQUIRE(dialog != nullptr);
+    CHECK(std::string(lv_subject_get_string(lv_xml_get_subject(nullptr, "change_host_ip"))) ==
+          kSavedHost);
+    lv_obj_t* change_title = lv_obj_find_by_name(dialog, "title_change_host");
+    REQUIRE(change_title != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(change_title, LV_OBJ_FLAG_HIDDEN));
+}

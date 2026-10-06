@@ -78,14 +78,19 @@ void ChangeHostModal::set_completion_callback(CompletionCallback callback) {
     completion_callback_ = std::move(callback);
 }
 
-bool ChangeHostModal::show_modal(lv_obj_t* parent) {
+bool ChangeHostModal::show_modal(lv_obj_t* parent, AddCallback on_add) {
     register_callbacks();
     init_subjects();
 
-    // Populate with current config values
+    add_callback_ = std::move(on_add);
+    const bool adding = static_cast<bool>(add_callback_);
+    lv_subject_set_int(&adding_subject_, adding ? 1 : 0);
+
+    // A new printer starts empty; otherwise the fields show the active printer's host.
     Config* config = Config::get_instance();
-    std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
-    int port = config->get<int>(config->df() + "moonraker_port", 7125);
+    std::string host =
+        adding ? std::string{} : config->get<std::string>(config->df() + "moonraker_host", "");
+    int port = adding ? 7125 : config->get<int>(config->df() + "moonraker_port", 7125);
 
     lv_subject_copy_string(&host_ip_subject_, host.c_str());
     lv_subject_copy_string(&host_port_subject_, std::to_string(port).c_str());
@@ -163,12 +168,14 @@ void ChangeHostModal::init_subjects() {
                            "7125");
     lv_subject_init_int(&testing_subject_, 0);
     lv_subject_init_int(&validated_subject_, 0);
+    lv_subject_init_int(&adding_subject_, 0);
 
     // Register subjects for XML binding
     subjects_.publish("change_host_ip", &host_ip_subject_);
     subjects_.publish("change_host_port", &host_port_subject_);
     subjects_.publish("change_host_testing", &testing_subject_);
     subjects_.publish("change_host_validated", &validated_subject_);
+    subjects_.publish("change_host_adding", &adding_subject_);
 
     subjects_initialized_ = true;
     spdlog::trace("[ChangeHostModal] Subjects initialized");
@@ -309,6 +316,17 @@ void ChangeHostModal::handle_save() {
     }
     const int port = *parsed_port;
 
+    if (add_callback_) {
+        // The caller takes over the client, which is already on the tested host.
+        client_borrowed_ = false;
+        hide();
+        auto on_add = add_callback_;
+        std::string added_host(ip);
+        helix::ui::queue_update("ChangeHostModal::handle_add",
+                                [on_add, added_host, port]() { on_add(added_host, port); });
+        return;
+    }
+
     // Save to config. The client reconnects to the new host, so there is nothing to restore.
     client_borrowed_ = false;
     Config* config = Config::get_instance();
@@ -425,14 +443,28 @@ void ChangeHostModal::on_cancel_cb(lv_event_t* /*e*/) {
 
 namespace helix::ui {
 
-void show_change_host_modal(std::function<void(bool changed)> extra_on_complete) {
-    // Function-local static: ChangeHostModal's active_instance_ is a static
-    // singleton, so a second owner elsewhere would fight this one. The instance
-    // must also outlive the dialog it shows.
+namespace {
+
+// ChangeHostModal's active_instance_ is a static singleton, so both entry points share one
+// owner. The instance must also outlive the dialog it shows.
+ChangeHostModal& shared_change_host_modal() {
     static std::unique_ptr<ChangeHostModal> modal;
     if (!modal) {
         modal = std::make_unique<ChangeHostModal>();
     }
+    return *modal;
+}
+
+} // namespace
+
+void show_add_printer_modal(std::function<void(const std::string& host, int port)> on_add) {
+    ChangeHostModal& modal = shared_change_host_modal();
+    modal.set_completion_callback(nullptr);
+    modal.show_modal(lv_screen_active(), std::move(on_add));
+}
+
+void show_change_host_modal(std::function<void(bool changed)> extra_on_complete) {
+    ChangeHostModal* modal = &shared_change_host_modal();
 
     modal->set_completion_callback([extra = std::move(extra_on_complete)](bool changed) {
         if (!changed) {
