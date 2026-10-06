@@ -2,15 +2,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-// A PNG decoded a row at a time. The inflated scanlines arrive in pieces from a
-// streaming inflater, each finished row is unfiltered against the one above it
-// and handed on as RGBA, so the decode never holds more than two rows of the
-// image: what lets a thumbnail decode on a heap with no large free block.
+// A PNG decoded a row at a time. A streaming inflater hands over the scanline
+// bytes in pieces through a 32KB window, each finished row is unfiltered
+// against the one above it and passed on as RGBA, and the downscale consumes
+// the rows as they come: the decode never holds the image, which is what lets
+// a thumbnail decode on a heap with no large free block. Every buffer is a
+// checked nothrow allocation, so running out of memory fails the decode rather
+// than aborting a build without exceptions.
+
+#include "thumbnail_downscale.h"
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
-#include <vector>
+#include <memory>
+#include <new>
 
 namespace helix {
 
@@ -41,22 +46,28 @@ struct PngPalette {
     uint8_t key[3] = {};
 };
 
-/// Walks the chunks after IHDR: fills @p palette from PLTE and tRNS and passes
-/// each IDAT payload to @p on_idat in order. False on a malformed file or when
-/// @p on_idat returns false.
-bool for_each_png_idat(const uint8_t* data, size_t size, PngPalette& palette,
-                       const std::function<bool(const uint8_t*, size_t)>& on_idat);
+/// Called with each IDAT payload in order; false stops the walk.
+using PngIdatSink = bool (*)(const uint8_t* data, size_t size, void* user);
+
+/// Walks the chunks after IHDR, checking each one's length and CRC: fills
+/// @p palette from PLTE and tRNS and passes each IDAT payload to @p on_idat.
+/// False on a malformed or truncated file, or when @p on_idat returns false.
+bool for_each_png_idat(const uint8_t* data, size_t size, PngPalette& palette, PngIdatSink on_idat,
+                       void* user);
 
 /// Turns inflated PNG scanline bytes, fed in pieces of any size, into RGBA rows.
 class PngRowDecoder {
   public:
-    using RowSink = std::function<void(const uint8_t* rgba)>;
+    using RowSink = void (*)(const uint8_t* rgba, void* user);
 
-    PngRowDecoder(const PngHeader& header, const PngPalette& palette, RowSink on_row);
+    PngRowDecoder(const PngHeader& header, const PngPalette& palette, RowSink on_row, void* user);
 
+    /// False when a row buffer could not be allocated.
+    bool ok() const {
+        return cur_ && prev_ && rgba_;
+    }
     /// False once the data is invalid (an unknown filter type) or overruns the image.
     bool feed(const uint8_t* data, size_t size);
-
     bool complete() const {
         return row_ == height_;
     }
@@ -66,13 +77,121 @@ class PngRowDecoder {
 
     const PngPalette& palette_;
     RowSink on_row_;
+    void* user_;
     int width_, height_, color_type_, bpp_;
     size_t stride_;
-    std::vector<uint8_t> cur_, prev_, rgba_;
+    std::unique_ptr<uint8_t[]> cur_, prev_, rgba_;
     int filter_ = -1; ///< -1 while the next byte is a row's filter type
     size_t pos_ = 0;
     int row_ = 0;
     bool failed_ = false;
 };
+
+/// What decode_png_thumbnail() produced.
+struct DecodedThumbnail {
+    uint8_t* pixels = nullptr; ///< RGB565A8, allocated with the Inflate's alloc()
+    ThumbnailDims dims;
+    ThumbnailDecodeFailure failure = ThumbnailDecodeFailure::BadImage;
+};
+
+/**
+ * @brief Decodes @p png into an RGB565A8 image fitted inside @p max_w x @p max_h.
+ *
+ * @p Inflate wraps a miniz tinfl-compatible streaming inflater (the ESP32 ROM's
+ * on the firmware) and the allocator the decode uses:
+ *   - `Decompressor` and `static constexpr size_t WINDOW` (32KB for tinfl);
+ *   - `static void init(Decompressor*)`;
+ *   - `static int step(Decompressor*, const uint8_t* in, size_t* in_size,
+ *      uint8_t* window, uint8_t* next, size_t* out_size, bool more_input)`,
+ *     returning tinfl's status: 0 done, 1 needs input, 2 more output, <0 failed;
+ *   - `static void* alloc(size_t)` returning nullptr on failure, and `free(void*)`.
+ */
+template <class Inflate>
+DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w, int max_h) {
+    DecodedThumbnail result;
+    PngHeader header;
+    if (!read_png_header(png, size, header)) {
+        return result;
+    }
+    if (!png_thumbnail_supported(header)) {
+        result.failure = ThumbnailDecodeFailure::Unsupported;
+        return result;
+    }
+    result.dims = fit_thumbnail(header.width, header.height, max_w, max_h);
+
+    struct Owned {
+        void* p = nullptr;
+        ~Owned() {
+            Inflate::free(p);
+        }
+    } out, inflater, window;
+    out.p = Inflate::alloc(rgb565a8_size(result.dims));
+    inflater.p = Inflate::alloc(sizeof(typename Inflate::Decompressor));
+    window.p = Inflate::alloc(Inflate::WINDOW);
+    auto* scaler = new (std::nothrow)
+        RowDownscaler(header.width, header.height, result.dims, static_cast<uint8_t*>(out.p));
+    std::unique_ptr<RowDownscaler> scaler_owner(scaler);
+    if (!out.p || !inflater.p || !window.p || !scaler || !scaler->ok()) {
+        result.failure = ThumbnailDecodeFailure::OutOfMemory;
+        return result;
+    }
+
+    PngPalette palette;
+    PngRowDecoder rows(
+        header, palette,
+        [](const uint8_t* rgba, void* user) { static_cast<RowDownscaler*>(user)->add_row(rgba); },
+        scaler);
+    if (!rows.ok()) {
+        result.failure = ThumbnailDecodeFailure::OutOfMemory;
+        return result;
+    }
+
+    struct Stream {
+        typename Inflate::Decompressor* d;
+        uint8_t* window;
+        size_t at = 0;
+        int status = 1;
+        PngRowDecoder* rows;
+
+        // Inflates @p in (or, with more_input false, the end of the stream)
+        // through the circular window into the row decoder.
+        bool inflate(const uint8_t* in, size_t left, bool more_input) {
+            for (;;) {
+                size_t in_size = left;
+                size_t out_size = Inflate::WINDOW - at;
+                status = Inflate::step(d, in, &in_size, window, window + at, &out_size, more_input);
+                in += in_size;
+                left -= in_size;
+                if (out_size && !rows->feed(window + at, out_size)) {
+                    return false;
+                }
+                at = (at + out_size) & (Inflate::WINDOW - 1);
+                if (status < 0) {
+                    return false;
+                }
+                if (status == 0 || (status == 1 && left == 0)) {
+                    return true;
+                }
+            }
+        }
+    } stream{static_cast<typename Inflate::Decompressor*>(inflater.p),
+             static_cast<uint8_t*>(window.p), 0, 1, &rows};
+    Inflate::init(stream.d);
+
+    const bool walked = for_each_png_idat(
+        png, size, palette,
+        [](const uint8_t* data, size_t len, void* user) {
+            auto* s = static_cast<Stream*>(user);
+            return s->status == 0 || s->inflate(data, len, true);
+        },
+        &stream);
+    if (!walked || (stream.status != 0 && !stream.inflate(nullptr, 0, false)) || !rows.complete()) {
+        return result;
+    }
+    result.failure = ThumbnailDecodeFailure::None;
+    result.pixels = static_cast<uint8_t*>(out.p);
+    out.p = nullptr;
+    return result;
+}
 
 } // namespace helix

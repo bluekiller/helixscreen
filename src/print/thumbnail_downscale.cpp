@@ -4,6 +4,7 @@
 #include "thumbnail_downscale.h"
 
 #include <algorithm>
+#include <new>
 
 namespace helix {
 
@@ -31,8 +32,13 @@ int box_start(int d, int src, int dst) {
 } // namespace
 
 RowDownscaler::RowDownscaler(int src_w, int src_h, ThumbnailDims dst, uint8_t* out)
-    : src_w_(src_w), src_h_(src_h), dst_(dst), out_(out), x0_(static_cast<size_t>(dst.w)),
-      x1_(static_cast<size_t>(dst.w)), sums_(static_cast<size_t>(dst.w) * 4, 0) {
+    : src_w_(src_w), src_h_(src_h), dst_(dst), out_(out),
+      x0_(new(std::nothrow) int[static_cast<size_t>(dst.w)]),
+      x1_(new(std::nothrow) int[static_cast<size_t>(dst.w)]),
+      sums_(new(std::nothrow) uint32_t[static_cast<size_t>(dst.w) * 4]()) {
+    if (!ok()) {
+        return;
+    }
     for (int dx = 0; dx < dst.w; ++dx) {
         x0_[static_cast<size_t>(dx)] = box_start(dx, src_w, dst.w);
         x1_[static_cast<size_t>(dx)] =
@@ -41,7 +47,7 @@ RowDownscaler::RowDownscaler(int src_w, int src_h, ThumbnailDims dst, uint8_t* o
 }
 
 void RowDownscaler::add_row(const uint8_t* rgba) {
-    if (src_y_ >= src_h_ || dst_y_ >= dst_.h) {
+    if (!ok() || src_y_ >= src_h_ || dst_y_ >= dst_.h) {
         return;
     }
     for (int dx = 0; dx < dst_.w; ++dx) {

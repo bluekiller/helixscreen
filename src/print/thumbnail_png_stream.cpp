@@ -33,6 +33,27 @@ int channels_for(int color_type) {
     }
 }
 
+uint32_t crc32_of(const uint8_t* data, size_t size) {
+    static const auto table = [] {
+        struct Table {
+            uint32_t v[256];
+        } t{};
+        for (uint32_t n = 0; n < 256; ++n) {
+            uint32_t c = n;
+            for (int k = 0; k < 8; ++k) {
+                c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            }
+            t.v[n] = c;
+        }
+        return t;
+    }();
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = 0; i < size; ++i) {
+        c = table.v[(c ^ data[i]) & 0xFF] ^ (c >> 8);
+    }
+    return c ^ 0xFFFFFFFFu;
+}
+
 uint8_t paeth(uint8_t a, uint8_t b, uint8_t c) {
     const int p = a + b - c;
     const int pa = std::abs(p - a), pb = std::abs(p - b), pc = std::abs(p - c);
@@ -65,19 +86,22 @@ bool png_thumbnail_supported(const PngHeader& h) {
            channels_for(h.color_type) > 0;
 }
 
-bool for_each_png_idat(const uint8_t* data, size_t size, PngPalette& palette,
-                       const std::function<bool(const uint8_t*, size_t)>& on_idat) {
+bool for_each_png_idat(const uint8_t* data, size_t size, PngPalette& palette, PngIdatSink on_idat,
+                       void* user) {
     PngHeader header;
     if (!read_png_header(data, size, header)) {
         return false;
     }
     size_t at = 8;
-    while (at + 12 <= size) {
+    while (size - at >= 12) {
         const uint32_t len = be32_at(data + at);
-        const uint8_t* type = data + at + 4;
-        const uint8_t* body = data + at + 8;
         if (len > size - at - 12) {
             return false; // a chunk running past the end: the fetch was cut short
+        }
+        const uint8_t* type = data + at + 4;
+        const uint8_t* body = data + at + 8;
+        if (crc32_of(type, len + 4) != be32_at(body + len)) {
+            return false;
         }
         if (std::memcmp(type, "PLTE", 4) == 0) {
             palette.entries = static_cast<int>(len / 3 > 256 ? 256 : len / 3);
@@ -96,7 +120,7 @@ bool for_each_png_idat(const uint8_t* data, size_t size, PngPalette& palette,
                 palette.key[2] = body[5];
             }
         } else if (std::memcmp(type, "IDAT", 4) == 0) {
-            if (!on_idat(body, len)) {
+            if (!on_idat(body, len, user)) {
                 return false;
             }
         } else if (std::memcmp(type, "IEND", 4) == 0) {
@@ -107,13 +131,18 @@ bool for_each_png_idat(const uint8_t* data, size_t size, PngPalette& palette,
     return false; // no IEND
 }
 
-PngRowDecoder::PngRowDecoder(const PngHeader& h, const PngPalette& palette, RowSink on_row)
-    : palette_(palette), on_row_(std::move(on_row)), width_(h.width), height_(h.height),
+PngRowDecoder::PngRowDecoder(const PngHeader& h, const PngPalette& palette, RowSink on_row,
+                             void* user)
+    : palette_(palette), on_row_(on_row), user_(user), width_(h.width), height_(h.height),
       color_type_(h.color_type), bpp_(channels_for(h.color_type)),
       stride_(static_cast<size_t>(h.width) * static_cast<size_t>(channels_for(h.color_type))),
-      cur_(stride_), prev_(stride_, 0), rgba_(static_cast<size_t>(h.width) * 4) {}
+      cur_(new(std::nothrow) uint8_t[stride_]), prev_(new(std::nothrow) uint8_t[stride_]()),
+      rgba_(new(std::nothrow) uint8_t[static_cast<size_t>(h.width) * 4]) {}
 
 bool PngRowDecoder::feed(const uint8_t* data, size_t size) {
+    if (!ok()) {
+        return false;
+    }
     for (size_t i = 0; i < size && !failed_; ++i) {
         if (row_ >= height_) {
             failed_ = true; // more data than the image holds
@@ -192,7 +221,7 @@ void PngRowDecoder::finish_row() {
             break;
         }
     }
-    on_row_(rgba_.data());
+    on_row_(rgba_.get(), user_);
     cur_.swap(prev_);
     filter_ = -1;
     ++row_;

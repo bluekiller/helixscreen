@@ -1,23 +1,65 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../../lib/tinfl/tinfl_copy.h"
 #include "stb_image.h"
 #include "thumbnail_downscale.h"
 #include "thumbnail_png_stream.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <random>
 #include <string>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
 
+using helix::DecodedThumbnail;
 using helix::PngHeader;
 using helix::PngPalette;
 using helix::PngRowDecoder;
+using helix::ThumbnailDecodeFailure;
+using helix::ThumbnailDims;
 
 namespace {
+
+/// The decode driven by miniz's tinfl, the inflater the firmware's ROM ships,
+/// with an allocator that counts and can be told to fail.
+struct TestInflate {
+    using Decompressor = tinfl_copy::tinfl_decompressor;
+    static constexpr size_t WINDOW = TINFL_LZ_DICT_SIZE;
+    static inline int live = 0;
+    static inline int fail_after = -1; ///< allocations left before one fails; -1 never
+
+    static void init(Decompressor* d) {
+        tinfl_init(d);
+    }
+    static int step(Decompressor* d, const uint8_t* in, size_t* in_size, uint8_t* window,
+                    uint8_t* next, size_t* out_size, bool more_input) {
+        return tinfl_copy::tinfl_decompress(
+            d, in, in_size, window, next, out_size,
+            tinfl_copy::TINFL_FLAG_PARSE_ZLIB_HEADER |
+                (more_input ? tinfl_copy::TINFL_FLAG_HAS_MORE_INPUT : 0));
+    }
+    static void* alloc(size_t size) {
+        if (fail_after == 0) {
+            return nullptr;
+        }
+        if (fail_after > 0) {
+            --fail_after;
+        }
+        ++live;
+        return std::malloc(size);
+    }
+    static void free(void* p) {
+        if (p) {
+            --live;
+        }
+        std::free(p);
+    }
+};
 
 std::vector<uint8_t> fixture(const char* name) {
     std::string dir = __FILE__;
@@ -27,39 +69,8 @@ std::vector<uint8_t> fixture(const char* name) {
     return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
 }
 
-/// RGBA rows from the streaming decoder, its inflated input fed in @p piece-byte
-/// pieces the way an inflater's window hands it over. The test inflates with
-/// stb_image's zlib; the firmware inflates with the ROM's tinfl.
-std::vector<uint8_t> stream_decode(const std::vector<uint8_t>& png, size_t piece, PngHeader& h) {
-    REQUIRE(helix::read_png_header(png.data(), png.size(), h));
-    REQUIRE(helix::png_thumbnail_supported(h));
-    PngPalette palette;
-    std::vector<uint8_t> zdata;
-    REQUIRE(
-        helix::for_each_png_idat(png.data(), png.size(), palette, [&](const uint8_t* d, size_t n) {
-            zdata.insert(zdata.end(), d, d + n);
-            return true;
-        }));
-    int raw_len = 0;
-    char* raw = stbi_zlib_decode_malloc(reinterpret_cast<const char*>(zdata.data()),
-                                        static_cast<int>(zdata.size()), &raw_len);
-    REQUIRE(raw != nullptr);
-
-    std::vector<uint8_t> image;
-    PngRowDecoder rows(h, palette, [&](const uint8_t* rgba) {
-        image.insert(image.end(), rgba, rgba + static_cast<size_t>(h.width) * 4);
-    });
-    for (int at = 0; at < raw_len; at += static_cast<int>(piece)) {
-        const size_t n = std::min(piece, static_cast<size_t>(raw_len - at));
-        REQUIRE(rows.feed(reinterpret_cast<const uint8_t*>(raw) + at, n));
-    }
-    stbi_image_free(raw);
-    CHECK(rows.complete());
-    return image;
-}
-
-std::vector<uint8_t> stb_decode(const std::vector<uint8_t>& png) {
-    int w = 0, h = 0, n = 0;
+std::vector<uint8_t> stb_rgba(const std::vector<uint8_t>& png, int& w, int& h) {
+    int n = 0;
     uint8_t* px = stbi_load_from_memory(png.data(), static_cast<int>(png.size()), &w, &h, &n, 4);
     REQUIRE(px != nullptr);
     std::vector<uint8_t> out(px, px + static_cast<size_t>(w) * h * 4);
@@ -67,79 +78,215 @@ std::vector<uint8_t> stb_decode(const std::vector<uint8_t>& png) {
     return out;
 }
 
-} // namespace
+/// What the streaming decode must produce: the whole image decoded by
+/// stb_image, then downscaled in one go.
+std::vector<uint8_t> expected(const std::vector<uint8_t>& png, int max_w, int max_h,
+                              ThumbnailDims& dims) {
+    int w = 0, h = 0;
+    const auto rgba = stb_rgba(png, w, h);
+    dims = helix::fit_thumbnail(w, h, max_w, max_h);
+    std::vector<uint8_t> out(helix::rgb565a8_size(dims));
+    helix::downscale_rgba_to_rgb565a8(rgba.data(), w, h, dims, out.data());
+    return out;
+}
 
-TEST_CASE("the row decoder matches a whole-image decode for every filter and colour type",
-          "[thumbnail][png_stream]") {
-    // Each fixture cycles its rows through all five PNG filter types.
-    for (const char* name : {"thumb_filters_rgba.png", "thumb_filters_rgb_key.png",
-                             "thumb_filters_grey_alpha.png", "thumb_filters_palette.png"}) {
-        CAPTURE(name);
-        const auto png = fixture(name);
-        REQUIRE(!png.empty());
-        for (size_t piece : {size_t{1}, size_t{7}, size_t{4096}}) {
-            CAPTURE(piece);
-            PngHeader h;
-            CHECK(stream_decode(png, piece, h) == stb_decode(png));
+DecodedThumbnail decode(const std::vector<uint8_t>& png, int max_w, int max_h) {
+    return helix::decode_png_thumbnail<TestInflate>(png.data(), png.size(), max_w, max_h);
+}
+
+/// Rewrites a chunk's CRC after the test edits its bytes.
+void fix_crc(std::vector<uint8_t>& png, size_t chunk_at) {
+    const uint32_t len = (uint32_t{png[chunk_at]} << 24) | (uint32_t{png[chunk_at + 1]} << 16) |
+                         (uint32_t{png[chunk_at + 2]} << 8) | png[chunk_at + 3];
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = chunk_at + 4; i < chunk_at + 8 + len; ++i) {
+        c ^= png[i];
+        for (int k = 0; k < 8; ++k) {
+            c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
         }
     }
-}
-
-TEST_CASE("decoding row by row into the downscale equals downscaling the whole image",
-          "[thumbnail][png_stream]") {
-    const auto png = fixture("thumbnail_300_rgba.png");
-    PngHeader h;
-    const auto image = stream_decode(png, 32768, h);
-    const helix::ThumbnailDims dims = helix::fit_thumbnail(h.width, h.height, 166, 166);
-
-    std::vector<uint8_t> whole(helix::rgb565a8_size(dims));
-    helix::downscale_rgba_to_rgb565a8(stb_decode(png).data(), h.width, h.height, dims,
-                                      whole.data());
-
-    std::vector<uint8_t> streamed(helix::rgb565a8_size(dims), 0xAA);
-    helix::RowDownscaler scaler(h.width, h.height, dims, streamed.data());
-    for (int y = 0; y < h.height; ++y) {
-        scaler.add_row(image.data() + static_cast<size_t>(y) * h.width * 4);
+    c ^= 0xFFFFFFFFu;
+    for (int k = 0; k < 4; ++k) {
+        png[chunk_at + 8 + len + static_cast<size_t>(k)] = static_cast<uint8_t>(c >> (24 - 8 * k));
     }
-    CHECK(scaler.complete());
-    CHECK(streamed == whole);
 }
 
-TEST_CASE("only 8-bit, non-interlaced thumbnails within the size cap are decoded",
+constexpr size_t IHDR_AT = 8;
+
+} // namespace
+
+TEST_CASE("the streaming decode matches a whole-image decode and downscale",
           "[thumbnail][png_stream]") {
-    auto header = [](int w, int h, int depth, int color, int interlace) {
-        PngHeader p;
-        p.width = w;
-        p.height = h;
-        p.bit_depth = depth;
-        p.color_type = color;
-        p.interlace = interlace;
-        return p;
+    TestInflate::live = 0;
+    // The 300x300 fixture inflates to 360KB, so the 32KB window wraps many times.
+    // The small fixtures cycle their rows through all five PNG filter types and
+    // cover palette+tRNS, an RGB colour key and grey+alpha.
+    struct Case {
+        const char* name;
+        int box;
     };
-    for (int color : {0, 2, 3, 4, 6}) {
-        CAPTURE(color);
-        CHECK(helix::png_thumbnail_supported(header(300, 300, 8, color, 0)));
+    for (const Case& c :
+         {Case{"thumbnail_300_rgba.png", 166}, Case{"thumb_filters_rgba.png", 37},
+          Case{"thumb_filters_rgba.png", 16}, Case{"thumb_filters_rgb_key.png", 37},
+          Case{"thumb_filters_grey_alpha.png", 20}, Case{"thumb_filters_palette.png", 37}}) {
+        CAPTURE(c.name, c.box);
+        const auto png = fixture(c.name);
+        REQUIRE(!png.empty());
+        ThumbnailDims dims;
+        const auto want = expected(png, c.box, c.box, dims);
+        const DecodedThumbnail got = decode(png, c.box, c.box);
+        REQUIRE(got.failure == ThumbnailDecodeFailure::None);
+        REQUIRE(got.pixels != nullptr);
+        CHECK(got.dims.w == dims.w);
+        CHECK(got.dims.h == dims.h);
+        CHECK(std::memcmp(got.pixels, want.data(), want.size()) == 0);
+        TestInflate::free(got.pixels);
     }
-    CHECK(helix::png_thumbnail_supported(header(helix::THUMBNAIL_MAX_SIDE, 10, 8, 6, 0)));
-    CHECK_FALSE(helix::png_thumbnail_supported(header(helix::THUMBNAIL_MAX_SIDE + 1, 10, 8, 6, 0)));
-    CHECK_FALSE(helix::png_thumbnail_supported(header(300, 300, 16, 6, 0)));
-    CHECK_FALSE(helix::png_thumbnail_supported(header(300, 300, 4, 3, 0)));
-    CHECK_FALSE(helix::png_thumbnail_supported(header(300, 300, 8, 6, 1)));
-    CHECK_FALSE(helix::png_thumbnail_supported(header(300, 300, 8, 5, 0)));
-    CHECK_FALSE(helix::png_thumbnail_supported(header(0, 300, 8, 6, 0)));
+    CHECK(TestInflate::live == 0);
 }
 
-TEST_CASE("a cut-short PNG or a bad filter byte fails the decode", "[thumbnail][png_stream]") {
-    const auto png = fixture("thumb_filters_rgba.png");
-    PngPalette palette;
-    const std::vector<uint8_t> cut(png.begin(), png.begin() + static_cast<long>(png.size() / 2));
-    CHECK_FALSE(helix::for_each_png_idat(cut.data(), cut.size(), palette,
-                                         [](const uint8_t*, size_t) { return true; }));
-
+TEST_CASE("the row decoder takes its input in pieces of any size", "[thumbnail][png_stream]") {
+    const auto png = fixture("thumb_filters_palette.png");
     PngHeader h;
     REQUIRE(helix::read_png_header(png.data(), png.size(), h));
-    PngRowDecoder rows(h, palette, [](const uint8_t*) {});
-    const uint8_t bad_filter = 5;
-    CHECK_FALSE(rows.feed(&bad_filter, 1));
-    CHECK_FALSE(rows.complete());
+    PngPalette palette;
+    std::vector<uint8_t> zdata;
+    REQUIRE(helix::for_each_png_idat(
+        png.data(), png.size(), palette,
+        [](const uint8_t* d, size_t n, void* user) {
+            auto* z = static_cast<std::vector<uint8_t>*>(user);
+            z->insert(z->end(), d, d + n);
+            return true;
+        },
+        &zdata));
+    int raw_len = 0;
+    char* raw = stbi_zlib_decode_malloc(reinterpret_cast<const char*>(zdata.data()),
+                                        static_cast<int>(zdata.size()), &raw_len);
+    REQUIRE(raw != nullptr);
+    int w = 0, hh = 0;
+    const auto want = stb_rgba(png, w, hh);
+    for (size_t piece : {size_t{1}, size_t{7}, size_t{4096}}) {
+        CAPTURE(piece);
+        std::vector<uint8_t> got;
+        PngRowDecoder rows(
+            h, palette,
+            [](const uint8_t* rgba, void* user) {
+                auto* g = static_cast<std::vector<uint8_t>*>(user);
+                g->insert(g->end(), rgba, rgba + 37 * 4);
+            },
+            &got);
+        REQUIRE(rows.ok());
+        for (int at = 0; at < raw_len; at += static_cast<int>(piece)) {
+            const size_t n = std::min(piece, static_cast<size_t>(raw_len - at));
+            REQUIRE(rows.feed(reinterpret_cast<const uint8_t*>(raw) + at, n));
+        }
+        CHECK(rows.complete());
+        CHECK(got == want);
+    }
+    stbi_image_free(raw);
+}
+
+TEST_CASE("interlaced, 16-bit and oversized thumbnails keep the placeholder",
+          "[thumbnail][png_stream]") {
+    auto png = fixture("thumb_filters_rgba.png");
+    auto with = [&](size_t field, uint8_t value) {
+        auto edited = png;
+        edited[IHDR_AT + 8 + field] = value;
+        fix_crc(edited, IHDR_AT);
+        return decode(edited, 37, 37);
+    };
+    CHECK(with(12, 1).failure == ThumbnailDecodeFailure::Unsupported); // interlace method
+    CHECK(with(8, 16).failure == ThumbnailDecodeFailure::Unsupported); // bit depth
+    CHECK(with(8, 4).failure == ThumbnailDecodeFailure::Unsupported);
+    CHECK(with(9, 5).failure == ThumbnailDecodeFailure::Unsupported); // no such colour type
+    CHECK(with(0, 1).failure == ThumbnailDecodeFailure::Unsupported); // width >= 16M
+    CHECK(TestInflate::live == 0);
+}
+
+TEST_CASE("a truncated, corrupt or mislabelled PNG fails cleanly", "[thumbnail][png_stream]") {
+    TestInflate::live = 0;
+    const auto png = fixture("thumb_filters_rgba.png");
+
+    // Cut short anywhere after the header, the way a capped fetch ends one.
+    for (size_t keep = 33; keep < png.size(); keep += 97) {
+        CAPTURE(keep);
+        const std::vector<uint8_t> cut(png.begin(), png.begin() + static_cast<long>(keep));
+        const DecodedThumbnail got = decode(cut, 37, 37);
+        CHECK(got.pixels == nullptr);
+        CHECK(got.failure == ThumbnailDecodeFailure::BadImage);
+    }
+
+    // A palette entry changed with its CRC left stale: only the CRC can tell.
+    auto bad_plte = fixture("thumb_filters_palette.png");
+    const size_t plte = 8 + 25;
+    REQUIRE(std::memcmp(bad_plte.data() + plte + 4, "PLTE", 4) == 0);
+    bad_plte[plte + 8] ^= 0xFF;
+    CHECK(decode(bad_plte, 37, 37).failure == ThumbnailDecodeFailure::BadImage);
+
+    // A flipped byte inside the first IDAT, with its CRC left stale.
+    const size_t idat = 8 + 25; // after the signature and IHDR
+    REQUIRE(std::memcmp(png.data() + idat + 4, "IDAT", 4) == 0);
+    auto bad_crc = png;
+    bad_crc[idat + 8 + 5] ^= 0xFF;
+    CHECK(decode(bad_crc, 37, 37).failure == ThumbnailDecodeFailure::BadImage);
+
+    // The same flip with a matching CRC reaches the inflater, which rejects it.
+    auto bad_data = bad_crc;
+    fix_crc(bad_data, idat);
+    CHECK(decode(bad_data, 37, 37).pixels == nullptr);
+
+    // A chunk length claiming more bytes than the file holds.
+    auto bad_len = png;
+    bad_len[idat] = 0x7F;
+    CHECK(decode(bad_len, 37, 37).failure == ThumbnailDecodeFailure::BadImage);
+
+    CHECK(decode({}, 37, 37).failure == ThumbnailDecodeFailure::BadImage);
+    CHECK(TestInflate::live == 0);
+}
+
+TEST_CASE("an allocation failure at any point fails the decode and frees what it took",
+          "[thumbnail][png_stream]") {
+    const auto png = fixture("thumb_filters_rgba.png");
+    for (int n = 0; n < 3; ++n) { // the image, the inflater state, the window
+        CAPTURE(n);
+        TestInflate::live = 0;
+        TestInflate::fail_after = n;
+        const DecodedThumbnail got = decode(png, 37, 37);
+        CHECK(got.pixels == nullptr);
+        CHECK(got.failure == ThumbnailDecodeFailure::OutOfMemory);
+        CHECK(TestInflate::live == 0);
+    }
+    TestInflate::fail_after = -1;
+}
+
+TEST_CASE("mutated PNGs never crash the decoder", "[thumbnail][png_stream]") {
+    TestInflate::live = 0;
+    const auto base = fixture("thumb_filters_rgba.png");
+    std::mt19937 rng(1234);
+    for (int i = 0; i < 3000; ++i) {
+        auto png = base;
+        const int edits = 1 + static_cast<int>(rng() % 8);
+        for (int e = 0; e < edits; ++e) {
+            png[rng() % png.size()] = static_cast<uint8_t>(rng());
+        }
+        if (rng() % 3 == 0) {
+            png.resize(rng() % png.size());
+        }
+        // Mostly re-sign the chunks so edits get past the CRC check to the
+        // length, palette, filter and inflate paths.
+        if (rng() % 4 != 0) {
+            for (size_t at = 8; at + 12 <= png.size();) {
+                const uint32_t len = (uint32_t{png[at]} << 24) | (uint32_t{png[at + 1]} << 16) |
+                                     (uint32_t{png[at + 2]} << 8) | png[at + 3];
+                if (len > png.size() - at - 12) {
+                    break;
+                }
+                fix_crc(png, at);
+                at += 12 + len;
+            }
+        }
+        const DecodedThumbnail got = decode(png, 37, 37);
+        TestInflate::free(got.pixels);
+    }
+    CHECK(TestInflate::live == 0);
 }

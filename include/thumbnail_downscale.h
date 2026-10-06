@@ -4,7 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <memory>
 
 namespace helix {
 
@@ -23,7 +23,7 @@ enum class ThumbnailDecodeFailure {
     None,
     OutOfMemory, ///< Worth retrying once memory frees up
     BadImage,    ///< Corrupt, truncated or unsupported: retrying cannot help
-    TooLarge,    ///< Beyond what the decode scratch holds: retrying cannot help
+    Unsupported, ///< A kind of image the decoder does not take: retrying cannot help
 };
 
 /// Bytes an RGB565A8 image of @p dims needs: a 16-bit colour plane followed by
@@ -41,6 +41,10 @@ inline size_t rgb565a8_size(ThumbnailDims dims) {
 class RowDownscaler {
   public:
     RowDownscaler(int src_w, int src_h, ThumbnailDims dst, uint8_t* out);
+    /// False when the per-column state could not be allocated.
+    bool ok() const {
+        return x0_ && x1_ && sums_;
+    }
     /// The next source row, src_w RGBA pixels.
     void add_row(const uint8_t* rgba);
     /// True once every source row has been added.
@@ -54,9 +58,9 @@ class RowDownscaler {
     uint8_t* out_;
     int src_y_ = 0;
     int dst_y_ = 0;
-    std::vector<int> x0_;        ///< first source column of each output column
-    std::vector<int> x1_;        ///< one past its last
-    std::vector<uint32_t> sums_; ///< r, g, b, a per output column of the open row
+    std::unique_ptr<int[]> x0_;        ///< first source column of each output column
+    std::unique_ptr<int[]> x1_;        ///< one past its last
+    std::unique_ptr<uint32_t[]> sums_; ///< r, g, b, a per output column of the open row
 };
 
 /// Box-filters a whole RGBA8888 image (rows packed) the same way.
