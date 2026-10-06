@@ -42,7 +42,8 @@ _unit_script() {
     script=${script%"'"}
     script=$(printf '%s' "$script" | sed -e 's/\$\$/$/g' \
         -e "s|@@INSTALL_PARENT@@|$PARENT|g" -e "s|@@INSTALL_DIR@@|$IDIR|g" \
-        -e 's|/\(usr/\)\{0,1\}s\{0,1\}bin/systemctl|systemctl|g')
+        -e 's#^/\(usr/\)\{0,1\}s\{0,1\}bin/systemctl#systemctl#' \
+        -e 's#\([[:space:];&|(]\)/\(usr/\)\{0,1\}s\{0,1\}bin/systemctl#\1systemctl#g')
     printf '%s\n' "$script"
 }
 
@@ -60,6 +61,11 @@ _run_unit() {
     [ "$(_unit_script)" = "systemctl restart helixscreen" ]
     printf '[Service]\nExecStart=/usr/sbin/systemctl restart helixscreen\n' > "$UNIT"
     [ "$(_unit_script)" = "systemctl restart helixscreen" ]
+    printf '[Service]\nExecStart=true; /bin/systemctl stop x\n' > "$UNIT"
+    [ "$(_unit_script)" = "true; systemctl stop x" ]
+    # Only a stock system directory is rewritten; any other path is kept whole.
+    printf '[Service]\nExecStart=/opt/x/bin/systemctl restart helixscreen\n' > "$UNIT"
+    [ "$(_unit_script)" = "/opt/x/bin/systemctl restart helixscreen" ]
 }
 
 @test "the update unit keeps no ExecStartPre or ExecCondition guards" {
