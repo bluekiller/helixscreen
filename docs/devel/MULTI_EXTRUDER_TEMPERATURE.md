@@ -285,8 +285,8 @@ Chamber temperature **sends** go through `TemperatureController::set_target(Heat
 auto& ps = get_printer_state();   // include/app_globals.h
 
 // Legacy accessors (delegate to PrinterTemperatureState)
-lv_subject_t* temp = ps.get_extruder_temp_subject();      // Static, first extruder
-lv_subject_t* bed = ps.get_bed_temp_subject();
+lv_subject_t* temp = ps.temperature_state().get_extruder_temp_subject();      // Static, first extruder
+lv_subject_t* bed = ps.temperature_state().get_bed_temp_subject();
 
 // Per-extruder access
 lv_subject_t* t1 = ps.temperature().get_extruder_temp_subject("extruder1");

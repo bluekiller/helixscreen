@@ -188,8 +188,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     CHECK_FALSE(lv_obj_has_flag(h.child("callout_layer"), LV_OBJ_FLAG_HIDDEN));
     CHECK(shown(h, "callout_chip_bed"));
@@ -202,11 +202,11 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: idle cold printer shows no chips"
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_temp_subject(), 250);
-    lv_subject_set_int(state().get_bed_target_subject(), 0);
-    lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
-    lv_subject_set_int(state().get_active_extruder_target_subject(), 0);
-    lv_subject_set_int(state().get_fan_speed_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 250);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_temp_subject(), 250);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_target_subject(), 0);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 0);
     settle();
     CHECK_FALSE(shown(h, "callout_chip_bed"));
     CHECK_FALSE(shown(h, "callout_chip_nozzle"));
@@ -219,12 +219,12 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: heater off but hot keeps the chip
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 0);
-    lv_subject_set_int(state().get_bed_temp_subject(), 640);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 640);
     settle();
     CHECK(shown(h, "callout_chip_bed"));
     CHECK(text_of(h, "callout_chip_bed") == helix::ui::temperature::heater_display(640, 0).temp);
-    lv_subject_set_int(state().get_bed_temp_subject(), 500);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 500);
     settle();
     CHECK_FALSE(shown(h, "callout_chip_bed"));
 }
@@ -240,15 +240,15 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a heater off but still hot greys 
     const lv_color_t inactive = theme_manager_get_color("text_subtle");
     const auto text_color = [&] { return lv_obj_get_style_text_color(label, LV_PART_MAIN); };
 
-    lv_subject_set_int(state().get_bed_target_subject(), 0);
-    lv_subject_set_int(state().get_bed_temp_subject(), 640);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 640);
     settle();
     REQUIRE(shown(h, "callout_chip_bed"));
     CHECK(lv_subject_get_int(bed_shown) == 2);
     CHECK(lv_color_eq(text_color(), inactive));
 
-    lv_subject_set_int(state().get_bed_target_subject(), 2200);
-    lv_subject_set_int(state().get_bed_temp_subject(), 2200);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 2200);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 2200);
     settle();
     REQUIRE(shown(h, "callout_chip_bed"));
     CHECK(lv_subject_get_int(bed_shown) == 1);
@@ -264,9 +264,9 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     h.resize(4, 4, 160, 160);
     lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
     REQUIRE(has_led);
-    lv_subject_set_int(state().get_active_extruder_target_subject(), 0);
-    lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
-    lv_subject_set_int(state().get_fan_speed_subject(), 80);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_temp_subject(), 250);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 80);
     ScopedLedStrips::report("neopixel chamber_light", true);
     lv_subject_set_int(has_led, 0);
     settle();
@@ -305,9 +305,9 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_active_extruder_temp_subject(), 1800);
-    lv_subject_set_int(state().get_active_extruder_target_subject(), 2200);
-    lv_subject_set_int(state().get_fan_speed_subject(), 50);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_temp_subject(), 1800);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_target_subject(), 2200);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 50);
     settle();
     CHECK(shown(h, "callout_chip_toolhead"));
     CHECK_FALSE(shown(h, "callout_chip_nozzle"));
@@ -330,7 +330,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: single cell hides the whole layer
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     REQUIRE_FALSE(lv_obj_has_flag(h.child("callout_layer"), LV_OBJ_FLAG_HIDDEN));
     h.resize(2, 2, 80, 80);
@@ -343,7 +343,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a chip sits inside the image cont
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     lv_obj_update_layout(h.root());
     lv_obj_t* chip = h.child("callout_chip_bed");
@@ -359,13 +359,13 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a detached widget stops publishin
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 0);
-    lv_subject_set_int(state().get_bed_temp_subject(), 250);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 250);
     settle();
     lv_subject_t* bed_shown = lv_xml_get_subject(nullptr, "callout_bed_shown");
     REQUIRE(lv_subject_get_int(bed_shown) == 0);
     h.widget().detach();
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     CHECK(lv_subject_get_int(bed_shown) == 0);
 }
@@ -377,8 +377,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a chip narrower than its text dot
     const auto regions = prepare_tagged_widget(400, 1600);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 80, 320);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     lv_obj_update_layout(h.root());
     REQUIRE_FALSE(lv_obj_has_flag(h.child("callout_layer"), LV_OBJ_FLAG_HIDDEN));
@@ -397,8 +397,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a laid-out chip is not narrower t
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     lv_obj_update_layout(h.root());
     lv_obj_t* label = lv_obj_find_by_name(h.child("callout_chip_bed"), "chip_text");
@@ -414,8 +414,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     lv_obj_update_layout(h.root());
     lv_obj_t* chip = h.child("callout_chip_bed");
@@ -452,9 +452,9 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: the nozzle chip budgets the tool 
     lv_subject_set_int(tools.get_show_tool_badge_subject(), 1);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_fan_speed_subject(), 0);
-    lv_subject_set_int(state().get_active_extruder_temp_subject(), 1800);
-    lv_subject_set_int(state().get_active_extruder_target_subject(), 2200);
+    lv_subject_set_int(state().fan_state().get_fan_speed_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_temp_subject(), 1800);
+    lv_subject_set_int(state().temperature_state().get_active_extruder_target_subject(), 2200);
     settle();
     lv_obj_update_layout(h.root());
     lv_obj_t* chip = h.child("callout_chip_nozzle");
@@ -485,9 +485,9 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a recycled instance drives its ne
     widget.attach(comp1, test_screen());
     lv_obj_update_layout(comp1);
     widget.on_size_changed(4, 4, 160, 160);
-    lv_subject_set_int(get_printer_state().get_bed_target_subject(), 600);
-    lv_subject_set_int(get_printer_state().get_bed_temp_subject(), 400);
-    lv_subject_set_int(get_printer_state().get_fan_speed_subject(), 60);
+    lv_subject_set_int(get_printer_state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(get_printer_state().temperature_state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(get_printer_state().fan_state().get_fan_speed_subject(), 60);
     settle();
     REQUIRE(lv_anim_get(lv_obj_find_by_name(comp1, "callout_bed_glow"), nullptr) != nullptr);
 
@@ -501,7 +501,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a recycled instance drives its ne
     CHECK(lv_obj_has_flag(lv_obj_find_by_name(comp2, "callout_layer"), LV_OBJ_FLAG_HIDDEN));
     lv_obj_update_layout(comp2);
     widget.on_size_changed(4, 4, 160, 160);
-    lv_subject_set_int(get_printer_state().get_bed_target_subject(), 650);
+    lv_subject_set_int(get_printer_state().temperature_state().get_bed_target_subject(), 650);
     settle();
     lv_obj_update_layout(comp2);
     lv_obj_t* bed = lv_obj_find_by_name(comp2, "callout_chip_bed");
@@ -534,7 +534,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
 
     TempGraphOverlayScope overlay_scope;
@@ -611,7 +611,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     bubble_like_home_panel(h.root());
 
@@ -648,7 +648,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     bubble_like_home_panel(h.root());
 
@@ -695,14 +695,15 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: wide widget draws a line to the b
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     settle();
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::BothSides));
     CHECK_FALSE(lv_obj_has_flag(h.child("callout_line_bed"), LV_OBJ_FLAG_HIDDEN));
     CHECK_FALSE(lv_obj_has_flag(h.child("callout_bed_glow"), LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(h.child("callout_line_nozzle"), LV_OBJ_FLAG_HIDDEN));
-    lv_subject_set_int(state().get_bed_temp_subject(), 600); // at target: glow off, line stays
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(),
+                       600); // at target: glow off, line stays
     settle();
     CHECK(lv_obj_has_flag(h.child("callout_bed_glow"), LV_OBJ_FLAG_HIDDEN));
     CHECK_FALSE(lv_obj_has_flag(h.child("callout_line_bed"), LV_OBJ_FLAG_HIDDEN));
@@ -713,7 +714,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: pinned mode draws no lines",
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::Pinned));
     CHECK(lv_obj_has_flag(h.child("callout_line_bed"), LV_OBJ_FLAG_HIDDEN));
@@ -724,8 +725,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: the bed line runs from the bed po
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     settle();
     lv_obj_update_layout(h.root());
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::BothSides));
@@ -752,8 +753,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 400, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     settle();
     lv_obj_update_layout(h.root());
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::OneSide));
@@ -905,7 +906,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a tile with no area puts a moved 
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 400, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     lv_obj_t* img = h.child("printer_image");
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::OneSide));
@@ -922,7 +923,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: the disconnected overlay is centr
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_printer_connection_state_subject(), 0);
+    lv_subject_set_int(state().network_state().get_printer_connection_state_subject(), 0);
     settle();
     lv_obj_update_layout(h.root());
     lv_obj_t* overlay = h.child("disconnected_overlay");
@@ -941,8 +942,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     display.set_animations_enabled(true);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     settle();
     lv_obj_update_layout(h.root());
     lv_obj_t* glow = h.child("callout_bed_glow");
@@ -976,8 +977,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: an untagged image draws no bed gl
     const ScopedImageRegions untagged({});
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     settle();
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::Docked));
     REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "callout_bed_heating")) == 1);
@@ -991,7 +992,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // no longer fit beside the image, so the mode drops to pinned.
     const auto regions = prepare_tagged_widget();
     lv_subject_t* has_led = lv_xml_get_subject(nullptr, "printer_has_led");
-    lv_subject_t* has_chamber = state().get_printer_has_chamber_heater_subject();
+    lv_subject_t* has_chamber = state().capabilities_state().subject(Capability::HasChamberHeater);
     REQUIRE(has_led);
     lv_subject_set_int(has_led, 0);
     lv_subject_set_int(has_chamber, 0);
@@ -1045,8 +1046,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(8, 4, 480, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
-    lv_subject_set_int(state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     settle();
     lv_obj_update_layout(h.root());
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::Docked));
@@ -1107,7 +1108,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     write_user_tags(nat_w);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
     h.resize(4, 4, 160, 160);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
     lv_obj_update_layout(h.root());
     REQUIRE(mode_now() == static_cast<int>(CalloutMode::Pinned));

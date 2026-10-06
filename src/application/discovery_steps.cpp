@@ -61,8 +61,8 @@ void set_hardware_step(DiscoveryContext& ctx) {
     get_printer_state().set_hardware(std::move(ctx.snapshot));
     crash_handler::breadcrumb::note("disc", "post_set_hw", ctx.n);
     const auto& fans = ctx.hw.fans();
-    get_printer_state().init_fans(fans, FanRoleConfig::from_config(Config::get_instance(), fans),
-                                  ctx.hw.fan_max_power());
+    get_printer_state().fan_state().init_fans(
+        fans, FanRoleConfig::from_config(Config::get_instance(), fans), ctx.hw.fan_max_power());
     crash_handler::breadcrumb::note("disc", "post_init_fans", static_cast<long>(fans.size()));
 }
 
@@ -189,7 +189,8 @@ void acknowledge_deferred_hardware_step(DiscoveryContext& ctx) {
 void validate_hardware_step(DiscoveryContext& ctx) {
     ctx.validator.emplace();
     auto validation_result = ctx.validator->validate(Config::get_instance(), ctx.hw);
-    get_printer_state().set_hardware_validation_result(validation_result);
+    get_printer_state().hardware_validation_state().set_hardware_validation_result(
+        validation_result);
     if (validation_result.has_issues() && ctx.hw_changed &&
         !Config::get_instance()->is_wizard_required() && !is_wizard_active()) {
         ctx.validator->notify_user(validation_result);
@@ -238,7 +239,7 @@ void safety_limits_step(DiscoveryContext& ctx) {
             float bed_x_max = api_ptr->hardware().build_volume().x_max;
             ui::queue_update("discovery_steps::safety_limits_step", [bed_x_max]() {
                 ThermalRateManager::instance().apply_archetype_defaults(
-                    bed_x_max, get_printer_state().get_printer_type());
+                    bed_x_max, get_printer_state().profile_state().printer_type());
             });
 
             // Record hardware profile after build volume is populated
@@ -293,7 +294,8 @@ void manual_probe_autoopen_step(DiscoveryContext& ctx) {
     lv_obj_t* screen = ctx.screen;
     ui::queue_update("discovery_steps::manual_probe_autoopen_step", [api, screen]() {
         auto& ps = get_printer_state();
-        int probe_active = lv_subject_get_int(ps.get_manual_probe_active_subject());
+        int probe_active =
+            lv_subject_get_int(ps.calibration_state().get_manual_probe_active_subject());
         spdlog::info("[Application] Checking manual_probe at startup: is_active={}", probe_active);
         if (probe_active == 1) {
             spdlog::info("[Application] Manual probe active at startup, auto-opening "

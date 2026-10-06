@@ -39,7 +39,8 @@ class BusyGuardApiFixture : public helix::BusyGuardFixture {};
 /// Stage the print-start phase the way a live collector publish would (the
 /// subject write is what is_in_print_start() reads).
 void set_print_start_phase(PrinterState& state, PrintStartPhase phase) {
-    lv_subject_set_int(state.get_print_start_phase_subject(), static_cast<int>(phase));
+    lv_subject_set_int(state.print_state().get_print_start_phase_subject(),
+                       static_cast<int>(phase));
 }
 
 } // namespace
@@ -273,7 +274,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     set_print_state(PrintJobState::PRINTING);
     REQUIRE_FALSE(state.is_external_blocking_operation_active()); // the bypass this pins
     set_print_start_phase(state, PrintStartPhase::HOMING);
-    REQUIRE(state.is_in_print_start());
+    REQUIRE(state.print_state().is_in_print_start());
 
     int success_calls = 0;
     int queued_calls = 0;
@@ -296,7 +297,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     REQUIRE(mock_client.gcode_script_history().size() == 2);
 
     // One toast per episode: the first send claimed it, the second claims nothing.
-    CHECK_FALSE(state.claim_busy_queue_toast());
+    CHECK_FALSE(state.calibration_state().claim_busy_queue_toast());
 }
 
 TEST_CASE_METHOD(BusyGuardApiFixture,
@@ -308,22 +309,22 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // First benign command of the episode claims the once-per-episode toast.
     api->execute_gcode("M106 S128", nullptr, [this](const MoonrakerError& err) { error_cb(err); });
     CHECK_FALSE(error_called);
-    CHECK_FALSE(state.claim_busy_queue_toast());
+    CHECK_FALSE(state.calibration_state().claim_busy_queue_toast());
 
     // Status keeps flowing while the START macro is still inside the gcode lock.
     // print_stats PRINTING keeps the composite blocking predicate clear, so the
     // latch must key on the print-start arm here or it re-arms mid-episode and
     // every status tick buys back a toast.
     state.update_from_status(nlohmann::json{{"idle_timeout", {{"state", "Printing"}}}});
-    CHECK(state.is_in_print_start());
-    CHECK_FALSE(state.claim_busy_queue_toast());
+    CHECK(state.print_state().is_in_print_start());
+    CHECK_FALSE(state.calibration_state().claim_busy_queue_toast());
 
     // The collector stops, the phase returns to IDLE, and the next status update
     // re-arms the latch so a later episode can announce itself again.
     set_print_start_phase(state, PrintStartPhase::IDLE);
     state.update_from_status(nlohmann::json{{"idle_timeout", {{"state", "Printing"}}}});
-    CHECK_FALSE(state.is_in_print_start());
-    CHECK(state.claim_busy_queue_toast());
+    CHECK_FALSE(state.print_state().is_in_print_start());
+    CHECK(state.calibration_state().claim_busy_queue_toast());
 }
 
 TEST_CASE_METHOD(BusyGuardApiFixture,
@@ -372,7 +373,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // not sent to wait out the macro.
     set_print_state(PrintJobState::PRINTING);
     set_print_start_phase(state, PrintStartPhase::HOMING);
-    REQUIRE(state.is_in_print_start());
+    REQUIRE(state.print_state().is_in_print_start());
 
     api->motion().move_axis('X', 10.0, 6000.0, nullptr,
                             [this](const MoonrakerError& err) { error_cb(err); });
@@ -383,7 +384,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
 
     // Phase back to IDLE (mid-print tweaks): the same jog goes through.
     set_print_start_phase(state, PrintStartPhase::IDLE);
-    REQUIRE_FALSE(state.is_in_print_start());
+    REQUIRE_FALSE(state.print_state().is_in_print_start());
     error_called = false;
     mock_client.clear_gcode_script_history();
 
@@ -405,7 +406,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // job — would never fire. The bypass keeps the launch send synchronous.
     set_print_state(PrintJobState::PRINTING);
     set_print_start_phase(state, PrintStartPhase::HOMING);
-    REQUIRE(state.is_in_print_start());
+    REQUIRE(state.print_state().is_in_print_start());
 
     int success_calls = 0;
     int queued_calls = 0;
@@ -448,7 +449,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // print-start case above.)
     set_print_state(PrintJobState::PRINTING);
     set_print_start_phase(state, PrintStartPhase::HOMING);
-    REQUIRE(state.is_in_print_start());
+    REQUIRE(state.print_state().is_in_print_start());
 
     api->execute_gcode("SET_LED LED=my_leds RED=1.0 GREEN=1.0 BLUE=1.0 SYNC=0 TRANSMIT=1", nullptr,
                        nullptr, /*timeout_ms=*/0, /*silent=*/true);
@@ -456,7 +457,7 @@ TEST_CASE_METHOD(BusyGuardApiFixture,
     // Fire-and-forget to Klipper, but the toast latch is still armed: this claim
     // succeeds only because the silent send took nothing.
     REQUIRE(mock_client.last_send_method() == "printer.gcode.script");
-    CHECK(state.claim_busy_queue_toast());
+    CHECK(state.calibration_state().claim_busy_queue_toast());
 }
 
 // ============================================================================

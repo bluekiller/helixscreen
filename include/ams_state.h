@@ -1602,6 +1602,23 @@ class AmsState {
      */
     void set_action(AmsAction action);
 
+    /**
+     * @brief Keep the current action through backend silence for up to @p budget
+     *
+     * For a UI-started operation on a backend that publishes nothing until its
+     * firmware starts: while held, a sync that finds the backend IDLE leaves the
+     * current action alone. The first busy action the backend reports takes over
+     * and ends the hold, so its own IDLE at the end then resolves the operation.
+     * Calling again restarts the budget. Main thread only.
+     */
+    void hold_optimistic_action(std::chrono::milliseconds budget);
+
+    /// @brief End a hold_optimistic_action() early; the next sync copies the backend.
+    void release_optimistic_action();
+
+    /// @brief Whether a hold_optimistic_action() is in force. Main thread only.
+    [[nodiscard]] bool optimistic_action_held() const;
+
     /// @brief Subject holding the current toolchange narration phase index (-1 = none).
     lv_subject_t* get_toolchange_step_subject() {
         return &toolchange_step_;
@@ -1863,6 +1880,8 @@ class AmsState {
     /// Copy of ams_action_ for readers off the main thread. Every write to the
     /// subject updates it.
     std::atomic<AmsAction> action_mirror_{AmsAction::IDLE};
+    /// Deadline of the hold_optimistic_action() in force. Main thread only.
+    std::optional<std::chrono::steady_clock::time_point> optimistic_action_until_;
     /// Granular load/unload sub-phase (-1=none, 0=Home, 1=Select, 2=Heat,
     /// 3=Move). Snapmaker U1 only; registered with subjects_.
     lv_subject_t ams_operation_phase_{};

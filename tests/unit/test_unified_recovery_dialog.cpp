@@ -573,7 +573,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - SHUTDOWN shows state_mess
     const std::string error_msg = "flashforge_loadcell: Max force exceeded. Last weight was: 912g\n"
                                   "Once the underlying issue is corrected, use the\n"
                                   "\"FIRMWARE_RESTART\" command to reset the firmware.";
-    ps.set_klippy_state_message(error_msg);
+    ps.network_state().set_klippy_state_message(error_msg);
 
     // Trigger SHUTDOWN recovery dialog — the dialog content is set in the
     // async callback which reads printer_state_->get_klippy_state_message()
@@ -598,7 +598,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     estop.init(ps, nullptr);
 
     // Ensure no stale state_message from previous test
-    ps.set_klippy_state_message("");
+    ps.network_state().set_klippy_state_message("");
 
     // No state_message set — should show generic text
     estop.show_recovery_for(RecoveryReason::SHUTDOWN);
@@ -621,7 +621,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - DISCONNECTED ignores stat
     estop.init(ps, nullptr);
 
     // Even with a state_message set, DISCONNECTED should show its own text
-    ps.set_klippy_state_message("some error");
+    ps.network_state().set_klippy_state_message("some error");
 
     estop.show_recovery_for(RecoveryReason::DISCONNECTED);
     process_lvgl(50);
@@ -668,7 +668,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - pure JSON state_message s
     auto& ps = get_printer_state();
     estop.init(ps, nullptr);
 
-    ps.set_klippy_state_message(
+    ps.network_state().set_klippy_state_message(
         R"({"code":"key1", "msg":"Internal error during ready callback: No active exception to reraise"})");
 
     estop.show_recovery_for(RecoveryReason::SHUTDOWN);
@@ -698,7 +698,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - embedded JSON state_messa
 
     // K2 shape: prose prefix with the envelope spliced in after a bang. key9001 is
     // deliberately absent from the CFS table, so this exercises the plain msg path.
-    ps.set_klippy_state_message(
+    ps.network_state().set_klippy_state_message(
         R"(Internal error during connect: !{"code":"key9001","msg":"MCU 'mcu' shutdown"})");
 
     estop.show_recovery_for(RecoveryReason::SHUTDOWN);
@@ -724,7 +724,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - known CFS code gets curat
     // key298 has a CFS_ERROR_TABLE entry, so the decoder replaces Klipper's terse msg
     // with the curated message + recovery hint. That substitution is the point of
     // routing through clean_error_text() rather than reimplementing a JSON strip.
-    ps.set_klippy_state_message(R"({"code":"key298","msg":"MCU 'mcu' shutdown"})");
+    ps.network_state().set_klippy_state_message(R"({"code":"key298","msg":"MCU 'mcu' shutdown"})");
 
     estop.show_recovery_for(RecoveryReason::SHUTDOWN);
     process_lvgl(100);
@@ -749,7 +749,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - plain-prose state_message
 
     // Guards against an over-eager decoder mangling the common non-JSON case.
     const std::string prose = "flashforge_loadcell: Max force exceeded. Last weight was: 912g";
-    ps.set_klippy_state_message(prose);
+    ps.network_state().set_klippy_state_message(prose);
 
     estop.show_recovery_for(RecoveryReason::SHUTDOWN);
     process_lvgl(100);
@@ -773,7 +773,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - truncated JSON falls back
 
     // Unterminated envelope: brace-balancing never closes. The user must still see
     // something, so the raw string is shown rather than an empty dialog.
-    ps.set_klippy_state_message(R"({"code":"key1", "msg":"No active exception to reraise)");
+    ps.network_state().set_klippy_state_message(
+        R"({"code":"key1", "msg":"No active exception to reraise)");
 
     estop.show_recovery_for(RecoveryReason::SHUTDOWN);
     process_lvgl(100);

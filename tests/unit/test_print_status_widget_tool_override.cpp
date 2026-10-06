@@ -45,7 +45,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Tool override: pinned reads per-tool subject
     ps.init_subjects(false);
 
     // Register extruder + extruder1 so dynamic subjects exist
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
 
     lv_subject_set_int(ts.get_tool_count_subject(), 2);
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
@@ -54,10 +54,11 @@ TEST_CASE_METHOD(HelixTestFixture, "Tool override: pinned reads per-tool subject
 
     // Seed per-tool and active-extruder subjects with distinct values
     SubjectLifetime lt;
-    auto* e1_temp = ps.get_extruder_temp_subject("extruder1", lt);
+    auto* e1_temp = ps.temperature_state().get_extruder_temp_subject("extruder1", lt);
     REQUIRE(e1_temp != nullptr);
-    lv_subject_set_int(e1_temp, 25000);                               // 250 °C
-    lv_subject_set_int(ps.get_active_extruder_temp_subject(), 19000); // 190 °C (distinct)
+    lv_subject_set_int(e1_temp, 25000); // 250 °C
+    lv_subject_set_int(ps.temperature_state().get_active_extruder_temp_subject(),
+                       19000); // 190 °C (distinct)
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     // Pin the formatter to extruder1
@@ -86,7 +87,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Tool override: stale pin falls back to auto"
 
     // Pin to a ghost extruder that doesn't exist — should fall back to auto
     PrintStatusWidget::set_nozzle_tool_override_for_test("extruder7_ghost");
-    lv_subject_set_int(ps.get_active_extruder_temp_subject(), 12345); // 123 °C
+    lv_subject_set_int(ps.temperature_state().get_active_extruder_temp_subject(), 12345); // 123 °C
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     auto* nozzle_sub = lv_xml_get_subject(nullptr, "print_status_nozzle_text");
@@ -197,7 +198,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Nozzle picker: rows come from the discovered
     auto& ts = ToolState::instance();
     PrinterState& ps = get_printer_state();
     reset_state_for_tool_gate(ts, ps);
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
 
     auto disc = discovery_with({"extruder", "extruder1", "heater_bed"});
     ts.init_tools(disc);
@@ -264,7 +265,7 @@ TEST_CASE_METHOD(HelixTestFixture, "Nozzle picker: a rejected override is not pe
     auto& ts = ToolState::instance();
     PrinterState& ps = get_printer_state();
     reset_state_for_tool_gate(ts, ps);
-    ps.init_extruders({"extruder", "extruder1"});
+    ps.temperature_state().init_extruders({"extruder", "extruder1"});
     UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
 
     FormatterScope fs;

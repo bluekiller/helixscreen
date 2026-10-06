@@ -41,11 +41,11 @@ WebcamInfo mjpeg(const std::string& name, const std::string& path) {
 /// to "no webcam" on the way out so a later test starts from what it expects.
 struct WebcamListScope {
     explicit WebcamListScope(std::vector<WebcamInfo> cams) {
-        get_printer_state().set_webcams(std::move(cams));
+        get_printer_state().capabilities_state().set_webcams(std::move(cams));
         helix::ui::UpdateQueue::instance().drain();
     }
     ~WebcamListScope() {
-        get_printer_state().set_webcam_available(false);
+        get_printer_state().capabilities_state().set_webcam_available(false);
         helix::ui::UpdateQueue::instance().drain();
     }
 };

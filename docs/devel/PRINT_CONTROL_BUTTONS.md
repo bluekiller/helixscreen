@@ -175,7 +175,7 @@ Icon constants: `CONTROL_ICON_PAUSE`, `CONTROL_ICON_PLAY`, `CONTROL_ICON_HOURGLA
 
 ```cpp
 print_state_observer_ = observe<int>(
-    get_printer_state().get_print_state_enum_subject(), this,
+    get_printer_state().print_state().get_print_state_enum_subject(), this,
     [](PrintControlButtons* self, int) {
         if (self->pending_action_ != PendingAction::None)
             self->clear_pending_action();  // a real transition supersedes the optimistic state

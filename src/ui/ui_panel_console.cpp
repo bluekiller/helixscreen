@@ -100,7 +100,7 @@ void ConsolePanel::rebuild_firmware_filter() {
 }
 
 void ConsolePanel::load_firmware_filter(helix::ui::ConsoleFilterEngine& filter) {
-    const std::string& printer = get_printer_state().get_printer_type();
+    const std::string& printer = get_printer_state().profile_state().printer_type();
     filter.clear();
 
     auto preset = PrinterDetector::get_console_filter_patterns(printer);

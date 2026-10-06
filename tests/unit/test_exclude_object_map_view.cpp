@@ -265,10 +265,10 @@ void seed_objects(helix::PrinterExcludedObjectsState& st) {
 TEST_CASE_METHOD(XMLTestFixture, "ExcludeObjectMapView create/destroy roundtrip is crash-free",
                  "[exclude_map][lifecycle]") {
     REQUIRE(register_component("components/exclude_object_map"));
-    seed_objects(*state().get_excluded_objects_state());
+    seed_objects(state().excluded_objects_state());
 
     auto view = std::make_unique<ExcludeObjectMapView>();
-    view->create(test_screen(), state().get_excluded_objects_state(), 235.0f, 235.0f,
+    view->create(test_screen(), &state().excluded_objects_state(), 235.0f, 235.0f,
                  /*exclude_manager=*/nullptr, /*parsed_file=*/nullptr);
     REQUIRE(view->is_active());
 
@@ -298,13 +298,13 @@ TEST_CASE_METHOD(XMLTestFixture,
                  "ExcludeObjectMapView destructor cleans up without explicit destroy",
                  "[exclude_map][lifecycle]") {
     REQUIRE(register_component("components/exclude_object_map"));
-    seed_objects(*state().get_excluded_objects_state());
+    seed_objects(state().excluded_objects_state());
 
     const uint32_t baseline_children = lv_obj_get_child_count(test_screen());
 
     {
         ExcludeObjectMapView view;
-        view.create(test_screen(), state().get_excluded_objects_state(), 200.0f, 200.0f, nullptr,
+        view.create(test_screen(), &state().excluded_objects_state(), 200.0f, 200.0f, nullptr,
                     nullptr);
         REQUIRE(view.is_active());
         REQUIRE(lv_obj_get_child_count(test_screen()) > baseline_children);

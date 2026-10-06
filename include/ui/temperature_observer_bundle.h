@@ -80,19 +80,19 @@ template <typename Panel> class TemperatureObserverBundle {
         const SubjectLifetime lifetime = state.get_subjects_lifetime();
 
         nozzle_temp_observer_ =
-            observe<int>(state.get_active_extruder_temp_subject(), panel,
+            observe<int>(state.temperature_state().get_active_extruder_temp_subject(), panel,
                          std::forward<NozzleTempHandler>(on_nozzle_temp), lifetime, dispatch);
 
         nozzle_target_observer_ =
-            observe<int>(state.get_active_extruder_target_subject(), panel,
+            observe<int>(state.temperature_state().get_active_extruder_target_subject(), panel,
                          std::forward<NozzleTargetHandler>(on_nozzle_target), lifetime, dispatch);
 
         bed_temp_observer_ =
-            observe<int>(state.get_bed_temp_subject(), panel,
+            observe<int>(state.temperature_state().get_bed_temp_subject(), panel,
                          std::forward<BedTempHandler>(on_bed_temp), lifetime, dispatch);
 
         bed_target_observer_ =
-            observe<int>(state.get_bed_target_subject(), panel,
+            observe<int>(state.temperature_state().get_bed_target_subject(), panel,
                          std::forward<BedTargetHandler>(on_bed_target), lifetime, dispatch);
     }
 
@@ -116,9 +116,10 @@ template <typename Panel> class TemperatureObserverBundle {
 
         // Per-extruder subjects are dynamic — require SubjectLifetime tokens
         // to prevent use-after-free when subjects are reinitialized on reconnect.
-        auto* temp_subj = state.get_extruder_temp_subject(extruder_name, nozzle_temp_lifetime_);
-        auto* target_subj =
-            state.get_extruder_target_subject(extruder_name, nozzle_target_lifetime_);
+        auto* temp_subj = state.temperature_state().get_extruder_temp_subject(
+            extruder_name, nozzle_temp_lifetime_);
+        auto* target_subj = state.temperature_state().get_extruder_target_subject(
+            extruder_name, nozzle_target_lifetime_);
 
         if (temp_subj) {
             nozzle_temp_observer_ =

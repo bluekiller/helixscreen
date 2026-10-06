@@ -364,6 +364,8 @@ void AmsState::clear_backends() {
     // per-slot stamps index the departing backend's slots; kept, they would
     // suppress a real runout on the same index of the next backend.
     runout_grace_.reset();
+    // A hold describes an operation on the departing backend.
+    optimistic_action_until_.reset();
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().
@@ -594,6 +596,14 @@ void AmsState::sync_system_subjects(const AmsSystemInfo& info) {
     int new_filament_system = is_filament_system(info.type) ? 1 : 0;
     lv_subject_set_int(&ams_is_filament_system_, new_filament_system);
     int new_action = static_cast<int>(info.action);
+    if (optimistic_action_until_) {
+        if (info.action != AmsAction::IDLE ||
+            std::chrono::steady_clock::now() >= *optimistic_action_until_) {
+            optimistic_action_until_.reset();
+        } else {
+            new_action = lv_subject_get_int(&ams_action_);
+        }
+    }
     // One-shot runout grace. An unload ends with the filament deliberately
     // dragged off the toolhead sensor, and that empty reading is the operation
     // working, not a runout — but is_filament_operation_active() only covers
@@ -610,7 +620,7 @@ void AmsState::sync_system_subjects(const AmsSystemInfo& info) {
                             static_cast<AmsAction>(new_action));
     if (lv_subject_get_int(&ams_action_) != new_action) {
         spdlog::debug("[AmsState] sync_from_backend: action changed to {} ({})", new_action,
-                      ams_action_to_string(info.action));
+                      ams_action_to_string(static_cast<AmsAction>(new_action)));
         lv_subject_set_int(&ams_action_, new_action);
         action_mirror_.store(static_cast<AmsAction>(new_action), std::memory_order_relaxed);
     }
@@ -696,7 +706,7 @@ void AmsState::sync_filament_runout(const AmsSystemInfo& info) {
     // RAW_PRINT_STATE_OK: the edge must be witnessed while the printer is
     // actually running the job. Arming it during Preparing would light the
     // warning for a latch raised before any material moved.
-    const PrintJobState job_state = get_printer_state().get_print_job_state();
+    const PrintJobState job_state = get_printer_state().print_state().get_print_job_state();
     const bool paused = job_state == PrintJobState::PAUSED;
     const bool job_running = paused || job_state == PrintJobState::PRINTING;
 
@@ -1212,12 +1222,16 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
     spdlog::trace("[AMS State] Received event '{}' data='{}' from backend {}", event, data,
                   backend_index);
 
-    auto queue_sync = [backend_index](bool full_sync, int slot_index) {
+    auto queue_sync = [backend_index](bool full_sync, int slot_index, bool ends_operation = false) {
         helix::ui::queue_update(
-            "AmsState::on_backend_event", [backend_index, full_sync, slot_index]() {
+            "AmsState::on_backend_event", [backend_index, full_sync, slot_index, ends_operation]() {
                 // Skip if shutdown is in progress - AmsState singleton may be destroyed
                 if (ams_state_detail::shutting_down()) {
                     return;
+                }
+
+                if (ends_operation && backend_index == 0) {
+                    AmsState::instance().release_optimistic_action();
                 }
 
                 if (full_sync) {
@@ -1258,8 +1272,9 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
         // These events indicate state change, sync everything
         queue_sync(true, -1);
     } else if (event == AmsBackend::EVENT_ERROR) {
-        // Error occurred, sync to get error state
-        queue_sync(true, -1);
+        // Error occurred, sync to get error state. An error ends the operation,
+        // so an optimistic action held over the backend's silence ends with it.
+        queue_sync(true, -1, /*ends_operation=*/true);
         spdlog::warn("[AMS State] Backend error - {}", data);
     } else if (event == AmsBackend::EVENT_ATTENTION_REQUIRED) {
         // User intervention needed
@@ -1386,7 +1401,7 @@ void AmsState::recompute_action_detail() {
         // is no such translation key yet and this is the lowest-priority
         // fallback in the chain - the AmsAction string wins whenever the AMS is
         // doing anything at all.
-        auto print_state = get_printer_state().get_print_job_state();
+        auto print_state = get_printer_state().print_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
             new_detail = lv_tr("Printing now");
@@ -1430,6 +1445,21 @@ void AmsState::set_action(AmsAction action) {
         // LOADING → IDLE while still printing should flip "Loading" → "Printing").
         recompute_action_detail();
     }
+}
+
+void AmsState::hold_optimistic_action(std::chrono::milliseconds budget) {
+    assert_main_thread();
+    optimistic_action_until_ = std::chrono::steady_clock::now() + budget;
+}
+
+void AmsState::release_optimistic_action() {
+    assert_main_thread();
+    optimistic_action_until_.reset();
+}
+
+bool AmsState::optimistic_action_held() const {
+    assert_main_thread();
+    return optimistic_action_until_.has_value();
 }
 
 void AmsState::set_active_step_operation(StepOperationType op) {

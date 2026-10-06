@@ -403,11 +403,12 @@ TEST_CASE("plugin-only objects and fields in a status frame leave app state alon
 
     state.update_from_status({{"extruder", {{"temperature", 210.0}, {"target", 215.0}}}});
     helix::ui::UpdateQueue::instance().drain();
-    const int temp = lv_subject_get_int(state.get_active_extruder_temp_subject());
+    const int temp =
+        lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject());
     REQUIRE(temp == 2100);
 
     state.update_from_status({{"temperature_sensor plugin_x", {{"temperature", 51.0}}},
                               {"extruder", {{"pressure_advance", 0.04}}}});
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(lv_subject_get_int(state.get_active_extruder_temp_subject()) == temp);
+    CHECK(lv_subject_get_int(state.temperature_state().get_active_extruder_temp_subject()) == temp);
 }

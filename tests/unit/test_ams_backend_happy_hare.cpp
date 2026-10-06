@@ -20,6 +20,7 @@
 #include "recovery_modal_presenter.h"
 #include "spoolman_types.h"
 #include "test_helpers/backend_user_edit.h"
+#include "test_helpers/gcode_recording_api.h"
 #include "test_helpers/happy_hare_test_access.h"
 #include "test_helpers/print_state_test_drivers.h"
 #include "test_helpers/registered_backend.h"
@@ -1111,7 +1112,10 @@ TEST_CASE("Happy Hare endless spool is read-only on multi-unit",
 // decision layer that DID refuse -2 was fixed by teaching it the sentinel is a
 // real target. This asserts the backend half of that contract.
 TEST_CASE("Happy Hare unload_filament under bypass sends MMU_UNLOAD", "[ams][happy_hare][bypass]") {
-    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    MoonrakerClientMock client;
+    helix::PrinterState state;
+    helix::test::GcodeRecordingApi api{client, state};
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(&api);
     AmsBackendHappyHareTestHelper& helper = *helper_reg;
     helper.initialize_test_gates(4);
     helper.set_running(true);
@@ -1121,7 +1125,8 @@ TEST_CASE("Happy Hare unload_filament under bypass sends MMU_UNLOAD", "[ams][hap
     auto result = helper.unload_filament(-2);
 
     REQUIRE(result.success());
-    REQUIRE(helper.has_gcode_containing("MMU_UNLOAD"));
+    helix::ui::UpdateQueue::instance().drain(); // a pre-op G28 hands off on the queue
+    REQUIRE(api.contains("MMU_UNLOAD"));
 }
 
 TEST_CASE("Happy Hare unload_filament under bypass still refuses an empty toolhead",

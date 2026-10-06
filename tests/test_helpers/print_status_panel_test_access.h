@@ -77,7 +77,7 @@ class PrintStatusPanelTestAccess {
     /// rather than by the panel. Still reached through the panel so the cases
     /// that assert it keep reading it from the object under test.
     static const std::string& identity_override(const PrintStatusPanel& panel) {
-        return panel.printer_state_.get_print_identity_override();
+        return panel.printer_state_.print_state().get_print_identity_override();
     }
 
     static const std::string& current_print_filename(const PrintStatusPanel& panel) {

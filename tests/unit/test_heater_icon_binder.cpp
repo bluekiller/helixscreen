@@ -138,8 +138,8 @@ TEST_CASE_METHOD(XMLTestFixture,
         lv_obj_t* icon = lv_obj_find_by_name(root, name);
         REQUIRE(icon != nullptr);
 
-        lv_subject_set_int(state().get_active_extruder_temp_subject(), 250);
-        lv_subject_set_int(state().get_active_extruder_target_subject(), 2000);
+        lv_subject_set_int(state().temperature_state().get_active_extruder_temp_subject(), 250);
+        lv_subject_set_int(state().temperature_state().get_active_extruder_target_subject(), 2000);
 
         HeaterIconBinder binder;
         REQUIRE(binder.bind(root, state(), HeaterType::Nozzle));
@@ -155,8 +155,8 @@ TEST_CASE_METHOD(XMLTestFixture,
         lv_obj_t* icon = lv_obj_find_by_name(root, name);
         REQUIRE(icon != nullptr);
 
-        lv_subject_set_int(state().get_bed_temp_subject(), 250);
-        lv_subject_set_int(state().get_bed_target_subject(), 2000);
+        lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 250);
+        lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 2000);
 
         HeaterIconBinder binder;
         REQUIRE(binder.bind(root, state(), HeaterType::Bed));
@@ -172,8 +172,9 @@ TEST_CASE_METHOD(XMLTestFixture,
         lv_obj_t* icon = lv_obj_find_by_name(root, name);
         REQUIRE(icon != nullptr);
 
-        lv_subject_set_int(state().get_chamber_temp_subject(), 250);
-        lv_subject_set_int(state().get_chamber_effective_target_subject(), 2000);
+        lv_subject_set_int(state().temperature_state().get_chamber_temp_subject(), 250);
+        lv_subject_set_int(state().temperature_state().get_chamber_effective_target_subject(),
+                           2000);
 
         HeaterIconBinder binder;
         REQUIRE(binder.bind(root, state(), HeaterType::Chamber));
@@ -208,8 +209,8 @@ TEST_CASE_METHOD(
     lv_obj_t* icon = lv_obj_find_by_name(root, name);
     REQUIRE(icon != nullptr);
 
-    lv_subject_t* current = state().get_active_extruder_temp_subject();
-    lv_subject_t* target = state().get_active_extruder_target_subject();
+    lv_subject_t* current = state().temperature_state().get_active_extruder_temp_subject();
+    lv_subject_t* target = state().temperature_state().get_active_extruder_target_subject();
     lv_subject_set_int(current, 250);
     lv_subject_set_int(target, 0); // Off
 
@@ -240,8 +241,8 @@ TEST_CASE_METHOD(XMLTestFixture,
     REQUIRE(icon_a != nullptr);
     REQUIRE(icon_b != nullptr);
 
-    lv_subject_t* current = state().get_bed_temp_subject();
-    lv_subject_t* target = state().get_bed_target_subject();
+    lv_subject_t* current = state().temperature_state().get_bed_temp_subject();
+    lv_subject_t* target = state().temperature_state().get_bed_target_subject();
     lv_subject_set_int(current, 250);
     lv_subject_set_int(target, 0); // Off
 
@@ -278,9 +279,9 @@ TEST_CASE_METHOD(XMLTestFixture,
     lv_obj_t* icon = lv_obj_find_by_name(root, name);
     REQUIRE(icon != nullptr);
 
-    lv_subject_set_int(state().get_chamber_temp_subject(), 250);
-    lv_subject_set_int(state().get_chamber_target_subject(), 0);
-    lv_subject_set_int(state().get_chamber_effective_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_chamber_temp_subject(), 250);
+    lv_subject_set_int(state().temperature_state().get_chamber_target_subject(), 0);
+    lv_subject_set_int(state().temperature_state().get_chamber_effective_target_subject(), 0);
 
     HeaterIconBinder binder;
     REQUIRE(binder.bind(root, state(), HeaterType::Chamber));
@@ -291,12 +292,12 @@ TEST_CASE_METHOD(XMLTestFixture,
     // herring here. If bind() ever observed get_chamber_target_subject()
     // instead of get_chamber_effective_target_subject(), this change would
     // (wrongly) leave the icon looking Off.
-    lv_subject_set_int(state().get_chamber_target_subject(), 2000);
+    lv_subject_set_int(state().temperature_state().get_chamber_target_subject(), 2000);
     UpdateQueue::instance().drain();
     REQUIRE(lv_color_eq(icon_text_color(icon), expected_color(250, 0))); // still Off — unobserved
 
     // The effective target is the one that must actually drive the icon.
-    lv_subject_set_int(state().get_chamber_effective_target_subject(), 2000);
+    lv_subject_set_int(state().temperature_state().get_chamber_effective_target_subject(), 2000);
     UpdateQueue::instance().drain();
     REQUIRE(lv_color_eq(icon_text_color(icon), expected_color(250, 2000))); // Heating
 
@@ -377,8 +378,8 @@ TEST_CASE_METHOD(
     REQUIRE(icon_a != nullptr);
     REQUIRE(icon_b != nullptr);
 
-    lv_subject_t* current = state().get_bed_temp_subject();
-    lv_subject_t* target = state().get_bed_target_subject();
+    lv_subject_t* current = state().temperature_state().get_bed_temp_subject();
+    lv_subject_t* target = state().temperature_state().get_bed_target_subject();
     lv_subject_set_int(current, 250);
     lv_subject_set_int(target, 0); // Off
 

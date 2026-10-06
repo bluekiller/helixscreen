@@ -100,6 +100,7 @@ struct BackendTraits {
     bool printer_reports_spool_ids = false;
     bool recovers_filament_on_resume = false;
     bool has_environment_sensors = false;
+    bool holds_optimistic_action = false;
 
     // All-bool with no padding, so the bytes are the value.
     bool operator==(const BackendTraits& o) const {
@@ -2871,6 +2872,20 @@ class AmsBackend {
      */
     [[nodiscard]] bool supports_auto_heat_on_load() const {
         return traits().supports_auto_heat_on_load;
+    }
+
+    /**
+     * @brief Whether the UI's optimistic action must outlive this backend's IDLE
+     *
+     * True for a backend that publishes nothing between the user starting a
+     * load or unload and its firmware starting it: no action at dispatch and
+     * none through the UI preheat. The sidebar then holds its action
+     * (AmsState::hold_optimistic_action) until the backend reports one, errors,
+     * or the hold's budget runs out. A backend that sets its own action at
+     * dispatch, or projects it from a phase model, leaves this false.
+     */
+    [[nodiscard]] bool holds_optimistic_action() const {
+        return traits().holds_optimistic_action;
     }
 
     /**

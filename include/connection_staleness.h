@@ -43,7 +43,7 @@ template <typename Cache>
 [[nodiscard]] ObserverGuard observe_connection_staleness(PrinterState& state, Cache* cache,
                                                          const char* tag) {
     return helix::ui::observe<int>(
-        state.get_printer_connection_state_subject(), cache,
+        state.network_state().get_printer_connection_state_subject(), cache,
         [tag](Cache* self, int conn_state) {
             // No previous-state tracking: marking stale is idempotent, so
             // re-firing on CONNECTING or RECONNECTING costs nothing and is

@@ -43,7 +43,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "emergency_stop_and_restart sends M112 then a 
     get_printer_state().init_subjects(false);
     get_printer_state().set_klippy_state_sync(helix::KlippyState::READY);
     REQUIRE(static_cast<helix::KlippyState>(lv_subject_get_int(
-                get_printer_state().get_klippy_state_subject())) == helix::KlippyState::READY);
+                get_printer_state().network_state().get_klippy_state_subject())) ==
+            helix::KlippyState::READY);
 
     helix::emergency_stop_and_restart(&api, "Test");
 
@@ -60,9 +61,10 @@ TEST_CASE_METHOD(LVGLTestFixture, "emergency_stop_and_restart sends M112 then a 
         lv_tick_inc(5);
         lv_timer_handler_safe();
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        saw_shutdown = saw_shutdown || static_cast<helix::KlippyState>(lv_subject_get_int(
-                                           get_printer_state().get_klippy_state_subject())) ==
-                                           helix::KlippyState::SHUTDOWN;
+        saw_shutdown =
+            saw_shutdown || static_cast<helix::KlippyState>(lv_subject_get_int(
+                                get_printer_state().network_state().get_klippy_state_subject())) ==
+                                helix::KlippyState::SHUTDOWN;
         back_to_ready =
             saw_shutdown && client.get_klippy_state() == MoonrakerClientMock::KlippyState::READY;
     }

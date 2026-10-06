@@ -83,7 +83,8 @@ class SaveAvailableFixture : public LVGLTestFixture {
     }
 
     void set_firmware_auto_saves(bool auto_saves) {
-        lv_subject_set_int(get_printer_state().get_z_offset_can_save_subject(), auto_saves ? 0 : 1);
+        lv_subject_set_int(get_printer_state().profile_state().get_z_offset_can_save_subject(),
+                           auto_saves ? 0 : 1);
     }
 };
 

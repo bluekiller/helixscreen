@@ -1611,6 +1611,7 @@
   <translation tag="Load Filament" es="Cargar Filamento"/>
   <translation tag="Load a filament first before trying to unload" es="Cargue primero filamento antes de intentar descargar"/>
   <translation tag="Load a new spool in this slot, or turn on auto-refill to switch to a matching one" es="Cargue una bobina nueva en esta ranura, o active el rellenado automático para cambiar a una equivalente"/>
+  <translation tag="Load cancelled: nozzle target dropped" es="Carga cancelada: el objetivo de la boquilla bajó"/>
   <translation tag="Load complete" es="Carga completa"/>
   <translation tag="Load failed" es="Error al cargar"/>
   <translation tag="Load filament" es="Cargar filamento"/>

@@ -273,7 +273,7 @@ void PrintSelectPanel::init_subjects() {
 
     // Initialize can print subject (1 = can print, 0 = print in progress)
     // XML binding disables print button when value is 0
-    bool can_print = printer_state_.can_start_new_print();
+    bool can_print = printer_state_.print_state().can_start_new_print();
     UI_MANAGED_SUBJECT_INT(can_print_subject_, can_print ? 1 : 0, "print_select_can_print",
                            subjects_);
     UI_MANAGED_SUBJECT_INT(button_mode_subject_, 0, "print_select_button_mode", subjects_);
@@ -733,7 +733,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register observer on connection state to refresh files when printer connects
     // This handles the race condition where panel activates before WebSocket connection
     using helix::ui::observe;
-    lv_subject_t* connection_subject = printer_state_.get_printer_connection_state_subject();
+    lv_subject_t* connection_subject =
+        printer_state_.network_state().get_printer_connection_state_subject();
     if (connection_subject) {
         connection_observer_ = observe<int>(
             connection_subject, this,
@@ -776,7 +777,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // NOTE: get_print_state_enum_subject() is INT, get_print_state_subject() is STRING
     // RAW_PRINT_STATE_OK: pairs with the print_filename read below, which still
     // holds the PREVIOUS job during a preparing window.
-    lv_subject_t* print_state_subject = printer_state_.get_print_state_enum_subject();
+    lv_subject_t* print_state_subject = printer_state_.print_state().get_print_state_enum_subject();
     if (print_state_subject) {
         print_state_observer_ = observe<int>(
             print_state_subject, this,
@@ -789,7 +790,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Preparing, which the wire job state cannot express, so queue mode can
     // engage for the whole committed life of a job rather than from the first
     // progress frame on.
-    lv_subject_t* print_lifecycle_subject = printer_state_.get_print_lifecycle_subject();
+    lv_subject_t* print_lifecycle_subject =
+        printer_state_.print_state().get_print_lifecycle_subject();
     if (print_lifecycle_subject) {
         print_lifecycle_observer_ = observe<int>(
             print_lifecycle_subject, this,
@@ -799,7 +801,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Also observe print_in_progress subject - this fires immediately when Print is tapped
     // (before Moonraker reports state change, which can take seconds)
-    lv_subject_t* print_in_progress_subject = printer_state_.get_print_in_progress_subject();
+    lv_subject_t* print_in_progress_subject =
+        printer_state_.print_state().get_print_in_progress_subject();
     if (print_in_progress_subject) {
         print_in_progress_observer_ = observe<int>(
             print_in_progress_subject, this,
@@ -811,7 +814,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register observer on helix_plugin_installed to show install prompt when plugin not available
     // Subject uses tri-state: -1=unknown (pre-discovery), 0=not installed, 1=installed
     // Only show modal when explicitly 0 (after discovery confirms plugin is missing)
-    lv_subject_t* plugin_subject = printer_state_.get_helix_plugin_installed_subject();
+    lv_subject_t* plugin_subject =
+        printer_state_.plugin_status_state().get_helix_plugin_installed_subject();
     if (plugin_subject) {
         helix_plugin_observer_ = observe<int>(
             plugin_subject, this,
@@ -2450,9 +2454,9 @@ void PrintSelectPanel::merge_history_into_file_list() {
     // preparing window it still holds the PREVIOUS job. Widening this would
     // badge the wrong file rather than none. Badging the committed file would
     // mean reading preparing_job() instead, which is a feature, not this fold.
-    auto print_state = printer_state_.get_print_job_state();
+    auto print_state = printer_state_.print_state().get_print_job_state();
     if (printer_has_job(print_state)) {
-        if (auto* filename_subject = printer_state_.get_print_filename_subject()) {
+        if (auto* filename_subject = printer_state_.print_state().get_print_filename_subject()) {
             if (const char* filename = lv_subject_get_string(filename_subject);
                 filename && filename[0] != '\0') {
                 current_print_filename =
@@ -2495,8 +2499,8 @@ void PrintSelectPanel::update_print_button_state() {
     // Gather the decision inputs and let the pure view function decide; XML
     // bindings turn the subjects into button state, label and card visibility.
     helix::ui::PrintSelectButtonInputs inputs;
-    inputs.machine_busy = job_holds_machine(printer_state_.get_print_lifecycle());
-    inputs.print_start_committed = printer_state_.is_print_in_progress();
+    inputs.machine_busy = job_holds_machine(printer_state_.print_state().get_print_lifecycle());
+    inputs.print_start_committed = printer_state_.print_state().is_print_in_progress();
     inputs.job_queue_available = printer_state_.is_job_queue_available();
     inputs.queue_add_in_flight = queue_add_in_flight_;
     if (detail_view_) {
@@ -3161,7 +3165,7 @@ std::string PrintSelectPanel::composed_selected_filename() const {
 }
 
 void PrintSelectPanel::start_queued_job(const JobQueueEntry& job) {
-    if (!printer_state_.can_start_new_print()) {
+    if (!printer_state_.print_state().can_start_new_print()) {
         NOTIFY_WARNING(lv_tr("Printer is busy - {} stays in the queue"), job.filename);
         return;
     }
