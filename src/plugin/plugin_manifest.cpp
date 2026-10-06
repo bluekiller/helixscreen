@@ -182,16 +182,23 @@ void parse_setting(const std::string& id, const json& s, size_t index, Manifest&
         m.settings.push_back(std::move(d));
 }
 
-void span_field(const json& w, const char* key, int& out, int lo, std::vector<std::string>& local) {
+/// Reads a span written in cells into `out` in tracks. A widget with
+/// `half_cells` may write halves (1.5); any other must write whole cells.
+void span_field(const json& w, const char* key, int& out, int lo, bool half,
+                std::vector<std::string>& local) {
     auto it = w.find(key);
     if (it == w.end())
         return;
-    if (!it->is_number_integer() || it->get<int>() < lo || it->get<int>() > kMaxWidgetCells) {
-        local.push_back(std::string("'") + key + "' must be an integer from " + std::to_string(lo) +
-                        " to " + std::to_string(kMaxWidgetCells));
+    const double cells = it->is_number() ? it->get<double>() : -1;
+    const double tracks = cells * 2;
+    const bool on_step = half ? tracks == static_cast<int>(tracks) : it->is_number_integer();
+    if (!on_step || cells < lo || cells > kMaxWidgetCells) {
+        local.push_back(std::string("'") + key + "' must be " +
+                        (half ? "a whole or half number" : "an integer") + " from " +
+                        std::to_string(lo) + " to " + std::to_string(kMaxWidgetCells));
         return;
     }
-    out = it->get<int>();
+    out = static_cast<int>(tracks);
 }
 
 void parse_widgets(const json& arr, Manifest& m, std::vector<std::string>& errors) {
@@ -222,10 +229,16 @@ void parse_widgets(const json& arr, Manifest& m, std::vector<std::string>& error
             local.push_back("'id' must be named " + m.id + "__<name>");
         if (!d.component.empty() && !is_owned_name(m.id, d.component))
             local.push_back("'component' must be named " + m.id + "__<name>");
-        span_field(w, "colspan", d.colspan, 1, local);
-        span_field(w, "rowspan", d.rowspan, 1, local);
-        span_field(w, "max_colspan", d.max_colspan, 0, local);
-        span_field(w, "max_rowspan", d.max_rowspan, 0, local);
+        if (auto h = w.find("half_cells"); h != w.end()) {
+            if (h->is_boolean())
+                d.half_cells = h->get<bool>();
+            else
+                local.push_back("'half_cells' must be true or false");
+        }
+        span_field(w, "colspan", d.colspan, 1, d.half_cells, local);
+        span_field(w, "rowspan", d.rowspan, 1, d.half_cells, local);
+        span_field(w, "max_colspan", d.max_colspan, 0, d.half_cells, local);
+        span_field(w, "max_rowspan", d.max_rowspan, 0, d.half_cells, local);
         if (d.max_colspan != 0 && d.max_colspan < d.colspan)
             local.push_back("'max_colspan' must be 0 or at least 'colspan'");
         if (d.max_rowspan != 0 && d.max_rowspan < d.rowspan)
