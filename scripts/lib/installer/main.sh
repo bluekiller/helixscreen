@@ -16,22 +16,45 @@ _HELIX_MAIN_SOURCED=1
 # shellcheck disable=SC3047
 trap 'error_handler $LINENO' ERR 2>/dev/null || true
 
-# Remove the scratch dir however the installer ends.
+# Resolve the open step, keep the log and remove the scratch dir however the
+# installer ends.
 #
 # The ERR trap above is a bash extension and is silently discarded on the
 # ash/dash shells every embedded platform runs, so without this trap an
 # interrupted or failing install leaks the whole download - tens of megabytes
 # stranded on a partition that may only have a couple of hundred.
 #
-# cleanup_on_success is idempotent (it tests for the directory first) so the
-# explicit call on the success path is unaffected, and it routes through
-# _safe_remove_tmp_dir, which is what refuses to rm -rf a mountpoint.
-# A signal handler that returns resumes the script with its download gone, so
-# each signal exits with the shell's own 128+N status.
-trap 'cleanup_on_success' EXIT
-trap 'cleanup_on_success; exit 129' HUP
-trap 'cleanup_on_success; exit 130' INT
-trap 'cleanup_on_success; exit 143' TERM
+# The log lives in the scratch dir until finalize_install_log moves it, so the
+# failure report runs first. cleanup_on_success is idempotent (it tests for
+# the directory first) so the explicit call on the success path is
+# unaffected, and it routes through _safe_remove_tmp_dir, which is what
+# refuses to rm -rf a mountpoint. A signal handler that returns resumes the
+# script with its download gone, so each signal exits with the shell's own
+# 128+N status, and the EXIT trap then reports it.
+trap 'installer_exit_report $?; cleanup_on_success' EXIT
+trap 'step_fail interrupted; exit 129' HUP
+trap 'step_fail interrupted; exit 130' INT
+trap 'step_fail interrupted; exit 143' TERM
+
+# The failure block's closing lines, for a run that changed the machine (the
+# log opens at the confirm point) and then stopped: what state the rollback
+# paths left, and where the full log is.
+installer_exit_report() { # exit status
+    [ "$1" -ne 0 ] && [ -n "${INSTALL_LOG:-}" ] || return 0
+    step_fail
+    printf '\n' >&2
+    if [ -n "${INSTALL_COMPLETE:-}" ]; then
+        :
+    elif [ -z "${INSTALL_BACKUP:-}" ]; then
+        printf '%s\n' "Nothing on your printer was changed after this step." >&2
+    elif [ -d "$INSTALL_BACKUP" ]; then
+        printf '%s\n' "The previous install is kept at $INSTALL_BACKUP." >&2
+    else
+        printf '%s\n' "The previous install was put back." >&2
+    fi
+    finalize_install_log
+    printf '%s\n' "Full log: $(display_path "${INSTALL_LOG:-$(install_log_dest)}")" >&2
+}
 
 # Print usage
 usage() {
@@ -799,6 +822,14 @@ main() {
     detect_kiauh
 
     confirm_point "$platform" "$version"
+    apply_install
+}
+
+# Everything after the confirm point, as the steps plan_count_steps counted:
+# a step with nothing to do is skipped only under the same conditions that
+# left it out of the count, or the [n/N] numbering is wrong.
+apply_install() {
+    local libs uis seed_pid detail
 
     # The machine changes from here on.
     if [ "$platform" = "ad5m" ]; then
@@ -809,8 +840,12 @@ main() {
     if [ -n "${DISK_CHECK_DEFERRED:-}" ]; then
         check_disk_space "$platform"
     fi
+
+    libs=$(plan_missing_libs)
+    step "Installed libraries"
     install_missing_unzip
     install_runtime_deps "$platform"
+    if [ -n "$libs" ]; then step_done "$libs"; else step_skip; fi
 
     # Download/stage the release archive BEFORE any step that modifies the
     # running printer (stock-UI disable, competing-UI shutdown, old-install
@@ -819,18 +854,28 @@ main() {
     # download also needs the network, and stopping UIs can take it away
     # (e.g. Snapmaker U1's stock GUI owns wpa_supplicant, so restarting it
     # drops WiFi/SSH mid-update).
+    step "Downloaded"
     if [ -n "$local_tarball" ]; then
         use_local_tarball "$local_tarball"
     else
         download_release "$version" "$download_platform"
     fi
+    detail=$(file_size_text "$(_archive_tmp_path)")
+    if [ -n "${ARCHIVE_SHA256_VERIFIED:-}" ]; then
+        detail="${detail:+$detail$(_plan_sep)}SHA256 verified"
+    fi
+    step_done "$detail"
 
-    # Configure platform-specific settings before stopping UIs
+    # Configure platform-specific settings before stopping UIs. The title
+    # names what detection found; without a find the step stays hidden
+    # unless the platform half fails.
+    uis="${COMPETING_UIS_FOUND:-}"
+    step "Stopped ${uis:-the stock screen}"
     configure_platform
-
-    # Stop competing UIs
     stop_competing_uis
+    if [ -n "$uis" ]; then step_done; else step_skip; fi
 
+    step "Installed files"
     # Clean old installation if requested
     if [ "$clean_mode" = true ]; then
         clean_old_installation "$platform"
@@ -852,6 +897,9 @@ main() {
 
     extract_release "$platform"
     fix_install_ownership
+    step_done "$(display_path "$INSTALL_DIR")"
+
+    step "Set up service"
     install_service "$platform"
     install_platform_hooks
 
@@ -906,7 +954,9 @@ main() {
             $SUDO mkdir -p /usr/data/helixscreen/cache
             ;;
     esac
+    step_done
 
+    step "Connected to Moonraker"
     # Symlink config into printer_data (Pi/Klipper only - enables web UI editing)
     setup_config_symlink
 
@@ -917,6 +967,11 @@ main() {
 
     # Configure Moonraker update_manager (Pi only - enables web UI updates)
     configure_moonraker_updates "$platform"
+    step_done "$(moonraker_step_detail)"
+
+    # Everything left prepares the first start, and its step resolves when
+    # the UI starts. A payload install's UI starts from the mod at boot.
+    step "Started HelixScreen"
 
     # K2: replace the stock proprietary WebRTC camera (which HelixScreen and
     # fluidd can't consume) with a static ustreamer MJPEG server and point both
@@ -937,7 +992,6 @@ main() {
     # model and apply its bundled settings seed + Klipper include, if any.
     # detect_printer_model() is conservative and returns empty for unknown
     # hardware, so this is a no-op on every platform without a registered id.
-    local seed_pid
     seed_pid=$(detect_printer_model)
     if [ -n "$seed_pid" ]; then
         log_info "Recognized printer model: ${seed_pid} -- applying install-time defaults"
@@ -974,6 +1028,10 @@ main() {
     # hook. No-op off K2; non-fatal on the same || contract.
     start_k2_webserver_backend "$platform" ||
         log_warn "Web-server carve-out not started; the UI install itself is fine"
+    if plan_starts_ui; then step_done; else step_skip; fi
+    # Past here only cleanup runs: the new install is in place,
+    # so a failure report has no rollback state to describe.
+    INSTALL_COMPLETE=1
 
     cleanup_old_install
     cleanup_migrated_install
@@ -981,21 +1039,12 @@ main() {
     cleanup_stale_cache_dirs
     retire_legacy_config_backups
 
-    # Cleanup on success
+    finalize_install_log
     cleanup_on_success
-
-    printf '\n'
-    printf '%b\n' "${GREEN}${BOLD}========================================${NC}"
-    printf '%b\n' "${GREEN}${BOLD}    Installation Complete!${NC}"
-    printf '%b\n' "${GREEN}${BOLD}========================================${NC}"
-    printf '\n'
-    echo "HelixScreen ${version} installed to ${INSTALL_DIR}"
-    echo ""
-    print_post_install_commands "${HOST_SERVICE_MECHANISM:-}"
-    echo ""
+    print_summary "$version"
 
     if [ "$platform" = "ad5m" ] || [ "$platform" = "k1" ] || [ "$platform" = "k2" ]; then
-        echo "Note: You may need to reboot for the display to update."
+        log_note "You may need to reboot for the display to update."
     fi
 
     # Last thing on screen: the safety feature this install took away.

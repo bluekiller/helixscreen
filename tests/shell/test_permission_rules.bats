@@ -612,13 +612,13 @@ _stub_installer_steps() {
     for fn in $(grep -h '^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*()[[:space:]]*{' \
                     "$WORKTREE_ROOT"/scripts/lib/installer/*.sh \
                 | sed 's/[[:space:]]*().*//' | sort -u); do
-        [ "$fn" = "main" ] && continue
+        case "$fn" in main|apply_install) continue ;; esac
         eval "${fn}() { printf '%s %s\n' '$fn' \"\$*\" >> \"\$FLOW_LOG\"; }"
     done
 }
 
-# Source main.sh, stub everything under it, and answer the few calls main()
-# actually branches on.
+# Source main.sh, stub everything under main() and apply_install(), and answer
+# the few calls they actually branch on.
 _setup_install_flow() {
     FLOW_LOG="$BATS_TEST_TMPDIR/flow.log"
     : > "$FLOW_LOG"

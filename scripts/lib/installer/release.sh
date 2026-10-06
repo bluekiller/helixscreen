@@ -542,6 +542,8 @@ _verify_archive_hash() {
         actual=$(_sha256_file "$file")
         if [ "$actual" = "$expected" ]; then
             log_info "SHA256 verified ($(basename "$file"))"
+            # shellcheck disable=SC2034  # consumed by main.sh (apply_install)
+            ARCHIVE_SHA256_VERIFIED=1
             return 0
         fi
         if [ -z "$actual" ]; then

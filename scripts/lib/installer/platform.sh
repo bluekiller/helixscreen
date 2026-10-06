@@ -1728,7 +1728,8 @@ setup_config_symlink() {
     done
 
     log_success "Config directory: $pd_helix"
-    log_info "You can now edit HelixScreen config from Mainsail/Fluidd"
+    # shellcheck disable=SC2034  # consumed by plan.sh (print_summary)
+    HELIX_CONFIG_EDITABLE="$pd_helix"
     return 0
 }
 
@@ -1833,7 +1834,7 @@ fix_ad5m_klipper_config() {
     $SUDO mv "$tmp_file" "$target_file"
 
     if grep -qw 'CCW-M4' "$target_file"; then
-        log_success "Fixed AD5M screw_thread: CW-M4 → CCW-M4"
+        log_note "Fixed AD5M screw_thread: CW-M4 → CCW-M4"
     else
         log_warn "Failed to fix screw_thread, restoring backup"
         $SUDO cp "$backup_file" "$target_file"

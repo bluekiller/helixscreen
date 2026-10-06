@@ -7,7 +7,8 @@ log_info() { :; }
 log_warn() { :; }
 log_error() { :; }
 log_success() { :; }
-export -f log_info log_warn log_error log_success
+log_note() { :; }
+export -f log_info log_warn log_error log_success log_note
 # The installer's log_info prints to the terminal only when verbose; tests
 # assert on its text, so they run verbose unless a test unsets this.
 export HELIX_INSTALL_VERBOSE=1

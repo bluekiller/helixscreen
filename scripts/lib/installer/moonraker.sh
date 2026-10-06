@@ -241,7 +241,6 @@ add_update_manager_section() {
     generate_update_manager_config | $fs tee -a "$conf" >/dev/null
 
     log_success "Added update_manager section to $conf"
-    log_info "You can now update HelixScreen from the Mainsail/Fluidd web interface!"
 }
 
 # Check if moonraker.conf has old git_repo-style helixscreen section
@@ -433,7 +432,7 @@ disable_system_updates_on_buildroot() {
         } | $fs tee -a "$conf" >/dev/null
     fi
 
-    log_success "Disabled OS package updates in $conf (no OS package manager)"
+    log_note "Disabled OS package updates in $conf (no OS package manager)"
 }
 
 # Remove unsupported options from the helixscreen update_manager section.

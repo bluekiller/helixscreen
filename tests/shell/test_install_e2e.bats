@@ -178,7 +178,9 @@ snap_resolve() {
     local s
     s=$(snap 1-install)
 
-    contains "Installation Complete!" "$output"
+    contains "HelixScreen v1.0.0 is running" "$output"
+    grep -q "STEP Started HelixScreen" "$s/root/printer_data/logs/helixscreen-install.log" \
+        || fail "no install log in printer_data/logs"
     [ -x "$s$INST/bin/helix-screen" ] || fail "no payload binary at $INST"
     [ -x "$s$INST/bin/helix-launcher.sh" ] || fail "no launcher at $INST"
     [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.0.0" ]

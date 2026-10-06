@@ -59,7 +59,7 @@ setup() {
           _HELIX_PLATFORM_SOURCED _HELIX_REQUIREMENTS_SOURCED \
           _HELIX_FORGEX_SOURCED _HELIX_RELEASE_SOURCED \
           _HELIX_SERVICE_SOURCED _HELIX_MOONRAKER_SOURCED \
-          _HELIX_UNINSTALL_SOURCED _HELIX_MAIN_SOURCED
+          _HELIX_UNINSTALL_SOURCED _HELIX_PLAN_SOURCED _HELIX_MAIN_SOURCED
     export SUDO=""
 
     # Production module order (bundle-installer.sh), minus the modules this
@@ -1442,28 +1442,33 @@ seed_legacy_install() {
     esac
 }
 
-@test "payload-mode success epilogue names the service and how to start it" {
+@test "payload-mode success summary names the service and how to start it" {
     # A payload install writes its service into the mod's chroot, which the mod
     # runs at boot — so nothing is running when the installer exits. The
-    # epilogue has to say that, and name the script it actually installed.
+    # summary has to say that, and name the script it actually installed.
     seed_payload_root
+    # shellcheck disable=SC1090
+    . "$WORKTREE_ROOT/scripts/lib/installer/plan.sh"
     INIT_SCRIPT_DEST="/data/.mod/.forge-x/etc/init.d/S90helixscreen"
-    run print_post_install_commands "mod-managed"
+    run print_summary v1.2.3
     [ "$status" -eq 0 ]
     contains "Reboot" "$output"
+    lacks "is running" "$output"
     contains "$INIT_SCRIPT_DEST" "$output"
-    [[ "$output" == *"${INSTALL_DIR}/logs/launcher.log"* ]]
+    contains "${INSTALL_DIR}/logs/launcher.log" "$output"
 }
 
-@test "payload-mode epilogue coaches no host service manager" {
+@test "payload-mode summary coaches no host service manager" {
     # The service lives in the chroot and is started by the mod, so systemctl
     # and a bare host init path are both wrong advice here.
     seed_payload_root
+    # shellcheck disable=SC1090
+    . "$WORKTREE_ROOT/scripts/lib/installer/plan.sh"
     INIT_SCRIPT_DEST="/data/.mod/.forge-x/etc/init.d/S90helixscreen"
-    run print_post_install_commands "mod-managed"
+    run print_summary v1.2.3
     [ "$status" -eq 0 ]
     lacks "systemctl" "$output"
-    [[ "$output" != *"service helixscreen"* ]]
+    lacks "service helixscreen" "$output"
 }
 
 @test "a chroot without ldd does not abort the install (advisory check stays advisory)" {

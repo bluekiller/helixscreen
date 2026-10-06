@@ -325,3 +325,215 @@ _set_e_script() {
 @test "the generated logo module is in the bundle" {
     grep -q 'logo.sh' "$WORKTREE_ROOT/scripts/bundle-installer.sh"
 }
+
+@test "finalize_install_log moves the log into printer_data/logs and keeps one old run" {
+    KLIPPER_HOME="$BATS_TEST_TMPDIR/home"; mkdir -p "$KLIPPER_HOME/printer_data/logs"
+    echo old > "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log"
+    log_open "$BATS_TEST_TMPDIR/install.log"; log_warn "new run"
+    finalize_install_log
+    grep -q "new run" "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log"
+    [ "$(cat "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log.1")" = old ]
+}
+
+@test "finalize_install_log creates printer_data/logs when printer_data has none" {
+    KLIPPER_HOME="$BATS_TEST_TMPDIR/home"; mkdir -p "$KLIPPER_HOME/printer_data/config"
+    INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
+    log_open "$BATS_TEST_TMPDIR/install.log"; log_warn "no logs dir yet"
+    finalize_install_log
+    grep -q "no logs dir yet" "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log"
+    [ ! -e "$INSTALL_DIR/logs" ] || fail "fell back to the install dir"
+}
+
+@test "finalize_install_log falls back to INSTALL_DIR/logs without printer_data" {
+    KLIPPER_HOME="$BATS_TEST_TMPDIR/nohome"; INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
+    log_open "$BATS_TEST_TMPDIR/install.log"; log_warn "bare host"
+    finalize_install_log
+    grep -q "bare host" "$INSTALL_DIR/logs/helixscreen-install.log"
+}
+
+@test "finalize_install_log twice does not rotate this run's own log away" {
+    KLIPPER_HOME="$BATS_TEST_TMPDIR/home"; mkdir -p "$KLIPPER_HOME/printer_data/logs"
+    log_open "$BATS_TEST_TMPDIR/install.log"; log_warn "this run"
+    finalize_install_log
+    finalize_install_log
+    grep -q "this run" "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log"
+    [ ! -e "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log.1" ] || fail "rotated its own log"
+}
+
+@test "finalize_install_log appends to a destination the caller is writing stderr to" {
+    KLIPPER_HOME="$BATS_TEST_TMPDIR/home"; mkdir -p "$KLIPPER_HOME/printer_data/logs"
+    dest="$KLIPPER_HOME/printer_data/logs/helixscreen-install.log"
+    echo "caller output" > "$dest"
+    log_open "$BATS_TEST_TMPDIR/install.log"; log_note "this run"
+    finalize_install_log 2>>"$dest"
+    grep -q "caller output" "$dest" || fail "the caller's file was replaced"
+    grep -q "this run" "$dest" || fail "this run's log was not appended"
+    [ ! -e "$dest.1" ] || fail "the caller's file was rotated"
+}
+
+@test "an interrupt during a step resolves it as interrupted" {
+    command -v busybox >/dev/null || skip "no busybox"
+    run busybox ash -c '. "$1"; HELIX_INSTALL_TTY=0 ui_detect; STEP_TOTAL=2
+        trap "step_fail interrupted; exit 130" INT
+        step Downloading; kill -INT $$; sleep 1' _ "$WORKTREE_ROOT/scripts/lib/installer/common.sh"
+    contains "Downloading ... FAILED (interrupted)" "$output"
+}
+
+# Every installer module, as install-dev.sh sources them. main.sh arms the
+# installer's own traps at source time; bats' are put back over them.
+_source_installer() {
+    local lib="$WORKTREE_ROOT/scripts/lib/installer" m bats_traps
+    bats_traps="$(trap -p EXIT INT TERM)"
+    for m in $(sed -n 's|^ *\. "\$LIB_DIR/\([a-z_]*\)\.sh".*|\1|p' "$WORKTREE_ROOT/scripts/install-dev.sh"); do
+        . "$lib/$m.sh"
+    done
+    trap - ERR EXIT HUP INT TERM
+    eval "$bats_traps"
+}
+
+# Run apply_install with every installer function it calls stubbed out, so
+# only the step layer and the plan's own decisions act. Arguments are
+# assignments applied after sourcing. Sets COUNTED to steps closed / planned.
+_count_apply_install_steps() {
+    _source_installer
+    update_mode=false clean_mode=false local_tarball=""
+    [ $# -eq 0 ] || export "$@"
+    local fn
+    for fn in $(declare -f apply_install | grep -oE '[a-z_][a-z0-9_]*' | sort -u); do
+        case "$fn" in apply_install|step|step_done|step_skip|step_fail|plan_*) continue ;; esac
+        [ "$(type -t "$fn")" = function ] && eval "$fn() { :; }"
+    done
+    platform=pi; version=v1.2.3; TMP_DIR="$BATS_TEST_TMPDIR/none"
+    HELIX_INSTALL_TTY=0 ui_detect
+    plan_count_steps
+    step "Checked system"; step_done
+    apply_install >/dev/null 2>&1
+    COUNTED="$STEP_NUM/$STEP_TOTAL"
+}
+
+@test "steps: a fresh install closes exactly the steps the plan counted" {
+    _count_apply_install_steps
+    [ "$COUNTED" = "6/6" ] || fail "steps closed/counted: $COUNTED"
+}
+
+@test "steps: an update closes exactly the steps the plan counted" {
+    _count_apply_install_steps update_mode=true
+    [ "$COUNTED" = "6/6" ] || fail "steps closed/counted: $COUNTED"
+}
+
+@test "steps: libraries and a competing UI each add one step" {
+    _count_apply_install_steps MISSING_RUNTIME_DEPS=libgles2 COMPETING_UIS_FOUND=KlipperScreen
+    [ "$COUNTED" = "8/8" ] || fail "steps closed/counted: $COUNTED"
+}
+
+@test "steps: a payload install that does not start the UI counts no start step" {
+    _count_apply_install_steps HOST_SERVICE_MECHANISM=mod-managed
+    [ "$COUNTED" = "5/5" ] || fail "steps closed/counted: $COUNTED"
+}
+
+# Failures under main.sh's real traps.
+@test "a failure inside a step: FAILED, the state line, and the log in printer_data" {
+    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
+        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
+        step "Installed files"; log_error "boom"; exit 1' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    [ "$status" -eq 1 ]
+    contains "[5/6] Installed files ... FAILED" "$output"
+    contains "Nothing on your printer was changed after this step." "$output"
+    contains "Full log: $BATS_TEST_TMPDIR/home/printer_data/logs/helixscreen-install.log" "$output"
+    grep -q "boom" "$BATS_TEST_TMPDIR/home/printer_data/logs/helixscreen-install.log"
+    [ ! -d "$BATS_TEST_TMPDIR/helixscreen-install" ] || fail "scratch dir left behind"
+}
+
+@test "a failure after the swap names where the previous install is" {
+    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs" "$BATS_TEST_TMPDIR/helixscreen.old"
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
+        INSTALL_BACKUP="$2/helixscreen.old"
+        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
+        step "Set up service"; exit 1' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    contains "The previous install is kept at $BATS_TEST_TMPDIR/helixscreen.old." "$output"
+    lacks "Nothing on your printer was changed" "$output"
+}
+
+@test "a failure after a rollback says the previous install was restored" {
+    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
+        INSTALL_BACKUP="$2/helixscreen.old"
+        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
+        step "Installed files"; exit 1' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    contains "The previous install was put back." "$output"
+}
+
+@test "a failure in the last step still says what state the printer is in" {
+    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs" "$BATS_TEST_TMPDIR/helixscreen.old"
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
+        INSTALL_BACKUP="$2/helixscreen.old"
+        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=5
+        step "Started HelixScreen"; exit 1' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    contains "[6/6] Started HelixScreen ... FAILED" "$output"
+    contains "The previous install is kept at $BATS_TEST_TMPDIR/helixscreen.old." "$output"
+}
+
+@test "an interrupt under the installer's traps resolves the step and keeps the log" {
+    command -v busybox >/dev/null || skip "no busybox"
+    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
+    run busybox ash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
+        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=2
+        step Downloaded; kill -INT $$; sleep 1; echo AFTER' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    [ "$status" -eq 130 ]
+    contains "[3/6] Downloaded ... FAILED (interrupted)" "$output"
+    contains "Full log:" "$output"
+    lacks AFTER "$output"
+    grep -q "FAIL Downloaded (interrupted)" "$BATS_TEST_TMPDIR/home/printer_data/logs/helixscreen-install.log"
+}
+
+@test "a run that exits 0 before the log opens prints no failure block" {
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        TMP_DIR="$2/none"; exit 0' _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ] || fail "unexpected output: $output"
+}
+
+@test "summary: a fresh install names the config, updates, disabled UI, KIAUH and log" {
+    _source_installer
+    HELIX_INSTALL_TTY=0 LC_ALL=C ui_detect
+    HOME="$BATS_TEST_TMPDIR/home"; KLIPPER_HOME="$HOME"
+    conf="$HOME/printer_data/config/moonraker.conf"; mkdir -p "${conf%/*}/helixscreen"
+    printf '[update_manager helixscreen]\ntype: web\n' > "$conf"
+    find_moonraker_conf() { echo "$conf"; }
+    R2_CHANNEL=beta HOST_SERVICE_MECHANISM=systemd
+    HELIX_CONFIG_EDITABLE="$HOME/printer_data/config/helixscreen"
+    COMPETING_UIS_FOUND=KlipperScreen KIAUH_EXT_ADDED=1
+    INSTALL_LOG="$HOME/printer_data/logs/helixscreen-install.log"
+    run print_summary v1.1.0-beta.4
+    contains "HelixScreen v1.1.0-beta.4 is running (beta channel)." "$output"
+    contains "Config     ~/printer_data/config/helixscreen  (editable in Mainsail/Fluidd)" "$output"
+    contains "Updates    Mainsail/Fluidd update manager, or re-run with --update" "$output"
+    contains "Disabled   KlipperScreen  (re-enabled by --uninstall)" "$output"
+    contains "KIAUH      restart KIAUH to see the HelixScreen extension" "$output"
+    contains "Log        ~/printer_data/logs/helixscreen-install.log" "$output"
+}
+
+@test "summary: without an update manager entry, updates come from re-running" {
+    _source_installer
+    HELIX_INSTALL_TTY=0 ui_detect
+    INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
+    find_moonraker_conf() { echo ""; }
+    unset HELIX_CONFIG_EDITABLE COMPETING_UIS_FOUND KIAUH_EXT_ADDED
+    run print_summary v1.2.3
+    contains "Config     $INSTALL_DIR/config" "$output"
+    contains "Updates    re-run with --update" "$output"
+    lacks "Disabled" "$output"
+    lacks "KIAUH" "$output"
+    lacks "editable" "$output"
+}

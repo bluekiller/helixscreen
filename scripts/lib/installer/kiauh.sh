@@ -108,6 +108,7 @@ install_kiauh_extension() {
         log_success "KIAUH extension updated at $target_dir (restart KIAUH to pick it up)"
     else
         log_success "KIAUH extension installed at $target_dir"
-        log_info "  → Restart KIAUH (~/kiauh/kiauh.sh) and open the Extensions menu to use it"
+        # shellcheck disable=SC2034  # consumed by plan.sh (print_summary)
+        KIAUH_EXT_ADDED=1
     fi
 }

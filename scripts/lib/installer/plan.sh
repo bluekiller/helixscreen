@@ -20,11 +20,25 @@ print_plan() {
 }
 
 # Steps the run will show, so a no-terminal run can number them [n/N].
+# apply_install skips exactly the steps left out here.
 plan_count_steps() {
     STEP_TOTAL=6
-    [ -n "${MISSING_RUNTIME_DEPS:-}${MISSING_UNZIP_PKG:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 1))
+    [ -n "$(plan_missing_libs)" ] && STEP_TOTAL=$((STEP_TOTAL + 1))
     [ -n "${COMPETING_UIS_FOUND:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 1))
+    plan_starts_ui || STEP_TOTAL=$((STEP_TOTAL - 1))
     return 0
+}
+
+# Packages the install adds with apt, space-separated.
+plan_missing_libs() {
+    # Package names never contain spaces, so word splitting joins the lists.
+    # shellcheck disable=SC2086
+    echo ${MISSING_UNZIP_PKG:-} ${MISSING_RUNTIME_DEPS:-}
+}
+
+# False on a payload install, whose UI the mod starts at the next boot.
+plan_starts_ui() {
+    [ "${HOST_SERVICE_MECHANISM:-}" != "mod-managed" ]
 }
 
 _plan_sep() { if [ "$UI_UTF8" = 1 ]; then printf ' · '; else printf ', '; fi; }
@@ -67,9 +81,7 @@ confirm_point() { # platform version
             _cp_install="$_cp_from $_cp_arrow $_cp_install"
         fi
     fi
-    # Package names never contain spaces, so word splitting joins the lists.
-    # shellcheck disable=SC2086
-    _cp_libs=$(echo ${MISSING_UNZIP_PKG:-} ${MISSING_RUNTIME_DEPS:-})
+    _cp_libs=$(plan_missing_libs)
     _cp_add="$(plan_adds_line)"
 
     plan_set Printer "$(plan_printer_line "$1")"
@@ -109,4 +121,49 @@ confirm_point() { # platform version
     step_done "$(plan_printer_line "$1")"
     mkdir -p "$TMP_DIR" 2>/dev/null || $SUDO mkdir -p "$TMP_DIR"
     log_open "$TMP_DIR/install.log" || true
+}
+
+# The Connected to Moonraker step's detail: what the install registered.
+moonraker_step_detail() {
+    _msd=""
+    for _ma in ${MOONRAKER_ADDS:-}; do
+        case "$_ma" in
+            update-manager) _ma_text="update manager" ;;
+            allowlist) _ma_text="service allowlist" ;;
+            *) continue ;;
+        esac
+        _msd="${_msd:+$_msd$(_plan_sep)}$_ma_text"
+    done
+    [ -n "${HELIX_CONFIG_EDITABLE:-}" ] && _msd="${_msd:+$_msd$(_plan_sep)}config editable in Mainsail/Fluidd"
+    printf '%s' "$_msd"
+}
+
+_summary_row() { printf '  %-10s %s\n' "$1" "$2" >&2; }
+
+# The closing block of a successful run: what is running, where its config
+# is, how it updates, what it disabled, and where the log is.
+print_summary() { # version
+    _ps_channel="${R2_CHANNEL:-stable}"
+    printf '\n' >&2
+    if plan_starts_ui; then
+        printf '%b\n\n' "${BOLD}HelixScreen $1 is running ($_ps_channel channel).${NC}" >&2
+    else
+        printf '%b\n\n' "${BOLD}HelixScreen $1 is installed ($_ps_channel channel). Reboot to start it.${NC}" >&2
+        _summary_row Service "${INIT_SCRIPT_DEST:-}"
+        _summary_row "App log" "$(display_path "$INSTALL_DIR/logs/launcher.log")"
+    fi
+    if [ -n "${HELIX_CONFIG_EDITABLE:-}" ]; then
+        _summary_row Config "$(display_path "$HELIX_CONFIG_EDITABLE")  (editable in Mainsail/Fluidd)"
+    else
+        _summary_row Config "$(display_path "$INSTALL_DIR/config")"
+    fi
+    _ps_conf=$(find_moonraker_conf 2>/dev/null || true)
+    if [ -n "$_ps_conf" ] && has_update_manager_section "$_ps_conf"; then
+        _summary_row Updates "Mainsail/Fluidd update manager, or re-run with --update"
+    else
+        _summary_row Updates "re-run with --update"
+    fi
+    [ -n "${COMPETING_UIS_FOUND:-}" ] && _summary_row Disabled "$COMPETING_UIS_FOUND  (re-enabled by --uninstall)"
+    [ -n "${KIAUH_EXT_ADDED:-}" ] && _summary_row KIAUH "restart KIAUH to see the HelixScreen extension"
+    _summary_row Log "$(display_path "${INSTALL_LOG:-$(install_log_dest)}")"
 }

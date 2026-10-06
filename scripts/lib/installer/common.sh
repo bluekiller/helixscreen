@@ -397,7 +397,6 @@ log_error() {
     _ui_emit "${RED}[ERROR]${NC} $1"
 }
 # A detail line a regular user should see. Used sparingly.
-# UNCALLED_OK: callers land in Task 8/9
 log_note() {
     _log_write "NOTE $(_log_plain "$1")"
     _ui_emit "    $1"
@@ -439,19 +438,73 @@ step_done() {
     _step_close "$MARK_OK" "$GREEN" ok "${1:-}"
 }
 
-# UNCALLED_OK: called from main() once steps land
 step_fail() {
     [ "$STEP_OPEN" = 1 ] || return 0
     _log_write "FAIL $STEP_TITLE${1:+ ($1)}"
     _step_close "$MARK_FAIL" "$RED" FAILED "${1:-}"
 }
 
-# UNCALLED_OK: called from main() once steps land
 step_skip() {
     [ "$STEP_OPEN" = 1 ] || return 0
     _log_write "SKIP $STEP_TITLE"
     [ "$UI_TTY" = 1 ] && printf '\r\033[K' >&2
     STEP_OPEN=0
+}
+
+# A path for display, with $HOME shown as ~.
+display_path() {
+    if [ -n "${HOME:-}" ] && [ "$HOME" != / ]; then
+        case "$1" in "$HOME"/*) printf '~%s' "${1#"$HOME"}"; return 0 ;; esac
+    fi
+    printf '%s' "$1"
+}
+
+# A file's size for display, in whole MB, or KB below one MB.
+file_size_text() {
+    _fst=$(wc -c < "$1" 2>/dev/null) || return 0
+    if [ "$_fst" -ge 1048576 ]; then
+        printf '%s MB' "$((_fst / 1048576))"
+    else
+        printf '%s KB' "$((_fst / 1024))"
+    fi
+}
+
+# Where the install log is kept: Moonraker's logs root, which Mainsail and
+# Fluidd show, else beside the install on hosts without printer_data.
+install_log_dest() {
+    if [ -n "${KLIPPER_HOME:-}" ] && [ -d "$KLIPPER_HOME/printer_data" ]; then
+        printf '%s' "$KLIPPER_HOME/printer_data/logs/helixscreen-install.log"
+    else
+        printf '%s' "$INSTALL_DIR/logs/helixscreen-install.log"
+    fi
+}
+
+# Move this run's log from the scratch dir to install_log_dest, keeping the
+# previous run's as .1. The in-app updater sends stdout and stderr to a log
+# file of its own, through a descriptor that does not append: should that be
+# the same file, this run's log is written through that descriptor, and the
+# file is never rotated, replaced or appended to by name.
+finalize_install_log() {
+    [ -n "$INSTALL_LOG" ] && [ -f "$INSTALL_LOG" ] || return 0
+    _fil_dest=$(install_log_dest)
+    [ "$INSTALL_LOG" = "$_fil_dest" ] && return 0
+    # -ef is in dash, BusyBox ash and bash, every shell this runs under.
+    # shellcheck disable=SC3013
+    if [ "$_fil_dest" -ef /proc/self/fd/2 ]; then
+        cat "$INSTALL_LOG" >&2; INSTALL_LOG=""; return 0
+    fi
+    # shellcheck disable=SC3013
+    if [ "$_fil_dest" -ef /proc/self/fd/1 ]; then
+        cat "$INSTALL_LOG"; INSTALL_LOG=""; return 0
+    fi
+    _fil_dir=$(dirname "$_fil_dest")
+    mkdir -p "$_fil_dir" 2>/dev/null || $SUDO mkdir -p "$_fil_dir" 2>/dev/null || return 0
+    _fil_sudo=$(file_sudo "$_fil_dest")
+    if [ -f "$_fil_dest" ]; then
+        $_fil_sudo mv -f "$_fil_dest" "$_fil_dest.1" 2>/dev/null || true
+    fi
+    $_fil_sudo mv -f "$INSTALL_LOG" "$_fil_dest" 2>/dev/null || return 0
+    INSTALL_LOG="$_fil_dest"
 }
 
 RUN_LOGGED_TAIL=${RUN_LOGGED_TAIL:-15}
@@ -949,39 +1002,5 @@ clean_helix_state_dirs() {
     if [ -d "$state_root_home" ]; then
         $SUDO rm -rf "$state_root_home"
         log_success "Removed $state_root_home"
-    fi
-}
-
-# Print post-install commands for the user
-# Reads: INIT_SYSTEM, SERVICE_NAME, INIT_SCRIPT_DEST, INSTALL_DIR
-# $1:   service mechanism, passed BY THE CALLER (the prober's answer;
-#       this module is bundle position 1 and must not reach forward for
-#       any later module's globals)
-print_post_install_commands() {
-    if [ "${1:-}" = "mod-managed" ]; then
-        # Payload install: the service lives in the mod's chroot, which the
-        # mod's own start.sh runs at boot. Nothing is running yet, so the
-        # useful instruction is how to get there.
-        echo "Useful commands:"
-        echo "  Reboot to start the UI (installed as ${INIT_SCRIPT_DEST})"
-        echo "  tail -f ${INSTALL_DIR}/logs/launcher.log   # View logs"
-        return 0
-    fi
-    echo "Useful commands:"
-    if [ "$INIT_SYSTEM" = "systemd" ]; then
-        # journalctl and restart need privilege: a service user outside adm/
-        # systemd-journal gets "No journal files were found" on stderr and an
-        # empty stdout, which reads as "there are no logs" when redirected.
-        echo "  systemctl status ${SERVICE_NAME}         # Check status"
-        echo "  sudo journalctl -u ${SERVICE_NAME} -f    # View logs"
-        echo "  sudo systemctl restart ${SERVICE_NAME}   # Restart"
-    else
-        # helixscreen.init writes to /var/log/helixscreen/launcher.log when /var/log
-        # is persistent, else ${INSTALL_DIR}/logs/launcher.log — show whichever exists.
-        local log_path="/var/log/helixscreen/launcher.log"
-        [ -f "$log_path" ] || log_path="${INSTALL_DIR}/logs/launcher.log"
-        echo "  ${INIT_SCRIPT_DEST} status   # Check status"
-        echo "  tail -f ${log_path}   # View logs"
-        echo "  ${INIT_SCRIPT_DEST} restart  # Restart"
     fi
 }
