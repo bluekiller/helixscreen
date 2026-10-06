@@ -3702,7 +3702,9 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                               file_list_[index].filename == filename &&
                               file_list_[index].esp_thumbnail_tried) {
                               file_list_[index].esp_thumbnail = std::move(thumb);
-                              schedule_view_refresh();
+                              if (card_view_) {
+                                  card_view_->update_thumbnail(index, file_list_[index]);
+                              }
                           }
                           sync_esp_thumbnails(esp_window_first_, esp_window_end_);
                       });
