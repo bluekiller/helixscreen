@@ -492,6 +492,8 @@ void TempGraphController::setup_observers() {
     // Each run may create or free the subjects a series is bound to, so
     // any graph with such a series watches the discovery subjects for as long
     // as it lives; resolve_pending_series() rebinds only what is missing or dead.
+    // The sensor watch keys on the sensor COUNT, so a rediscovery that swaps one
+    // sensor for another at the same count does not trigger a rebind.
     if (extruder_series > 0 || sensor_series > 0) {
         auto& ps = get_printer_state();
         spdlog::debug("[TempGraphController] {} of {} series unresolved — watching discovery",
