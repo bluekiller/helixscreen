@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>14e7a50ed</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>9329bddf0</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 119 done, 6 in progress, 11 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 120 done, 6 in progress, 10 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -1734,9 +1734,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="PRN-6" data-tag="dup" data-size="later" data-status="open">
-<summary><span class="fid">PRN-6</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">Sensor managers are one class copy-pasted with a different noun</span><span class="fimpact">~-500-600 lines; 7th sensor = 1 file</span></summary>
+<details class="f" id="PRN-6" data-tag="dup" data-size="later" data-status="done">
+<summary><span class="fid">PRN-6</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">9329bddf0</code><span class="ftitle">Sensor managers are one class copy-pasted with a different noun</span><span class="fimpact">~-500-600 lines; 7th sensor = 1 file</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>9329bddf0</code>: <code>SensorCollection</code> plus a role-name table replace the copy-pasted find/has/count/reconcile and config load/save in accel, humidity, load_cell, probe, temperature, width and filament managers (-841 lines). Unifying the copies fixed the accel manager dropping a resonance_tester Beacon every second discovery.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/sensors/{accel,color,humidity,load_cell,probe,temperature,width}_*manager.cpp</code>, <code>src/print/filament_sensor_manager.cpp</code></dd>
 <dt>Evidence</dt><dd>Normalized similarity to the first copy: <code>has_sensors</code>/<code>get_sensors</code>/<code>sensor_count</code>/<code>set_sync_mode</code>/<code>instance</code> 1.00 in all 7-8; <code>find_config</code> 1.00 x6; <code>save_config</code> 0.91-1.00 x6; <code>load_config</code> 0.95-1.00 x5; <code>deinit_subjects</code> 1.00 x5. The ~35-line discover reconcile block appears verbatim in 7 files. 6 managers total 4,070 lines (529-789 each), clone windows 54-63 lines between every pair; 7 headers total 1,899 lines; 8 <code>*_types.h</code> hand-write role string switches.</dd>
