@@ -17,7 +17,6 @@ class FilamentSensorManagerTestAccess {
 
         // Clear all sensors and states
         mgr.sensors_.clear();
-        mgr.states_.clear();
 
         // Reset master enabled
         mgr.master_enabled_ = true;
