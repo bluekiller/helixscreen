@@ -28,7 +28,10 @@ setup() {
     rm -rf "$WORK"; mkdir -p "$WORK"
     REPORT="$WORK/report.xml"
     BIN="$WORK/fake-suite"
-    export SUITE_REPORT_STALL_SECS=2
+    # A loaded machine can take seconds just to start a fake suite, and a stall
+    # verdict then preempts every other outcome. Only the cases about stalls
+    # shorten this, through stall_after_secs.
+    export SUITE_REPORT_STALL_SECS=30
     export SUITE_REPORT_MAX_SECS=60
     export SUITE_REPORT_PROGRESS_SECS=1
 }
@@ -46,9 +49,12 @@ fake_suite() {
 
 guard() { run timeout -s KILL 60 bash "$SCRIPT" "$BIN" "~[.]" "$REPORT"; }
 
+stall_after_secs() { export SUITE_REPORT_STALL_SECS="$1"; }
+
 # ------------------------------------------------------------- the guard fires
 
 @test "a run that stops inside a case is killed and the case is named" {
+    stall_after_secs 2
     fake_suite <<'EOF'
 printf '<Catch2TestRun name="t">\n<TestCase name="the case that never returns" filename="t.cpp">\n' > "$OUT"
 sleep 300
@@ -60,6 +66,7 @@ EOF
 }
 
 @test "the stalled case is named in progress output before the verdict" {
+    stall_after_secs 2
     fake_suite <<'EOF'
 printf '<Catch2TestRun name="t">\n<TestCase name="slow case" filename="t.cpp">\n' > "$OUT"
 sleep 300
@@ -83,6 +90,7 @@ EOF
 }
 
 @test "a case larger than one poll window is still the one named" {
+    stall_after_secs 2
     fake_suite <<'EOF'
 printf '<Catch2TestRun name="t">\n<TestCase name="early case" filename="t.cpp">\n' > "$OUT"
 printf '<TestCase name="the fat one" filename="t.cpp">\n' >> "$OUT"

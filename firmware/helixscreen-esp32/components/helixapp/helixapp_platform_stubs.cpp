@@ -157,11 +157,15 @@ void set_moonraker_manager(MoonrakerManager* manager) {
     g_moonraker_manager = manager;
 }
 
-// Owned by the app lifecycle on Linux (app_globals.cpp); absent in the slice.
-// All are pointer-returning with documented may-be-null contracts.
+// app_boot.cpp constructs the PrintHistoryManager alongside JobQueueState and
+// publishes it here; get returns what set stored.
 class PrintHistoryManager;
+static PrintHistoryManager* g_print_history_manager = nullptr;
 PrintHistoryManager* get_print_history_manager() {
-    return nullptr;
+    return g_print_history_manager;
+}
+void set_print_history_manager(PrintHistoryManager* manager) {
+    g_print_history_manager = manager;
 }
 // Real accessor (mirrors src/app_globals.cpp): SubjectInitializer constructs the
 // controller in init_panel_subjects() and registers it as a PanelWidgetManager

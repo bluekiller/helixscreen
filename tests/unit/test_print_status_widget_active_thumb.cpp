@@ -120,3 +120,29 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(on_screen == kThumbA);
     CHECK(after_reparent == kThumbA);
 }
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "print_status active thumbnail tick shows the thumbnail current when it fires",
+                 "[print_status][panel_widget][thumbnail]") {
+    std::string after_tick;
+    {
+        PrintStatusWidget widget;
+        widget.set_config({{"layout_style", "library"}});
+
+        lv_obj_t* comp = make_print_status(test_screen());
+        REQUIRE(comp != nullptr);
+        widget.attach(comp, test_screen());
+        process_lvgl(30);
+
+        // Both publishes land before the tick: the apply queued for A must not
+        // put A back over B.
+        get_printer_state().print_state().set_print_thumbnail("a.gcode", kThumbA);
+        get_printer_state().print_state().set_print_thumbnail("b.gcode", kThumbB);
+        helix::ui::UpdateQueue::instance().drain();
+        process_lvgl(30);
+        after_tick = active_thumb_src(comp);
+    }
+    PrintStatusWidget::destroy_formatter_for_test();
+
+    CHECK(after_tick == kThumbB);
+}

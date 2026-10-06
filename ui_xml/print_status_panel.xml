@@ -43,7 +43,7 @@
         style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" flex_flow="column" clickable="true">
     <!-- The Files action button opens print select mid-print so files can be
          browsed and managed (prestonbrown/helixscreen#1395). The E-stop lives
-         on the navigation rail. -->
+         on the navbar. -->
     <header_bar name="overlay_header"
                 title="Print Status" title_tag="Print Status" hide_action_button_2="false" action_button_2_icon="folder"
                 action_button_2_icon_size="sm" action_button_2_bg_color="#elevated_bg" action_button_2_radius="9999"

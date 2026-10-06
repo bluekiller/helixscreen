@@ -118,6 +118,7 @@ src/print/print_start_navigation.cpp
 src/print/thumbnail_cache.cpp
 src/print/thumbnail_downscale.cpp
 src/print/thumbnail_png_stream.cpp
+src/print/thumbnail_slot_pool.cpp
 src/print/thumbnail_target.cpp
 src/printer/active_material_provider.cpp
 src/printer/afc_config_manager.cpp
@@ -474,7 +475,7 @@ src/ui/ui_nav_backdrop.cpp
 src/ui/ui_nav_manager.cpp
 src/ui/ui_nav_panel_registry.cpp
 src/ui/ui_nav_printer_badge.cpp
-src/ui/ui_nav_rail_button.cpp
+src/ui/ui_navbar_button.cpp
 src/ui/ui_notification.cpp
 src/ui/ui_notification_badge.cpp
 src/ui/ui_notification_history.cpp

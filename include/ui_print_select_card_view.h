@@ -227,6 +227,16 @@ class PrintSelectCardView : public ContainerDeleteNet {
      */
     void refresh_content(const std::vector<PrintFileData>& file_list, const CardDimensions& dims);
 
+    /**
+     * @brief Shows @p file's thumbnail on the one card bound to @p file_index
+     *
+     * A thumbnail arriving changes one card; rebinding the whole window for it
+     * repaints every visible card. Nothing happens when no card shows the file.
+     *
+     * @return true when a card was updated
+     */
+    bool update_thumbnail(size_t file_index, const PrintFileData& file);
+
     // === State Queries ===
 
     /**
@@ -327,9 +337,18 @@ class PrintSelectCardView : public ContainerDeleteNet {
     void configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
                         const PrintFileData& file, const CardDimensions& dims);
 
+    /// Points a card's image at @p file's thumbnail, or its placeholder state.
+    static void apply_thumbnail(lv_obj_t* card, CardWidgetData& data, const PrintFileData& file);
+
 #if defined(HELIX_PLATFORM_ESP32)
     /// Drops a card's thumbnail, so the window's budget is all that holds them.
     static void release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data);
+
+  public:
+    /// Drops every card's thumbnail; cards show the placeholder until rebound.
+    void release_esp_thumbnails();
+
+  private:
 #endif
 
     /**

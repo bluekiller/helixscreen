@@ -1045,7 +1045,7 @@ ensure-ccache-dir = @mkdir -p "$(DOCKER_CCACHE_BASE)/$(1)"
 # inside and outside the container.
 #
 # Ask every lib/ entry where it really lives rather than probing one of them:
-# lvgl, libhv and helix-xml are private per-worktree checkouts that live under
+# lvgl, libhv, lua and helix-xml are private per-worktree checkouts that live under
 # $(CURDIR), so a single-entry probe reads a worktree full of symlinks as a normal
 # checkout and mounts nothing. Empty for a normal checkout, where every entry is
 # already under $(CURDIR).
