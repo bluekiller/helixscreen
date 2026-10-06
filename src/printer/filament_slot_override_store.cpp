@@ -1259,6 +1259,16 @@ std::unordered_map<int, FilamentSlotOverride> FilamentSlotOverrideStore::load_bl
     return result;
 }
 
+namespace {
+
+/// Moonraker answers a namespace nothing has written yet with 404 "Namespace
+/// <ns> not found". That is an empty namespace, not an unreachable database.
+bool is_absent_namespace(const MoonrakerError& err) {
+    return err.code == 404;
+}
+
+} // namespace
+
 void FilamentSlotOverrideStore::reload_async(ReloadCallback cb) {
     if (!api_ || !cb) {
         return;
@@ -1277,7 +1287,11 @@ void FilamentSlotOverrideStore::reload_async(ReloadCallback cb) {
             }
             cb(parse_namespace_document(value, style, id));
         },
-        [id, ns](const MoonrakerError& err) {
+        [style, id, ns, cb](const MoonrakerError& err) {
+            if (is_absent_namespace(err)) {
+                cb(parse_namespace_document(nlohmann::json::object(), style, id));
+                return;
+            }
             spdlog::debug("[FilamentSlotOverrideStore:{}] reload of {} failed: {}", id, ns,
                           err.message);
         });
@@ -1320,9 +1334,15 @@ std::unordered_map<int, FilamentSlotOverride> FilamentSlotOverrideStore::load_bl
             state->cv.notify_one();
         },
         [state, backend_id_copy, namespace_copy](const MoonrakerError& err) {
-            spdlog::debug("[FilamentSlotOverrideStore:{}] database_get_namespace({}) failed: {}",
-                          backend_id_copy, namespace_copy, err.message);
             std::lock_guard<std::mutex> lk(state->m);
+            if (is_absent_namespace(err)) {
+                state->received = nlohmann::json::object();
+                state->got = true;
+            } else {
+                spdlog::debug(
+                    "[FilamentSlotOverrideStore:{}] database_get_namespace({}) failed: {}",
+                    backend_id_copy, namespace_copy, err.message);
+            }
             state->done = true;
             state->cv.notify_one();
         });
