@@ -28,6 +28,24 @@ inline void advance() {
     counter().fetch_add(1);
 }
 
+/// Identifies the printer REST requests go to, for caches whose entries belong to one printer.
+inline std::atomic<size_t>& printer_key_storage() {
+    static std::atomic<size_t> key{0};
+    return key;
+}
+
+inline size_t printer_key() {
+    return printer_key_storage().load();
+}
+
+/// Points REST at @p base_url: a new address starts a new epoch and a new printer key.
+inline void set_base_url(const std::string& base_url, const std::string& previous) {
+    if (base_url != previous) {
+        advance();
+    }
+    printer_key_storage().store(std::hash<std::string>{}(base_url));
+}
+
 /// Wraps a REST request's success callback, taken when the request starts: a reply that
 /// arrives after the epoch moved goes to @p on_error as CONNECTION_LOST instead. Safe to call
 /// from the worker thread that delivers the reply.

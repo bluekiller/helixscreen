@@ -14,6 +14,7 @@
 #include "lvgl_image_writer.h"
 #include "memory_monitor.h"
 #include "system/crash_handler.h"
+#include "thumbnail_cache.h"
 
 #include <hv/hthreadpool.h>
 #include <spdlog/spdlog.h>
@@ -500,9 +501,8 @@ void ThumbnailProcessor::submit_test_task(std::function<void()> task) {
 
 std::string ThumbnailProcessor::generate_cache_filename(const std::string& source_path,
                                                         const ThumbnailTarget& target) const {
-    // Hash the source path for a unique identifier
-    std::hash<std::string> hasher;
-    size_t hash = hasher(source_path);
+    // ThumbnailCache sweeps a source's variants by this same key.
+    const std::string hash = ThumbnailCache::compute_hash(source_path);
 
     // Always ARGB8888 now
     const char* format_str = "ARGB8888";
@@ -510,8 +510,8 @@ std::string ThumbnailProcessor::generate_cache_filename(const std::string& sourc
     // Generate filename: {hash}_{w}x{h}_{format}.bin
     // NOTE: Must use .bin extension for LVGL's bin decoder (lv_bin_decoder.c only accepts .bin)
     char filename[128];
-    std::snprintf(filename, sizeof(filename), "%zu_%dx%d_%s.bin", hash, target.width, target.height,
-                  format_str);
+    std::snprintf(filename, sizeof(filename), "%s_%dx%d_%s.bin", hash.c_str(), target.width,
+                  target.height, format_str);
 
     return filename;
 }
