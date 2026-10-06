@@ -26,6 +26,7 @@
 #include <cctype>
 #include <cerrno>
 #include <cstring>
+#include <optional>
 #include <tuple>
 #include <unordered_set>
 #include <vector>
@@ -66,6 +67,9 @@ struct PrinterDatabase {
     std::vector<std::string> load_errors;
     int user_overrides = 0;
     int user_additions = 0;
+    // The file, and its mtime, that last failed to load. Every lookup calls
+    // load(), so retrying an unchanged broken file would toast once per lookup.
+    std::optional<std::pair<std::string, std::optional<std::int64_t>>> failed_file;
 
     bool load() {
         if (loaded)
@@ -73,8 +77,13 @@ struct PrinterDatabase {
 
         // Phase 1: Load bundled database
         const std::string db_path = helix::find_readable("printer_database.json");
+        const auto db_mtime = hfs::mtime_ns(db_path);
+        if (failed_file && failed_file->first == db_path && failed_file->second == db_mtime) {
+            return false;
+        }
         const auto db_text = helix::text_io::read_file(db_path);
         if (!db_text) {
+            failed_file.emplace(db_path, db_mtime);
             NOTIFY_ERROR(lv_tr("Could not load printer database"));
             LOG_ERROR_INTERNAL("[PrinterDetector] Failed to open {}", db_path);
             return false;
@@ -87,12 +96,14 @@ struct PrinterDatabase {
         const json* printers = helix::json_util::find_member(data, "printers");
         if (printers == nullptr || !printers->is_array()) {
             data = json();
+            failed_file.emplace(db_path, db_mtime);
             NOTIFY_ERROR(lv_tr("Printer database format error"));
             LOG_ERROR_INTERNAL(
                 "[PrinterDetector] Printer database is not an object with a 'printers' array: {}",
                 db_path);
             return false;
         }
+        failed_file.reset();
         loaded_files.push_back(db_path);
         // safe_string, not .value(): a null "version" must not cost the entire
         // printer database (detection fails, the roller collapses to
@@ -109,6 +120,7 @@ struct PrinterDatabase {
 
     void reload() {
         loaded = false;
+        failed_file.reset();
         compacted = false;
         loaded_files.clear();
         load_errors.clear();

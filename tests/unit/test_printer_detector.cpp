@@ -4286,6 +4286,49 @@ TEST_CASE("PrinterDetector: a malformed database degrades without throwing",
     }
 }
 
+TEST_CASE("PrinterDetector: an unchanged broken database is read once, not once per lookup",
+          "[printer][db_shape]") {
+    namespace fs = std::filesystem;
+    auto temp_root =
+        fs::temp_directory_path() / ("test_printer_detector_retry_" + std::to_string(getpid()));
+    struct RestoreDatabase {
+        fs::path root;
+        ~RestoreDatabase() {
+            PrinterDetector::reload();
+            fs::remove_all(root);
+        }
+    } restore{temp_root};
+    {
+        EnvGuard data_g("HELIX_DATA_DIR");
+        EnvGuard config_g("HELIX_CONFIG_DIR");
+        CwdGuard cwd_g;
+
+        fs::remove_all(temp_root);
+        fs::create_directories(temp_root / "assets" / "config");
+        fs::create_directories(temp_root / "config_dir");
+        const fs::path db = temp_root / "assets" / "config" / "printer_database.json";
+        std::ofstream(db) << "[]";
+        setenv("HELIX_DATA_DIR", temp_root.c_str(), 1);
+        setenv("HELIX_CONFIG_DIR", (temp_root / "config_dir").c_str(), 1);
+        REQUIRE(chdir(temp_root.c_str()) == 0);
+
+        PrinterDetector::reload();
+        REQUIRE_FALSE(PrinterDetector::get_load_status().loaded);
+
+        // A valid file under the broken one's mtime is not re-read: only the
+        // first lookup paid for the read.
+        const auto broken_mtime = fs::last_write_time(db);
+        std::ofstream(db, std::ios::trunc)
+            << R"({ "printers": [ { "id": "r", "name": "Retry Printer", "probe_type": "eddy" } ] })";
+        fs::last_write_time(db, broken_mtime);
+        REQUIRE(PrinterDetector::get_probe_type("Retry Printer").empty());
+
+        // Editing the file is what earns another attempt.
+        fs::last_write_time(db, broken_mtime + std::chrono::seconds(5));
+        REQUIRE(PrinterDetector::get_probe_type("Retry Printer") == "eddy");
+    }
+}
+
 TEST_CASE("PrinterDetector: wrong-typed entry fields read as absent", "[printer][db_shape]") {
     namespace fs = std::filesystem;
     auto temp_root =
