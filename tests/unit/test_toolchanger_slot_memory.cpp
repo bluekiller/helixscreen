@@ -512,7 +512,7 @@ TEST_CASE("Tool-changer slot metadata round-trips through Moonraker",
     // T<n>, NOT laneN. lane_key_style_for(TOOL_CHANGER) picks the Tool style so
     // HelixScreen overwrites Mainsail's records for the same tool instead of
     // duplicating them into a second key nobody else reads.
-    auto stored = api.mock_get_db_value("lane_data", "T1");
+    auto stored = mock_printer.client.mock_db_get("lane_data", "T1");
     REQUIRE_FALSE(stored.is_null());
     CHECK(stored["lane"] == "1"); // inner index stays 0-based
     CHECK(stored["material"] == "PETG");
@@ -522,7 +522,7 @@ TEST_CASE("Tool-changer slot metadata round-trips through Moonraker",
 
     // The laneN key must NOT also exist, or two records describe one tool and
     // whichever a reader happens to pick decides what the user sees.
-    CHECK(api.mock_get_db_value("lane_data", "lane2").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane2").is_null());
 
     // --- session 2: restart, nothing in memory ------------------------------
     {
@@ -573,7 +573,7 @@ TEST_CASE("A cleared tool-changer record is gone after a reload",
 
     // The record is GONE, not blank: a blank record would still re-apply on
     // reload, pinning the lane's declared set to nothing instead of freeing it.
-    CHECK(api.mock_get_db_value("lane_data", "T1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "T1").is_null());
 
     // Restart: nothing in memory, nothing in the store, tool 1 reads default.
     {

@@ -110,7 +110,6 @@ struct SpoolInfo {
     std::string comment;           ///< User notes/comment
     std::string last_used;         ///< ISO 8601 timestamp of last use (empty = never used)
     std::string registered;        ///< ISO 8601 creation timestamp from Spoolman
-    bool is_active = false;        ///< True if this is the currently tracked spool
 
     // Temperature recommendations from filament database
     int nozzle_temp_min = 0;

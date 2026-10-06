@@ -5044,7 +5044,7 @@ TEST_CASE("AD5X IFS apply_user_edit stores override in memory and store",
 
     // Moonraker DB received the AFC-shaped record via save_async (which
     // MoonrakerAPIMock dispatches synchronously in-call).
-    auto stored = api.mock_get_db_value("lane_data", "lane1");
+    auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!stored.is_null());
     CHECK(stored["vendor"] == "Polymaker");
     CHECK(stored["spool_id"] == 42);
@@ -5079,7 +5079,7 @@ TEST_CASE("AD5X IFS sync_external_identity does NOT write to store",
     // (since no prior override clobbers it via apply_overrides).
     CHECK_FALSE(Ad5xIfsTestAccess::get_override(backend, 0).has_value());
     // Moonraker DB not touched.
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // The edit is still visible via get_slot_info — this is the preview path.
     auto info = backend.get_slot_info(0);
@@ -5300,7 +5300,7 @@ TEST_CASE("AD5X IFS user-edited slot survives firmware FFMInfo revert (#965 regr
 
     // Verify the Moonraker DB record was NOT overwritten with the firmware-
     // reverted values (the persistence step of the original bug).
-    auto db = api.mock_get_db_value("lane_data", "lane1");
+    auto db = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!db.is_null());
     CHECK(db.value("material", "") == "PLA");
     CHECK(db.value("color", "") == "#FF5500");
@@ -5617,12 +5617,12 @@ TEST_CASE("AD5X IFS external color change syncs colour and preserves a linked sp
 
     // Seed a lane_data entry in the mock DB plus a matching in-memory override
     // — what the override store load would produce after a Helix-initiated edit.
-    api.mock_set_db_value("lane_data", "lane1",
-                          nlohmann::json{{"vendor", "Polymaker"},
-                                         {"spool_id", 42},
-                                         {"spool_name", "PolyLite Orange"},
-                                         {"material", "PLA"},
-                                         {"color", "#FF5500"}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    nlohmann::json{{"vendor", "Polymaker"},
+                                                   {"spool_id", 42},
+                                                   {"spool_name", "PolyLite Orange"},
+                                                   {"material", "PLA"},
+                                                   {"color", "#FF5500"}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -5644,7 +5644,7 @@ TEST_CASE("AD5X IFS external color change syncs colour and preserves a linked sp
         CHECK(info.color_rgb == 0xFF5500u);
     }
     CHECK(Ad5xIfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Second parse: firmware reports a DIFFERENT color (and material). This is
     // an external edit — sync override + lane_data, KEEP brand/spool/spoolman.
@@ -5672,7 +5672,7 @@ TEST_CASE("AD5X IFS external color change syncs colour and preserves a linked sp
 
     // Moonraker DB lane1 entry refreshed by save_async, so Orca sees the new
     // colour beside the preserved vendor, spool_id and the spool's material.
-    auto db = api.mock_get_db_value("lane_data", "lane1");
+    auto db = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!db.is_null());
     CHECK(db.value("color", "") == "#0055FF");
     CHECK(db.value("material", "") == "PLA");
@@ -5703,14 +5703,14 @@ TEST_CASE("AD5X IFS external color change with no override creates minimal lane_
     Ad5xIfsTestAccess::set_port_presence(backend, 0, true);
 
     // No seeded override. lane_data starts empty.
-    REQUIRE(api.mock_get_db_value("lane_data", "lane1").is_null());
+    REQUIRE(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // First parse: establishes baseline at FF5500. No sync (baseline).
     Ad5xIfsTestAccess::parse_adventurer_json(backend, R"({
         "FFMInfo": {"ffmColor1": "#FF5500", "ffmType1": "PLA"}
     })");
     CHECK_FALSE(Ad5xIfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Second parse: external color change. Minimal override created + lane_data
     // record published.
@@ -5726,7 +5726,7 @@ TEST_CASE("AD5X IFS external color change with no override creates minimal lane_
     CHECK(staged->brand.empty());
     CHECK(staged->spoolman_id == 0);
 
-    auto db = api.mock_get_db_value("lane_data", "lane1");
+    auto db = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!db.is_null());
     CHECK(db.value("color", "") == "#0055FF");
     CHECK(db.value("material", "") == "PETG");
@@ -5758,7 +5758,7 @@ TEST_CASE("AD5X IFS GET_ZCOLOR eject keeps the override and lane_data (#1071)",
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     Ad5xIfsTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         nlohmann::json{
             {"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
@@ -5797,7 +5797,7 @@ TEST_CASE("AD5X IFS GET_ZCOLOR eject keeps the override and lane_data (#1071)",
         CHECK(info.spoolman_id == 42);
     }
     CHECK(Ad5xIfsTestAccess::get_override(backend, 0).has_value());
-    CHECK_FALSE(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK_FALSE(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 }
 
 // ==========================================================================
@@ -6048,7 +6048,7 @@ TEST_CASE("AD5X IFS empty colors_[] on boot does NOT establish phantom baseline"
 
     // Seed a saved override (PETG, brand, spoolman_id) — what the user
     // configured in a prior session and persisted into filament_slot store.
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         nlohmann::json{
             {"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PETG"}, {"color", "#898989"}});
@@ -6083,7 +6083,7 @@ TEST_CASE("AD5X IFS empty colors_[] on boot does NOT establish phantom baseline"
         CHECK(staged->material == "PETG");
         CHECK(staged->spoolman_id == 42);
     }
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Boot path step 2: Adventurer5M.json finally arrives with the real
     // firmware color. This is the FIRST real firmware reading for the slot,
@@ -6107,7 +6107,7 @@ TEST_CASE("AD5X IFS empty colors_[] on boot does NOT establish phantom baseline"
         CHECK(staged->brand == "Polymaker");
         CHECK(staged->material == "PETG");
     }
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     CHECK(Ad5xIfsTestAccess::last_firmware_color(backend, 0) == 0x898989u);
 
     // The slot is now loaded (firmware reported a real color). parse_adventurer_json
@@ -6160,7 +6160,7 @@ TEST_CASE("AD5X IFS first firmware color observation does NOT clear override",
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     Ad5xIfsTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         nlohmann::json{
             {"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
@@ -6184,7 +6184,7 @@ TEST_CASE("AD5X IFS first firmware color observation does NOT clear override",
         CHECK(staged->spoolman_id == 42);
     }
     // DB entry preserved.
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Steady state: a SECOND parse of the SAME firmware color that was used
     // to establish the baseline must ALSO not clear. This locks in the
@@ -6198,7 +6198,7 @@ TEST_CASE("AD5X IFS first firmware color observation does NOT clear override",
     REQUIRE(staged.has_value());
     CHECK(staged->brand == "Polymaker");
     CHECK(staged->spoolman_id == 42);
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 }
 
 // ------------------------------------------------------------------
@@ -6488,7 +6488,7 @@ TEST_CASE("AD5X IFS clear_slot_override erases in-memory override and MR DB entr
     // Seed both halves of the override — lane_data on the Moonraker side
     // and the in-memory map on the backend side — so the clear has something
     // to remove at each layer.
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         nlohmann::json{
             {"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
@@ -6517,14 +6517,14 @@ TEST_CASE("AD5X IFS clear_slot_override erases in-memory override and MR DB entr
         CHECK(info.remaining_weight_g == 750.0f);
     }
     REQUIRE(Ad5xIfsTestAccess::get_override(backend, 0).has_value());
-    REQUIRE(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    REQUIRE(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // User presses "Clear slot metadata". Override MUST be removed from both
     // layers — no swap signal needed.
     backend.clear_slot_override(0);
 
     CHECK_FALSE(Ad5xIfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     auto info = backend.get_slot_info(0);
     CHECK(info.brand.empty());

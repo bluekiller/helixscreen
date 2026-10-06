@@ -258,8 +258,8 @@ TEST_CASE("make_loaded_override_store returns the store and its loaded map toget
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
 
-    api.mock_set_db_value("private-ns", "lane2",
-                          nlohmann::json{{"lane", "1"}, {"material", "PETG"}});
+    mock_printer.client.mock_db_set("private-ns", "lane2",
+                                    nlohmann::json{{"lane", "1"}, {"material", "PETG"}});
 
     auto loaded = helix::ams::make_loaded_override_store(&api, "somebackend", helix::AmsType::AFC,
                                                          "[TEST]", "private-ns");
@@ -316,7 +316,7 @@ TEST_CASE("Happy Hare slot identity survives a restart",
 
     // The record has to be in the DB, under Happy Hare's own namespace. Gate 1
     // is the 0-based inner index, so the outer key is the 1-based "lane2".
-    auto stored = api.mock_get_db_value("helix-screen-hh-overrides", "lane2");
+    auto stored = mock_printer.client.mock_db_get("helix-screen-hh-overrides", "lane2");
     REQUIRE_FALSE(stored.is_null());
     CHECK(stored["lane"] == "1");
     CHECK(stored["material"] == "PETG");
@@ -325,7 +325,7 @@ TEST_CASE("Happy Hare slot identity survives a restart",
 
     // Nothing in the SHARED namespace: that one belongs to the Happy Hare
     // plugin, which rewrites it on every Klipper boot.
-    CHECK(api.mock_get_db_value("lane_data", "lane2").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane2").is_null());
 
     // --- session 2: relaunch, nothing in memory -----------------------------
     {
@@ -377,7 +377,7 @@ TEST_CASE("Happy Hare cleared slot override does not return after a restart",
         hh.clear_slot_override(1);
     }
 
-    CHECK(api.mock_get_db_value("helix-screen-hh-overrides", "lane2").is_null());
+    CHECK(mock_printer.client.mock_db_get("helix-screen-hh-overrides", "lane2").is_null());
 
     // --- session 2: relaunch, nothing in memory -----------------------------
     {
@@ -408,7 +408,7 @@ TEST_CASE("AFC slot identity survives a restart", "[ams][afc][filament_slot_over
         REQUIRE(helix::test::apply_edit(afc, 1, user_edit()).success());
     }
 
-    auto stored = api.mock_get_db_value("helix-screen-afc-overrides", "lane2");
+    auto stored = mock_printer.client.mock_db_get("helix-screen-afc-overrides", "lane2");
     REQUIRE_FALSE(stored.is_null());
     CHECK(stored["lane"] == "1");
     CHECK(stored["material"] == "PETG");
@@ -417,7 +417,7 @@ TEST_CASE("AFC slot identity survives a restart", "[ams][afc][filament_slot_over
 
     // AFC's plugin deletes the shared namespace on every boot and full-POSTs
     // each lane record, so a record written there is gone by the next launch.
-    CHECK(api.mock_get_db_value("lane_data", "lane2").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane2").is_null());
 
     {
         helix::test::RegisteredBackend<StoreBackedAfc> fresh_reg(&api);

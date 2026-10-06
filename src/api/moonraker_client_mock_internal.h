@@ -131,7 +131,7 @@ void register_history_handlers(std::unordered_map<std::string, MethodHandler>& r
  * - server.info
  * - printer.info
  * - server.config (job_queue.automatic_transition; env-overridable)
- * - server.database.get_item / post_item (in-memory, reset per mock instance)
+ * - server.database.get_item / post_item / delete_item (the client's own store)
  *
  * @param registry Map to register handlers into
  */

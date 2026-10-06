@@ -536,7 +536,7 @@ struct SpoolmanLaneFixture : SpoolmanFixture {
     /// What the server holds for spool @p id. A case states every field it
     /// asserts on here rather than resting on the mock's seed inventory.
     SpoolInfo& server_spool(int id) {
-        auto& spools = api.spoolman_mock().get_mock_spools();
+        auto& spools = client.spoolman_mock().get_mock_spools();
         auto it = std::find_if(spools.begin(), spools.end(),
                                [id](const SpoolInfo& s) { return s.id == id; });
         REQUIRE(it != spools.end());
@@ -544,7 +544,7 @@ struct SpoolmanLaneFixture : SpoolmanFixture {
     }
 
     void remove_server_spool(int id) {
-        auto& spools = api.spoolman_mock().get_mock_spools();
+        auto& spools = client.spoolman_mock().get_mock_spools();
         spools.erase(std::remove_if(spools.begin(), spools.end(),
                                     [id](const SpoolInfo& s) { return s.id == id; }),
                      spools.end());
@@ -1079,7 +1079,7 @@ TEST_CASE_METHOD(SpoolmanLaneFixture,
     }
 
     SECTION("an unreachable Spoolman leaves it standing") {
-        api.spoolman_mock().set_mock_spoolman_enabled(false);
+        client.set_mock_spoolman_enabled(false);
         poll();
 
         // Both linked slots' fetches failed, and each failure was counted.
@@ -1307,7 +1307,7 @@ TEST_CASE_METHOD(SpoolmanLaneFixture,
     drain();
     REQUIRE(ts.tools()[0].spoolman_id == 1);
     REQUIRE_FALSE(helix::ToolStateTestAccess::spool_dirty(ts));
-    const int saves_after_link = tool_api.mock_db_post_count();
+    const int saves_after_link = client.call_count("server.database.post_item");
     REQUIRE(saves_after_link > 0);
 
     // A print draining the spool: each poll finds less on the server.
@@ -1322,7 +1322,7 @@ TEST_CASE_METHOD(SpoolmanLaneFixture,
                 std::to_string(static_cast<int>(remaining)) + "g");
     }
 
-    CHECK(tool_api.mock_db_post_count() == saves_after_link);
+    CHECK(client.call_count("server.database.post_item") == saves_after_link);
 }
 
 TEST_CASE_METHOD(SpoolmanLaneFixture,
@@ -1377,7 +1377,7 @@ TEST_CASE_METHOD(SpoolmanLaneFixture,
     AmsState::instance().set_external_spool_info_in_memory(ext);
 
     const auto exceptions_before = helix::ui::UpdateQueueTestAccess::callback_exception_count();
-    api.spoolman_mock().set_mock_spoolman_enabled(false);
+    client.set_mock_spoolman_enabled(false);
 
     helix::TextLogCapture capture;
     poll();

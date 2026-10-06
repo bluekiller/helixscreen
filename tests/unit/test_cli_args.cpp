@@ -376,6 +376,27 @@ TEST_CASE("parse_cli_args: an explicit HELIX_MOCK_AMS wins over the persona", "[
     REQUIRE_FALSE(get_runtime_config()->use_real_ams);
 }
 
+// A real printer behind a mock AMS would see the mock's fabricated spool ids
+// set active and PATCHed on its real Spoolman, so a real connection means the
+// real AMS, even when HELIX_MOCK_AMS names a mock topology.
+TEST_CASE("parse_cli_args: --real-moonraker implies --real-ams", "[cli_args][mock]") {
+    ScopedRuntimeConfig scoped_config;
+    ScopedEnv printer{"HELIX_MOCK_PRINTER", nullptr};
+    SECTION("with no HELIX_MOCK_AMS") {
+        ScopedEnv ams{"HELIX_MOCK_AMS", nullptr};
+        CliArgs args;
+        REQUIRE(parse({"helix-screen", "--test", "--real-moonraker"}, args));
+        REQUIRE(get_runtime_config()->use_real_ams);
+        REQUIRE_FALSE(get_runtime_config()->should_mock_ams());
+    }
+    SECTION("over an explicit HELIX_MOCK_AMS") {
+        ScopedEnv ams{"HELIX_MOCK_AMS", "toolchanger"};
+        CliArgs args;
+        REQUIRE(parse({"helix-screen", "--test", "--real-moonraker"}, args));
+        REQUIRE(get_runtime_config()->use_real_ams);
+    }
+}
+
 TEST_CASE("parse_cli_args: other personas do not imply --real-ams", "[cli_args][mock]") {
     ScopedRuntimeConfig scoped_config;
     ScopedEnv ams{"HELIX_MOCK_AMS", nullptr};
