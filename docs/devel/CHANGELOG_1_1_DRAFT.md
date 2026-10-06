@@ -301,12 +301,19 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
   control.
 - **AFC buffers with a pressure sensor drive sync feedback** - an `AFC_buffer` of type
   `FPS_PSF` measures what Happy Hare's sync feedback measures, so it is published the same
-  way and the buffer meter, path tint and filament page all work on AFC unchanged. Not yet
+  way and the clog meter and path tint work on AFC unchanged. Not yet
   verified on hardware: the only AFC rig on hand is a switched TurtleNeck, which sends none
   of these keys and is unaffected.
 - **The OpenAMS filament pressure sensor is on the filament path** (#1724) - OpenAMS running
-  without AFC shows each unit's FPS as a box labelled FPS; tap it for the current pressure,
-  0% to 100%.
+  without AFC shows each unit's FPS as a box labelled FPS, tinted as the reading drifts from
+  its target; tap it for the pressure against its target and whether the filament is
+  pulling tight or loose.
+- **Filament pressure is a clog meter source** - Happy Hare sync feedback and any filament
+  pressure sensor (AFC `FPS_PSF`, OpenAMS) draw on the clog meter as a TIGHT ... LOOSE
+  scale, on the home tile, the filament sidebar, the loaded card and the Buffer Status modal.
+  A clog detector outranks it; pick **Pressure** in the clog widget's settings to show it
+  anyway. The separate buffer-plunger meter is gone, and the Buffer Status modal now
+  updates live while it is open.
 - **AD5X tool remapping uses the IFS's own commands** - the screen reads and writes the
   printer's tool map through `IFS_MAP_TOOL`, so a remap matches what the printer reports.
 - **Spool labels lead with the spool number** (#1491) - on every label layout the spool number

@@ -1559,6 +1559,7 @@
   <translation tag="LOAD CELLS" de="WÄGEZELLEN"/>
   <translation tag="LOADED" de="GELADEN"/>
   <translation tag="LOCKED" de="GESPERRT"/>
+  <translation tag="LOOSE" de="LOCKER"/>
   <translation tag="LOT-2024-001" de="LOT-2024-001"/>
   <translation tag="Label Printer" de="Etikettendrucker"/>
   <translation tag="Label Size" de="Etikettengröße"/>
@@ -2157,6 +2158,7 @@
   <translation tag="Presets come from the WLED device. Edit them in the WLED app." de="Voreinstellungen kommen vom WLED-Gerät. Bearbeiten Sie sie in der WLED-App."/>
   <translation tag="Press Abort to stop" de="Zum Stoppen Abbrechen drücken"/>
   <translation tag="Press Scan to search" de="Scannen drücken zum Suchen"/>
+  <translation tag="Pressure" de="Druck"/>
   <translation tag="Pressure Adv." de="Pressure Adv."/>
   <translation tag="Pressure Advance" de="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" de="Pressure-Advance-Kalibrierung"/>
@@ -2882,6 +2884,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." de="Heizungsregelung wird auf MPC umgestellt. Klipper wird neu starten."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." de="Der Wechsel zu MPC ändert, wie diese Heizung geregelt wird, und kalibriert sie anschließend. Das dauert mehrere Minuten bei Betriebstemperatur."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." de="Wechsel zu MPC erfordert eine Konfigurationsänderung und Klipper-Neustart."/>
+  <translation tag="Sync" de="Sync"/>
   <translation tag="Sync during printing" de="Beim Drucken synchronisieren"/>
   <translation tag="Sync with Spoolman" de="Mit Spoolman synchronisieren"/>
   <translation tag="Sysfs" de="Sysfs"/>
@@ -2896,6 +2899,7 @@
   <translation tag="TD-1 filament color detection" de="TD-1-Filamentfarberkennung"/>
   <translation tag="TEMPERATURE SENSORS" de="TEMPERATURSENSOREN"/>
   <translation tag="THEME COLORS" de="THEMENFARBEN"/>
+  <translation tag="TIGHT" de="STRAFF"/>
   <translation tag="TOGGLE: {}" de="UMSCHALTEN: {}"/>
   <translation tag="TOOLS" de="WERKZEUGE"/>
   <translation tag="TPU" de="TPU"/>

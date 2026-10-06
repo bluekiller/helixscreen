@@ -68,14 +68,15 @@
       <lv_obj width="100%"
               height="content" style_pad_all="0" style_pad_column="#space_xs" scrollable="false" flex_flow="row"
               style_flex_cross_place="center" clickable="false" event_bubble="true">
-        <!-- Only Flowguard's ends mean different things (tangle one way, clog
-             the other). A linear mode fills from nothing toward its danger
-             band, which the shading already says, so the labels come off and
-             the track takes their width. -->
+        <!-- Only a symmetrical mode's ends mean different things (Flowguard:
+             tangle one way, clog the other; Pressure: tight and loose). A
+             linear mode fills from nothing toward its danger band, which the
+             shading already says, so the labels come off and the track takes
+             their width. -->
         <text_tiny name="clog_bar_label_left"
                    bind_text="clog_meter_label_left" style_text_color="#text_muted" clickable="false"
                    event_bubble="true">
-          <bind_flag_if_not_eq subject="clog_meter_mode" flag="hidden" ref_value="2"/>
+          <bind_flag_if_eq subject="clog_meter_symmetrical" flag="hidden" ref_value="0"/>
         </text_tiny>
         <lv_obj name="clog_bar_track"
                 height="#meter_track_h" flex_grow="1" style_pad_all="0" style_bg_color="#overlay_bg" style_bg_opa="255"
@@ -119,7 +120,7 @@
         <text_tiny name="clog_bar_label_right"
                    bind_text="clog_meter_label_right" style_text_color="#text_muted" clickable="false"
                    event_bubble="true">
-          <bind_flag_if_not_eq subject="clog_meter_mode" flag="hidden" ref_value="2"/>
+          <bind_flag_if_eq subject="clog_meter_symmetrical" flag="hidden" ref_value="0"/>
         </text_tiny>
       </lv_obj>
 

@@ -529,7 +529,7 @@ A horizontal scale that fills as your clog or flow reading moves, shifting from 
 
 | Where | What it tells you |
 |-------|-------------------|
-| **Top left** | Which sensor is measuring — `Clog Auto`, `Clog Manual`, `FlowGuard` or `AFC buffer` |
+| **Top left** | Which sensor is measuring — `Clog Auto`, `Clog Manual`, `FlowGuard`, `AFC buffer`, `Sync` (Happy Hare sync feedback) or `FPS` (a filament pressure sensor) |
 | **Top right** | How worried it is, as an icon: a **check** while healthy, a **warning triangle** once the reading reaches the danger threshold, and a **red nozzle** once your firmware has actually flagged a fault |
 | **The bar** | The reading. A shaded red band marks the danger zone, with a bright amber line where that zone begins |
 | **Ticks** | A bright tick at the current reading, a fainter one at the worst value seen this print |
@@ -542,40 +542,34 @@ The bar adapts to your detection backend:
 | **Encoder** | *(none)* | Clog percentage (0–100%) — how much the encoder reading deviates from expected. Fills from the left. |
 | **Flowguard** | TANGLE ... CLOG | Flow deviation (−100 to +100). Fills **out from the middle**: toward TANGLE when filament is over-feeding, toward CLOG when it is under-feeding. Both ends are shaded, because either extreme is a fault. |
 | **AFC** | *(none)* | Buffer fault proximity (0–100%) — how close the buffer is to a fault condition. |
+| **Pressure** | TIGHT ... LOOSE | Where the filament buffer sits (−100 to +100), from Happy Hare sync feedback or a filament pressure sensor (AFC `FPS_PSF`, OpenAMS). Fills **out from the middle**: toward TIGHT when the extruder pulls harder than the feeder pushes, toward LOOSE when the feeder overfeeds. It turns amber past 30% either way and red past 70%, where the shaded band begins. The number underneath is the sensor's pressure, or the sync-feedback bias on Happy Hare. |
 
-Only Flowguard carries end labels, because only Flowguard has two directions that mean different faults. The other two fill from nothing toward their danger band, which the shading already shows — so the labels come off and the scale gets the width instead.
+Flowguard and Pressure carry end labels, because each has two directions that mean different faults. The other two fill from nothing toward their danger band, which the shading already shows — so the labels come off and the scale gets the width instead.
+
+A clog detector (encoder, Flowguard or AFC buffer fault detection) outranks Pressure. To watch the buffer instead, open the widget's settings in edit mode and pick **Pressure** as the source.
 
 When there is nothing to report at all — an AFC buffer that is armed but not currently tracking — the bar sits empty and the status icon shows a check, rather than leaving you with a blank scale and no number.
 
 > The same reading is drawn as an arc gauge in the filament sidebar and on the loaded-spool card, where the space is tall and narrow rather than wide and short.
 
-**Page 2 — Buffer Sync Meter** (any printer reporting proportional buffer pressure)
-
-A visual representation of the physical buffer plunger position. Two nested rectangles show the buffer housing and plunger — the plunger slides up or down to indicate filament tension:
-
-- **Center position** = balanced, healthy tension
-- **Shifted up** = filament under compression (being pushed)
-- **Shifted down** = filament under tension (being pulled)
-- Color shifts from green → orange → red as the bias increases
-
-A percentage label shows the exact bias reading (e.g., "+5%", "−10%"). Swipe between pages using the indicator dots at the bottom.
-
 ### Tapping the Widget
 
 Tap the Clog Detection widget to open the **Buffer Status** modal — a detailed read-only view of your filament path health:
 
-The same FlowGuard bar sits across the top, so the modal shows everything the widget did and more - the reading, the danger threshold and the worst value seen this print.
+The same bar sits across the top, so the modal shows everything the widget did and more - the reading, the danger threshold and the worst value seen this print. Everything in the modal updates live while it is open.
+
+**Printers with a proportional buffer** (Happy Hare sync feedback, an AFC `FPS_PSF` buffer, OpenAMS) show whether the filament is balanced, pulling tight or loose.
 
 **Happy Hare printers also show:**
-- Filament tension description (e.g., "Slight tension", "Balanced")
 - Spool motor state
 - Gear sync status
 - Flow rate
-- Full-size buffer meter visualization
 
 **AFC printers also show:**
 - Advancing/trailing buffer state
 - Distance to fault (in mm)
+
+**OpenAMS printers also show** the filament pressure against its target, for example "Pressure: 53% (target 50%)".
 
 ### Configuring Clog Detection
 
@@ -583,7 +577,7 @@ In Edit Mode, select the Clog Detection widget and tap the **gear icon** to open
 
 | Setting | Options |
 |---------|---------|
-| **Detection Source** | Auto (recommended), Encoder, Flowguard, or AFC |
+| **Detection Source** | Auto (recommended), Encoder, Flowguard, AFC, or Pressure (the filament buffer: Happy Hare sync feedback or a filament pressure sensor). Only the sources your printer has are offered |
 | **Detection Mode** | Auto or Manual — in Manual mode, a G-code command is sent to the firmware |
 | **Detection Length** | Filament distance threshold (Manual mode only) |
 | **Danger Threshold** | Override the computed danger zone percentage |

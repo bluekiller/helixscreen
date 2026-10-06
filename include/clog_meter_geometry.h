@@ -17,7 +17,12 @@ enum class ClogMeterMode : int {
     Encoder = 1,   ///< 0..100 clog percentage, gradient safe -> clogged
     Flowguard = 2, ///< -100..+100, tangle at one end and clog at the other
     Buffer = 3,    ///< 0..100 AFC buffer fault proximity
+    Pressure = 4,  ///< -100..+100 sync-feedback bias, tight at one end and loose at the other
 };
+
+/// Whether a mode's reading runs out from a centre rather than up from nothing,
+/// so its two ends mean opposite faults.
+bool clog_meter_is_symmetrical(int mode);
 
 /// Indicator colour as two design-token names plus a mix fraction, rather than
 /// a resolved `lv_color_t`.
@@ -35,9 +40,9 @@ struct ClogMeterTint {
 /// Which colour the indicator takes for a given mode/value/warning triple.
 ///
 /// A warning is unconditional danger whatever the mode. Otherwise the linear
-/// modes ramp primary -> warning -> danger across their 0..100 range, and
-/// Flowguard stays primary: its extremes are already labelled at both ends of
-/// the scale, so tinting the middle of a symmetrical range says nothing.
+/// modes ramp primary -> warning -> danger across their 0..100 range, Pressure
+/// turns warning past kPressureWarningPct either way, and Flowguard stays
+/// primary: its extremes are already labelled at both ends of the scale.
 ClogMeterTint clog_meter_tint(int mode, int value, int warning);
 
 /// clog_meter_tint() with its tokens resolved against the live theme, for the
@@ -61,6 +66,22 @@ enum class ClogMeterStatus : int {
 /// tripped yet, which is the whole point of showing a threshold at all.
 /// `value` is compared by magnitude so Flowguard's tangle side counts.
 ClogMeterStatus clog_meter_status(int mode, int value, int warning, int danger_pct);
+
+/// Bands a filament-pressure reading (`|bias| * 100`) is judged against: from
+/// kPressureWarningPct it is drifting off balance (a warning, whatever the
+/// meter's danger threshold), from kPressureFaultPct the buffer is close to its
+/// end stop (a fault, and the meter's shaded danger zone).
+constexpr int kPressureWarningPct = 30;
+constexpr int kPressureFaultPct = 70;
+
+/// Severity of a filament-pressure reading, -100..+100.
+ClogMeterStatus pressure_status(int pct);
+
+/// Which way a sync-feedback bias (-1..+1) leans, the same reading the
+/// Pressure mode's TIGHT / LOOSE ends label. Negative is tension (the extruder
+/// pulling harder than the feeder pushes), positive is compression.
+enum class BufferLean : int { Balanced, Tight, Loose };
+BufferLean buffer_lean(float bias);
 
 /// Whether the reading means "nothing to report" rather than "zero danger".
 ///
@@ -104,7 +125,7 @@ struct ClogMeterSample {
     /// symmetrical range and the bar as centre-out geometry; the *decision* is
     /// this one.
     [[nodiscard]] bool is_symmetrical() const {
-        return kind() == ClogMeterMode::Flowguard;
+        return clog_meter_is_symmetrical(mode);
     }
 
     [[nodiscard]] ClogMeterStatus status() const {
@@ -139,7 +160,7 @@ struct ClogBarGeometry {
 
 /// Lay the bar out for one sample.
 ///
-/// `value` is the raw `clog_meter_value` — signed for Flowguard, 0..100
+/// `value` is the raw `clog_meter_value` — signed for symmetrical modes, 0..100
 /// otherwise. `danger_pct` is the magnitude at which the reading is
 /// dangerous, and `peak_pct` the worst magnitude seen this print. Both are
 /// magnitudes even in the symmetrical mode, where the peak is drawn on the

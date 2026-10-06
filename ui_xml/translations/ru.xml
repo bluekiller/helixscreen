@@ -1559,6 +1559,7 @@
   <translation tag="LOAD CELLS" ru="ТЕНЗОДАТЧИКИ"/>
   <translation tag="LOADED" ru="ЗАГРУЖЕН"/>
   <translation tag="LOCKED" ru="ЗАБЛОКИРОВАНО"/>
+  <translation tag="LOOSE" ru="ОСЛАБЛЕН"/>
   <translation tag="LOT-2024-001" ru="LOT-2024-001"/>
   <translation tag="Label Printer" ru="Принтер этикеток"/>
   <translation tag="Label Size" ru="Размер этикетки"/>
@@ -2157,6 +2158,7 @@
   <translation tag="Presets come from the WLED device. Edit them in the WLED app." ru="Пресеты берутся с устройства WLED. Изменяйте их в приложении WLED."/>
   <translation tag="Press Abort to stop" ru="Нажмите «Прервать», чтобы остановить"/>
   <translation tag="Press Scan to search" ru="Нажмите «Поиск» для сканирования"/>
+  <translation tag="Pressure" ru="Давление"/>
   <translation tag="Pressure Adv." ru="Pressure Adv."/>
   <translation tag="Pressure Advance" ru="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" ru="Калибровка Pressure Advance"/>
@@ -2882,6 +2884,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." ru="Переключение управления нагревом на MPC. Klipper перезапустится."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." ru="Переход на MPC меняет способ управления этим нагревателем, а затем калибрует его. Это занимает несколько минут при рабочей температуре."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." ru="Переход на MPC требует изменения конфига и перезапуска Klipper."/>
+  <translation tag="Sync" ru="Синхр."/>
   <translation tag="Sync during printing" ru="Синхронизация во время печати"/>
   <translation tag="Sync with Spoolman" ru="Синхронизация со Spoolman"/>
   <translation tag="Sysfs" ru="Sysfs"/>
@@ -2896,6 +2899,7 @@
   <translation tag="TD-1 filament color detection" ru="Определение цвета филамента TD-1"/>
   <translation tag="TEMPERATURE SENSORS" ru="ДАТЧИКИ ТЕМПЕРАТУРЫ"/>
   <translation tag="THEME COLORS" ru="ЦВЕТА ТЕМЫ"/>
+  <translation tag="TIGHT" ru="НАТЯНУТ"/>
   <translation tag="TOGGLE: {}" ru="ПЕРЕКЛЮЧИТЬ: {}"/>
   <translation tag="TOOLS" ru="ИНСТРУМЕНТЫ"/>
   <translation tag="TPU" ru="TPU"/>

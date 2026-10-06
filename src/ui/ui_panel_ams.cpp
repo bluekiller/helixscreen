@@ -1177,12 +1177,9 @@ void AmsPanel::on_buffer_clicked(void* user_data) {
 }
 
 void AmsPanel::handle_buffer_click() {
-    auto* backend = AmsState::instance().get_backend();
-    if (!backend)
+    if (!AmsState::instance().get_backend())
         return;
-
-    auto info = backend->get_system_info();
-    BufferStatusModal::show_for(info, 0);
+    BufferStatusModal::show_for(0);
 }
 
 void AmsPanel::on_path_slot_clicked(int slot_index, void* user_data) {

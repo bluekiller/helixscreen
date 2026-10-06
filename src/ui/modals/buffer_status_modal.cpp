@@ -2,9 +2,12 @@
 
 #include "buffer_status_modal.h"
 
-#include "ui_buffer_meter.h"
 #include "ui_clog_bar.h"
 
+#include "ams_backend.h"
+#include "ams_state.h"
+#include "clog_meter_geometry.h"
+#include "observer_factory.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -15,7 +18,7 @@
 // Static member definitions
 bool BufferStatusModal::subjects_initialized_ = false;
 lv_subject_t BufferStatusModal::type_subject_;
-lv_subject_t BufferStatusModal::show_meter_subject_;
+lv_subject_t BufferStatusModal::show_lean_subject_;
 lv_subject_t BufferStatusModal::show_espooler_subject_;
 lv_subject_t BufferStatusModal::show_flow_subject_;
 lv_subject_t BufferStatusModal::show_distance_subject_;
@@ -41,9 +44,8 @@ BufferStatusModal::BufferStatusModal() {
 }
 
 BufferStatusModal::~BufferStatusModal() {
-    // Delete both before Modal::~Modal() destroys the dialog tree, so each
-    // can remove its event callbacks from widgets that still exist.
-    delete meter_;
+    // Before Modal::~Modal() destroys the dialog tree, so it can remove its
+    // event callbacks from widgets that still exist.
     delete clog_bar_;
     // Subjects are static — never deinited (persist for the process lifetime)
 }
@@ -53,7 +55,7 @@ void BufferStatusModal::init_subjects() {
         return;
 
     lv_subject_init_int(&type_subject_, 0);
-    lv_subject_init_int(&show_meter_subject_, 0);
+    lv_subject_init_int(&show_lean_subject_, 0);
     lv_subject_init_int(&show_espooler_subject_, 0);
     lv_subject_init_int(&show_flow_subject_, 0);
     lv_subject_init_int(&show_distance_subject_, 0);
@@ -74,7 +76,7 @@ void BufferStatusModal::init_subjects() {
                            sizeof(afc_distance_buf_), "");
 
     lv_xml_register_subject(nullptr, "buf_type", &type_subject_);
-    lv_xml_register_subject(nullptr, "buf_show_meter", &show_meter_subject_);
+    lv_xml_register_subject(nullptr, "buf_show_lean", &show_lean_subject_);
     lv_xml_register_subject(nullptr, "buf_show_espooler", &show_espooler_subject_);
     lv_xml_register_subject(nullptr, "buf_show_flow", &show_flow_subject_);
     lv_xml_register_subject(nullptr, "buf_show_distance", &show_distance_subject_);
@@ -104,12 +106,17 @@ const BufferHealth* pressure_sensor(const AmsSystemInfo& info, int unit) {
 }
 
 /// What a sync-feedback bias means for the filament, whichever backend
-/// produced it.
+/// produced it: the lean the clog meter's TIGHT / LOOSE ends label.
 const char* bias_description(float bias) {
-    if (std::fabs(bias) < 0.02f) {
-        return lv_tr("Filament tension is balanced");
+    switch (helix::ui::buffer_lean(bias)) {
+    case helix::ui::BufferLean::Tight:
+        return lv_tr("Filament is pulling tight");
+    case helix::ui::BufferLean::Loose:
+        return lv_tr("Filament is loose");
+    case helix::ui::BufferLean::Balanced:
+        break;
     }
-    return bias < 0 ? lv_tr("Filament is pulling tight") : lv_tr("Filament is loose");
+    return lv_tr("Filament tension is balanced");
 }
 
 } // namespace
@@ -120,11 +127,12 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
     // a previous open would otherwise sit under a supported backend's body.
     lv_subject_copy_string(&unsupported_subject_, "");
 
-    // The meter and its description follow whichever buffer this unit has:
-    // Happy Hare's system-level bias, or the unit's own pressure sensor.
+    // The description follows whichever buffer this unit has: Happy Hare's
+    // system-level bias, or the unit's own pressure sensor.
     const float bias = info.buffer_bias(effective_unit);
     const bool has_bias = bias > -1.5f;
     lv_subject_copy_string(&description_subject_, has_bias ? helix::bias_description(bias) : "");
+    lv_subject_set_int(&show_lean_subject_, has_bias ? 1 : 0);
 
     if (info.type == helix::AmsType::HAPPY_HARE) {
         lv_subject_set_int(&type_subject_, 1);
@@ -160,12 +168,8 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
             lv_subject_set_int(&show_flow_subject_, 0);
         }
 
-        // Meter visibility
-        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
-
     } else if (info.type == helix::AmsType::AFC) {
         lv_subject_set_int(&type_subject_, 2);
-        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
 
         bool found_health = false;
         if (effective_unit >= 0 && effective_unit < static_cast<int>(info.units.size())) {
@@ -206,9 +210,8 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
         }
     } else if (const helix::BufferHealth* fps = helix::pressure_sensor(info, effective_unit)) {
         // The target is the set_point the feeder regulates to; without one the
-        // reading cannot be placed either side of it, so there is no meter.
+        // reading cannot be placed either side of it, so there is no lean.
         lv_subject_set_int(&type_subject_, 3);
-        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
         const int pressure = static_cast<int>(std::lround(fps->fps_value * 100.0f));
         auto text = fps->fps_set_point > 0.0f
                         ? fmt::format(fmt::runtime(lv_tr("Pressure: {}% (target {}%)")), pressure,
@@ -216,16 +219,15 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
                         : fmt::format("{} {}%", lv_tr("Pressure:"), pressure);
         lv_subject_copy_string(&pressure_subject_, text.c_str());
     } else {
-        // Neither buffer backend. Stock CFS, AD5X IFS, tool changers, ACE,
+        // No buffer to describe. Stock CFS, AD5X IFS, tool changers, ACE,
         // Snapmaker and QIDI report none of this - see AmsBackendCfs's own note
         // that "Stock CFS reports none of these". Every body section binds
-        // hidden unless buf_type is 1 or 2, so without a message here the dialog
-        // renders as a title and two buttons over an empty box, which is what a
-        // K2 Plus owner actually saw. The modal is reachable from the AMS panel
-        // as well as the tile, so this has to answer rather than rely on the
-        // tile's gate.
+        // hidden unless buf_type names a buffer, so without a message here the
+        // dialog renders as a title and two buttons over an empty box. The
+        // modal is reachable from the AMS panel as well as the tile, so this
+        // has to answer rather than rely on the tile's gate.
         lv_subject_set_int(&type_subject_, 0);
-        lv_subject_set_int(&show_meter_subject_, 0);
+        lv_subject_set_int(&show_lean_subject_, 0);
         lv_subject_copy_string(&unsupported_subject_,
                                lv_tr("This filament system does not report buffer or flow data."));
     }
@@ -236,7 +238,7 @@ void BufferStatusModal::on_show() {
     wire_cancel_button("btn_close");
     wire_cancel_button("btn_secondary");
 
-    populate(info_, effective_unit_);
+    refresh();
 
     // Apply label/value color distinction AFTER theme_apply_current_palette_to_tree
     // (which runs in Modal::show and forces all labels white on dark backgrounds)
@@ -251,14 +253,16 @@ void BufferStatusModal::on_show() {
         }
     }
 
-    // Create UiBufferMeter programmatically in the meter column populate() showed
-    if (lv_subject_get_int(&show_meter_subject_) != 0 && dialog()) {
-        lv_obj_t* meter_col = lv_obj_find_by_name(dialog(), "meter_col");
-        if (meter_col) {
-            meter_ = new helix::ui::UiBufferMeter(meter_col);
-            meter_->set_bias(info_.buffer_bias(effective_unit_));
-        }
-    }
+    // Every row is re-read whenever a backend sync lands or a backend appears
+    // or vanishes, so the modal stays live while it is open. The handler
+    // re-reads the backend rather than trusting the tick.
+    auto& ams = helix::AmsState::instance();
+    revision_observer_ = helix::ui::observe<int>(
+        ams.get_ams_data_revision_subject(), this,
+        [](BufferStatusModal* self, int) { self->refresh(); }, ams.get_subjects_lifetime());
+    backend_observer_ = helix::ui::observe<int>(
+        ams.get_backend_count_subject(), this,
+        [](BufferStatusModal* self, int) { self->refresh(); }, ams.get_subjects_lifetime());
 
     // Drive the clog bar the dialog authored. Unconditional: it reads the same
     // AmsState subjects the home tile does, and clog_bar_body hides itself when
@@ -268,9 +272,15 @@ void BufferStatusModal::on_show() {
     }
 }
 
-void BufferStatusModal::show_for(const helix::AmsSystemInfo& info, int effective_unit) {
+void BufferStatusModal::refresh() {
+    // A vanished backend reads as an empty snapshot, which is the unsupported
+    // message rather than whatever the last backend said.
+    auto* backend = helix::AmsState::instance().get_backend();
+    populate(backend ? backend->get_system_info() : helix::AmsSystemInfo{}, effective_unit_);
+}
+
+void BufferStatusModal::show_for(int effective_unit) {
     auto modal = std::make_unique<BufferStatusModal>();
-    modal->info_ = info;
     modal->effective_unit_ = effective_unit;
     // Stack-owned one-shot: ModalStack frees the instance when its entry goes
     // (#1382); a failed show leaves the unique_ptr to free it.

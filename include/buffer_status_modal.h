@@ -3,17 +3,20 @@
 #pragma once
 
 #include "ui_modal.h"
+#include "ui_observer_guard.h"
 
 #include "ams_types.h"
 
 namespace helix::ui {
-class UiBufferMeter;
 class UiClogBar;
 } // namespace helix::ui
 
 /**
  * @brief Read-only modal showing buffer/sync status for Happy Hare, AFC or a
  *        filament pressure sensor (OpenAMS)
+ *
+ * Live while open: every row is re-read from the backend on each AmsState data
+ * revision. The clog bar is the clog meter, whichever source AmsState picked.
  *
  * Subjects are static (shared across instances) because lv_xml_register_subject
  * rejects duplicate names — the first registration wins and the pointer persists.
@@ -31,9 +34,9 @@ class BufferStatusModal : public Modal {
         return "buffer_status_modal";
     }
 
-    /// Convenience: create modal, populate from info, and show. One-shot and
-    /// stack-owned - ModalStack frees the instance when its entry goes (#1382).
-    static void show_for(const helix::AmsSystemInfo& info, int effective_unit);
+    /// Convenience: create the modal for one unit's buffer and show it. One-shot
+    /// and stack-owned - ModalStack frees the instance when its entry goes (#1382).
+    static void show_for(int effective_unit);
 
   protected:
     void on_show() override;
@@ -43,16 +46,18 @@ class BufferStatusModal : public Modal {
 
     static void init_subjects();
     void populate(const helix::AmsSystemInfo& info, int effective_unit);
+    /// populate() from the active backend's current snapshot.
+    void refresh();
 
     static bool subjects_initialized_;
-    helix::ui::UiBufferMeter* meter_ = nullptr;
     /// The clog reading above the columns. Owned here so it is torn down
     /// before Modal::~Modal() frees the dialog tree it points into.
     helix::ui::UiClogBar* clog_bar_ = nullptr;
 
     // Static subjects + backing buffers (persist across modal instances)
     static lv_subject_t type_subject_;
-    static lv_subject_t show_meter_subject_;
+    /// 1 when the unit has a sync-feedback bias, so the lean description shows.
+    static lv_subject_t show_lean_subject_;
     static lv_subject_t show_espooler_subject_;
     static lv_subject_t show_flow_subject_;
     static lv_subject_t show_distance_subject_;
@@ -76,7 +81,7 @@ class BufferStatusModal : public Modal {
     static lv_subject_t afc_distance_subject_;
     static char afc_distance_buf_[128];
 
-    // Stored info for post-show meter creation
-    helix::AmsSystemInfo info_;
     int effective_unit_ = 0;
+    ObserverGuard revision_observer_;
+    ObserverGuard backend_observer_;
 };

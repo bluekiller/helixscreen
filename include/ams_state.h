@@ -528,6 +528,12 @@ class AmsState {
         return &ams_data_revision_;
     }
 
+    /// Tick ams_data_revision. Main thread only; call it AFTER the sync it
+    /// announces, so an observer that re-reads the backend sees synced values.
+    void bump_data_revision() {
+        lv_subject_set_int(&ams_data_revision_, lv_subject_get_int(&ams_data_revision_) + 1);
+    }
+
     /**
      * @brief Get active backend subject
      * @return Subject holding index of the currently selected backend
@@ -1005,6 +1011,9 @@ class AmsState {
     lv_subject_t* get_clog_meter_status_subject() {
         return &clog_meter_status_;
     }
+    lv_subject_t* get_clog_meter_symmetrical_subject() {
+        return &clog_meter_symmetrical_;
+    }
     lv_subject_t* get_clog_meter_danger_pct_subject() {
         return &clog_meter_danger_pct_;
     }
@@ -1026,7 +1035,7 @@ class AmsState {
 
     /**
      * @brief Set source override for clog meter display
-     * @param source 0=auto (priority logic), 1=encoder, 2=flowguard, 3=afc
+     * @param source 0=auto (priority logic), 1=encoder, 2=flowguard, 3=afc, 4=pressure
      */
     void set_source_override(int source);
 
@@ -2056,14 +2065,16 @@ class AmsState {
     lv_subject_t modal_duration_min_{}; ///< Modal's duration in minutes (raw int subject)
 
     // Clog detection config overrides (set by ClogDetectionConfigModal)
-    int source_override_ = 0;           // 0=auto, 1=encoder, 2=flowguard, 3=afc
+    int source_override_ = 0;           // 0=auto, 1=encoder, 2=flowguard, 3=afc, 4=pressure
     int danger_threshold_override_ = 0; // 0=use computed default
 
     // Clog detection meter subjects
-    lv_subject_t clog_meter_mode_{};    // 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
-    lv_subject_t clog_meter_value_{};   // 0-100 (encoder/afc) or -100..+100 (flowguard)
+    lv_subject_t clog_meter_mode_{}; // ClogMeterMode: 0=none, 1=encoder, 2=flowguard, 3=afc_buffer,
+                                     // 4=pressure
+    lv_subject_t clog_meter_value_{};   // 0-100 (encoder/afc) or -100..+100 (flowguard/pressure)
     lv_subject_t clog_meter_warning_{}; // 0=ok, 1=warning
     lv_subject_t clog_meter_status_{};  // ClogMeterStatus: 0=ok, 1=warning, 2=fault
+    lv_subject_t clog_meter_symmetrical_{}; // 1 when the mode's two ends mean opposite faults
     lv_subject_t clog_meter_mode_text_{};
     // Mode names render translated: ru "Засор: вручную" is 24 bytes before the
     // NUL, es "Obstrucción automática" the same. Undersized buffers truncate

@@ -503,7 +503,7 @@ AmsSystemInfo AmsBackendAfc::get_system_info() const {
 
     // An FPS_PSF buffer measures the same thing Happy Hare's sync_feedback_bias
     // does, so publish it the same way and every consumer of that signal (the
-    // buffer meter, the path-canvas tint, the widget's second carousel page)
+    // clog meter's Pressure source, the path-canvas tint, the buffer modal)
     // works on AFC without knowing which backend fed it. A switched TurtleNeck
     // reports no pressure and leaves the -1.5 "no data" sentinel.
     info.sync_feedback_bias = info.pressure_sensor_bias();

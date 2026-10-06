@@ -889,7 +889,8 @@ struct BufferHealth {
     }
 
     /// Map a filament-pressure reading onto the -1..+1 sync-feedback bias
-    /// Happy Hare publishes directly, so one buffer meter can draw all of them.
+    /// Happy Hare publishes directly, so the clog meter's Pressure source draws
+    /// all of them.
     ///
     /// Sign follows the existing convention: negative is tension (filament
     /// pulling tight), positive is compression (filament loose). Below
@@ -1768,20 +1769,49 @@ struct AmsSystemInfo {
         return sync_feedback_bias;
     }
 
-    /// System-level bias for backends with a pressure sensor per unit: the one
-    /// feeding the toolhead (the current slot's unit), else the first unit
-    /// that has one. -1.5 when no unit reports pressure.
-    [[nodiscard]] float pressure_sensor_bias() const {
+    /// The filament pressure sensor feeding the toolhead: the current slot's
+    /// unit's, else the first unit's that has one. nullptr when no unit
+    /// reports pressure against a set point.
+    [[nodiscard]] const BufferHealth* feeding_pressure_sensor() const {
         const AmsUnit* active = get_unit_for_slot(current_slot);
         if (active && active->buffer_health && active->buffer_health->has_fps()) {
-            return active->buffer_health->fps_to_bias();
+            return &*active->buffer_health;
         }
         for (const auto& unit : units) {
             if (unit.buffer_health && unit.buffer_health->has_fps()) {
-                return unit.buffer_health->fps_to_bias();
+                return &*unit.buffer_health;
             }
         }
-        return -1.5f;
+        return nullptr;
+    }
+
+    /// System-level bias for backends with a pressure sensor per unit, from
+    /// feeding_pressure_sensor(). -1.5 when no unit reports pressure.
+    [[nodiscard]] float pressure_sensor_bias() const {
+        const BufferHealth* sensor = feeding_pressure_sensor();
+        return sensor ? sensor->fps_to_bias() : -1.5f;
+    }
+
+    /// Which clog-meter sources this snapshot can feed. The meter's source
+    /// picker offers exactly these, and AmsState picks among them.
+    struct ClogSources {
+        bool flowguard = false;
+        bool encoder = false;
+        bool afc_buffer = false;
+        bool pressure = false;
+    };
+    [[nodiscard]] ClogSources clog_sources() const {
+        ClogSources s;
+        s.flowguard = flowguard_info.enabled;
+        s.encoder = encoder_info.enabled;
+        for (const auto& unit : units) {
+            if (unit.buffer_health && unit.buffer_health->fault_detection_enabled) {
+                s.afc_buffer = true;
+                break;
+            }
+        }
+        s.pressure = sync_feedback_bias > -1.5f;
+        return s;
     }
 };
 

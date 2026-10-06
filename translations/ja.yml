@@ -1622,6 +1622,7 @@ translations:
   LOAD CELLS: 'ロードセル'
   LOADED: 装填済み
   LOCKED: ロック中
+  LOOSE: 緩み
   LOT-2024-001: LOT-2024-001
   Label Printer: ラベルプリンター
   Label Size: ラベルサイズ
@@ -2245,6 +2246,7 @@ translations:
   Press Scan to search: スキャンを押して検索
   'Pressure:': '圧力:'
   'Pressure: {}% (target {}%)': '圧力: {}% (目標 {}%)'
+  Pressure: 圧力
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'プレッシャーアドバンスキャリブレーション'
@@ -3001,6 +3003,7 @@ translations:
   Switching heater control to MPC. Klipper will restart.: ヒーター制御をMPCに切り替えます。Klipperが再起動します。
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。
   Switching to MPC requires a config change and Klipper restart.: MPCへの切り替えには設定変更とKlipperの再起動が必要です。
+  Sync: 同期
   Sync during printing: 印刷中に同期
   Sync with Spoolman: Spoolman と同期
   Sysfs: Sysfs
@@ -3015,6 +3018,7 @@ translations:
   TD-1 filament color detection: TD-1 フィラメント色検出
   TEMPERATURE SENSORS: 温度センサー
   THEME COLORS: テーマカラー
+  TIGHT: 張り
   'TOGGLE: {}': '切り替え: {}'
   TOOLS: ツール
   TPU: TPU

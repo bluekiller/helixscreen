@@ -19,7 +19,6 @@
  * leave everything stacked at x=0 rather than erroring.
  */
 
-#include "ui_buffer_meter.h"
 #include "ui_clog_bar.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -68,6 +67,8 @@ void publish(int mode, int value, int danger, int peak, int warning = 0) {
     set("clog_meter_danger_pct", danger);
     set("clog_meter_peak_pct", peak);
     set("clog_meter_warning", warning);
+    // Derived from the mode the way AmsState publishes it; the end labels bind here.
+    set("clog_meter_symmetrical", ui::clog_meter_is_symmetrical(mode) ? 1 : 0);
 }
 } // namespace
 
@@ -216,7 +217,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "clog_detection relays out when the widget i
 
 TEST_CASE_METHOD(LVGLUITestFixture, "clog_detection re-measures when the mode changes the track",
                  "[widget_size][clog_detection][1017]") {
-    // The end labels only render in Flowguard, so switching modes changes how
+    // The end labels only render in a symmetrical mode, so switching modes changes how
     // much width is left for the track. The mode observer relayouts against
     // the width it can see at that instant, which is still the old one — only
     // the track's own SIZE_CHANGED catches the labels appearing. Without that

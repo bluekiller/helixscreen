@@ -15,14 +15,9 @@
       </ui_button>
     </lv_obj>
 
-    <!-- The clog reading, full width above the columns.
-
-         This modal opens off the FlowGuard tile, and used to show strictly
-         less than the tile that opened it: a "Clog detection" row naming the
-         mode, with no value, no threshold and no peak. The bar carries all
-         three. It wants width rather than height, so it spans both columns
-         instead of sharing meter_col with the plunger — which measures a
-         different sensor entirely.
+    <!-- The clog meter, full width above the text rows: whichever source
+         AmsState picked (FlowGuard, encoder, AFC buffer or filament pressure),
+         with its value, threshold and peak, the same reading as the tile.
 
          Gated on clog_meter_mode by clog_bar_body's own binding, not on the
          modal: this is the buffer modal, and it is reachable on a printer with
@@ -33,7 +28,7 @@
       <clog_bar_body/>
     </lv_obj>
 
-    <!-- Content area: info column (left) + meter column (right) -->
+    <!-- Content area: the backend's text rows -->
     <lv_obj width="100%"
             height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
             style_pad_bottom="#space_lg" flex_flow="row" style_pad_gap="#space_md" style_flex_cross_place="center">
@@ -41,9 +36,9 @@
       <!-- Info column -->
       <lv_obj name="info_col" width="1" height="content" flex_grow="1" flex_flow="column" style_pad_gap="#space_xs">
 
-        <!-- What the meter shows (balanced / pulling tight / loose), for every buffer that has one -->
+        <!-- Which way the buffer leans (balanced / pulling tight / loose), for every buffer that has a bias -->
         <text_small name="bias_description" width="100%" bind_text="buf_description" long_mode="wrap">
-          <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
+          <bind_flag_if_eq subject="buf_show_lean" flag="hidden" ref_value="0"/>
         </text_small>
 
         <!-- ============ Unsupported system ============ -->
@@ -100,11 +95,6 @@
           </lv_obj>
         </lv_obj>
 
-      </lv_obj>
-
-      <!-- Meter column (programmatically populated with UiBufferMeter) -->
-      <lv_obj name="meter_col" width="100" height="150" style_min_width="100">
-        <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
       </lv_obj>
 
     </lv_obj>

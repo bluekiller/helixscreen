@@ -675,7 +675,7 @@ an unconditional line there is per-buffer-per-unit spam that pushes the incident
 of the debug-bundle ring - and this is precisely the line that has to survive in a bundle,
 since a buffer landing on the wrong unit is what it exists to show.
 
-**An `FPS_PSF` buffer drives the buffer meter like Happy Hare's sync feedback does.** An
+**An `FPS_PSF` buffer is a filament pressure source like Happy Hare's sync feedback.** An
 `AFC_buffer` configured `type: FPS_PSF` (AFC v1.2.0+) carries an analog filament-pressure
 sensor where the stock TurtleNeck carries a mechanical switch: `get_status()` publishes
 `fps_value`, `smoothed_fps` and `set_point`, and `BufferHealth::has_fps()` /
@@ -683,8 +683,8 @@ sensor where the stock TurtleNeck carries a mechanical switch: `get_status()` pu
 advance/trailing triggers compare - onto the `-1..+1` bias Happy Hare publishes directly.
 `get_system_info()` publishes `AmsSystemInfo::pressure_sensor_bias()` (the current slot's
 unit, else the first unit with a sensor) as `sync_feedback_bias`, so the
-buffer meter, the path-canvas hub tint and the widget's second carousel page work on AFC
-without any of them knowing which backend fed them. A switched TurtleNeck reports no
+clog meter's Pressure source and the path-canvas hub tint work on AFC without either
+knowing which backend fed them. A switched TurtleNeck reports no
 pressure and keeps the "no data" sentinel, unchanged. The pressure rail is 0..1 by
 declaration but a voltage divider in real hardware, so `has_fps()` keys on
 `fps_reported && fps_set_point > 0` rather than on the value: a reading slightly below zero

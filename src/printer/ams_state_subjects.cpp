@@ -243,8 +243,10 @@ void AmsState::init_subjects(bool register_xml) {
     INIT_SUBJECT_INT(clog_meter_mode, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(clog_meter_value, 0, subjects_,
                      register_xml); // SUBJECT_OK: ClogMeterModel observes it via a lambda
-    INIT_SUBJECT_INT(clog_meter_warning, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(clog_meter_warning, 0, subjects_,
+                     register_xml); // SUBJECT_OK: ClogMeterModel observes it via a lambda
     INIT_SUBJECT_INT(clog_meter_status, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(clog_meter_symmetrical, 0, subjects_, register_xml);
     INIT_SUBJECT_STRING(clog_meter_mode_text, "", subjects_, register_xml);
     INIT_SUBJECT_INT(clog_meter_danger_pct, 0, subjects_, register_xml);
     INIT_SUBJECT_INT(clog_meter_peak_pct, 0, subjects_, register_xml);
@@ -623,8 +625,12 @@ void AmsState::register_xml_subject_names() {
     helix::xml::register_subject_in_current_scope(
         "clog_meter_value",
         &clog_meter_value_); // SUBJECT_OK: ClogMeterModel observes it via a lambda
-    helix::xml::register_subject_in_current_scope("clog_meter_warning", &clog_meter_warning_);
+    helix::xml::register_subject_in_current_scope(
+        "clog_meter_warning",
+        &clog_meter_warning_); // SUBJECT_OK: ClogMeterModel observes it via a lambda
     helix::xml::register_subject_in_current_scope("clog_meter_status", &clog_meter_status_);
+    helix::xml::register_subject_in_current_scope("clog_meter_symmetrical",
+                                                  &clog_meter_symmetrical_);
     helix::xml::register_subject_in_current_scope("clog_meter_mode_text", &clog_meter_mode_text_);
     helix::xml::register_subject_in_current_scope("clog_meter_danger_pct", &clog_meter_danger_pct_);
     helix::xml::register_subject_in_current_scope("clog_meter_peak_pct", &clog_meter_peak_pct_);
