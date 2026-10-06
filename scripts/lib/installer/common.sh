@@ -329,14 +329,15 @@ _spin_frame() {
         set -- '|' '/' '-' '\'
     fi
     _SPIN_I=$(( (_SPIN_I % $#) + 1 ))
-    eval "printf '%s' \"\${$_SPIN_I}\""
+    eval "_SPIN_CH=\${$_SPIN_I}"
 }
 
 # Redraw the open step's line (terminal only). Called by step and by every
 # line printed while the step is open, so the spinner advances as work logs.
 _step_redraw() {
     [ "$UI_TTY" = 1 ] && [ "$STEP_OPEN" = 1 ] || return 0
-    printf '\r\033[K  %b%s%b %s%s' "$CYAN" "$(_spin_frame)" "$NC" "$STEP_TITLE" "$ELLIPSIS" >&2
+    _spin_frame
+    printf '\r\033[K  %b%s%b %s%s' "$CYAN" "$_SPIN_CH" "$NC" "$STEP_TITLE" "$ELLIPSIS" >&2
 }
 
 # Screen output for the four levels: indented under an open step, as given

@@ -160,3 +160,19 @@ setup() {
     run grep -E 'STEP Downloaded|DONE Downloaded \(100 MB\)' "$BATS_TEST_TMPDIR/install.log"
     [ "${#lines[@]}" -eq 2 ]
 }
+
+_two_redraws() { step "Downloaded"; log_warn a; log_warn b; }
+
+@test "terminal + UTF-8: the spinner advances on each redraw" {
+    NO_COLOR=1 HELIX_INSTALL_TTY=1 LANG=en_US.UTF-8 TERM=vt100 ui_detect
+    run _two_redraws
+    contains "⠋" "$output"
+    contains "⠙" "$output"
+}
+
+@test "terminal without UTF-8: the ASCII spinner advances on each redraw" {
+    NO_COLOR=1 HELIX_INSTALL_TTY=1 LC_ALL=C LANG=C TERM=vt100 ui_detect
+    run _two_redraws
+    contains "|" "$output"
+    contains "/" "$output"
+}
