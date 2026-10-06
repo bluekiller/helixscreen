@@ -35,6 +35,7 @@
 #include "ams_remap.h"
 #include "ams_state.h"
 #include "app_globals.h"
+#include "card_thumbnail_plan.h"
 #include "config.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "display_manager.h"
@@ -398,7 +399,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         // File click callback
         [self](size_t file_index) { self->handle_file_click(file_index); },
         // Metadata fetch callback
-        [self](size_t start, size_t end) { self->fetch_metadata_range(start, end); });
+        [self](size_t start, size_t end) {
+            self->fetch_metadata_range(start, end);
+#if defined(HELIX_PLATFORM_ESP32)
+            self->sync_esp_thumbnails(start, end);
+#endif
+        });
 
     // Long-press on a file card → delete confirmation (card view only; list view unchanged).
     card_view_->set_on_file_long_press(
@@ -1517,12 +1523,8 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                                          self->get_name(), filename_copy, error);
                         });
 #else
-                    // ESP32: no disk thumbnail cache; see fetch_esp_thumbnail().
-                    if (self->fetch_esp_thumbnail(d->index, d->filename, d->thumb_path) ==
-                        PrintSelectPanel::EspThumbnailFetch::QueueFull) {
-                        self->defer_esp_thumbnail({d->index, d->filename, d->thumb_path},
-                                                  /*front=*/false);
-                    }
+                    // ESP32: no disk thumbnail cache; see sync_esp_thumbnails().
+                    self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
 #endif
                 }
             } else if (self->api_) {
@@ -3638,7 +3640,10 @@ void PrintSelectPanel::on_usb_drive_removed() {
 
 #if defined(HELIX_PLATFORM_ESP32)
 // No disk thumbnail cache on this platform, so the PNG bytes come straight off
-// the HTTP lane into a PSRAM-backed lv_image_dsc_t (see esp_psram_thumbnail.h).
+// the HTTP lane and are decoded once at the card's size into a PSRAM-backed
+// lv_image_dsc_t (see esp_psram_thumbnail.h), the size a prescaled .bin has
+// elsewhere. A decode that fails leaves the placeholder until the card is next
+// shown (sync_esp_thumbnails).
 // The lane calls back on its own worker thread: the callbacks only build the
 // image there and defer every member touch to the main thread.
 PrintSelectPanel::EspThumbnailFetch
@@ -3652,23 +3657,31 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     auto rejected = std::make_shared<std::atomic<bool>>(false);
     auto tok = object_lifetime_.token();
     spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", get_name(), filename, thumb_path);
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
 
     api_->transfers().download_file_partial(
         "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-        [this, tok, index, filename](const std::string& png_bytes) {
-            auto thumb = helix::ui::EspPsramThumbnail::create(png_bytes);
+        [this, tok, index, filename, target](const std::string& png_bytes) {
+            helix::ThumbnailDecodeFailure failure{};
+            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(png_bytes, target.width,
+                                                                      target.height, failure);
             if (!thumb) {
-                spdlog::warn("[PrintSelectPanel] PSRAM alloc failed for thumbnail: {}", filename);
+                spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
+                             failure == helix::ThumbnailDecodeFailure::OutOfMemory
+                                 ? "out of memory"
+                                 : "corrupt or too large");
             }
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
                       [this, index, filename, thumb = std::move(thumb)]() mutable {
                           --esp_thumbnails_in_flight_;
+                          // Kept only while its card is still on screen.
                           if (thumb && index < file_list_.size() &&
-                              file_list_[index].filename == filename) {
+                              file_list_[index].filename == filename &&
+                              file_list_[index].esp_thumbnail_tried) {
                               file_list_[index].esp_thumbnail = std::move(thumb);
                               schedule_view_refresh();
                           }
-                          drain_esp_thumbnail_backlog();
+                          sync_esp_thumbnails(esp_window_first_, esp_window_end_);
                       });
         },
         [this, tok, filename, submitting, refused, rejected](const MoonrakerError& error) {
@@ -3686,7 +3699,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                           error.message);
             tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
                 --esp_thumbnails_in_flight_;
-                drain_esp_thumbnail_backlog();
+                sync_esp_thumbnails(esp_window_first_, esp_window_end_);
             });
         });
     submitting->store(false);
@@ -3700,43 +3713,36 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     return EspThumbnailFetch::Started;
 }
 
-void PrintSelectPanel::defer_esp_thumbnail(PendingEspThumbnail pending, bool front) {
-    if (esp_thumbnails_in_flight_ > 0) {
-        if (front) {
-            esp_thumbnail_backlog_.push_front(std::move(pending));
-        } else {
-            esp_thumbnail_backlog_.push_back(std::move(pending));
-        }
-        return;
-    }
-    // Nothing of ours will complete to retry it: the lane is full of other
-    // work. Unmark the file so the next visible-range pass (the file poll)
-    // fetches its metadata and thumbnail again.
-    if (pending.index < file_list_.size() &&
-        file_list_[pending.index].filename == pending.filename) {
-        file_list_[pending.index].metadata_fetched = false;
-    }
-}
+void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
+    esp_window_first_ = first;
+    esp_window_end_ = end;
 
-void PrintSelectPanel::drain_esp_thumbnail_backlog() {
-    while (!esp_thumbnail_backlog_.empty()) {
-        PendingEspThumbnail next = std::move(esp_thumbnail_backlog_.front());
-        esp_thumbnail_backlog_.pop_front();
-        if (next.index >= file_list_.size() || file_list_[next.index].filename != next.filename) {
-            // A refresh re-sorted the list: follow the file, not its old slot.
-            auto it =
-                std::find_if(file_list_.begin(), file_list_.end(), [&next](const PrintFileData& f) {
-                    return f.filename == next.filename;
-                });
-            if (it == file_list_.end()) {
-                continue; // the file is gone
-            }
-            next.index = static_cast<size_t>(it - file_list_.begin());
-        }
-        if (fetch_esp_thumbnail(next.index, next.filename, next.thumb_path) ==
+    std::vector<helix::CardThumbnailState> states(file_list_.size());
+    for (size_t i = 0; i < file_list_.size(); ++i) {
+        const PrintFileData& f = file_list_[i];
+        states[i].fetchable = !f.is_dir && !f.original_thumbnail_url.empty();
+        states[i].tried = f.esp_thumbnail_tried;
+        states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
+    }
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
+        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)),
+        helix::rgb565a8_size({target.width, target.height}), helix::CARD_THUMBNAIL_BUDGET);
+
+    // Cards off screen hold nothing; a card coming back fetches again.
+    for (size_t i : plan.drop) {
+        file_list_[i].esp_thumbnail.reset();
+        file_list_[i].esp_thumbnail_tried = false;
+    }
+    for (size_t i : plan.fetch) {
+        PrintFileData& f = file_list_[i];
+        f.esp_thumbnail_tried = true;
+        if (fetch_esp_thumbnail(i, f.filename, f.original_thumbnail_url) ==
             EspThumbnailFetch::QueueFull) {
-            defer_esp_thumbnail(std::move(next), /*front=*/true);
-            return;
+            // The lane is busy: try this one again on the next pass, which every
+            // completion, scroll and listing triggers.
+            f.esp_thumbnail_tried = false;
+            break;
         }
     }
 }

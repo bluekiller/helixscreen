@@ -117,6 +117,7 @@ void PrintSelectCardView::clear_cached_state() {
     card_data_pool_.clear();
     card_pool_.clear();
     card_pool_indices_.clear();
+    pool_initialized_ = false;
 
     // Clear widget references (owned by LVGL widget tree)
     leading_spacer_ = nullptr;
@@ -191,26 +192,47 @@ void PrintSelectCardView::apply_gradient_to_card(lv_obj_t* card) {
 // ============================================================================
 
 void PrintSelectCardView::init_pool(const CardDimensions& dims) {
-    if (!container_ || !card_pool_.empty()) {
+    if (!container_ || pool_initialized_) {
         return;
     }
-
-    spdlog::debug("[PrintSelectCardView] Creating {} card widgets", POOL_SIZE);
+    pool_initialized_ = true;
 
     // Update layout to get accurate dimensions
     lv_obj_update_layout(container_);
     cards_per_row_ = dims.num_columns;
 
-    // Reserve storage
-    card_pool_.reserve(POOL_SIZE);
-    card_pool_indices_.resize(POOL_SIZE, -1);
-    card_data_pool_.reserve(POOL_SIZE);
+    // Render shared gradient at exact card dimensions (applies to all pool cards)
+    ensure_gradient_cache(dims.card_width, dims.card_height);
+
+    // Observe theme changes to re-render gradient for dark/light switch
+    lv_subject_t* theme_subject = theme_manager_get_changed_subject();
+    if (theme_subject) {
+        theme_observer_ = ObserverGuard(
+            theme_subject,
+            [](lv_observer_t* observer, lv_subject_t*) {
+                auto* self = static_cast<PrintSelectCardView*>(lv_observer_get_user_data(observer));
+                if (self && self->cached_gradient_) {
+                    // Force cache invalidation by resetting dark mode flag
+                    self->cached_gradient_dark_ = !theme_manager_is_dark_mode();
+                    self->ensure_gradient_cache(self->cached_gradient_w_, self->cached_gradient_h_);
+                }
+            },
+            this);
+    }
+}
+
+void PrintSelectCardView::grow_pool(size_t count, const CardDimensions& dims) {
+    if (!container_ || card_pool_.size() >= count) {
+        return;
+    }
+    spdlog::debug("[PrintSelectCardView] Growing card pool {} -> {}", card_pool_.size(), count);
 
     // Cache placeholder path for use in attrs array (needs stable pointer)
     std::string placeholder_thumb = get_default_thumbnail();
 
-    // Create pool cards (initially hidden)
-    for (int i = 0; i < POOL_SIZE; i++) {
+    card_pool_.reserve(count);
+    card_data_pool_.reserve(count);
+    while (card_pool_.size() < count) {
         const char* attrs[] = {"thumbnail_src",
                                placeholder_thumb.c_str(),
                                "filename",
@@ -313,31 +335,14 @@ void PrintSelectCardView::init_pool(const CardDimensions& dims) {
                     no_thumb_icon, &data->thumbnail_state_subject, LV_OBJ_FLAG_HIDDEN, 1);
             }
 
+            apply_gradient_to_card(card);
             card_pool_.push_back(card);
             card_data_pool_.push_back(std::move(data));
+        } else {
+            break;
         }
     }
-
-    // Render shared gradient at exact card dimensions (applies to all pool cards)
-    ensure_gradient_cache(dims.card_width, dims.card_height);
-
-    // Observe theme changes to re-render gradient for dark/light switch
-    lv_subject_t* theme_subject = theme_manager_get_changed_subject();
-    if (theme_subject) {
-        theme_observer_ = ObserverGuard(
-            theme_subject,
-            [](lv_observer_t* observer, lv_subject_t*) {
-                auto* self = static_cast<PrintSelectCardView*>(lv_observer_get_user_data(observer));
-                if (self && self->cached_gradient_) {
-                    // Force cache invalidation by resetting dark mode flag
-                    self->cached_gradient_dark_ = !theme_manager_is_dark_mode();
-                    self->ensure_gradient_cache(self->cached_gradient_w_, self->cached_gradient_h_);
-                }
-            },
-            this);
-    }
-
-    spdlog::debug("[PrintSelectCardView] Pool initialized with {} cards", card_pool_.size());
+    card_pool_indices_.resize(card_pool_.size(), -1);
 }
 
 void PrintSelectCardView::create_spacers() {
@@ -367,6 +372,19 @@ void PrintSelectCardView::create_spacers() {
 // ============================================================================
 // Card Configuration
 // ============================================================================
+
+#if defined(HELIX_PLATFORM_ESP32)
+void PrintSelectCardView::release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data) {
+    if (!data.esp_thumbnail) {
+        return;
+    }
+    // The image must stop pointing at the buffer before the buffer can go.
+    if (lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail")) {
+        lv_image_set_src(thumb_img, nullptr);
+    }
+    data.esp_thumbnail.reset();
+}
+#endif
 
 void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
                                          const PrintFileData& file, const CardDimensions& dims) {
@@ -403,6 +421,11 @@ void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size
 
     // Update thumbnail state (observers handle visibility declaratively)
     // 0=real thumbnail, 1=placeholder (show cube icon), 2=directory (hide both)
+#if defined(HELIX_PLATFORM_ESP32)
+    if (file.is_dir || !file.esp_thumbnail) {
+        release_esp_thumbnail(card, *data);
+    }
+#endif
     if (file.is_dir) {
         lv_subject_set_int(&data->thumbnail_state_subject, 2);
     } else {
@@ -477,10 +500,8 @@ void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
     // Save scroll position before any changes if preserving
     int32_t saved_scroll = preserve_scroll ? lv_obj_get_scroll_y(container_) : 0;
 
-    // Initialize pool on first call
-    if (card_pool_.empty()) {
-        init_pool(dims);
-    }
+    // Shared pool state on first call; cards are created by update_visible()
+    init_pool(dims);
 
     // Create spacers if needed
     create_spacers();
@@ -522,7 +543,7 @@ void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
 
 void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_list,
                                          const CardDimensions& dims) {
-    if (!container_ || card_pool_.empty() || file_list.empty()) {
+    if (!container_ || !pool_initialized_ || file_list.empty()) {
         for (auto* card : card_pool_) {
             lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
         }
@@ -575,6 +596,10 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
     sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
                       last_trailing_height_);
 
+    // The pool covers the window and nothing more: building a card costs tens
+    // of ms on slow hardware, and a window reached by scrolling grows it.
+    grow_pool(static_cast<size_t>(std::max(0, last_visible_idx - first_visible_idx)), dims);
+
     // Assign pool cards to visible indices, skipping cards that already show correct file
     size_t pool_idx = 0;
     for (int file_idx = first_visible_idx;
@@ -598,6 +623,9 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
     // Hide unused pool cards
     for (; pool_idx < card_pool_.size(); pool_idx++) {
         lv_obj_add_flag(card_pool_[pool_idx], LV_OBJ_FLAG_HIDDEN);
+#if defined(HELIX_PLATFORM_ESP32)
+        release_esp_thumbnail(card_pool_[pool_idx], *card_data_pool_[pool_idx]);
+#endif
         card_pool_indices_[pool_idx] = -1;
     }
 
@@ -613,7 +641,7 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
 
 void PrintSelectCardView::refresh_content(const std::vector<PrintFileData>& file_list,
                                           const CardDimensions& dims) {
-    if (!container_ || !lv_obj_is_valid(container_) || card_pool_.empty() ||
+    if (!container_ || !lv_obj_is_valid(container_) || !pool_initialized_ ||
         visible_start_row_ < 0) {
         return;
     }
