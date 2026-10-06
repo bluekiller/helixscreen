@@ -1263,13 +1263,6 @@ void ControlsPanel::handle_secondary_temps_clicked() {
 // GLOBAL INSTANCE (needed by main.cpp)
 // ============================================================================
 
-static std::unique_ptr<ControlsPanel> g_controls_panel;
-
 ControlsPanel& get_global_controls_panel() {
-    if (!g_controls_panel) {
-        g_controls_panel = std::make_unique<ControlsPanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy("ControlsPanel",
-                                                         []() { g_controls_panel.reset(); });
-    }
-    return *g_controls_panel;
+    return helix::lazy_global<ControlsPanel>("ControlsPanel", get_printer_state(), nullptr);
 }
