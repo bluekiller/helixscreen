@@ -10,9 +10,11 @@
  * callback LVGL would call, so the guard counts only if that chain runs it.
  */
 
+#include "../input_settings_test_helpers.h"
 #include "config.h"
 #include "display_backend.h"
 #include "display_manager.h"
+#include "input_settings_manager.h"
 #include "lvgl_test_fixture.h"
 #include "scroll_click_guard.h"
 #include "test_helpers/config_test_access.h"
@@ -268,4 +270,22 @@ TEST_CASE_METHOD(LVGLTestFixture,
     CHECK(DisplayManagerTestAccess::wake_requested(chain.mgr));
 
     DisplayManagerTestAccess::set_display_sleeping(chain.mgr, false);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a live scroll_limit change reaches the scroll guard",
+                 "[input][scroll_guard][application][display]") {
+    LiveChain chain(/*guard_on=*/true);
+    helix_test::reset_input_settings_to_defaults();
+    REQUIRE(helix::InputSettingsManager::instance().get_scroll_limit() == 10);
+
+    // 15 px of travel: a scroll at the default 10 px limit, a tap at 20 px.
+    helix::InputSettingsManager::instance().set_scroll_limit(20);
+    constexpr lv_point_t SHORT_MOVE{100, 115};
+    chain.sample(LV_INDEV_STATE_PRESSED, DOWN, 10);
+    chain.sample(LV_INDEV_STATE_PRESSED, SHORT_MOVE, 20);
+    chain.sample(LV_INDEV_STATE_RELEASED, SHORT_MOVE, 20);
+
+    CHECK(chain.sample(LV_INDEV_STATE_PRESSED, SHORT_MOVE, 30) == LV_INDEV_STATE_PRESSED);
+
+    helix_test::reset_input_settings_to_defaults();
 }

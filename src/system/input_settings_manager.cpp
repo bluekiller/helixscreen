@@ -14,7 +14,8 @@ using namespace helix;
 using settings::Scope;
 // Row order is InputSettingsManager::Key.
 static constexpr settings::PersistedSetting INPUT_SETTINGS[] = {
-    {"settings_scroll_throw", "/input/scroll_throw", Scope::Global, false, 25, 5, 50, nullptr},
+    {"settings_scroll_throw", "/input/scroll_throw", Scope::Global, false,
+     InputSettingsManager::DEFAULT_SCROLL_THROW, 5, 50, nullptr},
     {"settings_scroll_limit", "/input/scroll_limit", Scope::Global, false, 10, 1, 20, nullptr},
     {"settings_long_press_time", "/input/long_press_time", Scope::Global, false,
      static_cast<int>(AppConstants::Input::LONG_PRESS_MS), 300, 1500, nullptr},
@@ -45,6 +46,7 @@ void InputSettingsManager::init_subjects() {
     settings_.init(subjects_);
     // Apply live at init so RuntimeConfig matches before the ripple timer first fires.
     RuntimeConfig::set_debug_touches(get_debug_touches());
+    apply_to_pointers();
 
     subjects_initialized_ = true;
 
@@ -70,25 +72,37 @@ void InputSettingsManager::deinit_subjects() {
 // GETTERS / SETTERS
 // =============================================================================
 
+// Scroll throw, scroll limit and long-press time are live indev properties:
+// the next gesture uses the new values. Every pointer indev gets them, so this
+// works the same whichever platform layer created the indev.
+void InputSettingsManager::apply_to_pointers() const {
+    for (lv_indev_t* indev = lv_indev_get_next(nullptr); indev; indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) != LV_INDEV_TYPE_POINTER) {
+            continue;
+        }
+        lv_indev_set_scroll_throw(indev, static_cast<uint8_t>(get_scroll_throw()));
+        lv_indev_set_scroll_limit(indev, static_cast<uint8_t>(get_scroll_limit()));
+        lv_indev_set_long_press_time(indev, static_cast<uint16_t>(get_long_press_time()));
+    }
+    // The post-scroll click guard decides "was this a scroll" by the same limit.
+    if (auto* dm = DisplayManager::instance()) {
+        dm->set_scroll_guard_limit(get_scroll_limit());
+    }
+}
+
 void InputSettingsManager::set_scroll_throw(int value) {
     settings_.set(Key::ScrollThrow, value);
-    restart_pending_ = true;
+    apply_to_pointers();
 }
 
 void InputSettingsManager::set_scroll_limit(int value) {
     settings_.set(Key::ScrollLimit, value);
-    restart_pending_ = true;
+    apply_to_pointers();
 }
 
 void InputSettingsManager::set_long_press_time(int value) {
     settings_.set(Key::LongPressTime, value);
-    // lv_indev_set_long_press_time is a live indev property: the next press
-    // uses the new threshold, everywhere in the app.
-    if (auto* dm = DisplayManager::instance()) {
-        if (auto* pointer = dm->pointer_input()) {
-            lv_indev_set_long_press_time(pointer, get_long_press_time());
-        }
-    }
+    apply_to_pointers();
 }
 
 void InputSettingsManager::set_scroll_guard(bool enabled) {

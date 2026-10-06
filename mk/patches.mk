@@ -80,6 +80,8 @@ LVGL_PATCHED_FILES := \
 	src/others/translation/lv_translation.c \
 	src/others/translation/lv_translation.h \
 	src/indev/lv_indev.c \
+	src/indev/lv_indev_private.h \
+	src/indev/lv_indev_scroll.c \
 	lv_conf_template.h
 # NOTE: src/misc/lv_check_arg.h is deliberately absent — the backport patch
 # CREATES it, so it is untracked upstream and `git checkout` cannot restore it.
@@ -582,6 +584,7 @@ $(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_mark_deleted_defensive.patch "LVGL lv_event_mark_deleted defensive bail patch"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_pop_unwind_safe.patch "LVGL event-pop unwind-safe patch (RPHAV9T7 / L081 root cause)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_indev_delete_cancels_anim.patch "LVGL indev-delete animation cancel patch"
+	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_scroll_throw_time_based.patch "LVGL time-based scroll throw patch (momentum by elapsed ms, not per frame)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_dispatch_depth_guard.patch "LVGL event-dispatch-depth guard (cluster:pstat-async-delete / #906)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_stack_array.patch "LVGL #907 array-backed event stack (replaces e->prev linked list)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_dispatch_cb_guard.patch "LVGL dispatch-cb bounds gate + widget identity (3XNZQB2R)"
