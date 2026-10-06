@@ -151,3 +151,37 @@ TEST_CASE_METHOD(LVGLUITestFixture, "CardView: the pool holds the visible window
     view.cleanup();
     lv_obj_delete(container);
 }
+
+TEST_CASE_METHOD(
+    LVGLUITestFixture,
+    "CardView: cards on a solid background draw an opaque gradient, otherwise a masked one",
+    "[ui][card_view][print_select]") {
+    lv_obj_t* page = lv_obj_create(test_screen());
+    lv_obj_set_size(page, 720, 420);
+    lv_obj_set_style_bg_opa(page, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(page, lv_color_hex(0x101418), LV_PART_MAIN);
+    lv_obj_t* container = lv_obj_create(page);
+    lv_obj_set_size(container, 700, 400);
+    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW_WRAP);
+
+    const bool graded = GENERATE(false, true);
+    CAPTURE(graded);
+    if (graded) {
+        lv_obj_set_style_bg_grad_dir(page, LV_GRAD_DIR_VER, LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_color(page, lv_color_hex(0x303030), LV_PART_MAIN);
+    }
+
+    PrintSelectCardView view;
+    REQUIRE(view.setup(container, [](size_t) {}, nullptr));
+    view.populate(make_files(8), CardDimensions{4, 2, 160, 200});
+
+    lv_obj_t* gradient = lv_obj_find_by_name(container, "gradient_bg");
+    REQUIRE(gradient != nullptr);
+    const auto* buf = static_cast<const lv_draw_buf_t*>(lv_image_get_src(gradient));
+    REQUIRE(buf != nullptr);
+    CHECK(buf->header.cf == (graded ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_NATIVE));
+
+    view.cleanup();
+    lv_obj_delete(page);
+}

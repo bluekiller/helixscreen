@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "ui_gradient_canvas.h"
+
+#include "../lvgl_test_fixture.h"
+
+#include "../catch_amalgamated.hpp"
+
+namespace {
+
+// Reads a pixel of either buffer as 8-bit RGB, the way the display would show it.
+lv_color32_t pixel(const lv_draw_buf_t* buf, int32_t x, int32_t y) {
+    const uint8_t* row = buf->data + static_cast<uint32_t>(y) * buf->header.stride;
+    if (buf->header.cf == LV_COLOR_FORMAT_RGB565) {
+        const uint16_t v = reinterpret_cast<const uint16_t*>(row)[x];
+        return lv_color32_t{static_cast<uint8_t>((v & 0x1F) << 3),
+                            static_cast<uint8_t>(((v >> 5) & 0x3F) << 2),
+                            static_cast<uint8_t>((v >> 11) << 3), 255};
+    }
+    return reinterpret_cast<const lv_color32_t*>(row)[x];
+}
+
+// What a 565 panel or a 32-bit framebuffer keeps of an 8-bit channel.
+uint8_t as_shown(uint8_t c, int bits) {
+    return LV_COLOR_DEPTH == 16 ? static_cast<uint8_t>((c >> (8 - bits)) << (8 - bits)) : c;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(
+    LVGLTestFixture,
+    "gradient canvas: the opaque buffer is the masked gradient flattened onto the background",
+    "[gradient_canvas]") {
+    constexpr int32_t W = 160, H = 200, R = 8;
+    const lv_color_t behind = lv_color_hex(0x101418);
+    lv_draw_buf_t* masked = ui_gradient_canvas_create_buf(W, H, true, R);
+    lv_draw_buf_t* opaque = helix::ui::gradient_canvas_create_opaque_buf(W, H, true, R, behind);
+    REQUIRE(masked != nullptr);
+    REQUIRE(opaque != nullptr);
+
+    // Native and alpha-free, so LVGL draws it as a plain copy.
+    CHECK(opaque->header.cf == LV_COLOR_FORMAT_NATIVE);
+    CHECK_FALSE(lv_color_format_has_alpha(static_cast<lv_color_format_t>(opaque->header.cf)));
+
+    int checked_inside = 0, checked_outside = 0, checked_fringe = 0, mismatches = 0;
+    const int tol_rb = LV_COLOR_DEPTH == 16 ? 8 : 1, tol_g = LV_COLOR_DEPTH == 16 ? 4 : 1;
+    for (int32_t y = 0; y < H; y++) {
+        for (int32_t x = 0; x < W; x++) {
+            const lv_color32_t m = pixel(masked, x, y);
+            const lv_color32_t o = pixel(opaque, x, y);
+            const uint8_t a = m.alpha;
+            auto expect = [&](uint8_t fg, uint8_t bg, int bits) {
+                return as_shown(static_cast<uint8_t>((fg * a + bg * (255 - a) + 127) / 255), bits);
+            };
+            const bool ok = std::abs(o.red - expect(m.red, behind.red, 5)) <= tol_rb &&
+                            std::abs(o.green - expect(m.green, behind.green, 6)) <= tol_g &&
+                            std::abs(o.blue - expect(m.blue, behind.blue, 5)) <= tol_rb;
+            if (!ok && mismatches++ < 3) {
+                UNSCOPED_INFO("x=" << x << " y=" << y << " a=" << int(a) << " got " << int(o.red)
+                                   << "," << int(o.green) << "," << int(o.blue));
+            }
+            if (a == 255) {
+                checked_inside++;
+                // The dithered gradient survives exactly where nothing is masked.
+                if (LV_COLOR_DEPTH == 32 &&
+                    (o.red != m.red || o.green != m.green || o.blue != m.blue))
+                    mismatches++;
+            } else if (a == 0) {
+                checked_outside++;
+            } else {
+                checked_fringe++;
+            }
+        }
+    }
+    CHECK(mismatches == 0);
+    CHECK(checked_inside > 0);
+    CHECK(checked_outside > 0); // the corners really were masked
+    CHECK(checked_fringe > 0);
+
+    lv_draw_buf_destroy(masked);
+    lv_draw_buf_destroy(opaque);
+}
