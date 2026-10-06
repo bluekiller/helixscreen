@@ -343,6 +343,34 @@ if [[ -e "$WORKTREE_PATH" ]] \
     exit 1
 fi
 
+# Guard: an existing directory is a worktree someone may be working in. The
+# default path is derived from the branch's LAST segment, so a new branch can
+# name a peer's tree, and every step below rewrites what it finds: it resets the
+# private submodules' patches, syncs mtimes and prunes build outputs. Only a
+# deliberate re-setup (--setup-only) of the same branch, by the session that
+# holds the tree, may proceed.
+if [[ -e "$WORKTREE_PATH" ]]; then
+    EXISTING_BRANCH="$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    if [[ "$EXISTING_BRANCH" != "$BRANCH" ]]; then
+        echo -e "${RED}Error: $WORKTREE_PATH already holds branch '${EXISTING_BRANCH:-<not a git worktree>}', not '$BRANCH'.${RESET}"
+        echo -e "The directory is named after the branch's last segment ('${BRANCH##*/}')."
+        echo -e "Pick a branch whose last segment is free, or name a path as the second argument."
+        exit 1
+    fi
+    if [[ "$SETUP_ONLY" == "false" ]]; then
+        echo -e "${RED}Error: a worktree for '$BRANCH' already exists at $WORKTREE_PATH.${RESET}"
+        echo -e "To re-run setup on it: ${CYAN}$0 --setup-only $BRANCH${RESET}"
+        exit 1
+    fi
+    if [[ -x "$SCRIPT_DIR/helix-claim" ]] \
+       && CLAIM_HOLDER="$(cd "$MAIN_TREE" && "$SCRIPT_DIR/helix-claim" held-by-other "worktree:$(basename "$WORKTREE_PATH")")"; then
+        echo -e "${RED}Error: another session holds $WORKTREE_PATH:${RESET}"
+        echo -e "$CLAIM_HOLDER"
+        echo -e "Ask it (the message= address above) before setting up its tree."
+        exit 1
+    fi
+fi
+
 echo -e "${BOLD}${CYAN}HelixScreen Worktree Setup${RESET}"
 echo -e "Main tree:    $MAIN_TREE"
 echo -e "Worktree:     $WORKTREE_PATH"
@@ -351,73 +379,69 @@ echo ""
 
 # Step 1: Create or verify the worktree
 if [[ "$SETUP_ONLY" == "false" ]]; then
-    if [[ -d "$WORKTREE_PATH" ]]; then
-        echo -e "${YELLOW}Worktree already exists at $WORKTREE_PATH${RESET}"
-    else
-        # Validate BEFORE creating anything, so a rejected invocation leaves no
-        # half-made directory behind.
-        BRANCH_EXISTS=false
-        if git -C "$MAIN_TREE" rev-parse --verify --quiet "$BRANCH" >/dev/null; then
-            BRANCH_EXISTS=true
-            if [[ -n "$BASE_REF" ]]; then
-                echo -e "${RED}Error: branch '$BRANCH' already exists, so --base would be ignored.${RESET}"
-                echo -e "Drop --base to check it out, or pick a new branch name."
-                exit 1
-            fi
-        elif [[ -n "$BASE_REF" ]] \
-             && ! git -C "$MAIN_TREE" rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
-            echo -e "${RED}Error: base '$BASE_REF' is not a valid commit or branch${RESET}"
+    # Validate BEFORE creating anything, so a rejected invocation leaves no
+    # half-made directory behind.
+    BRANCH_EXISTS=false
+    if git -C "$MAIN_TREE" rev-parse --verify --quiet "$BRANCH" >/dev/null; then
+        BRANCH_EXISTS=true
+        if [[ -n "$BASE_REF" ]]; then
+            echo -e "${RED}Error: branch '$BRANCH' already exists, so --base would be ignored.${RESET}"
+            echo -e "Drop --base to check it out, or pick a new branch name."
             exit 1
         fi
-
-        echo -e "${CYAN}Creating worktree...${RESET}"
-        mkdir -p "$(dirname "$WORKTREE_PATH")"
-
-        if [[ "$BRANCH_EXISTS" == "true" ]]; then
-            git -C "$MAIN_TREE" worktree add "$WORKTREE_PATH" "$BRANCH"
-        else
-            # Branch from the tracked upstream rather than local HEAD. A main
-            # that has not been fetched today omits commits the new branch is
-            # meant to build on, and nothing surfaces that gap until the work is
-            # already under review. "--base HEAD" asks for the local tip.
-            BASE="$BASE_REF"
-            if [[ -z "$BASE" ]]; then
-                UPSTREAM="$(git -C "$MAIN_TREE" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-                if [[ -n "$UPSTREAM" ]]; then
-                    if [[ "$NO_FETCH" != "true" ]]; then
-                        echo -e "${CYAN}Refreshing $UPSTREAM...${RESET}"
-                        git -C "$MAIN_TREE" fetch --quiet "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null \
-                            || echo -e "${YELLOW}  fetch failed; using the $UPSTREAM already on disk${RESET}"
-                    fi
-                    BASE="$UPSTREAM"
-                else
-                    echo -e "${YELLOW}Current branch tracks no upstream; falling back to HEAD${RESET}"
-                    BASE="HEAD"
-                fi
-            fi
-            BASE_DESC="$(git -C "$MAIN_TREE" log --oneline -1 "$BASE")"
-            echo -e "${YELLOW}Branch '$BRANCH' doesn't exist, creating from ${BOLD}$BASE${RESET}${YELLOW}:${RESET}"
-            echo -e "  ${CYAN}$BASE_DESC${RESET}"
-            LOCAL_ONLY="$(git -C "$MAIN_TREE" rev-list --count "$BASE..HEAD" 2>/dev/null || echo 0)"
-            # Only worth saying when the base was picked FOR you. An explicit
-            # --base onto another line (a backport, say) leaves hundreds of
-            # commits behind by design, and counting them there is noise.
-            if [[ -z "$BASE_REF" && "$LOCAL_ONLY" != "0" ]]; then
-                echo -e "${YELLOW}  local HEAD has $LOCAL_ONLY commit(s) not in $BASE, excluded from this branch${RESET}"
-                echo -e "${YELLOW}  re-run with --base HEAD if you meant to build on them${RESET}"
-            fi
-            # Repeated in the closing summary. A build can run for minutes after
-            # this point, so a reader who sees only the tail of the log would
-            # otherwise never learn which base the branch was cut from.
-            CREATED_BASE="$BASE"
-            CREATED_BASE_SHA="$(git -C "$MAIN_TREE" rev-parse --short "$BASE")"
-            if [[ -z "$BASE_REF" ]]; then
-                EXCLUDED_COMMITS="$LOCAL_ONLY"
-            fi
-            git -C "$MAIN_TREE" worktree add -b "$BRANCH" "$WORKTREE_PATH" "$BASE"
-        fi
-        echo -e "${GREEN}✓ Worktree created${RESET}"
+    elif [[ -n "$BASE_REF" ]] \
+         && ! git -C "$MAIN_TREE" rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
+        echo -e "${RED}Error: base '$BASE_REF' is not a valid commit or branch${RESET}"
+        exit 1
     fi
+
+    echo -e "${CYAN}Creating worktree...${RESET}"
+    mkdir -p "$(dirname "$WORKTREE_PATH")"
+
+    if [[ "$BRANCH_EXISTS" == "true" ]]; then
+        git -C "$MAIN_TREE" worktree add "$WORKTREE_PATH" "$BRANCH"
+    else
+        # Branch from the tracked upstream rather than local HEAD. A main
+        # that has not been fetched today omits commits the new branch is
+        # meant to build on, and nothing surfaces that gap until the work is
+        # already under review. "--base HEAD" asks for the local tip.
+        BASE="$BASE_REF"
+        if [[ -z "$BASE" ]]; then
+            UPSTREAM="$(git -C "$MAIN_TREE" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+            if [[ -n "$UPSTREAM" ]]; then
+                if [[ "$NO_FETCH" != "true" ]]; then
+                    echo -e "${CYAN}Refreshing $UPSTREAM...${RESET}"
+                    git -C "$MAIN_TREE" fetch --quiet "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null \
+                        || echo -e "${YELLOW}  fetch failed; using the $UPSTREAM already on disk${RESET}"
+                fi
+                BASE="$UPSTREAM"
+            else
+                echo -e "${YELLOW}Current branch tracks no upstream; falling back to HEAD${RESET}"
+                BASE="HEAD"
+            fi
+        fi
+        BASE_DESC="$(git -C "$MAIN_TREE" log --oneline -1 "$BASE")"
+        echo -e "${YELLOW}Branch '$BRANCH' doesn't exist, creating from ${BOLD}$BASE${RESET}${YELLOW}:${RESET}"
+        echo -e "  ${CYAN}$BASE_DESC${RESET}"
+        LOCAL_ONLY="$(git -C "$MAIN_TREE" rev-list --count "$BASE..HEAD" 2>/dev/null || echo 0)"
+        # Only worth saying when the base was picked FOR you. An explicit
+        # --base onto another line (a backport, say) leaves hundreds of
+        # commits behind by design, and counting them there is noise.
+        if [[ -z "$BASE_REF" && "$LOCAL_ONLY" != "0" ]]; then
+            echo -e "${YELLOW}  local HEAD has $LOCAL_ONLY commit(s) not in $BASE, excluded from this branch${RESET}"
+            echo -e "${YELLOW}  re-run with --base HEAD if you meant to build on them${RESET}"
+        fi
+        # Repeated in the closing summary. A build can run for minutes after
+        # this point, so a reader who sees only the tail of the log would
+        # otherwise never learn which base the branch was cut from.
+        CREATED_BASE="$BASE"
+        CREATED_BASE_SHA="$(git -C "$MAIN_TREE" rev-parse --short "$BASE")"
+        if [[ -z "$BASE_REF" ]]; then
+            EXCLUDED_COMMITS="$LOCAL_ONLY"
+        fi
+        git -C "$MAIN_TREE" worktree add -b "$BRANCH" "$WORKTREE_PATH" "$BASE"
+    fi
+    echo -e "${GREEN}✓ Worktree created${RESET}"
 else
     if [[ ! -d "$WORKTREE_PATH" ]]; then
         echo -e "${RED}Error: Worktree doesn't exist at $WORKTREE_PATH${RESET}"

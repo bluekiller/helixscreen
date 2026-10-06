@@ -134,13 +134,13 @@ TEST_CASE_METHOD(TouchCallbacksFixture, "Touch page: the scroll guard toggle ask
 }
 
 TEST_CASE_METHOD(TouchCallbacksFixture,
-                 "Touch page: the scroll-engage slider commits and asks for a restart",
+                 "Touch page: the scroll-engage slider applies live without a restart",
                  "[settings][touch_callbacks]") {
     release_slider("row_scroll_limit", 15);
 
     CHECK(helix::InputSettingsManager::instance().get_scroll_limit() == 15);
     CHECK(slider_label("row_scroll_limit") == "15");
-    CHECK(restart_prompt_up());
+    CHECK_FALSE(restart_prompt_up());
 }
 
 TEST_CASE_METHOD(TouchCallbacksFixture,
