@@ -6,14 +6,9 @@ Goal: one K-Touch that moves between your printers, one printer connected at a t
 actions no-op: `NavigationManager::set_printer_callbacks` is called only from
 `src/application/printer_session.cpp#init_ui`, which firmware excludes.
 
-Shipping order (approved):
-- **v1, reboot-to-switch.** Switch = `set_active_printer` + `save` + `esp_restart()`; the boot path
-  connects to the new `df()` host. Add = Change Host modal in a "new printer" mode; the entry is
-  created only on Save, then the same restart. Remove is the existing shared overlay. v1 also
-  ships `Config::next_printer_id()`, one shared active-name seed, `PrinterNameSync::resolve` in
-  the firmware discovery callback, and the Cancel-after-Test reconnect fix in ChangeHostModal.
-- **v2, live switch** (sections 3-7): the target, seconds and responsive, with v1's restart as
-  its fallback. Everything v1 adds stays in use.
+Approved design: **live switch** (sections 3-7), seconds and responsive, with `esp_restart()` as
+the automatic fallback when the internal-heap check fails. Switching away from a printer that is
+printing asks first (`modal_confirm` with `on_dismiss`).
 
 ## 1. How desktop does it
 
@@ -163,14 +158,13 @@ per switch against the cold-boot values; AMS lanes and fans match each printer; 
 via typed IP; Cancel mid-add keeps A connected; remove the active printer; force the fallback by
 lowering the margin and confirm the restart lands on B.
 
-v1 commits, in order:
-1. `Config::next_printer_id()` + tests; `add_printer_via_wizard` calls it.
-2. Shared active-name seed, called from application.cpp, `PrinterSession::rebuild` and app_boot.
-3. ChangeHostModal: Cancel-after-Test reconnects to the saved host (test-first, both platforms).
-4. ChangeHostModal "new printer" target: completion gets host/port, nothing written to `df()`.
-5. Firmware: `PrinterNameSync::resolve` in discovery; `set_printer_callbacks` in `build_shell`
-   (switch = save + restart, add = new-printer modal + `next_printer_id` + restart).
-Change Host stays a live reconnect in v1.
-
-v2 commits: `PrinterSwitchFlow` extraction, `retarget_printer_connection`, firmware retarget hooks
-with heap check and restart fallback, mDNS on firmware, and the WS PSRAM-stack patch only if needed.
+Commits, in order (status as of this revision):
+1. `Config::next_printer_id()` (landed) + move switch/add/cancel into `PrinterSwitchFlow`.
+2. `retarget_printer_connection`; ChangeHostModal uses it. Landed already: Cancel-after-Test
+   reconnects; a new host clears AMS backends (reproduced on desktop, `HELIX_MOCK_AMS=medusahc`).
+3. Shared active-name seed and `PrinterNameSync::resolve` in firmware discovery (landed).
+4. Firmware: `set_printer_callbacks` with retarget hooks, heap check, restart fallback, timing
+   logs, printing confirm. A restart-only wiring is on the branch now and gets replaced.
+5. ChangeHostModal add-printer mode + Add flow (landed).
+6. mDNS on firmware (thread seam + exception policy) and the found-printers list.
+7. WS task PSRAM-stack patch, only if device testing shows the 8 KB block does not come back.
