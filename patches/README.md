@@ -115,6 +115,8 @@ Base: Lua v5.4.9 (`lib/lua`). Lua is compiled as C++ for the plugin runtime (`sr
 |-------|---------|
 | `lua-pattern-step-budget.patch` | Every 16384 calls to `lstrlib.c`'s `match()`, run the state's count hook with a NULL `lua_Debug`. The count hook counts VM instructions, so it never fires inside a C function, and a backtracking pattern such as `("a"):rep(1e4):find(".-.-.-.-x")` would freeze the UI past the plugin time budget. `LuaRuntime::budget_hook` is that hook |
 
+A worktree set up before `lib/lua` joined the private checkouts still has it as a symlink into the main tree, so its build patches the shared copy. Convert it with `scripts/setup-worktree.sh <branch> --setup-only` from the main tree; `test -L lib/lua` in the worktree then reports false.
+
 ## Usage
 
 ```bash
