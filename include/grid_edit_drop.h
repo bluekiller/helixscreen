@@ -4,6 +4,8 @@
 
 #include "grid_layout.h"
 
+#include <string>
+
 /**
  * @file grid_edit_drop.h
  * @brief What a released home-grid edit drag does: move its widget, create a
@@ -77,5 +79,17 @@ struct DropResolution {
  *        page's landing cell.
  */
 DropResolution resolve_drop(const DropInput& in, const GridLayout& occupancy);
+
+struct PanelWidgetDef;
+
+/**
+ * @brief Why @p def cannot sit at a track rectangle, or empty when it can.
+ *
+ * The span must lie within the def's declared range, cover whole cells on an
+ * axis without half-cell support, and fit free tracks on @p occupancy, which
+ * holds the page's other widgets.
+ */
+std::string placement_refusal(const PanelWidgetDef& def, const GridLayout& occupancy, int col,
+                              int row, int colspan, int rowspan);
 
 } // namespace helix

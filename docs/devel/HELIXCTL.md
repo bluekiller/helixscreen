@@ -387,6 +387,7 @@ curl -s -X POST http://127.0.0.1:7130/rpc -d '{"jsonrpc":"2.0","id":1,
 | `state <target>` | Read a widget's LVGL states and flags: `checked`/`disabled`/`focused`/`pressed` as booleans plus an active-`states` array, and `hidden`/`clickable`/`scrollable` under `flags`. Descends a composite row to its control, matching what `click`/`set_value` act on; when it descends, a `target` subobject carries the named widget's own `path` + `flags` (a hidden row's inner switch carries no flag of its own). A HIDDEN widget still resolves by name (only `ls` filters hidden subtrees), so `bind_flag_if` and `disabled=`-prop contracts are assertable here |
 | `set_text <target> <text>` | Overwrite a **label's** text. Resolves the target the same way `text` reads it, so a composite works. For labels the app sets imperatively — a value that comes from a backend field rather than a subject, so `set` cannot reach it (e.g. the AMS loading-error message). A label driven by `bind_text` is restored the next time its subject changes; set the subject instead when one exists |
 | `geom <target> [depth]` | Measured geometry: position, size, declared-vs-computed size, flex/scroll state |
+| `overflow [target]` | Every visible widget whose content reaches past its box, with the px past each edge and whether it `scrollable` (else the excess is clipped). One call finds a stray scrollbar or a clipped row anywhere on screen. A label that dots, scrolls or clips its text is left out: it truncates by design. Intentional scrollers, such as the home carousel, are listed too |
 | `get_const [scope] <name>` | Resolve an XML `#const` to the value the renderer actually sees |
 
 ### Synthetic pointer — testing gestures
@@ -406,6 +407,7 @@ input pipeline**, so gestures behave exactly as they do under a finger.
 | `move <x> <y>` | Move it — a drag while pressed, a hover while released |
 | `release [x y]` | Lift it, at x,y if given, otherwise where it currently is |
 | `long_press <x> <y> [hold_ms]` | Press at x,y, hold past the long-press threshold, then release - the whole gesture inside one request |
+| `tap <x> <y>` | Press and release at x,y. `click <x> <y>` is the same command |
 
 Each command returns only after LVGL has sampled the device twice, so sequences do
 not race the indev timer.
@@ -458,6 +460,24 @@ single-command form.
 
 Get coordinates from `geom <target>` — it reports each widget's absolute `x`, `y`,
 `w` and `h`, so aim at a rect's centre rather than guessing.
+
+#### Home-grid layout without gestures
+
+`home` edits the layout directly, in cells (`1.5` for a widget with half-cell
+support). Each change is checked the way an Edit Mode drop is, against the widget's
+span limits, its half-cell support and the cells already taken, then saved and
+rebuilt live. A refusal says which rule it broke.
+
+```bash
+helix-screen ctl home                       # every page: grid size and placed widgets
+helix-screen ctl home resize ams 4 1        # keep its position, change its span
+helix-screen ctl home place ams 0 3 6 2     # col row w h [page]; adds a widget not yet placed
+helix-screen ctl home remove fan_stack      # what Edit Mode's trash does
+```
+
+To start from a prepared layout instead, edit the saved config before launch. Under
+`--test` that file is `settings-test.json` in the config dir, not `settings.json`,
+and the layout sits at `/printers/<printer>/panel_widgets/home`.
 
 #### Home-grid Edit Mode and the widget catalog
 

@@ -1071,17 +1071,7 @@ void GridEditMode::remove_selected_widget() {
     spdlog::info("[GridEditMode] Removing widget '{}' (config index {})",
                  entries[static_cast<size_t>(config_index)].id, config_index);
 
-    // Copy by value — delete_entry() and page_entries_mut() modify the vector
-    // that entries references, invalidating any references into it (#736)
-    const auto widget_id = entries[static_cast<size_t>(config_index)].id;
-    if (widget_id.find(':') != std::string::npos) {
-        config_->delete_entry(widget_id);
-    } else {
-        // Use page-scoped entry access instead of set_enabled() which only operates on page 0.
-        config_
-            ->page_entries_mut(static_cast<size_t>(page_index_))[static_cast<size_t>(config_index)]
-            .disable_and_unplace();
-    }
+    config_->remove_from_page(static_cast<size_t>(page_index_), static_cast<size_t>(config_index));
 
     // Deselect before rebuild, and forget the container's other children:
     // lv_obj_clean in the rebuild deletes them.
