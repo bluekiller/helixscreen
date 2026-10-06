@@ -10,6 +10,7 @@
 
 #include "ui_print_start_controller.h"
 
+#include "ui_bed_drying_modal.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
@@ -126,6 +127,13 @@ void PrintStartController::initiate() {
                      secs, AppConstants::Startup::PRINT_START_GRACE_PERIOD.count());
         if (update_print_button_) {
             update_print_button_(); // Re-enable button
+        }
+        return;
+    }
+
+    if (divert_to_spool_removal()) {
+        if (update_print_button_) {
+            update_print_button_();
         }
         return;
     }
@@ -404,12 +412,17 @@ void PrintStartController::send_snapmaker_preprint_then(const std::set<int>& too
         // Better to fail loud than feed an empty head.
         [tok, on_abort](const MoonrakerError& err) mutable {
             std::string msg = err.message;
-            tok.defer("PrintStartController::preprint.err", [msg, on_abort]() {
+            // A refusal HelixScreen raised itself (e.g. spools on the bed) never
+            // reached the printer, so it shows its own reason.
+            std::string local = err.message_tag ? err.localized_message() : std::string{};
+            tok.defer("PrintStartController::preprint.err", [msg, local, on_abort]() {
                 LOG_ERROR_INTERNAL("[PrintStartController] U1 pre-print config rejected: {}", msg);
                 NOTIFY_ERROR_MODAL(
                     lv_tr("Print setup failed"), "{}",
-                    lv_tr("The printer rejected the filament configuration. The print was not "
-                          "started."));
+                    !local.empty()
+                        ? local
+                        : std::string(lv_tr("The printer rejected the filament configuration. "
+                                            "The print was not started.")));
                 // Notify caller to re-enable UI state — do NOT start.
                 if (on_abort) {
                     on_abort();
@@ -417,6 +430,15 @@ void PrintStartController::send_snapmaker_preprint_then(const std::set<int>& too
             });
         },
         15000);
+}
+
+bool PrintStartController::divert_to_spool_removal() {
+    if (!printer_state_.print_state().spool_latch_active()) {
+        return false;
+    }
+    spdlog::warn("[PrintStartController] Print start blocked: spools are latched on the bed");
+    helix::ui::on_bed_drying_banner_clicked();
+    return true;
 }
 
 void PrintStartController::initiate_reprint(const std::string& filename, const std::string& path,
@@ -427,6 +449,13 @@ void PrintStartController::initiate_reprint(const std::string& filename, const s
 
     if (!api_) {
         spdlog::error("[PrintStartController] initiate_reprint: no API");
+        if (on_error) {
+            on_error();
+        }
+        return;
+    }
+
+    if (divert_to_spool_removal()) {
         if (on_error) {
             on_error();
         }
