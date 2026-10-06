@@ -203,6 +203,9 @@ class HistoryDashboardPanel : public OverlayBase {
     lv_subject_t stat_filament_subject_{};
     lv_subject_t stat_success_rate_subject_{};
     lv_subject_t trend_period_subject_{};
+    // Set while the shown stats come from fewer jobs than the period holds.
+    lv_subject_t history_coverage_partial_subject_{};
+    lv_subject_t history_coverage_subject_{};
 
     // Static buffers for string subjects (required for lv_subject_init_string)
     char stat_total_prints_buf_[32];
@@ -210,6 +213,11 @@ class HistoryDashboardPanel : public OverlayBase {
     char stat_filament_buf_[32];
     char stat_success_rate_buf_[16];
     char trend_period_buf_[64];
+    char history_coverage_buf_[96];
+
+    /// Say which jobs the stats come from when the cache does not cover the
+    /// period: the newest N prints, never a silent undercount.
+    void update_coverage_note(bool partial);
 
     //
     // === Data Fetching ===

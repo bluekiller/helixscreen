@@ -107,3 +107,56 @@ class HistoryCallCountingMoonrakerAPI : public MoonrakerAPI {
 };
 
 } // namespace helix
+
+namespace helix {
+
+/// Holds every history list request until the test answers it, so a case can
+/// read what each request asked for (limit, `before`) and feed the response.
+class ScriptedHistoryAPI : public MoonrakerHistoryAPI {
+  public:
+    struct Request {
+        int limit;
+        int start;
+        double since;
+        double before;
+        HistoryListCallback on_success;
+        ErrorCallback on_error;
+    };
+
+    explicit ScriptedHistoryAPI(helix::IMoonrakerClient& client) : MoonrakerHistoryAPI(client) {}
+
+    void get_history_list(int limit, int start, double since, double before,
+                          HistoryListCallback on_success, ErrorCallback on_error) override {
+        requests.push_back(
+            {limit, start, since, before, std::move(on_success), std::move(on_error)});
+    }
+
+    /// Answer the oldest outstanding request with `jobs`.
+    void answer(const std::vector<PrintHistoryJob>& jobs) {
+        Request r = std::move(requests.front());
+        requests.erase(requests.begin());
+        r.on_success(jobs, jobs.size());
+    }
+
+    std::vector<Request> requests;
+};
+
+/// MoonrakerAPI that installs the scripted history API in place of the real one.
+class ScriptedHistoryMoonrakerAPI : public MoonrakerAPI {
+  public:
+    ScriptedHistoryMoonrakerAPI(helix::IMoonrakerClient& client, helix::PrinterState& state)
+        : MoonrakerAPI(client, state) {
+        history_api_ = std::make_unique<ScriptedHistoryAPI>(client);
+        file_api_ = std::make_unique<MetadataTableFileAPI>(client);
+    }
+
+    ScriptedHistoryAPI& scripted() {
+        return *static_cast<ScriptedHistoryAPI*>(history_api_.get());
+    }
+
+    [[nodiscard]] MetadataTableFileAPI& metadata_table() {
+        return static_cast<MetadataTableFileAPI&>(*file_api_);
+    }
+};
+
+} // namespace helix

@@ -45,3 +45,4 @@
 [submodule "lib/lua"]
 	path = lib/lua
 	url = https://github.com/lua/lua.git
+	ignore = dirty

@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" ja="バックアップスプール切り替えの状態は不明です"/>
   <translation tag="Barcode Scanner" ja="バーコードスキャナー"/>
   <translation tag="Base" ja="基準"/>
+  <translation tag="Based on the newest {} prints" ja="最新の{}件の印刷に基づく"/>
   <translation tag="Batch load failed" ja="一括装填に失敗しました"/>
   <translation tag="Batch unload failed" ja="一括排出に失敗しました"/>
   <translation tag="Beacon auto-calibrate sent" ja="Beacon自動キャリブレーション送信済み"/>
@@ -2232,7 +2233,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" ja="プリンターコマンド &apos;{}&apos; が {} ms でタイムアウトしました"/>
   <translation tag="Printer connection unavailable" ja="プリンターとの接続が利用できません"/>
   <translation tag="Printer database format error" ja="プリンターデータベースの形式エラー"/>
-  <translation tag="Printer database is corrupt" ja="プリンターデータベースが破損しています"/>
   <translation tag="Printer default" ja="プリンター既定"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" ja="プリンターが応答しません — 電源が入っており通信範囲内にあることを確認してください"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" ja="プリンターが想定されるサービスを公開していません — デバイスが違う可能性があります"/>

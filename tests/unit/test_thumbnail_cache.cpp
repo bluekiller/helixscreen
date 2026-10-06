@@ -110,6 +110,17 @@ TEST_CASE("ThumbnailCache LVGL path helpers", "[assets][cache]") {
     }
 }
 
+TEST_CASE("ThumbnailCache: unknown free space is not disk pressure", "[assets][cache]") {
+    using P = ThumbnailCache::DiskPressure;
+    constexpr size_t critical = 10, low = 50;
+    CHECK(ThumbnailCache::classify_disk_pressure(std::nullopt, critical, low) == P::Normal);
+    CHECK(ThumbnailCache::classify_disk_pressure(size_t{0}, critical, low) == P::Critical);
+    CHECK(ThumbnailCache::classify_disk_pressure(size_t{9}, critical, low) == P::Critical);
+    CHECK(ThumbnailCache::classify_disk_pressure(size_t{10}, critical, low) == P::Low);
+    CHECK(ThumbnailCache::classify_disk_pressure(size_t{49}, critical, low) == P::Low);
+    CHECK(ThumbnailCache::classify_disk_pressure(size_t{50}, critical, low) == P::Normal);
+}
+
 TEST_CASE("ThumbnailCache disk pressure monitoring", "[assets][cache]") {
     ThumbnailCache& cache = get_thumbnail_cache();
 

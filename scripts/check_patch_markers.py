@@ -62,12 +62,13 @@ def main():
     ap.add_argument("--patch-dir", default="patches")
     ap.add_argument("--lvgl", default="lib/lvgl")
     ap.add_argument("--libhv", default="lib/libhv")
+    ap.add_argument("--lua", default="lib/lua")
     ap.add_argument("--list-files", action="store_true",
                     help="print the files the table reads, and exit")
     ap.add_argument("--only", metavar="PATCH",
                     help="judge one patch and exit: 0 marker present, 1 absent, 2 no row")
     args = ap.parse_args()
-    dirs = {"LVGL_DIR": args.lvgl, "LIBHV_DIR": args.libhv}
+    dirs = {"LVGL_DIR": args.lvgl, "LIBHV_DIR": args.libhv, "LUA_DIR": args.lua}
 
     rows = read_table(args.tsv)
     if args.only:

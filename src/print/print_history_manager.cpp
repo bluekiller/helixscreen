@@ -146,7 +146,9 @@ bool PrintHistoryManager::covers_since(double since) const {
     if (!is_loaded_) {
         return false;
     }
-    if (is_loaded(HistoryScope::COMPLETE)) {
+    // Only a short response proves the cache holds every job. A COMPLETE load
+    // that came back full was cut off by its limit, and covers only what it holds.
+    if (holds_every_job_) {
         return true;
     }
     // Newest-first order, so the last entry is the oldest job cached and marks
@@ -181,14 +183,107 @@ void PrintHistoryManager::ensure_loaded(HistoryScope scope) {
 
 void PrintHistoryManager::ensure_covers_since(double since) {
     if (is_loaded_ && !covers_since(since)) {
-        // The slice stops short of the window, so only the whole list answers
-        // it. Moonraker's `since` parameter cannot be used to widen in place:
-        // it would drop the newest-job selection on a printer that has printed
-        // nothing inside the window.
-        ensure_loaded(HistoryScope::COMPLETE);
+        // The slice stops short of the window. Moonraker's `since` parameter
+        // cannot widen it in place: it would drop the newest-job selection on a
+        // printer that has printed nothing inside the window. Escalate to the
+        // whole list first, then page older jobs in behind it.
+        if (wanted_since_ == 0.0 || since < wanted_since_) {
+            wanted_since_ = since;
+        }
+        if (!is_loaded(HistoryScope::COMPLETE)) {
+            coverage_load_pending_ = true;
+            ensure_loaded(HistoryScope::COMPLETE);
+        } else {
+            load_older();
+        }
         return;
     }
     ensure_loaded(HistoryScope::RECENT);
+}
+
+void PrintHistoryManager::load_older() {
+    if (!api_ || !is_loaded_ || holds_every_job_ || older_exhausted_ || cached_jobs_.empty() ||
+        cached_jobs_.size() >= job_budget_) {
+        return;
+    }
+    bool expected = false;
+    if (!is_fetching_.compare_exchange_strong(expected, true)) {
+        return; // its response notifies, and an ensure_covers_since() target asks again
+    }
+
+    // Moonraker's `before` is strict. Nudging it past the oldest cached job
+    // keeps jobs that share its start time; the job_id dedupe drops the repeat.
+    constexpr double kBoundarySlackSeconds = 0.001;
+    const double before = cached_jobs_.back().start_time + kBoundarySlackSeconds;
+    const uint64_t generation = cache_generation_;
+    spdlog::debug("[HistoryManager] Fetching older jobs (before={})", before);
+
+    auto token = lifetime_.token();
+    api_->history().get_history_list(
+        kOlderPageJobs, 0, 0.0, before,
+        [this, token, generation](const std::vector<PrintHistoryJob>& jobs, uint64_t /*total*/) {
+            is_fetching_.store(false);
+            std::vector<PrintHistoryJob> jobs_copy = jobs;
+            token.defer("PrintHistoryManager::older_page",
+                        [this, generation, jobs = std::move(jobs_copy)]() mutable {
+                            on_older_page(std::move(jobs), generation);
+                        });
+        },
+        [this, token](const MoonrakerError& error) {
+            is_fetching_.store(false);
+            spdlog::warn("[HistoryManager] Failed to fetch older history: {}", error.message);
+            // A full load queued behind this page still has to run. The coverage
+            // target stays, for the next ensure_covers_since() to resume.
+            token.defer("PrintHistoryManager::older_page_failed", [this]() {
+                const int queued = pending_scope_.exchange(kNoFetch);
+                if (queued != kNoFetch) {
+                    fetch(static_cast<HistoryScope>(queued));
+                }
+            });
+        });
+}
+
+void PrintHistoryManager::on_older_page(std::vector<PrintHistoryJob>&& jobs, uint64_t generation) {
+    if (generation == cache_generation_ && is_loaded_) {
+        const bool short_page = static_cast<int>(jobs.size()) < kOlderPageJobs;
+        size_t added = 0;
+        for (auto& job : jobs) {
+            auto same_id = [&job](const PrintHistoryJob& j) { return j.job_id == job.job_id; };
+            if (std::none_of(cached_jobs_.begin(), cached_jobs_.end(), same_id)) {
+                adopt_original(job);
+                cached_jobs_.push_back(std::move(job));
+                ++added;
+            }
+        }
+        holds_every_job_ = short_page;
+        // A full page of jobs already cached cannot move `before` on, so asking
+        // again would return it forever.
+        older_exhausted_ = !short_page && added == 0;
+        build_filename_stats();
+        notify_observers();
+    }
+
+    const int queued = pending_scope_.exchange(kNoFetch);
+    if (queued != kNoFetch) {
+        fetch(static_cast<HistoryScope>(queued));
+        return;
+    }
+    continue_coverage();
+}
+
+void PrintHistoryManager::continue_coverage() {
+    if (wanted_since_ == 0.0) {
+        return;
+    }
+    if (covers_since(wanted_since_)) {
+        wanted_since_ = 0.0;
+    } else if (!is_loaded(HistoryScope::COMPLETE)) {
+        return; // the escalation to the whole list is still to land
+    } else if (!older_exhausted_ && cached_jobs_.size() < job_budget_) {
+        load_older();
+    } else {
+        wanted_since_ = 0.0; // nothing more can come: stop asking
+    }
 }
 
 const PrintHistoryJob* PrintHistoryManager::get_newest_existing_job() const {
@@ -264,6 +359,12 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
     for (auto& job : cached_jobs_) {
         adopt_original(job);
     }
+    ++cache_generation_;
+    older_exhausted_ = false;
+    if (!coverage_load_pending_) {
+        wanted_since_ = 0.0;
+    }
+    coverage_load_pending_ = false;
     // Moonraker fills a page up to the limit and stops, so a short response is
     // the whole history and the cache answers COMPLETE however narrow the
     // request was.
@@ -284,7 +385,9 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
     if (queued != kNoFetch) {
         spdlog::debug("[HistoryManager] Re-fetching (history changed mid-flight)");
         fetch(static_cast<HistoryScope>(queued));
+        return;
     }
+    continue_coverage();
 }
 
 void PrintHistoryManager::apply_job_update(PrintHistoryJob&& job) {

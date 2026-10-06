@@ -294,6 +294,7 @@ translations:
   Backup spool switching state unknown: 备用料盘切换状态未知
   Barcode Scanner: 条码扫描器
   Base: 基准
+  Based on the newest {} prints: '基于最近 {} 次打印'
   Batch load failed: 批量加载失败
   Batch unload failed: 批量卸载失败
   Beacon auto-calibrate sent: Beacon自动校准已发送
@@ -2312,7 +2313,6 @@ translations:
   Printer command '{}' timed out after {}ms: 打印机命令 '{}' 在 {} 毫秒后超时
   Printer connection unavailable: 打印机连接不可用
   Printer database format error: 打印机数据库格式错误
-  Printer database is corrupt: 打印机数据库已损坏
   Printer default: 打印机默认
   Printer didn't respond — make sure it's on and in range: 打印机无响应 — 请确保已开机且在范围内
   Printer doesn't expose the expected service — wrong device?: 打印机未提供预期的服务 — 设备是否有误？

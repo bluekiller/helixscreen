@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 /**
- * @file test_nav_rail_estop.cpp
- * @brief The navigation rail carries the one E-stop while a job holds the machine.
+ * @file test_navbar_estop.cpp
+ * @brief The navbar carries the one E-stop while a job holds the machine.
  *
- * The rail keeps a slot; the button itself lives on the screen over that slot,
+ * The navbar keeps a slot; the button itself lives on the screen over that slot,
  * so it stays bright and tappable above overlay and modal backdrops, which dim
- * the rest of the rail. Every panel and overlay sits beside the rail. Screens
- * that cover the rail (lock screen, fullscreen camera) carry their own.
+ * the rest of the navbar. Every panel and overlay sits beside the navbar. Screens
+ * that cover the navbar (lock screen, fullscreen camera) carry their own.
  *
- * Run with: ./build/bin/helix-tests "[estop_rail]"
+ * Run with: ./build/bin/helix-tests "[estop_navbar]"
  */
 
 #include "ui_component_keypad.h"
@@ -52,8 +52,8 @@ bool has_estop_button(const std::string& xml) {
            xml.find("callback=\"emergency_stop_clicked\"") != std::string::npos;
 }
 
-struct RailFixture : public LVGLUITestFixture {
-    RailFixture() {
+struct NavbarFixture : public LVGLUITestFixture {
+    NavbarFixture() {
         estop_visible_ = lv_xml_get_subject(nullptr, "estop_visible");
         REQUIRE(estop_visible_ != nullptr);
         saved_ = lv_subject_get_int(estop_visible_);
@@ -62,10 +62,10 @@ struct RailFixture : public LVGLUITestFixture {
         slot_ = lv_obj_find_by_name(navbar_, "nav_estop_slot");
         REQUIRE(slot_ != nullptr);
         NavigationManager::instance().wire_events(navbar_);
-        estop_ = NavigationManager::instance().rail_estop();
+        estop_ = NavigationManager::instance().navbar_estop();
         REQUIRE(estop_ != nullptr);
     }
-    ~RailFixture() override {
+    ~NavbarFixture() override {
         lv_subject_set_int(estop_visible_, saved_);
         helix::ui::UpdateQueue::instance().drain();
     }
@@ -89,8 +89,8 @@ struct RailFixture : public LVGLUITestFixture {
 
 } // namespace
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop is shown exactly while estop_visible is set",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop is shown exactly while estop_visible is set",
+                 "[estop_navbar][navigation]") {
     set_visible(0);
     CHECK(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(slot_, LV_OBJ_FLAG_HIDDEN));
@@ -101,8 +101,8 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop is shown exactly while estop_visible 
     CHECK(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop fires the emergency stop callback",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop fires the emergency stop callback",
+                 "[estop_navbar][navigation]") {
     lv_event_cb_t estop_cb = lv_xml_get_event_cb(nullptr, "emergency_stop_clicked");
     REQUIRE(estop_cb != nullptr);
     bool wired = false;
@@ -115,8 +115,8 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop fires the emergency stop callback",
     CHECK(wired);
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop sits over its slot in the rail",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop sits over its slot in the navbar",
+                 "[estop_navbar][navigation]") {
     set_visible(1);
     lv_area_t slot, button;
     lv_obj_get_coords(slot_, &slot);
@@ -127,7 +127,7 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop sits over its slot in the rail",
     CHECK(lv_area_get_height(&button) == lv_area_get_height(&slot));
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop survives a panel switch", "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop survives a panel switch", "[estop_navbar][navigation]") {
     // Switching panels hides every stray screen child as a stale overlay; the
     // E-stop is not one and must stay up.
     auto& nav = NavigationManager::instance();
@@ -158,8 +158,8 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop survives a panel switch", "[estop_rai
     CHECK_FALSE(lv_obj_has_flag(estop_, LV_OBJ_FLAG_HIDDEN));
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop stays bright above an overlay backdrop",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop stays bright above an overlay backdrop",
+                 "[estop_navbar][navigation]") {
     auto& nav = NavigationManager::instance();
     set_visible(1);
     NavigationManagerTestAccess::adopt_overlay_backdrop(nav, test_screen());
@@ -179,8 +179,8 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop stays bright above an overlay backdro
     CHECK(index_of(estop_) > index_of(fresh));
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above a modal",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop stays reachable above a modal",
+                 "[estop_navbar][navigation]") {
     set_visible(1);
     lv_obj_t* dialog =
         helix::ui::modal_confirm("Title", "Message", ModalSeverity::Info, "OK", [] {});
@@ -193,9 +193,9 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above a modal",
     helix::ui::UpdateQueue::instance().drain();
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above the keyboard",
-                 "[estop_rail][navigation]") {
-    // The keyboard spans the bottom of the screen, rail included, which is
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop stays reachable above the keyboard",
+                 "[estop_navbar][navigation]") {
+    // The keyboard spans the bottom of the screen, navbar included, which is
     // where the E-stop sits.
     struct KeyboardOwner {
         explicit KeyboardOwner(lv_obj_t* parent) {
@@ -239,8 +239,8 @@ TEST_CASE_METHOD(RailFixture, "rail E-stop stays reachable above the keyboard",
     CHECK(button.y1 == slot.y1);
 }
 
-TEST_CASE_METHOD(RailFixture, "a portrait keyboard covers the rail E-stop instead of lifting it",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "a portrait keyboard covers the navbar E-stop instead of lifting it",
+                 "[estop_navbar][navigation]") {
     // A bottom bar: wider than tall, along the bottom of the screen.
     lv_obj_set_size(navbar_, lv_obj_get_width(test_screen()), 70);
     lv_obj_align(navbar_, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -271,8 +271,8 @@ TEST_CASE_METHOD(RailFixture, "a portrait keyboard covers the rail E-stop instea
     KeyboardManager::instance().hide();
 }
 
-TEST_CASE_METHOD(RailFixture, "a keypad over an overlay keeps the rail E-stop on top",
-                 "[estop_rail][navigation][keypad]") {
+TEST_CASE_METHOD(NavbarFixture, "a keypad over an overlay keeps the navbar E-stop on top",
+                 "[estop_navbar][navigation][keypad]") {
     std::array<lv_obj_t*, UI_PANEL_COUNT> panels{};
     for (auto& panel : panels) {
         panel = lv_obj_create(test_screen());
@@ -292,7 +292,7 @@ TEST_CASE_METHOD(RailFixture, "a keypad over an overlay keeps the rail E-stop on
     REQUIRE(ui_keypad_is_visible());
 
     // The keypad brings its own backdrop, above the first overlay's; only other
-    // rail chrome may sit above the E-stop.
+    // navbar chrome may sit above the E-stop.
     const uint32_t count = lv_obj_get_child_count(test_screen());
     for (uint32_t i = static_cast<uint32_t>(index_of(estop_)) + 1; i < count; ++i) {
         CHECK(
@@ -303,8 +303,8 @@ TEST_CASE_METHOD(RailFixture, "a keypad over an overlay keeps the rail E-stop on
     helix::ui::UpdateQueue::instance().drain();
 }
 
-TEST_CASE_METHOD(RailFixture, "a printer switch leaves exactly one rail E-stop",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "a printer switch leaves exactly one navbar E-stop",
+                 "[estop_navbar][navigation]") {
     auto& nav = NavigationManager::instance();
     auto count_estops = [&]() {
         int n = 0;
@@ -325,7 +325,7 @@ TEST_CASE_METHOD(RailFixture, "a printer switch leaves exactly one rail E-stop",
         process_lvgl(20);
     }
     CHECK(count_estops() == 1);
-    lv_obj_t* current = nav.rail_estop();
+    lv_obj_t* current = nav.navbar_estop();
     REQUIRE(current != nullptr);
     CHECK(helix::ui::is_screen_chrome(current));
     set_visible(1);
@@ -334,10 +334,10 @@ TEST_CASE_METHOD(RailFixture, "a printer switch leaves exactly one rail E-stop",
     CHECK(lv_obj_has_flag(current, LV_OBJ_FLAG_HIDDEN));
 }
 
-TEST_CASE_METHOD(RailFixture, "the lock screen covers the rail E-stop",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "the lock screen covers the navbar E-stop",
+                 "[estop_navbar][navigation]") {
     set_visible(1);
-    // The rail E-stop lives on the screen; the lock screen is drawn on the top
+    // The navbar E-stop lives on the screen; the lock screen is drawn on the top
     // layer, which is always above it and absorbs every touch.
     CHECK(lv_obj_get_screen(estop_) == test_screen());
     helix::ui::LockScreenOverlay::instance().show();
@@ -355,20 +355,20 @@ TEST_CASE_METHOD(RailFixture, "the lock screen covers the rail E-stop",
     helix::ui::UpdateQueue::instance().drain();
 }
 
-TEST_CASE_METHOD(RailFixture, "rail E-stop is no smaller than the circles it stands in for",
-                 "[estop_rail][navigation]") {
+TEST_CASE_METHOD(NavbarFixture, "navbar E-stop is no smaller than the circles it stands in for",
+                 "[estop_navbar][navigation]") {
     set_visible(1);
     const int32_t size = lv_obj_get_width(estop_);
-    const int32_t rail = lv_obj_get_width(navbar_);
+    const int32_t navbar_width = lv_obj_get_width(navbar_);
     const int32_t fab = std::max<int32_t>(44, theme_manager_get_spacing("button_height"));
-    // A landscape rail narrower than the old circle caps the target at the rail.
-    CHECK(size >= std::min(fab, rail));
+    // A landscape navbar narrower than the old circle caps the target at the navbar.
+    CHECK(size >= std::min(fab, navbar_width));
     CHECK(lv_obj_get_height(estop_) == size);
 }
 
-TEST_CASE("every overlay leaves the rail and its E-stop on screen", "[estop_rail][navigation]") {
-    // Panels live beside the rail in app_layout; overlays are sized by these two
-    // classes. Neither may reach into the rail's strip, or the E-stop under it
+TEST_CASE("every overlay leaves the navbar and its E-stop on screen", "[estop_navbar][navigation]") {
+    // Panels live beside the navbar in app_layout; overlays are sized by these two
+    // classes. Neither may reach into the navbar's strip, or the E-stop under it
     // would be covered.
     struct Geometry {
         int32_t w, h, nav_width, nav_height;
@@ -393,18 +393,18 @@ TEST_CASE("every overlay leaves the rail and its E-stop on screen", "[estop_rail
     }
 }
 
-TEST_CASE("the rail is the one E-stop where the rail shows, and screens that cover it keep one",
-          "[estop_rail][navigation]") {
-    CHECK(has_estop_button(read_xml("ui_xml/components/rail_estop.xml")));
+TEST_CASE("the navbar is the one E-stop where the navbar shows, and screens that cover it keep one",
+          "[estop_navbar][navigation]") {
+    CHECK(has_estop_button(read_xml("ui_xml/components/navbar_estop.xml")));
 
-    // These cover the rail, so they carry their own.
+    // These cover the navbar, so they carry their own.
     for (const char* path :
          {"ui_xml/components/lock_screen.xml", "ui_xml/components/camera_fullscreen.xml"}) {
         INFO(path);
         CHECK(has_estop_button(read_xml(path)));
     }
 
-    // These sit beside the rail and drew a second E-stop over their content.
+    // These sit beside the navbar and drew a second E-stop over their content.
     for (const char* path : {"ui_xml/home_panel.xml", "ui_xml/controls_panel.xml",
                              "ui_xml/micro/controls_panel.xml", "ui_xml/print_status_panel.xml",
                              "ui_xml/portrait/print_status_panel.xml", "ui_xml/motion_panel.xml"}) {
@@ -416,8 +416,8 @@ TEST_CASE("the rail is the one E-stop where the rail shows, and screens that cov
 }
 
 TEST_CASE("every screen-level backdrop goes up through bring_to_front",
-          "[estop_rail][navigation]") {
-    // A backdrop raised with a bare lv_obj_move_foreground() buries the rail
+          "[estop_navbar][navigation]") {
+    // A backdrop raised with a bare lv_obj_move_foreground() buries the navbar
     // E-stop. Backdrops on lv_layer_top are above the screen anyway.
     int checked = 0;
     for (const auto& entry : std::filesystem::recursive_directory_iterator("src")) {
@@ -455,10 +455,10 @@ TEST_CASE("every screen-level backdrop goes up through bring_to_front",
     CHECK(checked >= 4);
 }
 
-TEST_CASE("no root panel takes text input, so the keyboard never opens over a live rail",
-          "[estop_rail][navigation]") {
-    // The lifted E-stop sits over a rail button. That is only safe while the
-    // rail is inert under an overlay or modal backdrop.
+TEST_CASE("no root panel takes text input, so the keyboard never opens over a live navbar",
+          "[estop_navbar][navigation]") {
+    // The lifted E-stop sits over a navbar button. That is only safe while the
+    // navbar is inert under an overlay or modal backdrop.
     for (const char* stem : {"home_panel", "print_select_panel", "controls_panel", "filament_panel",
                              "settings_panel", "advanced_panel"}) {
         for (const char* dir : {"ui_xml/", "ui_xml/micro/", "ui_xml/portrait/"}) {
@@ -475,14 +475,14 @@ TEST_CASE("no root panel takes text input, so the keyboard never opens over a li
 }
 
 // ============================================================================
-// The spools-on-the-bed button: the same rail treatment as the E-stop, so a
+// The spools-on-the-bed button: the same navbar treatment as the E-stop, so a
 // bed-drying latch stays visible beside overlays that cover the banner.
 // ============================================================================
 
 namespace {
 
-struct DryingRailFixture : public RailFixture {
-    DryingRailFixture() {
+struct DryingNavbarFixture : public NavbarFixture {
+    DryingNavbarFixture() {
         drying_state_ = lv_xml_get_subject(nullptr, "bed_drying_state");
         if (!drying_state_) {
             // The registry keeps the pointer past this fixture, so it is static.
@@ -490,7 +490,7 @@ struct DryingRailFixture : public RailFixture {
             lv_subject_init_int(&own_state, 0);
             lv_xml_register_subject(nullptr, "bed_drying_state", &own_state);
             drying_state_ = &own_state;
-            // The rail binds at creation, so rebuild it against the subject.
+            // The navbar binds at creation, so rebuild it against the subject.
             auto& nav = NavigationManager::instance();
             nav.deinit_subjects();
             nav.init();
@@ -498,14 +498,18 @@ struct DryingRailFixture : public RailFixture {
                 static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "navigation_bar", nullptr));
             nav.wire_events(navbar_);
             helix::ui::UpdateQueue::instance().drain();
+            // The rebuild replaced the navbar the base fixture looked up.
+            slot_ = lv_obj_find_by_name(navbar_, "nav_estop_slot");
+            estop_ = nav.navbar_estop();
+            REQUIRE(estop_ != nullptr);
         }
         saved_drying_ = lv_subject_get_int(drying_state_);
         drying_slot_ = lv_obj_find_by_name(navbar_, "nav_drying_slot");
         REQUIRE(drying_slot_ != nullptr);
-        drying_ = NavigationManager::instance().rail_drying();
+        drying_ = NavigationManager::instance().navbar_drying();
         REQUIRE(drying_ != nullptr);
     }
-    ~DryingRailFixture() override {
+    ~DryingNavbarFixture() override {
         lv_subject_set_int(drying_state_, saved_drying_);
         helix::ui::UpdateQueue::instance().drain();
     }
@@ -524,8 +528,8 @@ struct DryingRailFixture : public RailFixture {
 
 } // namespace
 
-TEST_CASE_METHOD(DryingRailFixture, "rail drying button is shown exactly while spools are latched",
-                 "[estop_rail][bed_drying][navigation]") {
+TEST_CASE_METHOD(DryingNavbarFixture, "navbar drying button is shown exactly while spools are latched",
+                 "[estop_navbar][bed_drying][navigation]") {
     set_latched(0);
     CHECK(lv_obj_has_flag(drying_, LV_OBJ_FLAG_HIDDEN));
     CHECK(lv_obj_has_flag(drying_slot_, LV_OBJ_FLAG_HIDDEN));
@@ -536,14 +540,14 @@ TEST_CASE_METHOD(DryingRailFixture, "rail drying button is shown exactly while s
     CHECK(lv_obj_has_flag(drying_, LV_OBJ_FLAG_HIDDEN));
 }
 
-TEST_CASE_METHOD(DryingRailFixture, "rail drying button does what the banner does",
-                 "[estop_rail][bed_drying][navigation]") {
-    CHECK(read_xml("ui_xml/components/rail_drying.xml")
+TEST_CASE_METHOD(DryingNavbarFixture, "navbar drying button does what the banner does",
+                 "[estop_navbar][bed_drying][navigation]") {
+    CHECK(read_xml("ui_xml/components/navbar_drying.xml")
               .find("callback=\"on_bed_drying_banner_clicked\"") != std::string::npos);
 }
 
-TEST_CASE_METHOD(DryingRailFixture, "rail drying button sits over its slot beside the E-stop",
-                 "[estop_rail][bed_drying][navigation]") {
+TEST_CASE_METHOD(DryingNavbarFixture, "navbar drying button sits over its slot beside the E-stop",
+                 "[estop_navbar][bed_drying][navigation]") {
     set_latched(4);
     set_visible(1);
     lv_area_t slot, button, estop;
@@ -557,9 +561,9 @@ TEST_CASE_METHOD(DryingRailFixture, "rail drying button sits over its slot besid
     CHECK_FALSE(overlap);
 }
 
-TEST_CASE_METHOD(DryingRailFixture,
-                 "rail drying button and E-stop both stay above an overlay backdrop",
-                 "[estop_rail][bed_drying][navigation]") {
+TEST_CASE_METHOD(DryingNavbarFixture,
+                 "navbar drying button and E-stop both stay above an overlay backdrop",
+                 "[estop_navbar][bed_drying][navigation]") {
     auto& nav = NavigationManager::instance();
     set_latched(4);
     set_visible(1);

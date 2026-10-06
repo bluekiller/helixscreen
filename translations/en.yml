@@ -308,6 +308,7 @@ translations:
   Backup spool switching state unknown: Backup spool switching state unknown
   Barcode Scanner: Barcode Scanner
   Base: Base
+  Based on the newest {} prints: Based on the newest {} prints
   Batch load failed: Batch load failed
   Batch unload failed: Batch unload failed
   Beacon auto-calibrate sent: Beacon auto-calibrate sent
@@ -2396,7 +2397,6 @@ translations:
   Printer command '{}' timed out after {}ms: Printer command '{}' timed out after {}ms
   Printer connection unavailable: Printer connection unavailable
   Printer database format error: Printer database format error
-  Printer database is corrupt: Printer database is corrupt
   Printer default: Printer default
   Printer didn't respond — make sure it's on and in range: Printer didn't respond
     — make sure it's on and in range

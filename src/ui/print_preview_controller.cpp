@@ -165,20 +165,7 @@ void PrintPreviewController::on_print_ended() {
     cancel_pending_load();
     cached_thumbnail_path_.clear();
 #if defined(HELIX_PLATFORM_ESP32)
-    // Release our reference to the PSRAM buffer. Main thread (job-state handler),
-    // as EspPsramThumbnail's destructor requires.
-    //
-    // The src must stop naming the descriptor BEFORE the release: for a variable
-    // source lv_image stores the raw pointer (it only strdups paths), and ours can
-    // be the last reference. PrinterState drops its own the moment the filename
-    // changes, and no replacement arrives at all when the next file has no
-    // thumbnail or the fetch fails. The placeholder is what the shared path
-    // subject publishes for a file with no thumbnail, so it is a valid src here.
-    if (esp_thumbnail_ && print_thumbnail_ &&
-        lv_image_get_src(print_thumbnail_) == esp_thumbnail_->dsc()) {
-        lv_image_set_src(print_thumbnail_, helix::PrinterPrintState::no_thumbnail_placeholder());
-    }
-    esp_thumbnail_.reset();
+    release_psram_thumbnail();
 #endif
     pending_gcode_filename_.clear();
     // The widgets keep showing the final frame, and the desired file is now
@@ -444,9 +431,27 @@ void PrintPreviewController::schedule_deferred_load() {
 }
 
 #if defined(HELIX_PLATFORM_ESP32)
+void PrintPreviewController::release_psram_thumbnail() {
+    // Main thread (job-state and generation handlers), as EspPsramThumbnail's
+    // destructor requires.
+    //
+    // The src must stop naming the descriptor BEFORE the release: for a variable
+    // source lv_image stores the raw pointer (it only strdups paths), and ours can
+    // be the last reference. The placeholder is what the shared path subject
+    // publishes for a file with no thumbnail, so it is a valid src here.
+    if (esp_thumbnail_ && print_thumbnail_ &&
+        lv_image_get_src(print_thumbnail_) == esp_thumbnail_->dsc()) {
+        lv_image_set_src(print_thumbnail_, helix::PrinterPrintState::no_thumbnail_placeholder());
+    }
+    esp_thumbnail_.reset();
+}
+
 void PrintPreviewController::apply_psram_thumbnail() {
     auto thumb = printer_state_.print_state().get_print_psram_thumbnail();
     if (!thumb) {
+        // PrinterState cleared it for a new file or a cleared print. Holding the
+        // old buffer keeps PSRAM the next file's decode needs.
+        release_psram_thumbnail();
         return;
     }
     // Hold the reference for as long as print_thumbnail_'s src points at the

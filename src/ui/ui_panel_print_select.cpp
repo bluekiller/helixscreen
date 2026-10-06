@@ -612,6 +612,13 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 panel->populate_current_view(same_dir);
             } else {
                 spdlog::trace("[{}] File list unchanged, skipping repopulation", panel->get_name());
+#if defined(HELIX_PLATFORM_ESP32)
+                // Leaving the panel released the card thumbnails and reset the
+                // card window; rebinding it here fetches them again.
+                if (panel->current_view_mode_ == PrintSelectViewMode::CARD) {
+                    panel->handle_scroll(panel->card_view_container_);
+                }
+#endif
             }
             panel->last_populated_path_ = panel->current_path_;
             panel->file_list_loaded_ = true;
@@ -1527,7 +1534,7 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                     self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
 #endif
                 }
-            } else if (self->api_) {
+            } else if (self->api_ && helix::gcode_thumbnail_extraction_available()) {
                 // No thumbnail from metadata - try extracting from gcode file directly
                 // This handles USB files where Moonraker can't write .thumbs directory
                 // because the USB mount is read-only.
@@ -1818,6 +1825,9 @@ void PrintSelectPanel::repopulate() {
 }
 
 void PrintSelectPanel::on_activate() {
+#if defined(HELIX_PLATFORM_ESP32)
+    esp_kept_for_detail_ = false;
+#endif
     // "Print Last" flow: suppress panel flash while detail view is pending/open
     if (return_to_home_on_close_) {
         bool detail_open = detail_view_ && detail_view_->is_visible();
@@ -1910,6 +1920,18 @@ void PrintSelectPanel::on_activate() {
 }
 
 void PrintSelectPanel::on_deactivating(DeactivateReason) {
+#if defined(HELIX_PLATFORM_ESP32)
+    // Leaving the panel frees the card thumbnails and their slots. The detail
+    // view being pushed over it keeps them for the way back. A second
+    // deactivate with no activate between is a navbar switch away from that
+    // detail view, and frees them.
+    const bool detail_opening =
+        !esp_kept_for_detail_ && detail_view_open_ && !(detail_view_ && detail_view_->is_visible());
+    esp_kept_for_detail_ = detail_opening;
+    if (!detail_opening) {
+        release_esp_card_thumbnails();
+    }
+#endif
     // Restore opacity if we were in "Print Last" pass-through mode
     if (return_to_home_on_close_) {
         if (panel_) {
@@ -3661,10 +3683,10 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
 
     api_->transfers().download_file_partial(
         "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-        [this, tok, index, filename, target](const std::string& png_bytes) {
+        [this, tok, index, filename, target, slots = esp_slots_](const std::string& png_bytes) {
             helix::ThumbnailDecodeFailure failure{};
-            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(png_bytes, target.width,
-                                                                      target.height, failure);
+            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(
+                png_bytes, target.width, target.height, slots, failure);
             if (!thumb) {
                 spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
                              failure == helix::ThumbnailDecodeFailure::OutOfMemory
@@ -3674,12 +3696,15 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
                       [this, index, filename, thumb = std::move(thumb)]() mutable {
                           --esp_thumbnails_in_flight_;
+                          esp_lane_refused_ = false; // this fetch's lane slot is free
                           // Kept only while its card is still on screen.
                           if (thumb && index < file_list_.size() &&
                               file_list_[index].filename == filename &&
                               file_list_[index].esp_thumbnail_tried) {
                               file_list_[index].esp_thumbnail = std::move(thumb);
-                              schedule_view_refresh();
+                              if (card_view_) {
+                                  card_view_->update_thumbnail(index, file_list_[index]);
+                              }
                           }
                           sync_esp_thumbnails(esp_window_first_, esp_window_end_);
                       });
@@ -3699,6 +3724,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                           error.message);
             tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
                 --esp_thumbnails_in_flight_;
+                esp_lane_refused_ = false;
                 sync_esp_thumbnails(esp_window_first_, esp_window_end_);
             });
         });
@@ -3713,7 +3739,29 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     return EspThumbnailFetch::Started;
 }
 
+void PrintSelectPanel::release_esp_card_thumbnails() {
+    esp_window_first_ = 0;
+    esp_window_end_ = 0;
+    for (PrintFileData& f : file_list_) {
+        f.esp_thumbnail.reset();
+        f.esp_thumbnail_tried = false;
+    }
+    if (card_view_) {
+        card_view_->release_esp_thumbnails();
+    }
+    esp_slots_.reset();
+    esp_lane_refused_ = false;
+    esp_lane_retry_timer_.reset();
+}
+
 void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    const size_t estimate = helix::rgb565a8_size({target.width, target.height});
+    if (esp_slots_ && esp_slots_->slot_bytes() != estimate) {
+        // Thumbnails at the old card size hold the old pool's slots. Kept beside
+        // a new pool, the card budget would be spent twice over.
+        release_esp_card_thumbnails();
+    }
     esp_window_first_ = first;
     esp_window_end_ = end;
 
@@ -3724,10 +3772,16 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
         states[i].tried = f.esp_thumbnail_tried;
         states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
     }
-    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
     const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
-        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)),
-        helix::rgb565a8_size({target.width, target.height}), helix::CARD_THUMBNAIL_BUDGET);
+        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)), estimate,
+        helix::CARD_THUMBNAIL_BUDGET, esp_lane_refused_);
+    if (!plan.fetch.empty() && !esp_slots_) {
+        // One slot per card the budget allows.
+        esp_slots_ = std::make_shared<helix::ThumbnailSlotPool>(
+            estimate, helix::CARD_THUMBNAIL_BUDGET / estimate,
+            [](size_t n) { return heap_caps_malloc(n, MALLOC_CAP_SPIRAM); },
+            [](void* p) { heap_caps_free(p); });
+    }
 
     // Cards off screen hold nothing; a card coming back fetches again.
     for (size_t i : plan.drop) {
@@ -3739,9 +3793,21 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
         f.esp_thumbnail_tried = true;
         if (fetch_esp_thumbnail(i, f.filename, f.original_thumbnail_url) ==
             EspThumbnailFetch::QueueFull) {
-            // The lane is busy: try this one again on the next pass, which every
-            // completion, scroll and listing triggers.
+            // The lane is full: fetch again once one of ours completes, or
+            // after a pause when none is in flight to free a slot.
             f.esp_thumbnail_tried = false;
+            esp_lane_refused_ = true;
+            if (esp_thumbnails_in_flight_ <= 0 && !esp_lane_retry_timer_) {
+                esp_lane_retry_timer_.reset(lv_timer_create(
+                    [](lv_timer_t* timer) {
+                        auto* self = static_cast<PrintSelectPanel*>(lv_timer_get_user_data(timer));
+                        self->esp_lane_retry_timer_.release(); // one-shot: LVGL deletes it
+                        self->esp_lane_refused_ = false;
+                        self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
+                    },
+                    ESP_LANE_RETRY_MS, this));
+                lv_timer_set_repeat_count(esp_lane_retry_timer_.get(), 1);
+            }
             break;
         }
     }

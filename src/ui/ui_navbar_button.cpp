@@ -1,7 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "ui_nav_rail_button.h"
+#include "ui_navbar_button.h"
 
 #include "ui_effects.h"
 #include "ui_utils.h"
@@ -14,7 +14,7 @@
 
 namespace helix::ui {
 
-void RailButton::create(lv_obj_t* navbar) {
+void NavbarButton::create(lv_obj_t* navbar) {
     navbar_ = navbar;
     lv_obj_t* slot = lv_obj_find_by_name(navbar, slot_name_);
     lv_obj_t* screen = lv_obj_get_screen(navbar);
@@ -32,16 +32,16 @@ void RailButton::create(lv_obj_t* navbar) {
     spdlog::debug("[NavigationManager] {} created over {}", component_, slot_name_);
     // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
     lv_obj_add_event_cb(button_, button_deleted_cb, LV_EVENT_DELETE, this);
-    // The slot moves whenever the rail lays out (it appears, the orientation
+    // The slot moves whenever the navbar lays out (it appears, the orientation
     // flips), and the button has to follow it there.
     lv_obj_add_event_cb(navbar, navbar_layout_changed_cb, LV_EVENT_LAYOUT_CHANGED, this);
     sync();
 }
 
-void RailButton::button_deleted_cb(lv_event_t* e) {
+void NavbarButton::button_deleted_cb(lv_event_t* e) {
     // Only the current button: a replaced one dying late must not clear its
     // successor.
-    auto* self = static_cast<RailButton*>(lv_event_get_user_data(e));
+    auto* self = static_cast<NavbarButton*>(lv_event_get_user_data(e));
     lv_obj_t* target = lv_event_get_target_obj(e);
     if (target == self->button_) {
         self->button_ = nullptr;
@@ -49,11 +49,11 @@ void RailButton::button_deleted_cb(lv_event_t* e) {
     remove_always_on_top(target);
 }
 
-void RailButton::navbar_layout_changed_cb(lv_event_t* e) {
-    static_cast<RailButton*>(lv_event_get_user_data(e))->sync();
+void NavbarButton::navbar_layout_changed_cb(lv_event_t* e) {
+    static_cast<NavbarButton*>(lv_event_get_user_data(e))->sync();
 }
 
-void RailButton::sync() {
+void NavbarButton::sync() {
     if (!button_ || !navbar_) {
         return;
     }
@@ -75,12 +75,12 @@ void RailButton::sync() {
     lv_obj_get_coords(layout_root, &root_area);
     int32_t y = area.y1 - root_area.y1;
 
-    // With the keyboard open over the bottom of a side rail, a lifting button
-    // rides in the rail column just above the keyboard's top edge, never over a
-    // key. A portrait bottom bar has no column above the keyboard: everything
+    // With the keyboard open over the bottom of a side navbar, a lifting button
+    // rides in the navbar column just above the keyboard's top edge, never over a
+    // key. A portrait bottom navbar has no column above the keyboard: everything
     // there is the overlay's own content, the text field first.
-    const bool side_rail = lv_obj_get_height(navbar_) > lv_obj_get_width(navbar_);
-    if (lifts_over_keyboard_ && keyboard_top_ >= 0 && side_rail) {
+    const bool side_navbar = lv_obj_get_height(navbar_) > lv_obj_get_width(navbar_);
+    if (lifts_over_keyboard_ && keyboard_top_ >= 0 && side_navbar) {
         const int32_t size = lv_obj_get_height(button_);
         const int32_t above = keyboard_top_ - size - theme_manager_get_spacing("space_xs");
         y = std::min(y, above);
@@ -89,20 +89,20 @@ void RailButton::sync() {
     lv_obj_set_pos(button_, area.x1, y);
 }
 
-void RailButton::set_keyboard_top(int32_t top) {
+void NavbarButton::set_keyboard_top(int32_t top) {
     if (!lifts_over_keyboard_) {
         return;
     }
     keyboard_top_ = top;
     sync();
-    // Only a side rail leaves room above the keyboard. A portrait bottom bar is
+    // Only a side navbar leaves room above the keyboard. A portrait bottom navbar is
     // under it, and a button raised there would sit on the keyboard's keys.
     if (top >= 0 && button_ && navbar_ && lv_obj_get_height(navbar_) > lv_obj_get_width(navbar_)) {
         lv_obj_move_foreground(button_);
     }
 }
 
-void RailButton::destroy() {
+void NavbarButton::destroy() {
     if (button_) {
         remove_always_on_top(button_);
         safe_delete_deferred(button_);

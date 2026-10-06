@@ -329,3 +329,33 @@ TEST_CASE("the floor and the card budget are hard edges", "[thumbnail][budget]")
     CHECK_FALSE(card_thumbnail_fits_budget(880 * 1024, 80 * 1024 + 1, 960 * 1024));
     CHECK_FALSE(card_thumbnail_fits_budget(970 * 1024, 0, 960 * 1024)); // already over
 }
+
+TEST_CASE("decoding into a caller's buffer allocates only the working memory",
+          "[thumbnail][png_stream][slots]") {
+    TestInflate::live = 0;
+    const auto png = fixture("thumbnail_300_rgba.png");
+    ThumbnailDims dims;
+    const auto want = expected(png, 166, 166, dims);
+    std::vector<uint8_t> slot(helix::rgb565a8_size({166, 166}), 0xAA);
+
+    const DecodedThumbnail got = helix::decode_png_thumbnail<TestInflate>(
+        png.data(), png.size(), 166, 166, slot.data(), slot.size());
+    REQUIRE(got.failure == ThumbnailDecodeFailure::None);
+    CHECK(got.pixels == slot.data());
+    CHECK(std::memcmp(slot.data(), want.data(), want.size()) == 0);
+    CHECK(TestInflate::live == 0); // nothing of the decode's is left over
+
+    // The floor counts only the working memory when the image has a home.
+    TestInflate::largest =
+        helix::THUMBNAIL_PSRAM_FLOOR + helix::thumbnail_decode_working_bytes(300, dims);
+    CHECK(helix::decode_png_thumbnail<TestInflate>(png.data(), png.size(), 166, 166, slot.data(),
+                                                   slot.size())
+              .failure == ThumbnailDecodeFailure::None);
+    TestInflate::largest = SIZE_MAX / 2;
+
+    // A buffer smaller than the box's image is refused, not overrun.
+    CHECK(helix::decode_png_thumbnail<TestInflate>(png.data(), png.size(), 166, 166, slot.data(),
+                                                   slot.size() - 1)
+              .failure == ThumbnailDecodeFailure::Unsupported);
+    CHECK(TestInflate::live == 0);
+}
