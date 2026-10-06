@@ -18,12 +18,16 @@ It stays a CLI, stays POSIX sh that runs under BusyBox ash, and adds no dependen
 
 The same output has to read well in all four places the installer runs:
 
-| Caller | Terminal? |
-|--------|-----------|
-| `curl ... \| sh` over ssh | yes (stdin is the script, the terminal is `/dev/tty`) |
-| KIAUH extension | usually yes |
-| Moonraker update_manager (Mainsail/Fluidd "update") | no, output shown in the web UI |
-| on-device update watcher (`helixscreen-update.path`) | no |
+| Caller | stdin | stderr | Notes |
+|--------|-------|--------|-------|
+| `curl ... \| sh` over ssh | the script | terminal | prompts must read `/dev/tty` |
+| KIAUH extension (`helixscreen_extension.py#_run_installer`) | the script | terminal | passes `--update` / `--uninstall`; asks its own confirm first |
+| in-app updater (`update_checker.cpp`, `HELIX_SELF_UPDATE=1`) | none | file `/var/log/helixscreen-install.log` | `--local <tarball> --update`; NoNewPrivileges, so no sudo |
+
+Moonraker's update_manager does NOT run install.sh: it unpacks the release zip itself and
+`helixscreen-update.path` restarts the service via `config/refresh-service-units.sh`. That
+script's own output (`qidi-3mf-thumbs-units.sh`) is the only installer-adjacent output a
+Mainsail update produces; it is quieted in Task 5.
 
 ## 1. Output
 
@@ -135,9 +139,16 @@ they detect:
 | `stop_competing_uis` finds and stops in one go | `detect_competing_uis` + `stop_competing_uis` |
 | Moonraker / KIAUH integration decided while writing | `detect_moonraker_integration` reports what exists vs. what would be added |
 
-Anything else before the confirm point that writes (the temp dir under `$HOME`, the
-`mod_payload` adoption prompt, `check_permissions` side effects) moves after it, or becomes
-read-only.
+Pre-confirm code that writes or may prompt for sudo today, and what happens to it:
+
+| Today | Change |
+|-------|--------|
+| `check_requirements` apt-installs `unzip` | detect only; install after confirm |
+| `install_runtime_deps` apt-installs libraries | split (table above) |
+| `set_install_paths` → `cleanup_ad5m_gcodes_root` deletes old archives (AD5M) | moved after confirm |
+| `mod_payload_mode_block` → `record_payload_root` mkdir + tee (payload hosts) | moved after confirm |
+| `detect_tmp_dir` probes writability with `$SUDO test -w` | plain `test -w` before confirm; sudo probe after |
+| `check_disk_space` `dd` probe with `$SUDO` | `sudo -n` only before confirm; undetermined reads as "would check after sudo" |
 
 ### Plan screen
 
@@ -157,7 +168,7 @@ Continue? [Y/n]
 
 | Run | Behaviour |
 |-----|-----------|
-| fresh install, terminal | Shows the plan and asks. The answer is read from `/dev/tty`, never stdin (stdin is the script under `curl \| sh`). Reuse whatever the existing `--clean` confirmation does for this. |
+| fresh install, terminal | Shows the plan and asks. The answer is read from `/dev/tty`, never stdin (stdin is the script under `curl \| sh`). Nothing in the installer reads `/dev/tty` today (the three existing prompts read stdin behind `[ -t 0 ]`); `tty_confirm` in `common.sh` is new and the `--clean` prompt moves onto it. |
 | `--yes`, or no terminal | Shows the plan, continues without asking. |
 | `--update` | Shows a short plan (`Update v1.1.0-beta.3 → v1.1.0-beta.4`), never asks: `--update` is the decision. |
 | `n` / EOF | Exits 0, "Nothing changed." |
@@ -171,7 +182,7 @@ Runs the check pass for real, including network reads to confirm the release and
 manifest exist (no download), prints the plan screen with "Dry run, nothing changed.", and
 exits.
 
-- Exit 0 when the install would proceed; non-zero (distinct codes) when a check would stop
+- Exit 0 when the install would proceed; non-zero (the failing check's existing exit code) when a check would stop
   it: insufficient disk, wrong architecture, no release for this platform, unsupported
   firmware.
 - Never invokes sudo. A check that needs root reports "would check after sudo".
@@ -230,10 +241,7 @@ existing rollback paths stay in charge of restoring state.
 
 ### Existing suite
 
-37 bats files assert on installer output, mostly by calling one function and reading its
-`[INFO]` lines. The shared bats setup sets `HELIX_INSTALL_VERBOSE=1`, which keeps
-`log_info` on stderr, so those assertions do not change. Only tests about the default
-(quiet) output are new.
+`tests/shell/helpers.bash` stubs the `log_*` functions, and most installer tests then source the real `common.sh`, whose `log_info` would turn quiet. `helpers.bash` exports `HELIX_INSTALL_VERBOSE=1`, so `log_info` keeps printing in every existing test; only tests about default (quiet) output unset it.
 
 ### New unit tests (`tests/shell/test_installer_output.bats`)
 
