@@ -3,6 +3,7 @@
 
 #include "moonraker_spoolman_api.h"
 
+#include "hv/hurl.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
 
@@ -84,6 +85,38 @@ SpoolInfo helix::spoolman_detail::parse_spool_info(const nlohmann::json& spool_j
     }
 
     return info;
+}
+
+std::optional<ExternalFilament>
+helix::spoolman_detail::parse_external_filament(const nlohmann::json& filament_json) {
+    if (!filament_json.is_object()) {
+        return std::nullopt;
+    }
+    ExternalFilament f;
+    f.id = safe_string(filament_json, "id");
+    if (f.id.empty()) {
+        return std::nullopt;
+    }
+    f.manufacturer = safe_string(filament_json, "manufacturer");
+    f.name = safe_string(filament_json, "name");
+    f.material = safe_string(filament_json, "material");
+    f.color_hex = safe_string(filament_json, "color_hex");
+    const auto hexes = filament_json.find("color_hexes");
+    if (hexes != filament_json.end() && hexes->is_array()) {
+        for (const auto& hex : *hexes) {
+            if (hex.is_string()) {
+                f.color_hexes.push_back(hex.get<std::string>());
+            }
+        }
+    }
+    f.multi_color_direction = safe_string(filament_json, "multi_color_direction");
+    f.density = safe_float(filament_json, "density", 0.0f);
+    f.diameter = safe_float(filament_json, "diameter", 0.0f);
+    f.weight = safe_float(filament_json, "weight", 0.0f);
+    f.spool_weight = safe_float(filament_json, "spool_weight", 0.0f);
+    f.extruder_temp = safe_int(filament_json, "extruder_temp", 0);
+    f.bed_temp = safe_int(filament_json, "bed_temp", 0);
+    return f;
 }
 
 static VendorInfo parse_vendor_info(const nlohmann::json& vendor_json) {
@@ -597,4 +630,35 @@ void MoonrakerSpoolmanAPI::delete_spoolman_filament(int filament_id, SuccessCall
             }
         },
         on_error);
+}
+
+void MoonrakerSpoolmanAPI::search_spoolman_external_filaments(
+    const std::string& query, int limit, ExternalFilamentListCallback on_success,
+    ErrorCallback on_error) {
+    spdlog::debug("[SpoolmanAPI] search_spoolman_external_filaments('{}', {})", query, limit);
+
+    json params;
+    params["request_method"] = "GET";
+    params["path"] = "/v1/external/filament/search?query=" + HUrl::escape(query) +
+                     "&limit=" + std::to_string(limit);
+
+    // Silent: a server without the route is expected, and the caller hides the
+    // search rather than reporting it.
+    client_.send_jsonrpc(
+        "server.spoolman.proxy", params,
+        [on_success](const json& response) {
+            std::vector<ExternalFilament> filaments;
+            const json* result = json_util::find_member(response, "result");
+            if (result && result->is_array()) {
+                for (const auto& entry : *result) {
+                    if (auto f = spoolman_detail::parse_external_filament(entry)) {
+                        filaments.push_back(std::move(*f));
+                    }
+                }
+            }
+            if (on_success) {
+                on_success(filaments);
+            }
+        },
+        on_error, 0, /*silent=*/true);
 }

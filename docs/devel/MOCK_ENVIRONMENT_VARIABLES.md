@@ -653,6 +653,22 @@ extends the inventory - the curated spools the mock backends link against keep t
 HELIX_MOCK_SPOOLMAN_SPOOLS=300 ./build/bin/helix-screen --test -vv
 ```
 
+### `HELIX_MOCK_SPOOLMAN_DB_SEARCH`
+
+Turn off the mock Spoolman's SpoolmanDB search route (`/v1/external/filament/search`), so
+it answers 404 the way a Spoolman older than 0.26.0 does. The spool wizard then hides its
+catalog search.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `0` turns the route off; anything else, or unset, leaves it on |
+| **Default** | on |
+| **File** | `src/api/moonraker_client_mock_spoolman.cpp` (`MockSpoolmanServer`) |
+
+```bash
+HELIX_MOCK_SPOOLMAN_DB_SEARCH=0 ./build/bin/helix-screen --test -vv
+```
+
 ### `HELIX_MOCK_FILAMENT_SENSORS`
 
 Configure custom filament sensor configurations for testing.

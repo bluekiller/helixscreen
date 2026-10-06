@@ -41,6 +41,16 @@ class MockSpoolmanServer {
         return active_spool_id_;
     }
 
+    /// Whether /v1/external/filament/search exists, as on Spoolman 0.26.0 and
+    /// later. HELIX_MOCK_SPOOLMAN_DB_SEARCH=0 starts it off, as an older server.
+    void set_external_search_supported(bool supported) {
+        external_search_supported_ = supported;
+    }
+    /// SpoolmanDB search requests answered so far.
+    [[nodiscard]] int external_search_count() const {
+        return external_search_count_;
+    }
+
     /// The inventory, for tests to inspect or reshape.
     std::vector<SpoolInfo>& get_mock_spools() {
         return spools_;
@@ -93,6 +103,8 @@ class MockSpoolmanServer {
     /// still serves them) but are filtered from list GETs, as Spoolman does.
     std::set<int> archived_spool_ids_;
     int active_spool_id_ = 1;
+    bool external_search_supported_ = true;
+    int external_search_count_ = 0;
     int next_filament_id_ = 300;
 
     void init_mock_spools();

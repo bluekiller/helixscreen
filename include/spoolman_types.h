@@ -387,6 +387,31 @@ using VendorListCallback = std::function<void(const std::vector<VendorInfo>&)>;
 /// Filament list callback
 using FilamentListCallback = std::function<void(const std::vector<FilamentInfo>&)>;
 
+/**
+ * @brief A filament from SpoolmanDB, Spoolman's external catalog
+ *
+ * Spoolman's ExternalFilament: catalog products, not server records, so the
+ * id is the catalog's string key and the vendor is a manufacturer name.
+ */
+struct ExternalFilament {
+    std::string id;           ///< Catalog key, e.g. "polymaker_pla_polylitepla_black_1000_175_n"
+    std::string manufacturer; ///< e.g. "Polymaker"
+    std::string name;         ///< e.g. "PolyLite PLA Black"
+    std::string material;     ///< e.g. "PLA"
+    std::string color_hex;    ///< Single colour, no '#'; empty for multi-colour
+    std::vector<std::string> color_hexes; ///< Multi-colour filaments
+    std::string multi_color_direction;    ///< "coaxial" or "longitudinal" with color_hexes
+    float density = 0;                    ///< g/cm³
+    float diameter = 0;                   ///< mm
+    float weight = 0;                     ///< Net filament weight per spool (g)
+    float spool_weight = 0;               ///< Empty spool weight (g), 0 when unknown
+    int extruder_temp = 0;                ///< °C, 0 when unknown
+    int bed_temp = 0;                     ///< °C, 0 when unknown
+};
+
+/// SpoolmanDB search results callback
+using ExternalFilamentListCallback = std::function<void(const std::vector<ExternalFilament>&)>;
+
 /// Single spool creation callback (returns the created spool)
 using SpoolCreateCallback = std::function<void(const SpoolInfo&)>;
 
