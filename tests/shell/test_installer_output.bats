@@ -295,3 +295,33 @@ _set_e_script() {
     [ "$status" -eq 0 ]
     case "$output" in *"Created symlink"*) fail "systemctl output reached the screen: $output" ;; esac
 }
+
+@test "banner: no terminal prints one plain line" {
+    . "$WORKTREE_ROOT/scripts/lib/installer/logo.sh"
+    HELIX_INSTALL_TTY=0 ui_detect
+    run print_banner v1.1.0-beta.4 beta
+    [ "$output" = "HelixScreen installer v1.1.0-beta.4 (beta)" ]
+}
+
+@test "banner: UTF-8 color terminal prints the braille logo" {
+    . "$WORKTREE_ROOT/scripts/lib/installer/logo.sh"
+    HELIX_INSTALL_TTY=1 LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 TERM=xterm-256color ui_detect
+    run print_banner v1.1.0-beta.4 beta
+    printf '%s' "$output" | grep -qP '[\x{2800}-\x{28FF}]'
+    plain=$(printf '%s' "$output" | sed 's/\x1b\[[0-9;]*m//g')
+    contains "HelixScreen" "$plain"
+    [[ "$output" == *"v1.1.0-beta.4"* ]]
+}
+
+@test "banner: no UTF-8 drops the art and keeps the logotype" {
+    . "$WORKTREE_ROOT/scripts/lib/installer/logo.sh"
+    HELIX_INSTALL_TTY=1 LC_ALL=C LANG=C TERM=xterm-256color ui_detect
+    run print_banner v1.1.0-beta.4 beta
+    plain=$(printf '%s' "$output" | sed 's/\x1b\[[0-9;]*m//g')
+    contains "HelixScreen" "$plain"
+    ! printf '%s' "$output" | grep -qP '[\x{2800}-\x{28FF}]'
+}
+
+@test "the generated logo module is in the bundle" {
+    grep -q 'logo.sh' "$WORKTREE_ROOT/scripts/bundle-installer.sh"
+}
