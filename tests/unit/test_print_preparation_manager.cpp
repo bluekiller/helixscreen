@@ -3,6 +3,7 @@
 
 #include "ui_busy_overlay.h"
 #include "ui_filename_utils.h"
+#include "ui_pre_print_options_renderer.h"
 #include "ui_print_preparation_manager.h"
 
 #include "../helix_test_fixture.h"
@@ -3736,4 +3737,104 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
     CHECK(starts.load() == 0);
     CHECK(completed);
     CHECK_FALSE(success);
+}
+
+// ============================================================================
+// Detail-view rows from PRINT_START analysis
+// ============================================================================
+
+namespace {
+
+PrintStartAnalysis analysis_with_qgl(const std::string& param, ParameterSemantic semantic) {
+    PrintStartAnalysis analysis;
+    analysis.found = true;
+    analysis.macro_name = "PRINT_START";
+    PrintStartOperation op;
+    op.name = "QUAD_GANTRY_LEVEL";
+    op.category = PrintStartOpCategory::QGL;
+    op.has_skip_param = true;
+    op.skip_param_name = param;
+    op.param_semantic = semantic;
+    analysis.operations.push_back(op);
+    return analysis;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "PrintPreparationManager: displayed_options fills rows from the macro "
+                 "when the database declares none",
+                 "[print_preparation][macro_rows]") {
+    lv_init_safe();
+    PrinterState& printer_state = get_printer_state();
+    PrinterStateTestAccess::reset(printer_state);
+    printer_state.init_subjects(false);
+    PrintPreparationManager manager;
+    manager.set_dependencies(nullptr, &printer_state);
+    MockOptionState state;
+    manager.set_option_state_provider(state.provider());
+
+    SECTION("no database set and a SKIP_QGL macro give a QGL row") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        manager.set_macro_analysis(analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT));
+
+        const auto rows = manager.displayed_options();
+        REQUIRE(rows.options.size() == 1);
+        const PrePrintOption& qgl = rows.options[0];
+        REQUIRE(qgl.id == "qgl");
+        REQUIRE(qgl.default_enabled);
+        REQUIRE(PrePrintOptionsRenderer::label_for(qgl) == "Quad Gantry Level");
+        const auto* param = std::get_if<PrePrintStrategyMacroParam>(&qgl.strategy);
+        REQUIRE(param);
+        REQUIRE(param->param_name == "SKIP_QGL");
+        REQUIRE(param->skip_value == "1");
+
+        state.disable("qgl");
+        auto skip_params = PrintPreparationManagerTestAccess::get_skip_params(manager);
+        REQUIRE(skip_params == std::vector<std::pair<std::string, std::string>>{{"SKIP_QGL", "1"}});
+    }
+
+    SECTION("an opt-in param sends the row's own skip value") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        manager.set_macro_analysis(analysis_with_qgl("PERFORM_QGL", ParameterSemantic::OPT_IN));
+
+        const auto rows = manager.displayed_options();
+        REQUIRE(rows.options.size() == 1);
+        const auto* param = std::get_if<PrePrintStrategyMacroParam>(&rows.options[0].strategy);
+        REQUIRE(param);
+        REQUIRE(param->skip_value == "0");
+
+        state.disable("qgl");
+        auto skip_params = PrintPreparationManagerTestAccess::get_skip_params(manager);
+        REQUIRE(skip_params ==
+                std::vector<std::pair<std::string, std::string>>{{"PERFORM_QGL", "0"}});
+    }
+
+    SECTION("a database set wins") {
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+        manager.set_macro_analysis(analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT));
+
+        const auto rows = manager.displayed_options();
+        REQUIRE(rows.find("qgl") == nullptr);
+        REQUIRE(rows.options.size() == printer_state.get_pre_print_option_set().options.size());
+    }
+
+    SECTION("an empty analysis gives no rows") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+        manager.set_macro_analysis(analysis);
+
+        REQUIRE(manager.displayed_options().options.empty());
+    }
+
+    SECTION("an operation without a skip param gives no row") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        auto analysis = analysis_with_qgl("", ParameterSemantic::OPT_OUT);
+        analysis.operations[0].has_skip_param = false;
+        manager.set_macro_analysis(analysis);
+
+        REQUIRE(manager.displayed_options().options.empty());
+    }
 }

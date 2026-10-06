@@ -207,6 +207,55 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(reset_states.at("timelapse") == false);
 }
 
+// A printer with no database options gets its rows from the PRINT_START analysis.
+TEST_CASE_METHOD(LVGLUITestFixture, "rows come from the macro analysis when the database has none",
+                 "[print_select][detail_view][pre_print_options][macro_rows]") {
+    CacheDirGuard guard;
+
+    register_xml_callbacks({
+        {"on_print_select_detail_backdrop", detail_noop_cb},
+        {"on_print_select_print_button", detail_noop_cb},
+        {"on_print_select_delete_button", detail_noop_cb},
+        {"on_print_detail_back_clicked", detail_noop_cb},
+        {"on_toggle_sliced_colors", detail_noop_cb},
+    });
+
+    PrinterStateTestAccess::set_option_set(get_printer_state(), PrePrintOptionSet{});
+
+    helix::ui::PrintSelectDetailView view;
+    view.set_dependencies(nullptr, &get_printer_state());
+    view.init_subjects();
+    REQUIRE(view.create(test_screen()) != nullptr);
+
+    struct CloseOnExit {
+        helix::ui::PrintSelectDetailView& v;
+        ~CloseOnExit() {
+            v.hide();
+            helix::ui::UpdateQueue::instance().drain();
+            lv_timer_handler(); // the close callback runs on the next tick
+        }
+    } closer{view};
+
+    helix::PrintStartAnalysis analysis;
+    analysis.found = true;
+    analysis.macro_name = "PRINT_START";
+    helix::PrintStartOperation qgl;
+    qgl.name = "QUAD_GANTRY_LEVEL";
+    qgl.category = helix::PrintStartOpCategory::QGL;
+    qgl.has_skip_param = true;
+    qgl.skip_param_name = "SKIP_QGL";
+    analysis.operations.push_back(qgl);
+    REQUIRE(view.get_prep_manager() != nullptr);
+    view.get_prep_manager()->set_macro_analysis(analysis);
+
+    view.show("wrapped.gcode", "", "PLA");
+    helix::ui::UpdateQueue::instance().drain();
+
+    const auto states = view.collect_option_states();
+    REQUIRE(states.count("qgl") == 1);
+    CHECK(states.at("qgl") == true);
+}
+
 TEST_CASE_METHOD(LVGLUITestFixture, "detail_mapping_ready tracks cache seed and scan readiness",
                  "[print_select][detail_view][subjects]") {
     CacheDirGuard guard;

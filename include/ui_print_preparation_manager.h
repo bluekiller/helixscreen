@@ -234,6 +234,16 @@ class PrintPreparationManager {
     [[nodiscard]] helix::ParameterSemantic
     get_macro_param_semantic(helix::PrintStartOpCategory category) const;
 
+    /**
+     * @brief The options the detail view shows as rows
+     *
+     * The printer's option set. When the printer database declares no options
+     * for this printer, one MacroParam row is added per operation the PRINT_START
+     * analysis found controllable; collect_macro_skip_params() sends exactly
+     * those rows' params.
+     */
+    [[nodiscard]] PrePrintOptionSet displayed_options() const;
+
     // === CapabilityMatrix Integration ===
 
     /**

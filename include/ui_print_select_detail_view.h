@@ -832,7 +832,8 @@ class PrintSelectDetailView : public OverlayBase {
     lv_obj_t* options_scroll_ = nullptr;
     lv_obj_t* detail_card_ = nullptr;
     bool fit_pending_ = false;
-    std::string last_rendered_printer_type_;
+    /// Printer type and option ids the rows were last built for.
+    std::string last_rendered_rows_;
 
     // States handed over by seed_option_states(), applied over the freshly
     // populated rows by the next on_activate() and consumed there.

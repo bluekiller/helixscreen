@@ -1439,13 +1439,7 @@ void PrinterState::apply_dynamic_options() {
     // Maintain the (category, order) sort guarantee from
     // parse_pre_print_option_set so renderers still see options in their
     // documented order (covers both synthesized options above).
-    std::sort(pre_print_option_set_.options.begin(), pre_print_option_set_.options.end(),
-              [](const PrePrintOption& a, const PrePrintOption& b) {
-                  if (a.category != b.category) {
-                      return static_cast<int>(a.category) < static_cast<int>(b.category);
-                  }
-                  return a.order < b.order;
-              });
+    sort_pre_print_options(pre_print_option_set_.options);
 }
 
 const std::string& PrinterState::get_printer_type() const {
