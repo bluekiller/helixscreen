@@ -2145,7 +2145,7 @@ AmsError AmsBackendHappyHare::do_load_filament(int slot_index) {
     const std::string cmd = fmt::format("MMU_LOAD GATE={}", slot_index);
 
     spdlog::info("[AMS HappyHare] Loading from slot {}", slot_index);
-    return ensure_homed_then(cmd);
+    return dispatch_filament_op(cmd);
 }
 
 AmsError AmsBackendHappyHare::do_unload_filament(int /*slot_index*/) {
@@ -2158,7 +2158,23 @@ AmsError AmsBackendHappyHare::do_unload_filament(int /*slot_index*/) {
     }
 
     spdlog::info("[AMS HappyHare] Unloading filament");
-    return ensure_homed_then("MMU_UNLOAD");
+    return dispatch_filament_op("MMU_UNLOAD");
+}
+
+AmsError AmsBackendHappyHare::dispatch_filament_op(std::string cmd) {
+    // Happy Hare publishes nothing for a command it refuses (paused, disabled,
+    // bypass selected, gate mismatch) or for a pre-op G28 that fails, so the
+    // gcode error is the only end such an operation gets.
+    return ensure_homed_then(
+        std::move(cmd), nullptr,
+        [this](const MoonrakerError& err) {
+            spdlog::error("[AMS HappyHare] Filament operation failed: {}", err.message);
+            emit_event(EVENT_ERROR, err.message);
+        },
+        IMoonrakerAPI::AMS_OPERATION_TIMEOUT_MS, /*skip_homing=*/false, /*silent=*/true,
+        // The callback above only logs, so Klipper's `!!` broadcast stays the
+        // thing that shows the user why.
+        /*caller_surfaces_errors=*/false);
 }
 
 AmsError AmsBackendHappyHare::do_select_slot(int slot_index) {
@@ -2192,7 +2208,7 @@ AmsError AmsBackendHappyHare::do_change_tool(int tool_number) {
     const std::string cmd = fmt::format("T{}", tool_number);
 
     spdlog::info("[AMS HappyHare] Tool change to T{}", tool_number);
-    return ensure_homed_then(cmd);
+    return dispatch_filament_op(cmd);
 }
 
 // ============================================================================

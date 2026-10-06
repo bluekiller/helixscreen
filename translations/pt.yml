@@ -1799,6 +1799,7 @@ translations:
   Load Filament: Carregar Filamento
   Load a filament first before trying to unload: Carregue primeiro filamento antes de tentar descarregar
   Load a new spool in this slot, or turn on auto-refill to switch to a matching one: Carregue um novo carretel neste slot, ou ative o reabastecimento automático para mudar para um equivalente
+  'Load cancelled: nozzle target dropped': 'Carregamento cancelado: o alvo do bico caiu'
   Load complete: 'Carregamento concluído'
   Load failed: Falha ao carregar
   Load filament: 'Carregar filamento'
