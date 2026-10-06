@@ -456,6 +456,7 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/components/print_status_preview_card.xml",
     "ui_xml/components/printer_switch_row.xml",
     "ui_xml/components/progress_bar.xml",
+    "ui_xml/components/rail_drying.xml",
     "ui_xml/components/rail_estop.xml",
     "ui_xml/components/spaghetti_detection_modal.xml",
     "ui_xml/components/temp_card_unified.xml",

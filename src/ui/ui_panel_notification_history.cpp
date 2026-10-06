@@ -238,8 +238,9 @@ void NotificationHistoryPanel::handle_history_version_change(int32_t version) {
     // the overlay), so the observer stays attached and would otherwise rebuild
     // an invisible list and mark it read. setup() already does an unconditional
     // refresh() on every real (re)open, which catches up on anything that
-    // arrived while hidden.
-    if (!panel_ || lv_obj_has_flag(panel_, LV_OBJ_FLAG_HIDDEN)) {
+    // arrived while hidden. A panel hidden only until its queued push lands is
+    // opening, and setup() has already run, so it refreshes now.
+    if (!panel_ || !helix::nav::is_showing(panel_)) {
         return;
     }
     refresh();

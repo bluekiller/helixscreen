@@ -625,7 +625,7 @@ TEST_CASE("Layer tracking: layer-reporting printer never estimates during prepri
     // --- reset_for_new_print() runs (async, after the collector starts). It
     //     clears the PER-PRINT has_real_layer_data_ flag but NOT the sticky
     //     capability flag. This is the exact window that used to break. ---
-    state.reset_for_new_print();
+    state.print_state().reset_for_new_print();
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
     REQUIRE_FALSE(state.print_state().has_real_layer_data());
     REQUIRE(state.print_state().printer_reports_layers()); // sticky — survives reset

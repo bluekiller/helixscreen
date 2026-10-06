@@ -159,7 +159,7 @@ lv_obj_t* create_xml_hidden(lv_obj_t* parent, const char* component, const char*
     lv_obj_set_size(holder, lv_pct(100), lv_pct(100));
     auto* root = static_cast<lv_obj_t*>(lv_xml_create(holder, component, attrs));
     if (root) {
-        lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN); // XML_HIDDEN_OK: built under the holder
         lv_obj_set_parent(root, parent);
     }
     lv_obj_delete(holder);

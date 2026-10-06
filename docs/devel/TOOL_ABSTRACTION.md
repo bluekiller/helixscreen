@@ -184,7 +184,7 @@ Whether `-1` is a real active-tool value depends on the topology. When an AMS
 backend owns the tool list, `build_ams_topology()`
 (`src/printer/ams_state_tool_mapping.cpp#build_ams_topology`) fills
 `ToolTopology::allows_empty_carriage` from `AmsBackend::load_mounts_tool()`
-(`include/ams_backend.h#load_mounts_tool`): true where selecting a slot physically
+(`include/ams_backend.h#BackendTraits/load_mounts_tool`): true where selecting a slot physically
 mounts a tool, so the carriage can also hold nothing, as on a tool changer like
 the FlashForge Creator 5. `ToolState::set_ams_topology()`
 (`src/printer/tool_state.cpp#set_ams_topology`) then publishes `active_tool` = -1

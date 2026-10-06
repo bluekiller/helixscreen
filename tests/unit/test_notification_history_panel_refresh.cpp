@@ -13,6 +13,8 @@
  * that chain fails the arrival test below.
  */
 
+#include "ui_nav.h"
+#include "ui_nav_manager.h"
 #include "ui_notification_history.h"
 #include "ui_notification_manager.h"
 #include "ui_panel_notification_history.h"
@@ -177,4 +179,36 @@ TEST_CASE_METHOD(NotificationHistoryPanelFixture,
     UpdateQueue::instance().drain();
 
     REQUIRE(lv_ll_get_len(&subject->subs_ll) == 0);
+}
+TEST_CASE_METHOD(NotificationHistoryPanelFixture,
+                 "NotificationHistoryPanel: a notification arriving before the queued push shows",
+                 "[ui][notifications][overlay]") {
+    REQUIRE(root_ != nullptr);
+    lv_obj_t* overlay = content();
+    REQUIRE(overlay != nullptr);
+    lv_obj_t* base = lv_obj_create(lv_screen_active());
+    lv_obj_t* panels[UI_PANEL_COUNT] = {nullptr};
+    panels[static_cast<int>(helix::PanelId::Home)] = base;
+    NavigationManager::instance().set_panels(panels);
+
+    // How the manager opens it: built hidden, push queued.
+    lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
+    panel_->refresh();
+    REQUIRE(lv_obj_get_child_count(overlay) == 0);
+    helix::nav::register_overlay(root_, nullptr);
+    helix::nav::push_overlay(root_);
+    REQUIRE(helix::nav::is_push_pending(root_));
+
+    // The version observer's apply can drain ahead of the push.
+    NotificationHistory::instance().add(make_entry("Entry One", "arrived before the push"));
+    NotificationHistoryPanelTestAccess::handle_history_version_change(
+        *panel_, static_cast<int32_t>(NotificationHistory::instance().version()));
+    CHECK(lv_obj_get_child_count(overlay) == 1);
+
+    UpdateQueue::instance().drain();
+    REQUIRE(helix::nav::is_on_top(root_));
+    helix::nav::go_back();
+    UpdateQueue::instance().drain();
+    helix::nav::unregister_overlay(root_);
+    lv_obj_delete(base);
 }
