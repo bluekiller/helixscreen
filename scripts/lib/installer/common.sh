@@ -437,7 +437,7 @@ RUN_LOGGED_TAIL=${RUN_LOGGED_TAIL:-15}
 print_failure() { # description rc output-file [hint]
     _ui_emit "${RED}$1 failed (exit $2):${NC}"
     if [ -s "$3" ]; then
-        tail -n "$RUN_LOGGED_TAIL" "$3" | while IFS= read -r _pf_line; do
+        tail -n "$RUN_LOGGED_TAIL" "$3" | while IFS= read -r _pf_line || [ -n "$_pf_line" ]; do
             _ui_emit "  $_pf_line"
         done
     fi
@@ -451,18 +451,23 @@ print_failure() { # description rc output-file [hint]
 # caller running under set -e before the failure block prints.
 # UNCALLED_OK: callers land in Task 5
 run_logged() {
-    _rl_out=$(mktemp "${TMPDIR:-/tmp}/helix-run.XXXXXX") || { "$@"; return $?; }
     _log_write "RUN $*"
+    _rl_out=$(mktemp "${TMPDIR:-/tmp}/helix-run.XXXXXX") || { "$@" && return 0 || return $?; }
     _step_redraw
     "$@" > "$_rl_out" 2>&1 && _rl_rc=0 || _rl_rc=$?
     if [ -n "$INSTALL_LOG" ]; then
         cat "$_rl_out" >> "$INSTALL_LOG" 2>/dev/null || true
+        # Command substitution drops a trailing newline, so a non-empty result
+        # means the output ended mid-line; terminate it before the next entry.
+        if [ -s "$_rl_out" ] && [ -n "$(tail -c 1 "$_rl_out")" ]; then
+            printf '\n' >> "$INSTALL_LOG" 2>/dev/null || true
+        fi
     else
         _LOG_BUFFER="${_LOG_BUFFER}$(cat "$_rl_out")
 "
     fi
     if [ "${HELIX_INSTALL_VERBOSE:-0}" = 1 ]; then
-        while IFS= read -r _rl_line; do _ui_emit "  $_rl_line"; done < "$_rl_out"
+        while IFS= read -r _rl_line || [ -n "$_rl_line" ]; do _ui_emit "  $_rl_line"; done < "$_rl_out"
     fi
     if [ "$_rl_rc" -ne 0 ]; then print_failure "$*" "$_rl_rc" "$_rl_out"; fi
     rm -f "$_rl_out"

@@ -247,3 +247,40 @@ _set_e_script() {
         _ "$WORKTREE_ROOT/scripts/lib/installer/common.sh"
     contains "rc=42" "$output"
 }
+
+@test "run_logged failure tail shows a last line with no trailing newline" {
+    run run_logged sh -c 'printf "a\nlast-%s" nonl; exit 4'
+    [ "$status" -eq 4 ]
+    contains "last-nonl" "$output"
+}
+
+@test "run_logged verbose echo shows a last line with no trailing newline" {
+    HELIX_INSTALL_VERBOSE=1
+    run run_logged sh -c 'printf "a\nlast-nonl"'
+    contains "last-nonl" "$output"
+}
+
+@test "run_logged keeps the next log entry on its own line after unterminated output" {
+    log_open "$BATS_TEST_TMPDIR/install.log"
+    run_logged sh -c 'printf "partial-nonl"'
+    log_warn "after"
+    run grep -c '^partial-nonl$' "$BATS_TEST_TMPDIR/install.log"
+    [ "$output" = 1 ]
+}
+
+@test "run_logged unterminated output is handled under busybox ash" {
+    command -v busybox >/dev/null || skip "no busybox"
+    run busybox ash -c '. "$1"; HELIX_INSTALL_TTY=0 ui_detect; log_open "$2"; run_logged sh -c "printf \"a\nlast-nonl\"; exit 4"; log_warn after' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer/common.sh" "$BATS_TEST_TMPDIR/ash.log"
+    contains "last-nonl" "$output"
+    run grep -c '^last-nonl$' "$BATS_TEST_TMPDIR/ash.log"
+    [ "$output" = 1 ]
+}
+
+@test "run_logged logs RUN and the failure block when mktemp is unavailable" {
+    log_open "$BATS_TEST_TMPDIR/install.log"
+    TMPDIR=/nonexistent run sh -c "set -e; . '$WORKTREE_ROOT/scripts/lib/installer/common.sh'; INSTALL_LOG='$BATS_TEST_TMPDIR/install.log'; run_logged sh -c 'exit 3'; echo after"
+    case "$output" in *after*) fail "set -e did not stop the caller" ;; esac
+    run grep -c 'RUN sh -c' "$BATS_TEST_TMPDIR/install.log"
+    [ "$output" = 1 ]
+}
