@@ -153,3 +153,22 @@ TEST_CASE_METHOD(MigrationV18Fixture,
     REQUIRE_FALSE(config.get<bool>("/input/calibration/recheck_pending", false));
     REQUIRE(config.get<bool>("/input/calibration/valid", false));
 }
+
+TEST_CASE_METHOD(MigrationV18Fixture,
+                 "Config migration v18: a full preset seed keeps its calibration",
+                 "[config][migration]") {
+    // seed_full_preset_for_printer's B path: the device blocks, the preset's
+    // printer block under printers/default, and the root preset marker.
+    json seed = {
+        {"input", {{"calibration", {{"valid", true}, {"a", 1.66}, {"e", 1.76}}}}},
+        {"display", {{"rotate", 180}}},
+        {"active_printer_id", "default"},
+        {"preset", "sovol_sv06_ace"},
+        {"printers",
+         {{"default", {{"wizard_completed", false}, {"heaters", {{"bed", "heater_bed"}}}}}}}};
+    write_and_init(seed);
+
+    REQUIRE(config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE_FALSE(config.get<bool>("/input/calibration/recheck_pending", false));
+    REQUIRE(config.get<bool>("/input/calibration/valid", false));
+}
