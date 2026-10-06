@@ -157,6 +157,49 @@ TEST_CASE("resolve_gcode_filename() unwraps a HelixPrint plugin symlink path",
     CHECK_FALSE(helix::gcode::is_rewritten_gcode_path("my.helix_print/b.gcode"));
 }
 
+TEST_CASE("trusted_original_path() answers only for names that place the original",
+          "[filename_utils][identity][reprint]") {
+    using helix::gcode::trusted_original_path;
+    // Not a rewrite: the path names itself.
+    CHECK(trusted_original_path("parts/benchy.gcode") == "parts/benchy.gcode");
+    // Whole-path forms.
+    CHECK(trusted_original_path(helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode")) ==
+          "parts/benchy.gcode");
+    CHECK(trusted_original_path(".helix_print/full/parts/benchy.gcode") == "parts/benchy.gcode");
+    CHECK(trusted_original_path(".helix_print/full/benchy.gcode") == "benchy.gcode");
+    // Bare-filename forms could be a same-named file in any folder.
+    CHECK_FALSE(trusted_original_path(".helix_temp/modified_1748_benchy.gcode"));
+    CHECK_FALSE(trusted_original_path(".helix_print/benchy.gcode"));
+    CHECK_FALSE(trusted_original_path("x/gcode_mod/mod_1_benchy.gcode"));
+    CHECK_FALSE(trusted_original_path(".helix_temp/modified_mine.gcode"));
+    // resolve_gcode_filename() still guesses, for display and lookups.
+    CHECK(resolve_gcode_filename(".helix_print/benchy.gcode") == "benchy.gcode");
+    CHECK(resolve_gcode_filename(".helix_print/full/parts/benchy.gcode") == "parts/benchy.gcode");
+}
+
+TEST_CASE("make_rewritten_gcode_path() keeps a staged name within NAME_MAX",
+          "[filename_utils][identity][reprint]") {
+    std::string deep;
+    for (int i = 0; i < 30; ++i) {
+        deep += "folder_" + std::to_string(i) + "/";
+    }
+    const std::string original = deep + "benchy.gcode";
+    const std::string staged = helix::gcode::make_rewritten_gcode_path(original);
+    INFO(staged);
+    const std::string name = staged.substr(std::string(".helix_temp/").size());
+    CHECK(name.size() <= 255);
+    CHECK(name.find('/') == std::string::npos);
+    CHECK(helix::gcode::is_uploaded_rewrite_path(staged));
+    // Too long to carry the path, so it cannot vouch for one.
+    CHECK_FALSE(helix::gcode::trusted_original_path(staged));
+    CHECK(resolve_gcode_filename(staged) == "benchy.gcode");
+
+    const std::string long_name = std::string(250, 'x') + ".gcode";
+    const std::string staged_long = helix::gcode::make_rewritten_gcode_path(long_name);
+    CHECK(staged_long.size() - std::string(".helix_temp/").size() <= 255);
+    CHECK(staged_long.substr(staged_long.size() - 6) == ".gcode");
+}
+
 TEST_CASE("resolve_gcode_filename() finds the prefix anywhere in the path",
           "[filename_utils][identity]") {
     // print_stats reports the path relative to the gcodes root, so the marker is

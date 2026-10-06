@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace helix::gcode {
@@ -82,7 +83,8 @@ std::string get_display_filename(const std::string& path);
  *
  * When HelixScreen modifies a G-code file before printing (e.g., to add
  * filament change commands), it stores the modified file with patterns like:
- * - `.helix_print/dir/OriginalName.gcode` (HelixPrint plugin symlink)
+ * - `.helix_print/full/dir/OriginalName.gcode` (HelixPrint plugin symlink)
+ * - `.helix_print/OriginalName.gcode` (older plugin: bare filename)
  * - `.helix_temp/modified_123456789p_dir~sOriginalName.gcode` (full path kept)
  * - `.helix_temp/modified_123456789_OriginalName.gcode`
  * - `/tmp/helixscreen_mod_123456_OriginalName.gcode`
@@ -94,6 +96,21 @@ std::string get_display_filename(const std::string& path);
  * @return Original filename if temp pattern matches, otherwise input unchanged
  */
 std::string resolve_gcode_filename(const std::string& path);
+
+/**
+ * @brief The original's gcodes-relative path, when @p path can be trusted to name it
+ *
+ * resolve_gcode_filename() always answers with its best guess. This answers
+ * only when the answer is certain: a path that is not a rewrite names itself,
+ * and a rewrite counts only when it encodes the original's whole path (a
+ * `.helix_temp/modified_<ts>p_` name, or the plugin's `.helix_print/full/`).
+ * A bare-filename rewrite could belong to a file in any folder, so acting on
+ * it (a reprint, adopting a history job) could pick a same-named wrong file.
+ *
+ * @param path Filename or path as the printer reports it
+ * @return The original's path, or nullopt when its location is unknown
+ */
+std::optional<std::string> trusted_original_path(const std::string& path);
 
 /**
  * @brief Is this path one of OUR rewritten temp copies of a user's G-code?
@@ -123,7 +140,9 @@ bool is_rewritten_gcode_path(const std::string& path);
  * job the user started shows up under a name they have never seen.
  *
  * The original's full path is encoded into the one flat name, so
- * resolve_gcode_filename() recovers it from the printer's report alone.
+ * resolve_gcode_filename() recovers it from the printer's report alone. A path
+ * too long for one filename falls back to the bare filename, which
+ * trusted_original_path() then declines to vouch for.
  *
  * @param original_path The original's gcodes-root-relative path
  * @return e.g. "<staging dir>/modified_1766807545p_parts~sbenchy.gcode"

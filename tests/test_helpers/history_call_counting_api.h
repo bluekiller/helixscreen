@@ -8,8 +8,10 @@
 #include "moonraker_history_api.h"
 
 #include <atomic>
+#include <functional>
 #include <map>
 #include <utility>
+#include <vector>
 
 namespace helix {
 
@@ -45,16 +47,35 @@ class MetadataTableFileAPI : public MoonrakerFileAPI {
     void get_file_metadata(const std::string& filename, FileMetadataCallback on_success,
                            ErrorCallback on_error, bool /*silent*/ = false) override {
         ++calls;
+        // The answer is decided when the request is made, as a server would.
+        std::function<void()> answer;
         auto it = table.find(filename);
         if (it != table.end()) {
-            on_success(it->second);
-        } else if (on_error) {
-            on_error(MoonrakerError::json_rpc_error("server.files.metadata", "File not found"));
+            answer = [on_success, meta = it->second]() { on_success(meta); };
+        } else {
+            answer = [on_error]() {
+                if (on_error) {
+                    on_error(
+                        MoonrakerError::json_rpc_error("server.files.metadata", "File not found"));
+                }
+            };
         }
+        if (hold) {
+            held.push_back(std::move(answer));
+        } else {
+            answer();
+        }
+    }
+
+    /// Deliver the held answer to the @p index-th request, in any order.
+    void release(size_t index) {
+        held.at(index)();
     }
 
     std::map<std::string, FileMetadata> table;
     int calls = 0;
+    bool hold = false;
+    std::vector<std::function<void()>> held;
 };
 
 class HistoryCallCountingMoonrakerAPI : public MoonrakerAPI {

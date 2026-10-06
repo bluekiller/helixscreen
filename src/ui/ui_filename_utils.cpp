@@ -7,6 +7,7 @@
 
 #include <cctype>
 #include <ctime>
+#include <optional>
 #include <vector>
 
 namespace helix::gcode {
@@ -94,9 +95,11 @@ std::string get_display_filename(const std::string& path) {
 // recognise them through is_uploaded_rewrite_path(), so neither side can spell
 // it differently from the other.
 static const std::string helix_temp_prefix = ".helix_temp/modified_";
-// Where the HelixPrint plugin links a staged copy under the original's
-// gcodes-relative path; the remainder after it IS that path.
+// Where the HelixPrint plugin links a staged copy. Under its `full/` segment
+// the remainder IS the original's gcodes-relative path; directly under the
+// directory sits only a bare filename.
 static const std::string helix_print_prefix = ".helix_print/";
+static const std::string helix_print_full_segment = "full/";
 static const std::string gcode_mod_prefix = "/gcode_mod/mod_";
 static const std::string legacy_prefix = "/tmp/helixscreen_mod_";
 
@@ -152,44 +155,74 @@ static std::string unescape_path(const std::string& name) {
     return out;
 }
 
-std::string resolve_gcode_filename(const std::string& path) {
-    size_t underscore_pos = std::string::npos;
+namespace {
+/// What a rewritten path says about its original: the name it carries, and
+/// whether that name is the original's whole gcodes-relative path or only a
+/// bare filename that may belong to a file in any folder.
+struct ParsedRewrite {
+    std::string original;
+    bool full_path = false;
+};
+} // namespace
 
+// The one reading of every rewrite shape this app or its plugin produces.
+static std::optional<ParsedRewrite> parse_rewrite(const std::string& path) {
     if (const size_t start = helix_print_original_pos(path); start != std::string::npos) {
-        // .helix_print/parts/benchy.gcode -> parts/benchy.gcode
-        std::string original = path.substr(start);
-        spdlog::debug("[resolve_gcode_filename] '{}' -> '{}'", path, original);
-        return original;
+        // .helix_print/full/parts/benchy.gcode -> parts/benchy.gcode (whole path)
+        // .helix_print/benchy.gcode            -> benchy.gcode (bare name)
+        std::string rest = path.substr(start);
+        if (rest.size() > helix_print_full_segment.size() &&
+            rest.compare(0, helix_print_full_segment.size(), helix_print_full_segment) == 0) {
+            return ParsedRewrite{rest.substr(helix_print_full_segment.size()), true};
+        }
+        return ParsedRewrite{std::move(rest), false};
     }
 
-    if (path.find(helix_temp_prefix) != std::string::npos) {
+    size_t prefix_end = std::string::npos;
+    if (const size_t pos = path.find(helix_temp_prefix); pos != std::string::npos) {
         // .helix_temp/modified_<ts>p_parts~sbenchy.gcode -> parts/benchy.gcode
         // .helix_temp/modified_<ts>_benchy.gcode         -> benchy.gcode
-        size_t prefix_end = path.find(helix_temp_prefix) + helix_temp_prefix.size();
-        underscore_pos = path.find('_', prefix_end);
-        if (underscore_pos != std::string::npos && underscore_pos > prefix_end &&
-            path[underscore_pos - 1] == path_marker && underscore_pos + 1 < path.size()) {
-            std::string original = unescape_path(path.substr(underscore_pos + 1));
-            spdlog::debug("[resolve_gcode_filename] '{}' -> '{}'", path, original);
-            return original;
+        prefix_end = pos + helix_temp_prefix.size();
+        const size_t underscore = path.find('_', prefix_end);
+        if (underscore != std::string::npos && underscore > prefix_end &&
+            path[underscore - 1] == path_marker && underscore + 1 < path.size()) {
+            return ParsedRewrite{unescape_path(path.substr(underscore + 1)), true};
         }
-    } else if (path.find(gcode_mod_prefix) != std::string::npos) {
-        // Extract original: */gcode_mod/mod_123456_OriginalName.gcode -> OriginalName.gcode
-        size_t prefix_end = path.find(gcode_mod_prefix) + gcode_mod_prefix.size();
-        underscore_pos = path.find('_', prefix_end);
-    } else if (path.find(legacy_prefix) != std::string::npos) {
-        // Legacy: /tmp/helixscreen_mod_123456_OriginalName.gcode -> OriginalName.gcode
-        size_t prefix_end = path.find(legacy_prefix) + legacy_prefix.size();
-        underscore_pos = path.find('_', prefix_end);
+    } else if (const size_t mod = path.find(gcode_mod_prefix); mod != std::string::npos) {
+        // */gcode_mod/mod_123456_OriginalName.gcode -> OriginalName.gcode
+        prefix_end = mod + gcode_mod_prefix.size();
+    } else if (const size_t legacy = path.find(legacy_prefix); legacy != std::string::npos) {
+        // /tmp/helixscreen_mod_123456_OriginalName.gcode -> OriginalName.gcode
+        prefix_end = legacy + legacy_prefix.size();
     }
-
-    if (underscore_pos != std::string::npos && underscore_pos + 1 < path.size()) {
-        std::string original = path.substr(underscore_pos + 1);
-        spdlog::debug("[resolve_gcode_filename] '{}' -> '{}'", path, original);
-        return original;
+    if (prefix_end == std::string::npos) {
+        return std::nullopt;
     }
+    const size_t underscore = path.find('_', prefix_end);
+    if (underscore == std::string::npos || underscore + 1 >= path.size()) {
+        return std::nullopt;
+    }
+    return ParsedRewrite{path.substr(underscore + 1), false};
+}
 
-    return path;
+std::string resolve_gcode_filename(const std::string& path) {
+    auto parsed = parse_rewrite(path);
+    if (!parsed) {
+        return path;
+    }
+    spdlog::debug("[resolve_gcode_filename] '{}' -> '{}'", path, parsed->original);
+    return std::move(parsed->original);
+}
+
+std::optional<std::string> trusted_original_path(const std::string& path) {
+    if (!is_rewritten_gcode_path(path)) {
+        return path;
+    }
+    auto parsed = parse_rewrite(path);
+    if (!parsed || !parsed->full_path) {
+        return std::nullopt;
+    }
+    return std::move(parsed->original);
 }
 
 static std::string basename_of(const std::string& path) {
@@ -230,8 +263,24 @@ bool is_native_3mf_shadow(const std::string& name) {
 }
 
 std::string make_rewritten_gcode_path(const std::string& original_path) {
-    return helix_temp_prefix + std::to_string(static_cast<long long>(std::time(nullptr))) +
-           path_marker + "_" + escape_path(original_path);
+    // One path component on the printer's filesystem, so it must fit NAME_MAX.
+    constexpr size_t name_max = 255;
+    static const std::string staging_dir = ".helix_temp/";
+    const std::string stamp = std::to_string(static_cast<long long>(std::time(nullptr)));
+
+    std::string staged = helix_temp_prefix + stamp + path_marker + "_" + escape_path(original_path);
+    if (staged.size() - staging_dir.size() <= name_max) {
+        return staged;
+    }
+    // Too long to carry the whole path: a bare filename, which
+    // trusted_original_path() refuses to read as the original's location.
+    staged = helix_temp_prefix + stamp + "_";
+    std::string name = basename_of(original_path);
+    const size_t room = name_max - (staged.size() - staging_dir.size());
+    if (name.size() > room) {
+        name = name.substr(name.size() - room); // keep the extension
+    }
+    return staged + name;
 }
 
 bool is_uploaded_rewrite_path(const std::string& path) {

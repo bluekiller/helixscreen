@@ -1818,10 +1818,14 @@ void PrintStatusPanel::handle_tune_button() {
 
 std::string PrintStatusPanel::reprint_filename() const {
     // print_stats names the copy that ran, which for a print this app
-    // rewrote is a temp file deleted when the print ends. The effective
-    // identity is the original.
-    const std::string& original = printer_state_.print_state().get_effective_print_filename();
-    return original.empty() ? current_print_filename_ : original;
+    // rewrote is a temp file deleted when the print ends. An identity this
+    // session recorded at commit names the original exactly; without one, the
+    // report places the original only when it encodes the whole path.
+    const auto& print_state = printer_state_.print_state();
+    if (!print_state.get_print_identity_override().empty()) {
+        return print_state.get_effective_print_filename();
+    }
+    return helix::gcode::trusted_original_path(current_print_filename_).value_or("");
 }
 
 void PrintStatusPanel::handle_reprint_button() {
@@ -1837,6 +1841,13 @@ void PrintStatusPanel::handle_reprint_button() {
     const std::string filename = reprint_filename();
     spdlog::info("[{}] Reprint button clicked - reprinting: {}", get_name(), filename);
 
+    if (filename.empty() && !current_print_filename_.empty()) {
+        // A same-named file elsewhere is not necessarily the one that printed.
+        spdlog::warn("[{}] Not reprinting '{}': original file location unknown", get_name(),
+                     current_print_filename_);
+        NOTIFY_WARNING(lv_tr("Original file location unknown"));
+        return;
+    }
     if (filename.empty()) {
         spdlog::warn("[{}] No filename to reprint", get_name());
         NOTIFY_WARNING(lv_tr("No file to reprint"));

@@ -197,7 +197,28 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
     }
 
     SECTION("after a restart, printed through the HelixPrint plugin") {
-        report_filename(".helix_print/parts/benchy.gcode");
+        report_filename(".helix_print/full/parts/benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
+    }
+
+    // Names that carry only the bare filename: a same-named root file may
+    // exist, and reprinting it would print the wrong part.
+    SECTION("after a restart, an older staged name refuses rather than guesses") {
+        report_filename(".helix_temp/modified_1766807545_benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()).empty());
+    }
+    SECTION("after a restart, an older plugin's link refuses rather than guesses") {
+        report_filename(".helix_print/benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()).empty());
+    }
+    SECTION("a print this session prepared still knows its original") {
+        state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
+        state().print_state().retire_preparing(PreparingExit::Confirmed);
+        drain();
+        report_filename(".helix_temp/modified_1766807545_benchy.gcode");
 
         REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
     }

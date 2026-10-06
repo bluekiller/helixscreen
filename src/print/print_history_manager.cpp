@@ -15,6 +15,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <optional>
 
 using namespace helix;
 
@@ -217,8 +218,10 @@ void PrintHistoryManager::watch_connection_state() {
 void PrintHistoryManager::invalidate() {
     spdlog::debug("[HistoryManager] Cache invalidated");
     is_loaded_ = false;
-    // A file change can be the original being deleted or re-sliced.
+    // A file change can be the original being deleted or re-sliced. Answers
+    // still in flight describe the file as it was, so they are dropped.
     originals_.clear();
+    ++originals_generation_;
 }
 
 // ============================================================================
@@ -326,41 +329,61 @@ void PrintHistoryManager::adopt_original(PrintHistoryJob& job) {
     if (!helix::gcode::is_rewritten_gcode_path(job.filename)) {
         return;
     }
-    job.filename = helix::gcode::resolve_gcode_filename(job.filename);
+    // The rewrite's own file and thumbnails are deleted when the print ends.
+    apply_original(job, OriginalFile{});
 
-    auto [it, first_ask] = originals_.try_emplace(job.filename);
-    apply_original(job, it->second); // missing, no thumbnail, until answered
-    if (!first_ask || !api_) {
+    // A name that cannot place the original stays as reported: adopting a
+    // same-named file from another folder would reprint the wrong one.
+    std::optional<std::string> original = helix::gcode::trusted_original_path(job.filename);
+    if (!original) {
         return;
     }
+    job.filename = std::move(*original);
+    job.from_rewrite = true;
+
+    if (auto it = originals_.find(job.filename); it != originals_.end()) {
+        apply_original(job, it->second); // answered, or still missing while asked
+        return;
+    }
+    if (!api_) {
+        return; // nothing asked, so nothing to remember
+    }
+    originals_.emplace(job.filename, OriginalFile{});
 
     const std::string filename = job.filename;
+    const uint64_t generation = originals_generation_;
     auto token = lifetime_.token();
     api_->files().get_file_metadata(
         filename,
-        [this, token, filename](const FileMetadata& metadata) {
-            OriginalFile original;
-            original.exists = true;
-            original.modified = metadata.modified;
-            original.thumbnails = metadata.thumbnails;
+        [this, token, filename, generation](const FileMetadata& metadata) {
+            OriginalFile answer;
+            answer.exists = true;
+            answer.modified = metadata.modified;
+            answer.thumbnails = metadata.thumbnails;
             token.defer("PrintHistoryManager::original_metadata",
-                        [this, filename, original = std::move(original)]() mutable {
-                            on_original_answered(filename, std::move(original));
+                        [this, filename, generation, answer = std::move(answer)]() mutable {
+                            on_original_answered(filename, generation, std::move(answer));
                         });
         },
-        [this, token, filename](const MoonrakerError&) {
-            token.defer("PrintHistoryManager::original_missing",
-                        [this, filename]() { on_original_answered(filename, OriginalFile{}); });
+        [this, token, filename, generation](const MoonrakerError&) {
+            token.defer("PrintHistoryManager::original_missing", [this, filename, generation]() {
+                on_original_answered(filename, generation, OriginalFile{});
+            });
         },
         /*silent=*/true);
 }
 
-void PrintHistoryManager::on_original_answered(const std::string& filename, OriginalFile original) {
+void PrintHistoryManager::on_original_answered(const std::string& filename, uint64_t generation,
+                                               OriginalFile original) {
+    if (generation != originals_generation_) {
+        return; // asked before an invalidation; the refetch asks again
+    }
     spdlog::debug("[HistoryManager] Original '{}' of a rewritten job: {}", filename,
                   original.exists ? "found" : "missing");
     bool changed = false;
     for (auto& job : cached_jobs_) {
-        if (job.filename == filename) {
+        // A job that printed the original directly keeps its own record.
+        if (job.from_rewrite && job.filename == filename) {
             apply_original(job, original);
             changed = true;
         }

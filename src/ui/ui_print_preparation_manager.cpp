@@ -687,7 +687,7 @@ std::string PrintPreparationManager::get_temp_directory() const {
 bool PrintPreparationManager::can_modify_gcode() const {
     // Pre-print modifications rewrite the job file, and the plugin is what puts
     // the original filename back in Moonraker's history afterwards. Without it
-    // finished jobs are listed as ".helix_temp/modified_1766807545_name.gcode",
+    // finished jobs are listed as ".helix_temp/modified_1766807545p_name.gcode",
     // so we decline rather than clutter the history.
     return printer_state_ != nullptr &&
            printer_state_->plugin_status_state().service_has_helix_plugin();

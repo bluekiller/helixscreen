@@ -1477,7 +1477,7 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
                  "PrintHistoryManager: a rewritten job whose original is gone shows no thumbnail",
                  "[history_manager][reprint]") {
     auto& table = api_->metadata_table();
-    const std::string staged = ".helix_print/parts/gone.gcode";
+    const std::string staged = ".helix_print/full/parts/gone.gcode";
 
     install_live_cache({history_job(staged, 300.0), history_job(staged, 200.0)});
     pump();
@@ -1514,4 +1514,67 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
     CHECK(job.filename == "parts/benchy.gcode");
     CHECK(job.exists);
     CHECK(job.thumbnail_path == ".thumbs/benchy-300x300.png");
+}
+
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "PrintHistoryManager: a direct print of the original keeps its own record",
+                 "[history_manager][reprint]") {
+    // The original's metadata request fails (mid-scan, timeout): only the job
+    // adopted from a rewrite may take that answer.
+    PrintHistoryJob direct = history_job("parts/benchy.gcode", 100.0);
+    direct.exists = true;
+    direct.modified = 7.0;
+    install_live_cache(
+        {history_job(helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode"), 200.0),
+         direct});
+    pump();
+
+    const PrintHistoryJob& kept = manager_->get_jobs().back();
+    CHECK(kept.filename == "parts/benchy.gcode");
+    CHECK(kept.exists);
+    CHECK(kept.modified == 7.0);
+    CHECK(kept.thumbnails.size() == 1);
+    CHECK_FALSE(manager_->get_jobs().front().exists);
+}
+
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "PrintHistoryManager: a bare-filename rewrite is not adopted",
+                 "[history_manager][reprint]") {
+    auto& table = api_->metadata_table();
+    // A same-named root file exists; it may not be the one that printed.
+    table.table["benchy.gcode"] = original_metadata(42.0);
+
+    install_live_cache({history_job(".helix_temp/modified_1748_benchy.gcode", 300.0),
+                        history_job(".helix_print/benchy.gcode", 200.0)});
+    pump();
+
+    for (const auto& job : manager_->get_jobs()) {
+        CHECK(helix::gcode::is_rewritten_gcode_path(job.filename));
+        CHECK_FALSE(job.from_rewrite);
+        CHECK_FALSE(job.exists);
+        CHECK(job.thumbnails.empty());
+    }
+    CHECK(manager_->get_newest_existing_job() == nullptr);
+    CHECK(table.calls == 0);
+}
+
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "PrintHistoryManager: an answer asked for before an invalidation is dropped",
+                 "[history_manager][reprint]") {
+    auto& table = api_->metadata_table();
+    table.hold = true;
+    const std::string staged = helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode");
+
+    install_live_cache({history_job(staged, 200.0)}); // asks: original missing (held)
+    manager_->invalidate();
+    table.table["parts/benchy.gcode"] = original_metadata(42.0);
+    PrintHistoryManagerTestAccess::set_loaded_jobs(*manager_, {history_job(staged, 200.0)});
+    REQUIRE(table.calls == 2); // the cleared cache asks again
+
+    table.release(1); // the fresh answer: found
+    pump();
+    CHECK(manager_->get_jobs().front().exists);
+    table.release(0); // the stale one, answered from before the invalidation
+    pump();
+    CHECK(manager_->get_jobs().front().exists);
 }
