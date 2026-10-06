@@ -210,29 +210,14 @@ class PrintPreparationManager {
     }
 
     /**
-     * @brief Check if a specific operation in PRINT_START is controllable
+     * @brief The options the detail view shows as rows
      *
-     * @param category The operation category to check
-     * @return true if the operation has a skip parameter in the macro
+     * The printer's option set. When the printer database declares no options
+     * for this printer, one MacroParam row is added per operation the PRINT_START
+     * analysis found controllable; collect_macro_skip_params() sends exactly
+     * those rows' params.
      */
-    [[nodiscard]] bool is_macro_op_controllable(helix::PrintStartOpCategory category) const;
-
-    /**
-     * @brief Get the skip parameter name for a macro operation (if controllable)
-     *
-     * @param category The operation category
-     * @return Parameter name (e.g., "SKIP_BED_MESH") or empty string if not controllable
-     */
-    [[nodiscard]] std::string get_macro_skip_param(helix::PrintStartOpCategory category) const;
-
-    /**
-     * @brief Get the parameter semantic for a macro operation
-     *
-     * @param category The operation category
-     * @return ParameterSemantic (OPT_OUT for SKIP_*, OPT_IN for PERFORM_*)
-     */
-    [[nodiscard]] helix::ParameterSemantic
-    get_macro_param_semantic(helix::PrintStartOpCategory category) const;
+    [[nodiscard]] PrePrintOptionSet displayed_options() const;
 
     // === CapabilityMatrix Integration ===
 
@@ -430,12 +415,12 @@ class PrintPreparationManager {
      *       in the currently-scanned file, OR
      *   (b) the option is a MacroParam whose skip must be rewritten into the
      *       START_PRINT call.
-     * Both are suppressed when the printer has a pre-start mechanism (a
-     * MacroParam skip that triggers `setup_gcode`, or any PreStartGcode line):
-     * in that path start_print() streams / defers to the native macro WITHOUT
-     * the plugin. This is exactly why the K2 Plus PREPARE bed_mesh toggle must
-     * stay visible — see the mirror logic in start_print() (the pre-start block
-     * at the top) and collect_ops_to_disable()/collect_macro_skip_params().
+     * False whenever disabling the option has an effect that needs no plugin,
+     * so the row stays useful: a PreStartGcode option always emits its line,
+     * and a MacroParam skip is carried by a pre-start block (`setup_gcode`, or
+     * any PreStartGcode line). This is why the K2 Plus PREPARE bed_mesh toggle
+     * stays visible. Stripping an embedded op needs the plugin on every start
+     * path, so it alone hides the row.
      *
      * @param opt The option whose disable-cost is being evaluated
      */
@@ -469,6 +454,12 @@ class PrintPreparationManager {
      */
     [[nodiscard]] std::string
     describe_dropped_modifications(const std::vector<gcode::OperationType>& ops_to_disable) const;
+
+    /// Log and toast that this print's modifications are being dropped because
+    /// the HelixPrint plugin is absent, naming the affected features. Every
+    /// start path that declines a modification reports it through here.
+    void
+    warn_modifications_need_plugin(const std::vector<gcode::OperationType>& ops_to_disable) const;
 
     /**
      * @brief Get the pre-print time estimate subject (seconds)
@@ -657,7 +648,9 @@ class PrintPreparationManager {
      * @brief Collect operations that user wants to disable
      *
      * Compares checkbox states against cached scan result to identify
-     * operations that are embedded in the file but disabled by user.
+     * operations that are embedded in the file but disabled by user. An option
+     * whose value a self-storing firmware holds strips nothing: that firmware
+     * gates the file's own command on its setting.
      */
     [[nodiscard]] std::vector<gcode::OperationType> collect_ops_to_disable() const;
 

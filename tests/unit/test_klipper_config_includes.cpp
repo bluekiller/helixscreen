@@ -72,6 +72,15 @@ TEST_CASE("extract_includes - parses include directives", "[config][includes]") 
         REQUIRE(result.size() == 1);
         REQUIRE(result[0] == "macros.cfg");
     }
+
+    SECTION("Only a column-0 header counts") {
+        std::string content = "  [include indented.cfg]\n"
+                              "\t[include tabbed.cfg]\n"
+                              "#[include commented.cfg]\n"
+                              "[include real.cfg]\r\n";
+        auto result = extract_includes(content);
+        REQUIRE(result == std::vector<std::string>{"real.cfg"});
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +174,32 @@ TEST_CASE("config_match_glob - matches files against glob pattern", "[config][in
 // ---------------------------------------------------------------------------
 // resolve_active_files - core integration tests
 // ---------------------------------------------------------------------------
+
+TEST_CASE("resolve_active_files - a file included from two places is read twice",
+          "[config][includes]") {
+    std::map<std::string, std::string> files = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[include common.cfg]\n"},
+        {"b.cfg", "[include common.cfg]\n[include b.cfg]\n"},
+        {"common.cfg", "[gcode_macro X]\ngcode: G28\n"},
+    };
+
+    std::vector<ConfigSegment> read_order;
+    auto active = resolve_active_files(files, "printer.cfg", 5, &read_order);
+
+    REQUIRE(active.size() == 4);
+    std::vector<std::string> common_reads;
+    for (const auto& segment : read_order) {
+        if (segment.file == "common.cfg") {
+            common_reads.push_back(segment.file);
+        }
+    }
+    REQUIRE(common_reads.size() == 2);
+    // b.cfg including itself is recursion, which Klipper refuses: read once.
+    REQUIRE(std::count_if(read_order.begin(), read_order.end(), [](const ConfigSegment& s) {
+                return s.file == "b.cfg" && s.begin == 0;
+            }) == 1);
+}
 
 TEST_CASE("resolve_active_files - determines active config files", "[config][includes]") {
     SECTION("Simple chain - one include") {
@@ -341,7 +376,7 @@ struct DeferredDownloads {
     struct Pending {
         std::string path;
         std::function<void(std::string)> ok;
-        std::function<void(std::string)> fail;
+        std::function<void(std::string, bool)> fail;
     };
 
     std::map<std::string, std::string> server;
@@ -351,7 +386,7 @@ struct DeferredDownloads {
 
     ConfigDownloadFn fn() {
         return [this](const std::string& path, std::function<void(std::string)> ok,
-                      std::function<void(std::string)> fail) {
+                      std::function<void(std::string, bool)> fail) {
             requested.push_back(path);
             pending.push_back({path, std::move(ok), std::move(fail)});
             max_outstanding = std::max(max_outstanding, pending.size());
@@ -378,7 +413,7 @@ struct DeferredDownloads {
             if (it->path == path) {
                 Pending p = std::move(*it);
                 pending.erase(it);
-                p.fail("could not be queued");
+                p.fail("connection reset", false);
                 return true;
             }
         }
@@ -504,11 +539,11 @@ TEST_CASE("download_include_graph - a download rejected before it returns report
     download_include_graph(
         listing, "printer.cfg",
         [&server](const std::string& path, std::function<void(std::string)> ok,
-                  std::function<void(std::string)> fail) {
+                  std::function<void(std::string, bool)> fail) {
             if (path == "printer.cfg")
                 ok(server.at(path));
             else
-                fail("HTTP request could not be queued");
+                fail("HTTP request could not be queued", true);
         },
         [&](const std::set<std::string>&, const std::map<std::string, std::string>&) {
             ++completions;
@@ -535,11 +570,11 @@ TEST_CASE("download_include_graph - a full queue is backpressure while downloads
     download_include_graph(
         dl.listing(), "printer.cfg",
         [&](const std::string& path, std::function<void(std::string)> ok,
-            std::function<void(std::string)> fail) {
+            std::function<void(std::string, bool)> fail) {
             if (path == "c.cfg" && rejections_left > 0) {
                 --rejections_left;
                 dl.requested.push_back(path);
-                fail("HTTP request could not be queued");
+                fail("HTTP request could not be queued", true);
                 return;
             }
             deferred(path, std::move(ok), std::move(fail));
@@ -595,4 +630,40 @@ TEST_CASE("download_include_graph - a file included by two parents is fetched on
     REQUIRE(r.completions == 1);
     CHECK(std::count(dl.requested.begin(), dl.requested.end(), "shared.cfg") == 1);
     CHECK(r.active.count("shared.cfg") == 1);
+}
+
+TEST_CASE("download_include_graph - a request refused for anything but a full queue is not retried",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[a]\n"},
+        {"b.cfg", "[b]\n"},
+    };
+    auto deferred = dl.fn();
+    GraphResult r;
+    download_include_graph(
+        dl.listing(), "printer.cfg",
+        [&](const std::string& path, std::function<void(std::string)> ok,
+            std::function<void(std::string, bool)> fail) {
+            if (path == "b.cfg") {
+                dl.requested.push_back(path);
+                fail("invalid path", false); // before returning, with a.cfg in flight
+                return;
+            }
+            deferred(path, std::move(ok), std::move(fail));
+        },
+        [&r](const std::set<std::string>&, const std::map<std::string, std::string>&) {
+            ++r.completions;
+        },
+        [&r](const std::string& err) {
+            ++r.errors;
+            r.error = err;
+        });
+    dl.answer_all();
+
+    CHECK(r.completions == 0);
+    REQUIRE(r.errors == 1);
+    CHECK(r.error.find("b.cfg") != std::string::npos);
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "b.cfg") == 1);
 }

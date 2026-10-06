@@ -57,7 +57,10 @@ constexpr float kStillSupersample = 2.0f;
 constexpr glm::vec4 DEFAULT_FILAMENT_COLOR{0.15f, 0.65f, 0.60f, 1.0f};
 
 // Ghost layer default opacity (out of 255)
-constexpr uint8_t DEFAULT_GHOST_OPACITY = 5; // ~2% opacity — ghost layers should barely be visible
+/// ~2% opacity: ghost layers should barely be visible. Keep it at 3 or above: a
+/// ghost fragment over a solid pixel tops out near 255 - opacity, and 2 or 1
+/// would land on the excluded (253) or selected (254) alpha tag.
+constexpr uint8_t DEFAULT_GHOST_OPACITY = 5;
 
 // Frame-skip epsilon for float comparisons
 constexpr float ANGLE_EPSILON = 1e-5f;
@@ -245,6 +248,14 @@ class GCodeGLESRenderer {
                                            const ParsedGCodeFile& gcode,
                                            const GCodeCamera& camera) const;
 
+    /// World point -> widget-local pixel in the image on screen now.
+    ///
+    /// That image can lag the camera: the last finished frame stays up during
+    /// VBO upload, render deferral and refinement, so this projects through the
+    /// MVP that image was rendered with, not the live one. nullopt before any
+    /// image, and behind the camera.
+    std::optional<glm::vec2> project_to_shown_image(const glm::vec3& world) const;
+
     // ====== Ghost Layer / Print Progress ======
 
     void set_print_progress_layer(int current_layer);
@@ -330,7 +341,8 @@ class GCodeGLESRenderer {
     int draw_layers(const std::vector<LayerVBO>& vbos, int layer_start, int layer_end,
                     float color_scale, float alpha, int stride = 1,
                     size_t max_triangles = std::numeric_limits<size_t>::max());
-    void blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
+    /// @param overlays_drawn False for a moving frame, which skips the overlay passes.
+    void blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords, bool overlays_drawn);
     void draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
 
     /// Crash-loop breaker (Layer 2). arm_gpu_guard() writes a persistent guard
@@ -386,6 +398,35 @@ class GCodeGLESRenderer {
      */
     void render_selection_tag(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
                               int layer_start, int layer_end);
+
+    /**
+     * @brief Grey out the excluded objects and tag them for the red hatch.
+     *
+     * Re-draws each excluded object's runs with the lit program in flat grey
+     * (LEQUAL, so only where it is frontmost), then writes kExcludedAlpha over
+     * the solid range for stroke_exclusion_hatch() to find in the readback. The
+     * ghost is left alone: re-blending its ~2% layers doubles their density and
+     * whitens whatever they cover. Runs before
+     * render_selection_tag(), whose tag wins on an object that is both.
+     */
+    void render_excluded(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
+                         int solid_start, int solid_end);
+
+    /// Interned-index lookup of `names` in `gcode`; empty when none of them is in it.
+    static std::vector<bool> object_mask(const ParsedGCodeFile& gcode,
+                                         const std::unordered_set<std::string>& names);
+
+    /// Draw every object run in [layer_start, layer_end] whose object is set in
+    /// `mask`, with the currently bound program. `a_normal` < 0 binds position only.
+    size_t draw_object_runs(const std::vector<bool>& mask, int layer_start, int layer_end,
+                            int a_position, int a_normal);
+
+    /// Overwrite the alpha byte of `mask`'s visible pixels with `tag`.
+    void write_alpha_tag(const std::vector<bool>& mask, const glm::mat4& mvp_dequant,
+                         int layer_start, int layer_end, uint8_t tag);
+
+    /// One glGetError() for an overlay pass; on a fatal error, fall back to 2D.
+    bool check_overlay_error(const char* pass);
 
     // ====== Frame Skip ======
 
@@ -511,6 +552,15 @@ class GCodeGLESRenderer {
 
     /// Reads the upload flag and selection sets without a GL context.
     friend class GCodeGLESRendererTestAccess;
+
+    /// The FBO holds a finished frame drawn with frame_mvp_, and it is what
+    /// the widget shows until the next one.
+    void latch_shown_image(int width, int height);
+    glm::mat4 frame_mvp_{1.0f}; ///< MVP of the last setup_frame()
+    glm::mat4 shown_mvp_{1.0f};
+    int shown_width_ = 0;
+    int shown_height_ = 0;
+    bool has_shown_image_ = false;
 
     // ====== Configuration ======
 

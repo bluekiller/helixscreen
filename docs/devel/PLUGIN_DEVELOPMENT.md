@@ -121,8 +121,9 @@ Each `widgets` entry:
 | `component` | string | required | `<id>__<name>`, a file in `ui/` |
 | `icon` | string | `puzzle_outline` | an icon name from `include/ui_icon_codepoints.h` |
 | `description` | string | empty | catalog help text |
-| `colspan`, `rowspan` | integer | `1` | 1 to 8 grid cells |
-| `max_colspan`, `max_rowspan` | integer | `0` | `0` = not resizable on that axis; otherwise `colspan` to 8 |
+| `colspan`, `rowspan` | number | `1` | 1 to 8 grid cells; whole cells unless `half_cells` |
+| `max_colspan`, `max_rowspan` | number | `0` | `0` = not resizable on that axis; otherwise `colspan` to 8 |
+| `half_cells` | boolean | `false` | resizes in half cells, and the spans above may be written as halves (`1.5`) |
 
 Widget tiles appear in the home panel's widget catalog under the Plugins category, never
 enabled by default, one instance each. A tile's saved placement survives a disabled or
@@ -270,7 +271,7 @@ optional:
 |---|---|
 | `on_attach()` | the tile's tree enters the home panel |
 | `on_detach()` | the tile's tree leaves it |
-| `on_size(cols, rows, w, h)` | `cols`/`rows` in whole cells, `w`/`h` in pixels |
+| `on_size(cols, rows, w, h)` | `cols`/`rows` in cells (a `half_cells` tile can get `1.5`), `w`/`h` in pixels |
 | `on_activate()` / `on_deactivate()` | the page holding the tile is shown / hidden |
 
 ### helix.canvas (`src/plugin/lua_bind_canvas.cpp`)
@@ -402,7 +403,7 @@ memory cap comes back as an error.
 | Call | Permission | Returns | Notes |
 |---|---|---|---|
 | `helix.storage.get(key)` | `storage` | value or `nil` | one JSON object in `plugin-data/<id>.json` beside the app settings; invalid JSON starts empty |
-| `helix.storage.set(key, value)` | `storage` | | `value` of `nil` erases the key; the whole store is capped at 256 KB |
+| `helix.storage.set(key, value)` | `storage` | | `value` of `nil` erases the key; the whole store is capped at 256 KB. Changes reach disk about 0.5 s later, one write per burst, and on unload or shutdown; a SIGTERM (supervisor kill) inside that 0.5 s loses them |
 
 ### helix.settings (`src/plugin/lua_bind_io.cpp`)
 
@@ -473,7 +474,7 @@ approval* instead of loading; enabling it again approves only the new lines.
 
 | Limit | Value | Source |
 |---|---|---|
-| Time per Lua entry | 50 ms; once tripped, no depth of `pcall` holds the entry open | `include/lua_runtime.h#LuaRuntime/Limits`, `src/plugin/lua_runtime.cpp#budget_hook` |
+| Time per Lua entry | 50 ms of the main thread's CPU time, so a busy machine cannot trip it, or 1 s in all, which bounds an entry stalled off-CPU; once tripped, no depth of `pcall` holds the entry open | `include/lua_runtime.h#LuaRuntime/Limits`, `src/plugin/lua_runtime.cpp#budget_hook` |
 | Memory per plugin | the manifest's `memory_mb` (1-64, default 2) | `src/plugin/plugin_host.cpp#load` |
 | Memory, all plugins | min(RAM / 16, 64 MB); a plugin that does not fit stays *over memory budget* | `src/plugin/plugin_host.cpp#plugin_memory_budget` |
 | Errors | the third within 60 s faults the plugin | `src/plugin/lua_runtime.cpp#report_error` |

@@ -1,5 +1,7 @@
 locale: it
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (tempo scaduto)'
   ' frames': ' fotogrammi'
   ' left': ' rimanente'
@@ -321,6 +323,7 @@ translations:
   Backup spool switching state unknown: Stato del cambio a bobina di riserva sconosciuto
   Barcode Scanner: Scanner codici a barre
   Base: Riferimento
+  Based on the newest {} prints: 'Basato sulle {} stampe più recenti'
   Batch load failed: Caricamento multiplo non riuscito
   Batch unload failed: Scaricamento multiplo non riuscito
   Beacon auto-calibrate sent: Beacon auto-calibrazione inviata
@@ -870,16 +873,16 @@ translations:
   Danger: Pericolo
   Danger Zone: Zona pericolosa
   Dark Mode: Modalità scura
-  Database: Database
   Date (newest): Data (più recente)
   Date (oldest): Data (più vecchio)
   Day: Giorno
   Debug: Debug
+  Deep Black: Nero intenso
   Default: 'Predefinito'
   Default Parameters: 'Parametri predefiniti'
   Default border thickness: Spessore bordo predefinito
-  'Default: %d-%d°C nozzle, %d°C bed': 'Predefinito: %d-%d°C ugello, %d°C piano'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Predefinito: %d-%d°C ugello, %d°C piano, %d°C camera'
+  'Default: %s nozzle, %d°C bed': 'Predefinito: %s ugello, %d°C piano'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Predefinito: %s ugello, %d°C piano, %d°C camera'
   Defaults restored: Predefiniti ripristinati
   Define macros in your printer.cfg: Definire le macro nel proprio printer.cfg
   Delete: Elimina
@@ -2239,6 +2242,7 @@ translations:
   Options: Opzioni
   Or Enter Manually: Oppure inserisci manualmente
   Or instead of turning the others: Oppure, invece di ruotare le altre
+  Original file location unknown: Posizione del file originale sconosciuta
   Oscillating... cycle %d/%d: Oscillazione... ciclo %d/%d
   Outcome: Esito
   Output Device: Dispositivo di uscita
@@ -2467,7 +2471,6 @@ translations:
   Printer command '{}' timed out after {}ms: Comando stampante '{}' scaduto dopo {} ms
   Printer connection unavailable: Connessione alla stampante non disponibile
   Printer database format error: Errore nel formato del database della stampante
-  Printer database is corrupt: Il database della stampante è corrotto
   Printer default: Predefinito stampante
   Printer didn't respond — make sure it's on and in range: La stampante non ha risposto
     — assicurati che sia accesa e nel raggio d'azione

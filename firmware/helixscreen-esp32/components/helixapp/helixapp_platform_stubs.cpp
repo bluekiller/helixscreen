@@ -81,6 +81,7 @@ void UsbManager::set_drive_callback(DriveCallback) {}
 #include "ui_modal.h"
 
 #include "config.h"
+#include "platform_capabilities.h"
 #include "platform_info.h"
 #include "src/xml/lv_xml.h"
 #include "static_subject_registry.h"
@@ -105,6 +106,7 @@ SubjectLifetime get_app_globals_subjects_lifetime() {
 // Wizard-active gate (app_globals.cpp on Linux). ESP32 has no first-run wizard
 // flow driving it, so it initializes to 0 and only PLR/offer code observes it.
 static lv_subject_t g_wizard_active_subject;
+static lv_subject_t g_platform_tier_subject;
 lv_subject_t& get_wizard_active_subject() {
     return g_wizard_active_subject;
 }
@@ -128,6 +130,10 @@ void app_globals_init_subjects() {
                         helix::platform_host_power_supported() ? 1 : 0);
     lv_xml_register_subject(nullptr, "platform_host_power_supported",
                             &g_host_power_supported_subject);
+    // overlay_panel.xml binds square corners below STANDARD.
+    lv_subject_init_int(&g_platform_tier_subject,
+                        static_cast<int>(helix::PlatformCapabilities::detect().tier));
+    lv_xml_register_subject(nullptr, "platform_tier", &g_platform_tier_subject);
     helix::ui::modal_init_subjects();
     g_subjects_initialized = true;
     StaticSubjectRegistry::instance().register_deinit("AppGlobals", app_globals_deinit_subjects);
@@ -151,11 +157,15 @@ void set_moonraker_manager(MoonrakerManager* manager) {
     g_moonraker_manager = manager;
 }
 
-// Owned by the app lifecycle on Linux (app_globals.cpp); absent in the slice.
-// All are pointer-returning with documented may-be-null contracts.
+// app_boot.cpp constructs the PrintHistoryManager alongside JobQueueState and
+// publishes it here; get returns what set stored.
 class PrintHistoryManager;
+static PrintHistoryManager* g_print_history_manager = nullptr;
 PrintHistoryManager* get_print_history_manager() {
-    return nullptr;
+    return g_print_history_manager;
+}
+void set_print_history_manager(PrintHistoryManager* manager) {
+    g_print_history_manager = manager;
 }
 // Real accessor (mirrors src/app_globals.cpp): SubjectInitializer constructs the
 // controller in init_panel_subjects() and registers it as a PanelWidgetManager

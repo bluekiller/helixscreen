@@ -532,10 +532,10 @@ path inside the repo outside `.worktrees/`.
 The script optimizes for **fast builds** by sharing artifacts from the main tree:
 
 1. **Symlinks the shared lib/ submodules, copies the rewritten ones** — the third-party
-   submodules nothing edits are symlinked (no clone/configure time). The three in
+   submodules nothing edits are symlinked (no clone/configure time). The four in
    `LIB_PRIVATE_SUBMODULES` get a private per-worktree checkout instead: `lib/helix-xml`
    because it is **ours** and CLAUDE.md says to edit it directly rather than carry a patch,
-   and `lib/lvgl` + `lib/libhv` because `patches/` rewrites them and `patches/` is
+   and `lib/lvgl`, `lib/libhv` and `lib/lua` because `patches/` rewrites them and `patches/` is
    per-branch. Sharing one checkout across branches that disagree about either is
    unsatisfiable — `make reapply-patches` in one tree redefines what every other tree
    compiles, and each tree's correct action invalidates the other's
@@ -561,7 +561,7 @@ The script optimizes for **fast builds** by sharing artifacts from the main tree
 9. **Configures git** — `.git/info/exclude` + `--skip-worktree` keep `git status` clean despite the symlinks. `--skip-worktree` covers the symlinked submodules only: on a private checkout it would hide a real change of pinned revision from `git status`, `git add` and the revision check.
 10. **Reconciles patches** — `make reapply-patches` runs in the new worktree when this branch's `patches/` differs from the main tree's, or when a private submodule landed somewhere the main tree's patches do not describe. Otherwise the copy already carries them, and reapplying is not free: `build/.patches-applied` is a prerequisite of the PCH and therefore of every object.
 
-**Trade-off**: `lib/lvgl`, `lib/libhv` and `lib/helix-xml` are yours to modify in place. For any other `lib/` entry, un-symlink that specific directory first (`rm lib/<name> && cp -a $MAIN/lib/<name> lib/`) or you are editing the main tree's copy.
+**Trade-off**: `lib/lvgl`, `lib/libhv`, `lib/lua` and `lib/helix-xml` are yours to modify in place. For any other `lib/` entry, un-symlink that specific directory first (`rm lib/<name> && cp -a $MAIN/lib/<name> lib/`) or you are editing the main tree's copy.
 
 > **Build outputs are cloned, never symlinked.** `libhv.a` and `lvgl_pch.h.gch` used to be
 > symlinks into the main tree. They are build *outputs*, so make rewrites them — and both `cp`

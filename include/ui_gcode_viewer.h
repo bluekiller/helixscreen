@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ui_exclude_object_badges.h"
+
 #include "gcode_pause_scan.h"
 
 #include <lvgl/lvgl.h>
@@ -431,6 +433,17 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
                                           const std::unordered_set<std::string>& object_names);
 
 /**
+ * @brief Numbered badges drawn over each object while exclude mode is open
+ * @param obj Viewer widget
+ * @param badges From helix::ui::compute_object_badges(); empty hides them
+ *
+ * Drawn after the 2D/3D render at each anchor's projected point, so they follow
+ * pan, zoom and rotation. A tap on a badge picks the object it labels.
+ */
+// NAMESPACE_OK: joins this file's global ui_gcode_viewer_* API
+void ui_gcode_viewer_set_object_badges(lv_obj_t* obj, std::vector<helix::ui::ObjectBadge> badges);
+
+/**
  * @brief Callback type for object tap events
  * @param viewer The viewer widget
  * @param object_name Name of the tapped object (empty if no object hit)
@@ -654,6 +667,23 @@ struct GcodeViewerWatchdogTrack {
 /// reaches through a 2D render stalling on a live print.
 GcodeViewerWatchdogTrack gcode_viewer_watchdog_track(lv_obj_t* viewer);
 void gcode_viewer_set_watchdog_track(lv_obj_t* viewer, const GcodeViewerWatchdogTrack& track);
+
+/// Install @p file as a finished load drawn by the 2D renderer, past the first
+/// frame, so the next refresh runs the real draw pass. Returns that renderer.
+helix::gcode::GCodeLayerRenderer*
+gcode_viewer_show_2d(lv_obj_t* viewer, std::unique_ptr<helix::gcode::ParsedGCodeFile> file);
+
+/// The exclude badges the viewer holds and the fill colour it resolved for each.
+std::vector<helix::ui::ObjectBadge> gcode_viewer_object_badges(lv_obj_t* viewer);
+std::vector<lv_color_t> gcode_viewer_badge_fills(lv_obj_t* viewer);
+std::vector<lv_color_t> gcode_viewer_badge_texts(lv_obj_t* viewer);
+
+/// A badge the last frame drew: its object and widget-local centre.
+struct GcodeViewerDrawnBadge {
+    std::string name;
+    glm::vec2 center{0.0f, 0.0f};
+};
+std::vector<GcodeViewerDrawnBadge> gcode_viewer_drawn_badges(lv_obj_t* viewer);
 } // namespace helix::test_access
 
 #endif

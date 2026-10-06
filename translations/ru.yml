@@ -1,5 +1,7 @@
 locale: ru
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (время ожидания истекло)'
   ' frames': ' кадров'
   ' left': ' осталось'
@@ -315,6 +317,7 @@ translations:
   Backup spool switching state unknown: 'Резервная катушка: состояние неизвестно'
   Barcode Scanner: Сканер штрих-кодов
   Base: Опорный
+  Based on the newest {} prints: 'По последним печатям ({})'
   Batch load failed: Ошибка пакетной загрузки
   Batch unload failed: Ошибка пакетной выгрузки
   Beacon auto-calibrate sent: Beacon автокалибровка отправлена
@@ -862,16 +865,16 @@ translations:
   Danger: Опасность
   Danger Zone: Опасная зона
   Dark Mode: Тёмный режим
-  Database: База данных
   Date (newest): Дата (новые)
   Date (oldest): Дата (старые)
   Day: День
   Debug: Отладка
+  Deep Black: Глубокий чёрный
   Default: 'По умолчанию'
   Default Parameters: 'Параметры по умолчанию'
   Default border thickness: Толщина границы по умолчанию
-  'Default: %d-%d°C nozzle, %d°C bed': 'По умолчанию: сопло %d-%d°C, стол %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'По умолчанию: сопло %d-%d°C, стол %d°C, камера %d°C'
+  'Default: %s nozzle, %d°C bed': 'По умолчанию: сопло %s, стол %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'По умолчанию: сопло %s, стол %d°C, камера %d°C'
   Defaults restored: Настройки по умолчанию восстановлены
   Define macros in your printer.cfg: Определите макросы в вашем printer.cfg
   Delete: Удалить
@@ -2218,6 +2221,7 @@ translations:
   Options: Параметры
   Or Enter Manually: Или введите вручную
   Or instead of turning the others: Или вместо вращения остальных винтов
+  Original file location unknown: Расположение исходного файла неизвестно
   Oscillating... cycle %d/%d: Осцилляция... цикл %d/%d
   Outcome: Результат
   Output Device: Устройство вывода
@@ -2445,7 +2449,6 @@ translations:
   Printer command '{}' timed out after {}ms: Время ожидания команды принтера '{}' истекло через {} мс
   Printer connection unavailable: Подключение к принтеру недоступно
   Printer database format error: Ошибка формата базы данных принтеров
-  Printer database is corrupt: База данных принтеров повреждена
   Printer default: По умолчанию для принтера
   Printer didn't respond — make sure it's on and in range: Принтер не ответил — убедитесь,
     что он включён и в зоне доступа

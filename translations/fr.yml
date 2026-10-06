@@ -1,5 +1,7 @@
 locale: fr
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (délai dépassé)'
   ' frames': ' images'
   ' left': ' restant'
@@ -325,6 +327,7 @@ translations:
   Backup spool switching state unknown: État du passage à la bobine de secours inconnu
   Barcode Scanner: Scanner de codes-barres
   Base: Référence
+  Based on the newest {} prints: 'Basé sur les {} impressions les plus récentes'
   Batch load failed: Échec du chargement groupé
   Batch unload failed: Échec du déchargement groupé
   Beacon auto-calibrate sent: Beacon auto-calibrage envoyé
@@ -880,16 +883,16 @@ translations:
   Danger: Danger
   Danger Zone: Zone dangereuse
   Dark Mode: Mode sombre
-  Database: Base de données
   Date (newest): Date (plus récent)
   Date (oldest): Date (plus ancien)
   Day: Jour
   Debug: Débogage
+  Deep Black: Noir profond
   Default: 'Par défaut'
   Default Parameters: 'Paramètres par défaut'
   Default border thickness: Épaisseur de bordure par défaut
-  'Default: %d-%d°C nozzle, %d°C bed': 'Par défaut : buse %d-%d°C, plateau %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Par défaut : buse %d-%d°C, plateau %d°C, enceinte %d°C'
+  'Default: %s nozzle, %d°C bed': 'Par défaut : buse %s, plateau %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Par défaut : buse %s, plateau %d°C, enceinte %d°C'
   Defaults restored: Valeurs par défaut restaurées
   Define macros in your printer.cfg: Définissez les macros dans votre printer.cfg
   Delete: Supprimer
@@ -2254,6 +2257,7 @@ translations:
   Options: Options
   Or Enter Manually: Ou entrer manuellement
   Or instead of turning the others: Ou, au lieu de tourner les autres
+  Original file location unknown: Emplacement du fichier original inconnu
   Oscillating... cycle %d/%d: Oscillation... cycle %d/%d
   Outcome: Résultat
   Output Device: Périphérique de sortie
@@ -2485,7 +2489,6 @@ translations:
   Printer command '{}' timed out after {}ms: La commande d'imprimante '{}' a expiré après {} ms
   Printer connection unavailable: Connexion à l'imprimante indisponible
   Printer database format error: Erreur de format de la base de données d'imprimantes
-  Printer database is corrupt: La base de données d'imprimantes est corrompue
   Printer default: Par défaut de l’imprimante
   Printer didn't respond — make sure it's on and in range: L'imprimante n'a pas répondu
     — vérifiez qu'elle est allumée et à portée

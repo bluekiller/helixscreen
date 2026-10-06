@@ -494,16 +494,16 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     PrinterState state;
     MoonrakerClientMock client;
     MoonrakerAPIMock api(client, state);
-    api.spoolman_mock().set_mock_spoolman_enabled(true);
+    client.set_mock_spoolman_enabled(true);
 
     // Authoritative record whose vendor/material differ from the slot's initial
     // values, so a fired fetch is observable as a working_info_ change.
-    api.spoolman_mock().get_mock_spools().clear();
+    client.spoolman_mock().get_mock_spools().clear();
     SpoolInfo authoritative;
     authoritative.id = 7;
     authoritative.vendor = "SpoolmanVendor";
     authoritative.material = "SpoolmanPETG";
-    api.spoolman_mock().get_mock_spools().push_back(authoritative);
+    client.spoolman_mock().get_mock_spools().push_back(authoritative);
 
     SlotInfo slot = tracked_slot(); // spoolman_id = 7
     slot.brand = "SlotBrand";
@@ -796,10 +796,10 @@ TEST_CASE_METHOD(LVGLUITestFixture, "spool-edit surfaces a Spoolman-only vendor 
     PrinterState state;
     MoonrakerClientMock client;
     MoonrakerAPIMock api(client, state);
-    api.spoolman_mock().set_mock_spoolman_enabled(true);
+    client.set_mock_spoolman_enabled(true);
     // A vendor that exists on the Spoolman server but NOT in the bundled catalog.
-    api.spoolman_mock().get_mock_spools().clear();
-    api.spoolman_mock().add_vendor(42, "PolyTerra");
+    client.spoolman_mock().get_mock_spools().clear();
+    client.spoolman_mock().add_vendor(42, "PolyTerra");
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
@@ -1618,7 +1618,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     linked_a.vendor = "Bambu Lab";
     linked_a.material = "ASA";
     linked_a.color_hex = "8A949E";
-    api.spoolman_mock().get_mock_spools().push_back(linked_a);
+    client.spoolman_mock().get_mock_spools().push_back(linked_a);
     // The backend mirrors the overlay's initial info, the way a live backend
     // holds the tracked slot the editor was opened on.
     backend->sync_external_identity(0, tracked_slot());
@@ -1664,10 +1664,10 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     CHECK(captured.slot_info.material == "PETG");
     // The old spool A was never touched: no identity/weight PATCH, no filament
     // repoint, no new filament created.
-    CHECK(api.spoolman_mock().spool_updates.empty());
-    CHECK(api.spoolman_mock().filament_updates.empty());
+    CHECK(client.spoolman_mock().spool_updates.empty());
+    CHECK(client.spoolman_mock().filament_updates.empty());
     // The new spool is registered as active on the server.
-    CHECK(api.spoolman_mock().get_mock_active_spool_id() == 22);
+    CHECK(client.spoolman_mock().get_mock_active_spool_id() == 22);
 
     get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
@@ -1687,7 +1687,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     linked_a.vendor = "Bambu Lab";
     linked_a.material = "ASA";
     linked_a.color_hex = "8A949E";
-    api.spoolman_mock().get_mock_spools().push_back(linked_a);
+    client.spoolman_mock().get_mock_spools().push_back(linked_a);
     backend->sync_external_identity(0, tracked_slot());
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
@@ -1734,9 +1734,9 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     CHECK(fired);
     CHECK(captured.saved);
     CHECK(captured.slot_info.spoolman_id == 22);
-    CHECK(api.spoolman_mock().spool_updates.empty());
-    CHECK(api.spoolman_mock().filament_updates.empty());
-    CHECK(api.spoolman_mock().get_mock_active_spool_id() == 22);
+    CHECK(client.spoolman_mock().spool_updates.empty());
+    CHECK(client.spoolman_mock().filament_updates.empty());
+    CHECK(client.spoolman_mock().get_mock_active_spool_id() == 22);
 
     get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
@@ -1799,7 +1799,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     REQUIRE(after.spoolman_id == 169);
     // ...AND the server active-spool sync fired — the old direct-write arm
     // never did, which is exactly the branch regression this pins.
-    REQUIRE(api.spoolman_mock().get_mock_active_spool_id() == 169);
+    REQUIRE(client.spoolman_mock().get_mock_active_spool_id() == 169);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -1820,7 +1820,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     linked_a.vendor = "Bambu Lab";
     linked_a.material = "ASA";
     linked_a.color_hex = "8A949E";
-    api.spoolman_mock().get_mock_spools().push_back(linked_a);
+    client.spoolman_mock().get_mock_spools().push_back(linked_a);
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
@@ -1852,8 +1852,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // modal is up (completion pending) or the fallback save fired against the
     // linked spool — but never a silent no-op relink close.
     const bool confirm_pending = !ModalStack::instance().stack_empty() && !fired;
-    const bool save_ran =
-        !api.spoolman_mock().spool_updates.empty() || !api.spoolman_mock().filament_updates.empty();
+    const bool save_ran = !client.spoolman_mock().spool_updates.empty() ||
+                          !client.spoolman_mock().filament_updates.empty();
     CHECK((confirm_pending || save_ran));
 
     // Dismiss any modal so teardown is clean.
@@ -1897,7 +1897,7 @@ TEST_CASE_METHOD(
     linked_a.vendor = "Bambu Lab";
     linked_a.material = "ASA";
     linked_a.color_hex = "8A949E";
-    api.spoolman_mock().get_mock_spools().push_back(linked_a);
+    client.spoolman_mock().get_mock_spools().push_back(linked_a);
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
@@ -1949,8 +1949,8 @@ TEST_CASE_METHOD(
     CHECK(fire_count == 0);
     CHECK(access.view() == AmsEditOverlay::VIEW_SPOOL_EDIT);
     CHECK(ModalStack::instance().stack_empty());
-    CHECK(api.spoolman_mock().spool_updates.empty());
-    CHECK(api.spoolman_mock().filament_updates.empty());
+    CHECK(client.spoolman_mock().spool_updates.empty());
+    CHECK(client.spoolman_mock().filament_updates.empty());
     // The staged edit is still there (Cancel didn't discard it).
     CHECK(access.working_info().color_rgb == 0x112233u);
     // The catalog selector must still be functional — not stranded inert by
@@ -1982,7 +1982,7 @@ TEST_CASE_METHOD(
     // of the change — before it, a different physical spool in a linked lane
     // could only overwrite the old spool's identity.
     CHECK(captured.slot_info.spoolman_id != 0);
-    for (const auto& rec : api.spoolman_mock().spool_updates) {
+    for (const auto& rec : client.spoolman_mock().spool_updates) {
         CHECK(rec.spool_id != 7); // linked_a.id — never patched
     }
 
@@ -2012,7 +2012,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     linked_a.material = "ASA";
     linked_a.color_hex = "8A949E";
     linked_a.remaining_weight_g = 1000.0;
-    api.spoolman_mock().get_mock_spools().push_back(linked_a);
+    client.spoolman_mock().get_mock_spools().push_back(linked_a);
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
@@ -2058,20 +2058,19 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     CHECK(fire_count == 1);
 
-    // Count every PATCH that set the remaining weight, across BOTH paths: the
-    // combined update_spoolman_spool() body and the dedicated
-    // update_spoolman_spool_weight() path.
+    // Count every PATCH that set the remaining weight, weight-only or
+    // combined with other fields.
     // Confirming now creates a NEW spool instead of patching the linked one, so
     // the invariant this test guards changes shape: the linked spool must
     // receive NO weight PATCH at all. (The single-PATCH rule still applies to
     // the update path, which the LinkIntent tests in
     // test_spoolman_slot_saver.cpp cover directly.)
     int linked_weight_patches = 0;
-    for (const auto& rec : api.spoolman_mock().weight_updates) {
+    for (const auto& rec : client.spoolman_mock().weight_updates) {
         if (rec.spool_id == 7)
             linked_weight_patches++;
     }
-    for (const auto& rec : api.spoolman_mock().spool_updates) {
+    for (const auto& rec : client.spoolman_mock().spool_updates) {
         if (rec.spool_id == 7 && rec.patch.contains("remaining_weight"))
             linked_weight_patches++;
     }
@@ -2482,7 +2481,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     seed.remaining_weight_g = 500.0;
     seed.spool_weight_g = 200.0;
     seed.initial_weight_g = 1000.0;
-    api.spoolman_mock().get_mock_spools().push_back(seed);
+    client.spoolman_mock().get_mock_spools().push_back(seed);
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
@@ -2539,7 +2538,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(captured.slot_info.spoolman_id == 7); // stayed tracked
 
     // The logistics PATCH reached Spoolman with the new price.
-    const auto& updates = api.spoolman_mock().spool_updates;
+    const auto& updates = client.spoolman_mock().spool_updates;
     bool price_patched = false;
     for (const auto& u : updates) {
         if (u.patch.contains("price") && std::abs(u.patch["price"].get<double>() - 29.99) < 0.001) {
@@ -2602,9 +2601,9 @@ TEST_CASE("build_spool_patches splits spool-level vs filament-level fields",
     CHECK(spool_patch["lot_nr"] == "LOT-B");
     CHECK(spool_patch["location"] == "Shelf B");
     CHECK(spool_patch["comment"] == "dried 4h");
-    CHECK(spool_patch.count("spool_weight") == 0);
+    CHECK(spool_patch["spool_weight"] == Catch::Approx(200.0));
 
-    CHECK(filament_patch["spool_weight"] == Catch::Approx(200.0));
+    CHECK(filament_patch.count("spool_weight") == 0);
     CHECK(filament_patch["color_hex"] == "#00FF00");
     CHECK(filament_patch.count("remaining_weight") == 0);
 
@@ -2636,7 +2635,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     linked.vendor = "Bambu Lab";
     linked.material = "ASA";
     linked.color_hex = "8A949E";
-    api.spoolman_mock().get_mock_spools().push_back(linked);
+    client.spoolman_mock().get_mock_spools().push_back(linked);
 
     auto* subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(subj != nullptr);
@@ -2759,10 +2758,10 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     CHECK(captured.slot_info.spoolman_id == 22);
     CHECK(captured.slot_info.material == "PETG");
     // No identity/weight PATCH — linking is not editing.
-    CHECK(api.spoolman_mock().spool_updates.empty());
-    CHECK(api.spoolman_mock().filament_updates.empty());
+    CHECK(client.spoolman_mock().spool_updates.empty());
+    CHECK(client.spoolman_mock().filament_updates.empty());
     // The newly linked spool is registered active on the server.
-    CHECK(api.spoolman_mock().get_mock_active_spool_id() == 22);
+    CHECK(client.spoolman_mock().get_mock_active_spool_id() == 22);
 
     get_printer_state().capabilities_state().set_spoolman_available(false);
     UpdateQueue::instance().drain();
@@ -2926,7 +2925,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     linked.vendor = "Generic";
     linked.material = "PLA";
     linked.color_hex = "112233";
-    api.spoolman_mock().get_mock_spools().push_back(linked);
+    client.spoolman_mock().get_mock_spools().push_back(linked);
 
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
@@ -2944,7 +2943,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     process_lvgl(10);
 
     // Every Spoolman request from here on fails.
-    api.spoolman_mock().set_mock_spoolman_enabled(false);
+    client.set_mock_spoolman_enabled(false);
     helix::TextLogCapture log;
 
     // A brand move is an edit Spoolman has to write, and it never prompts.
@@ -3014,8 +3013,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // which is what decides the sentence the user is shown.
     CHECK(log.contains("missing a field it is identified by"));
     CHECK_FALSE(log.contains("Spoolman save failed"));
-    CHECK(api.spoolman_mock().created_spools.empty());
-    CHECK(api.spoolman_mock().created_filaments.empty());
+    CHECK(client.spoolman_mock().created_spools.empty());
+    CHECK(client.spoolman_mock().created_filaments.empty());
 
     NavigationManager::instance().go_back();
     UpdateQueue::instance().drain();
@@ -3063,7 +3062,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     process_lvgl(10);
 
     CHECK_FALSE(fired);
-    CHECK(api.spoolman_mock().created_spools.empty());
+    CHECK(client.spoolman_mock().created_spools.empty());
 
     NavigationManager::instance().go_back();
     UpdateQueue::instance().drain();
@@ -3080,8 +3079,9 @@ namespace {
 /// backend's slot 0. The mock inventory already carries id 7 and a GET serves
 /// the first match, so this states the fields on that record rather than
 /// pushing a second one the reads would never reach.
-void seed_linked_spool(MoonrakerAPIMock& api, AmsBackendMock& backend) {
-    auto& spools = api.spoolman_mock().get_mock_spools();
+void seed_linked_spool(MoonrakerAPIMock& api, MoonrakerClientMock& client,
+                       AmsBackendMock& backend) {
+    auto& spools = client.spoolman_mock().get_mock_spools();
     auto it =
         std::find_if(spools.begin(), spools.end(), [](const SpoolInfo& s) { return s.id == 7; });
     if (it == spools.end()) {
@@ -3125,7 +3125,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     // Spoolman record, which only a fetch writes, and the poll is a whole
     // interval wide. The save is the moment that record is known stale, so it
     // re-reads the spool it just wrote.
-    seed_linked_spool(api, *backend);
+    seed_linked_spool(api, client, *backend);
     const helix::ams::LaneId lane = backend->lane_id(0);
     poll_lane_once(lane);
     REQUIRE(helix::ams::lane_sources(lane).spoolman->remaining_weight_g == 850.0F);
@@ -3155,7 +3155,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
 
     // The save reached Spoolman. Separated from the lane check below so a
     // failure names which of the two halves broke.
-    const auto& spools = api.spoolman_mock().get_mock_spools();
+    const auto& spools = client.spoolman_mock().get_mock_spools();
     const auto served =
         std::find_if(spools.begin(), spools.end(), [](const SpoolInfo& s) { return s.id == 7; });
     REQUIRE(served != spools.end());
@@ -3182,7 +3182,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     // A spool created by the save has never been fetched, so the lane still
     // carries the spool it was bound to before. The read follows the id the
     // commit just bound, not the one the editor opened on.
-    seed_linked_spool(api, *backend);
+    seed_linked_spool(api, client, *backend);
     const helix::ams::LaneId lane = backend->lane_id(0);
     poll_lane_once(lane);
 

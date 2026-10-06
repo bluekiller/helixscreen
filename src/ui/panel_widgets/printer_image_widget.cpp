@@ -12,6 +12,7 @@
 #include "ui_timer_guard.h"
 
 #include "app_globals.h"
+#include "callout_chip.h"
 #include "config.h"
 #include "display_settings_manager.h"
 #include "grid_layout.h"
@@ -86,6 +87,30 @@ constexpr uint32_t GLOW_PULSE_MS = 900;
 void glow_opa_anim_cb(void* glow, int32_t opa) {
     lv_obj_set_style_bg_opa(static_cast<lv_obj_t*>(glow), static_cast<lv_opa_t>(opa), 0);
 }
+
+/// Writes a chip's text, compact while the chips are pinned. True on a change.
+bool publish_callout_text(lv_subject_t* text, const std::string& full) {
+    const bool pinned =
+        lv_subject_get_int(&s_printer_callout_mode) == static_cast<int>(helix::CalloutMode::Pinned);
+    const std::string t = pinned ? helix::ui::compact_callout_text(full) : full;
+    if (t == lv_subject_get_string(text))
+        return false;
+    lv_subject_copy_string(text, t.c_str());
+    return true;
+}
+
+/// The text chips, indexed like PrinterImageWidget::callout_full_text_.
+struct CalloutTextSubject {
+    helix::CalloutKind kind;
+    lv_subject_t* subject;
+};
+const CalloutTextSubject kCalloutTexts[] = {
+    {helix::CalloutKind::Nozzle, &s_callout_nozzle_text},
+    {helix::CalloutKind::Bed, &s_callout_bed_text},
+    {helix::CalloutKind::Chamber, &s_callout_chamber_text},
+    {helix::CalloutKind::Fan, &s_callout_fan_text},
+    {helix::CalloutKind::Toolhead, &s_callout_toolhead_text},
+};
 
 } // namespace
 
@@ -260,10 +285,8 @@ void PrinterImageWidget::detach() {
     nozzle_binder_.unbind();
     bed_binder_.unbind();
     chamber_binder_.unbind();
-    toolhead_binder_.unbind();
     if (widget_obj_) {
-        for (const char* n : {"callout_fan_icon", "callout_toolhead_fan_icon"})
-            helix::ui::fan_spin_stop(lv_obj_find_by_name(widget_obj_, n));
+        helix::ui::fan_spin_stop(lv_obj_find_by_name(widget_obj_, "callout_fan_icon"));
         // The lines point into this instance's arrays, which die with it; a
         // tree that outlives the instance must not keep drawing from them.
         for (const char* n : kLineNames) {
@@ -751,8 +774,8 @@ void PrinterImageWidget::arm_callout_observers() {
     callout_observers_.push_back(helix::ui::observe<int>(
         display.subject_animations_enabled(), this, on_change, display.get_subjects_lifetime()));
     // The nozzle glyph draws the tool number beside it on a multi-tool printer,
-    // which widens the nozzle and toolhead chips. Looked up by the names the
-    // badge binds, so where ToolState never registered them there is no badge.
+    // which widens the nozzle chip. Looked up by the names the badge binds, so
+    // where ToolState never registered them there is no badge.
     const SubjectLifetime tools_life = ToolState::instance().get_subjects_lifetime();
     callout_observers_.push_back(helix::ui::observe<int>(
         lv_xml_get_subject(nullptr, "show_tool_badge"), this,
@@ -765,7 +788,6 @@ void PrinterImageWidget::arm_callout_observers() {
     callout_spin_pct_ = -1;        // fresh icons: the next update sets their spin
     callout_glow_pulsing_ = false; // fresh glow: nothing animates it yet
     nozzle_binder_.bind(chip("callout_chip_nozzle"), ps, HeaterType::Nozzle);
-    toolhead_binder_.bind(chip("callout_chip_toolhead"), ps, HeaterType::Nozzle);
     bed_binder_.bind(chip("callout_chip_bed"), ps, HeaterType::Bed);
     chamber_binder_.bind(chip("callout_chip_chamber"), ps, HeaterType::Chamber);
     update_callouts();
@@ -775,52 +797,51 @@ void PrinterImageWidget::update_callouts() {
     using namespace helix::ui::temperature;
     auto& ps = get_printer_state();
     bool changed = false;
-    const auto set_text = [&](lv_subject_t* text, const std::string& t) {
-        if (t != lv_subject_get_string(text)) {
-            lv_subject_copy_string(text, t.c_str());
-            changed = true;
-        }
+    const auto set_text = [&](CalloutKind k, lv_subject_t* text, const std::string& t) {
+        callout_full_text_[static_cast<size_t>(k)] = t;
+        changed |= publish_callout_text(text, t);
     };
     // A shown subject reads 0 hidden, 1 active, 2 residual (off but still hot).
-    const auto publish = [&](lv_subject_t* shown, int value, lv_subject_t* text,
+    const auto publish = [&](lv_subject_t* shown, int value, CalloutKind k, lv_subject_t* text,
                              const std::string& t) {
         if (lv_subject_get_int(shown) != value) {
             lv_subject_set_int(shown, value);
             changed = true;
         }
         if (text)
-            set_text(text, t);
+            set_text(k, text, t);
     };
     // A heater shows while it has a target, and after that, greyed, while it is
     // still hot enough to burn. The chip reads exactly what the temperature widgets read.
-    const auto heater = [&](int cur, int tgt, bool capable, lv_subject_t* shown,
+    const auto heater = [&](int cur, int tgt, bool capable, lv_subject_t* shown, CalloutKind k,
                             lv_subject_t* text) {
         const int value = !capable ? 0 : tgt > 0 ? 1 : is_residual_hot(cur) ? 2 : 0;
-        publish(shown, value, text, value ? heater_display(cur, tgt).temp : std::string());
+        publish(shown, value, k, text, value ? heater_display(cur, tgt).temp : std::string());
     };
 
     heater(read_int_or_zero(ps.temperature_state().get_active_extruder_temp_subject()),
            read_int_or_zero(ps.temperature_state().get_active_extruder_target_subject()), true,
-           &s_callout_nozzle_shown, &s_callout_nozzle_text);
+           &s_callout_nozzle_shown, CalloutKind::Nozzle, &s_callout_nozzle_text);
     const int bed_cur = read_int_or_zero(ps.temperature_state().get_bed_temp_subject());
     const int bed_tgt = read_int_or_zero(ps.temperature_state().get_bed_target_subject());
-    heater(bed_cur, bed_tgt, true, &s_callout_bed_shown, &s_callout_bed_text);
+    heater(bed_cur, bed_tgt, true, &s_callout_bed_shown, CalloutKind::Bed, &s_callout_bed_text);
     const int bed_heating = heater_display(bed_cur, bed_tgt).state == HeatState::Heating ? 1 : 0;
     lv_subject_set_int(&s_callout_bed_heating, bed_heating);
     heater(read_int_or_zero(ps.temperature_state().get_chamber_temp_subject()),
            read_int_or_zero(ps.temperature_state().get_chamber_effective_target_subject()),
            read_int_or_zero(ps.capabilities_state().subject(Capability::HasChamberHeater)) != 0,
-           &s_callout_chamber_shown, &s_callout_chamber_text);
+           &s_callout_chamber_shown, CalloutKind::Chamber, &s_callout_chamber_text);
 
     const int fan = read_int_or_zero(ps.fan_state().get_fan_speed_subject());
     char fan_buf[8];
     snprintf(fan_buf, sizeof(fan_buf), "%d%%", fan);
-    publish(&s_callout_fan_shown, fan > 0 ? 1 : 0, &s_callout_fan_text, fan > 0 ? fan_buf : "");
+    publish(&s_callout_fan_shown, fan > 0 ? 1 : 0, CalloutKind::Fan, &s_callout_fan_text,
+            fan > 0 ? fan_buf : "");
     const int light_shown =
         read_int_or_zero(printer_has_led_subject()) && helix::led::chamber_light_on() ? 1 : 0;
-    publish(&s_callout_light_shown, light_shown, nullptr, {});
-    set_text(&s_callout_toolhead_text,
-             std::string(lv_subject_get_string(&s_callout_nozzle_text)) + "  " + fan_buf);
+    publish(&s_callout_light_shown, light_shown, CalloutKind::Light, nullptr, {});
+    set_text(CalloutKind::Toolhead, &s_callout_toolhead_text,
+             callout_full_text_[static_cast<size_t>(CalloutKind::Nozzle)] + "  " + fan_buf);
 
     const bool animate = DisplaySettingsManager::instance().get_animations_enabled();
     set_glow_pulse(bed_heating && animate);
@@ -829,13 +850,11 @@ void PrinterImageWidget::update_callouts() {
     const int spin = animate ? fan : 0;
     if (widget_obj_ && spin != callout_spin_pct_) {
         callout_spin_pct_ = spin;
-        for (const char* n : {"callout_fan_icon", "callout_toolhead_fan_icon"}) {
-            lv_obj_t* icon = lv_obj_find_by_name(widget_obj_, n);
-            if (spin > 0)
-                helix::ui::fan_spin_start(icon, spin);
-            else
-                helix::ui::fan_spin_stop(icon);
-        }
+        lv_obj_t* icon = lv_obj_find_by_name(widget_obj_, "callout_fan_icon");
+        if (spin > 0)
+            helix::ui::fan_spin_start(icon, spin);
+        else
+            helix::ui::fan_spin_stop(icon);
     }
     if (changed)
         schedule_callout_layout();
@@ -936,6 +955,11 @@ void PrinterImageWidget::apply_callout_layout() {
             return chrome_w + icons;
         return around_text(icons) + helix::ui::measure_text_px(text.c_str(), text_font) + comfort;
     };
+    // Pinned chips drop their icons and set chip_text in font_xs (the
+    // printer_callout_mode binding in panel_widget_printer_image.xml).
+    const auto compact_w = [&](int icons, const std::string& text) {
+        return helix::ui::compact_callout_chip_w(probe, text, icons);
+    };
     in.chip_h = std::max(lv_font_get_line_height(text_font), lv_font_get_line_height(icon_font)) +
                 lv_obj_get_style_pad_top(probe, LV_PART_MAIN) +
                 lv_obj_get_style_pad_bottom(probe, LV_PART_MAIN) + 2 * border;
@@ -959,8 +983,7 @@ void PrinterImageWidget::apply_callout_layout() {
                                            lv_obj_get_style_text_font(badge, LV_PART_MAIN));
         }
     }
-    const int toolhead_icons = nozzle_icons + col_gap + icon_px("fan");
-    const auto text = [](lv_subject_t* s) { return std::string(lv_subject_get_string(s)); };
+    const auto text = [this](CalloutKind k) { return callout_full_text_[static_cast<size_t>(k)]; };
     auto& ps = get_printer_state();
 
     struct Chip {
@@ -974,14 +997,14 @@ void PrinterImageWidget::apply_callout_layout() {
     };
     const Chip chips[] = {
         {CalloutKind::Nozzle, "callout_chip_nozzle", &s_callout_nozzle_shown, nozzle_icons,
-         text(&s_callout_nozzle_text), widest_heater, true},
+         text(CalloutKind::Nozzle), widest_heater, true},
         {CalloutKind::Bed, "callout_chip_bed", &s_callout_bed_shown, icon_px("radiator"),
-         text(&s_callout_bed_text), widest_heater, true},
+         text(CalloutKind::Bed), widest_heater, true},
         {CalloutKind::Chamber, "callout_chip_chamber", &s_callout_chamber_shown,
-         icon_px("fridge_industrial"), text(&s_callout_chamber_text), widest_heater,
+         icon_px("fridge_industrial"), text(CalloutKind::Chamber), widest_heater,
          read_int_or_zero(ps.capabilities_state().subject(Capability::HasChamberHeater)) != 0},
         {CalloutKind::Fan, "callout_chip_fan", &s_callout_fan_shown, icon_px("fan"),
-         text(&s_callout_fan_text), "100%", true},
+         text(CalloutKind::Fan), "100%", true},
         {CalloutKind::Light,
          "callout_chip_light",
          &s_callout_light_shown,
@@ -996,14 +1019,41 @@ void PrinterImageWidget::apply_callout_layout() {
         if (lv_subject_get_int(c.shown))
             in.active.push_back({c.kind, chip_w(c.icons, c.now), anchor(c.kind)});
     }
-    in.toolhead =
-        CalloutChipIn{CalloutKind::Toolhead, chip_w(toolhead_icons, text(&s_callout_toolhead_text)),
-                      anchor(CalloutKind::Toolhead)};
-
-    const CalloutLayout out = compute_callout_layout(in);
+    CalloutLayout out = compute_callout_layout(in);
+    if (spdlog::should_log(spdlog::level::trace)) {
+        int widest = 0;
+        for (const auto& c : in.budget)
+            widest = std::max(widest, c.w);
+        spdlog::trace("[PrinterImageWidget] callouts: area {}x{}, image {}x{} at {},{}, widest "
+                      "budget chip {}, mode {}",
+                      in.area_w, in.area_h, out.image.w, out.image.h, out.image.x, out.image.y,
+                      widest, static_cast<int>(out.mode));
+    }
+    if (out.mode == CalloutMode::Pinned) {
+        // The budget decided the mode; the chips placed on the picture are
+        // compact. Without the budget the second pass cannot pick another mode.
+        in.budget.clear();
+        in.chip_h =
+            helix::ui::compact_callout_chip_h(probe, lv_subject_get_int(&s_callout_light_shown));
+        in.active.clear();
+        for (const Chip& c : chips)
+            if (lv_subject_get_int(c.shown))
+                in.active.push_back({c.kind, compact_w(c.icons, c.now), anchor(c.kind)});
+        in.toolhead =
+            CalloutChipIn{CalloutKind::Toolhead, compact_w(0, text(CalloutKind::Toolhead)),
+                          anchor(CalloutKind::Toolhead)};
+        out = compute_callout_layout(in);
+    }
+    spdlog::trace("[PrinterImageWidget] callouts: placed {} chips, chip_h {}", out.chips.size(),
+                  in.chip_h);
+    const bool compact = out.mode == CalloutMode::Pinned;
     lv_subject_set_int(&s_callout_toolhead_merged, out.toolhead_merged ? 1 : 0);
     lv_subject_set_int(&s_printer_callout_mode, static_cast<int>(out.mode));
-    place_printer_image(out.mode == CalloutMode::OneSide ? &out.image : nullptr);
+    for (const auto& t : kCalloutTexts)
+        publish_callout_text(t.subject, callout_full_text_[static_cast<size_t>(t.kind)]);
+    // A one-side or shrunk image leaves the container's contain-fit rect.
+    const bool fitted = out.image.w == fit_image(in.area_w, in.area_h, in.image_w, in.image_h).w;
+    place_printer_image(out.mode == CalloutMode::OneSide || !fitted ? &out.image : nullptr);
 
     // The glow is an ellipse over the bed's near edge, as wide as the edge.
     lv_obj_t* glow = lv_obj_find_by_name(widget_obj_, "callout_bed_glow");
@@ -1028,7 +1078,7 @@ void PrinterImageWidget::apply_callout_layout() {
                   "one leader line and one point set per CalloutKind that draws a line");
     for (const CalloutChipOut& c : out.chips) {
         const char* name = "callout_chip_toolhead";
-        int icons = toolhead_icons;
+        int icons = 0;
         for (const Chip& k : chips) {
             if (k.kind == c.kind) {
                 name = k.name;
@@ -1072,7 +1122,7 @@ void PrinterImageWidget::apply_callout_layout() {
         // The label keeps its content width up to what the icons leave, so a
         // chip clamped narrower than its text ends in dots instead of spilling.
         lv_obj_t* label = lv_obj_find_by_name(obj, "chip_text");
-        const int label_max = std::max(0, c.rect.w - around_text(icons));
+        const int label_max = std::max(0, c.rect.w - (compact ? chrome_w : around_text(icons)));
         if (label && lv_obj_get_style_max_width(label, LV_PART_MAIN) != label_max) {
             // DECLARATIVE_OK: measured callout layout
             lv_obj_set_style_max_width(label, label_max, 0);

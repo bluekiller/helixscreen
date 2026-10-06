@@ -260,6 +260,12 @@ set(HELIX_VERSION_MAJOR "${CMAKE_MATCH_1}")
 set(HELIX_VERSION_MINOR "${CMAKE_MATCH_2}")
 set(HELIX_VERSION_PATCH "${CMAKE_MATCH_3}")
 
+# Diagnostic uploads (prestonbrown/helixscreen#1410): the Android counterpart of the
+# Makefile's ENABLE_DIAGNOSTIC_UPLOADS. Off for a plain build; build.gradle turns it on
+# for builds signed with the release keystore. An app has no environment to carry the
+# HELIX_DIAGNOSTIC_UPLOADS runtime opt-in, so a dev APK opts in with -PhelixDiagUploads.
+option(HELIX_DIAGNOSTIC_UPLOADS "Mark this build as allowed to upload diagnostics" OFF)
+
 target_compile_definitions(main PRIVATE
     HELIX_DISPLAY_SDL
     HELIX_PLATFORM_ANDROID
@@ -286,6 +292,7 @@ target_compile_definitions(main PRIVATE
     HELIX_HAS_HIDPI_FONTS=1
     ENABLE_GLES_3D
     $<$<CONFIG:Debug>:HELIX_ENABLE_MOCKS>
+    $<$<BOOL:${HELIX_DIAGNOSTIC_UPLOADS}>:HELIX_ENABLE_DIAGNOSTIC_UPLOADS>
     LV_CONF_INCLUDE_SIMPLE
     HELIX_VERSION="${HELIX_VERSION}"
     HELIX_VERSION_MAJOR=${HELIX_VERSION_MAJOR}

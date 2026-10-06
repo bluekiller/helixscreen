@@ -23,7 +23,8 @@
           <bind_flag_if_eq subject="printer_has_speaker" flag="hidden" ref_value="0"/>
           <setting_toggle_row name="row_sounds"
                               label="Sounds" label_tag="Sounds" icon="notifications" description="Enable audio feedback"
-                              description_tag="Enable audio feedback" callback="on_sounds_changed"/>
+                              description_tag="Enable audio feedback" subject="settings_sounds_enabled"
+                              callback="on_sounds_changed"/>
         </lv_obj>
         <!-- Volume Slider (hidden when master sounds off) -->
         <lv_obj name="container_volume" width="100%" style_pad_all="0" scrollable="false">

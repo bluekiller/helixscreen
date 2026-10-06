@@ -105,6 +105,15 @@ bool PrinterProfileState::merge_firmware_option_defaults(
     return changed;
 }
 
+bool PrinterProfileState::clear_firmware_option_defaults() {
+    if (firmware_option_defaults_.empty()) {
+        return false;
+    }
+    firmware_option_defaults_.clear();
+    pre_print_option_set_ = PrinterDetector::get_pre_print_option_set(printer_type_);
+    return true;
+}
+
 void PrinterProfileState::apply_dynamic_options(bool exclude_object_known,
                                                 bool timelapse_available) {
     // Strip any previously synthesized dynamic options before re-adding so
@@ -149,6 +158,7 @@ void PrinterProfileState::apply_dynamic_options(bool exclude_object_known,
         auto it = firmware_option_defaults_.find(opt.id);
         if (it != firmware_option_defaults_.end()) {
             opt.default_enabled = it->second;
+            opt.default_from_firmware = true;
         }
     }
 
@@ -189,13 +199,7 @@ void PrinterProfileState::apply_dynamic_options(bool exclude_object_known,
     // Maintain the (category, order) sort guarantee from
     // parse_pre_print_option_set so renderers still see options in their
     // documented order (covers both synthesized options above).
-    std::sort(pre_print_option_set_.options.begin(), pre_print_option_set_.options.end(),
-              [](const PrePrintOption& a, const PrePrintOption& b) {
-                  if (a.category != b.category) {
-                      return static_cast<int>(a.category) < static_cast<int>(b.category);
-                  }
-                  return a.order < b.order;
-              });
+    sort_pre_print_options(pre_print_option_set_.options);
 }
 
 } // namespace helix

@@ -119,6 +119,9 @@ src/print/print_start_analyzer.cpp
 src/print/print_start_navigation.cpp
 src/print/thumbnail_cache.cpp
 src/print/thumbnail_downscale.cpp
+src/print/thumbnail_png_stream.cpp
+src/print/thumbnail_slot_pool.cpp
+src/print/thumbnail_target.cpp
 src/printer/active_material_provider.cpp
 src/printer/afc_config_manager.cpp
 src/printer/afc_defaults.cpp
@@ -296,6 +299,7 @@ src/ui/ams_drawing_utils.cpp
 src/ui/backdrop_blur.cpp
 src/ui/bed_coord_mapper.cpp
 src/ui/bed_mesh_profile_name.cpp
+src/ui/card_thumbnail_plan.cpp
 src/ui/chamber_assignment_options.cpp
 src/ui/console_filter_engine.cpp
 src/ui/console_line.cpp
@@ -428,6 +432,7 @@ src/ui/ui_dialog.cpp
 src/ui/ui_effects.cpp
 src/ui/ui_emergency_stop.cpp
 src/ui/ui_endless_spool_arrows.cpp
+src/ui/ui_exclude_object_badges.cpp
 src/ui/ui_exclude_object_map_view.cpp
 src/ui/ui_exclude_object_modal.cpp
 src/ui/ui_exclude_object_side_list.cpp
@@ -473,7 +478,7 @@ src/ui/ui_nav_backdrop.cpp
 src/ui/ui_nav_manager.cpp
 src/ui/ui_nav_panel_registry.cpp
 src/ui/ui_nav_printer_badge.cpp
-src/ui/ui_nav_rail_button.cpp
+src/ui/ui_navbar_button.cpp
 src/ui/ui_notification.cpp
 src/ui/ui_notification_badge.cpp
 src/ui/ui_notification_history.cpp
@@ -629,6 +634,7 @@ src/api/wifi_ui_utils.cpp
 # Task 13: wifi_manager.cpp/wifi_backend.cpp were platform-seamed (stub in
 # helixapp_platform_stubs2.cpp) through Task 12 — now real, backed by
 # wifi_backend_esp.cpp (LOCAL_SRCS, CMakeLists.txt) against esp_wifi.
+src/api/wifi_ap_steering.cpp
 src/api/wifi_manager.cpp
 src/api/wifi_interface.cpp
 src/api/wifi_scan_scheduler.cpp

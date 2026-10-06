@@ -44,7 +44,7 @@ targets, cross-compilation): → [BUILD_SYSTEM.md](BUILD_SYSTEM.md).
 | `--test` | Enable test mode (required for mocks) |
 | `--real-wifi` | Use real WiFi instead of mock |
 | `--real-ethernet` | Use real Ethernet instead of mock |
-| `--real-moonraker` | Connect to real printer |
+| `--real-moonraker` | Connect to real printer. Implies `--real-ams`. Without `--real-files`, database and Spoolman calls still reach the printer |
 | `--real-files` | Use real printer files |
 | `--real-ams` | Use a real AMS backend instead of mock |
 | `--real-sensors` | Use real sensor data instead of mock |

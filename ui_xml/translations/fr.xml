@@ -15,6 +15,8 @@
   <translation tag="%d slots" fr="%d emplacements"/>
   <translation tag="%d toolheads" fr="%d têtes d&apos;outil"/>
   <translation tag="%d tools" fr="%d outils"/>
+  <translation tag="%d-%d" fr="%d-%d"/>
+  <translation tag="%d-%d°C" fr="%d-%d°C"/>
   <translation tag="%d:%02d left" fr="%d:%02d restantes"/>
   <translation tag="%dh" fr="%d h"/>
   <translation tag="%dh %02dm" fr="%d h %02d min"/>
@@ -292,6 +294,7 @@
   <translation tag="Backup spool switching state unknown" fr="État du passage à la bobine de secours inconnu"/>
   <translation tag="Barcode Scanner" fr="Scanner de codes-barres"/>
   <translation tag="Base" fr="Référence"/>
+  <translation tag="Based on the newest {} prints" fr="Basé sur les {} impressions les plus récentes"/>
   <translation tag="Batch load failed" fr="Échec du chargement groupé"/>
   <translation tag="Batch unload failed" fr="Échec du déchargement groupé"/>
   <translation tag="Beacon auto-calibrate sent" fr="Beacon auto-calibrage envoyé"/>
@@ -783,16 +786,16 @@
   <translation tag="Danger" fr="Danger"/>
   <translation tag="Danger Zone" fr="Zone dangereuse"/>
   <translation tag="Dark Mode" fr="Mode sombre"/>
-  <translation tag="Database" fr="Base de données"/>
   <translation tag="Date (newest)" fr="Date (plus récent)"/>
   <translation tag="Date (oldest)" fr="Date (plus ancien)"/>
   <translation tag="Day" fr="Jour"/>
   <translation tag="Debug" fr="Débogage"/>
+  <translation tag="Deep Black" fr="Noir profond"/>
   <translation tag="Default" fr="Par défaut"/>
   <translation tag="Default Parameters" fr="Paramètres par défaut"/>
   <translation tag="Default border thickness" fr="Épaisseur de bordure par défaut"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" fr="Par défaut : buse %d-%d°C, plateau %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" fr="Par défaut : buse %d-%d°C, plateau %d°C, enceinte %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" fr="Par défaut : buse %s, plateau %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" fr="Par défaut : buse %s, plateau %d°C, enceinte %d°C"/>
   <translation tag="Defaults restored" fr="Valeurs par défaut restaurées"/>
   <translation tag="Define macros in your printer.cfg" fr="Définissez les macros dans votre printer.cfg"/>
   <translation tag="Delete" fr="Supprimer"/>
@@ -2022,6 +2025,7 @@
   <translation tag="Options" fr="Options"/>
   <translation tag="Or Enter Manually" fr="Ou entrer manuellement"/>
   <translation tag="Or instead of turning the others" fr="Ou, au lieu de tourner les autres"/>
+  <translation tag="Original file location unknown" fr="Emplacement du fichier original inconnu"/>
   <translation tag="Oscillating... cycle %d/%d" fr="Oscillation... cycle %d/%d"/>
   <translation tag="Outcome" fr="Résultat"/>
   <translation tag="Output Device" fr="Périphérique de sortie"/>
@@ -2232,7 +2236,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" fr="La commande d&apos;imprimante &apos;{}&apos; a expiré après {} ms"/>
   <translation tag="Printer connection unavailable" fr="Connexion à l&apos;imprimante indisponible"/>
   <translation tag="Printer database format error" fr="Erreur de format de la base de données d&apos;imprimantes"/>
-  <translation tag="Printer database is corrupt" fr="La base de données d&apos;imprimantes est corrompue"/>
   <translation tag="Printer default" fr="Par défaut de l’imprimante"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" fr="L&apos;imprimante n&apos;a pas répondu — vérifiez qu&apos;elle est allumée et à portée"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" fr="L&apos;imprimante n&apos;expose pas le service attendu — mauvais appareil ?"/>

@@ -29,10 +29,10 @@
 
 namespace helix::http {
 
-// Called with a pointer into the lane's PSRAM accumulation buffer — valid
-// ONLY for the duration of the callback. Copy out what you need; the buffer
-// is freed the moment the callback returns.
-using FetchSuccessCb = std::function<void(const uint8_t* data, size_t size)>;
+// Called with the response body, which the callback may move out of: the lane
+// drops whatever is left when it returns. Taking it rather than copying keeps a
+// large body from needing a second allocation of the same size.
+using FetchSuccessCb = std::function<void(std::string& body)>;
 using FetchErrorCb = std::function<void(const std::string& message)>;
 
 class EspHttpLane {
@@ -54,6 +54,12 @@ class EspHttpLane {
     // value. One hook, set once at boot; nullptr clears it.
     using DateHeaderHook = void (*)(const char* value);
     static void set_date_header_hook(DateHeaderHook hook);
+
+    // Called once on the worker thread before it takes its first request. The
+    // worker's stack is in PSRAM, so the app uses this to bar the thread from
+    // storage. Set before the first submit_get().
+    using WorkerStartHook = void (*)();
+    static void set_worker_start_hook(WorkerStartHook hook);
 
     EspHttpLane(const EspHttpLane&) = delete;
     EspHttpLane& operator=(const EspHttpLane&) = delete;

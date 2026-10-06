@@ -80,6 +80,8 @@ LVGL_PATCHED_FILES := \
 	src/others/translation/lv_translation.c \
 	src/others/translation/lv_translation.h \
 	src/indev/lv_indev.c \
+	src/indev/lv_indev_private.h \
+	src/indev/lv_indev_scroll.c \
 	lv_conf_template.h
 # NOTE: src/misc/lv_check_arg.h is deliberately absent — the backport patch
 # CREATES it, so it is untracked upstream and `git checkout` cannot restore it.
@@ -105,6 +107,10 @@ LIBHV_PATCHED_FILES := \
 # The patched sources themselves, for use as build prerequisites, so an applied
 # patch invalidates the objects built from it and not only the stamp.
 LIBHV_PATCHED_SRCS := $(wildcard $(addprefix $(LIBHV_DIR)/,$(LIBHV_PATCHED_FILES)))
+
+# Files modified by Lua patches
+LUA_PATCHED_FILES := \
+	lstrlib.c
 
 # ============================================================================
 # THIRD-PARTY HEADER ABI STAMP
@@ -135,7 +141,8 @@ LIBHV_PATCHED_SRCS := $(wildcard $(addprefix $(LIBHV_DIR)/,$(LIBHV_PATCHED_FILES
 ABI_HEADERS := \
 	$(addprefix $(LIBHV_DIR)/,$(filter %.h,$(LIBHV_PATCHED_FILES))) \
 	$(addprefix $(LIBHV_DIR)/include/hv/,$(notdir $(filter %.h,$(LIBHV_PATCHED_FILES)))) \
-	$(addprefix $(LVGL_DIR)/,$(filter %.h,$(LVGL_PATCHED_FILES)))
+	$(addprefix $(LVGL_DIR)/,$(filter %.h,$(LVGL_PATCHED_FILES))) \
+	$(addprefix $(LUA_DIR)/,$(filter %.h,$(LUA_PATCHED_FILES)))
 ABI_STAMP := $(BUILD_DIR)/.thirdparty-abi
 
 # Defined here rather than beside PATCHES_STAMP because the hash below needs it:
@@ -263,7 +270,7 @@ PATCH_MARKERS_TSV := mk/patch-markers.tsv
 PATCH_MARKER_STAMP := $(BUILD_DIR)/.patch-markers-verified
 PATCH_MARKER_CHECK := python3 scripts/check_patch_markers.py \
 	--mk mk/patches.mk --tsv $(PATCH_MARKERS_TSV) --patch-dir $(PATCH_DIR) \
-	--lvgl $(LVGL_DIR) --libhv $(LIBHV_DIR)
+	--lvgl $(LVGL_DIR) --libhv $(LIBHV_DIR) --lua $(LUA_DIR)
 # wildcard, not the bare list: a patch can CREATE the file a marker lives in
 # (libhv's dns_resolv.c), and on an unpatched tree - a fresh clone before its
 # first apply, or right after reset-patches - a plain prerequisite that does
@@ -271,7 +278,7 @@ PATCH_MARKER_CHECK := python3 scripts/check_patch_markers.py \
 # table directly, so a file the wildcard drops this parse is still verified;
 # it just becomes an mtime trigger one build later. Same shape as
 # LIBHV_PATCHED_SRCS below.
-PATCH_MARKER_DEPS := $(wildcard $(shell awk -F'\t' 'NR>1 && !seen[$$4"/"$$5]++ {printf "%s/%s ", ($$4=="LVGL_DIR"?"$(LVGL_DIR)":"$(LIBHV_DIR)"), $$5}' $(PATCH_MARKERS_TSV) 2>/dev/null))
+PATCH_MARKER_DEPS := $(wildcard $(shell awk -F'\t' 'NR>1 && !seen[$$4"/"$$5]++ {printf "%s/%s ", ($$4=="LVGL_DIR"?"$(LVGL_DIR)":$$4=="LIBHV_DIR"?"$(LIBHV_DIR)":"$(LUA_DIR)"), $$5}' $(PATCH_MARKERS_TSV) 2>/dev/null))
 
 # Patches applied outside this file. Keep this list empty if you can; an entry
 # here means something applies the patch by hand, so nothing verifies it.
@@ -282,7 +289,7 @@ PATCH_EXEMPT := libnl-socket-time-include.patch
 
 # Submodule HEAD files - the stamp is stale once a submodule is moved to another
 # revision. Ask each submodule where its own git dir is rather than composing a
-# path: a worktree gives lvgl and libhv a PRIVATE checkout under
+# path: a worktree gives lvgl, libhv and lua a PRIVATE checkout under
 # .git/worktrees/<name>/modules/, so a path built from --git-common-dir names the
 # MAIN tree's HEAD, which is a different revision on a different schedule.
 #
@@ -297,8 +304,10 @@ GIT_NOENV := env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIR
 GIT_DIR := $(shell git rev-parse --git-dir 2>/dev/null || echo ".git")
 LVGL_GIT_DIR := $(shell $(GIT_NOENV) -C $(LVGL_DIR) rev-parse --absolute-git-dir 2>/dev/null)
 LIBHV_GIT_DIR := $(shell $(GIT_NOENV) -C $(LIBHV_DIR) rev-parse --absolute-git-dir 2>/dev/null)
+LUA_GIT_DIR := $(shell $(GIT_NOENV) -C $(LUA_DIR) rev-parse --absolute-git-dir 2>/dev/null)
 LVGL_HEAD := $(if $(LVGL_GIT_DIR),$(wildcard $(LVGL_GIT_DIR)/HEAD))
 LIBHV_HEAD := $(if $(LIBHV_GIT_DIR),$(wildcard $(LIBHV_GIT_DIR)/HEAD))
+LUA_HEAD := $(if $(LUA_GIT_DIR),$(wildcard $(LUA_GIT_DIR)/HEAD))
 
 # The record of WHICH patch revision is currently applied, written by
 # check_patch_drift.py --write-stamp after the apply blocks below run. It lives
@@ -325,7 +334,10 @@ endif
 ifneq ($(LIBHV_GIT_DIR),)
 LIBHV_APPLIED_STAMP := $(LIBHV_GIT_DIR)/helix-patches-applied.json
 endif
-APPLIED_STAMPS := $(LVGL_APPLIED_STAMP) $(LIBHV_APPLIED_STAMP)
+ifneq ($(LUA_GIT_DIR),)
+LUA_APPLIED_STAMP := $(LUA_GIT_DIR)/helix-patches-applied.json
+endif
+APPLIED_STAMPS := $(LVGL_APPLIED_STAMP) $(LIBHV_APPLIED_STAMP) $(LUA_APPLIED_STAMP)
 
 # Hashed rather than depended on directly, for the same reason as ABI_STAMP: the
 # record is rewritten on every apply whether or not its contents move, and a
@@ -379,7 +391,7 @@ define reset_submodule_patches
 	done
 endef
 
-# Reset all patched files in both submodules to upstream state.
+# Reset all patched files in every patched submodule to upstream state.
 #
 # libhv used to be missing here, which made `make reapply-patches` unable to fix
 # the one thing it is advertised to fix. A tree carrying an older revision of a
@@ -401,6 +413,8 @@ reset-patches:
 	$(Q)rm -f $(LVGL_DIR)/src/drivers/display/drm/lv_linux_drm_egl_upload.h
 	$(ECHO) "$(YELLOW)Resetting libhv patches to upstream state...$(RESET)"
 	$(call reset_submodule_patches,$(LIBHV_DIR),$(LIBHV_PATCHED_FILES))
+	$(ECHO) "$(YELLOW)Resetting Lua patches to upstream state...$(RESET)"
+	$(call reset_submodule_patches,$(LUA_DIR),$(LUA_PATCHED_FILES))
 	@# The drift stamp describes a PATCHED checkout. Everything above just put
 	@# the checkout back to pristine, so the stamp now describes nothing; left
 	@# in place it would report every restored file as "changed since apply" and
@@ -459,10 +473,10 @@ regen-patch-markers:
 	$(Q)HELIX_MARKER_DERIVING=1 $(MAKE) reapply-patches
 	$(Q)python3 scripts/gen_patch_markers.py --write --mk mk/patches.mk \
 		--tsv $(PATCH_MARKERS_TSV) --patch-dir $(PATCH_DIR) \
-		--lvgl $(LVGL_DIR) --libhv $(LIBHV_DIR)
+		--lvgl $(LVGL_DIR) --libhv $(LIBHV_DIR) --lua $(LUA_DIR)
 
 # The actual stamp file - only rebuilt when patches or submodules change
-$(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
+$(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(LUA_HEAD) $(APPLIED_STAMP_ID)
 	@mkdir -p $(BUILD_DIR)
 	$(ECHO) "$(CYAN)Verifying patch wiring...$(RESET)"
 	@# Both directions, because every failure mode here is silent. The apply
@@ -513,7 +527,8 @@ $(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
 	$(Q)if [ "$(HELIX_PATCHES_FROM_CLEAN)" = "1" ]; then \
 		ok=1; \
 		for pair in "$(LVGL_DIR)|$(LVGL_PATCHED_FILES) src/misc/lv_check_arg.h" \
-		            "$(LIBHV_DIR)|$(LIBHV_PATCHED_FILES)"; do \
+		            "$(LIBHV_DIR)|$(LIBHV_PATCHED_FILES)" \
+		            "$(LUA_DIR)|$(LUA_PATCHED_FILES)"; do \
 			dir=$${pair%%|*}; files=$${pair#*|}; \
 			if [ -n "$$($(GIT_NOENV) -C "$$dir" status --porcelain -- $$files 2>/dev/null)" ] || \
 			   ! $(GIT_NOENV) -C "$$dir" status --porcelain -- $$files >/dev/null 2>&1; then \
@@ -582,6 +597,7 @@ $(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_mark_deleted_defensive.patch "LVGL lv_event_mark_deleted defensive bail patch"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_pop_unwind_safe.patch "LVGL event-pop unwind-safe patch (RPHAV9T7 / L081 root cause)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_indev_delete_cancels_anim.patch "LVGL indev-delete animation cancel patch"
+	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_scroll_throw_time_based.patch "LVGL time-based scroll throw patch (momentum by elapsed ms, not per frame)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_dispatch_depth_guard.patch "LVGL event-dispatch-depth guard (cluster:pstat-async-delete / #906)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_stack_array.patch "LVGL #907 array-backed event stack (replaces e->prev linked list)"
 	$(Q)$(APPLY_PATCH) $(LVGL_DIR) $(PATCH_DIR)/lvgl_event_dispatch_cb_guard.patch "LVGL dispatch-cb bounds gate + widget identity (3XNZQB2R)"
@@ -623,6 +639,8 @@ $(PATCHES_STAMP): $(PATCH_FILES) $(LVGL_HEAD) $(LIBHV_HEAD) $(APPLIED_STAMP_ID)
 			fi; \
 		done; \
 	fi
+	$(ECHO) "$(CYAN)Checking Lua patches...$(RESET)"
+	$(Q)$(APPLY_PATCH) $(LUA_DIR) $(PATCH_DIR)/lua-pattern-step-budget.patch "Lua pattern step budget patch" "Without it a backtracking string pattern runs past the plugin time budget and freezes the UI."
 	@# Everything below records "this state is the applied one". A stanza above
 	@# that only warned must not get that recording: its patch's effect is
 	@# absent, and a stamp written over the gap would read as consistent on

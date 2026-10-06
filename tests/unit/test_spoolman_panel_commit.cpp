@@ -121,8 +121,8 @@ struct SpoolmanPanelCommitFixture : LVGLTestFixture {
         seeded.spoolman_id = spoolman_id;
         seeded.material = "PLA";
         AmsState::instance().set_external_spool_info(seeded);
-        api.spoolman_mock().set_mock_spoolman_enabled(true);
-        api.spoolman_mock().set_active_spool(spoolman_id, nullptr, nullptr);
+        client.set_mock_spoolman_enabled(true);
+        client.spoolman_mock().set_active_spool_id(spoolman_id);
     }
 };
 
@@ -146,7 +146,7 @@ TEST_CASE("panel set_active_spool commits through the shared external-spool path
     helix::ui::UpdateQueue::instance().drain();
 
     // S1 — the server was told which spool is active.
-    REQUIRE(f.api.spoolman_mock().get_mock_active_spool_id() == 170);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 170);
     // S5 — the settings store now holds spool 170.
     auto persisted = helix::SettingsManager::instance().get_external_spool_info();
     REQUIRE(persisted.has_value());
@@ -168,7 +168,7 @@ TEST_CASE("panel set_active_spool server failure leaves every store untouched",
     f.seed_external_link(169);
 
     // Fail every Spoolman call like an unavailable component.
-    f.api.spoolman_mock().set_mock_spoolman_enabled(false);
+    f.client.set_mock_spoolman_enabled(false);
 
     SpoolmanPanelTestAccess::seed_cached_spools(f.panel, {make_spool(170, "Jet Black")});
 

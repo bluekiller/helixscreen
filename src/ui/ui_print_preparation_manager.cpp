@@ -50,6 +50,53 @@ namespace hfs = helix::fs;
 using helix::CapabilityOrigin;
 using helix::OperationCategory;
 
+namespace {
+
+/// The PRINT_START operations macro analysis can turn into an option, in row order.
+struct MacroOptionId {
+    helix::PrintStartOpCategory category;
+    const char* id;
+    PrePrintCategory group;
+};
+constexpr MacroOptionId MACRO_OPTION_IDS[] = {
+    {helix::PrintStartOpCategory::BED_MESH, "bed_mesh", PrePrintCategory::Mechanical},
+    {helix::PrintStartOpCategory::QGL, "qgl", PrePrintCategory::Mechanical},
+    {helix::PrintStartOpCategory::Z_TILT, "z_tilt", PrePrintCategory::Mechanical},
+    {helix::PrintStartOpCategory::NOZZLE_CLEAN, "nozzle_clean", PrePrintCategory::Quality},
+};
+
+/// The MacroParam option for one of MACRO_OPTION_IDS, or nullopt when the analysis
+/// did not find that operation controllable. Rows and the skip params sent at print
+/// start both come from here, so they cannot disagree.
+std::optional<PrePrintOption>
+macro_option_for(const std::optional<helix::PrintStartAnalysis>& analysis,
+                 const MacroOptionId& entry) {
+    if (!analysis || !analysis->found) {
+        return std::nullopt;
+    }
+    CapabilityMatrix matrix;
+    matrix.add_from_macro_analysis(*analysis);
+    const auto source = matrix.get_best_source(entry.category);
+    if (!source) {
+        return std::nullopt;
+    }
+
+    PrePrintOption opt;
+    opt.id = entry.id;
+    opt.category = entry.group;
+    opt.order = static_cast<int>(&entry - MACRO_OPTION_IDS);
+    opt.default_enabled = true; // the macro runs the operation unless told to skip it
+    opt.strategy_kind = PrePrintStrategyKind::MacroParam;
+    PrePrintStrategyMacroParam param;
+    param.param_name = source->param_name;
+    param.enable_value = source->enable_value;
+    param.skip_value = source->skip_value;
+    opt.strategy = std::move(param);
+    return opt;
+}
+
+} // namespace
+
 // ============================================================================
 // Construction / Destruction
 // ============================================================================
@@ -394,39 +441,25 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
         });
 }
 
-bool PrintPreparationManager::is_macro_op_controllable(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return false;
+PrePrintOptionSet PrintPreparationManager::displayed_options() const {
+    PrePrintOptionSet displayed = get_cached_options();
+    const bool database_declares_options =
+        printer_state_ &&
+        !PrinterDetector::get_pre_print_option_set(printer_state_->profile_state().printer_type())
+             .options.empty();
+    if (database_declares_options) {
+        return displayed;
     }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    return op && op->has_skip_param;
-}
-
-std::string
-PrintPreparationManager::get_macro_skip_param(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return "";
+    for (const auto& entry : MACRO_OPTION_IDS) {
+        if (displayed.find(entry.id)) {
+            continue;
+        }
+        if (auto opt = macro_option_for(macro_analysis_, entry)) {
+            displayed.options.push_back(std::move(*opt));
+        }
     }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    if (op && op->has_skip_param) {
-        return op->skip_param_name;
-    }
-    return "";
-}
-
-helix::ParameterSemantic
-PrintPreparationManager::get_macro_param_semantic(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return helix::ParameterSemantic::OPT_OUT; // Default assumption
-    }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    if (op && op->has_skip_param) {
-        return op->param_semantic;
-    }
-    return helix::ParameterSemantic::OPT_OUT; // Default assumption
+    sort_pre_print_options(displayed.options);
+    return displayed;
 }
 
 // ============================================================================
@@ -654,7 +687,7 @@ std::string PrintPreparationManager::get_temp_directory() const {
 bool PrintPreparationManager::can_modify_gcode() const {
     // Pre-print modifications rewrite the job file, and the plugin is what puts
     // the original filename back in Moonraker's history afterwards. Without it
-    // finished jobs are listed as ".helix_temp/modified_1766807545_name.gcode",
+    // finished jobs are listed as ".helix_temp/modified_1766807545p_name.gcode",
     // so we decline rather than clutter the history.
     return printer_state_ != nullptr &&
            printer_state_->plugin_status_state().service_has_helix_plugin();
@@ -860,27 +893,10 @@ void PrintPreparationManager::start_print(const std::string& filename,
     if (needs_file_modification || needs_macro_params) {
         helix::MemoryMonitor::log_now("print_modification_start", spdlog::level::debug);
         if (!can_modify_gcode()) {
-            spdlog::warn("[PrintPreparationManager] No HelixPrint plugin - skipping modification, "
-                         "printing original file");
-            // Name the features being dropped. "Cannot modify G-code" alone left
-            // the user guessing which of the print dialog's controls it referred
-            // to — #1269 was filed against filament remapping, which does not
-            // touch G-code at all, because the toast fires at the same moment.
-            const std::string dropped = describe_dropped_modifications(ops_to_disable);
+            warn_modifications_need_plugin(ops_to_disable);
             // Clear modifications so we fall through to normal print path
             ops_to_disable.clear();
             macro_skip_params.clear();
-            // Show user notification about skipped modification
-            if (dropped.empty()) {
-                // One reason exists, so state it. Interpolating a reason string
-                // into a translated sentence left the English fragment showing
-                // in every other locale.
-                NOTIFY_WARNING(
-                    lv_tr("Modifying G-code needs the HelixPrint plugin. Printing original file."));
-            } else {
-                NOTIFY_WARNING(lv_tr("{} needs the HelixPrint plugin. Printing original file."),
-                               dropped);
-            }
         } else {
             spdlog::info("[PrintPreparationManager] Modifying G-code server-side: {} file ops, "
                          "{} macro params",
@@ -925,6 +941,15 @@ std::optional<gcode::OperationType> file_embeddable_op_for_id(const std::string&
     return std::nullopt;
 }
 
+// Whether turning this option off may strip its op out of the sliced file. Not
+// when a self-storing firmware holds the option's value (supplied through
+// preprint_prefs::read_persisted_defaults()): that firmware skips the file's
+// own command when its setting is off, so the option only drives its
+// pre-start line. Every other option may.
+bool option_may_strip_file(const PrePrintOption& opt) {
+    return !opt.default_from_firmware;
+}
+
 // Transfer callbacks run on the HTTP thread. BusyOverlay is process-wide, so
 // these updates belong to no object and still run if the manager is gone.
 void queue_busy_hide() {
@@ -945,11 +970,19 @@ std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disabl
     // State resolution flows through the new framework via get_option_state(id).
     for (const char* id : {"bed_mesh", "qgl", "z_tilt", "nozzle_clean"}) {
         const std::optional<gcode::OperationType> op = file_embeddable_op_for_id(id);
-        if (get_option_state(id) == PrePrintOptionState::DISABLED &&
-            cached_scan_result_->has_operation(*op)) {
-            ops_to_disable.push_back(*op);
-            spdlog::debug("[PrintPreparationManager] User disabled '{}', file has it embedded", id);
+        if (get_option_state(id) != PrePrintOptionState::DISABLED ||
+            !cached_scan_result_->has_operation(*op)) {
+            continue;
         }
+        const PrePrintOption* opt = get_cached_options().find(id);
+        if (opt && !option_may_strip_file(*opt)) {
+            spdlog::debug("[PrintPreparationManager] '{}' is gated by the firmware's stored "
+                          "setting, leaving the file's embedded op alone",
+                          id);
+            continue;
+        }
+        ops_to_disable.push_back(*op);
+        spdlog::debug("[PrintPreparationManager] User disabled '{}', file has it embedded", id);
     }
 
     return ops_to_disable;
@@ -962,7 +995,8 @@ bool PrintPreparationManager::disabling_option_requires_plugin(const PrePrintOpt
     //     embedded in the currently-scanned file?
     const std::optional<gcode::OperationType> embedded_op = file_embeddable_op_for_id(opt.id);
     const bool file_embedded = embedded_op.has_value() && cached_scan_result_.has_value() &&
-                               cached_scan_result_->has_operation(*embedded_op);
+                               cached_scan_result_->has_operation(*embedded_op) &&
+                               option_may_strip_file(opt);
 
     // (b) is the MacroParam skip-rewrite path. If neither (a) nor a MacroParam
     //     skip is in play, nothing about this option needs the plugin.
@@ -970,30 +1004,40 @@ bool PrintPreparationManager::disabling_option_requires_plugin(const PrePrintOpt
         return false;
     }
 
-    // Would start_print() short-circuit into a plugin-free pre-start path BEFORE
-    // reaching can_modify_gcode()? That happens when a pre-start
-    // gcode block is emitted:
-    //   - printer-level setup_gcode fires (it is gated on a MacroParam skip
-    //     being present — see emit_printer_setup in start_print()), OR
-    //   - any per-option PreStartGcode line is present.
-    // In that path, embedded-op removal goes through modify_and_print (streaming,
-    // no capability check) and the MacroParam skip is handled by the native
-    // setup_gcode macro — so the plugin is NOT required. This is exactly the K2
-    // Plus PREPARE case (MacroParam bed_mesh + setup_gcode): it must stay visible
-    // even without the plugin. Note this makes (a) narrower than "file-embedded
-    // always needs the plugin": a printer with a pre-start mechanism strips the
-    // embedded op without one.
+    // Does disabling it still do something without the plugin? A PreStartGcode
+    // option always emits its own line. A MacroParam skip rides a pre-start
+    // block: printer-level setup_gcode (gated on a MacroParam skip, see
+    // emit_printer_setup in start_print()) or any PreStartGcode line. This is
+    // the K2 Plus PREPARE case (MacroParam bed_mesh + setup_gcode), which must
+    // stay visible without the plugin.
     const auto& option_set = get_cached_options();
-    const bool setup_gcode_fires = is_macro_param && !option_set.setup_gcode.empty();
-    const bool pre_start_lines_present = !collect_pre_start_gcode_lines().empty();
-    if (setup_gcode_fires || pre_start_lines_present) {
+    const bool pre_start_block =
+        !option_set.setup_gcode.empty() || !collect_pre_start_gcode_lines().empty();
+    if (opt.strategy_kind == PrePrintStrategyKind::PreStartGcode ||
+        (is_macro_param && pre_start_block)) {
         return false;
     }
 
-    // No short-circuit: start_print() reaches can_modify_gcode(),
-    // which warns "Requires HelixPrint plugin" and drops the modification when
-    // the plugin is absent. So disabling this option genuinely needs the plugin.
+    // Left: an embedded-op strip or a MacroParam rewrite of the START_PRINT
+    // call, both of which every start path drops when the plugin is absent.
     return true;
+}
+
+void PrintPreparationManager::warn_modifications_need_plugin(
+    const std::vector<gcode::OperationType>& ops_to_disable) const {
+    spdlog::warn("[PrintPreparationManager] No HelixPrint plugin - skipping modification, "
+                 "printing original file");
+    // Name the features being dropped: "Cannot modify G-code" alone leaves the
+    // user guessing which of the print dialog's controls it refers to (#1269).
+    const std::string dropped = describe_dropped_modifications(ops_to_disable);
+    if (dropped.empty()) {
+        // A fixed sentence rather than an interpolated reason, so no English
+        // fragment shows up in other locales.
+        NOTIFY_WARNING(
+            lv_tr("Modifying G-code needs the HelixPrint plugin. Printing original file."));
+    } else {
+        NOTIFY_WARNING(lv_tr("{} needs the HelixPrint plugin. Printing original file."), dropped);
+    }
 }
 
 // Translated, comma-joined names of the features a dropped modification would
@@ -1027,25 +1071,14 @@ std::string PrintPreparationManager::describe_dropped_modifications(
     }
 
     // LAYER 2 mirror: collect_macro_skip_params() also emits for ops the DB
-    // never declared, picked up from PRINT_START analysis. Those have no
-    // PrePrintOption to read a label from, so synthesize one — label_key_for()
-    // carries hardcoded names for exactly these four legacy ids.
-    if (macro_analysis_.has_value() && macro_analysis_->found) {
-        const std::pair<helix::PrintStartOpCategory, const char*> categories[] = {
-            {helix::PrintStartOpCategory::BED_MESH, "bed_mesh"},
-            {helix::PrintStartOpCategory::QGL, "qgl"},
-            {helix::PrintStartOpCategory::Z_TILT, "z_tilt"},
-            {helix::PrintStartOpCategory::NOZZLE_CLEAN, "nozzle_clean"},
-        };
-        for (const auto& [cat, id] : categories) {
-            if (covered.count(id) || !is_macro_op_controllable(cat) ||
-                get_option_state(id) != PrePrintOptionState::DISABLED ||
-                get_macro_skip_param(cat).empty()) {
-                continue;
-            }
-            PrePrintOption synthetic;
-            synthetic.id = id;
-            names.push_back(PrePrintOptionsRenderer::label_for(synthetic));
+    // never declared, picked up from PRINT_START analysis.
+    for (const auto& entry : MACRO_OPTION_IDS) {
+        if (covered.count(entry.id) ||
+            get_option_state(entry.id) != PrePrintOptionState::DISABLED) {
+            continue;
+        }
+        if (auto synthetic = macro_option_for(macro_analysis_, entry)) {
+            names.push_back(PrePrintOptionsRenderer::label_for(*synthetic));
         }
     }
 
@@ -1185,34 +1218,18 @@ PrintPreparationManager::collect_macro_skip_params() const {
     // LAYER 2: Macro analysis. Picks up ops the DB didn't cover (e.g. QGL on a
     // Voron whose entry only declares bed_mesh). DB-handled ids are skipped to
     // avoid double-emission.
-    if (macro_analysis_.has_value() && macro_analysis_->found) {
-        auto emit_if_disabled = [this, &skip_params, &handled_ids](helix::PrintStartOpCategory cat,
-                                                                   const std::string& id) {
-            if (handled_ids.count(id)) {
-                return;
-            }
-            if (!is_macro_op_controllable(cat)) {
-                return;
-            }
-            if (get_option_state(id) != PrePrintOptionState::DISABLED) {
-                return;
-            }
-            std::string param = get_macro_skip_param(cat);
-            if (param.empty()) {
-                return;
-            }
-            auto semantic = get_macro_param_semantic(cat);
-            // OPT_OUT (SKIP_*): "1" means skip. OPT_IN (PERFORM_*): "0" means don't do.
-            std::string value = (semantic == helix::ParameterSemantic::OPT_OUT) ? "1" : "0";
-            skip_params.emplace_back(param, value);
-            spdlog::debug("[PrintPreparationManager] Macro-analysis param: {}={} (id={})", param,
-                          value, id);
-        };
-
-        emit_if_disabled(helix::PrintStartOpCategory::BED_MESH, "bed_mesh");
-        emit_if_disabled(helix::PrintStartOpCategory::QGL, "qgl");
-        emit_if_disabled(helix::PrintStartOpCategory::Z_TILT, "z_tilt");
-        emit_if_disabled(helix::PrintStartOpCategory::NOZZLE_CLEAN, "nozzle_clean");
+    for (const auto& entry : MACRO_OPTION_IDS) {
+        if (handled_ids.count(entry.id) ||
+            get_option_state(entry.id) != PrePrintOptionState::DISABLED) {
+            continue;
+        }
+        const auto opt = macro_option_for(macro_analysis_, entry);
+        const auto* param = opt ? std::get_if<PrePrintStrategyMacroParam>(&opt->strategy) : nullptr;
+        if (param) {
+            skip_params.emplace_back(param->param_name, param->skip_value);
+            spdlog::debug("[PrintPreparationManager] Macro-analysis param: {}={} (id={})",
+                          param->param_name, param->skip_value, entry.id);
+        }
     }
 
     if (!skip_params.empty()) {
@@ -1366,9 +1383,12 @@ void PrintPreparationManager::continue_print_start(
         }
     }
 
-    if (!ops_to_disable.empty()) {
+    if (ops_to_disable.empty()) {
+        start_print_directly(filename, on_navigate_to_status, on_completion);
+    } else if (can_modify_gcode()) {
         modify_and_print(filename, ops_to_disable, {}, on_navigate_to_status);
     } else {
+        warn_modifications_need_plugin(ops_to_disable);
         start_print_directly(filename, on_navigate_to_status, on_completion);
     }
 }
@@ -1575,7 +1595,7 @@ void PrintPreparationManager::modify_and_print_streaming(
     // Generate unique temp file paths
     auto timestamp = std::to_string(std::time(nullptr));
     std::string local_download_path = temp_dir + "/helix_download_" + timestamp + ".gcode";
-    std::string remote_temp_path = gcode::make_rewritten_gcode_path(display_filename);
+    std::string remote_temp_path = gcode::make_rewritten_gcode_path(file_path);
 
     spdlog::info("[PrintPreparationManager] Streaming modification: downloading to {}",
                  local_download_path);
@@ -1850,7 +1870,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
         return;
     }
 
-    const std::string remote_temp_path = gcode::make_rewritten_gcode_path(display_filename);
+    const std::string remote_temp_path = gcode::make_rewritten_gcode_path(file_path);
 
     spdlog::info("[PrintPreparationManager] Remap modification: {} tool mapping(s), downloading {}",
                  remap.size(), file_path);

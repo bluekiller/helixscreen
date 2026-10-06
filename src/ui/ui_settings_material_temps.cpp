@@ -8,6 +8,7 @@
 #include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_row_text.h"
+#include "ui_temperature_utils.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
 
@@ -69,11 +70,6 @@ void MaterialTempsOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* MaterialTempsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
     spdlog::debug("[{}] Creating overlay...", get_name());
 
     overlay_root_ = helix::ui::create_xml_hidden(parent, "material_temps_overlay");
@@ -156,8 +152,11 @@ void MaterialTempsOverlay::populate_material_list() {
         int bed_temp = mat.bed_temp;
         bool has_override = mgr.has_override(mat.name) && !mat.user_defined;
 
+        char nozzle_buf[24];
+        helix::ui::temperature::format_temperature_range(nozzle_min, nozzle_max, nozzle_buf,
+                                                         sizeof(nozzle_buf), false);
         char temp_buf[48];
-        snprintf(temp_buf, sizeof(temp_buf), "%d-%d / %d°C", nozzle_min, nozzle_max, bed_temp);
+        snprintf(temp_buf, sizeof(temp_buf), "%s / %d°C", nozzle_buf, bed_temp);
 
         const char* attrs[] = {
             "temps_text", temp_buf, "hide_override", has_override ? "false" : "true", nullptr,
@@ -207,14 +206,16 @@ void MaterialTempsOverlay::show_edit_view(const std::string& material_name) {
     // is shown, so it reads the capability that column binds.
     lv_subject_t* chamber_column = lv_xml_get_subject(nullptr, "printer_has_chamber_heater");
     const bool has_chamber = chamber_column && lv_subject_get_int(chamber_column) != 0;
+    char nozzle_range[24];
+    helix::ui::temperature::format_temperature_range(default_nozzle_min, default_nozzle_max,
+                                                     nozzle_range, sizeof(nozzle_range));
     if (has_chamber) {
         snprintf(edit_defaults_buf_, sizeof(edit_defaults_buf_),
-                 lv_tr("Default: %d-%d°C nozzle, %d°C bed, %d°C chamber"), default_nozzle_min,
-                 default_nozzle_max, default_bed, default_chamber);
+                 lv_tr("Default: %s nozzle, %d°C bed, %d°C chamber"), nozzle_range, default_bed,
+                 default_chamber);
     } else {
         snprintf(edit_defaults_buf_, sizeof(edit_defaults_buf_),
-                 lv_tr("Default: %d-%d°C nozzle, %d°C bed"), default_nozzle_min, default_nozzle_max,
-                 default_bed);
+                 lv_tr("Default: %s nozzle, %d°C bed"), nozzle_range, default_bed);
     }
     lv_subject_copy_string(&edit_defaults_subject_, edit_defaults_buf_);
 

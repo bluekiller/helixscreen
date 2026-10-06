@@ -14,6 +14,7 @@
 #include "ui_error_reporting.h"
 #include "ui_keyboard_manager.h"
 #include "ui_nav.h"
+#include "ui_temperature_utils.h"
 #include "ui_zone_presentation.h"
 
 #include "ams_backend.h"
@@ -628,10 +629,14 @@ void AmsEnvironmentOverlay::publish_selected_zone() {
     // Per zone, so a rig whose boxes differ is believed. Happy Hare reports one global
     // heater_max_temp, so its zones share a ceiling; that is an upstream limit.
     if (dryer.supported) {
-        snprintf(temp_range_buf_, sizeof(temp_range_buf_), "%s (%d-%d)",
+        char range[24];
+        helix::ui::temperature::format_temperature_range(static_cast<int>(dryer.min_temp_c),
+                                                         static_cast<int>(dryer.max_temp_c), range,
+                                                         sizeof(range), false);
+        snprintf(temp_range_buf_, sizeof(temp_range_buf_), "%s (%s)",
                  lv_tr("Temp \xC2\xB0"
                        "C"),
-                 static_cast<int>(dryer.min_temp_c), static_cast<int>(dryer.max_temp_c));
+                 range);
     } else {
         snprintf(temp_range_buf_, sizeof(temp_range_buf_), "%s",
                  lv_tr("Temp \xC2\xB0"

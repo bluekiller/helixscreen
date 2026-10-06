@@ -396,7 +396,7 @@ The trigger in this app is `src/ui/setting_group.cpp#setting_group_xml_create`
 setting `clip_corner`; with a non-zero theme radius, `lv_refr.c` allocates two
 ARGB8888 band layers per card per refresh. The home panel has no `clip_corner`
 container and renders perfectly; the settings panel loses every background fill
-and the nav rail.
+and the nav bar.
 
 Confirmed by setting the theme radius to 0, which makes LVGL skip the band
 layers (`if(radius == 0) clip_corner = false;`) — the settings panel then

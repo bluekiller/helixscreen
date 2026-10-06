@@ -117,6 +117,7 @@ void PrintSelectCardView::clear_cached_state() {
     card_data_pool_.clear();
     card_pool_.clear();
     card_pool_indices_.clear();
+    pool_initialized_ = false;
 
     // Clear widget references (owned by LVGL widget tree)
     leading_spacer_ = nullptr;
@@ -146,12 +147,34 @@ void PrintSelectCardView::cleanup() {
 // Gradient Cache
 // ============================================================================
 
+// The color the cards sit on, when it is one solid color: the nearest ancestor
+// that paints an opaque, ungraded, image-free background.
+static bool solid_color_behind(lv_obj_t* obj, lv_color_t* out) {
+    for (lv_obj_t* o = obj; o; o = lv_obj_get_parent(o)) {
+        if (lv_obj_get_style_bg_image_src(o, LV_PART_MAIN) != nullptr)
+            return false;
+        const lv_opa_t opa = lv_obj_get_style_bg_opa(o, LV_PART_MAIN);
+        if (opa == LV_OPA_TRANSP)
+            continue;
+        if (opa < LV_OPA_COVER ||
+            lv_obj_get_style_bg_grad_dir(o, LV_PART_MAIN) != LV_GRAD_DIR_NONE ||
+            lv_obj_get_style_bg_grad(o, LV_PART_MAIN) != nullptr)
+            return false;
+        *out = lv_obj_get_style_bg_color(o, LV_PART_MAIN);
+        return true;
+    }
+    return false;
+}
+
 void PrintSelectCardView::ensure_gradient_cache(int32_t card_width, int32_t card_height) {
     bool dark = theme_manager_is_dark_mode();
+    lv_color_t behind = lv_color_black();
+    const bool solid = container_ && solid_color_behind(container_, &behind);
+    const uint32_t behind_key = solid ? lv_color_to_u32(behind) : 0;
 
-    // Already cached at this size and theme mode?
+    // Already cached at this size, theme mode and background?
     if (cached_gradient_ && cached_gradient_w_ == card_width && cached_gradient_h_ == card_height &&
-        cached_gradient_dark_ == dark) {
+        cached_gradient_dark_ == dark && cached_gradient_behind_ == behind_key) {
         return;
     }
 
@@ -161,7 +184,13 @@ void PrintSelectCardView::ensure_gradient_cache(int32_t card_width, int32_t card
     // during the layout walk (#788, #790).
     int32_t radius = theme_manager_get_spacing("border_radius");
     lv_draw_buf_t* old_gradient = cached_gradient_;
-    cached_gradient_ = ui_gradient_canvas_create_buf(card_width, card_height, dark, radius);
+    // On a solid background the corners are flattened onto it, so every card
+    // draws a plain copy instead of blending a full-card alpha image.
+    cached_gradient_ = solid ? helix::ui::gradient_canvas_create_opaque_buf(
+                                   card_width, card_height, dark, radius, behind,
+                                   theme_manager_get_color("card_bg"))
+                             : ui_gradient_canvas_create_buf(card_width, card_height, dark, radius);
+    cached_gradient_behind_ = behind_key;
     cached_gradient_w_ = card_width;
     cached_gradient_h_ = card_height;
     cached_gradient_dark_ = dark;
@@ -191,26 +220,47 @@ void PrintSelectCardView::apply_gradient_to_card(lv_obj_t* card) {
 // ============================================================================
 
 void PrintSelectCardView::init_pool(const CardDimensions& dims) {
-    if (!container_ || !card_pool_.empty()) {
+    if (!container_ || pool_initialized_) {
         return;
     }
-
-    spdlog::debug("[PrintSelectCardView] Creating {} card widgets", POOL_SIZE);
+    pool_initialized_ = true;
 
     // Update layout to get accurate dimensions
     lv_obj_update_layout(container_);
     cards_per_row_ = dims.num_columns;
 
-    // Reserve storage
-    card_pool_.reserve(POOL_SIZE);
-    card_pool_indices_.resize(POOL_SIZE, -1);
-    card_data_pool_.reserve(POOL_SIZE);
+    // Render shared gradient at exact card dimensions (applies to all pool cards)
+    ensure_gradient_cache(dims.card_width, dims.card_height);
+
+    // Observe theme changes to re-render gradient for dark/light switch
+    lv_subject_t* theme_subject = theme_manager_get_changed_subject();
+    if (theme_subject) {
+        theme_observer_ = ObserverGuard(
+            theme_subject,
+            [](lv_observer_t* observer, lv_subject_t*) {
+                auto* self = static_cast<PrintSelectCardView*>(lv_observer_get_user_data(observer));
+                if (self && self->cached_gradient_) {
+                    // Force cache invalidation by resetting dark mode flag
+                    self->cached_gradient_dark_ = !theme_manager_is_dark_mode();
+                    self->ensure_gradient_cache(self->cached_gradient_w_, self->cached_gradient_h_);
+                }
+            },
+            this);
+    }
+}
+
+void PrintSelectCardView::grow_pool(size_t count, const CardDimensions& dims) {
+    if (!container_ || card_pool_.size() >= count) {
+        return;
+    }
+    spdlog::debug("[PrintSelectCardView] Growing card pool {} -> {}", card_pool_.size(), count);
 
     // Cache placeholder path for use in attrs array (needs stable pointer)
     std::string placeholder_thumb = get_default_thumbnail();
 
-    // Create pool cards (initially hidden)
-    for (int i = 0; i < POOL_SIZE; i++) {
+    card_pool_.reserve(count);
+    card_data_pool_.reserve(count);
+    while (card_pool_.size() < count) {
         const char* attrs[] = {"thumbnail_src",
                                placeholder_thumb.c_str(),
                                "filename",
@@ -313,31 +363,14 @@ void PrintSelectCardView::init_pool(const CardDimensions& dims) {
                     no_thumb_icon, &data->thumbnail_state_subject, LV_OBJ_FLAG_HIDDEN, 1);
             }
 
+            apply_gradient_to_card(card);
             card_pool_.push_back(card);
             card_data_pool_.push_back(std::move(data));
+        } else {
+            break;
         }
     }
-
-    // Render shared gradient at exact card dimensions (applies to all pool cards)
-    ensure_gradient_cache(dims.card_width, dims.card_height);
-
-    // Observe theme changes to re-render gradient for dark/light switch
-    lv_subject_t* theme_subject = theme_manager_get_changed_subject();
-    if (theme_subject) {
-        theme_observer_ = ObserverGuard(
-            theme_subject,
-            [](lv_observer_t* observer, lv_subject_t*) {
-                auto* self = static_cast<PrintSelectCardView*>(lv_observer_get_user_data(observer));
-                if (self && self->cached_gradient_) {
-                    // Force cache invalidation by resetting dark mode flag
-                    self->cached_gradient_dark_ = !theme_manager_is_dark_mode();
-                    self->ensure_gradient_cache(self->cached_gradient_w_, self->cached_gradient_h_);
-                }
-            },
-            this);
-    }
-
-    spdlog::debug("[PrintSelectCardView] Pool initialized with {} cards", card_pool_.size());
+    card_pool_indices_.resize(card_pool_.size(), -1);
 }
 
 void PrintSelectCardView::create_spacers() {
@@ -367,6 +400,92 @@ void PrintSelectCardView::create_spacers() {
 // ============================================================================
 // Card Configuration
 // ============================================================================
+
+#if defined(HELIX_PLATFORM_ESP32)
+void PrintSelectCardView::release_esp_thumbnails() {
+    for (size_t i = 0; i < card_pool_.size() && i < card_data_pool_.size(); ++i) {
+        release_esp_thumbnail(card_pool_[i], *card_data_pool_[i]);
+        lv_subject_set_int(&card_data_pool_[i]->thumbnail_state_subject, 1);
+        card_pool_indices_[i] = -1;
+    }
+    // The next pass rebinds every card and reports the window again, which is
+    // what fetches the thumbnails back.
+    visible_start_row_ = -1;
+    visible_end_row_ = -1;
+}
+
+void PrintSelectCardView::release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data) {
+    if (!data.esp_thumbnail) {
+        return;
+    }
+    // The image must stop pointing at the buffer before the buffer can go.
+    if (lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail")) {
+        lv_image_set_src(thumb_img, nullptr);
+    }
+    data.esp_thumbnail.reset();
+}
+#endif
+
+void PrintSelectCardView::apply_thumbnail(lv_obj_t* card, CardWidgetData& data,
+                                          const PrintFileData& file) {
+    // Update thumbnail state (observers handle visibility declaratively)
+    // 0=real thumbnail, 1=placeholder (show cube icon), 2=directory (hide both)
+#if defined(HELIX_PLATFORM_ESP32)
+    if (file.is_dir || !file.esp_thumbnail) {
+        release_esp_thumbnail(card, data);
+    }
+#endif
+    if (file.is_dir) {
+        lv_subject_set_int(&data.thumbnail_state_subject, 2);
+    } else {
+        bool has_real_thumb = has_real_thumbnail(file.thumbnail_path);
+#if defined(HELIX_PLATFORM_ESP32)
+        // No disk thumbnail cache on this platform (Task 10 R6) — a fetched
+        // thumbnail lives in file.esp_thumbnail (PSRAM) instead of a file at
+        // file.thumbnail_path, so has_real_thumbnail()'s on-disk exists
+        // check alone would always report false here.
+        bool has_psram_thumb = static_cast<bool>(file.esp_thumbnail);
+        has_real_thumb = has_real_thumb || has_psram_thumb;
+#endif
+        if (has_real_thumb) {
+            lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail");
+            if (thumb_img) {
+#if defined(HELIX_PLATFORM_ESP32)
+                if (has_psram_thumb) {
+                    // Keep the buffer alive in this pool slot for as long as
+                    // the widget's `src` references it (see CardWidgetData
+                    // comment) — assigning here also drops the previous
+                    // slot's thumbnail, if any.
+                    data.esp_thumbnail = file.esp_thumbnail;
+                    lv_image_set_src(thumb_img, data.esp_thumbnail->dsc());
+                } else
+#endif
+                {
+                    lv_image_set_src(thumb_img, file.thumbnail_path.c_str());
+                }
+                // Size widget to match pre-scaled .bin target so LVGL uses 1:1 blit
+                // instead of the scaled transform path (avoids per-frame bilinear scaling).
+                // Re-read per update rather than caching in a function-local static: the
+                // target tracks the measured card size, which changes on resize.
+                auto target = helix::ThumbnailProcessor::get_target_for_display();
+                lv_obj_set_size(thumb_img, target.width, target.height);
+            }
+            lv_subject_set_int(&data.thumbnail_state_subject, 0);
+        } else {
+            lv_subject_set_int(&data.thumbnail_state_subject, 1);
+        }
+    }
+}
+
+bool PrintSelectCardView::update_thumbnail(size_t file_index, const PrintFileData& file) {
+    for (size_t i = 0; i < card_pool_.size() && i < card_data_pool_.size(); ++i) {
+        if (card_pool_indices_[i] == static_cast<ssize_t>(file_index)) {
+            apply_thumbnail(card_pool_[i], *card_data_pool_[i], file);
+            return true;
+        }
+    }
+    return false;
+}
 
 void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
                                          const PrintFileData& file, const CardDimensions& dims) {
@@ -401,48 +520,7 @@ void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size
     lv_subject_copy_string(&data->filament_subject, file.filament_str.c_str());
     lv_subject_set_int(&data->folder_type_subject, folder_type);
 
-    // Update thumbnail state (observers handle visibility declaratively)
-    // 0=real thumbnail, 1=placeholder (show cube icon), 2=directory (hide both)
-    if (file.is_dir) {
-        lv_subject_set_int(&data->thumbnail_state_subject, 2);
-    } else {
-        bool has_real_thumb = has_real_thumbnail(file.thumbnail_path);
-#if defined(HELIX_PLATFORM_ESP32)
-        // No disk thumbnail cache on this platform (Task 10 R6) — a fetched
-        // thumbnail lives in file.esp_thumbnail (PSRAM) instead of a file at
-        // file.thumbnail_path, so has_real_thumbnail()'s on-disk exists
-        // check alone would always report false here.
-        bool has_psram_thumb = static_cast<bool>(file.esp_thumbnail);
-        has_real_thumb = has_real_thumb || has_psram_thumb;
-#endif
-        if (has_real_thumb) {
-            lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail");
-            if (thumb_img) {
-#if defined(HELIX_PLATFORM_ESP32)
-                if (has_psram_thumb) {
-                    // Keep the buffer alive in this pool slot for as long as
-                    // the widget's `src` references it (see CardWidgetData
-                    // comment) — assigning here also drops the previous
-                    // slot's thumbnail, if any.
-                    data->esp_thumbnail = file.esp_thumbnail;
-                    lv_image_set_src(thumb_img, data->esp_thumbnail->dsc());
-                } else
-#endif
-                {
-                    lv_image_set_src(thumb_img, file.thumbnail_path.c_str());
-                }
-                // Size widget to match pre-scaled .bin target so LVGL uses 1:1 blit
-                // instead of the scaled transform path (avoids per-frame bilinear scaling).
-                // Re-read per update rather than caching in a function-local static: the
-                // target tracks the measured card size, which changes on resize.
-                auto target = helix::ThumbnailProcessor::get_target_for_display();
-                lv_obj_set_size(thumb_img, target.width, target.height);
-            }
-            lv_subject_set_int(&data->thumbnail_state_subject, 0);
-        } else {
-            lv_subject_set_int(&data->thumbnail_state_subject, 1);
-        }
-    }
+    apply_thumbnail(card, *data, file);
 
     // Note: metadata_row visibility, folder_icon, and thumbnail visibility
     // are handled declaratively via folder_type_subject bindings.
@@ -477,10 +555,8 @@ void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
     // Save scroll position before any changes if preserving
     int32_t saved_scroll = preserve_scroll ? lv_obj_get_scroll_y(container_) : 0;
 
-    // Initialize pool on first call
-    if (card_pool_.empty()) {
-        init_pool(dims);
-    }
+    // Shared pool state on first call; cards are created by update_visible()
+    init_pool(dims);
 
     // Create spacers if needed
     create_spacers();
@@ -522,7 +598,7 @@ void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
 
 void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_list,
                                          const CardDimensions& dims) {
-    if (!container_ || card_pool_.empty() || file_list.empty()) {
+    if (!container_ || !pool_initialized_ || file_list.empty()) {
         for (auto* card : card_pool_) {
             lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
         }
@@ -575,6 +651,10 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
     sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
                       last_trailing_height_);
 
+    // The pool covers the window and nothing more: building a card costs tens
+    // of ms on slow hardware, and a window reached by scrolling grows it.
+    grow_pool(static_cast<size_t>(std::max(0, last_visible_idx - first_visible_idx)), dims);
+
     // Assign pool cards to visible indices, skipping cards that already show correct file
     size_t pool_idx = 0;
     for (int file_idx = first_visible_idx;
@@ -598,6 +678,9 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
     // Hide unused pool cards
     for (; pool_idx < card_pool_.size(); pool_idx++) {
         lv_obj_add_flag(card_pool_[pool_idx], LV_OBJ_FLAG_HIDDEN);
+#if defined(HELIX_PLATFORM_ESP32)
+        release_esp_thumbnail(card_pool_[pool_idx], *card_data_pool_[pool_idx]);
+#endif
         card_pool_indices_[pool_idx] = -1;
     }
 
@@ -613,7 +696,7 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
 
 void PrintSelectCardView::refresh_content(const std::vector<PrintFileData>& file_list,
                                           const CardDimensions& dims) {
-    if (!container_ || !lv_obj_is_valid(container_) || card_pool_.empty() ||
+    if (!container_ || !lv_obj_is_valid(container_) || !pool_initialized_ ||
         visible_start_row_ < 0) {
         return;
     }

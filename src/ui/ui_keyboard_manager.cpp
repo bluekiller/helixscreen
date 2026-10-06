@@ -1389,11 +1389,11 @@ void KeyboardManager::show(lv_obj_t* textarea) {
     lv_obj_move_foreground(keyboard_);
     lv_obj_update_layout(screen);
     {
-        // The keyboard covers the bottom of the rail, where the E-stop sits:
-        // move it up the rail column to clear the keyboard's final top edge.
+        // The keyboard covers the bottom of the navbar, where the E-stop sits:
+        // move it up the navbar column to clear the keyboard's final top edge.
         lv_area_t kb_area;
         lv_obj_get_coords(keyboard_, &kb_area);
-        NavigationManager::instance().set_rail_estop_keyboard_top(kb_area.y1);
+        NavigationManager::instance().set_navbar_estop_keyboard_top(kb_area.y1);
     }
 
     // Animate keyboard sliding up from bottom
@@ -1439,7 +1439,7 @@ void KeyboardManager::show(lv_obj_t* textarea) {
 
         for (uint32_t i = 0; i < child_count; i++) {
             lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-            // Screen chrome (the rail E-stop) is placed against the keyboard, not
+            // Screen chrome (the navbar E-stop) is placed against the keyboard, not
             // shifted with the page.
             if (child == keyboard_ || helix::ui::is_screen_chrome(child))
                 continue;
@@ -1502,7 +1502,7 @@ void KeyboardManager::hide() {
     longpress_state_ = LP_IDLE;
 
     lv_keyboard_set_textarea(keyboard_, nullptr);
-    NavigationManager::instance().set_rail_estop_keyboard_top(-1);
+    NavigationManager::instance().set_navbar_estop_keyboard_top(-1);
 
     // Animate keyboard sliding down (or hide instantly if animations disabled)
     if (keyboard_animations_enabled()) {

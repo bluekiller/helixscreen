@@ -165,6 +165,10 @@ struct PrePrintOption {
     /// Mesh" and, when ENABLED, the print-start params include the adaptive token
     /// (e.g. `ADAPTIVE=1`) alongside the enable param. No separate sub-toggle.
     bool adaptive_active = false;
+
+    /// Runtime flag (NOT parsed from JSON): `default_enabled` is the value a
+    /// self-storing firmware holds, set by PrinterProfileState::apply_dynamic_options().
+    bool default_from_firmware = false;
 };
 
 /**
@@ -225,6 +229,11 @@ std::optional<PrePrintOption> parse_pre_print_option(const nlohmann::json& j);
  * loads. The returned vector is sorted by (category, order).
  */
 PrePrintOptionSet parse_pre_print_option_set(const nlohmann::json& j);
+
+namespace helix {
+/// Sort by (category, order): the on-screen order every option set keeps.
+void sort_pre_print_options(std::vector<PrePrintOption>& options);
+} // namespace helix
 
 /**
  * @brief Render a `MacroParam` option as `KEY=value` token. The `enabled`

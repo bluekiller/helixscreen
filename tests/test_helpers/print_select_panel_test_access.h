@@ -54,6 +54,16 @@ struct PrintSelectPanelTestAccess {
         }
     }
 
+    /// Request metadata for one listed file, as the card window does.
+    static void fetch_metadata(PrintSelectPanel& panel, const std::string& filename) {
+        for (size_t i = 0; i < panel.file_list_.size(); ++i) {
+            if (panel.file_list_[i].filename == filename) {
+                panel.fetch_metadata_range(i, i + 1);
+                return;
+            }
+        }
+    }
+
     /// Feed @p metadata through the panel's metadata apply for a listed file.
     static void apply_metadata(PrintSelectPanel& panel, const std::string& filename,
                                const FileMetadata& metadata) {

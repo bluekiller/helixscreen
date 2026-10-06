@@ -646,7 +646,7 @@ extends the inventory - the curated spools the mock backends link against keep t
 |----------|-------|
 | **Values** | integer target count (clamped to 5000) |
 | **Default** | 19 (unset - no padding) |
-| **File** | `src/api/moonraker_api_mock.cpp` (`init_mock_spools`) |
+| **File** | `src/api/moonraker_client_mock_spoolman.cpp` (`init_mock_spools`) |
 
 ```bash
 # Measure picker search cost against a 300-spool inventory

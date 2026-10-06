@@ -53,6 +53,8 @@ The Z-axis buttons on the right follow the same mode - their labels update to sh
 
 ## Motion Settings
 
+> Added in 1.1.
+
 Besides the distances, the jog pad's own speed is adjustable. There are two places to reach the settings, and both open the same panel:
 
 - the **cog icon** in the Motion screen's header, next to the title (hidden on small screens - use the Settings path there)
@@ -69,6 +71,8 @@ Besides the distances, the jog pad's own speed is adjustable. There are two plac
 ---
 
 ## At the Limits
+
+> Added in 1.1.
 
 Jog moves stop at the axis limits, and the limits include any G-code offset your printer applies, so you cannot jog into a region the firmware would refuse.
 
@@ -88,6 +92,8 @@ The right column has four Z buttons (two large steps and two small steps, up and
 
 ## Move Tab
 
+> Added in 1.1.
+
 The **Move** tab replaces the jog pad with a 3x3 grid of named bed positions, laid out like the bed seen from above: the **Rear** row is at the top, the **Front** row at the bottom, and the columns are **Left**, **Center**, and **Right**. The positions cover the print plate, taken from the probing area in your `[bed_mesh]` config, not the full axis travel: many printers can travel past the plate to reach a purge bucket, a wiper or parked tools, and a named position never sends the head there. The center position is the middle of the plate; the other eight sit about 10% in from its edges. Printers with no `[bed_mesh]` section use the axis travel instead. On delta printers the eight outer positions are spread around a circle instead of a rectangle, matching the round bed.
 
 Tap any position and the toolhead moves there in X and Y only - Z is never changed from this grid. If X or Y isn't homed yet, the printer homes first and then makes the move. The positions and **Park** grey out while the toolhead is moving and come back once it stops, so a second tap can't land mid-move; the Z buttons stay live.
@@ -103,6 +109,8 @@ Everything on the Move tab is disabled while a print is running or paused, and w
 
 ## Bed Tab
 
+> Added in 1.1.
+
 The **Bed** tab shows the print plate from above, rear edge at the top, with a ringed dot where the toolhead is and faint crosshair lines through it, edge to edge. The readout under the plate shows the head's X, Y and Z. **Tap anywhere on the plate** and the toolhead goes there in X and Y. **Drag** and the toolhead follows your finger, while the readout under the plate shows the X and Y beneath it. The head chases the latest point rather than every point it passed, so on a fast drag it moves in short hops and catches up when you stop. A tap or drag past the edge of the plate goes to the nearest point on it; on a delta printer the plate is drawn round and the nearest point is on its rim.
 
 The map is deliberately coarse. For an exact position, tap a coordinate in the header or use the Move tab.
@@ -116,6 +124,8 @@ The plate is the same area the Move tab uses: the probing area from your `[bed_m
 ---
 
 ## Park
+
+> Added in 1.1.
 
 **Park** moves the toolhead out of the way to a safe spot.
 

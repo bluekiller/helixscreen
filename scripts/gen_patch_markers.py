@@ -37,7 +37,7 @@ import subprocess
 import sys
 
 STANZA_RE = re.compile(
-    r"\$\(Q\)\$\(APPLY_PATCH\) \$\((LVGL_DIR|LIBHV_DIR)\) "
+    r"\$\(Q\)\$\(APPLY_PATCH\) \$\((LVGL_DIR|LIBHV_DIR|LUA_DIR)\) "
     r"\$\(PATCH_DIR\)/([A-Za-z0-9_.-]+\.patch)"
 )
 QUOTED_RE = re.compile(r'"([^"]*)"')
@@ -144,10 +144,11 @@ def main():
     ap.add_argument("--patch-dir", default="patches")
     ap.add_argument("--lvgl", default="lib/lvgl")
     ap.add_argument("--libhv", default="lib/libhv")
+    ap.add_argument("--lua", default="lib/lua")
     ap.add_argument("--write", action="store_true",
                     help="write the table instead of printing it")
     args = ap.parse_args()
-    dirs = {"LVGL_DIR": args.lvgl, "LIBHV_DIR": args.libhv}
+    dirs = {"LVGL_DIR": args.lvgl, "LIBHV_DIR": args.libhv, "LUA_DIR": args.lua}
 
     wired = stanzas(args.mk)
     if not wired:

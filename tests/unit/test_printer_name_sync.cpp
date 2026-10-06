@@ -90,7 +90,7 @@ TEST_CASE_METHOD(PrinterNameSyncFixture, "resolve: local name already set skips 
     config_->set<std::string>(config_->df() + wizard::PRINTER_NAME, "My Local Printer");
 
     // Set a Mainsail DB value that should NOT be used
-    api_->mock_set_db_value("mainsail", "general.printername", "Should Not Be Used");
+    client_.mock_db_set("mainsail", "general.printername", "Should Not Be Used");
 
     PrinterNameSync::resolve(api_.get(), "hostname.local");
     drain();
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(PrinterNameSyncFixture, "resolve: local name already set skips 
 
 TEST_CASE_METHOD(PrinterNameSyncFixture, "resolve: Mainsail has name seeds from Mainsail",
                  "[name-sync]") {
-    api_->mock_set_db_value("mainsail", "general.printername", std::string("Mainsail Printer"));
+    client_.mock_db_set("mainsail", "general.printername", std::string("Mainsail Printer"));
 
     PrinterNameSync::resolve(api_.get(), "fallback.local");
     drain();
@@ -113,7 +113,7 @@ TEST_CASE_METHOD(PrinterNameSyncFixture, "resolve: Mainsail missing Fluidd has n
                  "[name-sync]") {
     // Only Fluidd is in the mock DB; Mainsail lookup will trigger the error callback,
     // which then queries Fluidd via the passed-in api parameter.
-    api_->mock_set_db_value("fluidd", "general.instanceName", std::string("Fluidd Printer"));
+    client_.mock_db_set("fluidd", "general.instanceName", std::string("Fluidd Printer"));
 
     PrinterNameSync::resolve(api_.get(), "fallback.local");
     drain();
@@ -151,8 +151,8 @@ TEST_CASE_METHOD(PrinterNameSyncFixture,
                  "resolve: Mainsail empty string falls through and Fluidd wins", "[name-sync]") {
     // Mainsail key exists but value is empty string — resolve() treats this as "no name"
     // and falls through to Fluidd via the captured api pointer.
-    api_->mock_set_db_value("mainsail", "general.printername", std::string(""));
-    api_->mock_set_db_value("fluidd", "general.instanceName", std::string("Workshop Printer"));
+    client_.mock_db_set("mainsail", "general.printername", std::string(""));
+    client_.mock_db_set("fluidd", "general.instanceName", std::string("Workshop Printer"));
 
     PrinterNameSync::resolve(api_.get(), "hostname-fallback");
     drain();
@@ -227,7 +227,7 @@ TEST_CASE_METHOD(PrinterNameSyncFixture,
     REQUIRE(config_->set_active_printer("name-a"));
     get_printer_state().init_subjects(false);
 
-    api_->mock_set_db_value("mainsail", "general.printername", std::string("Printer A"));
+    client_.mock_db_set("mainsail", "general.printername", std::string("Printer A"));
     PrinterNameSync::resolve(api_.get(), "a.local");
 
     // The switch lands before the queued name does.
@@ -255,7 +255,7 @@ TEST_CASE_METHOD(PrinterNameSyncFixture,
     config_->add_printer("kept-b", nlohmann::json::object());
     REQUIRE(config_->set_active_printer("gone-a"));
 
-    api_->mock_set_db_value("mainsail", "general.printername", std::string("Printer A"));
+    client_.mock_db_set("mainsail", "general.printername", std::string("Printer A"));
     PrinterNameSync::resolve(api_.get(), "a.local");
     config_->remove_printer("gone-a");
     drain();
@@ -268,7 +268,8 @@ TEST_CASE_METHOD(PrinterNameSyncFixture,
 
 TEST_CASE_METHOD(PrinterNameSyncFixture, "resolve: a lost connection does not seed the hostname",
                  "[name-sync][multi-printer]") {
-    api_->mock_fail_db_reads(MoonrakerErrorType::CONNECTION_LOST);
+    client_.fail_next("server.database.get_item",
+                      MoonrakerError::connection_lost("server.database.get_item"));
 
     PrinterNameSync::resolve(api_.get(), "printer-hostname");
     drain();

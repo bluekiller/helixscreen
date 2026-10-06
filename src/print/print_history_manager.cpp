@@ -3,6 +3,7 @@
 
 #include "print_history_manager.h"
 
+#include "ui_filename_utils.h"
 #include "ui_update_queue.h"
 
 #include "connection_staleness.h"
@@ -14,6 +15,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <optional>
 
 using namespace helix;
 
@@ -144,7 +146,9 @@ bool PrintHistoryManager::covers_since(double since) const {
     if (!is_loaded_) {
         return false;
     }
-    if (is_loaded(HistoryScope::COMPLETE)) {
+    // Only a short response proves the cache holds every job. A COMPLETE load
+    // that came back full was cut off by its limit, and covers only what it holds.
+    if (holds_every_job_) {
         return true;
     }
     // Newest-first order, so the last entry is the oldest job cached and marks
@@ -179,14 +183,107 @@ void PrintHistoryManager::ensure_loaded(HistoryScope scope) {
 
 void PrintHistoryManager::ensure_covers_since(double since) {
     if (is_loaded_ && !covers_since(since)) {
-        // The slice stops short of the window, so only the whole list answers
-        // it. Moonraker's `since` parameter cannot be used to widen in place:
-        // it would drop the newest-job selection on a printer that has printed
-        // nothing inside the window.
-        ensure_loaded(HistoryScope::COMPLETE);
+        // The slice stops short of the window. Moonraker's `since` parameter
+        // cannot widen it in place: it would drop the newest-job selection on a
+        // printer that has printed nothing inside the window. Escalate to the
+        // whole list first, then page older jobs in behind it.
+        if (wanted_since_ == 0.0 || since < wanted_since_) {
+            wanted_since_ = since;
+        }
+        if (!is_loaded(HistoryScope::COMPLETE)) {
+            coverage_load_pending_ = true;
+            ensure_loaded(HistoryScope::COMPLETE);
+        } else {
+            load_older();
+        }
         return;
     }
     ensure_loaded(HistoryScope::RECENT);
+}
+
+void PrintHistoryManager::load_older() {
+    if (!api_ || !is_loaded_ || holds_every_job_ || older_exhausted_ || cached_jobs_.empty() ||
+        cached_jobs_.size() >= job_budget_) {
+        return;
+    }
+    bool expected = false;
+    if (!is_fetching_.compare_exchange_strong(expected, true)) {
+        return; // its response notifies, and an ensure_covers_since() target asks again
+    }
+
+    // Moonraker's `before` is strict. Nudging it past the oldest cached job
+    // keeps jobs that share its start time; the job_id dedupe drops the repeat.
+    constexpr double kBoundarySlackSeconds = 0.001;
+    const double before = cached_jobs_.back().start_time + kBoundarySlackSeconds;
+    const uint64_t generation = cache_generation_;
+    spdlog::debug("[HistoryManager] Fetching older jobs (before={})", before);
+
+    auto token = lifetime_.token();
+    api_->history().get_history_list(
+        kOlderPageJobs, 0, 0.0, before,
+        [this, token, generation](const std::vector<PrintHistoryJob>& jobs, uint64_t /*total*/) {
+            is_fetching_.store(false);
+            std::vector<PrintHistoryJob> jobs_copy = jobs;
+            token.defer("PrintHistoryManager::older_page",
+                        [this, generation, jobs = std::move(jobs_copy)]() mutable {
+                            on_older_page(std::move(jobs), generation);
+                        });
+        },
+        [this, token](const MoonrakerError& error) {
+            is_fetching_.store(false);
+            spdlog::warn("[HistoryManager] Failed to fetch older history: {}", error.message);
+            // A full load queued behind this page still has to run. The coverage
+            // target stays, for the next ensure_covers_since() to resume.
+            token.defer("PrintHistoryManager::older_page_failed", [this]() {
+                const int queued = pending_scope_.exchange(kNoFetch);
+                if (queued != kNoFetch) {
+                    fetch(static_cast<HistoryScope>(queued));
+                }
+            });
+        });
+}
+
+void PrintHistoryManager::on_older_page(std::vector<PrintHistoryJob>&& jobs, uint64_t generation) {
+    if (generation == cache_generation_ && is_loaded_) {
+        const bool short_page = static_cast<int>(jobs.size()) < kOlderPageJobs;
+        size_t added = 0;
+        for (auto& job : jobs) {
+            auto same_id = [&job](const PrintHistoryJob& j) { return j.job_id == job.job_id; };
+            if (std::none_of(cached_jobs_.begin(), cached_jobs_.end(), same_id)) {
+                adopt_original(job);
+                cached_jobs_.push_back(std::move(job));
+                ++added;
+            }
+        }
+        holds_every_job_ = short_page;
+        // A full page of jobs already cached cannot move `before` on, so asking
+        // again would return it forever.
+        older_exhausted_ = !short_page && added == 0;
+        build_filename_stats();
+        notify_observers();
+    }
+
+    const int queued = pending_scope_.exchange(kNoFetch);
+    if (queued != kNoFetch) {
+        fetch(static_cast<HistoryScope>(queued));
+        return;
+    }
+    continue_coverage();
+}
+
+void PrintHistoryManager::continue_coverage() {
+    if (wanted_since_ == 0.0) {
+        return;
+    }
+    if (covers_since(wanted_since_)) {
+        wanted_since_ = 0.0;
+    } else if (!is_loaded(HistoryScope::COMPLETE)) {
+        return; // the escalation to the whole list is still to land
+    } else if (!older_exhausted_ && cached_jobs_.size() < job_budget_) {
+        load_older();
+    } else {
+        wanted_since_ = 0.0; // nothing more can come: stop asking
+    }
 }
 
 const PrintHistoryJob* PrintHistoryManager::get_newest_existing_job() const {
@@ -216,6 +313,10 @@ void PrintHistoryManager::watch_connection_state() {
 void PrintHistoryManager::invalidate() {
     spdlog::debug("[HistoryManager] Cache invalidated");
     is_loaded_ = false;
+    // A file change can be the original being deleted or re-sliced. Answers
+    // still in flight describe the file as it was, so they are dropped.
+    originals_.clear();
+    ++originals_generation_;
 }
 
 // ============================================================================
@@ -255,6 +356,15 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
     spdlog::debug("[HistoryManager] Fetched {} jobs (limit={})", jobs.size(), requested);
 
     cached_jobs_ = std::move(jobs);
+    for (auto& job : cached_jobs_) {
+        adopt_original(job);
+    }
+    ++cache_generation_;
+    older_exhausted_ = false;
+    if (!coverage_load_pending_) {
+        wanted_since_ = 0.0;
+    }
+    coverage_load_pending_ = false;
     // Moonraker fills a page up to the limit and stops, so a short response is
     // the whole history and the cache answers COMPLETE however narrow the
     // request was.
@@ -275,10 +385,13 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
     if (queued != kNoFetch) {
         spdlog::debug("[HistoryManager] Re-fetching (history changed mid-flight)");
         fetch(static_cast<HistoryScope>(queued));
+        return;
     }
+    continue_coverage();
 }
 
 void PrintHistoryManager::apply_job_update(PrintHistoryJob&& job) {
+    adopt_original(job);
     auto same_id = [&job](const PrintHistoryJob& j) { return j.job_id == job.job_id; };
     auto it = std::find_if(cached_jobs_.begin(), cached_jobs_.end(), same_id);
 
@@ -305,6 +418,84 @@ void PrintHistoryManager::apply_job_update(PrintHistoryJob&& job) {
     // covers_since() reports, and the growth is bounded by prints this session.
     build_filename_stats();
     notify_observers();
+}
+
+void PrintHistoryManager::apply_original(PrintHistoryJob& job, const OriginalFile& original) {
+    job.exists = original.exists;
+    job.modified = original.modified;
+    job.thumbnails = original.thumbnails;
+    const ThumbnailInfo* largest = select_thumbnail(job.thumbnails, 0, 0);
+    job.thumbnail_path = largest ? largest->relative_path : std::string{};
+}
+
+void PrintHistoryManager::adopt_original(PrintHistoryJob& job) {
+    if (!helix::gcode::is_rewritten_gcode_path(job.filename)) {
+        return;
+    }
+    // The rewrite's own file and thumbnails are deleted when the print ends.
+    apply_original(job, OriginalFile{});
+
+    // A name that cannot place the original stays as reported: adopting a
+    // same-named file from another folder would reprint the wrong one.
+    std::optional<std::string> original = helix::gcode::trusted_original_path(job.filename);
+    if (!original) {
+        return;
+    }
+    job.filename = std::move(*original);
+    job.from_rewrite = true;
+
+    if (auto it = originals_.find(job.filename); it != originals_.end()) {
+        apply_original(job, it->second); // answered, or still missing while asked
+        return;
+    }
+    if (!api_) {
+        return; // nothing asked, so nothing to remember
+    }
+    originals_.emplace(job.filename, OriginalFile{});
+
+    const std::string filename = job.filename;
+    const uint64_t generation = originals_generation_;
+    auto token = lifetime_.token();
+    api_->files().get_file_metadata(
+        filename,
+        [this, token, filename, generation](const FileMetadata& metadata) {
+            OriginalFile answer;
+            answer.exists = true;
+            answer.modified = metadata.modified;
+            answer.thumbnails = metadata.thumbnails;
+            token.defer("PrintHistoryManager::original_metadata",
+                        [this, filename, generation, answer = std::move(answer)]() mutable {
+                            on_original_answered(filename, generation, std::move(answer));
+                        });
+        },
+        [this, token, filename, generation](const MoonrakerError&) {
+            token.defer("PrintHistoryManager::original_missing", [this, filename, generation]() {
+                on_original_answered(filename, generation, OriginalFile{});
+            });
+        },
+        /*silent=*/true);
+}
+
+void PrintHistoryManager::on_original_answered(const std::string& filename, uint64_t generation,
+                                               OriginalFile original) {
+    if (generation != originals_generation_) {
+        return; // asked before an invalidation; the refetch asks again
+    }
+    spdlog::debug("[HistoryManager] Original '{}' of a rewritten job: {}", filename,
+                  original.exists ? "found" : "missing");
+    bool changed = false;
+    for (auto& job : cached_jobs_) {
+        // A job that printed the original directly keeps its own record.
+        if (job.from_rewrite && job.filename == filename) {
+            apply_original(job, original);
+            changed = true;
+        }
+    }
+    originals_[filename] = std::move(original);
+    if (changed) {
+        build_filename_stats();
+        notify_observers();
+    }
 }
 
 void PrintHistoryManager::invalidate_and_refetch() {

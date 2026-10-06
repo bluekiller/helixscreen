@@ -21,6 +21,7 @@
 #include "../../lvgl/lvgl.h"
 #include "../test_helpers/moonraker_file_api_test_access.h"
 #include "../test_helpers/scoped_env.h"
+#include "../test_helpers/scoped_try_reserve_failure.h"
 #include "../ui_test_utils.h"
 
 #include <atomic>
@@ -391,7 +392,7 @@ TEST_CASE_METHOD(MetadataAPITestFixture, "File list sizes and times sent as JSON
         response["result"] =
             json::array({{{"path", "a.gcode"}, {"size", "711288"}, {"modified", "1757990000.5"}},
                          {{"path", "b.gcode"}, {"size", "-1"}, {"modified", nullptr}}});
-        const auto files = probe.parse_file_list(response);
+        const auto files = *probe.parse_file_list(response);
         REQUIRE(files.size() == 2);
         CHECK(files[0].size == 711288);
         CHECK(files[0].modified == Catch::Approx(1757990000.5));
@@ -405,11 +406,18 @@ TEST_CASE_METHOD(MetadataAPITestFixture, "File list sizes and times sent as JSON
             {"files",
              json::array(
                  {{{"filename", "c.gcode"}, {"size", "42"}, {"modified", "1757990001.5"}}})}};
-        const auto files = probe.parse_file_list(response);
+        const auto files = *probe.parse_file_list(response);
         REQUIRE(files.size() == 2);
         CHECK(files[0].modified == Catch::Approx(1757990000.5));
         CHECK(files[1].size == 42);
         CHECK(files[1].modified == Catch::Approx(1757990001.5));
+    }
+
+    SECTION("a listing too big for memory is reported, not truncated") {
+        response["result"] = json::array({{{"path", "a.gcode"}}});
+        helix::ScopedTryReserveFailure no_memory;
+        const auto files = probe.parse_file_list(response);
+        CHECK_FALSE(files.has_value());
     }
 }
 

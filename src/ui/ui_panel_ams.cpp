@@ -1405,7 +1405,6 @@ void AmsPanel::dismiss_error_modal_silently(const char* reason) {
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<AmsPanel> g_ams_panel;
 static lv_obj_t* s_ams_panel_obj = nullptr;
 
 // The shared sequence lives in helix::ui::teardown_overlay_ui(); this site
@@ -1421,26 +1420,21 @@ void destroy_ams_panel_ui() {
     helix::ui::teardown_overlay_ui(s_ams_panel_obj, "AmsPanel",
                                    helix::ui::TeardownDelete::DetachSubtree, nullptr,
                                    helix::ui::TeardownHooks::before([]() {
-                                       if (g_ams_panel) {
-                                           g_ams_panel->clear_panel_reference();
+                                       if (auto* panel = helix::lazy_global_if_exists<AmsPanel>()) {
+                                           panel->clear_panel_reference();
                                        }
                                    }));
 
     // Note: Widget registrations remain (LVGL doesn't support unregistration)
-    // Note: g_ams_panel C++ object stays for state preservation
+    // Note: the AmsPanel instance stays for state preservation
 }
 
 AmsPanel& get_global_ams_panel() {
-    if (!g_ams_panel) {
-        g_ams_panel = std::make_unique<AmsPanel>(get_printer_state(), get_moonraker_api());
-        StaticPanelRegistry::instance().register_destroy("AmsPanel", []() {
-            destroy_ams_panel_ui();
-            g_ams_panel.reset();
-        });
-    }
+    AmsPanel& panel = helix::lazy_global_with_teardown<AmsPanel>(
+        "AmsPanel", destroy_ams_panel_ui, get_printer_state(), get_moonraker_api());
 
     // Lazy create the panel UI if not yet created
-    if (!s_ams_panel_obj && g_ams_panel) {
+    if (!s_ams_panel_obj) {
         // Ensure widgets and XML are registered
         ensure_ams_widgets_registered();
 
@@ -1453,18 +1447,18 @@ AmsPanel& get_global_ams_panel() {
 
         if (s_ams_panel_obj) {
             // Initialize panel observers (AmsState already initialized above)
-            if (!g_ams_panel->are_subjects_initialized()) {
-                g_ams_panel->init_subjects();
+            if (!panel.are_subjects_initialized()) {
+                panel.init_subjects();
             }
 
             // Setup the panel
-            g_ams_panel->setup(s_ams_panel_obj, screen);
+            panel.setup(s_ams_panel_obj, screen);
             lv_obj_add_flag(s_ams_panel_obj, LV_OBJ_FLAG_HIDDEN); // Hidden by default
 
-            helix::nav::register_overlay(s_ams_panel_obj, g_ams_panel.get());
+            helix::nav::register_overlay(s_ams_panel_obj, &panel);
 
             // Destroy on overlay close to free memory on tight devices (AD5M/AD5X
-            // ~107MB RAM). The C++ instance survives via g_ams_panel for state
+            // ~107MB RAM). The C++ instance survives as a lazy_global for state
             // preservation; widgets are recreated on next open.
             helix::nav::on_close(s_ams_panel_obj, []() { destroy_ams_panel_ui(); });
 
@@ -1474,9 +1468,9 @@ AmsPanel& get_global_ams_panel() {
         }
     }
 
-    return *g_ams_panel;
+    return panel;
 }
 
 AmsPanel* get_existing_ams_panel() {
-    return g_ams_panel.get();
+    return helix::lazy_global_if_exists<AmsPanel>();
 }

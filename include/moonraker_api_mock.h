@@ -115,230 +115,6 @@ class MockScrewsTiltState {
 };
 
 /**
- * @brief Mock Spoolman API for testing without a real Spoolman server
- *
- * Overrides all MoonrakerSpoolmanAPI methods to return mock filament
- * inventory data. Also provides mock-specific helpers for AMS slot
- * mapping and filament consumption simulation.
- */
-class MoonrakerSpoolmanAPIMock : public MoonrakerSpoolmanAPI {
-  public:
-    using SuccessCallback = MoonrakerSpoolmanAPI::SuccessCallback;
-    using ErrorCallback = MoonrakerSpoolmanAPI::ErrorCallback;
-
-    explicit MoonrakerSpoolmanAPIMock(helix::MoonrakerClient& client);
-    ~MoonrakerSpoolmanAPIMock() override = default;
-
-    // ========================================================================
-    // Overridden Spoolman Methods (return mock filament inventory)
-    // ========================================================================
-
-    void get_spoolman_status(std::function<void(bool, int)> on_success, ErrorCallback on_error,
-                             bool silent = false) override;
-    void get_spoolman_spools(helix::SpoolListCallback on_success, ErrorCallback on_error) override;
-    void get_spoolman_spool(int spool_id, helix::SpoolCallback on_success, ErrorCallback on_error,
-                            bool silent = false) override;
-    void set_active_spool(int spool_id, SuccessCallback on_success,
-                          ErrorCallback on_error) override;
-    void update_spoolman_spool_weight(int spool_id, double remaining_weight_g,
-                                      SuccessCallback on_success, ErrorCallback on_error) override;
-    void update_spoolman_spool(int spool_id, const nlohmann::json& spool_data,
-                               SuccessCallback on_success, ErrorCallback on_error) override;
-    void update_spoolman_filament(int filament_id, const nlohmann::json& filament_data,
-                                  SuccessCallback on_success, ErrorCallback on_error) override;
-    void update_spoolman_filament_color(int filament_id, const std::string& color_hex,
-                                        SuccessCallback on_success,
-                                        ErrorCallback on_error) override;
-    void get_spoolman_vendors(helix::VendorListCallback on_success,
-                              ErrorCallback on_error) override;
-    void get_spoolman_filaments(helix::FilamentListCallback on_success,
-                                ErrorCallback on_error) override;
-    void get_spoolman_filaments(int vendor_id, helix::FilamentListCallback on_success,
-                                ErrorCallback on_error) override;
-    void create_spoolman_vendor(const nlohmann::json& vendor_data,
-                                helix::VendorCreateCallback on_success,
-                                ErrorCallback on_error) override;
-    void create_spoolman_filament(const nlohmann::json& filament_data,
-                                  helix::FilamentCreateCallback on_success,
-                                  ErrorCallback on_error) override;
-    void create_spoolman_spool(const nlohmann::json& spool_data,
-                               helix::SpoolCreateCallback on_success,
-                               ErrorCallback on_error) override;
-    void delete_spoolman_spool(int spool_id, SuccessCallback on_success,
-                               ErrorCallback on_error) override;
-    void delete_spoolman_vendor(int vendor_id, SuccessCallback on_success,
-                                ErrorCallback on_error) override;
-    void delete_spoolman_filament(int filament_id, SuccessCallback on_success,
-                                  ErrorCallback on_error) override;
-    void get_spoolman_external_vendors(helix::VendorListCallback on_success,
-                                       ErrorCallback on_error) override;
-    void get_spoolman_external_filaments(const std::string& vendor_name,
-                                         helix::FilamentListCallback on_success,
-                                         ErrorCallback on_error) override;
-
-    // ========================================================================
-    // Mock-Specific Helpers
-    // ========================================================================
-
-    /**
-     * @brief Enable or disable mock Spoolman integration
-     */
-    void set_mock_spoolman_enabled(bool enabled) {
-        mock_spoolman_enabled_ = enabled;
-    }
-
-    [[nodiscard]] bool is_mock_spoolman_enabled() const {
-        return mock_spoolman_enabled_;
-    }
-
-    /**
-     * @brief Assign a Spoolman spool to an AMS slot
-     */
-    void assign_spool_to_slot(int slot_index, int spool_id);
-
-    /**
-     * @brief Remove spool assignment from an AMS slot
-     */
-    void unassign_spool_from_slot(int slot_index);
-
-    /**
-     * @brief Get the Spoolman spool ID assigned to a slot
-     */
-    [[nodiscard]] int get_spool_for_slot(int slot_index) const;
-
-    /**
-     * @brief Get SpoolInfo for a slot (if assigned)
-     */
-    [[nodiscard]] std::optional<SpoolInfo> get_spool_info_for_slot(int slot_index) const;
-
-    /**
-     * @brief Simulate filament consumption during a print
-     */
-    void consume_filament(float grams, int slot_index = -1);
-
-    // Test inspection
-    struct FilamentUpdateRecord {
-        int filament_id = 0;
-        nlohmann::json data;
-    };
-    std::vector<FilamentUpdateRecord> filament_updates;
-
-    /// Captured PATCH payloads from update_spoolman_spool() calls (for test
-    /// assertions). Separate from update_spoolman_spool_weight(), which has its
-    /// own dedicated path and does not populate this vector.
-    struct SpoolUpdateRecord {
-        int spool_id = 0;
-        nlohmann::json patch;
-    };
-    std::vector<SpoolUpdateRecord> spool_updates;
-
-    /// Captured (spool_id, remaining_weight_g) from update_spoolman_spool_weight()
-    /// calls — the dedicated weight PATCH path. Lets tests count weight PATCHes
-    /// issued via this path separately from update_spoolman_spool() combined PATCHes.
-    struct WeightUpdateRecord {
-        int spool_id = 0;
-        double remaining_weight_g = 0.0;
-    };
-    std::vector<WeightUpdateRecord> weight_updates;
-
-    /// Captured POST payloads from create_spoolman_vendor() calls (for test assertions).
-    std::vector<nlohmann::json> created_vendors;
-
-    /// ID to assign to the next vendor created via create_spoolman_vendor().
-    /// If 0, the mock falls back to an auto-assigned ID.
-    int next_created_vendor_id = 0;
-
-    /// Captured POST payloads from create_spoolman_filament() calls (for test assertions).
-    std::vector<nlohmann::json> created_filaments;
-
-    /// ID to assign to the next filament created via create_spoolman_filament().
-    /// If 0, the mock falls back to the internal auto-increment counter.
-    int next_created_filament_id = 0;
-
-    /// Captured POST payloads from create_spoolman_spool() calls (for test assertions).
-    std::vector<nlohmann::json> created_spools;
-
-    /// ID to assign to the next spool created via create_spoolman_spool().
-    /// If 0, the mock falls back to an auto-assigned ID based on list size.
-    int next_created_spool_id = 0;
-
-    /**
-     * @brief Pre-seed a vendor with a known ID and name.
-     *
-     * Added vendors are returned by get_spoolman_vendors() ahead of
-     * vendors synthesized from mock_spools_. Use to test vendor-lookup
-     * code with predictable IDs.
-     */
-    void add_vendor(int id, std::string name) {
-        VendorInfo v;
-        v.id = id;
-        v.name = std::move(name);
-        mock_vendors_.push_back(v);
-    }
-
-    /**
-     * @brief Pre-seed a filament with a known ID, vendor, material, and color hex.
-     *
-     * Added filaments are returned by both get_spoolman_filaments() overloads.
-     * The vendor_id-filtered overload returns only matching entries. Use to test
-     * filament-lookup code with predictable IDs.
-     */
-    void add_filament(int id, int vendor_id, std::string material, std::string color_hex) {
-        FilamentInfo f;
-        f.id = id;
-        f.vendor_id = vendor_id;
-        f.material = std::move(material);
-        f.color_hex = std::move(color_hex);
-        mock_filaments_.push_back(std::move(f));
-    }
-
-    /**
-     * @brief Get mutable reference to mock spools for testing
-     */
-    std::vector<SpoolInfo>& get_mock_spools() {
-        return mock_spools_;
-    }
-
-    /**
-     * @brief Get const reference to mock spools
-     */
-    [[nodiscard]] const std::vector<SpoolInfo>& get_mock_spools() const {
-        return mock_spools_;
-    }
-
-    /**
-     * @brief Get the current active spool ID for test assertions
-     * @return Active spool ID, or 0 if no spool is active
-     */
-    [[nodiscard]] int get_mock_active_spool_id() const {
-        return mock_active_spool_id_;
-    }
-
-  private:
-    bool mock_spoolman_enabled_ = true;
-    int mock_active_spool_id_ = 1;
-    std::vector<SpoolInfo> mock_spools_;
-    /// Spools PATCHed to archived=true. They stay in mock_spools_ (the
-    /// single-spool GET still serves them) but are filtered from list GETs,
-    /// mirroring real Spoolman.
-    std::set<int> archived_spool_ids_;
-    std::vector<FilamentInfo> mock_filaments_;
-    std::vector<VendorInfo> mock_vendors_;
-    int next_filament_id_ = 300;
-    std::map<int, int> slot_spool_map_;
-
-    void init_mock_spools();
-
-    /**
-     * @brief Invoke on_error the way the real proxy path fails when Spoolman
-     * is not connected/configured in Moonraker (JSON-RPC error from the
-     * "server.spoolman.proxy" call). Used to keep the mock honest when
-     * mock_spoolman_enabled_ is false instead of silently succeeding.
-     */
-    void fail_spoolman_unavailable(const std::string& method, const ErrorCallback& on_error) const;
-};
-
-/**
  * @brief Mock Timelapse API for testing without a real Moonraker connection
  *
  * Overrides all MoonrakerTimelapseAPI methods to return mock data.
@@ -773,7 +549,8 @@ class MoonrakerJobAPIMock : public MoonrakerJobAPI {
 /**
  * @brief Mock MoonrakerAPI for testing without real printer connection
  *
- * Overrides connection, database, and calibration methods for mock mode.
+ * Overrides connection and calibration methods for mock mode. The Moonraker
+ * database is served by MoonrakerClientMock.
  * File transfer mocking is handled by MoonrakerFileTransferAPIMock (sub-API).
  *
  * Usage:
@@ -795,7 +572,7 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     ~MoonrakerAPIMock() override = default;
 
     // ========================================================================
-    // Overridden Connection/Subscription/Database Proxies (no-ops for mock)
+    // Overridden Connection/Subscription Proxies (no-ops for mock)
     // ========================================================================
 
     helix::SubscriptionId
@@ -818,18 +595,6 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     void get_gcode_store(int count,
                          std::function<void(const std::vector<GcodeStoreEntry>&)> on_success,
                          std::function<void(const MoonrakerError&)> on_error) override;
-    void database_get_item(const std::string& namespace_name, const std::string& key,
-                           std::function<void(const json&)> on_success,
-                           ErrorCallback on_error = nullptr) override;
-    void database_post_item(const std::string& namespace_name, const std::string& key,
-                            const json& value, std::function<void()> on_success = nullptr,
-                            ErrorCallback on_error = nullptr) override;
-    void database_get_namespace(const std::string& namespace_name,
-                                std::function<void(const json&)> on_success,
-                                ErrorCallback on_error = nullptr) override;
-    void database_delete_item(const std::string& namespace_name, const std::string& key,
-                              std::function<void()> on_success = nullptr,
-                              ErrorCallback on_error = nullptr) override;
 
     // ========================================================================
     // Overridden Power Device Methods (return mock data)
@@ -963,20 +728,6 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     /// uploaded since seeding. std::nullopt when the path is unknown.
     std::optional<std::string> get_uploaded_config(const std::string& path) const;
 
-    // ========================================================================
-    // Spoolman Mock Access
-    // ========================================================================
-
-    /**
-     * @brief Get the Spoolman mock sub-API for mock-specific helpers
-     *
-     * Provides access to mock-only methods like assign_spool_to_slot(),
-     * consume_filament(), get_mock_spools(), etc.
-     *
-     * @return Reference to MoonrakerSpoolmanAPIMock
-     */
-    MoonrakerSpoolmanAPIMock& spoolman_mock();
-
     /**
      * @brief Get the Timelapse mock sub-API for mock-specific helpers
      *
@@ -995,111 +746,6 @@ class MoonrakerAPIMock : public MoonrakerAPI {
      */
     MoonrakerRestAPIMock& rest_mock();
 
-    /// Set a mock database value for testing
-    void mock_set_db_value(const std::string& namespace_name, const std::string& key,
-                           const nlohmann::json& value);
-
-    /// Fetch a mock database value for test assertions. Returns null JSON if the
-    /// key is absent.
-    nlohmann::json mock_get_db_value(const std::string& namespace_name,
-                                     const std::string& key) const;
-
-    /// Number of times database_post_item() was called on this mock instance.
-    /// Counts every invocation — including calls later rejected via
-    /// mock_reject_next_db_post() or captured via mock_defer_next_db_post() — so
-    /// tests can assert "a write was attempted" or "no write happened".
-    /// Make every database_get_item() fail with @p type, e.g. a connection lost mid-lookup.
-    void mock_fail_db_reads(MoonrakerErrorType type) {
-        mock_db_read_error_ = type;
-    }
-
-    [[nodiscard]] int mock_db_post_count() const {
-        return db_post_count_;
-    }
-
-    /// Number of times database_get_namespace() was called on this mock
-    /// instance. Counts every invocation (see mock_db_post_count() for
-    /// rejection/defer semantics), so a test can assert that a round-trip was
-    /// made, or that none was.
-    [[nodiscard]] int mock_db_namespace_get_count() const {
-        return db_namespace_get_count_;
-    }
-
-    /// Number of times database_delete_item() was called on this mock instance.
-    /// Counts every invocation (see mock_db_post_count() for rejection/defer
-    /// semantics).
-    [[nodiscard]] int mock_db_delete_count() const {
-        return db_delete_count_;
-    }
-
-    /// Cause the next database_post_item() call to fire its on_error callback
-    /// with the given MoonrakerError, and skip writing to the mock DB. The
-    /// rejection is consumed on the first call — subsequent posts succeed
-    /// normally unless this is called again. The no-arg overload uses a
-    /// generic UNKNOWN error with a descriptive message.
-    /// Not thread-safe: call from the main test thread before the rejection
-    /// is consumed. Catch2 runs tests sequentially so this is safe today.
-    void mock_reject_next_db_post();
-    void mock_reject_next_db_post(MoonrakerError err);
-
-    /// Cause the next database_delete_item() call to fire its on_error callback
-    /// with the given MoonrakerError, and skip erasing from the mock DB. The
-    /// rejection is consumed on the first call — subsequent deletes succeed
-    /// normally unless this is called again. The no-arg overload uses a
-    /// generic UNKNOWN error with a descriptive message.
-    ///
-    /// Note: the mock mirrors MoonrakerAPI's missing-key normalization. If the
-    /// injected error has code == 404 or its message contains "not found",
-    /// on_success is called instead of on_error — faithfully simulating the
-    /// real API's contract. Tests relying on this remap can inject specific
-    /// errors and verify callers handle normalized results.
-    ///
-    /// Not thread-safe: call from the main test thread before the rejection
-    /// is consumed.
-    void mock_reject_next_db_delete();
-    void mock_reject_next_db_delete(MoonrakerError err);
-
-    /// Cause the next database_get_namespace() call to fire its on_error callback
-    /// with the given MoonrakerError, and skip returning any value. The rejection
-    /// is consumed on the first call — subsequent gets succeed normally unless
-    /// this is called again. The no-arg overload uses a generic UNKNOWN error.
-    /// Used to exercise load_blocking()'s "MR DB unreachable → fall back to
-    /// local cache" path.
-    /// Not thread-safe: call from the main test thread before the rejection
-    /// is consumed.
-    void mock_reject_next_db_get();
-    void mock_reject_next_db_get(MoonrakerError err);
-
-    /// Cause the next database_post_item() call to capture its callbacks without
-    /// firing them. The captured callbacks can later be fired via
-    /// fire_deferred_db_post_success() or fire_deferred_db_post_error(err).
-    /// Used to simulate the "callback fires after caller destroyed" window so
-    /// tests can prove the caller's lifetime discipline (value-capture + shared
-    /// state) actually prevents UAF.
-    /// When deferred, the mock also skips writing to the DB until the success
-    /// callback fires — matching real-API semantics (no durable state until ACK).
-    /// If fire_deferred_*() is called with no captured callbacks, it is a no-op.
-    /// Not thread-safe: call from the main test thread.
-    void mock_defer_next_db_post();
-    void fire_deferred_db_post_success();
-    void fire_deferred_db_post_error(MoonrakerError err);
-
-    /// Same mechanism for database_delete_item(). When deferred, the mock also
-    /// skips erasing from the DB until the success callback fires.
-    void mock_defer_next_db_delete();
-    void fire_deferred_db_delete_success();
-    void fire_deferred_db_delete_error(MoonrakerError err);
-
-    /// Same mechanism for database_get_namespace() (NOT database_get_item()).
-    /// Used to exercise load_blocking()'s cv.wait_for timeout path.
-    void mock_defer_next_db_get();
-    void fire_deferred_db_get_success(const nlohmann::json& value);
-    void fire_deferred_db_get_error(MoonrakerError err);
-
-    /// Ensure a namespace/key is absent from the mock database so subsequent
-    /// database_get_item() calls route to on_error.
-    void set_database_empty(const std::string& namespace_name, const std::string& key);
-
   private:
     // Shared mock state for coordination with MoonrakerClientMock
     std::shared_ptr<MockPrinterState> mock_state_;
@@ -1113,50 +759,4 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     // Test spy state for suppress_disconnect_modal()
     size_t suppress_disconnect_modal_calls_ = 0;
     uint32_t last_suppress_disconnect_modal_ms_ = 0;
-
-    /// Mock database storage: key = "namespace:key", value = JSON
-    std::map<std::string, nlohmann::json> mock_db_;
-    /// When set, every database_get_item() fails with this error type.
-    std::optional<MoonrakerErrorType> mock_db_read_error_;
-
-    /// Call counters for database write ops. Incremented at the top of each
-    /// override, before any rejection/defer branch, so a rejected or deferred
-    /// call still counts as an attempt. Exposed via mock_db_post_count() /
-    /// mock_db_delete_count() / mock_db_namespace_get_count().
-    int db_post_count_ = 0;
-    int db_delete_count_ = 0;
-    int db_namespace_get_count_ = 0;
-
-    /// One-shot rejection for database_post_item (set by mock_reject_next_db_post).
-    std::optional<MoonrakerError> next_db_post_rejection_;
-
-    /// One-shot rejection for database_delete_item (set by mock_reject_next_db_delete).
-    std::optional<MoonrakerError> next_db_delete_rejection_;
-
-    /// One-shot rejection for database_get_namespace (set by mock_reject_next_db_get).
-    std::optional<MoonrakerError> next_db_get_rejection_;
-
-    // One-shot deferred captures. Post/delete share the same shape (void()
-    // success, error with MoonrakerError). Get captures a nlohmann::json value.
-    struct DeferredDbPost {
-        std::function<void()> on_success;
-        std::function<void(const MoonrakerError&)> on_error;
-        // Post/delete need the captured write/erase info so fire_*_success can
-        // apply the same DB mutation the synchronous path would have applied.
-        // (For delete, `value` is ignored — the erase is unconditional.)
-        std::string namespace_name;
-        std::string key;
-        nlohmann::json value;
-    };
-    struct DeferredDbGet {
-        std::function<void(const nlohmann::json&)> on_success;
-        std::function<void(const MoonrakerError&)> on_error;
-        std::string namespace_name;
-    };
-    bool defer_next_db_post_ = false;
-    std::optional<DeferredDbPost> deferred_db_post_;
-    bool defer_next_db_delete_ = false;
-    std::optional<DeferredDbPost> deferred_db_delete_;
-    bool defer_next_db_get_ = false;
-    std::optional<DeferredDbGet> deferred_db_get_;
 };

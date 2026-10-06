@@ -7,6 +7,7 @@
 #include "config.h"
 #include "config_testing.h"
 #include "helix_fs.h"
+#include "input_defaults.h"
 #include "json_utils.h"
 #include "platform_capabilities.h"
 #include "text_io.h"
@@ -460,6 +461,20 @@ static void migrate_v16_to_v17(json& config, const std::string& /*config_path*/)
     }
 }
 
+/// Whether the active printer records a finished setup wizard. Runs after
+/// normalize_versionless_document(), which copies an old root-level flag into
+/// the printer it creates, so one place covers both shapes.
+static bool records_finished_wizard(const json& config) {
+    const auto printers = config.find("printers");
+    if (printers == config.end() || !printers->is_object()) {
+        return false;
+    }
+    const auto printer =
+        printers->find(helix::json_util::safe_string(config, "active_printer_id", "default"));
+    return printer != printers->end() &&
+           helix::json_util::safe_bool(*printer, "wizard_completed", false);
+}
+
 /// v17 → v18: After the #943/#986 touch-scaling fix, the DRM/fbdev backends apply
 /// evdev linear scaling to MT-only digitizers (e.g. Qidi Q2: 800x480 controller on a
 /// 480x272 panel). Any affine calibration captured before the fix was computed in the
@@ -468,7 +483,19 @@ static void migrate_v16_to_v17(json& config, const std::string& /*config_path*/)
 /// (large coefficients are valid for resistive panels), so set a one-shot
 /// recheck_pending flag here; the display backend decides at boot — when it knows the
 /// device's resistive/capacitive nature and live ABS range — whether to invalidate.
+///
+/// A versionless document whose wizard never completed is a shipped preset or an
+/// installer seed: its calibration came from a known-good matrix solved for the
+/// current scaling, and nobody has captured another, so it is left unflagged. A
+/// versionless document with a finished wizard is a user config from before
+/// config_version existed, and its wizard affine is exactly what this recheck is
+/// for. The runner stamps config_version after the whole chain, so here it still
+/// reads the document's original version.
 static void migrate_v17_to_v18(json& config, const std::string& /*config_path*/) {
+    if (helix::json_util::safe_int(config, "config_version", 0) == 0 &&
+        !records_finished_wizard(config)) {
+        return;
+    }
     // Guard ([L087]): an absent/default-constructed json is null, and writing into a
     // null via operator[] would replace it — but reading .value()/iterating a null
     // throws. Create the input/calibration objects only when missing, never overwrite
@@ -1213,6 +1240,25 @@ static void migrate_v25_to_v26(json& config, const std::string& /*config_path*/)
                  config["completion_alert"].get<int>());
 }
 
+/// Move a stored scroll_throw that is still the old shipped default onto the
+/// platform default. ESP32 is the only platform whose default differs, so
+/// elsewhere this leaves every document as it is.
+static void migrate_v26_to_v27(json& config, const std::string& /*config_path*/) {
+    if (!config.contains("input") || !config["input"].is_object()) {
+        return;
+    }
+    json& input = config["input"];
+    if (!input.contains("scroll_throw") || !input["scroll_throw"].is_number_integer()) {
+        return;
+    }
+    const int stored = input["scroll_throw"].get<int>();
+    const int migrated = migrated_scroll_throw(stored, helix::input_defaults::SCROLL_THROW);
+    if (migrated != stored) {
+        input["scroll_throw"] = migrated;
+        spdlog::info("[Config] Migration v27: input.scroll_throw {} -> {}", stored, migrated);
+    }
+}
+
 using MigrationFn = void (*)(json& config, const std::string& config_path);
 
 /// The ladder, oldest first. A row runs when the document's stamp is below
@@ -1226,7 +1272,7 @@ constexpr struct {
     {16, migrate_v15_to_v16}, {17, migrate_v16_to_v17}, {18, migrate_v17_to_v18},
     {19, migrate_v18_to_v19}, {20, migrate_v19_to_v20}, {21, migrate_v20_to_v21},
     {22, migrate_v21_to_v22}, {23, migrate_v22_to_v23}, {24, migrate_v23_to_v24},
-    {25, migrate_v24_to_v25}, {26, migrate_v25_to_v26},
+    {25, migrate_v24_to_v25}, {26, migrate_v25_to_v26}, {27, migrate_v26_to_v27},
 };
 
 static_assert(kMigrations[std::size(kMigrations) - 1].to_version == CURRENT_CONFIG_VERSION,
@@ -1289,6 +1335,10 @@ void run_versioned_migrations(json& config, const std::string& config_path) {
     }
 
     config["config_version"] = CURRENT_CONFIG_VERSION;
+}
+
+int migrated_scroll_throw(int stored, int platform_default) {
+    return stored == 25 ? platform_default : stored;
 }
 
 } // namespace helix::config_detail

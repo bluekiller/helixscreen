@@ -293,3 +293,35 @@ TEST_CASE("start_print outlives a print-start macro that heats synchronously",
     CHECK(MoonrakerJobAPI::PRINT_START_TIMEOUT_MS >
           helix::MoonrakerRequestTracker::DEFAULT_REQUEST_TIMEOUT_MS);
 }
+
+TEST_CASE_METHOD(PreStartGateFixture,
+                 "Pre-start path without the plugin prints the original instead of rewriting it",
+                 "[print_preparation][pre_start][plugin_gate]") {
+    // The user turned off an op the sliced file embeds. Stripping it needs the
+    // HelixPrint plugin, which this printer does not report.
+    manager.set_option_state_provider([](const std::string& id) {
+        if (id == "bed_mesh")
+            return 1;
+        return id == "nozzle_clean" ? 0 : -1;
+    });
+    helix::gcode::ScanResult scan;
+    helix::gcode::DetectedOperation op;
+    op.type = helix::gcode::OperationType::NOZZLE_CLEAN;
+    op.embedding = helix::gcode::OperationEmbedding::DIRECT_COMMAND;
+    op.line_number = 5;
+    scan.operations.push_back(op);
+    manager.set_cached_scan_result(scan, "part.gcode");
+    REQUIRE_FALSE(manager.can_modify_gcode());
+
+    manager.start_print("part.gcode", "", []() {}, completion());
+    drain();
+    REQUIRE(api->captured_success);
+
+    api->captured_success();
+    drain();
+
+    CHECK(completed);
+    CHECK(completion_success);
+    CHECK(jobs.start_print_calls == 1);
+    CHECK(jobs.last_filename == "part.gcode");
+}

@@ -43,16 +43,26 @@ config_match_glob(const std::map<std::string, std::string>& files, const std::st
 /// Returns a list of include paths/patterns (e.g., "macros.cfg", "conf.d/*.cfg").
 [[nodiscard]] std::vector<std::string> extract_includes(const std::string& content);
 
+/// A byte range [begin, end) of one config file. Klipper reads the active config
+/// as a sequence of these: a file up to an [include] line, everything that include
+/// reads, then the rest of the file. A later section overrides an earlier one.
+struct ConfigSegment {
+    std::string file;
+    size_t begin = 0;
+    size_t end = 0;
+};
+
 /// Walk the include chain from root_file and return the set of active file paths.
 /// Pure function: given a map of filename->content, follows [include ...] directives
 /// recursively, handling globs and cycle detection.
 /// @param files Map of filename -> content (all files in config directory)
 /// @param root_file Starting file (usually "printer.cfg")
 /// @param max_depth Maximum recursion depth (default 5)
+/// @param read_order If set, receives the active config in Klipper's read order
 /// @return Set of file paths that are part of the active include chain
 [[nodiscard]] std::set<std::string>
 resolve_active_files(const std::map<std::string, std::string>& files, const std::string& root_file,
-                     int max_depth = 5);
+                     int max_depth = 5, std::vector<ConfigSegment>* read_order = nullptr);
 
 // ============================================================================
 // Async Moonraker integration
@@ -66,10 +76,11 @@ using ActiveFilesWithContentCallback =
     std::function<void(const std::set<std::string>&, const std::map<std::string, std::string>&)>;
 
 /// Downloads one config file and calls exactly one of @p on_ok (content) or
-/// @p on_fail (message). Either may run before the call returns.
+/// @p on_fail (message, and whether the transport refused it for a full queue).
+/// Either may run before the call returns.
 using ConfigDownloadFn =
     std::function<void(const std::string& path, std::function<void(std::string)> on_ok,
-                       std::function<void(std::string)> on_fail)>;
+                       std::function<void(std::string, bool queue_full)> on_fail)>;
 
 /// Config downloads outstanding at once. The ESP32 HTTP lane queues 8 requests
 /// for every caller, thumbnails included, and frees a slot only after the
@@ -79,8 +90,8 @@ inline constexpr size_t kMaxConfigDownloadsInFlight = 4;
 /// Download @p root_file and every file its [include] chain reaches, following
 /// globs against @p listing (every path in the config root) and paths relative
 /// to the including file. Files outside the chain are never fetched. A download
-/// refused before @p download returns is retried when an in-flight one completes;
-/// with nothing in flight, and for any other failure, the whole walk fails through
+/// refused for a full queue is retried when an in-flight one completes; with
+/// nothing in flight, and for any other failure, the whole walk fails through
 /// @p on_error once the outstanding downloads have returned. A partial set would
 /// read as a config without the missing files.
 void download_include_graph(std::vector<std::string> listing, const std::string& root_file,

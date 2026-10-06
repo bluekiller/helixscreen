@@ -421,6 +421,20 @@ ZEUS
     ) && [ -n "$zline" ] || { printf 'zeus (%s): unreachable\n' "$zhost"; exit 0; }
     printf 'zeus: %s\n' "$zline"
     ;;
+held-by-other)
+    # Exit 0 (and describe the claim) only when a LIVE claim on the resource, or
+    # on the sibling prefix naming the same tree, belongs to another session.
+    # Your own claim, a stale one and no claim all exit 1.
+    res=$(canon "${1:-}"); [ -n "$res" ] || die "usage: helix-claim held-by-other <resource>"
+    me=$(session_pid)
+    f="$CLAIM_DIR/$(slug "$res").json"
+    if [ -f "$f" ] && [ "$(state_of "$f")" = "LIVE" ]; then
+        body=$(tr -d '\n' < "$f")
+        [ "$(json_get "$body" pid)" != "$me" ] && { describe "$f"; exit 0; }
+    fi
+    if sib=$(blocking_sibling "$res" "$me"); then describe "$sib"; exit 0; fi
+    exit 1
+    ;;
 release-if-owned-by)
     # Release only when the claim names this exact pid, so a hook cannot drop a
     # claim a session is holding across several commits.
@@ -468,6 +482,7 @@ helix-claim - advisory claims on resources shared between agent sessions
   release <resource> [--force]                drop your claim; refuses one another
                                               live session holds unless forced
   release-if-owned-by <pid> <resource>        drop it only if that pid claimed it
+  held-by-other <resource>                    exit 0 if ANOTHER live session holds it
   run heavy:<what> [--note X] -- <cmd...>     hold heavy:<what> while cmd runs and
                                               exit with its status; exits 75 with
                                               cmd unrun if the claim is held

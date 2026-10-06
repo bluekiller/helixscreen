@@ -135,6 +135,12 @@ class DisplayManager : public helix::ICalibrationSink {
         return m_pointer;
     }
 
+    /// Pixels of travel after which the post-scroll click guard counts a touch
+    /// as a scroll. Follows the live scroll_limit setting.
+    void set_scroll_guard_limit(int px) {
+        m_scroll_guard.scroll_limit_px = px;
+    }
+
     /**
      * @brief Get keyboard input device
      * @return Input device pointer, or nullptr if not available

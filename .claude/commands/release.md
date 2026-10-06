@@ -162,9 +162,11 @@ is a STOP with the make output shown.
 ### UI tests
 `make full-test-run` does not run the out-of-process UI suite, and CI does. A stale
 `tests/ui/` case passes every local gate and then reds CI's Test job on the release head.
+Run exactly what CI runs: `make test-ui-pytest` also runs the golden-image tests in
+`tests/ui/test_screens.py`, which CI excludes because they are machine-sensitive.
 
 ```bash
-make && make test-ui-pytest
+make && .venv/bin/python -m pytest tests/ui --ignore=tests/ui/test_screens.py -q
 ```
 
 - If it passes → continue

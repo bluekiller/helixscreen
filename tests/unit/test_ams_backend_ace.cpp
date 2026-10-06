@@ -1273,7 +1273,7 @@ TEST_CASE("ACE migrates from helix-screen:ace_slot_overrides on first startup",
              {"spool_name", "PolyLite Orange"},
          }},
     };
-    api.mock_set_db_value("helix-screen", "ace_slot_overrides", legacy);
+    mock_printer.client.mock_db_set("helix-screen", "ace_slot_overrides", legacy);
 
     helix::ams::FilamentSlotOverrideStore store(&api, "ace");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -1289,14 +1289,14 @@ TEST_CASE("ACE migrates from helix-screen:ace_slot_overrides on first startup",
 
     // lane_data now holds the AFC-shaped record (1-based key on disk, 0-based
     // "lane" field inside — see to_lane_data_record's invariant).
-    auto lane1 = api.mock_get_db_value("lane_data", "lane1");
+    auto lane1 = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!lane1.is_null());
     CHECK(lane1["vendor"] == "Polymaker");
     CHECK(lane1["lane"] == "0");
 
     // Legacy namespace deleted post-migration — second startup sees lane_data
     // populated and skips the migration codepath entirely.
-    CHECK(api.mock_get_db_value("helix-screen", "ace_slot_overrides").is_null());
+    CHECK(mock_printer.client.mock_db_get("helix-screen", "ace_slot_overrides").is_null());
 }
 
 TEST_CASE("ACE apply_user_edit writes to store", "[ams][ace][filament_slot_override]") {
@@ -1341,7 +1341,7 @@ TEST_CASE("ACE apply_user_edit writes to store", "[ams][ace][filament_slot_overr
 
     // Moonraker DB received the AFC-shaped record via save_async (dispatched
     // synchronously in-call by MoonrakerAPIMock).
-    auto stored = api.mock_get_db_value("lane_data", "lane1");
+    auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!stored.is_null());
     CHECK(stored["vendor"] == "Polymaker");
     CHECK(stored["spool_id"] == 42);
@@ -1350,7 +1350,7 @@ TEST_CASE("ACE apply_user_edit writes to store", "[ams][ace][filament_slot_overr
     CHECK(stored["color"] == "#FF5500");
 
     // Legacy namespace NOT touched — ACE no longer writes there.
-    CHECK(api.mock_get_db_value("helix-screen", "ace_slot_overrides").is_null());
+    CHECK(mock_printer.client.mock_db_get("helix-screen", "ace_slot_overrides").is_null());
 }
 
 TEST_CASE("ACE sync_external_identity does NOT write to store",
@@ -1383,7 +1383,7 @@ TEST_CASE("ACE sync_external_identity does NOT write to store",
 
     // No override staged, no DB write.
     CHECK_FALSE(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Preview edit still visible via get_slot_info (in-memory only).
     auto info = backend.get_slot_info(0);
@@ -1444,7 +1444,7 @@ TEST_CASE_METHOD(HelixTestFixture, "ACE weight persist leaves the lane's declara
     // And in the record a restart reads back, where the declared set and the
     // lock keys written from it are what tell a stored declaration from a
     // stored memory.
-    const auto stored = api.mock_get_db_value("lane_data", "lane1");
+    const auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!stored.is_null());
     CHECK(stored["helix_locked_color"] == true);
     CHECK(stored["helix_locked_material"] == true);
@@ -1466,7 +1466,7 @@ TEST_CASE("ACE inserting a different tagged spool clears the override",
 
     // Seed override AND lane_data entry so we can verify clear_async really
     // deletes it from the mock Moonraker DB.
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -1483,7 +1483,7 @@ TEST_CASE("ACE inserting a different tagged spool clears the override",
     // reading as the comparison side for the next insert.
     AceTestAccess::parse_ace(backend, make_ace_slot_payload("available", 0xFF5500, "PLA", true));
     REQUIRE(AceTestAccess::get_override(backend, 0).has_value());
-    REQUIRE(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    REQUIRE(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Second parse: EMPTY, the user pulled the spool. Not a swap signal.
     AceTestAccess::parse_ace(backend, make_ace_slot_payload("empty", 0x000000, ""));
@@ -1496,7 +1496,7 @@ TEST_CASE("ACE inserting a different tagged spool clears the override",
     AceTestAccess::parse_ace(backend, make_ace_slot_payload("available", 0x0055FF, "PETG", true));
 
     CHECK_FALSE(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Firmware data for the new spool is visible; override-exclusive fields
     // were reset.
@@ -1560,7 +1560,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     AceTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -1595,7 +1595,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(toasts.size() == 1);
     CHECK(toasts[0].first == ToastSeverity::INFO);
     CHECK(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // The expired insert is gone: later no-read frames never ask again.
     for (int i = 0; i < 4; ++i) {
@@ -1607,7 +1607,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // Tapping Clear is the user answering the question.
     REQUIRE(helix::ui::fire_last_toast_action());
     CHECK_FALSE(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     helix::ui::set_test_toast_hook(nullptr);
 }
@@ -1630,7 +1630,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     AceTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -1660,7 +1660,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     AceTestAccess::parse_ace(backend, make_ace_slot_payload("available", 0x0055FF, "PETG", true));
 
     CHECK_FALSE(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     helix::ui::UpdateQueue::instance().drain();
     CHECK(toasts.empty());
 
@@ -1685,7 +1685,7 @@ TEST_CASE("ACE an rfid state of 2 (identified) reads as a tag read",
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     AceTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -1705,7 +1705,7 @@ TEST_CASE("ACE an rfid state of 2 (identified) reads as a tag read",
     AceTestAccess::parse_ace(backend, make_ace_slot_payload("available", 0x0055FF, "PETG", 2));
 
     CHECK_FALSE(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 }
 
 namespace {
@@ -1880,7 +1880,7 @@ TEST_CASE("ACE clear_slot_override erases in-memory override and MR DB entry",
 
     // Seed both halves of the override so the clear has something to remove
     // at each layer (in-memory + Moonraker lane_data).
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -1904,13 +1904,13 @@ TEST_CASE("ACE clear_slot_override erases in-memory override and MR DB entry",
         CHECK(info.spoolman_id == 42);
     }
     REQUIRE(AceTestAccess::get_override(backend, 0).has_value());
-    REQUIRE(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    REQUIRE(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // User presses "Clear slot metadata". Override must disappear everywhere.
     backend.clear_slot_override(0);
 
     CHECK_FALSE(AceTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     auto info = backend.get_slot_info(0);
     CHECK(info.brand.empty());
@@ -2831,7 +2831,7 @@ TEST_CASE("ACE publishes a persisted edit to lane_data as the user's own",
     CHECK(helix::ams::declares_material(*staged));
 
     // The record every other reader of the namespace actually sees.
-    auto stored = api.mock_get_db_value("lane_data", "lane1");
+    auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!stored.is_null());
     REQUIRE(stored["color"] == "#1188FF");
     REQUIRE(stored["material"] == "PETG");

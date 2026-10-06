@@ -24,15 +24,8 @@ using namespace helix;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardTelemetryStep> g_wizard_telemetry_step;
-
 WizardTelemetryStep* get_wizard_telemetry_step() {
-    if (!g_wizard_telemetry_step) {
-        g_wizard_telemetry_step = std::make_unique<WizardTelemetryStep>();
-        StaticPanelRegistry::instance().register_destroy("WizardTelemetryStep",
-                                                         []() { g_wizard_telemetry_step.reset(); });
-    }
-    return g_wizard_telemetry_step.get();
+    return &helix::lazy_global<WizardTelemetryStep>("WizardTelemetryStep");
 }
 
 // ============================================================================

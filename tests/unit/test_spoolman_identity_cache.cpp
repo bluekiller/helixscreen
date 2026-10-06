@@ -418,7 +418,7 @@ TEST_CASE_METHOD(IdentityCacheFixture,
 
     // Spoolman reports a lower remaining weight on the next cycle. The cached
     // identity must not short-circuit that: the two have separate cadences.
-    for (auto& spool : h.api.spoolman_mock().get_mock_spools()) {
+    for (auto& spool : h.client.spoolman_mock().get_mock_spools()) {
         if (spool.id == 1) {
             spool.remaining_weight_g = 610.0;
         }
@@ -453,7 +453,7 @@ TEST_CASE_METHOD(IdentityCacheFixture,
     // Make the id resolvable behind the manager's back. If the second poll still
     // issued a request, a Spoolman record would file. It must not, because a
     // known-dead id is skipped before the request is made.
-    h.api.spoolman_mock().get_mock_spools().push_back(
+    h.client.spoolman_mock().get_mock_spools().push_back(
         make_spool(900, "Polymaker", "Ambrosia Pink", "PLA"));
 
     h.poll();

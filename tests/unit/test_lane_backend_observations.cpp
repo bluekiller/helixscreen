@@ -4579,7 +4579,7 @@ struct LaneDataDb {
 
     /// One lane_data record under @p key.
     void seed(const std::string& key, nlohmann::json record) {
-        api.mock_set_db_value("lane_data", key, std::move(record));
+        client.mock_db_set("lane_data", key, std::move(record));
     }
 
     /// A store on the shared namespace, in the key style @p style spells.
@@ -4661,7 +4661,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a resync re-reads the shared namespace into t
     harness->request_resync();
     helix::ui::UpdateQueue::instance().drain();
 
-    CHECK(db.api.mock_db_namespace_get_count() == 1);
+    CHECK(db.client.call_count("server.database.get_item") == 1);
     const auto lane = lane_sources(harness.lane(0));
     REQUIRE(lane.local_user.has_value());
     CHECK(lane.local_user->material == "ASA");
@@ -4781,7 +4781,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "a re-read that cannot reach the database leav
     REQUIRE(lane_sources(harness.lane(0)).local_user.has_value());
 
     db.seed("T0", nlohmann::json{{"lane", "0"}, {"material", "TPU"}});
-    db.api.mock_reject_next_db_get();
+    db.client.fail_next("server.database.get_item");
     harness->request_resync();
     helix::ui::UpdateQueue::instance().drain();
 
@@ -5080,7 +5080,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
         CHECK(helix::ams::known_lanes().empty());
         // Not merely discarded on arrival: with nothing to file there is
         // nothing to ask for, so the database is never reached.
-        CHECK(db.api.mock_db_namespace_get_count() == 0);
+        CHECK(db.client.call_count("server.database.get_item") == 0);
     }
     {
         CfsHarness harness(nullptr, nullptr);
@@ -5094,7 +5094,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
         CHECK(helix::ams::known_lanes().empty());
         // Not merely discarded on arrival: with nothing to file there is
         // nothing to ask for, so the database is never reached.
-        CHECK(db.api.mock_db_namespace_get_count() == 0);
+        CHECK(db.client.call_count("server.database.get_item") == 0);
     }
     {
         SnapmakerHarness harness(nullptr, nullptr);
@@ -5108,7 +5108,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
         CHECK(helix::ams::known_lanes().empty());
         // Not merely discarded on arrival: with nothing to file there is
         // nothing to ask for, so the database is never reached.
-        CHECK(db.api.mock_db_namespace_get_count() == 0);
+        CHECK(db.client.call_count("server.database.get_item") == 0);
     }
     {
         Ad5xHarness harness(nullptr, nullptr);
@@ -5122,7 +5122,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
         CHECK(helix::ams::known_lanes().empty());
         // Not merely discarded on arrival: with nothing to file there is
         // nothing to ask for, so the database is never reached.
-        CHECK(db.api.mock_db_namespace_get_count() == 0);
+        CHECK(db.client.call_count("server.database.get_item") == 0);
     }
     {
         AfcHarness harness(nullptr, nullptr);

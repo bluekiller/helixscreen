@@ -1177,7 +1177,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
     const bool done = run_slice(gcode, camera);
     if (done) {
         // Read pixels from FBO and blit to LVGL
-        blit_to_lvgl(layer, widget_coords);
+        blit_to_lvgl(layer, widget_coords, /*overlays_drawn=*/true);
         have_complete_image_ = true;
     } else {
         // Mid-refinement: keep showing the last finished image rather than a
@@ -1264,9 +1264,9 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
 
     // Alpha is coverage. The solid pass outputs u_base_alpha = 1.0 and the ghost
     // blend (SRC_ALPHA, ONE_MINUS_SRC_ALPHA) tops out around 1 - a + a*a, which
-    // stays below kSelectedAlpha at the 2% ghost opacity, so the tag value
-    // remains writable only by render_selection_tag(), and a 254 in the readback
-    // still means exactly "visible pixel of a selected object".
+    // stays below kExcludedAlpha at the 2% ghost opacity, so the tag values
+    // remain writable only by write_alpha_tag(), and a 254 (253) in the readback
+    // still means exactly "visible pixel of a selected (excluded) object".
 
     // Select active geometry. Callers pass the geometry they are about to
     // draw: the main one everywhere except the moving mesh, whose own bounds
@@ -1282,6 +1282,7 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     glUseProgram(program_);
 
     mvp = build_mvp(camera);
+    frame_mvp_ = mvp;
 
     // Normal matrix (inverse transpose of upper-left 3x3 of model-view).
     glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 0, 1));
@@ -1341,6 +1342,9 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     return true;
 }
 
+/// How far the ghost pass lightens toward white.
+static constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
+
 void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& gcode,
                                       const GCodeCamera& camera, const lv_area_t* widget_coords) {
     cancel_job();
@@ -1373,7 +1377,6 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
             draw_layers(*draw_vbos, draw_start, solid_end, 1.0f, 1.0f, plan.stride);
         }
         if (ghost_start <= draw_end) {
-            constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE);
@@ -1395,7 +1398,7 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
     gpu_rate_tris_per_ms_ =
         render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    blit_to_lvgl(layer, widget_coords);
+    blit_to_lvgl(layer, widget_coords, /*overlays_drawn=*/false);
     spdlog::trace("[GCode GLES] Moving frame: {}stride {}, {} res, {:.1f}ms",
                   plan.use_mesh && draw_vbos == &moving_vbos_ ? "mesh " : "", plan.stride,
                   plan.half_resolution ? "half" : "full", ms);
@@ -1544,7 +1547,6 @@ bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamer
                 job_.phase = JobPhase::Overlays;
                 continue;
             }
-            constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE);
@@ -1557,9 +1559,15 @@ bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamer
             // The tag covers exactly the solid layers (solid_end is the
             // progress layer while ghosting, the last drawn layer otherwise).
             // An incremental job drew onto a finished image that already
-            // carries its tag.
+            // carries its tag. The excluded grey is per-layer, so it covers
+            // exactly the layers this job drew, incremental or not.
+            render_excluded(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
+            if (gl_render_failed_)
+                return false;
             if (!job_.incremental) {
                 render_selection_tag(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
+                if (gl_render_failed_)
+                    return false;
             }
             render_brackets_3d(gcode, mvp);
             job_.phase = JobPhase::Done;
@@ -1611,7 +1619,8 @@ void GCodeGLESRenderer::draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* 
     lv_draw_image(layer, &img_dsc, &area);
 }
 
-void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords) {
+void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords,
+                                     bool overlays_drawn) {
     int widget_w = lv_area_get_width(widget_coords);
     int widget_h = lv_area_get_height(widget_coords);
 
@@ -1671,6 +1680,20 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
                       static_cast<size_t>(fbo_width_) * fbo_height_, rim);
     }
 
+    // The red stripes over excluded objects, from the tag render_excluded() left.
+    // Scaled like the rim, and told the readback is bottom-up so the stripes
+    // lean the same way as the 2D view's. A moving frame skips the overlays, so
+    // it carries no tag to find.
+    if (overlays_drawn && selection_.any_excluded()) {
+        const RasterTarget rt{readback_buf_.data(), static_cast<size_t>(fbo_width_) * 4, fbo_width_,
+                              fbo_height_};
+        helix::gcode::stroke_exclusion_hatch(
+            rt, selection::scale_px(selection::kHatchPeriodPx, widget_w, fbo_width_),
+            selection::scale_px(selection::kHatchStripePx, widget_w, fbo_width_),
+            sel_palette_.excluded, helix::gcode::ChannelOrder::Rgba,
+            helix::gcode::RowOrder::BottomUp);
+    }
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Convert GL RGBA → LVGL ARGB8888 (BGR byte order + coverage alpha), flip Y,
@@ -1681,6 +1704,7 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
         spdlog::error("[GCode GLES] draw_buf_ data is null");
         return;
     }
+    latch_shown_image(widget_w, widget_h);
     auto* dest = static_cast<uint8_t*>(draw_buf_->data);
     const auto* src = readback_buf_.data();
     bool needs_scale = (fbo_width_ != widget_w || fbo_height_ != widget_h);
@@ -2048,6 +2072,7 @@ void GCodeGLESRenderer::clear_cached_frame() {
         draw_buf_width_ = 0;
         draw_buf_height_ = 0;
     }
+    has_shown_image_ = false;
     render_defer_frames_ = 0;
 }
 
@@ -2127,6 +2152,9 @@ void GCodeGLESRenderer::release_geometry() {
     }
     active_geometry_ = nullptr;
     current_filename_.clear();
+    // The image on screen belongs to the file being released; badges for the
+    // next one must not project through its transform.
+    has_shown_image_ = false;
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
@@ -2246,6 +2274,20 @@ glm::mat4 GCodeGLESRenderer::build_mvp(const GCodeCamera& camera) const {
         proj[3][1] += -content_offset_y_percent_ * 2.0f;
     }
     return proj * camera.get_view_matrix() * model;
+}
+
+void GCodeGLESRenderer::latch_shown_image(int width, int height) {
+    shown_mvp_ = frame_mvp_;
+    shown_width_ = width;
+    shown_height_ = height;
+    has_shown_image_ = true;
+}
+
+std::optional<glm::vec2> GCodeGLESRenderer::project_to_shown_image(const glm::vec3& world) const {
+    if (!has_shown_image_) {
+        return std::nullopt;
+    }
+    return project_clip_to_screen(shown_mvp_, world, shown_width_, shown_height_);
 }
 
 // ============================================================
@@ -2400,10 +2442,6 @@ static const char* SHELL_VERTEX_MAIN = R"(
     }
 )";
 
-/// Alpha written by the tag pass, matching the software rasterizer's tag so both
-/// renderers hand stroke_selection_rim() the same thing.
-static constexpr float SHELL_TAG_ALPHA = static_cast<float>(kSelectedAlpha) / 255.0f;
-
 bool GCodeGLESRenderer::init_shell_program() {
     if (shell_program_)
         return true;
@@ -2452,82 +2490,35 @@ bool GCodeGLESRenderer::init_shell_program() {
     return true;
 }
 
-void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
-                                             const glm::mat4& mvp_dequant, int layer_start,
-                                             int layer_end) {
-    // Gate before anything else, including the program link: an unselected plate
-    // must cost nothing at all.
-    if (!selection_.any_highlighted())
-        return;
-    if (!active_geometry_ || active_geometry_->object_runs.empty())
-        return; // no exclude-object metadata, or the run-count guard tripped
-    if (layer_end < layer_start)
-        return;
-
-    // Resolve the selected names to interned indices, once, into a flat lookup.
-    // This is the same table the geometry builder resolved
-    // segment.object_name_index against — the viewer builds the geometry from,
-    // and renders, one ParsedGCodeFile — so the indices in object_runs are
-    // directly comparable.
-    //
-    // A vector<int16_t> plus std::find was the first shape here, copied from the
-    // code it replaced. That is a linear scan per RUN per LAYER, inside a
-    // per-frame pass; an indexed array is the same information with the search
-    // removed, and it is what SelectionState::classify() already does on the 2D
-    // side.
-    std::vector<bool> wanted(gcode.object_name_table.size(), false);
-    bool any_wanted = false;
-    for (const auto& name : selection_.highlighted()) {
-        for (size_t i = 0; i < gcode.object_name_table.size(); ++i) {
-            if (gcode.object_name_table[i] == name) {
-                wanted[i] = true;
-                any_wanted = true;
-                break;
-            }
+std::vector<bool> GCodeGLESRenderer::object_mask(const ParsedGCodeFile& gcode,
+                                                 const std::unordered_set<std::string>& names) {
+    // Same table the geometry builder resolved segment.object_name_index against
+    // (the viewer builds the geometry from, and renders, one ParsedGCodeFile), so
+    // the indices in object_runs are directly comparable. An indexed array rather
+    // than a set: it is consulted per run per layer inside a per-frame pass.
+    std::vector<bool> mask(gcode.object_name_table.size(), false);
+    bool any = false;
+    for (size_t i = 0; i < gcode.object_name_table.size(); ++i) {
+        if (names.count(gcode.object_name_table[i]) != 0) {
+            mask[i] = true;
+            any = true;
         }
     }
-    if (!any_wanted)
-        return;
+    if (!any) {
+        mask.clear();
+    }
+    return mask;
+}
 
-    if (!shell_program_ && !init_shell_program())
-        return;
-
-    // Save every piece of state this pass touches. render_brackets_3d brackets its
-    // own glDisable(GL_DEPTH_TEST) the same way; anything left unrestored here
-    // corrupts the frame.
-    GLint prev_program = 0;
-    glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
-    GLint prev_buffer = 0;
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prev_buffer);
-    GLboolean prev_depth_mask = GL_TRUE;
-    glGetBooleanv(GL_DEPTH_WRITEMASK, &prev_depth_mask);
-    GLint prev_depth_func = GL_LESS;
-    glGetIntegerv(GL_DEPTH_FUNC, &prev_depth_func);
-
-    // Alpha only. The color channels already hold the lit image and must survive
-    // untouched; overwriting alpha with the flat tag value is what separates
-    // "visible selected pixel" (kSelectedAlpha) from plain coverage (255).
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-
-    // Depth test stays enabled, but the function MUST be relaxed to LEQUAL. The
-    // renderer never calls glDepthFunc, so it runs on the GL default of LESS, and
-    // re-drawing a triangle at exactly the depth it already wrote fails LESS on
-    // every single fragment — the pass drew its 125 runs and tagged zero pixels.
-    // With LEQUAL it passes exactly where this object is the frontmost thing and
-    // fails where something else occludes it, which is the definition of
-    // "visible" and so the contour we want. Depth WRITES go off: the buffer is
-    // already correct and re-writing it would be a no-op at best.
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_FALSE);
-
-    glUseProgram(shell_program_);
-    glUniformMatrix4fv(shell_u_mvp_, 1, GL_FALSE, glm::value_ptr(mvp_dequant));
-    glUniform4f(shell_u_color_, 0.0f, 0.0f, 0.0f, SHELL_TAG_ALPHA);
-
-    glEnableVertexAttribArray(static_cast<GLuint>(shell_a_position_));
-
+size_t GCodeGLESRenderer::draw_object_runs(const std::vector<bool>& mask, int layer_start,
+                                           int layer_end, int a_position, int a_normal) {
     constexpr size_t STRIDE = PackedVertex::stride();
     size_t runs_drawn = 0;
+
+    glEnableVertexAttribArray(static_cast<GLuint>(a_position));
+    if (a_normal >= 0) {
+        glEnableVertexAttribArray(static_cast<GLuint>(a_normal));
+    }
 
     for (int layer = layer_start; layer <= layer_end; ++layer) {
         if (layer < 0 || layer >= static_cast<int>(layer_vbos_.size()))
@@ -2542,8 +2533,8 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
 
         bool bound = false;
         for (const auto& run : runs) {
-            if (run.object_index < 0 || static_cast<size_t>(run.object_index) >= wanted.size() ||
-                !wanted[static_cast<size_t>(run.object_index)]) {
+            if (run.object_index < 0 || static_cast<size_t>(run.object_index) >= mask.size() ||
+                !mask[static_cast<size_t>(run.object_index)]) {
                 continue;
             }
             // Runs are validated at build time, but the VBO can lag the geometry
@@ -2553,9 +2544,14 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
 
             if (!bound) {
                 glBindBuffer(GL_ARRAY_BUFFER, lv.vbo);
-                glVertexAttribPointer(static_cast<GLuint>(shell_a_position_), 3, GL_SHORT, GL_FALSE,
+                glVertexAttribPointer(static_cast<GLuint>(a_position), 3, GL_SHORT, GL_FALSE,
                                       static_cast<GLsizei>(STRIDE),
                                       reinterpret_cast<void*>(PackedVertex::position_offset()));
+                if (a_normal >= 0) {
+                    glVertexAttribPointer(static_cast<GLuint>(a_normal), 2, GL_BYTE, GL_TRUE,
+                                          static_cast<GLsizei>(STRIDE),
+                                          reinterpret_cast<void*>(PackedVertex::normal_offset()));
+                }
                 bound = true;
             }
 
@@ -2565,29 +2561,143 @@ void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
         }
     }
 
-    glDisableVertexAttribArray(static_cast<GLuint>(shell_a_position_));
-
-    // Restore, in the reverse order of the saves.
-    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(prev_buffer));
-    glDepthMask(prev_depth_mask);
-    glDepthFunc(static_cast<GLenum>(prev_depth_func));
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glUseProgram(static_cast<GLuint>(prev_program));
-
-    // One error check for the whole pass, matching draw_layers. A fault here is
-    // the same class of driver failure and must fall back the same way.
-    GLenum tag_err = glGetError();
-    if (gl_draw_error_is_fatal(tag_err)) {
-        spdlog::error("[GCode GLES] Fatal GL error in selection tag pass: 0x{:04X} — disabling "
-                      "GPU rendering, falling back to 2D",
-                      tag_err);
-        gl_render_failed_ = true;
-        cancel_job();
-        return;
+    glDisableVertexAttribArray(static_cast<GLuint>(a_position));
+    if (a_normal >= 0) {
+        glDisableVertexAttribArray(static_cast<GLuint>(a_normal));
     }
+    return runs_drawn;
+}
 
-    spdlog::trace("[GCode GLES] Selection tag: {} runs over layers {}..{}", runs_drawn, layer_start,
+bool GCodeGLESRenderer::check_overlay_error(const char* pass) {
+    // One error check per pass, matching draw_layers. A fault here is the same
+    // class of driver failure and must fall back the same way.
+    GLenum err = glGetError();
+    if (!gl_draw_error_is_fatal(err)) {
+        return true;
+    }
+    spdlog::error("[GCode GLES] Fatal GL error in {} pass: 0x{:04X} — disabling GPU rendering, "
+                  "falling back to 2D",
+                  pass, err);
+    gl_render_failed_ = true;
+    cancel_job();
+    return false;
+}
+
+void GCodeGLESRenderer::write_alpha_tag(const std::vector<bool>& mask, const glm::mat4& mvp_dequant,
+                                        int layer_start, int layer_end, uint8_t tag) {
+    // Alpha only. The color channels already hold the lit image and must survive
+    // untouched; overwriting alpha with the flat tag value is what separates a
+    // tagged pixel from plain coverage (255).
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+    glUseProgram(shell_program_);
+    glUniformMatrix4fv(shell_u_mvp_, 1, GL_FALSE, glm::value_ptr(mvp_dequant));
+    glUniform4f(shell_u_color_, 0.0f, 0.0f, 0.0f, static_cast<float>(tag) / 255.0f);
+    const size_t runs = draw_object_runs(mask, layer_start, layer_end, shell_a_position_, -1);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    spdlog::trace("[GCode GLES] Alpha tag {}: {} runs over layers {}..{}", tag, runs, layer_start,
                   layer_end);
+}
+
+/// Saves the GL state an overlay pass touches and restores it on scope exit;
+/// anything left unrestored corrupts the frame.
+///
+/// Depth test stays enabled, but the function is relaxed to LEQUAL. The renderer
+/// otherwise runs on the GL default of LESS, and re-drawing a triangle at exactly
+/// the depth it already wrote fails LESS on every fragment. With LEQUAL it passes
+/// exactly where this object is the frontmost thing and fails where something
+/// else occludes it, which is the definition of "visible". Depth writes go off:
+/// the buffer is already correct.
+namespace {
+struct OverlayGlState {
+    GLint program = 0;
+    GLint buffer = 0;
+    GLboolean depth_mask = GL_TRUE;
+    GLint depth_func = GL_LESS;
+    GLboolean blend = GL_FALSE;
+
+    OverlayGlState() {
+        glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &buffer);
+        glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_mask);
+        glGetIntegerv(GL_DEPTH_FUNC, &depth_func);
+        blend = glIsEnabled(GL_BLEND);
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(GL_FALSE);
+    }
+    ~OverlayGlState() {
+        glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(buffer));
+        glDepthMask(depth_mask);
+        glDepthFunc(static_cast<GLenum>(depth_func));
+        if (blend) {
+            glEnable(GL_BLEND);
+        } else {
+            glDisable(GL_BLEND);
+        }
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glUseProgram(static_cast<GLuint>(program));
+    }
+    OverlayGlState(const OverlayGlState&) = delete;
+    OverlayGlState& operator=(const OverlayGlState&) = delete;
+};
+} // namespace
+
+void GCodeGLESRenderer::render_excluded(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
+                                        int solid_start, int solid_end) {
+    if (!selection_.any_excluded())
+        return;
+    if (!active_geometry_ || active_geometry_->object_runs.empty())
+        return; // no exclude-object metadata, or the run-count guard tripped
+    const std::vector<bool> mask = object_mask(gcode, selection_.excluded());
+    if (mask.empty())
+        return;
+    if (!shell_program_ && !init_shell_program())
+        return;
+
+    {
+        OverlayGlState saved;
+
+        // Re-light the excluded runs in flat grey with the lit pass's own
+        // program: the shading survives, the filament hue does not. Every other
+        // uniform (matrices, lights) is still what setup_frame left this frame,
+        // and setup_frame re-sets the ones changed here before the next draw.
+        glUseProgram(program_);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+        glUniform1f(u_use_vertex_color_, 0.0f);
+        glUniform4fv(u_base_color_, 1,
+                     glm::value_ptr(selection::to_vec4(selection::excluded_grey(0xFFFFFF))));
+        glUniform1f(u_color_scale_, 1.0f);
+
+        glDisable(GL_BLEND);
+        glUniform1f(u_base_alpha_, 1.0f);
+        draw_object_runs(mask, solid_start, solid_end, a_position_, a_normal_);
+
+        write_alpha_tag(mask, mvp_dequant, solid_start, solid_end, kExcludedAlpha);
+    }
+    check_overlay_error("excluded");
+}
+
+void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
+                                             const glm::mat4& mvp_dequant, int layer_start,
+                                             int layer_end) {
+    // Gate before anything else, including the program link: an unselected plate
+    // must cost nothing at all.
+    if (!selection_.any_highlighted())
+        return;
+    if (!active_geometry_ || active_geometry_->object_runs.empty())
+        return; // no exclude-object metadata, or the run-count guard tripped
+    if (layer_end < layer_start)
+        return;
+    const std::vector<bool> mask = object_mask(gcode, selection_.highlighted());
+    if (mask.empty())
+        return;
+    if (!shell_program_ && !init_shell_program())
+        return;
+
+    {
+        OverlayGlState saved;
+        write_alpha_tag(mask, mvp_dequant, layer_start, layer_end, kSelectedAlpha);
+    }
+    check_overlay_error("selection tag");
 }
 
 // ============================================================

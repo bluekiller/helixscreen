@@ -22,6 +22,7 @@
 #include "gcode_ops_detector.h"
 #include "helix_plugin_installer.h"
 #include "in_flight_guard.h"
+#include "moonraker_error.h"
 #include "print_file_data.h"
 #include "print_history_manager.h"
 #include "print_select_button_view.h"
@@ -356,6 +357,18 @@ class PrintSelectPanel : public PanelBase {
      */
     void process_metadata_result(size_t i, const std::string& filename,
                                  const FileMetadata& metadata);
+
+    /**
+     * @brief Handles a metadata request the connection took down with it
+     *
+     * A lost connection says nothing about the file, so instead of falling back
+     * to a metascan and gcode extraction, file @p i is marked unfetched and the
+     * refresh after reconnecting asks again.
+     *
+     * @return true when @p error was a connection loss and has been handled
+     */
+    bool refetch_after_connection_loss(size_t i, const std::string& filename,
+                                       const MoonrakerError& error);
 
     /**
      * @brief Navigate into a subdirectory
@@ -846,6 +859,36 @@ class PrintSelectPanel : public PanelBase {
 
     /// Compatibility alive flag for ThumbnailLoadContext (which uses shared_ptr<atomic<bool>> API)
     std::shared_ptr<std::atomic<bool>> thumbnail_alive_ = std::make_shared<std::atomic<bool>>(true);
+
+#if defined(HELIX_PLATFORM_ESP32)
+    /// Card thumbnail fetches started and not yet completed.
+    int esp_thumbnails_in_flight_ = 0;
+
+    /// Starts one card thumbnail fetch. QueueFull and Failed started nothing.
+    enum class EspThumbnailFetch { Started, QueueFull, Failed };
+    EspThumbnailFetch fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                          const std::string& thumb_path);
+    /// Buffers card thumbnails decode into while this panel is shown: reused as
+    /// cards scroll, freed when it is left. Created on first need.
+    std::shared_ptr<helix::ThumbnailSlotPool> esp_slots_;
+    /// The last deactivate kept the thumbnails for a detail view push.
+    bool esp_kept_for_detail_ = false;
+    /// The HTTP lane refused a card fetch and none of ours has completed since.
+    bool esp_lane_refused_ = false;
+    /// Clears a refusal when no fetch of ours is in flight to free a lane slot.
+    helix::ui::LvglTimerGuard esp_lane_retry_timer_;
+    static constexpr uint32_t ESP_LANE_RETRY_MS = 500;
+
+    /// The card window [first, end) the last sync saw.
+    size_t esp_window_first_ = 0;
+    size_t esp_window_end_ = 0;
+    /// Applies plan_card_thumbnails() to the card window [first, end): fetches
+    /// within CARD_THUMBNAIL_BUDGET and drops every thumbnail outside it.
+    void sync_esp_thumbnails(size_t first, size_t end);
+    /// Drops every card thumbnail and the slot pool, and empties the window so
+    /// nothing fetches until the cards report one again.
+    void release_esp_card_thumbnails();
+#endif
 
     /// Navigation generation counter: incremented on each directory change.
     /// Metadata callbacks capture the current value and discard results

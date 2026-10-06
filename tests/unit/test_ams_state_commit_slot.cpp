@@ -358,8 +358,8 @@ TEST_CASE("commit_slot_edit clears server active spool on unlink", "[ams][spoolm
     MoonrakerAPIMock* mock_api = f.setup(169);
 
     // Server thinks 169 is active — the state bundle F2LNLQCC left dangling.
-    mock_api->spoolman_mock().set_active_spool(169, nullptr, nullptr);
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 169);
+    f.client.spoolman_mock().set_active_spool_id(169);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 169);
 
     SlotInfo original = f.backend->get_slot_info(0);
     REQUIRE(original.spoolman_id == 169);
@@ -371,7 +371,7 @@ TEST_CASE("commit_slot_edit clears server active spool on unlink", "[ams][spoolm
     REQUIRE(err.success());
 
     // REQUIRED: the server-side active spool was cleared.
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 0);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 0);
     // And the edit itself reached the backend slot.
     REQUIRE(f.backend->get_slot_info(0).spoolman_id == 0);
 }
@@ -383,8 +383,8 @@ TEST_CASE("commit_slot_edit leaves server active spool alone on a no-link clear"
 
     // Another lane's spool is active server-side. The unlink arm must not
     // touch it just because THIS slot's edit happened to be a clear.
-    mock_api->spoolman_mock().set_active_spool(77, nullptr, nullptr);
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 77);
+    f.client.spoolman_mock().set_active_spool_id(77);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 77);
 
     // A clear on a slot that never had a Spoolman link (original and edited
     // spoolman_id both 0): NO set_active_spool call may fire — not even a
@@ -405,7 +405,7 @@ TEST_CASE("commit_slot_edit leaves server active spool alone on a no-link clear"
     REQUIRE(err.success());
 
     // REQUIRED: the active spool id is UNCHANGED.
-    CHECK(mock_api->spoolman_mock().get_mock_active_spool_id() == 77);
+    CHECK(f.client.spoolman_mock().get_mock_active_spool_id() == 77);
 }
 
 TEST_CASE("commit_slot_edit invalidates identity cache on link change", "[ams][spoolman][commit]") {
@@ -479,8 +479,8 @@ TEST_CASE("context-menu clear wipes slot and clears server active spool",
 
     // Server thinks 169 is active — the state bundle F2LNLQCC left dangling
     // when the quick-clear only wiped the backend slot.
-    mock_api->spoolman_mock().set_active_spool(169, nullptr, nullptr);
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 169);
+    f.client.spoolman_mock().set_active_spool_id(169);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 169);
 
     // Drive the actual context-menu dispatch the way both AMS panels do.
     REQUIRE(
@@ -492,7 +492,7 @@ TEST_CASE("context-menu clear wipes slot and clears server active spool",
     REQUIRE(after.material.empty());
     // ...AND the server-side active spool was cleared — the F2LNLQCC fix
     // (a restart must not re-assert the cleared spool).
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 0);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 0);
 }
 
 TEST_CASE("context-menu clear leaves the live lane as a restart would show it",
@@ -663,8 +663,8 @@ TEST_CASE("commit_slot_edit clears active spool even when backend manages it",
     // either.
     REQUIRE(AmsState::instance().get_backend()->manages_active_spool());
 
-    mock_api->spoolman_mock().set_active_spool(169, nullptr, nullptr);
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 169);
+    f.client.spoolman_mock().set_active_spool_id(169);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 169);
 
     SlotInfo original = f.backend->get_slot_info(0);
     REQUIRE(original.spoolman_id == 169);
@@ -676,7 +676,7 @@ TEST_CASE("commit_slot_edit clears active spool even when backend manages it",
     REQUIRE(err.success());
 
     // REQUIRED: the clear fired anyway.
-    REQUIRE(mock_api->spoolman_mock().get_mock_active_spool_id() == 0);
+    REQUIRE(f.client.spoolman_mock().get_mock_active_spool_id() == 0);
 }
 
 // ============================================================================
