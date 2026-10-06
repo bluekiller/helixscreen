@@ -248,7 +248,7 @@ size_t ThumbnailCache::get_max_size() const {
     return max_size_;
 }
 
-size_t ThumbnailCache::get_available_disk_space() const {
+std::optional<size_t> ThumbnailCache::probe_disk_space() const {
     // Rate-limited: statfs is a syscall against the backing store, and this is
     // reached twice per fetch_optimized() — once via is_caching_allowed() and
     // once inside evict_locked() — on the main thread while a file listing
@@ -267,11 +267,11 @@ size_t ThumbnailCache::get_available_disk_space() const {
         }
     }
 
-    size_t available = 0;
+    std::optional<size_t> available;
     if (const auto space = helix::fs::space_available(cache_dir_)) {
         available = static_cast<size_t>(*space);
     } else {
-        spdlog::warn("[ThumbnailCache] Failed to query disk space: {}", std::strerror(errno));
+        spdlog::debug("[ThumbnailCache] Free space unknown: {}", std::strerror(errno));
     }
 
     std::lock_guard<std::mutex> lock(disk_probe_mutex_);
@@ -281,20 +281,31 @@ size_t ThumbnailCache::get_available_disk_space() const {
     return available;
 }
 
+size_t ThumbnailCache::get_available_disk_space() const {
+    return probe_disk_space().value_or(0);
+}
+
 void ThumbnailCache::invalidate_disk_probe() {
     std::lock_guard<std::mutex> lock(disk_probe_mutex_);
     disk_probe_valid_ = false;
 }
 
-ThumbnailCache::DiskPressure ThumbnailCache::get_disk_pressure() const {
-    size_t available = get_available_disk_space();
-
-    if (available < disk_critical_) {
+ThumbnailCache::DiskPressure ThumbnailCache::classify_disk_pressure(std::optional<size_t> available,
+                                                                    size_t critical, size_t low) {
+    if (!available) {
+        return DiskPressure::Normal;
+    }
+    if (*available < critical) {
         return DiskPressure::Critical;
-    } else if (available < disk_low_) {
+    }
+    if (*available < low) {
         return DiskPressure::Low;
     }
     return DiskPressure::Normal;
+}
+
+ThumbnailCache::DiskPressure ThumbnailCache::get_disk_pressure() const {
+    return classify_disk_pressure(probe_disk_space(), disk_critical_, disk_low_);
 }
 
 bool ThumbnailCache::is_caching_allowed() const {
@@ -737,14 +748,10 @@ std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
     }
 
 #if defined(HELIX_PLATFORM_ESP32)
-    // No disk-cache materialization on ESP32 (Task 10 R3 hard constraint).
-    // This path is reachable ONLY via the gcode-header thumbnail-extraction
-    // fallback (ui_panel_print_select.cpp), which is itself desktop-shaped
-    // and awaiting Task 11's PSRAM-based redesign — until then, refuse to
-    // write and let the existing empty-return handling there degrade
-    // gracefully ("Failed to cache extracted thumbnail for ..." + skip), the
-    // same fallback contract every other failure branch in this function
-    // already uses.
+    // The ESP32 keeps no thumbnails on disk; they live in PSRAM. Its only
+    // caller, gcode-header extraction, is gated off there by
+    // gcode_thumbnail_extraction_available(), and any other caller gets the
+    // same empty return as every failure branch above.
     spdlog::debug("[ThumbnailCache] save_raw_png: no local cache on this platform ({})",
                   source_identifier);
     return "";
