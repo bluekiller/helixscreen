@@ -418,6 +418,86 @@ resolve_update_channel() {
     log_info "Update channel: ${R2_CHANNEL} (read from ${settings})"
 }
 
+# Move a stable-channel install onto beta when the version it is installing is
+# a prerelease. Moonraker's web updater offers anything that differs from the
+# installed version, so a prerelease left on the stable channel is one click
+# from a downgrade. Only stable moves (dev already receives prereleases), and
+# an R2_CHANNEL from the environment is the operator's and stays.
+# Args: $1 = target version tag
+follow_target_version_channel() {
+    [ "${_R2_CHANNEL_FROM_ENV:-}" = "yes" ] && return 0
+    [ "$R2_CHANNEL" = "stable" ] || return 0
+    case "${1%%+*}" in
+        *-*)
+            R2_CHANNEL=beta
+            log_info "Update channel: beta (${1} is a prerelease)"
+            ;;
+    esac
+}
+
+# Record R2_CHANNEL at settings.json /update/channel, so the app's updater
+# follows the same channel moonraker.conf's stanza is written with.
+#
+# A settings.json naming no channel already reads as stable, so stable is not
+# written into one. With no settings.json yet, the file is created holding only
+# the channel: Config::init reads a versionless document as a fresh install,
+# the shape printer_seed.sh and the packaged presets hand it too. Needs
+# python3, which every host running Moonraker has.
+record_update_channel() {
+    local settings want num=""
+    settings="${INSTALL_DIR}/config/settings.json"
+    case "$R2_CHANNEL" in
+        beta) want=1 ;;
+        dev) want=2 ;;
+        *) want=0 ;;
+    esac
+
+    if [ -f "$settings" ]; then
+        num=$(parse_json_int_field channel < "$settings" 2>/dev/null) || num=""
+    fi
+    [ "$num" = "$want" ] && return 0
+    [ -z "$num" ] && [ "$want" = 0 ] && return 0
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_warn "python3 not available; the app stays on its own update channel"
+        return 0
+    fi
+
+    # Through the printer_data symlink to the real file, so the symlink stays.
+    if [ -L "$settings" ]; then
+        settings=$(readlink -f "$settings" 2>/dev/null) || settings="${INSTALL_DIR}/config/settings.json"
+    fi
+
+    local tmp_out="${settings}.channel.$$"
+    if SETTINGS_PATH="$settings" TMP_OUT="$tmp_out" CHANNEL="$want" python3 - <<'PY'
+import json, os
+
+p, t = os.environ["SETTINGS_PATH"], os.environ["TMP_OUT"]
+d = {}
+if os.path.exists(p):
+    # Unparseable settings are left for the app's own recovery.
+    with open(p) as f:
+        d = json.load(f)
+if not isinstance(d, dict):
+    raise SystemExit(1)
+u = d.get("update")
+if not isinstance(u, dict):
+    u = d["update"] = {}
+u["channel"] = int(os.environ["CHANNEL"])
+with open(t, "w") as f:
+    json.dump(d, f, indent=2)
+    f.write("\n")
+PY
+    then
+        if $(file_sudo "$(dirname "$settings")") mv "$tmp_out" "$settings" 2>/dev/null; then
+            log_info "App update channel set to ${R2_CHANNEL}"
+            return 0
+        fi
+    fi
+    rm -f "$tmp_out" 2>/dev/null || true
+    log_warn "Could not record update channel ${R2_CHANNEL} in ${settings}"
+}
+
 # Extract the version from a release tarball path. Args: path or basename.
 # Prints nothing when the name carries no version, which is how the
 # unversioned helixscreen-<plat>.zip layout is detected.
