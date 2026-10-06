@@ -13,8 +13,8 @@ namespace helix {
  * @brief Domain-specific manager for input/scroll settings
  *
  * Owns all input-related LVGL subjects and persistence:
- * - scroll_throw (momentum decay rate, 5-50)        — restart required
- * - scroll_limit (pixels before scrolling starts, 1-20) — restart required
+ * - scroll_throw (momentum decay rate, 5-50)        — live-applied
+ * - scroll_limit (pixels before scrolling starts, 1-20) — live-applied
  * - scroll_guard (suppress phantom click after scroll)  — restart required
  * - debug_touches (draw ripple at each touch point)     — live-applied
  *
@@ -23,6 +23,15 @@ namespace helix {
 class InputSettingsManager {
   public:
     static InputSettingsManager& instance();
+
+    /// Default scroll momentum decay in percent per indev read (LVGL scroll_throw).
+    /// ESP32 panels redraw a scrolling list slowly, so a long glide there reads
+    /// as a stutter rather than momentum; a stronger decay keeps it short.
+#if defined(ESP_PLATFORM)
+    static constexpr int DEFAULT_SCROLL_THROW = 35;
+#else
+    static constexpr int DEFAULT_SCROLL_THROW = 25;
+#endif
 
     // Non-copyable
     InputSettingsManager(const InputSettingsManager&) = delete;
@@ -38,13 +47,13 @@ class InputSettingsManager {
     // GETTERS / SETTERS
     // =========================================================================
 
-    /** @brief Momentum decay rate (5-50, higher = faster decay). Restart required. */
+    /** @brief Momentum decay rate (5-50, higher = faster decay), applied live to every pointer. */
     int get_scroll_throw() const {
         return settings_.get(Key::ScrollThrow);
     }
     void set_scroll_throw(int value);
 
-    /** @brief Pixels before scrolling starts (1-20). Restart required. */
+    /** @brief Pixels before scrolling starts (1-20), applied live to every pointer. */
     int get_scroll_limit() const {
         return settings_.get(Key::ScrollLimit);
     }
@@ -52,7 +61,7 @@ class InputSettingsManager {
 
     /**
      * @brief Long-press hold time in ms (300-1500, default 500), applied live to
-     *        the pointer indev. Governs every long-press in the app, not just
+     *        every pointer indev. Governs every long-press in the app, not just
      *        home edit mode (#1245).
      */
     int get_long_press_time() const {
@@ -135,6 +144,8 @@ class InputSettingsManager {
   private:
     InputSettingsManager();
     ~InputSettingsManager() = default;
+
+    void apply_to_pointers() const;
 
     enum class Key : uint8_t {
         ScrollThrow,
