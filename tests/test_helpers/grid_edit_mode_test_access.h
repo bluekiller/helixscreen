@@ -22,21 +22,31 @@ struct GridEditModeTestAccess {
         return em.snap_preview_row_;
     }
 
-    /// The event shield, whose children are the lattice: a test can confirm the
-    /// shield object survives a selection change or a page switch, and that its
-    /// child count matches the lattice the current selection should draw.
+    /// The event shield, which draws the lattice: a test can confirm the shield
+    /// object survives a selection change or a page switch.
     static lv_obj_t* shield(const GridEditMode& em) {
         return em.shield_;
     }
 
-    /// The pixel-tracking resize overlay a live resize drag creates. Reads as
-    /// nullptr once commit_resize_with_snap() has handed it to the snap
-    /// animation, so a lifetime test has to latch it before committing.
-    static lv_obj_t* resize_preview(const GridEditMode& em) {
-        return em.resize_preview_;
+    /// Dots in the lattice the shield draws for the current selection.
+    static int drawn_dot_count(const GridEditMode& em) {
+        return em.drawn_dot_count();
     }
 
-    /// Create resize_preview_ the way handle_resize_move() does. A full drag
+    /// The pixel-tracking resize outline a live resize drag creates, by its
+    /// first bar, the one the snap animation is keyed on. Reads as nullptr once
+    /// commit_resize_with_snap() has handed it to the snap animation, so a
+    /// lifetime test has to latch it before committing.
+    static lv_obj_t* resize_preview(const GridEditMode& em) {
+        return em.resize_outline_[0];
+    }
+
+    /// All four bars of the resize outline.
+    static std::array<lv_obj_t*, 4> resize_outline(const GridEditMode& em) {
+        return em.resize_outline_;
+    }
+
+    /// Create the resize outline the way handle_resize_move() does. A full drag
     /// would reach the same call through the indev, but the snap animation's
     /// lifetime does not depend on how the preview came to exist.
     static void make_resize_preview(GridEditMode& em, int x, int y, int w, int h) {
@@ -99,7 +109,7 @@ struct GridEditModeTestAccess {
     /// Which drag lifecycle handle_drag_start() committed the gesture to.
     ///
     /// resizing_ + resize_edge_ together are the direct witness that the resize
-    /// branch was taken AND which edge it classified — resize_preview_ only
+    /// branch was taken AND which edge it classified — resize_outline_ only
     /// proves the branch ran, and dragging_ separates "went down the move path"
     /// from "was dropped at the guard", which both leave resizing_ false.
     static bool resizing(const GridEditMode& em) {
@@ -141,7 +151,37 @@ struct GridEditModeTestAccess {
 
     /// The live drag's grid-snapped drop preview, or nullptr when none is drawn.
     static lv_obj_t* snap_preview(const GridEditMode& em) {
+        return em.snap_preview_[0];
+    }
+
+    /// All four bars of the snap preview.
+    static std::array<lv_obj_t*, 4> snap_preview_bars(const GridEditMode& em) {
         return em.snap_preview_;
+    }
+
+    /// Lift the selected widget for a drag, and settle it back, as a drag's
+    /// start and end do.
+    static void lift_dragged_widget(GridEditMode& em) {
+        em.lift_dragged_widget();
+    }
+    static void settle_dragged_widget(GridEditMode& em) {
+        em.settle_dragged_widget();
+    }
+
+    /// Move the dragged widget and its chrome the way a drag step does.
+    static void place_dragged_widget(GridEditMode& em, lv_point_t widget_pos) {
+        em.place_dragged_widget(widget_pos);
+    }
+
+    /// Settle a gesture that committed nothing, as a no-op drop does.
+    static void reselect_in_place(GridEditMode& em, lv_obj_t* widget) {
+        em.reselect_in_place(widget);
+    }
+
+    /// Draw the snap preview the way a drag or resize step does.
+    static void update_snap_preview(GridEditMode& em, int col, int row, int colspan, int rowspan,
+                                    bool valid) {
+        em.update_snap_preview(col, row, colspan, rowspan, valid);
     }
 
     /// Whether a release now would create the page past the last one: the
@@ -164,7 +204,7 @@ struct GridEditModeTestAccess {
     /// A committed resize is still easing into its cell: the rebuild that lays
     /// the resized widget out has not been scheduled yet.
     static bool snap_animating(const GridEditMode& em) {
-        return em.snap_anim_preview_ != nullptr;
+        return em.snap_anim_outline_[0] != nullptr;
     }
 };
 

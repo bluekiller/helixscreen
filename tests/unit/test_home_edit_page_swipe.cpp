@@ -322,6 +322,19 @@ class StandInWidget : public helix::PanelWidget {
     const char* id() const override {
         return id_.c_str();
     }
+    void on_edit_mode_exited() override {
+        ++edit_mode_exits;
+    }
+    void on_size_changed(int colspan, int rowspan, int /*width_px*/, int /*height_px*/) override {
+        last_colspan = colspan;
+        last_rowspan = rowspan;
+    }
+
+    /// The span the last on_size_changed() carried.
+    int last_colspan = 0;
+    int last_rowspan = 0;
+    /// Times on_edit_mode_exited() ran.
+    int edit_mode_exits = 0;
     std::string get_component_name() const override {
         return component_;
     }
@@ -520,6 +533,7 @@ class EditHomeFixture : public LVGLTestFixture {
         // Back to a panel finalize_setup() has not wired: the global panel
         // outlives this case, and later cases seed pages of their own.
         grid().set_rebuild_callback(nullptr);
+        grid().set_relayout_callback(nullptr);
         grid().set_delete_page_callback(nullptr);
         HomePanelTestAccess::release_finalize(home);
         HomePanelTestAccess::release_carousel(home);
@@ -606,6 +620,21 @@ class EditHomeFixture : public LVGLTestFixture {
 
     /// The next-page slot's page container, or nullptr at the page cap. Its tile
     /// sits at index page_count().
+    /// No event callback on @p obj carries the edit session as its user data.
+    void check_no_callback_into_session(lv_obj_t* obj) {
+        for (uint32_t i = 0; i < lv_obj_get_event_count(obj); ++i) {
+            lv_event_dsc_t* dsc = lv_obj_get_event_dsc(obj, i);
+            REQUIRE(dsc != nullptr);
+            CHECK(lv_event_dsc_get_user_data(dsc) != static_cast<void*>(&grid()));
+        }
+    }
+
+    /// Where a dragged widget and its selection outline live while the drag
+    /// lasts: the top layer, outside every page's grid.
+    lv_obj_t* drag_layer() {
+        return lv_display_get_layer_top(lv_obj_get_display(root_));
+    }
+
     lv_obj_t* slot_container() {
         return HomePanelTestAccess::next_page_container(panel());
     }
@@ -880,11 +909,13 @@ class EditHomeFixture : public LVGLTestFixture {
         // Before anything reads it: a shield the session outlived is freed.
         REQUIRE(lv_obj_is_valid(shield));
         CHECK(lv_obj_get_parent(shield) == container);
+        lv_obj_t* selection_home =
+            GridEditModeTestAccess::dragging(grid()) ? drag_layer() : container;
         for (lv_obj_t* obj :
              {grid().selected_widget(), GridEditModeTestAccess::selection_overlay(grid())}) {
             if (obj) {
                 REQUIRE(lv_obj_is_valid(obj));
-                CHECK(lv_obj_get_parent(obj) == container);
+                CHECK(lv_obj_get_parent(obj) == selection_home);
             }
         }
         if (slot_container()) {
@@ -1478,7 +1509,7 @@ TEST_CASE_METHOD(
     enter_edit_mode();
 
     const SlotDrag drag = drag_onto_slot(widget);
-    REQUIRE(lv_obj_get_parent(widget) == slot_container());
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
 
     lv_indev_reset(nullptr, nullptr);
     CHECK_FALSE(GridEditModeTestAccess::dragging(grid()));
@@ -1592,10 +1623,12 @@ TEST_CASE_METHOD(EditHomeFixture, "the event shield carries no callback into the
 
     // The shield outlives the session whenever the rebuild that deletes it
     // never runs, so it must hold nothing that calls into the session: its
-    // events reach the grid handlers by bubbling to carousel_host.
+    // events reach the grid handlers by bubbling to carousel_host, and the
+    // callbacks it does carry (the lattice draw and its cleanup) read only
+    // what the shield itself owns.
     lv_obj_t* shield = GridEditModeTestAccess::shield(grid());
     REQUIRE(shield != nullptr);
-    CHECK(lv_obj_get_event_count(shield) == 0);
+    check_no_callback_into_session(shield);
 
     // The same holds for the shield a cancel's rebuild creates.
     indev.grab(c.x, c.y);
@@ -1605,7 +1638,7 @@ TEST_CASE_METHOD(EditHomeFixture, "the event shield carries no callback into the
     settle();
     shield = GridEditModeTestAccess::shield(grid());
     REQUIRE(shield != nullptr);
-    CHECK(lv_obj_get_event_count(shield) == 0);
+    check_no_callback_into_session(shield);
 }
 
 TEST_CASE_METHOD(EditHomeFixture,
@@ -1630,6 +1663,148 @@ TEST_CASE_METHOD(EditHomeFixture,
     indev.release(pointer.x, pointer.y);
     settle();
     CHECK(entry_on_page(0, "temperature").col == origin.col + 2 * CELL_TRACKS);
+}
+
+TEST_CASE_METHOD(EditHomeFixture, "leaving edit mode re-arms every page without rebuilding it",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    lv_obj_t* far_widget = widget_on(1, "fan");
+    REQUIRE(is_clickable(widget));
+    REQUIRE(is_clickable(far_widget));
+    enter_edit_mode();
+    REQUIRE_FALSE(is_clickable(widget));
+    REQUIRE_FALSE(is_clickable(far_widget));
+    lv_obj_t* shield = GridEditModeTestAccess::shield(grid());
+    REQUIRE(shield != nullptr);
+
+    panel().exit_grid_edit_mode();
+    settle();
+
+    // The pages keep the objects the session arranged; only its own go.
+    CHECK(widget_on(0, "temperature") == widget);
+    CHECK(widget_on(1, "fan") == far_widget);
+    CHECK(is_clickable(widget));
+    CHECK(is_clickable(far_widget));
+    CHECK_FALSE(lv_obj_is_valid(shield));
+    // Every page's widgets get to re-apply interactivity the restore overwrote.
+    for (lv_obj_t* tile : {widget, far_widget}) {
+        auto* stand_in = static_cast<StandInWidget*>(lv_obj_get_user_data(tile));
+        REQUIRE(stand_in != nullptr);
+        CHECK(stand_in->edit_mode_exits == 1);
+    }
+}
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "a widget's own config change during edit mode rebuilds the pages at exit",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    HomePanelTestAccess::register_config_rebuild_callback(panel());
+    lv_obj_t* widget = widget_on(0, "temperature");
+    enter_edit_mode();
+
+    // A thermistor switching between single and carousel: the widget list is
+    // unchanged, but the tile needs a different component.
+    config().set_widget_config("temperature", {{"mode", "carousel"}});
+    config().save();
+    helix::PanelWidgetManager::instance().notify_config_changed("home");
+    settle();
+    REQUIRE(widget_on(0, "temperature") == widget); // waits out the session
+
+    panel().exit_grid_edit_mode();
+    settle();
+    CHECK(widget_on(0, "temperature") != widget);
+}
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "a layout reset during edit mode that keeps the widget list applies at exit",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    HomePanelTestAccess::register_config_rebuild_callback(panel());
+    enter_edit_mode();
+
+    // The catalog's reset with defaults naming the same widgets: positions move,
+    // the page's id list does not.
+    const int new_col = 2 * CELL_TRACKS;
+    REQUIRE(config().place_entry("temperature", 0, new_col, 0, CELL_TRACKS, CELL_TRACKS) >= 0);
+    config().save();
+    helix::PanelWidgetManager::instance().notify_config_changed("home");
+    settle();
+
+    panel().exit_grid_edit_mode();
+    settle();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    REQUIRE(widget != nullptr);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(widget, LV_PART_MAIN) == new_col);
+}
+
+namespace {
+
+/// The column the stored home layout gives @p id on page 0, or -1.
+int stored_home_col(const char* id) {
+    auto* cfg = Config::get_instance();
+    const auto node = cfg->get<nlohmann::json>(cfg->df() + "panel_widgets/home", nlohmann::json());
+    if (!node.is_object() || !node.contains("pages") || node["pages"].empty()) {
+        return -1;
+    }
+    for (const auto& w : node["pages"][0]["widgets"]) {
+        if (w.value("id", "") == id) {
+            return w.value("col", -1);
+        }
+    }
+    return -1;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "a drop's save waits for edits to settle, and every end writes it",
+                 "[1638][edit-swipe][home][grid_edit][deferred_save]") {
+    build_home();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    enter_edit_mode();
+    const int stored_before = stored_home_col("temperature");
+    const lv_point_t pointer = drag_one_cell(widget);
+    indev.release(pointer.x, pointer.y);
+    settle();
+    const int moved_col = entry_on_page(0, "temperature").col;
+    REQUIRE(moved_col != stored_before);
+
+    // A flash write stalls a slow board for hundreds of ms per drop, so the
+    // drop only asks for one.
+    REQUIRE(config().save_pending());
+    CHECK(stored_home_col("temperature") == stored_before);
+
+    SECTION("leaving edit mode") {
+        panel().exit_grid_edit_mode();
+    }
+    SECTION("a hot-reload rebuild of the panel") {
+        panel().on_deactivating(DeactivateReason::Rebuild);
+    }
+    SECTION("the edits settling") {
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
+    }
+    CHECK_FALSE(config().save_pending());
+    CHECK(stored_home_col("temperature") == moved_col);
+}
+
+TEST_CASE_METHOD(EditHomeFixture,
+                 "leaving edit mode before a drop's relayout runs still lays out the drop",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    enter_edit_mode();
+    const lv_point_t pointer = drag_one_cell(widget);
+    // The release commits the move and leaves the re-seat for the next tick;
+    // the session ends first.
+    indev.release(pointer.x, pointer.y);
+    const int committed_col = entry_on_page(0, "temperature").col;
+    panel().exit_grid_edit_mode();
+    settle();
+
+    lv_obj_t* landed = widget_on(0, "temperature");
+    REQUIRE(landed != nullptr);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(landed, LV_PART_MAIN) == committed_col);
 }
 
 TEST_CASE_METHOD(EditHomeFixture, "entering edit mode disarms clicks on every page",
@@ -1692,6 +1867,18 @@ TEST_CASE_METHOD(EditHomeFixture, "a multi-frame resize commits and tears down i
     CHECK(committed.rowspan == orig.rowspan + CELL_TRACKS); // one cell taller
     CHECK(GridEditModeTestAccess::resize_preview(grid()) == nullptr);
     CHECK_FALSE(lv_obj_is_valid(preview)); // nothing it drew is left
+    CHECK(GridEditModeTestAccess::snap_preview(grid()) == nullptr);
+
+    // The resized tile keeps its tree: it moves to its new span, its widget
+    // hears the span through on_size_changed(), and it is selected again.
+    lv_obj_t* resized = widget_on(0, "temperature");
+    CHECK(resized == widget);
+    CHECK(lv_obj_get_style_grid_cell_row_span(resized, LV_PART_MAIN) == committed.rowspan);
+    auto* stand_in = static_cast<StandInWidget*>(lv_obj_get_user_data(resized));
+    REQUIRE(stand_in != nullptr);
+    CHECK(stand_in->last_rowspan == committed.rowspan);
+    CHECK_FALSE(is_clickable(resized));
+    CHECK(grid().selected_widget() == resized);
 }
 
 TEST_CASE_METHOD(EditHomeFixture, "a multi-frame drag commits its landing cell",
@@ -1728,11 +1915,12 @@ TEST_CASE_METHOD(EditHomeFixture, "a multi-frame drag commits its landing cell",
     CHECK(committed.col == expected_col);
     CHECK(committed.row == orig.row);
 
-    // The commit's rebuild replaced the widget's object, and the rebuilt object
-    // is selected.
-    lv_obj_t* rebuilt = widget_on(0, "temperature");
-    CHECK(rebuilt != widget);
-    CHECK(grid().selected_widget() == rebuilt);
+    // A move within its page re-seats the page in place: the widget keeps its
+    // object, laid out at the landing cell, and is selected again.
+    lv_obj_t* moved = widget_on(0, "temperature");
+    CHECK(moved == widget);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(moved, LV_PART_MAIN) == expected_col);
+    CHECK(grid().selected_widget() == moved);
 }
 
 TEST_CASE_METHOD(EditHomeFixture,
@@ -2354,7 +2542,7 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(drag.session_flips == 1);
     CHECK(current_page() == 1);
     CHECK(config().page_count() == 1); // nothing is created mid-drag
-    CHECK(lv_obj_get_parent(widget) == slot_container());
+    CHECK(lv_obj_get_parent(widget) == drag_layer());
     CHECK(slot_in_reach());
     check_session_on_screen();
 
@@ -2489,7 +2677,7 @@ TEST_CASE_METHOD(EditHomeFixture,
     enter_edit_mode();
 
     const SlotDrag drag = drag_onto_slot(widget);
-    REQUIRE(lv_obj_get_parent(widget) == slot_container());
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
 
     SECTION("Done") {
         panel().exit_grid_edit_mode();
@@ -3012,8 +3200,8 @@ TEST_CASE_METHOD(EditHomeFixture,
     REQUIRE(GridEditModeTestAccess::dragging(grid()));
     check_session_on_screen();
 
-    CHECK(lv_obj_get_parent(widget) == page(1));
-    CHECK(lv_obj_get_parent(overlay) == page(1));
+    CHECK(lv_obj_get_parent(widget) == drag_layer());
+    CHECK(lv_obj_get_parent(overlay) == drag_layer());
     CHECK(lv_obj_get_parent(remove_btn) == page(1));
     CHECK(lv_obj_get_parent(configure_btn) == page(1));
     CHECK(is_clickable(remove_btn));
@@ -3025,7 +3213,12 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(GridEditModeTestAccess::snap_row(grid()) == previewed_row);
     lv_obj_t* preview = GridEditModeTestAccess::snap_preview(grid());
     REQUIRE(preview != nullptr);
-    CHECK(lv_obj_get_parent(preview) == page(1));
+    // The preview lives on the top layer, drawn where the landing page settles.
+    CHECK(lv_obj_get_parent(preview) == lv_display_get_layer_top(lv_obj_get_display(page(1))));
+    lv_obj_update_layout(preview);
+    const lv_area_t drawn = area_of(preview);
+    CHECK(drawn.x1 >= frame.x1);
+    CHECK(drawn.x1 <= frame.x2);
     indev.move(x, c.y);
     CHECK(GridEditModeTestAccess::snap_col(grid()) == previewed_col);
     CHECK(GridEditModeTestAccess::snap_row(grid()) == previewed_row);
@@ -3074,17 +3267,25 @@ TEST_CASE_METHOD(EditHomeFixture,
     REQUIRE(measured.y == at_rest.y1 + (carried.y - start.y));
     check_drawn_where_measured("after a drag move");
 
-    // A page switch carries the drag into another page's container, a page to
-    // the right with the carousel unmoved, and places the widget there too.
+    // A page switch carries the drag onto another page, a page to the right
+    // with the carousel unmoved, and the widget stays where the pointer holds it.
     grid().switch_page(page(1), 1);
-    REQUIRE(lv_obj_get_parent(widget) == page(1));
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
     check_drawn_where_measured("carried onto page 1");
     grid().switch_page(page(0), 0);
-    REQUIRE(lv_obj_get_parent(widget) == page(0));
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
     check_drawn_where_measured("carried back onto page 0");
 
+    // The drop puts it back into the page the session is scoped to, at its
+    // laid-out size.
     indev.release(carried.x, carried.y);
     settle();
+    REQUIRE(lv_obj_is_valid(widget));
+    CHECK(lv_obj_get_parent(widget) == page(0));
+    lv_obj_update_layout(widget);
+    const lv_area_t landed = area_of(widget);
+    CHECK(lv_area_get_width(&landed) == lv_area_get_width(&at_rest));
+    CHECK(lv_area_get_height(&landed) == lv_area_get_height(&at_rest));
 }
 
 TEST_CASE_METHOD(EditHomeFixture,
@@ -3112,7 +3313,7 @@ TEST_CASE_METHOD(EditHomeFixture,
         waited += STEP_MS;
     }
     REQUIRE(grid().page_index() == 1);
-    REQUIRE(lv_obj_get_parent(widget) == page(1));
+    REQUIRE(lv_obj_get_parent(widget) == drag_layer());
     REQUIRE(lv_anim_count_running() > 0); // the landing page is still sliding in
 
     // Before the next read the widget is where the last read put it, give or
@@ -3432,7 +3633,7 @@ TEST_CASE_METHOD(EditHomeFixture,
     check_session_on_screen();
 }
 
-TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
+TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once when edits settle",
                  "[1638][edit-swipe][home][grid_edit]") {
     SECTION("a drop on the next-page slot creates a page and keeps its origin page") {
         build_home(1, 1); // 'temperature' alone on the main page, which never prunes
@@ -3445,6 +3646,7 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         settle();
         REQUIRE(config().page_count() == 2);
         REQUIRE(count_on_page(1, "temperature") == 1);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
     SECTION("a move that empties its page removes the page") {
@@ -3470,6 +3672,7 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         settle();
         REQUIRE(config().page_count() == 1);
         REQUIRE(count_on_page(0, "fan") == 1);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
     SECTION("removing a page's last widget removes the page") {
@@ -3485,6 +3688,7 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         indev.release(r.x, r.y);
         settle();
         REQUIRE(config().page_count() == 1);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
     SECTION("a move within its page") {
@@ -3498,6 +3702,10 @@ TEST_CASE_METHOD(EditHomeFixture, "a commit saves the layout once",
         indev.release(pointer.x, pointer.y);
         settle();
         REQUIRE(entry_on_page(0, "temperature").col == origin.col + CELL_TRACKS);
+        CHECK(counter.writes() == 0); // each write stalls a slow board's flash
+        CHECK(config().save_pending());
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
+        process_lvgl(static_cast<int>(helix::PanelWidgetConfig::SAVE_SETTLE_MS) + 100);
         CHECK(counter.writes() == 1);
     }
 }

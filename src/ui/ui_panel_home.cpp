@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <utility>
 
 using namespace helix;
 
@@ -644,6 +645,30 @@ void HomePanel::populate_page(int page_index, bool force) {
     populating_widgets_ = false;
 }
 
+bool HomePanel::relayout_edit_page(const std::vector<std::string>& changed_ids,
+                                   const std::string& resized_id) {
+    const int page = grid_edit_mode_.page_index();
+    if (page < 0 || page >= static_cast<int>(pages_.size()) ||
+        !grid_edit_mode_.is_scoped_to(pages_[static_cast<size_t>(page)].container)) {
+        return false;
+    }
+    auto& entry = pages_[static_cast<size_t>(page)];
+    if (!helix::PanelWidgetManager::instance().relayout_tiles(
+            "home", entry.container, page, changed_ids, resized_id, entry.widgets)) {
+        return false;
+    }
+    // A resize can make a widget build children of its own. As populate_page()
+    // treats a built page: bubbling for edit mode's handlers, and disarmed,
+    // since a session is live.
+    if (lv_obj_t* tile = resized_id.empty()
+                             ? nullptr
+                             : lv_obj_get_child_by_name(entry.container, resized_id.c_str())) {
+        set_event_bubble_recursive(tile);
+        disable_widget_clicks_recursive(tile);
+    }
+    return true;
+}
+
 void HomePanel::on_page_changed(int new_page) {
     if (new_page == active_page_index_) {
         return;
@@ -825,23 +850,30 @@ void HomePanel::finalize_setup() {
     // capabilities change (e.g. power devices discovered after startup).
     setup_widget_gate_observers();
 
-    // Register rebuild callback so settings overlay toggle changes take effect immediately
-    helix::PanelWidgetManager::instance().register_rebuild_callback("home", [this]() {
-        if (grid_edit_mode_.is_active()) {
-            spdlog::debug("[{}] Skipping settings rebuild during edit mode", get_name());
-            return;
-        }
-        populate_widgets();
-    });
-
+    register_config_rebuild_callback();
     wire_grid_edit_page_callbacks();
 
     spdlog::debug("[{}] Finalize complete", get_name());
 }
 
+void HomePanel::register_config_rebuild_callback() {
+    helix::PanelWidgetManager::instance().register_rebuild_callback("home", [this]() {
+        if (grid_edit_mode_.is_active()) {
+            spdlog::debug("[{}] Deferring settings rebuild until edit mode ends", get_name());
+            config_rebuild_deferred_ = true;
+            return;
+        }
+        populate_widgets();
+    });
+}
+
 void HomePanel::wire_grid_edit_page_callbacks() {
     // The rebuild edit mode schedules after it rearranges widgets
     grid_edit_mode_.set_rebuild_callback([this]() { populate_widgets(); });
+    grid_edit_mode_.set_relayout_callback(
+        [this](const std::vector<std::string>& changed_ids, const std::string& resized_id) {
+            return relayout_edit_page(changed_ids, resized_id);
+        });
 
     grid_edit_mode_.set_delete_page_callback([]() {
         helix::ui::modal_confirm("Delete Page", "Remove this page and all its widgets?",
@@ -1160,6 +1192,25 @@ void HomePanel::exit_grid_edit_mode() {
     // carried back to its page before the session is gone.
     grid_edit_mode_.end_gesture_uncommitted();
     grid_edit_mode_.exit();
+    // The widgets are left as edit mode arranged them; every page was disarmed
+    // at entry, so every page is armed again.
+    for (const CarouselPage& page : pages_) {
+        helix::ui::enable_widget_clicks_recursive(page.container);
+        for (const auto& w : page.widgets) {
+            if (w) {
+                w->on_edit_mode_exited();
+            }
+        }
+    }
+    // Gate and config rebuilds wait out a session. On the next tick, outside
+    // the input dispatch that ended it, catch up: a config change rebuilds
+    // every page, a gate change only the pages whose widget list it changed.
+    const bool force = std::exchange(config_rebuild_deferred_, false);
+    helix::ui::run_next_tick(lifetime_.token(), [this, force]() {
+        if (!grid_edit_mode_.is_active()) {
+            populate_widgets(force);
+        }
+    });
     // Hand the carousel swipe back to its page count, and take the next-page
     // slot out of reach
     apply_edit_swipe_policy();
