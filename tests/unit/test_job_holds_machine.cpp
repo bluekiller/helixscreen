@@ -604,6 +604,7 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/width_sensor_row.xml",
     "ui_xml/wifi_network_item.xml",
     "ui_xml/wifi_password_modal.xml",
+    "ui_xml/wizard_catalog_row.xml",
     "ui_xml/wizard_connection.xml",
     "ui_xml/wizard_container.xml",
     "ui_xml/wizard_fan_select.xml",
