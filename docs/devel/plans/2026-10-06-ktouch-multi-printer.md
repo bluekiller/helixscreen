@@ -78,29 +78,32 @@ manager, wizard steps), and its rebuild-the-shell shape does not fit PSRAM (sect
 Firmware-only: the hooks wiring in app_boot, the internal-heap check and the restart fallback.
 Desktop keeps its full rebuild for switching; `retarget` is the lighter path it gains for Change Host.
 
-## 5. Live switch sequence (firmware)
+## 5. Live switch sequence (firmware, as built)
 
-Entry: badge menu or Printers list -> `trigger_printer_switch` -> `PrinterSwitchFlow::switch_printer`,
-which saves the new active id first, so any later failure can fall back to a restart safely.
-The hooks run from a one-shot `lv_timer`, outside any UpdateQueue batch, because both callers arrive
-inside `queue_update` and `UpdateQueue::drain()` must not run inside a batch.
+Entry: badge menu or Printers list -> `trigger_printer_switch` -> `PrinterSwitchFlow::request_switch`
+(asks first when the connected printer is printing, unless it was just deleted) -> `switch_printer`,
+which saves the new active id before anything else; a failed save stays put. The flow then runs
+its hooks synchronously, in whatever context the request arrived (usually an UpdateQueue batch):
 
-1. UI thread: show a non-blocking "Switching to <name>..." status (badge dot amber, home not-ready
-   state, as on any reconnect). `EmergencyStopOverlay::suppress_recovery_dialog`. Land on Home.
-2. `client->disconnect()`: `esp_websocket_client_stop` waits for the WS task's STOPPED bit, so after
-   it returns that task enqueues nothing more. Bounded by `UI_STALL_BUDGET_MS` (3 s) plus DNS time.
-3. `UpdateQueue::drain()` + `mgr->process_notifications()`: A's last queued work runs now, before
-   the reset, instead of landing on B.
-4. Reset (section 3): `clear_backends`, `invalidate_all`, name seed, home rebuild only if needed.
-5. `vTaskDelay(pdMS_TO_TICKS(20))`: the WS task deleted itself, and its 8 KB stack is freed later by
-   the idle task, which the UI thread outranks. Then check
-   `heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) >= 8 KB + 2 KB margin`.
-6. Pass: `mgr->connect(B)`; discovery on the WS task then queues the usual subject updates. Fail:
-   log both heap numbers and `esp_restart()`; boot comes up on B because the entry step already saved it.
+1. teardown hook: stamps the start time.
+2. rebuild hook: `retarget_printer_connection()`: suppress the recovery dialog, `disconnect()`
+   (joins the WS task), `process_notifications()` so A's last frames apply before the reset,
+   clear AMS backends, show B's name, then the connect gate (the K-Touch waits 20 ms for the idle
+   task to free the old WS stack and needs a 10 KB internal block, restarting when it is not there),
+   then `connect(B)`, which stores B's base URL and then advances the HTTP epoch. A connect that
+   cannot start returns false and the hook restarts. The home grid rebuilds only when layouts
+   differ (safe in a batch: `safe_clean_children`). A 30 s watchdog restarts a switch whose
+   discovery never lands on a live connection.
+3. land_home hook: `request_panel(Home, Queued)`, which hides every open overlay like a navbar tap.
 
-Expected time: steps 1-5 well under a second; connect to discovery about 2 s (measured at boot,
-2026-09-27); plus a home rebuild only when layouts differ. So **about 2-3 s typical**, unmeasured.
-The UI stays responsive throughout except during a home rebuild.
+There is no UpdateQueue drain. What A can still deliver after step 2, and why it is safe:
+- Discovery queued from A's WS task carries A's HTTP epoch and is dropped on the UI thread.
+- REST downloads that finish after the switch reach `on_error` as CONNECTION_LOST.
+- JSON-RPC requests pending on A fail with connection_lost when the stop reports DISCONNECTED,
+  or by timeout; replies cannot arrive once the socket is closed.
+- Success callbacks A queued before the disconnect (a file list, say) may still run once; B's
+  forced refresh on connect replaces them. Names that resolve late go to the printer they were
+  asked for.
 
 ## 6. Add printer on a 480x272 panel
 
