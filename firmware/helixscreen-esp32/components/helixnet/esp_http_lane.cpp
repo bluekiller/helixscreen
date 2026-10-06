@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_pthread.h"
 
+#include <algorithm>
 #include <atomic>
 #include <pthread.h>
 #include <strings.h>
@@ -179,10 +180,9 @@ void EspHttpLane::run_one(const Job& job) {
         return;
     }
 
-    // Informational only (some servers/chunked responses don't report a
-    // reliable Content-Length) — the read loop + is_complete check below is
-    // what actually enforces the cap.
-    esp_http_client_fetch_headers(client);
+    // Content-Length sizes the buffer; for a Range request it is the length of
+    // the range. The read loop and is_complete check below enforce the cap.
+    const int64_t content_length = esp_http_client_fetch_headers(client);
 
     int status = esp_http_client_get_status_code(client);
     if (status != 200 && status != 206) {
@@ -194,59 +194,63 @@ void EspHttpLane::run_one(const Job& job) {
         return;
     }
 
-    // Accumulation buffer in PSRAM — this is the buffer the internal-RAM
-    // budget cares about, not esp_http_client's own small read-chunk buffer
-    // (config.buffer_size above, internal RAM, CLIENT_BUFFER_BYTES only).
-    auto* buf = static_cast<uint8_t*>(heap_caps_malloc(job.cap, MALLOC_CAP_SPIRAM));
-    if (!buf) {
-        if (job.on_error) {
-            job.on_error("PSRAM allocation failed");
-        }
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
-        return;
-    }
-
+    // Accumulation buffer. Large enough to land in PSRAM; this is the buffer
+    // the RAM budget cares about, not esp_http_client's own small read-chunk
+    // buffer (config.buffer_size above, CLIENT_BUFFER_BYTES).
+    std::string body;
     size_t total = 0;
-    while (total < job.cap) {
-        int n = esp_http_client_read(client, reinterpret_cast<char*>(buf + total),
-                                     static_cast<int>(job.cap - total));
-        if (n < 0) {
-            if (job.on_error) {
-                job.on_error("esp_http_client_read failed");
+    bool alloc_failed = !try_reserve(body, initial_buffer_bytes(job.cap, content_length));
+    bool read_failed = false;
+    // reserve() can hand back more than asked for, so the cap bounds the bytes
+    // read, never the capacity.
+    auto room = [&body, &job]() { return std::min(body.capacity(), job.cap); };
+    while (!alloc_failed && total < job.cap) {
+        if (total == room()) {
+            if (esp_http_client_is_complete_data_received(client)) {
+                break;
             }
-            heap_caps_free(buf);
-            esp_http_client_close(client);
-            esp_http_client_cleanup(client);
-            return;
+            if (!try_reserve(body, next_buffer_bytes(body.capacity(), job.cap))) {
+                alloc_failed = true;
+                break;
+            }
+        }
+        body.resize(room()); // within capacity: no allocation
+        int n = esp_http_client_read(client, &body[total], static_cast<int>(body.size() - total));
+        if (n < 0) {
+            read_failed = true;
+            break;
         }
         if (n == 0) {
             break; // response complete
         }
         total += static_cast<size_t>(n);
     }
+    body.resize(total);
 
     // Over-cap: the buffer filled and the server says there's more. Abort and
     // report an error — R3 hard constraint: never truncate-and-return.
-    const bool over_cap = (total >= job.cap) && !esp_http_client_is_complete_data_received(client);
+    const bool over_cap = !alloc_failed && !read_failed && (total >= job.cap) &&
+                          !esp_http_client_is_complete_data_received(client);
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
-    if (over_cap) {
-        ESP_LOGW(TAG, "response exceeds %u byte cap — aborting: %s", (unsigned)job.cap,
-                 job.url.c_str());
-        heap_caps_free(buf);
+    if (alloc_failed || read_failed || over_cap) {
+        if (over_cap) {
+            ESP_LOGW(TAG, "response exceeds %u byte cap — aborting: %s", (unsigned)job.cap,
+                     job.url.c_str());
+        }
         if (job.on_error) {
-            job.on_error("response exceeds size cap");
+            job.on_error(alloc_failed  ? "PSRAM allocation failed"
+                         : read_failed ? "esp_http_client_read failed"
+                                       : "response exceeds size cap");
         }
         return;
     }
 
     if (job.on_success) {
-        job.on_success(buf, total);
+        job.on_success(body);
     }
-    heap_caps_free(buf);
 }
 
 } // namespace helix::http

@@ -310,14 +310,16 @@ void download_include_graph(std::vector<std::string> listing, const std::string&
                     else if (self)
                         (*self)();
                 },
-                [walk, take_report, path, depth, submitting, deferred](std::string message) {
+                [walk, take_report, path, depth, submitting, deferred](std::string message,
+                                                                       bool queue_full) {
                     std::function<void()> report;
                     {
                         std::lock_guard<std::mutex> lock(walk->mutex);
                         --walk->in_flight;
                         // Backpressure: retry when an in-flight download completes.
                         // With nothing in flight there is no completion to wait for.
-                        if (submitting->load() && walk->in_flight > 0 && walk->error.empty()) {
+                        if (queue_full && submitting->load() && walk->in_flight > 0 &&
+                            walk->error.empty()) {
                             walk->queue.insert(walk->queue.begin(), {path, depth});
                             deferred->store(true);
                             spdlog::debug("[ConfigIncludes] {} not queued ({}), retrying later",
@@ -360,10 +362,12 @@ void resolve_active_config_files_with_content(IMoonrakerAPI& api,
             download_include_graph(
                 std::move(cfg_paths), "printer.cfg",
                 [&api](const std::string& path, std::function<void(std::string)> ok,
-                       std::function<void(std::string)> fail) {
+                       std::function<void(std::string, bool)> fail) {
                     api.transfers().download_file(
                         "config", path, [ok](const std::string& content) { ok(content); },
-                        [fail](const MoonrakerError& err) { fail(err.message); });
+                        [fail](const MoonrakerError& err) {
+                            fail(err.message, err.type == MoonrakerErrorType::QUEUE_FULL);
+                        });
                 },
                 on_complete, on_error);
         },

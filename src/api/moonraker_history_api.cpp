@@ -11,6 +11,7 @@
 #include "locale_formats.h"
 #include "moonraker_api_internal.h"
 #include "print_history_parse.h"
+#include "try_reserve.h"
 
 #include <spdlog/spdlog.h>
 
@@ -145,7 +146,7 @@ void MoonrakerHistoryAPI::get_history_list(int limit, int start, double since, d
 
     client_.send_jsonrpc(
         "server.history.list", params,
-        [on_success](const json& response) {
+        [on_success, on_error](const json& response) {
             std::vector<PrintHistoryJob> jobs;
             uint64_t total_count = 0;
 
@@ -157,6 +158,15 @@ void MoonrakerHistoryAPI::get_history_list(int limit, int start, double since, d
                 }
 
                 if (result.contains("jobs") && result["jobs"].is_array()) {
+                    // A page's length is the server's to decide; on the firmware
+                    // a vector that cannot grow aborts the board. This covers the
+                    // page's buffer; each job's strings still allocate as parsed.
+                    if (!helix::try_reserve(jobs, result["jobs"].size())) {
+                        moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN,
+                                                         "get_history_list",
+                                                         "not enough memory for the history page");
+                        return;
+                    }
                     for (const auto& job_json : result["jobs"]) {
                         jobs.push_back(parse_history_job(job_json));
                     }
