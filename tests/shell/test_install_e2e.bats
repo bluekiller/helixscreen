@@ -244,7 +244,7 @@ snap_resolve() {
         || fail "--clean kept the old settings.json"
 }
 
-@test "install.sh e2e: a prerelease update with no saved channel moves Moonraker to beta" {
+@test "install.sh e2e: a prerelease update with no saved channel moves app and Moonraker to beta" {
     # seed-user writes a settings.json with no update channel, so the beta
     # version decides it, after the installed config has been read.
     run_scenario install seed-user update-beta
@@ -255,5 +255,7 @@ snap_resolve() {
     [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.1.0-beta.1" ]
     grep -qx "channel: beta" "$s/root/printer_data/config/moonraker.conf" \
         || fail "update_manager still on $(grep '^channel:' "$s/root/printer_data/config/moonraker.conf")"
+    [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["update"]["channel"])' "$settings")" = "1" ] \
+        || fail "settings.json has no beta channel: $(cat "$settings")"
     grep -q '"e2e_user_value": "kept"' "$settings" || fail "user settings lost"
 }
