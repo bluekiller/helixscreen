@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import shlex
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -146,37 +145,6 @@ _POST_NAV_WAIT_SUBJECT = {
     "print-select": ("print_source_usb_present", 1),
 }
 
-# Card thumbnails arrive asynchronously after the file metadata fetch. A card
-# whose thumbnail is still pending hides its `thumbnail` image and shows the
-# placeholder icon, so the grid is settled once every card inside the panel's
-# viewport has a visible `thumbnail` child (`ls` omits hidden widgets). Cards
-# below the viewport are ignored: the mock's last file carries no thumbnail, and
-# it sits off screen, so it never appears in the capture.
-_THUMBNAIL_SETTLE_TIMEOUT = 30.0
-_PRINT_SELECT_PANEL = "s/app_layout_0/content_area/panel_container/print_select_panel"
-
-
-def _wait_card_thumbnails(helix_app, timeout=_THUMBNAIL_SETTLE_TIMEOUT):
-    grid = f"{_PRINT_SELECT_PANEL}/card_view_container"
-    panel = helix_app.geom(_PRINT_SELECT_PANEL)["widgets"][0]
-    viewport_bottom = panel["y"] + panel["h"]
-    deadline = time.monotonic() + timeout
-    while True:
-        # geom paths are positional, so rebuild the `card_root[i]` names `ls` uses.
-        rows = [w for w in helix_app.geom(grid, 1)["widgets"] if w["name"] == "card_root"]
-        cards = [f"{grid}/card_root[{i}]" for i, w in enumerate(rows)
-                 if w["y"] < viewport_bottom]
-        visible = {w["path"] for w in helix_app.ls()["widgets"]}
-        missing = [c for c in cards if f"{c}/thumbnail" not in visible]
-        if cards and not missing:
-            return
-        if time.monotonic() > deadline:
-            raise RuntimeError(
-                f"print-select thumbnails never loaded: {len(missing)}/{len(cards)} "
-                "visible cards still show the placeholder")
-        time.sleep(0.1)
-
-
 # freeze() pauses every LVGL timer it finds armed (remote_control_server.cpp's
 # handle_freeze walks lv_timer_get_next()), including a panel's own one-shot
 # debounce timer if it is still pending, e.g. PrintSelectPanel::refresh_timer_,
@@ -215,7 +183,5 @@ def test_screen_matches_golden(helix_app, golden, variant, name, steps):
     wait_target = _POST_NAV_WAIT_SUBJECT.get(name)
     if wait_target:
         helix_app.wait_for(*wait_target)
-    if name == "print-select":
-        _wait_card_thumbnails(helix_app)
     image = _capture_settled(helix_app)
     golden(image, _golden_name(variant, name))
