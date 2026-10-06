@@ -1311,10 +1311,8 @@ void run_versioned_migrations(json& config, const std::string& config_path) {
     config["config_version"] = CURRENT_CONFIG_VERSION;
 }
 
-} // namespace helix::config_detail
-
-namespace helix::config_detail {
 int migrated_scroll_throw(int stored, int platform_default) {
     return stored == 25 ? platform_default : stored;
 }
+
 } // namespace helix::config_detail
