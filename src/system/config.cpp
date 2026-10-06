@@ -1182,6 +1182,10 @@ std::string Config::next_printer_id() const {
     return id;
 }
 
+std::string Config::get_active_printer_name() const {
+    return get<std::string>(df() + "printer_name", active_printer_id_);
+}
+
 void Config::add_printer(const std::string& printer_id, const json& printer_data) {
     if (!data.contains("printers")) {
         data["printers"] = json::object();

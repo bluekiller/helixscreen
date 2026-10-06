@@ -586,6 +586,9 @@ class Config {
      */
     std::string next_printer_id() const;
 
+    /// The active printer's display name; its id when no name has been set.
+    std::string get_active_printer_name() const;
+
     /**
      * @brief Add a new printer configuration
      *

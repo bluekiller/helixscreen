@@ -588,13 +588,7 @@ int Application::run(int argc, char** argv) {
         return 1;
     }
 
-    // Seed the active printer's display name from config
-    {
-        auto active_id = m_config->get_active_printer_id();
-        std::string printer_name =
-            m_config->get<std::string>(m_config->df() + "printer_name", active_id);
-        get_printer_state().set_active_printer_name(printer_name);
-    }
+    get_printer_state().set_active_printer_name(m_config->get_active_printer_name());
 
     // Phase 9b: Initialize Moonraker (creates client + API)
     // Now works because PrinterState exists from phase 9a.

@@ -2505,6 +2505,19 @@ TEST_CASE_METHOD(ConfigTestFixture, "Config: add_printer creates new printer ent
     REQUIRE(config.get<std::string>("/printers/bambu-x1/moonraker_host") == "10.0.0.1");
 }
 
+TEST_CASE_METHOD(ConfigTestFixture, "Config: get_active_printer_name falls back to the id",
+                 "[core][config][multi-printer]") {
+    set_data_for_plural_test({{"active_printer_id", "voron"},
+                              {"printers",
+                               {{"voron", {{"printer_name", "Voron 2.4"}}},
+                                {"printer-2", {{"moonraker_host", "10.0.0.2"}}}}}});
+    REQUIRE(config.set_active_printer("voron"));
+    REQUIRE(config.get_active_printer_name() == "Voron 2.4");
+
+    REQUIRE(config.set_active_printer("printer-2"));
+    REQUIRE(config.get_active_printer_name() == "printer-2");
+}
+
 TEST_CASE_METHOD(ConfigTestFixture, "Config: next_printer_id picks an id no printer uses",
                  "[core][config][multi-printer]") {
     SECTION("numbers from the printer count") {

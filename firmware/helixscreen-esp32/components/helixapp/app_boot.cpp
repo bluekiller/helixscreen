@@ -820,6 +820,7 @@ extern "C" void app_boot_ui(void) {
     // Phase 8: core subjects (PrinterState / AmsState).
     static SubjectInitializer subjects;
     subjects.init_core_and_state();
+    get_printer_state().set_active_printer_name(config->get_active_printer_name());
 
     // Bring LedController up with no API yet so its `led_controllable` and
     // `led_command_in_flight` subjects are registered for XML before the

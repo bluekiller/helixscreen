@@ -177,8 +177,7 @@ void PrinterSession::switch_printer(const std::string& printer_id) {
     m_restart.land_home();
 
     // Show toast with the new printer name
-    std::string printer_name =
-        m_config->get<std::string>(m_config->df() + "printer_name", printer_id);
+    const std::string printer_name = m_config->get_active_printer_name();
     std::string toast_msg = fmt::format(fmt::runtime(lv_tr("Connected to {}")), printer_name);
     ToastManager::instance().show(ToastSeverity::INFO, toast_msg.c_str());
 
@@ -895,12 +894,7 @@ void PrinterSession::rebuild() {
     }
 
     // 2b. Seed the active printer's display name from config
-    {
-        auto active_id = m_config->get_active_printer_id();
-        std::string printer_name =
-            m_config->get<std::string>(m_config->df() + "printer_name", active_id);
-        get_printer_state().set_active_printer_name(printer_name);
-    }
+    get_printer_state().set_active_printer_name(m_config->get_active_printer_name());
 
     // 3. Initialize Moonraker (creates client + API + history managers)
     if (!init_moonraker()) {
