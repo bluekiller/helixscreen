@@ -10,7 +10,6 @@
 #include "ui_event_safety.h"
 #include "ui_icon.h"
 #include "ui_manual_pull_prompt.h"
-#include "ui_nav_manager.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_ams.h"
 #include "ui_panel_ams_overview.h"
@@ -182,7 +181,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // Note: We check are_subjects_initialized() because observers may fire immediately
     // upon registration, but subjects aren't initialized until init_subjects() is called.
     chamber_temp_observer_ = observe<int>(
-        printer_state_.get_chamber_temp_subject(), this,
+        printer_state_.temperature_state().get_chamber_temp_subject(), this,
         [](FilamentPanel* self, int raw) {
             self->chamber_current_ = deci_to_degrees(raw);
             if (self->are_subjects_initialized()) {
@@ -192,7 +191,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
         },
         printer_state_.get_subjects_lifetime());
     chamber_target_observer_ = observe<int>(
-        printer_state_.get_chamber_target_subject(), this,
+        printer_state_.temperature_state().get_chamber_target_subject(), this,
         [](FilamentPanel* self, int raw) {
             self->chamber_target_ = raw; // Store decidegrees (matches PrinterState format)
             if (self->are_subjects_initialized()) {
@@ -260,9 +259,9 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
     // PrinterState is a separate singleton whose subjects tests tear down while
     // this guard is alive (#705).
     print_active_observer_ = observe<int>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [](FilamentPanel* self, int) { self->update_filament_op_buttons(); },
-        printer_state_.get_static_print_subjects_lifetime());
+        printer_state_.print_state().get_static_subjects_lifetime());
 
     // Note: Chamber temperature display is initialized by observer callbacks
     // and refresh_all_displays() on panel activation.
@@ -2060,7 +2059,7 @@ void FilamentPanel::update_filament_op_buttons() {
     // IFS). Reading the raw print_active subject here would grey the buttons
     // through every runout pause on every other backend — i.e. exactly when the
     // user needs them.
-    const auto lifecycle = printer_state_.get_print_lifecycle();
+    const auto lifecycle = printer_state_.print_state().get_print_lifecycle();
     const bool print_blocks_op =
         helix::ui::print_blocks_filament_op(lifecycle, backend->filament_ops_self_home());
 
@@ -2709,7 +2708,7 @@ const char* FilamentPanel::preheat_op_name(PreheatOp op) {
 // nozzle_target_ member — set_material() overwrites nozzle_target_ with
 // the preset's preview temperature, so it's unreliable here.
 int FilamentPanel::current_extruder_target() const {
-    auto* subj = printer_state_.get_active_extruder_target_subject();
+    auto* subj = printer_state_.temperature_state().get_active_extruder_target_subject();
     return subj ? deci_to_degrees(lv_subject_get_int(subj)) : 0;
 }
 
@@ -2823,7 +2822,7 @@ void FilamentPanel::restore_heater_after_preheat() {
     // the pre-start block is about to heat the nozzle, and the comment above
     // already gives "a real print re-heats or cancels the pending cooldown" as
     // the reason this is safe. Preparing is that case, one step earlier.
-    const auto lifecycle = printer_state_.get_print_lifecycle();
+    const auto lifecycle = printer_state_.print_state().get_print_lifecycle();
     if (!job_holds_machine(lifecycle)) {
         PostOpCooldownManager::instance().schedule();
     }
@@ -3077,7 +3076,7 @@ void FilamentPanel::execute_unload() {
     // Filament is being pulled — nothing left to purge, so drop the swap-preheat
     // latch. The next load computes its hold-temp fresh instead of inheriting this
     // material's target.
-    printer_state_.clear_nozzle_load_latch();
+    printer_state_.temperature_state().clear_load_latch();
 
     AmsBackend* backend = AmsState::instance().get_backend();
     const int slot = selected_op_slot();

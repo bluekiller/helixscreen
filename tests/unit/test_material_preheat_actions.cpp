@@ -79,9 +79,12 @@ void feed_hot_nozzle(Harness& h) {
     h.state.update_from_status({{"extruder", {{"temperature", 269.0}, {"target", 269.0}}}});
     h.state.update_from_status({{"extruder", {{"temperature", 269.0}, {"target", 0.0}}}});
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE(h.state.get_active_extruder_last_nonzero_target() == Catch::Approx(269.0));
-    REQUIRE(lv_subject_get_int(h.state.get_active_extruder_temp_subject()) == 2690);
-    REQUIRE(lv_subject_get_int(h.state.get_active_extruder_target_subject()) == 0);
+    REQUIRE(h.state.temperature_state().get_active_extruder_last_nonzero_target() ==
+            Catch::Approx(269.0));
+    REQUIRE(lv_subject_get_int(h.state.temperature_state().get_active_extruder_temp_subject()) ==
+            2690);
+    REQUIRE(lv_subject_get_int(h.state.temperature_state().get_active_extruder_target_subject()) ==
+            0);
     h.client.clear_gcode_script_history();
 }
 
@@ -332,7 +335,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                                 {"toolhead", {{"homed_axes", "xyz"}}}});
     h.state.update_from_status({{"extruder", {{"temperature", 25.0}, {"target", 0.0}}}});
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE(h.state.get_active_extruder_last_nonzero_target() == Catch::Approx(269.0));
+    REQUIRE(h.state.temperature_state().get_active_extruder_last_nonzero_target() ==
+            Catch::Approx(269.0));
     PanelAccess::set_selected_material(*h.panel, 2);
     h.client.clear_gcode_script_history();
 

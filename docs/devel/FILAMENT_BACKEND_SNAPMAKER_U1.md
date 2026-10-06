@@ -116,7 +116,7 @@ The active tool is detected from extruder pin state or `toolhead.extruder`, and
 ### RFID (filament_detect.info)
 
 `parse_rfid_info()` reads per-channel tag fields
-(`src/printer/ams_backend_snapmaker.cpp#parse_rfid_info`):
+(`src/printer/snapmaker_status_parse.cpp#parse_rfid_info`):
 
 | Tag field | Maps to | Notes |
 |-----------|---------|-------|
@@ -135,7 +135,7 @@ of eight known literals ("Basic", "Matte", "SnapSpeed", "Silk", "Support", "HF",
 SUB_TYPE (`src/printer/ams_backend_snapmaker.cpp`, `src/printer/ams_backend_snapmaker.cpp#apply_user_edit`).
 
 Every row above is code-verified against `parse_rfid_info()` and the apply loop
-(`src/printer/ams_backend_snapmaker.cpp#parse_rfid_info`, `1171-1204`): tag identity rides
+(`src/printer/snapmaker_status_parse.cpp#parse_rfid_info`, `src/printer/ams_backend_snapmaker.cpp#apply_rfid_entry_locked`): tag identity rides
 `filament_detect.info[ch].CARD_UID`, and a `MAIN_TYPE == "NONE"` tag skips the field
 apply while its UID is still captured for swap detection (`:1173-1182`). Physical reads
 from real RFID spools remain rig-pending; code-verified is not field-verified.
@@ -265,9 +265,9 @@ user printing TPU without feeders (field report recorded at
 `src/printer/ams_backend_snapmaker.cpp#handle_status`). Feeders reaching `unload_finish` are reported to
 `AmsState::mark_slot_unloaded()` after the mutex is released so `FilamentSensorManager`
 suppresses the runout modal during the expected pull-out grace window
-(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `src/printer/ams_backend_snapmaker.cpp#handle_status`) — the deferral exists because
-calling into `AmsState` under our mutex inverted `add_backend()`'s lock order (TSan,
-2026-08-16).
+(`src/printer/ams_backend_snapmaker.cpp#handle_status`, `src/printer/ams_backend_snapmaker.cpp#handle_status`) — calls into
+`AmsState` stay outside the backend mutex because the backend registry takes its own lock
+before a backend's (`include/ams_backend_registry.h#AmsBackendRegistry`).
 
 ### Runout and Resume
 

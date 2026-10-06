@@ -111,8 +111,8 @@ TEST_CASE("NativeBackend: null error callback with null API doesn't crash", "[le
     helix::led::NativeBackend backend;
 
     // Should not crash even without callbacks
-    backend.set_color("neopixel test", 1.0, 0.0, 0.0, 0.0, nullptr, nullptr);
-    backend.turn_off("neopixel test", nullptr, nullptr);
+    REQUIRE_NOTHROW(backend.set_color("neopixel test", 1.0, 0.0, 0.0, 0.0, nullptr, nullptr));
+    REQUIRE_NOTHROW(backend.turn_off("neopixel test", nullptr, nullptr));
 }
 
 TEST_CASE("NativeBackend: strip type detection", "[led][native]") {

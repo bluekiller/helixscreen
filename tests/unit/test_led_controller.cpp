@@ -404,9 +404,15 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(false);
+    // set_startup_brightness() also moves last_brightness, so move it back after.
+    ctrl.set_startup_brightness(40);
+    ctrl.set_last_brightness(100);
+    const int before = ctrl.last_brightness();
 
-    // Should not crash - just a no-op
-    ctrl.apply_startup_preference(ctrl.light_targets(""));
+    ctrl.apply_startup_preference({"neopixel a"});
+
+    // Disabled: the startup brightness is not applied.
+    REQUIRE(ctrl.last_brightness() == before);
 
     ctrl.deinit();
 }
@@ -419,9 +425,15 @@ TEST_CASE_METHOD(LedControllerFixture,
     ctrl.init(nullptr, nullptr);
 
     ctrl.set_led_on_at_start(true);
+    // set_startup_brightness() also moves last_brightness, so move it back after.
+    ctrl.set_startup_brightness(40);
+    ctrl.set_last_brightness(100);
+    const int before = ctrl.last_brightness();
 
-    // Should not crash even though enabled
     ctrl.apply_startup_preference({});
+
+    // Nothing to light: the startup brightness is not applied.
+    REQUIRE(ctrl.last_brightness() == before);
 
     ctrl.deinit();
 }
@@ -768,11 +780,19 @@ TEST_CASE_METHOD(LedControllerFixture, "OutputPinBackend: status for an unknown 
 
 TEST_CASE_METHOD(LedControllerFixture, "OutputPinBackend: no API safety", "[led][output_pin]") {
     helix::led::OutputPinBackend backend;
-    // Should not crash when API is null
-    backend.set_value("output_pin test", 0.5);
-    backend.turn_on("output_pin test");
-    backend.turn_off("output_pin test");
-    backend.set_brightness("output_pin test", 50);
+    std::vector<std::string> errors;
+    auto on_error = [&errors](const std::string& e) { errors.push_back(e); };
+
+    // With no API every command reports an error instead of sending.
+    backend.set_value("output_pin test", 0.5, nullptr, on_error);
+    backend.turn_on("output_pin test", nullptr, on_error);
+    backend.turn_off("output_pin test", nullptr, on_error);
+    backend.set_brightness("output_pin test", 50, nullptr, on_error);
+
+    REQUIRE(errors.size() == 4);
+    for (const auto& e : errors) {
+        CHECK(e.find("no API") != std::string::npos);
+    }
 }
 
 // ============================================================================
@@ -1138,7 +1158,7 @@ namespace {
 void make_led_dispatch_real(helix::PrinterState& api_state) {
     api_state.set_klippy_state_sync(helix::KlippyState::READY);
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(helix::KlippyState::READY);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1537,7 +1557,7 @@ TEST_CASE_METHOD(LedMockApiFixture, "LedController: disconnect clears in-flight 
     // confirms the connection-state observer is registered, compiles, and fires
     // without crashing — and that the end state is clean across the transition.
     // True mid-flight-disconnect (ACK never arrives) is verified on hardware.
-    lv_subject_set_int(get_printer_state().get_printer_connection_state_subject(),
+    lv_subject_set_int(get_printer_state().network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::DISCONNECTED));
 
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1570,7 +1590,7 @@ void wedge_in_flight_led_command(helix::PrinterState& api_state, MoonrakerClient
 
     // The LedController observes the GLOBAL PrinterState, not the API's.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(global_klippy);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1630,7 +1650,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     CAPTURE(static_cast<int>(non_ready));
 
     ps.set_klippy_state_sync(non_ready);
-    REQUIRE(lv_subject_get_int(ps.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(ps.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(helix::ConnectionState::CONNECTED));
 
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1656,7 +1676,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     REQUIRE(lv_subject_get_int(s) == 1);
 
     ps.set_klippy_state_sync(helix::KlippyState::READY);
-    REQUIRE(lv_subject_get_int(ps.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(ps.network_state().get_klippy_state_subject()) ==
             static_cast<int>(helix::KlippyState::READY));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
     CHECK(lv_subject_get_int(s) == 1);
@@ -1687,14 +1707,14 @@ TEST_CASE_METHOD(LedMockApiFixture,
     // Pin the two safety-net observers OPEN (Moonraker connected, Klippy READY) so
     // neither can force-clear the counter and make this pass for the wrong reason.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(helix::KlippyState::READY);
 
     // The API reads the PrinterState it was constructed with. READY + idle_timeout
     // "Printing" without a file print == an external blocking op holds the lock.
     state.set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::PrinterStateTestAccess::set_sustained_idle_timeout_printing(state, true);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());

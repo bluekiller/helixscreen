@@ -6,7 +6,6 @@
 #include "ui_event_safety.h"
 #include "ui_fan_control_overlay.h"
 #include "ui_icon_codepoints.h"
-#include "ui_nav_manager.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_printer_manager_overlay.h"
 #include "ui_temperature_utils.h"
@@ -233,7 +232,7 @@ void PrinterImageWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // attach() runs on every rebuild of a recycled instance, so re-arming here
     // keeps the observer alive across home-panel rebuilds.
     printer_type_observer_ = helix::ui::observe<const char*>(
-        get_printer_state().get_printer_type_subject(), this,
+        get_printer_state().profile_state().get_printer_type_subject(), this,
         [](PrinterImageWidget* w, const char* /*type*/) { w->schedule_image_refresh(); },
         get_printer_state().get_subjects_lifetime());
 
@@ -722,8 +721,9 @@ void PrinterImageWidget::arm_callout_observers() {
     auto& ps = get_printer_state();
     const auto on_change = [](PrinterImageWidget* w, int) { w->update_callouts(); };
     const SubjectLifetime life = ps.get_subjects_lifetime();
-    for (lv_subject_t* s : {ps.get_active_extruder_temp_subject(),
-                            ps.get_active_extruder_target_subject(), ps.get_fan_speed_subject()}) {
+    for (lv_subject_t* s : {ps.temperature_state().get_active_extruder_temp_subject(),
+                            ps.temperature_state().get_active_extruder_target_subject(),
+                            ps.fan_state().get_fan_speed_subject()}) {
         callout_observers_.push_back(helix::ui::observe<int>(s, this, on_change, life));
     }
     auto& leds = helix::led::LedController::instance();
@@ -735,15 +735,17 @@ void PrinterImageWidget::arm_callout_observers() {
         w->update_callouts();
         w->schedule_callout_layout();
     };
-    for (lv_subject_t* s : {printer_has_led_subject(), ps.get_printer_has_chamber_heater_subject()})
+    for (lv_subject_t* s :
+         {printer_has_led_subject(), ps.capabilities_state().subject(Capability::HasChamberHeater)})
         callout_observers_.push_back(helix::ui::observe<int>(s, this, on_capability, life));
     const auto observe_dynamic = [&](lv_subject_t* s, SubjectLifetime& lt) {
         callout_observers_.push_back(helix::ui::observe<int>(s, this, on_change, lt));
     };
-    observe_dynamic(ps.get_bed_temp_subject(bed_temp_lt_), bed_temp_lt_);
-    observe_dynamic(ps.get_bed_target_subject(bed_target_lt_), bed_target_lt_);
-    observe_dynamic(ps.get_chamber_temp_subject(chamber_temp_lt_), chamber_temp_lt_);
-    observe_dynamic(ps.get_chamber_effective_target_subject(chamber_target_lt_),
+    observe_dynamic(ps.temperature_state().get_bed_temp_subject(bed_temp_lt_), bed_temp_lt_);
+    observe_dynamic(ps.temperature_state().get_bed_target_subject(bed_target_lt_), bed_target_lt_);
+    observe_dynamic(ps.temperature_state().get_chamber_temp_subject(chamber_temp_lt_),
+                    chamber_temp_lt_);
+    observe_dynamic(ps.temperature_state().get_chamber_effective_target_subject(chamber_target_lt_),
                     chamber_target_lt_);
     auto& display = DisplaySettingsManager::instance();
     callout_observers_.push_back(helix::ui::observe<int>(
@@ -797,20 +799,20 @@ void PrinterImageWidget::update_callouts() {
         publish(shown, value, text, value ? heater_display(cur, tgt).temp : std::string());
     };
 
-    heater(read_int_or_zero(ps.get_active_extruder_temp_subject()),
-           read_int_or_zero(ps.get_active_extruder_target_subject()), true, &s_callout_nozzle_shown,
-           &s_callout_nozzle_text);
-    const int bed_cur = read_int_or_zero(ps.get_bed_temp_subject());
-    const int bed_tgt = read_int_or_zero(ps.get_bed_target_subject());
+    heater(read_int_or_zero(ps.temperature_state().get_active_extruder_temp_subject()),
+           read_int_or_zero(ps.temperature_state().get_active_extruder_target_subject()), true,
+           &s_callout_nozzle_shown, &s_callout_nozzle_text);
+    const int bed_cur = read_int_or_zero(ps.temperature_state().get_bed_temp_subject());
+    const int bed_tgt = read_int_or_zero(ps.temperature_state().get_bed_target_subject());
     heater(bed_cur, bed_tgt, true, &s_callout_bed_shown, &s_callout_bed_text);
     const int bed_heating = heater_display(bed_cur, bed_tgt).state == HeatState::Heating ? 1 : 0;
     lv_subject_set_int(&s_callout_bed_heating, bed_heating);
-    heater(read_int_or_zero(ps.get_chamber_temp_subject()),
-           read_int_or_zero(ps.get_chamber_effective_target_subject()),
-           read_int_or_zero(ps.get_printer_has_chamber_heater_subject()) != 0,
+    heater(read_int_or_zero(ps.temperature_state().get_chamber_temp_subject()),
+           read_int_or_zero(ps.temperature_state().get_chamber_effective_target_subject()),
+           read_int_or_zero(ps.capabilities_state().subject(Capability::HasChamberHeater)) != 0,
            &s_callout_chamber_shown, &s_callout_chamber_text);
 
-    const int fan = read_int_or_zero(ps.get_fan_speed_subject());
+    const int fan = read_int_or_zero(ps.fan_state().get_fan_speed_subject());
     char fan_buf[8];
     snprintf(fan_buf, sizeof(fan_buf), "%d%%", fan);
     publish(&s_callout_fan_shown, fan > 0 ? 1 : 0, &s_callout_fan_text, fan > 0 ? fan_buf : "");
@@ -977,7 +979,7 @@ void PrinterImageWidget::apply_callout_layout() {
          text(&s_callout_bed_text), widest_heater, true},
         {CalloutKind::Chamber, "callout_chip_chamber", &s_callout_chamber_shown,
          icon_px("fridge_industrial"), text(&s_callout_chamber_text), widest_heater,
-         read_int_or_zero(ps.get_printer_has_chamber_heater_subject()) != 0},
+         read_int_or_zero(ps.capabilities_state().subject(Capability::HasChamberHeater)) != 0},
         {CalloutKind::Fan, "callout_chip_fan", &s_callout_fan_shown, icon_px("fan"),
          text(&s_callout_fan_text), "100%", true},
         {CalloutKind::Light,

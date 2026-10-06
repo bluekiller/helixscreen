@@ -10,7 +10,6 @@
 
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_severity_card.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
@@ -59,7 +58,8 @@ void HardwareHealthOverlay::populate_hardware_issues() {
         return;
     }
 
-    const auto& result = printer_state_->get_hardware_validation_result();
+    const auto& result =
+        printer_state_->hardware_validation_state().get_hardware_validation_result();
 
     // Helper to convert severity enum to string for XML attribute
     auto severity_to_string = [](HardwareIssueSeverity sev) -> const char* {
@@ -228,7 +228,7 @@ void HardwareHealthOverlay::handle_hardware_action(const char* hardware_name, bo
 
         // Remove from cached validation result and refresh overlay
         if (printer_state_) {
-            printer_state_->remove_hardware_issue(hw_name);
+            printer_state_->hardware_validation_state().remove_hardware_issue(hw_name);
         }
         // The Ignore button that fired this event is a child of the list cleaned by
         // populate_hardware_issues(). Defer the rebuild off the click stack; the actual
@@ -286,7 +286,7 @@ void HardwareHealthOverlay::handle_hardware_save_confirm() {
 
     // Remove from cached validation result and refresh overlay
     if (printer_state_) {
-        printer_state_->remove_hardware_issue(pending_hardware_save_);
+        printer_state_->hardware_validation_state().remove_hardware_issue(pending_hardware_save_);
     }
     // Defer rebuild for consistency with the Ignore path. The actual batch-escape
     // comes from safe_clean_children() inside populate_hardware_issues [L081].

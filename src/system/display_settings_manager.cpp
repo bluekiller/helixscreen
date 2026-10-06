@@ -70,6 +70,7 @@ static const int SLEEP_OPTIONS_COUNT = sizeof(SLEEP_OPTIONS) / sizeof(SLEEP_OPTI
 struct TimezoneEntry {
     const char* display_name;
     const char* iana_id;
+    const char* posix_tz; // the zone's TZif footer: for libcs that cannot read zoneinfo
 };
 
 // Ordered by UTC offset so the list scans west-to-east. Names are the countries
@@ -85,67 +86,67 @@ struct TimezoneEntry {
 // offered here but not bundled resolves to UTC on devices without system
 // tzdata — silently, with the wrong time and no error.
 static const TimezoneEntry TIMEZONE_ENTRIES[] = {
-    {"UTC (+0:00)", "UTC"},
-    {"Samoa (-11:00)", "Pacific/Pago_Pago"},
-    {"Hawaii (-10:00)", "Pacific/Honolulu"},
-    {"Alaska (-9:00)", "America/Anchorage"},
-    {"Pacific (-8:00)", "America/Los_Angeles"},
-    {"Mountain (-7:00)", "America/Denver"},
-    {"Arizona (-7:00)", "America/Phoenix"},
-    {"Central (-6:00)", "America/Chicago"},
-    {"Mexico City (-6:00)", "America/Mexico_City"},
-    {"Saskatchewan (-6:00)", "America/Regina"},
-    {"Eastern (-5:00)", "America/New_York"},
-    {"Colombia/Peru (-5:00)", "America/Bogota"},
-    {"Atlantic (-4:00)", "America/Halifax"},
-    {"Venezuela (-4:00)", "America/Caracas"},
-    {"Chile (-4:00)", "America/Santiago"},
-    {"Newfoundland (-3:30)", "America/St_Johns"},
-    {"Brazil - Sao Paulo (-3:00)", "America/Sao_Paulo"},
-    {"Argentina (-3:00)", "America/Argentina/Buenos_Aires"},
-    {"Fernando de Noronha (-2:00)", "America/Noronha"},
-    {"Azores (-1:00)", "Atlantic/Azores"},
-    {"Cape Verde (-1:00)", "Atlantic/Cape_Verde"},
-    {"Iceland (+0:00)", "Atlantic/Reykjavik"},
-    {"London (+0:00)", "Europe/London"},
-    {"Central Europe (+1:00)", "Europe/Berlin"},
-    {"West Africa - Lagos (+1:00)", "Africa/Lagos"},
-    {"Eastern Europe (+2:00)", "Europe/Bucharest"},
-    {"Egypt (+2:00)", "Africa/Cairo"},
-    {"South Africa (+2:00)", "Africa/Johannesburg"},
-    {"Israel (+2:00)", "Asia/Jerusalem"},
-    {"Moscow (+3:00)", "Europe/Moscow"},
-    {"Turkey (+3:00)", "Europe/Istanbul"},
-    {"Saudi Arabia (+3:00)", "Asia/Riyadh"},
-    {"East Africa - Nairobi (+3:00)", "Africa/Nairobi"},
-    {"Iran (+3:30)", "Asia/Tehran"},
-    {"Gulf (+4:00)", "Asia/Dubai"},
-    {"Afghanistan (+4:30)", "Asia/Kabul"},
-    {"Pakistan (+5:00)", "Asia/Karachi"},
-    {"India (+5:30)", "Asia/Kolkata"},
-    {"Sri Lanka (+5:30)", "Asia/Colombo"},
-    {"Nepal (+5:45)", "Asia/Kathmandu"},
-    {"Bangladesh (+6:00)", "Asia/Dhaka"},
-    {"Myanmar (+6:30)", "Asia/Yangon"},
-    {"Thailand (+7:00)", "Asia/Bangkok"},
-    {"Vietnam (+7:00)", "Asia/Ho_Chi_Minh"},
-    {"Indonesia - Jakarta (+7:00)", "Asia/Jakarta"},
-    {"China (+8:00)", "Asia/Shanghai"},
-    {"Hong Kong (+8:00)", "Asia/Hong_Kong"},
-    {"Taiwan (+8:00)", "Asia/Taipei"},
-    {"Singapore/Malaysia (+8:00)", "Asia/Singapore"},
-    {"Philippines (+8:00)", "Asia/Manila"},
-    {"Australia Western (+8:00)", "Australia/Perth"},
-    {"Japan (+9:00)", "Asia/Tokyo"},
-    {"Korea (+9:00)", "Asia/Seoul"},
-    {"Australia Central (+9:30)", "Australia/Adelaide"},
-    {"Australia Northern (+9:30)", "Australia/Darwin"},
-    {"Australia Eastern (+10:00)", "Australia/Sydney"},
-    {"Australia Queensland (+10:00)", "Australia/Brisbane"},
-    {"New Caledonia (+11:00)", "Pacific/Noumea"},
-    {"New Zealand (+12:00)", "Pacific/Auckland"},
-    {"Fiji (+12:00)", "Pacific/Fiji"},
-    {"Tonga (+13:00)", "Pacific/Tongatapu"},
+    {"UTC (+0:00)", "UTC", "UTC0"},
+    {"Samoa (-11:00)", "Pacific/Pago_Pago", "SST11"},
+    {"Hawaii (-10:00)", "Pacific/Honolulu", "HST10"},
+    {"Alaska (-9:00)", "America/Anchorage", "AKST9AKDT,M3.2.0,M11.1.0"},
+    {"Pacific (-8:00)", "America/Los_Angeles", "PST8PDT,M3.2.0,M11.1.0"},
+    {"Mountain (-7:00)", "America/Denver", "MST7MDT,M3.2.0,M11.1.0"},
+    {"Arizona (-7:00)", "America/Phoenix", "MST7"},
+    {"Central (-6:00)", "America/Chicago", "CST6CDT,M3.2.0,M11.1.0"},
+    {"Mexico City (-6:00)", "America/Mexico_City", "CST6"},
+    {"Saskatchewan (-6:00)", "America/Regina", "CST6"},
+    {"Eastern (-5:00)", "America/New_York", "EST5EDT,M3.2.0,M11.1.0"},
+    {"Colombia/Peru (-5:00)", "America/Bogota", "<-05>5"},
+    {"Atlantic (-4:00)", "America/Halifax", "AST4ADT,M3.2.0,M11.1.0"},
+    {"Venezuela (-4:00)", "America/Caracas", "<-04>4"},
+    {"Chile (-4:00)", "America/Santiago", "<-04>4<-03>,M9.1.6/24,M4.1.6/24"},
+    {"Newfoundland (-3:30)", "America/St_Johns", "NST3:30NDT,M3.2.0,M11.1.0"},
+    {"Brazil - Sao Paulo (-3:00)", "America/Sao_Paulo", "<-03>3"},
+    {"Argentina (-3:00)", "America/Argentina/Buenos_Aires", "<-03>3"},
+    {"Fernando de Noronha (-2:00)", "America/Noronha", "<-02>2"},
+    {"Azores (-1:00)", "Atlantic/Azores", "<-01>1<+00>,M3.5.0/0,M10.5.0/1"},
+    {"Cape Verde (-1:00)", "Atlantic/Cape_Verde", "<-01>1"},
+    {"Iceland (+0:00)", "Atlantic/Reykjavik", "GMT0"},
+    {"London (+0:00)", "Europe/London", "GMT0BST,M3.5.0/1,M10.5.0"},
+    {"Central Europe (+1:00)", "Europe/Berlin", "CET-1CEST,M3.5.0,M10.5.0/3"},
+    {"West Africa - Lagos (+1:00)", "Africa/Lagos", "WAT-1"},
+    {"Eastern Europe (+2:00)", "Europe/Bucharest", "EET-2EEST,M3.5.0/3,M10.5.0/4"},
+    {"Egypt (+2:00)", "Africa/Cairo", "EET-2EEST,M4.5.5/0,M10.5.4/24"},
+    {"South Africa (+2:00)", "Africa/Johannesburg", "SAST-2"},
+    {"Israel (+2:00)", "Asia/Jerusalem", "IST-2IDT,M3.4.4/26,M10.5.0"},
+    {"Moscow (+3:00)", "Europe/Moscow", "MSK-3"},
+    {"Turkey (+3:00)", "Europe/Istanbul", "<+03>-3"},
+    {"Saudi Arabia (+3:00)", "Asia/Riyadh", "<+03>-3"},
+    {"East Africa - Nairobi (+3:00)", "Africa/Nairobi", "EAT-3"},
+    {"Iran (+3:30)", "Asia/Tehran", "<+0330>-3:30"},
+    {"Gulf (+4:00)", "Asia/Dubai", "<+04>-4"},
+    {"Afghanistan (+4:30)", "Asia/Kabul", "<+0430>-4:30"},
+    {"Pakistan (+5:00)", "Asia/Karachi", "PKT-5"},
+    {"India (+5:30)", "Asia/Kolkata", "IST-5:30"},
+    {"Sri Lanka (+5:30)", "Asia/Colombo", "<+0530>-5:30"},
+    {"Nepal (+5:45)", "Asia/Kathmandu", "<+0545>-5:45"},
+    {"Bangladesh (+6:00)", "Asia/Dhaka", "<+06>-6"},
+    {"Myanmar (+6:30)", "Asia/Yangon", "<+0630>-6:30"},
+    {"Thailand (+7:00)", "Asia/Bangkok", "<+07>-7"},
+    {"Vietnam (+7:00)", "Asia/Ho_Chi_Minh", "<+07>-7"},
+    {"Indonesia - Jakarta (+7:00)", "Asia/Jakarta", "WIB-7"},
+    {"China (+8:00)", "Asia/Shanghai", "CST-8"},
+    {"Hong Kong (+8:00)", "Asia/Hong_Kong", "HKT-8"},
+    {"Taiwan (+8:00)", "Asia/Taipei", "CST-8"},
+    {"Singapore/Malaysia (+8:00)", "Asia/Singapore", "<+08>-8"},
+    {"Philippines (+8:00)", "Asia/Manila", "PST-8"},
+    {"Australia Western (+8:00)", "Australia/Perth", "AWST-8"},
+    {"Japan (+9:00)", "Asia/Tokyo", "JST-9"},
+    {"Korea (+9:00)", "Asia/Seoul", "KST-9"},
+    {"Australia Central (+9:30)", "Australia/Adelaide", "ACST-9:30ACDT,M10.1.0,M4.1.0/3"},
+    {"Australia Northern (+9:30)", "Australia/Darwin", "ACST-9:30"},
+    {"Australia Eastern (+10:00)", "Australia/Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+    {"Australia Queensland (+10:00)", "Australia/Brisbane", "AEST-10"},
+    {"New Caledonia (+11:00)", "Pacific/Noumea", "<+11>-11"},
+    {"New Zealand (+12:00)", "Pacific/Auckland", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
+    {"Fiji (+12:00)", "Pacific/Fiji", "<+12>-12"},
+    {"Tonga (+13:00)", "Pacific/Tongatapu", "<+13>-13"},
 };
 static const int TIMEZONE_COUNT = sizeof(TIMEZONE_ENTRIES) / sizeof(TIMEZONE_ENTRIES[0]);
 
@@ -357,7 +358,7 @@ void DisplaySettingsManager::init_subjects() {
     // Elegoo Centauri Carbon / OpenCentauri COSMOS), this points TZDIR at the
     // bundled assets/zoneinfo/ so the zone resolves instead of silently falling
     // back to UTC.
-    helix::timezone_env::apply(tz.c_str());
+    helix::timezone_env::apply(tz.c_str(), TIMEZONE_ENTRIES[tz_index].posix_tz);
     spdlog::info("[DisplaySettingsManager] Timezone set to '{}' (index {})", tz, tz_index);
 
 #ifdef HELIX_ENABLE_SCREENSAVER
@@ -849,7 +850,7 @@ void DisplaySettingsManager::set_timezone_by_index(int index) {
     lv_subject_set_int(&timezone_subject_, index);
 
     // Apply timezone to process (see init_subjects for bundled-zoneinfo note).
-    helix::timezone_env::apply(iana_id);
+    helix::timezone_env::apply(iana_id, TIMEZONE_ENTRIES[index].posix_tz);
 
     // Persist
     Config* config = Config::get_instance();

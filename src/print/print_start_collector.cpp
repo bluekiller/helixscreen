@@ -156,8 +156,9 @@ void PrintStartCollector::start() {
         std::lock_guard<std::mutex> lock(state_mutex_);
         reset_run_locked();
         // Snapshot stale subject values so fallbacks only trigger on real changes
-        baseline_layer_ = lv_subject_get_int(state_.get_print_layer_current_subject());
-        baseline_progress_ = lv_subject_get_int(state_.get_print_progress_subject());
+        baseline_layer_ =
+            lv_subject_get_int(state_.print_state().get_print_layer_current_subject());
+        baseline_progress_ = lv_subject_get_int(state_.print_state().get_print_progress_subject());
     }
     fallbacks_enabled_.store(false); // Will be enabled after initial window
     spdlog::info("[PrintStartCollector] Baselines: layer={}, progress={}", baseline_layer_,
@@ -166,16 +167,16 @@ void PrintStartCollector::start() {
 
     // Capture start temperatures for heating fraction calculation
     start_ext_temp_ = helix::ui::temperature::deci_to_degrees(
-        lv_subject_get_int(state_.get_active_extruder_temp_subject()));
-    start_bed_temp_ =
-        helix::ui::temperature::deci_to_degrees(lv_subject_get_int(state_.get_bed_temp_subject()));
+        lv_subject_get_int(state_.temperature_state().get_active_extruder_temp_subject()));
+    start_bed_temp_ = helix::ui::temperature::deci_to_degrees(
+        lv_subject_get_int(state_.temperature_state().get_bed_temp_subject()));
     cached_ext_temp_.store(start_ext_temp_, std::memory_order_relaxed);
     cached_bed_temp_.store(start_bed_temp_, std::memory_order_relaxed);
-    cached_ext_target_.store(helix::ui::temperature::deci_to_degrees(
-                                 lv_subject_get_int(state_.get_active_extruder_target_subject())),
+    cached_ext_target_.store(helix::ui::temperature::deci_to_degrees(lv_subject_get_int(
+                                 state_.temperature_state().get_active_extruder_target_subject())),
                              std::memory_order_relaxed);
-    cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(
-                                 lv_subject_get_int(state_.get_bed_target_subject())),
+    cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(lv_subject_get_int(
+                                 state_.temperature_state().get_bed_target_subject())),
                              std::memory_order_relaxed);
     // Reset thermal rate models with current temperatures
     {
@@ -193,7 +194,7 @@ void PrintStartCollector::start() {
     // Ensure we have a profile for pattern matching
     if (!profile_) {
         // Try printer-specific profile first (printer type may not have been known at init time)
-        std::string printer_type = state_.get_printer_type();
+        std::string printer_type = state_.profile_state().printer_type();
         if (!printer_type.empty()) {
             std::string profile_name = PrinterDetector::get_print_start_profile(printer_type);
             if (!profile_name.empty()) {
@@ -278,7 +279,8 @@ void PrintStartCollector::start() {
     active_.store(true);
 
     // Set initial state
-    state_.set_print_start_state(PrintStartPhase::INITIALIZING, lv_tr("Preparing Print..."), 0);
+    state_.print_state().set_print_start_state(PrintStartPhase::INITIALIZING,
+                                               lv_tr("Preparing Print..."), 0);
 
     // Create LVGL timer for periodic elapsed + ETA updates (runs on main thread)
     {
@@ -325,8 +327,8 @@ void PrintStartCollector::stop() {
     }
 
     if (was_active) {
-        state_.clear_print_start_time_left();
-        state_.reset_print_start_state();
+        state_.print_state().clear_print_start_time_left();
+        state_.print_state().reset_print_start_state();
         spdlog::debug("[PrintStartCollector] Stopped monitoring");
     }
 }
@@ -425,7 +427,8 @@ void PrintStartCollector::reset() {
     fallbacks_enabled_.store(false);
 
     if (active_.load()) {
-        state_.set_print_start_state(PrintStartPhase::INITIALIZING, lv_tr("Preparing Print..."), 0);
+        state_.print_state().set_print_start_state(PrintStartPhase::INITIALIZING,
+                                                   lv_tr("Preparing Print..."), 0);
     }
 
     spdlog::debug("[PrintStartCollector] Reset state");
@@ -571,10 +574,12 @@ void PrintStartCollector::check_fallback_completion() {
     }
 
     // Get temperature data for proactive and completion fallback checks
-    int ext_temp = lv_subject_get_int(state_.get_active_extruder_temp_subject());
-    int ext_target = lv_subject_get_int(state_.get_active_extruder_target_subject());
-    int bed_temp = lv_subject_get_int(state_.get_bed_temp_subject());
-    int bed_target = lv_subject_get_int(state_.get_bed_target_subject());
+    int ext_temp =
+        lv_subject_get_int(state_.temperature_state().get_active_extruder_temp_subject());
+    int ext_target =
+        lv_subject_get_int(state_.temperature_state().get_active_extruder_target_subject());
+    int bed_temp = lv_subject_get_int(state_.temperature_state().get_bed_temp_subject());
+    int bed_target = lv_subject_get_int(state_.temperature_state().get_bed_target_subject());
 
     // Cache for thread-safe access from calculate_progress_locked()
     cached_ext_temp_.store(helix::ui::temperature::deci_to_degrees(ext_temp),
@@ -674,7 +679,7 @@ void PrintStartCollector::check_fallback_completion() {
         // that a bed-first-heat macro (homed_axes still "" before G28 starts)
         // correctly shows "Heating Bed", and so the proactive heating unit tests
         // (which don't set homed_axes) are unaffected.
-        const char* homed = lv_subject_get_string(state_.get_homed_axes_subject());
+        const char* homed = lv_subject_get_string(state_.motion_state().get_homed_axes_subject());
         bool fully_homed = homed != nullptr && strchr(homed, 'x') != nullptr &&
                            strchr(homed, 'y') != nullptr && strchr(homed, 'z') != nullptr;
         // Enter HOMING when axes are partially homed (G28 mid-flight). STAY in
@@ -772,8 +777,10 @@ void PrintStartCollector::check_fallback_completion() {
         if (!waiting) {
             end_heater_wait();
         } else {
-            const int chamber_temp = lv_subject_get_int(state_.get_chamber_temp_subject());
-            const int chamber_target = lv_subject_get_int(state_.get_chamber_target_subject());
+            const int chamber_temp =
+                lv_subject_get_int(state_.temperature_state().get_chamber_temp_subject());
+            const int chamber_target =
+                lv_subject_get_int(state_.temperature_state().get_chamber_target_subject());
             const bool chamber_heating = !nozzle_short && !bed_short && chamber_target > 0 &&
                                          chamber_temp < chamber_target - TEMP_TOLERANCE_DECIDEGREES;
             const PrintStartPhase waited_on = nozzle_short      ? PrintStartPhase::HEATING_NOZZLE
@@ -1178,7 +1185,8 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
                               pp->total, mesh_seconds_per_probe_);
                 snprintf(msg_buf, sizeof(msg_buf), "%s (%d/%d)", label.c_str(), pp->current,
                          pp->total);
-                state_.set_print_start_state(PrintStartPhase::BED_MESH, msg_buf, progress);
+                state_.print_state().set_print_start_state(PrintStartPhase::BED_MESH, msg_buf,
+                                                           progress);
                 return; // Handled — skip check_phase_patterns
             }
 
@@ -1251,7 +1259,8 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
                     } else {
                         snprintf(msg_buf, sizeof(msg_buf), "%s (%d)", label.c_str(), count);
                     }
-                    state_.set_print_start_state(PrintStartPhase::BED_MESH, msg_buf, progress);
+                    state_.print_state().set_print_start_state(PrintStartPhase::BED_MESH, msg_buf,
+                                                               progress);
                 }
 
                 // The line is consumed as mesh data whether or not it added a
@@ -1620,7 +1629,8 @@ void PrintStartCollector::enter_bed_mesh_with_buffer(const char* message) {
     } else {
         snprintf(msg_buf, sizeof(msg_buf), "%s (%d)", label.c_str(), count);
     }
-    state_.set_print_start_state(PrintStartPhase::BED_MESH, msg_buf, calculate_progress());
+    state_.print_state().set_print_start_state(PrintStartPhase::BED_MESH, msg_buf,
+                                               calculate_progress());
     spdlog::debug("[PrintStartCollector] Credited {} buffered pre-mesh probes on BED_MESH entry",
                   count);
 }
@@ -1684,7 +1694,7 @@ void PrintStartCollector::update_phase(PrintStartPhase phase, const char* messag
     // When predictor has data, time-based progress in update_eta_display() is the
     // sole progress source. Don't override it with phase-weight progress here.
     if (has_predictions && phase != PrintStartPhase::COMPLETE) {
-        auto* subj = state_.get_print_start_progress_subject();
+        auto* subj = state_.print_state().get_print_start_progress_subject();
         if (subj) {
             progress = lv_subject_get_int(subj);
         }
@@ -1696,7 +1706,7 @@ void PrintStartCollector::update_phase(PrintStartPhase phase, const char* messag
     }
 
     // Call PrinterState outside the lock to avoid potential deadlocks
-    state_.set_print_start_state(phase, message, progress);
+    state_.print_state().set_print_start_state(phase, message, progress);
 
     if (should_save) {
         save_prediction_entry();
@@ -1751,7 +1761,7 @@ void PrintStartCollector::update_phase(PrintStartPhase phase, const std::string&
         query_mesh_probe_count();
     }
 
-    state_.set_print_start_state(phase, message.c_str(), effective_progress);
+    state_.print_state().set_print_start_state(phase, message.c_str(), effective_progress);
 
     if (should_save) {
         save_prediction_entry();
@@ -1859,10 +1869,10 @@ int PrintStartCollector::switch_phase_locked(PrintStartPhase phase, const std::s
 void PrintStartCollector::publish_switched_phase(PrintStartPhase phase, const std::string& message,
                                                  int progress) {
     if (progress < 0) {
-        auto* subj = state_.get_print_start_progress_subject();
+        auto* subj = state_.print_state().get_print_start_progress_subject();
         progress = subj ? lv_subject_get_int(subj) : 0;
     }
-    state_.set_print_start_state(phase, message.c_str(), progress);
+    state_.print_state().set_print_start_state(phase, message.c_str(), progress);
 }
 
 bool PrintStartCollector::mesh_probing_locked() const {
@@ -1949,11 +1959,11 @@ int PrintStartCollector::calculate_progress_locked() const {
     return std::min(static_cast<int>(progress * 95.0f), 95);
 }
 
-bool PrintStartCollector::is_print_start_marker(const std::string& line) const {
+bool PrintStartCollector::is_print_start_marker(const std::string& line) {
     return helix::regex_search(line, print_start_pattern_);
 }
 
-bool PrintStartCollector::is_completion_marker(const std::string& line) const {
+bool PrintStartCollector::is_completion_marker(const std::string& line) {
     return helix::regex_search(line, completion_pattern_);
 }
 
@@ -2011,7 +2021,7 @@ void PrintStartCollector::update_eta_display() {
         total_elapsed = static_cast<int>(
             std::chrono::duration_cast<std::chrono::seconds>(now - printing_state_start_).count());
     }
-    state_.set_preprint_elapsed_seconds(total_elapsed);
+    state_.print_state().set_preprint_elapsed_seconds(total_elapsed);
     feed_thermal_sample();
 
     // Compute remaining from composite weights (thermal model + predictor).
@@ -2171,14 +2181,14 @@ void PrintStartCollector::update_eta_display() {
     }
     last_remaining_ = remaining;
 
-    state_.set_preprint_remaining_seconds(remaining);
+    state_.print_state().set_preprint_remaining_seconds(remaining);
     if (predicted_total > 0) {
         int effective_progress = calculate_progress();
         // Monotonic progress: never go backwards. When weights recompute
         // (e.g. new heater target discovered), the progress may recalculate
         // lower against a larger predicted total. Users should never see
         // the progress bar regress.
-        auto* subj = state_.get_print_start_progress_subject();
+        auto* subj = state_.print_state().get_print_start_progress_subject();
         if (subj) {
             int current_progress = lv_subject_get_int(subj);
             effective_progress = std::max(effective_progress, current_progress);
@@ -2189,14 +2199,14 @@ void PrintStartCollector::update_eta_display() {
     }
 
     if (remaining <= 0) {
-        state_.set_print_start_time_left("Almost ready");
+        state_.print_state().set_print_start_time_left("Almost ready");
         return;
     }
 
     // Round for stable display, then format as "~X min left" or "~X:XX left"
     int display_remaining = helix::format::round_eta_seconds(remaining);
     std::string text = "~" + helix::format::duration_remaining(display_remaining);
-    state_.set_print_start_time_left(text.c_str());
+    state_.print_state().set_print_start_time_left(text.c_str());
 
     spdlog::trace("[PrintStartCollector] ETA: {}s remaining, predicted_total={}s", remaining,
                   predicted_total);
@@ -2210,8 +2220,8 @@ void PrintStartCollector::load_prediction_history() {
     auto entries = helix::PreprintPredictor::load_entries_from_config();
 
     // Cold (1) vs Warm (2) based on current bed temp
-    int bed_temp =
-        helix::ui::temperature::deci_to_degrees(lv_subject_get_int(state_.get_bed_temp_subject()));
+    int bed_temp = helix::ui::temperature::deci_to_degrees(
+        lv_subject_get_int(state_.temperature_state().get_bed_temp_subject()));
     int temp_bucket = (bed_temp >= 40) ? 2 : 1;
 
     std::lock_guard<std::mutex> lock(state_mutex_);
@@ -2243,8 +2253,9 @@ void PrintStartCollector::feed_thermal_sample() {
 
     if (phase == PrintStartPhase::HEATING_BED || phase == PrintStartPhase::HEATING_NOZZLE) {
         // Temps are in decidegrees (value * 10)
-        int ext_temp = lv_subject_get_int(state_.get_active_extruder_temp_subject());
-        int bed_temp = lv_subject_get_int(state_.get_bed_temp_subject());
+        int ext_temp =
+            lv_subject_get_int(state_.temperature_state().get_active_extruder_temp_subject());
+        int bed_temp = lv_subject_get_int(state_.temperature_state().get_bed_temp_subject());
         mgr.get_model("extruder")
             .record_sample(helix::ui::temperature::deci_to_degrees_f(ext_temp), now_ms);
         mgr.get_model("heater_bed")
@@ -2256,9 +2267,9 @@ void PrintStartCollector::compute_predicted_weights() {
     auto& mgr = ThermalRateManager::instance();
 
     int ext_target = helix::ui::temperature::deci_to_degrees(
-        lv_subject_get_int(state_.get_active_extruder_target_subject()));
+        lv_subject_get_int(state_.temperature_state().get_active_extruder_target_subject()));
     int bed_target = helix::ui::temperature::deci_to_degrees(
-        lv_subject_get_int(state_.get_bed_target_subject()));
+        lv_subject_get_int(state_.temperature_state().get_bed_target_subject()));
 
     std::map<int, float> durations;
 

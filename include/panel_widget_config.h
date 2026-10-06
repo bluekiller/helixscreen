@@ -80,13 +80,29 @@ class PanelWidgetConfig {
 
     /// Mark the cached pages_ vector as stale so the next load() reloads from disk.
     /// Used by the settings overlay and widget catalog when they mutate Config
-    /// directly rather than going through this object's setters.
-    void mark_dirty() {
-        loaded_ = false;
+    /// directly rather than going through this object's setters, and on an
+    /// active-printer change. A save held by save_soon() is written first, to
+    /// the path it was requested for, so the reload cannot discard it.
+    void mark_dirty();
+
+    /// Save current order to config now. Replaces a save held by save_soon().
+    void save();
+
+    /// Save once edits settle: SAVE_SETTLE_MS after the last request, to the
+    /// panel's path as it was at the first. Every save is a flash write that
+    /// stalls a slow board's UI for hundreds of ms, and an edit session asks
+    /// for one per drop and resize.
+    void save_soon();
+
+    /// Write a save held by save_soon() now. Nothing when none is held.
+    void flush_pending_save();
+
+    /// A save requested through save_soon() has not been written yet.
+    bool save_pending() const {
+        return deferred_save_.timer != nullptr;
     }
 
-    /// Save current order to config
-    void save();
+    static constexpr uint32_t SAVE_SETTLE_MS = 2000;
 
     // ========================================================================
     // Backward-compatible accessors (delegate to page 0)
@@ -353,6 +369,25 @@ class PanelWidgetConfig {
     nlohmann::json parked_grids_ = nlohmann::json::object();
     bool legacy_units_ = false;
     int legacy_rows_ = 0;
+
+    /// The save save_soon() holds: its timer and the path it writes to. A copy
+    /// holds none, so a copied config never writes for the original; the
+    /// destructor cancels the timer, whose callback holds a raw `this`.
+    struct DeferredSave {
+        lv_timer_t* timer = nullptr;
+        std::string path;
+        DeferredSave() = default;
+        DeferredSave(const DeferredSave&) {}
+        DeferredSave& operator=(const DeferredSave&) {
+            return *this;
+        }
+        ~DeferredSave();
+        void cancel();
+    };
+    DeferredSave deferred_save_;
+
+    /// Write the current state to @p panel_path and save the config file.
+    void write_to(const std::string& panel_path);
 
     static std::vector<PanelWidgetEntry> build_defaults();
 

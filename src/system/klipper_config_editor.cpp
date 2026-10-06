@@ -514,9 +514,10 @@ void KlipperConfigEditor::load_config_files(IMoonrakerAPI& api, SectionMapCallba
     spdlog::info("[ConfigEditor] Loading config files from printer");
 
     // Listing and downloading is delegated to resolve_active_config_files_with_content():
-    // it pulls the whole config directory, which is the only way a glob include
+    // it lists the whole config directory, which is the only way a glob include
     // ([include conf.d/*.cfg]) can be followed — the pattern names files we do not
-    // know about until Moonraker lists them. resolve_includes() then does the pure
+    // know about until Moonraker lists them — and downloads the files the include
+    // chain from printer.cfg reaches. resolve_includes() then does the pure
     // section -> file mapping over that content, globs included.
     resolve_active_config_files_with_content(
         api,

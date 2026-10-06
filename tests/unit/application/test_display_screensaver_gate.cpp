@@ -94,7 +94,7 @@ TEST_CASE_METHOD(
     printer_state.init_subjects(false);
     const auto drive = [&](const char* wire_state) {
         printer_state.update_from_status(nlohmann::json{{"print_stats", {{"state", wire_state}}}});
-        printer_state.set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
+        printer_state.print_state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
         process_lvgl(10);
         for (int i = 0; i < 8; ++i) {
             helix::ui::UpdateQueue::instance().drain();
@@ -106,11 +106,11 @@ TEST_CASE_METHOD(
     REQUIRE(host.is_printing);
 
     drive("printing");
-    REQUIRE(printer_state.get_print_lifecycle() == PrintState::Printing);
+    REQUIRE(printer_state.print_state().get_print_lifecycle() == PrintState::Printing);
     CHECK(host.is_printing());
 
     drive("standby");
-    REQUIRE(printer_state.get_print_lifecycle() == PrintState::Idle);
+    REQUIRE(printer_state.print_state().get_print_lifecycle() == PrintState::Idle);
     CHECK_FALSE(host.is_printing());
 
     helix::PrinterStateTestAccess::reset(printer_state);

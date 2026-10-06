@@ -630,6 +630,61 @@ SHAPES
     lacks "helix::Regex" "$output"
 }
 
+# sigaltstack is per thread, so a thread that never installs its own signal
+# stack dies on a stack overflow without writing a crash file. helix::make_thread
+# (include/helix_thread.h) installs one before running the thread's body.
+raw_thread_pattern() {
+    printf '%s' 'std::j?thread[[:space:]]*[({]|std::j?thread[[:space:]]+[A-Za-z_][A-Za-z_0-9]*[[:space:]]*[({]|std::async[[:space:]]*\(|pthread_create[[:space:]]*\('
+}
+
+raw_thread_lint_files() {
+    git ls-files --cached --others --exclude-standard src include |
+        grep -E '\.(cpp|h)$' | grep -v '^include/helix_thread\.h$'
+}
+
+check_no_raw_threads() {
+    local offenders
+    # shellcheck disable=SC2046  # paths have no spaces; word splitting is intended
+    offenders=$(code_offenders "$(raw_thread_pattern)" THREAD_OK $(raw_thread_lint_files))
+    [ -z "$offenders" ] && return 0
+    echo "Raw thread spawn (a stack overflow on it leaves no crash file):"
+    printf '%s\n' "$offenders"
+    echo "Use helix::make_thread (include/helix_thread.h). Unavoidable? Call"
+    echo "helix::install_thread_altstack() first in the body and mark it // THREAD_OK: <reason>"
+    return 1
+}
+
+@test "every app thread starts through helix::make_thread" {
+    run check_no_raw_threads
+    [ "$status" -eq 0 ]
+}
+
+@test "the raw-thread gate catches spawns and stays quiet on members, ids and opt-outs" {
+    local f="${BATS_TEST_TMPDIR}/thread_shapes.cpp"
+    cat > "$f" <<'SHAPES'
+worker_ = std::thread([this] { run(); });
+std::thread t(&Foo::run, this);
+std::thread{fn}.detach();
+auto fut = std::async(std::launch::async, fn);
+std::jthread j([] {});
+pthread_create(&tid, nullptr, run, this);
+std::thread worker_;
+std::jthread jworker_;
+std::thread::id owner_;
+std::vector<std::thread> pool_;
+// Joined in the destructor: std::thread(...) must not outlive us.
+auto hatch = std::async(std::launch::async, fn); // THREAD_OK: test fixture
+worker_ = helix::make_thread([this] { run(); });
+SHAPES
+    run code_offenders "$(raw_thread_pattern)" THREAD_OK "$f"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 6 ]
+    lacks "std::thread worker_;" "$output"
+    lacks "jworker_" "$output"
+    lacks "THREAD_OK" "$output"
+    lacks "make_thread" "$output"
+}
+
 # --- lv_subject_t declarations are value-initialized ---
 #
 # A subject that has not been through lv_subject_init_*() must read as
@@ -3211,4 +3266,23 @@ own_endpoint_http_offenders() {
     # literals (initial values), where a __ fails closed rather than slipping through.
     run bash -c "grep -rn -A 1 --include='*.cpp' --include='*.h' --exclude-dir=plugin --exclude='plugin_*' --exclude='lua_*' -E 'register_subject_in_current_scope\(|\.publish\(|UI_MANAGED_SUBJECT_[A-Z_]+\(|UI_SUBJECT_INIT_AND_REGISTER_[A-Z_]+\(' src/ include/ | grep -E '\"[^\"]*__'"
     [ "$status" -eq 1 ]
+}
+
+# --- The full NavigationManager header is for what ui_nav.h does not carry ---
+# ui_nav.h holds the navigation calls most callers need (push, go_back, close,
+# overlay registration, close callbacks, set_active). Editing ui_nav_manager.h
+# rebuilds every file that includes it, so a caller that only needs those takes
+# helix::nav::* and ui_nav.h. The count may fall, never rise: lower the limit when
+# an includer narrows.
+@test "ui_nav_manager.h is included by no more src/include files than it needs" {
+    local limit=15 includers count
+    includers=$(grep -rlE '^#include "ui_nav_manager\.h"' src include | sort)
+    count=$(printf '%s\n' "$includers" | grep -c .)
+    if [ "$count" -gt "$limit" ]; then
+        echo "ui_nav_manager.h has $count includers in src/ and include/, limit $limit." >&2
+        echo "Use helix::nav::* and ui_nav.h for push_overlay/go_back/close_overlay/" >&2
+        echo "register_overlay/unregister_overlay/on_close/clear_on_close/set_active/is_on_top/is_in_stack." >&2
+        printf '%s\n' "$includers" >&2
+    fi
+    [ "$count" -le "$limit" ]
 }

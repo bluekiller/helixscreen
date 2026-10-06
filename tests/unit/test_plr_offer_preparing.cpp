@@ -54,8 +54,8 @@ class PlrOfferPreparingFixture : public LVGLTestFixture {
         // re-init, or a prior case's subjects decide this one's answers.
         PrinterStateTestAccess::reset(ps);
         ps.init_subjects(false);
-        if (ps.has_preparing_job()) {
-            ps.retire_preparing(helix::PreparingExit::Superseded);
+        if (ps.print_state().has_preparing_job()) {
+            ps.print_state().retire_preparing(helix::PreparingExit::Superseded);
         }
         // A validated Snapmaker snapshot: the passive backend, so availability
         // needs no probe and the offer decision reduces to the idle signal.
@@ -63,18 +63,18 @@ class PlrOfferPreparingFixture : public LVGLTestFixture {
             json{{"print_stats", {{"state", "standby"}}},
                  {"virtual_sdcard",
                   {{"pl_env_valid", true}, {"file_path", "gcodes/interrupted.gcode"}}}});
-        ps.set_print_start_state(PrintStartPhase::IDLE, "", 0);
+        ps.print_state().set_print_start_state(PrintStartPhase::IDLE, "", 0);
         settle();
-        REQUIRE(ps.is_pl_env_valid());
-        REQUIRE_FALSE(ps.pl_recovery_file().empty());
+        REQUIRE(ps.print_state().is_pl_env_valid());
+        REQUIRE_FALSE(ps.print_state().pl_recovery_file().empty());
     }
 
     ~PlrOfferPreparingFixture() override {
         auto& ps = get_printer_state();
-        if (ps.has_preparing_job()) {
-            ps.retire_preparing(helix::PreparingExit::Superseded);
+        if (ps.print_state().has_preparing_job()) {
+            ps.print_state().retire_preparing(helix::PreparingExit::Superseded);
         }
-        ps.set_print_start_state(PrintStartPhase::IDLE, "", 0);
+        ps.print_state().set_print_start_state(PrintStartPhase::IDLE, "", 0);
         helix::test::set_wire_state(ps, PrintJobState::STANDBY);
         settle();
     }
@@ -89,11 +89,11 @@ class PlrOfferPreparingFixture : public LVGLTestFixture {
     /// Put the app in the state it is in while running the user's own pre-start
     /// block: committed to a job, printer still reporting standby.
     static void enter_host_side_preparing(helix::PrinterState& ps) {
-        ps.begin_preparing(helix::PrintJobRef{"chosen.gcode", "", ""});
-        ps.set_print_start_state(PrintStartPhase::HOMING, "", 0);
+        ps.print_state().begin_preparing(helix::PrintJobRef{"chosen.gcode", "", ""});
+        ps.print_state().set_print_start_state(PrintStartPhase::HOMING, "", 0);
         settle();
-        REQUIRE(ps.get_print_job_state() == PrintJobState::STANDBY);
-        REQUIRE(ps.get_print_lifecycle() == PrintState::Preparing);
+        REQUIRE(ps.print_state().get_print_job_state() == PrintJobState::STANDBY);
+        REQUIRE(ps.print_state().get_print_lifecycle() == PrintState::Preparing);
     }
 };
 
@@ -148,9 +148,9 @@ TEST_CASE_METHOD(PlrOfferPreparingFixture,
     // it must stay caught.
     auto& ps = get_printer_state();
     helix::test::set_wire_state(ps, PrintJobState::PRINTING);
-    ps.set_print_start_state(PrintStartPhase::HOMING, "", 0);
+    ps.print_state().set_print_start_state(PrintStartPhase::HOMING, "", 0);
     settle();
-    REQUIRE(ps.get_print_lifecycle() == PrintState::Preparing);
+    REQUIRE(ps.print_state().get_print_lifecycle() == PrintState::Preparing);
 
     PlrOfferController controller;
     settle();
@@ -174,18 +174,18 @@ class QidiPlrOfferFixture : public LVGLTestFixture {
         // Discovery found the stock macros (set_hardware's half), then the
         // boot status carried the still-true was_interrupted a power loss
         // leaves behind (update_from_status's half).
-        lv_subject_set_int(ps.get_plr_resume_macro_subject(), 1);
+        lv_subject_set_int(ps.print_state().get_plr_resume_macro_subject(), 1);
         ps.update_from_status(
             json{{"print_stats", {{"state", "standby"}}},
                  {"save_variables", {{"variables", {{"was_interrupted", true}}}}}});
-        ps.set_print_start_state(PrintStartPhase::IDLE, "", 0);
+        ps.print_state().set_print_start_state(PrintStartPhase::IDLE, "", 0);
         settle();
-        REQUIRE(ps.is_plr_interrupted_flag());
+        REQUIRE(ps.print_state().is_plr_interrupted_flag());
     }
 
     ~QidiPlrOfferFixture() override {
         auto& ps = get_printer_state();
-        ps.set_print_start_state(PrintStartPhase::IDLE, "", 0);
+        ps.print_state().set_print_start_state(PrintStartPhase::IDLE, "", 0);
         helix::test::set_wire_state(ps, PrintJobState::STANDBY);
         settle();
     }
@@ -229,7 +229,7 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR does not offer without the macro
     // macros: the variable alone must not select the backend (any Klipper user
     // can SAVE_VARIABLE that name).
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_plr_resume_macro_subject(), 0);
+    lv_subject_set_int(ps.print_state().get_plr_resume_macro_subject(), 0);
     settle();
 
     PlrOfferController controller;
@@ -244,14 +244,14 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR capability is wired from discove
     // discovery snapshot's RESUME_INTERRUPTED macro is what marks the printer
     // as running Qidi stock firmware.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_plr_resume_macro_subject(), 0);
+    lv_subject_set_int(ps.print_state().get_plr_resume_macro_subject(), 0);
 
     helix::PrinterDiscovery hw;
     hw.parse_objects(json::array({"gcode_macro RESUME_INTERRUPTED"}));
     ps.set_hardware(std::move(hw));
     settle();
 
-    CHECK(ps.is_plr_resume_macro_present());
+    CHECK(ps.print_state().is_plr_resume_macro_present());
 }
 
 TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR: a disconnect reset lets a reconnect re-offer",
@@ -261,7 +261,7 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR: a disconnect reset lets a recon
     // CONNECTED before construction: the controller seeds its connection
     // baseline from the live subject, so only then does the drop below count
     // as a CONNECTED -> not-CONNECTED edge.
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::CONNECTED));
 
     PlrOfferController controller;
@@ -271,18 +271,18 @@ TEST_CASE_METHOD(QidiPlrOfferFixture, "Qidi PLR: a disconnect reset lets a recon
     // Printer drops: the controller must force the PLR subjects back to 0, or
     // the subjects' same-value guard swallows the reconnect's identical
     // status and no observer ever fires again.
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::DISCONNECTED));
     settle();
-    CHECK_FALSE(ps.is_plr_resume_macro_present());
-    CHECK_FALSE(ps.is_plr_interrupted_flag());
+    CHECK_FALSE(ps.print_state().is_plr_resume_macro_present());
+    CHECK_FALSE(ps.print_state().is_plr_interrupted_flag());
 
     // Reconnect: discovery re-runs (the macro subject) and the boot status
     // re-arrives (was_interrupted), each a genuine 0 -> 1 edge back into the
     // observers, so the one-shot latch re-arms and the offer fires again.
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::CONNECTED));
-    lv_subject_set_int(ps.get_plr_resume_macro_subject(), 1);
+    lv_subject_set_int(ps.print_state().get_plr_resume_macro_subject(), 1);
     ps.update_from_status(json{{"save_variables", {{"variables", {{"was_interrupted", true}}}}}});
     settle();
 

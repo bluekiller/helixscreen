@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" fr="Une photo de votre imprimante"/>
   <translation tag="A print is in progress - restart still pending" fr="Une impression est en cours - redémarrage en attente"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." fr="Une impression est en cours sur ce gate. HelixScreen a effacé sa propre copie ; effacez-le à nouveau une fois l&apos;impression terminée."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." fr="Une impression a démarré alors que des bobines sont signalées sur le plateau. Si elles y sont encore, arrêtez l&apos;imprimante maintenant avec l&apos;arrêt d&apos;urgence."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" fr="Une bobine est peut-être emmêlée ou l&apos;engrenage d&apos;entraînement est bloqué"/>
   <translation tag="A · 1,-1" fr="A · 1,-1"/>
   <translation tag="ABS" fr="ABS"/>
@@ -1611,6 +1612,7 @@
   <translation tag="Load Filament" fr="Charger le filament"/>
   <translation tag="Load a filament first before trying to unload" fr="Chargez d&apos;abord du filament avant d&apos;essayer de le décharger"/>
   <translation tag="Load a new spool in this slot, or turn on auto-refill to switch to a matching one" fr="Chargez une nouvelle bobine dans ce slot, ou activez le réapprovisionnement automatique pour basculer sur une bobine équivalente"/>
+  <translation tag="Load cancelled: nozzle target dropped" fr="Chargement annulé : la cible de la buse a baissé"/>
   <translation tag="Load complete" fr="Chargement terminé"/>
   <translation tag="Load failed" fr="Échec du chargement"/>
   <translation tag="Load filament" fr="Charger le filament"/>
@@ -2800,8 +2802,10 @@
   <translation tag="Spoolman was not configured." fr="Spoolman n&apos;était pas configuré."/>
   <translation tag="Spoolman: %zu Spool%s" fr="Spoolman : %zu bobine%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" fr="Spoolman : %zu/%zu bobine%s"/>
+  <translation tag="Spools are off" fr="Bobines retirées"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" fr="Des bobines sont sur le plateau : retirez-les et confirmez avant de déplacer l&apos;imprimante"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." fr="Des bobines sont sur le plateau : touchez le bandeau de séchage pour confirmer qu&apos;elles sont retirées, puis redémarrez."/>
+  <translation tag="Spools on the bed!" fr="Bobines sur le plateau !"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" fr="Bobines sur le plateau : démarrez le séchage ou confirmez qu&apos;aucune n&apos;a été posée"/>
   <translation tag="Spools removed" fr="Bobines retirées"/>
   <translation tag="Square Corner Velocity" fr="Vitesse dans les angles"/>

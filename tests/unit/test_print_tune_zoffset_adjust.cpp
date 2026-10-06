@@ -201,8 +201,8 @@ TEST_CASE_METHOD(PrintTuneZOffsetFixture,
     overlay.handle_z_adjust(-1);
     helix::ui::UpdateQueue::instance().drain();
 
-    CHECK(lv_subject_get_int(state().get_persisted_z_offset_subject()) == -160);
-    CHECK(lv_subject_get_int(state().get_gcode_z_offset_subject()) == -160);
+    CHECK(lv_subject_get_int(state().motion_state().get_persisted_z_offset_subject()) == -160);
+    CHECK(lv_subject_get_int(state().motion_state().get_gcode_z_offset_subject()) == -160);
 }
 
 TEST_CASE_METHOD(PrintTuneZOffsetFixture,
@@ -274,7 +274,7 @@ TEST_CASE_METHOD(PrintTuneZOffsetFixture,
     helix::ui::UpdateQueue::instance().drain();
 
     CHECK(last_gcode() == "SET_GCODE_OFFSET Z_ADJUST=0.010 MOVE=1");
-    CHECK(lv_subject_get_int(state().get_gcode_z_offset_subject()) == 2510);
+    CHECK(lv_subject_get_int(state().motion_state().get_gcode_z_offset_subject()) == 2510);
 }
 
 TEST_CASE_METHOD(PrintTuneZOffsetFixture,
@@ -292,7 +292,7 @@ TEST_CASE_METHOD(PrintTuneZOffsetFixture,
     helix::ui::UpdateQueue::instance().drain();
 
     CHECK(last_gcode() == "SET_GCODE_OFFSET Z_ADJUST=-0.010 MOVE=1");
-    CHECK(lv_subject_get_int(state().get_gcode_z_offset_subject()) == 2490);
+    CHECK(lv_subject_get_int(state().motion_state().get_gcode_z_offset_subject()) == 2490);
 }
 
 TEST_CASE_METHOD(PrintTuneZOffsetFixture, "PrintTune: session travel is still bounded at 2mm",
@@ -311,7 +311,7 @@ TEST_CASE_METHOD(PrintTuneZOffsetFixture, "PrintTune: session travel is still bo
     helix::ui::UpdateQueue::instance().drain();
 
     // 2.5 - 2.0 = 0.5mm, not 2.5 - 3.0 = -0.5mm.
-    CHECK(lv_subject_get_int(state().get_gcode_z_offset_subject()) == 500);
+    CHECK(lv_subject_get_int(state().motion_state().get_gcode_z_offset_subject()) == 500);
 }
 
 TEST_CASE_METHOD(PrintTuneZOffsetFixture,

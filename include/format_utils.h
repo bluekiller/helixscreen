@@ -290,6 +290,17 @@ std::string format_filament_length(double mm);
 std::string eta_clock_time(int remaining_seconds, std::time_t now = 0, bool use_24h = false);
 
 /**
+ * @brief Parse an HTTP Date header (RFC 7231 IMF-fixdate) to Unix seconds
+ *
+ * Accepts only the form servers must send: "Sun, 06 Nov 1994 08:49:37 GMT".
+ *
+ * @param value Header value
+ * @param[out] epoch_s Seconds since the Unix epoch, UTC; untouched on failure
+ * @return true if value parsed and every field is in range
+ */
+bool parse_http_date(const char* value, std::time_t& epoch_s);
+
+/**
  * @brief Round ETA seconds for stable display
  *
  * Prevents jittery countdown by rounding to buckets:

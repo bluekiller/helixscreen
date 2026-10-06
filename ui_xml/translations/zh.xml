@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" zh="打印机的图片"/>
   <translation tag="A print is in progress - restart still pending" zh="打印进行中 - 重启待执行"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." zh="此通道正在打印中。HelixScreen 已清除本地副本；打印结束后请再次清空。"/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." zh="在料盘仍标记为放在热床上时开始了打印。如果料盘还在，请立即用紧急停止停下打印机。"/>
   <translation tag="A spool may be tangled or the drive gear is jammed" zh="料盘可能缠绕，或驱动齿轮卡住"/>
   <translation tag="A · 1,-1" zh="A · 1,-1"/>
   <translation tag="ABS" zh="ABS"/>
@@ -1611,6 +1612,7 @@
   <translation tag="Load Filament" zh="加载耗材"/>
   <translation tag="Load a filament first before trying to unload" zh="请先装载耗材，再尝试卸载"/>
   <translation tag="Load a new spool in this slot, or turn on auto-refill to switch to a matching one" zh="请在此槽位装入新料盘，或开启自动续料以切换到匹配的料盘"/>
+  <translation tag="Load cancelled: nozzle target dropped" zh="加载已取消：喷嘴目标温度已降低"/>
   <translation tag="Load complete" zh="装载完成"/>
   <translation tag="Load failed" zh="装载失败"/>
   <translation tag="Load filament" zh="装载耗材"/>
@@ -2800,8 +2802,10 @@
   <translation tag="Spoolman was not configured." zh="Spoolman 未配置。"/>
   <translation tag="Spoolman: %zu Spool%s" zh="Spoolman: %zu 个线轴%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" zh="Spoolman: %zu/%zu 个线轴%s"/>
+  <translation tag="Spools are off" zh="料盘已取下"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" zh="热床上有料盘：请先移除并确认，再移动打印机"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." zh="热床上有料盘:点击烘干横幅确认已取下,然后再重启。"/>
+  <translation tag="Spools on the bed!" zh="热床上有料盘！"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" zh="料盘在热床上:开始烘干,或确认未放置料盘"/>
   <translation tag="Spools removed" zh="料盘已取下"/>
   <translation tag="Square Corner Velocity" zh="直角转弯速度"/>

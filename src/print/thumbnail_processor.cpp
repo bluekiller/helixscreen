@@ -10,6 +10,7 @@
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
+#include "helix_thread.h"
 #include "lvgl_image_writer.h"
 #include "memory_monitor.h"
 #include "system/crash_handler.h"
@@ -36,9 +37,6 @@ namespace helix {
 // Default cache directory - will be overridden by ThumbnailCache when it initializes.
 // This is just a fallback for early initialization before ThumbnailCache runs.
 static constexpr const char* DEFAULT_CACHE_DIR = "/tmp/helix_thumbs";
-
-// LVGL 9 color format constant (magic comes from lv_image_dsc.h)
-static constexpr uint8_t COLOR_FORMAT_ARGB8888 = 0x10;
 
 // Thread pool configuration
 static constexpr int MIN_WORKER_THREADS = 1;
@@ -155,6 +153,9 @@ void ThumbnailProcessor::process_file_async(const std::string& png_path,
                                   cache_dir_copy = std::move(cache_dir_copy),
                                   journal_copy = std::move(journal_copy), target, on_success,
                                   on_error]() {
+                // libhv's HThreadPool spawns its own workers, so each task
+                // makes sure the worker it lands on has a signal stack.
+                helix::install_thread_altstack();
                 // The read happens HERE, on the worker. Callers used to slurp the
                 // PNG on the main thread purely to hand the bytes straight back
                 // to this pool - once per file while a listing populated.
@@ -233,6 +234,7 @@ void ThumbnailProcessor::process_async(const std::vector<uint8_t>& png_data,
                 [this, png_copy = std::move(png_copy), source_copy = std::move(source_copy),
                  cache_dir_copy = std::move(cache_dir_copy), journal_copy = std::move(journal_copy),
                  target, on_success, on_error]() {
+                    helix::install_thread_altstack();
                     ProcessResult result =
                         do_process(png_copy, source_copy, target, cache_dir_copy, journal_copy);
                     deliver_result(result, source_copy, on_success, on_error);
@@ -280,129 +282,6 @@ std::string ThumbnailProcessor::get_if_processed(const std::string& source_path,
     }
 
     return "";
-}
-
-namespace {
-
-// Card size measured by PrintSelectPanel, or 0 when no card grid has reported one.
-// Read from the thumbnail worker threads while a fetch picks its target.
-std::atomic<int> g_card_hint_width{0};
-std::atomic<int> g_card_hint_height{0};
-
-} // namespace
-
-void ThumbnailProcessor::set_card_size_hint(int card_width, int card_height) {
-    if (card_width <= 0 || card_height <= 0) {
-        g_card_hint_width.store(0, std::memory_order_relaxed);
-        g_card_hint_height.store(0, std::memory_order_relaxed);
-        return;
-    }
-    g_card_hint_width.store(card_width, std::memory_order_relaxed);
-    g_card_hint_height.store(card_height, std::memory_order_relaxed);
-}
-
-ThumbnailTarget ThumbnailProcessor::get_target_for_card(int card_width, int card_height) {
-    ThumbnailTarget target;
-    target.color_format = COLOR_FORMAT_ARGB8888;
-
-    if (card_width <= 0 || card_height <= 0) {
-        target.width = 120;
-        target.height = 120;
-        return target;
-    }
-
-    // preview_offset_y in globals.xml lifts the art by 12% of its own height, so a
-    // square of side N clears the card's top edge only while (H - N)/2 >= 0.12N.
-    int height_bound = static_cast<int>(card_height / 1.24);
-    int side = std::min(card_width, height_bound);
-
-    side -= side % 4; // bound the number of distinct .bin cache entries
-    side = std::clamp(side, 64, 220);
-
-    target.width = side;
-    target.height = side;
-    return target;
-}
-
-ThumbnailTarget ThumbnailProcessor::get_target_for_resolution(int width, int height,
-                                                              ThumbnailSize size) {
-    ThumbnailTarget target;
-    target.color_format = COLOR_FORMAT_ARGB8888;
-
-    // Defensive: treat invalid dimensions as smallest breakpoint
-    if (width <= 0 || height <= 0) {
-        target.width = (size == ThumbnailSize::Detail) ? 200 : 120;
-        target.height = target.width;
-        return target;
-    }
-
-    int greater_res = std::max(width, height);
-
-    if (size == ThumbnailSize::Detail) {
-        // Detail view sizes — larger for status panel / detail overlay
-        if (greater_res <= 480) {
-            target.width = 200;
-            target.height = 200;
-        } else if (greater_res <= 800) {
-            target.width = 300;
-            target.height = 300;
-        } else {
-            target.width = 400;
-            target.height = 400;
-        }
-    } else {
-        // Card view sizes — small thumbnails for file lists
-        if (greater_res <= 480) {
-            // SMALL: 480x320 class → card ~107px → target 120x120
-            target.width = 120;
-            target.height = 120;
-        } else if (greater_res <= 800) {
-            // MEDIUM: 800x480 class (AD5M) → card ~151px → target 160x160
-            target.width = 160;
-            target.height = 160;
-        } else {
-            // LARGE: 1024x600, 1280x720+ → card ~205px → target 220x220
-            target.width = 220;
-            target.height = 220;
-        }
-    }
-
-    return target;
-}
-
-ThumbnailTarget ThumbnailProcessor::get_target_for_display(ThumbnailSize size) {
-    // A measured card beats guessing one from the display resolution. Card art has to
-    // fit the box the grid actually built, or LVGL crops the model (#1208).
-    if (size == ThumbnailSize::Card) {
-        int hint_w = g_card_hint_width.load(std::memory_order_relaxed);
-        int hint_h = g_card_hint_height.load(std::memory_order_relaxed);
-        if (hint_w > 0 && hint_h > 0) {
-            ThumbnailTarget target = get_target_for_card(hint_w, hint_h);
-            spdlog::trace("[ThumbnailProcessor] Card {}x{} → target {}x{} (measured)", hint_w,
-                          hint_h, target.width, target.height);
-            return target;
-        }
-    }
-
-    // Get the default display
-    lv_display_t* display = lv_display_get_default();
-    if (!display) {
-        // Fallback if no display initialized yet (shouldn't happen in normal use)
-        spdlog::debug("[ThumbnailProcessor] No display available, using medium defaults");
-        return get_target_for_resolution(800, 480, size);
-    }
-
-    // Query display resolution
-    int32_t hor_res = lv_display_get_horizontal_resolution(display);
-    int32_t ver_res = lv_display_get_vertical_resolution(display);
-
-    ThumbnailTarget target = get_target_for_resolution(hor_res, ver_res, size);
-
-    const char* size_str = (size == ThumbnailSize::Detail) ? "detail" : "card";
-    spdlog::trace("[ThumbnailProcessor] Display {}x{} → target {}x{} ({}, ARGB8888)", hor_res,
-                  ver_res, target.width, target.height, size_str);
-
-    return target;
 }
 
 void ThumbnailProcessor::set_cache_dir(const std::string& path) {
@@ -482,7 +361,10 @@ void ThumbnailProcessor::submit_test_task(std::function<void()> task) {
     // then have this commit() resurrect it.
     std::lock_guard<std::mutex> lock(mutex_);
     if (!shutdown_ && thread_pool_) {
-        thread_pool_->commit(std::move(task));
+        thread_pool_->commit([task = std::move(task)] {
+            helix::install_thread_altstack();
+            task();
+        });
     }
 }
 

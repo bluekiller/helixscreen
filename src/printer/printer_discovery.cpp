@@ -144,7 +144,7 @@ void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerA
 
     // Initialize multi-extruder temperature tracking
     auto& printer_state = get_printer_state();
-    printer_state.init_extruders(hardware.heaters());
+    printer_state.temperature_state().init_extruders(hardware.heaters());
 
     // Initialize tool changer state from discovered hardware
     helix::ToolState::instance().init_tools(hardware);

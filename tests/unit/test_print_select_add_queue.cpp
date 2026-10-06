@@ -85,14 +85,14 @@ class AddQueueFixture : private helix::PrintSelectGlobalStateReset,
         drain();
 
         set_wire_state(ps, PrintJobState::PRINTING);
-        ps.set_job_queue_available(true);
+        ps.capabilities_state().set_job_queue_available(true);
         drain();
     }
 
     ~AddQueueFixture() override {
         auto& ps = get_printer_state();
         set_wire_state(ps, PrintJobState::STANDBY);
-        ps.set_job_queue_available(false);
+        ps.capabilities_state().set_job_queue_available(false);
         drain();
         set_job_queue_state(previous_jqs_);
         jqs_.reset();

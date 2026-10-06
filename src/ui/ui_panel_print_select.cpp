@@ -35,6 +35,7 @@
 #include "ams_remap.h"
 #include "ams_state.h"
 #include "app_globals.h"
+#include "card_thumbnail_plan.h"
 #include "config.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "display_manager.h"
@@ -60,6 +61,7 @@
 #include "text_io.h"
 #include "theme_manager.h"
 #include "thumbnail_cache.h"
+#include "try_reserve.h"
 #include "usb_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -273,7 +275,7 @@ void PrintSelectPanel::init_subjects() {
 
     // Initialize can print subject (1 = can print, 0 = print in progress)
     // XML binding disables print button when value is 0
-    bool can_print = printer_state_.can_start_new_print();
+    bool can_print = printer_state_.print_state().can_start_new_print();
     UI_MANAGED_SUBJECT_INT(can_print_subject_, can_print ? 1 : 0, "print_select_can_print",
                            subjects_);
     UI_MANAGED_SUBJECT_INT(button_mode_subject_, 0, "print_select_button_mode", subjects_);
@@ -397,7 +399,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         // File click callback
         [self](size_t file_index) { self->handle_file_click(file_index); },
         // Metadata fetch callback
-        [self](size_t start, size_t end) { self->fetch_metadata_range(start, end); });
+        [self](size_t start, size_t end) {
+            self->fetch_metadata_range(start, end);
+#if defined(HELIX_PLATFORM_ESP32)
+            self->sync_esp_thumbnails(start, end);
+#endif
+        });
 
     // Long-press on a file card → delete confirmation (card view only; list view unchanged).
     card_view_->set_on_file_long_press(
@@ -496,9 +503,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
             };
             const size_t prev_count = panel->file_list_.size();
             std::vector<FileSnapshot> prev_files;
-            prev_files.reserve(prev_count);
-            for (const auto& f : panel->file_list_) {
-                prev_files.push_back({f.filename, f.modified_timestamp});
+            // Without room for the snapshot, the list counts as changed.
+            const bool have_snapshot = helix::try_reserve(prev_files, prev_count);
+            if (have_snapshot) {
+                for (const auto& f : panel->file_list_) {
+                    prev_files.push_back({f.filename, f.modified_timestamp});
+                }
             }
 
             // Preserve cached metadata from previous file list before replacing.
@@ -578,7 +588,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
             // populate() invalidates all pool indices and triggers new metadata
             // fetches that race with stale async callbacks.
             bool same_dir = (panel->current_path_ == panel->last_populated_path_);
-            bool list_changed = !same_dir || panel->file_list_.size() != prev_count;
+            bool list_changed =
+                !have_snapshot || !same_dir || panel->file_list_.size() != prev_count;
             if (!list_changed) {
                 for (size_t i = 0; i < panel->file_list_.size(); i++) {
                     if (panel->file_list_[i].filename != prev_files[i].filename ||
@@ -733,7 +744,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register observer on connection state to refresh files when printer connects
     // This handles the race condition where panel activates before WebSocket connection
     using helix::ui::observe;
-    lv_subject_t* connection_subject = printer_state_.get_printer_connection_state_subject();
+    lv_subject_t* connection_subject =
+        printer_state_.network_state().get_printer_connection_state_subject();
     if (connection_subject) {
         connection_observer_ = observe<int>(
             connection_subject, this,
@@ -776,7 +788,7 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // NOTE: get_print_state_enum_subject() is INT, get_print_state_subject() is STRING
     // RAW_PRINT_STATE_OK: pairs with the print_filename read below, which still
     // holds the PREVIOUS job during a preparing window.
-    lv_subject_t* print_state_subject = printer_state_.get_print_state_enum_subject();
+    lv_subject_t* print_state_subject = printer_state_.print_state().get_print_state_enum_subject();
     if (print_state_subject) {
         print_state_observer_ = observe<int>(
             print_state_subject, this,
@@ -789,7 +801,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Preparing, which the wire job state cannot express, so queue mode can
     // engage for the whole committed life of a job rather than from the first
     // progress frame on.
-    lv_subject_t* print_lifecycle_subject = printer_state_.get_print_lifecycle_subject();
+    lv_subject_t* print_lifecycle_subject =
+        printer_state_.print_state().get_print_lifecycle_subject();
     if (print_lifecycle_subject) {
         print_lifecycle_observer_ = observe<int>(
             print_lifecycle_subject, this,
@@ -799,7 +812,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Also observe print_in_progress subject - this fires immediately when Print is tapped
     // (before Moonraker reports state change, which can take seconds)
-    lv_subject_t* print_in_progress_subject = printer_state_.get_print_in_progress_subject();
+    lv_subject_t* print_in_progress_subject =
+        printer_state_.print_state().get_print_in_progress_subject();
     if (print_in_progress_subject) {
         print_in_progress_observer_ = observe<int>(
             print_in_progress_subject, this,
@@ -811,7 +825,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Register observer on helix_plugin_installed to show install prompt when plugin not available
     // Subject uses tri-state: -1=unknown (pre-discovery), 0=not installed, 1=installed
     // Only show modal when explicitly 0 (after discovery confirms plugin is missing)
-    lv_subject_t* plugin_subject = printer_state_.get_helix_plugin_installed_subject();
+    lv_subject_t* plugin_subject =
+        printer_state_.plugin_status_state().get_helix_plugin_installed_subject();
     if (plugin_subject) {
         helix_plugin_observer_ = observe<int>(
             plugin_subject, this,
@@ -1508,54 +1523,8 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                                          self->get_name(), filename_copy, error);
                         });
 #else
-                    // ESP32 (Task 11 R2): no disk thumbnail cache on this platform
-                    // (Task 10 R6), so bypass ThumbnailCache/ThumbnailProcessor
-                    // entirely and fetch the PNG bytes directly via the HTTP lane,
-                    // decoding into a PSRAM-backed lv_image_dsc_t instead of a
-                    // cache file (see esp_psram_thumbnail.h).
-                    //
-                    // MANDATORY threading: EspHttpLane invokes on_success/on_error
-                    // directly on its own worker thread with no built-in
-                    // marshaling. This callback therefore does only local
-                    // byte-copy/PSRAM work on the worker thread and defers every
-                    // `self`/file_list_ touch via panel_tok.defer() — `self` is
-                    // captured here only to pass into that deferred lambda, never
-                    // dereferenced on this thread.
-                    spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", self->get_name(),
-                                  d->filename, d->thumb_path);
-
-                    size_t file_idx = d->index;
-                    std::string filename_copy = d->filename;
-                    constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
-
-                    self->api_->transfers().download_file_partial(
-                        "gcodes", d->thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-                        // Success callback — runs on the EspHttpLane worker thread.
-                        [self, panel_tok, file_idx, filename_copy](const std::string& png_bytes) {
-                            auto thumb = helix::ui::EspPsramThumbnail::create(png_bytes);
-                            if (!thumb) {
-                                spdlog::warn("[PrintSelectPanel] PSRAM alloc failed for "
-                                             "thumbnail: {}",
-                                             filename_copy);
-                                return;
-                            }
-                            panel_tok.defer(
-                                "PrintSelectPanel::on_psram_thumbnail_fetched",
-                                [self, file_idx, filename_copy,
-                                 thumb = std::move(thumb)]() mutable {
-                                    if (file_idx < self->file_list_.size() &&
-                                        self->file_list_[file_idx].filename == filename_copy) {
-                                        self->file_list_[file_idx].esp_thumbnail = std::move(thumb);
-                                        self->schedule_view_refresh();
-                                    }
-                                });
-                        },
-                        // Error callback — bg thread, log only, no member access.
-                        [filename_copy](const MoonrakerError& error) {
-                            spdlog::debug(
-                                "[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}",
-                                filename_copy, error.message);
-                        });
+                    // ESP32: no disk thumbnail cache; see sync_esp_thumbnails().
+                    self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
 #endif
                 }
             } else if (self->api_) {
@@ -1875,7 +1844,7 @@ void PrintSelectPanel::on_activate() {
             return_to_home_on_close_ = false;
             return_home_activation_count_ = 0;
             spdlog::info("[{}] Returning to home panel (Print Last flow)", get_name());
-            NavigationManager::instance().set_active(PanelId::Home);
+            helix::nav::set_active(PanelId::Home);
             return;
         }
     }
@@ -2450,9 +2419,9 @@ void PrintSelectPanel::merge_history_into_file_list() {
     // preparing window it still holds the PREVIOUS job. Widening this would
     // badge the wrong file rather than none. Badging the committed file would
     // mean reading preparing_job() instead, which is a feature, not this fold.
-    auto print_state = printer_state_.get_print_job_state();
+    auto print_state = printer_state_.print_state().get_print_job_state();
     if (printer_has_job(print_state)) {
-        if (auto* filename_subject = printer_state_.get_print_filename_subject()) {
+        if (auto* filename_subject = printer_state_.print_state().get_print_filename_subject()) {
             if (const char* filename = lv_subject_get_string(filename_subject);
                 filename && filename[0] != '\0') {
                 current_print_filename =
@@ -2495,8 +2464,8 @@ void PrintSelectPanel::update_print_button_state() {
     // Gather the decision inputs and let the pure view function decide; XML
     // bindings turn the subjects into button state, label and card visibility.
     helix::ui::PrintSelectButtonInputs inputs;
-    inputs.machine_busy = job_holds_machine(printer_state_.get_print_lifecycle());
-    inputs.print_start_committed = printer_state_.is_print_in_progress();
+    inputs.machine_busy = job_holds_machine(printer_state_.print_state().get_print_lifecycle());
+    inputs.print_start_committed = printer_state_.print_state().is_print_in_progress();
     inputs.job_queue_available = printer_state_.is_job_queue_available();
     inputs.queue_add_in_flight = queue_add_in_flight_;
     if (detail_view_) {
@@ -2670,10 +2639,8 @@ void PrintSelectPanel::ensure_detail_view_model() {
     detail_view_->set_analysis_dependencies(api_, &printer_state_);
 
     // Re-enable the print button when macro analysis completes.
-    if (auto* prep_mgr = detail_view_->get_prep_manager()) {
-        prep_mgr->set_macro_analysis_callback(
-            [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
-    }
+    detail_view_->set_on_macro_analysis(
+        [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
 }
 
 void PrintSelectPanel::create_detail_view() {
@@ -3161,7 +3128,7 @@ std::string PrintSelectPanel::composed_selected_filename() const {
 }
 
 void PrintSelectPanel::start_queued_job(const JobQueueEntry& job) {
-    if (!printer_state_.can_start_new_print()) {
+    if (!printer_state_.print_state().can_start_new_print()) {
         NOTIFY_WARNING(lv_tr("Printer is busy - {} stays in the queue"), job.filename);
         return;
     }
@@ -3213,7 +3180,7 @@ void PrintSelectPanel::start_queued_job(const JobQueueEntry& job) {
                 try_open_pending_queued_job();
             }));
 
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
     refresh_files(/*force=*/true);
 }
 
@@ -3670,3 +3637,113 @@ void PrintSelectPanel::on_usb_drive_removed() {
     // Note: The usb_source_ module handles switching to Printer source if needed,
     // and the on_source_changed callback triggers refresh_files()
 }
+
+#if defined(HELIX_PLATFORM_ESP32)
+// No disk thumbnail cache on this platform, so the PNG bytes come straight off
+// the HTTP lane and are decoded once at the card's size into a PSRAM-backed
+// lv_image_dsc_t (see esp_psram_thumbnail.h), the size a prescaled .bin has
+// elsewhere. A decode that fails leaves the placeholder until the card is next
+// shown (sync_esp_thumbnails).
+// The lane calls back on its own worker thread: the callbacks only build the
+// image there and defer every member touch to the main thread.
+PrintSelectPanel::EspThumbnailFetch
+PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                      const std::string& thumb_path) {
+    constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
+    // An error reported before download_file_partial() returns means nothing
+    // was started: either the lane's queue was full, or the request was invalid.
+    auto submitting = std::make_shared<std::atomic<bool>>(true);
+    auto refused = std::make_shared<std::atomic<bool>>(false);
+    auto rejected = std::make_shared<std::atomic<bool>>(false);
+    auto tok = object_lifetime_.token();
+    spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", get_name(), filename, thumb_path);
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+
+    api_->transfers().download_file_partial(
+        "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
+        [this, tok, index, filename, target](const std::string& png_bytes) {
+            helix::ThumbnailDecodeFailure failure{};
+            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(png_bytes, target.width,
+                                                                      target.height, failure);
+            if (!thumb) {
+                spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
+                             failure == helix::ThumbnailDecodeFailure::OutOfMemory
+                                 ? "out of memory"
+                                 : "corrupt or too large");
+            }
+            tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
+                      [this, index, filename, thumb = std::move(thumb)]() mutable {
+                          --esp_thumbnails_in_flight_;
+                          // Kept only while its card is still on screen.
+                          if (thumb && index < file_list_.size() &&
+                              file_list_[index].filename == filename &&
+                              file_list_[index].esp_thumbnail_tried) {
+                              file_list_[index].esp_thumbnail = std::move(thumb);
+                              schedule_view_refresh();
+                          }
+                          sync_esp_thumbnails(esp_window_first_, esp_window_end_);
+                      });
+        },
+        [this, tok, filename, submitting, refused, rejected](const MoonrakerError& error) {
+            if (submitting->load()) {
+                if (error.type == MoonrakerErrorType::QUEUE_FULL) {
+                    refused->store(true);
+                } else {
+                    rejected->store(true);
+                    spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}",
+                                  filename, error.message);
+                }
+                return;
+            }
+            spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}", filename,
+                          error.message);
+            tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
+                --esp_thumbnails_in_flight_;
+                sync_esp_thumbnails(esp_window_first_, esp_window_end_);
+            });
+        });
+    submitting->store(false);
+    if (refused->load()) {
+        return EspThumbnailFetch::QueueFull;
+    }
+    if (rejected->load()) {
+        return EspThumbnailFetch::Failed;
+    }
+    ++esp_thumbnails_in_flight_;
+    return EspThumbnailFetch::Started;
+}
+
+void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
+    esp_window_first_ = first;
+    esp_window_end_ = end;
+
+    std::vector<helix::CardThumbnailState> states(file_list_.size());
+    for (size_t i = 0; i < file_list_.size(); ++i) {
+        const PrintFileData& f = file_list_[i];
+        states[i].fetchable = !f.is_dir && !f.original_thumbnail_url.empty();
+        states[i].tried = f.esp_thumbnail_tried;
+        states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
+    }
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
+        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)),
+        helix::rgb565a8_size({target.width, target.height}), helix::CARD_THUMBNAIL_BUDGET);
+
+    // Cards off screen hold nothing; a card coming back fetches again.
+    for (size_t i : plan.drop) {
+        file_list_[i].esp_thumbnail.reset();
+        file_list_[i].esp_thumbnail_tried = false;
+    }
+    for (size_t i : plan.fetch) {
+        PrintFileData& f = file_list_[i];
+        f.esp_thumbnail_tried = true;
+        if (fetch_esp_thumbnail(i, f.filename, f.original_thumbnail_url) ==
+            EspThumbnailFetch::QueueFull) {
+            // The lane is busy: try this one again on the next pass, which every
+            // completion, scroll and listing triggers.
+            f.esp_thumbnail_tried = false;
+            break;
+        }
+    }
+}
+#endif

@@ -7,7 +7,7 @@
 #include "ui_component_keypad.h"
 #include "ui_error_reporting.h"
 #include "ui_heater_config.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_temperature_utils.h"
 #include "ui_utils.h"
@@ -373,7 +373,7 @@ void TempGraphOverlay::open(Mode mode, lv_obj_t* parent_screen) {
 
 void TempGraphOverlay::before_show() {
     // The pairing must survive a navbar panel switch.
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this, true);
+    helix::nav::register_overlay(overlay_root_, this, true);
 
     // Sync the declarative mode subject on every open: the caller may have chosen
     // a different mode than last time. XML bindings (strip visibility via
@@ -863,7 +863,8 @@ void TempGraphOverlay::on_temp_graph_custom_clicked(lv_event_t* e) {
     if (type == helix::HeaterType::Nozzle && overlay.are_subjects_initialized()) {
         seed_deci = lv_subject_get_int(&overlay.nozzle_card_target_subject_);
     } else if (type == helix::HeaterType::Chamber && overlay.printer_state_) {
-        if (auto* subj = overlay.printer_state_->get_chamber_effective_target_subject()) {
+        if (auto* subj = overlay.printer_state_->temperature_state()
+                             .get_chamber_effective_target_subject()) {
             seed_deci = lv_subject_get_int(subj);
         }
     }
@@ -1055,7 +1056,7 @@ void TempGraphOverlay::watch_extruder_version() {
     if (!printer_state_)
         return;
     extruder_version_observer_ = helix::ui::observe<int>(
-        printer_state_->get_extruder_version_subject(), this,
+        printer_state_->temperature_state().get_extruder_version_subject(), this,
         [](TempGraphOverlay* self, int /*version*/) { self->repoint_nozzle_card(); },
         printer_state_->temperature_state().get_subjects_lifetime());
 }
@@ -1088,13 +1089,16 @@ void TempGraphOverlay::repoint_nozzle_card() {
     SubjectLifetime power_lifetime = temp_state.get_subjects_lifetime();
 
     if (picked_extruder_.empty()) {
-        temp_src = printer_state_->get_active_extruder_temp_subject();
-        target_src = printer_state_->get_active_extruder_target_subject();
-        power_src = printer_state_->get_extruder_power_subject();
+        temp_src = printer_state_->temperature_state().get_active_extruder_temp_subject();
+        target_src = printer_state_->temperature_state().get_active_extruder_target_subject();
+        power_src = printer_state_->temperature_state().get_extruder_power_subject();
     } else {
-        temp_src = printer_state_->get_extruder_temp_subject(picked_extruder_, temp_lifetime);
-        target_src = printer_state_->get_extruder_target_subject(picked_extruder_, target_lifetime);
-        power_src = printer_state_->get_extruder_power_subject(picked_extruder_, power_lifetime);
+        temp_src = printer_state_->temperature_state().get_extruder_temp_subject(picked_extruder_,
+                                                                                 temp_lifetime);
+        target_src = printer_state_->temperature_state().get_extruder_target_subject(
+            picked_extruder_, target_lifetime);
+        power_src = printer_state_->temperature_state().get_extruder_power_subject(picked_extruder_,
+                                                                                   power_lifetime);
     }
     if (!temp_src || !target_src)
         return;

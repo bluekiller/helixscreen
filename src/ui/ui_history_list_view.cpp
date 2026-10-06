@@ -142,7 +142,8 @@ void HistoryListView::init_pool() {
             static_cast<lv_obj_t*>(lv_xml_create(container_, "history_list_row", nullptr));
 
         if (row) {
-            lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(
+                row, LV_OBJ_FLAG_HIDDEN); // XML_HIDDEN_OK: pooled row, built once with its list
             // Attach click handler — one per pool row, reused across recycles
             lv_obj_add_event_cb(row, on_row_click_static, LV_EVENT_CLICKED, this);
             pool_.push_back(row);

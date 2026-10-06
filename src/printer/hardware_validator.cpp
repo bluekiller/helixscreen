@@ -3,7 +3,7 @@
 
 #include "hardware_validator.h"
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_settings.h"
 #include "ui_toast_manager.h"
 
@@ -231,7 +231,7 @@ HardwareValidationResult HardwareValidator::validate(Config* config,
 // Static callback for toast action button - navigates to Settings and opens overlay
 static void on_hardware_toast_view_clicked(void* /*user_data*/) {
     spdlog::debug("[HardwareValidator] Toast 'View' clicked - opening Hardware Health overlay");
-    NavigationManager::instance().set_active(PanelId::Settings);
+    helix::nav::set_active(PanelId::Settings);
     get_global_settings_panel().handle_hardware_health_clicked();
 }
 

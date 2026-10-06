@@ -6,7 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_temperature_utils.h"
 #include "ui_z_offset_indicator.h"
 
@@ -159,7 +159,7 @@ void ZOffsetCalibrationPanel::setup_widgets() {
     PrinterState& ps = get_printer_state();
 
     manual_probe_active_observer_ = observe<int>(
-        ps.get_manual_probe_active_subject(), this,
+        ps.calibration_state().get_manual_probe_active_subject(), this,
         [](ZOffsetCalibrationPanel* self, int is_active) {
             spdlog::debug("[ZOffsetCal] manual_probe_active changed: {}", is_active);
 
@@ -193,7 +193,7 @@ void ZOffsetCalibrationPanel::setup_widgets() {
         ps.get_subjects_lifetime());
 
     manual_probe_z_observer_ = observe<int>(
-        ps.get_manual_probe_z_position_subject(), this,
+        ps.calibration_state().get_manual_probe_z_position_subject(), this,
         [](ZOffsetCalibrationPanel* self, int z_microns) {
             // Only update Z display when in ADJUSTING state
             if (self->state_ != State::ADJUSTING)
@@ -223,9 +223,10 @@ void ZOffsetCalibrationPanel::on_activate() {
     // If manual probe is already active (e.g., started from Mainsail before HelixScreen
     // launched), skip to ADJUSTING with the current Z position instead of resetting to IDLE
     auto& ps = get_printer_state();
-    if (lv_subject_get_int(ps.get_manual_probe_active_subject()) == 1) {
+    if (lv_subject_get_int(ps.calibration_state().get_manual_probe_active_subject()) == 1) {
         spdlog::info("[ZOffsetCal] Manual probe already active, resuming in ADJUSTING state");
-        int z_microns = lv_subject_get_int(ps.get_manual_probe_z_position_subject());
+        int z_microns =
+            lv_subject_get_int(ps.calibration_state().get_manual_probe_z_position_subject());
         current_z_ = z_microns / 1000.0f;
         set_state(State::ADJUSTING);
         update_z_position(current_z_);
@@ -282,7 +283,7 @@ void ZOffsetCalibrationPanel::cleanup() {
 
     // Unregister from NavigationManager while overlay_root_ is still valid
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Nullify widget pointers BEFORE resetting observers — any cascading
@@ -369,7 +370,7 @@ void ZOffsetCalibrationPanel::begin_saving_restart_watch() {
     //     fires — without this the panel burns the full extension budget and
     //     then fails a save that actually succeeded.
     klippy_state_observer_ = observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](ZOffsetCalibrationPanel* self, int state) {
             if (self->state_ != State::SAVING) {
                 return; // Stale fire after the save settled
@@ -470,7 +471,7 @@ void ZOffsetCalibrationPanel::start_calibration() {
 
         PrinterState& ps = get_printer_state();
         bed_temp_observer_ = observe<int>(
-            ps.get_bed_temp_subject(bed_temp_lifetime_), this,
+            ps.temperature_state().get_bed_temp_subject(bed_temp_lifetime_), this,
             [](ZOffsetCalibrationPanel* self, int temp_deci) {
                 if (self->state_ != State::WARMING)
                     return;
@@ -496,7 +497,7 @@ void ZOffsetCalibrationPanel::begin_probe_sequence() {
     set_state(State::PROBING);
 
     PrinterState& ps = get_printer_state();
-    auto strategy = ps.get_z_offset_calibration_strategy();
+    auto strategy = ps.profile_state().z_offset_calibration_strategy();
 
     // Check homing state (shared across all strategies)
     const bool all_homed = helix::toolhead_is_homed(ps);
@@ -555,7 +556,8 @@ void ZOffsetCalibrationPanel::begin_probe_sequence() {
         std::string gcode;
         if (!all_homed) {
             // Diagnostic-only re-fetch — all_homed above already decided the branch.
-            const char* homed_dbg = lv_subject_get_string(ps.get_homed_axes_subject());
+            const char* homed_dbg =
+                lv_subject_get_string(ps.motion_state().get_homed_axes_subject());
             spdlog::info("[ZOffsetCal] Axes not homed (homed_axes='{}'), homing first",
                          homed_dbg ? homed_dbg : "");
             gcode = "G28\n";
@@ -621,7 +623,7 @@ void ZOffsetCalibrationPanel::adjust_z(float delta) {
     if (!api_)
         return;
 
-    auto strategy = get_printer_state().get_z_offset_calibration_strategy();
+    auto strategy = get_printer_state().profile_state().z_offset_calibration_strategy();
 
     if (strategy == ZOffsetCalibrationStrategy::FIRMWARE_MANAGED) {
         // Direct G1 move using relative positioning
@@ -668,7 +670,7 @@ void ZOffsetCalibrationPanel::send_accept() {
     if (!api_)
         return;
 
-    auto strategy = get_printer_state().get_z_offset_calibration_strategy();
+    auto strategy = get_printer_state().profile_state().z_offset_calibration_strategy();
     final_offset_ = current_z_;
     on_calibration_result(true, "");
 
@@ -685,7 +687,7 @@ void ZOffsetCalibrationPanel::send_accept() {
         // an accept ever fires under a running print, where the subtraction
         // excludes the live transient and is correct.
         std::string cmd = fmt::format("SET_GCODE_OFFSET Z={:.3f}", cumulative_z_delta_);
-        if (lv_subject_get_int(get_printer_state().get_print_active_subject()) == 0) {
+        if (lv_subject_get_int(get_printer_state().print_state().get_print_active_subject()) == 0) {
             std::string clear =
                 helix::zoffset::stale_probe_delta_clear_gcode(get_printer_state().get_discovery());
             if (!clear.empty()) {
@@ -761,7 +763,7 @@ void ZOffsetCalibrationPanel::send_abort() {
         return;
     }
 
-    auto strategy = get_printer_state().get_z_offset_calibration_strategy();
+    auto strategy = get_printer_state().profile_state().z_offset_calibration_strategy();
 
     if (strategy == ZOffsetCalibrationStrategy::FIRMWARE_MANAGED) {
         // Retract nozzle without applying any offset
@@ -826,7 +828,7 @@ void ZOffsetCalibrationPanel::handle_abort_clicked() {
 void ZOffsetCalibrationPanel::handle_done_clicked() {
     spdlog::debug("[ZOffsetCal] Done clicked");
     set_state(State::IDLE);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void ZOffsetCalibrationPanel::handle_retry_clicked() {

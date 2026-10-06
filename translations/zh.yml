@@ -121,6 +121,7 @@ translations:
   A picture of your printer: 打印机的图片
   A print is in progress - restart still pending: '打印进行中 - 重启待执行'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: 此通道正在打印中。HelixScreen 已清除本地副本；打印结束后请再次清空。
+  A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop.: "在料盘仍标记为放在热床上时开始了打印。如果料盘还在，请立即用紧急停止停下打印机。"
   A spool may be tangled or the drive gear is jammed: 料盘可能缠绕，或驱动齿轮卡住
   A · 1,-1: "A · 1,-1"
   ABS: ABS
@@ -1671,6 +1672,7 @@ translations:
   Load Filament: 加载耗材
   Load a filament first before trying to unload: 请先装载耗材，再尝试卸载
   Load a new spool in this slot, or turn on auto-refill to switch to a matching one: 请在此槽位装入新料盘，或开启自动续料以切换到匹配的料盘
+  'Load cancelled: nozzle target dropped': '加载已取消：喷嘴目标温度已降低'
   Load complete: '装载完成'
   Load failed: 装载失败
   Load filament: '装载耗材'
@@ -2903,9 +2905,11 @@ translations:
   Spoolman was not configured.: Spoolman 未配置。
   'Spoolman: %zu Spool%s': 'Spoolman: %zu 个线轴%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu 个线轴%s'
+  Spools are off: "料盘已取下"
   'Spools are on the bed: remove them and confirm before moving the printer': 热床上有料盘：请先移除并确认，再移动打印机
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 热床上有料盘:点击烘干横幅确认已取下,然后再重启。
 
+  Spools on the bed!: "热床上有料盘！"
   'Spools on the bed: start drying, or confirm none were placed': 料盘在热床上:开始烘干,或确认未放置料盘
 
   Spools removed: 料盘已取下

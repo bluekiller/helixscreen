@@ -306,7 +306,7 @@ class TempGraphOverlayPickFixture : public LVGLTestFixture {
     /// Two tools at different temperatures, so which one the card mirrors and
     /// which one receives a send are both observable. Machine tool = tool 1.
     void seed_two_tools() {
-        state.init_extruders({"extruder", "extruder1"});
+        state.temperature_state().init_extruders({"extruder", "extruder1"});
         state.update_from_status({{"extruder", {{"temperature", 55.0}, {"target", 55.0}}},
                                   {"extruder1", {{"temperature", 260.0}, {"target", 260.0}}}});
         helix::ui::UpdateQueue::instance().drain();
@@ -327,7 +327,7 @@ TEST_CASE_METHOD(
 
     // The regression's precondition: the card displays tool 2 while the
     // machine's active tool is tool 1.
-    REQUIRE(state.active_extruder_name() == "extruder");
+    REQUIRE(state.temperature_state().active_extruder_name() == "extruder");
 
     client.clear_gcode_script_history();
 
@@ -422,7 +422,7 @@ TEST_CASE_METHOD(TempGraphOverlayPickFixture,
 
     // Rediscovery rebuilds the extruder map WITHOUT the picked tool; the
     // version bump the rebuild makes is what repoints the card here.
-    state.init_extruders({"extruder"});
+    state.temperature_state().init_extruders({"extruder"});
     state.update_from_status({{"extruder", {{"temperature", 56.0}, {"target", 56.0}}}});
     helix::ui::UpdateQueue::instance().drain();
 
@@ -441,7 +441,7 @@ TEST_CASE_METHOD(TempGraphOverlayPickFixture,
 
     // Machine tool = tool 1, at temp and idle. Picked tool 2 heating from
     // cold at full power, so which tool the status answers from is observable.
-    state.init_extruders({"extruder", "extruder1"});
+    state.temperature_state().init_extruders({"extruder", "extruder1"});
     state.update_from_status(
         {{"extruder", {{"temperature", 55.0}, {"target", 55.0}, {"power", 0.0}}},
          {"extruder1", {{"temperature", 100.0}, {"target", 210.0}, {"power", 1.0}}}});
@@ -452,7 +452,7 @@ TEST_CASE_METHOD(TempGraphOverlayPickFixture,
     TempGraphOverlayTestAccess::select(overlay, "extruder1");
     helix::ui::UpdateQueue::instance().drain();
 
-    REQUIRE(state.active_extruder_name() == "extruder");
+    REQUIRE(state.temperature_state().active_extruder_name() == "extruder");
     REQUIRE(TempGraphOverlayTestAccess::card_temp(overlay) == 1000);
     REQUIRE(TempGraphOverlayTestAccess::status_state(overlay) ==
             static_cast<int>(HeaterStatusState::Heating));

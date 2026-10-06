@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" ja="プリンターの画像"/>
   <translation tag="A print is in progress - restart still pending" ja="印刷中です - 再起動は保留中"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." ja="このゲートで印刷中です。HelixScreen 側のコピーはクリアしました。印刷終了後に再度クリアしてください。"/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." ja="スプールがベッド上にあるとされている状態で印刷が開始されました。まだ置かれている場合は、今すぐ緊急停止でプリンターを止めてください。"/>
   <translation tag="A spool may be tangled or the drive gear is jammed" ja="スプールが絡まっているか、駆動ギアが詰まっている可能性があります"/>
   <translation tag="A · 1,-1" ja="A · 1,-1"/>
   <translation tag="ABS" ja="ABS"/>
@@ -1611,6 +1612,7 @@
   <translation tag="Load Filament" ja="フィラメントを装填"/>
   <translation tag="Load a filament first before trying to unload" ja="排出する前にまずフィラメントを装填してください"/>
   <translation tag="Load a new spool in this slot, or turn on auto-refill to switch to a matching one" ja="このスロットに新しいスプールをセットするか、自動補充を有効にして一致するスプールに切り替えてください"/>
+  <translation tag="Load cancelled: nozzle target dropped" ja="装填をキャンセル: ノズルの目標温度が下がりました"/>
   <translation tag="Load complete" ja="ロード完了"/>
   <translation tag="Load failed" ja="装填に失敗しました"/>
   <translation tag="Load filament" ja="フィラメントをロード"/>
@@ -2800,8 +2802,10 @@
   <translation tag="Spoolman was not configured." ja="Spoolman は設定されていませんでした。"/>
   <translation tag="Spoolman: %zu Spool%s" ja="Spoolman: %zu 個のスプール%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" ja="Spoolman: %zu/%zu 個のスプール%s"/>
+  <translation tag="Spools are off" ja="スプールを取り出しました"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" ja="ベッドにスプールがあります: 取り除いて確認してからプリンターを動かしてください"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." ja="ベッドにスプールがあります: 乾燥のバナーをタップして取り出したことを確認してから、再起動してください。"/>
+  <translation tag="Spools on the bed!" ja="ベッドにスプールがあります！"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" ja="ベッドにスプールがあります: 乾燥を開始するか、置いていないことを確認してください"/>
   <translation tag="Spools removed" ja="スプールを取り出しました"/>
   <translation tag="Square Corner Velocity" ja="直角コーナー速度"/>

@@ -66,7 +66,8 @@ struct PluginUninstallFixture : LVGLUITestFixture {
     }
 
     int plugin_installed() {
-        return lv_subject_get_int(get_printer_state().get_helix_plugin_installed_subject());
+        return lv_subject_get_int(
+            get_printer_state().plugin_status_state().get_helix_plugin_installed_subject());
     }
 
     void tap_row() {

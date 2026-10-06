@@ -5,7 +5,8 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_event_safety.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_row_text.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
@@ -75,8 +76,7 @@ lv_obj_t* MaterialTempsOverlay::create(lv_obj_t* parent) {
 
     spdlog::debug("[{}] Creating overlay...", get_name());
 
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "material_temps_overlay", nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, "material_temps_overlay");
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -102,9 +102,6 @@ lv_obj_t* MaterialTempsOverlay::create(lv_obj_t* parent) {
             lv_obj_add_event_cb(back_button, on_back_clicked, LV_EVENT_CLICKED, nullptr);
         }
     }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     spdlog::info("[{}] Overlay created", get_name());
     return overlay_root_;
@@ -422,7 +419,7 @@ void MaterialTempsOverlay::handle_back_clicked() {
         }
     } else {
         // In list view — close overlay
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 }
 

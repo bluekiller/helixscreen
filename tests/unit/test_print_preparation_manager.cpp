@@ -3,6 +3,7 @@
 
 #include "ui_busy_overlay.h"
 #include "ui_filename_utils.h"
+#include "ui_pre_print_options_renderer.h"
 #include "ui_print_preparation_manager.h"
 
 #include "../helix_test_fixture.h"
@@ -79,26 +80,6 @@ TEST_CASE("PrintPreparationManager: has_macro_analysis when no analysis availabl
           "[print_preparation][macro]") {
     PrintPreparationManager manager;
     REQUIRE(manager.has_macro_analysis() == false);
-}
-
-TEST_CASE("PrintPreparationManager: is_macro_op_controllable", "[print_preparation][macro]") {
-    PrintPreparationManager manager;
-
-    SECTION("Returns false when no analysis available") {
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::BED_MESH) == false);
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::QGL) == false);
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::Z_TILT) == false);
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::NOZZLE_CLEAN) == false);
-    }
-}
-
-TEST_CASE("PrintPreparationManager: get_macro_skip_param", "[print_preparation][macro]") {
-    PrintPreparationManager manager;
-
-    SECTION("Returns empty string when no analysis available") {
-        REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::BED_MESH).empty());
-        REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::QGL).empty());
-    }
 }
 
 // ============================================================================
@@ -580,7 +561,7 @@ TEST_CASE_METHOD(HelixTestFixture, "PrintPreparationManager: capabilities come f
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
         // Verify PrinterState has the option set
-        const auto& state_caps = printer_state.get_pre_print_option_set();
+        const auto& state_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(state_caps.empty());
         REQUIRE(state_caps.macro_name == "START_PRINT");
 
@@ -593,7 +574,7 @@ TEST_CASE_METHOD(HelixTestFixture, "PrintPreparationManager: capabilities come f
 
     SECTION("Manager sees empty capabilities when PrinterState has no type") {
         // Don't set any printer type - should have empty capabilities
-        const auto& state_caps = printer_state.get_pre_print_option_set();
+        const auto& state_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE(state_caps.empty());
         REQUIRE(state_caps.macro_name.empty());
     }
@@ -603,7 +584,7 @@ TEST_CASE_METHOD(HelixTestFixture, "PrintPreparationManager: capabilities come f
         printer_state.set_printer_type_sync("Unknown Printer That Does Not Exist");
 
         // Should return empty capabilities, not crash
-        const auto& state_caps = printer_state.get_pre_print_option_set();
+        const auto& state_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE(state_caps.empty());
     }
 
@@ -692,7 +673,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
         // Verify AD5M Pro options
-        const auto& caps_v1 = printer_state.get_pre_print_option_set();
+        const auto& caps_v1 = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_v1.empty());
         REQUIRE(caps_v1.macro_name == "START_PRINT");
         size_t v1_option_count = caps_v1.options.size();
@@ -701,7 +682,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M");
 
         // Verify options updated
-        const auto& caps_v2 = printer_state.get_pre_print_option_set();
+        const auto& caps_v2 = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_v2.empty());
         // Both have START_PRINT but this confirms the lookup happened
         REQUIRE(caps_v2.macro_name == "START_PRINT");
@@ -714,14 +695,14 @@ TEST_CASE_METHOD(HelixTestFixture,
         // Start with known printer
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
-        const auto& caps_known = printer_state.get_pre_print_option_set();
+        const auto& caps_known = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_known.empty());
 
         // Switch to unknown printer
         printer_state.set_printer_type_sync("Generic Unknown Printer XYZ");
 
         // Capabilities should now be empty (no stale cache)
-        const auto& caps_unknown = printer_state.get_pre_print_option_set();
+        const auto& caps_unknown = printer_state.profile_state().pre_print_option_set();
         REQUIRE(caps_unknown.empty());
         REQUIRE(caps_unknown.macro_name.empty());
     }
@@ -730,34 +711,34 @@ TEST_CASE_METHOD(HelixTestFixture,
         // Start with known printer
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
 
-        const auto& caps_before = printer_state.get_pre_print_option_set();
+        const auto& caps_before = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(caps_before.empty());
 
         // Clear printer type
         printer_state.set_printer_type_sync("");
 
         // Capabilities should be empty
-        const auto& caps_after = printer_state.get_pre_print_option_set();
+        const auto& caps_after = printer_state.profile_state().pre_print_option_set();
         REQUIRE(caps_after.empty());
     }
 
     SECTION("No stale cache when rapidly switching printer types") {
         // Rapidly switch between multiple printer types
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
-        REQUIRE_FALSE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE_FALSE(printer_state.profile_state().pre_print_option_set().empty());
 
         printer_state.set_printer_type_sync("Unknown Printer 1");
-        REQUIRE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE(printer_state.profile_state().pre_print_option_set().empty());
 
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M");
-        REQUIRE_FALSE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE_FALSE(printer_state.profile_state().pre_print_option_set().empty());
 
         printer_state.set_printer_type_sync("");
-        REQUIRE(printer_state.get_pre_print_option_set().empty());
+        REQUIRE(printer_state.profile_state().pre_print_option_set().empty());
 
         // Final state: set back to known printer
         printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
-        const auto& final_caps = printer_state.get_pre_print_option_set();
+        const auto& final_caps = printer_state.profile_state().pre_print_option_set();
         REQUIRE_FALSE(final_caps.empty());
         REQUIRE(final_caps.find("bed_mesh") != nullptr);
     }
@@ -2729,7 +2710,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     printer_state.set_printer_type_sync("Creality K2 Plus");
 
     SECTION("Without timelapse: option set has NO timelapse entry") {
-        const auto& set = printer_state.get_pre_print_option_set();
+        const auto& set = printer_state.profile_state().pre_print_option_set();
         const PrePrintOption* tl = set.find("timelapse");
         REQUIRE(tl == nullptr);
     }
@@ -2738,7 +2719,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         printer_state.set_timelapse_available(true);
         helix::ui::UpdateQueue::instance().drain();
 
-        const auto& set = printer_state.get_pre_print_option_set();
+        const auto& set = printer_state.profile_state().pre_print_option_set();
         const PrePrintOption* tl = set.find("timelapse");
         REQUIRE(tl != nullptr);
         CHECK(tl->category == PrePrintCategory::Monitoring);
@@ -2754,11 +2735,11 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("Toggle off: timelapse option is removed when capability lost") {
         printer_state.set_timelapse_available(true);
         helix::ui::UpdateQueue::instance().drain();
-        REQUIRE(printer_state.get_pre_print_option_set().find("timelapse") != nullptr);
+        REQUIRE(printer_state.profile_state().pre_print_option_set().find("timelapse") != nullptr);
 
         printer_state.set_timelapse_available(false);
         helix::ui::UpdateQueue::instance().drain();
-        REQUIRE(printer_state.get_pre_print_option_set().find("timelapse") == nullptr);
+        REQUIRE(printer_state.profile_state().pre_print_option_set().find("timelapse") == nullptr);
     }
 
     SECTION("Provider drives ENABLED state for timelapse") {
@@ -3122,7 +3103,7 @@ struct GateFixture {
     }
 
     bool requires_plugin(const std::string& id) {
-        const PrePrintOption* opt = ps.get_pre_print_option_set().find(id);
+        const PrePrintOption* opt = ps.profile_state().pre_print_option_set().find(id);
         REQUIRE(opt != nullptr);
         return manager.disabling_option_requires_plugin(*opt);
     }
@@ -3266,9 +3247,9 @@ TEST_CASE_METHOD(HelixTestFixture,
     helix::ui::PrintPreparationManager manager;
     manager.set_dependencies(nullptr, &state);
 
-    state.begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
-    REQUIRE(state.has_preparing_job());
-    REQUIRE(lv_subject_get_int(state.get_print_in_progress_subject()) == 1);
+    state.print_state().begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
+    REQUIRE(state.print_state().has_preparing_job());
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 1);
 
     // api_ is null, so the modify route bails on its FIRST guard. Both of its
     // synchronous guards are real reachable exits — continue_print_start()
@@ -3281,12 +3262,12 @@ TEST_CASE_METHOD(HelixTestFixture,
     // the point of naming which exit this drives rather than guessing.)
     PrintPreparationManagerTestAccess::modify_and_print(manager, "doomed.gcode");
 
-    REQUIRE_FALSE(state.has_preparing_job());
-    REQUIRE(lv_subject_get_int(state.get_print_in_progress_subject()) == 0);
-    REQUIRE(state.last_preparing_exit() == helix::PreparingExit::Failed);
+    REQUIRE_FALSE(state.print_state().has_preparing_job());
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 0);
+    REQUIRE(state.print_state().last_preparing_exit() == helix::PreparingExit::Failed);
 
     // And the machine is released — this is the user-visible half of the latch.
-    REQUIRE(lv_subject_get_int(state.get_job_holds_machine_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.print_state().get_job_holds_machine_subject()) == 0);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
@@ -3301,14 +3282,14 @@ TEST_CASE_METHOD(HelixTestFixture,
     helix::ui::PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
 
-    state.begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
-    REQUIRE(state.has_preparing_job());
+    state.print_state().begin_preparing(helix::PrintJobRef{"doomed.gcode", "gcodes", ""});
+    REQUIRE(state.print_state().has_preparing_job());
 
     PrintPreparationManagerTestAccess::modify_and_print(manager, "doomed.gcode");
 
-    REQUIRE_FALSE(state.has_preparing_job());
-    REQUIRE(lv_subject_get_int(state.get_print_in_progress_subject()) == 0);
-    REQUIRE(state.last_preparing_exit() == helix::PreparingExit::Failed);
+    REQUIRE_FALSE(state.print_state().has_preparing_job());
+    REQUIRE(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 0);
+    REQUIRE(state.print_state().last_preparing_exit() == helix::PreparingExit::Failed);
 }
 
 // ============================================================================
@@ -3372,7 +3353,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
-    state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+    state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
 
     const std::string original =
         read_whole_file("assets/test_gcodes/" + std::string(kRemapFixture));
@@ -3420,7 +3401,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
-    state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+    state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
 
     // The fixture uses T0-T3, so remapping T7 rewrites no line at all.
     manager.modify_and_print_with_remap(kRemapFixture, {{7, 8}}, nullptr);
@@ -3451,7 +3432,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     {
         PrintPreparationManager manager;
         manager.set_dependencies(&api, &state);
-        state.begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
+        state.print_state().begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
         manager.modify_and_print_with_remap("no_such_file.gcode", {{1, 2}}, nullptr);
         REQUIRE(BusyOverlay::is_pending());
     }
@@ -3475,7 +3456,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     PrintPreparationManager manager;
     manager.set_dependencies(&api, &state);
-    state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+    state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
 
     manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
     drain_until_quiet();
@@ -3513,16 +3494,16 @@ TEST_CASE_METHOD(HelixTestFixture,
     // released. Asserted per section rather than after them, so a section that
     // aborts cannot leave the check running against a case that armed nothing.
     auto expect_job_retired = [&state]() {
-        REQUIRE_FALSE(state.has_preparing_job());
-        CHECK(lv_subject_get_int(state.get_print_in_progress_subject()) == 0);
-        CHECK(state.last_preparing_exit() == PreparingExit::Failed);
-        CHECK(lv_subject_get_int(state.get_job_holds_machine_subject()) == 0);
+        REQUIRE_FALSE(state.print_state().has_preparing_job());
+        CHECK(lv_subject_get_int(state.print_state().get_print_in_progress_subject()) == 0);
+        CHECK(state.print_state().last_preparing_exit() == PreparingExit::Failed);
+        CHECK(lv_subject_get_int(state.print_state().get_job_holds_machine_subject()) == 0);
     };
 
     SECTION("no API") {
         manager.set_dependencies(nullptr, &state);
-        state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
         drain_until_quiet();
@@ -3531,8 +3512,8 @@ TEST_CASE_METHOD(HelixTestFixture,
 
     SECTION("download fails") {
         manager.set_dependencies(&api, &state);
-        state.begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{"no_such_file.gcode", "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         // Nothing under assets/test_gcodes/ resolves this, so the mock errors.
         manager.modify_and_print_with_remap("no_such_file.gcode", {{1, 2}}, nullptr);
@@ -3545,8 +3526,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("upload fails") {
         manager.set_dependencies(&api, &state);
         api.transfers_mock().mock_fail_path_uploads();
-        state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
         drain_until_quiet();
@@ -3561,8 +3542,8 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("plugin refuses the modified print") {
         manager.set_dependencies(&api, &state);
         api.job_mock().mock_fail_modified_prints();
-        state.begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
-        REQUIRE(state.has_preparing_job());
+        state.print_state().begin_preparing(PrintJobRef{kRemapFixture, "gcodes", ""});
+        REQUIRE(state.print_state().has_preparing_job());
 
         manager.modify_and_print_with_remap(kRemapFixture, {{1, 2}}, nullptr);
         drain_until_quiet();
@@ -3639,8 +3620,10 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
     });
 
     // A job is armed and STAYS armed — nobody cancelled.
-    printer_state_.begin_preparing(helix::PrintJobRef{"mesh_print.gcode", "gcodes", ""});
-    const int epoch = lv_subject_get_int(printer_state_.get_preparing_epoch_subject());
+    printer_state_.print_state().begin_preparing(
+        helix::PrintJobRef{"mesh_print.gcode", "gcodes", ""});
+    const int epoch =
+        lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject());
     REQUIRE(epoch != 0);
     PrintPreparationManagerTestAccess::set_pre_start_epoch(manager_, epoch);
 
@@ -3679,12 +3662,14 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
         return json{{"result", "ok"}};
     });
 
-    printer_state_.begin_preparing(helix::PrintJobRef{"cancelled.gcode", "gcodes", ""});
-    const int epoch = lv_subject_get_int(printer_state_.get_preparing_epoch_subject());
+    printer_state_.print_state().begin_preparing(
+        helix::PrintJobRef{"cancelled.gcode", "gcodes", ""});
+    const int epoch =
+        lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject());
     PrintPreparationManagerTestAccess::set_pre_start_epoch(manager_, epoch);
 
     // The user cancels while the macro is still running.
-    printer_state_.retire_preparing(helix::PreparingExit::Cancelled);
+    printer_state_.print_state().retire_preparing(helix::PreparingExit::Cancelled);
 
     // Ack lands one second later — fresh by any clock, dead by intent.
     PrintPreparationManagerTestAccess::set_pre_start_sent_ago(manager_, std::chrono::seconds(1));
@@ -3714,14 +3699,16 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
         return json{{"result", "ok"}};
     });
 
-    printer_state_.begin_preparing(helix::PrintJobRef{"first.gcode", "gcodes", ""});
-    const int first_epoch = lv_subject_get_int(printer_state_.get_preparing_epoch_subject());
+    printer_state_.print_state().begin_preparing(helix::PrintJobRef{"first.gcode", "gcodes", ""});
+    const int first_epoch =
+        lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject());
     PrintPreparationManagerTestAccess::set_pre_start_epoch(manager_, first_epoch);
 
-    printer_state_.retire_preparing(helix::PreparingExit::Superseded);
-    printer_state_.begin_preparing(helix::PrintJobRef{"second.gcode", "gcodes", ""});
-    REQUIRE(printer_state_.has_preparing_job()); // armed — but a DIFFERENT job
-    REQUIRE(lv_subject_get_int(printer_state_.get_preparing_epoch_subject()) != first_epoch);
+    printer_state_.print_state().retire_preparing(helix::PreparingExit::Superseded);
+    printer_state_.print_state().begin_preparing(helix::PrintJobRef{"second.gcode", "gcodes", ""});
+    REQUIRE(printer_state_.print_state().has_preparing_job()); // armed — but a DIFFERENT job
+    REQUIRE(lv_subject_get_int(printer_state_.print_state().get_preparing_epoch_subject()) !=
+            first_epoch);
 
     PrintPreparationManagerTestAccess::set_pre_start_sent_ago(manager_, std::chrono::seconds(1));
 
@@ -3736,4 +3723,110 @@ TEST_CASE_METHOD(MacroAnalysisRetryFixture,
     CHECK(starts.load() == 0);
     CHECK(completed);
     CHECK_FALSE(success);
+}
+
+// ============================================================================
+// Detail-view rows from PRINT_START analysis
+// ============================================================================
+
+namespace {
+
+PrintStartAnalysis analysis_with_qgl(const std::string& param, ParameterSemantic semantic) {
+    PrintStartAnalysis analysis;
+    analysis.found = true;
+    analysis.macro_name = "PRINT_START";
+    PrintStartOperation op;
+    op.name = "QUAD_GANTRY_LEVEL";
+    op.category = PrintStartOpCategory::QGL;
+    op.has_skip_param = true;
+    op.skip_param_name = param;
+    op.param_semantic = semantic;
+    analysis.operations.push_back(op);
+    return analysis;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "PrintPreparationManager: displayed_options fills rows from the macro "
+                 "when the database declares none",
+                 "[print_preparation][macro_rows]") {
+    lv_init_safe();
+    PrinterState& printer_state = get_printer_state();
+    PrinterStateTestAccess::reset(printer_state);
+    printer_state.init_subjects(false);
+    PrintPreparationManager manager;
+    manager.set_dependencies(nullptr, &printer_state);
+    MockOptionState state;
+    manager.set_option_state_provider(state.provider());
+
+    SECTION("no database set and a SKIP_QGL macro give a QGL row") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        manager.set_macro_analysis(analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT));
+
+        const auto rows = manager.displayed_options();
+        REQUIRE(rows.options.size() == 1);
+        const PrePrintOption& qgl = rows.options[0];
+        REQUIRE(qgl.id == "qgl");
+        REQUIRE(qgl.default_enabled);
+        REQUIRE(PrePrintOptionsRenderer::label_for(qgl) == "Quad Gantry Level");
+        const auto* param = std::get_if<PrePrintStrategyMacroParam>(&qgl.strategy);
+        REQUIRE(param);
+        REQUIRE(param->param_name == "SKIP_QGL");
+        REQUIRE(param->skip_value == "1");
+
+        state.disable("qgl");
+        auto skip_params = PrintPreparationManagerTestAccess::get_skip_params(manager);
+        REQUIRE(skip_params == std::vector<std::pair<std::string, std::string>>{{"SKIP_QGL", "1"}});
+    }
+
+    SECTION("an opt-in param sends the row's own skip value") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        manager.set_macro_analysis(analysis_with_qgl("PERFORM_QGL", ParameterSemantic::OPT_IN));
+
+        const auto rows = manager.displayed_options();
+        REQUIRE(rows.options.size() == 1);
+        const auto* param = std::get_if<PrePrintStrategyMacroParam>(&rows.options[0].strategy);
+        REQUIRE(param);
+        REQUIRE(param->skip_value == "0");
+
+        state.disable("qgl");
+        auto skip_params = PrintPreparationManagerTestAccess::get_skip_params(manager);
+        REQUIRE(skip_params ==
+                std::vector<std::pair<std::string, std::string>>{{"PERFORM_QGL", "0"}});
+    }
+
+    SECTION("a database set wins") {
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+        manager.set_macro_analysis(analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT));
+
+        const auto rows = manager.displayed_options();
+        REQUIRE(rows.find("qgl") == nullptr);
+        REQUIRE(rows.options.size() ==
+                printer_state.profile_state().pre_print_option_set().options.size());
+    }
+
+    SECTION("no analysis gives no rows") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        REQUIRE(manager.displayed_options().options.empty());
+    }
+
+    SECTION("an empty analysis gives no rows") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+        manager.set_macro_analysis(analysis);
+
+        REQUIRE(manager.displayed_options().options.empty());
+    }
+
+    SECTION("an operation without a skip param gives no row") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        auto analysis = analysis_with_qgl("", ParameterSemantic::OPT_OUT);
+        analysis.operations[0].has_skip_param = false;
+        manager.set_macro_analysis(analysis);
+
+        REQUIRE(manager.displayed_options().options.empty());
+    }
 }

@@ -27,6 +27,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "helix_install_roots.h"
+#include "helix_thread.h"
 #include "helix_version.h"
 #include "hv/requests.h"
 #include "i_moonraker_client.h"
@@ -1269,7 +1270,7 @@ void UpdateChecker::start_download() {
     // Safety: refuse download while a job owns the machine. Preparing counts —
     // a user who just committed to a print should not have the CPU and network
     // pulled out from under the pre-start block.
-    const auto lifecycle = get_printer_state().get_print_lifecycle();
+    const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
     if (job_holds_machine(lifecycle)) {
         spdlog::warn("[UpdateChecker] Cannot download update while printing");
         report_download_status(DownloadStatus::Error, 0,
@@ -1343,7 +1344,7 @@ void UpdateChecker::start_download() {
     // inside the thread body would leave a window where neither is true.
     download_worker_active_.store(true);
     try {
-        download_thread_ = std::thread([this]() {
+        download_thread_ = helix::make_thread([this]() {
             // Clears on every exit path, including a throw out of do_download()
             // (which would terminate anyway, but leaving the flag set would
             // wedge every future attempt behind the re-entry guard).
@@ -2601,7 +2602,7 @@ void UpdateChecker::check_for_updates(Callback callback) {
     // exhaustion throws std::system_error; would abort via std::terminate
     // if this is invoked from an event-cb frame ([L083]).
     try {
-        worker_thread_ = std::thread(&UpdateChecker::do_check, this);
+        worker_thread_ = helix::make_thread(&UpdateChecker::do_check, this);
     } catch (const std::system_error& e) {
         spdlog::error("[UpdateChecker] Failed to spawn check thread: {}", e.what());
         // Roll back state we set above so the next check_for_updates() call
@@ -3038,7 +3039,7 @@ void UpdateChecker::start_auto_check() {
                 }
 
                 // Skip while a job owns the machine, Preparing included.
-                const auto lifecycle = get_printer_state().get_print_lifecycle();
+                const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
                 if (job_holds_machine(lifecycle)) {
                     spdlog::info("[UpdateChecker] Auto-check: skipping notification during print");
                     return;

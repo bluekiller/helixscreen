@@ -90,7 +90,8 @@ class TapModalFixture : public LVGLUITestFixture {
     }
 
     void set_print_state(helix::PrintJobState s) {
-        lv_subject_set_int(state().get_print_state_enum_subject(), static_cast<int>(s));
+        lv_subject_set_int(state().print_state().get_print_state_enum_subject(),
+                           static_cast<int>(s));
         helix::ui::UpdateQueue::instance().drain();
     }
 

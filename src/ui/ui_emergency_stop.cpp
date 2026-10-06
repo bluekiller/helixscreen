@@ -253,7 +253,7 @@ void EmergencyStopOverlay::create() {
     // so covering the button needed two subscriptions and a hand-rolled OR.
     // derive_print_state() does that merge once, for everyone.
     print_state_observer_ = observe<int>(
-        printer_state_->get_print_lifecycle_subject(), this,
+        printer_state_->print_state().get_print_lifecycle_subject(), this,
         [](EmergencyStopOverlay* self, int /*lifecycle*/) { self->update_visibility(); },
         ps_subjects);
 
@@ -264,7 +264,7 @@ void EmergencyStopOverlay::create() {
 
     // Subscribe to klippy state changes for recovery dialog auto-popup
     klippy_state_observer_ = observe<int>(
-        printer_state_->get_klippy_state_subject(), this,
+        printer_state_->network_state().get_klippy_state_subject(), this,
         [](EmergencyStopOverlay* self, int state) {
             auto klippy_state = static_cast<KlippyState>(state);
 
@@ -338,20 +338,20 @@ void EmergencyStopOverlay::create() {
                             spdlog::info("[KlipperRecovery] Klipper is READY, dismissing recovery "
                                          "dialog");
                             inst.dismiss_recovery_dialog();
-                            ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                          lv_tr("Printer ready"), 3000);
+                            helix::ui::notifications::show_transient_success(lv_tr("Printer ready"),
+                                                                             3000);
                         }
                     } else if (expected_restart) {
                         // The restart completed with the dialog suppressed
-                        // by its initiating flow, so still say so. Direct
-                        // ToastManager call, deliberately not
+                        // by its initiating flow, so still say so. A transient
+                        // toast, deliberately not
                         // ui_notification_*: every severity there writes a
                         // history row, and klippy-being-ready is not
                         // history. A READY with nothing expected (first
                         // ready at app start) stays silent - the status
                         // icon already carries it.
-                        ToastManager::instance().show(ToastSeverity::SUCCESS,
-                                                      lv_tr("Printer ready"), 3000);
+                        helix::ui::notifications::show_transient_success(lv_tr("Printer ready"),
+                                                                         3000);
                     }
                 });
             }
@@ -378,7 +378,7 @@ void EmergencyStopOverlay::update_visibility() {
     // both subjects to catch each half. That is job_holds_machine() spelled out,
     // so it asks the lifecycle once instead - one predicate, one observer, and
     // no second spelling to drift.
-    const auto lifecycle = printer_state_->get_print_lifecycle();
+    const auto lifecycle = printer_state_->print_state().get_print_lifecycle();
 
     int new_value = job_holds_machine(lifecycle) ? 1 : 0;
     int current_value = lv_subject_get_int(&estop_visible_);
@@ -770,7 +770,7 @@ void EmergencyStopOverlay::update_recovery_dialog_content() {
     std::string code;
     if (printer_state_ && (recovery_reason_ == RecoveryReason::SHUTDOWN ||
                            recovery_reason_ == RecoveryReason::ERROR)) {
-        const auto& state_msg = printer_state_->get_klippy_state_message();
+        const auto& state_msg = printer_state_->network_state().get_klippy_state_message();
         if (!state_msg.empty()) {
             message = state_msg;
             // Klipper sometimes reports the reason as a JSON envelope

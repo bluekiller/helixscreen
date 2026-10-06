@@ -53,7 +53,7 @@ flowchart TB
 | [`patches/README.md`](../../../patches/README.md) | Per-patch purpose table, upstream PR status, patch-regeneration recipes |
 | [`scripts/setup-worktree.sh`](../../../scripts/setup-worktree.sh) | Worktree one-shot: creates `.worktrees/<branch>`, symlinks the shared `lib/` submodules and privately checks out the patched ones, configures ccache |
 | [`src/api/display_backend.cpp`](../../../src/api/display_backend.cpp) | `DisplayBackend` factory and the runtime DRM→fbdev→SDL auto-detect |
-| `firmware/helixscreen-esp32/` | ESP-IDF port for BTT K-Touch (ESP32-S3) — in progress, not shipping yet |
+| `firmware/helixscreen-esp32/` | ESP-IDF port for BTT K-Touch (ESP32-S3) - alpha builds ship as a release asset |
 
 Boundary of this chapter: the deep mechanics — Dockerfile architecture, deploy-host setup, ccache
 configuration, per-patch regeneration — live in [`BUILD_SYSTEM.md`](../BUILD_SYSTEM.md) and [`patches/README.md`](../../../patches/README.md). What stays
@@ -128,7 +128,7 @@ compiled font payload from `micro tiny` (cc1, yocto — 112MB RAM) to `all` (pi,
 compiled out entirely on K1/K2, tone-only on AD5M/AD5X, full on Pi/x86/native; the label-printer,
 CFS, and IFS gates are off on AD5M ([`mk/cross.mk`](../../../mk/cross.mk)). The ESP32 port (`firmware/helixscreen-esp32/`,
 ESP-IDF on the BTT K-Touch) is a separate CMake build that compiles LVGL and `lib/helix-xml`
-unmodified — verdict and budgets in [`../plans/ESP32_NATIVE_AUDIT.md`](../plans/ESP32_NATIVE_AUDIT.md); it does not ship yet.
+unmodified — verdict and budgets in [`../plans/ESP32_NATIVE_AUDIT.md`](../plans/ESP32_NATIVE_AUDIT.md); alpha builds ship as a release asset (`helixscreen-esp32-ktouch-<tag>.zip`, packaged by `scripts/esp32_package_release.sh` from `.github/workflows/esp32-build.yml`, which `release.yml` calls).
 
 ### Rendering: display backend vs draw unit
 

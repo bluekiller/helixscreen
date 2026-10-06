@@ -17,11 +17,10 @@
 #include <string>
 
 OverlayBase::~OverlayBase() {
-    // Fallback unregister in case cleanup() wasn't called.
-    // Guard against Static Destruction Order Fiasco: during shutdown,
-    // NavigationManager may already be destroyed.
-    if (overlay_root_ && !NavigationManager::is_destroyed()) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+    // Fallback unregister in case cleanup() wasn't called. A no-op once
+    // NavigationManager is destroyed (static destruction order at shutdown).
+    if (overlay_root_) {
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // During destroy_all() the widget must NOT be deleted here: deletion is
@@ -102,12 +101,11 @@ bool OverlayBase::show(lv_obj_t* parent_screen) {
             if (nav.has_overlay_close_callback(overlay_root_)) {
                 report_foreign_close_callback();
             }
-            nav.register_overlay_close_callback(overlay_root_,
-                                                [this, tok = object_lifetime_.token()] {
-                                                    if (!tok.expired()) {
-                                                        destroy_overlay_ui();
-                                                    }
-                                                });
+            helix::nav::on_close(overlay_root_, [this, tok = object_lifetime_.token()] {
+                if (!tok.expired()) {
+                    destroy_overlay_ui();
+                }
+            });
         }
     } else if (!destroy_on_close() && nav.has_overlay_close_callback(overlay_root_)) {
         report_foreign_close_callback();
@@ -116,8 +114,8 @@ bool OverlayBase::show(lv_obj_t* parent_screen) {
     shown_root_ = overlay_root_;
     shown_root_ref_ = overlay_root_;
     before_show();
-    nav.register_overlay_instance(overlay_root_, this);
-    nav.push_overlay(overlay_root_);
+    helix::nav::register_overlay(overlay_root_, this);
+    helix::nav::push_overlay(overlay_root_);
     return true;
 }
 
@@ -130,7 +128,7 @@ void OverlayBase::report_foreign_close_callback() const {
 
 void OverlayBase::close() {
     if (overlay_root_) {
-        NavigationManager::instance().close_overlay(overlay_root_);
+        helix::nav::close_overlay(overlay_root_);
     }
 }
 
@@ -157,8 +155,8 @@ bool helix::ui::teardown_overlay_ui(lv_obj_t*& root, const char* owner_name, Tea
     // Unregister from NavigationManager before deleting the widget. Doing it
     // first also prevents double-invocation when destroy is called manually
     // while the panel is still in the overlay stack.
-    NavigationManager::instance().unregister_overlay_close_callback(root);
-    NavigationManager::instance().unregister_overlay_instance(root);
+    helix::nav::clear_on_close(root);
+    helix::nav::unregister_overlay(root);
 
     // Breadcrumb the destroy so crashes in the close path can be pinned to
     // which overlay was being torn down. Pairs with the "overlay+" crumb on
@@ -216,7 +214,7 @@ lv_obj_t* OverlayBase::create_overlay_from_xml(lv_obj_t* parent, const char* com
     parent_screen_ = parent;
     cleanup_called_ = false;
 
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, component_name, nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, component_name);
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create from XML", get_name());
         return nullptr;
@@ -224,7 +222,6 @@ lv_obj_t* OverlayBase::create_overlay_from_xml(lv_obj_t* parent, const char* com
 
     ui_overlay_panel_setup_standard(overlay_root_, parent_screen_, "overlay_header",
                                     "overlay_content");
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     return overlay_root_;
 }

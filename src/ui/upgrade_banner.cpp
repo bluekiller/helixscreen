@@ -3,7 +3,8 @@
 
 #include "upgrade_banner.h"
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_settings_updates.h"
 
 #include "app_globals.h"
@@ -58,7 +59,7 @@ void UpgradeBanner::init() {
                              &UpgradeBanner::on_dismiss_clicked);
 
     // Create the banner as a child of lv_layer_top so it floats above panels.
-    banner_ = static_cast<lv_obj_t*>(lv_xml_create(lv_layer_top(), "upgrade_banner", nullptr));
+    banner_ = helix::ui::create_xml_hidden(lv_layer_top(), "upgrade_banner");
     if (!banner_) {
         spdlog::error("[UpgradeBanner] Failed to instantiate upgrade_banner XML component");
         return;
@@ -67,7 +68,6 @@ void UpgradeBanner::init() {
     // Align to the top edge of the screen; layer_top already covers the
     // full display, so the banner just sits at y=0.
     lv_obj_align(banner_, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_add_flag(banner_, LV_OBJ_FLAG_HIDDEN); // start hidden
 
     // Observe UpdateChecker status so the banner reappears/reevaluates when
     // a new version is detected. lifetime token keeps deferred callbacks
@@ -158,7 +158,7 @@ void UpgradeBanner::evaluate_visibility() {
 
 void UpgradeBanner::on_update_clicked(lv_event_t* /*e*/) {
     spdlog::info("[UpgradeBanner] Update clicked - opening Settings > Updates");
-    NavigationManager::instance().set_active(PanelId::Settings);
+    helix::nav::set_active(PanelId::Settings);
     helix::settings::get_updates_settings_overlay().show(lv_display_get_screen_active(nullptr));
 }
 

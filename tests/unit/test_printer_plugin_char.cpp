@@ -67,7 +67,7 @@ TEST_CASE("Plugin status characterization: initial query methods return false fo
     state.init_subjects(false);
 
     SECTION("service_has_helix_plugin returns false when unknown (-1)") {
-        REQUIRE(state.service_has_helix_plugin() == false);
+        REQUIRE(state.plugin_status_state().service_has_helix_plugin() == false);
     }
 }
 
@@ -108,14 +108,14 @@ TEST_CASE("Plugin status characterization: set_helix_plugin_installed behavior",
         state.set_helix_plugin_installed(true);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-        REQUIRE(state.service_has_helix_plugin() == true);
+        REQUIRE(state.plugin_status_state().service_has_helix_plugin() == true);
     }
 
     SECTION("service_has_helix_plugin returns false after set_helix_plugin_installed(false)") {
         state.set_helix_plugin_installed(false);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-        REQUIRE(state.service_has_helix_plugin() == false);
+        REQUIRE(state.plugin_status_state().service_has_helix_plugin() == false);
     }
 }
 
@@ -132,18 +132,18 @@ TEST_CASE("Plugin status characterization: tri-state semantics",
     state.init_subjects(false);
 
     SECTION("helix_plugin_installed: unknown (-1) vs not installed (0) are distinct") {
-        lv_subject_t* subject = state.get_helix_plugin_installed_subject();
+        lv_subject_t* subject = state.plugin_status_state().get_helix_plugin_installed_subject();
 
         // Initially unknown
         REQUIRE(lv_subject_get_int(subject) == -1);
-        REQUIRE(state.service_has_helix_plugin() == false);
+        REQUIRE(state.plugin_status_state().service_has_helix_plugin() == false);
 
         // Set to not installed
         state.set_helix_plugin_installed(false);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
         REQUIRE(lv_subject_get_int(subject) == 0);
-        REQUIRE(state.service_has_helix_plugin() == false);
+        REQUIRE(state.plugin_status_state().service_has_helix_plugin() == false);
 
         // Both return false for query, but subject values are different
         // This allows UI to distinguish "still checking" from "definitely not installed"
@@ -163,7 +163,7 @@ TEST_CASE("Plugin status characterization: async update behavior",
     state.init_subjects(false);
 
     SECTION("set_helix_plugin_installed requires queue drain to take effect") {
-        lv_subject_t* subject = state.get_helix_plugin_installed_subject();
+        lv_subject_t* subject = state.plugin_status_state().get_helix_plugin_installed_subject();
 
         // Call setter but don't drain
         state.set_helix_plugin_installed(true);
@@ -177,7 +177,7 @@ TEST_CASE("Plugin status characterization: async update behavior",
     }
 
     SECTION("multiple rapid updates coalesce correctly") {
-        lv_subject_t* subject = state.get_helix_plugin_installed_subject();
+        lv_subject_t* subject = state.plugin_status_state().get_helix_plugin_installed_subject();
 
         // Rapid toggling
         state.set_helix_plugin_installed(true);

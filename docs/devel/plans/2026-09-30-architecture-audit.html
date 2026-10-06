@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>17bfbd40c</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>bd208f0b6</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 113 done, 9 in progress, 14 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 117 done, 8 in progress, 11 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -1285,9 +1285,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="AMS-10" data-tag="yagni" data-size="later" data-status="open">
-<summary><span class="fid">AMS-10</span><span class="chip t-yagni">yagni</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">44 constant capability virtuals should be one BackendTraits struct</span><span class="fimpact">New backend fills one struct, not ~40 overrides</span></summary>
+<details class="f" id="AMS-10" data-tag="yagni" data-size="later" data-status="done">
+<summary><span class="fid">AMS-10</span><span class="chip t-yagni">yagni</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">259357879</code><span class="ftitle">44 constant capability virtuals should be one BackendTraits struct</span><span class="fimpact">New backend fills one struct, not ~40 overrides</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>259357879</code> (helixscreen-a5): backend predicates read one traits table; the mock refuses bypass while filament is loaded, as real HH/AFC do.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/ams_backend.h</code>, <code>src/printer/ams_backend_mock.cpp</code>, <code>include/ams_backend_mock.h</code></dd>
 <dt>Evidence</dt><dd>57 <code>virtual bool</code> predicates, 44 no-arg <code>const</code>; at least 63 overrides are a literal <code>return true;</code>/<code>return false;</code>. The mock re-answers real backends' traits per persona flag: <code>snapmaker_mode_</code> drives <code>supports_batch_filament_ops</code>, <code>has_physical_tray</code>, <code>recovers_filament_on_resume</code>, <code>should_suppress_idle_runout_modal</code>, <code>get_remap_strategy</code>, <code>owns_tool_mapping_table</code>, <code>requires_preprint_send</code>: a second copy of what <code>AmsBackendSnapmaker</code> says, free to drift.</dd>
@@ -1917,9 +1918,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-2" data-tag="god-class" data-size="later" data-status="open">
-<summary><span class="fid">GOD-2</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">PrinterState: 211 methods, 216 forwarders, six non-domain jobs</span><span class="fimpact">printer_state.h rebuilds 431 TUs</span></summary>
+<details class="f" id="GOD-2" data-tag="god-class" data-size="later" data-status="done">
+<summary><span class="fid">GOD-2</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">bd208f0b6</code><span class="ftitle">PrinterState: 211 methods, 216 forwarders, six non-domain jobs</span><span class="fimpact">printer_state.h rebuilds 431 TUs</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>bd208f0b6</code>: 13 per-domain accessors replace ~200 forwarders (printer_state.h 2,763 to 946 lines); status fan-out in one dispatch; PrinterProfileState split out.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/printer_state.h#PrinterState</code>, <code>src/printer/printer_state.cpp#PrinterState::set_hardware</code></dd>
 <dt>Evidence</dt><dd>211 get_/set_/is_/has_ methods; 216 forwarding expressions (print 85, temperature 33, motion 28, capabilities 25); ~44 public methods with no production caller; <code>json json_state_</code> never read in src. Non-domain jobs: exclude_object parse ~75, klippy freshness ~155, chamber resolution in <code>set_hardware</code> ~90 of 153, printer profile ~300, helix plugin status, cross-singleton fan-out. 435 <code>get_printer_state()</code> sites in 140 files.</dd>
@@ -1931,9 +1933,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-3" data-tag="god-class" data-size="later" data-status="open">
-<summary><span class="fid">GOD-3</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">AmsState: ~6K lines, 106 methods, recursive mutex from re-entrant getters</span><span class="fimpact">second backend is second-class by construction</span></summary>
+<details class="f" id="GOD-3" data-tag="god-class" data-size="later" data-status="done">
+<summary><span class="fid">GOD-3</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">7b52f1e19</code><span class="ftitle">AmsState: ~6K lines, 106 methods, recursive mutex from re-entrant getters</span><span class="fimpact">second backend is second-class by construction</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>7b52f1e19</code>: AmsBackendRegistry (plain mutex), RunoutGrace leaf lock, main-thread checks replace the recursive lock; ams_state.cpp 3,717 to 1,832 lines across six files; zeus-run tsan job.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/ams_state.h</code> (2,157, 62% comments), <code>src/printer/ams_state.cpp#AmsState::sync_from_backend</code>, <code>#AmsState::init_subjects</code>, <code>#backend_slot_subject</code></dd>
 <dt>Evidence</dt><dd>3,839-line .cpp, 100 subject getters. Seams: subjects ~1,000 (<code>init_subjects</code> 463); backend registry ~380 (the only part read off-main); projection ~1,000 (<code>sync_from_backend</code> 642); clog meter ~240; dryer ~100; external spool ~260. Recursion: 3-arg getters lock then call the 2-arg getter that locks again; <code>sync_backend</code> holds it into <code>sync_from_backend</code>. Primary backend gets 12 per-slot subject arrays, secondaries 7; <code>sync_backend(i&gt;0)</code> is 35 lines vs 642.</dd>
@@ -1990,9 +1993,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="GOD-7" data-tag="god-class" data-size="later" data-status="progress">
-<summary><span class="fid">GOD-7</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-progress">in progress</span><code class="br">refactor/god7-nav-header</code><span class="ftitle">NavigationManager: 166 includers, but 69% of calls use 4 methods</span><span class="fimpact">883-line header in 150+ panel TUs</span></summary>
+<details class="f" id="GOD-7" data-tag="god-class" data-size="later" data-status="done">
+<summary><span class="fid">GOD-7</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">620adbcab</code><span class="ftitle">NavigationManager: 166 includers, but 69% of calls use 4 methods</span><span class="fimpact">883-line header in 150+ panel TUs</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>620adbcab</code>: callers use the <code>ui_nav.h</code> facade (full-header includers ratcheted at 15); close callbacks are deferred on every retire path and dropped when their owner is gone.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/ui_nav_manager.h#NavigationManager</code>, <code>src/ui/ui_nav_manager.cpp</code></dd>
 <dt>Evidence</dt><dd>883-line header, 43 fields, 12 responsibilities; 323 <code>instance()</code> call sites use 41 methods, 4 carry 69% (<code>register_overlay_instance</code> 77, <code>push_overlay</code> 76, <code>go_back</code> 48, <code>unregister_overlay_instance</code> 19). Passengers: zoom transitions ~241 (dead), rail E-stop positioning 85, printer-switch callbacks + badge menu ~70, ESP32 loading scrim ~65; <code>push_overlay</code> has a dead twin.</dd>

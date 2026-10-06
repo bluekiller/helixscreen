@@ -127,7 +127,7 @@ PrinterSession::PrinterSession(Config*& config, AsyncLifetimeGuard& async, lv_ob
                                Host host)
     : m_config(config), m_async(async), m_host(std::move(host)),
       m_restart{[this] { tear_down_printer_state(); }, [this] { rebuild(); },
-                [] { NavigationManager::instance().set_active(PanelId::Home); }},
+                [] { helix::nav::set_active(PanelId::Home); }},
       m_screen(screen), m_prompter(
                             async, [this] { return m_screen; },
                             [this] { return m_moonraker ? m_moonraker->api() : nullptr; }) {}
@@ -781,7 +781,8 @@ void PrinterSession::setup_discovery_callbacks() {
                 n,
                 hw_changed,
                 helix::discovery_print_active(
-                    lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0,
+                    lv_subject_get_int(
+                        get_printer_state().print_state().get_print_active_subject()) != 0,
                     *status_snapshot)};
             helix::run_discovery_steps(ctx);
         });

@@ -69,6 +69,11 @@ pid                navigate advanced; click row_pid_tuning
 # Filament / AMS (the filament panel's AMS row no-ops without a configured
 # backend, so the dedicated management panel is reached via demo)
 ams                demo ams
+# ams-cycle loads lane 2 from its context menu and unloads it from the sidebar,
+# waiting out each operation, so --repeat drives the AMS sync paths under a
+# sanitizer (make tsan-app RECIPE=ams-cycle). reset first: a second demo ams
+# would stack a new panel over the old one.
+ams-cycle          reset; demo ams; wait_idle; click s/ams_panel/overlay_content/left_column/ams_unit_card/slot_area/slots_wrapper/unit_detail/slot_container/slot_grid/ams_slot_view[1]; click s/context_backdrop/context_menu/menu_columns/col_filament/btn_load; wait_for ams_filament_loaded 1 --timeout 240; wait_for ams_action 0 --timeout 240; click s/ams_panel/right_column/ams_operation_sidebar/action_buttons_container/btn_unload; wait_for ams_filament_loaded 0 --timeout 240; wait_for ams_action 0 --timeout 240
 
 # Settings overlays (settings panel groups leaves under category rows).
 # A -2/-3 token shows the part of a long page a 480-tall screen cannot. The

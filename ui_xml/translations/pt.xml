@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" pt="Uma imagem da sua impressora"/>
   <translation tag="A print is in progress - restart still pending" pt="Uma impressão está em andamento - reinício pendente"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." pt="Uma impressão está em andamento neste gate. O HelixScreen limpou a própria cópia; limpe-o novamente quando a impressão terminar."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." pt="Uma impressão começou com carretéis marcados como na mesa. Se ainda estiverem lá, pare a impressora agora com a Parada de Emergência."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" pt="Um carretel pode estar embaraçado ou a engrenagem de tração travada"/>
   <translation tag="A · 1,-1" pt="A · 1,-1"/>
   <translation tag="ABS" pt="ABS"/>
@@ -1611,6 +1612,7 @@
   <translation tag="Load Filament" pt="Carregar Filamento"/>
   <translation tag="Load a filament first before trying to unload" pt="Carregue primeiro filamento antes de tentar descarregar"/>
   <translation tag="Load a new spool in this slot, or turn on auto-refill to switch to a matching one" pt="Carregue um novo carretel neste slot, ou ative o reabastecimento automático para mudar para um equivalente"/>
+  <translation tag="Load cancelled: nozzle target dropped" pt="Carregamento cancelado: o alvo do bico caiu"/>
   <translation tag="Load complete" pt="Carregamento concluído"/>
   <translation tag="Load failed" pt="Falha ao carregar"/>
   <translation tag="Load filament" pt="Carregar filamento"/>
@@ -2800,8 +2802,10 @@
   <translation tag="Spoolman was not configured." pt="Spoolman não estava configurado."/>
   <translation tag="Spoolman: %zu Spool%s" pt="Spoolman: %zu Bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" pt="Spoolman: %zu/%zu Bobina%s"/>
+  <translation tag="Spools are off" pt="Carretéis retirados"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" pt="Há carretéis na mesa: remova-os e confirme antes de mover a impressora"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." pt="Há carretéis na mesa: toque no aviso de secagem para confirmar que foram retirados e depois reinicie."/>
+  <translation tag="Spools on the bed!" pt="Carretéis na mesa!"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" pt="Carretéis na mesa: inicie a secagem ou confirme que nenhum foi colocado"/>
   <translation tag="Spools removed" pt="Carretéis retirados"/>
   <translation tag="Square Corner Velocity" pt="Velocidade em Cantos Retos"/>

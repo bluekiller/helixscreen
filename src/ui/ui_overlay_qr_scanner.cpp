@@ -10,11 +10,13 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_effects.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
 #include "display_settings_manager.h"
+#include "helix_thread.h"
 #include "i_moonraker_api.h"
 #include "printer_state.h"
 #include "sound_manager.h"
@@ -98,7 +100,7 @@ lv_obj_t* QrScannerOverlay::create(lv_obj_t* parent) {
 
     // Create fullscreen overlay from XML (not using create_overlay_from_xml since
     // this is a fullscreen overlay, not the standard overlay_panel with header)
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, xml_component(), nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, xml_component());
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -112,9 +114,6 @@ lv_obj_t* QrScannerOverlay::create(lv_obj_t* parent) {
     if (viewfinder_) {
         lv_image_set_inner_align(viewfinder_, LV_IMAGE_ALIGN_COVER);
     }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     spdlog::info("[{}] Overlay created", get_name());
     return overlay_root_;
@@ -182,7 +181,7 @@ void QrScannerOverlay::on_activate() {
                 if (overlay.cancel_callback_) {
                     overlay.cancel_callback_();
                 }
-                NavigationManager::instance().go_back();
+                helix::nav::go_back();
             }
             delete d;
             lv_timer_delete(timer);
@@ -242,12 +241,13 @@ void QrScannerOverlay::start_scanning() {
 
     // On moving-bed printers, lower the bed to give room for QR scanning
     auto& state = get_printer_state();
-    bool bed_moves = lv_subject_get_int(state.get_printer_bed_moves_subject()) != 0;
-    const char* homed = lv_subject_get_string(state.get_homed_axes_subject());
+    bool bed_moves =
+        lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) != 0;
+    const char* homed = lv_subject_get_string(state.motion_state().get_homed_axes_subject());
     bool z_homed = homed && strchr(homed, 'z') != nullptr;
 
     if (bed_moves && z_homed) {
-        int z_centimm = lv_subject_get_int(state.get_position_z_subject());
+        int z_centimm = lv_subject_get_int(state.motion_state().get_position_z_subject());
         double z_mm = z_centimm / 100.0;
         constexpr double QR_SCAN_Z = 150.0;
         if (z_mm < QR_SCAN_Z) {
@@ -320,7 +320,7 @@ void QrScannerOverlay::start_scanning() {
     // No compiled camera support — try snapshot polling as fallback
     {
         auto& state = get_printer_state();
-        std::string snapshot_url = state.get_webcam_snapshot_url();
+        std::string snapshot_url = state.capabilities_state().get_webcam_snapshot_url();
         auto* api = get_moonraker_api();
         if (api && !snapshot_url.empty()) {
             api->resolve_webcam_url(snapshot_url);
@@ -470,7 +470,7 @@ void QrScannerOverlay::on_camera_frame(lv_draw_buf_t* frame) {
         // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
         // if it escapes an LVGL event frame (#724, #837, [L083]).
         try {
-            std::thread([this, qr_buf, qr_w, qr_h, decode_tok]() {
+            helix::make_thread([this, qr_buf, qr_w, qr_h, decode_tok]() {
                 auto result = qr_decoder_->decode(qr_buf->data(), qr_w, qr_h);
                 decode_busy_ = false;
 
@@ -605,7 +605,7 @@ void QrScannerOverlay::on_spool_found(const SpoolInfo& spool) {
                 auto callback = d->callback;
                 auto spool = d->spool;
                 // Close the overlay properly via navigation (handles backdrop cleanup)
-                NavigationManager::instance().go_back();
+                helix::nav::go_back();
                 // Fire callback AFTER close — the caller (modal) was hidden by
                 // go_back but is re-shown by the modal's own show logic
                 if (callback) {
@@ -660,7 +660,7 @@ void QrScannerOverlay::handle_close() {
         cancel_callback_();
     }
 
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 } // namespace helix::ui

@@ -78,16 +78,16 @@ struct JobHoldsMachineFixture : public LVGLTestFixture {
     }
 
     void set_phase(PrintStartPhase phase) {
-        state_.set_print_start_state(phase, "", 0);
+        state_.print_state().set_print_start_state(phase, "", 0);
         drain();
     }
 
     int holds() {
-        return lv_subject_get_int(state_.get_job_holds_machine_subject());
+        return lv_subject_get_int(state_.print_state().get_job_holds_machine_subject());
     }
 
     int print_active() {
-        return lv_subject_get_int(state_.get_print_active_subject());
+        return lv_subject_get_int(state_.print_state().get_print_active_subject());
     }
 
     PrinterState state_;
@@ -212,7 +212,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     // would still be non-null and would never move when this state publishes.
     lv_subject_t* from_xml = lv_xml_get_subject(nullptr, "job_holds_machine");
     REQUIRE(from_xml != nullptr);
-    REQUIRE(from_xml == state().get_job_holds_machine_subject());
+    REQUIRE(from_xml == state().print_state().get_job_holds_machine_subject());
 }
 
 TEST_CASE_METHOD(XMLTestFixture, "the bypass tile is disabled during a host-side pre-print block",
@@ -227,17 +227,17 @@ TEST_CASE_METHOD(XMLTestFixture, "the bypass tile is disabled during a host-side
     // homed and probed by a host-side block, so print_active stays 0 through all
     // of it and cannot keep this tile from being tapped.
     state().update_from_status(nlohmann::json{{"print_stats", {{"state", "standby"}}}});
-    state().set_print_start_state(helix::PrintStartPhase::BED_MESH, "", 0);
+    state().print_state().set_print_start_state(helix::PrintStartPhase::BED_MESH, "", 0);
     for (int pass = 0; pass < 8; ++pass) {
         helix::ui::UpdateQueue::instance().drain();
     }
 
-    REQUIRE(lv_subject_get_int(state().get_print_active_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state().print_state().get_print_active_subject()) == 0);
     REQUIRE(lv_obj_has_state(tile, LV_STATE_DISABLED));
 
     // And it comes back when the block is abandoned - a latched-disabled control
     // is the failure mode that would make this fix worse than the bug.
-    state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
+    state().print_state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
     for (int pass = 0; pass < 8; ++pass) {
         helix::ui::UpdateQueue::instance().drain();
     }
@@ -264,16 +264,16 @@ TEST_CASE_METHOD(XMLTestFixture, "moves_machine installs the toolhead guard by c
     // A host-side pre-print block: print_active stays 0 and only the
     // lifecycle subject moves.
     state().update_from_status(nlohmann::json{{"print_stats", {{"state", "standby"}}}});
-    state().set_print_start_state(helix::PrintStartPhase::BED_MESH, "", 0);
+    state().print_state().set_print_start_state(helix::PrintStartPhase::BED_MESH, "", 0);
     for (int pass = 0; pass < 8; ++pass) {
         helix::ui::UpdateQueue::instance().drain();
     }
 
-    REQUIRE(lv_subject_get_int(state().get_print_active_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state().print_state().get_print_active_subject()) == 0);
     REQUIRE(lv_obj_has_state(control, LV_STATE_DISABLED));
 
     // And it releases - a latched-disabled control is the failure mode.
-    state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
+    state().print_state().set_print_start_state(helix::PrintStartPhase::IDLE, "", 0);
     for (int pass = 0; pass < 8; ++pass) {
         helix::ui::UpdateQueue::instance().drain();
     }
@@ -281,10 +281,10 @@ TEST_CASE_METHOD(XMLTestFixture, "moves_machine installs the toolhead guard by c
 
     // Spools on the bed block the same controls with no job at all
     // (prestonbrown/helixscreen#1730).
-    state().set_spool_latch(true);
-    REQUIRE(lv_subject_get_int(state().get_job_holds_machine_subject()) == 0);
+    state().print_state().set_spool_latch(true);
+    REQUIRE(lv_subject_get_int(state().print_state().get_job_holds_machine_subject()) == 0);
     REQUIRE(lv_obj_has_state(control, LV_STATE_DISABLED));
-    state().set_spool_latch(false);
+    state().print_state().set_spool_latch(false);
     REQUIRE_FALSE(lv_obj_has_state(control, LV_STATE_DISABLED));
 }
 
@@ -456,6 +456,7 @@ constexpr const char* kNoMachineControlFiles[] = {
     "ui_xml/components/print_status_preview_card.xml",
     "ui_xml/components/printer_switch_row.xml",
     "ui_xml/components/progress_bar.xml",
+    "ui_xml/components/rail_drying.xml",
     "ui_xml/components/rail_estop.xml",
     "ui_xml/components/spaghetti_detection_modal.xml",
     "ui_xml/components/temp_card_unified.xml",

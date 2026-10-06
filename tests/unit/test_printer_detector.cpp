@@ -5386,7 +5386,7 @@ TEST_CASE_METHOD(helix::VariantPresetFixture,
     SetUp();
 
     get_printer_state().set_printer_type_sync("");
-    REQUIRE(get_printer_state().get_printer_type().empty());
+    REQUIRE(get_printer_state().profile_state().printer_type().empty());
 
     config.set<std::string>(config.df() + helix::wizard::PRINTER_TYPE, "Voron 2.4");
 
@@ -5398,7 +5398,7 @@ TEST_CASE_METHOD(helix::VariantPresetFixture,
     const bool detected = PrinterDetector::auto_detect_and_save(hw, &config);
     CHECK_FALSE(detected);
 
-    CHECK(get_printer_state().get_printer_type() == "Voron 2.4");
+    CHECK(get_printer_state().profile_state().printer_type() == "Voron 2.4");
 
     get_printer_state().set_printer_type_sync("");
     TearDown();
@@ -5443,7 +5443,7 @@ TEST_CASE_METHOD(helix::VariantPresetFixture,
     REQUIRE(PrinterDetector::auto_detect_and_save(discovery, &config));
     CHECK(config.get<std::string>(config.df() + helix::wizard::PRINTER_TYPE, "") ==
           "Elegoo Centauri Carbon");
-    CHECK(get_printer_state().get_printer_type() == "Elegoo Centauri Carbon");
+    CHECK(get_printer_state().profile_state().printer_type() == "Elegoo Centauri Carbon");
 
     get_printer_state().set_printer_type_sync("");
     TearDown();
@@ -5505,7 +5505,7 @@ TEST_CASE_METHOD(helix::VariantPresetFixture,
     config.set_preset("k2");
     CHECK_FALSE(PrinterDetector::auto_detect_and_save(discovery, &config));
     CHECK(config.get<std::string>(config.df() + helix::wizard::PRINTER_TYPE, "").empty());
-    CHECK(get_printer_state().get_printer_type().empty());
+    CHECK(get_printer_state().profile_state().printer_type().empty());
 
     get_printer_state().set_printer_type_sync("");
     TearDown();
@@ -5529,7 +5529,7 @@ TEST_CASE_METHOD(
     config.set_preset("k2");
     REQUIRE(PrinterDetector::auto_detect_and_save(discovery, &config));
     CHECK(config.get<std::string>(config.df() + helix::wizard::PRINTER_TYPE, "") == "Creality K2");
-    CHECK(get_printer_state().get_printer_type() == "Creality K2");
+    CHECK(get_printer_state().profile_state().printer_type() == "Creality K2");
 
     get_printer_state().set_printer_type_sync("");
     TearDown();

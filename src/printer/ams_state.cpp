@@ -16,42 +16,38 @@
 #include "ui_color_picker.h"
 #include "ui_update_queue.h"
 
+#include "ams_backend_registry.h"
 #include "ams_bypass_policy.h"
 #include "ams_lane_state.h"
-#include "ams_remap.h"
+#include "ams_runout_grace.h"
+#include "ams_state_internal.h"
 #include "ams_tool_topology.h"
 #include "app_globals.h"
-#include "clog_meter_geometry.h"
 #include "data_root_resolver.h"
 #include "display_numbering.h"
 #include "filament_database.h"
 #include "filament_display_name.h"
-#include "filament_mapper.h"
 #include "filament_sensor_manager.h"
+#include "helix_lvgl_anomaly.h"
 #include "helix_psram_attr.h"
 #include "i_moonraker_api.h"
-#include "lane_apply.h"
-#include "lane_binding.h"
-#include "lane_resolver.h"
 #include "lane_source_store.h"
-#include "lane_translation.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "observer_factory.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "runtime_config.h"
 #include "settings_manager.h"
 #include "spoolman_manager.h"
-#include "state/subject_macros.h"
-#include "static_subject_registry.h"
 #include "text_io.h"
 #include "tool_state.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <optional>
 #include <unordered_map>
@@ -59,33 +55,46 @@
 
 namespace helix {
 
-// Async callback data for thread-safe LVGL updates
+static_assert(RunoutGrace::MAX_SLOTS == AmsState::MAX_SLOTS, "one unload stamp per slot subject");
+
+namespace ams_state_detail {
+
 namespace {
-
 // Shutdown flag to prevent async callbacks from accessing destroyed singleton
-static std::atomic<bool> s_shutdown_flag{false};
+std::atomic<bool> s_shutdown_flag{false};
+} // namespace
 
-/// The error state a lane bar's status line draws from: the same derivation
-/// both current consumers (AMS overview mini bars, mini status) compute from
-/// SlotInfo. has_error covers a carried SlotError AND a BLOCKED lane;
-/// severity falls back to INFO when no error object is carried.
-void slot_error_state(const SlotInfo& slot, bool& has_error, int& severity) {
-    has_error = (slot.status == SlotStatus::BLOCKED || slot.error.has_value());
-    severity =
-        static_cast<int>(slot.error.has_value() ? slot.error->severity : SlotError::Severity::INFO);
-}
-
-/// @p subject with @p lifetime set to @p owner_token, or nullptr with an
-/// emptied token when there is no subject to observe.
-lv_subject_t* with_lifetime(lv_subject_t* subject, SubjectLifetime owner_token,
-                            SubjectLifetime& lifetime) {
-    if (subject) {
-        lifetime = std::move(owner_token);
-    } else {
-        lifetime.reset();
+void assert_main_thread(const char* caller) {
+    if (!ui::is_main_thread()) {
+        report_off_main(caller);
     }
-    return subject;
 }
+
+void report_off_main(const char* caller) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "[AMS State] %s called off the main thread", caller);
+    if (ui::strict_ui_checks()) {
+        ui::report_ui_contract_breach(msg);
+    }
+    // Once per process: an off-main caller usually repeats on every frame.
+    static std::atomic<bool> reported{false};
+    if (reported.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    spdlog::error("{}", msg);
+    helix_lvgl_anomaly("ams_off_main", msg);
+}
+
+bool shutting_down() {
+    return s_shutdown_flag.load(std::memory_order_acquire);
+}
+
+} // namespace ams_state_detail
+
+using ams_state_detail::assert_main_thread;
+using ams_state_detail::slot_error_state;
+
+namespace {
 
 struct AsyncSyncData {
     int backend_index;
@@ -109,33 +118,6 @@ std::string truncate_utf8(const std::string& s, size_t max_bytes) {
 }
 
 } // namespace
-
-// Declared in ams_tool_topology.h; see there for what nullopt means to callers.
-std::optional<helix::ToolTopology> build_ams_topology(AmsBackend* backend, int backend_index) {
-    if (!backend)
-        return std::nullopt;
-    // Table ownership, NOT remap capability. Two different questions that part
-    // company on the U1: it can remap and owns no table.
-    if (!backend->owns_tool_mapping_table())
-        return std::nullopt;
-
-    std::vector<int> mapping = backend->get_tool_mapping();
-    if (mapping.empty()) {
-        // Fallback: default 1:1 from slot count
-        int n = backend->get_system_info().total_slots;
-        mapping.resize(static_cast<size_t>(n));
-        for (int i = 0; i < n; ++i)
-            mapping[static_cast<size_t>(i)] = i;
-    }
-
-    helix::ToolTopology topo;
-    topo.tool_count = static_cast<int>(mapping.size());
-    topo.tool_to_slot = std::move(mapping);
-    topo.active_tool = backend->get_current_tool();
-    topo.allows_empty_carriage = backend->load_mounts_tool();
-    topo.backend_index = backend_index;
-    return topo;
-}
 
 AmsState& AmsState::instance() {
     // ~9.5KB singleton: relocate to PSRAM on ESP to reclaim internal DRAM (it's
@@ -243,718 +225,12 @@ AmsState::AmsState() {
 
 AmsState::~AmsState() {
     // Signal shutdown to prevent async callbacks from accessing this instance
-    s_shutdown_flag.store(true, std::memory_order_release);
+    ams_state_detail::s_shutdown_flag.store(true, std::memory_order_release);
 
     // During static destruction, the MoonrakerClient may already be destroyed.
     // Release subscriptions without unsubscribing to avoid calling into dead objects.
     // SubscriptionGuard::release() abandons the subscription — no mutex access needed.
-    for (auto& b : backends_) {
-        if (b) {
-            b->release_subscriptions();
-        }
-    }
-    backends_.clear();
-}
-
-void AmsState::init_subjects(bool register_xml) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (initialized_) {
-        // Re-entry on the shared singleton: always rebind the print-state
-        // observer to PrinterState's *current* print_state_enum subject.
-        //
-        // A `if (!print_state_observer_)` guard is NOT sufficient: PrinterState
-        // can deinit+reinit its subjects between cases (LVGLUITestFixture does
-        // this; production soft-restart can too). lv_subject_deinit() frees our
-        // observer node, but ObserverGuard::operator bool() only checks for a
-        // non-null observer pointer — it stays truthy with a dangling pointer to
-        // the freed/recreated subject, so the guard would skip re-install and
-        // the label would never recompute on print-state changes.
-        //
-        // install_print_state_observer() is idempotent (reset()s the prior
-        // guard, then rebinds to the current subject with the current lifetime
-        // token), so calling it unconditionally is safe and self-healing.
-        //
-        // register_xml is honored on re-entry too: the first init may have run
-        // with false and published no names, and skipping them here would keep
-        // lv_xml_get_subject() null for the rest of the process.
-        // register_xml_subject_names() must mirror the first-init registration
-        // list below — a name added there must be added here too.
-        install_print_state_observer();
-        if (register_xml) {
-            register_xml_subject_names();
-        }
-        return;
-    }
-
-    spdlog::trace("[AMS State] Initializing subjects");
-
-    // Backend selector subjects
-    INIT_SUBJECT_INT(backend_count, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_data_revision, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(active_backend, 0, subjects_, register_xml);
-
-    // System-level subjects
-    INIT_SUBJECT_INT(ams_type, static_cast<int>(AmsType::NONE), subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_is_tool_changer, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_is_filament_system, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_action, static_cast<int>(AmsAction::IDLE), subjects_, register_xml);
-    action_mirror_.store(AmsAction::IDLE, std::memory_order_relaxed);
-    // Granular load/unload sub-phase (Snapmaker U1). -1 = no active step.
-    INIT_SUBJECT_INT(ams_operation_phase, -1, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_operation_indeterminate, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(toolchange_step, -1, subjects_, register_xml);
-    INIT_SUBJECT_INT(current_slot, -1, subjects_, register_xml);
-    INIT_SUBJECT_INT(pending_target_slot, -1, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_current_tool, -1, subjects_, register_xml);
-    // These subjects need ams_ prefix for XML but member vars don't have it
-    lv_subject_init_int(&filament_loaded_, 0);
-    subjects_.register_subject(&filament_loaded_, register_xml ? "ams_filament_loaded" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_filament_loaded", &filament_loaded_);
-
-    lv_subject_init_int(&filament_runout_, 0);
-    subjects_.register_subject(&filament_runout_, register_xml ? "ams_filament_runout" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_filament_runout", &filament_runout_);
-
-    lv_subject_init_int(&bypass_active_, 0);
-    subjects_.register_subject(&bypass_active_, register_xml ? "ams_bypass_active" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_bypass_active", &bypass_active_);
-
-    // External spool color subject (loaded from persistent settings)
-    {
-        auto ext_spool = helix::SettingsManager::instance().get_external_spool_info();
-        int initial_color = ext_spool.has_value() ? static_cast<int>(ext_spool->color_rgb) : 0;
-        lv_subject_init_int(&external_spool_color_, initial_color);
-        subjects_.register_subject(&external_spool_color_,
-                                   register_xml ? "ams_external_spool_color" : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope("ams_external_spool_color",
-                                                          &external_spool_color_);
-
-        // Material string flavor — same source, string subject idiom as
-        // ams_system_name_ (own buffer, nullptr prev_buf).
-        lv_subject_init_string(&external_spool_material_, external_spool_material_buf_, nullptr,
-                               sizeof(external_spool_material_buf_),
-                               ext_spool.has_value() ? ext_spool->material.c_str() : "");
-        subjects_.register_subject(&external_spool_material_,
-                                   register_xml ? "ams_external_spool_material" : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope("ams_external_spool_material",
-                                                          &external_spool_material_);
-    }
-
-    lv_subject_init_int(&supports_bypass_, 0);
-    subjects_.register_subject(&supports_bypass_, register_xml ? "ams_supports_bypass" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_supports_bypass", &supports_bypass_);
-    INIT_SUBJECT_INT(ams_slot_count, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_cards_compact, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(slots_version, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(tool_map_version, 0, subjects_, register_xml);
-    // Default 1 (present) so non-auto-feed / unknown backends never gate Resume (#991).
-    INIT_SUBJECT_INT(active_tool_port_present, 1, subjects_, register_xml);
-
-    // String subjects (buffer names don't match macro convention)
-    lv_subject_init_string(&ams_action_detail_, action_detail_buf_, nullptr,
-                           sizeof(action_detail_buf_), "");
-    subjects_.register_subject(&ams_action_detail_, register_xml ? "ams_action_detail" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_action_detail", &ams_action_detail_);
-
-    lv_subject_init_string(&ams_system_name_, system_name_buf_, nullptr, sizeof(system_name_buf_),
-                           "");
-    subjects_.register_subject(&ams_system_name_, register_xml ? "ams_system_name" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_system_name", &ams_system_name_);
-
-    // Logo uses pointer subject — bind_src expects a pointer to the path string buffer.
-    // Init to nullptr so XML bind_src doesn't fire lv_image_set_src("") warnings before
-    // sync_from_backend populates the real logo path.
-    lv_subject_init_pointer(&ams_system_logo_, nullptr);
-    subjects_.register_subject(&ams_system_logo_, register_xml ? "ams_system_logo" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_system_logo", &ams_system_logo_);
-
-    INIT_SUBJECT_STRING(ams_current_tool_text, "---", subjects_, register_xml);
-
-    // Endless-spool status. Starts Hidden with no text so a printer whose
-    // backend never reports the feature renders nothing rather than flashing a
-    // default sentence before the first sync.
-    INIT_SUBJECT_INT(ams_endless_state,
-                     static_cast<int>(helix::printer::EndlessSpoolStatusKind::Hidden), subjects_,
-                     register_xml);
-    lv_subject_init_string(&ams_endless_text_, ams_endless_text_buf_, nullptr,
-                           sizeof(ams_endless_text_buf_), "");
-    subjects_.register_subject(&ams_endless_text_, register_xml ? "ams_endless_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_endless_text", &ams_endless_text_);
-
-    // Tool change progress subjects
-    INIT_SUBJECT_INT(toolchange_visible, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_current_toolchange, -1, subjects_, register_xml);
-    INIT_SUBJECT_INT(ams_number_of_toolchanges, 0, subjects_, register_xml);
-    INIT_SUBJECT_STRING(toolchange_text, "", subjects_, register_xml);
-
-    // Filament path visualization subjects
-    INIT_SUBJECT_INT(path_topology, static_cast<int>(PathTopology::HUB), subjects_, register_xml);
-    INIT_SUBJECT_INT(path_filament_segment, static_cast<int>(PathSegment::NONE), subjects_,
-                     register_xml);
-
-    // Dryer subjects (for AMS systems with integrated drying)
-    INIT_SUBJECT_INT(dryer_supported, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(dryer_active, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(dryer_current_temp, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(dryer_target_temp, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(dryer_remaining_min, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(dryer_progress_pct, -1, subjects_, register_xml);
-    INIT_SUBJECT_STRING(dryer_current_temp_text, "---", subjects_, register_xml);
-    INIT_SUBJECT_STRING(dryer_target_temp_text, "---", subjects_, register_xml);
-    INIT_SUBJECT_STRING(dryer_time_text, "", subjects_, register_xml);
-
-    // Dryer modal editing subjects (raw int + formatted text)
-    INIT_SUBJECT_INT(modal_target_temp, DEFAULT_DRYER_TEMP_C, subjects_, register_xml);
-    INIT_SUBJECT_INT(modal_duration_min, DEFAULT_DRYER_DURATION_MIN, subjects_, register_xml);
-
-    // Currently Loaded display subjects (for reactive UI binding)
-    // These subjects need ams_ prefix for XML but member vars don't have it
-    lv_subject_init_string(&current_material_text_, current_material_text_buf_, nullptr,
-                           sizeof(current_material_text_buf_), "---");
-    subjects_.register_subject(&current_material_text_,
-                               register_xml ? "ams_current_material_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_current_material_text",
-                                                      &current_material_text_);
-
-    lv_subject_init_string(&current_slot_text_, current_slot_text_buf_, nullptr,
-                           sizeof(current_slot_text_buf_), "None");
-    subjects_.register_subject(&current_slot_text_,
-                               register_xml ? "ams_current_slot_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_current_slot_text", &current_slot_text_);
-
-    lv_subject_init_string(&current_weight_text_, current_weight_text_buf_, nullptr,
-                           sizeof(current_weight_text_buf_), "");
-    subjects_.register_subject(&current_weight_text_,
-                               register_xml ? "ams_current_weight_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_current_weight_text",
-                                                      &current_weight_text_);
-
-    lv_subject_init_int(&current_has_weight_, 0);
-    subjects_.register_subject(&current_has_weight_,
-                               register_xml ? "ams_current_has_weight" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_current_has_weight",
-                                                      &current_has_weight_);
-
-    INIT_SUBJECT_INT(current_color, 0x505050, subjects_, register_xml);
-
-    // Clog detection meter subjects
-    INIT_SUBJECT_INT(clog_meter_mode, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(clog_meter_value, 0, subjects_,
-                     register_xml); // SUBJECT_OK: ClogMeterModel observes it via a lambda
-    INIT_SUBJECT_INT(clog_meter_warning, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(clog_meter_status, 0, subjects_, register_xml);
-    INIT_SUBJECT_STRING(clog_meter_mode_text, "", subjects_, register_xml);
-    INIT_SUBJECT_INT(clog_meter_danger_pct, 0, subjects_, register_xml);
-    INIT_SUBJECT_INT(clog_meter_peak_pct, 0, subjects_, register_xml);
-    INIT_SUBJECT_STRING(clog_meter_center_text, "", subjects_, register_xml);
-    INIT_SUBJECT_STRING(clog_meter_label_left, "", subjects_, register_xml);
-    INIT_SUBJECT_STRING(clog_meter_label_right, "", subjects_, register_xml);
-
-    // Per-slot subjects (dynamic names require manual init)
-    char name_buf[32];
-    for (int i = 0; i < MAX_SLOTS; ++i) {
-        lv_subject_init_int(&slot_colors_[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_color", i);
-        subjects_.register_subject(&slot_colors_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_colors_[i]);
-
-        lv_subject_init_int(&slot_statuses_[i], static_cast<int>(SlotStatus::UNKNOWN));
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_status", i);
-        subjects_.register_subject(&slot_statuses_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_statuses_[i]);
-
-        lv_subject_init_string(&slot_remaining_[i], slot_remaining_buf_[i], nullptr,
-                               sizeof(slot_remaining_buf_[i]), "");
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_remaining", i);
-        subjects_.register_subject(&slot_remaining_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_remaining_[i]);
-
-        lv_subject_init_string(&slot_materials_[i], slot_materials_buf_[i], nullptr,
-                               sizeof(slot_materials_buf_[i]), "");
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_material", i);
-        subjects_.register_subject(&slot_materials_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_materials_[i]);
-
-        // Per-slot fill percent (SlotInfo::display_fill_pct encoding: 0-100, -1
-        // = unknown). Observed by the ams_slot widget so spool fill renders from
-        // state on every panel. -1 initial → "no data yet, leave render as-is".
-        lv_subject_init_int(&slot_fills_[i], -1);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_fill", i);
-        subjects_.register_subject(&slot_fills_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_fills_[i]);
-
-        // Per-slot LIVE state subjects (path segment, toolhead-present, active-loaded)
-        lv_subject_init_int(&slot_segments_[i], static_cast<int>(PathSegment::NONE));
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_segment", i);
-        subjects_.register_subject(&slot_segments_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_segments_[i]);
-
-        lv_subject_init_int(&slot_toolhead_present_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_toolhead_present", i);
-        subjects_.register_subject(&slot_toolhead_present_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_toolhead_present_[i]);
-
-        lv_subject_init_int(&slot_active_loaded_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_active_loaded", i);
-        subjects_.register_subject(&slot_active_loaded_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_active_loaded_[i]);
-
-        lv_subject_init_int(&slot_lane_states_[i], static_cast<int>(helix::ui::LaneState::Empty));
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_lane_state", i);
-        subjects_.register_subject(&slot_lane_states_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_lane_states_[i]);
-
-        // Per-slot error state, published so a lane bar can draw its own
-        // status line from subjects. has_error = BLOCKED or a carried
-        // SlotError; severity defaults to INFO when no error is carried.
-        lv_subject_init_int(&slot_has_error_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_has_error", i);
-        subjects_.register_subject(&slot_has_error_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_has_error_[i]);
-
-        lv_subject_init_int(&slot_error_severity_[i], static_cast<int>(SlotError::Severity::INFO));
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_error_severity", i);
-        subjects_.register_subject(&slot_error_severity_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &slot_error_severity_[i]);
-    }
-
-    // Per-unit environment subjects (CFS temperature/humidity)
-    for (int i = 0; i < MAX_UNITS; ++i) {
-        lv_subject_init_int(&unit_temp_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_temp", i);
-        subjects_.register_subject(&unit_temp_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &unit_temp_[i]);
-
-        lv_subject_init_int(&unit_humidity_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_humidity", i);
-        subjects_.register_subject(&unit_humidity_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &unit_humidity_[i]);
-
-        lv_subject_init_int(&unit_absent_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_absent", i);
-        subjects_.register_subject(&unit_absent_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &unit_absent_[i]);
-    }
-
-    // Per-unit environment indicator display subjects (formatted text for XML binding)
-    for (int i = 0; i < MAX_UNITS; ++i) {
-        char name_buf[48];
-
-        lv_subject_init_string(&env_ind_temp_text_[i], env_ind_temp_text_buf_[i], nullptr,
-                               ENV_IND_TEXT_BUF_SIZE, "---");
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_temp_text", i);
-        subjects_.register_subject(&env_ind_temp_text_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_temp_text_[i]);
-
-        lv_subject_init_string(&env_ind_humidity_text_[i], env_ind_humidity_text_buf_[i], nullptr,
-                               ENV_IND_TEXT_BUF_SIZE, "---");
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_humidity_text", i);
-        subjects_.register_subject(&env_ind_humidity_text_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_humidity_text_[i]);
-
-        lv_subject_init_int(&env_ind_humidity_status_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_humidity_status", i);
-        subjects_.register_subject(&env_ind_humidity_status_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_humidity_status_[i]);
-
-        lv_subject_init_int(&env_ind_humidity_visible_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_humidity_visible", i);
-        subjects_.register_subject(&env_ind_humidity_visible_[i],
-                                   register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_humidity_visible_[i]);
-
-        lv_subject_init_int(&env_ind_visible_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_visible", i);
-        subjects_.register_subject(&env_ind_visible_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_visible_[i]);
-
-        lv_subject_init_int(&env_ind_drying_active_[i], 0);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_drying_active", i);
-        subjects_.register_subject(&env_ind_drying_active_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_drying_active_[i]);
-
-        lv_subject_init_string(&env_ind_drying_text_[i], env_ind_drying_text_buf_[i], nullptr,
-                               ENV_IND_DRYING_BUF_SIZE, "");
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_drying_text", i);
-        subjects_.register_subject(&env_ind_drying_text_[i], register_xml ? name_buf : nullptr);
-        if (register_xml)
-            helix::xml::register_subject_in_current_scope(name_buf, &env_ind_drying_text_[i]);
-    }
-
-    // Always-off placeholders for units past MAX_UNITS. A rig with more units
-    // than we allocate subjects for still gets a card per unit; its environment
-    // indicator binds these, so the badge stays hidden instead of the parser
-    // warning once per binding about names nothing registered.
-    lv_subject_init_int(&env_ind_off_flag_, 0);
-    subjects_.register_subject(&env_ind_off_flag_,
-                               register_xml ? ENV_IND_OFF_FLAG_SUBJECT : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope(ENV_IND_OFF_FLAG_SUBJECT, &env_ind_off_flag_);
-
-    lv_subject_init_string(&env_ind_off_text_, env_ind_off_text_buf_, nullptr,
-                           ENV_IND_TEXT_BUF_SIZE, "");
-    subjects_.register_subject(&env_ind_off_text_,
-                               register_xml ? ENV_IND_OFF_TEXT_SUBJECT : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope(ENV_IND_OFF_TEXT_SUBJECT, &env_ind_off_text_);
-
-    // Detail-view env indicator mirror subjects.
-    lv_subject_init_string(&env_ind_detail_temp_text_, env_ind_detail_temp_text_buf_, nullptr,
-                           ENV_IND_TEXT_BUF_SIZE, "---");
-    subjects_.register_subject(&env_ind_detail_temp_text_,
-                               register_xml ? "ams_env_ind_detail_temp_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_temp_text",
-                                                      &env_ind_detail_temp_text_);
-
-    lv_subject_init_string(&env_ind_detail_humidity_text_, env_ind_detail_humidity_text_buf_,
-                           nullptr, ENV_IND_TEXT_BUF_SIZE, "---");
-    subjects_.register_subject(&env_ind_detail_humidity_text_,
-                               register_xml ? "ams_env_ind_detail_humidity_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_humidity_text",
-                                                      &env_ind_detail_humidity_text_);
-
-    lv_subject_init_int(&env_ind_detail_humidity_status_, 0);
-    subjects_.register_subject(&env_ind_detail_humidity_status_,
-                               register_xml ? "ams_env_ind_detail_humidity_status" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_humidity_status",
-                                                      &env_ind_detail_humidity_status_);
-
-    lv_subject_init_int(&env_ind_detail_humidity_visible_, 0);
-    subjects_.register_subject(&env_ind_detail_humidity_visible_,
-                               register_xml ? "ams_env_ind_detail_humidity_visible" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_humidity_visible",
-                                                      &env_ind_detail_humidity_visible_);
-
-    lv_subject_init_int(&env_ind_detail_visible_, 0);
-    subjects_.register_subject(&env_ind_detail_visible_,
-                               register_xml ? "ams_env_ind_detail_visible" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_visible",
-                                                      &env_ind_detail_visible_);
-
-    lv_subject_init_int(&env_ind_detail_drying_active_, 0);
-    subjects_.register_subject(&env_ind_detail_drying_active_,
-                               register_xml ? "ams_env_ind_detail_drying_active" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_drying_active",
-                                                      &env_ind_detail_drying_active_);
-
-    lv_subject_init_string(&env_ind_detail_drying_text_, env_ind_detail_drying_text_buf_, nullptr,
-                           ENV_IND_DRYING_BUF_SIZE, "");
-    subjects_.register_subject(&env_ind_detail_drying_text_,
-                               register_xml ? "ams_env_ind_detail_drying_text" : nullptr);
-    if (register_xml)
-        helix::xml::register_subject_in_current_scope("ams_env_ind_detail_drying_text",
-                                                      &env_ind_detail_drying_text_);
-
-    // Ask the factory for a backend. In mock mode, it returns a mock backend.
-    // In real mode with no printer connected, it returns nullptr.
-    // This keeps mock/real decision entirely in the factory.
-    if (backends_.empty()) {
-        auto backend = AmsBackend::create(AmsType::NONE, nullptr, nullptr);
-        if (backend) {
-            // Register first, start second, as init_backends_from_hardware()
-            // does. A backend answers INVALID_LANE_ID for every slot until
-            // add_backend() stamps its index, so anything start() files before
-            // then lands on no lane and is dropped.
-            set_backend(std::move(backend));
-            if (auto* b = get_backend(0)) {
-                b->start();
-            }
-            sync_from_backend();
-            spdlog::debug("[AMS State] Backend initialized via factory ({} slots)",
-                          lv_subject_get_int(&ams_slot_count_));
-        }
-    }
-
-    initialized_ = true;
-
-    // Self-register cleanup — ensures deinit runs before lv_deinit()
-    StaticSubjectRegistry::instance().register_deinit(
-        "AmsState", []() { AmsState::instance().deinit_subjects(); });
-
-    // Observe PrinterState's print state so the ams_action_detail label can
-    // flip between "Idle" / "Printing" / "Paused" when the AMS itself is IDLE
-    // but a print is in progress. print_state_enum is a *static* PrinterState
-    // subject — no SubjectLifetime token required.
-    //
-    // Wire the observer here rather than inside the `if (initialized_)` guard
-    // so tests that re-enter init_subjects() on the shared singleton (after
-    // a prior test left it initialized) still get the observer attached.
-    // PrinterState::init_subjects() must run before this point; tests/main
-    // do so during fixture setup / app boot.
-    install_print_state_observer();
-}
-
-void AmsState::install_print_state_observer() {
-    // Idempotent: reset any prior guard before installing a fresh one. The
-    // reset path uses the alive token from the *previous* install so it can
-    // safely skip lv_observer_remove() if PrinterState already deinit'd its
-    // subjects (e.g. between tests).
-    print_state_observer_.reset();
-    auto lifetime = get_printer_state().get_static_print_subjects_lifetime();
-    // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - recompute_action_detail()
-    // labels what the printer reports, and reads the same subject.
-    print_state_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_print_state_enum_subject(), this,
-        [](AmsState* self, int /*print_state*/) { self->recompute_action_detail(); }, lifetime);
-}
-
-void AmsState::register_xml_subject_names() {
-    // Publishes the ALREADY-INITIALIZED subjects under their XML names —
-    // registration only, no lv_subject_init_* (init memzeros the subject and
-    // would wipe the observers bound since the first init). Re-registering an
-    // existing name replaces the record's subject pointer, so names the first
-    // init already published are harmlessly re-published. Called with mutex_
-    // held.
-    //
-    // MUST mirror the registration list in init_subjects(): same names, same
-    // order, same loops. A name registered there but not here stays
-    // unpublished after a register_xml=false first init
-    // (prestonbrown/helixscreen#1374). scripts/check_ams_xml_mirror.py fails
-    // the commit when the two name sets differ.
-
-    // Backend selector subjects
-    helix::xml::register_subject_in_current_scope("backend_count", &backend_count_);
-    helix::xml::register_subject_in_current_scope("ams_data_revision", &ams_data_revision_);
-    helix::xml::register_subject_in_current_scope("active_backend", &active_backend_);
-
-    // System-level subjects
-    helix::xml::register_subject_in_current_scope("ams_type", &ams_type_);
-    helix::xml::register_subject_in_current_scope("ams_is_tool_changer", &ams_is_tool_changer_);
-    helix::xml::register_subject_in_current_scope("ams_is_filament_system",
-                                                  &ams_is_filament_system_);
-    helix::xml::register_subject_in_current_scope("ams_action", &ams_action_);
-    helix::xml::register_subject_in_current_scope("ams_operation_phase", &ams_operation_phase_);
-    helix::xml::register_subject_in_current_scope("ams_operation_indeterminate",
-                                                  &ams_operation_indeterminate_);
-    helix::xml::register_subject_in_current_scope("toolchange_step", &toolchange_step_);
-    helix::xml::register_subject_in_current_scope("current_slot", &current_slot_);
-    helix::xml::register_subject_in_current_scope("pending_target_slot", &pending_target_slot_);
-    helix::xml::register_subject_in_current_scope("ams_current_tool", &ams_current_tool_);
-    // Members without the ams_ prefix; the XML names carry it
-    helix::xml::register_subject_in_current_scope("ams_filament_loaded", &filament_loaded_);
-    helix::xml::register_subject_in_current_scope("ams_filament_runout", &filament_runout_);
-    helix::xml::register_subject_in_current_scope("ams_bypass_active", &bypass_active_);
-    helix::xml::register_subject_in_current_scope("ams_external_spool_color",
-                                                  &external_spool_color_);
-    helix::xml::register_subject_in_current_scope("ams_external_spool_material",
-                                                  &external_spool_material_);
-    helix::xml::register_subject_in_current_scope("ams_supports_bypass", &supports_bypass_);
-    helix::xml::register_subject_in_current_scope("ams_slot_count", &ams_slot_count_);
-    helix::xml::register_subject_in_current_scope("ams_cards_compact", &ams_cards_compact_);
-    helix::xml::register_subject_in_current_scope("slots_version", &slots_version_);
-    helix::xml::register_subject_in_current_scope("tool_map_version", &tool_map_version_);
-    helix::xml::register_subject_in_current_scope("active_tool_port_present",
-                                                  &active_tool_port_present_);
-
-    // String subjects (buffer names don't match macro convention)
-    helix::xml::register_subject_in_current_scope("ams_action_detail", &ams_action_detail_);
-    helix::xml::register_subject_in_current_scope("ams_system_name", &ams_system_name_);
-    helix::xml::register_subject_in_current_scope("ams_system_logo", &ams_system_logo_);
-    helix::xml::register_subject_in_current_scope("ams_current_tool_text", &ams_current_tool_text_);
-    helix::xml::register_subject_in_current_scope("ams_endless_state", &ams_endless_state_);
-    helix::xml::register_subject_in_current_scope("ams_endless_text", &ams_endless_text_);
-
-    // Tool change progress subjects
-    helix::xml::register_subject_in_current_scope("toolchange_visible", &toolchange_visible_);
-    helix::xml::register_subject_in_current_scope("ams_current_toolchange",
-                                                  &ams_current_toolchange_);
-    helix::xml::register_subject_in_current_scope("ams_number_of_toolchanges",
-                                                  &ams_number_of_toolchanges_);
-    helix::xml::register_subject_in_current_scope("toolchange_text", &toolchange_text_);
-
-    // Filament path visualization subjects
-    helix::xml::register_subject_in_current_scope("path_topology", &path_topology_);
-    helix::xml::register_subject_in_current_scope("path_filament_segment", &path_filament_segment_);
-
-    // Dryer subjects
-    helix::xml::register_subject_in_current_scope("dryer_supported", &dryer_supported_);
-    helix::xml::register_subject_in_current_scope("dryer_active", &dryer_active_);
-    helix::xml::register_subject_in_current_scope("dryer_current_temp", &dryer_current_temp_);
-    helix::xml::register_subject_in_current_scope("dryer_target_temp", &dryer_target_temp_);
-    helix::xml::register_subject_in_current_scope("dryer_remaining_min", &dryer_remaining_min_);
-    helix::xml::register_subject_in_current_scope("dryer_progress_pct", &dryer_progress_pct_);
-    helix::xml::register_subject_in_current_scope("dryer_current_temp_text",
-                                                  &dryer_current_temp_text_);
-    helix::xml::register_subject_in_current_scope("dryer_target_temp_text",
-                                                  &dryer_target_temp_text_);
-    helix::xml::register_subject_in_current_scope("dryer_time_text", &dryer_time_text_);
-
-    // Dryer modal editing subjects
-    helix::xml::register_subject_in_current_scope("modal_target_temp", &modal_target_temp_);
-    helix::xml::register_subject_in_current_scope("modal_duration_min", &modal_duration_min_);
-
-    // Currently Loaded display subjects
-    helix::xml::register_subject_in_current_scope("ams_current_material_text",
-                                                  &current_material_text_);
-    helix::xml::register_subject_in_current_scope("ams_current_slot_text", &current_slot_text_);
-    helix::xml::register_subject_in_current_scope("ams_current_weight_text", &current_weight_text_);
-    helix::xml::register_subject_in_current_scope("ams_current_has_weight", &current_has_weight_);
-    helix::xml::register_subject_in_current_scope("current_color", &current_color_);
-
-    // Clog detection meter subjects
-    helix::xml::register_subject_in_current_scope("clog_meter_mode", &clog_meter_mode_);
-    helix::xml::register_subject_in_current_scope(
-        "clog_meter_value",
-        &clog_meter_value_); // SUBJECT_OK: ClogMeterModel observes it via a lambda
-    helix::xml::register_subject_in_current_scope("clog_meter_warning", &clog_meter_warning_);
-    helix::xml::register_subject_in_current_scope("clog_meter_status", &clog_meter_status_);
-    helix::xml::register_subject_in_current_scope("clog_meter_mode_text", &clog_meter_mode_text_);
-    helix::xml::register_subject_in_current_scope("clog_meter_danger_pct", &clog_meter_danger_pct_);
-    helix::xml::register_subject_in_current_scope("clog_meter_peak_pct", &clog_meter_peak_pct_);
-    helix::xml::register_subject_in_current_scope("clog_meter_center_text",
-                                                  &clog_meter_center_text_);
-    helix::xml::register_subject_in_current_scope("clog_meter_label_left", &clog_meter_label_left_);
-    helix::xml::register_subject_in_current_scope("clog_meter_label_right",
-                                                  &clog_meter_label_right_);
-
-    // Per-slot subjects (snprintf'd names)
-    char name_buf[48];
-    for (int i = 0; i < MAX_SLOTS; ++i) {
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_color", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_colors_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_status", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_statuses_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_remaining", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_remaining_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_material", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_materials_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_fill", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_fills_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_segment", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_segments_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_toolhead_present", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_toolhead_present_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_active_loaded", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_active_loaded_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_lane_state", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_lane_states_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_has_error", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_has_error_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_error_severity", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &slot_error_severity_[i]);
-    }
-
-    // Per-unit environment subjects (CFS temperature/humidity)
-    for (int i = 0; i < MAX_UNITS; ++i) {
-        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_temp", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &unit_temp_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_humidity", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &unit_humidity_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_unit_%d_absent", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &unit_absent_[i]);
-    }
-
-    // Per-unit environment indicator display subjects
-    for (int i = 0; i < MAX_UNITS; ++i) {
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_temp_text", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_temp_text_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_humidity_text", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_humidity_text_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_humidity_status", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_humidity_status_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_humidity_visible", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_humidity_visible_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_visible", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_visible_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_drying_active", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_drying_active_[i]);
-        snprintf(name_buf, sizeof(name_buf), "ams_env_ind_%d_drying_text", i);
-        helix::xml::register_subject_in_current_scope(name_buf, &env_ind_drying_text_[i]);
-    }
-
-    // Off-flag placeholders and detail-view env indicator mirrors
-    helix::xml::register_subject_in_current_scope(ENV_IND_OFF_FLAG_SUBJECT, &env_ind_off_flag_);
-    helix::xml::register_subject_in_current_scope(ENV_IND_OFF_TEXT_SUBJECT, &env_ind_off_text_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_temp_text",
-                                                  &env_ind_detail_temp_text_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_humidity_text",
-                                                  &env_ind_detail_humidity_text_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_humidity_status",
-                                                  &env_ind_detail_humidity_status_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_humidity_visible",
-                                                  &env_ind_detail_humidity_visible_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_visible",
-                                                  &env_ind_detail_visible_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_drying_active",
-                                                  &env_ind_detail_drying_active_);
-    helix::xml::register_subject_in_current_scope("ams_env_ind_detail_drying_text",
-                                                  &env_ind_detail_drying_text_);
-}
-
-void AmsState::deinit_subjects() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (!initialized_) {
-        return;
-    }
-
-    spdlog::trace("[AMS State] Deinitializing subjects");
-
-    // Expire the deferred setters still queued on the UpdateQueue. They capture
-    // `this` and write the subjects torn down below, so without this the next
-    // drain notifies a freed observer list (#1165, #1146).
-    async_lifetime_.invalidate();
-
-    // Clear dangling API pointer — the IMoonrakerAPI is destroyed during teardown
-    // before AmsState re-initializes. Without this, sync_from_backend() would
-    // dereference a freed pointer on the next init_subjects() cycle.
-    api_ = nullptr;
-
-    // Tear down the print-state observer BEFORE deiniting subjects so the
-    // LVGL observer is removed cleanly (reset(), not release() — see project
-    // CLAUDE.md § "ObserverGuard::reset() is the default").
-    print_state_observer_.reset();
-
-    // IMPORTANT: clear_backends() MUST precede subjects_.deinit_all() because
-    // BackendSlotSubjects are managed outside SubjectManager for lifetime reasons
-    clear_backends();
-
-    // Use SubjectManager for automatic cleanup of all registered subjects
-    subjects_.deinit_all();
-
-    initialized_ = false;
-    spdlog::trace("[AMS State] Subjects deinitialized");
+    registry_.release_all();
 }
 
 void AmsState::init_backend_from_hardware(const helix::PrinterDiscovery& hardware,
@@ -975,12 +251,10 @@ void AmsState::init_backends_from_hardware(const helix::PrinterDiscovery& hardwa
         return;
     }
 
-    {
-        std::lock_guard<std::recursive_mutex> lock(mutex_);
-        if (!backends_.empty()) {
-            spdlog::debug("[AMS State] Backends already initialized, skipping");
-            return;
-        }
+    assert_main_thread();
+    if (registry_.count() > 0) {
+        spdlog::debug("[AMS State] Backends already initialized, skipping");
+        return;
     }
 
     for (const auto& system : systems) {
@@ -1016,7 +290,7 @@ void AmsState::init_backends_from_hardware(const helix::PrinterDiscovery& hardwa
 }
 
 void AmsState::set_backend(std::unique_ptr<AmsBackend> backend) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     clear_backends();
 
@@ -1028,104 +302,51 @@ void AmsState::set_backend(std::unique_ptr<AmsBackend> backend) {
 }
 
 int AmsState::add_backend(std::unique_ptr<AmsBackend> backend) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
-    int index = static_cast<int>(backends_.size());
-    backends_.push_back(std::move(backend));
+    // Stamped before registration: only AmsState may set a backend's index,
+    // and add() is main-thread only, so count() is the index add() assigns.
+    if (backend) {
+        backend->set_backend_index(registry_.count());
+    }
+    const int index = registry_.add(
+        std::move(backend), [this](int i, const std::string& event, const std::string& data) {
+            on_backend_event(i, event, data);
+        });
 
-    if (backends_[index]) {
-        backends_[index]->set_backend_index(index);
-
-        // Register event callback with captured index
-        backends_[index]->set_event_callback(
-            [this, index](const std::string& event, const std::string& data) {
-                on_backend_event(index, event, data);
-            });
-
-        // Apply stored gcode response callback (no-op for real backends)
-        if (gcode_response_callback_) {
-            backends_[index]->set_gcode_response_callback(gcode_response_callback_);
-        }
-
-        // Allocate per-backend slot subjects for secondary backends
-        if (index > 0) {
-            auto info = backends_[index]->get_system_info();
+    // Per-backend slot subjects for secondary backends
+    if (index > 0) {
+        if (auto* b = registry_.get(index)) {
             BackendSlotSubjects subs;
-            subs.init(info.total_slots);
+            subs.init(b->get_system_info().total_slots);
             secondary_slot_subjects_.push_back(std::move(subs));
         }
-
-        // Register one FilamentConsumptionTracker sink per slot. The tracker's
-        // gating (unknown weight / Spoolman-linked / native-tracking backend)
-        // decides per-tick whether each sink actually consumes deltas.
-        const int slot_count = backends_[index]->get_system_info().total_slots;
-        auto& handles = consumption_sinks_[index];
-        handles.reserve(slot_count);
-        auto& tracker = helix::FilamentConsumptionTracker::instance();
-        for (int slot = 0; slot < slot_count; ++slot) {
-            auto sink = std::make_unique<helix::AmsSlotSink>(index, slot);
-            handles.push_back(tracker.register_sink(std::move(sink)));
-        }
-        spdlog::debug("[AMS State] Registered {} consumption sinks for backend {}", slot_count,
-                      index);
     }
 
-    // Update backend count subject for UI binding
-    int new_count = static_cast<int>(backends_.size());
-    lv_subject_set_int(&backend_count_, new_count);
-
+    lv_subject_set_int(&backend_count_, registry_.count());
     return index;
 }
 
 AmsBackend* AmsState::get_backend(int index) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (index < 0 || index >= static_cast<int>(backends_.size())) {
-        return nullptr;
-    }
-    return backends_[index].get();
+    return registry_.get(index);
 }
 
 std::optional<AmsType> AmsState::primary_type() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backends_.empty() || !backends_[0]) {
-        return std::nullopt;
-    }
-    return backends_[0]->get_type();
+    return registry_.primary_type();
 }
 
 int AmsState::backend_count() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return static_cast<int>(backends_.size());
+    return registry_.count();
 }
 
 bool AmsState::any_filament_batch_in_flight() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return std::any_of(backends_.begin(), backends_.end(), [](const auto& backend) {
-        return backend && backend->filament_batch_in_flight();
-    });
+    return registry_.any_filament_batch_in_flight();
 }
 
 void AmsState::clear_backends() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
-    // Unregister all FilamentConsumptionTracker sinks tied to these backends
-    // BEFORE tearing down the backends themselves — the sinks will read each
-    // backend one last time on flush().
-    auto& tracker = helix::FilamentConsumptionTracker::instance();
-    for (auto& [idx, handles] : consumption_sinks_) {
-        for (auto* h : handles) {
-            tracker.unregister_sink(h);
-        }
-    }
-    consumption_sinks_.clear();
-
-    // Stop all backends
-    for (auto& b : backends_) {
-        if (b) {
-            b->stop();
-        }
-    }
-    backends_.clear();
+    registry_.clear();
 
     // Registration stamps indices from 0 again, so the next set of backends
     // takes these blocks of lane ids. A declaration left behind would be
@@ -1138,14 +359,13 @@ void AmsState::clear_backends() {
     runout_edge_armed_ = false;
     runout_prev_paused_ = false;
     runout_level_seeded_ = false;
-    // Same reasoning for the post-unload grace: it was armed for a removal on
-    // the backend going away, and nothing the next one reports can be that.
-    post_unload_runout_grace_ = false;
-    post_unload_runout_grace_at_ = {};
-    saw_unload_in_op_ = false;
-    // Per-slot unload times index the departing backend's slots; kept, they
-    // would suppress a real runout on the same index of the next backend.
-    last_unload_time_ = {};
+    // Same reasoning for the unload grace: it was armed for a removal on the
+    // backend going away, and nothing the next one reports can be that. The
+    // per-slot stamps index the departing backend's slots; kept, they would
+    // suppress a real runout on the same index of the next backend.
+    runout_grace_.reset();
+    // A hold describes an operation on the departing backend.
+    optimistic_action_until_.reset();
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().
@@ -1165,104 +385,9 @@ void AmsState::clear_backends() {
     lv_subject_set_int(&active_backend_, 0);
 }
 
-std::vector<uint32_t> AmsState::routed_tool_colors() const {
-    auto* backend = get_backend();
-    if (!backend) {
-        spdlog::debug("[AmsState] routed_tool_colors: no AMS backend");
-        return {};
-    }
-
-    // The applied routing, asked as a capability question. A backend that tracks
-    // a separate firmware routing table (Snapmaker U1's extruder_map_table)
-    // answers from it; one whose physical map IS the routing (AFC, Happy Hare,
-    // a plain tool changer) answers from that. Vendor knowledge stays inside the
-    // backend — nothing here names a firmware.
-    // Whether the attachment map may stand in when the backend publishes no
-    // routing is a real decision, so it is a named one (FilamentMapper::
-    // effective_routing) rather than an `if` here: on a tool changer that map is
-    // which slot each head owns, never which head prints a tool, and letting it
-    // stand in silently converts "no opinion" into a confident identity answer.
-    std::vector<int> routing = helix::FilamentMapper::effective_routing(
-        backend->get_tool_mapping(), backend->get_system_info().tool_to_slot_map,
-        /*attachment_is_routing=*/!is_tool_changer(backend->get_type()));
-
-    auto colors = helix::FilamentMapper::routed_tool_colors(routing, collect_available_slots(),
-                                                            backend->tool_mapping_origin());
-    spdlog::debug("[AmsState] routed_tool_colors: {} routing entries -> {} color(s)",
-                  routing.size(), colors.size());
-    return colors;
-}
-
-std::vector<helix::AvailableSlot> AmsState::collect_available_slots() const {
-    std::vector<helix::AvailableSlot> slots;
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    for (size_t bi = 0; bi < backends_.size(); ++bi) {
-        const auto& backend = backends_[bi];
-        if (!backend) {
-            continue;
-        }
-
-        auto info = backend->get_system_info();
-        bool multi_unit = info.units.size() > 1;
-
-        for (const auto& unit : info.units) {
-            if (unit.absent) {
-                continue;
-            }
-            for (const auto& slot_info : unit.slots) {
-                helix::AvailableSlot as;
-                as.slot_index = slot_info.global_index;
-                as.local_slot_index = slot_info.slot_index;
-                as.backend_index = static_cast<int>(bi);
-                as.color_rgb = slot_info.color_rgb;
-                as.multi_color_hexes = slot_info.multi_color_hexes;
-                as.material = slot_info.material;
-                as.is_empty = (slot_info.status == SlotStatus::EMPTY ||
-                               slot_info.status == SlotStatus::UNKNOWN);
-                as.remaining_weight_g = slot_info.remaining_weight_g;
-                as.current_tool_mapping = slot_info.mapped_tool;
-                as.unit_index = unit.unit_index;
-                as.noun = backend->lane_noun();
-                if (multi_unit) {
-                    as.unit_display_name =
-                        unit.display_name.empty() ? unit.name : unit.display_name;
-                }
-                slots.push_back(std::move(as));
-            }
-        }
-    }
-
-    spdlog::debug("[AmsState] Collected {} available slots from {} backends", slots.size(),
-                  backends_.size());
-    return slots;
-}
-
-std::vector<helix::ToolMapping>
-AmsState::seed_tool_mappings(const std::vector<helix::GcodeToolInfo>& tools,
-                             const std::vector<helix::AvailableSlot>& slots) const {
-    return seed_tool_mappings(tools, slots, effective_auto_match());
-}
-
-std::vector<helix::ToolMapping>
-AmsState::seed_tool_mappings(const std::vector<helix::GcodeToolInfo>& tools,
-                             const std::vector<helix::AvailableSlot>& slots,
-                             bool auto_color_map) const {
-    return helix::FilamentMapper::effective_mappings(tools, slots, auto_color_map,
-                                                     collect_firmware_routing());
-}
-
-helix::FirmwareRouting AmsState::collect_firmware_routing() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (auto* backend = get_backend(0)) {
-        return backend->firmware_default_routing();
-    }
-    return helix::FirmwareRouting::identity();
-}
-
 bool AmsState::any_bypass_active() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    for (const auto& backend : backends_) {
+    assert_main_thread();
+    for (const auto& backend : registry_.backends()) {
         if (backend && backend->is_bypass_active()) {
             return true;
         }
@@ -1271,36 +396,8 @@ bool AmsState::any_bypass_active() const {
 }
 
 bool AmsState::active_spool_describes_bypass() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     return get_backend() == nullptr || any_bypass_active();
-}
-
-bool AmsState::effective_auto_match() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    // Ask whether the user's choice can be carried out at all, not whether the
-    // mapping card is editable. Editability is only one of the two routes, and
-    // the backend it gets wrong is the one where the toggle does the most
-    // damage: the U1 honors every pick through its pre-print send, so pinning
-    // auto-match there left color proximity rewriting the print's routing with
-    // no way for the user to decline it.
-    bool user_choice_honored = false;
-    if (auto* backend = get_backend(0)) {
-        user_choice_honored = helix::printer::can_remap(*backend);
-
-        // HOLD — kPreprintSeedFollowsUserSetting (ams_state.h) carries the full
-        // reasoning and the hardware evidence that would lift it. A backend that
-        // cannot remap PERSISTENTLY can only have answered true through its
-        // pre-print send, so this is exactly the case being held, and putting it
-        // back leaves the U1 seeding as it does today. The predicate itself is
-        // untouched: it is still the one rule the print-start warning shares, and
-        // gating it there would resurrect a false toast on the U1.
-        if (!kPreprintSeedFollowsUserSetting &&
-            !(helix::printer::remap_is_persistent(backend->get_remap_strategy()) &&
-              backend->remap_ready())) {
-            user_choice_honored = false;
-        }
-    }
-    return !user_choice_honored || helix::SettingsManager::instance().get_auto_color_map();
 }
 
 AmsBackend* AmsState::get_backend() const {
@@ -1312,449 +409,31 @@ int AmsState::active_backend_index() const {
 }
 
 void AmsState::set_active_backend(int index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (index >= 0 && index < static_cast<int>(backends_.size())) {
+    assert_main_thread();
+    if (index >= 0 && index < registry_.count()) {
         lv_subject_set_int(&active_backend_, index);
     }
 }
 
 bool AmsState::is_available() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     auto* primary = get_backend(0);
     return primary && primary->get_type() != AmsType::NONE;
 }
 
 void AmsState::set_moonraker_api(IMoonrakerAPI* api) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     api_ = api;
     last_synced_spoolman_id_ = 0; // Reset tracking on API change
     spdlog::debug("[AMS State] Moonraker API {} for Spoolman integration", api ? "set" : "cleared");
 }
 
 void AmsState::set_gcode_response_callback(std::function<void(const std::string&)> callback) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    gcode_response_callback_ = std::move(callback);
-
-    // Apply to any existing backends (no-op for real backends)
-    for (auto& backend : backends_) {
-        backend->set_gcode_response_callback(gcode_response_callback_);
-    }
-
-    spdlog::debug("[AMS State] Gcode response callback {}",
-                  gcode_response_callback_ ? "set" : "cleared");
-}
-
-lv_subject_t* AmsState::get_slot_color_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_colors_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_status_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_statuses_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_lane_state_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_lane_states_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_has_error_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_has_error_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_error_severity_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_error_severity_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_remaining_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_remaining_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_material_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_materials_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_fill_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_fills_[slot_index];
-}
-
-// Per-slot LIVE state subjects. The arrays live in the singleton but are
-// registered with subjects_, so deinit_subjects() frees their observers; the
-// (slot, SubjectLifetime&) overloads hand out get_subjects_lifetime() (#1700).
-lv_subject_t* AmsState::get_slot_segment_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_segments_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_segment_subject(int slot_index, SubjectLifetime& lifetime) {
-    return with_lifetime(get_slot_segment_subject(slot_index), get_subjects_lifetime(), lifetime);
-}
-
-lv_subject_t* AmsState::get_slot_toolhead_present_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_toolhead_present_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_toolhead_present_subject(int slot_index,
-                                                          SubjectLifetime& lifetime) {
-    return with_lifetime(get_slot_toolhead_present_subject(slot_index), get_subjects_lifetime(),
-                         lifetime);
-}
-
-lv_subject_t* AmsState::get_slot_active_loaded_subject(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return nullptr;
-    }
-    return &slot_active_loaded_[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_active_loaded_subject(int slot_index, SubjectLifetime& lifetime) {
-    return with_lifetime(get_slot_active_loaded_subject(slot_index), get_subjects_lifetime(),
-                         lifetime);
-}
-
-lv_subject_t* AmsState::get_unit_temp_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &unit_temp_[unit_index];
-}
-
-lv_subject_t* AmsState::get_unit_humidity_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &unit_humidity_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_temp_text_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_temp_text_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_humidity_text_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_humidity_text_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_visible_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_visible_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_humidity_status_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_humidity_status_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_humidity_visible_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_humidity_visible_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_drying_active_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_drying_active_[unit_index];
-}
-
-lv_subject_t* AmsState::get_env_ind_drying_text_subject(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return nullptr;
-    }
-    return &env_ind_drying_text_[unit_index];
-}
-
-AmsState::EnvIndicatorSubjectNames AmsState::env_indicator_subject_names(int unit_index) {
-    EnvIndicatorSubjectNames names;
-
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        names.temp_text = ENV_IND_OFF_TEXT_SUBJECT;
-        names.humidity_text = ENV_IND_OFF_TEXT_SUBJECT;
-        names.drying_text = ENV_IND_OFF_TEXT_SUBJECT;
-        names.humidity_status = ENV_IND_OFF_FLAG_SUBJECT;
-        names.humidity_visible = ENV_IND_OFF_FLAG_SUBJECT;
-        names.visible = ENV_IND_OFF_FLAG_SUBJECT;
-        names.drying_active = ENV_IND_OFF_FLAG_SUBJECT;
-        return names;
-    }
-
-    auto expand = [unit_index](const char* suffix) {
-        char buf[48];
-        snprintf(buf, sizeof(buf), "ams_env_ind_%d_%s", unit_index, suffix);
-        return std::string(buf);
-    };
-    names.temp_text = expand("temp_text");
-    names.humidity_text = expand("humidity_text");
-    names.humidity_status = expand("humidity_status");
-    names.humidity_visible = expand("humidity_visible");
-    names.visible = expand("visible");
-    names.drying_active = expand("drying_active");
-    names.drying_text = expand("drying_text");
-    return names;
-}
-
-std::string AmsState::unit_absent_subject_name(int unit_index) {
-    if (unit_index < 0 || unit_index >= MAX_UNITS) {
-        return ENV_IND_OFF_FLAG_SUBJECT;
-    }
-    char buf[32];
-    snprintf(buf, sizeof(buf), "ams_unit_%d_absent", unit_index);
-    return buf;
-}
-
-lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return get_slot_color_subject(slot_index);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    return &subs.colors[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_status_subject(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return get_slot_status_subject(slot_index);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    return &subs.statuses[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_color_subject(int backend_index, int slot_index,
-                                               SubjectLifetime& lifetime) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(get_slot_color_subject(slot_index), get_subjects_lifetime(), lifetime);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        lifetime.reset();
-        return nullptr;
-    }
-    lifetime = secondary_slot_subjects_[sec_idx].lifetime;
-    return get_slot_color_subject(backend_index, slot_index);
-}
-
-lv_subject_t* AmsState::get_slot_status_subject(int backend_index, int slot_index,
-                                                SubjectLifetime& lifetime) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(get_slot_status_subject(slot_index), get_subjects_lifetime(),
-                             lifetime);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        lifetime.reset();
-        return nullptr;
-    }
-    lifetime = secondary_slot_subjects_[sec_idx].lifetime;
-    return get_slot_status_subject(backend_index, slot_index);
-}
-
-lv_subject_t* AmsState::get_slot_fill_subject(int backend_index, int slot_index,
-                                              SubjectLifetime& lifetime) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(get_slot_fill_subject(slot_index), get_subjects_lifetime(), lifetime);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        lifetime.reset();
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        lifetime.reset();
-        return nullptr;
-    }
-    lifetime = subs.lifetime;
-    return &subs.fills[slot_index];
-}
-
-lv_subject_t* AmsState::backend_slot_subject(int backend_index, int slot_index,
-                                             SubjectLifetime& lifetime,
-                                             std::vector<lv_subject_t> BackendSlotSubjects::*member,
-                                             lv_subject_t* primary) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return with_lifetime(primary, get_subjects_lifetime(), lifetime);
-    }
-    lifetime.reset();
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    lifetime = subs.lifetime;
-    return &(subs.*member)[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_lane_state_subject(int backend_index, int slot_index,
-                                                    SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::lane_states,
-        backend_index == 0 ? get_slot_lane_state_subject(slot_index) : nullptr);
-}
-
-lv_subject_t* AmsState::get_slot_has_error_subject(int backend_index, int slot_index,
-                                                   SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::has_errors,
-        backend_index == 0 ? get_slot_has_error_subject(slot_index) : nullptr);
-}
-
-lv_subject_t* AmsState::get_slot_error_severity_subject(int backend_index, int slot_index,
-                                                        SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::severities,
-        backend_index == 0 ? get_slot_error_severity_subject(slot_index) : nullptr);
-}
-
-lv_subject_t* AmsState::get_slot_material_subject(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (backend_index == 0) {
-        return get_slot_material_subject(slot_index);
-    }
-    int sec_idx = backend_index - 1;
-    if (sec_idx < 0 || sec_idx >= static_cast<int>(secondary_slot_subjects_.size())) {
-        return nullptr;
-    }
-    auto& subs = secondary_slot_subjects_[sec_idx];
-    if (slot_index < 0 || slot_index >= subs.slot_count) {
-        return nullptr;
-    }
-    return &subs.materials[slot_index];
-}
-
-lv_subject_t* AmsState::get_slot_material_subject(int backend_index, int slot_index,
-                                                  SubjectLifetime& lifetime) {
-    return backend_slot_subject(
-        backend_index, slot_index, lifetime, &BackendSlotSubjects::materials,
-        backend_index == 0 ? get_slot_material_subject(slot_index) : nullptr);
-}
-
-void AmsState::BackendSlotSubjects::init(int count) {
-    slot_count = count;
-    colors.resize(count);
-    statuses.resize(count);
-    fills.resize(count);
-    lane_states.resize(count);
-    has_errors.resize(count);
-    severities.resize(count);
-    material_bufs.resize(count);
-    materials.resize(count);
-    for (int i = 0; i < count; ++i) {
-        lv_subject_init_int(&colors[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
-        lv_subject_init_int(&statuses[i], static_cast<int>(SlotStatus::UNKNOWN));
-        lv_subject_init_int(&fills[i], -1);
-        lv_subject_init_int(&lane_states[i], static_cast<int>(helix::ui::LaneState::Empty));
-        lv_subject_init_int(&has_errors[i], 0);
-        lv_subject_init_int(&severities[i], static_cast<int>(SlotError::Severity::INFO));
-        lv_subject_init_string(&materials[i], material_bufs[i].data(), nullptr,
-                               BackendSlotSubjects::MATERIAL_BUF_SIZE, "");
-    }
-    // Fresh lifetime token: observers bound via the token'd accessors expire
-    // when deinit() invalidates it on backend rediscovery.
-    lifetime = std::make_shared<bool>(true);
-}
-
-void AmsState::BackendSlotSubjects::deinit() {
-    // Invalidate the lifetime token FIRST so any live observer's weak_ptr is
-    // dead before the subjects it points at are freed (#705 ordering).
-    if (lifetime) {
-        *lifetime = false;
-    }
-    lifetime.reset();
-    for (auto& c : colors)
-        lv_subject_deinit(&c);
-    for (auto& s : statuses)
-        lv_subject_deinit(&s);
-    for (auto* group : {&fills, &lane_states, &has_errors, &severities, &materials})
-        for (auto& subj : *group)
-            lv_subject_deinit(&subj);
-    colors.clear();
-    statuses.clear();
-    fills.clear();
-    lane_states.clear();
-    has_errors.clear();
-    severities.clear();
-    materials.clear();
-    material_bufs.clear();
-    slot_count = 0;
-}
-
-void AmsState::BackendSlotSubjects::write(int i, const SlotInfo& slot) {
-    lv_subject_set_int(&colors[i], static_cast<int>(slot.color_rgb));
-    lv_subject_set_int(&statuses[i], static_cast<int>(slot.status));
-    lv_subject_set_int(&fills[i], slot.display_fill_pct());
-    lv_subject_set_int(&lane_states[i], static_cast<int>(helix::ui::classify_lane(slot)));
-    // No prev buffer, so LVGL notifies on every copy; compare here instead.
-    if (strcmp(lv_subject_get_string(&materials[i]), slot.material.c_str()) != 0)
-        lv_subject_copy_string(&materials[i], slot.material.c_str());
-    bool has_error = false;
-    int severity = 0;
-    slot_error_state(slot, has_error, severity);
-    lv_subject_set_int(&has_errors[i], has_error ? 1 : 0);
-    lv_subject_set_int(&severities[i], severity);
+    registry_.set_gcode_response_callback(std::move(callback));
 }
 
 void AmsState::sync_backend(int backend_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (backend_index == 0) {
         sync_from_backend();
@@ -1790,7 +469,7 @@ void AmsState::sync_backend(int backend_index) {
 }
 
 void AmsState::update_slot_for_backend(int backend_index, int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     if (backend_index == 0) {
         update_slot(slot_index);
@@ -1823,7 +502,7 @@ void AmsState::update_slot_for_backend(int backend_index, int slot_index) {
 }
 
 void AmsState::sync_from_backend() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     auto* backend = get_backend(0);
     if (!backend) {
@@ -1832,6 +511,81 @@ void AmsState::sync_from_backend() {
 
     AmsSystemInfo info = backend->get_system_info();
 
+    sync_system_subjects(info);
+    sync_tool_topology(backend);
+    sync_filament_runout(info);
+    sync_bypass(backend, info);
+    lv_subject_set_int(&ams_slot_count_, info.total_slots);
+
+    // Update tool change progress raw data (text formatting in UI layer)
+    if (info.number_of_toolchanges > 0) {
+        lv_subject_set_int(&toolchange_visible_, 1);
+    } else {
+        lv_subject_set_int(&toolchange_visible_, 0);
+    }
+    lv_subject_set_int(&ams_current_toolchange_, info.current_toolchange);
+    lv_subject_set_int(&ams_number_of_toolchanges_, info.number_of_toolchanges);
+
+    // Cache the backend-supplied operation_detail so the print-state observer
+    // can recompute the displayed string later without re-querying the backend.
+    last_operation_detail_ = info.operation_detail;
+    recompute_action_detail();
+
+    // Update path visualization subjects
+    int new_topology = static_cast<int>(backend->get_topology());
+    lv_subject_set_int(&path_topology_, new_topology);
+    int new_filament_seg = static_cast<int>(backend->get_filament_segment());
+    lv_subject_set_int(&path_filament_segment_, new_filament_seg);
+
+    // Update per-slot subjects, only firing when values actually change
+    bool any_slot_changed = false;
+    for (int i = 0; i < std::min(info.total_slots, MAX_SLOTS); ++i) {
+        const SlotInfo* slot = info.get_slot_global(i);
+        if (slot && write_slot_subjects(*backend, i, *slot)) {
+            any_slot_changed = true;
+        }
+    }
+
+    sync_tool_routing(backend, info);
+
+    if (sync_tool_spools(backend, info)) {
+        any_slot_changed = true;
+    }
+
+    sync_unit_environment(backend, info);
+
+    if (clear_unused_slot_subjects(info.total_slots)) {
+        any_slot_changed = true;
+    }
+
+    if (any_slot_changed) {
+        spdlog::trace("[AmsState] Slot data changed, bumping version");
+        bump_slots_version();
+    }
+
+    // Mirror the detail-view env indicator's currently-shown unit
+    mirror_detail_env_subjects();
+
+    // Sync dryer state (for systems with integrated drying like ACE)
+    sync_dryer_from_backend();
+
+    // Sync clog detection meter subjects
+    sync_clog_meter_from_info(info);
+
+    // Sync "Currently Loaded" display subjects (pass info to avoid re-fetching)
+    sync_current_loaded_from_backend(info);
+
+    // Sync the endless-spool status line (backend-neutral; every backend answers
+    // the same capability question)
+    sync_endless_spool_from_backend(backend);
+
+    spdlog::trace("[AMS State] Synced from backend - type={}, slots={}, action={}, segment={}",
+                  ams_type_to_string(info.type), info.total_slots,
+                  ams_action_to_string(info.action),
+                  path_segment_to_string(backend->get_filament_segment()));
+}
+
+void AmsState::sync_system_subjects(const AmsSystemInfo& info) {
     // Update system-level subjects
     int new_type = static_cast<int>(info.type);
     lv_subject_set_int(&ams_type_, new_type);
@@ -1842,6 +596,14 @@ void AmsState::sync_from_backend() {
     int new_filament_system = is_filament_system(info.type) ? 1 : 0;
     lv_subject_set_int(&ams_is_filament_system_, new_filament_system);
     int new_action = static_cast<int>(info.action);
+    if (optimistic_action_until_) {
+        if (info.action != AmsAction::IDLE ||
+            std::chrono::steady_clock::now() >= *optimistic_action_until_) {
+            optimistic_action_until_.reset();
+        } else {
+            new_action = lv_subject_get_int(&ams_action_);
+        }
+    }
     // One-shot runout grace. An unload ends with the filament deliberately
     // dragged off the toolhead sensor, and that empty reading is the operation
     // working, not a runout — but is_filament_operation_active() only covers
@@ -1854,23 +616,11 @@ void AmsState::sync_from_backend() {
     // edge, because apply_synthesized_action_locked() overwrites the action
     // with a sub-phase as physical signals arrive: that K2 unload actually
     // ended CUTTING -> IDLE, which such an edge would have missed entirely.
-    {
-        const auto action = static_cast<AmsAction>(new_action);
-        const auto prev = static_cast<AmsAction>(lv_subject_get_int(&ams_action_));
-        if (action == AmsAction::UNLOADING) {
-            saw_unload_in_op_ = true;
-        }
-        if (action == AmsAction::IDLE && prev != AmsAction::IDLE) {
-            post_unload_runout_grace_ = saw_unload_in_op_;
-            if (post_unload_runout_grace_) {
-                post_unload_runout_grace_at_ = std::chrono::steady_clock::now();
-            }
-            saw_unload_in_op_ = false;
-        }
-    }
+    runout_grace_.on_action(static_cast<AmsAction>(lv_subject_get_int(&ams_action_)),
+                            static_cast<AmsAction>(new_action));
     if (lv_subject_get_int(&ams_action_) != new_action) {
         spdlog::debug("[AmsState] sync_from_backend: action changed to {} ({})", new_action,
-                      ams_action_to_string(info.action));
+                      ams_action_to_string(static_cast<AmsAction>(new_action)));
         lv_subject_set_int(&ams_action_, new_action);
         action_mirror_.store(static_cast<AmsAction>(new_action), std::memory_order_relaxed);
     }
@@ -1917,7 +667,9 @@ void AmsState::sync_from_backend() {
     }
     lv_subject_set_int(&pending_target_slot_, info.pending_target_slot);
     lv_subject_set_int(&ams_current_tool_, info.current_tool);
+}
 
+void AmsState::sync_tool_topology(AmsBackend* backend) {
     // Push tool topology to ToolState when the active backend multiplexes tools.
     // Otherwise leave ToolState in its extruder-enumerated state.
     if (auto topo = helix::build_ams_topology(backend, 0)) {
@@ -1927,9 +679,9 @@ void AmsState::sync_from_backend() {
         // so callers can rebuild tools_ from extruders.
         helix::ToolState::instance().clear_ams_topology();
     }
+}
 
-    // Tool text formatting (ams_current_tool_text_) handled by UI-layer observer
-
+void AmsState::sync_filament_runout(const AmsSystemInfo& info) {
     int new_loaded = info.filament_loaded ? 1 : 0;
     lv_subject_set_int(&filament_loaded_, new_loaded);
 
@@ -1954,7 +706,7 @@ void AmsState::sync_from_backend() {
     // RAW_PRINT_STATE_OK: the edge must be witnessed while the printer is
     // actually running the job. Arming it during Preparing would light the
     // warning for a latch raised before any material moved.
-    const PrintJobState job_state = get_printer_state().get_print_job_state();
+    const PrintJobState job_state = get_printer_state().print_state().get_print_job_state();
     const bool paused = job_state == PrintJobState::PAUSED;
     const bool job_running = paused || job_state == PrintJobState::PRINTING;
 
@@ -1991,20 +743,17 @@ void AmsState::sync_from_backend() {
                       new_runout, info.filament_runout, runout_edge_armed_, paused);
         lv_subject_set_int(&filament_runout_, new_runout);
     }
-    // The one bypass truth: the backend's own is_bypass_active(), the same
-    // predicate BypassToggleController branches on when the user taps. This
-    // subject used to be derived independently from current_slot == -2, so with
-    // a declaration latched and the filament pulled the switch rendered
-    // unchecked while a tap took the DISABLE path — "turn it on" answered
-    // "Bypass disabled", and the pre-print gate meanwhile acted on a bypass the
-    // user could not see or clear. Display and action now read one value.
     // Filament back at the toolhead retires the grace: it was armed for the
     // removal this unload caused, and anything after a reload is a new event.
-    if (info.filament_loaded && post_unload_runout_grace_) {
-        post_unload_runout_grace_ = false;
-        spdlog::debug("[AmsState] Post-unload runout grace retired — filament loaded again");
+    if (info.filament_loaded) {
+        runout_grace_.on_filament_loaded();
     }
+}
 
+void AmsState::sync_bypass(AmsBackend* backend, const AmsSystemInfo& info) {
+    // The one bypass truth: the backend's own is_bypass_active(), the same
+    // predicate BypassToggleController branches on when the user taps, so the
+    // switch and the action it takes read one value.
     const int new_bypass = backend->is_bypass_active() ? 1 : 0;
     if (lv_subject_get_int(&bypass_active_) != new_bypass) {
         spdlog::debug("[AmsState] bypass -> {}", new_bypass);
@@ -2039,7 +788,7 @@ void AmsState::sync_from_backend() {
         // support bypass answer; AmsState names no system.
         if (bypass_now) {
             const auto spool = get_external_spool_info();
-            for (auto& backend : backends_) {
+            for (auto& backend : registry_.backends()) {
                 if (backend) {
                     backend->publish_external_spool_lane(spool.has_value() ? &spool.value()
                                                                            : nullptr);
@@ -2056,37 +805,9 @@ void AmsState::sync_from_backend() {
     lv_subject_set_int(&external_spool_color_, new_ext_color);
     lv_subject_copy_string(&external_spool_material_,
                            ext_spool.has_value() ? ext_spool->material.c_str() : "");
-    lv_subject_set_int(&ams_slot_count_, info.total_slots);
+}
 
-    // Update tool change progress raw data (text formatting in UI layer)
-    if (info.number_of_toolchanges > 0) {
-        lv_subject_set_int(&toolchange_visible_, 1);
-    } else {
-        lv_subject_set_int(&toolchange_visible_, 0);
-    }
-    lv_subject_set_int(&ams_current_toolchange_, info.current_toolchange);
-    lv_subject_set_int(&ams_number_of_toolchanges_, info.number_of_toolchanges);
-
-    // Cache the backend-supplied operation_detail so the print-state observer
-    // can recompute the displayed string later without re-querying the backend.
-    last_operation_detail_ = info.operation_detail;
-    recompute_action_detail();
-
-    // Update path visualization subjects
-    int new_topology = static_cast<int>(backend->get_topology());
-    lv_subject_set_int(&path_topology_, new_topology);
-    int new_filament_seg = static_cast<int>(backend->get_filament_segment());
-    lv_subject_set_int(&path_filament_segment_, new_filament_seg);
-
-    // Update per-slot subjects, only firing when values actually change
-    bool any_slot_changed = false;
-    for (int i = 0; i < std::min(info.total_slots, MAX_SLOTS); ++i) {
-        const SlotInfo* slot = info.get_slot_global(i);
-        if (slot && write_slot_subjects(*backend, i, *slot)) {
-            any_slot_changed = true;
-        }
-    }
-
+void AmsState::sync_tool_routing(AmsBackend* backend, const AmsSystemInfo& info) {
     // Detect routing changes and bump tool_map_version_ so the gcode renderer
     // refreshes tool colors.
     //
@@ -2103,7 +824,10 @@ void AmsState::sync_from_backend() {
         lv_subject_set_int(&tool_map_version_, v + 1);
         spdlog::debug("[AmsState] tool routing changed, version now {}", v + 1);
     }
+}
 
+bool AmsState::sync_tool_spools(AmsBackend* backend, const AmsSystemInfo& info) {
+    bool any_slot_changed = false;
     // Sync spool assignments to ToolState for slots with mapped tools.
     //
     // The clear branch matters as much as the assign one: this only ever
@@ -2181,7 +905,10 @@ void AmsState::sync_from_backend() {
     if (!backend->has_firmware_spool_persistence()) {
         ToolState::instance().save_spool_assignments_if_dirty(get_moonraker_api());
     }
+    return any_slot_changed;
+}
 
+void AmsState::sync_unit_environment(AmsBackend* backend, const AmsSystemInfo& info) {
     // Update per-unit environment subjects (CFS temperature/humidity)
     for (const auto& unit : info.units) {
         int idx = unit.unit_index;
@@ -2319,9 +1046,12 @@ void AmsState::sync_from_backend() {
         lv_subject_set_int(&env_ind_visible_[i], 0);
         lv_subject_set_int(&env_ind_humidity_visible_[i], 0);
     }
+}
 
+bool AmsState::clear_unused_slot_subjects(int total_slots) {
     // Clear remaining slot subjects, only firing when values actually change
-    for (int i = info.total_slots; i < MAX_SLOTS; ++i) {
+    bool any_slot_changed = false;
+    for (int i = total_slots; i < MAX_SLOTS; ++i) {
         int default_color = static_cast<int>(AMS_DEFAULT_SLOT_COLOR);
         if (lv_subject_get_int(&slot_colors_[i]) != default_color) {
             lv_subject_set_int(&slot_colors_[i], default_color);
@@ -2369,32 +1099,7 @@ void AmsState::sync_from_backend() {
             any_slot_changed = true;
         }
     }
-
-    if (any_slot_changed) {
-        spdlog::trace("[AmsState] Slot data changed, bumping version");
-        bump_slots_version();
-    }
-
-    // Mirror the detail-view env indicator's currently-shown unit
-    mirror_detail_env_subjects();
-
-    // Sync dryer state (for systems with integrated drying like ACE)
-    sync_dryer_from_backend();
-
-    // Sync clog detection meter subjects
-    sync_clog_meter_from_info(info);
-
-    // Sync "Currently Loaded" display subjects (pass info to avoid re-fetching)
-    sync_current_loaded_from_backend(info);
-
-    // Sync the endless-spool status line (backend-neutral; every backend answers
-    // the same capability question)
-    sync_endless_spool_from_backend(backend);
-
-    spdlog::trace("[AMS State] Synced from backend - type={}, slots={}, action={}, segment={}",
-                  ams_type_to_string(info.type), info.total_slots,
-                  ams_action_to_string(info.action),
-                  path_segment_to_string(backend->get_filament_segment()));
+    return any_slot_changed;
 }
 
 bool AmsState::write_slot_subjects(AmsBackend& backend, int slot_index, const SlotInfo& slot) {
@@ -2479,7 +1184,7 @@ bool AmsState::write_slot_subjects(AmsBackend& backend, int slot_index, const Sl
 }
 
 void AmsState::update_slot(int slot_index) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     auto* backend = get_backend(0);
     if (!backend || slot_index < 0 || slot_index >= MAX_SLOTS) {
@@ -2517,12 +1222,16 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
     spdlog::trace("[AMS State] Received event '{}' data='{}' from backend {}", event, data,
                   backend_index);
 
-    auto queue_sync = [backend_index](bool full_sync, int slot_index) {
+    auto queue_sync = [backend_index](bool full_sync, int slot_index, bool ends_operation = false) {
         helix::ui::queue_update(
-            "AmsState::on_backend_event", [backend_index, full_sync, slot_index]() {
+            "AmsState::on_backend_event", [backend_index, full_sync, slot_index, ends_operation]() {
                 // Skip if shutdown is in progress - AmsState singleton may be destroyed
-                if (s_shutdown_flag.load(std::memory_order_acquire)) {
+                if (ams_state_detail::shutting_down()) {
                     return;
+                }
+
+                if (ends_operation && backend_index == 0) {
+                    AmsState::instance().release_optimistic_action();
                 }
 
                 if (full_sync) {
@@ -2563,8 +1272,9 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
         // These events indicate state change, sync everything
         queue_sync(true, -1);
     } else if (event == AmsBackend::EVENT_ERROR) {
-        // Error occurred, sync to get error state
-        queue_sync(true, -1);
+        // Error occurred, sync to get error state. An error ends the operation,
+        // so an optimistic action held over the backend's silence ends with it.
+        queue_sync(true, -1, /*ends_operation=*/true);
         spdlog::warn("[AMS State] Backend error - {}", data);
     } else if (event == AmsBackend::EVENT_ATTENTION_REQUIRED) {
         // User intervention needed
@@ -2602,17 +1312,8 @@ void AmsState::bump_slots_version() {
     lv_subject_set_int(&slots_version_, current + 1);
 }
 
-void AmsState::set_dryer_mirror_unit(int unit) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (dryer_mirror_unit_ == unit) {
-        return;
-    }
-    dryer_mirror_unit_ = unit;
-    sync_dryer_from_backend();
-}
-
 void AmsState::set_detail_env_unit(int unit) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     detail_env_unit_ = unit;
     mirror_detail_env_subjects();
 }
@@ -2642,265 +1343,8 @@ void AmsState::mirror_detail_env_subjects() {
                                lv_subject_get_string(&env_ind_drying_text_[u]));
 }
 
-void AmsState::sync_dryer_from_backend() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    auto* backend = get_backend(0);
-    if (!backend) {
-        // No backend - clear dryer state
-        lv_subject_set_int(&dryer_supported_, 0);
-        lv_subject_set_int(&dryer_active_, 0);
-        return;
-    }
-
-    DryerInfo dryer = backend->get_dryer_info(dryer_mirror_unit_);
-
-    // Update integer subjects
-    int new_supported = dryer.supported ? 1 : 0;
-    lv_subject_set_int(&dryer_supported_, new_supported);
-    int new_dryer_active = dryer.active ? 1 : 0;
-    lv_subject_set_int(&dryer_active_, new_dryer_active);
-    int new_cur_temp = static_cast<int>(dryer.current_temp_c);
-    lv_subject_set_int(&dryer_current_temp_, new_cur_temp);
-    int new_tgt_temp = static_cast<int>(dryer.target_temp_c);
-    lv_subject_set_int(&dryer_target_temp_, new_tgt_temp);
-    lv_subject_set_int(&dryer_remaining_min_, dryer.remaining_min);
-    int new_progress = dryer.get_progress_pct();
-    lv_subject_set_int(&dryer_progress_pct_, new_progress);
-
-    // Text formatting (dryer_current_temp_text_, dryer_target_temp_text_, dryer_time_text_)
-    // is handled by observers in AmsDryerCard::setup() — UI-layer responsibility.
-
-    spdlog::trace("[AMS State] Synced dryer - supported={}, active={}, temp={}→{}°C, {}min left",
-                  dryer.supported, dryer.active, static_cast<int>(dryer.current_temp_c),
-                  static_cast<int>(dryer.target_temp_c), dryer.remaining_min);
-}
-
-void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
-    // Priority: flowguard > encoder > afc_buffer > legacy > none
-    // Source override: 0=auto (use priority), 1=encoder, 2=flowguard, 3=afc
-    //
-    // Every text slot below has exactly one job, and no slot repeats another:
-    //   mode_text   what is measuring, and nothing else. It is drawn beside a
-    //               15%-wide swatch in ams_loaded_card, where the column is
-    //               content-sized: anything appended here (a detection length,
-    //               an AFC buffer state) steals width from the material name
-    //               and clips it. Keep it to the source's name.
-    //   center_buf  the one number that matters
-    //   left/right  the two ends of the axis the fill moves along, and only
-    //               where those ends mean different things — a linear mode
-    //               fills from nothing, which the empty labels leave unsaid so
-    //               the track gets the width instead
-    // Severity is not a slot at all: clog_meter_status drives a glyph.
-    int mode = 0;
-    int value = 0;
-    int warning = 0;
-    // Sized with the member buffers they feed: translated mode names and
-    // endpoint labels run past the ASCII lengths (ru "Засор: вручную" = 24B,
-    // "СПУТЫВАНИЕ" = 20B) and snprintf would clip mid-codepoint.
-    char mode_text[32] = "";
-    int new_danger_pct = 75;
-    int new_peak_pct = 0;
-    char center_buf[16] = "";
-    char left_buf[24] = "";
-    char right_buf[24] = "";
-
-    // Determine which sources are available
-    bool has_flowguard = info.flowguard_info.enabled;
-    bool has_encoder = info.encoder_info.enabled;
-    bool has_afc = false;
-    for (const auto& unit : info.units) {
-        if (unit.buffer_health && unit.buffer_health->fault_detection_enabled) {
-            has_afc = true;
-            break;
-        }
-    }
-
-    // Apply source override: skip to the forced source if available
-    bool use_flowguard = has_flowguard;
-    bool use_encoder = has_encoder;
-    bool use_afc = has_afc;
-
-    if (source_override_ == 1) {
-        // Force encoder only
-        use_flowguard = false;
-        use_afc = false;
-    } else if (source_override_ == 2) {
-        // Force flowguard only
-        use_encoder = false;
-        use_afc = false;
-    } else if (source_override_ == 3) {
-        // Force AFC only
-        use_flowguard = false;
-        use_encoder = false;
-    }
-
-    if (use_flowguard) {
-        // Flowguard mode: bidirectional (-100 to +100)
-        mode = 2;
-        value = static_cast<int>(info.flowguard_info.level * 100.0f);
-        value = std::clamp(value, -100, 100);
-
-        // A named trigger is Flowguard saying it has tripped.
-        if (!info.flowguard_info.trigger.empty()) {
-            warning = 1;
-        }
-
-        snprintf(mode_text, sizeof(mode_text), "FlowGuard");
-
-        // Enhanced clog detection widget subjects
-        new_danger_pct = 80;
-        float max_clog = std::abs(info.flowguard_info.max_clog);
-        float max_tangle = std::abs(info.flowguard_info.max_tangle);
-        new_peak_pct = static_cast<int>(std::max(max_clog, max_tangle) * 100);
-        snprintf(center_buf, sizeof(center_buf), "%+d%%",
-                 static_cast<int>(info.flowguard_info.level * 100));
-        snprintf(left_buf, sizeof(left_buf), "%s", lv_tr("TANGLE"));
-        snprintf(right_buf, sizeof(right_buf), "%s", lv_tr("CLOG"));
-
-    } else if (use_encoder && info.encoder_info.enabled) {
-        // Encoder mode: 0-100 clog percentage
-        mode = 1;
-        value = info.encoder_info.get_clog_pct();
-        warning = info.encoder_info.is_warning() ? 1 : 0;
-
-        // Source, then how it is armed. The detection length is appended below
-        // once it is known to be real — it is configuration, not a scale end,
-        // which is where it used to be drawn.
-        if (info.encoder_info.detection_mode == 2) {
-            snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("Clog Auto"));
-        } else if (info.encoder_info.detection_mode == 1) {
-            snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("Clog Manual"));
-        } else {
-            snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("Clog"));
-        }
-
-        float det_len = info.encoder_info.detection_length;
-        float headroom = info.encoder_info.headroom;
-        float desired = info.encoder_info.desired_headroom;
-        float min_headroom = info.encoder_info.min_headroom;
-        if (det_len > 0) {
-            new_danger_pct = static_cast<int>((1.0f - desired / det_len) * 100);
-            new_peak_pct = static_cast<int>((1.0f - min_headroom / det_len) * 100);
-            snprintf(center_buf, sizeof(center_buf), "%.1fmm", headroom);
-        } else {
-            new_danger_pct = 75;
-            new_peak_pct = value;
-            snprintf(center_buf, sizeof(center_buf), "---");
-        }
-        // Linear: the fill grows from nothing, so the ends say nothing.
-
-    } else {
-        // Check AFC buffer fault detection (buffer_health is per-unit, not per-slot)
-        for (const auto& unit : info.units) {
-            if (use_afc && unit.buffer_health && unit.buffer_health->fault_detection_enabled) {
-                mode = 3;
-                float dist = unit.buffer_health->distance_to_fault;
-                float max_dist = unit.buffer_health->fault_threshold();
-
-                const bool tracking = (dist >= 0 && dist <= max_dist);
-                if (!tracking) {
-                    // Negative = fault timer stopped, counter stale (normal operation)
-                    // Above max = just reset or not yet tracking
-                    value = 0;
-                    warning = 0;
-                } else {
-                    // Actively counting down: 0=fault imminent, max_dist=safe
-                    value = unit.buffer_health->danger_value();
-                    warning = unit.buffer_health->is_warning() ? 1 : 0;
-                }
-
-                snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("AFC buffer"));
-
-                new_danger_pct = 75;
-                new_peak_pct = value;
-                // Not tracking leaves the centre empty, which is the state
-                // clog_meter_is_safe() stands the check icon in for.
-                if (tracking) {
-                    snprintf(center_buf, sizeof(center_buf), "%.0fmm", dist);
-                }
-                // Linear: the fill grows from nothing, so the ends say nothing.
-                break; // Use first unit with fault detection
-            }
-        }
-
-        // Legacy fallback: clog_detection enabled but no encoder_info
-        if (mode == 0 && info.clog_detection > 0) {
-            mode = 1;
-            value = 0; // No headroom data, so there is no clog% to plot
-            if (info.clog_detection == 2) {
-                snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("Clog Auto"));
-            } else {
-                snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("Clog Manual"));
-            }
-            // Flow rate is all this path has; it is the reading, so it goes in
-            // the centre rather than into a slot of its own.
-            if (info.encoder_flow_rate >= 0) {
-                snprintf(center_buf, sizeof(center_buf), "%d%%", info.encoder_flow_rate);
-            } else {
-                snprintf(center_buf, sizeof(center_buf), "---");
-            }
-            // Legacy: use defaults (danger_pct=75, peak_pct=0, empty labels)
-        }
-    }
-
-    // Apply danger threshold override if set
-    if (danger_threshold_override_ > 0)
-        new_danger_pct = danger_threshold_override_;
-
-    lv_subject_set_int(&clog_meter_mode_, mode);
-    lv_subject_set_int(&clog_meter_value_, value);
-    lv_subject_set_int(&clog_meter_warning_, warning);
-    // Severity is derived, not authored per branch, so every source lands on
-    // the same rule — and the threshold override above is already folded in.
-    const int status =
-        static_cast<int>(helix::ui::clog_meter_status(mode, value, warning, new_danger_pct));
-    lv_subject_set_int(&clog_meter_status_, status);
-    if (strcmp(lv_subject_get_string(&clog_meter_mode_text_), mode_text) != 0) {
-        lv_subject_copy_string(&clog_meter_mode_text_, mode_text);
-    }
-    lv_subject_set_int(&clog_meter_danger_pct_, new_danger_pct);
-    lv_subject_set_int(&clog_meter_peak_pct_, new_peak_pct);
-    if (strcmp(lv_subject_get_string(&clog_meter_center_text_), center_buf) != 0) {
-        lv_subject_copy_string(&clog_meter_center_text_, center_buf);
-    }
-    if (strcmp(lv_subject_get_string(&clog_meter_label_left_), left_buf) != 0) {
-        lv_subject_copy_string(&clog_meter_label_left_, left_buf);
-    }
-    if (strcmp(lv_subject_get_string(&clog_meter_label_right_), right_buf) != 0) {
-        lv_subject_copy_string(&clog_meter_label_right_, right_buf);
-    }
-
-    spdlog::trace("[AMS State] Synced clog meter - mode={}, value={}, warning={}", mode, value,
-                  warning);
-}
-
-void AmsState::set_source_override(int source) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    source_override_ = source;
-    spdlog::debug("[AMS State] Source override set to {}", source);
-    // Re-sync to apply the override
-    auto* backend = get_backend();
-    if (backend) {
-        auto info = backend->get_system_info();
-        sync_clog_meter_from_info(info);
-    }
-}
-
-void AmsState::set_danger_threshold_override(int pct) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    danger_threshold_override_ = pct;
-    spdlog::debug("[AMS State] Danger threshold override set to {}", pct);
-    // Re-sync to apply the override
-    auto* backend = get_backend();
-    if (backend) {
-        auto info = backend->get_system_info();
-        sync_clog_meter_from_info(info);
-    }
-}
-
 void AmsState::set_action_detail(const std::string& detail) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     // Treat UI-managed detail like a backend-supplied operation_detail: it's
     // the highest-priority source for the displayed string. Empty clears it
     // and falls through to the action/print-state derivation.
@@ -2927,7 +1371,6 @@ void AmsState::set_action_detail(const std::string& detail) {
 // clang-format on
 
 void AmsState::recompute_action_detail() {
-    // Caller holds mutex_ (this is a private helper).
     auto action = static_cast<AmsAction>(lv_subject_get_int(&ams_action_));
 
     // Priority:
@@ -2958,7 +1401,7 @@ void AmsState::recompute_action_detail() {
         // is no such translation key yet and this is the lowest-priority
         // fallback in the chain - the AmsAction string wins whenever the AMS is
         // doing anything at all.
-        auto print_state = get_printer_state().get_print_job_state();
+        auto print_state = get_printer_state().print_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
             new_detail = lv_tr("Printing now");
@@ -2982,7 +1425,7 @@ void AmsState::recompute_action_detail() {
 }
 
 void AmsState::set_action(AmsAction action) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     int val = static_cast<int>(action);
     if (lv_subject_get_int(&ams_action_) != val) {
         lv_subject_set_int(&ams_action_, val);
@@ -3004,8 +1447,23 @@ void AmsState::set_action(AmsAction action) {
     }
 }
 
+void AmsState::hold_optimistic_action(std::chrono::milliseconds budget) {
+    assert_main_thread();
+    optimistic_action_until_ = std::chrono::steady_clock::now() + budget;
+}
+
+void AmsState::release_optimistic_action() {
+    assert_main_thread();
+    optimistic_action_until_.reset();
+}
+
+bool AmsState::optimistic_action_held() const {
+    assert_main_thread();
+    return optimistic_action_until_.has_value();
+}
+
 void AmsState::set_active_step_operation(StepOperationType op) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     const StepOperationType prev = active_step_operation_.exchange(op, std::memory_order_relaxed);
     if (prev != op) {
         // Each operation kind has its own phase template, so an index carried
@@ -3017,7 +1475,7 @@ void AmsState::set_active_step_operation(StepOperationType op) {
 }
 
 void AmsState::set_narration_phase(int index, const std::string& label) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
     // Firmware narration is not monotonic. AFC runs its wipe macro twice per
     // toolchange, once before and once after the kick (AFC.py
@@ -3071,29 +1529,11 @@ void AmsState::set_active_tool_port_present(bool present) {
 }
 
 bool AmsState::consume_post_unload_runout_grace() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (!post_unload_runout_grace_) {
-        return false;
-    }
-    post_unload_runout_grace_ = false;
-    const auto age = std::chrono::steady_clock::now() - post_unload_runout_grace_at_;
-    if (age >= POST_UNLOAD_RUNOUT_GRACE) {
-        spdlog::debug("[AmsState] Post-unload runout grace expired unused after {}s",
-                      std::chrono::duration_cast<std::chrono::seconds>(age).count());
-        return false;
-    }
-    return true;
+    return runout_grace_.consume();
 }
 
 bool AmsState::post_unload_runout_grace_armed() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (!post_unload_runout_grace_) {
-        return false;
-    }
-    // Deliberately does NOT clear on expiry: only the consumer spends the shot,
-    // so a peek that also disarmed would be a second consumer by another name.
-    return (std::chrono::steady_clock::now() - post_unload_runout_grace_at_) <
-           POST_UNLOAD_RUNOUT_GRACE;
+    return runout_grace_.armed();
 }
 
 bool AmsState::is_filament_operation_active() {
@@ -3113,25 +1553,11 @@ bool AmsState::is_filament_operation_active() {
 }
 
 void AmsState::mark_slot_unloaded(int slot_index) {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return;
-    }
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    last_unload_time_[slot_index] = std::chrono::steady_clock::now();
-    spdlog::debug("[AmsState] marked slot {} as recently unloaded (runout grace started)",
-                  slot_index);
+    runout_grace_.mark_slot_unloaded(slot_index);
 }
 
 bool AmsState::was_slot_recently_unloaded(int slot_index) const {
-    if (slot_index < 0 || slot_index >= MAX_SLOTS) {
-        return false;
-    }
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    const auto t = last_unload_time_[slot_index];
-    if (t.time_since_epoch().count() == 0) {
-        return false; // never unloaded
-    }
-    return (std::chrono::steady_clock::now() - t) < RECENT_UNLOAD_GRACE;
+    return runout_grace_.was_slot_recently_unloaded(slot_index);
 }
 
 void AmsState::set_current_loaded_defaults(bool write_header) {
@@ -3154,9 +1580,9 @@ void AmsState::set_current_loaded_defaults(bool write_header) {
 }
 
 void AmsState::sync_current_loaded_from_backend() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
-    if (backends_.empty()) {
+    if (registry_.count() == 0) {
         set_current_loaded_defaults();
         return;
     }
@@ -3201,9 +1627,9 @@ void AmsState::set_current_slot_header(AmsBackend& backend, int slot_index) {
 }
 
 void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
 
-    if (backends_.empty()) {
+    if (registry_.count() == 0) {
         set_current_loaded_defaults();
         return;
     }
@@ -3222,8 +1648,9 @@ void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_inf
     AmsBackend* working_backend = nullptr;
     int working_slot = -1;
 
-    for (size_t idx = 0; idx < backends_.size(); ++idx) {
-        auto& b = backends_[idx];
+    const auto& backends = registry_.backends();
+    for (size_t idx = 0; idx < backends.size(); ++idx) {
+        auto& b = backends[idx];
         if (!b)
             continue;
         AmsSystemInfo secondary_info;
@@ -3252,7 +1679,7 @@ void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_inf
 
     // Fallback to primary backend for bypass check if no loaded backend found
     if (!loaded_backend) {
-        loaded_backend = backends_[0].get();
+        loaded_backend = backends[0].get();
         if (loaded_backend) {
             slot_index = primary_info.current_slot;
             filament_loaded = primary_info.filament_loaded;
@@ -3399,155 +1826,12 @@ void AmsState::sync_current_loaded_from_backend(const AmsSystemInfo& primary_inf
 }
 
 // ============================================================================
-// Dryer Modal Editing Methods
-// ============================================================================
-
-void AmsState::adjust_modal_temp(int delta_c) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    // Get limits from backend if available, fallback to constants
-    float min_temp = static_cast<float>(MIN_DRYER_TEMP_C);
-    float max_temp = static_cast<float>(MAX_DRYER_TEMP_C);
-    auto* backend = get_backend(0);
-    if (backend) {
-        DryerInfo dryer = backend->get_dryer_info(dryer_mirror_unit_);
-        min_temp = dryer.min_temp_c;
-        max_temp = dryer.max_temp_c;
-    }
-
-    int cur = lv_subject_get_int(&modal_target_temp_);
-    int new_temp = cur + delta_c;
-    new_temp = std::max(static_cast<int>(min_temp), std::min(new_temp, static_cast<int>(max_temp)));
-    lv_subject_set_int(&modal_target_temp_, new_temp);
-
-    spdlog::debug("[AMS State] Modal temp adjusted to {}°C", new_temp);
-}
-
-void AmsState::adjust_modal_duration(int delta_min) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    // Get max duration from backend if available, fallback to constant
-    int max_duration = MAX_DRYER_DURATION_MIN;
-    auto* backend = get_backend(0);
-    if (backend) {
-        DryerInfo dryer = backend->get_dryer_info(dryer_mirror_unit_);
-        max_duration = dryer.max_duration_min;
-    }
-
-    int cur = lv_subject_get_int(&modal_duration_min_);
-    int new_duration = cur + delta_min;
-    new_duration = std::max(MIN_DRYER_DURATION_MIN, std::min(new_duration, max_duration));
-    lv_subject_set_int(&modal_duration_min_, new_duration);
-
-    spdlog::debug("[AMS State] Modal duration adjusted to {} min", new_duration);
-}
-
-void AmsState::set_modal_preset(int temp_c, int duration_min) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    lv_subject_set_int(&modal_target_temp_, temp_c);
-    lv_subject_set_int(&modal_duration_min_, duration_min);
-    spdlog::debug("[AMS State] Modal preset set: {}°C for {} min", temp_c, duration_min);
-}
-
-// ============================================================================
-// External Spool (delegates to SettingsManager for persistence)
-// ============================================================================
-
-std::optional<SlotInfo> AmsState::raw_external_spool_info() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    // In-memory override takes priority when set (e.g. live tracker updates).
-    if (in_memory_external_spool_.has_value()) {
-        return in_memory_external_spool_;
-    }
-    return helix::SettingsManager::instance().get_external_spool_info();
-}
-
-std::optional<SlotInfo> AmsState::get_external_spool_info() const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    std::optional<SlotInfo> out = raw_external_spool_info();
-    if (!out.has_value()) {
-        return out;
-    }
-    // The bypass lane carries what the sources say about this spool: the
-    // weight poll's Spoolman record, the consumption meter's count, the
-    // user's own edits. A Spoolman record standing from an earlier binding
-    // names a spool the raw record does not, so it is dropped from the copy
-    // rather than resolved - the same ranking a lane's declared id gets.
-    helix::ams::LaneSources sources = helix::ams::lane_sources(helix::ams::BYPASS_LANE_ID);
-    if (sources.spoolman.has_value() &&
-        sources.spoolman->spoolman_id.value_or(0) != out->spoolman_id) {
-        sources.drop(helix::ams::ObservationSource::Spoolman);
-    }
-    helix::ams::apply_resolved(*out, helix::ams::resolve(sources));
-    return out;
-}
-
-void AmsState::set_external_spool_info_in_memory(const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    in_memory_external_spool_ = info;
-    notify_external_spool_changed(info);
-}
-
-void AmsState::set_external_spool_info(const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    // Moving the binding to a different spool retires the previous spool's
-    // records: its Spoolman record, the user's pick, the kept identity and the
-    // meter's count all describe a spool that is no longer bound, and resolve()
-    // would keep ranking them onto the new one. The meter goes too, unlike a
-    // lane's binding change: a lane's firmware re-files its meter every frame,
-    // but nothing re-files the bypass meter while a spool is linked (the
-    // consumption sink pauses), so a stale count would stand. Every persistent writer passes
-    // through here (the edit funnel, the active-spool sync), so the reconcile lives at the funnel
-    // rather than at each caller.
-    const int previous_id = raw_external_spool_info().value_or(SlotInfo{}).spoolman_id;
-    if (previous_id != info.spoolman_id) {
-        helix::ams::drop_previous_spool_declarations(helix::ams::BYPASS_LANE_ID);
-        helix::ams::drop_lane_source(helix::ams::BYPASS_LANE_ID,
-                                     helix::ams::ObservationSource::Metered);
-    }
-    in_memory_external_spool_.reset(); // Persistent write wins; let SettingsManager be the source.
-    helix::SettingsManager::instance().set_external_spool_info(info);
-    notify_external_spool_changed(info);
-}
-
-void AmsState::notify_external_spool_changed(const SlotInfo& info) {
-    // Always notify observers — spool data (weight, name, etc.) may change
-    // even when color stays the same
-    int new_color = static_cast<int>(info.color_rgb);
-    int old_color = lv_subject_get_int(&external_spool_color_);
-    if (old_color == new_color) {
-        // Force notification by toggling value
-        lv_subject_set_int(&external_spool_color_, new_color ^ 1);
-    }
-    lv_subject_set_int(&external_spool_color_, new_color);
-    // Material string reflector — copy_string only notifies on change, and
-    // color observers re-read full spool info anyway, so no force-fire needed.
-    lv_subject_copy_string(&external_spool_material_, info.material.c_str());
-}
-
-void AmsState::clear_external_spool_info() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    in_memory_external_spool_.reset();
-    helix::SettingsManager::instance().clear_external_spool_info();
-    // The raw record's absence has to reach the sources that described it, or
-    // resolve() keeps returning the identity the clear just removed.
-    helix::ams::reset_lane_to_machine_readings(helix::ams::BYPASS_LANE_ID);
-    // Force notification even when color was already 0 (e.g. previous spool was
-    // black, RGB=0x000000) — observers read full spool info, not just the color.
-    if (lv_subject_get_int(&external_spool_color_) == 0) {
-        lv_subject_set_int(&external_spool_color_, 1);
-    }
-    lv_subject_set_int(&external_spool_color_, 0);
-    lv_subject_copy_string(&external_spool_material_, "");
-}
-
-// ============================================================================
 // Slot edit commit (single authority for spool assignment changes)
 // ============================================================================
 
 AmsError AmsState::commit_slot_edit(int slot_index, const SlotInfo& original,
                                     const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    assert_main_thread();
     AmsBackend* backend = get_backend();
     if (!backend) {
         return AmsError(AmsResult::NO_AMS_DETECTED, "no AMS backend",
@@ -3597,121 +1881,6 @@ AmsError AmsState::commit_slot_edit(int slot_index, const SlotInfo& original,
     // S4 + S7
     sync_from_backend();
     return err;
-}
-
-void AmsState::apply_external_spool_store(const SlotInfo& info) {
-    // S5 + S7 — same emptiness predicate as the FilamentPanel completion arm
-    const SlotInfo original = raw_external_spool_info().value_or(SlotInfo{});
-    if (info.spoolman_id > 0 || !info.material.empty()) {
-        set_external_spool_info(info);
-        // The edit files on the bypass lane like a slot edit files on its
-        // lane: set_external_spool_info() has already taken the previous
-        // spool's records with any binding move, and the user's own values
-        // now stand as LocalUser.
-        helix::ams::commit_slot_edit(helix::ams::BYPASS_LANE_ID,
-                                     helix::ams::user_edit_observation(original, info));
-    } else {
-        // Takes the lane's declarations with it, exactly as it takes the
-        // stored record's identity.
-        clear_external_spool_info();
-    }
-
-    // Keep the slicer-sync lane (OrcaSlicer lane_data mirror) fresh on every
-    // identity change — same capability dispatch as the bypass-engage hook.
-    for (auto& backend : backends_) {
-        if (backend) {
-            backend->publish_external_spool_lane(&info);
-        }
-    }
-}
-
-void AmsState::invalidate_stale_external_identity(const SlotInfo& info) {
-    // S6 — stale identity otherwise survives until a server 404
-    const int previous_id = get_external_spool_info().value_or(SlotInfo{}).spoolman_id;
-    if (previous_id > 0 && previous_id != info.spoolman_id) {
-        SpoolmanManager::invalidate_identity(previous_id);
-    }
-}
-
-void AmsState::commit_external_spool_edit(const SlotInfo& info) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    // S1 — match the server active spool to what we are committing
-    if (api_) {
-        if (info.spoolman_id > 0) {
-            api_->spoolman().set_active_spool(
-                info.spoolman_id, []() {},
-                [](const MoonrakerError& err) {
-                    spdlog::warn("[AmsState] Failed to set active spool: {}", err.message);
-                });
-        } else if (get_external_spool_info().value_or(SlotInfo{}).spoolman_id > 0) {
-            // Committing a manual entry (id=0, material set) over a linked
-            // spool intentionally clears the server link — the UI no longer
-            // shows that spool as in use, so the server must not either.
-            api_->spoolman().set_active_spool(
-                0, []() {},
-                [](const MoonrakerError& err) {
-                    spdlog::warn("[AmsState] Failed to clear active spool: {}", err.message);
-                });
-        }
-    }
-
-    invalidate_stale_external_identity(info);
-
-    // S5 + S7
-    apply_external_spool_store(info);
-}
-
-void AmsState::commit_external_spool_edit(const SlotInfo& info, std::function<void()> on_committed,
-                                          std::function<void(const MoonrakerError& err)> on_error) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    invalidate_stale_external_identity(info);
-
-    if (api_ && info.spoolman_id > 0) {
-        // Server-first: the store subset waits for the server round-trip. The
-        // API callbacks fire on a background thread, so both the store write
-        // and the caller's completion are marshalled to the main thread.
-        api_->spoolman().set_active_spool(
-            info.spoolman_id,
-            [info, on_committed = std::move(on_committed)]() {
-                helix::ui::queue_update("AmsState::commit_external_spool_edit",
-                                        [info, on_committed]() {
-                                            if (s_shutdown_flag.load(std::memory_order_acquire)) {
-                                                return;
-                                            }
-                                            AmsState::instance().apply_external_spool_store(info);
-                                            if (on_committed) {
-                                                on_committed();
-                                            }
-                                        });
-            },
-            [on_error = std::move(on_error)](const MoonrakerError& err) {
-                helix::ui::queue_update("AmsState::commit_external_spool_edit", [on_error, err]() {
-                    if (on_error) {
-                        on_error(err);
-                    }
-                });
-            });
-        return;
-    }
-
-    // Manual entry or clear: no server identity gates the store write. The
-    // clear arm (replacing a linked spool with an empty record) still tells
-    // the server, fire-and-forget, exactly like the sync commit.
-    if (api_ && info.spoolman_id == 0 &&
-        get_external_spool_info().value_or(SlotInfo{}).spoolman_id > 0) {
-        api_->spoolman().set_active_spool(
-            0, []() {},
-            [](const MoonrakerError& err) {
-                spdlog::warn("[AmsState] Failed to clear active spool: {}", err.message);
-            });
-    }
-
-    apply_external_spool_store(info);
-    if (on_committed) {
-        on_committed();
-    }
 }
 
 } // namespace helix

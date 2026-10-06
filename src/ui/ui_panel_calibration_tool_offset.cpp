@@ -6,7 +6,7 @@
 #include "ui_emergency_stop.h"
 #include "ui_error_reporting.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
@@ -141,7 +141,7 @@ void ToolOffsetCalibrationPanel::cleanup() {
     finish_idle_wait();
     tools_observer_.reset();
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
     OverlayBase::cleanup();
 }
@@ -277,7 +277,8 @@ void ToolOffsetCalibrationPanel::on_run_rpc_error(const MoonrakerError& err) {
     // Complete on the busy->idle edge instead, as PrintPreparationManager does
     // for a pre-start macro that outlives its ceiling.
     if (err.type == MoonrakerErrorType::TIMEOUT &&
-        lv_subject_get_int(get_printer_state().get_idle_timeout_printing_subject()) == 1) {
+        lv_subject_get_int(
+            get_printer_state().calibration_state().get_idle_timeout_printing_subject()) == 1) {
         begin_idle_wait();
         return;
     }
@@ -300,7 +301,8 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
     // timer is a finished run.
     idle_wait_backstop_.begin(CALIBRATION_TIMEOUT_MS, [this]() {
         const bool still_busy =
-            lv_subject_get_int(get_printer_state().get_idle_timeout_printing_subject()) == 1;
+            lv_subject_get_int(
+                get_printer_state().calibration_state().get_idle_timeout_printing_subject()) == 1;
         finish_idle_wait();
         if (still_busy) {
             spdlog::error(
@@ -314,7 +316,7 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
     // through the UpdateQueue, so the observer can be torn down from inside it.
     helix::PrinterState& ps = get_printer_state();
     idle_wait_observer_ = helix::ui::observe<int>(
-        ps.get_idle_timeout_printing_subject(), this,
+        ps.calibration_state().get_idle_timeout_printing_subject(), this,
         [](ToolOffsetCalibrationPanel* self, int busy) {
             if (!self->idle_wait_active_ || busy == 1) {
                 return;
@@ -324,7 +326,9 @@ void ToolOffsetCalibrationPanel::begin_idle_wait() {
             // runs is still working through the macro, and completing the run
             // here would re-enable Save under a queue it still blocks. Read the
             // subject now, as the backstop does when it fires.
-            if (lv_subject_get_int(get_printer_state().get_idle_timeout_printing_subject()) == 1) {
+            if (lv_subject_get_int(
+                    get_printer_state().calibration_state().get_idle_timeout_printing_subject()) ==
+                1) {
                 return;
             }
             self->finish_idle_wait();
@@ -405,7 +409,7 @@ void ToolOffsetCalibrationPanel::save_offsets() {
     // any other way in (as the bypass toggle refuses mid-print in code too).
     // A print can start from the web UI while this overlay is open, and Save
     // ends in SAVE_CONFIG, which restarts Klipper under it.
-    if (job_holds_machine(get_printer_state().get_print_lifecycle())) {
+    if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
         NOTIFY_WARNING(lv_tr("Cannot save offsets while printing"));
         spdlog::info("[ToolOffsetCal] Refused Save - a job holds the machine");
         return;
@@ -464,7 +468,7 @@ void ToolOffsetCalibrationPanel::send_save() {
     }
     lv_subject_copy_string(&status_, lv_tr("Saving offsets..."));
     helix::zoffset::save_dirty_offsets(
-        api, save_watch_, ps.get_z_offset_calibration_strategy(), ps.get_discovery(),
+        api, save_watch_, ps.profile_state().z_offset_calibration_strategy(), ps.get_discovery(),
         facts.global_dirty,
         object_lifetime_.bg_cb("ToolOffsetCal::saved",
                                [this]() {

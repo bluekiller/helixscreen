@@ -302,3 +302,38 @@ make_diverged_worktree() {
     run git -C "$MAIN" branch --list feature/diverged
     lacks "feature/diverged" "$output"
 }
+
+# The busy guard finds processes by command name (make among them) and by cwd. A
+# copy of sleep named make stands in for a build parked in a given directory.
+park_fake_build() {
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    cp "$(command -v sleep)" "$BATS_TEST_TMPDIR/bin/make"
+    (cd "$1" && exec "$BATS_TEST_TMPDIR/bin/make" 300) &
+    PARKED_PID=$!
+}
+
+teardown() {
+    if [[ -n "${PARKED_PID:-}" ]]; then kill "$PARKED_PID" 2>/dev/null || true; fi
+}
+
+@test "a build in a sibling whose name extends the worktree's does not block teardown" {
+    make_worktree doomed
+    make_worktree doomed-1.0
+    park_fake_build "$MAIN/.worktrees/doomed-1.0"
+    run "$SCRIPT" doomed --into master
+    [ "$status" -eq 0 ]
+    lacks "processes are running" "$output"
+    [ ! -d "$MAIN/.worktrees/doomed" ]
+    [ -d "$MAIN/.worktrees/doomed-1.0" ]
+}
+
+@test "a build inside the worktree blocks teardown" {
+    make_worktree doomed
+    mkdir -p "$MAIN/.worktrees/doomed/sub"
+    park_fake_build "$MAIN/.worktrees/doomed/sub"
+    run "$SCRIPT" doomed --into master
+    [ "$status" -ne 0 ]
+    contains "processes are running inside that worktree" "$output"
+    contains " $PARKED_PID" "$output"
+    [ -d "$MAIN/.worktrees/doomed" ]
+}

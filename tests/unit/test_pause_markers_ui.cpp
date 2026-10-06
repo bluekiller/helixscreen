@@ -56,7 +56,7 @@ struct PauseMarkerFixture : public LVGLTestFixture {
 
     void publish(const std::vector<helix::gcode::ScheduledPause>& pauses,
                  helix::gcode::ProgressAxis axis, const std::string& filename) {
-        state_.set_scheduled_pauses(pauses, axis, filename);
+        state_.print_state().set_scheduled_pauses(pauses, axis, filename);
     }
 
     static helix::gcode::ScheduledPause pause_at(float byte_fraction, float slicer_fraction) {
@@ -218,22 +218,22 @@ TEST_CASE_METHOD(PauseMarkerFixture, "Pause markers: degrade to absent, never to
         REQUIRE_FALSE(diff_columns(marked, baseline).empty());
         lv_draw_buf_destroy(marked);
 
-        state_.reset_for_new_print();
+        state_.print_state().reset_for_new_print();
 
         lv_draw_buf_t* cleared = take_snapshot(bar);
         CHECK(diff_columns(cleared, baseline).empty());
         lv_draw_buf_destroy(cleared);
-        CHECK(state_.get_scheduled_pauses().empty());
+        CHECK(state_.print_state().get_scheduled_pauses().empty());
     }
 
     SECTION("version subject signals publish and clear") {
-        const int v0 = lv_subject_get_int(state_.get_pause_markers_version_subject());
+        const int v0 = lv_subject_get_int(state_.print_state().get_pause_markers_version_subject());
         publish({pause_at(0.5f, 0.5f)}, helix::gcode::ProgressAxis::BytePosition, "current.gcode");
-        const int v1 = lv_subject_get_int(state_.get_pause_markers_version_subject());
+        const int v1 = lv_subject_get_int(state_.print_state().get_pause_markers_version_subject());
         CHECK(v1 > v0);
 
-        state_.reset_for_new_print();
-        const int v2 = lv_subject_get_int(state_.get_pause_markers_version_subject());
+        state_.print_state().reset_for_new_print();
+        const int v2 = lv_subject_get_int(state_.print_state().get_pause_markers_version_subject());
         CHECK(v2 > v1);
     }
 

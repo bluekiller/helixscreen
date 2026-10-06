@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ui_notification_threshold.h"
+
 #include "lvgl.h"
 
 #include <atomic>
@@ -214,5 +216,27 @@ namespace ui {
  */
 void show_feature_unavailable_toast();
 
+namespace notifications {
+
+/**
+ * @brief Success toast for good news that is not history: no history row, no
+ *        bell count.
+ *
+ * Honours the user's minimum toast severity, and drops the toast before
+ * ToastManager::init() since there is no history row to fall back on.
+ * Main thread only. Inline so the test binary runs this code against its
+ * ToastManager stub.
+ */
+inline void show_transient_success(const char* text, uint32_t duration_ms) {
+    auto& toasts = ToastManager::instance();
+    if (!toasts.is_initialized() ||
+        !severity_meets_threshold(static_cast<int>(ToastSeverity::SUCCESS),
+                                  get_min_toast_severity_cache())) {
+        return;
+    }
+    toasts.show(ToastSeverity::SUCCESS, text, duration_ms);
+}
+
+} // namespace notifications
 } // namespace ui
 } // namespace helix

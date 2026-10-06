@@ -67,13 +67,13 @@ template <typename Panel> class PositionObserverBundle {
         // on observer nodes lv_subject_deinit() already freed.
         const SubjectLifetime lifetime = state.get_subjects_lifetime();
 
-        x_pos_observer_ = observe<int>(state.get_gcode_position_x_subject(), panel,
+        x_pos_observer_ = observe<int>(state.motion_state().get_gcode_position_x_subject(), panel,
                                        std::forward<XPosHandler>(on_x_pos), lifetime);
 
-        y_pos_observer_ = observe<int>(state.get_gcode_position_y_subject(), panel,
+        y_pos_observer_ = observe<int>(state.motion_state().get_gcode_position_y_subject(), panel,
                                        std::forward<YPosHandler>(on_y_pos), lifetime);
 
-        z_pos_observer_ = observe<int>(state.get_gcode_position_z_subject(), panel,
+        z_pos_observer_ = observe<int>(state.motion_state().get_gcode_position_z_subject(), panel,
                                        std::forward<ZPosHandler>(on_z_pos), lifetime);
     }
 

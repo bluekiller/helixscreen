@@ -6,7 +6,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_frequency_response_chart.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_timer_guard.h"
 #include "ui_update_queue.h"
 
@@ -248,10 +248,10 @@ void BeltTensionPanel::show() {
     spdlog::debug("[BeltTension] Showing overlay");
 
     // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    helix::nav::register_overlay(overlay_root_, this);
 
     // Push onto navigation stack
-    NavigationManager::instance().push_overlay(overlay_root_);
+    helix::nav::push_overlay(overlay_root_);
 
     spdlog::info("[BeltTension] Overlay shown");
 }
@@ -347,7 +347,7 @@ void BeltTensionPanel::cleanup() {
 
     // Unregister from NavigationManager
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     OverlayBase::cleanup();
@@ -867,15 +867,15 @@ void BeltTensionPanel::refresh_gate() {
     // "Connected" has to mean commands will actually run: Moonraker up but
     // klippy down (an emergency stop, a crash) refuses gcode, so a sweep
     // started then would stall until the guard fired.
-    in.connected =
-        lv_subject_get_int(ps.get_nav_buttons_enabled_subject()) != 0 &&
-        lv_subject_get_int(ps.get_klippy_state_subject()) == static_cast<int>(KlippyState::READY);
+    in.connected = lv_subject_get_int(ps.network_state().get_nav_buttons_enabled_subject()) != 0 &&
+                   lv_subject_get_int(ps.network_state().get_klippy_state_subject()) ==
+                       static_cast<int>(KlippyState::READY);
     in.has_accelerometer = accel_subj && lv_subject_get_int(accel_subj) != 0;
     in.is_corexy = detected_hw_.kinematics == helix::calibration::KinematicsType::COREXY;
     in.detecting = detection_pending_ &&
                    detected_hw_.kinematics == helix::calibration::KinematicsType::UNKNOWN;
     in.klippy_socket_reachable = klippy_socket_reachable_;
-    in.print_active = lv_subject_get_int(ps.get_print_active_subject()) != 0;
+    in.print_active = lv_subject_get_int(ps.print_state().get_print_active_subject()) != 0;
 
     const auto gate = helix::calibration::evaluate_belt_gate(in);
     const bool calibrator_idle =
@@ -929,13 +929,13 @@ void BeltTensionPanel::ensure_gate_observers() {
         accel_subj, this, [](BeltTensionPanel* self, int) { self->refresh_gate(); },
         ps.get_subjects_lifetime());
     print_active_observer_ = helix::ui::observe<int>(
-        ps.get_print_active_subject(), this,
+        ps.print_state().get_print_active_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
     connected_observer_ = helix::ui::observe<int>(
-        ps.get_nav_buttons_enabled_subject(), this,
+        ps.network_state().get_nav_buttons_enabled_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
     klippy_observer_ = helix::ui::observe<int>(
-        ps.get_klippy_state_subject(), this,
+        ps.network_state().get_klippy_state_subject(), this,
         [](BeltTensionPanel* self, int) { self->refresh_gate(); }, ps.get_subjects_lifetime());
 
     gate_observers_wired_ = true;

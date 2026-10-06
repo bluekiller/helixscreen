@@ -6,6 +6,8 @@
 #include "ui_observer_guard.h"
 
 #include "ams_backend.h"
+#include "ams_backend_registry.h"
+#include "ams_runout_grace.h"
 #include "ams_step_operation.h"
 #include "ams_types.h"
 #include "async_lifetime_guard.h"
@@ -19,9 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -49,8 +49,15 @@ class PrinterDiscovery;
  * 3. Subjects auto-update when backend emits events
  *
  * Thread Safety:
- * All public methods are thread-safe. Subject updates are posted
- * to LVGL's thread via queue_update when called from background threads.
+ * Main thread only, checked, except where a method says otherwise. The
+ * exceptions answer from state with its own guard: the backend registry
+ * (backend_count, primary_type, any_filament_batch_in_flight; get_backend
+ * returns a raw pointer and is main-thread only),
+ * RunoutGrace (the unload grace and per-slot unload stamps), the action and
+ * step-operation atomics, and the setters that marshal themselves to the main
+ * thread (set_pending_target_slot, set_active_tool_port_present). An off-main
+ * call aborts under strict UI checks (unit tests, --test) and otherwise logs
+ * and files an "ams_off_main" anomaly once.
  */
 /**
  * @brief Does a pre-print-send backend's SEED follow the persisted auto-color
@@ -286,7 +293,7 @@ class AmsState {
     [[nodiscard]] AmsBackend* get_backend() const;
 
     /**
-     * @brief Type of the primary backend, read under mutex_
+     * @brief Type of the primary backend. Safe off the main thread.
      *
      * For callers off the main thread: they cannot keep get_backend()'s pointer
      * past the lock, since clear_backends() frees it.
@@ -318,8 +325,8 @@ class AmsState {
      * @brief Whether any backend has a filament batch it dispatched and has not
      *        seen complete
      *
-     * Holds mutex_ across every backend it asks, so a caller off the main
-     * thread never keeps a backend pointer past clear_backends().
+     * Safe off the main thread: the registry holds its lock across every
+     * backend it asks, so no pointer outlives clear_backends().
      */
     [[nodiscard]] bool any_filament_batch_in_flight() const;
 
@@ -1473,7 +1480,7 @@ class AmsState {
     void sync_current_loaded_from_backend(const AmsSystemInfo& primary_info);
 
     /// Writes the "Current: ..." header for @p slot_index on @p backend, with
-    /// the unit name on multi-unit systems. Caller holds mutex_.
+    /// the unit name on multi-unit systems.
     void set_current_slot_header(AmsBackend& backend, int slot_index);
 
     /**
@@ -1595,6 +1602,23 @@ class AmsState {
      */
     void set_action(AmsAction action);
 
+    /**
+     * @brief Keep the current action through backend silence for up to @p budget
+     *
+     * For a UI-started operation on a backend that publishes nothing until its
+     * firmware starts: while held, a sync that finds the backend IDLE leaves the
+     * current action alone. The first busy action the backend reports takes over
+     * and ends the hold, so its own IDLE at the end then resolves the operation.
+     * Calling again restarts the budget. Main thread only.
+     */
+    void hold_optimistic_action(std::chrono::milliseconds budget);
+
+    /// @brief End a hold_optimistic_action() early; the next sync copies the backend.
+    void release_optimistic_action();
+
+    /// @brief Whether a hold_optimistic_action() is in force. Main thread only.
+    [[nodiscard]] bool optimistic_action_held() const;
+
     /// @brief Subject holding the current toolchange narration phase index (-1 = none).
     lv_subject_t* get_toolchange_step_subject() {
         return &toolchange_step_;
@@ -1672,7 +1696,7 @@ class AmsState {
      *
      * @param slot_index Slot index (0 to MAX_SLOTS-1)
      * @return true if mark_slot_unloaded(slot_index) was called within the last
-     *         RECENT_UNLOAD_GRACE window
+     *         RunoutGrace::WINDOW
      */
     bool was_slot_recently_unloaded(int slot_index) const;
 
@@ -1720,11 +1744,34 @@ class AmsState {
      */
     void on_backend_event(int backend_index, const std::string& event, const std::string& data);
 
+    /// @name sync_from_backend() steps, in the order it runs them. Main thread
+    /// only; @p backend is the primary backend and never null.
+    /// @{
+    /// Type, action, operation phase, system name and logo, current slot/tool.
+    void sync_system_subjects(const AmsSystemInfo& info);
+    /// Push or drop the AMS tool topology in ToolState.
+    void sync_tool_topology(AmsBackend* backend);
+    /// filament_loaded, the runout indicator's edge state, and the unload grace.
+    void sync_filament_runout(const AmsSystemInfo& info);
+    /// The bypass subjects, the bypass edge, and the external spool subjects.
+    void sync_bypass(AmsBackend* backend, const AmsSystemInfo& info);
+    /// Bump tool_map_version when the physical or applied routing moved.
+    void sync_tool_routing(AmsBackend* backend, const AmsSystemInfo& info);
+    /// The slot <-> ToolState spool bridge, both directions, and its save.
+    /// @return true when a slot subject changed
+    bool sync_tool_spools(AmsBackend* backend, const AmsSystemInfo& info);
+    /// Per-unit temperature, humidity and environment-indicator subjects.
+    void sync_unit_environment(AmsBackend* backend, const AmsSystemInfo& info);
+    /// Reset the slot subjects past @p total_slots.
+    /// @return true when a slot subject changed
+    bool clear_unused_slot_subjects(int total_slots);
+    /// @}
+
     /**
      * @brief Write one primary-backend slot's per-slot subjects from @p slot
      *
      * The one per-slot derivation, shared by sync_from_backend() and
-     * update_slot(). Main thread only, with mutex_ held.
+     * update_slot(). Main thread only.
      *
      * @return true when a value refresh_slots() re-reads changed, so the caller
      *         owes a slots_version bump
@@ -1778,19 +1825,15 @@ class AmsState {
         void write(int i, const SlotInfo& slot);
     };
 
-    /// Secondary-backend subject from @p member, or @p primary for backend 0,
-    /// with the lifetime token set accordingly.
+    /// Secondary-backend subject from @p member, or @p primary's slot for
+    /// backend 0, with the lifetime token set accordingly. Every per-backend
+    /// slot getter resolves through here.
     lv_subject_t* backend_slot_subject(int backend_index, int slot_index, SubjectLifetime& lifetime,
                                        std::vector<lv_subject_t> BackendSlotSubjects::*member,
-                                       lv_subject_t* primary);
+                                       lv_subject_t (&primary)[MAX_SLOTS]);
 
-    mutable std::recursive_mutex mutex_;
-    std::vector<std::unique_ptr<AmsBackend>> backends_;
+    AmsBackendRegistry registry_;
     std::vector<BackendSlotSubjects> secondary_slot_subjects_;
-    /// FilamentConsumptionTracker sink handles, keyed by backend index. One
-    /// AmsSlotSink per slot is registered when a backend is added and removed
-    /// in clear_backends().
-    std::map<int, std::vector<helix::FilamentConsumptionTracker::SinkHandle>> consumption_sinks_;
     bool initialized_ = false;
 
     // Moonraker API for Spoolman integration
@@ -1837,6 +1880,8 @@ class AmsState {
     /// Copy of ams_action_ for readers off the main thread. Every write to the
     /// subject updates it.
     std::atomic<AmsAction> action_mirror_{AmsAction::IDLE};
+    /// Deadline of the hold_optimistic_action() in force. Main thread only.
+    std::optional<std::chrono::steady_clock::time_point> optimistic_action_until_;
     /// Granular load/unload sub-phase (-1=none, 0=Home, 1=Select, 2=Heat,
     /// 3=Move). Snapmaker U1 only; registered with subjects_.
     lv_subject_t ams_operation_phase_{};
@@ -1863,7 +1908,7 @@ class AmsState {
     /// extrude, not by the print ending), so the level alone cannot say whether a
     /// runout happened during THIS job. sync_from_backend() therefore looks for a
     /// false->true transition seen while a job was running, not for the level.
-    /// All three are written only under mutex_ and reset by clear_backends().
+    /// All three are main-thread state, reset by clear_backends().
     ///
     /// Last raw level, for edge detection.
     bool prev_backend_runout_{false};
@@ -1881,19 +1926,8 @@ class AmsState {
     /// slot-delta scan notices it, and the pre-print filament check would keep
     /// serving a stale result.
     bool last_bypass_active_{false};
-    /// How long after an unload completes its removal edge is still credited to
-    /// that unload. Same 30s window as RECENT_UNLOAD_GRACE below and as the
-    /// AD5X IFS runout suppression: past it, an empty sensor is a real runout.
-    static constexpr std::chrono::seconds POST_UNLOAD_RUNOUT_GRACE{30};
-    /// One-shot: an unload completed and its removal edge has not arrived yet.
-    bool post_unload_runout_grace_{false};
-    /// When post_unload_runout_grace_ was armed. Without it the flag has no time
-    /// bound, and an unload that leaves nothing loaded never reaches the
-    /// filament-back retirement — the next genuine idle runout, days later,
-    /// would be swallowed.
-    std::chrono::steady_clock::time_point post_unload_runout_grace_at_{};
-    /// Whether the operation currently in flight has passed through UNLOADING.
-    bool saw_unload_in_op_{false};
+    /// Unload grace and per-slot unload stamps, behind their own leaf mutex.
+    RunoutGrace runout_grace_;
     /// prev_backend_runout_ has no meaning yet, so the first sample seeds it
     /// instead of counting as an edge — a flag that was already true when we
     /// connected (or when a backend was swapped in) describes no transition we
@@ -1942,7 +1976,6 @@ class AmsState {
 
     /// Recompute the ams_action_detail subject from current AMS action +
     /// cached operation_detail + PrinterState print state.
-    /// Caller must hold mutex_.
     void recompute_action_detail();
 
     /// Wire (or rewire) the print_state_observer_. Idempotent.
@@ -1954,7 +1987,7 @@ class AmsState {
     /// subjects must already be initialized — no lv_subject_init_* here, init
     /// memzeros the subject and would wipe the observers bound since the first
     /// init. MUST mirror the registration list in init_subjects(): a name
-    /// registered there must be registered here too. Caller must hold mutex_.
+    /// registered there must be registered here too.
     void register_xml_subject_names();
 
     /// In-memory override for external spool info. Set by set_external_spool_info_in_memory()
@@ -2123,21 +2156,6 @@ class AmsState {
     /// dedicated ams_env_ind_detail_* subjects consumed by the statically
     /// embedded detail-view indicator (see Task 9 brief).
     void mirror_detail_env_subjects();
-
-    // Stored callback for mock gcode response injection
-    std::function<void(const std::string&)> gcode_response_callback_;
-
-    /// Grace window after an unload during which a runout on that lane's sensor
-    /// is expected (the user pulls the just-unloaded filament out) and must NOT
-    /// pop the runout-guidance modal. Auto-expires.
-    static constexpr std::chrono::seconds RECENT_UNLOAD_GRACE{30};
-
-    /// Per-slot timestamp of the last completed unload (unload_finish). A
-    /// non-subject plain field guarded by mutex_ — written from the backend's
-    /// background-thread status parse, read from FilamentSensorManager. Default
-    /// time_point{} (epoch) means "never unloaded" and is always outside the
-    /// grace window.
-    std::array<std::chrono::steady_clock::time_point, MAX_SLOTS> last_unload_time_{};
 };
 
 } // namespace helix

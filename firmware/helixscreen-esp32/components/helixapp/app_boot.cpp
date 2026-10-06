@@ -86,6 +86,7 @@
 #include "sdkconfig.h"
 #include "setting_group.h"
 #include "src/xml/lv_xml.h"
+#include "status_dispatch.h"
 #include "subject_initializer.h"
 #include "system/afc_message_dedup.h"
 #include "temp_graph_controller.h"
@@ -107,6 +108,7 @@
 // WifiBackend) + Moonraker connect thread.
 #include "async_lifetime_guard.h"
 #include "provisioning_esp.h"
+#include "wall_clock_esp.h"
 #include "wifi_backend_esp.h"
 #include "wifi_manager.h"
 
@@ -307,7 +309,7 @@ void mock_push_temps() {
         {"extruder", {{"temperature", nozzle}, {"target", 215.0}}},
         {"heater_bed", {{"temperature", bed}, {"target", 60.0}}},
     };
-    get_printer_state().update_from_status(status);
+    helix::dispatch_status(status);
 }
 #endif // CONFIG_HELIX_MOCK_PRINTER
 
@@ -446,16 +448,20 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 ps.set_hardware(*snapshot);
 
                 const auto& fans = snapshot->fans();
-                ps.init_fans(fans,
-                             helix::FanRoleConfig::from_config(helix::Config::get_instance(), fans),
-                             snapshot->fan_max_power());
-                ps.init_extruders(snapshot->heaters());
+                ps.fan_state().init_fans(
+                    fans, helix::FanRoleConfig::from_config(helix::Config::get_instance(), fans),
+                    snapshot->fan_max_power());
+                ps.temperature_state().init_extruders(snapshot->heaters());
 
                 ps.set_klipper_version(snapshot->software_version());
                 ps.set_moonraker_version(snapshot->moonraker_version());
 
                 IMoonrakerAPI* api = mgr->api();
                 helix::IMoonrakerClient* c = mgr->client();
+
+                if (api) {
+                    helix::wall_clock_esp::request_date(api->get_http_base_url());
+                }
 
                 // Task 15 R1: AMS-relevant subset of desktop's
                 // init_subsystems_from_hardware() (src/printer/printer_discovery.cpp,

@@ -9,6 +9,7 @@
 #include "bluetooth_loader.h"
 #include "brother_pt_protocol.h"
 #include "bt_print_utils.h"
+#include "helix_thread.h"
 #include "label_printer_settings.h"
 #include "label_renderer.h"
 #include "log_redact.h"
@@ -87,7 +88,7 @@ void BrotherPTBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize
     // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
     // if it escapes an LVGL event frame (#724, #837, [L083]).
     try {
-        std::thread([mac, commands = std::move(commands), callback]() {
+        helix::make_thread([mac, commands = std::move(commands), callback]() {
             // fallback_channel=1 preserves first-run behavior on SDP-less builds.
             // Brother PT-E550W / P750W historically advertise SPP on channel 1.
             auto result = helix::bluetooth::rfcomm_send(mac, 1, commands, "Brother PT BT");
@@ -132,7 +133,7 @@ void BrotherPTBluetoothPrinter::print_spool(const SpoolInfo& spool, LabelPreset 
     // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
     // if it escapes an LVGL event frame (#724, #837, [L083]).
     try {
-        std::thread([mac, spool, preset, callback]() {
+        helix::make_thread([mac, spool, preset, callback]() {
             auto& loader = helix::bluetooth::BluetoothLoader::instance();
             auto* ctx = loader.get_or_create_context();
             if (!ctx) {

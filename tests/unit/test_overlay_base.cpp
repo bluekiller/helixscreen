@@ -15,7 +15,9 @@
  * regress back to sync safe_delete.
  */
 
+#include "ui_nav.h"
 #include "ui_nav_manager.h"
+#include "ui_panel_common.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
@@ -342,7 +344,7 @@ TEST_CASE_METHOD(ShowFixture, "close() closes a shown overlay and is a no-op bef
 
 TEST_CASE_METHOD(ShowFixture,
                  "show() aborts on a root whose close callback another owner holds (strict)",
-                 "[overlay_base][overlay_show]") {
+                 "[overlay_base][overlay_show][subprocess]") {
     ShowOverlay overlay;
     REQUIRE(overlay.show(test_screen()));
     settle();
@@ -352,17 +354,153 @@ TEST_CASE_METHOD(ShowFixture,
 
     std::fflush(nullptr);
     pid_t pid = fork();
-    REQUIRE(pid >= 0);
     if (pid == 0) {
         std::signal(SIGABRT, SIG_DFL); // Catch2's handler would report instead of dying
         helix::ui::set_strict_ui_checks(true);
         overlay.show(test_screen());
         _exit(0);
     }
+    REQUIRE(pid > 0);
     int status = 0;
     REQUIRE(waitpid(pid, &status, 0) == pid);
     CHECK(WIFSIGNALED(status));
     CHECK(WTERMSIG(status) == SIGABRT);
 
     NavigationManager::instance().unregister_overlay_close_callback(overlay.get_root());
+}
+
+namespace {
+
+/// Sums the pixels every invalidation adds to the display while installed.
+struct InvalidationMeter {
+    int64_t pixels = 0;
+    lv_display_t* disp = lv_display_get_default();
+
+    InvalidationMeter() {
+        lv_display_add_event_cb(disp, on_invalidate, LV_EVENT_INVALIDATE_AREA, this);
+    }
+    ~InvalidationMeter() {
+        lv_display_remove_event_cb_with_user_data(disp, on_invalidate, this);
+    }
+
+    static void on_invalidate(lv_event_t* e) {
+        auto* self = static_cast<InvalidationMeter*>(lv_event_get_user_data(e));
+        auto* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
+        self->pixels += static_cast<int64_t>(lv_area_get_width(a)) * lv_area_get_height(a);
+    }
+};
+
+// A full-size root whose construction runs a layout pass: a dropdown with a
+// selection positions its list, which reads a scroll offset and so updates
+// the screen's layout before lv_xml_create() returns.
+constexpr const char* kLayoutDuringCreate =
+    "<component><view extends=\"lv_obj\" width=\"100%\" height=\"100%\">"
+    "<lv_dropdown options=\"a&#10;b&#10;c\" selected=\"2\"/>"
+    "</view></component>";
+
+} // namespace
+
+TEST_CASE_METHOD(ShowFixture, "show() leaves the screen undrawn until the queued push shows it",
+                 "[overlay_base][overlay_show][render]") {
+    lv_xml_register_component_from_data("test_overlay_layout_during_create", kLayoutDuringCreate);
+    settle();
+    lv_refr_now(lv_display_get_default());
+
+    // The component really does lay out mid-create: built visible, its whole
+    // area is already queued for redraw by the time the caller could hide it.
+    {
+        InvalidationMeter meter;
+        lv_obj_t* visible = static_cast<lv_obj_t*>(
+            lv_xml_create(test_screen(), "test_overlay_layout_during_create", nullptr));
+        REQUIRE(visible != nullptr);
+        CHECK(meter.pixels >= lv_obj_get_width(visible) * lv_obj_get_height(visible));
+        lv_obj_delete(visible);
+    }
+    lv_refr_now(lv_display_get_default());
+
+    ShowOverlay overlay("test_overlay_layout_during_create");
+    {
+        // The frame between show() and the queued push would draw only this.
+        InvalidationMeter meter;
+        REQUIRE(overlay.show(test_screen()));
+        lv_obj_update_layout(test_screen());
+        CHECK(meter.pixels == 0);
+        CHECK(lv_obj_has_flag(overlay.get_root(), LV_OBJ_FLAG_HIDDEN));
+        CHECK(lv_obj_get_parent(overlay.get_root()) == test_screen());
+    }
+    settle();
+    CHECK_FALSE(lv_obj_has_flag(overlay.get_root(), LV_OBJ_FLAG_HIDDEN));
+    CHECK(NavigationManager::instance().is_panel_on_top(overlay.get_root()));
+    pop(overlay);
+}
+
+TEST_CASE_METHOD(ShowFixture, "create_xml_hidden() lays the tree out at the parent's size",
+                 "[overlay_base][overlay_show][render]") {
+    lv_xml_register_component_from_data("test_overlay_layout_during_create", kLayoutDuringCreate);
+    settle();
+
+    // No layout pass after the call: what a caller reading sizes synchronously
+    // sees is what the build-time layout computed.
+    lv_obj_t* root =
+        helix::ui::create_xml_hidden(test_screen(), "test_overlay_layout_during_create");
+    REQUIRE(root != nullptr);
+    CHECK(lv_obj_get_width(root) == lv_obj_get_content_width(test_screen()));
+    CHECK(lv_obj_get_height(root) == lv_obj_get_content_height(test_screen()));
+    lv_obj_delete(root);
+}
+
+TEST_CASE_METHOD(ShowFixture, "create_xml_hidden() refuses a null parent",
+                 "[overlay_base][overlay_show]") {
+    lv_xml_register_component_from_data("test_overlay_layout_during_create", kLayoutDuringCreate);
+    CHECK(helix::ui::create_xml_hidden(nullptr, "test_overlay_layout_during_create") == nullptr);
+}
+
+TEST_CASE_METHOD(ShowFixture, "is_push_pending() spans push_overlay() to its queued push",
+                 "[overlay_base][overlay_show][nav]") {
+    auto& nav = NavigationManager::instance();
+    lv_obj_t* overlay = lv_obj_create(test_screen());
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    nav.register_overlay_instance(overlay, nullptr);
+
+    CHECK_FALSE(nav.is_push_pending(overlay));
+    nav.push_overlay(overlay);
+    // Neither visible nor stacked yet: only this says an open is under way.
+    CHECK(nav.is_push_pending(overlay));
+    CHECK_FALSE(nav.is_panel_in_stack(overlay));
+
+    settle();
+    CHECK_FALSE(nav.is_push_pending(overlay));
+    CHECK(nav.is_panel_on_top(overlay));
+    nav.go_back();
+    settle();
+}
+
+TEST_CASE_METHOD(ShowFixture, "is_showing() covers queued, stacked and sliding-out overlays",
+                 "[overlay_base][overlay_show][nav]") {
+    lv_obj_t* overlay = lv_obj_create(test_screen());
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    helix::nav::register_overlay(overlay, nullptr);
+    CHECK_FALSE(helix::nav::is_showing(overlay));
+    CHECK_FALSE(helix::nav::is_showing(nullptr));
+
+    helix::nav::push_overlay(overlay);
+    CHECK(helix::nav::is_showing(overlay)); // queued, still hidden
+    settle();
+    CHECK(helix::nav::is_showing(overlay)); // in the stack
+
+    // Off the stack but still drawn: what a slide-out animation leaves until it ends.
+    helix::nav::go_back();
+    settle();
+    REQUIRE_FALSE(helix::nav::is_in_stack(overlay));
+    lv_obj_remove_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    CHECK(helix::nav::is_showing(overlay));
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    CHECK_FALSE(helix::nav::is_showing(overlay));
+
+    // A caller may hold the pointer past the widget's deletion.
+    helix::nav::unregister_overlay(overlay);
+    lv_obj_t* deleted = lv_obj_create(test_screen());
+    lv_obj_delete(deleted);
+    CHECK_FALSE(helix::nav::is_showing(deleted));
+    lv_obj_delete(overlay);
 }

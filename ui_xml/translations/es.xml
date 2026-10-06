@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" es="Una imagen de tu impresora"/>
   <translation tag="A print is in progress - restart still pending" es="Hay una impresión en curso - reinicio pendiente"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." es="Se está imprimiendo en este gate. HelixScreen borró su propia copia; bórralo de nuevo cuando termine la impresión."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." es="Se inició una impresión con bobinas marcadas como en la cama. Si siguen ahí, detén la impresora ahora con la Parada de Emergencia."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" es="Puede que una bobina esté enredada o que el engranaje de arrastre esté atascado"/>
   <translation tag="A · 1,-1" es="A · 1,-1"/>
   <translation tag="ABS" es="ABS"/>
@@ -1611,6 +1612,7 @@
   <translation tag="Load Filament" es="Cargar Filamento"/>
   <translation tag="Load a filament first before trying to unload" es="Cargue primero filamento antes de intentar descargar"/>
   <translation tag="Load a new spool in this slot, or turn on auto-refill to switch to a matching one" es="Cargue una bobina nueva en esta ranura, o active el rellenado automático para cambiar a una equivalente"/>
+  <translation tag="Load cancelled: nozzle target dropped" es="Carga cancelada: el objetivo de la boquilla bajó"/>
   <translation tag="Load complete" es="Carga completa"/>
   <translation tag="Load failed" es="Error al cargar"/>
   <translation tag="Load filament" es="Cargar filamento"/>
@@ -2800,8 +2802,10 @@
   <translation tag="Spoolman was not configured." es="Spoolman no estaba configurado."/>
   <translation tag="Spoolman: %zu Spool%s" es="Spoolman: %zu bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" es="Spoolman: %zu/%zu bobina%s"/>
+  <translation tag="Spools are off" es="Bobinas retiradas"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" es="Hay bobinas sobre la cama: retíralas y confirma antes de mover la impresora"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." es="Hay bobinas en la cama: toca el aviso de secado para confirmar que las has quitado y luego reinicia."/>
+  <translation tag="Spools on the bed!" es="¡Bobinas en la cama!"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" es="Bobinas en la cama: inicia el secado o confirma que no colocaste ninguna"/>
   <translation tag="Spools removed" es="Bobinas retiradas"/>
   <translation tag="Square Corner Velocity" es="Velocidad de Esquina Cuadrada"/>

@@ -13,6 +13,9 @@
 #include "filament_consumption_tracker_test_access.h"
 #include "printer_state.h"
 
+#include <string>
+#include <vector>
+
 #include "../catch_amalgamated.hpp"
 
 using helix::AmsSlotSink;
@@ -299,8 +302,8 @@ TEST_CASE_METHOD(LVGLTestFixture,
     // Start tracker and drive the printer into PRINTING so print_in_progress_
     // is true when we register a new sink below.
     tracker.start();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -326,7 +329,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     REQUIRE(mock->get_current_slot() == 1);
 
     // Push a filament_used delta and verify the late sink's slot decremented.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1000);
     helix::ui::UpdateQueue::instance().drain();
 
     helix::SlotInfo after = mock->get_slot_info(1);
@@ -335,13 +338,82 @@ TEST_CASE_METHOD(LVGLTestFixture,
     REQUIRE(after.remaining_weight_g > 796.0f);
 
     // Clean up.
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::COMPLETE));
     helix::ui::UpdateQueue::instance().drain();
     tracker.unregister_sink(handle);
     tracker.stop();
     ams.clear_backends();
     ams.clear_external_spool_info();
+}
+
+namespace {
+// Records the order clear_backends() reaches each teardown step, and whether
+// the backend was still registered when its sink's final flush persisted.
+class TeardownOrderBackend : public helix::AmsBackendMock {
+  public:
+    TeardownOrderBackend(int slots, std::vector<std::string>& log)
+        : helix::AmsBackendMock(slots), log_(log) {}
+    void persist_slot_weight(int slot_index, float, float) override {
+        const bool registered = helix::AmsState::instance().get_backend(0) == this;
+        log_.push_back("flush slot " + std::to_string(slot_index) +
+                       (registered ? " registered" : " unregistered"));
+    }
+    void stop() override {
+        log_.push_back(helix::AmsState::instance().get_backend(0) == this ? "stop registered"
+                                                                          : "stop unregistered");
+        helix::AmsBackendMock::stop();
+    }
+
+  private:
+    std::vector<std::string>& log_;
+};
+} // namespace
+
+TEST_CASE_METHOD(
+    LVGLTestFixture,
+    "clear_backends flushes slot sinks while the backend is registered and stops it after",
+    "[consumption_sink][ams][tracker_registry]") {
+    auto& ams = helix::AmsState::instance();
+    auto& printer = get_printer_state();
+    auto& tracker = FilamentConsumptionTracker::instance();
+
+    ams.clear_backends();
+    ams.deinit_subjects();
+    printer.init_subjects(false);
+    ams.init_subjects(false);
+    ams.clear_backends();
+
+    std::vector<std::string> log;
+    auto m = std::make_unique<TeardownOrderBackend>(4, log);
+    TeardownOrderBackend* mock = m.get();
+    REQUIRE(ams.add_backend(std::move(m)) == 0);
+    helix::SlotInfo seed = mock->get_slot_info(0);
+    seed.material = "PLA";
+    seed.remaining_weight_g = 500.0f;
+    seed.total_weight_g = 1000.0f;
+    seed.spoolman_id = 0;
+    mock->sync_external_identity(0, seed);
+
+    // PRINTING snapshots every sink; only slot 0 is trackable, so only its
+    // flush persists.
+    tracker.start();
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
+                       static_cast<int>(helix::PrintJobState::PRINTING));
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(log.empty());
+
+    ams.clear_backends();
+
+    CHECK(log == std::vector<std::string>{"flush slot 0 registered", "stop unregistered"});
+    CHECK(ams.get_backend(0) == nullptr);
+
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
+                       static_cast<int>(helix::PrintJobState::STANDBY));
+    helix::ui::UpdateQueue::instance().drain();
+    tracker.stop();
+    ams.deinit_subjects();
 }
 
 // ---------------------------------------------------------------------------
@@ -358,24 +430,25 @@ TEST_CASE_METHOD(AmsSlotSinkFixture,
 
     SECTION("identity mapping on a single-extruder printer: three dead slots") {
         mock->set_identity_extruder_mapping_for_testing(true);
-        printer.init_extruders({"extruder"});
+        printer.temperature_state().init_extruders({"extruder"});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               3);
     }
     SECTION("every mapped extruder reported: nothing to say") {
         mock->set_identity_extruder_mapping_for_testing(true);
-        printer.init_extruders({"extruder", "extruder1", "extruder2", "extruder3"});
+        printer.temperature_state().init_extruders(
+            {"extruder", "extruder1", "extruder2", "extruder3"});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               0);
     }
     SECTION("no mapping declared: nothing to say") {
-        printer.init_extruders({"extruder"});
+        printer.temperature_state().init_extruders({"extruder"});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               0);
     }
     SECTION("before extruder discovery the count is unknown, not zero") {
         mock->set_identity_extruder_mapping_for_testing(true);
-        printer.init_extruders({});
+        printer.temperature_state().init_extruders({});
         CHECK(FilamentConsumptionTrackerTestAccess::warn_unreported_extruder_mappings(tracker) ==
               0);
     }
@@ -387,21 +460,21 @@ TEST_CASE_METHOD(AmsSlotSinkFixture, "the PRINTING transition is what reports de
     auto& printer = get_printer_state();
 
     mock->set_identity_extruder_mapping_for_testing(true);
-    printer.init_extruders({"extruder"});
+    printer.temperature_state().init_extruders({"extruder"});
 
     tracker.start();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(FilamentConsumptionTrackerTestAccess::unreported_mappings_at_start(tracker) == 0);
 
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
     CHECK(FilamentConsumptionTrackerTestAccess::unreported_mappings_at_start(tracker) == 3);
 
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::COMPLETE));
     helix::ui::UpdateQueue::instance().drain();
     tracker.stop();

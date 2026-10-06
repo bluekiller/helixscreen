@@ -337,6 +337,7 @@ json DebugBundleCollector::build_touch_info(const TouchRangeDiagnostics& diag) {
         stored["max_x"] = pipe.stored.max_x;
         stored["min_y"] = pipe.stored.min_y;
         stored["max_y"] = pipe.stored.max_y;
+        stored["capture_rotation"] = pipe.stored.capture_rotation;
     }
     touch["stored_range"] = stored;
     touch["affine_valid"] = diag.affine_valid;
@@ -551,19 +552,19 @@ PrinterSnapshot DebugBundleCollector::snapshot_printer_state() {
         auto& ps = get_printer_state();
 
         // Copy, do not bind: get_printer_type() returns a reference to a member
-        // that set_printer_type() reassigns without a mutex.
-        snap.model = ps.get_printer_type();
+        // that a printer-type change reassigns without a mutex.
+        snap.model = ps.profile_state().printer_type();
 
         // The raw string, not the display subject: the subject localizes
         // placeholder versions ("?"/"unknown" from some vendor forks) into a
         // translated label, which tells a bundle reader nothing about what
         // the host actually reported.
-        if (!ps.get_klipper_version_raw().empty()) {
-            snap.klipper_version = ps.get_klipper_version_raw();
+        if (!ps.versions_state().get_klipper_version_raw().empty()) {
+            snap.klipper_version = ps.versions_state().get_klipper_version_raw();
         }
-        if (auto* conn_subj = ps.get_printer_connection_state_subject())
+        if (auto* conn_subj = ps.network_state().get_printer_connection_state_subject())
             snap.connection_state = lv_subject_get_int(conn_subj);
-        if (auto* klippy_subj = ps.get_klippy_state_subject())
+        if (auto* klippy_subj = ps.network_state().get_klippy_state_subject())
             snap.klippy_state = lv_subject_get_int(klippy_subj);
 
         // Discovery is read here with the subjects, on the main thread, so the
@@ -1400,34 +1401,7 @@ json DebugBundleCollector::collect_platform_files() {
 // =============================================================================
 
 std::vector<std::string> DebugBundleCollector::parse_include_patterns(const std::string& body) {
-    std::vector<std::string> patterns;
-    std::istringstream stream(body);
-    std::string line;
-    while (std::getline(stream, line)) {
-        // Strip a trailing CR so CRLF configs parse (Klipper accepts them).
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
-        // Klipper section headers must start at column 0; a leading space makes
-        // the line a continuation of the previous option, not a new section.
-        // Comments (# or ;) are not section headers either.
-        if (line.compare(0, 9, "[include ") != 0) {
-            continue;
-        }
-        const size_t close = line.find(']', 9);
-        if (close == std::string::npos) {
-            continue;
-        }
-        std::string pattern = line.substr(9, close - 9);
-        // Trim surrounding whitespace: "[include  foo.cfg ]" is valid.
-        const size_t first = pattern.find_first_not_of(" \t");
-        const size_t last = pattern.find_last_not_of(" \t");
-        if (first == std::string::npos) {
-            continue;
-        }
-        patterns.push_back(pattern.substr(first, last - first + 1));
-    }
-    return patterns;
+    return helix::system::extract_includes(body);
 }
 
 std::vector<std::string>

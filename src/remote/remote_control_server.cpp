@@ -507,10 +507,10 @@ nlohmann::json RemoteControlServer::handle_reset(const nlohmann::json& /*params*
                          actual_depth, MAX_DEPTH, MAX_DEPTH);
         }
         for (int i = 0; i < overlays_popped; ++i) {
-            nav.go_back();
+            helix::nav::go_back();
         }
 
-        nav.set_active(helix::PanelId::Home);
+        helix::nav::set_active(helix::PanelId::Home);
 
         return {{"panel", panel_id_to_name(nav.get_active())},
                 {"overlays_popped", overlays_popped},
@@ -564,7 +564,7 @@ nlohmann::json RemoteControlServer::handle_log(const nlohmann::json& params) {
 
 nlohmann::json RemoteControlServer::handle_go_back(const nlohmann::json& /*params*/) {
     return execute_on_ui_thread([]() -> nlohmann::json {
-        bool result = NavigationManager::instance().go_back();
+        bool result = helix::nav::go_back();
         return {{"success", result}};
     });
 }
@@ -766,8 +766,9 @@ nlohmann::json RemoteControlServer::handle_status(const nlohmann::json& /*params
         std::string current_panel = panel_id_to_name(nav.get_active());
 
         auto& ps = get_printer_state();
-        int conn_state = lv_subject_get_int(ps.get_printer_connection_state_subject());
-        int klippy_state = lv_subject_get_int(ps.get_klippy_state_subject());
+        int conn_state =
+            lv_subject_get_int(ps.network_state().get_printer_connection_state_subject());
+        int klippy_state = lv_subject_get_int(ps.network_state().get_klippy_state_subject());
 
         return {{"panel", current_panel},
                 {"overlays", nav.overlay_stack_names()},

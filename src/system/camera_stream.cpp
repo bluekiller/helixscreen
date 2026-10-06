@@ -2,6 +2,7 @@
 
 #include "camera_stream.h"
 
+#include "helix_thread.h"
 #include "lvgl.h"
 
 #if HELIX_HAS_CAMERA
@@ -115,7 +116,7 @@ CameraStream::~CameraStream() {
 std::optional<WebcamInfo> CameraStream::resolve_from_printer(const std::string& source) {
     // Lazy includes — avoid header dependency on printer_state/moonraker in camera_stream.h
     auto& state = get_printer_state();
-    auto feed = webcam::select_webcam(state.get_webcams(), source);
+    auto feed = webcam::select_webcam(state.capabilities_state().get_webcams(), source);
     if (!feed) {
         return std::nullopt;
     }
@@ -171,10 +172,10 @@ void CameraStream::start(const std::string& stream_url, const std::string& snaps
 
     if (!stream_url_.empty()) {
         spdlog::info("[CameraStream] Using MJPEG streaming mode");
-        stream_thread_ = std::thread(&CameraStream::stream_thread_func, this);
+        stream_thread_ = helix::make_thread(&CameraStream::stream_thread_func, this);
     } else if (!snapshot_url_.empty()) {
         spdlog::info("[CameraStream] Using snapshot mode (interval={}ms)", SNAPSHOT_INTERVAL_MS);
-        stream_thread_ = std::thread(&CameraStream::snapshot_poll_loop, this);
+        stream_thread_ = helix::make_thread(&CameraStream::snapshot_poll_loop, this);
     } else {
         spdlog::warn("[CameraStream] No stream or snapshot URL provided");
         running_.store(false);
@@ -217,7 +218,7 @@ void CameraStream::stop() {
         std::thread join_helper;
         bool helper_spawned = false;
         try {
-            join_helper = std::thread([this, joined]() {
+            join_helper = helix::make_thread([this, joined]() {
                 stream_thread_.join();
                 joined->store(true);
             });

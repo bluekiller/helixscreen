@@ -9,7 +9,8 @@
 #include "ui_gcode_viewer.h"
 #include "ui_icon.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_print_preparation_manager.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
@@ -110,7 +111,7 @@ PrintSelectDetailView::~PrintSelectDetailView() {
 
     // Unregister from NavigationManager (fallback if cleanup() wasn't called)
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Deinitialize subjects to disconnect observers before widgets are deleted
@@ -229,11 +230,11 @@ void PrintSelectDetailView::init_subjects() {
     // after first paint, and the Moonraker version arrives with discovery.
     // Without these the card keeps whatever it decided before either was known.
     plugin_installed_observer_ = observe<int>(
-        get_printer_state().get_helix_plugin_installed_subject(), this,
+        get_printer_state().plugin_status_state().get_helix_plugin_installed_subject(), this,
         [](PrintSelectDetailView* self, int /*state*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
     moonraker_degraded_observer_ = observe<int>(
-        get_printer_state().get_moonraker_history_degraded_subject(), this,
+        get_printer_state().versions_state().get_moonraker_history_degraded_subject(), this,
         [](PrintSelectDetailView* self, int /*degraded*/) { self->publish_card_visibility(); },
         get_printer_state().get_subjects_lifetime());
 
@@ -254,8 +255,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
 
     parent_screen_ = parent_screen;
 
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "print_file_detail", nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent_screen_, "print_file_detail");
 
     if (!overlay_root_) {
         LOG_ERROR_INTERNAL("[DetailView] Failed to create detail view from XML");
@@ -269,8 +269,6 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
         lv_coord_t padding = ui_get_header_content_padding();
         lv_obj_set_style_pad_all(content_container, padding, 0);
     }
-
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     // Store reference to print button for enable/disable state management
     print_button_ = find_required(overlay_root_, "print_button", get_name());
@@ -417,6 +415,17 @@ void PrintSelectDetailView::set_analysis_dependencies(IMoonrakerAPI* api,
         prep_manager_ = std::make_unique<PrintPreparationManager>();
         // A scan answer can be what a deferred Print tap is waiting on.
         prep_manager_->set_on_scan_answered([this]() { fire_on_preflight_ready(); });
+        // Macro rows come and go with the analysis, so an open view rebuilds
+        // them now; a hidden one rebuilds in on_activate().
+        prep_manager_->set_macro_analysis_callback(
+            [this](const helix::PrintStartAnalysis& analysis) {
+                if (is_visible()) {
+                    populate_option_rows();
+                }
+                if (on_macro_analysis_cb_) {
+                    on_macro_analysis_cb_(analysis);
+                }
+            });
     }
     // Per-option toggle state flows through the OptionStateProvider that
     // populate_option_rows() registers with the prep manager.
@@ -555,16 +564,15 @@ void PrintSelectDetailView::show(const std::string& filename, const std::string&
     }
 
     // Register with NavigationManager for lifecycle callbacks
-    NavigationManager::instance().register_overlay_instance(overlay_root_, this);
+    helix::nav::register_overlay(overlay_root_, this);
 
     // Register close callback to destroy widget tree when overlay closes.
     // Frees memory when detail view is dismissed. Subjects survive;
     // next show() call re-creates widgets via lazy creation above.
-    NavigationManager::instance().register_overlay_close_callback(
-        overlay_root_, [this]() { destroy_overlay_ui(overlay_root_); });
+    helix::nav::on_close(overlay_root_, [this]() { destroy_overlay_ui(overlay_root_); });
 
     // Push onto navigation stack - on_activate() will be called by NavigationManager
-    NavigationManager::instance().push_overlay(overlay_root_);
+    helix::nav::push_overlay(overlay_root_);
 
     if (visible_subject_) {
         lv_subject_set_int(visible_subject_, 1);
@@ -585,7 +593,7 @@ void PrintSelectDetailView::hide() {
     }
 
     // Pop from navigation stack - on_deactivate() will be called by NavigationManager
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 
     if (visible_subject_) {
         lv_subject_set_int(visible_subject_, 0);
@@ -771,7 +779,7 @@ void PrintSelectDetailView::on_activate() {
     spdlog::debug("[DetailView] on_activate() for file: {}", current_filename_);
 
     // (Re)build dynamic option rows from the active printer's option set.
-    // Idempotent — only rebuilds when the printer type has changed.
+    // Idempotent — only rebuilds when the printer or its option ids changed.
     populate_option_rows();
 
     // A queued job's saved states override the defaults for this render.
@@ -912,7 +920,7 @@ void PrintSelectDetailView::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Deinitialize subjects to disconnect observers
@@ -1000,7 +1008,7 @@ void PrintSelectDetailView::on_ui_destroyed() {
     // must not survive into the next create() cycle.
     fit_pending_ = false;
     option_rows_renderer_.clear();
-    last_rendered_printer_type_.clear();
+    last_rendered_rows_.clear();
     // A seed that never reached a render dies with the view it was meant
     // for; the next file to open starts from its own defaults.
     pending_option_seed_.clear();
@@ -1643,7 +1651,8 @@ void PrintSelectDetailView::publish_card_visibility() {
         backend->get_remap_strategy() == AmsBackend::RemapStrategy::GcodeRewrite;
     const bool degraded =
         available && rewrites_job_file &&
-        lv_subject_get_int(get_printer_state().get_moonraker_history_degraded_subject()) == 1;
+        lv_subject_get_int(
+            get_printer_state().versions_state().get_moonraker_history_degraded_subject()) == 1;
 
     lv_subject_set_int(&color_card_remap_help_visible_,
                        card_visible && (needs_setup || degraded) ? 1 : 0);
@@ -1692,8 +1701,9 @@ helix::printer::RemapBlock PrintSelectDetailView::current_remap_block() const {
     if (backend == nullptr) {
         return helix::printer::RemapBlock::NoStrategy;
     }
-    return helix::printer::remap_block(*backend, get_printer_state().helix_plugin_state(),
-                                       static_cast<int>(get_used_tool_info().size()));
+    return helix::printer::remap_block(
+        *backend, get_printer_state().plugin_status_state().helix_plugin_state(),
+        static_cast<int>(get_used_tool_info().size()));
 }
 
 void PrintSelectDetailView::on_color_card_clicked() {
@@ -2455,12 +2465,16 @@ void PrintSelectDetailView::populate_option_rows() {
         return;
     }
 
-    const auto& option_set = printer_state_->get_pre_print_option_set();
+    // Macro-analysis rows join the printer's own options when its database
+    // entry declares none; see PrintPreparationManager::displayed_options().
+    const PrePrintOptionSet option_set =
+        prep_manager_ ? prep_manager_->displayed_options()
+                      : printer_state_->profile_state().pre_print_option_set();
 
-    // Skip rebuild only when rows are already populated AND the active
-    // printer hasn't changed since they were built. Mid-session printer-type
-    // changes (e.g. multi-printer setups) need a repopulate so the rows
-    // reflect the new option set.
+    // Skip rebuild only when rows are already populated AND neither the active
+    // printer nor its option ids have changed since they were built. A
+    // mid-session printer-type change (e.g. multi-printer setups) or a macro
+    // analysis landing after the first render needs a repopulate.
     //
     // The rebuild path is safe: `populate()` calls `clear()` (which deinits
     // every option subject — uninstalling observers from their row widgets)
@@ -2470,13 +2484,17 @@ void PrintSelectDetailView::populate_option_rows() {
     // still alive, so the deferred widget-delete tick has nothing to do for
     // them. Repopulating mid-session is therefore not the race that this
     // early-return originally guarded against.
-    const std::string& current_type = printer_state_->get_printer_type();
-    if (option_rows_renderer_.row_count() > 0 && current_type == last_rendered_printer_type_) {
+    const std::string& current_type = printer_state_->profile_state().printer_type();
+    std::string rows_key = current_type;
+    for (const auto& opt : option_set.options) {
+        rows_key += '\n' + opt.id;
+    }
+    if (option_rows_renderer_.row_count() > 0 && rows_key == last_rendered_rows_) {
         spdlog::trace("[DetailView] Skipping option-row rebuild (already populated for '{}')",
                       current_type);
         return;
     }
-    last_rendered_printer_type_ = current_type;
+    last_rendered_rows_ = rows_key;
 
     // Honor `PrePrintOption::requires_macro`: hide options whose required
     // macro isn't registered with Klipper. Their toggles would be inert —
@@ -2506,13 +2524,13 @@ void PrintSelectDetailView::populate_option_rows() {
     // takes the skip directly (setup_gcode present), so the predicate returns
     // false and it stays visible. Hiding it was a shipped regression; the
     // predicate now enforces the distinction structurally.
-    auto visibility_lookup = [this](const std::string& id) -> lv_subject_t* {
+    auto visibility_lookup = [this, &rendered](const std::string& id) -> lv_subject_t* {
         if (!prep_manager_ || !printer_state_) {
             return nullptr;
         }
-        const PrePrintOption* opt = printer_state_->get_pre_print_option_set().find(id);
+        const PrePrintOption* opt = rendered.find(id);
         if (opt && prep_manager_->disabling_option_requires_plugin(*opt)) {
-            return printer_state_->get_helix_plugin_installed_subject();
+            return printer_state_->plugin_status_state().get_helix_plugin_installed_subject();
         }
         return nullptr; // Not plugin-dependent: always visible for declared options.
     };

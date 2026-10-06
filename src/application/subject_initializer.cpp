@@ -348,6 +348,7 @@ void SubjectInitializer::init_panel_subjects(IMoonrakerAPI* api) {
         get_printer_state(), api, m_temp_controller.get(), std::move(bed_drying_clock));
     m_bed_drying->init_subjects();
     m_bed_drying->set_on_ready_to_remove(helix::ui::show_bed_drying_remove_prompt);
+    m_bed_drying->set_on_print_while_latched(helix::ui::show_spools_on_bed_print_alarm);
     helix::PanelWidgetManager::instance().register_shared_resource<helix::BedDryingController>(
         m_bed_drying.get());
     m_bed_drying->restore();
@@ -448,7 +449,7 @@ void SubjectInitializer::init_observers() {
 
         // Connection state observer — safe without mutex because these subjects
         // are only updated via ui_queue_update() (fires on LVGL/main thread).
-        auto* conn_subject = ps.get_printer_connection_state_subject();
+        auto* conn_subject = ps.network_state().get_printer_connection_state_subject();
         if (conn_subject) {
             m_observers.push_back(ObserverGuard(
                 conn_subject,
@@ -460,7 +461,7 @@ void SubjectInitializer::init_observers() {
         }
 
         // Klippy state observer
-        auto* klippy_subject = ps.get_klippy_state_subject();
+        auto* klippy_subject = ps.network_state().get_klippy_state_subject();
         if (klippy_subject) {
             m_observers.push_back(ObserverGuard(
                 klippy_subject,

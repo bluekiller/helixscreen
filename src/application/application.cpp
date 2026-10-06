@@ -689,7 +689,7 @@ int Application::run(int argc, char** argv) {
     // Show sound settings immediately if a local backend exists,
     // without waiting for hardware discovery / Klipper connection.
     if (SoundManager::instance().has_backend()) {
-        get_printer_state().set_sound_backend_available(true);
+        get_printer_state().capabilities_state().set_sound_backend_available(true);
     }
 
     // Initialize PostOpCooldownManager (unified filament operation cooldown)
@@ -1936,7 +1936,7 @@ void Application::apply_startup_cli_actions() {
     // Handle --select-file flag
     RuntimeConfig* runtime_config = get_runtime_config();
     if (runtime_config->select_file != nullptr) {
-        NavigationManager::instance().set_active(PanelId::PrintSelect);
+        helix::nav::set_active(PanelId::PrintSelect);
         auto* print_panel =
             get_print_select_panel(get_printer_state(), m_session.moonraker()->api());
         if (print_panel) {

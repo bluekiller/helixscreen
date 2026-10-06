@@ -39,6 +39,30 @@ using WidgetReuseMap = std::unordered_map<std::string, std::unique_ptr<PanelWidg
 /// gate reads 0, so a gate flip changes the page's id list.
 inline constexpr char GATED_ID_SUFFIX[] = "~gated";
 
+/// A placed widget's footprint on the grid, in tracks, as the card background
+/// pass reads it.
+struct CardFootprint {
+    int col, row, colspan, rowspan;
+    /// The widget shares the fused card (PanelWidgetDef::merges_into_card)
+    /// rather than painting a background of its own.
+    bool merges;
+};
+
+/// One card background rectangle, in tracks.
+struct CardRect {
+    int col, row, colspan, rowspan;
+    bool operator==(const CardRect& o) const {
+        return col == o.col && row == o.row && colspan == o.colspan && rowspan == o.rowspan;
+    }
+};
+
+/// The card backgrounds behind @p footprints. Merging widgets that touch form
+/// one component (4-way adjacency over tracks); each component's bounding box,
+/// minus the tracks a non-merging widget sits in, is split into maximal
+/// rectangles, none of which ends partway through a merging widget. Pure, so
+/// a full populate and an in-place relayout derive the same cards.
+std::vector<CardRect> card_background_rects(const std::vector<CardFootprint>& footprints);
+
 /// Central manager for panel widget lifecycle, shared resources, and config change
 /// notifications. Widgets and panels interact through this singleton rather than
 /// reaching into each other directly.
@@ -140,6 +164,20 @@ class PanelWidgetManager {
                      const std::vector<std::string>& visible_ids,
                      const std::vector<GateFlip>& flips,
                      std::vector<std::unique_ptr<PanelWidget>>& widgets);
+
+    /// Re-seat a populated page's tiles at their entries' cells in place, after
+    /// edit mode moved, swapped or resized the widgets named in @p changed_ids
+    /// on it, and replace only the card backgrounds that changed. Every tile
+    /// keeps its objects; the one named @p resized_id (empty for none) is told
+    /// its new span through notify_size_changed(), as a populate tells it.
+    /// Returns false (having changed nothing) when the page needs a full
+    /// populate instead: a tile with no placed entry, a tile outside
+    /// @p changed_ids laid out anywhere but its entry's cell (placement moved
+    /// it, or this grid reduced or grew its span), a resized widget that
+    /// cannot draw at its new size, or a container that is not a live grid.
+    bool relayout_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
+                        const std::vector<std::string>& changed_ids, const std::string& resized_id,
+                        std::vector<std::unique_ptr<PanelWidget>>& widgets);
 
     // -- Gate observers --
 

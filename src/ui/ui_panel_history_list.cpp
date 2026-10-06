@@ -8,7 +8,7 @@
 #include "ui_fonts.h"
 #include "ui_format_utils.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_notification.h"
 #include "ui_overlay_timelapse_videos.h"
 #include "ui_panel_common.h"
@@ -180,7 +180,8 @@ lv_obj_t* HistoryListPanel::create(lv_obj_t* parent) {
 
     // Register connection state observer to auto-refresh when connected
     // This handles the case where the panel is opened before connection is established
-    lv_subject_t* conn_subject = get_printer_state().get_printer_connection_state_subject();
+    lv_subject_t* conn_subject =
+        get_printer_state().network_state().get_printer_connection_state_subject();
     connection_observer_ = helix::ui::observe<int>(
         conn_subject, this,
         [](HistoryListPanel* self, int state) {
@@ -904,8 +905,7 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
 
     // Create overlay if not exists (lazy init)
     if (!detail_overlay_) {
-        detail_overlay_ = static_cast<lv_obj_t*>(
-            lv_xml_create(parent_screen_, "history_detail_overlay", nullptr));
+        detail_overlay_ = helix::ui::create_xml_hidden(parent_screen_, "history_detail_overlay");
 
         if (detail_overlay_) {
             spdlog::debug("[{}] Detail overlay created", get_name());
@@ -999,10 +999,10 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
     }
 
     // Register detail sub-overlay with nullptr lifecycle — managed by HistoryListPanel
-    NavigationManager::instance().register_overlay_instance(detail_overlay_, nullptr);
+    helix::nav::register_overlay(detail_overlay_, nullptr);
 
     // Push the overlay
-    NavigationManager::instance().push_overlay(detail_overlay_);
+    helix::nav::push_overlay(detail_overlay_);
     spdlog::info("[{}] Showing detail overlay for: {}", get_name(), job.filename);
 }
 
@@ -1119,12 +1119,12 @@ void HistoryListPanel::handle_reprint() {
 
     // Navigate to the Print Select file detail view (DRY - reuse existing UI)
     // Step 1: Close all history overlays (detail → list → dashboard)
-    NavigationManager::instance().go_back(); // Close history detail overlay
-    NavigationManager::instance().go_back(); // Close history list panel
-    NavigationManager::instance().go_back(); // Close history dashboard
+    helix::nav::go_back(); // Close history detail overlay
+    helix::nav::go_back(); // Close history list panel
+    helix::nav::go_back(); // Close history dashboard
 
     // Step 2: Switch to Print Select panel
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     // Step 3: Get PrintSelectPanel and navigate to file details
     PrintSelectPanel* print_panel =
@@ -1205,7 +1205,7 @@ void HistoryListPanel::confirm_delete() {
                                             jobs_.end());
 
                                 // Close detail overlay and refresh list
-                                NavigationManager::instance().go_back();
+                                helix::nav::go_back();
                                 apply_filters_and_sort();
 
                                 ui_notification_success("Print job deleted");

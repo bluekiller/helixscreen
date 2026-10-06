@@ -7,7 +7,7 @@
 #include "ui_event_safety.h"
 #include "ui_filename_utils.h"
 #include "ui_format_utils.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_next_tick.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_print_select.h"
@@ -274,7 +274,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // Set up observers (after widget references are cached and widget_obj_ is set)
     print_state_observer_ = observe_print_lifecycle<PrintStatusWidget>(
-        printer_state_.get_print_lifecycle_subject(), this,
+        printer_state_.print_state().get_print_lifecycle_subject(), this,
         [](PrintStatusWidget* self, PrintState state) {
             if (!self->widget_obj_)
                 return;
@@ -287,7 +287,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // from the UI thread via queue_update. Immediate avoids the double-deferral that
     // caused stale reads when the subject changed between notification and handler.
     print_thumbnail_path_observer_ = observe<const char*>(
-        printer_state_.get_print_thumbnail_path_subject(), this,
+        printer_state_.print_state().get_print_thumbnail_path_subject(), this,
         [](PrintStatusWidget* self, const char* path) {
             if (!self->widget_obj_)
                 return;
@@ -304,11 +304,16 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // widget destruction), and the setter always runs on the UI thread — so the
     // extra deferral would only add a frame and a stale-read window.
     print_psram_thumb_observer_ = observe<int>(
-        printer_state_.get_print_psram_thumb_gen_subject(), this,
+        printer_state_.print_state().get_print_psram_thumb_gen_subject(), this,
         [](PrintStatusWidget* self, int /*gen*/) {
             if (!self->widget_obj_)
                 return;
             self->apply_esp_psram_thumbnail();
+            // The thumbnail can land after the card went idle for a finished
+            // print; the idle thumbs show it only through a fresh resolve.
+            if (!self->is_active_) {
+                self->defer_reset_print_card_to_idle();
+            }
         },
         printer_state_.get_subjects_lifetime(), Dispatch::Immediate);
 #endif
@@ -352,7 +357,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         token.defer("PrintStatusWidget::on_history_changed", [this]() {
             if (!widget_obj_ || !print_card_thumb_)
                 return;
-            bool is_idle = !job_holds_machine(printer_state_.get_print_lifecycle());
+            bool is_idle = !job_holds_machine(printer_state_.print_state().get_print_lifecycle());
             if (is_idle) {
                 // Defer: token.defer body runs inside UpdateQueue::process_pending,
                 // and synchronous reset_print_card_to_idle would cascade lv_image_set_src
@@ -374,7 +379,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Observe connection state to fetch history once connected (widget may
     // attach before the WebSocket connection is established)
     connection_observer_ = helix::ui::observe<int>(
-        printer_state_.get_printer_connection_state_subject(), this,
+        printer_state_.network_state().get_printer_connection_state_subject(), this,
         [](PrintStatusWidget* /*self*/, int state) {
             if (state == static_cast<int>(ConnectionState::CONNECTED)) {
                 if (auto* hm = get_print_history_manager()) {
@@ -388,7 +393,7 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
     // Check initial print state
     if (print_card_thumb_ && print_card_active_thumb_) {
-        const PrintState state = printer_state_.get_print_lifecycle();
+        const PrintState state = printer_state_.print_state().get_print_lifecycle();
         if (job_holds_machine(state)) {
             on_print_state_changed(state);
 #if defined(HELIX_PLATFORM_ESP32)
@@ -470,10 +475,8 @@ void PrintStatusWidget::detach() {
     // recycled, so the lv_image outlives this detach, and for a variable source
     // lv_image stores the raw pointer (it only strdups paths). Ours can be the
     // last reference — PrinterState drops its own on the next filename change.
-    if (esp_thumbnail_ && print_card_active_thumb_ &&
-        lv_image_get_src(print_card_active_thumb_) == esp_thumbnail_->dsc()) {
-        lv_image_set_src(print_card_active_thumb_,
-                         helix::PrinterPrintState::no_thumbnail_placeholder());
+    if (esp_thumbnail_) {
+        unpoint_thumbs_from(esp_thumbnail_->dsc());
     }
     esp_thumbnail_.reset();
 #endif
@@ -524,7 +527,7 @@ void PrintStatusWidget::on_activate() {
     // the file grid's in the cache's eviction order. Once per activation, so a
     // printer that keeps failing costs one request per visit, not a loop.
     if (widget_obj_ && print_card_thumb_ &&
-        !job_holds_machine(printer_state_.get_print_lifecycle())) {
+        !job_holds_machine(printer_state_.print_state().get_print_lifecycle())) {
         defer_reset_print_card_to_idle();
     }
 }
@@ -557,7 +560,8 @@ void PrintStatusWidget::on_size_changed(int /*colspan*/, int /*rowspan*/, int wi
     // Combined gate: only show the filament line at the wide band AND when actual
     // filament has been extruded. update_filament_text() also writes this
     // subject on used_mm changes, keeping both inputs in sync.
-    int used_mm = lv_subject_get_int(printer_state_.get_print_filament_used_subject());
+    int used_mm =
+        lv_subject_get_int(printer_state_.print_state().get_print_filament_used_subject());
     lv_subject_set_int(&show_filament_active_subject_, (width_band >= 2 && used_mm > 0) ? 1 : 0);
 
     // Compact mode: narrow — not enough horizontal space for thumbnail + action rows
@@ -672,7 +676,7 @@ void PrintStatusWidget::handle_print_card_clicked() {
         return;
     }
 
-    if (!printer_state_.can_start_new_print()) {
+    if (!printer_state_.print_state().can_start_new_print()) {
         // Print in progress - show print status overlay
         spdlog::info(
             "[PrintStatusWidget] Print card clicked - showing print status (print in progress)");
@@ -692,7 +696,7 @@ void PrintStatusWidget::handle_print_card_clicked() {
 
 void PrintStatusWidget::handle_library_files() {
     spdlog::info("[PrintStatusWidget] Library: Print Files");
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 }
 
 void PrintStatusWidget::handle_library_last() {
@@ -715,7 +719,7 @@ void PrintStatusWidget::handle_library_last() {
     spdlog::info("[PrintStatusWidget] Library: Print Last -> {}", last_job->filename);
 
     // Navigate to PrintSelectPanel, select the file, and return to home on back
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     auto* panel = get_print_select_panel(printer_state_, get_moonraker_api());
     if (panel) {
@@ -729,7 +733,7 @@ void PrintStatusWidget::handle_library_last() {
 void PrintStatusWidget::handle_library_recent() {
     spdlog::info("[PrintStatusWidget] Library: Recent");
 
-    NavigationManager::instance().set_active(PanelId::PrintSelect);
+    helix::nav::set_active(PanelId::PrintSelect);
 
     auto* panel = get_print_select_panel(printer_state_, get_moonraker_api());
     if (panel) {
@@ -806,7 +810,7 @@ void PrintStatusWidget::apply_esp_psram_thumbnail() {
     if (!widget_obj_ || !print_card_active_thumb_) {
         return;
     }
-    auto thumb = printer_state_.get_print_psram_thumbnail();
+    auto thumb = printer_state_.print_state().get_print_psram_thumbnail();
     if (!thumb) {
         return;
     }
@@ -816,10 +820,85 @@ void PrintStatusWidget::apply_esp_psram_thumbnail() {
     // which is what EspPsramThumbnail's destructor requires.
     auto previous = std::move(esp_thumbnail_);
     esp_thumbnail_ = std::move(thumb);
+    if (previous && previous != esp_thumbnail_) {
+        unpoint_thumbs_from(previous->dsc());
+    }
     lv_image_set_src(print_card_active_thumb_, esp_thumbnail_->dsc());
     spdlog::info("[PrintStatusWidget] Active print PSRAM thumbnail applied");
 }
+
+void PrintStatusWidget::unpoint_thumbs_from(const void* dsc) {
+    lv_obj_t* thumbs[] = {print_card_active_thumb_, print_card_thumb_, print_card_thumb_compact_,
+                          idle_hero_thumb()};
+    for (auto* img : thumbs) {
+        if (img && lv_obj_is_valid(img) && lv_image_get_src(img) == dsc) {
+            lv_image_set_src(img, helix::PrinterPrintState::no_thumbnail_placeholder());
+        }
+    }
+}
+
+bool PrintStatusWidget::show_finished_print_image() {
+    // The active-print media keeps the last print's image until another print
+    // starts. The history fetch cannot produce one here: there is no disk cache
+    // for it to land in.
+    auto* history = get_print_history_manager();
+    const PrintHistoryJob* newest = history ? history->get_newest_existing_job() : nullptr;
+    const char* raw =
+        lv_subject_get_string(printer_state_.print_state().get_print_filename_subject());
+    const std::string& identity = printer_state_.print_state().get_effective_print_filename();
+    if (!idle_card_shows_active_thumbnail(
+            printer_state_.print_state().get_print_lifecycle(),
+            newest ? newest->filename : std::string(), raw ? raw : "", identity,
+            printer_state_.print_state().get_print_thumbnail_file())) {
+        return false;
+    }
+    auto thumb = printer_state_.print_state().get_print_psram_thumbnail();
+    if (!thumb) {
+        return false;
+    }
+    if (thumb != esp_thumbnail_) {
+        apply_esp_psram_thumbnail();
+    }
+    if (esp_thumbnail_ != thumb) {
+        return false; // no active thumb to apply it to; this tree is incomplete
+    }
+    // idle_thumb_path_subject_ is a string and cannot carry a descriptor, so
+    // the hero is written directly; set_thumb_on_widgets() writes it back.
+    shown_idle_thumb_ = {};
+    lv_obj_t* thumbs[] = {print_card_thumb_, print_card_thumb_compact_, idle_hero_thumb()};
+    for (auto* img : thumbs) {
+        if (img && lv_obj_is_valid(img)) {
+            lv_image_set_src(img, esp_thumbnail_->dsc());
+        }
+    }
+    spdlog::debug("[PrintStatusWidget] Idle thumbnail: finished print '{}' (PSRAM)", identity);
+    return true;
+}
+
+lv_obj_t* PrintStatusWidget::idle_hero_thumb() const {
+    return widget_obj_ && lv_obj_is_valid(widget_obj_)
+               ? lv_obj_find_by_name(widget_obj_, "idle_thumb")
+               : nullptr;
+}
 #endif
+
+bool PrintStatusWidget::history_job_is_active_print(const std::string& history_file,
+                                                    const std::string& raw_file,
+                                                    const std::string& identity_file) {
+    return !history_file.empty() && (history_file == raw_file || history_file == identity_file);
+}
+
+bool PrintStatusWidget::idle_card_shows_active_thumbnail(PrintState state,
+                                                         const std::string& history_file,
+                                                         const std::string& raw_file,
+                                                         const std::string& identity_file,
+                                                         const std::string& thumbnail_file) {
+    if (thumbnail_file.empty() || thumbnail_file != identity_file) {
+        return false;
+    }
+    return state == PrintState::Complete ||
+           history_job_is_active_print(history_file, raw_file, identity_file);
+}
 
 std::string PrintStatusWidget::get_last_print_thumbnail_path() const {
     auto* history = get_print_history_manager();
@@ -938,6 +1017,13 @@ void PrintStatusWidget::reset_print_card_to_idle() {
     // an older fetch completing afterwards would otherwise overwrite it.
     auto ctx = ThumbnailLoadContext::create(lifetime_, &idle_thumb_generation_);
 
+#if defined(HELIX_PLATFORM_ESP32)
+    // Ahead of the history resolve: history may not be loaded at all.
+    if (show_finished_print_image()) {
+        return;
+    }
+#endif
+
     // Try to show the last printed file's thumbnail instead of benchy
     std::string thumb_rel_path = get_last_print_thumbnail_path();
     if (thumb_rel_path.empty()) {
@@ -1033,7 +1119,20 @@ void PrintStatusWidget::set_thumb_on_widgets(const char* src) {
     if (print_card_thumb_compact_ && lv_obj_is_valid(print_card_thumb_compact_)) {
         lv_image_set_src(print_card_thumb_compact_, src);
     }
+#if defined(HELIX_PLATFORM_ESP32)
+    // The subject only notifies on a change, and the hero may have been
+    // written directly (show_finished_print_image) while it held this value.
+    if (lv_obj_t* hero = idle_hero_thumb(); hero && lv_obj_is_valid(hero)) {
+        lv_image_set_src(hero, src);
+    }
+#endif
     lv_subject_copy_string(&idle_thumb_path_subject_, src);
+}
+
+void PrintStatusWidget::on_edit_mode_exited() {
+    // The Print Last rows' clickability follows history, which can change while
+    // edit mode holds every control unclickable.
+    update_last_print_availability();
 }
 
 void PrintStatusWidget::update_last_print_availability() {
@@ -1115,7 +1214,7 @@ void PrintStatusWidget::check_and_show_idle_runout_modal() {
     // before plus Preparing, which the wire could not express: a "load filament"
     // dialog on top of a start the user just committed to is an ambush, and the
     // block below would burn the one-shot grace on the way past.
-    const PrintState lifecycle = printer_state_.get_print_lifecycle();
+    const PrintState lifecycle = printer_state_.print_state().get_print_lifecycle();
     if (lifecycle != PrintState::Idle && lifecycle != PrintState::Complete &&
         lifecycle != PrintState::Cancelled) {
         spdlog::debug(
@@ -1801,18 +1900,19 @@ int cd_to_c(int cd) {
 
 void PrintStatusWidget::DetailedFormatter::update_layer_text() {
     auto& ps = get_printer_state();
-    int cur = lv_subject_get_int(ps.get_print_layer_current_subject());
-    int tot = lv_subject_get_int(ps.get_print_layer_total_subject());
+    int cur = lv_subject_get_int(ps.print_state().get_print_layer_current_subject());
+    int tot = lv_subject_get_int(ps.print_state().get_print_layer_total_subject());
     std::string text = helix::ui::format_layer_progress(
-        cur, tot, ps.layer_is_accurate(), lv_subject_get_int(ps.get_gcode_position_z_subject()));
+        cur, tot, ps.print_state().layer_is_accurate(),
+        lv_subject_get_int(ps.motion_state().get_gcode_position_z_subject()));
     snprintf(layer_text_buf_, sizeof(layer_text_buf_), "%s", text.c_str());
     lv_subject_copy_string(&layer_text_subject_, layer_text_buf_);
 }
 
 void PrintStatusWidget::DetailedFormatter::update_time_text() {
     auto& ps = get_printer_state();
-    int elapsed = lv_subject_get_int(ps.get_print_elapsed_subject());
-    int remain = lv_subject_get_int(ps.get_print_time_left_subject());
+    int elapsed = lv_subject_get_int(ps.print_state().get_print_elapsed_subject());
+    int remain = lv_subject_get_int(ps.print_state().get_print_time_left_subject());
     int total = elapsed + remain;
     std::string text =
         helix::format::duration_padded(elapsed) + " / " + helix::format::duration_padded(total);
@@ -1821,7 +1921,8 @@ void PrintStatusWidget::DetailedFormatter::update_time_text() {
 }
 
 void PrintStatusWidget::DetailedFormatter::update_filament_text() {
-    int used_mm = lv_subject_get_int(get_printer_state().get_print_filament_used_subject());
+    int used_mm =
+        lv_subject_get_int(get_printer_state().print_state().get_print_filament_used_subject());
     if (used_mm <= 0) {
         filament_text_buf_[0] = '\0';
     } else {
@@ -1844,11 +1945,11 @@ void PrintStatusWidget::DetailedFormatter::update_nozzle_text() {
     lv_subject_t* temp_sub;
     lv_subject_t* tgt_sub;
     if (current_nozzle_override_ == "auto") {
-        temp_sub = ps.get_active_extruder_temp_subject();
-        tgt_sub = ps.get_active_extruder_target_subject();
+        temp_sub = ps.temperature_state().get_active_extruder_temp_subject();
+        tgt_sub = ps.temperature_state().get_active_extruder_target_subject();
     } else {
-        temp_sub = ps.get_extruder_temp_subject(current_nozzle_override_);
-        tgt_sub = ps.get_extruder_target_subject(current_nozzle_override_);
+        temp_sub = ps.temperature_state().get_extruder_temp_subject(current_nozzle_override_);
+        tgt_sub = ps.temperature_state().get_extruder_target_subject(current_nozzle_override_);
     }
     int temp_dd = temp_sub ? lv_subject_get_int(temp_sub) : 0;
     int tgt_dd = tgt_sub ? lv_subject_get_int(tgt_sub) : 0;
@@ -1887,11 +1988,11 @@ bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
     auto bind_auto = [&]() {
         current_nozzle_override_ = "auto";
         nozzle_temp_observer_ = observe<int>(
-            ps.get_active_extruder_temp_subject(), this,
+            ps.temperature_state().get_active_extruder_temp_subject(), this,
             [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
             ps.get_subjects_lifetime());
         nozzle_target_observer_ = observe<int>(
-            ps.get_active_extruder_target_subject(), this,
+            ps.temperature_state().get_active_extruder_target_subject(), this,
             [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
             ps.get_subjects_lifetime());
         update_nozzle_text();
@@ -1904,8 +2005,10 @@ bool PrintStatusWidget::DetailedFormatter::set_nozzle_tool_override(
     }
 
     // Pinned: resolve dynamic per-tool subjects
-    auto* temp_sub = ps.get_extruder_temp_subject(override_name, nozzle_temp_lifetime_);
-    auto* tgt_sub = ps.get_extruder_target_subject(override_name, nozzle_target_lifetime_);
+    auto* temp_sub =
+        ps.temperature_state().get_extruder_temp_subject(override_name, nozzle_temp_lifetime_);
+    auto* tgt_sub =
+        ps.temperature_state().get_extruder_target_subject(override_name, nozzle_target_lifetime_);
     if (!temp_sub || !tgt_sub) {
         spdlog::info("[DetailedFormatter] nozzle override '{}' not found, falling back to auto",
                      override_name);
@@ -2106,21 +2209,21 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
     using helix::ui::observe;
     auto& ps = get_printer_state();
     layer_current_observer_ = observe<int>(
-        ps.get_print_layer_current_subject(), this,
+        ps.print_state().get_print_layer_current_subject(), this,
         [](DetailedFormatter* self, int) { self->update_layer_text(); },
         ps.get_subjects_lifetime());
     layer_total_observer_ = observe<int>(
-        ps.get_print_layer_total_subject(), this,
+        ps.print_state().get_print_layer_total_subject(), this,
         [](DetailedFormatter* self, int) { self->update_layer_text(); },
         ps.get_subjects_lifetime());
     elapsed_observer_ = observe<int>(
-        ps.get_print_elapsed_subject(), this,
+        ps.print_state().get_print_elapsed_subject(), this,
         [](DetailedFormatter* self, int) { self->update_time_text(); }, ps.get_subjects_lifetime());
     time_left_observer_ = observe<int>(
-        ps.get_print_time_left_subject(), this,
+        ps.print_state().get_print_time_left_subject(), this,
         [](DetailedFormatter* self, int) { self->update_time_text(); }, ps.get_subjects_lifetime());
     filament_used_observer_ = observe<int>(
-        ps.get_print_filament_used_subject(), this,
+        ps.print_state().get_print_filament_used_subject(), this,
         [](DetailedFormatter* self, int) { self->update_filament_text(); },
         ps.get_subjects_lifetime());
 
@@ -2129,11 +2232,11 @@ PrintStatusWidget::DetailedFormatter::DetailedFormatter() {
     // guard is what learns the subjects died when PrinterState deinits, instead
     // of leaving that to StaticSubjectRegistry ordering.
     nozzle_temp_observer_ = observe<int>(
-        ps.get_active_extruder_temp_subject(), this,
+        ps.temperature_state().get_active_extruder_temp_subject(), this,
         [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         ps.get_subjects_lifetime());
     nozzle_target_observer_ = observe<int>(
-        ps.get_active_extruder_target_subject(), this,
+        ps.temperature_state().get_active_extruder_target_subject(), this,
         [](DetailedFormatter* self, int) { self->update_nozzle_text(); },
         ps.get_subjects_lifetime());
     // Bed and chamber temp_display widgets bind directly to bed_temp / bed_target /

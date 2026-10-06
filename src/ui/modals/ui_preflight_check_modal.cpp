@@ -81,8 +81,9 @@ void PreflightCheckModal::on_show() {
     // One tool check per tool, so checks.size() is this job's tool count.
     auto block = helix::printer::RemapBlock::NoStrategy;
     if (auto* backend = AmsState::instance().get_backend()) {
-        block = helix::printer::remap_block(*backend, get_printer_state().helix_plugin_state(),
-                                            static_cast<int>(result_.checks.size()));
+        block = helix::printer::remap_block(
+            *backend, get_printer_state().plugin_status_state().helix_plugin_state(),
+            static_cast<int>(result_.checks.size()));
     }
     const bool remap_supported = block == helix::printer::RemapBlock::None;
     if (auto* remap_btn = find_widget("btn_tertiary")) {

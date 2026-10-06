@@ -222,6 +222,9 @@ struct GpuBlurState {
     EGLSurface surface = EGL_NO_SURFACE;
     struct gbm_device* gbm = nullptr;
     int drm_fd = -1;
+    // False when display is the display backend's own EGLDisplay: blur only
+    // adds a context to it, and terminating it would take the screen with it.
+    bool owns_display = true;
 
     GLuint program = 0;
     GLuint vbo = 0;
@@ -304,7 +307,56 @@ static GLuint compile_shader(GLenum type, const char* source) {
     return shader;
 }
 
-static bool init_gpu_blur() {
+// Create the blur context on an initialized display and make it current.
+// Returns false with nothing left allocated on @p display.
+static bool create_blur_context(EGLDisplay display) {
+    eglBindAPI(EGL_OPENGL_ES_API);
+
+    EGLint config_attribs[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
+    EGLConfig config;
+    EGLint num_configs;
+    if (!eglChooseConfig(display, config_attribs, &config, 1, &num_configs) || num_configs == 0) {
+        return false;
+    }
+
+    EGLint ctx_attribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+    auto context = eglCreateContext(display, config, EGL_NO_CONTEXT, ctx_attribs);
+    if (context == EGL_NO_CONTEXT) {
+        return false;
+    }
+
+    // Try surfaceless first, then PBuffer
+    EGLSurface egl_surface = EGL_NO_SURFACE;
+    const char* exts = eglQueryString(display, EGL_EXTENSIONS);
+    bool has_surfaceless = exts && strstr(exts, "EGL_KHR_surfaceless_context") != nullptr;
+
+    if (has_surfaceless) {
+        if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context)) {
+            has_surfaceless = false;
+        }
+    }
+
+    if (!has_surfaceless) {
+        EGLint pbuf_attribs[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE};
+        egl_surface = eglCreatePbufferSurface(display, config, pbuf_attribs);
+        if (egl_surface == EGL_NO_SURFACE ||
+            !eglMakeCurrent(display, egl_surface, egl_surface, context)) {
+            if (egl_surface != EGL_NO_SURFACE)
+                eglDestroySurface(display, egl_surface);
+            eglDestroyContext(display, context);
+            return false;
+        }
+    }
+
+    s_gpu.display = display;
+    s_gpu.context = context;
+    s_gpu.surface = egl_surface;
+    return true;
+}
+
+// @p current_display is the caller's bound EGLDisplay (the display backend's,
+// on an EGL screen), or EGL_NO_DISPLAY.
+static bool init_gpu_blur(EGLDisplay current_display) {
     if (s_gpu.initialized)
         return true;
 
@@ -347,7 +399,23 @@ static bool init_gpu_blur() {
         }
     } guard_cleaner{guard_path};
 
+    // An EGL screen already has the GPU driver loaded and a display up. Opening
+    // a second device beside it loads the driver a second time, which faults
+    // inside the dynamic loader on some Mesa stacks (prestonbrown/helixscreen#1742).
+    if (current_display != EGL_NO_DISPLAY) {
+        if (create_blur_context(current_display)) {
+            s_gpu.owns_display = false;
+            spdlog::info("[Backdrop Blur] EGL context ready on the display's EGLDisplay");
+        } else {
+            spdlog::debug("[Backdrop Blur] No blur context on the display's EGLDisplay "
+                          "(EGL error 0x{:04X}) - probing DRM devices",
+                          eglGetError());
+        }
+    }
+
     for (const char* path : DRM_DEVICES) {
+        if (s_gpu.context != EGL_NO_CONTEXT)
+            break;
         int fd = open(path, O_RDWR | O_CLOEXEC);
         if (fd < 0)
             continue;
@@ -372,57 +440,13 @@ static bool init_gpu_blur() {
             continue;
         }
 
-        eglBindAPI(EGL_OPENGL_ES_API);
-
-        EGLint config_attribs[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
-        EGLConfig config;
-        EGLint num_configs;
-        if (!eglChooseConfig(display, config_attribs, &config, 1, &num_configs) ||
-            num_configs == 0) {
+        if (!create_blur_context(display)) {
             eglTerminate(display);
             gbm_device_destroy(gbm);
             close(fd);
             continue;
         }
 
-        EGLint ctx_attribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-        auto context = eglCreateContext(display, config, EGL_NO_CONTEXT, ctx_attribs);
-        if (context == EGL_NO_CONTEXT) {
-            eglTerminate(display);
-            gbm_device_destroy(gbm);
-            close(fd);
-            continue;
-        }
-
-        // Try surfaceless first, then PBuffer
-        EGLSurface egl_surface = EGL_NO_SURFACE;
-        const char* exts = eglQueryString(display, EGL_EXTENSIONS);
-        bool has_surfaceless = exts && strstr(exts, "EGL_KHR_surfaceless_context") != nullptr;
-
-        if (has_surfaceless) {
-            if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context)) {
-                has_surfaceless = false;
-            }
-        }
-
-        if (!has_surfaceless) {
-            EGLint pbuf_attribs[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE};
-            egl_surface = eglCreatePbufferSurface(display, config, pbuf_attribs);
-            if (egl_surface == EGL_NO_SURFACE ||
-                !eglMakeCurrent(display, egl_surface, egl_surface, context)) {
-                if (egl_surface != EGL_NO_SURFACE)
-                    eglDestroySurface(display, egl_surface);
-                eglDestroyContext(display, context);
-                eglTerminate(display);
-                gbm_device_destroy(gbm);
-                close(fd);
-                continue;
-            }
-        }
-
-        s_gpu.display = display;
-        s_gpu.context = context;
-        s_gpu.surface = egl_surface;
         s_gpu.gbm = gbm;
         s_gpu.drm_fd = fd;
 
@@ -454,7 +478,8 @@ static bool init_gpu_blur() {
         if (s_gpu.surface != EGL_NO_SURFACE)
             eglDestroySurface(s_gpu.display, s_gpu.surface);
         eglDestroyContext(s_gpu.display, s_gpu.context);
-        eglTerminate(s_gpu.display);
+        if (s_gpu.owns_display)
+            eglTerminate(s_gpu.display);
         if (s_gpu.gbm)
             gbm_device_destroy(s_gpu.gbm);
         if (s_gpu.drm_fd >= 0)
@@ -560,7 +585,8 @@ static void destroy_gpu_blur() {
     if (s_gpu.surface != EGL_NO_SURFACE)
         eglDestroySurface(s_gpu.display, s_gpu.surface);
     eglDestroyContext(s_gpu.display, s_gpu.context);
-    eglTerminate(s_gpu.display);
+    if (s_gpu.owns_display)
+        eglTerminate(s_gpu.display);
 
     if (s_gpu.gbm)
         gbm_device_destroy(s_gpu.gbm);
@@ -585,7 +611,7 @@ static bool gpu_blur(uint8_t* data, int width, int height) {
     auto saved_draw = eglGetCurrentSurface(EGL_DRAW);
     auto saved_read = eglGetCurrentSurface(EGL_READ);
 
-    if (!s_gpu.initialized && !init_gpu_blur()) {
+    if (!s_gpu.initialized && !init_gpu_blur(saved_display)) {
         s_gpu.init_failed = true;
         if (saved_context != EGL_NO_CONTEXT)
             eglMakeCurrent(saved_display, saved_draw, saved_read, saved_context);

@@ -161,7 +161,7 @@ void HardwareSetupPrompter::reapply_hardware_roles() {
         // role, not which fans exist, so the discovered list comes from what
         // discovery actually stored rather than being re-passed from here.
         auto roles = helix::FanRoleConfig::from_config(Config::get_instance(), fans);
-        get_printer_state().apply_fan_roles(roles);
+        get_printer_state().fan_state().apply_roles(roles);
         // Heater roles persist back to config (no dedicated runtime fan-style consumer).
         helix::resolve_role_from_config(helix::HardwareRoleId::HotendHeater, Config::get_instance(),
                                         heaters, /*persist_autoheal=*/true);

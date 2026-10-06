@@ -5,7 +5,7 @@
 
 #include "ui_ams_device_operations_overlay.h"
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_power.h"
 #include "ui_settings_fans.h"
 #include "ui_settings_led.h"
@@ -63,7 +63,7 @@ void HardwareSettingsOverlay::register_callbacks() {
              lv_obj_t* overlay = get_global_power_panel().get_or_create_overlay(
                  get_hardware_settings_overlay().parent_screen_);
              if (overlay) {
-                 NavigationManager::instance().push_overlay(overlay);
+                 helix::nav::push_overlay(overlay);
              } else {
                  spdlog::error("[HardwareSettingsOverlay] Failed to open Power panel");
              }
@@ -98,7 +98,10 @@ void bind_hardware_health_row(lv_obj_t* overlay_root) {
 
     lv_obj_t* label = lv_obj_find_by_name(row, "label");
     if (label) {
-        lv_label_bind_text(label, get_printer_state().get_hardware_issues_label_subject(), "%s");
+        lv_label_bind_text(
+            label,
+            get_printer_state().hardware_validation_state().get_hardware_issues_label_subject(),
+            "%s");
     }
 
     // Tint the icon so criticality is legible without opening the overlay.
@@ -106,7 +109,8 @@ void bind_hardware_health_row(lv_obj_t* overlay_root) {
     // colour the XML gives it.
     lv_obj_t* row_icon = lv_obj_find_by_name(row, "row_icon");
     if (row_icon) {
-        lv_subject_t* level = get_printer_state().get_hardware_status_level_subject();
+        lv_subject_t* level =
+            get_printer_state().hardware_validation_state().get_hardware_status_level_subject();
         auto& theme = ThemeManager::instance();
         lv_obj_bind_style(row_icon, theme.get_style(StyleRole::IconWarning), LV_PART_MAIN, level,
                           static_cast<int>(HardwareStatusLevel::ATTENTION));

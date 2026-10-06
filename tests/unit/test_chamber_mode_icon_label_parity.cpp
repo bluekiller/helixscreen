@@ -102,9 +102,9 @@ TEST_CASE_METHOD(XMLTestFixture,
         static_cast<lv_obj_t*>(lv_xml_create(container, "temp_display", attrs));
     REQUIRE(temp_display != nullptr);
 
-    lv_subject_t* current_subj = state().get_chamber_temp_subject();
-    lv_subject_t* target_subj = state().get_chamber_effective_target_subject();
-    lv_subject_t* mode_subj = state().get_chamber_mode_subject();
+    lv_subject_t* current_subj = state().temperature_state().get_chamber_temp_subject();
+    lv_subject_t* target_subj = state().temperature_state().get_chamber_effective_target_subject();
+    lv_subject_t* mode_subj = state().temperature_state().get_chamber_mode_subject();
 
     struct Case {
         const char* name;

@@ -38,6 +38,7 @@
 
 namespace {
 
+// TEST_MIRROR_OK: token() reads an XML const; it shares only its name with log_redact token()
 /// Read a token out of the "globals" XML scope. Fails the test if absent —
 /// a missing font token is itself the bug this file guards.
 std::string token(const char* name) {

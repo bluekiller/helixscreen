@@ -6,7 +6,6 @@
 #include "ui_error_reporting.h"
 #include "ui_fan_arc_resize.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_notification.h"
 #include "ui_settings_fans.h"
 #include "ui_utils.h"
@@ -180,7 +179,7 @@ void FanControlOverlay::on_activate() {
     // Subscribe to fans_version subject for structural changes (fan discovery)
     // Using observer factory for type-safe lambda observer
     using helix::ui::observe;
-    if (auto* fans_ver = printer_state_.get_fans_version_subject()) {
+    if (auto* fans_ver = printer_state_.fan_state().get_fans_version_subject()) {
         fans_observer_ = observe<int>(
             fans_ver, this,
             [](FanControlOverlay* self, int /* version */) {
@@ -306,7 +305,7 @@ void FanControlOverlay::populate_fans() {
     // UpdateQueue batch that this observer-deferred rebuild runs inside (#776).
     helix::ui::safe_clean_children(fans_container_);
 
-    const auto& fans = printer_state_.get_fans();
+    const auto& fans = printer_state_.fan_state().get_fans();
 
     // First pass: create controllable fans (FanDial widgets with animation)
     for (const auto& fan : fans) {
@@ -413,7 +412,7 @@ void FanControlOverlay::populate_fans() {
 }
 
 void FanControlOverlay::update_fan_speeds() {
-    const auto& fans = printer_state_.get_fans();
+    const auto& fans = printer_state_.fan_state().get_fans();
 
     // Note: FanDial widgets are updated via AnimatedValue bindings in subscribe_to_fan_speeds()
     // This method only updates auto fan cards which don't need animation
@@ -462,7 +461,8 @@ void FanControlOverlay::send_fan_speed(const std::string& object_name, int speed
     // Optimistic update: immediately reflect the new speed in PrinterState so
     // other UI (e.g. controls card secondary fan rows) updates without waiting
     // for the Moonraker round-trip confirmation.
-    printer_state_.update_fan_speed(object_name, static_cast<double>(speed_percent) / 100.0);
+    printer_state_.fan_state().update_fan_speed(object_name,
+                                                static_cast<double>(speed_percent) / 100.0);
 
     // IMoonrakerAPI::set_fan_speed expects:
     // - "fan" for part cooling fan (uses M106)
@@ -483,7 +483,8 @@ void FanControlOverlay::subscribe_to_fan_speeds() {
     // Bind AnimatedValue for each FanDial - provides smooth animation when speed changes
     for (auto& afd : animated_fan_dials_) {
         SubjectLifetime lifetime;
-        if (auto* subject = printer_state_.get_fan_speed_subject(afd.object_name, lifetime)) {
+        if (auto* subject =
+                printer_state_.fan_state().get_fan_speed_subject(afd.object_name, lifetime)) {
             FanDial* dial_ptr = afd.dial.get();
             // 2% threshold to avoid micro-updates
             helix::ui::AnimatedValueConfig anim_config;
@@ -500,7 +501,8 @@ void FanControlOverlay::subscribe_to_fan_speeds() {
     fan_speed_observers_.reserve(auto_fan_cards_.size());
     for (const auto& card : auto_fan_cards_) {
         SubjectLifetime lifetime;
-        if (auto* subject = printer_state_.get_fan_speed_subject(card.object_name, lifetime)) {
+        if (auto* subject =
+                printer_state_.fan_state().get_fan_speed_subject(card.object_name, lifetime)) {
             fan_speed_observers_.push_back(observe<int>(
                 subject, this,
                 [](FanControlOverlay* self, int /*speed*/) {

@@ -645,6 +645,23 @@ TEST_CASE("Subscription: fan_feedback subscribed only when present", "[moonraker
     }
 }
 
+// Only the Happy Hare backend reads `mmu`; other filament systems never publish it.
+TEST_CASE("Subscription: mmu subscribed only for Happy Hare", "[moonraker][subscription]") {
+    SECTION("Happy Hare subscribes mmu") {
+        DiscoveryFixture fx;
+        fx.add("mmu", {});
+        json subs = fx.build();
+        REQUIRE(has_field(subs, "mmu", "gate"));
+    }
+
+    SECTION("CFS does not subscribe mmu") {
+        DiscoveryFixture fx;
+        fx.add("box", {});
+        json subs = fx.build();
+        REQUIRE_FALSE(subs.contains("mmu"));
+    }
+}
+
 // MCU subscriptions cover MoonrakerPerformanceSource's reads. These MUST ride
 // the single union subscription built here — Moonraker docs:
 // "A new request will override a previous request." A separate

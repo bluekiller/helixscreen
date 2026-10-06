@@ -764,16 +764,17 @@ void AmsBackendSnapmaker::prepare_for_resume(int slot_index, ResumeReadyCallback
     // the RESUME gcode callback, which the dispatch layer handles. Replaces the
     // old blunt virtual_sdcard gate.
     helix::PauseSignals sig;
-    sig.exception_id = get_printer_state().get_print_exception_id();
-    sig.exception_code = get_printer_state().get_print_exception_code();
+    sig.exception_id = get_printer_state().print_state().get_print_exception_id();
+    sig.exception_code = get_printer_state().print_state().get_print_exception_code();
     // On these firmware pauses print_stats.message is empty — the reason text
     // lives in exception.message. Fall back to print_stats.message when the
     // exception carries no text (e.g. non-Snapmaker pause paths).
-    sig.message = get_printer_state().get_print_exception_message();
+    sig.message = get_printer_state().print_state().get_print_exception_message();
     if (sig.message.empty()) {
-        sig.message = lv_subject_get_string(get_printer_state().get_print_message_subject());
+        sig.message =
+            lv_subject_get_string(get_printer_state().print_state().get_print_message_subject());
     }
-    sig.sdcard_active = get_printer_state().is_sdcard_active();
+    sig.sdcard_active = get_printer_state().print_state().is_sdcard_active();
     sig.runout_tripped = !sensor_present;
     if (helix::classify_pause(sig, helix::snapmaker_terminal_matchers()) ==
         helix::PauseCause::Terminal) {
@@ -1690,13 +1691,10 @@ void AmsBackendSnapmaker::apply_channel_outcome_locked(int i, const std::string&
             // bare INNER_FILAMENT_UNLOAD, which the firmware
             // runs on T0.
             if (op_state == "unload_finish" && outcome_is_new) {
-                // Deferred to after the lock for the same
-                // reason emit_event is: this reaches into
-                // AmsState, which takes its own mutex, while
-                // AmsState::add_backend() takes that mutex
-                // first and then ours via set_event_callback().
-                // Calling it here closed the cycle and TSan
-                // reported the deadlock (nightly, 2026-08-16).
+                // Deferred to after the lock, as emit_event is:
+                // calls into AmsState stay outside our mutex,
+                // because the backend registry takes its own
+                // lock before ours (AmsBackendRegistry).
                 fx.unloaded_lanes.push_back(i);
             }
             if (outcome_is_new && (system_info_.action == AmsAction::LOADING ||

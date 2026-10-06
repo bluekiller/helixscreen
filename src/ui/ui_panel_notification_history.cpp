@@ -5,7 +5,7 @@
 
 #include "ui_event_safety.h"
 #include "ui_format_utils.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_notification_manager.h"
 #include "ui_panel_common.h"
 #include "ui_severity_card.h"
@@ -238,8 +238,9 @@ void NotificationHistoryPanel::handle_history_version_change(int32_t version) {
     // the overlay), so the observer stays attached and would otherwise rebuild
     // an invisible list and mark it read. setup() already does an unconditional
     // refresh() on every real (re)open, which catches up on anything that
-    // arrived while hidden.
-    if (!panel_ || lv_obj_has_flag(panel_, LV_OBJ_FLAG_HIDDEN)) {
+    // arrived while hidden. A panel hidden only until its queued push lands is
+    // opening, and setup() has already run, so it refreshes now.
+    if (!panel_ || !helix::nav::is_showing(panel_)) {
         return;
     }
     refresh();
@@ -278,7 +279,7 @@ void NotificationHistoryPanel::dispatch_action(const char* action) {
 
     if (strcmp(action, "show_update_modal") == 0) {
         // Close notification history overlay first, then show update modal
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
         UpdateChecker::instance().show_update_notification();
     } else {
         spdlog::warn("[{}] Unknown action: {}", get_name(), action);

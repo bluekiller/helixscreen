@@ -71,6 +71,22 @@ void BedDryingController::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(bed_drying_chamber_text_, chamber_text_buf_, "",
                               "bed_drying_chamber_text", subjects_);
     subjects_initialized_ = true;
+    print_watch_ = ui::observe<int>(
+        state_.print_state().get_print_lifecycle_subject(), this,
+        [](BedDryingController* self, int /*lifecycle*/) { self->check_print_alarm(); },
+        state_.get_subjects_lifetime());
+}
+
+void BedDryingController::check_print_alarm() {
+    const bool alarm =
+        record_.latched && job_holds_machine(state_.print_state().get_print_lifecycle());
+    if (alarm && !print_alarm_raised_) {
+        spdlog::warn("[BedDrying] A print holds the machine while spools are latched on the bed");
+        if (on_print_while_latched_) {
+            on_print_while_latched_();
+        }
+    }
+    print_alarm_raised_ = alarm;
 }
 
 void BedDryingController::await_unload(std::function<void()> on_done,
@@ -224,8 +240,8 @@ BedDryingController::State BedDryingController::state() const {
 }
 
 void BedDryingController::set_latch(bool on) {
-    state_.set_spool_latch(on,
-                           on && tc_ ? tc_->chamber_dryer_tokens() : std::vector<std::string>{});
+    state_.print_state().set_spool_latch(on, on && tc_ ? tc_->chamber_dryer_tokens()
+                                                       : std::vector<std::string>{});
 }
 
 void BedDryingController::restore() {
@@ -276,9 +292,9 @@ void BedDryingController::prepare(const Material& material, bool with_appliance,
 
     // G1 takes G-code coordinates, and the park stays over the plate: travel
     // past it can hold tool docks or a purge bucket.
-    const AxisBounds b = state_.get_gcode_axis_bounds();
-    const auto park =
-        plate_rear_park(preset_area(state_.get_axis_bounds(), b, api_->hardware().build_volume()));
+    const AxisBounds b = state_.motion_state().get_gcode_axis_bounds();
+    const auto park = plate_rear_park(
+        preset_area(state_.motion_state().get_axis_bounds(), b, api_->hardware().build_volume()));
     std::string move = fmt::format("G90\nG1 Z{:.1f} F600", clearance_z(b.z_max));
     if (park) {
         move += fmt::format("\nG1 X{:.1f} Y{:.1f} F6000", *park->x, *park->y);
@@ -326,7 +342,7 @@ void BedDryingController::prepare(const Material& material, bool with_appliance,
             fail, 180000);
     };
 
-    const char* homed = lv_subject_get_string(state_.get_homed_axes_subject());
+    const char* homed = lv_subject_get_string(state_.motion_state().get_homed_axes_subject());
     const bool all_homed =
         homed && std::strchr(homed, 'x') && std::strchr(homed, 'y') && std::strchr(homed, 'z');
     spdlog::info("[BedDrying] Preparing: {}clearance move to Z {:.1f}", all_homed ? "" : "home, ",
@@ -445,7 +461,7 @@ void BedDryingController::hold_idle(int seconds) {
 }
 
 bool BedDryingController::klipper_ready() const {
-    lv_subject_t* klippy = state_.get_klippy_state_subject();
+    lv_subject_t* klippy = state_.network_state().get_klippy_state_subject();
     return klippy && lv_subject_get_int(klippy) == static_cast<int>(KlippyState::READY);
 }
 
@@ -463,13 +479,13 @@ void BedDryingController::end_run(const char* why) {
     record_.ended = true;
     (void)SettingsManager::instance().set_bed_drying_record(record_);
     if (tc_) {
-        lv_subject_t* target = state_.get_bed_target_subject();
+        lv_subject_t* target = state_.temperature_state().get_bed_target_subject();
         const int target_deci = target ? lv_subject_get_int(target) : 0;
         if (target_deci == 0 || target_deci == record_.bed_c * 10) {
             tc_->set_target(HeaterType::Bed, 0);
         }
         if (record_.chamber_c > 0) {
-            lv_subject_t* chamber = state_.get_chamber_target_subject();
+            lv_subject_t* chamber = state_.temperature_state().get_chamber_target_subject();
             const int chamber_deci = chamber ? lv_subject_get_int(chamber) : 0;
             if (chamber_deci == 0 || chamber_deci == record_.chamber_c * 10) {
                 tc_->set_target(HeaterType::Chamber, 0, {.toast = false});
@@ -519,7 +535,7 @@ void BedDryingController::tick(long long now_s) {
         return;
     }
     if (!record_.ended) {
-        lv_subject_t* target = state_.get_bed_target_subject();
+        lv_subject_t* target = state_.temperature_state().get_bed_target_subject();
         const int target_deci = target ? lv_subject_get_int(target) : 0;
         if (target_deci == record_.bed_c * 10) {
             bed_target_seen_ = true;
@@ -539,7 +555,7 @@ void BedDryingController::tick(long long now_s) {
         }
     }
     if (record_.ended && !removal_prompted_) {
-        lv_subject_t* temp = state_.get_bed_temp_subject();
+        lv_subject_t* temp = state_.temperature_state().get_bed_temp_subject();
         const double bed_c = temp ? lv_subject_get_int(temp) / 10.0 : 0.0;
         if (may_prompt_removal(bed_c)) {
             removal_prompted_ = true;
@@ -557,6 +573,7 @@ void BedDryingController::publish() {
     if (!subjects_initialized_) {
         return;
     }
+    check_print_alarm();
     const State s = state();
     std::string text;
     switch (s) {
@@ -567,7 +584,7 @@ void BedDryingController::publish() {
         break;
     }
     case State::Cooling: {
-        lv_subject_t* temp = state_.get_bed_temp_subject();
+        lv_subject_t* temp = state_.temperature_state().get_bed_temp_subject();
         const int bed_c = temp ? lv_subject_get_int(temp) / 10 : 0;
         text = fmt::format("{} {}°C", lv_tr("Bed cooling, spools still on the bed:"), bed_c);
         break;

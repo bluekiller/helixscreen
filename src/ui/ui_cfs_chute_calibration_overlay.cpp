@@ -11,7 +11,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_position_utils.h"
 
 #include "ams_backend.h"
@@ -87,8 +87,8 @@ void CfsChuteCalibrationOverlay::register_callbacks() {
          [](lv_event_t*) { get_cfs_chute_calibration_overlay().save_position(); }},
         // The exit gcode (Y_SAFE after PREPARE) rides on_deactivating(), so the
         // buttons only pop the overlay.
-        {"on_chute_cancel_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
-        {"on_chute_done_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
+        {"on_chute_cancel_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
+        {"on_chute_done_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
     });
 }
 
@@ -105,7 +105,7 @@ lv_obj_t* CfsChuteCalibrationOverlay::create(lv_obj_t* parent) {
     // so the readout is the value being calibrated.
     auto& ps = get_printer_state();
     y_observer_ = observe<int>(
-        ps.get_position_y_subject(), this,
+        ps.motion_state().get_position_y_subject(), this,
         [](CfsChuteCalibrationOverlay* self, int centimm) { self->update_y_display(centimm); },
         ps.get_subjects_lifetime());
     return overlay_root_;
@@ -177,7 +177,7 @@ void CfsChuteCalibrationOverlay::handle_jog(double delta_mm) {
     // RPC returns with the move finished, so there is no uncommitted travel
     // to fold in (unlike the motion panel's coalescer).
     double delta = delta_mm;
-    const auto bounds = get_printer_state().get_axis_bounds();
+    const auto bounds = get_printer_state().motion_state().get_axis_bounds();
     if (helix::jog_refused_for_unknown_position(bounds.has_y, y_known_)) {
         // With no envelope or no live position there is nothing to clamp
         // against, so an unclamped jog must not go out.

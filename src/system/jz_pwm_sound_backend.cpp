@@ -3,6 +3,7 @@
 #include "jz_pwm_sound_backend.h"
 
 #include "env_knobs.h"
+#include "helix_thread.h"
 #include "note_event.h"
 #include "platform_info.h"
 
@@ -657,7 +658,7 @@ void JzPwmSoundBackend::enqueue_frame(std::vector<uint32_t>&& words, uint32_t ho
         pending_frame_ = PendingFrame{std::move(words), hold_ms};
     }
     if (!worker_.joinable()) {
-        worker_ = std::thread([this] { sender_worker(); });
+        worker_ = helix::make_thread([this] { sender_worker(); });
         spdlog::info("[JzPwmBackend] sender worker started");
     }
     send_cv_.notify_one();

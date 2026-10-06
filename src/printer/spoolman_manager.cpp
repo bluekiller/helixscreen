@@ -124,7 +124,7 @@ void SpoolmanManager::init_subjects() {
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - weights change when
     // filament moves, which is the printer's own transition.
     print_state_observer_ = observe_print_state<SpoolmanManager>(
-        get_printer_state().get_print_state_enum_subject(), this,
+        get_printer_state().print_state().get_print_state_enum_subject(), this,
         [](SpoolmanManager* self, PrintJobState print_state) {
             // RAW_PRINT_STATE_OK: Spoolman weights only change when filament
             // actually moves, so this refreshes on the printer's own reported
@@ -145,7 +145,7 @@ void SpoolmanManager::init_subjects() {
     // whenever subjects were initialised without XML registration, and the miss
     // is silent, which left the manager with no availability observer at all.
     spoolman_availability_observer_ = observe<int>(
-        get_printer_state().get_printer_has_spoolman_subject(), this,
+        get_printer_state().capabilities_state().subject(Capability::HasSpoolman), this,
         [](SpoolmanManager* self, int value) {
             if (value == 0) {
                 std::lock_guard<std::recursive_mutex> lock(self->mutex_);
@@ -315,10 +315,9 @@ void SpoolmanManager::fetch_linked_slot(int backend_index, int slot_index, int s
                 SpoolmanManager& mgr = SpoolmanManager::instance();
 
                 // Our own state, under our own lock, released before the
-                // AmsState work below. AmsState::sync_from_backend() holds
-                // AmsState::mutex_ across SpoolmanManager::find_identity(),
-                // so carrying mutex_ into AmsState here closes an ABBA cycle
-                // that ThreadSanitizer reports as a lock-order inversion.
+                // AmsState work below. AmsState::sync_from_backend() calls
+                // SpoolmanManager::find_identity(), so AmsState is never
+                // entered with mutex_ held.
                 bool identity_is_new = false;
                 {
                     std::lock_guard<std::recursive_mutex> lock(mgr.mutex_);
@@ -455,13 +454,10 @@ void SpoolmanManager::refresh_spool(int spool_id) {
 
 void SpoolmanManager::refresh_spoolman_weights() {
     // Resolve everything we need from AmsState BEFORE taking our own mutex_.
-    // AmsState::sync_from_backend() holds AmsState::mutex_ across its call to
-    // SpoolmanManager::find_identity(), so the canonical order is
-    // AmsState -> SpoolmanManager; reaching into AmsState from under mutex_ closes an
-    // ABBA cycle that ThreadSanitizer reports as a lock-order inversion. Both
-    // accessors are const reads that take and release AmsState::mutex_ themselves, so
-    // hoisting costs a vector index and a settings read on the early-return paths and
-    // buys a one-way lock order.
+    // AmsState::sync_from_backend() calls SpoolmanManager::find_identity(), so the
+    // order is AmsState -> SpoolmanManager and AmsState is never entered with mutex_
+    // held. Hoisting costs a vector index and a settings read on the early-return
+    // paths and buys a one-way order.
     // Every backend, not just the primary. A second AMS's lanes carry their own
     // spoolman_id links and were simply never polled, so their weights sat at
     // whatever the last manual edit left and the low-filament checks read them
@@ -856,9 +852,8 @@ void SpoolmanManager::start_spoolman_polling() {
     }
 
     // Outside the lock: ensure_poll_timer() takes mutex_ itself and ends in
-    // refresh_spoolman_weights(), which reads AmsState. mutex_ is recursive, so
-    // holding it across this call nested silently and put AmsState::mutex_ under
-    // it - the ABBA cycle TSan reports as a lock-order inversion.
+    // refresh_spoolman_weights(), which reads AmsState, and AmsState is never
+    // entered with mutex_ held (see refresh_spoolman_weights).
     ensure_poll_timer();
 }
 
@@ -886,9 +881,8 @@ void SpoolmanManager::ensure_poll_timer() {
     }
 
     // Also do an immediate refresh - outside the lock. refresh_spoolman_weights()
-    // reads AmsState, and AmsState::sync_from_backend() holds AmsState::mutex_
-    // across SpoolmanManager::find_identity(); calling it under mutex_ closes the
-    // ABBA cycle. The timer callback above already runs lock-free.
+    // reads AmsState, which is never entered with mutex_ held. The timer callback
+    // above already runs lock-free.
     refresh_spoolman_weights();
 }
 

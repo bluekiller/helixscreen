@@ -5,7 +5,8 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_effects.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_toast_manager.h"
 
 #include "config.h"
@@ -255,8 +256,7 @@ lv_obj_t* TouchCalibrationOverlay::create(lv_obj_t* parent) {
     cleanup_called_ = false;
 
     // Create overlay from XML
-    overlay_root_ =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "touch_calibration_overlay", nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, "touch_calibration_overlay");
 
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
@@ -266,9 +266,6 @@ lv_obj_t* TouchCalibrationOverlay::create(lv_obj_t* parent) {
     // Find crosshair and touch capture widgets. Reparenting to screen root
     // is deferred to show() so z-order lands above the pushed overlay panel.
     crosshair_ = helix::ui::find_required(overlay_root_, "crosshair", get_name());
-
-    // Initially hidden
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     spdlog::info("[{}] Overlay created successfully", get_name());
     return overlay_root_;
@@ -322,7 +319,7 @@ void TouchCalibrationOverlay::hide() {
     spdlog::debug("[{}] Hiding overlay", get_name());
 
     // Pop from navigation stack - on_deactivate() will be called by NavigationManager
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 
     spdlog::info("[{}] Overlay hidden", get_name());
 }
@@ -412,7 +409,7 @@ void TouchCalibrationOverlay::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Call base class to set cleanup_called_ flag

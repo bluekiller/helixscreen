@@ -81,12 +81,14 @@ void UsbManager::set_drive_callback(DriveCallback) {}
 #include "ui_modal.h"
 
 #include "config.h"
+#include "platform_info.h"
 #include "src/xml/lv_xml.h"
 #include "static_subject_registry.h"
 
 static lv_subject_t g_notification_subject;
 static lv_subject_t g_show_beta_features_subject;
 static lv_subject_t g_home_edit_mode_subject;
+static lv_subject_t g_host_power_supported_subject;
 static bool g_subjects_initialized = false;
 
 lv_subject_t& get_notification_subject() {
@@ -121,6 +123,11 @@ void app_globals_init_subjects() {
     lv_subject_init_int(&g_home_edit_mode_subject, 0);
     lv_xml_register_subject(nullptr, "home_edit_mode", &g_home_edit_mode_subject);
     lv_subject_init_int(&g_wizard_active_subject, 0); // not XML-bound, observed programmatically
+    // The shutdown home widget's hardware gate reads it by name.
+    lv_subject_init_int(&g_host_power_supported_subject,
+                        helix::platform_host_power_supported() ? 1 : 0);
+    lv_xml_register_subject(nullptr, "platform_host_power_supported",
+                            &g_host_power_supported_subject);
     helix::ui::modal_init_subjects();
     g_subjects_initialized = true;
     StaticSubjectRegistry::instance().register_deinit("AppGlobals", app_globals_deinit_subjects);

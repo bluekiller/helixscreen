@@ -120,6 +120,7 @@ translations:
   A picture of your printer: A picture of your printer
   A print is in progress - restart still pending: A print is in progress - restart still pending
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.
+  A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop.: A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop.
   A spool may be tangled or the drive gear is jammed: A spool may be tangled or the drive gear is jammed
   A · 1,-1: A · 1,-1
   ABS: ABS
@@ -1738,6 +1739,7 @@ translations:
   Load Filament: Load Filament
   Load a filament first before trying to unload: Load a filament first before trying to unload
   Load a new spool in this slot, or turn on auto-refill to switch to a matching one: Load a new spool in this slot, or turn on auto-refill to switch to a matching one
+  'Load cancelled: nozzle target dropped': 'Load cancelled: nozzle target dropped'
   Load complete: Load complete
   Load failed: Load failed
   Load filament: Load filament
@@ -3021,8 +3023,10 @@ translations:
   Spoolman was not configured.: Spoolman was not configured.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Spool%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Spool%s'
+  Spools are off: Spools are off
   'Spools are on the bed: remove them and confirm before moving the printer': 'Spools are on the bed: remove them and confirm before moving the printer'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Spools are on the bed: tap the drying banner to confirm they are off, then restart.'
+  Spools on the bed!: Spools on the bed!
   'Spools on the bed: start drying, or confirm none were placed': 'Spools on the bed: start drying, or confirm none were placed'
   Spools removed: Spools removed
   Square Corner Velocity: Square Corner Velocity

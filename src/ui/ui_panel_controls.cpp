@@ -9,7 +9,6 @@
 #include "ui_fan_control_overlay.h"
 #include "ui_modal.h"
 #include "ui_motors_off.h"
-#include "ui_nav_manager.h"
 #include "ui_notification.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_bed_mesh.h"
@@ -201,7 +200,7 @@ void ControlsPanel::init_subjects() {
 
     // Observe homed_axes from PrinterState to update homing subjects using string observer
     homed_axes_observer_ = observe<const char*>(
-        printer_state_.get_homed_axes_subject(), this,
+        printer_state_.motion_state().get_homed_axes_subject(), this,
         [](ControlsPanel* self, const char* axes) {
             bool has_x = strchr(axes, 'x') != nullptr;
             bool has_y = strchr(axes, 'y') != nullptr;
@@ -360,28 +359,28 @@ void ControlsPanel::on_deactivating(DeactivateReason) {
 
 void ControlsPanel::refresh_all_displays() {
     // Re-read cached values from subjects and update all formatted displays
-    if (auto* subj = printer_state_.get_active_extruder_temp_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_active_extruder_temp_subject()) {
         cached_extruder_temp_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_active_extruder_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_active_extruder_target_subject()) {
         cached_extruder_target_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_bed_temp_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_bed_temp_subject()) {
         cached_bed_temp_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_bed_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_bed_target_subject()) {
         cached_bed_target_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_chamber_temp_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_temp_subject()) {
         cached_chamber_temp_ = lv_subject_get_int(subj);
     }
-    if (auto* subj = printer_state_.get_chamber_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_target_subject()) {
         cached_chamber_target_ = lv_subject_get_int(subj); // keypad seed
     }
-    if (auto* subj = printer_state_.get_chamber_effective_target_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_effective_target_subject()) {
         cached_chamber_effective_target_ = lv_subject_get_int(subj); // status display
     }
-    if (auto* subj = printer_state_.get_chamber_mode_subject()) {
+    if (auto* subj = printer_state_.temperature_state().get_chamber_mode_subject()) {
         cached_chamber_mode_ = lv_subject_get_int(subj); // M141 control mode
     }
     update_nozzle_temp_display();
@@ -392,24 +391,24 @@ void ControlsPanel::refresh_all_displays() {
     update_speed_display();
 
     // Re-read position subjects
-    if (auto* subj = printer_state_.get_gcode_position_x_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_gcode_position_x_subject()) {
         int centimm = lv_subject_get_int(subj);
         format_position(centimm, controls_pos_x_buf_, sizeof(controls_pos_x_buf_));
         lv_subject_copy_string(&controls_pos_x_subject_, controls_pos_x_buf_);
     }
-    if (auto* subj = printer_state_.get_gcode_position_y_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_gcode_position_y_subject()) {
         int centimm = lv_subject_get_int(subj);
         format_position(centimm, controls_pos_y_buf_, sizeof(controls_pos_y_buf_));
         lv_subject_copy_string(&controls_pos_y_subject_, controls_pos_y_buf_);
     }
-    if (auto* subj = printer_state_.get_gcode_position_z_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_gcode_position_z_subject()) {
         int centimm = lv_subject_get_int(subj);
         format_position(centimm, controls_pos_z_buf_, sizeof(controls_pos_z_buf_));
         lv_subject_copy_string(&controls_pos_z_subject_, controls_pos_z_buf_);
     }
 
     // Re-read Z-offset subjects
-    if (auto* subj = printer_state_.get_pending_z_offset_delta_subject()) {
+    if (auto* subj = printer_state_.motion_state().get_pending_z_offset_delta_subject()) {
         update_z_offset_delta_display(lv_subject_get_int(subj));
     }
     update_controls_z_offset_display();
@@ -451,7 +450,7 @@ void ControlsPanel::register_observers() {
     // Note: We check are_subjects_initialized() because observers may fire immediately
     // upon registration, but subjects aren't initialized until init_subjects() is called.
     chamber_temp_observer_ = observe<int>(
-        printer_state_.get_chamber_temp_subject(chamber_temp_lifetime_), this,
+        printer_state_.temperature_state().get_chamber_temp_subject(chamber_temp_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_temp_ = value;
             if (self->are_subjects_initialized() && self->active_)
@@ -461,7 +460,8 @@ void ControlsPanel::register_observers() {
     // Raw heater target is kept for keypad seed only (shows the currently entered
     // heater setpoint when the user opens the keypad to edit the chamber target).
     chamber_target_observer_ = observe<int>(
-        printer_state_.get_chamber_target_subject(chamber_target_lifetime_), this,
+        printer_state_.temperature_state().get_chamber_target_subject(chamber_target_lifetime_),
+        this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_target_ = value;
             // Status display uses cached_chamber_effective_target_, not this value.
@@ -470,7 +470,8 @@ void ControlsPanel::register_observers() {
     // Effective target is the canonical display value: heater target when heating,
     // cooling-fan ceiling when maintaining, 0 when off — drives the status string.
     chamber_effective_target_observer_ = observe<int>(
-        printer_state_.get_chamber_effective_target_subject(chamber_effective_target_lifetime_),
+        printer_state_.temperature_state().get_chamber_effective_target_subject(
+            chamber_effective_target_lifetime_),
         this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_effective_target_ = value;
@@ -481,7 +482,7 @@ void ControlsPanel::register_observers() {
     // M141 control mode (Off/Heating/Maintaining) — needed so the status string
     // leads with the correct mode word rather than the raw thermal state.
     chamber_mode_observer_ = observe<int>(
-        printer_state_.get_chamber_mode_subject(chamber_mode_lifetime_), this,
+        printer_state_.temperature_state().get_chamber_mode_subject(chamber_mode_lifetime_), this,
         [](ControlsPanel* self, int value) {
             self->cached_chamber_mode_ = value;
             if (self->are_subjects_initialized() && self->active_)
@@ -491,7 +492,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to fan updates (skip formatting when hidden)
     fan_observer_ = observe<int>(
-        printer_state_.get_fan_speed_subject(), this,
+        printer_state_.fan_state().get_fan_speed_subject(), this,
         [](ControlsPanel* self, int /* value */) {
             if (self->active_)
                 self->update_fan_display();
@@ -501,7 +502,7 @@ void ControlsPanel::register_observers() {
     // Subscribe to multi-fan list changes (fires when fans are discovered/updated)
     // Skip widget rebuilds when hidden; on_activate() calls populate_secondary_fans()
     fans_version_observer_ = observe<int>(
-        printer_state_.get_fans_version_subject(), this,
+        printer_state_.fan_state().get_fans_version_subject(), this,
         [](ControlsPanel* self, int /* version */) {
             if (!self->active_)
                 return;
@@ -541,7 +542,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to pending Z-offset delta (for unsaved adjustment banner)
     pending_z_offset_observer_ = observe<int>(
-        printer_state_.get_pending_z_offset_delta_subject(), this,
+        printer_state_.motion_state().get_pending_z_offset_delta_subject(), this,
         [](ControlsPanel* self, int delta_microns) {
             if (self->active_)
                 self->update_z_offset_delta_display(delta_microns);
@@ -573,7 +574,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to speed/flow factor updates (skip formatting when hidden)
     speed_factor_observer_ = observe<int>(
-        printer_state_.get_speed_factor_subject(), this,
+        printer_state_.motion_state().get_speed_factor_subject(), this,
         [](ControlsPanel* self, int /* value */) {
             if (self->active_)
                 self->update_speed_display();
@@ -582,7 +583,7 @@ void ControlsPanel::register_observers() {
 
     // Subscribe to gcode Z-offset for live tuning display (skip formatting when hidden)
     gcode_z_offset_observer_ = observe<int>(
-        printer_state_.get_gcode_z_offset_subject(), this,
+        printer_state_.motion_state().get_gcode_z_offset_subject(), this,
         [](ControlsPanel* self, int /* offset_microns */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -592,7 +593,7 @@ void ControlsPanel::register_observers() {
     // The displayed Z-offset switches source between the live and the
     // firmware-persisted reading, so all three inputs have to retrigger it.
     persisted_z_offset_observer_ = observe<int>(
-        printer_state_.get_persisted_z_offset_subject(), this,
+        printer_state_.motion_state().get_persisted_z_offset_subject(), this,
         [](ControlsPanel* self, int /* offset_microns */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -600,7 +601,7 @@ void ControlsPanel::register_observers() {
         printer_state_.get_subjects_lifetime());
 
     persisted_z_offset_valid_observer_ = observe<int>(
-        printer_state_.get_persisted_z_offset_valid_subject(), this,
+        printer_state_.motion_state().get_persisted_z_offset_valid_subject(), this,
         [](ControlsPanel* self, int /* valid */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -608,7 +609,7 @@ void ControlsPanel::register_observers() {
         printer_state_.get_subjects_lifetime());
 
     z_offset_print_active_observer_ = observe<int>(
-        printer_state_.get_print_active_subject(), this,
+        printer_state_.print_state().get_print_active_subject(), this,
         [](ControlsPanel* self, int /* print_active */) {
             if (self->active_)
                 self->update_controls_z_offset_display();
@@ -704,8 +705,8 @@ void ControlsPanel::update_fan_display() {
         return;
     }
 
-    int fan_pct = printer_state_.get_fan_speed_subject()
-                      ? lv_subject_get_int(printer_state_.get_fan_speed_subject())
+    int fan_pct = printer_state_.fan_state().get_fan_speed_subject()
+                      ? lv_subject_get_int(printer_state_.fan_state().get_fan_speed_subject())
                       : 0;
 
     format_fan_speed(fan_pct, fan_speed_buf_, sizeof(fan_speed_buf_));
@@ -758,7 +759,7 @@ void ControlsPanel::populate_secondary_fans() {
     helix::ui::safe_clean_children(secondary_fans_list_);
 
     // Collect non-part-cooling fans and sort by display priority
-    const auto& fans = printer_state_.get_fans();
+    const auto& fans = printer_state_.fan_state().get_fans();
     std::vector<const helix::FanInfo*> secondary_fans;
     for (const auto& fan : fans) {
         if (fan.type != helix::FanType::PART_COOLING) {
@@ -1071,7 +1072,7 @@ void ControlsPanel::handle_z_tilt() {
 
 void ControlsPanel::update_speed_display() {
     int speed_pct = 100;
-    if (auto* speed_subj = printer_state_.get_speed_factor_subject()) {
+    if (auto* speed_subj = printer_state_.motion_state().get_speed_factor_subject()) {
         speed_pct = lv_subject_get_int(speed_subj);
     }
     helix::format::format_percent(speed_pct, speed_override_buf_, sizeof(speed_override_buf_));
@@ -1205,7 +1206,8 @@ void ControlsPanel::subscribe_to_secondary_fan_speeds() {
         // expire the guard's weak_ptr immediately, leaving a dangling observer that
         // corrupts the subject's observer list when reset() later removes it).
         SubjectLifetime& lifetime = secondary_fan_lifetimes_.emplace_back();
-        if (auto* subject = printer_state_.get_fan_speed_subject(row.object_name, lifetime)) {
+        if (auto* subject =
+                printer_state_.fan_state().get_fan_speed_subject(row.object_name, lifetime)) {
             secondary_fan_observers_.push_back(observe<int>(
                 subject, this,
                 [name = row.object_name, gen](ControlsPanel* self, int speed_pct) {

@@ -418,7 +418,7 @@ TEST_CASE_METHOD(FactoryGateFixture, "the backend refusal matches print_blocks_f
 
             // Read the lifecycle the backend will actually see rather than
             // assuming the wire state maps to it one-for-one.
-            const PrintState lifecycle = state.get_print_lifecycle();
+            const PrintState lifecycle = state.print_state().get_print_lifecycle();
             const bool expected = helix::print_blocks_filament_op(lifecycle, self_homes);
 
             const Outcome out = run(type, unload);

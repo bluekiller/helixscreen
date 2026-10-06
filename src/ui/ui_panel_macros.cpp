@@ -7,7 +7,7 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
 #include "ui_update_queue.h"
@@ -113,7 +113,7 @@ void MacrosPanel::register_callbacks() {
              if (self.edit_mode_) {
                  self.exit_edit_mode(false); // discard pending changes, stay on panel
              } else {
-                 NavigationManager::instance().go_back(); // normal Back: close the overlay
+                 helix::nav::go_back(); // normal Back: close the overlay
              }
          }},
     });
@@ -147,7 +147,7 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     // main thread, so observing it re-runs rebuild_rows() once real macros
     // exist (this also covers reconnect / printer switch).
     nav_enabled_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_nav_buttons_enabled_subject(), this,
+        get_printer_state().network_state().get_nav_buttons_enabled_subject(), this,
         [](MacrosPanel* self, int) {
             // Re-fetch from the API (macros may have just been populated) then
             // rebuild — rebuild_rows() alone would reuse the stale cached list.

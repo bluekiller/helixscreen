@@ -122,6 +122,7 @@ translations:
   A picture of your printer: プリンターの画像
   A print is in progress - restart still pending: '印刷中です - 再起動は保留中'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: このゲートで印刷中です。HelixScreen 側のコピーはクリアしました。印刷終了後に再度クリアしてください。
+  A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop.: "スプールがベッド上にあるとされている状態で印刷が開始されました。まだ置かれている場合は、今すぐ緊急停止でプリンターを止めてください。"
   A spool may be tangled or the drive gear is jammed: スプールが絡まっているか、駆動ギアが詰まっている可能性があります
   A · 1,-1: "A · 1,-1"
   ABS: ABS
@@ -1677,6 +1678,7 @@ translations:
   Load Filament: フィラメントを装填
   Load a filament first before trying to unload: 排出する前にまずフィラメントを装填してください
   Load a new spool in this slot, or turn on auto-refill to switch to a matching one: このスロットに新しいスプールをセットするか、自動補充を有効にして一致するスプールに切り替えてください
+  'Load cancelled: nozzle target dropped': '装填をキャンセル: ノズルの目標温度が下がりました'
   Load complete: 'ロード完了'
   Load failed: 装填に失敗しました
   Load filament: 'フィラメントをロード'
@@ -2912,9 +2914,11 @@ translations:
   Spoolman was not configured.: Spoolman は設定されていませんでした。
   'Spoolman: %zu Spool%s': 'Spoolman: %zu 個のスプール%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu 個のスプール%s'
+  Spools are off: "スプールを取り出しました"
   'Spools are on the bed: remove them and confirm before moving the printer': 'ベッドにスプールがあります: 取り除いて確認してからプリンターを動かしてください'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'ベッドにスプールがあります: 乾燥のバナーをタップして取り出したことを確認してから、再起動してください。'
 
+  Spools on the bed!: "ベッドにスプールがあります！"
   'Spools on the bed: start drying, or confirm none were placed': 'ベッドにスプールがあります: 乾燥を開始するか、置いていないことを確認してください'
 
   Spools removed: スプールを取り出しました

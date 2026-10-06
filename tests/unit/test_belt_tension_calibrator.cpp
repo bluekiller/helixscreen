@@ -394,7 +394,7 @@ class BeltCalibratorFixture {
 
         PrinterStateTestAccess::reset(get_printer_state());
         get_printer_state().init_subjects(false);
-        lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "xyz");
+        lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "xyz");
 
         calibrator_ = std::make_unique<BeltTensionCalibrator>(api_.get());
     }
@@ -456,7 +456,7 @@ TEST_CASE_METHOD(BeltCalibratorFixture, "measure_path sweeps its path and report
 
 TEST_CASE_METHOD(BeltCalibratorFixture, "cancel while homing never starts the sweep",
                  "[belt_tension][calibrator]") {
-    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "");
+    lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "");
     mock_client_.clear_gcode_script_history();
     bool called = false;
     calibrator_->measure_path(

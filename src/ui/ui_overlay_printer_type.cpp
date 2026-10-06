@@ -15,7 +15,7 @@
 #include "ui_overlay_printer_type.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 
 #include "app_globals.h"
 #include "config.h"
@@ -168,7 +168,7 @@ void PrinterTypeOverlay::handle_type_selected(const std::string& type_name) {
     PrinterDetector::apply_type_choice(config, type_name, api->hardware());
 
     update_selection_indicator(type_name);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 } // namespace helix::settings

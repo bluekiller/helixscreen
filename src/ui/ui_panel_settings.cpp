@@ -10,7 +10,7 @@
 #if HELIX_HAS_PLUGINS
 #include "plugins_overlay.h"
 #endif
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_panel_memory_stats.h"
 #include "ui_settings_appearance.h"
 #include "ui_settings_connection.h"
@@ -232,10 +232,11 @@ void SettingsPanel::refresh_status_lines() {
                                  status_int_subject("settings_volume", 0))
                                .c_str());
 
-    lv_subject_copy_string(
-        &settings_status_devices_subject_,
-        devices(lv_subject_get_int(get_printer_state().get_hardware_status_level_subject()))
-            .c_str());
+    lv_subject_copy_string(&settings_status_devices_subject_,
+                           devices(lv_subject_get_int(get_printer_state()
+                                                          .hardware_validation_state()
+                                                          .get_hardware_status_level_subject()))
+                               .c_str());
 
     if (helix::is_android_platform()) {
         // Android manages Wi-Fi and Ethernet itself — both backends compile to
@@ -387,6 +388,6 @@ void register_settings_panel_callbacks() {
              }
          }},
         {"on_restart_now_clicked", [](lv_event_t*) { app_request_restart_service(); }},
-        {"on_header_back_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
+        {"on_header_back_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
     });
 }

@@ -166,6 +166,7 @@ namespace {
 void close_editor_overlay() {
     NavigationManager::instance().go_back();
     UpdateQueue::instance().drain();
+    lv_timer_handler(); // the overlay close callback runs on the next tick
 }
 
 SlotInfo untracked_slot() {
@@ -1625,7 +1626,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1); // is_spoolman_available() -> true
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
 
     auto& overlay = get_ams_edit_overlay();
     AmsEditOverlayViewTestAccess access(overlay);
@@ -1668,7 +1669,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     // The new spool is registered as active on the server.
     CHECK(api.spoolman_mock().get_mock_active_spool_id() == 22);
 
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -1692,7 +1693,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
 
     auto& overlay = get_ams_edit_overlay();
     AmsEditOverlayViewTestAccess access(overlay);
@@ -1737,7 +1738,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     CHECK(api.spoolman_mock().filament_updates.empty());
     CHECK(api.spoolman_mock().get_mock_active_spool_id() == 22);
 
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -1763,7 +1764,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 0);
-    get_printer_state().set_spoolman_available(false);
+    get_printer_state().capabilities_state().set_spoolman_available(false);
 
     // Build the home-panel component + controller, then tap it the way a user
     // does — the widget's own completion wiring is the code under test.
@@ -1824,7 +1825,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain(); // flush the queued availability update
     REQUIRE(get_printer_state().is_spoolman_available());
 
@@ -1864,7 +1865,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     if (!fired) {
         close_editor_overlay();
     }
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
 }
 
 TEST_CASE_METHOD(
@@ -1901,7 +1902,7 @@ TEST_CASE_METHOD(
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
     process_lvgl(10);
     REQUIRE(get_printer_state().is_spoolman_available());
@@ -1985,7 +1986,7 @@ TEST_CASE_METHOD(
         CHECK(rec.spool_id != 7); // linked_a.id — never patched
     }
 
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -2016,7 +2017,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
     process_lvgl(10);
 
@@ -2076,7 +2077,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     }
     CHECK(linked_weight_patches == 0);
 
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -2096,7 +2097,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 0);
-    get_printer_state().set_spoolman_available(false);
+    get_printer_state().capabilities_state().set_spoolman_available(false);
     UpdateQueue::instance().drain();
 
     auto& overlay = get_ams_edit_overlay();
@@ -2166,7 +2167,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "a linked slot still saves a color while Spo
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 0);
-    get_printer_state().set_spoolman_available(false);
+    get_printer_state().capabilities_state().set_spoolman_available(false);
     UpdateQueue::instance().drain();
 
     auto& overlay = get_ams_edit_overlay();
@@ -2640,7 +2641,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(subj != nullptr);
     lv_subject_set_int(subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
     process_lvgl(10);
 
@@ -2699,7 +2700,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK_FALSE(lv_obj_is_valid(root3));
 
     DisplaySettingsManager::instance().set_animations_enabled(true);
-    get_printer_state().set_spoolman_available(false);
+    get_printer_state().capabilities_state().set_spoolman_available(false);
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -2719,7 +2720,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
     process_lvgl(10);
 
@@ -2763,7 +2764,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     // The newly linked spool is registered active on the server.
     CHECK(api.spoolman_mock().get_mock_active_spool_id() == 22);
 
-    get_printer_state().set_spoolman_available(false);
+    get_printer_state().capabilities_state().set_spoolman_available(false);
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -2930,7 +2931,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
 
     auto& overlay = get_ams_edit_overlay();
@@ -2983,7 +2984,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
 
     auto& overlay = get_ams_edit_overlay();
@@ -3034,7 +3035,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     UpdateQueue::instance().drain();
 
     auto& overlay = get_ams_edit_overlay();
@@ -3100,7 +3101,7 @@ void seed_linked_spool(MoonrakerAPIMock& api, AmsBackendMock& backend) {
     auto* spoolman_subj = lv_xml_get_subject(nullptr, "printer_has_spoolman");
     REQUIRE(spoolman_subj != nullptr);
     lv_subject_set_int(spoolman_subj, 1);
-    get_printer_state().set_spoolman_available(true);
+    get_printer_state().capabilities_state().set_spoolman_available(true);
     SpoolmanManager::instance().set_api(&api);
     UpdateQueue::instance().drain();
 }
@@ -3170,7 +3171,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     REQUIRE(record->remaining_weight_g.has_value());
     CHECK(*record->remaining_weight_g == 600.0F);
 
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }
@@ -3229,7 +3230,7 @@ TEST_CASE_METHOD(OverlayConsumerCommitFixture,
     CHECK(record->spoolman_id == captured.slot_info.spoolman_id);
     CHECK(record->material == "PETG");
 
-    get_printer_state().set_spoolman_available(false); // restore clean slate
+    get_printer_state().capabilities_state().set_spoolman_available(false); // restore clean slate
     UpdateQueue::instance().drain();
     process_lvgl(10);
 }

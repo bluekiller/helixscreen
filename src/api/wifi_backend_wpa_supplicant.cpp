@@ -6,6 +6,7 @@
 #include "ui_error_reporting.h"
 #include "ui_update_queue.h"
 
+#include "helix_thread.h"
 #include "log_redact.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "spdlog/fmt/fmt.h"
@@ -482,6 +483,7 @@ WiFiError WifiBackendWpaSupplicant::start() {
         init_complete_ = false;
         try {
             hv::EventLoopThread::start(true, [this]() -> int {
+                helix::install_thread_altstack();
                 WifiBackendWpaSupplicant::init_wpa();
                 return 0;
             });
@@ -547,7 +549,7 @@ void WifiBackendWpaSupplicant::start_async() {
 
     // Wrap — EAGAIN under thread exhaustion throws std::system_error ([L083]).
     try {
-        async_init_thread_ = std::thread([this]() {
+        async_init_thread_ = helix::make_thread([this]() {
             WiFiError result = start();
             bool ran_init = init_complete_.load();
             async_init_in_progress_ = false;
@@ -2048,7 +2050,8 @@ WifiBackend::ConnectionStatus WifiBackendWpaSupplicant::get_status() {
 
     if (status_changed) {
         spdlog::trace("[WifiBackend] Status: connected={} ssid='{}' ip='{}' signal={}%",
-                      status.connected, status.ssid, status.ip_address, status.signal_strength);
+                      status.connected, helix::redact::ssid(status.ssid), status.ip_address,
+                      status.signal_strength);
         last_logged_status_ = status;
     }
 
@@ -2146,7 +2149,7 @@ std::vector<WiFiNetwork> WifiBackendWpaSupplicant::parse_scan_results(const std:
 
         // Skip hidden networks (empty or missing SSID)
         if (ssid.empty()) {
-            spdlog::trace("[WifiBackend] Skipping hidden network: {}", bssid);
+            spdlog::trace("[WifiBackend] Skipping hidden network: {}", helix::redact::mac(bssid));
             continue;
         }
 
@@ -2178,8 +2181,8 @@ std::vector<WiFiNetwork> WifiBackendWpaSupplicant::parse_scan_results(const std:
         WiFiNetwork network(ssid, signal_percent, is_secured, security_type, freq_mhz);
         networks.push_back(network);
 
-        spdlog::trace("[WifiBackend] Parsed network: '{}' {}% {} {}", ssid, signal_percent,
-                      security_type, bssid);
+        spdlog::trace("[WifiBackend] Parsed network: '{}' {}% {} {}", helix::redact::ssid(ssid),
+                      signal_percent, security_type, helix::redact::mac(bssid));
     }
 
     spdlog::debug("[WifiBackend] Parsed {} networks from scan results", networks.size());

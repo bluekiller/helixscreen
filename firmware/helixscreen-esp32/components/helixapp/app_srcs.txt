@@ -117,11 +117,14 @@ src/print/print_start_analyzer.cpp
 src/print/print_start_navigation.cpp
 src/print/thumbnail_cache.cpp
 src/print/thumbnail_downscale.cpp
+src/print/thumbnail_png_stream.cpp
+src/print/thumbnail_target.cpp
 src/printer/active_material_provider.cpp
 src/printer/afc_config_manager.cpp
 src/printer/afc_defaults.cpp
 src/printer/afc_fault_position.cpp
 src/printer/ams_backend.cpp
+src/printer/ams_backend_registry.cpp
 src/printer/ams_backend_ace.cpp
 src/printer/ams_backend_ad5x_ifs.cpp
 src/printer/ams_backend_afc.cpp
@@ -134,7 +137,13 @@ src/printer/ams_backend_snapmaker.cpp
 src/printer/ams_backend_toolchanger.cpp
 src/printer/ams_endless_spool.cpp
 src/printer/ams_environment_zone.cpp
+src/printer/ams_runout_grace.cpp
 src/printer/ams_state.cpp
+src/printer/ams_state_clog.cpp
+src/printer/ams_state_dryer.cpp
+src/printer/ams_state_external_spool.cpp
+src/printer/ams_state_subjects.cpp
+src/printer/ams_state_tool_mapping.cpp
 src/printer/ams_subscription_backend.cpp
 src/printer/batch_feed_reconcile.cpp
 src/printer/cfs_status_parse.cpp
@@ -190,6 +199,7 @@ src/printer/printer_motion_state.cpp
 src/printer/printer_network_state.cpp
 src/printer/printer_plugin_status_state.cpp
 src/printer/printer_print_state.cpp
+src/printer/printer_profile_state.cpp
 src/printer/printer_recovery_service.cpp
 src/printer/printer_state.cpp
 src/printer/printer_temperature_state.cpp
@@ -201,6 +211,7 @@ src/printer/snapmaker_exceptions.cpp
 src/printer/snapmaker_print_preferences.cpp
 src/printer/snapmaker_resume.cpp
 src/printer/snapmaker_status_parse.cpp
+src/printer/status_dispatch.cpp
 src/printer/z_offset_persistence.cpp
 src/printer/plr_backend.cpp
 src/printer/plr_offer.cpp
@@ -285,6 +296,7 @@ src/ui/ams_drawing_utils.cpp
 src/ui/backdrop_blur.cpp
 src/ui/bed_coord_mapper.cpp
 src/ui/bed_mesh_profile_name.cpp
+src/ui/card_thumbnail_plan.cpp
 src/ui/chamber_assignment_options.cpp
 src/ui/console_filter_engine.cpp
 src/ui/console_line.cpp
@@ -458,7 +470,11 @@ src/ui/ui_lock_screen.cpp
 src/ui/ui_manual_pull_prompt.cpp
 src/ui/ui_markdown.cpp
 src/ui/ui_modal.cpp
+src/ui/ui_nav_backdrop.cpp
 src/ui/ui_nav_manager.cpp
+src/ui/ui_nav_panel_registry.cpp
+src/ui/ui_nav_printer_badge.cpp
+src/ui/ui_nav_rail_button.cpp
 src/ui/ui_notification.cpp
 src/ui/ui_notification_badge.cpp
 src/ui/ui_notification_history.cpp

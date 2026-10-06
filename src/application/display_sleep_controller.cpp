@@ -324,7 +324,7 @@ void DisplaySleepController::tick() {
         // Lifecycle: a user who turned off sleep-while-printing wants the
         // screen up through the pre-print homing too, which is when they are
         // most likely to be watching.
-        const auto lifecycle = get_printer_state().get_print_lifecycle();
+        const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
         if (job_holds_machine(lifecycle)) {
             // Reset LVGL activity timer so we don't immediately sleep when print ends
             lv_display_trigger_activity(nullptr);

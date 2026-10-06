@@ -20,6 +20,7 @@
 #include "abort_manager.h"
 #include "app_globals.h"
 #include "callback_drain.h"
+#include "helix_thread.h"
 #include "helix_version.h"
 #include "host_identity.h"
 #include "printer_state.h"
@@ -452,6 +453,10 @@ void MoonrakerClient::install_ws_callbacks() {
     // before any `this` deref, so a callback firing during the hv::WebSocketClient base-class
     // destructor (after destruction_guard_.reset()) bails without touching destroyed members.
     onopen = [this, dg = std::weak_ptr<bool>(destruction_guard_)]() {
+        // libhv owns this loop thread, so its signal stack is installed from
+        // the first callback that runs on it: onopen, or onclose when the
+        // connection never comes up.
+        helix::install_thread_altstack();
         // Liveness check that never dereferences `this`: a null lock() means the destructor
         // already ran (it resets destruction_guard_ before the base-class dtor). See above.
         auto live = dg.lock();
@@ -488,6 +493,7 @@ void MoonrakerClient::install_ws_callbacks() {
     };
 
     onclose = [this, dg = std::weak_ptr<bool>(destruction_guard_)]() {
+        helix::install_thread_altstack();
         // Liveness check that never dereferences `this`: a null lock() means the destructor
         // already ran (it resets destruction_guard_ before the base-class dtor). See above.
         auto live = dg.lock();
@@ -796,7 +802,7 @@ void MoonrakerClient::on_ws_close() {
         // genuinely-current frames look older than the last session's and be
         // rejected for the life of the process. Touches two POD fields under their
         // own lock, no LVGL: safe from this event-loop thread.
-        get_printer_state().reset_klippy_state_freshness();
+        get_printer_state().network_state().reset_klippy_state_freshness();
 
         if (was_connected_) {
             spdlog::warn("[Moonraker Client] WebSocket connection closed");

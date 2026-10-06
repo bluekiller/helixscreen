@@ -50,6 +50,53 @@ namespace hfs = helix::fs;
 using helix::CapabilityOrigin;
 using helix::OperationCategory;
 
+namespace {
+
+/// The PRINT_START operations macro analysis can turn into an option, in row order.
+struct MacroOptionId {
+    helix::PrintStartOpCategory category;
+    const char* id;
+    PrePrintCategory group;
+};
+constexpr MacroOptionId MACRO_OPTION_IDS[] = {
+    {helix::PrintStartOpCategory::BED_MESH, "bed_mesh", PrePrintCategory::Mechanical},
+    {helix::PrintStartOpCategory::QGL, "qgl", PrePrintCategory::Mechanical},
+    {helix::PrintStartOpCategory::Z_TILT, "z_tilt", PrePrintCategory::Mechanical},
+    {helix::PrintStartOpCategory::NOZZLE_CLEAN, "nozzle_clean", PrePrintCategory::Quality},
+};
+
+/// The MacroParam option for one of MACRO_OPTION_IDS, or nullopt when the analysis
+/// did not find that operation controllable. Rows and the skip params sent at print
+/// start both come from here, so they cannot disagree.
+std::optional<PrePrintOption>
+macro_option_for(const std::optional<helix::PrintStartAnalysis>& analysis,
+                 const MacroOptionId& entry) {
+    if (!analysis || !analysis->found) {
+        return std::nullopt;
+    }
+    CapabilityMatrix matrix;
+    matrix.add_from_macro_analysis(*analysis);
+    const auto source = matrix.get_best_source(entry.category);
+    if (!source) {
+        return std::nullopt;
+    }
+
+    PrePrintOption opt;
+    opt.id = entry.id;
+    opt.category = entry.group;
+    opt.order = static_cast<int>(&entry - MACRO_OPTION_IDS);
+    opt.default_enabled = true; // the macro runs the operation unless told to skip it
+    opt.strategy_kind = PrePrintStrategyKind::MacroParam;
+    PrePrintStrategyMacroParam param;
+    param.param_name = source->param_name;
+    param.enable_value = source->enable_value;
+    param.skip_value = source->skip_value;
+    opt.strategy = std::move(param);
+    return opt;
+}
+
+} // namespace
+
 // ============================================================================
 // Construction / Destruction
 // ============================================================================
@@ -65,7 +112,7 @@ PrintPreparationManager::~PrintPreparationManager() {
 const PrePrintOptionSet& PrintPreparationManager::get_cached_options() const {
     // Delegate to PrinterState which owns the cache
     if (printer_state_) {
-        return printer_state_->get_pre_print_option_set();
+        return printer_state_->profile_state().pre_print_option_set();
     }
 
     // Return empty set if PrinterState not set
@@ -124,11 +171,11 @@ void PrintPreparationManager::set_dependencies(IMoonrakerAPI* api, PrinterState*
 
     if (printer_state_) {
         connection_observer_ = helix::ui::observe<int>(
-            printer_state_->get_printer_connection_state_subject(), this,
+            printer_state_->network_state().get_printer_connection_state_subject(), this,
             [](PrintPreparationManager* self, int state) { self->on_connection_state(state); },
             printer_state_->get_subjects_lifetime());
         klippy_observer_ = helix::ui::observe<int>(
-            printer_state_->get_klippy_state_subject(), this,
+            printer_state_->network_state().get_klippy_state_subject(), this,
             [](PrintPreparationManager* self, int state) { self->on_klippy_state(state); },
             printer_state_->get_subjects_lifetime());
     }
@@ -209,13 +256,13 @@ void PrintPreparationManager::recalculate_estimate() {
 
     // Current temps (decidegrees -> degrees)
     float ext_temp = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_active_extruder_temp_subject()));
-    float ext_target = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_active_extruder_target_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_active_extruder_temp_subject()));
+    float ext_target = helix::ui::temperature::deci_to_degrees_f(lv_subject_get_int(
+        printer_state_->temperature_state().get_active_extruder_target_subject()));
     float bed_temp = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_bed_temp_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_bed_temp_subject()));
     float bed_target = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_bed_target_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_bed_target_subject()));
 
     float total = 0.0f;
 
@@ -394,39 +441,25 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
         });
 }
 
-bool PrintPreparationManager::is_macro_op_controllable(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return false;
+PrePrintOptionSet PrintPreparationManager::displayed_options() const {
+    PrePrintOptionSet displayed = get_cached_options();
+    const bool database_declares_options =
+        printer_state_ &&
+        !PrinterDetector::get_pre_print_option_set(printer_state_->profile_state().printer_type())
+             .options.empty();
+    if (database_declares_options) {
+        return displayed;
     }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    return op && op->has_skip_param;
-}
-
-std::string
-PrintPreparationManager::get_macro_skip_param(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return "";
+    for (const auto& entry : MACRO_OPTION_IDS) {
+        if (displayed.find(entry.id)) {
+            continue;
+        }
+        if (auto opt = macro_option_for(macro_analysis_, entry)) {
+            displayed.options.push_back(std::move(*opt));
+        }
     }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    if (op && op->has_skip_param) {
-        return op->skip_param_name;
-    }
-    return "";
-}
-
-helix::ParameterSemantic
-PrintPreparationManager::get_macro_param_semantic(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return helix::ParameterSemantic::OPT_OUT; // Default assumption
-    }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    if (op && op->has_skip_param) {
-        return op->param_semantic;
-    }
-    return helix::ParameterSemantic::OPT_OUT; // Default assumption
+    sort_pre_print_options(displayed.options);
+    return displayed;
 }
 
 // ============================================================================
@@ -656,7 +689,8 @@ bool PrintPreparationManager::can_modify_gcode() const {
     // the original filename back in Moonraker's history afterwards. Without it
     // finished jobs are listed as ".helix_temp/modified_1766807545_name.gcode",
     // so we decline rather than clutter the history.
-    return printer_state_ != nullptr && printer_state_->service_has_helix_plugin();
+    return printer_state_ != nullptr &&
+           printer_state_->plugin_status_state().service_has_helix_plugin();
 }
 
 // ============================================================================
@@ -687,7 +721,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
     // Snapshot whether this start is under a preparing job. Only then does the
     // job disappearing later mean the user cancelled; a caller that never armed
     // one must still be able to start a print.
-    armed_at_start_ = printer_state_ && printer_state_->has_preparing_job();
+    armed_at_start_ = printer_state_ && printer_state_->print_state().has_preparing_job();
 
     if (!api_) {
         spdlog::error("[PrintPreparationManager] Cannot start print - not connected to printer");
@@ -817,7 +851,9 @@ void PrintPreparationManager::start_print(const std::string& filename,
         // ack can be judged on whether the job it belongs to still exists
         // rather than on how long it took to arrive.
         pre_start_epoch_ =
-            printer_state_ ? lv_subject_get_int(printer_state_->get_preparing_epoch_subject()) : 0;
+            printer_state_
+                ? lv_subject_get_int(printer_state_->print_state().get_preparing_epoch_subject())
+                : 0;
         // The busy gate must not queue this send fire-and-forget: its on_success
         // is the only trigger that launches the job, so a discretionary block
         // (a pre_start_gcode heater template) would never fire it and the print
@@ -895,7 +931,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
 }
 
 bool PrintPreparationManager::is_print_in_progress() const {
-    return printer_state_ && printer_state_->is_print_in_progress();
+    return printer_state_ && printer_state_->print_state().is_print_in_progress();
 }
 
 // ============================================================================
@@ -1024,25 +1060,14 @@ std::string PrintPreparationManager::describe_dropped_modifications(
     }
 
     // LAYER 2 mirror: collect_macro_skip_params() also emits for ops the DB
-    // never declared, picked up from PRINT_START analysis. Those have no
-    // PrePrintOption to read a label from, so synthesize one — label_key_for()
-    // carries hardcoded names for exactly these four legacy ids.
-    if (macro_analysis_.has_value() && macro_analysis_->found) {
-        const std::pair<helix::PrintStartOpCategory, const char*> categories[] = {
-            {helix::PrintStartOpCategory::BED_MESH, "bed_mesh"},
-            {helix::PrintStartOpCategory::QGL, "qgl"},
-            {helix::PrintStartOpCategory::Z_TILT, "z_tilt"},
-            {helix::PrintStartOpCategory::NOZZLE_CLEAN, "nozzle_clean"},
-        };
-        for (const auto& [cat, id] : categories) {
-            if (covered.count(id) || !is_macro_op_controllable(cat) ||
-                get_option_state(id) != PrePrintOptionState::DISABLED ||
-                get_macro_skip_param(cat).empty()) {
-                continue;
-            }
-            PrePrintOption synthetic;
-            synthetic.id = id;
-            names.push_back(PrePrintOptionsRenderer::label_for(synthetic));
+    // never declared, picked up from PRINT_START analysis.
+    for (const auto& entry : MACRO_OPTION_IDS) {
+        if (covered.count(entry.id) ||
+            get_option_state(entry.id) != PrePrintOptionState::DISABLED) {
+            continue;
+        }
+        if (auto synthetic = macro_option_for(macro_analysis_, entry)) {
+            names.push_back(PrePrintOptionsRenderer::label_for(*synthetic));
         }
     }
 
@@ -1182,34 +1207,18 @@ PrintPreparationManager::collect_macro_skip_params() const {
     // LAYER 2: Macro analysis. Picks up ops the DB didn't cover (e.g. QGL on a
     // Voron whose entry only declares bed_mesh). DB-handled ids are skipped to
     // avoid double-emission.
-    if (macro_analysis_.has_value() && macro_analysis_->found) {
-        auto emit_if_disabled = [this, &skip_params, &handled_ids](helix::PrintStartOpCategory cat,
-                                                                   const std::string& id) {
-            if (handled_ids.count(id)) {
-                return;
-            }
-            if (!is_macro_op_controllable(cat)) {
-                return;
-            }
-            if (get_option_state(id) != PrePrintOptionState::DISABLED) {
-                return;
-            }
-            std::string param = get_macro_skip_param(cat);
-            if (param.empty()) {
-                return;
-            }
-            auto semantic = get_macro_param_semantic(cat);
-            // OPT_OUT (SKIP_*): "1" means skip. OPT_IN (PERFORM_*): "0" means don't do.
-            std::string value = (semantic == helix::ParameterSemantic::OPT_OUT) ? "1" : "0";
-            skip_params.emplace_back(param, value);
-            spdlog::debug("[PrintPreparationManager] Macro-analysis param: {}={} (id={})", param,
-                          value, id);
-        };
-
-        emit_if_disabled(helix::PrintStartOpCategory::BED_MESH, "bed_mesh");
-        emit_if_disabled(helix::PrintStartOpCategory::QGL, "qgl");
-        emit_if_disabled(helix::PrintStartOpCategory::Z_TILT, "z_tilt");
-        emit_if_disabled(helix::PrintStartOpCategory::NOZZLE_CLEAN, "nozzle_clean");
+    for (const auto& entry : MACRO_OPTION_IDS) {
+        if (handled_ids.count(entry.id) ||
+            get_option_state(entry.id) != PrePrintOptionState::DISABLED) {
+            continue;
+        }
+        const auto opt = macro_option_for(macro_analysis_, entry);
+        const auto* param = opt ? std::get_if<PrePrintStrategyMacroParam>(&opt->strategy) : nullptr;
+        if (param) {
+            skip_params.emplace_back(param->param_name, param->skip_value);
+            spdlog::debug("[PrintPreparationManager] Macro-analysis param: {}={} (id={})",
+                          param->param_name, param->skip_value, entry.id);
+        }
     }
 
     if (!skip_params.empty()) {
@@ -1303,10 +1312,12 @@ void PrintPreparationManager::continue_print_start(
     // blocking pre-start macro was running, or another print superseded ours.
     // A pre-start macro can run for ten minutes; starting the job after the user
     // has already cancelled it is the worst outcome available.
-    if (armed_at_start_ && printer_state_ && !printer_state_->has_preparing_job()) {
-        spdlog::info("[PrintPreparationManager] Start abandoned - '{}' is no longer being "
-                     "prepared ({})",
-                     filename, helix::preparing_exit_name(printer_state_->last_preparing_exit()));
+    if (armed_at_start_ && printer_state_ && !printer_state_->print_state().has_preparing_job()) {
+        spdlog::info(
+            "[PrintPreparationManager] Start abandoned - '{}' is no longer being "
+            "prepared ({})",
+            filename,
+            helix::preparing_exit_name(printer_state_->print_state().last_preparing_exit()));
         if (on_completion) {
             on_completion(false, "");
         }
@@ -1329,7 +1340,8 @@ void PrintPreparationManager::continue_print_start(
     // A late ack and a slow-but-wanted macro are the same code path with the
     // same signature; only the epoch tells them apart.
     if (pre_start_epoch_ != 0 && printer_state_) {
-        const int now_epoch = lv_subject_get_int(printer_state_->get_preparing_epoch_subject());
+        const int now_epoch =
+            lv_subject_get_int(printer_state_->print_state().get_preparing_epoch_subject());
         if (now_epoch != pre_start_epoch_) {
             spdlog::warn("[PrintPreparationManager] Dropping pre-start completion for a retired "
                          "job (epoch {} -> {}) - not starting '{}'",
@@ -1380,7 +1392,8 @@ void PrintPreparationManager::handle_pre_start_gcode_error(
     if ((error.type == MoonrakerErrorType::TIMEOUT ||
          error.type == MoonrakerErrorType::CONNECTION_LOST) &&
         printer_state_ &&
-        lv_subject_get_int(printer_state_->get_idle_timeout_printing_subject()) == 1) {
+        lv_subject_get_int(
+            printer_state_->calibration_state().get_idle_timeout_printing_subject()) == 1) {
         begin_pre_start_completion_wait(error, filename, ops_to_disable, on_navigate_to_status,
                                         on_completion);
         return;
@@ -1417,7 +1430,8 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
         [this, filename, ops_to_disable, on_navigate_to_status, on_completion, timeout_error]() {
             const bool still_busy =
                 printer_state_ &&
-                lv_subject_get_int(printer_state_->get_idle_timeout_printing_subject()) == 1;
+                lv_subject_get_int(
+                    printer_state_->calibration_state().get_idle_timeout_printing_subject()) == 1;
             finish_pre_start_wait();
             if (!still_busy) {
                 spdlog::info("[PrintPreparationManager] Pre-start macro finished "
@@ -1439,7 +1453,7 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
     // defers the handler through UpdateQueue, so the observer can be torn down
     // from inside the handler without re-entrancy.
     pre_start_wait_observer_ = helix::ui::observe<int>(
-        printer_state_->get_idle_timeout_printing_subject(), this,
+        printer_state_->calibration_state().get_idle_timeout_printing_subject(), this,
         [this, filename, ops_to_disable, on_navigate_to_status,
          on_completion](PrintPreparationManager* self, int busy) {
             if (!self->pre_start_wait_active_ || busy == 1) {
@@ -1484,7 +1498,7 @@ void PrintPreparationManager::abandon_start(const char* where) {
     }
     spdlog::warn("[PrintPreparationManager] Start abandoned at {} - retiring the preparing job",
                  where);
-    printer_state_->retire_preparing(helix::PreparingExit::Failed);
+    printer_state_->print_state().retire_preparing(helix::PreparingExit::Failed);
 }
 
 void PrintPreparationManager::modify_and_print(
@@ -1532,7 +1546,8 @@ void PrintPreparationManager::modify_and_print(
     //
     // This prevents TTC errors on memory-constrained devices like AD5M (~108MB RAM)
     // by never loading the entire G-code file into memory.
-    bool has_plugin = printer_state_ && printer_state_->service_has_helix_plugin();
+    bool has_plugin =
+        printer_state_ && printer_state_->plugin_status_state().service_has_helix_plugin();
     spdlog::info("[PrintPreparationManager] Using unified streaming modification flow (plugin: {})",
                  has_plugin);
     modify_and_print_streaming(file_path, display_filename, ops_to_disable, macro_skip_params,
@@ -1704,8 +1719,9 @@ void PrintPreparationManager::modify_and_print_streaming(
                                             // call: PrinterState is the single authority, so
                                             // the panel and the media manager can no longer
                                             // disagree about which print this is.
-                                            get_printer_state().set_print_identity_override(
-                                                d->original_path);
+                                            get_printer_state()
+                                                .print_state()
+                                                .set_print_identity_override(d->original_path);
 
                                             if (d->navigate_cb) {
                                                 d->navigate_cb();
@@ -1975,8 +1991,9 @@ void PrintPreparationManager::modify_and_print_with_remap(
                                             display_filename, file_path, on_navigate_to_status}),
                                         [](PrintStartedData* d) {
                                             BusyOverlay::hide();
-                                            get_printer_state().set_print_identity_override(
-                                                d->original_path);
+                                            get_printer_state()
+                                                .print_state()
+                                                .set_print_identity_override(d->original_path);
                                             if (d->navigate_cb)
                                                 d->navigate_cb();
                                         });

@@ -153,7 +153,7 @@ struct LedApplyColorFixture : public LVGLTestFixture {
         // SHUTDOWN, and the global connection state gates dispatch too.
         state.set_klippy_state_sync(helix::KlippyState::READY);
         auto& ps = get_printer_state();
-        lv_subject_set_int(ps.get_printer_connection_state_subject(),
+        lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                            static_cast<int>(helix::ConnectionState::CONNECTED));
         ps.set_klippy_state_sync(helix::KlippyState::READY);
         mock_api = std::make_unique<MoonrakerAPIMock>(mock_client, state);

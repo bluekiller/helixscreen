@@ -143,31 +143,16 @@ bool overlay_registration_strict() {
 #endif
 }
 
-// Runs an overlay close callback on the next LVGL tick. Close callbacks delete
-// widgets, and the paths that fire them run inside UpdateQueue drains or LVGL
-// animation callbacks, where a synchronous delete corrupts LVGL's event list
-// (prestonbrown/helixscreen#637).
-void defer_close_callback(OverlayCloseCallback callback) {
-    helix::ui::run_next_tick([cb = std::move(callback)]() {
-        if (!g_nav_manager_destroyed) {
-            cb();
-        }
-    });
-}
-
-/// The colors the navbar is painted in right now.
-std::string active_palette_key() {
-    const helix::ThemeData& theme = theme_manager_get_active_theme();
-    const helix::ModePalette& palette = theme_manager_is_dark_mode() ? theme.dark : theme.light;
-    std::string key;
-    for (size_t i = 0; i < helix::ModePalette::color_names().size(); i++)
-        key += palette.at(i);
-    return key;
-}
-
-/// A snapshot backdrop is an image; a dim layer is a translucent plain object.
-bool is_snapshot_backdrop(lv_obj_t* backdrop) {
-    return backdrop && lv_obj_check_type(backdrop, &lv_image_class);
+// Back to the resting transform and opacity, so a hidden overlay shows up
+// correctly the next time it is reused. Written unconditionally: reading the
+// current transform and skipping the write when it looks clean leaves stale
+// scale values behind under SDL's logical scaling on Android, which corrupts the
+// display, and the four writes cost less than that.
+void reset_overlay_transform(lv_obj_t* obj) {
+    lv_obj_set_style_translate_x(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_translate_y(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_transform_scale(obj, 256, LV_PART_MAIN);
+    lv_obj_set_style_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
 }
 } // namespace
 
@@ -212,13 +197,55 @@ bool NavigationManager::panel_requires_connection(PanelId panel) {
 }
 
 bool NavigationManager::is_printer_connected() const {
-    auto* subject = get_printer_state().get_printer_connection_state_subject();
+    auto* subject = get_printer_state().network_state().get_printer_connection_state_subject();
     return lv_subject_get_int(subject) == 2;
 }
 
 bool NavigationManager::is_klippy_ready() const {
-    auto* subject = get_printer_state().get_klippy_state_subject();
+    auto* subject = get_printer_state().network_state().get_klippy_state_subject();
     return lv_subject_get_int(subject) == 0; // KlippyState::READY
+}
+
+// Runs an overlay close callback on the next LVGL tick. Close callbacks delete
+// widgets, and the paths that fire them run inside UpdateQueue drains or LVGL
+// animation callbacks, where a synchronous delete corrupts LVGL's event list
+// (prestonbrown/helixscreen#637). An overlay registered when it closes and
+// unregistered by the tick lost its owner in between, and the callback captures
+// that owner, so it is dropped.
+void NavigationManager::defer_close_callback(OverlayCloseCallback callback, lv_obj_t* overlay) {
+    const bool had_owner = is_overlay_registered(overlay);
+    helix::ui::run_next_tick([cb = std::move(callback), overlay, had_owner]() {
+        if (g_nav_manager_destroyed) {
+            return;
+        }
+        if (had_owner && !NavigationManager::instance().is_overlay_registered(overlay)) {
+            spdlog::debug("[NavigationManager] Owner of overlay {} left before its close "
+                          "callback ran; dropping it",
+                          (void*)overlay);
+            return;
+        }
+        cb();
+    });
+}
+
+bool NavigationManager::is_overlay_registered(lv_obj_t* overlay) const {
+    overlay = resolve_rebuilt(overlay);
+    return overlay_instances_.count(overlay) > 0 ||
+           persistent_overlay_instances_.count(overlay) > 0;
+}
+
+void NavigationManager::retire_overlay(lv_obj_t* overlay) {
+    // Both run inside UpdateQueue drains or LVGL animation callbacks, where a
+    // synchronous delete corrupts LVGL's event list (#637, #620).
+    backdrop_.retire(overlay);
+
+    auto callback_it = overlay_close_callbacks_.find(overlay);
+    if (callback_it != overlay_close_callbacks_.end()) {
+        spdlog::trace("[NavigationManager] Deferring close callback for overlay {}",
+                      (void*)overlay);
+        defer_close_callback(std::move(callback_it->second), overlay);
+        overlay_close_callbacks_.erase(callback_it);
+    }
 }
 
 void NavigationManager::clear_overlay_stack() {
@@ -233,9 +260,7 @@ void NavigationManager::clear_overlay_stack() {
     while (panel_stack_.size() > 1) {
         lv_obj_t* overlay = panel_stack_.back();
         lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
-        // Reset transform and opacity for potential reuse
-        lv_obj_set_style_translate_x(overlay, 0, LV_PART_MAIN);
-        lv_obj_set_style_opa(overlay, LV_OPA_COVER, LV_PART_MAIN);
+        reset_overlay_transform(overlay);
 
         // Deactivate the overlay to stop background work (camera, timers, etc.)
         // and invalidate lifetime tokens. Without this, overlays like QrScanner
@@ -245,25 +270,10 @@ void NavigationManager::clear_overlay_stack() {
             inst_it->second->on_deactivate(DeactivateReason::NavigateAway);
         }
 
-        // Defer close callback via run_next_tick so any object deletion happens
-        // OUTSIDE process_pending(). clear_overlay_stack() is called from subject
-        // observers (connection loss, klippy shutdown) which fire inside
-        // process_pending() — synchronous lv_obj_delete there corrupts LVGL's
-        // event linked list (prestonbrown/helixscreen#637).
-        auto close_it = overlay_close_callbacks_.find(overlay);
-        if (close_it != overlay_close_callbacks_.end()) {
-            defer_close_callback(std::move(close_it->second));
-            overlay_close_callbacks_.erase(close_it);
-        }
-
-        // Clean up dynamic backdrop for this overlay (if one was created).
-        // Must use safe_delete_deferred — we may be inside process_pending()
-        // and synchronous deletion corrupts LVGL's event list (#637).
-        auto backdrop_it = overlay_backdrops_.find(overlay);
-        if (backdrop_it != overlay_backdrops_.end()) {
-            helix::ui::safe_delete_deferred(backdrop_it->second);
-            overlay_backdrops_.erase(backdrop_it);
-        }
+        // clear_overlay_stack() is called from subject observers (connection
+        // loss, klippy shutdown) which fire inside process_pending(), so the
+        // overlay's teardown must not run synchronously here.
+        retire_overlay(overlay);
 
         panel_stack_.pop_back();
         spdlog::trace("[NavigationManager] Cleared overlay {} from stack", (void*)overlay);
@@ -272,11 +282,7 @@ void NavigationManager::clear_overlay_stack() {
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
 
-    // Destroy primary backdrop snapshot
-    if (overlay_backdrop_) {
-        helix::ui::safe_delete_deferred(overlay_backdrop_);
-        overlay_backdrop_ = nullptr;
-    }
+    backdrop_.release_primary();
 
     spdlog::trace("[NavigationManager] Overlay stack cleared (connection gating)");
 }
@@ -296,25 +302,16 @@ void NavigationManager::overlay_slide_out_complete_cb(lv_anim_t* anim) {
         return;
     }
     lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
-    // Reset all transform and opacity properties for potential reuse
-    lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
-    lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
+    reset_overlay_transform(panel);
     spdlog::trace("[NavigationManager] Overlay slide+fade-out complete, panel {} hidden",
                   (void*)panel);
 
-    // Defer close callback via run_next_tick so any object deletion happens AFTER the
-    // current render cycle completes. Animation callbacks fire from inside
-    // lv_timer_handler() → lv_display_refr_timer(), and deleting objects mid-layout
-    // causes use-after-free in layout_update_core → lv_obj_scrollbar_invalidate.
+    // Animation callbacks fire from inside lv_timer_handler() →
+    // lv_display_refr_timer(), and deleting objects mid-layout is a
+    // use-after-free in layout_update_core → lv_obj_scrollbar_invalidate, so the
+    // close callback waits for the next tick.
     auto& mgr = NavigationManager::instance();
-    auto it = mgr.overlay_close_callbacks_.find(panel);
-    if (it != mgr.overlay_close_callbacks_.end()) {
-        spdlog::trace("[NavigationManager] Deferring close callback for overlay {}", (void*)panel);
-        defer_close_callback(std::move(it->second));
-        mgr.overlay_close_callbacks_.erase(it);
-    }
+    mgr.retire_overlay(panel);
 
     // Lifecycle: activate what's now visible. go_back() consumes the latch
     // itself before it returns, so this is the fallback for any close path that
@@ -333,10 +330,10 @@ void NavigationManager::activate_restored_target() {
     if (panel_stack_.size() == 1) {
         // Back to main panel - activate it
         main_panel_deactivated_for_overlay_ = false;
-        if (panel_instances_[static_cast<int>(active_panel_)]) {
+        if (panels_.instance(static_cast<int>(active_panel_))) {
             spdlog::trace("[NavigationManager] Activating main panel {} after overlay closed",
                           static_cast<int>(active_panel_));
-            panel_instances_[static_cast<int>(active_panel_)]->on_activate();
+            panels_.instance(static_cast<int>(active_panel_))->on_activate();
         }
     } else if (panel_stack_.size() > 1) {
         // Back to previous overlay - activate it
@@ -412,23 +409,10 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
     // Skip animation if disabled - hide panel immediately and invoke callback
     if (!DisplaySettingsManager::instance().get_animations_enabled()) {
         lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
-        // Reset all transform and opacity properties for potential reuse
-        lv_obj_set_style_translate_x(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_translate_y(panel, 0, LV_PART_MAIN);
-        lv_obj_set_style_transform_scale(panel, 256, LV_PART_MAIN);
-        lv_obj_set_style_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
+        reset_overlay_transform(panel);
         spdlog::trace("[NavigationManager] Animations disabled - hiding overlay instantly");
 
-        // Invoke close callback if registered
-        auto& mgr = NavigationManager::instance();
-        auto it = mgr.overlay_close_callbacks_.find(panel);
-        if (it != mgr.overlay_close_callbacks_.end()) {
-            spdlog::trace("[NavigationManager] Invoking close callback for overlay {}",
-                          (void*)panel);
-            auto callback = std::move(it->second);
-            mgr.overlay_close_callbacks_.erase(it);
-            callback();
-        }
+        retire_overlay(panel);
 
         // Deliberately NO activation here. This runs from inside go_back(),
         // which un-hides the restored panel *after* this returns; an
@@ -477,22 +461,12 @@ void NavigationManager::handle_active_panel_change(int32_t new_active_panel) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Busy scrim + input block for the whole transition (ESP32-only; no-op on the
     // nested inner change if switch_to_panel_impl cascaded here).
-    NavTransitionScrim scrim_guard(nav_scrim_active_, needs_build(new_active_panel));
+    NavTransitionScrim scrim_guard(nav_scrim_active_, panels_.needs_build(new_active_panel));
 #endif
-    // Deferred bring-up: catches navigation paths that set active_panel directly
-    // (set_active from connection/klippy handlers, etc.) without going through
-    // switch_to_panel_impl. No-op on desktop and for already-built panels.
-    ensure_panel_built(new_active_panel);
-    // Show/hide panels if widgets are set
-    for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        if (panel_widgets_[i]) {
-            if (i == new_active_panel) {
-                lv_obj_remove_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-    }
+    // Deferred bring-up for writes to active_panel that bypass set_active() and
+    // switch_to_panel_impl(). No-op on desktop and for already-built panels.
+    panels_.ensure_built(new_active_panel);
+    panels_.show_only(new_active_panel);
 }
 
 void NavigationManager::handle_connection_state_change(int state) {
@@ -600,14 +574,14 @@ void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
         // Capture keyboard visibility at PRESS time. LVGL's indev_proc_press
         // sends PRESSED before indev_click_focus, whose DEFOCUS hides the
         // keyboard — so by CLICKED, is_visible() would already read false.
-        mgr.backdrop_press_keyboard_visible_ = KeyboardManager::instance().is_visible();
+        mgr.backdrop_.note_press(KeyboardManager::instance().is_visible());
         return;
     }
 
     // LV_EVENT_CLICKED — a tap that dismissed the on-screen keyboard must not
     // also dismiss (or navigate away from) the overlay behind it. Consume this
     // tap for the keyboard dismiss only; a second tap dismisses the overlay.
-    if (mgr.take_backdrop_keyboard_dismiss()) {
+    if (mgr.backdrop_.take_keyboard_dismiss()) {
         spdlog::trace(
             "[NavigationManager] Backdrop tap dismissed on-screen keyboard; overlay kept");
         return;
@@ -654,11 +628,7 @@ void NavigationManager::backdrop_click_event_cb(lv_event_t* e) {
 }
 
 bool NavigationManager::take_backdrop_keyboard_dismiss() {
-    if (!backdrop_press_keyboard_visible_) {
-        return false;
-    }
-    backdrop_press_keyboard_visible_ = false;
-    return true;
+    return backdrop_.take_keyboard_dismiss();
 }
 
 void NavigationManager::nav_button_clicked_cb(lv_event_t* event) {
@@ -726,7 +696,7 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Busy scrim + input block for the whole transition (ESP32-only). Outermost
     // owner; a cascade into handle_active_panel_change won't create a second one.
-    NavTransitionScrim scrim_guard(nav_scrim_active_, needs_build(panel_id));
+    NavTransitionScrim scrim_guard(nav_scrim_active_, panels_.needs_build(panel_id));
 #endif
     auto switch_start = std::chrono::steady_clock::now();
     spdlog::trace("[NavigationManager] switch_to_panel_impl executing for panel {}", panel_id);
@@ -735,7 +705,7 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
     // the overlay/stack/show logic below sees a real widget. No-op on desktop
     // and for already-built panels. The builder paints a loading state before
     // the blocking create; see PanelFactory::build_deferred_panel.
-    ensure_panel_built(panel_id);
+    panels_.ensure_built(panel_id);
 
     // L081 Mech D defense: cancel in-flight pointer input before panel switch.
     // Sends LV_EVENT_INDEV_RESET to current act_obj while it's still alive,
@@ -759,31 +729,16 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 continue;
             }
 
-            bool is_main_panel = false;
-            for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                if (panel_widgets_[j] == child) {
-                    is_main_panel = true;
-                    break;
-                }
-            }
-
-            if (!is_main_panel) {
+            if (!panels_.is_main_panel(child)) {
                 lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-                // Reset transform and opacity for potential reuse
-                lv_obj_set_style_translate_x(child, 0, LV_PART_MAIN);
-                lv_obj_set_style_opa(child, LV_OPA_COVER, LV_PART_MAIN);
+                reset_overlay_transform(child);
                 spdlog::trace("[NavigationManager] Hiding overlay panel {} (nav button clicked)",
                               (void*)child);
             }
         }
     }
 
-    // Hide all main panels
-    for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        if (panel_widgets_[i]) {
-            lv_obj_add_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
-        }
-    }
+    panels_.show_only(-1);
 
     // Deactivate overlays, invoke close callbacks, and clean up backdrops
     // for any overlays being cleared (e.g., settings overlay needs on_deactivate to save).
@@ -806,25 +761,9 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 (void*)panel);
         }
 
-        // Defer close callback via run_next_tick — switch_to_panel_impl() can be
-        // called from subject observers inside process_pending(), and synchronous
-        // lv_obj_delete in close callbacks corrupts LVGL's event list (#637).
-        auto it = overlay_close_callbacks_.find(panel);
-        if (it != overlay_close_callbacks_.end()) {
-            spdlog::trace("[NavigationManager] Deferring close callback for panel {} (navbar)",
-                          (void*)panel);
-            defer_close_callback(std::move(it->second));
-            overlay_close_callbacks_.erase(it);
-        }
-
-        // Clean up dynamic backdrop for this overlay (if one was created).
-        // Must use safe_delete_deferred — we're inside a queue_update() callback
-        // and synchronous deletion corrupts LVGL's event list (#620).
-        auto backdrop_it = overlay_backdrops_.find(panel);
-        if (backdrop_it != overlay_backdrops_.end()) {
-            helix::ui::safe_delete_deferred(backdrop_it->second);
-            overlay_backdrops_.erase(backdrop_it);
-        }
+        // switch_to_panel_impl() can be called from subject observers inside
+        // process_pending(), so the overlay's teardown must not run synchronously.
+        retire_overlay(panel);
     }
 
     // Clear the panel stack and the per-open bookkeeping, but NOT the overlay
@@ -839,26 +778,20 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
     // callbacks would run when the slide-out ends, and that completion finds
     // nothing once the map is cleared. Run them now instead, so each overlay's
     // owner still tears it down.
-    for (auto& [_, callback] : overlay_close_callbacks_) {
-        defer_close_callback(std::move(callback));
+    for (auto& [overlay, callback] : overlay_close_callbacks_) {
+        defer_close_callback(std::move(callback), overlay);
     }
     overlay_close_callbacks_.clear();
     // Delete any remaining dynamic backdrops the loop above didn't reach
-    // (orphaned entries not in panel_stack_), then clear the map.
-    for (auto& [_, backdrop] : overlay_backdrops_) {
-        helix::ui::safe_delete_deferred(backdrop);
-    }
-    overlay_backdrops_.clear();
+    // (orphaned entries not in panel_stack_).
+    backdrop_.retire_all();
     spdlog::trace("[NavigationManager] Panel stack and overlay maps cleared (nav button clicked)");
 
-    // Destroy primary backdrop snapshot since all overlays are being cleared
-    if (overlay_backdrop_) {
-        helix::ui::safe_delete_deferred(overlay_backdrop_);
-        overlay_backdrop_ = nullptr;
-    }
+    // The primary snapshot goes too: every overlay is being cleared
+    backdrop_.release_primary();
 
     // Show the clicked panel
-    lv_obj_t* new_panel = panel_widgets_[static_cast<int>(panel_id)];
+    lv_obj_t* new_panel = panels_.widget(static_cast<int>(panel_id));
     if (new_panel) {
         lv_obj_remove_flag(new_panel, LV_OBJ_FLAG_HIDDEN);
         panel_stack_.push_back(new_panel);
@@ -971,50 +904,17 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
 
     // Register connection state observer for redirect on disconnect
     connection_state_observer_ = observe<int>(
-        get_printer_state().get_printer_connection_state_subject(), this,
+        get_printer_state().network_state().get_printer_connection_state_subject(), this,
         [](NavigationManager* mgr, int value) { mgr->handle_connection_state_change(value); },
         get_printer_state().get_subjects_lifetime());
 
     // Register klippy state observer for redirect on SHUTDOWN/ERROR
     klippy_state_observer_ = observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](NavigationManager* mgr, int value) { mgr->handle_klippy_state_change(value); },
         get_printer_state().get_subjects_lifetime());
 
-    // Printer badge click handler
-    lv_obj_t* printer_badge = lv_obj_find_by_name(navbar, "nav_printer_badge");
-    if (printer_badge) {
-        lv_obj_add_event_cb(
-            printer_badge,
-            [](lv_event_t*) { NavigationManager::instance().on_printer_badge_clicked(); },
-            LV_EVENT_CLICKED, nullptr);
-    }
-
-    // Connection status dot — color reflects WebSocket connection state
-    printer_dot_widget_ = lv_obj_find_by_name(navbar, "nav_printer_dot");
-    if (printer_dot_widget_) {
-        printer_dot_observer_ = observe<int>(
-            get_printer_state().get_printer_connection_state_subject(), this,
-            [](NavigationManager* mgr, int state) {
-                if (!mgr->printer_dot_widget_)
-                    return;
-                lv_color_t color;
-                switch (state) {
-                case 2: // connected
-                    color = theme_manager_get_color("success");
-                    break;
-                case 1: // connecting
-                case 3: // reconnecting
-                    color = theme_manager_get_color("warning");
-                    break;
-                default: // disconnected, failed
-                    color = theme_manager_get_color("danger");
-                    break;
-                }
-                lv_obj_set_style_bg_color(mgr->printer_dot_widget_, color, 0);
-            },
-            get_printer_state().get_subjects_lifetime());
-    }
+    printer_badge_.wire(navbar);
 
     // The printer badge is the one navbar element a setting can add or remove
     // while the user is looking at it, and its toggle lives inside an overlay —
@@ -1034,12 +934,13 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
     theme_observer_ = observe<int>(
         theme_manager_get_changed_subject(), this,
         [](NavigationManager* mgr, int /* generation */) {
-            if (active_palette_key() != mgr->backdrop_palette_key_)
+            if (mgr->backdrop_.palette_changed())
                 mgr->refresh_overlay_backdrop();
         },
         subject_never_freed());
 
-    create_rail_estop(navbar);
+    rail_estop_.create(navbar);
+    rail_drying_.create(navbar);
 
     spdlog::trace(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");
@@ -1085,27 +986,33 @@ void NavigationManager::set_active(PanelId panel_id) {
         return;
     }
 
+#if defined(HELIX_PLATFORM_ESP32)
+    NavTransitionScrim scrim_guard(nav_scrim_active_,
+                                   panels_.needs_build(static_cast<int>(panel_id)));
+#endif
+    // A deferred panel must exist before the stack update and on_activate()
+    // below: activation is what starts its data (PrintSelectPanel's file list).
+    panels_.ensure_built(static_cast<int>(panel_id));
+
     PanelId old_panel = active_panel_;
 
-    // Update panel stack
-    // IMPORTANT: Only update the base panel in the stack, preserving any overlays.
-    // This fixes the bug where closing an overlay from Controls would return to Home
-    // because set_active() was clearing the entire stack unconditionally.
-    if (panel_widgets_[static_cast<int>(panel_id)]) {
+    // Replace only the base panel and keep any overlays above it: closing an
+    // overlay must reveal the panel it was opened over, not Home.
+    if (lv_obj_t* new_base = panels_.widget(static_cast<int>(panel_id))) {
         if (panel_stack_.empty()) {
             // Stack is empty - just push the new panel
-            panel_stack_.push_back(panel_widgets_[static_cast<int>(panel_id)]);
+            panel_stack_.push_back(new_base);
             spdlog::trace("[NavigationManager] Panel stack initialized with panel {}",
                           static_cast<int>(panel_id));
         } else if (panel_stack_.size() == 1) {
             // Only base panel in stack - replace it
-            panel_stack_[0] = panel_widgets_[static_cast<int>(panel_id)];
+            panel_stack_[0] = new_base;
             spdlog::trace("[NavigationManager] Panel stack base updated to panel {}",
                           static_cast<int>(panel_id));
         } else {
             // Overlays are present - update base panel but preserve overlays
             // This handles the case where connection changes while an overlay is open
-            panel_stack_[0] = panel_widgets_[static_cast<int>(panel_id)];
+            panel_stack_[0] = new_base;
             spdlog::trace("[NavigationManager] Panel stack base updated to panel {}, "
                           "preserving {} overlays",
                           static_cast<int>(panel_id), panel_stack_.size() - 1);
@@ -1113,11 +1020,11 @@ void NavigationManager::set_active(PanelId panel_id) {
     }
 
     // Call on_deactivate() BEFORE state update
-    if (panel_instances_[static_cast<int>(old_panel)]) {
+    if (panels_.instance(static_cast<int>(old_panel))) {
         spdlog::trace("[NavigationManager] Calling on_deactivate() for panel {}",
                       static_cast<int>(old_panel));
-        panel_instances_[static_cast<int>(old_panel)]->on_deactivate(
-            DeactivateReason::NavigateAway);
+        panels_.instance(static_cast<int>(old_panel))
+            ->on_deactivate(DeactivateReason::NavigateAway);
     }
 
     // Update state
@@ -1130,8 +1037,8 @@ void NavigationManager::set_active(PanelId panel_id) {
     // Crash-diagnostic breadcrumb: records which panel transition was in flight
     // if we crash during on_activate/layout/first-paint.
     {
-        const char* name = panel_instances_[static_cast<int>(panel_id)]
-                               ? panel_instances_[static_cast<int>(panel_id)]->get_name()
+        const char* name = panels_.instance(static_cast<int>(panel_id))
+                               ? panels_.instance(static_cast<int>(panel_id))->get_name()
                                : nullptr;
         crash_handler::breadcrumb::note("nav", name ? name : "", static_cast<long>(panel_id));
     }
@@ -1140,10 +1047,10 @@ void NavigationManager::set_active(PanelId panel_id) {
     // still covering the panel (the connection-change path), so it settles the
     // activation debt switch_to_panel_impl() would otherwise pay later.
     main_panel_deactivated_for_overlay_ = false;
-    if (panel_instances_[static_cast<int>(panel_id)]) {
+    if (panels_.instance(static_cast<int>(panel_id))) {
         spdlog::trace("[NavigationManager] Calling on_activate() for panel {}",
                       static_cast<int>(panel_id));
-        panel_instances_[static_cast<int>(panel_id)]->on_activate();
+        panels_.instance(static_cast<int>(panel_id))->on_activate();
     }
 
     if (lv_obj_t* root = get_panel_widget(panel_id)) {
@@ -1176,32 +1083,24 @@ void NavigationManager::set_panels(lv_obj_t** panels) {
         return;
     }
 
+    panels_.set_widgets(panels);
     for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        panel_widgets_[i] = panels[i];
         // The panel layer owns these trees; nothing tells nav when one dies.
         // The slot clears itself, but panel_stack_ holds the widget too and
         // needs the scrub.
         // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
-        ensure_delete_hook(panel_widgets_[i]);
+        ensure_delete_hook(panels_.widget(i));
     }
 
     // Hide all panels except active one
-    for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        if (panel_widgets_[i]) {
-            if (i == static_cast<int>(active_panel_)) {
-                lv_obj_remove_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-    }
+    panels_.show_only(static_cast<int>(active_panel_));
 
     // Initialize panel stack
     panel_stack_.clear();
-    if (panel_widgets_[static_cast<int>(active_panel_)]) {
-        panel_stack_.push_back(panel_widgets_[static_cast<int>(active_panel_)]);
+    if (lv_obj_t* active_widget = panels_.widget(static_cast<int>(active_panel_))) {
+        panel_stack_.push_back(active_widget);
         spdlog::trace("[NavigationManager] Panel stack initialized with active panel {}",
-                      (void*)panel_widgets_[static_cast<int>(active_panel_)]);
+                      (void*)active_widget);
     }
 
     spdlog::trace("[NavigationManager] Panel widgets registered for show/hide management");
@@ -1213,19 +1112,12 @@ void NavigationManager::register_panel_instance(PanelId id, PanelBase* panel) {
                       static_cast<int>(id));
         return;
     }
-    panel_instances_[static_cast<int>(id)] = panel;
+    panels_.set_instance(static_cast<int>(id), panel);
     spdlog::trace("[NavigationManager] Registered panel instance for ID {}", static_cast<int>(id));
 }
 
 helix::PanelId NavigationManager::find_panel_id(const PanelBase* panel) const {
-    if (!panel)
-        return helix::PanelId::Count;
-    for (int i = 0; i < UI_PANEL_COUNT; ++i) {
-        if (panel_instances_[i] == panel) {
-            return static_cast<helix::PanelId>(i);
-        }
-    }
-    return helix::PanelId::Count;
+    return panels_.find(panel);
 }
 
 void NavigationManager::replace_panel_widget(helix::PanelId id, lv_obj_t* new_widget) {
@@ -1234,10 +1126,8 @@ void NavigationManager::replace_panel_widget(helix::PanelId id, lv_obj_t* new_wi
         return;
     // An open overlay keeps the main panel beneath it in panel_stack_; go_back()
     // must reveal the successor, not the widget it displaced (#1294).
-    if (panel_widgets_[idx])
-        std::replace(panel_stack_.begin(), panel_stack_.end(), panel_widgets_[idx].get(),
-                     new_widget);
-    panel_widgets_[idx] = new_widget;
+    if (lv_obj_t* displaced = panels_.replace_widget(idx, new_widget))
+        std::replace(panel_stack_.begin(), panel_stack_.end(), displaced, new_widget);
     // The successor needs its own scrub hook for panel_stack_; the outgoing
     // widget's does not transfer. Same reasoning as rekey_overlay_widget().
     // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
@@ -1247,30 +1137,11 @@ void NavigationManager::replace_panel_widget(helix::PanelId id, lv_obj_t* new_wi
 }
 
 void NavigationManager::set_deferred_panel_builder(std::function<void(int)> builder) {
-    deferred_panel_builder_ = std::move(builder);
-}
-
-bool NavigationManager::needs_build(int panel_id) const {
-    return panel_id >= 0 && panel_id < UI_PANEL_COUNT && !panel_widgets_[panel_id] &&
-           deferred_panel_builder_;
-}
-
-void NavigationManager::ensure_panel_built(int panel_id) {
-    if (!needs_build(panel_id))
-        return; // out of range, already built, or desktop (all-resident, nothing deferred)
-    if (building_deferred_panel_)
-        return; // re-entrancy guard (nav runs single-threaded; belt-and-suspenders)
-    building_deferred_panel_ = true;
-    spdlog::info("[NavigationManager] Building deferred panel {} on first navigation", panel_id);
-    deferred_panel_builder_(panel_id); // creates + setup + registers widget/instance
-    building_deferred_panel_ = false;
+    panels_.set_deferred_builder(std::move(builder));
 }
 
 lv_obj_t* NavigationManager::get_panel_widget(helix::PanelId id) const {
-    int idx = static_cast<int>(id);
-    if (idx < 0 || idx >= UI_PANEL_COUNT)
-        return nullptr;
-    return panel_widgets_[idx];
+    return panels_.widget(static_cast<int>(id));
 }
 
 void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new_widget) {
@@ -1288,12 +1159,7 @@ void NavigationManager::rekey_overlay_widget(lv_obj_t* old_widget, lv_obj_t* new
     rekey_life(overlay_instances_);
     rekey_life(persistent_overlay_instances_);
 
-    auto bd_it = overlay_backdrops_.find(old_widget);
-    if (bd_it != overlay_backdrops_.end()) {
-        auto* backdrop = bd_it->second;
-        overlay_backdrops_.erase(bd_it);
-        overlay_backdrops_[new_widget] = backdrop;
-    }
+    backdrop_.rekey(old_widget, new_widget);
 
     auto cb_it = overlay_close_callbacks_.find(old_widget);
     if (cb_it != overlay_close_callbacks_.end()) {
@@ -1437,7 +1303,7 @@ void NavigationManager::scrub_deleted_widget(lv_obj_t* widget) {
     overlay_instances_.erase(widget);
     persistent_overlay_instances_.erase(widget);
     // Drop the backdrop map entry only — out of scope to delete the backdrop here.
-    overlay_backdrops_.erase(widget);
+    backdrop_.scrub(widget);
     overlay_close_callbacks_.erase(widget);
     overlay_is_destination_.erase(widget);
     overlay_width_unmanaged_.erase(widget);
@@ -1467,179 +1333,17 @@ void NavigationManager::overlay_delete_event_cb(lv_event_t* e) {
 }
 
 void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriving) {
-    // Keep the live E-stop and the arriving overlay out of the snapshot: both
-    // stay above the backdrop, and a dimmed copy baked into the image would
-    // show wherever the page shifts (the keyboard lifts the layout, backdrop
-    // included) or wherever the live overlay has not covered it yet.
-    const bool estop_shown = rail_estop_ && !lv_obj_has_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
-    if (estop_shown) {
-        lv_obj_add_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
-    }
-    const bool arriving_shown = arriving && !lv_obj_has_flag(arriving, LV_OBJ_FLAG_HIDDEN);
-    if (arriving_shown) {
-        lv_obj_add_flag(arriving, LV_OBJ_FLAG_HIDDEN);
-    }
-    overlay_backdrop_ = helix::ui::create_darkened_backdrop(screen, 40);
-    backdrop_palette_key_ = active_palette_key();
-    if (arriving_shown) {
-        lv_obj_remove_flag(arriving, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (estop_shown) {
-        lv_obj_remove_flag(rail_estop_, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (!overlay_backdrop_)
-        return;
-
-    helix::ui::bring_to_front(overlay_backdrop_);
-    // PRESSED latches keyboard visibility before LVGL's click-focus
-    // hides it; CLICKED consumes the tap for the keyboard dismiss.
-    lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_PRESSED, nullptr);
-    lv_obj_add_event_cb(overlay_backdrop_, backdrop_click_event_cb, LV_EVENT_CLICKED, nullptr);
-}
-
-void NavigationManager::create_rail_estop(lv_obj_t* navbar) {
-    lv_obj_t* slot = lv_obj_find_by_name(navbar, "nav_estop_slot");
-    lv_obj_t* screen = lv_obj_get_screen(navbar);
-    if (!slot || !screen) {
-        spdlog::debug("[NavigationManager] No nav_estop_slot in this navbar; no rail E-stop");
-        return;
-    }
-    rail_estop_ = static_cast<lv_obj_t*>(lv_xml_create(screen, "rail_estop", nullptr));
-    if (!rail_estop_) {
-        spdlog::error("[NavigationManager] rail_estop component would not build");
-        return;
-    }
-    lv_obj_set_name(rail_estop_, "nav_btn_estop");
-    helix::ui::set_always_on_top(rail_estop_);
-    spdlog::debug("[NavigationManager] Rail E-stop created over nav_estop_slot");
-    // DECLARATIVE_OK: LV_EVENT_DELETE cleanup has no declarative equivalent.
-    lv_obj_add_event_cb(
-        rail_estop_,
-        [](lv_event_t* e) {
-            // Only the current E-stop: a replaced one dying late must not
-            // clear its successor.
-            auto& mgr = NavigationManager::instance();
-            if (lv_event_get_target_obj(e) == mgr.rail_estop_) {
-                mgr.rail_estop_ = nullptr;
-                helix::ui::set_always_on_top(nullptr);
-            }
-        },
-        LV_EVENT_DELETE, nullptr);
-    // The slot moves whenever the rail lays out (it appears, the orientation
-    // flips), and the button has to follow it there.
-    lv_obj_add_event_cb(
-        navbar, [](lv_event_t* /*e*/) { NavigationManager::instance().sync_rail_estop(); },
-        LV_EVENT_LAYOUT_CHANGED, nullptr);
-    sync_rail_estop();
-}
-
-void NavigationManager::sync_rail_estop() {
-    if (!rail_estop_ || !navbar_widget_) {
-        return;
-    }
-    lv_obj_t* slot = lv_obj_find_by_name(navbar_widget_, "nav_estop_slot");
-    if (!slot) {
-        return;
-    }
-    lv_area_t area;
-    lv_obj_get_coords(slot, &area);
-
-    // The keyboard can shift the whole layout up while it is open; the slot's
-    // home position is its offset within that layout, which rests at y=0.
-    lv_obj_t* layout_root = navbar_widget_;
-    while (lv_obj_get_parent(layout_root) &&
-           lv_obj_get_parent(layout_root) != lv_obj_get_screen(layout_root)) {
-        layout_root = lv_obj_get_parent(layout_root);
-    }
-    lv_area_t root_area;
-    lv_obj_get_coords(layout_root, &root_area);
-    int32_t y = area.y1 - root_area.y1;
-
-    // With the keyboard open over the bottom of a side rail, the E-stop rides
-    // in the rail column just above the keyboard's top edge, never over a key.
-    // A portrait bottom bar has no column above the keyboard: everything there
-    // is the overlay's own content, the text field first.
-    const bool side_rail = lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_);
-    if (rail_estop_keyboard_top_ >= 0 && side_rail) {
-        const int32_t size = lv_obj_get_height(rail_estop_);
-        const int32_t above =
-            rail_estop_keyboard_top_ - size - theme_manager_get_spacing("space_xs");
-        y = std::min(y, above);
-    }
-    // Screen children are positioned in screen coordinates.
-    lv_obj_set_pos(rail_estop_, area.x1, y);
+    backdrop_.adopt(screen, arriving, backdrop_click_event_cb);
 }
 
 void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
-    rail_estop_keyboard_top_ = top;
-    sync_rail_estop();
-    // Only a side rail leaves room above the keyboard. A portrait bottom bar is
-    // under it, and an E-stop raised there would sit on the keyboard's keys.
-    if (top >= 0 && rail_estop_ && navbar_widget_ &&
-        lv_obj_get_height(navbar_widget_) > lv_obj_get_width(navbar_widget_)) {
-        lv_obj_move_foreground(rail_estop_);
-    }
+    rail_estop_.set_keyboard_top(top);
 }
 
 void NavigationManager::refresh_overlay_backdrop() {
-    if (shutting_down_ || !overlay_backdrop_ || !lv_obj_is_valid(overlay_backdrop_))
+    if (shutting_down_)
         return;
-    // A dim layer is translucent over the live navbar, so it is never stale.
-    if (!is_snapshot_backdrop(overlay_backdrop_))
-        return;
-
-    lv_obj_t* screen = lv_obj_get_screen(overlay_backdrop_);
-    if (!screen || screen != lv_screen_active())
-        return;
-
-    // Everything the snapshot must not contain: the overlays it sits under, the
-    // backdrop itself, the printer-switch menu, anything else parked on
-    // the screen. Hide them all and restore the exact flags afterwards — the
-    // snapshot has to reproduce what the screen looked like at push time, not
-    // what it looks like now.
-    std::vector<std::pair<lv_obj_t*, bool>> saved;
-    uint32_t child_count = lv_obj_get_child_count(screen);
-    saved.reserve(child_count);
-    for (uint32_t i = 0; i < child_count; i++) {
-        lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-        if (!child || child == app_layout_widget_)
-            continue;
-        saved.emplace_back(child, lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN));
-        lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    // push_overlay(hide_previous) hid the base panel behind the backdrop. It has
-    // to be visible again for the snapshot or a narrower overlay (#1178) would
-    // expose dimmed emptiness where the panel used to show through.
-    lv_obj_t* base_panel = panel_stack_.empty() ? nullptr : panel_stack_.front();
-    bool base_was_hidden = false;
-    if (base_panel && lv_obj_is_valid(base_panel)) {
-        base_was_hidden = lv_obj_has_flag(base_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(base_panel, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        base_panel = nullptr;
-    }
-
-    // Into the buffer the backdrop already owns: a second full frame is 768KB
-    // on an 800x480 RGB565 panel.
-    const bool retaken = helix::ui::retake_darkened_backdrop(overlay_backdrop_, 40);
-
-    if (base_panel && base_was_hidden)
-        lv_obj_add_flag(base_panel, LV_OBJ_FLAG_HIDDEN);
-    for (auto& [child, was_hidden] : saved) {
-        if (was_hidden)
-            lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_remove_flag(child, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    if (!retaken) {
-        spdlog::warn("[NavigationManager] Backdrop refresh failed — keeping stale snapshot");
-        return;
-    }
-    backdrop_palette_key_ = active_palette_key();
-
-    spdlog::debug("[NavigationManager] Overlay backdrop re-snapshotted");
+    backdrop_.refresh(app_layout_widget_, panel_stack_.empty() ? nullptr : panel_stack_.front());
 }
 
 void NavigationManager::ensure_delete_hook(lv_obj_t* widget) {
@@ -1659,11 +1363,8 @@ void NavigationManager::rebuild_active_views() {
     spdlog::info("[NavigationManager] Rebuilding active views for hot-reload");
 
     // Active main panel
-    int active_idx = static_cast<int>(active_panel_);
-    if (active_idx >= 0 && active_idx < UI_PANEL_COUNT) {
-        if (auto* p = panel_instances_[active_idx]) {
-            p->rebuild();
-        }
+    if (auto* p = panels_.instance(static_cast<int>(active_panel_))) {
+        p->rebuild();
     }
 
     // All overlays — snapshot first because rebuild() mutates the maps via rekey.
@@ -1688,10 +1389,10 @@ void NavigationManager::rebuild_active_views() {
 }
 
 void NavigationManager::activate_initial_panel() {
-    if (panel_instances_[static_cast<int>(active_panel_)]) {
+    if (panels_.instance(static_cast<int>(active_panel_))) {
         spdlog::trace("[NavigationManager] Activating initial panel {}",
                       static_cast<int>(active_panel_));
-        panel_instances_[static_cast<int>(active_panel_)]->on_activate();
+        panels_.instance(static_cast<int>(active_panel_))->on_activate();
     }
 
     if (lv_obj_t* root = get_panel_widget(active_panel_)) {
@@ -1713,9 +1414,9 @@ void NavigationManager::suspend_active(DeactivateReason reason) {
             spdlog::debug("[NavigationManager] Suspending overlay {}", it->second->get_name());
             it->second->on_deactivate(reason);
         }
-    } else if (panel_instances_[static_cast<int>(active_panel_)]) {
+    } else if (panels_.instance(static_cast<int>(active_panel_))) {
         spdlog::debug("[NavigationManager] Suspending panel {}", static_cast<int>(active_panel_));
-        panel_instances_[static_cast<int>(active_panel_)]->on_deactivate(reason);
+        panels_.instance(static_cast<int>(active_panel_))->on_deactivate(reason);
     }
 }
 
@@ -1733,9 +1434,9 @@ void NavigationManager::resume_active() {
             spdlog::debug("[NavigationManager] Resuming overlay {}", it->second->get_name());
             it->second->on_activate();
         }
-    } else if (panel_instances_[static_cast<int>(active_panel_)]) {
+    } else if (panels_.instance(static_cast<int>(active_panel_))) {
         spdlog::debug("[NavigationManager] Resuming panel {}", static_cast<int>(active_panel_));
-        panel_instances_[static_cast<int>(active_panel_)]->on_activate();
+        panels_.instance(static_cast<int>(active_panel_))->on_activate();
     }
 }
 
@@ -1794,10 +1495,16 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         return;
     }
 
+    pending_pushes_.push_back(overlay_panel);
     // Always queue - this is the safest pattern for overlay operations
     // which can be triggered from various contexts (events, observers, etc.)
     helix::ui::queue_update("NavigationManager::push_overlay", [overlay_panel,
                                                                 hide_previous]() mutable {
+        auto& pending = NavigationManager::instance().pending_pushes_;
+        if (auto it = std::find(pending.begin(), pending.end(), overlay_panel);
+            it != pending.end()) {
+            pending.erase(it);
+        }
         // Resolved when the push runs, on the UI thread: a rebuild can land
         // between the queueing and now.
         overlay_panel = NavigationManager::instance().resolve_arriving(overlay_panel);
@@ -1874,11 +1581,11 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         if (is_first_overlay) {
             // Deactivate main panel when first overlay covers it
             mgr.main_panel_deactivated_for_overlay_ = true;
-            if (mgr.panel_instances_[static_cast<int>(mgr.active_panel_)]) {
+            if (mgr.panels_.instance(static_cast<int>(mgr.active_panel_))) {
                 spdlog::trace("[NavigationManager] Deactivating main panel {} for overlay",
                               static_cast<int>(mgr.active_panel_));
-                mgr.panel_instances_[static_cast<int>(mgr.active_panel_)]->on_deactivate(
-                    DeactivateReason::NavigateAway);
+                mgr.panels_.instance(static_cast<int>(mgr.active_panel_))
+                    ->on_deactivate(DeactivateReason::NavigateAway);
             }
         } else {
             // Deactivate previous overlay if stacking
@@ -1906,9 +1613,8 @@ void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous
         // translucent, so beside a transient overlay the base panel stays drawn
         // through it; a destination overlay covers it, and drawing it there
         // would cost frames for nothing.
-        const bool base_shows_through = is_first_overlay && !is_destination &&
-                                        mgr.overlay_backdrop_ &&
-                                        !is_snapshot_backdrop(mgr.overlay_backdrop_);
+        const bool base_shows_through =
+            is_first_overlay && !is_destination && mgr.backdrop_.primary_is_dim_layer();
         if (hide_previous && !mgr.panel_stack_.empty() && !base_shows_through) {
             lv_obj_t* current_top = mgr.panel_stack_.back();
             lv_obj_add_flag(current_top, LV_OBJ_FLAG_HIDDEN);
@@ -1995,29 +1701,17 @@ void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
         if (it == mgr.panel_stack_.end()) {
             return; // already left the stack some other way
         }
-        for (int j = 0; j < UI_PANEL_COUNT; j++) {
-            if (mgr.panel_widgets_[j] == root) {
-                return; // a main panel is not an overlay to close
-            }
+        if (mgr.panels_.is_main_panel(root)) {
+            return; // a main panel is not an overlay to close
         }
         if (it == mgr.panel_stack_.end() - 1) {
             mgr.go_back_now(); // on top: normal pop with restore path
             return;
         }
-        // Buried: drop it from the stack and fire its close callback without
-        // disturbing the overlay that covers it (it is already hidden).
+        // Buried: drop it from the stack and retire it without disturbing the
+        // overlay that covers it (it is already hidden).
         mgr.panel_stack_.erase(it);
-        auto backdrop_it = mgr.overlay_backdrops_.find(root);
-        if (backdrop_it != mgr.overlay_backdrops_.end()) {
-            helix::ui::safe_delete_deferred(backdrop_it->second);
-            mgr.overlay_backdrops_.erase(backdrop_it);
-        }
-        auto cb_it = mgr.overlay_close_callbacks_.find(root);
-        if (cb_it != mgr.overlay_close_callbacks_.end()) {
-            auto callback = std::move(cb_it->second);
-            mgr.overlay_close_callbacks_.erase(cb_it);
-            callback();
-        }
+        mgr.retire_overlay(root);
     });
 }
 
@@ -2044,16 +1738,7 @@ void NavigationManager::go_back_now() {
         lv_obj_t* current_top = mgr.panel_stack_.empty() ? nullptr : mgr.panel_stack_.back();
 
         // Check if current top is an overlay
-        bool is_overlay = false;
-        if (current_top) {
-            is_overlay = true;
-            for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                if (mgr.panel_widgets_[j] == current_top) {
-                    is_overlay = false;
-                    break;
-                }
-            }
-        }
+        const bool is_overlay = current_top && !mgr.panels_.is_main_panel(current_top);
 
         // Lifecycle: Deactivate the closing overlay before animation
         if (is_overlay && current_top) {
@@ -2085,11 +1770,7 @@ void NavigationManager::go_back_now() {
         if (!mgr.panel_stack_.empty()) {
             lv_obj_t* popped = mgr.panel_stack_.back();
             mgr.panel_stack_.pop_back();
-            auto it = mgr.overlay_backdrops_.find(popped);
-            if (it != mgr.overlay_backdrops_.end()) {
-                helix::ui::safe_delete_deferred(it->second);
-                mgr.overlay_backdrops_.erase(it);
-            }
+            mgr.backdrop_.retire(popped);
         }
 
         // Determine the previous panel (what will be visible after pop)
@@ -2106,49 +1787,31 @@ void NavigationManager::go_back_now() {
         if (screen) {
             for (uint32_t i = 0; i < lv_obj_get_child_count(screen); i++) {
                 lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
-                if (child == mgr.app_layout_widget_ || child == mgr.overlay_backdrop_ ||
+                if (child == mgr.app_layout_widget_ || child == mgr.backdrop_.primary() ||
                     child == current_top || child == previous_panel ||
                     helix::ui::is_screen_chrome(child)) {
                     continue;
                 }
-                bool is_main = false;
-                for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                    if (mgr.panel_widgets_[j] == child) {
-                        is_main = true;
-                        break;
-                    }
-                }
-                if (!is_main && !lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+                if (!mgr.panels_.is_main_panel(child) &&
+                    !lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
                     lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-                    // Reset unconditionally. Reading the current transform first and
-                    // skipping the write when it looks clean leaves stale scale values
-                    // behind under SDL's logical scaling on Android, which corrupts the
-                    // display; the four writes cost less than that.
-                    lv_obj_set_style_translate_x(child, 0, LV_PART_MAIN);
-                    lv_obj_set_style_translate_y(child, 0, LV_PART_MAIN);
-                    lv_obj_set_style_transform_scale(child, 256, LV_PART_MAIN);
-                    lv_obj_set_style_opa(child, LV_OPA_COVER, LV_PART_MAIN);
+                    reset_overlay_transform(child);
                 }
             }
         }
 
         // Destroy backdrop if no more overlays
-        if (mgr.panel_stack_.size() <= 1 && mgr.overlay_backdrop_) {
-            helix::ui::safe_delete_deferred(mgr.overlay_backdrop_);
-            mgr.overlay_backdrop_ = nullptr;
+        if (mgr.panel_stack_.size() <= 1) {
+            mgr.backdrop_.release_primary();
         }
 
         // Fallback to home if empty
         if (mgr.panel_stack_.empty()) {
             spdlog::trace("[NavigationManager] go_back stack empty, falling back to HOME");
-            for (int i = 0; i < UI_PANEL_COUNT; i++) {
-                if (mgr.panel_widgets_[i])
-                    lv_obj_add_flag(mgr.panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
-            }
-            if (mgr.panel_widgets_[static_cast<int>(PanelId::Home)]) {
-                lv_obj_remove_flag(mgr.panel_widgets_[static_cast<int>(PanelId::Home)],
-                                   LV_OBJ_FLAG_HIDDEN);
-                mgr.panel_stack_.push_back(mgr.panel_widgets_[static_cast<int>(PanelId::Home)]);
+            mgr.panels_.show_only(-1);
+            if (lv_obj_t* home = mgr.panels_.widget(static_cast<int>(PanelId::Home))) {
+                lv_obj_remove_flag(home, LV_OBJ_FLAG_HIDDEN);
+                mgr.panel_stack_.push_back(home);
                 mgr.active_panel_ = PanelId::Home;
                 lv_subject_set_int(&mgr.active_panel_subject_, static_cast<int>(PanelId::Home));
             }
@@ -2158,16 +1821,11 @@ void NavigationManager::go_back_now() {
 
         // Show previous panel
         lv_obj_t* prev = mgr.panel_stack_.back();
-        for (int i = 0; i < UI_PANEL_COUNT; i++) {
-            if (mgr.panel_widgets_[i] == prev) {
-                for (int j = 0; j < UI_PANEL_COUNT; j++) {
-                    if (j != i && mgr.panel_widgets_[j])
-                        lv_obj_add_flag(mgr.panel_widgets_[j], LV_OBJ_FLAG_HIDDEN);
-                }
-                mgr.active_panel_ = static_cast<PanelId>(i);
-                lv_subject_set_int(&mgr.active_panel_subject_, i);
-                break;
-            }
+        const int prev_idx = mgr.panels_.index_of(prev);
+        if (prev_idx >= 0) {
+            mgr.panels_.show_only(prev_idx);
+            mgr.active_panel_ = static_cast<PanelId>(prev_idx);
+            lv_subject_set_int(&mgr.active_panel_subject_, prev_idx);
         }
         lv_obj_remove_flag(prev, LV_OBJ_FLAG_HIDDEN);
 
@@ -2181,6 +1839,11 @@ void NavigationManager::go_back_now() {
         // switch — #1245). The latch makes it exactly once per close.
         mgr.activate_restored_target();
     }
+}
+
+bool NavigationManager::is_push_pending(lv_obj_t* panel) const {
+    return std::find(pending_pushes_.begin(), pending_pushes_.end(), panel) !=
+           pending_pushes_.end();
 }
 
 bool NavigationManager::is_panel_in_stack(lv_obj_t* panel) const {
@@ -2211,8 +1874,7 @@ void NavigationManager::shutdown() {
     spdlog::trace("[NavigationManager] Shutting down...");
     shutting_down_ = true;
 
-    // Hide printer switch menu if open (its widget is a child of the screen)
-    printer_switch_menu_.hide();
+    printer_badge_.shutdown();
 
     // Deactivate any overlays in the stack
     for (lv_obj_t* overlay_widget : panel_stack_) {
@@ -2229,24 +1891,13 @@ void NavigationManager::shutdown() {
     overlay_instances_.clear();
     persistent_overlay_instances_.clear();
 
-    // Clear panel instances
-    for (auto& panel : panel_instances_) {
-        panel = nullptr;
-    }
-
-    // Clear connection status dot observer
-    printer_dot_observer_.reset();
-    printer_dot_widget_ = nullptr;
+    panels_.clear_instances();
 
     // Clear panel stack
     panel_stack_.clear();
+    pending_pushes_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
-
-    // Clear printer callbacks — they capture Application pointers that become
-    // invalid after soft restart tears down and rebuilds printer state
-    printer_switch_cb_ = nullptr;
-    add_printer_cb_ = nullptr;
 
     spdlog::trace("[NavigationManager] Shutdown complete");
 }
@@ -2264,59 +1915,15 @@ void NavigationManager::set_backdrop_visible(bool visible) {
 
 void NavigationManager::set_printer_callbacks(PrinterSwitchCallback switch_cb,
                                               AddPrinterCallback add_cb) {
-    printer_switch_cb_ = std::move(switch_cb);
-    add_printer_cb_ = std::move(add_cb);
+    printer_badge_.set_callbacks(std::move(switch_cb), std::move(add_cb));
 }
 
 void NavigationManager::trigger_printer_switch(const std::string& printer_id) {
-    if (printer_switch_cb_) {
-        printer_switch_cb_(printer_id);
-    } else {
-        spdlog::warn("[NavigationManager] No printer switch callback registered");
-    }
+    printer_badge_.trigger_switch(printer_id);
 }
 
 void NavigationManager::trigger_add_printer() {
-    if (add_printer_cb_) {
-        add_printer_cb_();
-    } else {
-        spdlog::warn("[NavigationManager] No add printer callback registered");
-    }
-}
-
-void NavigationManager::on_printer_badge_clicked() {
-    if (printer_switch_menu_.is_visible()) {
-        printer_switch_menu_.hide();
-        return;
-    }
-
-    lv_obj_t* badge = lv_obj_find_by_name(navbar_widget_, "nav_printer_badge");
-    if (!badge)
-        return;
-
-    lv_obj_t* screen = lv_obj_get_screen(navbar_widget_);
-
-    printer_switch_menu_.set_switch_callback(
-        [this](helix::ui::PrinterSwitchMenu::MenuAction action, const std::string& printer_id) {
-            switch (action) {
-            case helix::ui::PrinterSwitchMenu::MenuAction::SWITCH:
-                spdlog::info("[Nav] Switching to printer '{}'", printer_id);
-                if (printer_switch_cb_) {
-                    printer_switch_cb_(printer_id);
-                }
-                break;
-            case helix::ui::PrinterSwitchMenu::MenuAction::ADD_PRINTER:
-                spdlog::info("[Nav] Adding new printer via wizard");
-                if (add_printer_cb_) {
-                    add_printer_cb_();
-                }
-                break;
-            case helix::ui::PrinterSwitchMenu::MenuAction::CANCELLED:
-                break;
-            }
-        });
-
-    printer_switch_menu_.show(screen, badge);
+    printer_badge_.trigger_add();
 }
 
 void NavigationManager::deinit_subjects() {
@@ -2334,33 +1941,24 @@ void NavigationManager::deinit_subjects() {
     subjects_.deinit_all();
 
     // Reset widget pointers - they become invalid when LVGL is reinitialized
-    for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        panel_widgets_[i] = nullptr;
-        panel_instances_[i] = nullptr;
-    }
+    panels_.reset();
     overlay_instances_.clear();
     persistent_overlay_instances_.clear();
     overlay_close_callbacks_.clear();
-    overlay_backdrops_.clear();
     overlay_is_destination_.clear();
     overlay_width_unmanaged_.clear();
     delete_hooked_.clear();
     rebuilt_overlays_.clear();
     condemned_roots_.clear();
     panel_stack_.clear();
+    pending_pushes_.clear();
     app_layout_widget_ = nullptr;
-    if (overlay_backdrop_) {
-        lv_obj_del(overlay_backdrop_);
-        overlay_backdrop_ = nullptr;
-    }
+    backdrop_.reset();
     navbar_widget_ = nullptr;
-    // The E-stop lives on the screen, not in the app layout a printer switch
-    // rebuilds, so it goes explicitly or the rebuild leaves an orphan behind.
-    if (rail_estop_) {
-        helix::ui::set_always_on_top(nullptr);
-        helix::ui::safe_delete_deferred(rail_estop_);
-    }
-    rail_estop_keyboard_top_ = -1;
+    // The rail buttons live on the screen, not in the app layout a printer
+    // switch rebuilds, so they go explicitly or the rebuild leaves orphans.
+    rail_estop_.destroy();
+    rail_drying_.destroy();
     active_panel_ = PanelId::Home;
     previous_connection_state_ = -1;
     previous_klippy_state_ = -1;
@@ -2374,3 +1972,71 @@ void NavigationManager::deinit_subjects() {
     subjects_initialized_ = false;
     spdlog::trace("[NavigationManager] Subjects deinitialized");
 }
+
+// ============================================================================
+// helix::nav FORWARDS
+// ============================================================================
+
+namespace helix::nav {
+
+void push_overlay(lv_obj_t* overlay, bool hide_previous) {
+    NavigationManager::instance().push_overlay(overlay, hide_previous);
+}
+
+bool go_back() {
+    return NavigationManager::instance().go_back();
+}
+
+void close_overlay(lv_obj_t* overlay) {
+    NavigationManager::instance().close_overlay(overlay);
+}
+
+void register_overlay(lv_obj_t* widget, IPanelLifecycle* overlay, bool persistent) {
+    NavigationManager::instance().register_overlay_instance(widget, overlay, persistent);
+}
+
+void unregister_overlay(lv_obj_t* widget) {
+    if (!NavigationManager::is_destroyed()) {
+        NavigationManager::instance().unregister_overlay_instance(widget);
+    }
+}
+
+void on_close(lv_obj_t* overlay, OverlayCloseCallback callback) {
+    NavigationManager::instance().register_overlay_close_callback(overlay, std::move(callback));
+}
+
+void clear_on_close(lv_obj_t* overlay) {
+    if (!NavigationManager::is_destroyed()) {
+        NavigationManager::instance().unregister_overlay_close_callback(overlay);
+    }
+}
+
+void set_overlay_width_unmanaged(lv_obj_t* overlay) {
+    NavigationManager::instance().set_overlay_width_unmanaged(overlay);
+}
+
+void set_active(PanelId panel_id) {
+    NavigationManager::instance().set_active(panel_id);
+}
+
+bool is_on_top(lv_obj_t* panel) {
+    return NavigationManager::instance().is_panel_on_top(panel);
+}
+
+bool is_in_stack(lv_obj_t* panel) {
+    return NavigationManager::instance().is_panel_in_stack(panel);
+}
+
+bool is_push_pending(lv_obj_t* panel) {
+    return NavigationManager::instance().is_push_pending(panel);
+}
+
+bool is_showing(lv_obj_t* panel) {
+    // lv_obj_is_valid() searches the tree rather than dereferencing, so a
+    // pointer held past its widget's deletion is safe to pass.
+    return panel && lv_obj_is_valid(panel) &&
+           (is_in_stack(panel) || is_push_pending(panel) ||
+            !lv_obj_has_flag(panel, LV_OBJ_FLAG_HIDDEN));
+}
+
+} // namespace helix::nav

@@ -8,7 +8,8 @@
 #include "ui_event_safety.h"
 #include "ui_keyboard_manager.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_settings_appearance.h"
 #include "ui_toast_manager.h"
 
@@ -51,7 +52,7 @@ void ThemeEditorOverlay::set_editing_dark_mode(bool is_dark) {
 
 lv_obj_t* ThemeEditorOverlay::create(lv_obj_t* parent) {
     // Create overlay root from XML (uses theme_editor_overlay component)
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "theme_editor_overlay", nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, "theme_editor_overlay");
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -391,10 +392,10 @@ void ThemeEditorOverlay::on_back_clicked(lv_event_t* e) {
 void ThemeEditorOverlay::handle_back_clicked() {
     if (dirty_) {
         // Show confirmation before closing
-        show_discard_confirmation([]() { NavigationManager::instance().go_back(); });
+        show_discard_confirmation([]() { helix::nav::go_back(); });
     } else {
         // Not dirty, close immediately
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     }
 }
 
@@ -471,7 +472,7 @@ void ThemeEditorOverlay::handle_save_clicked() {
         helix::settings::get_appearance_settings_overlay().sync_explorer_to_active_theme();
 
         // Close the editor overlay
-        NavigationManager::instance().go_back();
+        helix::nav::go_back();
     } else {
         spdlog::error("[{}] Failed to save theme to '{}'", get_name(), filepath);
     }
@@ -779,7 +780,7 @@ void ThemeEditorOverlay::handle_save_as_confirm() {
     helix::settings::get_appearance_settings_overlay().sync_explorer_to_active_theme();
 
     // Close the editor overlay
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 // ============================================================================
