@@ -5,9 +5,9 @@
 
 #include "accel_sensor_types.h"
 #include "lvgl.h"
+#include "sensor_collection.h"
 #include "subject_managed_panel.h"
 
-#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -182,27 +182,10 @@ class AccelSensorManager {
     bool parse_klipper_name(const std::string& klipper_name, std::string& sensor_name,
                             AccelSensorType& type) const;
 
-    /**
-     * @brief Find config by Klipper name
-     * @return Pointer to config, or nullptr if not found
-     */
-    AccelSensorConfig* find_config(const std::string& klipper_name);
-    const AccelSensorConfig* find_config(const std::string& klipper_name) const;
-
-    /**
-     * @brief Find config by assigned role
-     * @return Pointer to config, or nullptr if no sensor has this role
-     */
-    const AccelSensorConfig* find_config_by_role(AccelSensorRole role) const;
-
     // Recursive mutex for thread-safe state access
     mutable std::recursive_mutex mutex_;
 
-    // Configuration
-    std::vector<AccelSensorConfig> sensors_;
-
-    // Runtime state (keyed by klipper_name)
-    std::map<std::string, AccelSensorState> states_;
+    SensorCollection<AccelSensorConfig, AccelSensorState> sensors_;
 
     // LVGL subjects
     bool subjects_initialized_ = false;

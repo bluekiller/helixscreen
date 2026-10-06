@@ -3,7 +3,6 @@
 
 #include "accel_sensor_manager.h"
 
-#include "json_utils.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
 
@@ -34,8 +33,7 @@ void AccelSensorManager::discover_from_config(const nlohmann::json& config_keys)
     spdlog::debug("[AccelSensorManager] Discovering accelerometer sensors from {} config keys",
                   config_keys.size());
 
-    // Clear existing sensors
-    sensors_.clear();
+    std::vector<AccelSensorConfig> discovered;
 
     // Iterate over config keys (section names like "adxl345", "adxl345 bed", "lis2dw hotend")
     for (auto it = config_keys.begin(); it != config_keys.end(); ++it) {
@@ -47,44 +45,25 @@ void AccelSensorManager::discover_from_config(const nlohmann::json& config_keys)
             continue;
         }
 
-        AccelSensorConfig config(config_key, sensor_name, type);
-        sensors_.push_back(config);
-
-        // Initialize state if not already present
-        if (states_.find(config_key) == states_.end()) {
-            AccelSensorState state;
-            state.available = true;
-            states_[config_key] = state;
-        } else {
-            states_[config_key].available = true;
-        }
-
+        discovered.emplace_back(config_key, sensor_name, type);
         spdlog::debug("[AccelSensorManager] Discovered sensor from config: {} (type: {})",
                       sensor_name, accel_type_to_string(type));
     }
 
     // Detect Beacon onboard accelerometer
     // Beacon RevH has a LIS2DW that registers as accel chip "beacon"
+    bool has_beacon = false;
     if (config_keys.contains("beacon") && config_keys["beacon"].is_object()) {
         const auto& beacon_cfg = config_keys["beacon"];
         if (beacon_cfg.contains("accel_scale") || beacon_cfg.contains("accel_axes_map")) {
-            AccelSensorConfig config("beacon", "beacon", AccelSensorType::LIS2DW);
-            sensors_.push_back(config);
-
-            if (states_.find("beacon") == states_.end()) {
-                AccelSensorState state;
-                state.available = true;
-                states_["beacon"] = state;
-            } else {
-                states_["beacon"].available = true;
-            }
-
+            discovered.emplace_back("beacon", "beacon", AccelSensorType::LIS2DW);
+            has_beacon = true;
             spdlog::debug("[AccelSensorManager] Discovered Beacon onboard accelerometer (LIS2DW)");
         }
     }
 
     // Fallback: detect beacon accelerometer via resonance_tester config
-    if (states_.find("beacon") == states_.end() && config_keys.contains("resonance_tester") &&
+    if (!has_beacon && config_keys.contains("resonance_tester") &&
         config_keys["resonance_tester"].is_object()) {
         const auto& rt_cfg = config_keys["resonance_tester"];
         bool beacon_referenced = false;
@@ -98,41 +77,14 @@ void AccelSensorManager::discover_from_config(const nlohmann::json& config_keys)
             }
         }
         if (beacon_referenced) {
-            AccelSensorConfig config("beacon", "beacon", AccelSensorType::LIS2DW);
-            sensors_.push_back(config);
-
-            AccelSensorState state;
-            state.available = true;
-            states_["beacon"] = state;
-
+            discovered.emplace_back("beacon", "beacon", AccelSensorType::LIS2DW);
             spdlog::debug(
                 "[AccelSensorManager] Discovered Beacon accelerometer via resonance_tester "
                 "reference");
         }
     }
 
-    // Mark sensors that disappeared as unavailable
-    for (auto& [name, state] : states_) {
-        bool found = false;
-        for (const auto& sensor : sensors_) {
-            if (sensor.klipper_name == name) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            state.available = false;
-        }
-    }
-
-    // Remove stale entries to prevent unbounded memory growth
-    for (auto it = states_.begin(); it != states_.end();) {
-        if (!it->second.available) {
-            it = states_.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    sensors_.reconcile(std::move(discovered));
 
     // Update sensor count subject
     if (subjects_initialized_) {
@@ -153,30 +105,9 @@ void AccelSensorManager::load_config(const nlohmann::json& config) {
 
     spdlog::debug("[AccelSensorManager] Loading config");
 
-    if (!config.contains("sensors") || !config["sensors"].is_array()) {
+    if (!sensors_.apply_json(config, accel_role_from_string)) {
         spdlog::debug("[AccelSensorManager] No sensors config found");
         return;
-    }
-
-    for (const auto& sensor_json : config["sensors"]) {
-        if (!sensor_json.contains("klipper_name")) {
-            continue;
-        }
-
-        std::string klipper_name = helix::json_util::as_string(sensor_json["klipper_name"]);
-        auto* sensor = find_config(klipper_name);
-
-        if (sensor) {
-            if (sensor_json.contains("role")) {
-                sensor->role =
-                    accel_role_from_string(helix::json_util::as_string(sensor_json["role"]));
-            }
-            if (sensor_json.contains("enabled")) {
-                sensor->enabled = helix::json_util::as_bool(sensor_json["enabled"]);
-            }
-            spdlog::debug("[AccelSensorManager] Loaded config for {}: role={}, enabled={}",
-                          klipper_name, accel_role_to_string(sensor->role), sensor->enabled);
-        }
     }
 
     spdlog::info("[AccelSensorManager] Config loaded");
@@ -187,19 +118,7 @@ nlohmann::json AccelSensorManager::save_config() const {
 
     spdlog::debug("[AccelSensorManager] Saving config");
 
-    nlohmann::json config;
-    nlohmann::json sensors_array = nlohmann::json::array();
-
-    for (const auto& sensor : sensors_) {
-        nlohmann::json sensor_json;
-        sensor_json["klipper_name"] = sensor.klipper_name;
-        sensor_json["role"] = accel_role_to_string(sensor.role);
-        sensor_json["enabled"] = sensor.enabled;
-        sensor_json["type"] = accel_type_to_string(sensor.type);
-        sensors_array.push_back(sensor_json);
-    }
-
-    config["sensors"] = sensors_array;
+    auto config = sensors_.to_json(accel_role_to_string, accel_type_to_string);
 
     spdlog::info("[AccelSensorManager] Config saved");
     return config;
@@ -250,7 +169,7 @@ bool AccelSensorManager::has_sensors() const {
 
 std::vector<AccelSensorConfig> AccelSensorManager::get_sensors() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return sensors_; // Return thread-safe copy
+    return sensors_.configs(); // Return thread-safe copy
 }
 
 size_t AccelSensorManager::sensor_count() const {
@@ -265,20 +184,7 @@ size_t AccelSensorManager::sensor_count() const {
 void AccelSensorManager::set_sensor_role(const std::string& klipper_name, AccelSensorRole role) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    // If assigning a role, clear it from any other sensor first
-    if (role != AccelSensorRole::NONE) {
-        for (auto& sensor : sensors_) {
-            if (sensor.role == role && sensor.klipper_name != klipper_name) {
-                spdlog::debug("[AccelSensorManager] Clearing role {} from {}",
-                              accel_role_to_string(role), sensor.sensor_name);
-                sensor.role = AccelSensorRole::NONE;
-            }
-        }
-    }
-
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
-        sensor->role = role;
+    if (auto* sensor = sensors_.assign_exclusive_role(klipper_name, role)) {
         spdlog::info("[AccelSensorManager] Set role for {} to {}", sensor->sensor_name,
                      accel_role_to_string(role));
     }
@@ -287,8 +193,7 @@ void AccelSensorManager::set_sensor_role(const std::string& klipper_name, AccelS
 void AccelSensorManager::set_sensor_enabled(const std::string& klipper_name, bool enabled) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
+    if (auto* sensor = sensors_.find(klipper_name)) {
         sensor->enabled = enabled;
         spdlog::info("[AccelSensorManager] Set enabled for {} to {}", sensor->sensor_name, enabled);
     }
@@ -300,38 +205,13 @@ void AccelSensorManager::set_sensor_enabled(const std::string& klipper_name, boo
 
 std::optional<AccelSensorState> AccelSensorManager::get_sensor_state(AccelSensorRole role) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (role == AccelSensorRole::NONE) {
-        return std::nullopt;
-    }
-
-    const auto* config = find_config_by_role(role);
-    if (!config) {
-        return std::nullopt;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    if (it == states_.end()) {
-        return std::nullopt;
-    }
-
-    return it->second; // Return thread-safe copy
+    const auto* state = sensors_.role_state(role);
+    return state ? std::optional(*state) : std::nullopt;
 }
 
 bool AccelSensorManager::is_sensor_available(AccelSensorRole role) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (role == AccelSensorRole::NONE) {
-        return false;
-    }
-
-    const auto* config = find_config_by_role(role);
-    if (!config || !config->enabled) {
-        return false;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    return it != states_.end() && it->second.available;
+    return sensors_.live_state(role) != nullptr;
 }
 
 // ============================================================================
@@ -374,33 +254,6 @@ bool AccelSensorManager::parse_klipper_name(const std::string& klipper_name,
     }
 
     return false;
-}
-
-AccelSensorConfig* AccelSensorManager::find_config(const std::string& klipper_name) {
-    for (auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const AccelSensorConfig* AccelSensorManager::find_config(const std::string& klipper_name) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const AccelSensorConfig* AccelSensorManager::find_config_by_role(AccelSensorRole role) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.role == role) {
-            return &sensor;
-        }
-    }
-    return nullptr;
 }
 
 } // namespace helix::sensors

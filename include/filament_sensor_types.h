@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "sensor_enum_names.h"
+
 #include <chrono>
 #include <string>
 
@@ -91,89 +93,37 @@ struct FilamentSensorState {
     // status frame, which must never read as a runout.
 };
 
-/**
- * @brief Convert FilamentSensorRole to display string.
- * @param role The role to convert
- * @return Human-readable role name for UI display
- */
+inline constexpr sensors::EnumName<FilamentSensorRole> kFilamentSensorRoles[] = {
+    {FilamentSensorRole::NONE, "none", "Unassigned"},
+    {FilamentSensorRole::RUNOUT, "runout", "Runout Sensor"},
+    {FilamentSensorRole::TOOLHEAD, "toolhead", "Toolhead Sensor"},
+    {FilamentSensorRole::ENTRY, "entry", "Entry Sensor"},
+    {FilamentSensorRole::Z_PROBE, "z_probe", "Z Probe"},
+};
+
+inline constexpr sensors::EnumName<FilamentSensorType> kFilamentSensorTypes[] = {
+    {FilamentSensorType::SWITCH, "switch", "Switch"},
+    {FilamentSensorType::MOTION, "motion", "Motion"},
+};
+
 inline const char* role_to_display_string(FilamentSensorRole role) {
-    switch (role) {
-    case FilamentSensorRole::RUNOUT:
-        return "Runout Sensor";
-    case FilamentSensorRole::TOOLHEAD:
-        return "Toolhead Sensor";
-    case FilamentSensorRole::ENTRY:
-        return "Entry Sensor";
-    case FilamentSensorRole::Z_PROBE:
-        return "Z Probe";
-    case FilamentSensorRole::NONE:
-    default:
-        return "Unassigned";
-    }
+    return sensors::enum_display(kFilamentSensorRoles, role);
 }
 
-/**
- * @brief Convert FilamentSensorRole to config string.
- * @param role The role to convert
- * @return Config-safe string for settings.json storage
- */
 inline const char* role_to_config_string(FilamentSensorRole role) {
-    switch (role) {
-    case FilamentSensorRole::RUNOUT:
-        return "runout";
-    case FilamentSensorRole::TOOLHEAD:
-        return "toolhead";
-    case FilamentSensorRole::ENTRY:
-        return "entry";
-    case FilamentSensorRole::Z_PROBE:
-        return "z_probe";
-    case FilamentSensorRole::NONE:
-    default:
-        return "none";
-    }
+    return sensors::enum_id(kFilamentSensorRoles, role);
 }
 
-/**
- * @brief Parse FilamentSensorRole from config string.
- * @param str The config string to parse
- * @return Parsed role, or NONE if unrecognized
- */
 inline FilamentSensorRole role_from_config_string(const std::string& str) {
-    if (str == "runout")
-        return FilamentSensorRole::RUNOUT;
-    if (str == "toolhead")
-        return FilamentSensorRole::TOOLHEAD;
-    if (str == "entry")
-        return FilamentSensorRole::ENTRY;
-    if (str == "z_probe")
-        return FilamentSensorRole::Z_PROBE;
-    return FilamentSensorRole::NONE;
+    return sensors::enum_from_id(kFilamentSensorRoles, str);
 }
 
-/**
- * @brief Convert FilamentSensorType to config string.
- * @param type The type to convert
- * @return Config-safe string
- */
 inline const char* type_to_config_string(FilamentSensorType type) {
-    switch (type) {
-    case FilamentSensorType::MOTION:
-        return "motion";
-    case FilamentSensorType::SWITCH:
-    default:
-        return "switch";
-    }
+    return sensors::enum_id(kFilamentSensorTypes, type);
 }
 
-/**
- * @brief Parse FilamentSensorType from config string.
- * @param str The config string to parse
- * @return Parsed type, defaults to SWITCH if unrecognized
- */
 inline FilamentSensorType type_from_config_string(const std::string& str) {
-    if (str == "motion")
-        return FilamentSensorType::MOTION;
-    return FilamentSensorType::SWITCH;
+    return sensors::enum_from_id(kFilamentSensorTypes, str);
 }
 
 } // namespace helix
