@@ -579,6 +579,14 @@ class Config {
     std::vector<std::string> get_printer_ids() const;
 
     /**
+     * @brief An unused "printer-N" id for a new printer entry
+     *
+     * N starts one past the printer count and climbs past any id still in use, so ids left
+     * behind by a delete never collide.
+     */
+    std::string next_printer_id() const;
+
+    /**
      * @brief Add a new printer configuration
      *
      * @param printer_id Slug ID for the new printer

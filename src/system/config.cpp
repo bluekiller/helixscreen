@@ -1172,6 +1172,16 @@ std::vector<std::string> Config::get_printer_ids() const {
     return ids;
 }
 
+std::string Config::next_printer_id() const {
+    const auto existing = get_printer_ids();
+    int counter = static_cast<int>(existing.size()) + 1;
+    std::string id;
+    do {
+        id = "printer-" + std::to_string(counter++);
+    } while (std::find(existing.begin(), existing.end(), id) != existing.end());
+    return id;
+}
+
 void Config::add_printer(const std::string& printer_id, const json& printer_data) {
     if (!data.contains("printers")) {
         data["printers"] = json::object();

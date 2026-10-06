@@ -192,13 +192,7 @@ void PrinterSession::add_printer_via_wizard() {
     }
     SoftRestartLatch soft_restart(m_soft_restart_in_progress);
 
-    // Generate a unique ID for the new printer entry (loop to avoid collisions after deletes)
-    auto existing_ids = m_config->get_printer_ids();
-    int counter = static_cast<int>(existing_ids.size()) + 1;
-    std::string new_id;
-    do {
-        new_id = "printer-" + std::to_string(counter++);
-    } while (std::find(existing_ids.begin(), existing_ids.end(), new_id) != existing_ids.end());
+    const std::string new_id = m_config->next_printer_id();
     std::string previous_id = m_config->get_active_printer_id();
 
     // Create empty printer entry with wizard_completed=false so is_wizard_required()
