@@ -60,6 +60,7 @@
 #include "text_io.h"
 #include "theme_manager.h"
 #include "thumbnail_cache.h"
+#include "try_reserve.h"
 #include "usb_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -496,9 +497,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
             };
             const size_t prev_count = panel->file_list_.size();
             std::vector<FileSnapshot> prev_files;
-            prev_files.reserve(prev_count);
-            for (const auto& f : panel->file_list_) {
-                prev_files.push_back({f.filename, f.modified_timestamp});
+            // Without room for the snapshot, the list counts as changed.
+            const bool have_snapshot = helix::try_reserve(prev_files, prev_count);
+            if (have_snapshot) {
+                for (const auto& f : panel->file_list_) {
+                    prev_files.push_back({f.filename, f.modified_timestamp});
+                }
             }
 
             // Preserve cached metadata from previous file list before replacing.
@@ -578,7 +582,8 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
             // populate() invalidates all pool indices and triggers new metadata
             // fetches that race with stale async callbacks.
             bool same_dir = (panel->current_path_ == panel->last_populated_path_);
-            bool list_changed = !same_dir || panel->file_list_.size() != prev_count;
+            bool list_changed =
+                !have_snapshot || !same_dir || panel->file_list_.size() != prev_count;
             if (!list_changed) {
                 for (size_t i = 0; i < panel->file_list_.size(); i++) {
                     if (panel->file_list_[i].filename != prev_files[i].filename ||
