@@ -199,7 +199,8 @@ void PrintHistoryManager::ensure_covers_since(double since) {
 }
 
 void PrintHistoryManager::load_older() {
-    if (!api_ || !is_loaded_ || holds_every_job_ || cached_jobs_.empty()) {
+    if (!api_ || !is_loaded_ || holds_every_job_ || cached_jobs_.empty() ||
+        cached_jobs_.size() >= job_budget_) {
         return;
     }
     bool expected = false;

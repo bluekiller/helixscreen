@@ -191,3 +191,23 @@ TEST_CASE_METHOD(PagingFixture, "an older page is dropped when a full load repla
     REQUIRE(manager_->get_jobs().size() == 3);
     CHECK(manager_->get_jobs().front().job_id == "job100");
 }
+
+TEST_CASE_METHOD(PagingFixture, "paging stops at the cached-job budget and coverage stays partial",
+                 "[history_manager][paging]") {
+    PrintHistoryManagerTestAccess::set_job_budget(*manager_, 5);
+    install_capped(3);
+    const double window = kNow - 1000.0 * kHour;
+
+    manager_->ensure_covers_since(window);
+    REQUIRE(history().requests.size() == 1);
+    history().answer(jobs_from(3, PrintHistoryManager::kOlderPageJobs, 3.0));
+    pump();
+
+    // Over budget now: no further page, and the window is not claimed covered.
+    CHECK(history().requests.empty());
+    CHECK_FALSE(manager_->covers_since(window));
+    CHECK_FALSE(manager_->holds_every_job());
+
+    manager_->load_older();
+    CHECK(history().requests.empty());
+}

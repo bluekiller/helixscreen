@@ -254,6 +254,15 @@ class PrintHistoryManager {
     /// Jobs one load_older() page asks for.
     static constexpr int kOlderPageJobs = 50;
 
+    /// Jobs the cache may hold before load_older() stops paging. Each cached job
+    /// lives in RAM (PSRAM on the ESP32); past this the stats say they cover
+    /// the newest jobs only.
+#if defined(HELIX_PLATFORM_ESP32)
+    static constexpr size_t kCachedJobBudget = 300;
+#else
+    static constexpr size_t kCachedJobBudget = 5000;
+#endif
+
     /// Quiet period that collapses a burst of invalidations into one request.
     /// A klippy restart fires the config-backup move_file and the restart's own
     /// history event together, and deleting several files walks the same path
@@ -310,7 +319,8 @@ class PrintHistoryManager {
      *
      * Appends up to kOlderPageJobs jobs started before the oldest cached job
      * and notifies observers. Does nothing while history is not loaded, while
-     * any request is out, or once the cache holds every job. A full load or an
+     * any request is out, once the cache holds every job, or once it holds
+     * kCachedJobBudget jobs. A full load or an
      * invalidation replaces the cache with the newest jobs again.
      */
     void load_older();
@@ -498,6 +508,7 @@ class PrintHistoryManager {
     // Bumped by every full load, so an older page that was out while the cache
     // was replaced is not appended to a list it no longer extends.
     uint64_t cache_generation_ = 0;
+    size_t job_budget_ = kCachedJobBudget;
     // Atomic because we clear it on the WebSocket BG thread (before posting the
     // main-thread defer) to survive UpdateQueue freeze-drops — otherwise a dropped
     // fetch_success strands the guard and blocks every subsequent fetch.
