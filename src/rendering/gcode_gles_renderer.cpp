@@ -1177,7 +1177,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
     const bool done = run_slice(gcode, camera);
     if (done) {
         // Read pixels from FBO and blit to LVGL
-        blit_to_lvgl(layer, widget_coords);
+        blit_to_lvgl(layer, widget_coords, /*overlays_drawn=*/true);
         have_complete_image_ = true;
     } else {
         // Mid-refinement: keep showing the last finished image rather than a
@@ -1341,6 +1341,9 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     return true;
 }
 
+/// How far the ghost pass lightens toward white.
+static constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
+
 void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& gcode,
                                       const GCodeCamera& camera, const lv_area_t* widget_coords) {
     cancel_job();
@@ -1373,7 +1376,6 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
             draw_layers(*draw_vbos, draw_start, solid_end, 1.0f, 1.0f, plan.stride);
         }
         if (ghost_start <= draw_end) {
-            constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE);
@@ -1395,7 +1397,7 @@ void GCodeGLESRenderer::render_moving(lv_layer_t* layer, const ParsedGCodeFile& 
     gpu_rate_tris_per_ms_ =
         render_schedule::update_rate(gpu_rate_tris_per_ms_, triangles_rendered_ - before, ms);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    blit_to_lvgl(layer, widget_coords);
+    blit_to_lvgl(layer, widget_coords, /*overlays_drawn=*/false);
     spdlog::trace("[GCode GLES] Moving frame: {}stride {}, {} res, {:.1f}ms",
                   plan.use_mesh && draw_vbos == &moving_vbos_ ? "mesh " : "", plan.stride,
                   plan.half_resolution ? "half" : "full", ms);
@@ -1544,7 +1546,6 @@ bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamer
                 job_.phase = JobPhase::Overlays;
                 continue;
             }
-            constexpr float GHOST_LIGHTEN_SCALE = 4.0f;
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE);
@@ -1559,10 +1560,13 @@ bool GCodeGLESRenderer::run_slice(const ParsedGCodeFile& gcode, const GCodeCamer
             // An incremental job drew onto a finished image that already
             // carries its tag. The excluded grey is per-layer, so it covers
             // exactly the layers this job drew, incremental or not.
-            render_excluded(gcode, mvp_dequant, job_.solid_start, job_.solid_end, job_.ghost_start,
-                            job_.ghost_end);
+            render_excluded(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
+            if (gl_render_failed_)
+                return false;
             if (!job_.incremental) {
                 render_selection_tag(gcode, mvp_dequant, job_.solid_start, job_.solid_end);
+                if (gl_render_failed_)
+                    return false;
             }
             render_brackets_3d(gcode, mvp);
             job_.phase = JobPhase::Done;
@@ -1614,7 +1618,8 @@ void GCodeGLESRenderer::draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* 
     lv_draw_image(layer, &img_dsc, &area);
 }
 
-void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords) {
+void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords,
+                                     bool overlays_drawn) {
     int widget_w = lv_area_get_width(widget_coords);
     int widget_h = lv_area_get_height(widget_coords);
 
@@ -1676,8 +1681,9 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
 
     // The red stripes over excluded objects, from the tag render_excluded() left.
     // Scaled like the rim, and told the readback is bottom-up so the stripes
-    // lean the same way as the 2D view's.
-    if (selection_.any_excluded()) {
+    // lean the same way as the 2D view's. A moving frame skips the overlays, so
+    // it carries no tag to find.
+    if (overlays_drawn && selection_.any_excluded()) {
         const RasterTarget rt{readback_buf_.data(), static_cast<size_t>(fbo_width_) * 4, fbo_width_,
                               fbo_height_};
         helix::gcode::stroke_exclusion_hatch(
@@ -2616,8 +2622,7 @@ struct OverlayGlState {
 } // namespace
 
 void GCodeGLESRenderer::render_excluded(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
-                                        int solid_start, int solid_end, int ghost_start,
-                                        int ghost_end) {
+                                        int solid_start, int solid_end) {
     if (!selection_.any_excluded())
         return;
     if (!active_geometry_ || active_geometry_->object_runs.empty())
@@ -2645,17 +2650,6 @@ void GCodeGLESRenderer::render_excluded(const ParsedGCodeFile& gcode, const glm:
         glDisable(GL_BLEND);
         glUniform1f(u_base_alpha_, 1.0f);
         draw_object_runs(mask, solid_start, solid_end, a_position_, a_normal_);
-
-        // The ghost is faded context, so its grey is blended at the ghost's own
-        // opacity and carries no tag: full-strength stripes there would read as
-        // a solid object.
-        if (ghost_start <= ghost_end) {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glUniform1f(u_base_alpha_, ghost_opacity_ / 255.0f);
-            draw_object_runs(mask, ghost_start, ghost_end, a_position_, a_normal_);
-            glDisable(GL_BLEND);
-        }
 
         write_alpha_tag(mask, mvp_dequant, solid_start, solid_end, kExcludedAlpha);
     }

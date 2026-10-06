@@ -185,7 +185,7 @@ inline uint32_t excluded_grey(uint32_t rgb) {
     const uint32_t r = (rgb >> 16) & 0xFF;
     const uint32_t g = (rgb >> 8) & 0xFF;
     const uint32_t b = rgb & 0xFF;
-    const uint32_t luma = (r * 77 + g * 150 + b * 29) >> 8; // Rec.601, 0..254
+    const uint32_t luma = (r * 77 + g * 150 + b * 29) >> 8; // Rec.601, 0..255
     const uint32_t v = kExcludedGreyFloor + luma * kExcludedGreyScalePct / 100;
     return (v << 16) | (v << 8) | v;
 }

@@ -57,7 +57,10 @@ constexpr float kStillSupersample = 2.0f;
 constexpr glm::vec4 DEFAULT_FILAMENT_COLOR{0.15f, 0.65f, 0.60f, 1.0f};
 
 // Ghost layer default opacity (out of 255)
-constexpr uint8_t DEFAULT_GHOST_OPACITY = 5; // ~2% opacity — ghost layers should barely be visible
+/// ~2% opacity: ghost layers should barely be visible. Keep it at 3 or above: a
+/// ghost fragment over a solid pixel tops out near 255 - opacity, and 2 or 1
+/// would land on the excluded (253) or selected (254) alpha tag.
+constexpr uint8_t DEFAULT_GHOST_OPACITY = 5;
 
 // Frame-skip epsilon for float comparisons
 constexpr float ANGLE_EPSILON = 1e-5f;
@@ -330,7 +333,8 @@ class GCodeGLESRenderer {
     int draw_layers(const std::vector<LayerVBO>& vbos, int layer_start, int layer_end,
                     float color_scale, float alpha, int stride = 1,
                     size_t max_triangles = std::numeric_limits<size_t>::max());
-    void blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
+    /// @param overlays_drawn False for a moving frame, which skips the overlay passes.
+    void blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords, bool overlays_drawn);
     void draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
 
     /// Crash-loop breaker (Layer 2). arm_gpu_guard() writes a persistent guard
@@ -393,11 +397,12 @@ class GCodeGLESRenderer {
      * Re-draws each excluded object's runs with the lit program in flat grey
      * (LEQUAL, so only where it is frontmost), then writes kExcludedAlpha over
      * the solid range for stroke_exclusion_hatch() to find in the readback. The
-     * ghost range is greyed at ghost opacity and left untagged. Runs before
+     * ghost is left alone: re-blending its ~2% layers doubles their density and
+     * whitens whatever they cover. Runs before
      * render_selection_tag(), whose tag wins on an object that is both.
      */
     void render_excluded(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
-                         int solid_start, int solid_end, int ghost_start, int ghost_end);
+                         int solid_start, int solid_end);
 
     /// Interned-index lookup of `names` in `gcode`; empty when none of them is in it.
     static std::vector<bool> object_mask(const ParsedGCodeFile& gcode,
