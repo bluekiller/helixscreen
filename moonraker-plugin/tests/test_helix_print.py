@@ -743,6 +743,76 @@ class TestPathValidation:
         result = await handler(request)
         assert result["status"] == "printing"
 
+    @staticmethod
+    def _stage_nested(gcodes_dir):
+        subdir = Path(gcodes_dir) / "prints" / "2024"
+        subdir.mkdir(parents=True, exist_ok=True)
+        (subdir / "benchy.gcode").write_text("G28\n")
+        temp_dir = Path(gcodes_dir) / ".helix_temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        (temp_dir / "mod_benchy.gcode").write_text("G28\n")
+        return MockWebRequest({
+            "original_filename": "prints/2024/benchy.gcode",
+            "temp_file_path": ".helix_temp/mod_benchy.gcode",
+            "modifications": [],
+        })
+
+    @pytest.mark.asyncio
+    async def test_symlink_mirrors_the_original_full_path(
+        self, helix_print_component, mock_server, temp_gcodes_dir
+    ):
+        """The printed filename names the original's whole path, so a client
+        recovers it from print_stats alone."""
+        request = self._stage_nested(temp_gcodes_dir)
+        await helix_print_component.component_init()
+
+        result = await mock_server.endpoints["/server/helix/print_modified"](request)
+
+        assert result["print_filename"] == ".helix_print/prints/2024/benchy.gcode"
+        assert (Path(temp_gcodes_dir) / result["print_filename"]).is_symlink()
+
+    @pytest.mark.asyncio
+    async def test_rejects_a_symlink_path_that_escapes(
+        self, helix_print_component, mock_server, temp_gcodes_dir
+    ):
+        """A directory under the symlink dir that links back into the user's
+        files cannot carry the print symlink there, where it would replace the
+        original itself."""
+        request = self._stage_nested(temp_gcodes_dir)
+        await helix_print_component.component_init()
+        user_dir = Path(temp_gcodes_dir) / "prints"
+        (Path(temp_gcodes_dir) / ".helix_print" / "prints").symlink_to(user_dir)
+
+        with pytest.raises(Exception) as exc_info:
+            await mock_server.endpoints["/server/helix/print_modified"](request)
+
+        assert "traversal" in str(exc_info.value).lower()
+        original = user_dir / "2024" / "benchy.gcode"
+        assert not original.is_symlink()
+        assert original.read_text() == "G28\n"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_removes_the_empty_directories(
+        self, helix_print_component, mock_server, temp_gcodes_dir
+    ):
+        request = self._stage_nested(temp_gcodes_dir)
+        await helix_print_component.component_init()
+        result = await mock_server.endpoints["/server/helix/print_modified"](request)
+        symlink_root = Path(temp_gcodes_dir) / ".helix_print"
+        # A sibling keeps its directory; only what empties goes.
+        (symlink_root / "prints" / "keep.gcode").write_text("")
+
+        info = helix_print_component.active_prints[result["print_filename"]]
+        await helix_print_component._schedule_cleanup(info)
+
+        assert not (symlink_root / "prints" / "2024").exists()
+        assert (symlink_root / "prints").is_dir()
+        assert symlink_root.is_dir()
+
+        (symlink_root / "prints" / "keep.gcode").unlink()
+        helix_print_component._remove_symlink(symlink_root / "prints" / "gone.gcode")
+        assert not (symlink_root / "prints").exists()
+        assert symlink_root.is_dir()
 
 
 # ============================================================================
