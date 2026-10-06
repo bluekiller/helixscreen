@@ -324,6 +324,7 @@ translations:
   Backup spool switching state unknown: État du passage à la bobine de secours inconnu
   Barcode Scanner: Scanner de codes-barres
   Base: Référence
+  Based on the newest {} prints: 'Basé sur les {} impressions les plus récentes'
   Batch load failed: Échec du chargement groupé
   Batch unload failed: Échec du déchargement groupé
   Beacon auto-calibrate sent: Beacon auto-calibrage envoyé

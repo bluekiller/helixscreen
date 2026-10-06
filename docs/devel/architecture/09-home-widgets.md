@@ -110,7 +110,7 @@ The catalog itself, as the registry defines it (gate subjects from the def table
 
 That catalog, rendered — the stock grid a fresh mock instance builds from [`assets/config/default_layout.json`](../../../assets/config/default_layout.json) anchors: the print-library and status tiles anchor the top, everything else auto-places below them:
 
-<img src="../../images/screenshot-home-panel.png" alt="Home panel grid: print library card and status card (nozzle temp, fan rows, LED strip, notifications) on a dark theme with a left nav rail" width="800"/>
+<img src="../../images/screenshot-home-panel.png" alt="Home panel grid: print library card and status card (nozzle temp, fan rows, LED strip, notifications) on a dark theme with a left nav bar" width="800"/>
 
 ### populate_widgets(): from saved layout to attached grid
 

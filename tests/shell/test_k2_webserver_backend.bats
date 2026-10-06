@@ -228,8 +228,11 @@ write_fake_webserver() {
 
 # The fake web-server logs its launch line from inside the backgrounded
 # child, so a count sampled the moment the caller returns can miss the
-# child's write. Poll briefly for the expected count instead of grepping
-# once; on timeout dump the log so the mismatch is readable.
+# child's write. For the same reason a test that kills or replaces an
+# instance first waits for that instance's own launch line: a slow start
+# killed before it logs leaves one line where the test counts two. Poll
+# briefly for the expected count instead of grepping once; on timeout dump
+# the log so the mismatch is readable.
 await_launch_count() {
     local want="$1" got=""
     # 20s: under a full parallel bats run the restart's second launch can take
@@ -488,6 +491,7 @@ write_shim_source() {
     mock_pidof_webserver
 
     "$dest" start
+    await_launch_count 1
     local old
     old="$(cat "$MOCK_ROOT/var/run/procd-helix-k2-webserver.pid")"
 
@@ -516,6 +520,7 @@ write_shim_source() {
     mock_pidof_webserver
 
     "$dest" start
+    await_launch_count 1
     local old
     old="$(cat "$MOCK_ROOT/var/run/procd-helix-k2-webserver.pid")"
     kill -9 "$old" 2>/dev/null
@@ -914,6 +919,7 @@ write_shim_source() {
 
     # Carve-out serving before the service start, as after a previous boot.
     "$MOCK_ROOT/etc/init.d/helix-k2-webserver" start
+    await_launch_count 1
     local pid
     pid="$(cat "$MOCK_ROOT/var/run/procd-helix-k2-webserver.pid")"
     kill -0 "$pid"
@@ -947,6 +953,7 @@ write_shim_source() {
     local pid=$!
     echo "$pid" > "$MOCK_ROOT/var/run/procd-helix-k2-webserver.pid"
     kill -0 "$pid"
+    await_launch_count 1
 
     run_hook_stop_competing_uis
 

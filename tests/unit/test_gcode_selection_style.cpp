@@ -10,59 +10,63 @@
 
 using namespace helix::gcode;
 
-// Deliberately NOT the shipped hues. resolve() takes the palette as an argument,
-// so a sentinel proves the value is threaded through from the caller; asserting
-// against the real constant would pass even if resolve() ignored its argument
-// and hardcoded the color.
-namespace {
-constexpr helix::gcode::selection::Palette kTestPalette{/*excluded=*/0x123456,
-                                                        /*outline=*/0xABCDEF,
-                                                        /*bracket=*/0x0F0F0F};
-} // namespace
-
 // ---------------------------------------------------------------------------
 // resolve(): the single answer to "how does a selected/excluded segment look",
 // shared by every renderer. These cases pin that answer.
 // ---------------------------------------------------------------------------
 
 TEST_CASE("plain extrusion keeps the caller's color at full opacity", "[gcode_selection_style]") {
-    auto s = selection::resolve(kTestPalette, /*excluded=*/false, /*highlighted=*/false,
-                                /*is_extrusion=*/true);
-    REQUIRE(s.override_color == false);
+    auto s = selection::resolve(/*excluded=*/false, /*highlighted=*/false, /*is_extrusion=*/true);
+    REQUIRE(s.grey == false);
     REQUIRE(s.opa == 255);
     REQUIRE(s.tagged == false);
 }
 
-TEST_CASE("excluded segments are recolored and translucent", "[gcode_selection_style]") {
-    auto s = selection::resolve(kTestPalette, true, false, true);
-    REQUIRE(s.override_color == true);
-    REQUIRE(s.rgb == kTestPalette.excluded);
-    REQUIRE(s.opa == selection::kExcludedOpa);
+TEST_CASE("excluded segments go grey and carry the hatch tag", "[gcode_selection_style]") {
+    auto s = selection::resolve(true, false, true);
+    REQUIRE(s.grey == true);
+    REQUIRE(s.tagged == true);
+    // The tag IS the opacity byte. Anything else and stroke_exclusion_hatch()
+    // has nothing to find.
+    REQUIRE(s.opa == kExcludedAlpha);
 }
 
-// The whole point of the feature: a selected object keeps its filament color and
-// is marked by the rim instead of being recolored, so override_color stays false.
+TEST_CASE("an excluded travel is still greyed and tagged", "[gcode_selection_style]") {
+    auto s = selection::resolve(true, false, /*is_extrusion=*/false);
+    REQUIRE(s.grey == true);
+    REQUIRE(s.opa == kExcludedAlpha);
+}
+
+// A selected object keeps its filament color and is marked by the rim instead.
 TEST_CASE("highlighted segments keep filament color and carry the tag", "[gcode_selection_style]") {
-    auto s = selection::resolve(kTestPalette, false, true, true);
-    REQUIRE(s.override_color == false);
+    auto s = selection::resolve(false, true, true);
+    REQUIRE(s.grey == false);
     REQUIRE(s.tagged == true);
-    // The tag IS the opacity byte. Anything else and stroke_selection_rim() has
-    // nothing to find.
     REQUIRE(s.opa == kSelectedAlpha);
 }
 
-// Exclusion still wins on color: you have to be able to see which object you
-// just selected in order to un-exclude it from the side list. What it does NOT
-// keep is its 60% fade, because the opacity byte is where the tag lives and an
-// object cannot be tagged and faded at the same time.
-TEST_CASE("an excluded object that is also selected keeps exclusion color and takes the tag",
+// You have to see which object you picked in order to un-exclude it, so the
+// selection tag wins the alpha byte; the body stays grey.
+TEST_CASE("an excluded object that is also selected stays grey and takes the selection tag",
           "[gcode_selection_style]") {
-    auto s = selection::resolve(kTestPalette, true, true, true);
-    REQUIRE(s.override_color == true);
-    REQUIRE(s.rgb == kTestPalette.excluded);
+    auto s = selection::resolve(true, true, true);
+    REQUIRE(s.grey == true);
     REQUIRE(s.tagged == true);
     REQUIRE(s.opa == kSelectedAlpha);
-    REQUIRE(s.opa != selection::kExcludedOpa);
+}
+
+TEST_CASE("excluded_grey drops the hue and keeps the shading", "[gcode_selection_style]") {
+    const uint32_t bright = selection::excluded_grey(0x00C8FF);
+    const uint32_t dark = selection::excluded_grey(0x003240);
+    for (uint32_t g : {bright, dark}) {
+        CAPTURE(g);
+        REQUIRE(((g >> 16) & 0xFF) == (g & 0xFF));
+        REQUIRE(((g >> 8) & 0xFF) == (g & 0xFF));
+    }
+    REQUIRE((bright & 0xFF) > (dark & 0xFF));
+    // The floor keeps black filament off the dark background.
+    REQUIRE((selection::excluded_grey(0x000000) & 0xFF) ==
+            static_cast<uint32_t>(selection::kExcludedGreyFloor));
 }
 
 TEST_CASE("travel moves are never tagged", "[gcode_selection_style]") {
@@ -70,7 +74,7 @@ TEST_CASE("travel moves are never tagged", "[gcode_selection_style]") {
     // silhouette: travels cut across the interior, so tagging them would drag the
     // tagged region out to a bounding box and the rim would trace that instead of
     // the object.
-    auto s = selection::resolve(kTestPalette, false, true, /*is_extrusion=*/false);
+    auto s = selection::resolve(false, true, /*is_extrusion=*/false);
     REQUIRE(s.tagged == false);
     REQUIRE(s.opa != kSelectedAlpha);
 }
@@ -162,7 +166,7 @@ TEST_CASE("to_vec4 round-trips the bracket color exactly", "[gcode_selection_sty
 }
 
 TEST_CASE("to_vec4 carries alpha through", "[gcode_selection_style]") {
-    auto v = selection::to_vec4(selection::Palette{}.excluded, selection::kExcludedOpa);
+    auto v = selection::to_vec4(selection::Palette{}.excluded, 153);
     REQUIRE(v.a == Catch::Approx(153.0f / 255.0f));
 }
 

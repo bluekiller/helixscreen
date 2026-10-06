@@ -21,9 +21,12 @@ namespace {
 /// CPU time the calling thread has used. The budget charges a plugin for its own
 /// work: a busy machine preempting the main thread must not fault a plugin that
 /// stays within it, and a runaway loop burns CPU time just as it burns wall time.
+/// Where the clock is unavailable it reads as the earliest time, so the CPU check
+/// never trips and the wall ceiling alone bounds the entry.
 std::chrono::nanoseconds thread_cpu_time() {
     timespec ts{};
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0)
+        return std::chrono::nanoseconds::min();
     return std::chrono::seconds(ts.tv_sec) + std::chrono::nanoseconds(ts.tv_nsec);
 }
 
@@ -43,6 +46,18 @@ _G.collectgarbage = function(opt, ...)
     end
     return collect(opt, ...)
 end
+-- An empty result returns at once: stock rep loops n times building nothing, with no
+-- allocation for the memory cap to refuse and no instruction for the time budget to see.
+-- Any non-empty result is sized up front, so the memory cap bounds it.
+local rep, tointeger = string.rep, math.tointeger
+string.rep = function(s, n, sep)
+    local count = tointeger(n)
+    if count and count > 1 and type(s) == "string" and #s == 0
+            and (sep == nil or (type(sep) == "string" and #sep == 0)) then
+        return ""
+    end
+    return rep(s, n, sep)
+end
 )";
 
 bool file_exists(const std::string& path) {
@@ -51,6 +66,11 @@ bool file_exists(const std::string& path) {
 }
 
 const char kLoadedKey = 0; // its address keys the require cache in the registry
+
+std::string budget_reason(const LuaRuntime::Limits& limits) {
+    return "exceeded its time budget (" + std::to_string(limits.time_budget.count()) +
+           " ms of CPU, " + std::to_string(limits.wall_ceiling.count()) + " ms in all)";
+}
 
 std::string memory_cap_reason(size_t cap_bytes) {
     return "out of memory (cap " + std::to_string(cap_bytes / 1024) + " KB)";
@@ -373,6 +393,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     }
     if (depth_ == 0) {
         deadline_ = thread_cpu_time() + limits_.time_budget;
+        wall_deadline_ = Clock::now() + limits_.wall_ceiling;
         killed_ = false;
     }
     bool outer_yielded = yielded_for_async_;
@@ -390,7 +411,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     if (depth_ == 0 && killed_) {
         lua_pop(co, nres);
         drop(co);
-        fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
+        fault(budget_reason(limits_));
         return false;
     }
     if (status == LUA_OK) {
@@ -417,7 +438,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     }
     drop(co);
     if (killed_)
-        fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
+        fault(budget_reason(limits_));
     else if (status == LUA_ERRMEM)
         fault(memory_cap_reason(limits_.memory_bytes));
     else
@@ -454,7 +475,7 @@ void LuaRuntime::fault(const std::string& reason) {
 // interrupts, passing a NULL ar (patches/lua-pattern-step-budget.patch): it must not read ar.
 void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
     auto& rt = from(L);
-    if (!rt.killed_ && thread_cpu_time() < rt.deadline_)
+    if (!rt.killed_ && thread_cpu_time() < rt.deadline_ && Clock::now() < rt.wall_deadline_)
         return;
     rt.killed_ = true;
     // Firing on every instruction means each instruction outside the innermost pcall raises

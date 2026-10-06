@@ -245,8 +245,8 @@ void EmergencyStopOverlay::create() {
     const SubjectLifetime ps_subjects = printer_state_->get_subjects_lifetime();
 
     // Subscribe to print state changes for automatic visibility updates
-    // The estop_visible subject drives the navigation rail's E-Stop and the ones
-    // on screens that cover the rail.
+    // The estop_visible subject drives the navbar's E-Stop and the ones
+    // on screens that cover the navbar.
     // One observer, on print_lifecycle. It already merges both axes this used to
     // watch separately: the raw job state does not move during a host-side
     // pre-start block, and print_start_phase does not move on PRINTING->PAUSED,
