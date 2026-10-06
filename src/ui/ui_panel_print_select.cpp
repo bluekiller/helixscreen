@@ -1906,14 +1906,13 @@ void PrintSelectPanel::on_activate() {
 
 void PrintSelectPanel::on_deactivating(DeactivateReason) {
 #if defined(HELIX_PLATFORM_ESP32)
-    // Leaving the panel frees the card thumbnails and their slots; the detail
-    // view opened from a card keeps them for the way back.
-    if (!detail_view_open_) {
-        sync_esp_thumbnails(0, 0);
-        if (card_view_) {
-            card_view_->release_esp_thumbnails();
-        }
-        esp_slots_.reset();
+    // Leaving the panel frees the card thumbnails and their slots. The detail
+    // view being pushed over it right now keeps them for the way back: it is
+    // marked open and not yet shown. A navbar switch away from an open detail
+    // view finds it shown, and frees them.
+    const bool detail_opening = detail_view_open_ && !(detail_view_ && detail_view_->is_visible());
+    if (!detail_opening) {
+        release_esp_card_thumbnails();
     }
 #endif
     // Restore opacity if we were in "Print Last" pass-through mode
@@ -3721,7 +3720,27 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     return EspThumbnailFetch::Started;
 }
 
+void PrintSelectPanel::release_esp_card_thumbnails() {
+    esp_window_first_ = 0;
+    esp_window_end_ = 0;
+    for (PrintFileData& f : file_list_) {
+        f.esp_thumbnail.reset();
+        f.esp_thumbnail_tried = false;
+    }
+    if (card_view_) {
+        card_view_->release_esp_thumbnails();
+    }
+    esp_slots_.reset();
+}
+
 void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    const size_t estimate = helix::rgb565a8_size({target.width, target.height});
+    if (esp_slots_ && esp_slots_->slot_bytes() != estimate) {
+        // Thumbnails at the old card size hold the old pool's slots. Kept beside
+        // a new pool, the card budget would be spent twice over.
+        release_esp_card_thumbnails();
+    }
     esp_window_first_ = first;
     esp_window_end_ = end;
 
@@ -3732,14 +3751,11 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
         states[i].tried = f.esp_thumbnail_tried;
         states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
     }
-    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
-    const size_t estimate = helix::rgb565a8_size({target.width, target.height});
     const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
         states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)), estimate,
         helix::CARD_THUMBNAIL_BUDGET);
-    if (!plan.fetch.empty() && (!esp_slots_ || esp_slots_->slot_bytes() != estimate)) {
-        // One slot per card the budget allows. A pool for an older card size
-        // stays alive only while thumbnails decoded into it are still held.
+    if (!plan.fetch.empty() && !esp_slots_) {
+        // One slot per card the budget allows.
         esp_slots_ = std::make_shared<helix::ThumbnailSlotPool>(
             estimate, helix::CARD_THUMBNAIL_BUDGET / estimate,
             [](size_t n) { return heap_caps_malloc(n, MALLOC_CAP_SPIRAM); },

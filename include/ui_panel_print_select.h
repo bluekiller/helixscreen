@@ -865,6 +865,9 @@ class PrintSelectPanel : public PanelBase {
     /// Applies plan_card_thumbnails() to the card window [first, end): fetches
     /// within CARD_THUMBNAIL_BUDGET and drops every thumbnail outside it.
     void sync_esp_thumbnails(size_t first, size_t end);
+    /// Drops every card thumbnail and the slot pool, and empties the window so
+    /// nothing fetches until the cards report one again.
+    void release_esp_card_thumbnails();
 #endif
 
     /// Navigation generation counter: incremented on each directory change.

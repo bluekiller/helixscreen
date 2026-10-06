@@ -44,6 +44,18 @@ TEST_CASE("held and in-flight thumbnails count against the budget", "[card_thumb
     CHECK(plan.fetch == Indices{2, 3});
 }
 
+TEST_CASE("wide thumbnails smaller than a slot still take a whole slot", "[card_thumbnail_plan]") {
+    // A 16:9 image fills a third of the card box, but decodes into a full slot;
+    // counting its bytes would plan more decodes than the pool has slots.
+    const size_t slots = 12;
+    auto f = files(30);
+    for (size_t i = 0; i < 6; ++i) {
+        f[i].held = EST / 3;
+    }
+    const CardThumbnailPlan plan = plan_card_thumbnails(f, 0, 30, 0, EST, slots * EST);
+    CHECK(plan.fetch.size() == slots - 6);
+}
+
 TEST_CASE("a window already over budget starts nothing, even a backlog of refused fetches",
           "[card_thumbnail_plan]") {
     // Nine cards whose fetches the lane refused earlier come back untried; with

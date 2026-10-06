@@ -18,7 +18,8 @@ CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& fi
     for (size_t i = 0; i < files.size(); ++i) {
         const CardThumbnailState& f = files[i];
         if (i >= first && i < end) {
-            committed += f.held;
+            // A thumbnail fills a whole card-sized slot, however small its image.
+            committed += f.held ? std::max(f.held, estimate) : 0;
         } else if (f.held || f.tried) {
             plan.drop.push_back(i);
         }

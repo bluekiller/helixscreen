@@ -15,7 +15,7 @@ namespace helix {
 struct CardThumbnailState {
     bool fetchable = false; ///< a file (not a directory) with a thumbnail to fetch
     bool tried = false;     ///< a fetch was started while its card was on screen
-    size_t held = 0;        ///< bytes of its decoded thumbnail, 0 when it holds none
+    size_t held = 0;        ///< bytes its decoded thumbnail occupies, 0 when it holds none
 };
 
 struct CardThumbnailPlan {
@@ -28,9 +28,10 @@ struct CardThumbnailPlan {
  *
  * Every file outside the window that holds a thumbnail or a tried mark is
  * dropped. Inside it, files that are fetchable, untried and hold nothing are
- * fetched in order while the held bytes, plus @p estimate for each fetch
- * already in flight and each one planned, fit @p budget; the rest wait for a
- * later pass.
+ * fetched in order while the held thumbnails, the fetches already in flight
+ * and the ones planned fit @p budget; the rest wait for a later pass. Each
+ * counts at least @p estimate, the size of the slot it decodes into, so the
+ * plan never starts more decodes than budget / estimate slots can take.
  */
 CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& files, size_t first,
                                        size_t end, size_t in_flight, size_t estimate,
