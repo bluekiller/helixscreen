@@ -847,6 +847,22 @@ class PrintSelectPanel : public PanelBase {
     /// Compatibility alive flag for ThumbnailLoadContext (which uses shared_ptr<atomic<bool>> API)
     std::shared_ptr<std::atomic<bool>> thumbnail_alive_ = std::make_shared<std::atomic<bool>>(true);
 
+#if defined(HELIX_PLATFORM_ESP32)
+    /// Card thumbnail fetches started and not yet completed.
+    int esp_thumbnails_in_flight_ = 0;
+
+    /// Starts one card thumbnail fetch. QueueFull and Failed started nothing.
+    enum class EspThumbnailFetch { Started, QueueFull, Failed };
+    EspThumbnailFetch fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                          const std::string& thumb_path);
+    /// The card window [first, end) the last sync saw.
+    size_t esp_window_first_ = 0;
+    size_t esp_window_end_ = 0;
+    /// Applies plan_card_thumbnails() to the card window [first, end): fetches
+    /// within CARD_THUMBNAIL_BUDGET and drops every thumbnail outside it.
+    void sync_esp_thumbnails(size_t first, size_t end);
+#endif
+
     /// Navigation generation counter: incremented on each directory change.
     /// Metadata callbacks capture the current value and discard results
     /// if the generation has changed (user navigated away).

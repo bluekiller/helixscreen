@@ -3,6 +3,8 @@
 
 #include "panel_widget_config.h"
 
+#include "ui_timer_guard.h"
+
 #include "config.h"
 #include "data_root_resolver.h"
 #include "grid_layout.h"
@@ -487,13 +489,60 @@ nlohmann::json PanelWidgetConfig::serialize_pages() const {
     return out;
 }
 
+void PanelWidgetConfig::mark_dirty() {
+    flush_pending_save();
+    loaded_ = false;
+}
+
+void PanelWidgetConfig::DeferredSave::cancel() {
+    helix::ui::lv_timer_cancel_safe(timer);
+    timer = nullptr;
+    path.clear();
+}
+
+PanelWidgetConfig::DeferredSave::~DeferredSave() {
+    cancel();
+}
+
+void PanelWidgetConfig::save_soon() {
+    if (!deferred_save_.timer) {
+        deferred_save_.path = config_.df() + "panel_widgets/" + panel_id_;
+        deferred_save_.timer = lv_timer_create(
+            [](lv_timer_t* t) {
+                auto* self = static_cast<PanelWidgetConfig*>(lv_timer_get_user_data(t));
+                // One-shot: the runner retires it.
+                self->deferred_save_.timer = nullptr;
+                const std::string path = std::move(self->deferred_save_.path);
+                self->deferred_save_.path.clear();
+                self->write_to(path);
+            },
+            SAVE_SETTLE_MS, this);
+        lv_timer_set_repeat_count(deferred_save_.timer, 1);
+        return;
+    }
+    lv_timer_reset(deferred_save_.timer);
+}
+
+void PanelWidgetConfig::flush_pending_save() {
+    if (!deferred_save_.timer) {
+        return;
+    }
+    const std::string path = deferred_save_.path;
+    deferred_save_.cancel();
+    write_to(path);
+}
+
 void PanelWidgetConfig::save() {
+    deferred_save_.cancel();
+    write_to(config_.df() + "panel_widgets/" + panel_id_);
+}
+
+void PanelWidgetConfig::write_to(const std::string& panel_path) {
     // This node also carries layout state written by builds newer than this
     // one, which arrives whenever an update channel is rolled back. Those keys
     // are unreadable here but must survive the trip, so the node is edited
     // rather than replaced (prestonbrown/helixscreen#1460). A first save, or a
     // legacy array left by an older format, starts from an empty object.
-    const std::string panel_path = config_.df() + "panel_widgets/" + panel_id_;
     json root = config_.get<json>(panel_path, json());
     if (!root.is_object()) {
         root = json::object();

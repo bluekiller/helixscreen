@@ -1183,7 +1183,7 @@ TEST_CASE("Print characterization: reset_for_new_print clears progress subjects"
     REQUIRE(lv_subject_get_int(state.print_state().get_print_duration_subject()) == 3600);
 
     // Reset for new print
-    state.reset_for_new_print();
+    state.print_state().reset_for_new_print();
 
     // These should be cleared
     REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 0);
@@ -1595,7 +1595,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         state.print_state().set_estimated_print_time(300);
         REQUIRE(state.print_state().get_estimated_print_time() == 300);
 
-        state.reset_for_new_print();
+        state.print_state().reset_for_new_print();
 
         REQUIRE(state.print_state().get_estimated_print_time() == 300);
     }
@@ -1687,7 +1687,7 @@ TEST_CASE("Print characterization: reset_for_new_print re-seeds time_left from s
         REQUIRE(lv_subject_get_int(state.print_state().get_print_time_left_subject()) == 1469);
 
         // Print completes, user reprints same file → reset_for_new_print fires
-        state.reset_for_new_print();
+        state.print_state().reset_for_new_print();
 
         // time_left should be re-seeded from estimated_print_time, NOT cleared to 0
         REQUIRE(lv_subject_get_int(state.print_state().get_print_time_left_subject()) == 1469);
@@ -1709,7 +1709,7 @@ TEST_CASE("Print characterization: reset_for_new_print re-seeds time_left from s
         REQUIRE(lv_subject_get_int(state.print_state().get_print_duration_subject()) == 700);
 
         // Reset for new print
-        state.reset_for_new_print();
+        state.print_state().reset_for_new_print();
 
         // Progress/duration cleared
         REQUIRE(lv_subject_get_int(state.print_state().get_print_progress_subject()) == 0);
@@ -1723,7 +1723,7 @@ TEST_CASE("Print characterization: reset_for_new_print re-seeds time_left from s
 
     SECTION("reset with no prior estimate sets time_left to 0") {
         // No slicer estimate set (default 0)
-        state.reset_for_new_print();
+        state.print_state().reset_for_new_print();
 
         REQUIRE(lv_subject_get_int(state.print_state().get_print_time_left_subject()) == 0);
         REQUIRE(state.print_state().get_estimated_print_time() == 0);
@@ -1735,7 +1735,7 @@ TEST_CASE("Print characterization: reset_for_new_print re-seeds time_left from s
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
         // Reset (re-seeds with old estimate)
-        state.reset_for_new_print();
+        state.print_state().reset_for_new_print();
         REQUIRE(lv_subject_get_int(state.print_state().get_print_time_left_subject()) == 1469);
 
         // New file has different estimate (500s) — metadata callback fires

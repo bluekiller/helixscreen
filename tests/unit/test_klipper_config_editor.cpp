@@ -637,6 +637,8 @@ TEST_CASE("KlipperConfigEditor::load_config_files still resolves plain includes"
 
     // A .cfg sitting in the config dir that nothing includes must NOT be active.
     CHECK(section_map.count("bed_mesh") == 0);
+    // Nor downloaded: config_backups/ alone holds dozens of these on a real printer.
+    CHECK_FALSE(editor.get_cached_file("orphan.cfg").has_value());
 
     CHECK(editor.get_cached_file("probe.cfg").has_value());
 }

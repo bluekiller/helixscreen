@@ -5,6 +5,8 @@
 #include "note_event.h"
 
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <thread>
 
 #include "../catch_amalgamated.hpp"
@@ -68,8 +70,14 @@ TEST_CASE("VoiceSlot: audio thread never snapshots a half-written note", "[sound
         }
     });
 
-    for (int i = 1; i <= 200000; ++i)
-        slot.publish(note_with_value(static_cast<float>(i)));
+    // Keep publishing until the audio thread has taken many notes mid-stream,
+    // however late a loaded scheduler first runs it. The deadline only bounds
+    // a slot that never hands a note over.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    for (int64_t i = 1; i <= 200000 || (started.load(std::memory_order_relaxed) < 100 &&
+                                        std::chrono::steady_clock::now() < deadline);
+         ++i)
+        slot.publish(note_with_value(static_cast<float>(i % 1000000 + 1)));
     done.store(true, std::memory_order_release);
     audio.join();
 

@@ -9,6 +9,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+
 namespace helix::ui {
 
 void create_ripple(lv_obj_t* parent, lv_coord_t x, lv_coord_t y, int start_size, int end_size,
@@ -178,15 +180,36 @@ void flash_object(lv_obj_t* obj, int32_t duration_ms, bool force) {
 }
 
 namespace {
-lv_obj_t* s_always_on_top = nullptr;
+std::vector<lv_obj_t*> s_always_on_top;
 } // namespace
 
-void set_always_on_top(lv_obj_t* obj) {
-    s_always_on_top = obj;
+void add_always_on_top(lv_obj_t* obj) {
+    if (obj &&
+        std::find(s_always_on_top.begin(), s_always_on_top.end(), obj) == s_always_on_top.end()) {
+        s_always_on_top.push_back(obj);
+    }
 }
 
-lv_obj_t* always_on_top() {
-    return s_always_on_top;
+void remove_always_on_top(lv_obj_t* obj) {
+    s_always_on_top.erase(std::remove(s_always_on_top.begin(), s_always_on_top.end(), obj),
+                          s_always_on_top.end());
+}
+
+ScopedHideChrome::ScopedHideChrome() {
+    for (lv_obj_t* obj : s_always_on_top) {
+        if (lv_obj_is_valid(obj) && !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+            hidden_.push_back(obj);
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
+ScopedHideChrome::~ScopedHideChrome() {
+    for (lv_obj_t* obj : hidden_) {
+        if (lv_obj_is_valid(obj)) {
+            lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 void bring_to_front(lv_obj_t* obj) {
@@ -194,14 +217,17 @@ void bring_to_front(lv_obj_t* obj) {
         return;
     }
     lv_obj_move_foreground(obj);
-    if (s_always_on_top && s_always_on_top != obj && lv_obj_is_valid(s_always_on_top) &&
-        lv_obj_get_parent(s_always_on_top) == lv_obj_get_parent(obj)) {
-        lv_obj_move_foreground(s_always_on_top);
+    for (lv_obj_t* top : s_always_on_top) {
+        if (top != obj && lv_obj_is_valid(top) &&
+            lv_obj_get_parent(top) == lv_obj_get_parent(obj)) {
+            lv_obj_move_foreground(top);
+        }
     }
 }
 
 bool is_screen_chrome(const lv_obj_t* child) {
-    return child && child == s_always_on_top;
+    return child && std::find(s_always_on_top.begin(), s_always_on_top.end(), child) !=
+                        s_always_on_top.end();
 }
 
 lv_obj_t* create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity) {

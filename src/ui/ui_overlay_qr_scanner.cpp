@@ -11,6 +11,7 @@
 #include "ui_callback_helpers.h"
 #include "ui_effects.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
@@ -99,7 +100,7 @@ lv_obj_t* QrScannerOverlay::create(lv_obj_t* parent) {
 
     // Create fullscreen overlay from XML (not using create_overlay_from_xml since
     // this is a fullscreen overlay, not the standard overlay_panel with header)
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, xml_component(), nullptr));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, xml_component());
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -113,9 +114,6 @@ lv_obj_t* QrScannerOverlay::create(lv_obj_t* parent) {
     if (viewfinder_) {
         lv_image_set_inner_align(viewfinder_, LV_IMAGE_ALIGN_COVER);
     }
-
-    // Initially hidden until show() pushes it
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
 
     spdlog::info("[{}] Overlay created", get_name());
     return overlay_root_;
@@ -322,7 +320,7 @@ void QrScannerOverlay::start_scanning() {
     // No compiled camera support — try snapshot polling as fallback
     {
         auto& state = get_printer_state();
-        std::string snapshot_url = state.get_webcam_snapshot_url();
+        std::string snapshot_url = state.capabilities_state().get_webcam_snapshot_url();
         auto* api = get_moonraker_api();
         if (api && !snapshot_url.empty()) {
             api->resolve_webcam_url(snapshot_url);

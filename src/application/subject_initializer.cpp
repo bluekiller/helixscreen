@@ -348,6 +348,7 @@ void SubjectInitializer::init_panel_subjects(IMoonrakerAPI* api) {
         get_printer_state(), api, m_temp_controller.get(), std::move(bed_drying_clock));
     m_bed_drying->init_subjects();
     m_bed_drying->set_on_ready_to_remove(helix::ui::show_bed_drying_remove_prompt);
+    m_bed_drying->set_on_print_while_latched(helix::ui::show_spools_on_bed_print_alarm);
     helix::PanelWidgetManager::instance().register_shared_resource<helix::BedDryingController>(
         m_bed_drying.get());
     m_bed_drying->restore();

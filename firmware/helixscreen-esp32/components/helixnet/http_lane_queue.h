@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "try_reserve.h"
+
 #include <cstddef>
 
 namespace helix::http {
@@ -32,6 +34,30 @@ inline constexpr size_t clamp_fetch_cap(size_t requested_max_bytes) {
     }
     return requested_max_bytes;
 }
+
+// First accumulation buffer for a response. A known Content-Length (for a
+// Range request, the length of the range) sizes it exactly; an unknown one
+// (<= 0) starts small and grows. Allocating the whole cap up front holds
+// 512 KB of PSRAM for a 5 KB thumbnail and fragments the heap.
+inline constexpr size_t UNKNOWN_LENGTH_START_BYTES = 16 * 1024;
+
+inline constexpr size_t initial_buffer_bytes(size_t cap, long long content_length) {
+    if (content_length > 0) {
+        return static_cast<unsigned long long>(content_length) < cap
+                   ? static_cast<size_t>(content_length)
+                   : cap;
+    }
+    return UNKNOWN_LENGTH_START_BYTES < cap ? UNKNOWN_LENGTH_START_BYTES : cap;
+}
+
+// The next buffer size once @p current is full: doubled, never past @p cap.
+inline constexpr size_t next_buffer_bytes(size_t current, size_t cap) {
+    return current >= cap / 2 ? cap : current * 2;
+}
+
+// The lane's buffers reserve through these (try_reserve.h).
+using helix::reserve_allocation_bytes;
+using helix::try_reserve;
 
 // Bounded-queue depth accounting. The lane owns one instance guarded by its
 // own mutex; submit_get() calls try_acquire() before queuing a job and

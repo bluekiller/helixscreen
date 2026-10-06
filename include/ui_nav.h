@@ -91,4 +91,9 @@ bool is_in_stack(lv_obj_t* panel);
 /// True from push_overlay(@p panel) until its queued push runs.
 bool is_push_pending(lv_obj_t* panel);
 
+/// True while @p panel is on screen or about to be: queued for a push, in the
+/// stack, or off the stack but still drawn as it slides out. A guard against
+/// opening a panel twice asks this.
+bool is_showing(lv_obj_t* panel);
+
 } // namespace helix::nav

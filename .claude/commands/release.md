@@ -159,6 +159,20 @@ make full-test-run
 to `make test-all` (see above), also run `make test-shell`. A missing bats or a failure
 is a STOP with the make output shown.
 
+### UI tests
+`make full-test-run` does not run the out-of-process UI suite, and CI does. A stale
+`tests/ui/` case passes every local gate and then reds CI's Test job on the release head.
+Run exactly what CI runs: `make test-ui-pytest` also runs the golden-image tests in
+`tests/ui/test_screens.py`, which CI excludes because they are machine-sensitive.
+
+```bash
+make && .venv/bin/python -m pytest tests/ui --ignore=tests/ui/test_screens.py -q
+```
+
+- If it passes → continue
+- If it fails → STOP: "UI tests failed — fix before releasing." Show the failing test.
+- A missing `.venv` is `make venv-setup`, not a reason to skip the suite.
+
 ### Regenerate the XML linter schema
 
 `tools/xml-linter/schema/schema.json` is a committed snapshot of every constant and

@@ -31,7 +31,7 @@ namespace helix::ui {
  * This enables displaying thousands of files without creating thousands of widgets.
  *
  * ## Key Features:
- * - Fixed widget pool (POOL_SIZE cards created once)
+ * - Widget pool sized to the visible window, grown when scrolling needs more
  * - Spacer-based virtualization for smooth scrolling
  * - Per-card subjects for declarative text binding
  * - Observer cleanup in destructor prevents crashes
@@ -132,8 +132,7 @@ class PrintSelectCardView : public ContainerDeleteNet {
 
     // === Configuration ===
 
-    static constexpr int POOL_SIZE = 24;         ///< Fixed pool of card widgets
-    static constexpr int BUFFER_ROWS = 1;        ///< Extra rows above/below viewport
+    static constexpr int BUFFER_ROWS = 0;        ///< Extra rows above/below viewport
     static constexpr int MIN_WIDTH = 150;        ///< Minimum card width
     static constexpr int MAX_WIDTH = 230;        ///< Maximum card width
     static constexpr int DEFAULT_HEIGHT = 245;   ///< Default card height
@@ -234,7 +233,12 @@ class PrintSelectCardView : public ContainerDeleteNet {
      * @brief Check if pool has been initialized
      */
     [[nodiscard]] bool is_initialized() const {
-        return !card_pool_.empty();
+        return pool_initialized_;
+    }
+
+    /// Card widgets built so far: the most any window has needed.
+    [[nodiscard]] size_t pool_size() const {
+        return card_pool_.size();
     }
 
     /**
@@ -264,6 +268,7 @@ class PrintSelectCardView : public ContainerDeleteNet {
     std::vector<lv_obj_t*> card_pool_;
     std::vector<ssize_t> card_pool_indices_;
     std::vector<std::unique_ptr<CardWidgetData>> card_data_pool_;
+    bool pool_initialized_ = false; ///< Gradient + theme observer set up
 
     // === Visible Range ===
     int cards_per_row_ = 3;
@@ -302,10 +307,13 @@ class PrintSelectCardView : public ContainerDeleteNet {
     // === Internal Methods ===
 
     /**
-     * @brief Initialize the fixed card pool
+     * @brief Set up what every pool card shares (gradient, theme observer)
      * @param dims Initial card dimensions
      */
     void init_pool(const CardDimensions& dims);
+
+    /// Build cards until the pool holds @p count.
+    void grow_pool(size_t count, const CardDimensions& dims);
 
     /**
      * @brief Configure a pool card to display a specific file
@@ -317,6 +325,11 @@ class PrintSelectCardView : public ContainerDeleteNet {
      */
     void configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
                         const PrintFileData& file, const CardDimensions& dims);
+
+#if defined(HELIX_PLATFORM_ESP32)
+    /// Drops a card's thumbnail, so the window's budget is all that holds them.
+    static void release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data);
+#endif
 
     /**
      * @brief Create spacers for virtualization
