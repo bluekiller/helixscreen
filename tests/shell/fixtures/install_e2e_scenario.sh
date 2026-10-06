@@ -4,9 +4,9 @@
 # Runs the bundled install.sh end to end against a throwaway root.
 #
 # Invoked by test_install_e2e.bats as:
-#   unshare --user --map-root-user --mount --pid --fork bash <this> <work> <step>...
+#   unshare --user --map-root-user --mount --pid --net --fork bash <this> <work> <step>...
 #
-# The user + mount + pid namespaces are the sandbox. Inside them this script
+# The user + mount + pid + net namespaces are the sandbox. Inside them this script
 # mounts empty tmpfs trees over every directory the installer writes (/etc,
 # /opt, /home, /root, /var, /run, /tmp), bind-mounts stubs over the service
 # manager, and gets a /proc that shows only its own processes. The host sees
@@ -29,6 +29,7 @@
 #   update-beta-version  --update --version of release 3 from the stub CDN
 #   self-update    --update to release 2 under HELIX_SELF_UPDATE=1
 #   uninstall      --uninstall
+#   net-probe      try to reach a public address; prints NET_REACHABLE or NET_ISOLATED
 
 set -uo pipefail
 
@@ -53,6 +54,11 @@ for d in /etc /opt /home /root /var /run /tmp; do
     mount -t tmpfs tmpfs "$d" || { echo "SANDBOX_MOUNT_FAIL"; exit 0; }
 done
 mount -t proc proc /proc || { echo "SANDBOX_MOUNT_FAIL"; exit 0; }
+
+# The network namespace has only a loopback, and it starts down. Bring it up so
+# anything dialling 127.0.0.1 gets a refusal, as on a printer with no Moonraker,
+# rather than an unreachable network.
+ip link set lo up 2>/dev/null || true
 
 # The bundle puts the stock system directories first on PATH, so each stub is
 # bound over the first copy of the command in that order rather than put ahead
@@ -124,6 +130,13 @@ for step in "$@"; do
             ;;
         uninstall)
             run_installer --uninstall || rc=$?
+            ;;
+        net-probe)
+            if python3 -c 'import socket; socket.create_connection(("1.1.1.1", 443), 3)' 2>/dev/null; then
+                echo "NET_REACHABLE"
+            else
+                echo "NET_ISOLATED"
+            fi
             ;;
         *)
             echo "unknown step: $step"

@@ -6,7 +6,7 @@
 # Every other installer test calls one function; these run the whole script, so
 # the handoff between steps is what they pin. The bundle is rebuilt from
 # scripts/lib/installer/ exactly as the release workflow builds it, then run
-# under BusyBox ash inside a user + mount + pid namespace
+# under BusyBox ash inside a user + mount + pid + net namespace
 # (fixtures/install_e2e_scenario.sh): tmpfs over every directory it writes, a
 # stateful systemctl stub, and a fake x86 release - /bin/true for the binaries,
 # the tracked config/ tree and launcher, and enough padding to pass the size check.
@@ -133,8 +133,8 @@ setup() {
     # names host paths outside the tmpfs set (/srv, /usr/data, /mnt/UDISK).
     [ "$(id -u)" -ne 0 ] || skip "refuses to run as real root"
     # The same namespaces the run asks for, so a host that permits fewer skips.
-    unshare --user --map-root-user --mount --pid --fork true 2>/dev/null \
-        || skip "user+mount+pid namespaces not permitted"
+    unshare --user --map-root-user --mount --pid --net --fork true 2>/dev/null \
+        || skip "user+mount+pid+net namespaces not permitted"
     [ -x /usr/bin/systemctl ] || [ -x /bin/systemctl ] || [ -x /usr/sbin/systemctl ] \
         || skip "no systemctl to bind the stub over"
     [ -d /mnt ] || skip "no /mnt to reach the work dir through"
@@ -146,7 +146,7 @@ setup() {
 
 # Run the scenario steps in one fresh root; fails the test unless all complete.
 run_scenario() {
-    run unshare --user --map-root-user --mount --pid --fork bash "$SCENARIO" "$WORK" "$@"
+    run unshare --user --map-root-user --mount --pid --net --fork bash "$SCENARIO" "$WORK" "$@"
     [[ "$output" == *"SANDBOX_MOUNT_FAIL"* ]] && skip "namespace mounts not permitted here"
     [ "$status" -eq 0 ] && [[ "$output" == *"SCENARIO_DONE"* ]] \
         || fail "scenario ($*) failed, status $status:
@@ -292,6 +292,9 @@ snap_resolve() {
 }
 
 @test "install.sh e2e: --version of a prerelease with no saved channel moves app and Moonraker to beta" {
+    # The stub CDN is a curl stub bound over the host's own curl.
+    [ -x /usr/bin/curl ] || [ -x /usr/sbin/curl ] || [ -x /bin/curl ] || [ -x /sbin/curl ] \
+        || skip "no curl on this host for the stub CDN to bind over"
     # seed-user writes a settings.json with no update channel, so the beta
     # version decides it, after the installed config has been read.
     run_scenario install seed-user update-beta-version
@@ -320,4 +323,11 @@ snap_resolve() {
         || fail "update_manager moved to $(grep '^channel:' "$s/root/printer_data/config/moonraker.conf")"
     lacks '"channel"' "$(cat "$settings")"
     grep -q '"e2e_user_value": "kept"' "$settings" || fail "user settings lost"
+}
+
+@test "install.sh e2e: the scenario has no route off the box" {
+    # A failure path that falls through to wget or python must not reach a
+    # real release server from a test.
+    run_scenario net-probe
+    contains "NET_ISOLATED" "$output"
 }
