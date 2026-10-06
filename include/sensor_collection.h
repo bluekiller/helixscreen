@@ -186,9 +186,9 @@ template <typename Config, typename State> class SensorCollection {
     /**
      * @brief Apply saved role/enabled entries to the discovered sensors.
      *
-     * Entries for sensors not discovered are skipped. A field of the wrong
-     * type leaves that setting as it is. Returns whether a "sensors" array
-     * was present.
+     * Entries for sensors not discovered are skipped. A non-boolean "enabled"
+     * leaves that setting as it is; a non-string "role" becomes NONE. Returns
+     * whether a "sensors" array was present.
      */
     template <typename RoleFromName>
     bool apply_json(const nlohmann::json& saved, RoleFromName role_from_name) {
