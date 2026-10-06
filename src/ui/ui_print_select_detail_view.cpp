@@ -415,6 +415,17 @@ void PrintSelectDetailView::set_analysis_dependencies(IMoonrakerAPI* api,
         prep_manager_ = std::make_unique<PrintPreparationManager>();
         // A scan answer can be what a deferred Print tap is waiting on.
         prep_manager_->set_on_scan_answered([this]() { fire_on_preflight_ready(); });
+        // Macro rows come and go with the analysis, so an open view rebuilds
+        // them now; a hidden one rebuilds in on_activate().
+        prep_manager_->set_macro_analysis_callback(
+            [this](const helix::PrintStartAnalysis& analysis) {
+                if (is_visible()) {
+                    populate_option_rows();
+                }
+                if (on_macro_analysis_cb_) {
+                    on_macro_analysis_cb_(analysis);
+                }
+            });
     }
     // Per-option toggle state flows through the OptionStateProvider that
     // populate_option_rows() registers with the prep manager.
@@ -768,7 +779,7 @@ void PrintSelectDetailView::on_activate() {
     spdlog::debug("[DetailView] on_activate() for file: {}", current_filename_);
 
     // (Re)build dynamic option rows from the active printer's option set.
-    // Idempotent — only rebuilds when the printer type has changed.
+    // Idempotent — only rebuilds when the printer or its option ids changed.
     populate_option_rows();
 
     // A queued job's saved states override the defaults for this render.
@@ -997,7 +1008,7 @@ void PrintSelectDetailView::on_ui_destroyed() {
     // must not survive into the next create() cycle.
     fit_pending_ = false;
     option_rows_renderer_.clear();
-    last_rendered_printer_type_.clear();
+    last_rendered_rows_.clear();
     // A seed that never reached a render dies with the view it was meant
     // for; the next file to open starts from its own defaults.
     pending_option_seed_.clear();
@@ -2454,12 +2465,16 @@ void PrintSelectDetailView::populate_option_rows() {
         return;
     }
 
-    const auto& option_set = printer_state_->profile_state().pre_print_option_set();
+    // Macro-analysis rows join the printer's own options when its database
+    // entry declares none; see PrintPreparationManager::displayed_options().
+    const PrePrintOptionSet option_set =
+        prep_manager_ ? prep_manager_->displayed_options()
+                      : printer_state_->profile_state().pre_print_option_set();
 
-    // Skip rebuild only when rows are already populated AND the active
-    // printer hasn't changed since they were built. Mid-session printer-type
-    // changes (e.g. multi-printer setups) need a repopulate so the rows
-    // reflect the new option set.
+    // Skip rebuild only when rows are already populated AND neither the active
+    // printer nor its option ids have changed since they were built. A
+    // mid-session printer-type change (e.g. multi-printer setups) or a macro
+    // analysis landing after the first render needs a repopulate.
     //
     // The rebuild path is safe: `populate()` calls `clear()` (which deinits
     // every option subject — uninstalling observers from their row widgets)
@@ -2470,12 +2485,16 @@ void PrintSelectDetailView::populate_option_rows() {
     // them. Repopulating mid-session is therefore not the race that this
     // early-return originally guarded against.
     const std::string& current_type = printer_state_->profile_state().printer_type();
-    if (option_rows_renderer_.row_count() > 0 && current_type == last_rendered_printer_type_) {
+    std::string rows_key = current_type;
+    for (const auto& opt : option_set.options) {
+        rows_key += '\n' + opt.id;
+    }
+    if (option_rows_renderer_.row_count() > 0 && rows_key == last_rendered_rows_) {
         spdlog::trace("[DetailView] Skipping option-row rebuild (already populated for '{}')",
                       current_type);
         return;
     }
-    last_rendered_printer_type_ = current_type;
+    last_rendered_rows_ = rows_key;
 
     // Honor `PrePrintOption::requires_macro`: hide options whose required
     // macro isn't registered with Klipper. Their toggles would be inert —
@@ -2505,11 +2524,11 @@ void PrintSelectDetailView::populate_option_rows() {
     // takes the skip directly (setup_gcode present), so the predicate returns
     // false and it stays visible. Hiding it was a shipped regression; the
     // predicate now enforces the distinction structurally.
-    auto visibility_lookup = [this](const std::string& id) -> lv_subject_t* {
+    auto visibility_lookup = [this, &rendered](const std::string& id) -> lv_subject_t* {
         if (!prep_manager_ || !printer_state_) {
             return nullptr;
         }
-        const PrePrintOption* opt = printer_state_->profile_state().pre_print_option_set().find(id);
+        const PrePrintOption* opt = rendered.find(id);
         if (opt && prep_manager_->disabling_option_requires_plugin(*opt)) {
             return printer_state_->plugin_status_state().get_helix_plugin_installed_subject();
         }
