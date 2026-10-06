@@ -19,6 +19,7 @@
 #include "../../include/print_history_manager.h"
 #include "../../include/print_history_parse.h"
 #include "../../include/printer_state.h"
+#include "../../include/ui_filename_utils.h"
 #include "../../include/ui_update_queue.h"
 #include "../../lvgl/lvgl.h"
 #include "../test_helpers/history_call_counting_api.h"
@@ -1407,4 +1408,110 @@ TEST_CASE_METHOD(HistoryManagerTestFixture, "An invalidation refetches at the lo
                                      filelist_msg("delete_file", "b.gcode"));
     pump_debounce();
     CHECK(api_->history_last_limit() == PrintHistoryManager::kCompleteJobLimit);
+}
+
+// ============================================================================
+// A job printed from a rewritten copy is presented as the original's print
+// ============================================================================
+
+namespace {
+PrintHistoryJob history_job(const std::string& filename, double start_time) {
+    PrintHistoryJob job;
+    job.job_id = std::to_string(static_cast<int>(start_time));
+    job.filename = filename;
+    job.start_time = start_time;
+    job.exists = false; // the rewrite's file is deleted when the print ends
+    job.modified = 1.0;
+    ThumbnailInfo thumb;
+    thumb.relative_path = ".thumbs/.helix_temp/modified_1_benchy-300x300.png";
+    thumb.width = 300;
+    thumb.height = 300;
+    job.thumbnails.push_back(thumb);
+    job.thumbnail_path = thumb.relative_path;
+    return job;
+}
+
+FileMetadata original_metadata(double modified) {
+    FileMetadata meta;
+    meta.modified = modified;
+    ThumbnailInfo thumb;
+    thumb.relative_path = ".thumbs/benchy-300x300.png";
+    thumb.width = 300;
+    thumb.height = 300;
+    meta.thumbnails.push_back(thumb);
+    return meta;
+}
+} // namespace
+
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "PrintHistoryManager: a rewritten job shows the original's name and thumbnail",
+                 "[history_manager][reprint]") {
+    auto& table = api_->metadata_table();
+    table.table["parts/benchy.gcode"] = original_metadata(42.0);
+    int notified = 0;
+    helix::HistoryChangedCallback cb = [&notified]() { ++notified; };
+    manager_->add_observer(&cb);
+
+    install_live_cache(
+        {history_job(helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode"), 200.0),
+         history_job("older.gcode", 100.0)});
+    pump();
+
+    const PrintHistoryJob& job = manager_->get_jobs().front();
+    CHECK(job.filename == "parts/benchy.gcode");
+    CHECK(job.exists);
+    CHECK(job.modified == 42.0);
+    // Joined against the original's directory, never the staging one.
+    CHECK(helix::job_thumbnail_path(job, job.thumbnail_path) == "parts/.thumbs/benchy-300x300.png");
+    CHECK(manager_->get_newest_existing_job() == &job);
+    CHECK(manager_->get_filename_stats().count("benchy.gcode") == 1);
+    CHECK(notified >= 1);
+    // The plain job is left as the printer reported it, and costs no request.
+    CHECK(manager_->get_jobs().back().filename == "older.gcode");
+    CHECK(table.calls == 1);
+
+    manager_->remove_observer(&cb);
+}
+
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "PrintHistoryManager: a rewritten job whose original is gone shows no thumbnail",
+                 "[history_manager][reprint]") {
+    auto& table = api_->metadata_table();
+    const std::string staged = ".helix_print/parts/gone.gcode";
+
+    install_live_cache({history_job(staged, 300.0), history_job(staged, 200.0)});
+    pump();
+
+    for (const auto& job : manager_->get_jobs()) {
+        CHECK(job.filename == "parts/gone.gcode");
+        CHECK_FALSE(job.exists);
+        CHECK(job.thumbnails.empty());
+        CHECK(job.thumbnail_path.empty());
+    }
+    CHECK(manager_->get_newest_existing_job() == nullptr);
+
+    // One request per original, however many jobs name it or how often the
+    // list is redelivered without an invalidation.
+    PrintHistoryManagerTestAccess::set_loaded_jobs(*manager_, {history_job(staged, 300.0)});
+    pump();
+    CHECK(table.calls == 1);
+}
+
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "PrintHistoryManager: a notified rewritten job is the original's print too",
+                 "[history_manager][reprint]") {
+    api_->metadata_table().table["parts/benchy.gcode"] = original_metadata(42.0);
+    install_live_cache({});
+
+    const std::string staged = helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode");
+    client_.dispatch_method_callback(
+        "notify_history_changed",
+        history_msg("finished", job_payload("000009", staged.c_str(), "completed", 900.0, false)));
+    pump();
+
+    REQUIRE(manager_->get_jobs().size() == 1);
+    const PrintHistoryJob& job = manager_->get_jobs().front();
+    CHECK(job.filename == "parts/benchy.gcode");
+    CHECK(job.exists);
+    CHECK(job.thumbnail_path == ".thumbs/benchy-300x300.png");
 }

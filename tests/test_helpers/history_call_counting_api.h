@@ -3,9 +3,12 @@
 #pragma once
 
 #include "moonraker_api.h"
+#include "moonraker_error.h"
+#include "moonraker_file_api.h"
 #include "moonraker_history_api.h"
 
 #include <atomic>
+#include <map>
 #include <utility>
 
 namespace helix {
@@ -33,12 +36,38 @@ class HistoryCallCountingAPI : public MoonrakerHistoryAPI {
 };
 
 /// MoonrakerAPI that installs the counting history API in place of the real one.
+/// Answers file metadata from a table on the calling thread: a filename it
+/// holds answers with that metadata, anything else as missing.
+class MetadataTableFileAPI : public MoonrakerFileAPI {
+  public:
+    explicit MetadataTableFileAPI(helix::IMoonrakerClient& client) : MoonrakerFileAPI(client) {}
+
+    void get_file_metadata(const std::string& filename, FileMetadataCallback on_success,
+                           ErrorCallback on_error, bool /*silent*/ = false) override {
+        ++calls;
+        auto it = table.find(filename);
+        if (it != table.end()) {
+            on_success(it->second);
+        } else if (on_error) {
+            on_error(MoonrakerError::json_rpc_error("server.files.metadata", "File not found"));
+        }
+    }
+
+    std::map<std::string, FileMetadata> table;
+    int calls = 0;
+};
+
 class HistoryCallCountingMoonrakerAPI : public MoonrakerAPI {
   public:
     HistoryCallCountingMoonrakerAPI(helix::IMoonrakerClient& client, helix::PrinterState& state)
         : MoonrakerAPI(client, state) {
         // history_api_ is protected; swap in the counting implementation.
         history_api_ = std::make_unique<HistoryCallCountingAPI>(client);
+        file_api_ = std::make_unique<MetadataTableFileAPI>(client);
+    }
+
+    [[nodiscard]] MetadataTableFileAPI& metadata_table() {
+        return static_cast<MetadataTableFileAPI&>(*file_api_);
     }
 
     [[nodiscard]] int history_list_calls() const {
