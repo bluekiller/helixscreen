@@ -3386,6 +3386,27 @@ TEST_CASE("Config::init() gives a versionless config with no printer the default
     CHECK(on_disk.value("config_version", 0) == CURRENT_CONFIG_VERSION);
 }
 
+// Moonraker's web updater can leave the installer's minimal file where the
+// user's config was. The rolling backup is the real config and must win over
+// the fresh-install path for printerless documents.
+TEST_CASE("Config::init() restores the backup over a printerless versionless config",
+          "[core][config][moonraker-update]") {
+    TarballTestEnv env("seed_doc_backup_wins");
+    env.write_config({{"update", {{"channel", 1}}}});
+    env.write_backup({{"config_version", CURRENT_CONFIG_VERSION},
+                      {"active_printer_id", "my-pi"},
+                      {"update", {{"channel", 0}}},
+                      {"printers", {{"my-pi", {{"moonraker_host", "192.168.1.50"}}}}}});
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    CHECK(test_config.get_active_printer_id() == "my-pi");
+    CHECK(test_config.get<std::string>("/printers/my-pi/moonraker_host") == "192.168.1.50");
+    CHECK(test_config.get<int>("/update/channel") == 0);
+    CHECK_FALSE(test_config.exists("/printers/default"));
+}
+
 // The fresh-install path is for documents that hold no printer at all. A real
 // config, versioned or a shipped preset's versionless /printer, keeps its own
 // shape and runs the migration chain.
