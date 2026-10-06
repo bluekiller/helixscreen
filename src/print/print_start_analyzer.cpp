@@ -14,6 +14,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 #include <set>
 
 namespace helix {
@@ -45,12 +46,27 @@ const PrintStartOperation* PrintStartAnalysis::get_operation(PrintStartOpCategor
     return (it != operations.end()) ? &(*it) : nullptr;
 }
 
+namespace {
+
+std::string chain_text(const PrintStartAnalysis& analysis) {
+    if (analysis.macro_chain.empty()) {
+        return analysis.macro_name;
+    }
+    std::string text = analysis.macro_chain.front();
+    for (size_t i = 1; i < analysis.macro_chain.size(); ++i) {
+        text += " -> " + analysis.macro_chain[i];
+    }
+    return text;
+}
+
+} // namespace
+
 std::string PrintStartAnalysis::summary() const {
     if (!found) {
         return "No print start macro found";
     }
 
-    std::string ss = fmt::format("{}: {} operations detected", macro_name, total_ops_count);
+    std::string ss = fmt::format("{}: {} operations detected", chain_text(*this), total_ops_count);
     if (controllable_count > 0) {
         ss += fmt::format(" ({} controllable)", controllable_count);
     }
@@ -88,11 +104,8 @@ namespace {
 /**
  * @brief Extract gcode content from a macro section in config file text
  */
-std::string extract_gcode_from_section(const std::string& content, const std::string& section_start,
-                                       size_t section_pos) {
-    // Find the gcode: line
-    std::string content_lower = helix::text_io::to_lower(content);
-
+std::string extract_gcode_from_section(const std::string& content, const std::string& content_lower,
+                                       const std::string& section_start, size_t section_pos) {
     size_t gcode_pos = content_lower.find("gcode:", section_pos);
     if (gcode_pos == std::string::npos) {
         return "";
@@ -119,6 +132,124 @@ std::string extract_gcode_from_section(const std::string& content, const std::st
     return content.substr(gcode_content_start, section_end - gcode_content_start);
 }
 
+/// Uppercased macro name -> gcode body
+using MacroBodies = std::map<std::string, std::string>;
+
+/// Every [gcode_macro NAME] in the active files; the first definition of a name wins.
+MacroBodies collect_macro_bodies(const std::set<std::string>& active_files,
+                                 const std::map<std::string, std::string>& file_contents) {
+    static constexpr std::string_view HEADER = "[gcode_macro ";
+    MacroBodies bodies;
+    for (const auto& filename : active_files) {
+        auto content_it = file_contents.find(filename);
+        if (content_it == file_contents.end()) {
+            continue;
+        }
+        const std::string& content = content_it->second;
+        std::string content_lower = helix::text_io::to_lower(content);
+        for (size_t pos = content_lower.find(HEADER); pos != std::string::npos;
+             pos = content_lower.find(HEADER, pos + 1)) {
+            size_t close = content.find(']', pos);
+            if (close == std::string::npos || close > content.find('\n', pos)) {
+                continue;
+            }
+            std::string name =
+                helix::text_io::to_upper(helix::text_io::trim(std::string_view(content).substr(
+                    pos + HEADER.size(), close - pos - HEADER.size())));
+            bodies.emplace(name,
+                           extract_gcode_from_section(content, content_lower,
+                                                      content.substr(pos, close - pos + 1), pos));
+        }
+    }
+    return bodies;
+}
+
+/// The command a gcode line starts with, uppercased. Jinja {% %} tags are removed
+/// first, so a call inside an inline conditional still counts. Empty for comments
+/// and lines that start with an expression.
+std::string called_command(std::string_view line) {
+    std::string stripped;
+    size_t pos = 0;
+    while (pos < line.size()) {
+        size_t open = line.find("{%", pos);
+        stripped.append(line.substr(pos, open == std::string_view::npos ? open : open - pos));
+        if (open == std::string_view::npos) {
+            break;
+        }
+        size_t close = line.find("%}", open);
+        if (close == std::string_view::npos) {
+            break;
+        }
+        pos = close + 2;
+    }
+    size_t first = stripped.find_first_not_of(" \t");
+    if (first == std::string::npos || stripped[first] == '#' || stripped[first] == ';' ||
+        stripped[first] == '{') {
+        return "";
+    }
+    size_t end = stripped.find_first_of(" \t{", first);
+    return helix::text_io::to_upper(
+        stripped.substr(first, end == std::string::npos ? end : end - first));
+}
+
+/// Klipper's own G/M codes are commands, never macros worth following.
+bool is_numbered_gcode(const std::string& cmd) {
+    return cmd.size() > 1 && (cmd[0] == 'G' || cmd[0] == 'M') &&
+           std::isdigit(static_cast<unsigned char>(cmd[1]));
+}
+
+/// Parse `name`'s body, then every gcode macro it calls, merging their operations.
+/// A callee is skipped when it is itself a detected operation (an override such as
+/// a BED_MESH_CALIBRATE wrapper), a G/M code, undefined, or already analyzed.
+PrintStartAnalysis analyze_chain(const std::string& name, const std::string& gcode,
+                                 const MacroBodies& bodies, std::set<std::string>& visited,
+                                 int depth) {
+    PrintStartAnalysis result = PrintStartAnalyzer::parse_macro(name, gcode);
+    result.macro_chain = {name};
+    visited.insert(helix::text_io::to_upper(name));
+    if (depth >= PrintStartAnalyzer::MAX_FOLLOW_DEPTH) {
+        return result;
+    }
+
+    for (std::string_view line : helix::text_io::lines(gcode)) {
+        std::string callee = called_command(line);
+        if (callee.empty() || find_keyword(callee) || is_numbered_gcode(callee) ||
+            visited.count(callee)) {
+            continue;
+        }
+        auto body_it = bodies.find(callee);
+        if (body_it == bodies.end()) {
+            continue;
+        }
+
+        PrintStartAnalysis callee_result =
+            analyze_chain(callee, body_it->second, bodies, visited, depth + 1);
+        // A skip param sent to the outer macro reaches the callee only if this call forwards it.
+        bool forwards_all = contains_ci(line, "rawparams");
+        for (auto& op : callee_result.operations) {
+            if (op.has_skip_param && !forwards_all && !contains_ci(line, op.skip_param_name)) {
+                op.has_skip_param = false;
+                op.skip_param_name.clear();
+            }
+            bool duplicate = std::any_of(
+                result.operations.begin(), result.operations.end(),
+                [&op](const PrintStartOperation& existing) { return existing.name == op.name; });
+            if (!duplicate) {
+                result.operations.push_back(std::move(op));
+            }
+        }
+        result.macro_chain.insert(result.macro_chain.end(), callee_result.macro_chain.begin(),
+                                  callee_result.macro_chain.end());
+    }
+
+    result.total_ops_count = result.operations.size();
+    result.controllable_count = static_cast<size_t>(
+        std::count_if(result.operations.begin(), result.operations.end(),
+                      [](const PrintStartOperation& op) { return op.has_skip_param; }));
+    result.is_controllable = result.controllable_count > 0;
+    return result;
+}
+
 } // anonymous namespace
 
 void PrintStartAnalyzer::analyze(const std::set<std::string>& active_files,
@@ -126,6 +257,8 @@ void PrintStartAnalyzer::analyze(const std::set<std::string>& active_files,
                                  AnalysisCallback on_complete) {
     spdlog::debug("[PrintStartAnalyzer] Searching {} cached config files for macro...",
                   active_files.size());
+
+    const MacroBodies bodies = collect_macro_bodies(active_files, file_contents);
 
     for (const auto& filename : active_files) {
         auto content_it = file_contents.find(filename);
@@ -145,16 +278,19 @@ void PrintStartAnalyzer::analyze(const std::set<std::string>& active_files,
                 std::string section_lower = helix::text_io::to_lower(section);
 
                 size_t section_pos = content_lower.find(section_lower);
-                std::string gcode = extract_gcode_from_section(content, section, section_pos);
+                std::string gcode =
+                    extract_gcode_from_section(content, content_lower, section, section_pos);
 
                 if (!gcode.empty()) {
-                    spdlog::info("[PrintStartAnalyzer] Found macro '{}' in {} ({} chars)",
-                                 MACRO_NAMES[i], filename, gcode.size());
-
-                    PrintStartAnalysis result = parse_macro(MACRO_NAMES[i], gcode);
+                    std::set<std::string> visited;
+                    PrintStartAnalysis result =
+                        analyze_chain(MACRO_NAMES[i], gcode, bodies, visited, 0);
                     result.found = true;
                     result.macro_name = MACRO_NAMES[i];
                     result.source_file = filename;
+                    spdlog::info("[PrintStartAnalyzer] Found macro '{}' in {} ({} chars), "
+                                 "analyzed {}",
+                                 MACRO_NAMES[i], filename, gcode.size(), chain_text(result));
 
                     if (on_complete) {
                         on_complete(result);

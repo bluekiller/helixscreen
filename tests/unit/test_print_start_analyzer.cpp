@@ -9,6 +9,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -735,6 +736,7 @@ TEST_CASE("PrintStartAnalyzer searches pre-downloaded content", "[print_start]")
     REQUIRE(result.found);
     REQUIRE(result.macro_name == "PRINT_START");
     REQUIRE(result.source_file == "macros.cfg");
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START"});
     REQUIRE(result.has_operation(helix::PrintStartOpCategory::HOMING));
     REQUIRE(result.has_operation(helix::PrintStartOpCategory::BED_MESH));
 }
@@ -756,4 +758,140 @@ TEST_CASE("PrintStartAnalyzer cached search reports not found correctly", "[prin
 
     REQUIRE(callback_fired);
     REQUIRE_FALSE(result.found);
+}
+
+// ============================================================================
+// Tests: Following Macros the Print Start Macro Calls
+// ============================================================================
+
+namespace {
+
+helix::PrintStartAnalysis analyze_single_file(const std::string& content) {
+    helix::PrintStartAnalyzer analyzer;
+    helix::PrintStartAnalysis result;
+    analyzer.analyze({"macros.cfg"}, {{"macros.cfg", content}},
+                     [&](const helix::PrintStartAnalysis& analysis) { result = analysis; });
+    return result;
+}
+
+const char* const VORON_START_PRINT_BODY = "[gcode_macro START_PRINT]\n"
+                                           "gcode:\n"
+                                           "  {% set SKIP_QGL = params.SKIP_QGL|default(0)|int %}\n"
+                                           "  G28\n"
+                                           "  {% if SKIP_QGL == 0 %}\n"
+                                           "    QUAD_GANTRY_LEVEL\n"
+                                           "  {% endif %}\n"
+                                           "  BED_MESH_CALIBRATE\n";
+
+} // namespace
+
+TEST_CASE("PrintStartAnalyzer follows a wrapper into the macro it calls", "[print_start][follow]") {
+    auto result = analyze_single_file(std::string("[gcode_macro PRINT_START]\n"
+                                                  "gcode:\n"
+                                                  "  start_print {rawparams}\n\n") +
+                                      VORON_START_PRINT_BODY);
+
+    REQUIRE(result.found);
+    REQUIRE(result.macro_name == "PRINT_START");
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START", "START_PRINT"});
+    REQUIRE(result.has_operation(helix::PrintStartOpCategory::BED_MESH));
+    REQUIRE(result.has_operation(helix::PrintStartOpCategory::HOMING));
+    const auto* qgl = result.get_operation(helix::PrintStartOpCategory::QGL);
+    REQUIRE(qgl);
+    REQUIRE(qgl->has_skip_param);
+    REQUIRE(qgl->skip_param_name == "SKIP_QGL");
+    REQUIRE(result.controllable_count == 1);
+    REQUIRE(result.total_ops_count == 3);
+    REQUIRE(result.summary().find("PRINT_START -> START_PRINT") != std::string::npos);
+}
+
+TEST_CASE("PrintStartAnalyzer keeps a nested skip param only when the call forwards it",
+          "[print_start][follow]") {
+    SECTION("explicit arguments without the skip param") {
+        auto result = analyze_single_file(std::string("[gcode_macro PRINT_START]\n"
+                                                      "gcode:\n"
+                                                      "  START_PRINT BED={params.BED}\n\n") +
+                                          VORON_START_PRINT_BODY);
+        const auto* qgl = result.get_operation(helix::PrintStartOpCategory::QGL);
+        REQUIRE(qgl);
+        REQUIRE_FALSE(qgl->has_skip_param);
+        REQUIRE(result.controllable_count == 0);
+    }
+    SECTION("explicit arguments naming the skip param") {
+        auto result = analyze_single_file(
+            std::string("[gcode_macro PRINT_START]\n"
+                        "gcode:\n"
+                        "  START_PRINT SKIP_QGL={params.SKIP_QGL|default(0)}\n\n") +
+            VORON_START_PRINT_BODY);
+        const auto* qgl = result.get_operation(helix::PrintStartOpCategory::QGL);
+        REQUIRE(qgl);
+        REQUIRE(qgl->has_skip_param);
+    }
+}
+
+TEST_CASE("PrintStartAnalyzer follows a two-level chain and calls inside conditionals",
+          "[print_start][follow]") {
+    auto result = analyze_single_file("[gcode_macro PRINT_START]\n"
+                                      "gcode:\n"
+                                      "  {% if params.FAST %}\n"
+                                      "    _Stage_One {rawparams}\n"
+                                      "  {% endif %}\n"
+                                      "[gcode_macro _STAGE_ONE]\n"
+                                      "gcode:\n"
+                                      "  G28\n"
+                                      "  {% if true %}_STAGE_TWO{% endif %}\n"
+                                      "[gcode_macro _STAGE_TWO]\n"
+                                      "gcode:\n"
+                                      "  BED_MESH_CALIBRATE\n");
+
+    REQUIRE(result.macro_chain ==
+            std::vector<std::string>{"PRINT_START", "_STAGE_ONE", "_STAGE_TWO"});
+    REQUIRE(result.has_operation(helix::PrintStartOpCategory::HOMING));
+    REQUIRE(result.has_operation(helix::PrintStartOpCategory::BED_MESH));
+}
+
+TEST_CASE("PrintStartAnalyzer stops at a macro cycle", "[print_start][follow]") {
+    auto result = analyze_single_file("[gcode_macro PRINT_START]\n"
+                                      "gcode:\n"
+                                      "  _A\n"
+                                      "[gcode_macro _A]\n"
+                                      "gcode:\n"
+                                      "  G28\n"
+                                      "  _B\n"
+                                      "[gcode_macro _B]\n"
+                                      "gcode:\n"
+                                      "  BED_MESH_CALIBRATE\n"
+                                      "  _A\n"
+                                      "  PRINT_START\n");
+
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START", "_A", "_B"});
+    REQUIRE(result.total_ops_count == 2);
+}
+
+TEST_CASE("PrintStartAnalyzer ignores a call to a macro the config does not define",
+          "[print_start][follow]") {
+    auto result = analyze_single_file("[gcode_macro PRINT_START]\n"
+                                      "gcode:\n"
+                                      "  START_PRINT {rawparams}\n"
+                                      "  G28\n");
+
+    REQUIRE(result.found);
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START"});
+    REQUIRE(result.total_ops_count == 1);
+    REQUIRE(result.summary().rfind("PRINT_START:", 0) == 0);
+}
+
+TEST_CASE("PrintStartAnalyzer does not follow an override of a detected operation",
+          "[print_start][follow]") {
+    auto result = analyze_single_file("[gcode_macro PRINT_START]\n"
+                                      "gcode:\n"
+                                      "  BED_MESH_CALIBRATE\n"
+                                      "[gcode_macro BED_MESH_CALIBRATE]\n"
+                                      "rename_existing: _BED_MESH_CALIBRATE\n"
+                                      "gcode:\n"
+                                      "  CLEAN_NOZZLE\n"
+                                      "  _BED_MESH_CALIBRATE {rawparams}\n");
+
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START"});
+    REQUIRE_FALSE(result.has_operation(helix::PrintStartOpCategory::NOZZLE_CLEAN));
 }
