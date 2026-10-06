@@ -22,6 +22,7 @@
 #include "../helix_test_fixture.h"
 #include "../test_helpers/live_thread_count.h"
 #include "../test_helpers/scoped_env.h"
+#include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/scoped_update_urls.h"
 #include "../test_helpers/update_checker_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
@@ -1356,9 +1357,8 @@ TEST_CASE("do_install never runs the installer in test mode",
     const pid_t pid = fork();
     REQUIRE(pid >= 0);
     if (pid == 0) {
-        auto* rc = get_runtime_config();
-        if (rc)
-            rc->test_mode = true;
+        ScopedRuntimeConfig scoped_config;
+        get_runtime_config()->test_mode = true;
         auto& checker = UpdateChecker::instance();
         UpdateCheckerTestAccess::set_restart_action(checker, [] {});
         UpdateCheckerTestAccess::set_status_hold_ms(checker, 0, 0);
