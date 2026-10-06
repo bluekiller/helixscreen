@@ -876,11 +876,15 @@ void Config::init(const std::string& config_path) {
         }
 
         // A document holding only installer-seeded keys starts from the fresh
-        // defaults, with the seeded keys laid over them.
+        // defaults, with the seeded keys laid over them. Its legacy display keys
+        // move first: once the defaults fill /input/calibration, a calibration
+        // still under /display/ has nowhere to go. Runs after the tarball
+        // detection above, so a rolling backup still replaces such a document.
         if (is_installer_seed_document(data)) {
             spdlog::info("[Config] Config holds no printer and no version: starting from "
                          "defaults under its {} seeded key(s)",
                          data.size());
+            run_display_migrations(data);
             json fresh = get_default_config("127.0.0.1", false);
             fresh.merge_patch(data);
             fresh["config_version"] = CURRENT_CONFIG_VERSION;

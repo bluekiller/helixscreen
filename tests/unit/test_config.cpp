@@ -3407,6 +3407,23 @@ TEST_CASE("Config::init() restores the backup over a printerless versionless con
     CHECK_FALSE(test_config.exists("/printers/default"));
 }
 
+// Legacy display keys in a printerless document move to their current home
+// before the defaults are laid under it, or the defaults would shadow them.
+TEST_CASE("Config::init() migrates legacy display keys in a printerless versionless config",
+          "[core][config][moonraker-update]") {
+    TarballTestEnv env("seed_doc_legacy_display");
+    env.write_config({{"update", {{"channel", 1}}},
+                      {"display", {{"calibration", {{"valid", true}, {"a", 2.0}}}}}});
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    CHECK(test_config.get<bool>("/input/calibration/valid"));
+    CHECK(test_config.get<double>("/input/calibration/a") == 2.0);
+    CHECK_FALSE(test_config.exists("/display/calibration"));
+    CHECK_FALSE(test_config.get<bool>("/input/calibration/recheck_pending", false));
+}
+
 // The fresh-install path is for documents that hold no printer at all. A real
 // config, versioned or a shipped preset's versionless /printer, keeps its own
 // shape and runs the migration chain.
