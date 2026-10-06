@@ -620,6 +620,15 @@ class EditHomeFixture : public LVGLTestFixture {
 
     /// The next-page slot's page container, or nullptr at the page cap. Its tile
     /// sits at index page_count().
+    /// No event callback on @p obj carries the edit session as its user data.
+    void check_no_callback_into_session(lv_obj_t* obj) {
+        for (uint32_t i = 0; i < lv_obj_get_event_count(obj); ++i) {
+            lv_event_dsc_t* dsc = lv_obj_get_event_dsc(obj, i);
+            REQUIRE(dsc != nullptr);
+            CHECK(lv_event_dsc_get_user_data(dsc) != static_cast<void*>(&grid()));
+        }
+    }
+
     /// Where a dragged widget and its selection outline live while the drag
     /// lasts: the top layer, outside every page's grid.
     lv_obj_t* drag_layer() {
@@ -1614,10 +1623,12 @@ TEST_CASE_METHOD(EditHomeFixture, "the event shield carries no callback into the
 
     // The shield outlives the session whenever the rebuild that deletes it
     // never runs, so it must hold nothing that calls into the session: its
-    // events reach the grid handlers by bubbling to carousel_host.
+    // events reach the grid handlers by bubbling to carousel_host, and the
+    // callbacks it does carry (the lattice draw and its cleanup) read only
+    // what the shield itself owns.
     lv_obj_t* shield = GridEditModeTestAccess::shield(grid());
     REQUIRE(shield != nullptr);
-    CHECK(lv_obj_get_event_count(shield) == 0);
+    check_no_callback_into_session(shield);
 
     // The same holds for the shield a cancel's rebuild creates.
     indev.grab(c.x, c.y);
@@ -1627,7 +1638,7 @@ TEST_CASE_METHOD(EditHomeFixture, "the event shield carries no callback into the
     settle();
     shield = GridEditModeTestAccess::shield(grid());
     REQUIRE(shield != nullptr);
-    CHECK(lv_obj_get_event_count(shield) == 0);
+    check_no_callback_into_session(shield);
 }
 
 TEST_CASE_METHOD(EditHomeFixture,

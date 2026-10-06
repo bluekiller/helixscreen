@@ -21,6 +21,7 @@ namespace helix {
 
 class PanelWidgetConfig;
 struct PanelWidgetDef;
+struct GridLatticeSpec;
 struct GridEditModeTestAccess; // test-only friend (tests/test_helpers/)
 
 /// A grid spot the catalog placement search found for a widget: the cell it
@@ -376,14 +377,17 @@ class GridEditMode {
     /// existing one there, then redraw its lattice. The object must survive
     /// selection changes and page flips mid-session: the indev glues a gesture
     /// to its press target, and destroying that target mid-gesture ends the
-    /// press with no event reaching the grid handlers. The shield carries no
-    /// callback: its events bubble to the handlers on carousel_host.
+    /// press with no event reaching the grid handlers. Its input events bubble
+    /// to the handlers on carousel_host; its only callbacks draw the lattice
+    /// and free what that draw reads.
     void ensure_shield();
-    /// Redraw the shield's children for the current selection: the lattice
-    /// dots, which are the boundaries the selected widget can snap to, and the
-    /// delete-page button. Mid-gesture safe: children are never the press
-    /// target.
+    /// Redraw the shield for the current selection: the lattice it draws, the
+    /// boundaries the selected widget can snap to, and its one child, the
+    /// delete-page button. Mid-gesture safe: the button is never the press
+    /// target and the shield itself is kept.
     void rebuild_lattice();
+    /// Dots in the lattice the shield draws, 0 with none.
+    int drawn_dot_count() const;
     std::string selected_widget_id() const;
     void create_selection_chrome(lv_obj_t* widget);
     void destroy_selection_chrome();
@@ -614,6 +618,8 @@ class GridEditMode {
     static void crossing_flip_cb(lv_timer_t* timer);
     static void dwell_flip_cb(lv_timer_t* timer);
     lv_obj_t* delete_page_btn_ = nullptr;
+    /// What the shield draws as the lattice, owned by the shield.
+    GridLatticeSpec* lattice_spec_ = nullptr;
     /// What the drawn lattice was built for: the shield and page holding it,
     /// the grid, the selection's snap steps, the content size and whether the
     /// delete-page button shows. rebuild_lattice() keeps a lattice whose key

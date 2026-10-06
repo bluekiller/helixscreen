@@ -2510,6 +2510,7 @@ void GridEditMode::forget_container_children() {
     remove_btn_ = nullptr;
     configure_btn_ = nullptr;
     shield_ = nullptr;
+    lattice_spec_ = nullptr;
     delete_page_btn_ = nullptr;
     // The previews live on the top layer, so the page going away does not
     // take them with it.
@@ -2565,6 +2566,87 @@ void GridEditMode::relayout_then_select(std::string widget_id, std::vector<std::
     });
 }
 
+/// What the shield draws as the lattice: the intersections a selection can snap
+/// to. Owned by the shield (freed on its LV_EVENT_DELETE), so a draw never
+/// reaches a GridEditMode that is gone.
+struct GridLatticeSpec {
+    int ncols = 0;
+    int nrows = 0;
+    int col_step = 0;
+    int row_step = 0;
+    helix::CellMetrics metrics{};
+    lv_color_t color{};
+};
+
+namespace {
+
+constexpr int DOT_SIZE_MAJOR = 4;
+constexpr int DOT_SIZE_MINOR = 3;
+
+/// Draw the lattice on the shield. One draw hook rather than an object per dot:
+/// a fine lattice is a hundred-odd dots, which a slow board takes ~200 ms to
+/// create. DECLARATIVE_OK: draw hooks have no declarative equivalent.
+void draw_lattice(lv_event_t* e) {
+    const auto* spec = static_cast<const GridLatticeSpec*>(lv_event_get_user_data(e));
+    lv_obj_t* shield = lv_event_get_current_target_obj(e);
+    lv_layer_t* layer = lv_event_get_layer(e);
+    if (!spec || !layer || spec->ncols <= 0 || spec->nrows <= 0 || spec->col_step <= 0 ||
+        spec->row_step <= 0) {
+        return;
+    }
+    lv_area_t content;
+    lv_obj_get_content_coords(shield, &content);
+    const helix::CellMetrics& m = spec->metrics;
+    // c/r run 0..ncols/0..nrows inclusive to draw both edges of the lattice.
+    // grid_track_origin() only knows track starts (0..n-1); the final boundary
+    // is the right/bottom edge of the last track, not a further track start
+    // (which would land one gutter past the content edge).
+    auto track_x = [&](int c) {
+        return static_cast<int>(
+            c < spec->ncols
+                ? helix::grid_track_origin(m.cell_w, m.gutter, c)
+                : helix::grid_track_origin(m.cell_w, m.gutter, std::max(spec->ncols - 1, 0)) +
+                      m.cell_w);
+    };
+    auto track_y = [&](int r) {
+        return static_cast<int>(
+            r < spec->nrows
+                ? helix::grid_track_origin(m.cell_h, m.gutter, r)
+                : helix::grid_track_origin(m.cell_h, m.gutter, std::max(spec->nrows - 1, 0)) +
+                      m.cell_h);
+    };
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.bg_color = spec->color;
+    dsc.radius = LV_RADIUS_CIRCLE;
+    const lv_area_t clip = layer->_clip_area;
+    const int cell = helix::GridLayout::TRACKS_PER_CELL;
+    // Whole-cell intersections are always legal drop targets; the half-cell
+    // intersections between them are legal only for a widget selected on an
+    // axis it supports, so they are drawn smaller and fainter to read as a
+    // finer, secondary lattice rather than a change to the base grid.
+    for (int r = 0; r <= spec->nrows; r += spec->row_step) {
+        const int cy = content.y1 + track_y(r);
+        if (cy + DOT_SIZE_MAJOR < clip.y1 || cy - DOT_SIZE_MAJOR > clip.y2) {
+            continue;
+        }
+        for (int c = 0; c <= spec->ncols; c += spec->col_step) {
+            const bool major = (c % cell == 0) && (r % cell == 0);
+            const int size = major ? DOT_SIZE_MAJOR : DOT_SIZE_MINOR;
+            const int x = content.x1 + track_x(c) - size / 2;
+            const int y = cy - size / 2;
+            lv_area_t dot = {x, y, x + size - 1, y + size - 1};
+            if (dot.x2 < clip.x1 || dot.x1 > clip.x2) {
+                continue;
+            }
+            dsc.bg_opa = major ? LV_OPA_30 : LV_OPA_10;
+            lv_draw_rect(layer, &dsc, &dot);
+        }
+    }
+}
+
+} // namespace
+
 void GridEditMode::ensure_shield() {
     if (!container_)
         return;
@@ -2584,10 +2666,9 @@ void GridEditMode::ensure_shield() {
         lv_obj_set_parent(shield_, container_);
     } else if (!shield_) {
         // A transparent overlay floating above the grid children, with two
-        // jobs: its children draw the lattice, and the overlay itself is the
-        // event shield. It takes every touch, so no widget underneath receives
-        // a press or click during edit mode, and the events bubble up to the
-        // grid handlers on carousel_host.
+        // jobs: it draws the lattice, and it is the event shield. It takes every touch, so no
+        // widget underneath receives a press or click during edit mode, and the events bubble up to
+        // the grid handlers on carousel_host.
         //
         // The shield OBJECT persists for the session (across selection changes
         // and page flips): the indev glues a gesture to its press target
@@ -2617,6 +2698,16 @@ void GridEditMode::ensure_shield() {
         lv_obj_set_style_bg_opa(shield_, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(shield_, 0, 0);
         lv_obj_set_style_pad_all(shield_, 0, 0);
+        // The lattice it draws. DECLARATIVE_OK: draw hook and LV_EVENT_DELETE
+        // cleanup.
+        auto* spec = new GridLatticeSpec();
+        lv_obj_add_event_cb(shield_, draw_lattice, LV_EVENT_DRAW_MAIN, spec);
+        lv_obj_add_event_cb(
+            shield_,
+            [](lv_event_t* e) { delete static_cast<GridLatticeSpec*>(lv_event_get_user_data(e)); },
+            LV_EVENT_DELETE, spec);
+        lattice_spec_ = spec;
+        lattice_key_ = {};
     }
     rebuild_lattice();
 }
@@ -2640,8 +2731,16 @@ void GridEditMode::handle_press_cancelled(lv_event_t* e) {
     end_gesture_uncommitted();
 }
 
+int GridEditMode::drawn_dot_count() const {
+    if (!lattice_spec_ || lattice_spec_->col_step <= 0 || lattice_spec_->row_step <= 0) {
+        return 0;
+    }
+    return dot_count(lattice_spec_->ncols, lattice_spec_->nrows, lattice_spec_->col_step,
+                     lattice_spec_->row_step);
+}
+
 void GridEditMode::rebuild_lattice() {
-    if (!container_ || !shield_)
+    if (!container_ || !shield_ || !lattice_spec_)
         return;
 
     lv_area_t content_area;
@@ -2661,71 +2760,38 @@ void GridEditMode::rebuild_lattice() {
                                   static_cast<size_t>(page_index_) != config_->main_page_index() &&
                                   config_->page_count() > 1;
 
-    // A lattice is a hundred-odd objects, which a slow board takes ~200 ms to
-    // build, and a selection change, a drop or a resize usually asks for the
-    // one already drawn.
+    // A lattice change repaints the whole page, so a selection change, a drop
+    // or a resize that asks for the lattice already drawn leaves it alone.
     const LatticeKey key{shield_,  container_, ncols, nrows,           col_step,
                          row_step, w,          h,     show_delete_page};
-    if (key == lattice_key_ && lv_obj_get_child_count(shield_) > 0) {
+    if (key == lattice_key_) {
         return;
     }
     lattice_key_ = key;
 
-    // Children only: lattice dots and the delete-page button. Neither is
-    // ever the indev's press target, so replacing them mid-gesture is
-    // indev-neutral by LVGL's own rules.
-    {
-        auto freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
-        helix::ui::UpdateQueue::instance().drain();
-        helix::ui::safe_clean_children(shield_);
-    }
-    delete_page_btn_ = nullptr;
-
     if (w <= 0 || h <= 0) {
         spdlog::warn("[GridEditMode] Container content area {}x{}, skipping dots", w, h);
+        *lattice_spec_ = {};
         return;
     }
 
-    constexpr int DOT_SIZE_MAJOR = 4;
-    constexpr int DOT_SIZE_MINOR = 3;
     // Use contrast text color so dots are visible on both light and dark backgrounds
     lv_color_t screen_bg = ThemeManager::instance().current_palette().screen_bg;
-    lv_color_t dot_color = theme_manager_get_contrast_color(screen_bg);
+    lattice_spec_->ncols = ncols;
+    lattice_spec_->nrows = nrows;
+    lattice_spec_->col_step = col_step;
+    lattice_spec_->row_step = row_step;
+    lattice_spec_->metrics = m;
+    lattice_spec_->color = theme_manager_get_contrast_color(screen_bg);
+    lv_obj_invalidate(shield_);
 
-    // c/r run 0..ncols/0..nrows inclusive to draw both edges of the lattice.
-    // grid_track_origin() only knows track starts (0..n-1); the final boundary
-    // is the right/bottom edge of the last track, not a further track start
-    // (which would land one gutter past the content edge).
-    auto track_x = [&](int c) {
-        return static_cast<int>(
-            c < ncols ? grid_track_origin(m.cell_w, m.gutter, c)
-                      : grid_track_origin(m.cell_w, m.gutter, std::max(ncols - 1, 0)) + m.cell_w);
-    };
-    auto track_y = [&](int r) {
-        return static_cast<int>(
-            r < nrows ? grid_track_origin(m.cell_h, m.gutter, r)
-                      : grid_track_origin(m.cell_h, m.gutter, std::max(nrows - 1, 0)) + m.cell_h);
-    };
-
-    // Whole-cell intersections are always legal drop targets; the half-cell
-    // intersections between them are legal only for a widget selected on an
-    // axis it supports, so they are drawn smaller and fainter to read as a
-    // finer, secondary lattice rather than a change to the base grid.
-    for (int r = 0; r <= nrows; r += row_step) {
-        for (int c = 0; c <= ncols; c += col_step) {
-            const bool major = (c % cell == 0) && (r % cell == 0);
-            const int size = major ? DOT_SIZE_MAJOR : DOT_SIZE_MINOR;
-
-            lv_obj_t* dot = lv_obj_create(shield_);
-            lv_obj_set_size(dot, size, size);
-            lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-            lv_obj_set_style_bg_color(dot, dot_color, 0);
-            lv_obj_set_style_bg_opa(dot, major ? LV_OPA_30 : LV_OPA_10, 0);
-            lv_obj_set_style_border_width(dot, 0, 0);
-            lv_obj_remove_flag(dot, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_pos(dot, track_x(c) - size / 2, track_y(r) - size / 2);
-        }
+    // The delete-page button is the shield's only child. Never the indev's
+    // press target, so replacing it mid-gesture is indev-neutral by LVGL's own
+    // rules.
+    if (delete_page_btn_) {
+        auto freeze = helix::ui::UpdateQueue::instance().scoped_freeze();
+        helix::ui::UpdateQueue::instance().drain();
+        helix::ui::safe_delete_deferred(delete_page_btn_);
     }
 
     // Create "Delete Page" button — hidden for the main page, shown for secondary pages

@@ -221,6 +221,8 @@ TEST_CASE_METHOD(XMLTestFixture,
 
 TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: a drop that moves nothing repaints the widget only",
                  "[grid_edit][grid_edit_redraw]") {
+    // Snapping like no selection, so selecting it keeps the drawn lattice.
+    ScopedWholeCellDef whole_cell("temperature");
     GridEditScene scene(test_screen(), "test_grid_edit_redraw_noop_drop");
     GridEditMode em;
     em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
@@ -271,18 +273,34 @@ TEST_CASE_METHOD(XMLTestFixture,
     GridEditScene scene(test_screen(), "test_grid_edit_redraw_lattice");
     GridEditMode em;
     em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    REQUIRE(GridEditModeTestAccess::drawn_dot_count(em) > 0);
+    flush_invalidation();
+
+    // The widget snaps to whole cells, as the lattice drawn for no selection
+    // does. A lattice change repaints the whole page; selecting the widget
+    // repaints its outline only.
+    em.select_widget(scene.widget);
+    const int32_t page_px = lv_area_get_size(&scene.container->coords);
+    const int32_t repainted = invalidated_px();
+    INFO("repainted " << repainted << " of the page's " << page_px << " px");
+    CHECK(repainted < page_px / 2);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: the lattice is drawn, not built from objects",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_lattice_objects");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
     lv_obj_t* shield = GridEditModeTestAccess::shield(em);
     REQUIRE(shield != nullptr);
-    REQUIRE(lv_obj_get_child_count(shield) > 0);
-    lv_obj_t* first_dot = lv_obj_get_child(shield, 0);
-
-    // The widget snaps to whole cells, as the lattice drawn for no
-    // selection. Selecting it, and dropping the selection again, asks for the
-    // same lattice: a slow board spends ~200 ms rebuilding one.
-    em.select_widget(scene.widget);
-    CHECK(lv_obj_get_child(shield, 0) == first_dot);
-    em.select_widget(nullptr);
-    CHECK(lv_obj_get_child(shield, 0) == first_dot);
+    // A fine lattice is a hundred-odd dots, which a slow board takes ~200 ms
+    // to create as objects; the shield draws them instead.
+    REQUIRE(GridEditModeTestAccess::drawn_dot_count(em) > 1);
+    CHECK(lv_obj_get_child_count(shield) <= 1); // at most the delete-page button
 
     em.exit();
     process_lvgl(50);

@@ -22,11 +22,15 @@ struct GridEditModeTestAccess {
         return em.snap_preview_row_;
     }
 
-    /// The event shield, whose children are the lattice: a test can confirm the
-    /// shield object survives a selection change or a page switch, and that its
-    /// child count matches the lattice the current selection should draw.
+    /// The event shield, which draws the lattice: a test can confirm the shield
+    /// object survives a selection change or a page switch.
     static lv_obj_t* shield(const GridEditMode& em) {
         return em.shield_;
+    }
+
+    /// Dots in the lattice the shield draws for the current selection.
+    static int drawn_dot_count(const GridEditMode& em) {
+        return em.drawn_dot_count();
     }
 
     /// The pixel-tracking resize outline a live resize drag creates, by its
