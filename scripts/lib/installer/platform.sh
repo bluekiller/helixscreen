@@ -1773,7 +1773,7 @@ remove_config_symlink() {
 
     # Leave printer_data/config/helixscreen/ directory intact — user's config files
     if [ -d "$pd_helix" ]; then
-        log_info "User config preserved at: $pd_helix"
+        log_note "User config preserved at: $(display_path "$pd_helix")"
     fi
 
     return 0

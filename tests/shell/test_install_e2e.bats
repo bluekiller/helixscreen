@@ -307,11 +307,16 @@ snap_resolve() {
 }
 
 @test "install.sh e2e: uninstall removes the payload, the units and the updater entry" {
-    # The preserved-config line is a log_info, shown only when verbose.
-    export HELIX_INSTALL_VERBOSE=1
     run_scenario install uninstall
-    local s
+    local s out
     s=$(snap 2-uninstall)
+    out=$(step_output 2 "$output")
+
+    # At default verbosity: one header, what went, what stayed, and a close.
+    [ "$(grep -c '^HelixScreen uninstaller$' <<< "$out")" -eq 1 ] \
+        || fail "no single uninstaller header: $out"
+    contains "    Removed ~/helixscreen" "$out"
+    contains "HelixScreen uninstalled." "$out"
 
     [ ! -e "$s$INST" ] || fail "payload left behind at $INST"
     [ ! -e "$s$UNIT" ] || fail "systemd unit left behind"
@@ -320,7 +325,7 @@ snap_resolve() {
     ! grep -q "update_manager helixscreen" "$s/root/printer_data/config/moonraker.conf" \
         || fail "updater entry left in moonraker.conf"
     # The user's config is kept on purpose, where the uninstall says it is.
-    contains "User config preserved at: $USER_CFG" "$output"
+    contains "    User config preserved at: ~/printer_data/config/helixscreen" "$out"
 }
 
 @test "install.sh e2e (bare host): an update carries the payload's own config and env across" {

@@ -682,6 +682,8 @@ uninstall_mod_payload() {
 uninstall() {
     local platform=${1:-}
 
+    # The run's one header; log_note lines below say what went and what stayed.
+    printf '%b\n' "${BOLD}HelixScreen uninstaller${NC}" >&2
     log_info "Uninstalling HelixScreen..."
 
     # Drop sentinel BEFORE any destructive work.  helixscreen-update.service
@@ -833,7 +835,7 @@ uninstall() {
                 continue
             fi
             $SUDO rm -rf "$install_dir"
-            log_success "Removed ${install_dir}"
+            log_note "Removed $(display_path "$install_dir")"
             removed_dir="$install_dir"
             # Also remove the updater repo clone if present
             if [ -d "${install_dir}-repo" ]; then
@@ -907,16 +909,16 @@ uninstall() {
         fi
     fi
 
-    log_success "HelixScreen uninstalled"
     if [ -n "$restored_xorg" ]; then
-        log_info "Re-enabled: $restored_xorg"
+        log_note "Re-enabled $restored_xorg"
     fi
     if [ -n "$restored_ui" ]; then
-        log_info "Re-enabled: $restored_ui"
-        log_info "Reboot to start the previous UI"
+        log_note "Re-enabled $restored_ui; reboot to start it"
     elif [ -z "$restore_warned" ]; then
         log_info "Note: No previous UI found to restore"
     fi
+    _log_write "OK HelixScreen uninstalled"
+    printf '\n%s\n' "HelixScreen uninstalled." >&2
     if [ -n "$restore_warned" ]; then
         log_warn "Previous UI restore incomplete: $restore_warned"
     fi
