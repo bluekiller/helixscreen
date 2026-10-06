@@ -5,6 +5,7 @@
 
 #include "../../include/temp_graph_controller.h"
 #include "../../include/ui_temp_graph.h"
+#include "../test_helpers/temp_graph_controller_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "lvgl/lvgl.h"
@@ -532,6 +533,65 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
 
     // Then: the live sample reaches the chart instead of being dropped
     REQUIRE(count_series_points_eq(controller->graph(), 2295) > 0);
+}
+
+// Discovery re-runs on every klippy ready (FIRMWARE_RESTART keeps the WebSocket
+// up), and init_extruders() recreates every per-extruder subject even when the
+// names are unchanged. A series bound before that must follow the new subject.
+TEST_CASE_METHOD(TempGraphControllerFixture,
+                 "Extruder series rebinds when discovery recreates its subjects",
+                 "[controller][temp_graph_controller][klippy_restart]") {
+    auto& ps = get_printer_state();
+    auto& queue = helix::ui::UpdateQueue::instance();
+    auto& temps = ps.temperature_state();
+
+    temps.init_extruders({"extruder"});
+    lv_subject_set_int(temps.get_bed_temp_subject(), 0);
+    queue.drain();
+
+    TempGraphControllerConfig cfg;
+    cfg.series = {
+        {"extruder", lv_color_hex(0xFF4444), true},
+        {"heater_bed", lv_color_hex(0x88C0D0), true},
+    };
+    auto controller = std::make_unique<TempGraphController>(screen, cfg);
+    REQUIRE(controller->is_valid());
+
+    constexpr int64_t slot = UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
+    int64_t now = 1'000'000 * slot;
+    TempGraphControllerTestAccess::set_clock(*controller, [&now] { return now; });
+    queue.drain();
+
+    // Nozzle is the first series: read its newest sample and ring position.
+    auto* g = controller->graph();
+    auto* nozzle = g->series_meta[controller->series_id_for("extruder")].chart_series;
+    auto newest = [&] {
+        const uint32_t pc = lv_chart_get_point_count(g->chart);
+        const uint32_t sp = lv_chart_get_x_start_point(g->chart, nozzle);
+        return lv_chart_get_y_array(g->chart, nozzle)[(sp + pc - 1) % pc];
+    };
+
+    lv_subject_set_int(temps.get_extruder_temp_subject("extruder"), 520);
+    queue.drain();
+    REQUIRE(newest() == 520);
+
+    // Klipper restarts: same extruder names, fresh subjects.
+    temps.init_extruders({"extruder"});
+    queue.drain();
+    queue.drain();
+
+    // A bed reading on a new slot must not re-plot the pre-restart nozzle value.
+    const uint32_t nozzle_start = lv_chart_get_x_start_point(g->chart, nozzle);
+    now += slot;
+    lv_subject_set_int(temps.get_bed_temp_subject(), 600);
+    queue.drain();
+    CHECK(lv_chart_get_x_start_point(g->chart, nozzle) == nozzle_start);
+
+    // The nozzle heats: the graph follows the recreated subject.
+    now += slot;
+    lv_subject_set_int(temps.get_extruder_temp_subject("extruder"), 1000);
+    queue.drain();
+    REQUIRE(newest() == 1000);
 }
 
 // Bed and chamber series observe PrinterState's static subjects. When those die
