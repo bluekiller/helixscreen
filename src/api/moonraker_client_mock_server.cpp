@@ -267,13 +267,64 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         [](MoonrakerClientMock* self, const json& /*params*/,
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> /*error_cb*/) -> bool {
+        const int active = self->spoolman_mock().get_mock_active_spool_id();
         json response = {{"jsonrpc", "2.0"},
                          {"result",
                           {{"spoolman_connected", self->is_mock_spoolman_enabled()},
                            {"pending_reports", json::array()},
-                           {"spool_id", nullptr}}}};
+                           {"spool_id", active > 0 ? json(active) : json(nullptr)}}}};
         if (success_cb) {
             success_cb(response);
+        }
+        return true;
+    };
+
+    // server.spoolman.post_spool_id - set the active spool.
+    registry["server.spoolman.post_spool_id"] =
+        [](MoonrakerClientMock* self, const json& params,
+           std::function<void(const json&)> success_cb,
+           std::function<void(const MoonrakerError&)> error_cb) -> bool {
+        if (!self->is_mock_spoolman_enabled()) {
+            if (error_cb) {
+                error_cb(MoonrakerError::json_rpc_error("server.spoolman.post_spool_id",
+                                                        "Spoolman component not available"));
+            }
+            return true;
+        }
+        const int id = params.contains("spool_id") && params["spool_id"].is_number_integer()
+                           ? params["spool_id"].get<int>()
+                           : 0;
+        self->spoolman_mock().set_active_spool_id(id);
+        if (success_cb) {
+            success_cb(json{{"jsonrpc", "2.0"},
+                            {"result", {{"spool_id", id > 0 ? json(id) : json(nullptr)}}}});
+        }
+        return true;
+    };
+
+    // server.spoolman.proxy - Spoolman's REST API, answered by the mock
+    // Spoolman server with the JSON Spoolman returns.
+    registry["server.spoolman.proxy"] =
+        [](MoonrakerClientMock* self, const json& params,
+           std::function<void(const json&)> success_cb,
+           std::function<void(const MoonrakerError&)> error_cb) -> bool {
+        if (!self->is_mock_spoolman_enabled()) {
+            if (error_cb) {
+                error_cb(MoonrakerError::json_rpc_error("server.spoolman.proxy",
+                                                        "Spoolman component not available"));
+            }
+            return true;
+        }
+        json result;
+        MoonrakerError err;
+        if (!self->spoolman_mock().proxy(params, result, err)) {
+            if (error_cb) {
+                error_cb(err);
+            }
+            return true;
+        }
+        if (success_cb) {
+            success_cb(json{{"jsonrpc", "2.0"}, {"result", std::move(result)}});
         }
         return true;
     };

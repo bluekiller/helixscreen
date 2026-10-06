@@ -177,10 +177,6 @@ TEST_CASE("SpoolInfo - default initialization", "[filament]") {
         REQUIRE(spool.filament_name.empty());
         REQUIRE(spool.color_hex.empty());
     }
-
-    SECTION("is_active defaults to false") {
-        REQUIRE(spool.is_active == false);
-    }
 }
 
 // ============================================================================
@@ -314,7 +310,7 @@ TEST_CASE("MoonrakerAPIMock - get_spoolman_status", "[filament][mock]") {
     }
 
     SECTION("Can be disabled") {
-        api.spoolman_mock().set_mock_spoolman_enabled(false);
+        client.set_mock_spoolman_enabled(false);
 
         bool callback_called = false;
         api.spoolman().get_spoolman_status(
@@ -346,15 +342,18 @@ TEST_CASE("MoonrakerAPIMock - get_spoolman_spools", "[filament][mock]") {
         REQUIRE(callback_called);
     }
 
-    SECTION("Exactly one spool is active by default") {
+    SECTION("One listed spool is active by default") {
+        int active = 0;
+        api.spoolman().get_spoolman_status([&](bool, int id) { active = id; }, nullptr);
+        bool listed = false;
         api.spoolman().get_spoolman_spools(
             [&](const std::vector<SpoolInfo>& spools) {
-                REQUIRE(spools.size() > 0);
-                const int active_count = std::count_if(
-                    spools.begin(), spools.end(), [](const SpoolInfo& s) { return s.is_active; });
-                REQUIRE(active_count == 1);
+                listed = std::any_of(spools.begin(), spools.end(),
+                                     [active](const SpoolInfo& s) { return s.id == active; });
             },
             [](const MoonrakerError&) {});
+        REQUIRE(active > 0);
+        REQUIRE(listed);
     }
 
     SECTION("Spools have valid data") {
@@ -404,24 +403,6 @@ TEST_CASE("MoonrakerAPIMock - set_active_spool", "[filament][mock]") {
         // Verify the change via get_spoolman_status
         api.spoolman().get_spoolman_status(
             [](bool /*connected*/, int active_spool_id) { REQUIRE(active_spool_id == 5); },
-            [](const MoonrakerError&) {});
-    }
-
-    SECTION("Updates is_active flag on spools") {
-        // Set spool 3 as active
-        api.spoolman().set_active_spool(3, []() {}, [](const MoonrakerError&) {});
-
-        // Verify spool 3 has is_active=true, others false
-        api.spoolman().get_spoolman_spools(
-            [](const std::vector<SpoolInfo>& spools) {
-                for (const auto& spool : spools) {
-                    if (spool.id == 3) {
-                        REQUIRE(spool.is_active == true);
-                    } else {
-                        REQUIRE(spool.is_active == false);
-                    }
-                }
-            },
             [](const MoonrakerError&) {});
     }
 
@@ -623,12 +604,13 @@ TEST_CASE("MoonrakerAPIMock - delete_spoolman_spool", "[filament][mock]") {
             [](const MoonrakerError&) {});
     }
 
-    SECTION("Deleting non-existent spool still succeeds") {
-        bool callback_called = false;
+    SECTION("Deleting a non-existent spool answers Spoolman's 404") {
+        int error_code = 0;
         api.spoolman().delete_spoolman_spool(
-            9999, [&]() { callback_called = true; }, [](const MoonrakerError&) {});
+            9999, []() { FAIL("success should not be called"); },
+            [&](const MoonrakerError& err) { error_code = err.code; });
 
-        REQUIRE(callback_called);
+        REQUIRE(error_code == 404);
     }
 }
 
@@ -682,7 +664,7 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
     MoonrakerClientMock client;
     PrinterState state;
     MoonrakerAPIMock api(client, state);
-    api.spoolman_mock().set_mock_spoolman_enabled(false);
+    client.set_mock_spoolman_enabled(false);
 
     SECTION("get_spoolman_spool errors, no spool delivered") {
         bool error_called = false;
@@ -741,7 +723,7 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
     }
 
     SECTION("set_active_spool errors, no active change") {
-        const int before = api.spoolman_mock().get_mock_active_spool_id();
+        const int before = client.spoolman_mock().get_mock_active_spool_id();
         bool error_called = false;
         bool success_called = false;
         api.spoolman().set_active_spool(
@@ -752,7 +734,7 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
-        CHECK(api.spoolman_mock().get_mock_active_spool_id() == before);
+        CHECK(client.spoolman_mock().get_mock_active_spool_id() == before);
     }
 
     SECTION("update_spoolman_spool_weight errors, no write applied") {
@@ -833,7 +815,7 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
-        CHECK(api.spoolman_mock().created_vendors.empty());
+        CHECK(client.spoolman_mock().created_vendors.empty());
     }
 
     SECTION("create_spoolman_filament errors, no filament created") {
@@ -849,7 +831,7 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
-        CHECK(api.spoolman_mock().created_filaments.empty());
+        CHECK(client.spoolman_mock().created_filaments.empty());
     }
 
     SECTION("create_spoolman_spool errors, no spool created") {
@@ -865,7 +847,7 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
-        CHECK(api.spoolman_mock().created_spools.empty());
+        CHECK(client.spoolman_mock().created_spools.empty());
     }
 
     SECTION("delete_spoolman_spool errors, no delete applied") {
@@ -1559,7 +1541,7 @@ TEST_CASE("Mock update_spoolman_spool supports filament_id patch", "[spoolman][m
     MoonrakerClientMock client;
     MoonrakerAPIMock api(client, state);
 
-    auto& spools = api.spoolman_mock().get_mock_spools();
+    auto& spools = client.spoolman_mock().get_mock_spools();
     int spool_id = spools[0].id;
     int original_filament_id = spools[0].filament_id;
 
@@ -1833,7 +1815,7 @@ TEST_CASE("SpoolInfo vendor_id populated from mock spool", "[filament][spoolman]
     MoonrakerAPIMock api(client, state);
 
     // Use unique ID to avoid collision with other tests' mock data
-    auto& spools = api.spoolman_mock().get_mock_spools();
+    auto& spools = client.spoolman_mock().get_mock_spools();
     SpoolInfo test_spool;
     test_spool.id = 99901;
     test_spool.filament_id = 99910;

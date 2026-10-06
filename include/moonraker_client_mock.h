@@ -5,6 +5,7 @@
 
 #include "axis.h"
 #include "moonraker_client.h"
+#include "moonraker_client_mock_spoolman.h"
 #include "moonraker_types.h"
 
 #include <array>
@@ -947,6 +948,11 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
         return mock_spoolman_enabled_;
     }
 
+    /// The Spoolman server behind server.spoolman.*, for tests to seed and inspect
+    MockSpoolmanServer& spoolman_mock() {
+        return spoolman_;
+    }
+
     /// The webcams server.webcams.list answers with (HELIX_MOCK_WEBCAMS)
     [[nodiscard]] const std::vector<WebcamInfo>& mock_webcams() const {
         return mock_webcams_;
@@ -1821,6 +1827,7 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     mutable std::mutex fault_mutex_;
 
     json mock_db_ = json::object();
+    MockSpoolmanServer spoolman_;
 
     // One-shot forced error injection for printer.gcode.script (test helper).
     struct ForcedGcodeError {
