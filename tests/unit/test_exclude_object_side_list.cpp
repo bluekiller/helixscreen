@@ -112,7 +112,7 @@ TEST_CASE_METHOD(SideListFixture,
     objects().set_current_object("obj_5");
     settle();
 
-    CHECK(rows_of(container) == before);
+    REQUIRE(rows_of(container) == before);
     CHECK(lv_obj_get_scroll_y(container) == 60);
     CHECK(shows_text(before[5], "Printing now"));
     CHECK_FALSE(shows_text(before[0], "Printing now"));
@@ -129,7 +129,7 @@ TEST_CASE_METHOD(SideListFixture, "Side list restyles an excluded row in place",
     objects().set_excluded_objects({"obj_3"});
     settle();
 
-    CHECK(rows_of(container) == before);
+    REQUIRE(rows_of(container) == before);
     CHECK_FALSE(lv_obj_has_flag(before[3], LV_OBJ_FLAG_CLICKABLE));
     CHECK(lv_obj_get_style_opa(before[3], LV_PART_MAIN) == 150);
     CHECK(shows_text(before[3], "Excluded"));
