@@ -3630,7 +3630,10 @@ void PrintSelectPanel::on_usb_drive_removed() {
 
 #if defined(HELIX_PLATFORM_ESP32)
 // No disk thumbnail cache on this platform, so the PNG bytes come straight off
-// the HTTP lane into a PSRAM-backed lv_image_dsc_t (see esp_psram_thumbnail.h).
+// the HTTP lane and are decoded once at the card's size into a PSRAM-backed
+// lv_image_dsc_t (see esp_psram_thumbnail.h), the size a prescaled .bin has
+// elsewhere. A decode that fails leaves the placeholder; nothing retries it
+// until the file's metadata is fetched again (a reopened panel).
 // The lane calls back on its own worker thread: the callbacks only build the
 // image there and defer every member touch to the main thread.
 bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
@@ -3641,13 +3644,19 @@ bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& file
     auto refused = std::make_shared<std::atomic<bool>>(false);
     auto tok = object_lifetime_.token();
     spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", get_name(), filename, thumb_path);
+    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
 
     api_->transfers().download_file_partial(
         "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-        [this, tok, index, filename](const std::string& png_bytes) {
-            auto thumb = helix::ui::EspPsramThumbnail::create(png_bytes);
+        [this, tok, index, filename, target](const std::string& png_bytes) {
+            helix::ThumbnailDecodeFailure failure{};
+            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(png_bytes, target.width,
+                                                                     target.height, failure);
             if (!thumb) {
-                spdlog::warn("[PrintSelectPanel] PSRAM alloc failed for thumbnail: {}", filename);
+                spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
+                             failure == helix::ThumbnailDecodeFailure::OutOfMemory
+                                 ? "out of memory"
+                                 : "corrupt or too large");
             }
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
                       [this, index, filename, thumb = std::move(thumb)]() mutable {

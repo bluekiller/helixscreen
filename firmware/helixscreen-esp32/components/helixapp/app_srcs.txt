@@ -117,6 +117,7 @@ src/print/print_start_analyzer.cpp
 src/print/print_start_navigation.cpp
 src/print/thumbnail_cache.cpp
 src/print/thumbnail_downscale.cpp
+src/print/thumbnail_target.cpp
 src/printer/active_material_provider.cpp
 src/printer/afc_config_manager.cpp
 src/printer/afc_defaults.cpp
