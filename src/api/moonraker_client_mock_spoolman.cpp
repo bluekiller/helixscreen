@@ -8,8 +8,10 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <optional>
+#include <tuple>
 
 namespace {
 
@@ -38,6 +40,15 @@ json vendor_json(const VendorInfo& v) {
     return j;
 }
 
+/// Spoolman keeps one temperature per filament. A range held in the mock's
+/// records is served as its midpoint.
+json one_temp(int a, int b) {
+    if (a > 0 && b > 0) {
+        return (a + b) / 2;
+    }
+    return or_null(std::max(a, b));
+}
+
 json filament_json(const FilamentInfo& f) {
     json j = {{"id", f.id},
               {"registered", "2025-01-01T00:00:00Z"},
@@ -48,21 +59,15 @@ json filament_json(const FilamentInfo& f) {
               {"weight", or_null(static_cast<double>(f.weight))},
               {"spool_weight", or_null(static_cast<double>(f.spool_weight))},
               {"color_hex", or_null(f.color_hex)},
-              {"settings_extruder_temp", nullptr},
-              {"settings_bed_temp", nullptr},
+              {"settings_extruder_temp", one_temp(f.nozzle_temp_min, f.nozzle_temp_max)},
+              {"settings_bed_temp", one_temp(f.bed_temp_min, f.bed_temp_max)},
+              {"multi_color_hexes", nullptr},
+              {"external_id", nullptr},
               {"extra", json::object()}};
     if (f.vendor_id > 0 || !f.vendor_name.empty()) {
         j["vendor"] = vendor_json(VendorInfo{f.vendor_id, f.vendor_name, ""});
-        j["vendor_id"] = f.vendor_id;
-    }
-    // Not Spoolman fields; parse_filament_info reads them when present.
-    if (f.nozzle_temp_min > 0) {
-        j["settings_extruder_temp_min"] = f.nozzle_temp_min;
-        j["settings_extruder_temp_max"] = f.nozzle_temp_max;
-    }
-    if (f.bed_temp_min > 0) {
-        j["settings_bed_temp_min"] = f.bed_temp_min;
-        j["settings_bed_temp_max"] = f.bed_temp_max;
+    } else {
+        j["vendor"] = nullptr;
     }
     return j;
 }
@@ -71,6 +76,25 @@ MoonrakerError spoolman_error(int code, const std::string& message) {
     MoonrakerError err = MoonrakerError::json_rpc_error("server.spoolman.proxy", message);
     err.code = code;
     return err;
+}
+
+/// Spoolman's request models type settings_extruder_temp and settings_bed_temp
+/// as an optional integer and answer anything else with 422.
+bool temps_valid(const json& body, MoonrakerError& err) {
+    for (const char* key : {"settings_extruder_temp", "settings_bed_temp"}) {
+        if (!body.contains(key)) {
+            continue;
+        }
+        const json& v = body[key];
+        const bool integral =
+            v.is_number_integer() ||
+            (v.is_number_float() && v.get<double>() == std::floor(v.get<double>()));
+        if (!v.is_null() && !integral) {
+            err = spoolman_error(422, std::string(key) + ": Input should be a valid integer");
+            return false;
+        }
+    }
+    return true;
 }
 
 /// "/v1/spool/12" with prefix "/v1/spool/" -> 12; nullopt when not that shape.
@@ -185,10 +209,8 @@ std::vector<FilamentInfo> MockSpoolmanServer::filament_list() const {
             f.color_hex = spool.color_hex;
             f.diameter = 1.75f;
             f.weight = static_cast<float>(spool.initial_weight_g);
-            f.nozzle_temp_min = spool.nozzle_temp_min;
-            f.nozzle_temp_max = spool.nozzle_temp_max;
-            f.bed_temp_min = spool.bed_temp_min;
-            f.bed_temp_max = spool.bed_temp_max;
+            f.nozzle_temp_min = f.nozzle_temp_max = spool.nozzle_temp_recommended;
+            f.bed_temp_min = f.bed_temp_max = spool.bed_temp_recommended;
             filaments.push_back(f);
         }
     }
@@ -196,31 +218,28 @@ std::vector<FilamentInfo> MockSpoolmanServer::filament_list() const {
 }
 
 json MockSpoolmanServer::spool_json(const SpoolInfo& s) const {
-    json filament = {{"id", s.filament_id},
-                     {"registered", "2025-01-01T00:00:00Z"},
-                     {"name", or_null(s.filament_name)},
-                     {"material", or_null(s.material)},
-                     {"density", 1.24},
-                     {"diameter", 1.75},
-                     {"weight", or_null(s.initial_weight_g)},
-                     {"spool_weight", or_null(s.spool_weight_g)},
-                     {"color_hex", or_null(s.color_hex)},
-                     {"multi_color_hexes", or_null(s.multi_color_hexes)},
-                     {"settings_extruder_temp", or_null(s.nozzle_temp_recommended)},
-                     {"settings_bed_temp", or_null(s.bed_temp_recommended)},
-                     {"extra", json::object()}};
-    if (!s.vendor.empty() || s.vendor_id > 0) {
-        filament["vendor"] = vendor_json(VendorInfo{s.vendor_id, s.vendor, ""});
-    }
-    // Not Spoolman fields; parse_spool_info reads them when present.
-    if (s.nozzle_temp_min > 0) {
-        filament["settings_extruder_temp_min"] = s.nozzle_temp_min;
-        filament["settings_extruder_temp_max"] = s.nozzle_temp_max;
-    }
-    if (s.bed_temp_min > 0) {
-        filament["settings_bed_temp_min"] = s.bed_temp_min;
-        filament["settings_bed_temp_max"] = s.bed_temp_max;
-    }
+    json filament = {
+        {"id", s.filament_id},
+        {"registered", "2025-01-01T00:00:00Z"},
+        {"name", or_null(s.filament_name)},
+        {"material", or_null(s.material)},
+        {"density", 1.24},
+        {"diameter", 1.75},
+        {"weight", or_null(s.initial_weight_g)},
+        {"spool_weight", or_null(s.spool_weight_g)},
+        {"color_hex", or_null(s.color_hex)},
+        {"multi_color_hexes", or_null(s.multi_color_hexes)},
+        {"settings_extruder_temp", s.nozzle_temp_recommended > 0
+                                       ? json(s.nozzle_temp_recommended)
+                                       : one_temp(s.nozzle_temp_min, s.nozzle_temp_max)},
+        {"settings_bed_temp", s.bed_temp_recommended > 0
+                                  ? json(s.bed_temp_recommended)
+                                  : one_temp(s.bed_temp_min, s.bed_temp_max)},
+        {"external_id", nullptr},
+        {"extra", json::object()}};
+    filament["vendor"] = (!s.vendor.empty() || s.vendor_id > 0)
+                             ? vendor_json(VendorInfo{s.vendor_id, s.vendor, ""})
+                             : json(nullptr);
     const double used = std::max(0.0, s.initial_weight_g - s.remaining_weight_g);
     return {{"id", s.id},
             {"registered", s.registered.empty() ? "2025-01-01T00:00:00Z" : s.registered},
@@ -428,16 +447,21 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             f.color_hex = spool.color_hex;
             f.diameter = 1.75f;
             f.weight = static_cast<float>(spool.initial_weight_g);
-            f.nozzle_temp_min = spool.nozzle_temp_min;
-            f.nozzle_temp_max = spool.nozzle_temp_max;
-            f.bed_temp_min = spool.bed_temp_min;
-            f.bed_temp_max = spool.bed_temp_max;
+            f.nozzle_temp_min = f.nozzle_temp_max = spool.nozzle_temp_recommended;
+            f.bed_temp_min = f.bed_temp_max = spool.bed_temp_recommended;
             result.push_back(filament_json(f));
         }
         return true;
     }
     if (method == "POST" && path == "/v1/filament") {
         created_filaments.push_back(body);
+        if (!body.contains("density") || !body.contains("diameter")) {
+            err = spoolman_error(422, "density and diameter are required");
+            return false;
+        }
+        if (!temps_valid(body, err)) {
+            return false;
+        }
         FilamentInfo filament;
         filament.id = next_created_filament_id > 0 ? next_created_filament_id : next_filament_id_++;
         filament.material = body.value("material", "");
@@ -446,6 +470,14 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         filament.diameter = body.value("diameter", 1.75f);
         filament.weight = body.value("weight", 0.0f);
         filament.spool_weight = body.value("spool_weight", 0.0f);
+        for (const auto& [key, lo, hi] :
+             {std::tuple{"settings_extruder_temp", &filament.nozzle_temp_min,
+                         &filament.nozzle_temp_max},
+              std::tuple{"settings_bed_temp", &filament.bed_temp_min, &filament.bed_temp_max}}) {
+            if (body.contains(key) && body[key].is_number()) {
+                *lo = *hi = static_cast<int>(body[key].get<double>());
+            }
+        }
         if (body.contains("vendor_id") && body["vendor_id"].is_number_integer()) {
             filament.vendor_id = body["vendor_id"].get<int>();
             for (const auto& v : vendors_) {
@@ -462,11 +494,26 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
     if (auto id = id_after(path, "/v1/filament/")) {
         if (method == "PATCH") {
             filament_updates.push_back({*id, body});
+            if (!temps_valid(body, err)) {
+                return false;
+            }
             result = {{"id", *id}};
             for (auto& f : filaments_) {
                 if (f.id == *id) {
                     if (body.contains("color_hex") && body["color_hex"].is_string()) {
                         f.color_hex = body["color_hex"].get<std::string>();
+                    }
+                    if (body.contains("settings_extruder_temp")) {
+                        f.nozzle_temp_min = f.nozzle_temp_max =
+                            body["settings_extruder_temp"].is_null()
+                                ? 0
+                                : static_cast<int>(body["settings_extruder_temp"].get<double>());
+                    }
+                    if (body.contains("settings_bed_temp")) {
+                        f.bed_temp_min = f.bed_temp_max =
+                            body["settings_bed_temp"].is_null()
+                                ? 0
+                                : static_cast<int>(body["settings_bed_temp"].get<double>());
                     }
                     result = filament_json(f);
                 }
