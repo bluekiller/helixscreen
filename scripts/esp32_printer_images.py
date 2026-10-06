@@ -9,9 +9,11 @@ to 1.2MB against ~0.7MB free), so the firmware ships ESP32_PRINTERS: the
 machines an add-on panel like the K-Touch drives, which are the DIY and
 Klipper-converted printers without a stock screen, ranked by hardware_profile
 telemetry. A printer not in the set shows generic-corexy, the widget's fallback.
-Renditions are 200px wide: the home widget draws the picture about 175px wide
+Renditions fit a 200x200 box: the home widget's image cell is about 230x210
 on the 800x480 panel, and the firmware decodes the PNG and scales it at draw
 time, so a larger rendition costs flash and decode time and shows nothing more.
+A fixed width would not do: the source art is cropped to its content, so a tall
+printer at a fixed width comes out taller, and bigger, than the cell can show.
 
 Quality is favored over squeeze (headroom is ample post-container): each
 image is palette-quantized to up to 256 colors via Pillow's FASTOCTREE
@@ -40,7 +42,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIR = REPO_ROOT / "assets" / "images" / "printers"
 DEFAULT_OUT = REPO_ROOT / "build" / "esp32_printer_images"
 
-TARGET_WIDTH = 200
+TARGET_BOX = 200
 
 # generic-corexy first: it is the fallback every other printer resolves to.
 ESP32_PRINTERS = (
@@ -65,11 +67,9 @@ def render_one(src: Path, dest: Path) -> tuple[int, int]:
     orig_bytes = src.stat().st_size
 
     im = Image.open(src).convert("RGBA")
-    if im.width != TARGET_WIDTH:
-        target_h = round(im.height * TARGET_WIDTH / im.width)
-        resized = im.resize((TARGET_WIDTH, target_h), Image.LANCZOS)
-    else:
-        resized = im
+    scale = TARGET_BOX / max(im.width, im.height)
+    target = (round(im.width * scale), round(im.height * scale))
+    resized = im.resize(target, Image.LANCZOS) if target != im.size else im
 
     import io
 
@@ -149,7 +149,7 @@ def generate(out_dir: Path = DEFAULT_OUT) -> int:
         total_out += out_bytes
 
     print(f"ESP32 printer image pipeline: {SOURCE_DIR} -> {out_dir}")
-    print(f"  Target width: {TARGET_WIDTH}px, {len(ESP32_PRINTERS)} printers")
+    print(f"  Target box: {TARGET_BOX}x{TARGET_BOX}px, {len(ESP32_PRINTERS)} printers")
     print()
     print(f"  {'file':<38} {'orig':>14} {'packed':>14} {'ratio':>8}")
     for name, orig_bytes, out_bytes in rows:
