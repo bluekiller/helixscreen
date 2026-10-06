@@ -86,6 +86,10 @@ constexpr int RETRY_BACKOFF_MAX_SHIFT = 4;             // 2s * 2^4 = 32s (clampe
 // in range (R constraint: "no unbounded scan-result accumulation").
 constexpr uint16_t MAX_SCAN_RESULTS = 24;
 
+// Disconnects tolerated from an access point steering chose before falling back
+// to joining by signal. One failed association is common and not a verdict.
+constexpr int PINNED_JOIN_ATTEMPTS = 3;
+
 int rssi_to_percent(int8_t rssi) {
     // Common linear mapping: -100dBm floor -> 0%, -50dBm ceiling -> 100%.
     int pct = 2 * (static_cast<int>(rssi) + 100);
@@ -301,6 +305,13 @@ class WifiBackendEsp : public WifiBackend {
             assoc_args.name = "wifi_assoc_to";
             ESP_ERROR_CHECK(esp_timer_create(&assoc_args, &assoc_timeout_timer_));
         }
+        if (!steer_timer_) {
+            esp_timer_create_args_t steer_args = {};
+            steer_args.callback = &WifiBackendEsp::steer_cb;
+            steer_args.arg = this;
+            steer_args.name = "wifi_steer";
+            ESP_ERROR_CHECK(esp_timer_create(&steer_args, &steer_timer_));
+        }
         if (!retry_timer_) {
             esp_timer_create_args_t retry_args = {};
             retry_args.callback = &WifiBackendEsp::retry_cb;
@@ -345,6 +356,9 @@ class WifiBackendEsp : public WifiBackend {
         }
         if (retry_timer_) {
             esp_timer_stop(retry_timer_);
+        }
+        if (steer_timer_) {
+            esp_timer_stop(steer_timer_);
         }
         if (!running_) {
             return;
@@ -489,13 +503,20 @@ class WifiBackendEsp : public WifiBackend {
     // the NEW attempt that follows immediately after.
     std::atomic<bool> own_disconnect_pending_{false};
 
-    // Access point the next association is held to, set when steering away from
-    // a stalling one; guarded by cfg_mutex_. Cleared on any unrequested
-    // disconnect, so the reconnect joins by signal again.
+    // Access point associations are held to after steering away from a
+    // stalling one; guarded by cfg_mutex_. After PINNED_JOIN_ATTEMPTS
+    // unrequested disconnects it is dropped and the station joins by signal.
     std::optional<helix::WifiApSteering::Bssid> pinned_bssid_;
+    int pinned_join_failures_ = 0;
 
+    // Steering runs on the esp_timer task: the websocket task and the system
+    // event loop that report to it have too little stack left for the logging
+    // and the scan.
+    esp_timer_handle_t steer_timer_ = nullptr;
+    std::atomic<int64_t> pending_drop_silence_ms_{-1};
     std::mutex steering_mutex_;
     helix::WifiApSteering steering_;
+    std::optional<std::vector<helix::WifiApSteering::Candidate>> scanned_candidates_;
     // A link-drop asked for a scan; the next completed scan answers it.
     std::atomic<bool> steer_scan_pending_{false};
 
@@ -718,15 +739,18 @@ class WifiBackendEsp : public WifiBackend {
             std::lock_guard<std::mutex> lock(status_mutex_);
             cached_status_.connected = false;
         }
-        bool was_pinned = false;
+        bool unpinned = false;
         {
             std::lock_guard<std::mutex> lock(cfg_mutex_);
-            was_pinned = pinned_bssid_.has_value();
-            pinned_bssid_.reset();
+            if (pinned_bssid_ && ++pinned_join_failures_ >= PINNED_JOIN_ATTEMPTS) {
+                pinned_bssid_.reset();
+                unpinned = true;
+            }
         }
-        if (was_pinned) {
-            spdlog::info(
-                "[WifiBackend] esp32: lost the steered-to access point; rejoining by signal");
+        if (unpinned) {
+            spdlog::info("[WifiBackend] esp32: steered-to access point failed {} times; rejoining "
+                         "by signal",
+                         PINNED_JOIN_ATTEMPTS);
             apply_wifi_config_locked();
         }
 
@@ -783,22 +807,44 @@ class WifiBackendEsp : public WifiBackend {
         dispatch_event("CONNECTED");
     }
 
-    // Websocket task. Counts the drop against the current access point and,
-    // once it has stalled often enough, scans for another one.
+    // Websocket task: hands a stalled drop to steer_cb().
     static void on_link_drop(int64_t silence_ms) {
         WifiBackendEsp* self = s_steering_backend.load();
-        if (!self || silence_ms < helix::WifiApSteering::LINK_STALL_SILENCE_MS) {
+        if (!self || !self->steer_timer_ ||
+            silence_ms < helix::WifiApSteering::LINK_STALL_SILENCE_MS) {
             return;
         }
-        const int64_t now_ms = esp_timer_get_time() / 1000;
+        self->pending_drop_silence_ms_.store(silence_ms);
+        esp_timer_start_once(self->steer_timer_, 1); // already armed: that run takes this drop
+    }
+
+    static void steer_cb(void* arg) {
+        auto* self = static_cast<WifiBackendEsp*>(arg);
+        const int64_t silence_ms = self->pending_drop_silence_ms_.exchange(-1);
+        if (silence_ms >= 0) {
+            self->count_stalled_drop(silence_ms);
+        }
+        std::optional<std::vector<helix::WifiApSteering::Candidate>> candidates;
+        {
+            std::lock_guard<std::mutex> lock(self->steering_mutex_);
+            candidates.swap(self->scanned_candidates_);
+        }
+        if (candidates) {
+            self->steer_to_best_of(*candidates);
+        }
+    }
+
+    // Counts the drop against the current access point and, once it has
+    // stalled often enough, scans for another one.
+    void count_stalled_drop(int64_t silence_ms) {
         bool leave = false;
         int drops = 0;
         std::string bssid;
         {
-            std::lock_guard<std::mutex> lock(self->steering_mutex_);
-            leave = self->steering_.on_link_drop(now_ms, silence_ms);
-            drops = self->steering_.stalled_drops();
-            bssid = helix::format_bssid(self->steering_.current());
+            std::lock_guard<std::mutex> lock(steering_mutex_);
+            leave = steering_.on_link_drop(esp_timer_get_time() / 1000, silence_ms);
+            drops = steering_.stalled_drops();
+            bssid = helix::format_bssid(steering_.current());
         }
         spdlog::info("[WifiBackend] esp32: Moonraker link silent {}ms before the drop via {} "
                      "({}/{} stalled drops)",
@@ -806,7 +852,7 @@ class WifiBackendEsp : public WifiBackend {
         if (!leave) {
             return;
         }
-        self->steer_scan_pending_.store(true);
+        steer_scan_pending_.store(true);
         wifi_scan_config_t scan_cfg = {};
         esp_err_t rc = esp_wifi_scan_start(&scan_cfg, false);
         if (rc == ESP_OK) {
@@ -818,8 +864,8 @@ class WifiBackendEsp : public WifiBackend {
         }
     }
 
-    // System event loop task.
-    void steer_from_scan(const std::vector<wifi_ap_record_t>& records) {
+    // System event loop task: keeps the SSID's access points for steer_cb().
+    void collect_steering_candidates(const std::vector<wifi_ap_record_t>& records) {
         std::string ssid;
         {
             std::lock_guard<std::mutex> lock(cfg_mutex_);
@@ -835,6 +881,14 @@ class WifiBackendEsp : public WifiBackend {
             c.rssi = rec.rssi;
             candidates.push_back(c);
         }
+        {
+            std::lock_guard<std::mutex> lock(steering_mutex_);
+            scanned_candidates_ = std::move(candidates);
+        }
+        esp_timer_start_once(steer_timer_, 1);
+    }
+
+    void steer_to_best_of(const std::vector<helix::WifiApSteering::Candidate>& candidates) {
         std::optional<helix::WifiApSteering::Bssid> pick;
         std::string from;
         {
@@ -843,9 +897,9 @@ class WifiBackendEsp : public WifiBackend {
             pick = steering_.pick_alternative(candidates, esp_timer_get_time() / 1000);
         }
         if (!pick) {
-            spdlog::info("[WifiBackend] esp32: no other usable access point for '{}' among {}; "
-                         "staying on {}",
-                         helix::redact::ssid(ssid), candidates.size(), from);
+            spdlog::info("[WifiBackend] esp32: no other usable access point among {} for this "
+                         "SSID; staying on {}",
+                         candidates.size(), from);
             return;
         }
         int rssi = 0;
@@ -860,6 +914,7 @@ class WifiBackendEsp : public WifiBackend {
         {
             std::lock_guard<std::mutex> lock(cfg_mutex_);
             pinned_bssid_ = *pick;
+            pinned_join_failures_ = 0;
         }
         if (esp_wifi_disconnect() == ESP_OK) {
             own_disconnect_pending_.store(true);
@@ -881,7 +936,7 @@ class WifiBackendEsp : public WifiBackend {
         }
 
         if (steer_scan_pending_.exchange(false)) {
-            steer_from_scan(records);
+            collect_steering_candidates(records);
         }
 
         std::vector<WiFiNetwork> networks;
