@@ -361,6 +361,10 @@ snap_resolve() {
     s=$(snap 3-clean-install)
 
     contains "Removing $INST..." "$output"
+    # One header; what --clean deletes is in the plan, not a banner.
+    lacks "=====" "$output"
+    lacks "CLEAN INSTALL MODE" "$output"
+    contains "  Remove     ~/helixscreen, its settings and config backups" "$output"
     [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.0.1" ]
     ! grep -q "e2e_user_value" "$(snap_resolve "$s" "$INST/config/settings.json")" \
         || fail "--clean kept the old settings.json"

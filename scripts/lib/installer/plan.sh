@@ -91,6 +91,8 @@ confirm_point() { # platform version
     plan_set Printer "$(plan_printer_line "$1")"
     [ -d "${INSTALL_DIR:-}" ] && plan_set Found "HelixScreen at $INSTALL_DIR"
     plan_set "$_cp_label" "$_cp_install${PROBE_SIZE_TEXT:+$(_plan_sep)$PROBE_SIZE_TEXT}"
+    [ "${clean_mode:-false}" = true ] && plan_set Remove \
+        "$(display_path "${INSTALL_DIR:-}"), its settings and config backups, thumbnail caches (--clean)"
     [ -n "$_cp_libs" ] && plan_set Libraries "$_cp_libs (apt)"
     [ -n "${COMPETING_UIS_FOUND:-}" ] && plan_set Disable "$COMPETING_UIS_FOUND"
     [ -n "$_cp_add" ] && plan_set Add "$_cp_add"

@@ -957,17 +957,7 @@ confirm_clean_install() {
 clean_old_installation() {
     local platform=$1
 
-    log_warn "=========================================="
-    log_warn "  CLEAN INSTALL MODE"
-    log_warn "=========================================="
-    log_warn ""
-    log_warn "This will PERMANENTLY DELETE:"
-    log_warn "  - All HelixScreen files in ${INSTALL_DIR}"
-    log_warn "  - Your configuration (settings.json)"
-    log_warn "  - Rolling config backups (/var/lib/helixscreen + .helixscreen under the service user's home)"
-    log_warn "  - Thumbnail cache files"
-    log_warn ""
-
+    # The plan's Remove line lists what this deletes.
     confirm_clean_install
 
     log_info "Cleaning old installation..."
