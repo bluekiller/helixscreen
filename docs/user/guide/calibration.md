@@ -161,6 +161,8 @@ HelixScreen picks the right calibration command for your setup (`PROBE_CALIBRATE
 
 ## Tool Offsets *(Beta)*
 
+> Added in 1.1.
+
 ![Tool Offsets Panel](../../images/user/advanced-tool-offsets.png)
 
 For tool-changer printers that can measure their own tool positions: one tap calibrates every tool's X, Y, and Z offset in a single automated pass, instead of adjusting each tool by hand.
@@ -204,6 +206,8 @@ Tapping **Stop** during a run performs an emergency stop, since the calibration 
 ---
 
 ## Belt Tension *(Beta)*
+
+> Added in 1.1.
 
 For CoreXY printers: compares the tension of the two belt paths by driving each one with the motors and measuring how it responds, so both paths get the same excitation every run instead of relying on a hand-plucked belt.
 
@@ -250,6 +254,8 @@ After adjusting a belt, you do not need to re-run both paths:
 ---
 
 ## Pressure Advance
+
+> Added in 1.1.
 
 Some printers can measure pressure advance themselves instead of printing a tuning tower you judge by eye. On those, a **Pressure Adv.** button appears in the Controls panel's **Calibration & Tools** card, and a **Pressure Advance** row under **Advanced > Calibration**. Today that is the **Snapmaker U1** and the **FlashForge Creator 5 Pro**; on other printers both stay hidden.
 

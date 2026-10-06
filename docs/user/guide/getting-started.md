@@ -98,6 +98,8 @@ The progress indicator (e.g., "Step 3 of 8") only counts the steps that apply to
 
 ### Picking Your Printer Model
 
+> Added in 1.1.
+
 The **Printer Identification** step covers every machine HelixScreen knows in two ways. A search box filters the full list as you type, matching on model name or vendor, or you can tap a vendor tile (Creality, Prusa, Voron, ...) to see just that vendor's machines, with a **Back** button to return to the tiles. If auto-detection already identified your printer, the step opens straight to it inside its vendor's list; where the evidence ties between machines, you start on the tied candidates and the one you pick is saved.
 
 ### Preset Mode vs. Normal Setup
