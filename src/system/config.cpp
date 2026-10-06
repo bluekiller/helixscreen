@@ -20,7 +20,7 @@
 #include "data_root_resolver.h"
 #include "helix_fs.h"
 #include "host_identity.h"
-#include "input_settings_manager.h"
+#include "input_defaults.h"
 #include "json_utils.h"
 #include "printer_detector.h"
 #include "runtime_config.h"
@@ -543,7 +543,7 @@ json get_default_config(const std::string& moonraker_host, bool include_user_pre
                    {"display", get_default_display_config()},
                    {"gcode_viewer", {{"tube_sides", 4}}},
                    {"input",
-                    {{"scroll_throw", InputSettingsManager::DEFAULT_SCROLL_THROW},
+                    {{"scroll_throw", helix::input_defaults::SCROLL_THROW},
                      {"scroll_limit", 10},
                      {"long_press_time", 500},
                      {"touch_device", ""},
@@ -579,6 +579,28 @@ json get_default_config(const std::string& moonraker_host, bool include_user_pre
     }
 
     return config;
+}
+
+/// Whether a document holds only keys the installer seeded: no config_version,
+/// no single /printer, and no printer object under /printers. That is a fresh
+/// install, not a config to migrate - the chain would treat the seeded keys as
+/// old data (v18 flags a just-seeded touch calibration for a recheck).
+static bool is_installer_seed_document(const json& config) {
+    if (helix::json_util::safe_int(config, "config_version", 0) != 0) {
+        return false;
+    }
+    if (config.contains("printer") && config["printer"].is_object()) {
+        return false;
+    }
+    const auto printers = config.find("printers");
+    if (printers != config.end() && printers->is_object()) {
+        for (const auto& [key, value] : printers->items()) {
+            if (value.is_object()) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 using helix::config_backup::find_backup;
@@ -853,6 +875,23 @@ void Config::init(const std::string& config_path) {
             }
         }
 
+        // A document holding only installer-seeded keys starts from the fresh
+        // defaults, with the seeded keys laid over them. Its legacy display keys
+        // move first: once the defaults fill /input/calibration, a calibration
+        // still under /display/ has nowhere to go. Runs after the tarball
+        // detection above, so a rolling backup still replaces such a document.
+        if (is_installer_seed_document(data)) {
+            spdlog::info("[Config] Config holds no printer and no version: starting from "
+                         "defaults under its {} seeded key(s)",
+                         data.size());
+            run_display_migrations(data);
+            json fresh = get_default_config("127.0.0.1", false);
+            fresh.merge_patch(data);
+            fresh["config_version"] = CURRENT_CONFIG_VERSION;
+            data = std::move(fresh);
+            config_modified = true;
+        }
+
         // With exceptions, the migrations run under their own catch-all,
         // separate from the parse recovery above: that one renames
         // settings.json to .corrupt and resets to factory defaults, far too
@@ -952,11 +991,22 @@ void Config::init(const std::string& config_path) {
         config_modified = true;
     }
 
-    // Ensure printers map exists
-    if (!data.contains("printers") || !data["printers"].is_object()) {
-        data["printers"] = {{"default", get_default_printer_config("127.0.0.1")}};
-        data["active_printer_id"] = "default";
-        config_modified = true;
+    // Ensure the printers map holds a printer. A versionless document naming none
+    // still reaches here with a printers object: normalize_versionless_document()
+    // gives it /printers/show_printer_switcher, which is not a printer. A config
+    // from a newer build is exempt: its printers may be in a shape this build
+    // does not read, and it is left as written (see run_versioned_migrations).
+    const bool from_newer_build =
+        helix::json_util::safe_int(data, "config_version", 0) > CURRENT_CONFIG_VERSION;
+    if (!from_newer_build) {
+        if (!data.contains("printers") || !data["printers"].is_object()) {
+            data["printers"] = json::object();
+        }
+        if (get_printer_ids().empty()) {
+            data["printers"]["default"] = get_default_printer_config("127.0.0.1");
+            data["active_printer_id"] = "default";
+            config_modified = true;
+        }
     }
 
     // Load the active printer ID from config (must happen before df() is used),
@@ -1033,7 +1083,7 @@ void Config::init(const std::string& config_path) {
 
     // Ensure input section exists with defaults (scroll settings + touch calibration)
     if (!data.contains("input") || !data["input"].is_object()) {
-        data["input"] = {{"scroll_throw", InputSettingsManager::DEFAULT_SCROLL_THROW},
+        data["input"] = {{"scroll_throw", helix::input_defaults::SCROLL_THROW},
                          {"scroll_limit", 10},
                          {"long_press_time", 500},
                          {"touch_device", ""},
@@ -1052,7 +1102,7 @@ void Config::init(const std::string& config_path) {
 
         // Ensure scroll settings exist
         if (!input.contains("scroll_throw")) {
-            input["scroll_throw"] = InputSettingsManager::DEFAULT_SCROLL_THROW;
+            input["scroll_throw"] = helix::input_defaults::SCROLL_THROW;
             config_modified = true;
         }
         if (!input.contains("scroll_limit")) {

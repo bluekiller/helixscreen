@@ -355,6 +355,72 @@ _settings_with_channel() {
     [ "$(cat "$fetched")" = "https://releases.helixscreen.org/beta/manifest.json" ]
 }
 
+# --- Channel of an explicit --version ---
+#
+# A prerelease pinned on an install with no channel of its own is a beta
+# install; the channel the installer reports and writes into moonraker.conf
+# has to say so.
+
+@test "match_channel_to_version: a prerelease on the default channel resolves to beta" {
+    match_channel_to_version "v1.1.0-beta.4"
+    [ "$R2_CHANNEL" = "beta" ]
+}
+
+@test "match_channel_to_version: a stable version on the default channel stays stable" {
+    match_channel_to_version "v1.0.3"
+    [ "$R2_CHANNEL" = "stable" ]
+}
+
+@test "match_channel_to_version: a prerelease with no settings file still resolves to beta" {
+    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
+    unset MIGRATE_FROM_DIR
+    mkdir -p "$INSTALL_DIR/config"
+    export INSTALL_DIR
+    resolve_update_channel
+
+    match_channel_to_version "v1.1.0-rc.1"
+
+    [ "$R2_CHANNEL" = "beta" ]
+}
+
+@test "match_channel_to_version: a settings.json with no channel key leaves the version to decide" {
+    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
+    unset MIGRATE_FROM_DIR
+    mkdir -p "$INSTALL_DIR/config"
+    printf '{"config_version": 9, "update": {"auto": true}}\n' > "$INSTALL_DIR/config/settings.json"
+    export INSTALL_DIR
+    resolve_update_channel
+
+    match_channel_to_version "v1.1.0-beta.4"
+
+    [ "$R2_CHANNEL" = "beta" ]
+    [ "${_R2_CHANNEL_FROM_VERSION:-}" = "yes" ]
+}
+
+@test "match_channel_to_version: only a channel it switched is marked as version-derived" {
+    match_channel_to_version "v1.0.3"
+    [ -z "${_R2_CHANNEL_FROM_VERSION:-}" ]
+}
+
+@test "match_channel_to_version: a channel the app persisted wins" {
+    _settings_with_channel 0
+    resolve_update_channel
+
+    match_channel_to_version "v1.1.0-beta.4"
+
+    [ "$R2_CHANNEL" = "stable" ]
+}
+
+@test "match_channel_to_version: an env-provided R2_CHANNEL wins" {
+    export R2_CHANNEL="stable"
+    unset _HELIX_RELEASE_SOURCED
+    source "$RELEASE_SH"
+
+    match_channel_to_version "v1.1.0-beta.4"
+
+    [ "$R2_CHANNEL" = "stable" ]
+}
+
 # --- GitHub fallback for the beta/dev channels ---
 
 RELEASES_LIST='[
@@ -422,155 +488,4 @@ RELEASES_LIST='[
     grep -qx "https://api.github.com/repos/prestonbrown/helixscreen/releases" "$fetched"
     # The beta channel must not ask /releases/latest, which skips prereleases.
     refute_grep "releases/latest" "$fetched"
-}
-
-# --- The channel an install records ---
-#
-# The installed version, R2_CHANNEL and any channel already in settings.json
-# resolve to one R2_CHANNEL. The app reads it back from /update/channel and
-# Moonraker's update_manager stanza is written from it, so the two agree.
-
-_with_moonraker_module() {
-    unset _HELIX_COMMON_SOURCED _HELIX_MOONRAKER_SOURCED
-    . scripts/lib/installer/common.sh 2>/dev/null || true
-    . scripts/lib/installer/moonraker.sh
-    export SUDO=""
-}
-
-_stanza_channel() {
-    generate_update_manager_config | awk '/^channel:/ { print $2 }'
-}
-
-@test "fresh install of a prerelease records beta in settings and the stanza" {
-    _with_moonraker_module
-    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
-    unset MIGRATE_FROM_DIR
-    mkdir -p "$INSTALL_DIR/config"
-    export INSTALL_DIR
-
-    resolve_update_channel
-    follow_target_version_channel "v1.1.0-beta.4"
-    record_update_channel
-
-    [ "$R2_CHANNEL" = "beta" ]
-    [ "$(parse_json_int_field channel < "$INSTALL_DIR/config/settings.json")" = "1" ]
-    [ "$(_stanza_channel)" = "beta" ]
-}
-
-@test "fresh install of a stable release stays stable and writes no settings" {
-    _with_moonraker_module
-    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
-    unset MIGRATE_FROM_DIR
-    mkdir -p "$INSTALL_DIR/config"
-    export INSTALL_DIR
-
-    resolve_update_channel
-    follow_target_version_channel "v1.0.3"
-    record_update_channel
-
-    [ "$R2_CHANNEL" = "stable" ]
-    [ ! -e "$INSTALL_DIR/config/settings.json" ]
-    [ "$(_stanza_channel)" = "stable" ]
-}
-
-@test "R2_CHANNEL=beta on a fresh install is recorded in settings" {
-    export R2_CHANNEL="beta"
-    unset _HELIX_RELEASE_SOURCED
-    source "$RELEASE_SH"
-    _with_moonraker_module
-    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
-    unset MIGRATE_FROM_DIR
-    mkdir -p "$INSTALL_DIR/config"
-    export INSTALL_DIR
-
-    resolve_update_channel
-    follow_target_version_channel "v1.1.0-beta.4"
-    record_update_channel
-
-    [ "$(parse_json_int_field channel < "$INSTALL_DIR/config/settings.json")" = "1" ]
-}
-
-@test "installing a prerelease moves a stable-channel install to beta, keeping its other settings" {
-    _with_moonraker_module
-    _settings_with_channel 0
-
-    resolve_update_channel
-    follow_target_version_channel "v1.1.0-beta.4"
-    record_update_channel
-
-    [ "$R2_CHANNEL" = "beta" ]
-    [ "$(parse_json_int_field channel < "$INSTALL_DIR/config/settings.json")" = "1" ]
-    [ "$(parse_json_string_field language < "$INSTALL_DIR/config/settings.json")" = "en" ]
-}
-
-@test "a dev-channel install stays on dev when it installs a prerelease" {
-    _with_moonraker_module
-    _settings_with_channel 2
-    cp "$INSTALL_DIR/config/settings.json" "$BATS_TEST_TMPDIR/before.json"
-
-    resolve_update_channel
-    follow_target_version_channel "v1.1.0-beta.4"
-    record_update_channel
-
-    [ "$R2_CHANNEL" = "dev" ]
-    cmp -s "$BATS_TEST_TMPDIR/before.json" "$INSTALL_DIR/config/settings.json"
-}
-
-@test "a beta-channel install keeps beta when it installs a stable release" {
-    _with_moonraker_module
-    _settings_with_channel 1
-    cp "$INSTALL_DIR/config/settings.json" "$BATS_TEST_TMPDIR/before.json"
-
-    resolve_update_channel
-    follow_target_version_channel "v1.0.3"
-    record_update_channel
-
-    [ "$R2_CHANNEL" = "beta" ]
-    cmp -s "$BATS_TEST_TMPDIR/before.json" "$INSTALL_DIR/config/settings.json"
-    [ "$(_stanza_channel)" = "beta" ]
-}
-
-@test "an explicit R2_CHANNEL=stable is not moved by a prerelease version" {
-    export R2_CHANNEL="stable"
-    unset _HELIX_RELEASE_SOURCED
-    source "$RELEASE_SH"
-
-    follow_target_version_channel "v1.1.0-beta.4"
-
-    [ "$R2_CHANNEL" = "stable" ]
-}
-
-@test "build metadata alone does not make a version a prerelease" {
-    follow_target_version_channel "v1.0.3+sha.abc-def"
-    [ "$R2_CHANNEL" = "stable" ]
-}
-
-@test "record_update_channel writes through the printer_data symlink" {
-    _with_moonraker_module
-    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
-    local pd="$BATS_TEST_TMPDIR/printer_data/config/helixscreen"
-    mkdir -p "$INSTALL_DIR/config" "$pd"
-    printf '{"update":{"channel":0}}\n' > "$pd/settings.json"
-    ln -s "$pd/settings.json" "$INSTALL_DIR/config/settings.json"
-    export INSTALL_DIR
-    R2_CHANNEL=beta
-
-    record_update_channel
-
-    [ -L "$INSTALL_DIR/config/settings.json" ]
-    [ "$(parse_json_int_field channel < "$pd/settings.json")" = "1" ]
-}
-
-@test "record_update_channel leaves unparseable settings alone" {
-    _with_moonraker_module
-    INSTALL_DIR="$BATS_TEST_TMPDIR/install"
-    mkdir -p "$INSTALL_DIR/config"
-    printf '{"update":' > "$INSTALL_DIR/config/settings.json"
-    export INSTALL_DIR
-    R2_CHANNEL=beta
-
-    record_update_channel
-
-    [ "$(cat "$INSTALL_DIR/config/settings.json")" = '{"update":' ]
-    [ -z "$(ls "$INSTALL_DIR/config" | grep channel)" ]
 }

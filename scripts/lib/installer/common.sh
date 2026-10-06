@@ -241,8 +241,6 @@ klipper_config_dir() {
 CLEANUP_TMP=false
 BACKUP_CONFIG=""
 BACKUP_ENV=""
-# shellcheck disable=SC2034  # consumed by release.sh (set true at the swap, read at config restore)
-ORIGINAL_INSTALL_EXISTS=false
 
 # Colors (if terminal supports it)
 setup_colors() {

@@ -730,9 +730,10 @@ main() {
 
     # An update or reinstall must follow the channel the installed app is on:
     # a beta user updating through KIAUH or a re-run of the installer would
-    # otherwise be handed the stable build. With no settings.json to read it
-    # resolves to stable.
-    resolve_update_channel
+    # otherwise be handed the stable build. No-op on a fresh install.
+    if [ "$update_mode" = true ] || [ -d "$INSTALL_DIR" ]; then
+        resolve_update_channel
+    fi
 
     # Get version (skip if using local archive)
     if [ -n "$local_tarball" ]; then
@@ -752,10 +753,14 @@ main() {
     else
         if [ -z "$version" ]; then
             version=$(get_latest_version "$download_platform")
+        else
+            # After resolve_update_channel: a channel read from the installed
+            # config outranks the one a prerelease --version implies. A --local
+            # archive never moves the channel; it picks a build, not a feed.
+            match_channel_to_version "$version"
         fi
     fi
     log_info "Target version: ${BOLD}${version}${NC}"
-    follow_target_version_channel "$version"
 
     # Download/stage the release archive BEFORE any step that modifies the
     # running printer (stock-UI disable, competing-UI shutdown, old-install
@@ -891,10 +896,7 @@ main() {
     else
         seed_from_moonraker_detection || true
     fi
-
-    # After the restore and the seeds, so the channel lands in the document the
-    # app will read, and agrees with the update_manager stanza written above.
-    record_update_channel
+    seed_update_channel
 
     # Configure ALSA "default" when the board has no card 0 (e.g. Pi + HDMI-audio
     # screens like the BTT HDMI5, whose only outputs are vc4hdmi0/vc4hdmi1 at

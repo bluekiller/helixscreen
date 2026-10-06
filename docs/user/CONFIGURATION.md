@@ -522,6 +522,8 @@ The mode can be overridden per launch without touching settings. Precedence is c
 **Description:** Show speed and flow as the live toolhead speed in mm/s and the live volumetric flow in mm³/s instead of percentages, on the Print Status screen and as the leading value in the Print Tune overlay. Tapping the Speed / Flow line on Print Status, or either readout in the Tune overlay, flips it. See [Print Tune Overlay](guide/printing.md#print-tune-overlay).
 
 ### `ui_scale_percent`
+> Added in 1.1.
+
 **Type:** integer
 **Default:** `0` (Automatic)
 **Values:** `0`, or `100`-`200`
@@ -661,6 +663,8 @@ Matches LVGL's native default of 10.
 ---
 
 ## Motion Settings
+
+> Added in 1.1.
 
 Located in the `motion` section. These back the jog pad; set them from the screen at **Settings > Printing > Motion** (or the cog icon in the Motion screen's header) rather than by hand.
 
@@ -847,6 +851,8 @@ Located in the `printer` section:
 **Description:** Whether the printer counts as enclosed, which decides whether drying filament on the heated bed is offered. Auto treats a printer as enclosed when its model is known to ship enclosed or a chamber heater is configured. Set it from **Settings > Printing > Enclosure**.
 
 ### `z_offset.step_index`
+> Added in 1.1.
+
 **Type:** integer
 **Default:** `2`
 **Values:** `0` = 0.05 mm, `1` = 0.025 mm, `2` = 0.01 mm, `3` = 0.005 mm
@@ -1518,6 +1524,8 @@ Located in the `filament` section:
 **Description:** How long to wait, in seconds, after a filament load or unload before automatically turning the extruder heater off. This lets you run several filament operations back-to-back without the nozzle cooling down between them. Default is 120 (2 minutes). Setting this to `0` also disables auto-cooldown, but prefer `auto_cooldown` — it's the one the UI toggle writes.
 
 ### `favorite_ids`
+> Added in 1.1.
+
 **Type:** array of strings
 **Default:** `[]`
 **Description:** The filament types you have starred, in star order. Written whenever you tap a star in a filament selector; each entry is the filament's product id. Edit it only to reorder or clear: a hand-added id that matches nothing simply never shows.
@@ -1999,8 +2007,8 @@ are read from it; any other line is ignored and noted in the log.
 | `HELIX_DISPLAY_ROTATION` | Override display rotation in degrees (`0`, `90`, `180`, `270`) |
 | `HELIX_COLOR_SWAP_RB` | Swap red/blue channels (`1` to enable) — fixes inverted colors on some displays |
 | `HELIX_BACKLIGHT_DEVICE` | Force the backlight control method: `sysfs`, `allwinner`, `brightness` (Creality Sonic Pad), or `none` to disable. Fixes a brightness slider that does nothing |
-| `HELIX_DPI` | Override display DPI / UI scale (`50`–`500`, default `160`) — lower for oversized UI, higher for cramped UI |
-| `HELIX_SCREEN_SIZE` | Force screen resolution (`micro`, `tiny`, `small`, `medium`, `large`, `xlarge`, or `WxH`) — persistent equivalent of `-s`. Despite the name this is a resolution, not a UI scale; use `HELIX_DPI` to scale the interface |
+| `HELIX_DPI` | Override the panel's DPI (`50`-`500`). Above `225` it enlarges the UI (1.1 and later; `500` is about 188%); at or below `225` it changes nothing, and it never shrinks the UI. The [`ui_scale_percent`](#ui_scale_percent) setting overrides it unless set to Automatic |
+| `HELIX_SCREEN_SIZE` | Force screen resolution (`micro`, `tiny`, `small`, `medium`, `large`, `xlarge`, or `WxH`) — persistent equivalent of `-s`. Despite the name this is a resolution, not a UI scale; use [`ui_scale_percent`](#ui_scale_percent) to scale the interface |
 | `HELIX_TOUCH_DEVICE` | Override touch input device (e.g., `/dev/input/event1`) |
 | `HELIX_TOUCH_SWAP_AXES` | Swap X/Y touch axes (`1` to enable) |
 | `HELIX_TOUCH_CALIBRATE` | Force touch calibration on next launch (`1` to enable) |

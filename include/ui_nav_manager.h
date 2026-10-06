@@ -637,6 +637,9 @@ class NavigationManager {
     // inside a queue callback (go_back, close_overlay).
     void go_back_now();
 
+    // Cancel every queued push of @p panel and retire it as if it had closed.
+    void cancel_pending_push(lv_obj_t* panel);
+
     // Animation helpers
     void overlay_animate_slide_in(lv_obj_t* panel);
     void overlay_animate_slide_out(lv_obj_t* panel);
@@ -749,7 +752,14 @@ class NavigationManager {
 
     // Panel stack: tracks ALL visible panels in z-order
     std::vector<lv_obj_t*> panel_stack_;
-    std::vector<lv_obj_t*> pending_pushes_; // push_overlay() targets not yet pushed
+    // push_overlay() targets not yet pushed. A queued push runs only while its
+    // serial is still listed, so removing an entry cancels that push.
+    struct PendingPush {
+        lv_obj_t* panel;
+        uint64_t serial;
+    };
+    std::vector<PendingPush> pending_pushes_;
+    uint64_t next_push_serial_ = 0;
 
     // Overlay close callbacks (called when overlay is popped from stack)
     std::unordered_map<lv_obj_t*, helix::OverlayCloseCallback> overlay_close_callbacks_;
