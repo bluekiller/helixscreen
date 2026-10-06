@@ -224,17 +224,18 @@ TEST_CASE("pcall cannot swallow the time budget", "[plugin][lua_runtime][lua_bud
 
 TEST_CASE("a backtracking string pattern is stopped and faults the plugin",
           "[plugin][lua_runtime][lua_budget]") {
-    // Each call is half a billion match steps inside string.find, a C function the
-    // count hook never interrupts, so unbounded it runs for seconds. The pcall must not
-    // swallow the kill either.
+    // Each call is over a billion match steps inside string.find, a C function the
+    // count hook never interrupts, so unbounded the loop runs for tens of seconds. The
+    // bound leaves room for a loaded machine to take a while over 50 ms of CPU. The
+    // pcall must not swallow the kill either.
     TestRuntime t;
     auto start = std::chrono::steady_clock::now();
     CHECK_FALSE(t.run(R"(
-        for _ = 1, 3 do
-            pcall(string.find, ("a"):rep(1500), "^.-.-.-x")
+        for _ = 1, 4 do
+            pcall(string.find, ("a"):rep(2000), "^.-.-.-x")
         end
     )"));
-    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(1));
+    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(4));
     CHECK(t.rt->faulted());
     CHECK(t.fault.find("time budget") != std::string::npos);
 }
