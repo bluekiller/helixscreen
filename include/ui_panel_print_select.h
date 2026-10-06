@@ -37,6 +37,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
@@ -846,6 +847,27 @@ class PrintSelectPanel : public PanelBase {
 
     /// Compatibility alive flag for ThumbnailLoadContext (which uses shared_ptr<atomic<bool>> API)
     std::shared_ptr<std::atomic<bool>> thumbnail_alive_ = std::make_shared<std::atomic<bool>>(true);
+
+#if defined(HELIX_PLATFORM_ESP32)
+    /// Card thumbnail fetches the HTTP lane refused while its queue was full,
+    /// retried as this panel's own fetches complete.
+    struct PendingEspThumbnail {
+        size_t index;
+        std::string filename;
+        std::string thumb_path;
+    };
+    std::deque<PendingEspThumbnail> esp_thumbnail_backlog_;
+    int esp_thumbnails_in_flight_ = 0;
+
+    /// How a card thumbnail fetch left the lane. Only QueueFull is retried.
+    enum class EspThumbnailFetch { Started, QueueFull, Failed };
+    EspThumbnailFetch fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                          const std::string& thumb_path);
+    /// Queue a refused fetch behind this panel's in-flight ones, or, with none in
+    /// flight, leave the file for the next visible-range metadata pass.
+    void defer_esp_thumbnail(PendingEspThumbnail pending, bool front);
+    void drain_esp_thumbnail_backlog();
+#endif
 
     /// Navigation generation counter: incremented on each directory change.
     /// Metadata callbacks capture the current value and discard results

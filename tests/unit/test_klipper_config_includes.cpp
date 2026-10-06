@@ -376,7 +376,7 @@ struct DeferredDownloads {
     struct Pending {
         std::string path;
         std::function<void(std::string)> ok;
-        std::function<void(std::string)> fail;
+        std::function<void(std::string, bool)> fail;
     };
 
     std::map<std::string, std::string> server;
@@ -386,7 +386,7 @@ struct DeferredDownloads {
 
     ConfigDownloadFn fn() {
         return [this](const std::string& path, std::function<void(std::string)> ok,
-                      std::function<void(std::string)> fail) {
+                      std::function<void(std::string, bool)> fail) {
             requested.push_back(path);
             pending.push_back({path, std::move(ok), std::move(fail)});
             max_outstanding = std::max(max_outstanding, pending.size());
@@ -413,7 +413,7 @@ struct DeferredDownloads {
             if (it->path == path) {
                 Pending p = std::move(*it);
                 pending.erase(it);
-                p.fail("could not be queued");
+                p.fail("connection reset", false);
                 return true;
             }
         }
@@ -539,11 +539,11 @@ TEST_CASE("download_include_graph - a download rejected before it returns report
     download_include_graph(
         listing, "printer.cfg",
         [&server](const std::string& path, std::function<void(std::string)> ok,
-                  std::function<void(std::string)> fail) {
+                  std::function<void(std::string, bool)> fail) {
             if (path == "printer.cfg")
                 ok(server.at(path));
             else
-                fail("HTTP request could not be queued");
+                fail("HTTP request could not be queued", true);
         },
         [&](const std::set<std::string>&, const std::map<std::string, std::string>&) {
             ++completions;
@@ -570,11 +570,11 @@ TEST_CASE("download_include_graph - a full queue is backpressure while downloads
     download_include_graph(
         dl.listing(), "printer.cfg",
         [&](const std::string& path, std::function<void(std::string)> ok,
-            std::function<void(std::string)> fail) {
+            std::function<void(std::string, bool)> fail) {
             if (path == "c.cfg" && rejections_left > 0) {
                 --rejections_left;
                 dl.requested.push_back(path);
-                fail("HTTP request could not be queued");
+                fail("HTTP request could not be queued", true);
                 return;
             }
             deferred(path, std::move(ok), std::move(fail));
@@ -630,4 +630,40 @@ TEST_CASE("download_include_graph - a file included by two parents is fetched on
     REQUIRE(r.completions == 1);
     CHECK(std::count(dl.requested.begin(), dl.requested.end(), "shared.cfg") == 1);
     CHECK(r.active.count("shared.cfg") == 1);
+}
+
+TEST_CASE("download_include_graph - a request refused for anything but a full queue is not retried",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[a]\n"},
+        {"b.cfg", "[b]\n"},
+    };
+    auto deferred = dl.fn();
+    GraphResult r;
+    download_include_graph(
+        dl.listing(), "printer.cfg",
+        [&](const std::string& path, std::function<void(std::string)> ok,
+            std::function<void(std::string, bool)> fail) {
+            if (path == "b.cfg") {
+                dl.requested.push_back(path);
+                fail("invalid path", false); // before returning, with a.cfg in flight
+                return;
+            }
+            deferred(path, std::move(ok), std::move(fail));
+        },
+        [&r](const std::set<std::string>&, const std::map<std::string, std::string>&) {
+            ++r.completions;
+        },
+        [&r](const std::string& err) {
+            ++r.errors;
+            r.error = err;
+        });
+    dl.answer_all();
+
+    CHECK(r.completions == 0);
+    REQUIRE(r.errors == 1);
+    CHECK(r.error.find("b.cfg") != std::string::npos);
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "b.cfg") == 1);
 }
