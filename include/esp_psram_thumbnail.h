@@ -15,17 +15,14 @@
 #include "async_lifetime_guard.h" // for helix::internal::on_main_thread()
 #include "esp_heap_caps.h"
 #include "lvgl.h"
+#include "stb_image.h"
 #include "thumbnail_downscale.h"
+#include "thumbnail_scratch.h"
 
-// The header's C++ overloads sit inside its extern "C" block and do not
-// compile from C++; only the C API is used here.
-#ifndef LODEPNG_NO_COMPILE_CPP
-#define LODEPNG_NO_COMPILE_CPP
-#endif
-#include <lvgl/src/libs/lodepng/lodepng.h>
 #include <lvgl/src/misc/cache/instance/lv_image_cache.h> // lv_image_cache_drop()
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace helix::ui {
@@ -76,52 +73,66 @@ class EspPsramThumbnail {
         }
     }
 
+    /// Reserves the decode scratch (thumbnail_scratch_bytes(), ~0.94MB of PSRAM,
+    /// held for the life of the process). Call once at boot, before PSRAM
+    /// fragments. False when the reservation failed; thumbnails then show the
+    /// placeholder.
+    static bool reserve_scratch() {
+        helix::ScratchArena& arena = scratch();
+        if (arena.capacity() == 0) {
+            const size_t size = helix::thumbnail_scratch_bytes();
+            auto* buf = static_cast<uint8_t*>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+            arena.reset(buf, size);
+        }
+        return arena.capacity() != 0;
+    }
+
     /// Decodes png_bytes once and keeps it as an RGB565A8 image fitted inside
     /// max_w x max_h, so drawing it needs no PNG decoder and no image-cache
-    /// entry. A 300px PNG costs ~720KB only while it decodes here, then 3 bytes
-    /// per kept pixel. Safe on the HTTP lane worker: lodepng allocates through
-    /// lv_malloc (the C library allocator on this build) and touches no widget
-    /// state. Returns nullptr when the PNG cannot be decoded or memory runs out,
-    /// and says which in @p failure.
+    /// entry. The full-size decode happens in the boot-time scratch, one at a
+    /// time; a PNG the scratch cannot hold is refused, never allocated for.
+    /// Only the kept image (3 bytes per pixel) is a new allocation. Touches no
+    /// widget state, so it is safe on the HTTP lane worker. Returns nullptr
+    /// when nothing was produced, and says why in @p failure.
     static std::shared_ptr<EspPsramThumbnail>
     create_decoded(const std::string& png_bytes, int max_w, int max_h,
                    helix::ThumbnailDecodeFailure& failure) {
         failure = helix::ThumbnailDecodeFailure::None;
-        if (png_bytes.empty()) {
+        const auto* png = reinterpret_cast<const uint8_t*>(png_bytes.data());
+        if (!helix::thumbnail_fits_scratch(png, png_bytes.size())) {
+            helix::PngHeader header;
+            failure = helix::read_png_header(png, png_bytes.size(), header)
+                          ? helix::ThumbnailDecodeFailure::TooLarge
+                          : helix::ThumbnailDecodeFailure::BadImage;
+            return nullptr;
+        }
+
+        std::lock_guard<std::mutex> lock(scratch_mutex());
+        helix::ScratchArena& arena = scratch();
+        if (arena.capacity() == 0) {
+            failure = helix::ThumbnailDecodeFailure::OutOfMemory;
+            return nullptr;
+        }
+        helix::ScratchScope scope(arena);
+        int w = 0;
+        int h = 0;
+        int channels = 0;
+        uint8_t* pixels =
+            stbi_load_from_memory(png, static_cast<int>(png_bytes.size()), &w, &h, &channels, 0);
+        if (!pixels) {
             failure = helix::ThumbnailDecodeFailure::BadImage;
             return nullptr;
         }
-        unsigned char* decoded_raw = nullptr;
-        unsigned w = 0;
-        unsigned h = 0;
-        const unsigned err = lodepng_decode32(
-            &decoded_raw, &w, &h, reinterpret_cast<const unsigned char*>(png_bytes.data()),
-            png_bytes.size());
-        // This lodepng port hands back an lv_draw_buf_t, not a bare pixel array.
-        auto* decoded = reinterpret_cast<lv_draw_buf_t*>(decoded_raw);
-        if (err || !decoded) {
-            if (decoded) {
-                lv_draw_buf_destroy(decoded);
-            }
-            failure =
-                err ? helix::classify_lodepng_error(err) : helix::ThumbnailDecodeFailure::BadImage;
-            return nullptr;
-        }
-        const helix::ThumbnailDims dims =
-            helix::fit_thumbnail(static_cast<int>(w), static_cast<int>(h), max_w, max_h);
+        const helix::ThumbnailDims dims = helix::fit_thumbnail(w, h, max_w, max_h);
         const size_t size = helix::rgb565a8_size(dims);
         auto* buf =
             size ? static_cast<uint8_t*>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM)) : nullptr;
-        if (buf) {
-            helix::downscale_rgba_to_rgb565a8(decoded->data, static_cast<int>(w),
-                                              static_cast<int>(h), dims, buf);
-        }
-        lv_draw_buf_destroy(decoded);
         if (!buf) {
             failure = size ? helix::ThumbnailDecodeFailure::OutOfMemory
                            : helix::ThumbnailDecodeFailure::BadImage;
             return nullptr;
         }
+        helix::downscale_to_rgb565a8(pixels, channels, w, h, dims, buf);
         return std::shared_ptr<EspPsramThumbnail>(new EspPsramThumbnail(buf, size, dims));
     }
 
@@ -131,6 +142,15 @@ class EspPsramThumbnail {
     }
 
   private:
+    static helix::ScratchArena& scratch() {
+        static helix::ScratchArena arena;
+        return arena;
+    }
+    static std::mutex& scratch_mutex() {
+        static std::mutex m;
+        return m;
+    }
+
     EspPsramThumbnail(uint8_t* data, size_t size, helix::ThumbnailDims dims) : data_(data) {
         dsc_.header.magic = LV_IMAGE_HEADER_MAGIC;
         dsc_.header.cf = LV_COLOR_FORMAT_RGB565A8;

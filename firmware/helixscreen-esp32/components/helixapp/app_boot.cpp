@@ -64,6 +64,7 @@
 #include "data_root_resolver.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_psram_thumbnail.h"
 #include "esp_timer.h"
 #include "filament_sensor_manager.h"
 #include "freertos/FreeRTOS.h"
@@ -723,6 +724,13 @@ extern "C" void app_boot_print_notifications(void) {
 
 extern "C" void app_boot_ui(void) {
     log_heap_milestone("boot-ui-start");
+
+    // Before anything else allocates from PSRAM: the thumbnail decode scratch
+    // needs one contiguous block, which a fragmented heap cannot give later.
+    if (!helix::ui::EspPsramThumbnail::reserve_scratch()) {
+        ESP_LOGE(TAG, "thumbnail scratch (%u bytes) not reserved; thumbnails will not show",
+                 (unsigned)helix::thumbnail_scratch_bytes());
+    }
 
     // Phase 1: asset root + writable config storage. The packed /assets frogfs
     // container is read-only; settings live on the /config LittleFS partition.
