@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>9329bddf0</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>04c38ebf8</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 120 done, 6 in progress, 10 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 121 done, 5 in progress, 10 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -937,10 +937,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </details>
 </section>
 <section id="sec-d"><h2>D. Framework consolidation</h2><p class="lede">The biggest wins: each one stops a pattern that every new feature copies.</p>
-<details class="f" id="FW-1" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">FW-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">743eed883</code><span class="ftitle">OverlayBase owns show(), default create() and lazy_global&lt;T&gt;() for 70 overlays</span><span class="fimpact">~-2,300 of ~6,300 ceremony lines</span></summary>
+<details class="f" id="FW-1" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">FW-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">04c38ebf8</code><span class="ftitle">OverlayBase owns show(), default create() and lazy_global&lt;T&gt;() for 70 overlays</span><span class="fimpact">~-2,300 of ~6,300 ceremony lines</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) added <code>OverlayBase::show()</code>, the default <code>create()</code> and <code>helix::lazy_global</code>. Three overlay sweeps merged to main (print-misc <code>a1f2c83aa</code>, settings <code>b663be0e8</code>, ams-cal <code>94c107fe5</code>) and the final sweep at <code>743eed883</code> moved the settings panel and plugin overlays onto <code>OverlayBase::show</code>, deleted <code>lazy_create_and_push_overlay</code> and the global-overlay macros, and added the shrink-only gate <code>scripts/check_overlay_boilerplate.py</code>. Remaining: 8 hand-rolled "already exists" guards and 30 <code>static std::unique_ptr</code> accessor slots in <code>src/ui</code>, which the gate holds at those counts until they convert to <code>lazy_global</code>.</p>
+<p class="branch">Shipped in <code>04c38ebf8</code>: 41 hand-rolled slots and guards became <code>lazy_global</code> / <code>lazy_global_with_teardown</code>; the gate baseline is 3 slots / 3 guards, each one a deliberate exception (advanced panel replaces its instance in tests, change-host modal survives <code>destroy_all</code>, print-select, snake game, busy overlay).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/overlay_base.h#OverlayBase</code>, <code>src/ui/overlay_base.cpp#OverlayBase::create_overlay_from_xml</code>, e.g. <code>src/ui/ui_settings_safety.cpp#SafetySettingsOverlay::show</code>, <code>src/ui/ui_settings_system.cpp#SystemSettingsOverlay::create</code>, <code>src/ui/ui_settings_connection.cpp</code></dd>
 <dt>Evidence</dt><dd>Four blocks recur near byte-for-byte in 70 files: lazy accessor (80 files, 422 lines), <code>create()</code> (1,245 lines; 41 hand-roll it, 29 with the identical "already exists" string, only 13 use <code>create_overlay_from_xml</code>), <code>show()</code> (613 lines; there is no <code>OverlayBase::show</code>), log-only ctor/dtor and pass-through lifecycle (402 lines). A 20-file sample is 39% ceremony; ui_settings_connection.cpp has no behaviour at all.</dd>
