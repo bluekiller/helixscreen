@@ -428,12 +428,11 @@ Pick the token by the card's chrome shape (values in `ui_xml/globals.xml`):
 |-------|------------|-------------|
 | `#dialog_content_max` | header + divider + scroll area + divider + ONE button row | `modal_dialog` |
 | `#dialog_content_pinned_max` | …plus ONE pinned block below the scroll area (a diagram, a status row) | `ams_loading_error_modal` |
-| `#dialog_content_tall_chrome_max` | …plus a SECOND button row with its divider | `klipper_recovery_dialog` |
+| `#dialog_content_recovery_max` | header + divider + scroll area + ONE button row, measured on that card | `klipper_recovery_dialog` |
 
 - Prefer moving content INSIDE the scroll container over pinning it — then
   `#dialog_content_max` is correct by construction.
-- Never raise a card above 85% to fit extra chrome (klipper_recovery carried
-  90% for a while; #1277 ported it back onto the tall-chrome token). The
+- Never raise a card above 85% to fit extra chrome (#1277). The
   chrome-budget lint gate (`scripts/check_modal_chrome_budget.py`) flags both
   the raised cap and an unbudgeted block below a scroll area.
 - A shape beyond one extra block (action_prompt's diagram + wrapping rows +
