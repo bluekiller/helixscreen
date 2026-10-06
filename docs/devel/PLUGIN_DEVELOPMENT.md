@@ -402,7 +402,7 @@ memory cap comes back as an error.
 | Call | Permission | Returns | Notes |
 |---|---|---|---|
 | `helix.storage.get(key)` | `storage` | value or `nil` | one JSON object in `plugin-data/<id>.json` beside the app settings; invalid JSON starts empty |
-| `helix.storage.set(key, value)` | `storage` | | `value` of `nil` erases the key; the whole store is capped at 256 KB. Changes reach disk about 0.5 s later, one write per burst, and on unload or shutdown |
+| `helix.storage.set(key, value)` | `storage` | | `value` of `nil` erases the key; the whole store is capped at 256 KB. Changes reach disk about 0.5 s later, one write per burst, and on unload or shutdown; a SIGTERM (supervisor kill) inside that 0.5 s loses them |
 
 ### helix.settings (`src/plugin/lua_bind_io.cpp`)
 

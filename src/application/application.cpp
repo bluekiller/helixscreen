@@ -297,7 +297,9 @@ bool s_safe_mode_active = false;
  * that have triggered SIGBUS on resource-constrained MIPS/ARM devices when
  * external supervisors aggressively respawn us. Persisted state (settings,
  * telemetry queue, crash history) is written on each change, so nothing is
- * lost by skipping the explicit flush.
+ * lost by skipping the explicit flush. The exception is plugin storage, which
+ * is written up to 500 ms after a change: a SIGTERM inside that window drops
+ * the plugin's latest helix.storage.set calls.
  *
  * Async-signal-safe: only write(2) and _exit(2) used — no spdlog.
  */
