@@ -3,6 +3,8 @@
 
 #if HELIX_HAS_PLUGINS
 
+#include "ui_timer_guard.h"
+
 #include "lua_bindings.h"
 #include "text_io.h"
 
@@ -26,8 +28,16 @@ constexpr size_t kMaxStorageBytes = 256 * 1024;
 constexpr size_t kMaxSettingString = 1024;
 constexpr size_t kMaxInflightHttp = 2;
 
+/// Delay between a storage change and its write. A burst of sets in one entry, or
+/// across a few, costs one write, and the write never runs inside a Lua entry.
+constexpr uint32_t kStorageFlushMs = 500;
+
 struct IoState {
     std::optional<json> storage; ///< loaded on first use
+    std::string storage_path;
+    std::string plugin_id;
+    bool storage_dirty = false;
+    helix::ui::LvglTimerGuard flush_timer; ///< armed while storage_dirty
     std::unordered_map<std::string, std::vector<int>> on_change;
     /// Shared with the backend's reply closures, which can outlive the runtime and run on a
     /// worker thread; the count they decrement must survive with them.
@@ -154,6 +164,23 @@ int storage_get(lua_State* L) {
     return 1;
 }
 
+void flush_storage(IoState& st) {
+    st.flush_timer.reset();
+    if (!st.storage_dirty)
+        return;
+    st.storage_dirty = false;
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(st.storage_path).parent_path(), ec);
+    if (!helix::text_io::write_file_atomic(st.storage_path, st.storage->dump()))
+        spdlog::warn("[plugin {}] cannot write storage {}", st.plugin_id, st.storage_path);
+}
+
+void on_storage_flush_timer(lv_timer_t* timer) {
+    auto* st = static_cast<IoState*>(lv_timer_get_user_data(timer));
+    st->flush_timer.release(); // LVGL deletes this one-shot after the callback returns
+    flush_storage(*st);
+}
+
 int storage_set(lua_State* L) {
     require_permission(L, Permission::Storage, "helix.storage.set");
     if (context(L).storage_path.empty())
@@ -169,14 +196,16 @@ int storage_set(lua_State* L) {
     if (text.size() > kMaxStorageBytes)
         return luaL_error(L, "helix.storage.set: storage would exceed 256 KB");
 
-    const std::string& path = context(L).storage_path;
-    std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    if (!helix::text_io::write_file_atomic(path, text))
-        return luaL_error(L, "helix.storage.set: cannot write %s", path.c_str());
     storage_of(L) = std::move(next);
-    // The write and its fsyncs block the main thread off-CPU.
-    LuaRuntime::enforce_budget(L);
+    // The write fsyncs, which on a busy SD card can block for seconds, so it runs
+    // from a timer, outside any Lua entry and its budget.
+    auto& st = io_state(L);
+    st.storage_dirty = true;
+    if (!st.flush_timer.get()) {
+        lv_timer_t* t = lv_timer_create(&on_storage_flush_timer, kStorageFlushMs, &st);
+        lv_timer_set_repeat_count(t, 1);
+        st.flush_timer.reset(t);
+    }
     return 0;
 }
 
@@ -269,9 +298,15 @@ bool set_plugin_setting(PluginContext& ctx, const std::string& key, const json& 
 void install_io_bindings(PluginContext& ctx) {
     lua_State* L = ctx.rt.state();
     auto* state = new IoState;
+    state->storage_path = ctx.storage_path;
+    state->plugin_id = ctx.rt.plugin_id();
     lua_pushlightuserdata(L, state);
     lua_rawsetp(L, LUA_REGISTRYINDEX, &kIoStateKey);
-    ctx.rt.on_close([state] { delete state; });
+    // Unload and app shutdown both close the runtime, so a pending change is written here.
+    ctx.rt.on_close([state] {
+        flush_storage(*state);
+        delete state;
+    });
 
     static const luaL_Reg http_fns[] = {
         {"get", &http_get}, {"post", &http_post}, {nullptr, nullptr}};

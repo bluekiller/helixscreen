@@ -21,9 +21,12 @@ namespace {
 /// CPU time the calling thread has used. The budget charges a plugin for its own
 /// work: a busy machine preempting the main thread must not fault a plugin that
 /// stays within it, and a runaway loop burns CPU time just as it burns wall time.
+/// Where the clock is unavailable it reads as the earliest time, so the CPU check
+/// never trips and the wall ceiling alone bounds the entry.
 std::chrono::nanoseconds thread_cpu_time() {
     timespec ts{};
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0)
+        return std::chrono::nanoseconds::min();
     return std::chrono::seconds(ts.tv_sec) + std::chrono::nanoseconds(ts.tv_nsec);
 }
 
@@ -457,13 +460,7 @@ void LuaRuntime::fault(const std::string& reason) {
 }
 
 void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
-    enforce_budget(L);
-}
-
-void LuaRuntime::enforce_budget(lua_State* L) {
     auto& rt = from(L);
-    if (rt.depth_ == 0) // no entry is running, so no budget applies
-        return;
     if (!rt.killed_ && thread_cpu_time() < rt.deadline_ && Clock::now() < rt.wall_deadline_)
         return;
     rt.killed_ = true;

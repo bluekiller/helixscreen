@@ -9,7 +9,9 @@
 #include "../test_helpers/plugin_test_support.h"
 #include "lua_bindings.h"
 
+#include <filesystem>
 #include <fstream>
+#include <sstream>
 
 #include "../catch_amalgamated.hpp"
 
@@ -126,15 +128,49 @@ TEST_CASE_METHOD(LVGLTestFixture, "storage persists across runtimes", "[plugin][
     CHECK(b.t.global("g") == "nil");
 }
 
-TEST_CASE_METHOD(LVGLTestFixture, "a storage write past the wall ceiling faults the plugin",
+// The write fsyncs, and a busy SD card can hold that for seconds; it must never
+// land inside an entry, where the wall ceiling would fault the plugin for it.
+TEST_CASE_METHOD(LVGLTestFixture, "a storage set does no I/O inside the entry",
                  "[plugin][bindings][io][lua_budget]") {
     TempDir dir;
+    std::string path = dir.file("s.json");
     LuaRuntime::Limits limits;
     limits.wall_ceiling = std::chrono::milliseconds(0);
-    BoundRuntime b({&install_io_bindings}, {Permission::Storage}, {}, dir.file("s.json"), limits);
-    CHECK_FALSE(b.t.run(R"(helix.storage.set("k", 1))"));
-    CHECK(b.t.rt->faulted());
-    CHECK(b.t.fault.find("time budget") != std::string::npos);
+    BoundRuntime b({&install_io_bindings}, {Permission::Storage}, {}, path, limits);
+    REQUIRE(b.t.run(R"(helix.storage.set("k", 1))"));
+    CHECK_FALSE(b.t.rt->faulted());
+    CHECK_FALSE(std::filesystem::exists(path));
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "a burst of storage sets is written once, after the entry",
+                 "[plugin][bindings][io]") {
+    TempDir dir;
+    std::string path = dir.file("s.json");
+    BoundRuntime b({&install_io_bindings}, {Permission::Storage}, {}, path);
+    REQUIRE(b.t.run(R"(for i = 1, 100 do helix.storage.set("n", i) end)"));
+    CHECK_FALSE(std::filesystem::exists(path));
+
+    process_lvgl(600);
+
+    std::ifstream in(path);
+    std::stringstream text;
+    text << in.rdbuf();
+    CHECK(json::parse(text.str(), nullptr, false) == json{{"n", 100}});
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "closing the runtime writes a pending storage change",
+                 "[plugin][bindings][io]") {
+    TempDir dir;
+    std::string path = dir.file("s.json");
+    {
+        BoundRuntime b({&install_io_bindings}, {Permission::Storage}, {}, path);
+        REQUIRE(b.t.run(R"(helix.storage.set("k", "v"))"));
+        REQUIRE_FALSE(std::filesystem::exists(path));
+    }
+    std::ifstream in(path);
+    std::stringstream text;
+    text << in.rdbuf();
+    CHECK(json::parse(text.str(), nullptr, false) == json{{"k", "v"}});
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "storage refuses to grow past 256 KB", "[plugin][bindings][io]") {

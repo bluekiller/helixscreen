@@ -143,11 +143,6 @@ class LuaRuntime {
     /// Work that runs before lua_close, in reverse order of registration.
     void on_close(std::function<void()> fn);
 
-    /// Raises a Lua error once the running entry is over its budget; returns otherwise.
-    /// The count hook sees only Lua instructions, so a binding that blocks the main
-    /// thread calls this after the blocking work.
-    static void enforce_budget(lua_State* L);
-
     /// Logs a plugin error; the third within 60 s faults the plugin.
     void report_error(const std::string& message);
 

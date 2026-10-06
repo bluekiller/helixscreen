@@ -9,7 +9,6 @@
 #include "../test_helpers/plugin_test_support.h"
 #include "lua_runtime.h"
 
-#include <atomic>
 #include <chrono>
 #include <thread>
 
@@ -423,30 +422,24 @@ TEST_CASE("an async result larger than the cap faults the plugin", "[plugin][lua
 }
 
 namespace {
-std::atomic<int> g_block_calls{0};
-
-/// A binding that blocks the main thread off-CPU, as a synchronous write does.
-int blocking_binding(lua_State* L) {
-    if (++g_block_calls > 300) // 3 s: the budget never tripped
-        return luaL_error(L, "blocked past any budget");
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    LuaRuntime::enforce_budget(L);
+/// A binding that blocks the main thread off-CPU, using no CPU time.
+int blocking_binding(lua_State*) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
     return 0;
 }
 } // namespace
 
-TEST_CASE("a plugin blocked off-CPU is stopped by the wall ceiling",
+TEST_CASE("an entry that blocked off-CPU is stopped by the wall ceiling",
           "[plugin][lua_runtime][lua_budget]") {
     LuaRuntime::Limits limits;
     limits.wall_ceiling = std::chrono::milliseconds(200);
     TestRuntime t(limits);
-    g_block_calls = 0;
     lua_register(t.rt->state(), "block", &blocking_binding);
 
-    CHECK_FALSE(t.run("while true do block() end"));
+    // Far under the CPU budget: only the wall time spent blocked can trip it.
+    CHECK_FALSE(t.run("block(); for i = 1, 100000 do end"));
     CHECK(t.rt->faulted());
     CHECK(t.fault.find("time budget") != std::string::npos);
-    CHECK(g_block_calls < 300);
 }
 
 TEST_CASE("a budget kill swallowed by coroutine.resume still faults",
