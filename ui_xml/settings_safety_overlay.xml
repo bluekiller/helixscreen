@@ -20,7 +20,7 @@
                             label="E-Stop Confirmation" label_tag="E-Stop Confirmation" icon="alert_octagon"
                             description="Require confirmation before emergency stop"
                             description_tag="Require confirmation before emergency stop"
-                            callback="on_estop_confirm_changed"/>
+                            subject="settings_estop_confirm" callback="on_estop_confirm_changed"/>
         <!-- ================================================================== -->
         <!-- CANCEL ESCALATION -->
         <!-- ================================================================== -->
@@ -80,7 +80,7 @@
                               label="Print Completion Alert" label_tag="Print Completion Alert" icon="notifications"
                               description="Notify when print finishes" description_tag="Notify when print finishes"
                               options="Off&#10;Notification&#10;Alert" options_tag="Off&#10;Notification&#10;Alert"
-                              callback="on_completion_alert_changed"/>
+                              bind_selected="settings_completion_alert" callback="on_completion_alert_changed"/>
         <!-- ================================================================== -->
         <!-- MINIMUM TOAST SEVERITY (#1213) -->
         <!-- ================================================================== -->
