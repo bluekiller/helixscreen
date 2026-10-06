@@ -82,6 +82,7 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
 | Scenario | What happens |
 |----------|-------------|
 | **No config file** | `get_default_config()` creates one with `config_version = CURRENT_CONFIG_VERSION`. No migrations run. |
+| **Existing config, no `config_version` and no printer** | Installer-seeded keys only: no `/printer`, and no printer object under `/printers` (e.g. `{"update":{"channel":1}}`, or the per-printer seed's `input`/`display` blocks). Treated as a fresh install: `get_default_config()` with the seeded keys laid over it by `merge_patch`, stamped CURRENT, so no migration runs over the seeded values. |
 | **Existing config, no `config_version`** | Treated as version 0: a shipped preset (`assets/config/presets/*.json`) or a tarball default. A rolling backup with a real version replaces it if one exists; otherwise `normalize_versionless_document()` moves the single `/printer` into the `/printers` map and the chain runs from v9. |
 | **Existing config, `config_version` 1-8** | Below the floor. Copied to `settings.json.pre-migration`, one warning logged, and replaced by `get_default_config()`, the same defaults a missing config gets. |
 | **Existing config, `config_version = 9`** | Only migrations after v9 run (v9->v10, ...). |
@@ -90,7 +91,9 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
 ### Execution Order in `Config::init()`
 
 ```
-1. Load config JSON from disk (or create default if missing)
+1. Load config JSON from disk (or create default if missing). A versionless
+   document holding no printer becomes get_default_config() with its keys
+   laid over it, stamped CURRENT
 2. Run structural migrations:
    a. migrate_display_config()  -- root-level display_* keys -> /display/
    b. migrate_config_keys()     -- /display/calibration -> /input/calibration
@@ -102,7 +105,9 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
    c. If version == 0: normalize_versionless_document() (/printer -> /printers)
    d. Run each kMigrations row whose to_version > version, in order
    e. Set config_version = CURRENT_CONFIG_VERSION
-4. Ensure required sections exist with defaults (printer, display, input, etc.)
+4. Ensure required sections exist with defaults (printer, display, input, etc.).
+   A /printers map with no printer object gets the default printer, except in
+   a config from a newer build, which is left as written
 5. Save to disk if anything changed
 ```
 

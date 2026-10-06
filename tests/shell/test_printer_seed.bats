@@ -191,6 +191,107 @@ write_preset() {
     [ ! -f "$SETTINGS_FILE" ]
 }
 
+# --- seed_update_channel() ---
+#
+# A channel the installer derived from a prerelease version has to reach the
+# app as /update/channel, or its updater offers stable while Moonraker follows
+# beta. A channel already in settings.json is the user's and is never replaced.
+
+json_get() {
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1]))
+for k in sys.argv[2].split("/"): d=d[k]
+print(d)' "$1" "$2"
+}
+
+@test "seed_update_channel: a version-derived beta channel lands in an absent settings.json" {
+    _R2_CHANNEL_FROM_VERSION=yes
+    seed_update_channel
+    [ "$(json_get "$SETTINGS_FILE" update/channel)" = "1" ]
+}
+
+@test "seed_update_channel: fills the channel without touching the rest of the user's settings" {
+    printf '{"config_version": 9, "update": {"auto": true}, "language": "de"}\n' > "$SETTINGS_FILE"
+    _R2_CHANNEL_FROM_VERSION=yes
+    seed_update_channel
+    [ "$(json_get "$SETTINGS_FILE" update/channel)" = "1" ]
+    [ "$(json_get "$SETTINGS_FILE" update/auto)" = "True" ]
+    [ "$(json_get "$SETTINGS_FILE" language)" = "de" ]
+    [ "$(json_get "$SETTINGS_FILE" config_version)" = "9" ]
+}
+
+@test "seed_update_channel: never replaces a channel the user already chose" {
+    printf '{"update": {"channel": 2}}\n' > "$SETTINGS_FILE"
+    _R2_CHANNEL_FROM_VERSION=yes
+    seed_update_channel
+    [ "$(json_get "$SETTINGS_FILE" update/channel)" = "2" ]
+}
+
+@test "seed_update_channel: writes through the printer_data symlink and keeps it" {
+    local pd="$BATS_TEST_TMPDIR/printer_data/config/helixscreen"
+    mkdir -p "$pd"
+    printf '{"config_version": 9}\n' > "$pd/settings.json"
+    ln -s "$pd/settings.json" "$SETTINGS_FILE"
+    _R2_CHANNEL_FROM_VERSION=yes
+
+    seed_update_channel
+
+    [ -L "$SETTINGS_FILE" ] || fail "settings.json symlink was replaced by a file"
+    [ "$(json_get "$pd/settings.json" update/channel)" = "1" ]
+}
+
+@test "merge_settings_defaults: renames into place from beside the resolved target" {
+    # A rename is atomic only within one filesystem, so the temp file has to sit
+    # next to the file it replaces, which through the symlink is printer_data's.
+    local pd="$BATS_TEST_TMPDIR/printer_data/config/helixscreen"
+    mkdir -p "$pd"
+    printf '{"config_version": 9}\n' > "$pd/settings.json"
+    ln -s "$pd/settings.json" "$SETTINGS_FILE"
+    local log="$BATS_TEST_TMPDIR/mv.log"
+    mv() { printf '%s|%s\n' "$1" "$2" >> "$log"; command mv "$@"; }
+
+    merge_settings_defaults '{"update": {"channel": 1}}'
+
+    [ -f "$log" ] || fail "settings.json was not renamed into place"
+    local src dst
+    src=$(cut -d'|' -f1 "$log")
+    dst=$(cut -d'|' -f2 "$log")
+    [ "$dst" = "$pd/settings.json" ] || fail "renamed onto $dst"
+    [ "$(dirname "$src")" = "$pd" ] || fail "temp file was at $src"
+    [ -L "$SETTINGS_FILE" ] || fail "symlink replaced"
+    [ -z "$(ls -A "$INSTALL_DIR/config" | grep -v '^settings.json$')" ] \
+        || fail "temp file left behind: $(ls -A "$INSTALL_DIR/config")"
+}
+
+@test "merge_settings_defaults: the rewritten settings.json keeps the original's mode" {
+    # The rename puts a new inode in place; a root-run install with umask 027
+    # would otherwise leave a file the app's user cannot read.
+    printf '{"config_version": 9}\n' > "$SETTINGS_FILE"
+    chmod 0604 "$SETTINGS_FILE"
+
+    merge_settings_defaults '{"update": {"channel": 1}}'
+
+    [ "$(stat -c %a "$SETTINGS_FILE")" = "604" ] || fail "mode is now $(stat -c %a "$SETTINGS_FILE")"
+    grep -q '"channel": 1' "$SETTINGS_FILE"
+}
+
+@test "merge_settings_defaults: leaves an unparseable settings.json alone" {
+    # Config::init preserves a corrupt file as .corrupt and recovers from the
+    # rolling backup; replacing it with the fragment would skip that recovery.
+    printf '{"config_version": 9, "language": "de",\n' > "$SETTINGS_FILE"
+    cp "$SETTINGS_FILE" "$BATS_TEST_TMPDIR/before"
+
+    run merge_settings_defaults '{"update": {"channel": 1}}'
+
+    [ "$status" -ne 0 ]
+    cmp -s "$SETTINGS_FILE" "$BATS_TEST_TMPDIR/before" || fail "corrupt settings.json was rewritten"
+}
+
+@test "seed_update_channel: no-op when the channel did not come from the version" {
+    unset _R2_CHANNEL_FROM_VERSION
+    seed_update_channel
+    [ ! -e "$SETTINGS_FILE" ]
+}
+
 # --- detect_printer_model() conservatism (stubbed detection, no false positives) ---
 
 @test "detect: returns empty on a plain non-matching environment" {
