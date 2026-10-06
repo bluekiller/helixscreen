@@ -5,6 +5,7 @@
 #include "ui_effects.h"
 #include "ui_modal.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_row_text.h"
 #include "ui_selector_model.h"
 #include "ui_subject_registry.h"
@@ -729,8 +730,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     g_catalog_state.fits = std::move(fits);
 
     // Create overlay from XML
-    auto* overlay =
-        static_cast<lv_obj_t*>(lv_xml_create(parent_screen, "widget_catalog_overlay", nullptr));
+    auto* overlay = helix::ui::create_xml_hidden(parent_screen, "widget_catalog_overlay");
     if (!overlay) {
         spdlog::error("[WidgetCatalog] Failed to create widget_catalog_overlay from XML");
         release_catalog_state();
@@ -741,9 +741,6 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     // a widget out of it. Neither navigation width class applies, so opt out of
     // push-time width management (#1178).
     helix::nav::set_overlay_width_unmanaged(overlay);
-
-    // Initially hidden (NavigationManager will unhide during push)
-    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
 
     // Store state. on_select/on_close were parked above, before the first thing
     // that can fail — re-moving them here would assign the moved-from empties.
@@ -865,8 +862,8 @@ void WidgetCatalogOverlay::show_widget_page(const char* title, const char* title
     // The title is baked in at parse time — overlay_panel forwards $title to its
     // header_bar, so each dive creates a page already carrying its own name.
     const char* attrs[] = {"title", title, "title_tag", title_tag, nullptr};
-    auto* page = static_cast<lv_obj_t*>(
-        lv_xml_create(g_catalog_state.parent_screen, "widget_catalog_category_overlay", attrs));
+    auto* page = helix::ui::create_xml_hidden(g_catalog_state.parent_screen,
+                                              "widget_catalog_category_overlay", attrs);
     if (!page) {
         spdlog::error("[WidgetCatalog] Failed to create widget_catalog_category_overlay from XML");
         return;
@@ -875,7 +872,6 @@ void WidgetCatalogOverlay::show_widget_page(const char* title, const char* title
     // Same 70% opt-out as the catalog beneath it: without this the push would
     // inherit the parent's destination class and go full width (#1178).
     helix::nav::set_overlay_width_unmanaged(page);
-    lv_obj_add_flag(page, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t* scroll = lv_obj_find_by_name(page, "catalog_scroll");
     if (!scroll) {

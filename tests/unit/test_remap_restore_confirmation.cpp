@@ -788,7 +788,8 @@ TEST_CASE("remap restore: only firmware-sourced registry writes bump the generat
 
 // Spools latched on the bed refuse every print start in the API layer, so a
 // reprint stops before it prepares anything and the drying prompt explains why.
-TEST_CASE("reprint with spools latched on the bed never begins preparing", "[print-start][spool-latch]") {
+TEST_CASE("reprint with spools latched on the bed never begins preparing",
+          "[print-start][spool-latch]") {
     LVGLTestFixture fx;
     Harness h;
     h.ps.print_state().set_spool_latch(true);

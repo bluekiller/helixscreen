@@ -227,7 +227,8 @@ void PrintSelectCardView::init_pool(const CardDimensions& dims) {
             lv_obj_set_width(card, dims.card_width);
             lv_obj_set_height(card, dims.card_height);
             lv_obj_set_style_flex_grow(card, 0, LV_PART_MAIN);
-            lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(
+                card, LV_OBJ_FLAG_HIDDEN); // XML_HIDDEN_OK: pooled row, built once with its list
 
             // Attach click handler ONCE at pool creation
             lv_obj_add_event_cb(card, on_card_clicked, LV_EVENT_CLICKED, this);

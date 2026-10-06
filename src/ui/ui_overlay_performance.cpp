@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ui_overlay_performance.h"
 
+#include "ui_panel_common.h"
 #include "ui_utils.h" // helix::ui::safe_clean_children
 
 #include "observer_factory.h"
@@ -26,12 +27,11 @@ lv_obj_t* UiOverlayPerformance::create(lv_obj_t* parent) {
     if (root_)
         return root_;
 
-    root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "performance_overlay", nullptr));
+    root_ = helix::ui::create_xml_hidden(parent, "performance_overlay");
     if (!root_) {
         spdlog::error("[UiOverlayPerformance] Failed to create root from XML");
         return nullptr;
     }
-    lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
 
     mcu_card_ = lv_obj_find_by_name(root_, "mcu_card");
 

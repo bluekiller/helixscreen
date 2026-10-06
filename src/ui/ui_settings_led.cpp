@@ -1183,7 +1183,7 @@ void LedSettingsOverlay::populate_auto_state_rows() {
         lv_obj_set_name(ctx_container, fmt::format("ctx_{}", key).c_str());
 
         if (!needs_detail) {
-            lv_obj_add_flag(detail, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(detail, LV_OBJ_FLAG_HIDDEN); // XML_HIDDEN_OK: row child, not a root
         }
 
         // Populate contextual controls for current action type
