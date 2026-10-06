@@ -15,9 +15,7 @@
  * the selection itself is asserted.
  *
  * None of the rows here have a C++ seeding fallback, so the binding is the only
- * thing putting the saved value on screen. row_completion_alert is the deliberate
- * counter-example: it carries no binding and SafetySettingsOverlay::on_activate()
- * seeds it by hand from AudioSettingsManager.
+ * thing putting the saved value on screen.
  *
  * bind_selected is one-way on purpose. The rows' value_changed callbacks already
  * write their subject through the settings managers, and AboutSettingsOverlay's
@@ -26,13 +24,14 @@
  * writes the subject ahead of it.
  */
 
-#include "safety_settings_manager.h"
-#include "settings_manager.h"
 #include "ui_settings_safety.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "audio_settings_manager.h"
 #include "helix-xml/src/xml/lv_xml.h"
+#include "safety_settings_manager.h"
+#include "settings_manager.h"
 
 #include <lvgl.h>
 
@@ -60,10 +59,10 @@ lv_subject_t* require_subject(const char* name) {
 
 /// Builds the real Safety overlay from production XML.
 ///
-/// SafetySettingsManager owns every settings_* subject the tree binds and
-/// SettingsManager owns filament_auto_cooldown; both must be registered before
-/// lv_xml_create() or the bindings resolve to nothing and the tree under
-/// assertion is not the production one. Neither is torn down here: both
+/// SafetySettingsManager and AudioSettingsManager own the settings_* subjects the
+/// tree binds and SettingsManager owns filament_auto_cooldown; all must be
+/// registered before lv_xml_create() or the bindings resolve to nothing and the
+/// tree under assertion is not the production one. None is torn down here: each
 /// self-register their deinit with StaticSubjectRegistry, and other cases in this
 /// binary share the same process-wide registration. Only the values this fixture
 /// writes are restored.
@@ -71,12 +70,15 @@ struct SafetyDropdownFixture : public LVGLUITestFixture {
     SafetyDropdownFixture() {
         SettingsManager::instance().init_subjects();
         SafetySettingsManager::instance().init_subjects();
+        AudioSettingsManager::instance().init_subjects();
         helix::settings::get_safety_settings_overlay().init_subjects();
 
         timeout_ = require_subject("settings_cancel_escalation_timeout");
         severity_ = require_subject("settings_min_toast_severity");
         saved_timeout_ = lv_subject_get_int(timeout_);
+        completion_ = require_subject("settings_completion_alert");
         saved_severity_ = lv_subject_get_int(severity_);
+        saved_completion_ = lv_subject_get_int(completion_);
     }
 
     ~SafetyDropdownFixture() override {
@@ -87,14 +89,15 @@ struct SafetyDropdownFixture : public LVGLUITestFixture {
         UpdateQueue::instance().drain();
         lv_subject_set_int(timeout_, saved_timeout_);
         lv_subject_set_int(severity_, saved_severity_);
+        lv_subject_set_int(completion_, saved_completion_);
         UpdateQueue::instance().drain();
     }
 
     /// Creation is deliberately not in the constructor: the binding seeds the
     /// widget when the tree is built, so each case sets its subject first.
     void build() {
-        root_ = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "settings_safety_overlay",
-                                                    nullptr));
+        root_ = static_cast<lv_obj_t*>(
+            lv_xml_create(test_screen(), "settings_safety_overlay", nullptr));
         REQUIRE(root_ != nullptr);
         process_lvgl(10);
     }
@@ -102,8 +105,10 @@ struct SafetyDropdownFixture : public LVGLUITestFixture {
     lv_obj_t* root_ = nullptr;
     lv_subject_t* timeout_ = nullptr;
     lv_subject_t* severity_ = nullptr;
+    lv_subject_t* completion_ = nullptr;
     int saved_timeout_ = 0;
     int saved_severity_ = 0;
+    int saved_completion_ = 0;
 };
 
 } // namespace
@@ -168,13 +173,33 @@ TEST_CASE_METHOD(SafetyDropdownFixture, "Safety dropdown rows show the persisted
         CHECK(row_selection(root_, "row_cancel_escalation_timeout") == 2u);
     }
 
-    SECTION("the hand-seeded completion alert row is untouched by the binding") {
-        // row_completion_alert has no subject; on_activate() seeds it. Building
-        // the tree alone must leave it at 0 rather than picking up a neighbour's
-        // value, which is what a subject name leaking across rows would look like.
+    SECTION("completion alert opens on its own saved index") {
+        // 1 = "Notification". The neighbours hold other values, so a subject name
+        // leaking across rows would show up as a 3 or a 2.
         lv_subject_set_int(timeout_, 3);
         lv_subject_set_int(severity_, 2);
+        lv_subject_set_int(completion_, 1);
         build();
-        CHECK(row_selection(root_, "row_completion_alert") == 0u);
+        CHECK(row_selection(root_, "row_completion_alert") == 1u);
     }
+}
+
+TEST_CASE_METHOD(SafetyDropdownFixture, "Safety e-stop toggle follows its persisted subject",
+                 "[settings][safety][binding]") {
+    lv_subject_t* estop = require_subject("settings_estop_confirm");
+    const int saved = lv_subject_get_int(estop);
+
+    lv_subject_set_int(estop, 0);
+    build();
+    lv_obj_t* row = lv_obj_find_by_name(root_, "row_estop_confirm");
+    REQUIRE(row != nullptr);
+    lv_obj_t* toggle = lv_obj_find_by_name(row, "toggle");
+    REQUIRE(toggle != nullptr);
+    CHECK_FALSE(lv_obj_has_state(toggle, LV_STATE_CHECKED));
+
+    lv_subject_set_int(estop, 1);
+    process_lvgl(10);
+    CHECK(lv_obj_has_state(toggle, LV_STATE_CHECKED));
+
+    lv_subject_set_int(estop, saved);
 }

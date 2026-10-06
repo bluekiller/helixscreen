@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace helix::gcode {
@@ -82,6 +83,9 @@ std::string get_display_filename(const std::string& path);
  *
  * When HelixScreen modifies a G-code file before printing (e.g., to add
  * filament change commands), it stores the modified file with patterns like:
+ * - `.helix_print/full/dir/OriginalName.gcode` (HelixPrint plugin symlink)
+ * - `.helix_print/OriginalName.gcode` (older plugin: bare filename)
+ * - `.helix_temp/modified_123456789p_dir~sOriginalName.gcode` (full path kept)
  * - `.helix_temp/modified_123456789_OriginalName.gcode`
  * - `/tmp/helixscreen_mod_123456_OriginalName.gcode`
  *
@@ -94,11 +98,27 @@ std::string get_display_filename(const std::string& path);
 std::string resolve_gcode_filename(const std::string& path);
 
 /**
+ * @brief The original's gcodes-relative path, when @p path can be trusted to name it
+ *
+ * resolve_gcode_filename() always answers with its best guess. This answers
+ * only when the answer is certain: a path that is not a rewrite names itself,
+ * and a rewrite counts only when it encodes the original's whole path (a
+ * `.helix_temp/modified_<ts>p_` name, or the plugin's `.helix_print/full/`).
+ * A bare-filename rewrite could belong to a file in any folder, so acting on
+ * it (a reprint, adopting a history job) could pick a same-named wrong file.
+ *
+ * @param path Filename or path as the printer reports it
+ * @return The original's path, or nullopt when its location is unknown
+ */
+std::optional<std::string> trusted_original_path(const std::string& path);
+
+/**
  * @brief Is this path one of OUR rewritten temp copies of a user's G-code?
  *
- * True for the three shapes resolve_gcode_filename() knows how to unwrap: a
- * `.helix_temp/modified_` prefix, a `/gcode_mod/mod_` path segment, or the
- * legacy `/tmp/helixscreen_mod_` prefix.
+ * True for the shapes resolve_gcode_filename() knows how to unwrap: a
+ * `.helix_temp/modified_` prefix, the HelixPrint plugin's `.helix_print/`
+ * symlink directory, a `/gcode_mod/mod_` path segment, or the legacy
+ * `/tmp/helixscreen_mod_` prefix.
  * Unlike resolve_gcode_filename(), this answers "is it a rewrite" rather than
  * "what was the original", so it is still true for a rewritten name whose
  * original cannot be recovered from the string. Only HelixScreen produces
@@ -119,16 +139,22 @@ bool is_rewritten_gcode_path(const std::string& path);
  * outlives the print and its name never resolves back to the original, so the
  * job the user started shows up under a name they have never seen.
  *
- * @param display_filename Bare filename of the original, no directory component
- * @return e.g. "<staging dir>/modified_1766807545_benchy.gcode"
+ * The original's full path is encoded into the one flat name, so
+ * resolve_gcode_filename() recovers it from the printer's report alone. A path
+ * too long for one filename falls back to the bare filename, which
+ * trusted_original_path() then declines to vouch for.
+ *
+ * @param original_path The original's gcodes-root-relative path
+ * @return e.g. "<staging dir>/modified_1766807545p_parts~sbenchy.gcode"
  */
-std::string make_rewritten_gcode_path(const std::string& display_filename);
+std::string make_rewritten_gcode_path(const std::string& original_path);
 
 /**
  * @brief Is this a copy WE staged on the printer, i.e. ours to delete?
  *
  * Narrower than is_rewritten_gcode_path(), which also answers true for our
- * local scratch copies. Only a path under the printer's staging directory
+ * local scratch copies and for the HelixPrint plugin's symlinks, which the
+ * plugin removes itself. Only a path under the printer's staging directory
  * names a file the printer holds and that we are responsible for removing when
  * the print ends.
  *

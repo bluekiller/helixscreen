@@ -56,25 +56,18 @@ static std::string default_timelapse_dir() {
 // GLOBAL INSTANCE
 // ============================================================================
 
-static std::unique_ptr<TimelapseVideosOverlay> g_timelapse_videos;
-
 TimelapseVideosOverlay& get_global_timelapse_videos() {
-    if (!g_timelapse_videos) {
+    auto* instance = helix::lazy_global_if_exists<TimelapseVideosOverlay>();
+    if (!instance) {
         spdlog::error(
             "[Timelapse Videos] get_global_timelapse_videos() called before initialization!");
         throw std::runtime_error("TimelapseVideosOverlay not initialized");
     }
-    return *g_timelapse_videos;
+    return *instance;
 }
 
 void init_global_timelapse_videos(IMoonrakerAPI* api) {
-    if (g_timelapse_videos) {
-        spdlog::warn("[Timelapse Videos] TimelapseVideosOverlay already initialized, skipping");
-        return;
-    }
-    g_timelapse_videos = std::make_unique<TimelapseVideosOverlay>(api);
-    StaticPanelRegistry::instance().register_destroy("TimelapseVideosOverlay",
-                                                     []() { g_timelapse_videos.reset(); });
+    helix::lazy_global<TimelapseVideosOverlay>("TimelapseVideosOverlay", api);
     spdlog::trace("[Timelapse Videos] TimelapseVideosOverlay initialized");
 }
 
@@ -801,7 +794,8 @@ void TimelapseVideosOverlay::confirm_delete(const std::string& filename) {
         lv_tr("Delete Video"), message.c_str(), ModalSeverity::Warning, lv_tr("Delete"),
         [this] {
             delete_confirmation_dialog_ = nullptr;
-            if (!g_timelapse_videos || !api_ || pending_delete_filename_.empty()) {
+            if (!helix::lazy_global_if_exists<TimelapseVideosOverlay>() || !api_ ||
+                pending_delete_filename_.empty()) {
                 pending_delete_filename_.clear();
                 return;
             }
@@ -876,19 +870,12 @@ void TimelapseVideosOverlay::on_card_long_pressed(lv_event_t* e) {
 
 #include <memory>
 
-static std::unique_ptr<TimelapseVideosOverlay> g_timelapse_videos_stub;
-
 TimelapseVideosOverlay& get_global_timelapse_videos() {
-    return *g_timelapse_videos_stub;
+    return *helix::lazy_global_if_exists<TimelapseVideosOverlay>();
 }
 
 void init_global_timelapse_videos(IMoonrakerAPI* api) {
-    if (g_timelapse_videos_stub) {
-        return;
-    }
-    g_timelapse_videos_stub = std::make_unique<TimelapseVideosOverlay>(api);
-    StaticPanelRegistry::instance().register_destroy("TimelapseVideosOverlay",
-                                                     []() { g_timelapse_videos_stub.reset(); });
+    helix::lazy_global<TimelapseVideosOverlay>("TimelapseVideosOverlay", api);
     spdlog::debug("[Timelapse Videos] Compiled out (HELIX_HAS_TIMELAPSE_VIEWER=0)");
 }
 

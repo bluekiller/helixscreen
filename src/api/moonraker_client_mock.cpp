@@ -3,6 +3,7 @@
 
 #include "moonraker_client_mock.h"
 
+#include "ui_filename_utils.h"
 #include "ui_update_queue.h"
 
 #include "../tests/mocks/mock_printer_state.h"
@@ -2625,19 +2626,9 @@ bool MoonrakerClientMock::start_print_internal(const std::string& filename) {
     // Handle both bare filenames (e.g., "3DBenchy.gcode") and full paths
     std::string full_path;
 
-    // For modified temp files (.helix_temp/modified_xxx_OriginalName.gcode),
-    // extract the original filename to find the real test file for metadata
-    std::string lookup_filename = filename;
-    if (filename.find(".helix_temp/modified_") != std::string::npos) {
-        // Extract original filename: .helix_temp/modified_123456789_OriginalName.gcode
-        // -> OriginalName.gcode
-        size_t underscore_pos = filename.find('_', filename.find("modified_") + 9);
-        if (underscore_pos != std::string::npos) {
-            lookup_filename = filename.substr(underscore_pos + 1);
-            spdlog::debug("[MoonrakerClientMock] Modified temp file '{}' -> original '{}'",
-                          filename, lookup_filename);
-        }
-    }
+    // A staged rewrite names the original it was made from; that is the test
+    // file holding the metadata.
+    const std::string lookup_filename = helix::gcode::resolve_gcode_filename(filename);
 
     if (lookup_filename.find(RuntimeConfig::TEST_GCODE_DIR) == 0) {
         // Already a full path, use as-is

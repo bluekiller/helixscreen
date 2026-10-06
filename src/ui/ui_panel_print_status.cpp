@@ -104,9 +104,6 @@ static void uninstall_root_delete_hook(lv_obj_t*& root, lv_event_cb_t cb, void* 
     root = nullptr;
 }
 
-// Global instance for legacy API and resize callback
-static std::unique_ptr<PrintStatusPanel> g_print_status_panel;
-
 // Cached widget pointer for lazy creation (separate from overlay_root_ which
 // is managed by OverlayBase). Declared here so teardown callback can null it.
 static lv_obj_t* s_cached_panel = nullptr;
@@ -171,9 +168,9 @@ using helix::ui::observe_print_state;
 
 // Helper to get or create the global instance
 PrintStatusPanel& get_global_print_status_panel() {
-    if (!g_print_status_panel) {
-        g_print_status_panel = std::make_unique<PrintStatusPanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy("PrintStatusPanel", []() {
+    return helix::lazy_global_with_teardown<PrintStatusPanel>(
+        "PrintStatusPanel",
+        []() {
             if (s_memory_responder_id != 0) {
                 helix::MemoryMonitor::instance().remove_pressure_responder(s_memory_responder_id);
                 s_memory_responder_id = 0;
@@ -181,10 +178,8 @@ PrintStatusPanel& get_global_print_status_panel() {
             PrintStatusPanel::destroy_cached_overlay(
                 PrintStatusTreeDestroyCause::PanelRegistryTeardown);
             s_cached_panel = nullptr;
-            g_print_status_panel.reset();
-        });
-    }
-    return *g_print_status_panel;
+        },
+        get_printer_state(), nullptr);
 }
 
 // Drop the cached widget tree if we can, to reclaim ~400-800KB.
@@ -201,7 +196,7 @@ static void try_reclaim_cached_print_status() {
                 "[PrintStatusPanel] Cached tree is currently visible, skipping memory reclaim");
             return;
         }
-        if (!g_print_status_panel) {
+        if (!helix::lazy_global_if_exists<PrintStatusPanel>()) {
             return;
         }
         spdlog::warn("[PrintStatusPanel] Pressure response: destroying cached overlay tree");
@@ -1439,22 +1434,23 @@ lv_obj_t* PrintStatusPanel::get_cached_overlay() {
 helix::MemoryInfo (*PrintStatusPanel::memory_info_source_)() = helix::get_system_memory_info;
 
 void PrintStatusPanel::destroy_cached_overlay(PrintStatusTreeDestroyCause cause) {
-    if (!s_cached_panel || !g_print_status_panel) {
+    auto* panel = helix::lazy_global_if_exists<PrintStatusPanel>();
+    if (!s_cached_panel || !panel) {
         return;
     }
-    g_print_status_panel->destroy_overlay_ui(s_cached_panel);
+    panel->destroy_overlay_ui(s_cached_panel);
     // destroy_overlay_ui() nulls the pointer only when it destroyed a tree.
     if (s_cached_panel == nullptr) {
-        log_tree_destroyed(
-            cause, g_print_status_panel->printer_state_.print_state().get_print_lifecycle());
+        log_tree_destroyed(cause, panel->printer_state_.print_state().get_print_lifecycle());
     }
 }
 
 void PrintStatusPanel::on_overlay_closed() {
-    if (!s_cached_panel || !g_print_status_panel) {
+    auto* existing = helix::lazy_global_if_exists<PrintStatusPanel>();
+    if (!s_cached_panel || !existing) {
         return;
     }
-    PrintStatusPanel& panel = *g_print_status_panel;
+    PrintStatusPanel& panel = *existing;
     // A close callback runs late: when the slide-out completes, or on the next
     // tick for a navbar or connection-loss close. The tree can be back on screen
     // by then, where this close no longer applies, and a slide-out completion
@@ -1499,10 +1495,11 @@ void PrintStatusPanel::release_kept_tree_after_job() {
     // Unlike that reclaim it honours the close-time decision, so a host with
     // memory to spare keeps the tree.
     helix::ui::queue_update("PrintStatusPanel::release_kept_tree_after_job", []() {
-        if (!s_cached_panel || !g_print_status_panel) {
+        auto* existing = helix::lazy_global_if_exists<PrintStatusPanel>();
+        if (!s_cached_panel || !existing) {
             return;
         }
-        PrintStatusPanel& panel = *g_print_status_panel;
+        PrintStatusPanel& panel = *existing;
         // push_overlay() disarms the watch before its own queued push lands, so
         // a disarmed watch covers a push still on its way to the stack.
         if (!panel.kept_tree_job_observer_) {
@@ -1816,6 +1813,23 @@ void PrintStatusPanel::handle_tune_button() {
     get_print_tune_overlay().show(parent_screen_, api_, printer_state_);
 }
 
+std::string PrintStatusPanel::reprint_filename() const {
+    // print_stats names the copy that ran, which for a print this app
+    // rewrote is a temp file deleted when the print ends. An identity this
+    // session recorded at commit names the original exactly; without one, the
+    // report places the original only when it encodes the whole path.
+    // The recorded identity only fills in what the report cannot place: a
+    // report naming another file means another client printed since.
+    const auto& print_state = printer_state_.print_state();
+    const std::optional<std::string> reported =
+        helix::gcode::trusted_original_path(current_print_filename_);
+    const std::string& recorded = print_state.get_print_identity_override();
+    if (!recorded.empty() && (!reported || *reported == recorded)) {
+        return recorded;
+    }
+    return reported.value_or("");
+}
+
 void PrintStatusPanel::handle_reprint_button() {
     // Startup grace period: reject phantom clicks during early boot
     auto elapsed = std::chrono::steady_clock::now() - AppConstants::Startup::PROCESS_START_TIME;
@@ -1826,10 +1840,17 @@ void PrintStatusPanel::handle_reprint_button() {
         return;
     }
 
-    spdlog::info("[{}] Reprint button clicked - reprinting: {}", get_name(),
-                 current_print_filename_);
+    const std::string filename = reprint_filename();
+    spdlog::info("[{}] Reprint button clicked - reprinting: {}", get_name(), filename);
 
-    if (current_print_filename_.empty()) {
+    if (filename.empty() && !current_print_filename_.empty()) {
+        // A same-named file elsewhere is not necessarily the one that printed.
+        spdlog::warn("[{}] Not reprinting '{}': original file location unknown", get_name(),
+                     current_print_filename_);
+        NOTIFY_WARNING(lv_tr("Original file location unknown"));
+        return;
+    }
+    if (filename.empty()) {
         spdlog::warn("[{}] No filename to reprint", get_name());
         NOTIFY_WARNING(lv_tr("No file to reprint"));
         return;
@@ -1843,8 +1864,6 @@ void PrintStatusPanel::handle_reprint_button() {
 
     // Disable button immediately to prevent double-press
     ui_set_button_enabled(btn_cancel_, false);
-
-    std::string filename = current_print_filename_;
 
     // Route through PrintStartController so reprint gets the Snapmaker U1 native
     // pre-print send (SET_PRINT_USED_EXTRUDERS ...) that suppresses a spurious
@@ -2036,8 +2055,8 @@ void PrintStatusPanel::handle_view_toggle() {
 
 void PrintStatusPanel::on_resize_static() {
     // Use global instance for resize callback (registered without user_data)
-    if (g_print_status_panel) {
-        g_print_status_panel->handle_resize();
+    if (auto* panel = helix::lazy_global_if_exists<PrintStatusPanel>()) {
+        panel->handle_resize();
     }
 }
 

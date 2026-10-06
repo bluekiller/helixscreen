@@ -47,15 +47,8 @@ extern lv_subject_t connection_test_passed;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardConnectionStep> g_wizard_connection_step;
-
 WizardConnectionStep* get_wizard_connection_step() {
-    if (!g_wizard_connection_step) {
-        g_wizard_connection_step = std::make_unique<WizardConnectionStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardConnectionStep", []() { g_wizard_connection_step.reset(); });
-    }
-    return g_wizard_connection_step.get();
+    return &helix::lazy_global<WizardConnectionStep>("WizardConnectionStep");
 }
 
 // ============================================================================

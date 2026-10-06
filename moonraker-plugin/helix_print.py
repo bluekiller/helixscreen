@@ -57,7 +57,7 @@ HELIX_TEMP_TABLE = "helix_temp_files"
 DB_RECORD_MAX_AGE = 30 * 86400
 
 # Plugin version - used for API version detection by clients
-PLUGIN_VERSION = "1.0.1"
+PLUGIN_VERSION = "1.1.0"
 
 # Namespace for key-value storage fallback (Moonraker v0.8.x)
 HELIX_NAMESPACE = "helix_temp_files"
@@ -379,15 +379,21 @@ class HelixPrint:
         if copy_metadata:
             await self._copy_metadata(original_resolved, temp_resolved)
 
-        # Extract base name from original for symlink
-        base_name = Path(original_filename).name
-
-        # Create symlink with original filename
-        symlink_filename = f"{self.symlink_dir}/{base_name}"
+        # The symlink mirrors the original's whole gcodes-relative path under a
+        # `full/` segment, so the filename Klipper reports names the original on
+        # its own. The segment tells clients this shape from the bare-filename
+        # links earlier plugin versions made directly in the symlink directory.
+        symlink_filename = f"{self.symlink_dir}/full/{original_filename}"
         symlink_path = self.gc_path / symlink_filename
 
-        # Validate symlink path
-        self._validate_path_within_gcodes(symlink_path.parent)
+        # Validate symlink path: it must land inside the symlink directory.
+        resolved_parent = self._validate_path_within_gcodes(symlink_path.parent)
+        try:
+            resolved_parent.relative_to((self.gc_path / self.symlink_dir).resolve())
+        except ValueError:
+            raise self.server.error(
+                "Path traversal detected: symlink escapes the symlink directory", 400
+            )
 
         symlink_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -398,8 +404,9 @@ class HelixPrint:
                 f"HelixPrint: Created symlink {symlink_filename} -> {temp_filename}"
             )
         except Exception as e:
-            # Clean up temp file on symlink failure
+            # Clean up temp file and any directories made for the link
             temp_path.unlink(missing_ok=True)
+            self._remove_symlink(symlink_path)
             raise self.server.error(f"Failed to create symlink: {e}", 500)
 
         # Track this print
@@ -424,7 +431,7 @@ class HelixPrint:
             logging.info(f"HelixPrint: Started print with {symlink_filename}")
         except Exception as e:
             # Clean up on print start failure
-            symlink_path.unlink(missing_ok=True)
+            self._remove_symlink(symlink_path)
             temp_path.unlink(missing_ok=True)
             del self.active_prints[symlink_filename]
             raise self.server.error(f"Failed to start print: {e}", 500)
@@ -435,6 +442,22 @@ class HelixPrint:
             "temp_filename": temp_filename,
             "status": "printing",
         }
+
+    def _remove_symlink(self, symlink_path: Path) -> None:
+        """Remove a print symlink and any directories it leaves empty, up to
+        (not including) the symlink directory."""
+        if symlink_path.is_symlink():
+            symlink_path.unlink()
+        if self.gc_path is None:
+            return
+        root = self.gc_path / self.symlink_dir
+        parent = symlink_path.parent
+        while parent != root and root in parent.parents:
+            try:
+                parent.rmdir()
+            except OSError:
+                break  # not empty, or already gone
+            parent = parent.parent
 
     def _create_symlink_atomic(self, symlink_path: Path, target_path: Path) -> None:
         """
@@ -708,9 +731,8 @@ class HelixPrint:
 
         # Immediately delete symlink (no longer needed)
         symlink_path = self.gc_path / print_info.symlink_filename
-        if symlink_path.is_symlink():
-            symlink_path.unlink()
-            logging.debug(f"HelixPrint: Removed symlink {symlink_path}")
+        self._remove_symlink(symlink_path)
+        logging.debug(f"HelixPrint: Removed symlink {symlink_path}")
 
         # Also clean up thumbnail symlinks
         await self._cleanup_thumbnail_symlinks(print_info.temp_filename)
@@ -876,8 +898,7 @@ class HelixPrint:
 
                 if temp_path.exists():
                     temp_path.unlink()
-                if symlink_path.is_symlink():
-                    symlink_path.unlink()
+                self._remove_symlink(symlink_path)
 
                 # Clean up thumbnail symlinks
                 await self._cleanup_thumbnail_symlinks(temp_filename)
