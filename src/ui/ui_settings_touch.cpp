@@ -79,8 +79,8 @@ void TouchSettingsOverlay::register_callbacks() {
              lv_obj_t* slider = lv_event_get_current_target_obj(e);
              int value = static_cast<int>(lv_slider_get_value(slider));
              sync_slider_value_label(slider, value);
+             // set_scroll_limit live-applies, so no restart prompt.
              InputSettingsManager::instance().set_scroll_limit(value);
-             get_global_settings_panel().show_restart_prompt();
          }},
         {"on_long_press_time_changed",
          [](lv_event_t* e) {

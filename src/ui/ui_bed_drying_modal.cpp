@@ -8,6 +8,7 @@
 #include "ams_state.h"
 #include "app_globals.h"
 #include "bed_drying_controller.h"
+#include "display_manager.h"
 #include "filament_op_execute.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
@@ -200,6 +201,9 @@ void show_bed_drying_remove_prompt() {
 }
 
 void show_spools_on_bed_print_alarm() {
+    if (auto* dm = DisplayManager::instance()) {
+        dm->wake_display();
+    }
     SoundManager::instance().play("error_alert");
     ConfirmOptions opts;
     opts.cancel_text = lv_tr("Dismiss");
