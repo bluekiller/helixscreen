@@ -420,14 +420,18 @@ _cp_setup() {
     lacks "  Install " "$output"
 }
 
-@test "an --update plan reads the installed version from the binary without release_info.json" {
+@test "an --update plan never runs the installed binary to learn its version" {
+    # A binary that hangs (a broken library, a wrapper waiting on a tty) would
+    # stop the installer before the plan, --dry-run included.
     _cp_setup
     update_mode=true
     mkdir -p "$INSTALL_DIR/bin"
-    printf '#!/bin/sh\necho "HelixScreen v1.2.1 (abc123)"\n' > "$INSTALL_DIR/bin/helix-screen"
+    printf '#!/bin/sh\ntouch "%s/ran"\necho "HelixScreen v1.2.1 (abc123)"\n' \
+        "$BATS_TEST_TMPDIR" > "$INSTALL_DIR/bin/helix-screen"
     chmod +x "$INSTALL_DIR/bin/helix-screen"
     run confirm_point pi v1.2.3
-    contains "  Update     v1.2.1 -> v1.2.3 (stable)" "$output"
+    [ ! -e "$BATS_TEST_TMPDIR/ran" ] || fail "the plan ran $INSTALL_DIR/bin/helix-screen"
+    contains "  Install    v1.2.3 (stable)" "$output"
 }
 
 @test "an --update plan with no readable installed version keeps the Install line" {

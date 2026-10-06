@@ -73,12 +73,14 @@ plan_adds_line() {
 # asks sudo for its password once, then opens the log. Returns only when the
 # install goes ahead.
 confirm_point() { # platform version
-    # An update reads "Update <installed> -> <target>" when the installed
-    # version is known, and like a fresh install otherwise.
+    # An update reads "Update <installed> -> <target>" when release_info.json
+    # names the installed version, and like a fresh install otherwise. The
+    # installed binary is never run here: one that hangs would stop the
+    # installer before the plan.
     _cp_label=Install
     _cp_install="$2 (${R2_CHANNEL:-stable})"
-    if [ "${update_mode:-false}" = true ] && [ -d "${INSTALL_DIR:-}" ]; then
-        _cp_from=$(installed_version)
+    if [ "${update_mode:-false}" = true ] && [ -f "${INSTALL_DIR:-}/release_info.json" ]; then
+        _cp_from=$(parse_json_string_field version < "$INSTALL_DIR/release_info.json")
         if [ -n "$_cp_from" ]; then
             if [ "$UI_UTF8" = 1 ]; then _cp_arrow="→"; else _cp_arrow="->"; fi
             _cp_label=Update
