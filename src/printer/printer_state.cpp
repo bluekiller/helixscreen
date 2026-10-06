@@ -18,13 +18,11 @@
 #include "app_globals.h"
 #include "capability_overrides.h"
 #include "chamber_heater_assignment.h"
-#include "chamber_heater_backend.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "device_display_name.h"
 #include "hardware_validator.h"
 #include "i_moonraker_client.h" // for helix::CACHED_SNAPSHOT_MARKER
 #include "json_utils.h"
-#include "led/led_controller.h"
 #include "lvgl.h"
 #include "lvgl/src/display/lv_display_private.h" // For rendering_in_progress check
 #include "lvgl_debug_invalidate.h"
@@ -34,12 +32,9 @@
 #include "printer_cache_registry.h"
 #include "probe_sensor_manager.h"
 #include "runtime_config.h"
-#include "sensor_managers.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
 #include "system/crash_handler.h"
-#include "temperature_controller.h"
-#include "temperature_sensor_manager.h"
 #include "timelapse_state.h"
 #include "unit_conversions.h"
 #include "z_offset_persistence.h"
@@ -47,7 +42,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
-#include <limits>
 
 // ============================================================================
 // PrintJobState Free Functions
@@ -111,12 +105,6 @@ using namespace helix;
 // ============================================================================
 
 PrinterState::PrinterState() {
-    // Note: String buffer initialization is now handled by component classes:
-    // - homed_axes_buf_ is now in motion_state_ component
-    // - print-related buffers are now in print_domain_ component
-    // - printer_connection_message_buf_ is now in network_state_ component
-    // - klipper_version_buf_, moonraker_version_buf_ are now in versions_state_ component
-
     // Load user-configured capability overrides from settings.json
     capability_overrides_.load_from_config();
 }
@@ -188,6 +176,7 @@ void PrinterState::deinit_subjects() {
     network_state_.deinit_subjects();
     versions_state_.deinit_subjects();
     excluded_objects_state_.deinit_subjects();
+    profile_state_.deinit_subjects();
 
     // Deinit PrinterState's own subjects (multi-printer)
     lv_subject_deinit(&active_printer_name_);
@@ -232,18 +221,6 @@ void PrinterState::init_subjects(bool register_xml) {
     // Initialize capabilities state component (hardware capabilities, feature availability)
     capabilities_state_.init_subjects(register_xml);
 
-    // Note: Print subjects are now initialized by print_domain_.init_subjects() above
-
-    // Note: Motion subjects (position_x_, position_y_, position_z_, homed_axes_,
-    // speed_factor_, flow_factor_, gcode_z_offset_, pending_z_offset_delta_)
-    // are now initialized by motion_state_.init_subjects() above
-
-    // Note: Fan subjects (fan_speed_, fans_version_) are now initialized by
-    // fan_state_.init_subjects() above
-
-    // Note: Capability subjects (printer_has_qgl_, printer_has_z_tilt_, etc.)
-    // are now initialized by capabilities_state_.init_subjects() above
-
     // Initialize network state component (connection, klippy, nav buttons)
     network_state_.init_subjects(register_xml);
 
@@ -262,57 +239,17 @@ void PrinterState::init_subjects(bool register_xml) {
     // has_any_preprint_options aggregate (per-op can_show_* subjects retired)
     composite_visibility_state_.init_subjects(register_xml);
 
-    // Note: Hardware validation subjects are now initialized by
-    // hardware_validation_state_.init_subjects() above
-
-    // Note: Firmware retraction, manual probe, and motor state subjects
-    // are now initialized by calibration_state_.init_subjects() above
-
     // Version subjects (for About section) - delegated to versions_state_ component
     versions_state_.init_subjects(register_xml);
 
-    // Register all subjects with SubjectManager for automatic cleanup
-    // Note: Temperature subjects are managed by temperature_state_ component
-    // Note: Print subjects are managed by print_domain_ component
-    // Note: Motion subjects are registered by motion_state_ component
-    // Note: Fan subjects are registered by fan_state_ component
-    // Note: Capability subjects are managed by capabilities_state_ component
-    // Note: Network subjects are registered by network_state_.init_subjects()
-    // Note: Excluded objects subjects are registered by excluded_objects_state_.init_subjects()
-    // Note: Plugin status subjects are registered by plugin_status_state_.init_subjects()
-    // Note: Composite visibility subjects are registered by
-    // composite_visibility_state_.init_subjects() Note: Hardware validation subjects are registered
-    // by hardware_validation_state_.init_subjects() Note: Firmware retraction, manual probe, and
-    // motor state subjects are registered by calibration_state_.init_subjects()
-    // Note: Version subjects are registered by versions_state_.init_subjects()
+    // Printer type, its pre-print options and z-offset strategy
+    profile_state_.init_subjects(register_xml);
 
     // Multi-printer subjects (owned directly by PrinterState)
     INIT_SUBJECT_STRING(active_printer_name, "", subjects_, register_xml);
 
-    // Resolved printer type. Not XML-registered: the name collides with the
-    // connection-transport int subject ("network"/"usb"/"bluetooth"), and no
-    // XML binds it — observers attach programmatically (printer artwork).
-    INIT_SUBJECT_STRING(printer_type_subject, "", subjects_, false);
-
-    // Z-offset save visibility (1 = manual save needed, 0 = firmware auto-saves)
-    INIT_SUBJECT_INT(z_offset_can_save, 1, subjects_, register_xml);
-
     spdlog::trace("[PrinterState] Registered {} subjects with SubjectManager", subjects_.count());
 
-    // Register all subjects with LVGL XML system (CRITICAL for XML bindings)
-    // Note: Temperature subjects are registered by temperature_state_ component
-    // Note: Print subjects are registered by print_domain_ component
-    // Note: Motion subjects are registered by motion_state_ component
-    // Note: Fan subjects are registered by fan_state_ component
-    // Note: Capability subjects are registered by capabilities_state_ component
-    // Note: Network subjects are registered by network_state_.init_subjects()
-    // Note: Plugin status subjects are registered by plugin_status_state_.init_subjects()
-    // Note: Composite visibility subjects are registered by
-    // composite_visibility_state_.init_subjects() Note: Hardware validation subjects are registered
-    // by hardware_validation_state_.init_subjects() Note: Firmware retraction, manual probe, and
-    // motor state subjects are registered by calibration_state_.init_subjects()
-    // Note: Version subjects are registered by versions_state_.init_subjects()
-    // Note: Excluded objects subjects are registered by excluded_objects_state_.init_subjects()
     // All component subjects handle their own XML registration in init_subjects(register_xml)
 
     subjects_initialized_ = true;
@@ -330,19 +267,15 @@ void PrinterState::init_subjects(bool register_xml) {
     //    printer reports an "exclude_object" object, so switching to a printer without
     //    [exclude_object] configured would keep the previous printer's objects on screen.
     helix::PrinterCacheRegistry::instance().register_invalidator("PrinterState", [this]() {
-        reload_capability_overrides();
+        // Only the override map is refreshed. The effective capability subjects are
+        // re-derived from set_hardware(discovery_, capability_overrides_) when the new
+        // printer's discovery lands; deriving them here would pair the new printer's
+        // overrides with the OLD printer's still-cached discovery_.
+        capability_overrides_.load_from_config();
         excluded_objects_state_.clear_objects();
     });
 
     spdlog::trace("[PrinterState] Subjects initialized and registered successfully");
-}
-
-void PrinterState::reload_capability_overrides() {
-    // Only the override map is refreshed. The effective capability subjects are re-derived
-    // from set_hardware(discovery_, capability_overrides_) when the new printer's discovery
-    // lands; deriving them here would pair the new printer's overrides with the OLD
-    // printer's still-cached discovery_.
-    capability_overrides_.load_from_config();
 }
 
 std::optional<StatusFrame> helix::parse_status_notification(const json& notification) {
@@ -383,7 +316,7 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // positively proves the store is absent is what relaxes the latch back to
     // the type-derived strategy. Gated on the flag, so this fires at most once
     // per latch instead of thrashing on every later frame.
-    if (z_offset_external_persistence_ &&
+    if (profile_state_.external_persistence() &&
         helix::zoffset::status_refutes_persistence(discovery_, state)) {
         spdlog::info("[PrinterState] Status refutes the detected z-offset persistence provider "
                      "({}): the wrapper stores no offset",
@@ -399,9 +332,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
 
     // Delegate print updates to print state component
     print_domain_.update_from_status(state);
-
-    // Note: Toolhead position, homed_axes, speed_factor, flow_factor, and gcode_z_offset
-    // are now updated by motion_state_.update_from_status() above
 
     // Extract kinematics type (determines if bed moves on Z or gantry moves)
     // This is not part of motion_state_ as it affects printer_bed_moves_ subject
@@ -422,181 +352,12 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // Delegate fan state updates to fan component
     fan_state_.update_from_status(state);
 
-    // Update LED controller per-strip color cache
-    auto& led_ctrl = helix::led::LedController::instance();
-    if (led_ctrl.is_initialized()) {
-        led_ctrl.update_from_status(state);
-    }
+    excluded_objects_state_.update_from_status(state);
 
-    // Update exclude_object state (for mid-print object exclusion). The inner
-    // setters (set_excluded_objects / set_defined_objects_with_geometry /
-    // set_current_object) already log on actual change.
-    if (state.contains("exclude_object")) {
-        const auto& eo = state["exclude_object"];
-
-        if (eo.contains("excluded_objects") && eo["excluded_objects"].is_array()) {
-            std::unordered_set<std::string> excluded;
-            for (const auto& obj : eo["excluded_objects"]) {
-                if (obj.is_string()) {
-                    excluded.insert(obj.get<std::string>());
-                }
-            }
-            // set_excluded_objects handles change detection and notification
-            set_excluded_objects(excluded);
-        }
-
-        // Parse defined objects list with geometry (center + polygon bounding box)
-        if (eo.contains("objects") && eo["objects"].is_array()) {
-            std::vector<PrinterExcludedObjectsState::ObjectInfo> objects;
-            for (const auto& obj : eo["objects"]) {
-                if (!obj.is_object() || !obj.contains("name") || !obj["name"].is_string())
-                    continue;
-
-                PrinterExcludedObjectsState::ObjectInfo info;
-                info.name = obj["name"].get<std::string>();
-
-                if (obj.contains("center") && obj["center"].is_array() &&
-                    obj["center"].size() >= 2 && obj["center"][0].is_number() &&
-                    obj["center"][1].is_number()) {
-                    info.center.x = obj["center"][0].get<float>();
-                    info.center.y = obj["center"][1].get<float>();
-                    info.has_center = true;
-                } else {
-                    info.has_center = false;
-                }
-
-                if (obj.contains("polygon") && obj["polygon"].is_array() &&
-                    !obj["polygon"].empty()) {
-                    float min_x = std::numeric_limits<float>::max();
-                    float min_y = min_x;
-                    float max_x = std::numeric_limits<float>::lowest();
-                    float max_y = max_x;
-                    for (const auto& pt : obj["polygon"]) {
-                        if (pt.is_array() && pt.size() >= 2 && pt[0].is_number() &&
-                            pt[1].is_number()) {
-                            float x = pt[0].get<float>(), y = pt[1].get<float>();
-                            info.polygon.push_back({x, y});
-                            min_x = std::min(min_x, x);
-                            min_y = std::min(min_y, y);
-                            max_x = std::max(max_x, x);
-                            max_y = std::max(max_y, y);
-                        }
-                    }
-                    info.bbox_min = {min_x, min_y};
-                    info.bbox_max = {max_x, max_y};
-                    info.has_bbox = true;
-                } else {
-                    info.has_bbox = false;
-                }
-
-                objects.push_back(std::move(info));
-            }
-            excluded_objects_state_.set_defined_objects_with_geometry(objects);
-        }
-
-        // Parse current object
-        if (eo.contains("current_object")) {
-            if (eo["current_object"].is_string()) {
-                excluded_objects_state_.set_current_object(eo["current_object"].get<std::string>());
-            } else if (eo["current_object"].is_null()) {
-                excluded_objects_state_.set_current_object("");
-            }
-        }
-    }
-
-    // Update klippy state from webhooks (shutdown/error detection).
-    //
-    // Klippy state is a liveness signal written by two queues that are not ordered
-    // against each other: live WebSocket frames, and the discovery subscription
-    // snapshot replayed at the end of discovery. Last-write-wins let the replay
-    // resurrect READY over a live SHUTDOWN — nav re-enabled, the recovery dialog
-    // auto-dismissed, and the gcode guards re-opened against a dead printer.
-    //
-    // The state_message is gated with the state because they arrive in the same
-    // blob: a snapshot too stale to set the state carries an equally stale reason.
-    if (state.contains("webhooks")) {
-        const auto& webhooks = state["webhooks"];
-
-        // Provenance is STATED by the caller, never inferred from a zero eventtime:
-        // the mock client drives its simulated shutdown/recovery through the same
-        // untimestamped dispatch, and those are the current truth for their session.
-        // The eventtime watermark covers the other case — two genuinely live frames
-        // arriving out of order across the queues.
-        double watermark;
-        {
-            std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-            watermark = klippy_state_eventtime_;
-        }
-        const bool stale = (from_cached_snapshot && klippy_state_from_live_.load()) ||
-                           (eventtime > 0.0 && eventtime < watermark);
-
-        if (stale) {
-            spdlog::debug("[PrinterState] Ignoring stale klippy webhooks (state='{}', "
-                          "eventtime={} vs watermark={}, cached_snapshot={})",
-                          helix::json_util::safe_string(webhooks, "state", "<absent>"), eventtime,
-                          watermark, from_cached_snapshot);
-        } else {
-            bool applied_state = false;
-
-            if (webhooks.contains("state") && webhooks["state"].is_string()) {
-                std::string klippy_state_str = webhooks["state"].get<std::string>();
-                KlippyState new_state = KlippyState::READY;
-                bool recognized = true;
-
-                if (klippy_state_str == "ready") {
-                    new_state = KlippyState::READY;
-                } else if (klippy_state_str == "startup") {
-                    new_state = KlippyState::STARTUP;
-                } else if (klippy_state_str == "shutdown") {
-                    new_state = KlippyState::SHUTDOWN;
-                } else if (klippy_state_str == "error") {
-                    new_state = KlippyState::ERROR;
-                } else {
-                    // Klipper documents exactly ready/startup/shutdown/error. An
-                    // unrecognised value used to resolve to READY, which is
-                    // fail-OPEN on a liveness signal: an unknown string re-enabled
-                    // nav and re-opened the gcode guards. Leave the current state
-                    // alone instead — a stale-but-known state is safer than an
-                    // invented READY. Deduped on the string so a value Klipper
-                    // repeats every frame warns once, not per frame.
-                    recognized = false;
-                    if (last_unknown_klippy_state_ != klippy_state_str) {
-                        last_unknown_klippy_state_ = klippy_state_str;
-                        spdlog::warn("[PrinterState] Unrecognised webhooks.state '{}' — leaving "
-                                     "klippy state unchanged",
-                                     klippy_state_str);
-                    }
-                }
-
-                if (recognized) {
-                    set_klippy_state_internal(new_state);
-                    applied_state = true;
-                }
-            }
-
-            // Capture state_message (error/shutdown reason text)
-            if (webhooks.contains("state_message") && webhooks["state_message"].is_string()) {
-                network_state_.set_klippy_state_message(
-                    webhooks["state_message"].get<std::string>());
-            }
-
-            // Only a frame that actually carried a usable state moves the guard.
-            // A delta carrying just state_message must not latch "live seen" and
-            // lock out the snapshot that still has to seed the state.
-            if (applied_state) {
-                // A frame received before the last reset belongs to the previous
-                // session, whose clock the watermark no longer measures, so it does
-                // not move the guard. Checked under the lock the reset takes.
-                std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-                if (!frame_epoch || *frame_epoch == klippy_epoch_.load()) {
-                    if (eventtime > 0.0) {
-                        klippy_state_eventtime_ = eventtime;
-                    }
-                    if (!from_cached_snapshot) {
-                        klippy_state_from_live_ = true;
-                    }
-                }
-            }
+    // Klippy state from webhooks (shutdown/error detection), gated on freshness.
+    if (auto it = state.find("webhooks"); it != state.end()) {
+        if (network_state_.apply_webhooks(*it, eventtime, from_cached_snapshot, frame_epoch)) {
+            calibration_state_.reset_klippy_volatile();
         }
     }
 
@@ -623,11 +384,9 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     // once neither arm is active. is_blocking_operation_active() sees the
     // just-updated manual_probe / idle_timeout / print-job subjects. The store is
     // idempotent, so gating on the predicate needs no separate edge tracking.
-    if (!is_blocking_operation_active() && !is_in_print_start()) {
+    if (!is_blocking_operation_active() && !print_domain_.is_in_print_start()) {
         calibration_state_.arm_busy_queue_toast();
     }
-
-    helix::sensors::for_each_sensor_manager([&state](auto& m) { m.update_from_status(state); });
 }
 
 void PrinterState::reset_for_new_print() {
@@ -635,20 +394,12 @@ void PrinterState::reset_for_new_print() {
     helix::TimelapseState::instance().reset();
 }
 
-// Note: Multi-fan tracking (init_fans, update_fan_speed, get_fan_speed_subject) is now
-// delegated to fan_state_ component. See printer_fan_state.cpp.
-
 void PrinterState::set_printer_connection_state(int state, const char* message) {
     // Thread-safe wrapper: defer LVGL subject updates to main thread
     std::string msg = message ? message : "";
     async_lifetime_.defer("PrinterState::set_printer_connection_state", [this, state, msg]() {
-        set_printer_connection_state_internal(state, msg.c_str());
+        network_state_.set_printer_connection_state_internal(state, msg.c_str());
     });
-}
-
-void PrinterState::set_printer_connection_state_internal(int state, const char* message) {
-    // Delegate to network_state_ component
-    network_state_.set_printer_connection_state_internal(state, message);
 }
 
 void PrinterState::set_moonraker_is_remote(bool remote) {
@@ -663,22 +414,17 @@ bool PrinterState::is_moonraker_remote() {
     return lv_subject_get_int(network_state_.get_moonraker_is_remote_subject()) != 0;
 }
 
-void PrinterState::set_network_status(int status) {
-    // Delegate to network_state_ component
-    network_state_.set_network_status(status);
-}
-
 void PrinterState::set_klippy_state(KlippyState state) {
     // These are the notify_klippy_ready / _shutdown / _disconnected paths: live,
     // authoritative, and they must outrank any replayed snapshot from here on,
     // including one already waiting in the notification queue.
-    klippy_state_from_live_.store(true);
+    network_state_.mark_klippy_state_live();
     async_lifetime_.defer("PrinterState::set_klippy_state",
                           [this, state]() { set_klippy_state_internal(state); });
 }
 
 void PrinterState::set_klippy_state_sync(KlippyState state) {
-    klippy_state_from_live_.store(true);
+    network_state_.mark_klippy_state_live();
     set_klippy_state_internal(state);
 }
 
@@ -692,7 +438,7 @@ void PrinterState::set_klippy_state_if_unseeded(KlippyState state) {
 }
 
 void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
-    if (klippy_state_from_live_.load()) {
+    if (network_state_.klippy_state_from_live()) {
         spdlog::debug("[PrinterState] Ignoring printer.info klippy state {} — a live state "
                       "has already been applied",
                       static_cast<int>(state));
@@ -705,19 +451,10 @@ void PrinterState::set_klippy_state_if_unseeded_internal(KlippyState state) {
     set_klippy_state_internal(state);
 }
 
-void PrinterState::reset_klippy_state_freshness() {
-    // Synchronous on the caller's thread: the next session's frames arrive
-    // through a different queue than deferred UI work, so a queued reset could
-    // land after them and wipe their watermark.
-    std::lock_guard<std::mutex> lock(klippy_freshness_mutex_);
-    klippy_state_eventtime_ = 0.0;
-    klippy_state_from_live_.store(false);
-    ++klippy_epoch_;
-}
-
 void PrinterState::set_klippy_state_internal(KlippyState state) {
-    // Single chokepoint for every Klippy state change: the webhooks JSON parse, the
-    // deferred set_klippy_state(), and set_klippy_state_sync all land here.
+    // Chokepoint for the deferred set_klippy_state(), set_klippy_state_sync() and
+    // printer.info seed. The webhooks parse applies the same reset in
+    // update_from_status() when PrinterNetworkState::apply_webhooks() reports a change.
     const bool changed = network_state_.set_klippy_state_internal(state);
     if (!changed) {
         return;
@@ -735,10 +472,6 @@ void PrinterState::set_klippy_state_internal(KlippyState state) {
 void PrinterState::update_nav_buttons_enabled() {
     // Delegate to network_state_ component
     network_state_.update_nav_buttons_enabled();
-}
-
-void PrinterState::set_print_in_progress(bool in_progress) {
-    print_domain_.set_print_in_progress(in_progress);
 }
 
 void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
@@ -771,24 +504,8 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
     // decision reads both, so the capability must land first.
     print_domain_.set_plr_resume_macro_present(helix::plr_resume_macro_present(discovery_));
 
-    // Fold the helper-macro install status in with the same snapshot. An
-    // Installed base also clears any restart-pending flag held for a staged
-    // install or update (PrinterPluginStatusState); Outdated keeps it, since
-    // the staged pack is not loaded until the restart.
-    switch (MacroManager::evaluate_status(discovery_)) {
-    case MacroInstallStatus::NOT_INSTALLED:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::NotInstalled);
-        break;
-    case MacroInstallStatus::INSTALLED:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::Installed);
-        break;
-    case MacroInstallStatus::OUTDATED:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::Outdated);
-        break;
-    case MacroInstallStatus::UNKNOWN:
-        plugin_status_state_.set_helix_macros_base_status(HelixMacrosStatus::Unknown);
-        break;
-    }
+    // Fold the helper-macro install status in with the same snapshot.
+    plugin_status_state_.set_helix_macros_base_status(MacroManager::evaluate_status(discovery_));
 
     // Re-synthesize dynamic pre-print options now that hardware capabilities are
     // known. The bed_mesh option's adaptive_active flag (which relabels it to
@@ -804,90 +521,11 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
         set_kinematics(discovery_.kinematics());
     }
 
-    // Resolve chamber assignments. A named sensor or heater counts only while Klipper
-    // reports it (chamber::resolve_sensor, chamber::resolve_heater).
     auto& settings = helix::SettingsManager::instance();
-
-    const std::string chamber_sensor =
-        chamber::resolve_sensor(settings.get_chamber_sensor_assignment(), discovery_);
-
-    const std::string chamber_heater =
-        chamber::resolve_heater(settings.get_chamber_heater_assignment(), discovery_);
-
-    spdlog::debug("[PrinterState] Chamber resolved: sensor='{}' heater='{}'", chamber_sensor,
-                  chamber_heater);
-    temperature_state_.set_chamber_sensor_name(chamber_sensor);
-    temperature_state_.set_chamber_heater_name(chamber_heater);
-    // Cooling-fan name has no manual override — it's read straight from discovery.
-    // In COOLING mode the K2 M141 macro parks the setpoint on this fan's target.
-    temperature_state_.set_chamber_cooling_fan_name(discovery_.chamber_cooling_fan_name());
-    // Cooling fan's configured resting/off target (from configfile.settings). M141
-    // S0 returns the fan here, so the chamber mode treats this value as Off rather
-    // than a deliberate "Maintaining" set.
-    temperature_state_.set_chamber_fan_resting(discovery_.chamber_fan_resting_deci());
-
-    // Chamber-heater diagnostics backend (issue #1290). The backend matched the
-    // DISCOVERED chamber heater during parse_objects; its diagnostics surfaces
-    // only apply while the RESOLVED heater is that same discovery pick — a
-    // manual override to another heater (or "none") detaches them and clears
-    // the capabilities. See include/chamber_heater_backend.h.
-    const bool chamber_diagnostics_apply =
-        !chamber_heater.empty() && chamber_heater == discovery_.chamber_heater_name();
-    if (chamber_diagnostics_apply) {
-        temperature_state_.set_chamber_diagnostics_source(discovery_.chamber_heater_backend_id(),
-                                                          discovery_.chamber_diagnostics_object(),
-                                                          discovery_.chamber_filter_fan_pin());
-    } else {
-        temperature_state_.set_chamber_diagnostics_source("", "", "");
-    }
-
-    // Backend action surface (issue #1290): fault-reset gcode, filter-fan pin
-    // and the conservative ceiling come from the matched backend — same gate
-    // as the diagnostics source above, so a manual override to another heater
-    // (or "none") clears them and the actions revert to no-ops.
-    if (auto* tc = get_temperature_controller()) {
-        if (chamber_diagnostics_apply) {
-            const auto* backend = chamber::backend_by_id(discovery_.chamber_heater_backend_id());
-            tc->set_chamber_actions(backend ? std::string(backend->fault_reset_gcode())
-                                            : std::string(),
-                                    discovery_.chamber_filter_fan_pin(),
-                                    backend ? backend->conservative_max_temp() : 0.0);
-            tc->set_chamber_dryer(backend, discovery_.has_heater_bed());
-            // Read the ceiling now, after set_chamber_actions() stored the
-            // backend's fallback, so a label built from it on first open is right.
-            tc->ensure_limits(HeaterType::Chamber);
-        } else {
-            tc->set_chamber_actions(std::string(), std::string(), 0.0);
-            tc->set_chamber_dryer(nullptr);
-        }
-    }
-
-    // Update capability flags based on resolved chamber assignments
-    // (set_hardware above used discovery flags which miss manual overrides)
-    capabilities_state_.set_has_chamber_sensor(!chamber_sensor.empty());
-    capabilities_state_.set_has_chamber_heater(!chamber_heater.empty());
+    chamber::apply_resolution(discovery_, settings.get_chamber_sensor_assignment(),
+                              settings.get_chamber_heater_assignment(), temperature_state_,
+                              capabilities_state_, get_temperature_controller());
     refresh_bed_drying_capability();
-    capabilities_state_.set_has_chamber_heater_diagnostics(
-        chamber_diagnostics_apply && !discovery_.chamber_diagnostics_object().empty());
-    capabilities_state_.set_has_chamber_filter_fan(chamber_diagnostics_apply &&
-                                                   !discovery_.chamber_filter_fan_pin().empty());
-    const auto* chamber_backend =
-        chamber_diagnostics_apply ? chamber::backend_by_id(discovery_.chamber_heater_backend_id())
-                                  : nullptr;
-    capabilities_state_.set_has_chamber_element_temp(chamber_backend &&
-                                                     chamber_backend->reports_element_temp());
-    capabilities_state_.set_has_chamber_dryer(chamber_backend &&
-                                              chamber_backend->dryer_capabilities().supported);
-
-    // Promote the resolved chamber sensor to CHAMBER role in the sensor
-    // manager. Required for vendors whose chamber sensor name doesn't match
-    // the "chamber" substring used by the manager's auto-categorizer
-    // (Snapmaker uses "cavity", Elegoo "enclosure"). Without this promotion,
-    // the temp graph would add the sensor twice — once as "Chamber" (from
-    // PrinterTemperatureState::chamber_sensor_name) and once under its raw
-    // display name (because the AUXILIARY role isn't filtered out).
-    helix::sensors::TemperatureSensorManager::instance().apply_chamber_sensor_override(
-        chamber_sensor);
 
     // Update composite subjects for G-code modification options
     // (visibility depends on both plugin status and capability)
@@ -923,34 +561,6 @@ void PrinterState::set_os_version_internal(const std::string& version) {
     versions_state_.set_os_version_internal(version);
 }
 
-void PrinterState::set_power_device_count(int count) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_power_device_count(count);
-}
-
-void PrinterState::set_sensor_count(int count) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_sensor_count(count);
-}
-
-void PrinterState::set_spoolman_available(bool available) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_spoolman_available(available);
-}
-
-void PrinterState::set_webcam_available(bool available, const std::string& stream_url,
-                                        const std::string& snapshot_url, bool flip_h, bool flip_v,
-                                        int target_fps) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_webcam_available(available, stream_url, snapshot_url, flip_h, flip_v,
-                                             target_fps);
-}
-
-void PrinterState::set_webcams(std::vector<WebcamInfo> cams) {
-    // Delegate to capabilities_state_ component (handles thread-safety)
-    capabilities_state_.set_webcams(std::move(cams));
-}
-
 void PrinterState::set_timelapse_available(bool available) {
     // Delegate to capabilities_state_ component (handles thread-safety internally)
     capabilities_state_.set_timelapse_available(available);
@@ -968,7 +578,7 @@ void PrinterState::set_timelapse_default_enabled(bool enabled) {
     // moonraker-timelapse `enabled` setting. Both the member write and the
     // resynthesis must run on the main thread (#1094).
     async_lifetime_.defer("PrinterState::set_timelapse_default_enabled", [this, enabled]() {
-        timelapse_default_enabled_ = enabled;
+        profile_state_.set_timelapse_default_enabled(enabled);
         apply_dynamic_options();
         update_gcode_modification_visibility();
     });
@@ -980,22 +590,14 @@ void PrinterState::merge_firmware_option_defaults(std::map<std::string, bool> de
     }
     // Both the member write and the resynthesis touch LVGL subjects, and status
     // frames arrive on the websocket thread.
-    async_lifetime_.defer(
-        "PrinterState::merge_firmware_option_defaults", [this, defaults = std::move(defaults)]() {
-            bool changed = false;
-            for (const auto& [option_id, enabled] : defaults) {
-                auto it = firmware_option_defaults_.find(option_id);
-                if (it == firmware_option_defaults_.end() || it->second != enabled) {
-                    firmware_option_defaults_[option_id] = enabled;
-                    changed = true;
-                }
-            }
-            if (!changed) {
-                return;
-            }
-            apply_dynamic_options();
-            update_gcode_modification_visibility();
-        });
+    async_lifetime_.defer("PrinterState::merge_firmware_option_defaults",
+                          [this, defaults = std::move(defaults)]() {
+                              if (!profile_state_.merge_firmware_option_defaults(defaults)) {
+                                  return;
+                              }
+                              apply_dynamic_options();
+                              update_gcode_modification_visibility();
+                          });
 }
 
 void PrinterState::set_helix_plugin_installed(bool installed) {
@@ -1009,35 +611,11 @@ void PrinterState::set_helix_plugin_installed(bool installed) {
     });
 }
 
-bool PrinterState::service_has_helix_plugin() const {
-    // Delegate to plugin_status_state_ component
-    return plugin_status_state_.service_has_helix_plugin();
-}
-
-int PrinterState::helix_plugin_state() const {
-    return plugin_status_state_.helix_plugin_state();
-}
-
-void PrinterState::set_helix_macros_restart_pending(bool pending) {
-    // Main thread only; the install flow reaches this from deferred callbacks
-    plugin_status_state_.set_helix_macros_restart_pending(pending);
-}
-
 void PrinterState::update_gcode_modification_visibility() {
     // Delegate to composite visibility component
     bool plugin = plugin_status_state_.service_has_helix_plugin();
-    composite_visibility_state_.update_visibility(plugin, capabilities_state_,
-                                                  pre_print_option_set_.options.size());
-}
-
-// Note: update_print_show_progress() is now in print_domain_ component
-
-void PrinterState::set_excluded_objects(const std::unordered_set<std::string>& objects) {
-    excluded_objects_state_.set_excluded_objects(objects);
-}
-
-PrintJobState PrinterState::get_print_job_state() const {
-    return print_domain_.get_print_job_state();
+    composite_visibility_state_.update_visibility(
+        plugin, capabilities_state_, profile_state_.pre_print_option_set().options.size());
 }
 
 bool PrinterState::is_blocking_operation_active() {
@@ -1069,7 +647,7 @@ bool PrinterState::is_blocking_operation_active() {
     // print_stats still reads standby, and answering "blocked" there is correct:
     // the toolhead really is busy. Widening to Preparing would make this return
     // false and ADMIT jogs during the bed mesh.
-    const PrintJobState pstate = get_print_job_state();
+    const PrintJobState pstate = print_domain_.get_print_job_state();
     return pstate != PrintJobState::PRINTING && pstate != PrintJobState::PAUSED;
 }
 
@@ -1091,12 +669,8 @@ bool PrinterState::is_external_blocking_operation_active() {
                calibration_state_.idle_timeout_busy().printing_since());
 }
 
-bool PrinterState::can_start_new_print() const {
-    return print_domain_.can_start_new_print();
-}
-
 int PrinterState::get_configured_z_offset_microns() {
-    if (has_probe()) {
+    if (capabilities_state_.has_probe()) {
         // Probe printers: z_offset stored in ProbeSensorManager (already in microns)
         return lv_subject_get_int(
             helix::sensors::ProbeSensorManager::instance().get_probe_z_offset_subject());
@@ -1139,7 +713,7 @@ void PrinterState::refresh_bed_drying_capability() {
         return;
     }
     const bool enclosed = bed_drying::is_enclosed(
-        SettingsManager::instance().get_enclosure_style(), printer_db_enclosed_,
+        SettingsManager::instance().get_enclosure_style(), profile_state_.db_enclosed(),
         lv_subject_get_int(capabilities_state_.subject(Capability::HasChamberHeater)) != 0);
     const AxisBounds bounds = motion_state_.get_axis_bounds();
     const bool can_dry = bed_drying::available(
@@ -1170,64 +744,9 @@ void PrinterState::apply_effective_bed_moves() {
                   static_cast<int>(style), auto_detected_bed_moves_, effective);
 }
 
-// Note: Pending Z-offset delta methods are now delegated to motion_state_
-// component in the header file.
-
 // ============================================================================
-// PRINT START PROGRESS TRACKING - Delegated to print_domain_
+// PRINTER TYPE
 // ============================================================================
-
-bool PrinterState::is_in_print_start() const {
-    return print_domain_.is_in_print_start();
-}
-
-void PrinterState::set_print_start_state(PrintStartPhase phase, const char* message, int progress) {
-    print_domain_.set_print_start_state(phase, message, progress);
-}
-
-void PrinterState::reset_print_start_state() {
-    print_domain_.reset_print_start_state();
-}
-
-void PrinterState::set_print_thumbnail(const std::string& for_file, const std::string& path) {
-    print_domain_.set_print_thumbnail(for_file, path);
-}
-
-#if defined(HELIX_PLATFORM_ESP32)
-void PrinterState::set_print_psram_thumbnail(std::shared_ptr<helix::ui::EspPsramThumbnail> thumb) {
-    print_domain_.set_print_psram_thumbnail(std::move(thumb));
-}
-#endif
-
-void PrinterState::set_print_display_filename(const std::string& name) {
-    print_domain_.set_print_display_filename(name);
-}
-
-// ============================================================================
-// HARDWARE VALIDATION - Delegated to hardware_validation_state_
-// ============================================================================
-
-void PrinterState::set_hardware_validation_result(const HardwareValidationResult& result) {
-    hardware_validation_state_.set_hardware_validation_result(result);
-}
-
-void PrinterState::remove_hardware_issue(const std::string& hardware_name) {
-    hardware_validation_state_.remove_hardware_issue(hardware_name);
-}
-
-void PrinterState::set_print_outcome(PrintOutcome outcome) {
-    print_domain_.set_print_outcome(outcome);
-}
-
-// ============================================================================
-// PRINTER TYPE AND PRINT START CAPABILITIES
-// ============================================================================
-
-void PrinterState::set_printer_type(const std::string& type) {
-    // Thread-safe wrapper: defer updates to main thread
-    async_lifetime_.defer("PrinterState::set_printer_type",
-                          [this, type]() { set_printer_type_internal(type); });
-}
 
 void PrinterState::set_printer_type_sync(const std::string& type) {
     // Direct call for main-thread use (testing, or when already on main thread)
@@ -1248,81 +767,38 @@ void PrinterState::clear_z_offset_external_persistence() {
 }
 
 void PrinterState::clear_z_offset_external_persistence_internal() {
-    if (!z_offset_external_persistence_) {
+    if (!profile_state_.set_external_persistence(false)) {
         return;
     }
-    z_offset_external_persistence_ = false;
     // Two callers with different reasons - rediscovery finding no provider, and
     // a status frame refuting one - so each logs its own reason and this stays
     // neutral about which happened.
     spdlog::info("[PrinterState] No external z-offset persistence provider - Save Z Offset "
                  "returns to the type-derived strategy");
-    if (!printer_type_.empty()) {
-        set_printer_type_internal(printer_type_);
+    if (!profile_state_.printer_type().empty()) {
+        set_printer_type_internal(profile_state_.printer_type());
     }
 }
 
 void PrinterState::set_z_offset_external_persistence_internal(const std::string& provider_name) {
-    if (z_offset_external_persistence_) {
+    if (!profile_state_.set_external_persistence(true)) {
         return;
     }
-    z_offset_external_persistence_ = true;
     spdlog::info("[PrinterState] {} persists the z-offset externally - Save Z Offset stands down",
                  provider_name.empty() ? std::string("An installed module") : provider_name);
     // Re-resolve now; set_printer_type_internal also honors the flag on every
     // later type change.
-    if (!printer_type_.empty()) {
-        set_printer_type_internal(printer_type_);
+    if (!profile_state_.printer_type().empty()) {
+        set_printer_type_internal(profile_state_.printer_type());
     }
 }
 
 void PrinterState::set_printer_type_internal(const std::string& type) {
-    // Determine what the z-cal strategy would be for this type so we can
-    // skip redundant updates (auto-detect often confirms the saved type).
-    auto new_options = PrinterDetector::get_pre_print_option_set(type);
-    std::string strategy_str = PrinterDetector::get_z_offset_calibration_strategy(type);
-    ZOffsetCalibrationStrategy new_strategy;
-    if (strategy_str == "firmware_managed") {
-        new_strategy = ZOffsetCalibrationStrategy::FIRMWARE_MANAGED;
-    } else if (strategy_str == "endstop") {
-        new_strategy = ZOffsetCalibrationStrategy::ENDSTOP;
-    } else if (strategy_str == "probe_calibrate") {
-        new_strategy = ZOffsetCalibrationStrategy::PROBE_CALIBRATE;
-    } else {
-        new_strategy = capabilities_state_.has_probe() ? ZOffsetCalibrationStrategy::PROBE_CALIBRATE
-                                                       : ZOffsetCalibrationStrategy::ENDSTOP;
-    }
-
-    // An installed SET_GCODE_OFFSET wrapper persists the offset itself; the
-    // type-derived strategy would fold the gcode offset into the probe and the
-    // wrapper's boot gcode would re-apply it - runaway stacking
-    // (prestonbrown/helixscreen#1401).
-    if (z_offset_external_persistence_) {
-        new_strategy = ZOffsetCalibrationStrategy::FIRMWARE_MANAGED;
-    }
-
-    if (type == printer_type_ && new_strategy == z_offset_calibration_strategy_) {
+    if (!profile_state_.set_printer_type(type, capabilities_state_.has_probe(),
+                                         discovery_.has_exclude_object(), timelapse_available())) {
         return;
     }
-
-    printer_type_ = type;
-    pre_print_option_set_ = new_options;
-    z_offset_calibration_strategy_ = new_strategy;
-    printer_db_enclosed_ = PrinterDetector::is_enclosed(type);
     refresh_bed_drying_capability();
-
-    if (subjects_initialized_) {
-        lv_subject_copy_string(&printer_type_subject_, type.c_str());
-    }
-
-    // Synthesize runtime-dependent options (timelapse) on top of the DB load.
-    apply_dynamic_options();
-
-    // Update z_offset_can_save subject: 0 when firmware/macros auto-persist (FIRMWARE_MANAGED)
-    int can_save = (new_strategy != ZOffsetCalibrationStrategy::FIRMWARE_MANAGED) ? 1 : 0;
-    if (subjects_initialized_) {
-        lv_subject_set_int(&z_offset_can_save_, can_save);
-    }
 
     // Apply probe type override from database (e.g., prtouch_v2 for K1 series)
     std::string probe_type_str = PrinterDetector::get_probe_type(type);
@@ -1336,8 +812,9 @@ void PrinterState::set_printer_type_internal(const std::string& type) {
     // Update printer_has_purge_line_ based on the option set.
     // "priming" is the option id for purge/prime line in the database (also accept legacy
     // "nozzle_priming" as an alias).
-    bool has_priming = (pre_print_option_set_.find("priming") != nullptr) ||
-                       (pre_print_option_set_.find("nozzle_priming") != nullptr);
+    const auto& options = profile_state_.pre_print_option_set();
+    bool has_priming =
+        (options.find("priming") != nullptr) || (options.find("nozzle_priming") != nullptr);
     capabilities_state_.set_purge_line(has_priming);
 
     // Does the automatic tool offset calibration make the paper test redundant?
@@ -1351,113 +828,16 @@ void PrinterState::set_printer_type_internal(const std::string& type) {
     const char* strategy_names[] = {"probe_calibrate", "firmware_managed", "endstop"};
     spdlog::info(
         "[PrinterState] Printer type set to: '{}' (pre_print_options: {}, priming={}, z_cal={})",
-        type, pre_print_option_set_.empty() ? "none" : pre_print_option_set_.macro_name,
-        has_priming, strategy_names[static_cast<int>(z_offset_calibration_strategy_)]);
+        type, options.empty() ? "none" : options.macro_name, has_priming,
+        strategy_names[static_cast<int>(profile_state_.z_offset_calibration_strategy())]);
 }
 
 void PrinterState::apply_dynamic_options() {
-    // Strip any previously synthesized dynamic options before re-adding so
-    // this method is idempotent and handles capability changes (e.g.
-    // moonraker-timelapse plugin going from absent to present).
-    pre_print_option_set_.options.erase(
-        std::remove_if(pre_print_option_set_.options.begin(), pre_print_option_set_.options.end(),
-                       [](const PrePrintOption& opt) { return opt.id == "timelapse"; }),
-        pre_print_option_set_.options.end());
-
-    // Adaptive bed mesh: a property of the SINGLE bed_mesh toggle, not a separate
-    // row. When ALL hold, the bed_mesh option is relabeled "Adaptive Bed Mesh"
-    // and emits its adaptive token (e.g. ADAPTIVE=1) alongside the enable param
-    // when ON; otherwise it stays the plain "Auto Bed Mesh" with unchanged
-    // behavior. Conditions (so it's never a silent no-op):
-    //   1. the bed_mesh option is a MacroParam declaring an adaptive_param (the
-    //      START_PRINT forwarding signal — the macro passes the token into
-    //      BED_MESH_CALIBRATE),
-    //   2. the firmware exposes [exclude_object] (adaptive maps printed objects),
-    //   3. no custom calibration.bed_mesh_gcode template is in use (that path
-    //      runs verbatim and ignores ADAPTIVE).
-    // Recomputed each run (idempotent, non-destructive) so it tracks capability
-    // changes — e.g. exclude_object only becomes known once hardware arrives.
-    for (auto& opt : pre_print_option_set_.options) {
-        if (opt.id != "bed_mesh") {
-            continue;
-        }
-        const auto* mp = std::get_if<PrePrintStrategyMacroParam>(&opt.strategy);
-        const bool has_adaptive_param = mp && !mp->adaptive_param.empty();
-        const bool firmware_forwards = discovery_.has_exclude_object();
-        const bool custom_template =
-            !PrinterDetector::get_bed_mesh_calibrate_gcode(printer_type_).empty();
-        opt.adaptive_active = has_adaptive_param && firmware_forwards && !custom_template;
-        break;
-    }
-
-    // Firmware that stores these settings itself is the authority on what each
-    // toggle shows. A database default would otherwise claim a state the
-    // machine does not hold, and disagree with every other client reading the
-    // same printer.
-    for (auto& opt : pre_print_option_set_.options) {
-        auto it = firmware_option_defaults_.find(opt.id);
-        if (it != firmware_option_defaults_.end()) {
-            opt.default_enabled = it->second;
-        }
-    }
-
-    // A printer whose firmware owns timelapse declares its own option for that
-    // capability in the database, and that option is the one that works: it
-    // writes a firmware preference, where the plugin row writes through
-    // Moonraker. Synthesising on top of it gives the user two timelapse
-    // toggles, and on firmware that ships a compatibility stub for the plugin
-    // API the synthesised one silently does nothing. The database wins.
-    const bool database_owns_timelapse = pre_print_option_set_.declares_capability("timelapse");
-
-    // Timelapse: append when the moonraker-timelapse plugin reports available.
-    // Strategy is RuntimeCommand with sentinel values that
-    // PrintPreparationManager::start_print() recognizes (see the dispatch
-    // for command_enabled / command_disabled prefixed with "timelapse:").
-    // These are NOT gcode lines — start_print() routes them to
-    // `api_->timelapse().set_timelapse_enabled(...)`.
-    if (!database_owns_timelapse &&
-        lv_subject_get_int(capabilities_state_.subject(Capability::HasTimelapse)) == 1) {
-        PrePrintOption tl;
-        tl.id = "timelapse";
-        tl.label_key = "Timelapse";
-        tl.category = PrePrintCategory::Monitoring;
-        tl.order = 100;
-        // Default reflects the global moonraker-timelapse `enabled` setting
-        // (seeded at discovery via set_timelapse_default_enabled). The plugin
-        // has no per-print concept — the toggle writes the global `enabled` at
-        // print start — so defaulting to a hardcoded false silently disabled a
-        // user's global timelapse on every print start (#1094).
-        tl.default_enabled = timelapse_default_enabled_;
-        tl.strategy_kind = PrePrintStrategyKind::RuntimeCommand;
-        PrePrintStrategyRuntimeCommand cmd;
-        cmd.command_enabled = "timelapse:on";
-        cmd.command_disabled = "timelapse:off";
-        tl.strategy = cmd;
-        pre_print_option_set_.options.push_back(std::move(tl));
-    }
-
-    // Maintain the (category, order) sort guarantee from
-    // parse_pre_print_option_set so renderers still see options in their
-    // documented order (covers both synthesized options above).
-    std::sort(pre_print_option_set_.options.begin(), pre_print_option_set_.options.end(),
-              [](const PrePrintOption& a, const PrePrintOption& b) {
-                  if (a.category != b.category) {
-                      return static_cast<int>(a.category) < static_cast<int>(b.category);
-                  }
-                  return a.order < b.order;
-              });
+    profile_state_.apply_dynamic_options(discovery_.has_exclude_object(), timelapse_available());
 }
 
-const std::string& PrinterState::get_printer_type() const {
-    return printer_type_;
-}
-
-const PrePrintOptionSet& PrinterState::get_pre_print_option_set() const {
-    return pre_print_option_set_;
-}
-
-ZOffsetCalibrationStrategy PrinterState::get_z_offset_calibration_strategy() const {
-    return z_offset_calibration_strategy_;
+bool PrinterState::timelapse_available() {
+    return lv_subject_get_int(capabilities_state_.subject(Capability::HasTimelapse)) == 1;
 }
 
 // ============================================================================

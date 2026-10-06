@@ -10571,7 +10571,7 @@ struct Ad5xRunoutFixture : public LVGLTestFixture {
     // Plain null check, not REQUIRE: this also runs from the destructor, where a
     // Catch2 assertion would throw during unwinding.
     static void set_print_state(helix::PrintJobState s) {
-        if (get_printer_state().get_print_state_enum_subject()) {
+        if (get_printer_state().print_state().get_print_state_enum_subject()) {
             helix::test::set_wire_state(get_printer_state(), s);
         }
     }

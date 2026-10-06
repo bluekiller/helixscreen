@@ -171,7 +171,7 @@ class DwellFixture : public LVGLTestFixture {
         AmsState::instance().add_backend(std::make_unique<TypedBackend>(type));
         helix::test::set_wire_state(get_printer_state(), PrintJobState::PRINTING);
         helix::ui::UpdateQueue::instance().drain();
-        REQUIRE(job_holds_machine(get_printer_state().get_print_lifecycle()));
+        REQUIRE(job_holds_machine(get_printer_state().print_state().get_print_lifecycle()));
     }
 
     static void sensor(bool detected) {
@@ -269,7 +269,7 @@ TEST_CASE_METHOD(DwellFixture,
     AmsState::instance().add_backend(std::make_unique<TypedBackend>(AmsType::ACE));
     helix::test::set_wire_state(get_printer_state(), PrintJobState::STANDBY);
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE_FALSE(job_holds_machine(get_printer_state().get_print_lifecycle()));
+    REQUIRE_FALSE(job_holds_machine(get_printer_state().print_state().get_print_lifecycle()));
 
     ToastCapture toasts;
     sensor(false);

@@ -322,7 +322,8 @@ TEST_CASE_METHOD(BedMeshPanelFlowFixture,
 
     SECTION("a set bed target is the probe temperature") {
         set_bed(24.0, 70.0);
-        REQUIRE(lv_subject_get_int(get_printer_state().get_bed_target_subject()) == 700);
+        REQUIRE(lv_subject_get_int(
+                    get_printer_state().temperature_state().get_bed_target_subject()) == 700);
 
         BedMeshPanel panel;
         panel.init_subjects();
@@ -346,7 +347,8 @@ TEST_CASE_METHOD(BedMeshPanelFlowFixture,
 
     SECTION("an idle bed still hot is probed at the temperature it has") {
         set_bed(87.4, 0.0);
-        REQUIRE(lv_subject_get_int(get_printer_state().get_bed_temp_subject()) == 874);
+        REQUIRE(lv_subject_get_int(
+                    get_printer_state().temperature_state().get_bed_temp_subject()) == 874);
 
         BedMeshPanel panel;
         panel.init_subjects();

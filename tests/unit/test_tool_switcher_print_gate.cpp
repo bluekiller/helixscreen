@@ -126,7 +126,7 @@ struct ToolSwitcherGateFixture : public LVGLTestFixture {
 
     /// A host-side pre-print block: the wire still reads standby.
     void set_preprint_phase(helix::PrintStartPhase phase) {
-        printer_state.set_print_start_state(phase, "", 0);
+        printer_state.print_state().set_print_start_state(phase, "", 0);
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     }
 

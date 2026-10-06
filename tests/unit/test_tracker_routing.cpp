@@ -77,10 +77,10 @@ struct TrackerRoutingFixture : LVGLTestFixture {
         // stale values from a prior test would fire the observers immediately
         // on registration with the OLD value (LVGL subjects notify on add),
         // consuming filament from the wrong slot before print-start snapshot.
-        lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
+        lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
         SubjectLifetime reset_lt;
         for (int i = 0; i < 16; ++i) {
-            auto* subj = printer.get_extruder_filament_used_subject(i, reset_lt);
+            auto* subj = printer.print_state().get_extruder_filament_used_subject(i, reset_lt);
             if (subj) {
                 lv_subject_set_int(subj, 0);
             }
@@ -108,7 +108,7 @@ TEST_CASE_METHOD(TrackerRoutingFixture, "Per-extruder delta routes only to the m
                  "[tracker][routing]") {
     auto& state = get_printer_state();
     SubjectLifetime lifetime;
-    auto* e1 = state.get_extruder_filament_used_subject(1, lifetime);
+    auto* e1 = state.print_state().get_extruder_filament_used_subject(1, lifetime);
     REQUIRE(e1 != nullptr);
 
     // Push 1000 mm on extruder1 -> slot 1 should decrement; others unchanged.
@@ -135,7 +135,7 @@ TEST_CASE_METHOD(TrackerRoutingFixture,
     const float before1 = mock->get_slot_info(1).remaining_weight_g;
 
     // Drive the aggregate subject (no per-extruder subject change).
-    lv_subject_set_int(state.get_print_filament_used_subject(), 1000);
+    lv_subject_set_int(state.print_state().get_print_filament_used_subject(), 1000);
     helix::ui::UpdateQueue::instance().drain();
 
     CHECK(mock->get_slot_info(0).remaining_weight_g == before0);
@@ -148,7 +148,7 @@ TEST_CASE_METHOD(TrackerRoutingFixture, "Per-extruder dispatch ignores unmapped 
     SubjectLifetime lifetime;
     // extruder index 8 is past the 4-slot mock's range: slot_for_extruder
     // returns nullopt and no sink should decrement.
-    auto* e8 = state.get_extruder_filament_used_subject(8, lifetime);
+    auto* e8 = state.print_state().get_extruder_filament_used_subject(8, lifetime);
     REQUIRE(e8 != nullptr);
 
     lv_subject_set_int(e8, 1000);
@@ -199,10 +199,10 @@ TEST_CASE_METHOD(LVGLTestFixture,
     REQUIRE(mock->get_current_slot() == 2);
 
     // Zero subjects so stale cross-test values don't fire on observer add.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
     SubjectLifetime reset_lt;
     for (int i = 0; i < 16; ++i) {
-        auto* subj = printer.get_extruder_filament_used_subject(i, reset_lt);
+        auto* subj = printer.print_state().get_extruder_filament_used_subject(i, reset_lt);
         if (subj) {
             lv_subject_set_int(subj, 0);
         }
@@ -214,7 +214,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     helix::ui::UpdateQueue::instance().drain();
 
     // Push aggregate delta; only slot 2 (current_slot) should decrement.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1000);
     helix::ui::UpdateQueue::instance().drain();
 
     CHECK(mock->get_slot_info(0).remaining_weight_g == 1000.0f);

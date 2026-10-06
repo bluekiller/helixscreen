@@ -9,6 +9,7 @@
 #include "../test_helpers/printer_state_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
+#include "chamber_heater_assignment.h"
 #include "chamber_heater_backend.h"
 #include "printer_capabilities_state.h"
 #include "printer_discovery.h"
@@ -780,4 +781,45 @@ TEST_CASE("set_hardware raises the dryer capability for a backend with one",
 
     settings.set_chamber_heater_assignment("auto");
     settings.set_chamber_sensor_assignment("auto");
+}
+
+TEST_CASE("chamber::apply_resolution publishes the resolved chamber to its domains",
+          "[chamber][subjects][hardware]") {
+    LVGLTestFixture fixture;
+
+    PrinterTemperatureState ts;
+    ts.init_subjects(false);
+    PrinterCapabilitiesState caps;
+    caps.init_subjects(false);
+
+    helix::PrinterDiscovery hw;
+    hw.parse_objects(nlohmann::json{"heater_generic dragonbreath", "heater_generic ptc_heater",
+                                    "temperature_sensor cavity", "extruder", "heater_bed"});
+
+    SECTION("auto attaches the discovered backend's surfaces") {
+        helix::chamber::apply_resolution(hw, "temperature_sensor cavity", "auto", ts, caps,
+                                         nullptr);
+        CHECK(ts.chamber_sensor_name() == "temperature_sensor cavity");
+        CHECK(ts.chamber_heater_name() == "heater_generic dragonbreath");
+        CHECK(ts.chamber_diagnostics_object() == "dragonbreath");
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeater)) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 1);
+    }
+
+    SECTION("an override to another heater detaches them") {
+        helix::chamber::apply_resolution(hw, "none", "heater_generic ptc_heater", ts, caps,
+                                         nullptr);
+        CHECK(ts.chamber_sensor_name().empty());
+        CHECK(ts.chamber_heater_name() == "heater_generic ptc_heater");
+        CHECK(ts.chamber_diagnostics_object().empty());
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberSensor)) == 0);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeater)) == 1);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberHeaterDiagnostics)) == 0);
+        CHECK(lv_subject_get_int(caps.subject(Capability::HasChamberFilterFan)) == 0);
+    }
+
+    caps.deinit_subjects();
+    ts.deinit_subjects();
 }

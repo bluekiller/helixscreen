@@ -119,7 +119,7 @@ std::string LedAutoState::compute_state_key() const {
     }
 
     // Check klippy state first — error takes priority
-    auto* klippy_subj = printer_state_->get_klippy_state_subject();
+    auto* klippy_subj = printer_state_->network_state().get_klippy_state_subject();
     if (klippy_subj) {
         auto klippy = static_cast<KlippyState>(lv_subject_get_int(klippy_subj));
         if (klippy == KlippyState::ERROR) {
@@ -133,7 +133,7 @@ std::string LedAutoState::compute_state_key() const {
         // themes), not internal state. There is no "preparing" key, and a
         // pre-print block already falls through to "heating" below, which is
         // what the machine is in fact doing.
-        auto print_state = printer_state_->get_print_job_state();
+        auto print_state = printer_state_->print_state().get_print_job_state();
         switch (print_state) {
         case PrintJobState::PRINTING:
             return "printing";
@@ -151,7 +151,8 @@ std::string LedAutoState::compute_state_key() const {
     }
 
     // Check if heating (extruder target > 0 and not printing)
-    auto* ext_target_subj = printer_state_->get_active_extruder_target_subject();
+    auto* ext_target_subj =
+        printer_state_->temperature_state().get_active_extruder_target_subject();
     if (ext_target_subj) {
         int target_deci = lv_subject_get_int(ext_target_subj);
         if (target_deci > 0) {
@@ -221,21 +222,22 @@ void LedAutoState::subscribe_observers() {
 
     // RAW_PRINT_STATE_OK: the LED state names are theme keys keyed off what the
     // printer reports; see state_name_for_theme() below.
-    auto* print_subj = printer_state_->get_print_state_enum_subject();
+    auto* print_subj = printer_state_->print_state().get_print_state_enum_subject();
     if (print_subj) {
         print_state_observer_ = observe<int>(
             print_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },
             printer_state_->get_subjects_lifetime());
     }
 
-    auto* klippy_subj = printer_state_->get_klippy_state_subject();
+    auto* klippy_subj = printer_state_->network_state().get_klippy_state_subject();
     if (klippy_subj) {
         klippy_state_observer_ = observe<int>(
             klippy_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },
             printer_state_->get_subjects_lifetime());
     }
 
-    auto* ext_target_subj = printer_state_->get_active_extruder_target_subject();
+    auto* ext_target_subj =
+        printer_state_->temperature_state().get_active_extruder_target_subject();
     if (ext_target_subj) {
         extruder_target_observer_ = observe<int>(
             ext_target_subj, this, [](LedAutoState* self, int) { self->on_state_changed(); },

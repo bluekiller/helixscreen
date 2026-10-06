@@ -135,11 +135,11 @@ class DeviceOpsBypassFixture : public LVGLUITestFixture {
         helix::ui::UpdateQueue::instance().drain();
 
         auto& ps = state();
-        if (ps.has_preparing_job()) {
-            ps.retire_preparing(helix::PreparingExit::Superseded);
+        if (ps.print_state().has_preparing_job()) {
+            ps.print_state().retire_preparing(helix::PreparingExit::Superseded);
         }
         helix::test::set_wire_state(ps, PrintJobState::STANDBY);
-        ps.set_print_start_state(PrintStartPhase::IDLE, "", 0);
+        ps.print_state().set_print_start_state(PrintStartPhase::IDLE, "", 0);
 
         // deinit first: init_subjects() early-returns when a previous case left
         // the singleton initialized, and the ams_* names would never reach the

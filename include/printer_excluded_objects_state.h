@@ -13,6 +13,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "hv/json.hpp"
+
 namespace helix {
 
 /**
@@ -66,6 +68,14 @@ class PrinterExcludedObjectsState {
     // ========================================================================
     // Setters
     // ========================================================================
+
+    /**
+     * @brief Apply the exclude_object object of a Klipper status frame
+     *
+     * A frame without one changes nothing, and within it each absent field is
+     * left alone (Moonraker sends deltas). Main thread only.
+     */
+    void update_from_status(const nlohmann::json& status);
 
     /**
      * @brief Update excluded objects from Moonraker status update

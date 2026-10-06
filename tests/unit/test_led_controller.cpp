@@ -1158,7 +1158,7 @@ namespace {
 void make_led_dispatch_real(helix::PrinterState& api_state) {
     api_state.set_klippy_state_sync(helix::KlippyState::READY);
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(helix::KlippyState::READY);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1557,7 +1557,7 @@ TEST_CASE_METHOD(LedMockApiFixture, "LedController: disconnect clears in-flight 
     // confirms the connection-state observer is registered, compiles, and fires
     // without crashing — and that the end state is clean across the transition.
     // True mid-flight-disconnect (ACK never arrives) is verified on hardware.
-    lv_subject_set_int(get_printer_state().get_printer_connection_state_subject(),
+    lv_subject_set_int(get_printer_state().network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::DISCONNECTED));
 
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1590,7 +1590,7 @@ void wedge_in_flight_led_command(helix::PrinterState& api_state, MoonrakerClient
 
     // The LedController observes the GLOBAL PrinterState, not the API's.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(global_klippy);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1650,7 +1650,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     CAPTURE(static_cast<int>(non_ready));
 
     ps.set_klippy_state_sync(non_ready);
-    REQUIRE(lv_subject_get_int(ps.get_printer_connection_state_subject()) ==
+    REQUIRE(lv_subject_get_int(ps.network_state().get_printer_connection_state_subject()) ==
             static_cast<int>(helix::ConnectionState::CONNECTED));
 
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
@@ -1676,7 +1676,7 @@ TEST_CASE_METHOD(LedMockApiFixture,
     REQUIRE(lv_subject_get_int(s) == 1);
 
     ps.set_klippy_state_sync(helix::KlippyState::READY);
-    REQUIRE(lv_subject_get_int(ps.get_klippy_state_subject()) ==
+    REQUIRE(lv_subject_get_int(ps.network_state().get_klippy_state_subject()) ==
             static_cast<int>(helix::KlippyState::READY));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
     CHECK(lv_subject_get_int(s) == 1);
@@ -1707,14 +1707,14 @@ TEST_CASE_METHOD(LedMockApiFixture,
     // Pin the two safety-net observers OPEN (Moonraker connected, Klippy READY) so
     // neither can force-clear the counter and make this pass for the wrong reason.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(helix::KlippyState::READY);
 
     // The API reads the PrinterState it was constructed with. READY + idle_timeout
     // "Printing" without a file print == an external blocking op holds the lock.
     state.set_klippy_state_sync(helix::KlippyState::READY);
-    lv_subject_set_int(state.get_print_state_enum_subject(),
+    lv_subject_set_int(state.print_state().get_print_state_enum_subject(),
                        static_cast<int>(helix::PrintJobState::STANDBY));
     helix::PrinterStateTestAccess::set_sustained_idle_timeout_printing(state, true);
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());

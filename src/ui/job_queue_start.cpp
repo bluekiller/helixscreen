@@ -73,7 +73,7 @@ void start_next_queued_job() {
 }
 
 void handle_up_next_tap() {
-    if (decide_up_next_tap(get_printer_state().can_start_new_print()) ==
+    if (decide_up_next_tap(get_printer_state().print_state().can_start_new_print()) ==
         UpNextTapAction::StartNextJob) {
         start_next_queued_job();
     } else {

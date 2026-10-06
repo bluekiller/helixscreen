@@ -1146,7 +1146,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
 
     // Initial print_outcome should be NONE
     auto initial = static_cast<PrintOutcome>(
-        lv_subject_get_int(get_printer_state().get_print_outcome_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_outcome_subject()));
     REQUIRE(initial == PrintOutcome::NONE);
 
     // Start abort and run through to completion (soft cancel path)
@@ -1165,7 +1165,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
     // print_outcome should now be CANCELLED
     // THIS WILL FAIL until AbortManager calls set_print_outcome(CANCELLED)
     auto outcome = static_cast<PrintOutcome>(
-        lv_subject_get_int(get_printer_state().get_print_outcome_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_outcome_subject()));
     REQUIRE(outcome == PrintOutcome::CANCELLED);
 }
 
@@ -1180,7 +1180,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
 
     // Initial print_outcome should be NONE
     auto initial = static_cast<PrintOutcome>(
-        lv_subject_get_int(get_printer_state().get_print_outcome_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_outcome_subject()));
     REQUIRE(initial == PrintOutcome::NONE);
 
     // Start abort and escalate through to M112 + FIRMWARE_RESTART
@@ -1200,7 +1200,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
 
     // print_outcome should be CANCELLED even after escalation
     auto outcome = static_cast<PrintOutcome>(
-        lv_subject_get_int(get_printer_state().get_print_outcome_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_outcome_subject()));
     REQUIRE(outcome == PrintOutcome::CANCELLED);
 }
 
@@ -1300,7 +1300,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
     get_printer_state().init_subjects(false);
 
     // Set print state to PAUSED (simulates: user is cancelling a paused print)
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PAUSED));
 
     AbortManager::instance().init(nullptr, &get_printer_state());
@@ -1313,7 +1313,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
     REQUIRE(AbortManager::instance().get_state() == AbortManager::State::SENT_CANCEL);
 
     // Now simulate Klipper finishing the cancel macro → STANDBY
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::STANDBY));
 
     // Observer should complete the abort
@@ -1331,7 +1331,7 @@ TEST_CASE_METHOD(AbortManagerTestFixture,
     get_printer_state().init_subjects(false);
 
     // Print state is already STANDBY (print ended on its own)
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(),
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::STANDBY));
 
     AbortManager::instance().init(nullptr, &get_printer_state());

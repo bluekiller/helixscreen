@@ -82,14 +82,14 @@ struct PanelLifecycleFixture : public LVGLTestFixture {
 
     /// Raise or clear a pre-print phase.
     void set_phase(helix::PrintStartPhase phase) {
-        state_.set_print_start_state(phase, "", 0);
+        state_.print_state().set_print_start_state(phase, "", 0);
         drain();
     }
 
     /// What the app-wide authority says.
     PrintState published() const {
-        return static_cast<PrintState>(
-            lv_subject_get_int(const_cast<PrinterState&>(state_).get_print_lifecycle_subject()));
+        return static_cast<PrintState>(lv_subject_get_int(
+            const_cast<PrinterState&>(state_).print_state().get_print_lifecycle_subject()));
     }
 
     /// What the panel believes.

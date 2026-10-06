@@ -46,7 +46,7 @@ bool reject_homing_during_active_print(const std::string& gcode, helix::PrinterS
     // tile) is disabled by job_holds_machine().
     // RAW_PRINT_STATE_OK: see the full reason above - widening this refuses the
     // app's own pre-start G-code.
-    const helix::PrintJobState pstate = state.get_print_job_state();
+    const helix::PrintJobState pstate = state.print_state().get_print_job_state();
     if (pstate != helix::PrintJobState::PRINTING && pstate != helix::PrintJobState::PAUSED) {
         return false;
     }
@@ -65,8 +65,8 @@ bool reject_motion_while_spools_on_bed(const std::string& gcode, helix::PrinterS
                                        bool silent,
                                        const std::function<void(const MoonrakerError&)>& on_error,
                                        const char* log_tag) {
-    if (!state.spool_latch_active() ||
-        helix::spool_latch_allows(gcode, state.spool_latch_extra_tokens())) {
+    if (!state.print_state().spool_latch_active() ||
+        helix::spool_latch_allows(gcode, state.print_state().spool_latch_extra_tokens())) {
         return false;
     }
     if (!silent) {
@@ -81,7 +81,7 @@ bool reject_motion_while_spools_on_bed(const std::string& gcode, helix::PrinterS
 
 bool reject_job_while_spools_on_bed(const helix::PrinterState* state, const char* method,
                                     const std::function<void(const MoonrakerError&)>& on_error) {
-    if (!state || !state->spool_latch_active()) {
+    if (!state || !state->print_state().spool_latch_active()) {
         return false;
     }
     spdlog::warn("[Moonraker API] Refusing {} while spools are on the bed", method);
@@ -94,7 +94,7 @@ bool reject_job_while_spools_on_bed(const helix::PrinterState* state, const char
 bool reject_restart_while_spools_on_bed(
     const helix::PrinterState* state, const char* method,
     const std::function<void(const MoonrakerError&)>& on_error) {
-    if (!state || !state->spool_latch_active()) {
+    if (!state || !state->print_state().spool_latch_active()) {
         return false;
     }
     spdlog::warn("[Moonraker API] Refusing {} while spools are on the bed", method);
