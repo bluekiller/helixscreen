@@ -25,7 +25,7 @@ class NavbarButton {
     /// @param lifts_over_keyboard Beside a side navbar, ride up the navbar column
     ///        above an open keyboard instead of being covered by it
     NavbarButton(const char* slot_name, const char* component, const char* widget_name,
-               bool lifts_over_keyboard)
+                 bool lifts_over_keyboard)
         : slot_name_(slot_name), component_(component), widget_name_(widget_name),
           lifts_over_keyboard_(lifts_over_keyboard) {}
 
