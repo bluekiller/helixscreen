@@ -136,7 +136,7 @@ void PowerDeviceWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         // Observe power_device_count to refresh when devices are discovered.
         auto token = lifetime_.token();
         power_count_observer_ = helix::ui::observe<int>(
-            get_printer_state().get_power_device_count_subject(), this,
+            get_printer_state().capabilities_state().subject(Capability::PowerDeviceCount), this,
             [token](PowerDeviceWidget* self, int /*count*/) {
                 if (token.expired())
                     return;
@@ -727,7 +727,8 @@ void PowerDeviceWidget::select_device(const std::string& name) {
             // __all__ mode: observe device count for aggregate refresh
             auto token = lifetime_.token();
             power_count_observer_ = helix::ui::observe<int>(
-                get_printer_state().get_power_device_count_subject(), this,
+                get_printer_state().capabilities_state().subject(Capability::PowerDeviceCount),
+                this,
                 [token](PowerDeviceWidget* self, int /*count*/) {
                     if (token.expired())
                         return;

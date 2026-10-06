@@ -95,7 +95,7 @@ TEST_CASE("Hardware validation characterization: empty result (no issues)",
     state.init_subjects(true);
 
     HardwareValidationResult empty_result;
-    state.set_hardware_validation_result(empty_result);
+    state.hardware_validation_state().set_hardware_validation_result(empty_result);
 
     SECTION("all category counts are 0 for empty result") {
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_critical_count")) == 0);
@@ -115,7 +115,8 @@ TEST_CASE("Hardware validation characterization: empty result (no issues)",
     }
 
     SECTION("issues_label is 'No Hardware Issues' for empty result") {
-        REQUIRE(std::string(lv_subject_get_string(state.get_hardware_issues_label_subject())) ==
+        REQUIRE(std::string(lv_subject_get_string(
+                    state.hardware_validation_state().get_hardware_issues_label_subject())) ==
                 "No Hardware Issues");
     }
 }
@@ -135,7 +136,7 @@ TEST_CASE("Hardware validation characterization: critical issues only",
     HardwareValidationResult result;
     result.critical_missing.push_back(make_critical("extruder", "Extruder not responding"));
     result.critical_missing.push_back(make_critical("heater_bed", "Bed heater missing"));
-    state.set_hardware_validation_result(result);
+    state.hardware_validation_state().set_hardware_validation_result(result);
 
     SECTION("critical_count matches number of critical issues") {
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_critical_count")) == 2);
@@ -158,7 +159,8 @@ TEST_CASE("Hardware validation characterization: critical issues only",
     }
 
     SECTION("issues_label shows '2 Hardware Issues'") {
-        REQUIRE(std::string(lv_subject_get_string(state.get_hardware_issues_label_subject())) ==
+        REQUIRE(std::string(lv_subject_get_string(
+                    state.hardware_validation_state().get_hardware_issues_label_subject())) ==
                 "2 Hardware Issues");
     }
 }
@@ -177,7 +179,7 @@ TEST_CASE("Hardware validation characterization: warning issues only",
 
     HardwareValidationResult result;
     result.expected_missing.push_back(make_warning("temperature_sensor chamber"));
-    state.set_hardware_validation_result(result);
+    state.hardware_validation_state().set_hardware_validation_result(result);
 
     SECTION("warning_count matches number of expected_missing issues") {
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_warning_count")) == 1);
@@ -194,7 +196,8 @@ TEST_CASE("Hardware validation characterization: warning issues only",
     }
 
     SECTION("issues_label shows '1 Hardware Issue' (singular)") {
-        REQUIRE(std::string(lv_subject_get_string(state.get_hardware_issues_label_subject())) ==
+        REQUIRE(std::string(lv_subject_get_string(
+                    state.hardware_validation_state().get_hardware_issues_label_subject())) ==
                 "1 Hardware Issue");
     }
 }
@@ -215,7 +218,7 @@ TEST_CASE("Hardware validation characterization: info issues only (newly discove
     result.newly_discovered.push_back(make_info("neopixel toolhead_lights"));
     result.newly_discovered.push_back(make_info("fan_generic exhaust_fan"));
     result.newly_discovered.push_back(make_info("filament_switch_sensor runout"));
-    state.set_hardware_validation_result(result);
+    state.hardware_validation_state().set_hardware_validation_result(result);
 
     SECTION("info_count matches number of newly_discovered issues") {
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_info_count")) == 3);
@@ -227,7 +230,8 @@ TEST_CASE("Hardware validation characterization: info issues only (newly discove
     }
 
     SECTION("issues_label shows '3 Hardware Issues'") {
-        REQUIRE(std::string(lv_subject_get_string(state.get_hardware_issues_label_subject())) ==
+        REQUIRE(std::string(lv_subject_get_string(
+                    state.hardware_validation_state().get_hardware_issues_label_subject())) ==
                 "3 Hardware Issues");
     }
 }
@@ -252,7 +256,7 @@ TEST_CASE("Hardware validation characterization: session changed issues only",
     session_issue.severity = HardwareIssueSeverity::WARNING;
     session_issue.message = "Was present last session";
     result.changed_from_last_session.push_back(session_issue);
-    state.set_hardware_validation_result(result);
+    state.hardware_validation_state().set_hardware_validation_result(result);
 
     SECTION("session_count matches number of changed_from_last_session issues") {
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_session_count")) == 1);
@@ -281,7 +285,7 @@ TEST_CASE("Hardware validation characterization: mixed issues",
     result.expected_missing.push_back(make_warning("probe"));
     result.expected_missing.push_back(make_warning("bltouch"));
     result.newly_discovered.push_back(make_info("neopixel case_lights"));
-    state.set_hardware_validation_result(result);
+    state.hardware_validation_state().set_hardware_validation_result(result);
 
     SECTION("each category count is correct") {
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_critical_count")) == 1);
@@ -328,9 +332,10 @@ TEST_CASE(
         // (unlike subjects which are reset to defaults). To ensure empty state, we must
         // explicitly set an empty result.
         HardwareValidationResult empty_result;
-        state.set_hardware_validation_result(empty_result);
+        state.hardware_validation_state().set_hardware_validation_result(empty_result);
 
-        const HardwareValidationResult& result = state.get_hardware_validation_result();
+        const HardwareValidationResult& result =
+            state.hardware_validation_state().get_hardware_validation_result();
         REQUIRE(result.critical_missing.empty());
         REQUIRE(result.expected_missing.empty());
         REQUIRE(result.newly_discovered.empty());
@@ -342,9 +347,10 @@ TEST_CASE(
         HardwareValidationResult input;
         input.critical_missing.push_back(make_critical("extruder"));
         input.expected_missing.push_back(make_warning("probe"));
-        state.set_hardware_validation_result(input);
+        state.hardware_validation_state().set_hardware_validation_result(input);
 
-        const HardwareValidationResult& stored = state.get_hardware_validation_result();
+        const HardwareValidationResult& stored =
+            state.hardware_validation_state().get_hardware_validation_result();
         REQUIRE(stored.critical_missing.size() == 1);
         REQUIRE(stored.critical_missing[0].hardware_name == "extruder");
         REQUIRE(stored.expected_missing.size() == 1);
@@ -368,24 +374,26 @@ TEST_CASE("Hardware validation characterization: remove_hardware_issue",
         HardwareValidationResult result;
         result.expected_missing.push_back(make_warning("probe"));
         result.expected_missing.push_back(make_warning("bltouch"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        state.remove_hardware_issue("probe");
+        state.hardware_validation_state().remove_hardware_issue("probe");
 
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_warning_count")) == 1);
-        REQUIRE(state.get_hardware_validation_result().expected_missing.size() == 1);
+        REQUIRE(state.hardware_validation_state()
+                    .get_hardware_validation_result()
+                    .expected_missing.size() == 1);
     }
 
     SECTION("removing last issue sets has_issues to 0") {
         HardwareValidationResult result;
         result.critical_missing.push_back(make_critical("extruder"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        REQUIRE(state.has_hardware_issues() == true);
+        REQUIRE(state.hardware_validation_state().has_hardware_issues() == true);
 
-        state.remove_hardware_issue("extruder");
+        state.hardware_validation_state().remove_hardware_issue("extruder");
 
-        REQUIRE(state.has_hardware_issues() == false);
+        REQUIRE(state.hardware_validation_state().has_hardware_issues() == false);
         REQUIRE(std::string(lv_subject_get_string(get_subject_by_name("hardware_status_title"))) ==
                 "All Healthy");
     }
@@ -394,35 +402,39 @@ TEST_CASE("Hardware validation characterization: remove_hardware_issue",
         HardwareValidationResult result;
         result.critical_missing.push_back(make_critical("extruder"));
         result.critical_missing.push_back(make_critical("heater_bed"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        state.remove_hardware_issue("extruder");
+        state.hardware_validation_state().remove_hardware_issue("extruder");
 
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_critical_count")) == 1);
-        REQUIRE(state.get_hardware_validation_result().critical_missing.size() == 1);
+        REQUIRE(state.hardware_validation_state()
+                    .get_hardware_validation_result()
+                    .critical_missing.size() == 1);
     }
 
     SECTION("removes issue from newly_discovered") {
         HardwareValidationResult result;
         result.newly_discovered.push_back(make_info("neopixel toolhead"));
         result.newly_discovered.push_back(make_info("fan_generic exhaust"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        state.remove_hardware_issue("neopixel toolhead");
+        state.hardware_validation_state().remove_hardware_issue("neopixel toolhead");
 
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_info_count")) == 1);
-        REQUIRE(state.get_hardware_validation_result().newly_discovered.size() == 1);
+        REQUIRE(state.hardware_validation_state()
+                    .get_hardware_validation_result()
+                    .newly_discovered.size() == 1);
     }
 
     SECTION("removing a name that is not present leaves every list intact") {
         HardwareValidationResult result;
         result.critical_missing.push_back(make_critical("extruder"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        state.remove_hardware_issue("no_such_hardware");
+        state.hardware_validation_state().remove_hardware_issue("no_such_hardware");
 
         REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_critical_count")) == 1);
-        REQUIRE(state.has_hardware_issues() == true);
+        REQUIRE(state.hardware_validation_state().has_hardware_issues() == true);
     }
 }
 
@@ -441,9 +453,10 @@ TEST_CASE("Hardware validation characterization: string formatting and pluraliza
     SECTION("singular issue label: '1 Hardware Issue'") {
         HardwareValidationResult result;
         result.critical_missing.push_back(make_critical("extruder"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        REQUIRE(std::string(lv_subject_get_string(state.get_hardware_issues_label_subject())) ==
+        REQUIRE(std::string(lv_subject_get_string(
+                    state.hardware_validation_state().get_hardware_issues_label_subject())) ==
                 "1 Hardware Issue");
     }
 
@@ -454,16 +467,17 @@ TEST_CASE("Hardware validation characterization: string formatting and pluraliza
         result.expected_missing.push_back(make_warning("bltouch"));
         result.newly_discovered.push_back(make_info("neopixel led"));
         result.newly_discovered.push_back(make_info("fan_generic exhaust"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        REQUIRE(std::string(lv_subject_get_string(state.get_hardware_issues_label_subject())) ==
+        REQUIRE(std::string(lv_subject_get_string(
+                    state.hardware_validation_state().get_hardware_issues_label_subject())) ==
                 "5 Hardware Issues");
     }
 
     SECTION("singular title: '1 Issue Detected'") {
         HardwareValidationResult result;
         result.expected_missing.push_back(make_warning("probe"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(std::string(lv_subject_get_string(get_subject_by_name("hardware_status_title"))) ==
                 "1 Issue Detected");
@@ -474,7 +488,7 @@ TEST_CASE("Hardware validation characterization: string formatting and pluraliza
         result.critical_missing.push_back(make_critical("extruder"));
         result.expected_missing.push_back(make_warning("probe"));
         result.newly_discovered.push_back(make_info("neopixel led"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(std::string(lv_subject_get_string(get_subject_by_name("hardware_status_title"))) ==
                 "3 Issues Detected");
@@ -494,15 +508,15 @@ TEST_CASE("Hardware validation characterization: has_hardware_issues() method",
     state.init_subjects(true);
 
     SECTION("has_hardware_issues() returns false initially") {
-        REQUIRE(state.has_hardware_issues() == false);
+        REQUIRE(state.hardware_validation_state().has_hardware_issues() == false);
     }
 
     SECTION("has_hardware_issues() returns true when issues present") {
         HardwareValidationResult result;
         result.newly_discovered.push_back(make_info("neopixel led"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
-        REQUIRE(state.has_hardware_issues() == true);
+        REQUIRE(state.hardware_validation_state().has_hardware_issues() == true);
     }
 }
 
@@ -532,7 +546,7 @@ TEST_CASE("Hardware validation characterization: observer fires when validation 
 
         HardwareValidationResult result;
         result.critical_missing.push_back(make_critical("extruder"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(fire_count > after_attach);
     }
@@ -552,14 +566,14 @@ TEST_CASE("Hardware validation characterization: subjects survive a reset cycle"
 
     HardwareValidationResult result;
     result.critical_missing.push_back(make_critical("extruder"));
-    state.set_hardware_validation_result(result);
-    REQUIRE(state.has_hardware_issues() == true);
+    state.hardware_validation_state().set_hardware_validation_result(result);
+    REQUIRE(state.hardware_validation_state().has_hardware_issues() == true);
     REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_status_level")) == 2);
 
     PrinterStateTestAccess::reset(state);
     state.init_subjects(true);
 
-    REQUIRE(state.has_hardware_issues() == false);
+    REQUIRE(state.hardware_validation_state().has_hardware_issues() == false);
     REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_status_level")) == 0);
     REQUIRE(lv_subject_get_int(get_subject_by_name("hardware_critical_count")) == 0);
 }
@@ -580,7 +594,8 @@ TEST_CASE("Hardware validation characterization: status_level drives the headlin
     REQUIRE(level != nullptr);
 
     SECTION("a clean result selects the OK badge") {
-        state.set_hardware_validation_result(HardwareValidationResult{});
+        state.hardware_validation_state().set_hardware_validation_result(
+            HardwareValidationResult{});
 
         REQUIRE(lv_subject_get_int(level) == 0);
     }
@@ -588,7 +603,7 @@ TEST_CASE("Hardware validation characterization: status_level drives the headlin
     SECTION("info-only issues select the attention badge, not the OK badge") {
         HardwareValidationResult result;
         result.newly_discovered.push_back(make_info("neopixel toolhead_lights"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(lv_subject_get_int(level) == 1);
     }
@@ -596,7 +611,7 @@ TEST_CASE("Hardware validation characterization: status_level drives the headlin
     SECTION("warning issues select the attention badge") {
         HardwareValidationResult result;
         result.expected_missing.push_back(make_warning("temperature_sensor chamber"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(lv_subject_get_int(level) == 1);
     }
@@ -604,7 +619,7 @@ TEST_CASE("Hardware validation characterization: status_level drives the headlin
     SECTION("critical issues select the critical badge") {
         HardwareValidationResult result;
         result.critical_missing.push_back(make_critical("extruder"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(lv_subject_get_int(level) == 2);
     }
@@ -613,7 +628,7 @@ TEST_CASE("Hardware validation characterization: status_level drives the headlin
         HardwareValidationResult result;
         result.newly_discovered.push_back(make_info("fan_generic exhaust_fan"));
         result.critical_missing.push_back(make_critical("heater_bed"));
-        state.set_hardware_validation_result(result);
+        state.hardware_validation_state().set_hardware_validation_result(result);
 
         REQUIRE(lv_subject_get_int(level) == 2);
     }

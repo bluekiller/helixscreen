@@ -110,7 +110,7 @@ TEST_CASE_METHOD(MotorsOffFixture, "motors off refuses a confirm made after a pr
     // A print starts from elsewhere while the dialog is open.
     ps.update_from_status({{"print_stats", {{"state", "printing"}}}});
     settle();
-    REQUIRE(lv_subject_get_int(ps.get_machine_motion_blocked_subject()) == 1);
+    REQUIRE(lv_subject_get_int(ps.print_state().get_machine_motion_blocked_subject()) == 1);
 
     press(guard.get(), "btn_primary");
     settle();

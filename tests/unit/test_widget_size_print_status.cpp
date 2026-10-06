@@ -370,7 +370,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     ps.init_subjects(false);
     ToolState::instance().init_subjects(false);
     heal_global_print_status_panel_subjects();
-    lv_subject_set_int(ps.get_print_filament_used_subject(), 0);
+    lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 0);
 
     {
         PanelWidgetHarness<PrintStatusWidget> h(test_screen(),
@@ -400,7 +400,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         // Wide band, filament now used: visible. Isolates on_size_changed's
         // half of the gate (:461) — re-run on_size_changed at the SAME
         // pixels so its own recomputation also agrees with the new used_mm.
-        lv_subject_set_int(ps.get_print_filament_used_subject(), 1500);
+        lv_subject_set_int(ps.print_state().get_print_filament_used_subject(), 1500);
         UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
         h.resize(1, 1, w_wide(), 400);
         CHECK(lv_subject_get_int(PrintStatusWidget::show_filament_active_subject_for_test()) == 1);
@@ -421,12 +421,14 @@ TEST_CASE_METHOD(LVGLUITestFixture,
         // Only DetailedFormatter::update_filament_text()'s mirror
         // (:1728-1731) can be responsible for the gate tracking these
         // transitions.
-        lv_subject_set_int(ps.get_print_filament_used_subject(), 0); // e.g. print re-sliced
+        lv_subject_set_int(ps.print_state().get_print_filament_used_subject(),
+                           0); // e.g. print re-sliced
         UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
         CHECK(lv_subject_get_int(PrintStatusWidget::show_filament_active_subject_for_test()) == 0);
         CHECK(lv_obj_has_flag(filament_label, LV_OBJ_FLAG_HIDDEN));
 
-        lv_subject_set_int(ps.get_print_filament_used_subject(), 2000); // extrusion resumes
+        lv_subject_set_int(ps.print_state().get_print_filament_used_subject(),
+                           2000); // extrusion resumes
         UpdateQueueTestAccess::drain_all(UpdateQueue::instance());
         CHECK(lv_subject_get_int(PrintStatusWidget::show_filament_active_subject_for_test()) == 1);
         CHECK_FALSE(lv_obj_has_flag(filament_label, LV_OBJ_FLAG_HIDDEN));

@@ -182,9 +182,9 @@ TEST_CASE_METHOD(XMLTestFixture, "A destroyed PrinterState withdraws the extrude
         // The absence assertions below only mean anything if the names were
         // there to withdraw, resolving to THIS state's storage.
         REQUIRE(lv_xml_get_subject(nullptr, "extruder_temp") ==
-                scoped.get_active_extruder_temp_subject());
+                scoped.temperature_state().get_active_extruder_temp_subject());
         REQUIRE(lv_xml_get_subject(nullptr, "extruder_target") ==
-                scoped.get_active_extruder_target_subject());
+                scoped.temperature_state().get_active_extruder_target_subject());
     }
 
     for (const char* name : kNames) {

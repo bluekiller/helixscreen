@@ -72,7 +72,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "unhomed axes mute their coordinate readouts
     CHECK(same_color(lv_obj_get_style_text_color(x_value, LV_PART_MAIN), muted));
 
     // X and Y homed, Z left unhomed.
-    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "xy");
     helix::ui::UpdateQueue::instance().drain();
 
     CHECK(same_color(lv_obj_get_style_text_color(x_value, LV_PART_MAIN), value));

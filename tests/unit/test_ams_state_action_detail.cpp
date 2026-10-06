@@ -39,7 +39,8 @@ std::string detail_text() {
 
 // Helper: set print state via Moonraker-side subject + drain queue.
 void set_print_state(PrintJobState state) {
-    lv_subject_set_int(get_printer_state().get_print_state_enum_subject(), static_cast<int>(state));
+    lv_subject_set_int(get_printer_state().print_state().get_print_state_enum_subject(),
+                       static_cast<int>(state));
     helix::ui::UpdateQueue::instance().drain();
 }
 

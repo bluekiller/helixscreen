@@ -500,7 +500,8 @@ void GcodeErrorRouter::process_line(const std::string& line, bool firmware_repor
     // A failure inside a host-side pre-start block is PrintPreparationManager's
     // to report, and claiming a print is running would offer a Resume that has
     // nothing to resume.
-    ctx.is_printing = get_printer_state().get_print_job_state() == PrintJobState::PRINTING;
+    ctx.is_printing =
+        get_printer_state().print_state().get_print_job_state() == PrintJobState::PRINTING;
 
     // Ask the active AMS backend first (domain-aware), then any firmware that
     // reports faults as structured codes, else the generic classifier.

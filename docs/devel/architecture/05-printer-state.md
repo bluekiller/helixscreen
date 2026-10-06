@@ -1,6 +1,6 @@
 # 05 — Printer State & the Singleton Map
 
-Every fact the UI shows about the printer lives in one object graph rooted at `PrinterState`, a Meyers singleton reached through `get_printer_state()`. It is not a god class: the header delegates to twelve domain components (temperature, motion, print, capabilities, ...) held by value, each owning the LVGL subjects for exactly one concern. Around it orbit two satellites with different jobs and different access patterns — `ToolState` (a classic `::instance()` singleton for multi-tool tracking) and `TemperatureController` (owned by `SubjectInitializer`, and the only code allowed to send a heater target). This chapter covers the decomposition, the two satellites, and the regenerated map of every global in the tree: 76 `::instance()` singletons plus four other access shapes, and which of them register with the two shutdown registries.
+Every fact the UI shows about the printer lives in one object graph rooted at `PrinterState`, a Meyers singleton reached through `get_printer_state()`. It is not a god class: it holds thirteen domain components (temperature, motion, print, capabilities, ...) by value, each owning the LVGL subjects for exactly one concern, and callers reach a domain through its accessor (`temperature_state()`, `print_state()`, ...). Around it orbit two satellites with different jobs and different access patterns — `ToolState` (a classic `::instance()` singleton for multi-tool tracking) and `TemperatureController` (owned by `SubjectInitializer`, and the only code allowed to send a heater target). This chapter covers the decomposition, the two satellites, and the regenerated map of every global in the tree: 76 `::instance()` singletons plus four other access shapes, and which of them register with the two shutdown registries.
 
 Chapter 02 covered the subject machinery itself — init macros, observer factories, the `SubjectInitializer` phase ordering — so this chapter stays on the map: which class owns which data, and how you are allowed to reach it.
 
@@ -16,15 +16,15 @@ flowchart TB
         D2["PrinterMotionState<br/>position, speed/flow, live + persisted z-offset"]
         D3["PrinterPrintState<br/>progress, filename, ETA, print-start"]
         D4["PrinterCapabilitiesState<br/>22 subjects gating UI"]
-        D5["fan - LED - calibration - network - versions<br/>excluded-objects - hardware-validation<br/>plugin-status - composite-visibility"]
+        D5["fan - calibration - network - versions - profile<br/>excluded-objects - hardware-validation<br/>plugin-status - composite-visibility"]
     end
 
     TS["ToolState — ToolState::instance()<br/>ToolInfo[], AMS topology override,<br/>5 subjects, spool persistence"]
     TC["TemperatureController<br/>SubjectInitializer-owned, get_temperature_controller()<br/>the one heater-target send"]
 
-    MR -->|"update_from_status() fan-out"| PS
+    MR -->|"dispatch_status_frame()"| PS
     PS --> DOM
-    MR -->|"update_from_status()"| TS
+    MR -->|"dispatch_status_frame()"| TS
     DOM -->|"subjects"| UI
     TS -->|"subjects"| UI
     UI -->|"set_target(HeaterType, degC)"| TC
@@ -47,9 +47,9 @@ flowchart TB
 
 ## How it works
 
-### One orchestrator, twelve domains
+### One orchestrator, thirteen domains
 
-`PrinterState` ([`include/printer_state.h#PrinterState`](../../../include/printer_state.h#L213)) keeps its historical public API but holds the implementation as twelve domain components by value ([`include/printer_state.h#temperature_state_`](../../../include/printer_state.h#L2352)-2395): `temperature_state_`, `motion_state_`, `fan_state_`, `print_domain_`, `capabilities_state_`, `plugin_status_state_`, `calibration_state_`, `hardware_validation_state_`, `composite_visibility_state_`, `network_state_`, `versions_state_`, `excluded_objects_state_`. Callers never touch a domain directly — `PrinterState` forwards. Each domain follows the same shape: `init_subjects(bool register_xml)`, `deinit_subjects()`, `update_from_status()`, change-gated setters.
+`PrinterState` (`include/printer_state.h#PrinterState`) holds thirteen domain components by value: `temperature_state_`, `motion_state_`, `fan_state_`, `print_domain_`, `capabilities_state_`, `plugin_status_state_`, `calibration_state_`, `hardware_validation_state_`, `composite_visibility_state_`, `network_state_`, `versions_state_`, `excluded_objects_state_`, `profile_state_`. Each has one accessor named after it (`temperature_state()`, `print_state()` for `print_domain_`, ...), const and non-const, and callers reach the domain's subjects and queries through it. What stays on `PrinterState` is what spans domains or threads: the setters the WebSocket thread calls (they defer through `async_lifetime_`), `update_from_status()`, `set_hardware()`, the blocking-operation predicates, and init/deinit. Each domain follows the same shape: `init_subjects(bool register_xml)`, `deinit_subjects()`, `update_from_status()`, change-gated setters.
 
 | Domain | Owns (from its header) |
 |--------|------------------------|
@@ -65,10 +65,11 @@ flowchart TB
 | `PrinterHardwareValidationState` | Hardware health-check results (11 subjects) |
 | `PrinterPluginStatusState` | HelixPrint plugin status gating |
 | `PrinterCompositeVisibilityState` | The aggregate `has_any_preprint_options` visibility subject |
+| `PrinterProfileState` | Printer type, its pre-print option set and z-offset calibration strategy (`printer_type`, `z_offset_can_save`) |
 
 Across the thirteen headers (orchestrator + domains) there are 126 fixed `lv_subject_t` declarations at the v0.99.115 audit (the count moves almost every release — treat it as an order of magnitude, not a constant), plus heap-allocated dynamic subjects created at runtime (per-extruder `ExtruderInfo`, rediscovered fans and sensors). The old singleton map's "~50 subjects" was undercounted by half even before counting dynamics.
 
-Lifecycle is a fan-out, not thirteen registrations. `PrinterState::init_subjects()` ([`src/printer/printer_state.cpp#init_subjects`](../../../src/printer/printer_state.cpp#L200)) calls each domain's `init_subjects(register_xml)` in a fixed order, then self-registers **one** cleanup entry (`"PrinterState"`) with `StaticSubjectRegistry`. `deinit_subjects()` ([`src/printer/printer_state.cpp#deinit_subjects`](../../../src/printer/printer_state.cpp#L137)) runs the mirror: invalidate the `AsyncLifetimeGuard` (drops setter callbacks still queued on the UpdateQueue), unregister the per-printer cache invalidator from `PrinterCacheRegistry`, flip the `SubjectLifetime` death token **before** tearing anything down (so surviving `ObserverGuard`s skip removal on soon-to-be-freed observer lists), then deinit all twelve domains plus the orchestrator's own two subjects (`active_printer_name_`, `z_offset_can_save_`). Domains never register themselves — the old monolithic ARCHITECTURE.md's claim that "each domain registers with StaticSubjectRegistry" was stale; the single orchestrator entry covers them.
+Lifecycle is a fan-out, not thirteen registrations. `PrinterState::init_subjects()` ([`src/printer/printer_state.cpp#init_subjects`](../../../src/printer/printer_state.cpp#L200)) calls each domain's `init_subjects(register_xml)` in a fixed order, then self-registers **one** cleanup entry (`"PrinterState"`) with `StaticSubjectRegistry`. `deinit_subjects()` ([`src/printer/printer_state.cpp#deinit_subjects`](../../../src/printer/printer_state.cpp#L137)) runs the mirror: invalidate the `AsyncLifetimeGuard` (drops setter callbacks still queued on the UpdateQueue), unregister the per-printer cache invalidator from `PrinterCacheRegistry`, flip the `SubjectLifetime` death token **before** tearing anything down (so surviving `ObserverGuard`s skip removal on soon-to-be-freed observer lists), then deinit all thirteen domains plus the orchestrator's own subject (`active_printer_name_`). Domains never register themselves — the old monolithic ARCHITECTURE.md's claim that "each domain registers with StaticSubjectRegistry" was stale; the single orchestrator entry covers them.
 
 ### Reading print state: typed accessors, not hand-cast ints
 
@@ -205,7 +206,7 @@ Registration order is load-bearing: `SubjectInitializer` initializes `Navigation
 - **`DisplayManager::instance()` is the odd pointer.** Reference-returning habit will write `DisplayManager::instance().foo()` and not compile — or worse, dereference without a null check before display creation.
 - **Never send a heater target except through `TemperatureController::set_target()`.** Lint-enforced ([`tests/shell/test_code_lint.bats`](../../../tests/shell/test_code_lint.bats)); the controller's own `->set_temperature()` is the sole sanctioned RPC.
 - **Never compose a keypad ceiling at a call site.** `effective_keypad_max()` ([`include/temperature_controller.h#TemperatureController`](../../../include/temperature_controller.h)) is the only composition of `ensure_limits()` + `keypad_range()`; every temperature-input surface derives its ceiling from it through the null-safe `keypad_ceiling()` face or `TemperatureService::custom_keypad_max()`, never the primitives, so no two input surfaces can disagree about the ceiling.
-- **Do not add `StaticSubjectRegistry` registration inside a domain class.** `PrinterState` registers once and its `deinit_subjects()` fans out to all twelve. A second registration would deinit a domain twice.
+- **Do not add `StaticSubjectRegistry` registration inside a domain class.** `PrinterState` registers once and its `deinit_subjects()` fans out to all thirteen. A second registration would deinit a domain twice.
 - **`deinit_subjects()` expires the lifetime token first**, then unregisters the cache invalidator, then tears down — keep that order if you ever touch it; surviving observers depend on the token flipping before the observer lists free (ch. 03).
 - **New global panel? Use `helix::lazy_global<T>(name)`** ([`include/static_panel_registry.h`](../../../include/static_panel_registry.h)). It gets the `StaticPanelRegistry` wiring right by construction; hand-rolled globals are how shutdown crashes happen. A `StaticSubjectRegistry` deinit callback peeks with `lazy_global_if_exists<T>()` so it never rebuilds a destroyed panel.
 - **`Preparing` is not a sub-state of Moonraker's PRINTING.** `PrinterPrintState` owns the window between the user committing to a job and the printer reporting it (`begin_preparing()` / `retire_preparing()`), because a host-side pre-start block runs *before* the printer is handed the job and `print_stats` describes the PREVIOUS job for its whole duration. Two guards deliberately yield to a live preparing job: the phase-update stale guard and the `print_active -> 0` safety reset. Do not re-tighten either to "only while printing" — see [`../PRINT_STATE_MACHINE.md`](../PRINT_STATE_MACHINE.md) § "The preparing job".
@@ -227,7 +228,7 @@ Registration order is load-bearing: `SubjectInitializer` initializes `Navigation
 
 Read in this order; about 25 minutes total.
 
-1. [`include/printer_state.h#PrinterState`](../../../include/printer_state.h#L213) — the `PrinterState` class doc, then jump to `include/printer_state.h#temperature_state_` and read the twelve domain members: plain by-value composition, no pointers, no inheritance.
+1. [`include/printer_state.h#PrinterState`](../../../include/printer_state.h#L213) — the `PrinterState` class doc, then jump to `include/printer_state.h#temperature_state_` and read the thirteen domain members: plain by-value composition, no pointers, no inheritance.
 2. [`src/printer/printer_state.cpp#init_subjects`](../../../src/printer/printer_state.cpp#L200) — `init_subjects()`: the ordered domain fan-out, and the single `StaticSubjectRegistry::register_deinit("PrinterState", ...)` at the end. Then `src/printer/printer_state.cpp#deinit_subjects` for the mirror image — guard invalidation, cache unregistration, token expiry, reverse fan-out.
 3. [`include/printer_temperature_state.h#PrinterTemperatureState`](../../../include/printer_temperature_state.h#L64) — a representative domain: 8 fixed subjects, the dynamic `ExtruderInfo` map (`include/printer_temperature_state.h#ExtruderInfo`), and `update_from_status()` (`include/printer_temperature_state.h#update_from_status`).
 4. [`include/printer_motion_state.h#PrinterMotionState`](../../../include/printer_motion_state.h#L38) — a second domain: kinematic envelope, speed/flow, live + persisted z-offset subjects.

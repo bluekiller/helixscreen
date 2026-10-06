@@ -115,7 +115,7 @@ void FanSettingsOverlay::populate_fan_list(lv_obj_t* list, bool controllable) {
         helix::ui::safe_delete(child);
     }
 
-    auto& fans = get_printer_state().get_fans();
+    auto& fans = get_printer_state().fan_state().get_fans();
     size_t count = 0;
 
     for (const auto& fan : fans) {
@@ -183,7 +183,7 @@ void FanSettingsOverlay::populate_fans() {
     if (!overlay_root_)
         return;
 
-    auto& fans = get_printer_state().get_fans();
+    auto& fans = get_printer_state().fan_state().get_fans();
 
     // Count fans by category
     size_t controllable_count = 0;
@@ -288,7 +288,7 @@ void FanSettingsOverlay::confirm_rename() {
     const char* text = lv_textarea_get_text(input);
     std::string new_name = text ? text : "";
 
-    get_printer_state().rename_fan(pending_rename_object_, new_name);
+    get_printer_state().fan_state().rename_fan(pending_rename_object_, new_name);
     spdlog::info("[{}] Renamed '{}' -> '{}'", get_name(), pending_rename_object_, new_name);
 
     pending_rename_object_.clear();

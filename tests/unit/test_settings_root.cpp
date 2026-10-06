@@ -452,7 +452,8 @@ TEST_CASE_METHOD(RootFixture, "settings root: refresh reads every stateful row's
     set_int("settings_dark_mode", 1);
     set_int("settings_time_format", 1);
 
-    lv_subject_t* hw_level = get_printer_state().get_hardware_status_level_subject();
+    lv_subject_t* hw_level =
+        get_printer_state().hardware_validation_state().get_hardware_status_level_subject();
     const int saved_hw_level = lv_subject_get_int(hw_level);
     lv_subject_set_int(hw_level, 1);
 

@@ -998,7 +998,7 @@ void FilamentSensorManager::update_from_status(const json& status) {
     // The derived lifecycle, read once beside the other whole-printer flags for
     // the same reason (our lock never protected it): both phase-aware terms
     // below need it.
-    const auto lifecycle = get_printer_state().get_print_lifecycle();
+    const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
     const bool job_owns_machine = job_holds_machine(lifecycle);
     const AmsType backend_type = AmsState::instance().primary_type().value_or(AmsType::NONE);
     // AD5X-IFS auto-unloads filament back into the IFS between prints. The head
@@ -1028,7 +1028,7 @@ void FilamentSensorManager::update_from_status(const json& status) {
     // A print that finished on its own terms takes its end-of-print filament
     // handling with it; any other ending stopped with the sensor already empty.
     const auto print_outcome = static_cast<PrintOutcome>(
-        lv_subject_get_int(get_printer_state().get_print_outcome_subject()));
+        lv_subject_get_int(get_printer_state().print_state().get_print_outcome_subject()));
 
     // Phase 1: Update state under lock, collect notifications
     {

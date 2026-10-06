@@ -72,8 +72,8 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
     start_fetch(PRINT_A);
     land(PRINT_A);
 
-    REQUIRE_FALSE(state_.get_scheduled_pauses().empty());
-    CHECK(state_.pause_markers_match_current_file());
+    REQUIRE_FALSE(state_.print_state().get_scheduled_pauses().empty());
+    CHECK(state_.print_state().pause_markers_match_current_file());
     CHECK(gcode_displayed_file() == PRINT_A);
 }
 
@@ -93,7 +93,7 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
         // A's load never reached the viewer: neither print has anything
         // displayed yet, its scan was never published, and the widget itself
         // holds no geometry - not just the panel's own bookkeeping.
-        CHECK(state_.get_scheduled_pauses().empty());
+        CHECK(state_.print_state().get_scheduled_pauses().empty());
         CHECK(gcode_displayed_file().empty());
         CHECK_FALSE(ui_gcode_viewer_has_content(viewer_));
 
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
 
         // B's own load is the only one that ever applied: PRINT_B carries no
         // pauses, and its displayed-file name is its own, not A's.
-        CHECK(state_.get_scheduled_pauses().empty());
+        CHECK(state_.print_state().get_scheduled_pauses().empty());
         CHECK(gcode_displayed_file() == PRINT_B);
     }
 
@@ -119,7 +119,7 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
         // including the widget's own record of which file it holds, not just
         // the panel's copy of that name.
         CHECK(pause_markers_version() == version_after_b);
-        CHECK(state_.get_scheduled_pauses().empty());
+        CHECK(state_.print_state().get_scheduled_pauses().empty());
         CHECK(gcode_displayed_file() == PRINT_B);
         widget_file_raw = ui_gcode_viewer_get_filename(viewer_);
         CHECK((widget_file_raw ? std::string(widget_file_raw) : std::string()) ==
@@ -147,12 +147,12 @@ TEST_CASE_METHOD(PrintStatusPreviewFixture,
 
     nlohmann::json status = {{"print_stats", {{"filename", PRINT_B}}}};
     state_.update_from_status(status);
-    REQUIRE(state_.get_effective_print_filename() == PRINT_B);
+    REQUIRE(state_.print_state().get_effective_print_filename() == PRINT_B);
 
     drain();
 
     CHECK(gcode_displayed_file().empty());
-    CHECK(state_.get_scheduled_pauses().empty());
+    CHECK(state_.print_state().get_scheduled_pauses().empty());
 }
 
 namespace {
@@ -200,7 +200,7 @@ class StaleLoadFixture : public PrintStatusPreviewFixture {
     }
 
     int layer_total() {
-        return lv_subject_get_int(state_.get_print_layer_total_subject());
+        return lv_subject_get_int(state_.print_state().get_print_layer_total_subject());
     }
 };
 

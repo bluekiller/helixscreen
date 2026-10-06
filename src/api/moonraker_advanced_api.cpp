@@ -412,7 +412,7 @@ class CalibrationCollectorCore {
                 fallback_.armed = true;
                 std::shared_ptr<bool> subject_lifetime;
                 lv_subject_t* idle_subject =
-                    state.get_idle_timeout_printing_subject(subject_lifetime);
+                    state.calibration_state().get_idle_timeout_printing_subject(subject_lifetime);
                 if (idle_subject) {
                     fallback_.was_busy_at_arm = lv_subject_get_int(idle_subject) == 1;
                     // The subject is freed by PrinterCalibrationState's

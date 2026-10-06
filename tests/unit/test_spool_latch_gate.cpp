@@ -101,7 +101,7 @@ class SpoolLatchFixture : public LVGLTestFixture {
 
 TEST_CASE_METHOD(SpoolLatchFixture, "the latch refuses motion at both gcode choke points",
                  "[spool_latch][mock]") {
-    state.set_spool_latch(true);
+    state.print_state().set_spool_latch(true);
 
     SECTION("MoonrakerAPI::execute_gcode refuses a macro that may move") {
         api->execute_gcode("PRINT_START", nullptr, on_error());
@@ -126,7 +126,7 @@ TEST_CASE_METHOD(SpoolLatchFixture, "the latch refuses motion at both gcode chok
     }
 
     SECTION("a dry cycle's own commands pass once registered") {
-        state.set_spool_latch(true, {"APPLIANCE_DRY_STOP"});
+        state.print_state().set_spool_latch(true, {"APPLIANCE_DRY_STOP"});
         api->execute_gcode("APPLIANCE_DRY_STOP", nullptr, on_error());
         CHECK_FALSE(error_called);
     }
@@ -134,7 +134,7 @@ TEST_CASE_METHOD(SpoolLatchFixture, "the latch refuses motion at both gcode chok
 
 TEST_CASE_METHOD(SpoolLatchFixture, "the latch refuses every print start and resume",
                  "[spool_latch][mock]") {
-    state.set_spool_latch(true);
+    state.print_state().set_spool_latch(true);
 
     SECTION("start_print") {
         api->job().start_print("benchy.gcode", nullptr, on_error());
@@ -159,7 +159,7 @@ TEST_CASE_METHOD(SpoolLatchFixture, "the latch refuses every print start and res
 
 TEST_CASE_METHOD(SpoolLatchFixture, "with the latch clear, motion and print starts go out",
                  "[spool_latch][mock]") {
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
     api->motion().home_axes("", nullptr, on_error());
     CHECK_FALSE(error_called);
     api->job().start_print("benchy.gcode", [] {}, on_error());
@@ -169,22 +169,22 @@ TEST_CASE_METHOD(SpoolLatchFixture, "with the latch clear, motion and print star
 
 TEST_CASE_METHOD(SpoolLatchFixture, "machine_motion_blocked is job_holds_machine or the latch",
                  "[spool_latch][job_holds_machine]") {
-    lv_subject_t* blocked = state.get_machine_motion_blocked_subject();
+    lv_subject_t* blocked = state.print_state().get_machine_motion_blocked_subject();
     REQUIRE(lv_subject_get_int(blocked) == 0);
 
-    state.set_spool_latch(true);
+    state.print_state().set_spool_latch(true);
     CHECK(lv_subject_get_int(blocked) == 1);
-    CHECK(lv_subject_get_int(state.get_job_holds_machine_subject()) == 0);
+    CHECK(lv_subject_get_int(state.print_state().get_job_holds_machine_subject()) == 0);
 
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
     CHECK(lv_subject_get_int(blocked) == 0);
 
-    state.set_print_start_state(PrintStartPhase::BED_MESH, "", 0);
+    state.print_state().set_print_start_state(PrintStartPhase::BED_MESH, "", 0);
     for (int pass = 0; pass < 8; ++pass) {
         helix::ui::UpdateQueue::instance().drain();
     }
     CHECK(lv_subject_get_int(blocked) == 1);
-    state.set_print_start_state(PrintStartPhase::IDLE, "", 0);
+    state.print_state().set_print_start_state(PrintStartPhase::IDLE, "", 0);
     for (int pass = 0; pass < 8; ++pass) {
         helix::ui::UpdateQueue::instance().drain();
     }
@@ -198,14 +198,14 @@ TEST_CASE_METHOD(SpoolLatchFixture, "probe calibration commands go through the l
     // Both globals set, as in the app: a probe command must still take the API.
     set_moonraker_api(api.get());
     set_moonraker_client(&mock_client);
-    state.set_spool_latch(true);
+    state.print_state().set_spool_latch(true);
 
     CHECK_FALSE(helix::ui::probe_send_gcode("CARTOGRAPHER_TOUCH_CALIBRATE",
                                             "Cartographer Touch Calibrate"));
     CHECK_FALSE(helix::ui::probe_send_gcode("BLTOUCH_DEBUG COMMAND=pin_down", "BLTouch Deploy"));
     CHECK(mock_client.gcode_script_history().empty());
 
-    state.set_spool_latch(false);
+    state.print_state().set_spool_latch(false);
     CHECK(helix::ui::probe_send_gcode("BEACON_CALIBRATE", "Beacon Calibrate"));
     CHECK_FALSE(mock_client.gcode_script_history().empty());
 
@@ -216,7 +216,7 @@ TEST_CASE_METHOD(SpoolLatchFixture, "probe calibration commands go through the l
 
 TEST_CASE_METHOD(SpoolLatchFixture, "the restart paths refuse while spools are on the bed",
                  "[spool_latch][mock][1730]") {
-    state.set_spool_latch(true);
+    state.print_state().set_spool_latch(true);
     SECTION("firmware restart") {
         api->restart_firmware([] {}, on_error());
         CHECK(error_called);

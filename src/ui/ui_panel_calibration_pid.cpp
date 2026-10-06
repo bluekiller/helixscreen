@@ -1035,9 +1035,10 @@ void PIDCalibrationPanel::start_progress_tracking() {
                                                               : PidProgressTracker::Heater::BED;
 
     if (selected_heater_ == Heater::EXTRUDER) {
-        temp_subj = state.get_extruder_temp_subject("extruder", progress_temp_lifetime_);
+        temp_subj = state.temperature_state().get_extruder_temp_subject("extruder",
+                                                                        progress_temp_lifetime_);
     } else {
-        temp_subj = state.get_bed_temp_subject(progress_temp_lifetime_);
+        temp_subj = state.temperature_state().get_bed_temp_subject(progress_temp_lifetime_);
     }
 
     if (!temp_subj) {

@@ -266,7 +266,7 @@ TEST_CASE_METHOD(XMLTestFixture, "PrinterState type subject fires only when the 
                  "[1552][printer_state][panel_widget]") {
     int fires = 0;
     lv_observer_t* obs = lv_subject_add_observer(
-        state().get_printer_type_subject(),
+        state().profile_state().get_printer_type_subject(),
         [](lv_observer_t* o, lv_subject_t*) { ++*static_cast<int*>(lv_observer_get_user_data(o)); },
         &fires);
     REQUIRE(obs != nullptr);
@@ -274,7 +274,8 @@ TEST_CASE_METHOD(XMLTestFixture, "PrinterState type subject fires only when the 
 
     state().set_printer_type_sync("Voron 2.4");
     REQUIRE(fires == 2);
-    REQUIRE(std::string(lv_subject_get_string(state().get_printer_type_subject())) == "Voron 2.4");
+    REQUIRE(std::string(lv_subject_get_string(
+                state().profile_state().get_printer_type_subject())) == "Voron 2.4");
 
     // Same type: the early-return path must not re-notify.
     state().set_printer_type_sync("Voron 2.4");
@@ -282,8 +283,8 @@ TEST_CASE_METHOD(XMLTestFixture, "PrinterState type subject fires only when the 
 
     state().set_printer_type_sync("Creality K1C");
     REQUIRE(fires == 3);
-    REQUIRE(std::string(lv_subject_get_string(state().get_printer_type_subject())) ==
-            "Creality K1C");
+    REQUIRE(std::string(lv_subject_get_string(
+                state().profile_state().get_printer_type_subject())) == "Creality K1C");
 
     lv_observer_remove(obs);
 }

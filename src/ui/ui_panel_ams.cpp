@@ -257,7 +257,7 @@ void AmsPanel::init_subjects() {
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - paired with the keep-raw
     // comparison below; see the marker there for the full reason.
     print_state_observer_ = observe<int>(
-        printer_state_.get_print_state_enum_subject(), this,
+        printer_state_.print_state().get_print_state_enum_subject(), this,
         [](AmsPanel* self, int print_state) {
             // Record before the teardown guard so the edge stays accurate
             // across ticks that bail out, matching the action observer above.
@@ -283,7 +283,7 @@ void AmsPanel::init_subjects() {
 
             self->dismiss_error_modal_silently("print resumed");
         },
-        printer_state_.get_static_print_subjects_lifetime());
+        printer_state_.print_state().get_static_subjects_lifetime());
 
     current_slot_observer_ = observe<int>(
         AmsState::instance().get_current_slot_subject(), this,

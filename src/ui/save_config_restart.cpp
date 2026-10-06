@@ -53,7 +53,7 @@ void SaveConfigWatch::begin(IMoonrakerAPI* api, const char* initiation_message,
     // Watch klippy for the whole save. This, not the rpc, is what tells us the
     // save worked: SAVE_CONFIG's reply is dropped by the restart it causes.
     klippy_observer_ = observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](SaveConfigWatch* self, int state) {
             if (!self->in_flight_) {
                 return; // Stale fire after this save settled

@@ -552,19 +552,19 @@ PrinterSnapshot DebugBundleCollector::snapshot_printer_state() {
         auto& ps = get_printer_state();
 
         // Copy, do not bind: get_printer_type() returns a reference to a member
-        // that set_printer_type() reassigns without a mutex.
-        snap.model = ps.get_printer_type();
+        // that a printer-type change reassigns without a mutex.
+        snap.model = ps.profile_state().printer_type();
 
         // The raw string, not the display subject: the subject localizes
         // placeholder versions ("?"/"unknown" from some vendor forks) into a
         // translated label, which tells a bundle reader nothing about what
         // the host actually reported.
-        if (!ps.get_klipper_version_raw().empty()) {
-            snap.klipper_version = ps.get_klipper_version_raw();
+        if (!ps.versions_state().get_klipper_version_raw().empty()) {
+            snap.klipper_version = ps.versions_state().get_klipper_version_raw();
         }
-        if (auto* conn_subj = ps.get_printer_connection_state_subject())
+        if (auto* conn_subj = ps.network_state().get_printer_connection_state_subject())
             snap.connection_state = lv_subject_get_int(conn_subj);
-        if (auto* klippy_subj = ps.get_klippy_state_subject())
+        if (auto* klippy_subj = ps.network_state().get_klippy_state_subject())
             snap.klippy_state = lv_subject_get_int(klippy_subj);
 
         // Discovery is read here with the subjects, on the main thread, so the

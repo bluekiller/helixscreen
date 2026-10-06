@@ -3034,7 +3034,7 @@ TEST_CASE_METHOD(
     json deactivated = {{"print_stats", {{"state", "paused"}}},
                         {"virtual_sdcard", {{"is_active", false}}}};
     ps.update_from_status(deactivated);
-    REQUIRE(ps.is_sdcard_active() == false);
+    REQUIRE(ps.print_state().is_sdcard_active() == false);
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -3120,8 +3120,8 @@ TEST_CASE_METHOD(
                      {"exception", {{"id", 532}, {"code", 1}, {"message", "unlabeled defect"}}}}},
                    {"virtual_sdcard", {{"is_active", false}}}};
     ps.update_from_status(paused);
-    REQUIRE(ps.get_print_exception_id() == 532);
-    REQUIRE(ps.get_print_exception_code() == 1);
+    REQUIRE(ps.print_state().get_print_exception_id() == 532);
+    REQUIRE(ps.print_state().get_print_exception_code() == 1);
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -3152,8 +3152,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
                      {"exception", {{"id", 532}, {"code", 2}, {"message", "detected noodle"}}}}},
                    {"virtual_sdcard", {{"is_active", false}}}};
     ps.update_from_status(paused);
-    REQUIRE(ps.get_print_exception_id() == 532);
-    REQUIRE(ps.get_print_exception_code() == 2);
+    REQUIRE(ps.print_state().get_print_exception_id() == 532);
+    REQUIRE(ps.print_state().get_print_exception_code() == 2);
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;
@@ -3180,7 +3180,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker prepare_for_resume proceeds normal
     json active = {{"print_stats", {{"state", "paused"}}},
                    {"virtual_sdcard", {{"is_active", true}}}};
     ps.update_from_status(active);
-    REQUIRE(ps.is_sdcard_active() == true);
+    REQUIRE(ps.print_state().is_sdcard_active() == true);
 
     helix::test::RegisteredBackend<AmsBackendSnapmaker> backend_reg(nullptr, nullptr);
     AmsBackendSnapmaker& backend = *backend_reg;

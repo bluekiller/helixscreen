@@ -31,6 +31,7 @@
 #include "print_start_checks.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
+#include "status_dispatch.h"
 #include "test_helpers/registered_backend.h"
 #include "toolchanger_addon.h"
 
@@ -605,12 +606,14 @@ TEST_CASE_METHOD(FirmwareEnabledFixture, "a runout seen on duty survives the pau
     ScopedPrinting printing;
     feed(sensor_frame(HEAD0, true, true));
 
-    // Through PrinterState, the way Moonraker delivers it: print_stats and the
-    // sensor in one status batch.
+    // Through the status dispatch, the way Moonraker delivers it: print_stats
+    // and the sensor in one status batch.
     auto paused_with_head0 = [](bool detected, bool enabled) {
-        nlohmann::json frame = sensor_frame(HEAD0, detected, enabled);
-        frame["print_stats"] = {{"state", "paused"}};
-        get_printer_state().update_from_status(frame);
+        nlohmann::json status = sensor_frame(HEAD0, detected, enabled);
+        status["print_stats"] = {{"state", "paused"}};
+        StatusFrame frame;
+        frame.status = &status;
+        dispatch_status_frame(frame, std::nullopt);
         helix::ui::UpdateQueue::instance().drain();
     };
 

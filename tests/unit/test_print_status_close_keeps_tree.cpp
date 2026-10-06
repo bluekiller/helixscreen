@@ -213,7 +213,7 @@ TEST_CASE_METHOD(PrintStatusCloseFixture,
                  "Print status keeps its tree when closed during an active print",
                  "[print_status][destroy_on_close]") {
     set_wire_state(PrintJobState::PRINTING);
-    REQUIRE(get_printer_state().get_print_lifecycle() == PrintState::Printing);
+    REQUIRE(get_printer_state().print_state().get_print_lifecycle() == PrintState::Printing);
 
     lv_obj_t* tree = open_print_status();
     close_print_status(tree);

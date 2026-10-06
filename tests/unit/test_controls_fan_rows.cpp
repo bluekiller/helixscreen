@@ -82,7 +82,7 @@ class ControlsFanRowsFixture : public LVGLUITestFixture {
 
     /// The display name PrinterState derived for @p object_name.
     std::string display_name(const std::string& object_name) {
-        for (const auto& fan : state().get_fans()) {
+        for (const auto& fan : state().fan_state().get_fans()) {
             if (fan.object_name == object_name) {
                 return fan.display_name;
             }
@@ -107,8 +107,8 @@ TEST_CASE_METHOD(ControlsFanRowsFixture,
                  "[controls][fans][fan-rows]") {
     // Priority: a chamber fan, then controllable generic fans, then heater fans,
     // then controller fans. The part-cooling "fan" never appears here.
-    state().init_fans({"fan", "controller_fan board", "heater_fan hotend_fan",
-                       "fan_generic exhaust", "fan_generic chamber_circ"});
+    state().fan_state().init_fans({"fan", "controller_fan board", "heater_fan hotend_fan",
+                                   "fan_generic exhaust", "fan_generic chamber_circ"});
     build_and_activate();
 
     const auto r = rows();
@@ -128,7 +128,7 @@ TEST_CASE_METHOD(ControlsFanRowsFixture,
 
 TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows mark a controllable fan differently",
                  "[controls][fans][fan-rows]") {
-    state().init_fans({"fan", "fan_generic exhaust", "heater_fan hotend_fan"});
+    state().fan_state().init_fans({"fan", "fan_generic exhaust", "heater_fan hotend_fan"});
     build_and_activate();
 
     const auto r = rows();
@@ -143,7 +143,7 @@ TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows mark a controllable 
 
 TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows say 'fan' for a single overflow",
                  "[controls][fans][fan-rows]") {
-    state().init_fans({"fan", "fan_generic a", "fan_generic b", "fan_generic c"});
+    state().fan_state().init_fans({"fan", "fan_generic a", "fan_generic b", "fan_generic c"});
     build_and_activate();
 
     const auto r = rows();
@@ -154,7 +154,7 @@ TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows say 'fan' for a sing
 
 TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows have no overflow row when all fit",
                  "[controls][fans][fan-rows]") {
-    state().init_fans({"fan", "fan_generic exhaust"});
+    state().fan_state().init_fans({"fan", "fan_generic exhaust"});
     build_and_activate();
 
     const auto r = rows();
@@ -164,7 +164,7 @@ TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows have no overflow row
 
 TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan row speed follows the fan",
                  "[controls][fans][fan-rows]") {
-    state().init_fans({"fan", "fan_generic exhaust"});
+    state().fan_state().init_fans({"fan", "fan_generic exhaust"});
     build_and_activate();
     REQUIRE(rows().at(0).at(1) == "Off");
 
@@ -177,11 +177,11 @@ TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan row speed follows the fan
 
 TEST_CASE_METHOD(ControlsFanRowsFixture, "Controls fan rows rebuild when fans are rediscovered",
                  "[controls][fans][fan-rows]") {
-    state().init_fans({"fan", "fan_generic exhaust"});
+    state().fan_state().init_fans({"fan", "fan_generic exhaust"});
     build_and_activate();
     REQUIRE(rows().size() == 1);
 
-    state().init_fans({"fan", "fan_generic exhaust", "fan_generic filter"});
+    state().fan_state().init_fans({"fan", "fan_generic exhaust", "fan_generic filter"});
     settle();
     settle();
     CHECK(rows().size() == 2);
@@ -195,7 +195,7 @@ TEST_CASE_METHOD(ControlsFanRowsFixture,
                  "[controls][fans][fan-rows]") {
     // A filter or nevermore fan is the enclosure's air handling even when its
     // name does not say "chamber"; a temperature_fan is chamber-role too.
-    state().init_fans({"fan", "fan_generic exhaust", "fan_generic nevermore"});
+    state().fan_state().init_fans({"fan", "fan_generic exhaust", "fan_generic nevermore"});
     build_and_activate();
 
     const auto r = rows();
@@ -207,7 +207,7 @@ TEST_CASE_METHOD(ControlsFanRowsFixture,
 TEST_CASE_METHOD(ControlsFanRowsFixture,
                  "Controls fan rows rank a temperature fan ahead of a heater fan",
                  "[controls][fans][fan-rows]") {
-    state().init_fans({"fan", "heater_fan hotend_fan", "temperature_fan enclosure"});
+    state().fan_state().init_fans({"fan", "heater_fan hotend_fan", "temperature_fan enclosure"});
     build_and_activate();
 
     const auto r = rows();

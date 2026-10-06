@@ -80,7 +80,7 @@ namespace {
 void drive_lifecycle(PrinterState& ps, const char* wire_state,
                      PrintStartPhase phase = PrintStartPhase::IDLE) {
     ps.update_from_status(json{{"print_stats", {{"state", wire_state}}}});
-    ps.set_print_start_state(phase, "", 0);
+    ps.print_state().set_print_start_state(phase, "", 0);
     // set_print_start_state defers, and its callback publishes the lifecycle.
     for (int i = 0; i < 8; ++i) {
         helix::ui::UpdateQueue::instance().drain();
@@ -88,7 +88,7 @@ void drive_lifecycle(PrinterState& ps, const char* wire_state,
 }
 
 PrintState published_lifecycle(PrinterState& ps) {
-    return ps.get_print_lifecycle();
+    return ps.print_state().get_print_lifecycle();
 }
 
 /// One RUNOUT-role toolhead sensor seeded with filament present, the

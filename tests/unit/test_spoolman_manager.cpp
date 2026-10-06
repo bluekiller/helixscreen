@@ -163,7 +163,7 @@ struct SpoolmanFixture {
     /// Set spoolman availability and drain the update queue so the subject
     /// value is visible synchronously (set_spoolman_available uses queue_update).
     void set_spoolman_available(bool available) {
-        get_printer_state().set_spoolman_available(available);
+        get_printer_state().capabilities_state().set_spoolman_available(available);
         helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     }
 };

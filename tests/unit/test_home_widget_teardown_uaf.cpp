@@ -112,7 +112,7 @@ bool delete_hook_installed(lv_obj_t* obj, const void* widget) {
 /// One extruder ("T0" -> "extruder") plus the bed — the real mock printer's
 /// topology (same seeding as test_widget_size_nozzle_temps.cpp).
 void configure_one_extruder(PrinterState& state) {
-    state.init_extruders({"extruder"});
+    state.temperature_state().init_extruders({"extruder"});
 
     ToolState::instance().deinit_subjects();
     ToolState::instance().init_subjects(false);
@@ -180,7 +180,7 @@ TEST_CASE_METHOD(HomeWidgetTeardownFixture,
     // An extruder-temp change fires the row's observe<int> observer
     // synchronously; the handler body is queued. This is the pending lambda a
     // screen teardown can drain after the tree is already gone.
-    lv_subject_t* temp = state().get_extruder_temp_subject("extruder");
+    lv_subject_t* temp = state().temperature_state().get_extruder_temp_subject("extruder");
     REQUIRE(temp != nullptr);
     lv_subject_set_int(temp, 2450);
 
@@ -307,7 +307,7 @@ TEST_CASE_METHOD(HomeWidgetTeardownFixture,
 
     // A print-lifecycle transition fires print_state_observer_; its handler
     // (refresh_print_gating over pill_buttons_) is queued.
-    lv_subject_t* lifecycle = state().get_print_lifecycle_subject();
+    lv_subject_t* lifecycle = state().print_state().get_print_lifecycle_subject();
     REQUIRE(lifecycle != nullptr);
     lv_subject_set_int(lifecycle, static_cast<int>(PrintState::Printing));
 

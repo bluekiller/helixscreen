@@ -24,6 +24,7 @@
 #include "printer_network_state.h"
 #include "printer_plugin_status_state.h"
 #include "printer_print_state.h"
+#include "printer_profile_state.h"
 #include "printer_temperature_state.h"
 #include "printer_versions_state.h"
 #include "spdlog/spdlog.h"
@@ -154,21 +155,6 @@ enum class PrintOutcome {
 PrintJobState parse_print_job_state(const char* state_str);
 
 /**
- * @brief Z-offset calibration strategy — determines gcode commands for calibration and save
- *
- * Different printers need different approaches to calibrate and persist Z-offset.
- * FIRMWARE_MANAGED: firmware or macros auto-persist (FlashForge, Snapmaker U1, Artillery M1,
- * ForgeX-mod). PROBE_CALIBRATE: standard Klipper PROBE_CALIBRATE -> ACCEPT -> SAVE_CONFIG. ENDSTOP:
- * Z_ENDSTOP_CALIBRATE -> ACCEPT -> Z_OFFSET_APPLY_ENDSTOP -> SAVE_CONFIG.
- */
-enum class ZOffsetCalibrationStrategy {
-    PROBE_CALIBRATE,  ///< Standard Klipper: PROBE_CALIBRATE -> ACCEPT -> SAVE_CONFIG
-    FIRMWARE_MANAGED, ///< Firmware/macros auto-persist (FlashForge, Snapmaker U1, Artillery M1,
-                      ///< ForgeX-mod)
-    ENDSTOP ///< Endstop: Z_ENDSTOP_CALIBRATE -> ACCEPT -> Z_OFFSET_APPLY_ENDSTOP -> SAVE_CONFIG
-};
-
-/**
  * @brief Convert PrintJobState enum to display string
  *
  * Returns a human-readable string for UI display.
@@ -293,27 +279,89 @@ class PrinterState {
                             bool from_cached_snapshot = false,
                             std::optional<uint64_t> frame_epoch = std::nullopt);
 
-    /// Which connection session a status frame belongs to. Advances on every
-    /// reset_klippy_state_freshness(); stamp a frame with it where it is
-    /// received, and hand the stamp to update_from_status().
-    [[nodiscard]] uint64_t klippy_epoch() const {
-        return klippy_epoch_.load();
-    }
-
     //
-    // Subject accessors for XML binding
+    // Domain components. Each owns its subjects and the state behind them;
+    // reach a domain's subjects and queries through its accessor. Setters the
+    // WebSocket thread calls stay on PrinterState, which defers them to the
+    // main thread.
     //
-
-    // Temperature subjects (decidegrees: value * 10 for 0.1C resolution)
-    // Example: 205.3C is stored as 2053. Divide by 10 for display.
-    // Delegated to PrinterTemperatureState component.
-
-    // Active extruder subjects — track whichever extruder is currently active
-    lv_subject_t* get_active_extruder_temp_subject() {
-        return temperature_state_.get_active_extruder_temp_subject();
+    helix::PrinterTemperatureState& temperature_state() {
+        return temperature_state_;
     }
-    lv_subject_t* get_active_extruder_target_subject() {
-        return temperature_state_.get_active_extruder_target_subject();
+    const helix::PrinterTemperatureState& temperature_state() const {
+        return temperature_state_;
+    }
+    helix::PrinterMotionState& motion_state() {
+        return motion_state_;
+    }
+    const helix::PrinterMotionState& motion_state() const {
+        return motion_state_;
+    }
+    helix::PrinterFanState& fan_state() {
+        return fan_state_;
+    }
+    const helix::PrinterFanState& fan_state() const {
+        return fan_state_;
+    }
+    helix::PrinterPrintState& print_state() {
+        return print_domain_;
+    }
+    const helix::PrinterPrintState& print_state() const {
+        return print_domain_;
+    }
+    helix::PrinterCapabilitiesState& capabilities_state() {
+        return capabilities_state_;
+    }
+    const helix::PrinterCapabilitiesState& capabilities_state() const {
+        return capabilities_state_;
+    }
+    helix::PrinterPluginStatusState& plugin_status_state() {
+        return plugin_status_state_;
+    }
+    const helix::PrinterPluginStatusState& plugin_status_state() const {
+        return plugin_status_state_;
+    }
+    helix::PrinterCalibrationState& calibration_state() {
+        return calibration_state_;
+    }
+    const helix::PrinterCalibrationState& calibration_state() const {
+        return calibration_state_;
+    }
+    helix::PrinterHardwareValidationState& hardware_validation_state() {
+        return hardware_validation_state_;
+    }
+    const helix::PrinterHardwareValidationState& hardware_validation_state() const {
+        return hardware_validation_state_;
+    }
+    helix::PrinterCompositeVisibilityState& composite_visibility_state() {
+        return composite_visibility_state_;
+    }
+    const helix::PrinterCompositeVisibilityState& composite_visibility_state() const {
+        return composite_visibility_state_;
+    }
+    helix::PrinterNetworkState& network_state() {
+        return network_state_;
+    }
+    const helix::PrinterNetworkState& network_state() const {
+        return network_state_;
+    }
+    helix::PrinterVersionsState& versions_state() {
+        return versions_state_;
+    }
+    const helix::PrinterVersionsState& versions_state() const {
+        return versions_state_;
+    }
+    helix::PrinterExcludedObjectsState& excluded_objects_state() {
+        return excluded_objects_state_;
+    }
+    const helix::PrinterExcludedObjectsState& excluded_objects_state() const {
+        return excluded_objects_state_;
+    }
+    helix::PrinterProfileState& profile_state() {
+        return profile_state_;
+    }
+    const helix::PrinterProfileState& profile_state() const {
+        return profile_state_;
     }
 
     /// Duty for one heater, so every surface renders the same number rather
@@ -321,35 +369,13 @@ class PrinterState {
     lv_subject_t* get_heater_power_subject(helix::HeaterType type) {
         switch (type) {
         case helix::HeaterType::Bed:
-            return get_bed_power_subject();
+            return temperature_state_.get_bed_power_subject();
         case helix::HeaterType::Chamber:
-            return get_chamber_power_subject();
+            return temperature_state_.get_chamber_power_subject();
         case helix::HeaterType::Nozzle:
         default:
-            return get_extruder_power_subject();
+            return temperature_state_.get_extruder_power_subject();
         }
-    }
-
-    // Heater duty cycle, whole percent, -1 until a heater reports one.
-    lv_subject_t* get_extruder_power_subject() {
-        return temperature_state_.get_extruder_power_subject();
-    }
-    /// A specific extruder's duty with its lifetime token (use when creating
-    /// observers). Distinct from the nullary overload, which is the ACTIVE
-    /// extruder's mirror.
-    lv_subject_t* get_extruder_power_subject(const std::string& name, SubjectLifetime& lifetime) {
-        return temperature_state_.get_extruder_power_subject(name, lifetime);
-    }
-    lv_subject_t* get_bed_power_subject() {
-        return temperature_state_.get_bed_power_subject();
-    }
-    lv_subject_t* get_chamber_power_subject() {
-        return temperature_state_.get_chamber_power_subject();
-    }
-
-    // Multi-extruder discovery
-    void init_extruders(const std::vector<std::string>& heaters) {
-        temperature_state_.init_extruders(heaters);
     }
 
     /// Re-format the text this state translates as it discovers hardware
@@ -358,261 +384,6 @@ class PrinterState {
         temperature_state_.refresh_display_names();
         fan_state_.refresh_display_names();
         hardware_validation_state_.refresh_texts();
-    }
-
-    // Per-extruder subject access (returns nullptr if not found)
-    // Prefer the overloads with SubjectLifetime when creating observers!
-    lv_subject_t* get_extruder_temp_subject(const std::string& name) {
-        return temperature_state_.get_extruder_temp_subject(name);
-    }
-    lv_subject_t* get_extruder_target_subject(const std::string& name) {
-        return temperature_state_.get_extruder_target_subject(name);
-    }
-    lv_subject_t* get_extruder_temp_subject(const std::string& name, SubjectLifetime& lifetime) {
-        return temperature_state_.get_extruder_temp_subject(name, lifetime);
-    }
-    lv_subject_t* get_extruder_target_subject(const std::string& name, SubjectLifetime& lifetime) {
-        return temperature_state_.get_extruder_target_subject(name, lifetime);
-    }
-
-    int extruder_count() const {
-        return temperature_state_.extruder_count();
-    }
-
-    const std::string& active_extruder_name() const {
-        return temperature_state_.active_extruder_name();
-    }
-
-    void set_active_extruder(const std::string& name) {
-        temperature_state_.set_active_extruder(name);
-    }
-
-    // Active extruder's latched last non-zero target (°C); 0 if unknown.
-    float get_active_extruder_last_nonzero_target() const {
-        return temperature_state_.get_active_extruder_last_nonzero_target();
-    }
-
-    // Clear the nozzle load latch (last non-zero target); empty name = active extruder.
-    void clear_nozzle_load_latch(const std::string& extruder_name = "") {
-        temperature_state_.clear_load_latch(extruder_name);
-    }
-
-    lv_subject_t* get_extruder_version_subject() {
-        return temperature_state_.get_extruder_version_subject();
-    }
-
-    // Direct access to temperature state (for UI enumeration)
-    const helix::PrinterTemperatureState& temperature_state() const {
-        return temperature_state_;
-    }
-
-    lv_subject_t* get_bed_temp_subject() {
-        return temperature_state_.get_bed_temp_subject();
-    }
-    lv_subject_t* get_bed_temp_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_bed_temp_subject(lifetime);
-    }
-    lv_subject_t* get_bed_target_subject() {
-        return temperature_state_.get_bed_target_subject();
-    }
-    lv_subject_t* get_bed_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_bed_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_temp_subject() {
-        return temperature_state_.get_chamber_temp_subject();
-    }
-    /// A chamber filament-drying cycle is running (0/1).
-    lv_subject_t* get_chamber_dryer_active_subject() {
-        return temperature_state_.get_chamber_dryer_active_subject();
-    }
-    lv_subject_t* get_chamber_temp_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_temp_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_target_subject() {
-        return temperature_state_.get_chamber_target_subject();
-    }
-    lv_subject_t* get_chamber_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_fan_target_subject() {
-        return temperature_state_.get_chamber_fan_target_subject();
-    }
-    lv_subject_t* get_chamber_fan_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_fan_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_effective_target_subject() {
-        return temperature_state_.get_chamber_effective_target_subject();
-    }
-    lv_subject_t* get_chamber_effective_target_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_effective_target_subject(lifetime);
-    }
-    lv_subject_t* get_chamber_mode_subject() {
-        return temperature_state_.get_chamber_mode_subject();
-    }
-    lv_subject_t* get_chamber_mode_subject(SubjectLifetime& lifetime) {
-        return temperature_state_.get_chamber_mode_subject(lifetime);
-    }
-
-    // Print progress subjects - delegated to PrinterPrintState component
-    lv_subject_t* get_print_progress_subject() {
-        return print_domain_.get_print_progress_subject();
-    } // 0-100
-    lv_subject_t* get_print_progress_display_subject() {
-        return print_domain_.get_print_progress_display_subject();
-    } // 0-100, frozen after a print ends
-    lv_subject_t* get_print_progress_text_subject() {
-        return print_domain_.get_print_progress_text_subject();
-    } // "N%" for the display value
-
-    // Scheduled-pause markers (prestonbrown/helixscreen#1509) - delegated to
-    // PrinterPrintState component. See there for the absent-by-default rule.
-    void set_scheduled_pauses(std::vector<helix::gcode::ScheduledPause> pauses,
-                              helix::gcode::ProgressAxis axis, const std::string& source_filename) {
-        print_domain_.set_scheduled_pauses(std::move(pauses), axis, source_filename);
-    }
-    [[nodiscard]] const std::vector<helix::gcode::ScheduledPause>& get_scheduled_pauses() const {
-        return print_domain_.get_scheduled_pauses();
-    }
-    [[nodiscard]] helix::gcode::ProgressAxis get_pause_marker_axis() const {
-        return print_domain_.get_pause_marker_axis();
-    }
-    [[nodiscard]] bool pause_markers_match_current_file() const {
-        return print_domain_.pause_markers_match_current_file();
-    }
-    lv_subject_t* get_pause_markers_version_subject() {
-        return print_domain_.get_pause_markers_version_subject();
-    }
-    lv_subject_t* get_print_filename_subject() {
-        return print_domain_.get_print_filename_subject();
-    }
-    lv_subject_t* get_print_state_subject() {
-        return print_domain_.get_print_state_subject();
-    } // "standby", "printing", "paused", "complete" (string for UI display)
-
-    /**
-     * @brief Get print thumbnail path subject for UI binding
-     *
-     * String subject holding the LVGL path to the current print's thumbnail.
-     * Set by PrintStatusPanel when thumbnail loads, cleared when print ends.
-     * HomePanel observes this to show the same thumbnail on the print card.
-     *
-     * @return Pointer to string subject
-     */
-    lv_subject_t* get_print_thumbnail_path_subject() {
-        return print_domain_.get_print_thumbnail_path_subject();
-    }
-
-    /**
-     * @brief Gcode filename the current thumbnail path was produced for
-     *
-     * Set before the path subject is published, so an observer of
-     * get_print_thumbnail_path_subject() can trust it describes the path it sees.
-     *
-     * @return Filename, or "" when no thumbnail identity has been set
-     */
-    [[nodiscard]] const std::string& get_print_thumbnail_file() const {
-        return print_domain_.get_print_thumbnail_file();
-    }
-
-    /**
-     * @brief The canonical name of the print currently being shown
-     *
-     * The single answer to "which print is this". See
-     * PrinterPrintState::get_effective_print_filename() for why it exists and
-     * why it is published before the raw filename subject.
-     */
-    [[nodiscard]] const std::string& get_effective_print_filename() const {
-        return print_domain_.get_effective_print_filename();
-    }
-
-    /// Name this print by something other than what print_stats reports.
-    /// See PrinterPrintState::set_print_identity_override().
-    void set_print_identity_override(const std::string& name) {
-        print_domain_.set_print_identity_override(name);
-    }
-
-    /// Drop the identity override and re-derive from the reported filename.
-    void clear_print_identity_override() {
-        print_domain_.clear_print_identity_override();
-    }
-
-    /// What is overriding this print's reported name, or "" when nothing is.
-    [[nodiscard]] const std::string& get_print_identity_override() const {
-        return print_domain_.get_print_identity_override();
-    }
-
-    /// Bumped whenever get_effective_print_filename() actually changes. See
-    /// PrinterPrintState::get_print_identity_epoch_subject().
-    lv_subject_t* get_print_identity_epoch_subject() {
-        return print_domain_.get_print_identity_epoch_subject();
-    }
-
-    /**
-     * @brief Set the current print's thumbnail, tagged with the file it is for
-     *
-     * The path alone carries no identity, so consumers cannot tell a fresh
-     * thumbnail from a previous job's. Pairing it with @p for_file makes
-     * staleness decidable. Main thread only — publishing fires observers.
-     *
-     * @param for_file Gcode filename this path was produced for ("" to clear identity)
-     * @param path LVGL-compatible path (e.g., "A:/tmp/thumbnail_xxx.bin"), "" to clear
-     */
-    void set_print_thumbnail(const std::string& for_file, const std::string& path);
-
-#if defined(HELIX_PLATFORM_ESP32)
-    /**
-     * @brief Get the PSRAM thumbnail generation subject for UI binding
-     *
-     * Integer subject bumped whenever the current print's PSRAM-resident
-     * thumbnail is replaced. ESP32 has no disk thumbnail cache, so
-     * print_thumbnail_path stays empty there and consumers observe this
-     * counter, then read get_print_psram_thumbnail().
-     */
-    lv_subject_t* get_print_psram_thumb_gen_subject() {
-        return print_domain_.get_print_psram_thumb_gen_subject();
-    }
-
-    /**
-     * @brief Get the current print's PSRAM-resident thumbnail (may be nullptr)
-     *
-     * Main thread only. Hold the returned shared_ptr for as long as a widget's
-     * image src points at its descriptor.
-     */
-    [[nodiscard]] std::shared_ptr<helix::ui::EspPsramThumbnail> get_print_psram_thumbnail() const {
-        return print_domain_.get_print_psram_thumbnail();
-    }
-
-    /**
-     * @brief Install the current print's PSRAM-resident thumbnail
-     *
-     * Main thread only — bumps the generation subject and may destroy the
-     * previous thumbnail (which calls lv_image_cache_drop()).
-     */
-    void set_print_psram_thumbnail(std::shared_ptr<helix::ui::EspPsramThumbnail> thumb);
-#endif
-
-    /**
-     * @brief Get print job state enum subject
-     *
-     * Integer subject holding PrintJobState enum value for type-safe comparisons.
-     * Use this for logic, use get_print_state_subject() for UI display binding.
-     *
-     * @return Pointer to integer subject (cast value to PrintJobState)
-     */
-    lv_subject_t* get_print_state_enum_subject() {
-        return print_domain_.get_print_state_enum_subject();
-    }
-
-    /**
-     * @brief Lifetime token for the "static" print subjects.
-     *
-     * Cross-singleton observers (e.g. AmsState's print-state observer) MUST
-     * pass this token to `observe<int>(...)` — otherwise an ObserverGuard
-     * outliving a `deinit_subjects()` cycle in tests will UAF in
-     * `lv_observer_remove()`.
-     */
-    [[nodiscard]] SubjectLifetime get_static_print_subjects_lifetime() const {
-        return print_domain_.get_static_subjects_lifetime();
     }
 
     /**
@@ -640,216 +411,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Get print active subject for UI binding
-     *
-     * Integer subject: 1 when PRINTING or PAUSED, 0 otherwise.
-     * Derived from print_state_enum for simpler XML bindings (avoids OR logic).
-     * Use for card visibility that should show during any active print.
-     *
-     * @return Pointer to integer subject (0 or 1)
-     */
-    lv_subject_t* get_print_active_subject() {
-        return print_domain_.get_print_active_subject();
-    }
-
-    /**
-     * @brief Get print outcome subject for UI binding
-     *
-     * Integer subject holding PrintOutcome enum value for terminal print state.
-     * Unlike print_state_enum (which reflects live Moonraker state), print_outcome
-     * persists how the last print ended until a new print starts.
-     *
-     * Use this for showing completion/cancellation UI (badges, reprint buttons)
-     * that should persist after Moonraker transitions back to STANDBY.
-     *
-     * @return Pointer to integer subject (cast value to PrintOutcome)
-     */
-    lv_subject_t* get_print_outcome_subject() {
-        return print_domain_.get_print_outcome_subject();
-    }
-
-    /**
-     * @brief Set print outcome for UI badge display
-     *
-     * Call this to manually set the print outcome (e.g., from AbortManager
-     * when Moonraker reports "standby" instead of "cancelled" after M112).
-     *
-     * @param outcome The print outcome value to set
-     */
-    void set_print_outcome(PrintOutcome outcome);
-
-    /**
-     * @brief Get subject for showing print progress card on home panel
-     *
-     * Combined subject: 1 when print_active==1 AND print_start_phase==0.
-     * Simplifies XML bindings by avoiding conflicting multi-binding logic.
-     *
-     * @return Pointer to integer subject (0 or 1)
-     */
-    lv_subject_t* get_print_show_progress_subject() {
-        return print_domain_.get_print_show_progress_subject();
-    }
-
-    /**
-     * @brief Get subject for display-ready print filename
-     *
-     * Clean filename without path or .helix_temp prefix, suitable for UI display.
-     * Set by PrintStatusPanel when processing raw print_filename.
-     *
-     * @return Pointer to string subject
-     */
-    lv_subject_t* get_print_display_filename_subject() {
-        return print_domain_.get_print_display_filename_subject();
-    }
-
-    /**
-     * @brief Set display-ready print filename for UI binding
-     *
-     * Called by PrintStatusPanel after cleaning up the raw filename.
-     *
-     * @param name Clean display name (e.g., "Body1" not ".helix_temp/modified_123_Body1.gcode")
-     */
-    void set_print_display_filename(const std::string& name);
-
-    /**
-     * @brief Get current print job state as enum
-     *
-     * Convenience method for direct enum access without subject lookup.
-     *
-     * @return Current PrintJobState
-     */
-    PrintJobState get_print_job_state() const;
-
-    /// The derived print lifecycle. Prefer this over reading
-    /// get_print_lifecycle_subject() by hand — see
-    /// PrinterPrintState::get_print_lifecycle() for why the hand-cast is a trap.
-    [[nodiscard]] PrintState get_print_lifecycle() const {
-        return print_domain_.get_print_lifecycle();
-    }
-
-    /**
-     * @brief Check if a new print can be started
-     *
-     * Returns true if the printer is in a state that allows starting a new print.
-     * A print can be started when the printer is idle (STANDBY), a previous print
-     * finished (COMPLETE, CANCELLED), or the printer recovered from an error (ERROR).
-     * Also checks that no print workflow is currently in progress (e.g., G-code
-     * downloading/modifying/uploading).
-     *
-     * @return true if start_print() can be called safely
-     */
-    [[nodiscard]] bool can_start_new_print() const;
-
-    /**
-     * @brief Set the print-in-progress flag (UI workflow state)
-     *
-     * Call with true when starting the print preparation workflow
-     * (downloading/modifying/uploading G-code), and false when complete.
-     * This flag is checked by can_start_new_print() to prevent:
-     * - Double-tap issues during long G-code modification workflows
-     * - UI elements from indicating "ready to print" during preparation
-     * - Race conditions from concurrent print requests
-     *
-     * Updates the print_in_progress_ subject so UI observers can react.
-     *
-     * Thread-safe: Uses helix::ui::queue_update() to defer LVGL subject updates
-     * to the main thread. Can be safely called from WebSocket callbacks.
-     */
-    void set_print_in_progress(bool in_progress);
-
-    /**
-     * @brief Check if a print workflow is currently in progress
-     *
-     * Returns true during print preparation (G-code download/modify/upload),
-     * even though the printer's physical state may still be STANDBY.
-     */
-    [[nodiscard]] bool is_print_in_progress() const {
-        return print_domain_.is_print_in_progress();
-    }
-
-    /**
-     * @brief True when Klipper's virtual_sdcard.is_active is reporting
-     * active gcode playback.
-     *
-     * Distinct from PrintJobState — a `paused` print can have
-     * is_active=false (Snapmaker U1 dirty-bed exception). Used by
-     * AmsBackend::prepare_for_resume to detect terminated-with-exception
-     * state and switch to "Restart from beginning?" UX.
-     */
-    [[nodiscard]] bool is_sdcard_active() const {
-        return print_domain_.is_sdcard_active();
-    }
-
-    /**
-     * @brief virtual_sdcard.pl_env_valid — Snapmaker-fork Power-Loss-Recovery flag.
-     *
-     * Delegated to PrinterPrintState; see its accessor docs.
-     */
-    lv_subject_t* get_pl_env_valid_subject() {
-        return print_domain_.get_pl_env_valid_subject();
-    }
-
-    [[nodiscard]] bool is_pl_env_valid() const {
-        return print_domain_.is_pl_env_valid();
-    }
-
-    /**
-     * @brief virtual_sdcard.file_path — the file a PLR restore would resume.
-     * Only meaningful when is_pl_env_valid() is true.
-     */
-    [[nodiscard]] const std::string& pl_recovery_file() const {
-        return print_domain_.pl_recovery_file();
-    }
-
-    /// Clear the cached PLR recovery file path. Delegated to PrinterPrintState;
-    /// see its accessor docs. Main-thread only.
-    /**
-     * @brief print_stats.power_loss presence — Creality-fork PLR capability.
-     *
-     * See PrinterPrintState::get_plr_power_loss_signal_subject().
-     */
-    lv_subject_t* get_plr_power_loss_signal_subject() {
-        return print_domain_.get_plr_power_loss_signal_subject();
-    }
-
-    /// True when print_stats.power_loss has been seen (Creality Klipper fork).
-    [[nodiscard]] bool is_plr_power_loss_signal() const {
-        return print_domain_.is_plr_power_loss_signal();
-    }
-
-    /**
-     * @brief PLR passive backend: discovered resume-macro capability and the
-     * live interrupted flag.
-     *
-     * See PrinterPrintState::get_plr_resume_macro_subject() for the semantics
-     * (booleans only; delta frames without the key leave the flag alone).
-     */
-    lv_subject_t* get_plr_resume_macro_subject() {
-        return print_domain_.get_plr_resume_macro_subject();
-    }
-
-    [[nodiscard]] bool is_plr_resume_macro_present() const {
-        return print_domain_.is_plr_resume_macro_present();
-    }
-
-    /// Set from the discovery snapshot; main-thread only.
-    void set_plr_resume_macro_present(bool capable) {
-        print_domain_.set_plr_resume_macro_present(capable);
-    }
-
-    lv_subject_t* get_plr_interrupted_flag_subject() {
-        return print_domain_.get_plr_interrupted_flag_subject();
-    }
-
-    [[nodiscard]] bool is_plr_interrupted_flag() const {
-        return print_domain_.is_plr_interrupted_flag();
-    }
-
-    void clear_pl_recovery_file() {
-        print_domain_.clear_pl_recovery_file();
-    }
-
-    /**
      * @brief True when Klipper's pause_resume.is_paused is set.
      *
      * Reflects the last received pause_resume.is_paused value from Moonraker.
@@ -868,514 +429,10 @@ class PrinterState {
     void reset_for_new_print();
 
     /**
-     * @brief Get the print-in-progress subject for observing workflow state
-     *
-     * Value is 1 when print preparation is in progress, 0 otherwise.
-     */
-    lv_subject_t* get_print_in_progress_subject() {
-        return print_domain_.get_print_in_progress_subject();
-    }
-
-    // Filament used subject (from print_stats.filament_used, in mm)
-    // Delegated to PrinterPrintState component
-    lv_subject_t* get_print_filament_used_subject() {
-        return print_domain_.get_print_filament_used_subject();
-    }
-
-    /**
-     * @brief Per-extruder filament_used (mm), 0-based.
-     *
-     * Dynamic subject — observers MUST capture the returned lifetime token and
-     * subscribe via observe<int>(..., lifetime). See
-     * PrinterPrintState::get_extruder_filament_used_subject for full contract.
-     *
-     * @param extruder_idx 0-based extruder index (0 = "extruder", 1 = "extruder1", ...)
-     * @param[out] lifetime Token whose expiration signals subject death
-     * @return Non-null subject pointer (created lazily on first access).
-     */
-    lv_subject_t* get_extruder_filament_used_subject(int extruder_idx, SubjectLifetime& lifetime) {
-        return print_domain_.get_extruder_filament_used_subject(extruder_idx, lifetime);
-    }
-
-    // Layer tracking subjects (from print_stats.info.current_layer/total_layer)
-    // Delegated to PrinterPrintState component
-    lv_subject_t* get_print_layer_current_subject() {
-        return print_domain_.get_print_layer_current_subject();
-    }
-    lv_subject_t* get_print_layer_total_subject() {
-        return print_domain_.get_print_layer_total_subject();
-    }
-
-    /**
-     * @brief Set total layer count from file metadata
-     *
-     * Called when print starts to initialize total layers from file metadata.
-     * Moonraker notifications may update this later via SET_PRINT_STATS_INFO.
-     */
-    void set_print_layer_total(int total) {
-        print_domain_.set_print_layer_total(total);
-    }
-
-    /**
-     * @brief Set slice layer heights from file metadata (for Z-height derivation)
-     *
-     * Enables the Z-height current-layer fallback for printers whose slicer never
-     * reports a layer number. Thread-safe (marshals internally).
-     */
-    void set_print_layer_heights(double layer_height, double first_layer_height) {
-        print_domain_.set_print_layer_heights(layer_height, first_layer_height);
-    }
-
-    /**
-     * @brief Set current layer number (gcode response fallback)
-     *
-     * Thread-safe. Called from gcode response parser when
-     * print_stats.info.current_layer doesn't fire.
-     */
-    void set_print_layer_current(int layer) {
-        print_domain_.set_print_layer_current(layer);
-    }
-
-    /**
-     * @brief Check if real layer data has been received from slicer/Moonraker.
-     * When false, layer count is estimated from print progress.
-     */
-    bool has_real_layer_data() const {
-        return print_domain_.has_real_layer_data();
-    }
-
-    /**
-     * @brief Is the displayed current layer trustworthy (not a progress guess)?
-     *
-     * True for real slicer/Moonraker layer fields AND for Z-height-derived
-     * layers; false only for the progress-fraction estimate. The print-status
-     * label uses this to decide whether to show the "~" estimate prefix.
-     */
-    bool layer_is_accurate() const {
-        return print_domain_.layer_is_accurate();
-    }
-
-    /**
-     * @brief Sticky: has this printer EVER reported a real layer field this session?
-     *
-     * Delegated to PrinterPrintState. NOT reset between prints. Used by the
-     * pre-print completion gate (MoonrakerManager::should_complete_preprint) to
-     * pick the real-first-layer path vs the print_duration fallback.
-     */
-    bool printer_reports_layers() const {
-        return print_domain_.printer_reports_layers();
-    }
-
-    /**
-     * @brief Set slicer's estimated total print time (from file metadata)
-     *
-     * Used as fallback for remaining time when print_duration is still 0.
-     */
-    void set_estimated_print_time(int seconds) {
-        print_domain_.set_estimated_print_time(seconds);
-    }
-
-    /**
-     * @brief Get slicer's estimated total print time
-     */
-    int get_estimated_print_time() const {
-        return print_domain_.get_estimated_print_time();
-    }
-
-    // Print time tracking subjects (in seconds) - delegated to PrinterPrintState
-    lv_subject_t* get_print_duration_subject() {
-        return print_domain_.get_print_duration_subject();
-    }
-    lv_subject_t* get_print_elapsed_subject() {
-        return print_domain_.get_print_elapsed_subject();
-    }
-    lv_subject_t* get_print_time_left_subject() {
-        return print_domain_.get_print_time_left_subject();
-    }
-
-    // ========================================================================
-    // PRINT START PROGRESS (detected from G-code response during PRINT_START)
-    // ========================================================================
-
-    /**
-     * @brief Get print start phase subject for UI binding
-     *
-     * Integer subject holding PrintStartPhase enum value.
-     * Use with bind_flag_if_eq/not_eq in XML to show/hide progress overlay.
-     */
-    void begin_preparing(const PrintJobRef& job) {
-        print_domain_.begin_preparing(job);
-    }
-    void retire_preparing(PreparingExit reason) {
-        print_domain_.retire_preparing(reason);
-    }
-    [[nodiscard]] bool has_preparing_job() const {
-        return print_domain_.has_preparing_job();
-    }
-    [[nodiscard]] const PrintJobRef& preparing_job() const {
-        return print_domain_.preparing_job();
-    }
-    lv_subject_t* get_preparing_epoch_subject() {
-        return print_domain_.get_preparing_epoch_subject();
-    }
-    lv_subject_t* get_print_lifecycle_prev_subject() {
-        return print_domain_.get_print_lifecycle_prev_subject();
-    }
-    [[nodiscard]] PreparingExit last_preparing_exit() const {
-        return print_domain_.last_preparing_exit();
-    }
-
-    lv_subject_t* get_print_lifecycle_subject() {
-        return print_domain_.get_print_lifecycle_subject();
-    }
-
-    /// Boolean form of job_holds_machine(print_lifecycle). See
-    /// PrinterPrintState::get_job_holds_machine_subject().
-    lv_subject_t* get_job_holds_machine_subject() {
-        return print_domain_.get_job_holds_machine_subject();
-    }
-
-    /// job_holds_machine || spools on the bed. See
-    /// PrinterPrintState::get_machine_motion_blocked_subject().
-    lv_subject_t* get_machine_motion_blocked_subject() {
-        return print_domain_.get_machine_motion_blocked_subject();
-    }
-    lv_subject_t* get_spool_latch_subject() {
-        return print_domain_.get_spool_latch_subject();
-    }
-    void set_spool_latch(bool on, std::vector<std::string> extra_tokens = {}) {
-        print_domain_.set_spool_latch(on, std::move(extra_tokens));
-    }
-    [[nodiscard]] bool spool_latch_active() const {
-        return print_domain_.spool_latch_active();
-    }
-    [[nodiscard]] std::vector<std::string> spool_latch_extra_tokens() const {
-        return print_domain_.spool_latch_extra_tokens();
-    }
-
-    lv_subject_t* get_print_start_phase_subject() {
-        return print_domain_.get_print_start_phase_subject();
-    }
-
-    /**
-     * @brief Get print start message subject for UI binding
-     *
-     * String subject with human-readable phase description (e.g., "Heating Nozzle...").
-     * Use with bind_text in XML.
-     */
-    lv_subject_t* get_print_start_message_subject() {
-        return print_domain_.get_print_start_message_subject();
-    }
-
-    /**
-     * @brief Get print start progress subject for UI binding
-     *
-     * Integer subject with 0-100% progress based on weighted phase completion.
-     * Use with bind_value on lv_bar in XML.
-     */
-    lv_subject_t* get_print_start_progress_subject() {
-        return print_domain_.get_print_start_progress_subject();
-    }
-
-    /**
-     * @brief Get predicted pre-print time remaining subject for UI binding
-     *
-     * String subject with formatted remaining time (e.g., "~2 min left").
-     * Empty when no prediction is available.
-     */
-    lv_subject_t* get_print_start_time_left_subject() {
-        return print_domain_.get_print_start_time_left_subject();
-    }
-
-    /**
-     * @brief Set predicted pre-print time remaining (main-thread only)
-     */
-    void set_print_start_time_left(const char* text) {
-        print_domain_.set_print_start_time_left(text);
-    }
-
-    /**
-     * @brief Clear predicted pre-print time remaining
-     */
-    void clear_print_start_time_left() {
-        print_domain_.clear_print_start_time_left();
-    }
-
-    /**
-     * @brief Get pre-print remaining seconds subject for augmenting total remaining
-     */
-    lv_subject_t* get_preprint_remaining_subject() {
-        return print_domain_.get_preprint_remaining_subject();
-    }
-
-    /**
-     * @brief Set pre-print remaining seconds (main-thread only)
-     */
-    void set_preprint_remaining_seconds(int seconds) {
-        print_domain_.set_preprint_remaining_seconds(seconds);
-    }
-
-    /**
-     * @brief Get pre-print elapsed seconds subject
-     */
-    lv_subject_t* get_preprint_elapsed_subject() {
-        return print_domain_.get_preprint_elapsed_subject();
-    }
-
-    /**
-     * @brief Set pre-print elapsed seconds (main-thread only)
-     */
-    void set_preprint_elapsed_seconds(int seconds) {
-        print_domain_.set_preprint_elapsed_seconds(seconds);
-    }
-
-    /// Klipper display message from M117 / display_status.message
-    lv_subject_t* get_display_message_subject() {
-        return print_domain_.get_display_message_subject();
-    }
-
-    /// 1 when display_message is non-empty, 0 when empty
-    lv_subject_t* get_display_message_visible_subject() {
-        return print_domain_.get_display_message_visible_subject();
-    }
-
-    /// Klipper print_stats.message — pause/error reason from firmware
-    lv_subject_t* get_print_message_subject() {
-        return print_domain_.get_print_message_subject();
-    }
-
-    /// print_stats.exception id (Snapmaker U1 structured pause descriptor), -1
-    /// when no exception is latched. See PrinterPrintState getter docs (#991).
-    [[nodiscard]] int get_print_exception_id() const {
-        return print_domain_.get_print_exception_id();
-    }
-
-    /// print_stats.exception code, -1 when absent.
-    [[nodiscard]] int get_print_exception_code() const {
-        return print_domain_.get_print_exception_code();
-    }
-
-    /// print_stats.exception message — pause reason text (empty when no exception).
-    [[nodiscard]] const std::string& get_print_exception_message() const {
-        return print_domain_.get_print_exception_message();
-    }
-
-    /**
-     * @brief Check if currently in print start phase
-     *
-     * Convenience method to check if we're showing PRINT_START progress.
-     *
-     * @return true if phase is not IDLE
-     */
-    bool is_in_print_start() const;
-
-    /**
-     * @brief Set print start phase and update message/progress
-     *
-     * Called by PrintStartCollector when phases are detected.
-     * Updates all three subjects: phase, message, and progress.
-     *
-     * @param phase Current PrintStartPhase
-     * @param message Human-readable message (e.g., "Heating Nozzle...")
-     * @param progress Estimated progress 0-100%
-     */
-    void set_print_start_state(PrintStartPhase phase, const char* message, int progress);
-
-    /**
-     * @brief Reset print start to IDLE
-     *
-     * Called when print initialization completes or print is cancelled.
-     */
-    void reset_print_start_state();
-
-    // Toolhead position subjects - actual physical position (includes mesh compensation)
-    lv_subject_t* get_position_x_subject() {
-        return motion_state_.get_position_x_subject();
-    }
-    lv_subject_t* get_position_y_subject() {
-        return motion_state_.get_position_y_subject();
-    }
-    lv_subject_t* get_position_z_subject() {
-        return motion_state_.get_position_z_subject();
-    }
-
-    // Gcode position subjects - commanded position (what user requested)
-    lv_subject_t* get_gcode_position_x_subject() {
-        return motion_state_.get_gcode_position_x_subject();
-    }
-    lv_subject_t* get_gcode_position_y_subject() {
-        return motion_state_.get_gcode_position_y_subject();
-    }
-    lv_subject_t* get_gcode_position_z_subject() {
-        return motion_state_.get_gcode_position_z_subject();
-    }
-
-    // Live position subjects - physical position mid-move (motion_report)
-    lv_subject_t* get_live_position_x_subject() {
-        return motion_state_.get_live_position_x_subject();
-    }
-    lv_subject_t* get_live_position_y_subject() {
-        return motion_state_.get_live_position_y_subject();
-    }
-    lv_subject_t* get_live_position_z_subject() {
-        return motion_state_.get_live_position_z_subject();
-    }
-
-    lv_subject_t* get_homed_axes_subject() {
-        return motion_state_.get_homed_axes_subject();
-    } // "xyz", "xy", etc.
-    // Note: Derived subjects (xy_homed, z_homed, all_homed) are panel-local in ControlsPanel
-
-    // Speed/Flow subjects (percentages, 0-100) - delegated to PrinterMotionState component
-    lv_subject_t* get_speed_factor_subject() {
-        return motion_state_.get_speed_factor_subject();
-    }
-    lv_subject_t* get_flow_factor_subject() {
-        return motion_state_.get_flow_factor_subject();
-    }
-    lv_subject_t* get_max_velocity_subject() {
-        return motion_state_.get_max_velocity_subject();
-    }
-    lv_subject_t* get_live_extruder_velocity_subject() {
-        return motion_state_.get_live_extruder_velocity_subject();
-    }
-    /// Measured toolhead speed in mm/s. Unlike the commanded gcode speed it
-    /// falls to 0 when the toolhead stops.
-    lv_subject_t* get_live_velocity_subject() {
-        return motion_state_.get_live_velocity_subject();
-    }
-    lv_subject_t* get_fan_speed_subject() {
-        return fan_state_.get_fan_speed_subject();
-    }
-
-    // ========================================================================
-    // MULTI-FAN API - Delegated to PrinterFanState component
-    // ========================================================================
-
-    /**
-     * @brief Get the fan state component (for classify_primary_fans and other operations)
-     * @return Const reference to PrinterFanState
-     */
-    const helix::PrinterFanState& get_fan_state() const {
-        return fan_state_;
-    }
-
-    /**
-     * @brief Get all tracked fans
-     * @return Const reference to fan info vector
-     */
-    const std::vector<helix::FanInfo>& get_fans() const {
-        return fan_state_.get_fans();
-    }
-
-    /// Rename a fan: saves to config, updates display name, bumps fans_version
-    void rename_fan(const std::string& object_name, const std::string& new_name) {
-        fan_state_.rename_fan(object_name, new_name);
-    }
-
-    /**
-     * @brief Get fans version subject for UI change notification
-     *
-     * Incremented when fan list changes or speeds update.
-     * UI should observe this to rebuild dynamic fan list.
-     */
-    lv_subject_t* get_fans_version_subject() {
-        return fan_state_.get_fans_version_subject();
-    }
-
-    lv_subject_t* get_primary_fans_version_subject() {
-        return fan_state_.get_primary_fans_version_subject();
-    }
-
-    /**
-     * @brief Get speed subject for a specific fan (with lifetime token for observer safety)
-     *
-     * IMPORTANT: Use this overload when creating observers on the returned subject.
-     * Dynamic fan subjects may be destroyed during reconnection — the lifetime token
-     * prevents use-after-free crashes in ObserverGuard.
-     *
-     * @param object_name Moonraker object name (e.g., "fan", "heater_fan hotend_fan")
-     * @param[out] lifetime Receives the subject's lifetime token
-     * @return Pointer to subject, or nullptr if fan not found
-     */
-    lv_subject_t* get_fan_speed_subject(const std::string& object_name, SubjectLifetime& lifetime) {
-        return fan_state_.get_fan_speed_subject(object_name, lifetime);
-    }
-
-    /// Get speed subject without lifetime token (only for non-observer uses like reading values)
-    lv_subject_t* get_fan_speed_subject(const std::string& object_name) {
-        return fan_state_.get_fan_speed_subject(object_name);
-    }
-
-    /**
-     * @brief Initialize fan list from discovered fan objects
-     * @param fan_objects List of Moonraker fan object names
-     * @param roles Wizard-configured fan role assignments
-     */
-    void init_fans(const std::vector<std::string>& fan_objects,
-                   const helix::FanRoleConfig& roles = {},
-                   const std::unordered_map<std::string, double>& max_power = {}) {
-        fan_state_.init_fans(fan_objects, roles, max_power);
-    }
-
-    /// Re-apply fan roles to the already-discovered fans. See
-    /// PrinterFanState::apply_roles — use this, not init_fans, when the hardware
-    /// has not changed and only the role mapping has.
-    void apply_fan_roles(const helix::FanRoleConfig& roles) {
-        fan_state_.apply_roles(roles);
-    }
-
-    /**
-     * @brief Update speed for a specific fan (optimistic UI updates)
-     * @param object_name Moonraker object name (e.g., "fan_generic chamber_fan")
-     * @param speed Speed as 0.0-1.0 (Moonraker format)
-     */
-    void update_fan_speed(const std::string& object_name, double speed) {
-        fan_state_.update_fan_speed(object_name, speed);
-    }
-
-    /**
-     * @brief Get G-code Z offset subject for tune panel
-     *
-     * Returns current Z-offset from gcode_move.homing_origin[2] in microns.
-     * Divide by 1000.0 to get mm value (e.g., 200 = 0.200mm).
-     * Used for live baby-stepping display during prints.
-     * Delegated to PrinterMotionState component.
-     */
-    lv_subject_t* get_gcode_z_offset_subject() {
-        return motion_state_.get_gcode_z_offset_subject();
-    }
-
-    /**
-     * @brief Get the firmware-persisted Z-offset subject (microns)
-     *
-     * ZMOD stores the offset the next print will apply in
-     * save_variables.gcode_offsets.z and zeroes gcode_move's live offset outside
-     * a print, so this - not get_gcode_z_offset_subject() - is the truthful
-     * reading while idle. Only meaningful when
-     * get_persisted_z_offset_valid_subject() reads 1.
-     * Delegated to PrinterMotionState component.
-     */
-    lv_subject_t* get_persisted_z_offset_subject() {
-        return motion_state_.get_persisted_z_offset_subject();
-    }
-
-    /**
-     * @brief Get whether a firmware-persisted Z-offset has been reported (0/1)
-     *
-     * Separate from the value because 0 microns is a legitimate stored offset.
-     * Reads 0 on every non-ZMOD printer.
-     * Delegated to PrinterMotionState component.
-     */
-    lv_subject_t* get_persisted_z_offset_valid_subject() {
-        return motion_state_.get_persisted_z_offset_valid_subject();
-    }
-
-    /**
      * @brief Firmware-persisted Z-offset in microns, or nullopt when unknown
      *
-     * Convenience wrapper over the two subjects above for the display/adjust
-     * helpers in helix::zoffset.
+     * Convenience wrapper over the motion domain's persisted z-offset subjects for the
+     * display/adjust helpers in helix::zoffset.
      */
     std::optional<int> get_persisted_z_offset_microns() {
         if (lv_subject_get_int(motion_state_.get_persisted_z_offset_valid_subject()) == 0) {
@@ -1383,201 +440,6 @@ class PrinterState {
         }
         return lv_subject_get_int(motion_state_.get_persisted_z_offset_subject());
     }
-
-    // ========================================================================
-    // PENDING Z-OFFSET DELTA (for tracking adjustments made during print)
-    // Delegated to PrinterMotionState component.
-    // ========================================================================
-
-    /**
-     * @brief Get pending Z-offset delta subject
-     *
-     * Returns accumulated Z-offset adjustment made during print tuning (microns).
-     * Use this to show "unsaved adjustment" notification in Controls panel.
-     */
-    lv_subject_t* get_pending_z_offset_delta_subject() {
-        return motion_state_.get_pending_z_offset_delta_subject();
-    }
-
-    /**
-     * @brief Get subject indicating whether Z-offset can be manually saved
-     *
-     * Returns 1 when the printer's Z-offset calibration strategy requires
-     * HelixScreen to save (PROBE_CALIBRATE or ENDSTOP), 0 when the
-     * firmware/macros handle persistence automatically (FIRMWARE_MANAGED).
-     * Used in XML to hide the "Save Z-Offset" button for auto-saved printers.
-     */
-    lv_subject_t* get_z_offset_can_save_subject() {
-        return &z_offset_can_save_;
-    }
-
-    /**
-     * @brief Add to pending Z-offset delta (called when user adjusts Z during print)
-     * @param delta_microns Adjustment in microns (positive = farther, negative = closer)
-     */
-    void add_pending_z_offset_delta(int delta_microns) {
-        motion_state_.add_pending_z_offset_delta(delta_microns);
-    }
-
-    /**
-     * @brief Get current pending Z-offset delta in microns
-     */
-    int get_pending_z_offset_delta() const {
-        return motion_state_.get_pending_z_offset_delta();
-    }
-
-    /**
-     * @brief Check if there's a pending Z-offset adjustment
-     */
-    bool has_pending_z_offset_adjustment() const {
-        return motion_state_.has_pending_z_offset_adjustment();
-    }
-
-    /**
-     * @brief Clear pending Z-offset delta (after save or dismiss)
-     */
-    void clear_pending_z_offset_delta() {
-        motion_state_.clear_pending_z_offset_delta();
-    }
-
-    /// Kinematic envelope (mm) from toolhead.axis_minimum / axis_maximum.
-    [[nodiscard]] AxisBounds get_axis_bounds() const {
-        return motion_state_.get_axis_bounds();
-    }
-
-    /// The envelope in G-code coordinates: machine bounds shifted by minus
-    /// gcode_move.homing_origin. Motion-panel clamps compare against
-    /// gcode_move.gcode_position, so they use these.
-    [[nodiscard]] AxisBounds get_gcode_axis_bounds() const {
-        return motion_state_.get_gcode_axis_bounds();
-    }
-
-    // Printer connection state subjects (Moonraker WebSocket) - delegated to PrinterNetworkState
-    lv_subject_t* get_printer_connection_state_subject() {
-        return network_state_.get_printer_connection_state_subject();
-    } // 0=disconnected, 1=connecting, 2=connected, 3=reconnecting, 4=failed
-    lv_subject_t* get_printer_connection_message_subject() {
-        return network_state_.get_printer_connection_message_subject();
-    } // Status message
-
-    // Network connectivity subject (WiFi/Ethernet) - delegated to PrinterNetworkState
-    lv_subject_t* get_network_status_subject() {
-        return network_state_.get_network_status_subject();
-    } // 0=disconnected, 1=connecting, 2=connected (matches NetworkStatus enum)
-
-    // Klipper firmware state subject - delegated to PrinterNetworkState
-    lv_subject_t* get_klippy_state_subject() {
-        return network_state_.get_klippy_state_subject();
-    } // 0=ready, 1=startup, 2=shutdown, 3=error (matches KlippyState enum)
-
-    // Klipper state message (error/shutdown reason from webhooks)
-    // Main-thread only — called from update_from_status() via ui_queue_update
-    const std::string& get_klippy_state_message() const {
-        return network_state_.get_klippy_state_message();
-    }
-
-    // Main-thread only — production writes go through update_from_status()
-    void set_klippy_state_message(const std::string& message) {
-        network_state_.set_klippy_state_message(message);
-    }
-
-    // Combined nav button enabled subject (for navbar icon visibility) - delegated to
-    // PrinterNetworkState
-    lv_subject_t* get_nav_buttons_enabled_subject() {
-        return network_state_.get_nav_buttons_enabled_subject();
-    } // 1=enabled (connected AND klippy ready), 0=disabled
-
-    // Remote-screen verdict - delegated to PrinterNetworkState
-    lv_subject_t* get_moonraker_is_remote_subject() {
-        return network_state_.get_moonraker_is_remote_subject();
-    } // 1=connected Moonraker is not this host, 0=local/unknown
-
-    /**
-     * @brief Get excluded objects version subject
-     *
-     * This subject is incremented whenever the excluded objects list changes.
-     * Observers should watch this subject and call get_excluded_objects() to
-     * get the updated list when notified.
-     *
-     * @return Subject pointer (integer, incremented on each change)
-     */
-    lv_subject_t* get_excluded_objects_version_subject() {
-        return excluded_objects_state_.get_excluded_objects_version_subject();
-    }
-
-    /**
-     * @brief Get the current set of excluded objects
-     *
-     * Returns object names that have been excluded from printing via Klipper's
-     * EXCLUDE_OBJECT feature. Updated from Moonraker notify_status_update.
-     *
-     * @return Reference to the set of excluded object names
-     */
-    const std::unordered_set<std::string>& get_excluded_objects() const {
-        return excluded_objects_state_.get_excluded_objects();
-    }
-
-    /**
-     * @brief Get the list of all defined objects in the current print
-     *
-     * Returns all object names from Klipper's exclude_object status.
-     *
-     * @return Const reference to the vector of defined object names
-     */
-    const std::vector<std::string>& get_defined_objects() const {
-        return excluded_objects_state_.get_defined_objects();
-    }
-
-    /**
-     * @brief Get the name of the currently printing object
-     *
-     * @return Const reference to current object name, or empty string if none
-     */
-    const std::string& get_current_object() const {
-        return excluded_objects_state_.get_current_object();
-    }
-
-    /**
-     * @brief Get defined objects version subject
-     *
-     * Incremented whenever the defined objects list changes.
-     *
-     * @return Subject pointer (integer, incremented on each change)
-     */
-    lv_subject_t* get_defined_objects_version_subject() {
-        return excluded_objects_state_.get_defined_objects_version_subject();
-    }
-
-    /**
-     * @brief Check if any objects are defined for exclude_object
-     *
-     * @return true if the print has defined objects available for exclusion
-     */
-    bool has_exclude_objects() const {
-        return excluded_objects_state_.has_objects();
-    }
-
-    /**
-     * @brief Get the excluded objects state component
-     *
-     * Provides direct access for components that need the full state
-     * (e.g., ExcludeObjectMapView needs version subjects + geometry).
-     *
-     * @return Pointer to the excluded objects state
-     */
-    PrinterExcludedObjectsState* get_excluded_objects_state() {
-        return &excluded_objects_state_;
-    }
-
-    /**
-     * @brief Update excluded objects from Moonraker status update
-     *
-     * Called by status update handler when exclude_object.excluded_objects changes.
-     * Increments the version subject to notify observers.
-     *
-     * @param objects Set of object names that are currently excluded
-     */
-    void set_excluded_objects(const std::unordered_set<std::string>& objects);
 
     /**
      * @brief Set printer connection state (Moonraker WebSocket)
@@ -1590,12 +452,6 @@ class PrinterState {
      */
     void set_printer_connection_state(int state, const char* message);
 
-    /**
-     * @brief Internal: set connection state on main thread
-     * @note Called via ui_queue_update() from set_printer_connection_state()
-     */
-    void set_printer_connection_state_internal(int state, const char* message);
-
     /// Remote-screen verdict from the live websocket endpoint (thread-safe;
     /// defers the subject write to the main thread). Published by
     /// MoonrakerManager on CONNECTED edges.
@@ -1605,17 +461,6 @@ class PrinterState {
     /// not this host). For UI decision points; background code uses
     /// helix::is_moonraker_on_same_host() directly.
     bool is_moonraker_remote();
-
-    /**
-     * @brief Check if printer has ever connected this session
-     *
-     * Returns true if we've successfully connected to Moonraker at least once.
-     * Used to distinguish "never connected" (gray icon) from "disconnected after
-     * being connected" (yellow warning icon).
-     */
-    bool was_ever_connected() const {
-        return network_state_.was_ever_connected();
-    }
 
     /**
      * @brief Set Klipper firmware state (thread-safe, async)
@@ -1651,29 +496,6 @@ class PrinterState {
      * @param state KlippyState enum value
      */
     void set_klippy_state_if_unseeded(KlippyState state);
-
-    /**
-     * @brief Forget the klippy-state freshness watermark
-     *
-     * Klipper's eventtime is monotonic within one host uptime. A host reboot
-     * rewinds it, and every reboot drops the WebSocket, so the connection close
-     * is the point where the watermark stops being comparable. Without this the
-     * next session's genuinely-current frames would look older than the previous
-     * session's and be rejected forever.
-     *
-     * Safe from any thread; takes effect immediately.
-     */
-    void reset_klippy_state_freshness();
-
-    /**
-     * @brief Set network connectivity status
-     *
-     * Updates network_status_ subject based on WiFi/Ethernet availability.
-     * Called periodically from main.cpp to reflect actual network state.
-     *
-     * @param status 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED (NetworkStatus enum)
-     */
-    void set_network_status(int status);
 
     /**
      * @brief Update printer capability subjects from PrinterDiscovery
@@ -1717,39 +539,6 @@ class PrinterState {
     void set_os_version(const std::string& version);
 
     /**
-     * @brief Get Klipper version subject for XML binding
-     */
-    lv_subject_t* get_klipper_version_subject() {
-        return versions_state_.get_klipper_version_subject();
-    }
-
-    /// Raw klipper version as the host reported it, for data consumers
-    /// (debug bundle); the subject carries the localized display form.
-    const std::string& get_klipper_version_raw() const {
-        return versions_state_.get_klipper_version_raw();
-    }
-
-    /**
-     * @brief Get Moonraker version subject for XML binding
-     */
-    /// 1 when this Moonraker is too old for the HelixPrint plugin to restore a
-    /// rewritten job's original filename. See moonraker_history_is_degraded().
-    lv_subject_t* get_moonraker_history_degraded_subject() {
-        return versions_state_.get_moonraker_history_degraded_subject();
-    }
-
-    lv_subject_t* get_moonraker_version_subject() {
-        return versions_state_.get_moonraker_version_subject();
-    }
-
-    /**
-     * @brief Get OS version subject for XML binding
-     */
-    lv_subject_t* get_os_version_subject() {
-        return versions_state_.get_os_version_subject();
-    }
-
-    /**
      * @brief Get the capability overrides for external access
      *
      * Allows other components to check effective capability availability
@@ -1760,16 +549,6 @@ class PrinterState {
     [[nodiscard]] const CapabilityOverrides& get_capability_overrides() const {
         return capability_overrides_;
     }
-
-    /**
-     * @brief Re-read the user capability overrides from the ACTIVE printer's config
-     *
-     * capability_overrides_ is populated from `Config::df() + "capability_overrides/…"` in
-     * the constructor, and PrinterState is a process-lifetime singleton — so without this
-     * the map keeps whatever the printer that was active at startup had configured.
-     * Registered with PrinterCacheRegistry from init_subjects().
-     */
-    void reload_capability_overrides();
 
     /**
      * @brief Get cached hardware discovery result
@@ -1785,67 +564,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Set power device count
-     *
-     * Delegates to PrinterCapabilitiesState (thread-safe).
-     *
-     * @param count Number of discovered power devices
-     */
-    void set_power_device_count(int count);
-
-    /**
-     * @brief Get power device count subject for XML binding
-     *
-     * Integer subject holding the number of discovered power devices.
-     * 0 = no power devices, used to hide/show power panel UI elements.
-     */
-    lv_subject_t* get_power_device_count_subject() {
-        return capabilities_state_.subject(Capability::PowerDeviceCount);
-    }
-
-    /**
-     * @brief Set Moonraker sensor count (async update from discovery)
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     *
-     * @param count Number of discovered Moonraker sensors
-     */
-    void set_sensor_count(int count);
-
-    /**
-     * @brief Get Moonraker sensor count subject for XML binding
-     *
-     * Integer subject holding the number of discovered Moonraker sensors.
-     * 0 = no sensors, used to hide/show sensor-related UI elements.
-     */
-    lv_subject_t* get_sensor_count_subject() {
-        return capabilities_state_.subject(Capability::SensorCount);
-    }
-
-    /**
-     * @brief Set Spoolman availability status
-     *
-     * Called after checking Moonraker's server.info components and verifying
-     * Spoolman connection via get_spoolman_status(). Updates printer_has_spoolman_
-     * subject for UI visibility gating.
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     *
-     * @param available True if Spoolman is configured and connected
-     */
-    void set_spoolman_available(bool available);
-
-    /**
-     * @brief Set speaker availability from local sound backend.
-     *
-     * Called early at startup so sound settings are visible before
-     * hardware discovery completes (or when Klipper is not connected).
-     */
-    void set_sound_backend_available(bool available) {
-        capabilities_state_.set_sound_backend_available(available);
-    }
-
-    /**
      * @brief Check if Spoolman is available
      *
      * Reads the printer_has_spoolman subject value. Safe to call from any thread
@@ -1853,17 +571,6 @@ class PrinterState {
      */
     bool is_spoolman_available() const {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasSpoolman)) == 1;
-    }
-
-    /**
-     * @brief Set job queue availability from Moonraker's server.info components
-     *
-     * Thread-safe: defers the LVGL subject update to the main thread.
-     *
-     * @param available True if the job_queue component is listed
-     */
-    void set_job_queue_available(bool available) {
-        capabilities_state_.set_job_queue_available(available);
     }
 
     /**
@@ -1876,69 +583,9 @@ class PrinterState {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasJobQueue)) == 1;
     }
 
-    /**
-     * @brief Set webcam availability status
-     *
-     * Called after checking Moonraker's server.webcams.list API.
-     * Updates printer_has_webcam subject for UI visibility gating.
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     *
-     * The one-entry form of set_webcams(): a single feed by URL, or none.
-     *
-     * @param available False publishes an empty list
-     * @param stream_url MJPEG stream URL (a non-empty one is streamed as MJPEG)
-     * @param snapshot_url Snapshot URL
-     */
-    void set_webcam_available(bool available, const std::string& stream_url = "",
-                              const std::string& snapshot_url = "", bool flip_h = false,
-                              bool flip_v = false, int target_fps = 15);
-
-    /**
-     * @brief Publish the printer's full webcam list (see
-     * PrinterCapabilitiesState::set_webcams). The auto-pick feeds the
-     * single-feed getters below; `webcam_count` counts the named entries.
-     *
-     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
-     */
-    void set_webcams(std::vector<WebcamInfo> cams);
-
-    /// Every enabled webcam discovery found, in Moonraker's order. Main thread only.
-    const std::vector<WebcamInfo>& get_webcams() const {
-        return capabilities_state_.get_webcams();
-    }
-
-    /// Number of named webcams in the list (what a picker can offer)
-    lv_subject_t* get_webcam_count_subject() const {
-        return capabilities_state_.subject(Capability::WebcamCount);
-    }
-
     /// True if at least one enabled webcam has been detected
     bool has_webcam() const {
         return lv_subject_get_int(capabilities_state_.subject(Capability::HasWebcam)) == 1;
-    }
-
-    /// Auto-pick MJPEG stream URL (empty if none)
-    const std::string& get_webcam_stream_url() const {
-        return capabilities_state_.get_webcam_stream_url();
-    }
-
-    /// Auto-pick snapshot URL (empty if none)
-    const std::string& get_webcam_snapshot_url() const {
-        return capabilities_state_.get_webcam_snapshot_url();
-    }
-
-    /// Webcam flip flags from Moonraker config
-    bool get_webcam_flip_horizontal() const {
-        return capabilities_state_.get_webcam_flip_horizontal();
-    }
-    bool get_webcam_flip_vertical() const {
-        return capabilities_state_.get_webcam_flip_vertical();
-    }
-
-    /// Configured target FPS from Moonraker webcam config (default 15)
-    int get_webcam_target_fps() const {
-        return capabilities_state_.get_webcam_target_fps();
     }
 
     /**
@@ -1969,13 +616,6 @@ class PrinterState {
      */
     void set_timelapse_default_enabled(bool enabled);
 
-    /// Merge the settings a self-storing firmware currently holds into the
-    /// pre-print option defaults, keyed by option id, and resynthesise if any
-    /// changed. Safe from any thread. Merges rather than replaces: Moonraker
-    /// sends deltas, so a frame mentioning one setting is silent about the
-    /// rest, not a report that they are off.
-    void merge_firmware_option_defaults(std::map<std::string, bool> defaults);
-
     /**
      * @brief Set HelixPrint plugin installation status
      *
@@ -1987,99 +627,6 @@ class PrinterState {
      * @param installed True if HelixPrint plugin is installed
      */
     void set_helix_plugin_installed(bool installed);
-
-    /**
-     * @brief Check if HelixPrint plugin is available
-     *
-     * Convenience getter for checking plugin status. This is the preferred
-     * way to query plugin availability (vs accessing the subject directly).
-     *
-     * @return True if the HelixPrint Moonraker plugin is installed
-     */
-    bool service_has_helix_plugin() const;
-
-    /// Tri-state plugin presence as published: -1 not probed, 0 absent,
-    /// 1 present. Callers that must tell "not probed yet" apart from "absent"
-    /// want this; service_has_helix_plugin() collapses both to false.
-    int helix_plugin_state() const;
-
-    /**
-     * @brief Mark helper-macro files as staged, awaiting a Klipper restart
-     *
-     * Set by the Advanced panel's macro install flow when the files landed
-     * but a running print made an immediate restart unsafe. Clears when
-     * discovery reports the macros active.
-     *
-     * Main thread only (fired from deferred install callbacks).
-     *
-     * @param pending True while the staged files still await a restart
-     */
-    void set_helix_macros_restart_pending(bool pending);
-
-    /**
-     * @brief Helper-macro install status subject
-     *
-     * Bound by advanced_panel.xml to switch the macro rows. Values are
-     * HelixMacrosStatus: -1 unknown, 0 not installed, 1 installed,
-     * 2 outdated, 3 staged awaiting restart.
-     */
-    lv_subject_t* get_helix_macros_status_subject() {
-        return plugin_status_state_.get_helix_macros_status_subject();
-    }
-
-    /**
-     * @brief Get helix_plugin_installed subject for observers
-     *
-     * Use this when you need to observe plugin status changes (e.g., for install prompts).
-     *
-     * @return Pointer to the helix_plugin_installed_ subject
-     */
-    lv_subject_t* get_helix_plugin_installed_subject() {
-        return plugin_status_state_.get_helix_plugin_installed_subject();
-    }
-
-    // === Visibility Subject Getters (pre-print options card aggregate) ===
-
-    /**
-     * @brief Get aggregate subject: 1 if any preprint option row is visible
-     *
-     * Bound by `print_file_detail.xml` to hide the entire PRINT OPTIONS card
-     * when no row would be visible. The legacy individual `can_show_*`
-     * forwarding accessors were retired — they had no production consumer.
-     */
-    lv_subject_t* get_has_any_preprint_options_subject() {
-        return composite_visibility_state_.get_has_any_preprint_options_subject();
-    }
-
-    /**
-     * @brief Get visibility subject for timelapse capability
-     *
-     * Returns 1 when printer has timelapse plugin installed, 0 otherwise.
-     * Timelapse does not require helix_print plugin.
-     */
-    lv_subject_t* get_printer_has_timelapse_subject() {
-        return capabilities_state_.subject(Capability::HasTimelapse);
-    }
-
-    /**
-     * @brief Get capability subject for Spoolman availability
-     *
-     * Returns 1 when Moonraker reports a reachable Spoolman, 0 otherwise. The
-     * int form of is_spoolman_available(), for observers. Prefer this over
-     * `lv_xml_get_subject(nullptr, "printer_has_spoolman")`: the XML lookup
-     * misses whenever subjects were initialised without XML registration, and
-     * it misses *silently*, leaving the caller with no observer at all.
-     */
-    lv_subject_t* get_printer_has_spoolman_subject() {
-        return capabilities_state_.subject(Capability::HasSpoolman);
-    }
-
-    /**
-     * @brief Get capability subject for purge line (priming)
-     */
-    lv_subject_t* get_printer_has_purge_line_subject() {
-        return capabilities_state_.subject(Capability::HasPurgeLine);
-    }
 
     /**
      * @brief Set printer kinematics type and update has_individual_xyz_homing and
@@ -2117,114 +664,6 @@ class PrinterState {
      * one of those changes; writes only on change.
      */
     void refresh_bed_drying_capability();
-
-    /**
-     * @brief Get has_individual_xyz_homing subject for XML binding
-     *
-     * Returns 1 if the printer's XYZ axes can be homed individually,
-     * 0 otherwise (delta/rotary_delta).
-     * Used for hiding redundant home buttons on deltas.
-     */
-    lv_subject_t* get_printer_has_individual_xyz_homing_subject() {
-        return capabilities_state_.subject(Capability::HasIndividualXyzHoming);
-    }
-
-    /// 1 if the printer's kinematics is one whose two belt paths the Belt
-    /// Tension comparison can measure (corexy, limited_corexy), 0 otherwise.
-    lv_subject_t* get_printer_supports_belt_compare_subject() {
-        return capabilities_state_.subject(Capability::SupportsBeltCompare);
-    }
-
-    /**
-     * @brief Get bed_moves subject for XML binding
-     *
-     * Returns 1 if the printer's bed moves on Z axis (corexy, corexz),
-     * 0 if the printer's gantry/head moves on Z (cartesian, delta).
-     * Used for Z-offset UI to show appropriate directional icons.
-     */
-    lv_subject_t* get_printer_bed_moves_subject() {
-        return capabilities_state_.subject(Capability::BedMoves);
-    }
-    lv_subject_t* get_printer_is_enclosed_subject() {
-        return capabilities_state_.subject(Capability::IsEnclosed);
-    }
-    lv_subject_t* get_printer_can_bed_dry_subject() {
-        return capabilities_state_.subject(Capability::CanBedDry);
-    }
-
-    /**
-     * @brief Get printer_has_chamber_heater subject
-     *
-     * Returns 1 if the printer has an active chamber heater (heater_generic chamber),
-     * 0 if chamber is sensor-only or absent. Used by chamber temp overlay to
-     * show/hide preset controls.
-     */
-    lv_subject_t* get_printer_has_chamber_heater_subject() {
-        return capabilities_state_.subject(Capability::HasChamberHeater);
-    }
-
-    /**
-     * @brief Get manual probe active subject for Z-offset calibration
-     *
-     * Returns 1 when Klipper is in manual probe mode (PROBE_CALIBRATE,
-     * Z_ENDSTOP_CALIBRATE), 0 otherwise. Used by ZOffsetCalibrationPanel
-     * to transition from PROBING to ADJUSTING state.
-     */
-    lv_subject_t* get_manual_probe_active_subject() {
-        return calibration_state_.get_manual_probe_active_subject();
-    }
-
-    /**
-     * @brief Get manual probe Z position subject
-     *
-     * Returns current Z position during manual probe (in microns, multiply
-     * by 0.001 to get mm). Updated in real-time by Klipper as TESTZ
-     * commands are executed.
-     */
-    lv_subject_t* get_manual_probe_z_position_subject() {
-        return calibration_state_.get_manual_probe_z_position_subject();
-    }
-
-    /**
-     * @brief Get motors enabled subject for UI binding
-     *
-     * Returns 1 when stepper motors are enabled (idle_timeout.state is "Ready" or "Printing"),
-     * 0 when motors are disabled (idle_timeout.state is "Idle").
-     * Used to reflect motor state in the UI (e.g., disable motion controls when motors off).
-     */
-    lv_subject_t* get_motors_enabled_subject() {
-        return calibration_state_.get_motors_enabled_subject();
-    }
-
-    /**
-     * @brief Get idle_timeout "Printing" busy subject
-     *
-     * Returns 1 when Klipper's idle_timeout.state == "Printing" (its canonical
-     * busy flag — true for the whole duration of any blocking op or file print),
-     * 0 otherwise. This is the literal Klipper state; is_blocking_operation_active()
-     * reads the debounced view below instead.
-     */
-    lv_subject_t* get_idle_timeout_printing_subject() {
-        return calibration_state_.get_idle_timeout_printing_subject();
-    }
-
-    /// Lifetime-token overload — observers on the idle subject must take it:
-    /// PrinterCalibrationState frees the subject on deinit (printer switch,
-    /// test re-init) and the token is how a pending guard knows the node is
-    /// gone.
-    lv_subject_t* get_idle_timeout_printing_subject(std::shared_ptr<bool>& lifetime) {
-        return calibration_state_.get_idle_timeout_printing_subject(lifetime);
-    }
-
-    /**
-     * @brief Debounced idle_timeout busy flag backing is_blocking_operation_active()
-     *
-     * Exposed so tests can drive the guard the way the parse path does. See
-     * IdleTimeoutBusy for why the raw subject cannot be used as a gate.
-     */
-    helix::IdleTimeoutBusy& idle_timeout_busy() {
-        return calibration_state_.idle_timeout_busy();
-    }
 
     /**
      * @brief Whether a blocking non-print operation is currently in progress
@@ -2281,26 +720,6 @@ class PrinterState {
         return app_macro_activity_;
     }
 
-    /// Claim the once-per-episode "busy — your change will queue" toast. True for
-    /// the first benign discretionary command queued behind a blocking op, false
-    /// thereafter until the op ends. Delegates to the calibration state, which
-    /// re-arms it on the op's falling edge. See PrinterCalibrationState.
-    bool claim_busy_queue_toast() {
-        return calibration_state_.claim_busy_queue_toast();
-    }
-
-    /**
-     * @brief Check if printer has a probe configured
-     *
-     * Used by Z-offset calibration to determine whether to use
-     * PROBE_CALIBRATE (has probe) or Z_ENDSTOP_CALIBRATE (no probe).
-     *
-     * @return true if [probe] or [bltouch] section exists in Klipper config
-     */
-    bool has_probe() {
-        return capabilities_state_.has_probe();
-    }
-
     /**
      * @brief Get the configured (saved) z-offset in microns
      *
@@ -2312,98 +731,9 @@ class PrinterState {
      */
     int get_configured_z_offset_microns();
 
-    /**
-     * @brief Set stepper_z position_endstop (for non-probe printers)
-     *
-     * Forwarded to PrinterCapabilitiesState.
-     *
-     * @param microns position_endstop in microns
-     */
-    void set_stepper_z_endstop_microns(int microns) {
-        capabilities_state_.set_stepper_z_endstop_microns(microns);
-    }
-
     // ========================================================================
-    // HARDWARE VALIDATION API
+    // PRINTER TYPE
     // ========================================================================
-
-    /**
-     * @brief Set hardware validation result and update subjects
-     *
-     * Updates all hardware validation subjects based on the validation result.
-     * Call after HardwareValidator::validate() completes.
-     *
-     * @param result Validation result from HardwareValidator
-     */
-    void set_hardware_validation_result(const HardwareValidationResult& result);
-
-    /**
-     * @brief Get the headline badge level subject
-     *
-     * Integer subject: 0=ok, 1=attention, 2=critical. Bind appearance to this
-     * rather than to a raw HardwareIssueSeverity, so every surface agrees on
-     * which findings count as merely worth attention.
-     */
-    lv_subject_t* get_hardware_status_level_subject() {
-        return hardware_validation_state_.get_hardware_status_level_subject();
-    }
-
-    /**
-     * @brief Get the hardware issues label subject
-     *
-     * String subject with formatted label like "1 Hardware Issue" or "5 Hardware Issues".
-     * Used for settings panel row label binding.
-     */
-    lv_subject_t* get_hardware_issues_label_subject() {
-        return hardware_validation_state_.get_hardware_issues_label_subject();
-    }
-
-    /**
-     * @brief Check if hardware validation has any issues
-     */
-    bool has_hardware_issues() {
-        return hardware_validation_state_.has_hardware_issues();
-    }
-
-    /**
-     * @brief Get the stored hardware validation result
-     *
-     * Returns the most recent validation result set via set_hardware_validation_result().
-     * Use this to access detailed issue information for UI display.
-     *
-     * @return Reference to the stored validation result
-     */
-    const HardwareValidationResult& get_hardware_validation_result() const {
-        return hardware_validation_state_.get_hardware_validation_result();
-    }
-
-    /**
-     * @brief Remove a hardware issue from the cached validation result
-     *
-     * Removes the issue matching the given hardware name from all issue lists
-     * and updates all related subjects (counts, status text, etc.).
-     * Used when user clicks "Ignore" or "Save" on a hardware issue.
-     *
-     * @param hardware_name The hardware name to remove (e.g., "filament_sensor runout")
-     */
-    void remove_hardware_issue(const std::string& hardware_name);
-
-    // ========================================================================
-    // PRINTER TYPE AND PRINT START CAPABILITIES
-    // ========================================================================
-
-    /**
-     * @brief Set the printer type and fetch the pre-print option set (async)
-     *
-     * Stores the type name and fetches the PrePrintOptionSet from the printer
-     * database via PrinterDetector::get_pre_print_option_set().
-     *
-     * Thread-safe: defers LVGL subject updates to the main thread. Safe to call from WebSocket
-     * callbacks.
-     *
-     * @param type Printer type name (e.g., "FlashForge Adventurer 5M Pro")
-     */
-    void set_printer_type(const std::string& type);
 
     /**
      * @brief Set the printer type synchronously (main-thread only)
@@ -2439,29 +769,6 @@ class PrinterState {
     void set_z_offset_external_persistence_internal(const std::string& provider_name);
     void clear_z_offset_external_persistence_internal();
 
-    /**
-     * @brief Get the current printer type name
-     *
-     * @return Const reference to the stored printer type string
-     */
-    const std::string& get_printer_type() const;
-
-    /**
-     * @brief Get the pre-print option set for the current printer type
-     *
-     * Returns the option set fetched from the database when set_printer_type()
-     * was called. If the printer type is unknown or not set, returns an empty
-     * option set.
-     *
-     * @return Const reference to the PrePrintOptionSet
-     */
-    const PrePrintOptionSet& get_pre_print_option_set() const;
-
-    /**
-     * @brief Get the Z-offset calibration strategy for this printer
-     */
-    ZOffsetCalibrationStrategy get_z_offset_calibration_strategy() const;
-
     // ========================================================================
     // MULTI-PRINTER SUBJECTS
     // ========================================================================
@@ -2474,24 +781,6 @@ class PrinterState {
      */
     lv_subject_t* get_active_printer_name_subject() {
         return &active_printer_name_;
-    }
-
-    /**
-     * @brief Get the printer type subject
-     *
-     * String subject updated on every change to the resolved printer type
-     * (detection, wizard, printer manager). Consumers that resolved state
-     * from the type at attach time — printer artwork, for one — re-resolve
-     * by observing it, since auto-detection settles after the home panel
-     * is built on a fresh install.
-     *
-     * The subject resets to "" on deinit_subjects()/re-init, and the
-     * setter's no-change early return means a soft restart repopulates it
-     * only on the next real type change. Treat it as a change signal and
-     * read the value from Config or get_printer_type().
-     */
-    lv_subject_t* get_printer_type_subject() {
-        return &printer_type_subject_;
     }
 
     /**
@@ -2552,68 +841,12 @@ class PrinterState {
     /// Excluded objects state component (excluded_objects_version, excluded_objects set)
     helix::PrinterExcludedObjectsState excluded_objects_state_;
 
-    // Note: Print subjects are now managed by print_domain_ component
-    // (print_progress_, print_filename_, print_state_, print_state_enum_,
-    //  print_outcome_, print_active_, print_show_progress_, print_display_filename_,
-    //  print_thumbnail_path_, print_layer_current_, print_layer_total_,
-    //  print_duration_, print_time_left_, print_start_phase_, print_start_message_,
-    //  print_start_progress_, print_in_progress_)
-
-    // Note: Motion subjects (position_x_, position_y_, position_z_, homed_axes_,
-    // speed_factor_, flow_factor_, gcode_z_offset_, pending_z_offset_delta_)
-    // are now managed by motion_state_ component
-
-    // Note: Fan subjects (fan_speed_, fans_, fans_version_, fan_speed_subjects_)
-    // are now managed by fan_state_ component
-
-    // Note: Network subjects (printer_connection_state_, printer_connection_message_,
-    // network_status_, klippy_state_, nav_buttons_enabled_, was_ever_connected_)
-    // are now managed by network_state_ component
-
-    // Note: Excluded objects subjects (excluded_objects_version_, excluded_objects_)
-    // are now managed by excluded_objects_state_ component
-
-    // Note: Printer capability subjects (printer_has_qgl_, printer_has_z_tilt_,
-    // printer_has_bed_mesh_, printer_has_nozzle_clean_, printer_has_probe_,
-    // printer_has_heater_bed_, printer_has_led_, printer_has_accelerometer_,
-    // printer_has_spoolman_, printer_has_speaker_, printer_has_timelapse_,
-    // printer_has_purge_line_, printer_has_firmware_retraction_, printer_bed_moves_)
-    // are now managed by capabilities_state_ component
-
-    // Note: Plugin status subjects (helix_plugin_installed_, helix_macros_status_)
-    // are now managed by plugin_status_state_ component
-
-    // Note: Aggregate visibility subject (has_any_preprint_options_) is managed
-    // by composite_visibility_state_ component. The legacy per-op can_show_*
-    // subjects were retired — nothing in XML or production C++ ever read them.
-
-    // Note: Firmware retraction, manual probe, and motor state subjects
-    // (retract_length_, retract_speed_, unretract_extra_length_, unretract_speed_,
-    //  manual_probe_active_, manual_probe_z_position_, motors_enabled_)
-    // are now managed by calibration_state_ component
-
-    // Note: Version subjects (klipper_version_, moonraker_version_) are now managed
-    // by versions_state_ component
-
-    // Note: Hardware validation subjects (hardware_status_level_,
-    // hardware_critical_count_, hardware_warning_count_, hardware_info_count_,
-    // hardware_session_count_, hardware_status_title_, hardware_status_detail_,
-    // hardware_issues_label_, hardware_validation_result_) are managed by the
-    // hardware_validation_state_ component
-
-    // Note: String buffers are now managed by their respective component classes
-    // - homed_axes_buf_ is now in motion_state_ component
-    // - print-related buffers are now in print_domain_ component
-    // - hardware validation buffers are now in hardware_validation_state_ component
-    // - printer_connection_message_buf_ is now in network_state_ component
-    // - klipper_version_buf_, moonraker_version_buf_ are now in versions_state_ component
+    /// Printer type, its pre-print option set and z-offset calibration strategy
+    helix::PrinterProfileState profile_state_;
 
     // Multi-printer subjects (owned directly by PrinterState)
     lv_subject_t active_printer_name_{};
     char active_printer_name_buf_[128];
-
-    lv_subject_t printer_type_subject_{};
-    char printer_type_subject_buf_[128];
 
     // Initialization guard to prevent multiple subject initializations
     bool subjects_initialized_ = false;
@@ -2629,77 +862,20 @@ class PrinterState {
     // Cached display pointer to detect LVGL reinitialization (for test isolation)
     lv_display_t* cached_display_ = nullptr;
 
-    // Note: was_ever_connected_ is now managed by network_state_ component
-
     // Capability override layer (user config overrides for auto-detected capabilities)
     CapabilityOverrides capability_overrides_;
 
     // Cached hardware discovery result (for UI access to heater/sensor lists)
     helix::PrinterDiscovery discovery_;
 
-    // Printer type and pre-print option set
-    std::string printer_type_;               ///< Selected printer type name
-    PrePrintOptionSet pre_print_option_set_; ///< Cached option set for current type
-    ZOffsetCalibrationStrategy z_offset_calibration_strategy_ =
-        ZOffsetCalibrationStrategy::PROBE_CALIBRATE;
-    lv_subject_t z_offset_can_save_{}; ///< 1 when manual save needed, 0 when auto-saved
-
-    /// An installed SET_GCODE_OFFSET wrapper (Helper-Script save-zoffset,
-    /// ZMOD, Forge-X) persists the z-offset itself. Folding the gcode offset
-    /// into the probe on top of that double-applies it on every restart
-    /// (prestonbrown/helixscreen#1401), so the strategy resolves to
-    /// FIRMWARE_MANAGED regardless of printer type. Set by discovery via
-    /// set_z_offset_external_persistence() when zoffset:: matches a provider.
-    bool z_offset_external_persistence_ = false;
-
     /// Last kinematics string (to skip redundant recomputation)
     std::string last_kinematics_;
 
     /// Auto-detected bed_moves value from kinematics (before user override)
     bool auto_detected_bed_moves_ = false;
-    /// The printer database says this printer type is enclosed.
-    bool printer_db_enclosed_ = false;
 
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;
-
-    /// Freshness watermark for klippy state. Written from the WebSocket thread
-    /// (set_klippy_state, reset_klippy_state_freshness) and the main thread (the
-    /// webhooks parse). klippy_freshness_mutex_ guards only the eventtime, and is
-    /// never held across anything else, so an observer can call back in.
-    ///
-    /// Highest Klipper eventtime that has carried a webhooks klippy state. Klipper
-    /// derives it from the monotonic clock, so it survives a Klipper restart and only
-    /// rewinds on a host reboot.
-    double klippy_state_eventtime_ = 0.0;
-    std::mutex klippy_freshness_mutex_;
-
-    /// Session counter behind klippy_epoch(). A frame stamped with an older
-    /// value was received before the last reset.
-    std::atomic<uint64_t> klippy_epoch_{0};
-
-    /// True once a live-sourced klippy state has been applied. Latches the state
-    /// against replayed snapshots (discovery re-dispatches its subscription
-    /// response at the end of discovery) while still allowing that same snapshot
-    /// to SEED the state when nothing live has arrived yet — which is the normal
-    /// cold-start ordering.
-    std::atomic<bool> klippy_state_from_live_{false};
-    /// Last unrecognised webhooks.state string, so the warning fires once per
-    /// distinct value rather than once per status frame.
-    std::string last_unknown_klippy_state_;
-
-    /// Last unrecognised webhooks.state string, so the warning fires on change
-    /// rather than on every status frame. Main-thread only (webhooks parse).
-
-    /// Default state for the synthesized timelapse pre-print option, seeded from
-    /// the global moonraker-timelapse `enabled` setting at discovery (#1094).
-    /// Main-thread-only: written and read inside apply_dynamic_options() and its
-    /// setter, both of which run on the main thread via queue_update.
-    bool timelapse_default_enabled_ = false;
-
-    /// What the firmware reports for each pre-print option it stores itself.
-    /// Main thread only. Empty on printers whose firmware stores none.
-    std::map<std::string, bool> firmware_option_defaults_;
 
     // ============================================================================
     // Main-thread internal methods (run from queued callbacks)
@@ -2710,15 +886,19 @@ class PrinterState {
 
     friend class PrinterStateTestAccess;
     friend class PrinterTemperatureStateTestAccess;
-    friend void async_klipper_version_callback(void* user_data);
-    friend void async_moonraker_version_callback(void* user_data);
-    friend void async_klippy_state_callback(void* user_data);
 
     void set_klipper_version_internal(const std::string& version);
     void set_moonraker_version_internal(const std::string& version);
     void set_os_version_internal(const std::string& version);
     void set_klippy_state_internal(KlippyState state);
     void set_printer_type_internal(const std::string& type);
+
+    /// Merge the settings a self-storing firmware currently holds into the
+    /// pre-print option defaults, keyed by option id, and resynthesise if any
+    /// changed. Safe from any thread. Merges rather than replaces: Moonraker
+    /// sends deltas, so a frame mentioning one setting is silent about the
+    /// rest, not a report that they are off.
+    void merge_firmware_option_defaults(std::map<std::string, bool> defaults);
 
     /// Main-thread half of set_klippy_state_if_unseeded(): re-checks the guard in
     /// the same serialized order as the webhooks parse, then applies.
@@ -2740,6 +920,9 @@ class PrinterState {
      * the ones that should currently be present.
      */
     void apply_dynamic_options();
+
+    /// The moonraker-timelapse plugin is available (main thread only).
+    bool timelapse_available();
 
     /**
      * @brief Update combined nav_buttons_enabled subject

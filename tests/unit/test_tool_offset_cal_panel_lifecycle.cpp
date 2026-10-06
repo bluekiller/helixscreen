@@ -249,7 +249,7 @@ TEST_CASE_METHOD(ToolCalPanelFixture, "tool offset panel: Save commits a pending
     ps.update_from_status(
         json{{"gcode_move", json{{"homing_origin", json::array({0.0, 0.0, 0.05, 0.0})}}}});
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE(lv_subject_get_int(ps.get_gcode_z_offset_subject()) == 50);
+    REQUIRE(lv_subject_get_int(ps.motion_state().get_gcode_z_offset_subject()) == 50);
 
     helix::ui::ToolOffsetCalibrationPanel panel;
     panel.init_subjects();
@@ -273,7 +273,7 @@ TEST_CASE_METHOD(ToolCalPanelFixture,
     helix::PrinterState& ps = get_printer_state();
     helix::PrinterStateTestAccess::pin_z_offset_strategy(
         ps, helix::ZOffsetCalibrationStrategy::PROBE_CALIBRATE);
-    REQUIRE(lv_subject_get_int(ps.get_gcode_z_offset_subject()) == 0);
+    REQUIRE(lv_subject_get_int(ps.motion_state().get_gcode_z_offset_subject()) == 0);
 
     // A dirty tool, so the save has real work to do: without one it sends
     // nothing at all and "no babystep was applied" is true of an empty run.
@@ -307,7 +307,7 @@ TEST_CASE_METHOD(ToolCalPanelFixture, "tool offset panel: Save with nothing dirt
     helix::PrinterState& ps = get_printer_state();
     helix::PrinterStateTestAccess::pin_z_offset_strategy(
         ps, helix::ZOffsetCalibrationStrategy::PROBE_CALIBRATE);
-    REQUIRE(lv_subject_get_int(ps.get_gcode_z_offset_subject()) == 0);
+    REQUIRE(lv_subject_get_int(ps.motion_state().get_gcode_z_offset_subject()) == 0);
     REQUIRE(helix::ToolState::instance().dirty_tool_indices().empty());
 
     helix::ui::ToolOffsetCalibrationPanel panel;

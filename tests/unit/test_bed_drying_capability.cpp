@@ -57,10 +57,10 @@ struct CapabilityFixture : public LVGLTestFixture {
     }
 
     int enclosed() {
-        return lv_subject_get_int(state.get_printer_is_enclosed_subject());
+        return lv_subject_get_int(state.capabilities_state().subject(Capability::IsEnclosed));
     }
     int can_dry() {
-        return lv_subject_get_int(state.get_printer_can_bed_dry_subject());
+        return lv_subject_get_int(state.capabilities_state().subject(Capability::CanBedDry));
     }
 };
 
