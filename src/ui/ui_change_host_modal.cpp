@@ -6,6 +6,7 @@
 #include "ui_emergency_stop.h"
 #include "ui_update_queue.h"
 
+#include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
 #include "host_identity.h"
@@ -474,6 +475,9 @@ void show_change_host_modal(std::function<void(bool changed)> extra_on_complete)
         if (extra) {
             extra(true);
         }
+        // A new host is a different printer, and its discovery builds AMS backends only
+        // when none exist.
+        AmsState::instance().clear_backends();
         reconnect_to_configured_host();
     });
 

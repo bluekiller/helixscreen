@@ -18,6 +18,8 @@
 #include "../test_fixtures.h"
 #include "../test_helpers/moonraker_manager_test_access.h"
 #include "../test_helpers/scoped_moonraker_client.h"
+#include "ams_backend_mock.h"
+#include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
 #include "moonraker_manager.h"
@@ -209,4 +211,49 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host after Add shows the save
     lv_obj_t* change_title = lv_obj_find_by_name(dialog, "title_change_host");
     REQUIRE(change_title != nullptr);
     CHECK_FALSE(lv_obj_has_flag(change_title, LV_OBJ_FLAG_HIDDEN));
+}
+
+namespace {
+
+/// Installs one mock AMS backend, as printer A's discovery would, and removes it after.
+class ScopedAmsBackend {
+  public:
+    ScopedAmsBackend() {
+        auto& ams = helix::AmsState::instance();
+        ams.init_subjects(false);
+        ams.set_backend(std::make_unique<helix::AmsBackendMock>());
+    }
+    ~ScopedAmsBackend() {
+        helix::AmsState::instance().set_backend(nullptr);
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Change Host: saving a new host drops the old AMS backends",
+                 "[change_host][connection][ams]") {
+    ScopedAmsBackend printer_a_ams;
+    REQUIRE(helix::AmsState::instance().backend_count() == 1);
+
+    lv_obj_t* dialog = open_and_test("10.9.9.9");
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "change_host_validated"), 1);
+    click(dialog, "modal_save_btn");
+    UpdateQueue::instance().drain();
+
+    // The new host's discovery builds backends only when none exist.
+    CHECK(client_->get_last_url() == kTestedUrl);
+    CHECK(helix::AmsState::instance().backend_count() == 0);
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Change Host: Cancel keeps the saved printer's AMS backends",
+                 "[change_host][connection][ams]") {
+    ScopedAmsBackend printer_a_ams;
+    lv_obj_t* dialog = open_and_test("10.9.9.9");
+
+    click(dialog, "modal_cancel_btn");
+
+    CHECK(client_->get_last_url() == kSavedUrl);
+    CHECK(helix::AmsState::instance().backend_count() == 1);
 }
