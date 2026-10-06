@@ -125,19 +125,6 @@ std::string query_value(const std::string& query, const std::string& key) {
     return "";
 }
 
-std::string url_decode(const std::string& s) {
-    std::string out;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '%' && i + 2 < s.size()) {
-            out += static_cast<char>(std::strtol(s.substr(i + 1, 2).c_str(), nullptr, 16));
-            i += 2;
-        } else {
-            out += s[i] == '+' ? ' ' : s[i];
-        }
-    }
-    return out;
-}
-
 } // namespace
 
 MockSpoolmanServer::MockSpoolmanServer() {
@@ -529,40 +516,6 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             result = json::object();
             return true;
         }
-    }
-
-    // SpoolmanDB, served by Spoolman under /v1/external.
-    if (method == "GET" && path == "/v1/external/vendor") {
-        result = json::array({
-            {{"id", 1}, {"name", "Hatchbox"}, {"url", "https://www.hatchbox3d.com"}},
-            {{"id", 2}, {"name", "Polymaker"}, {"url", "https://www.polymaker.com"}},
-            {{"id", 3}, {"name", "eSUN"}, {"url", "https://www.esun3d.com"}},
-            {{"id", 4}, {"name", "Prusament"}, {"url", "https://www.prusa3d.com"}},
-        });
-        return true;
-    }
-    if (method == "GET" && path == "/v1/external/filament") {
-        const std::string vendor = url_decode(query_value(query, "vendor_name"));
-        auto external = [&vendor](int id, const char* material, const char* name, const char* hex,
-                                  int nmin, int nmax, int bmin, int bmax) {
-            FilamentInfo f;
-            f.id = id;
-            f.vendor_name = vendor;
-            f.material = material;
-            f.filament_name = name;
-            f.color_hex = hex;
-            f.diameter = 1.75f;
-            f.weight = 1000.0f;
-            f.nozzle_temp_min = nmin;
-            f.nozzle_temp_max = nmax;
-            f.bed_temp_min = bmin;
-            f.bed_temp_max = bmax;
-            return filament_json(f);
-        };
-        result = json::array({external(1, "PLA", "Black", "000000", 190, 220, 50, 60),
-                              external(2, "PLA", "White", "FFFFFF", 190, 220, 50, 60),
-                              external(3, "PETG", "Blue", "0000FF", 220, 250, 70, 80)});
-        return true;
     }
 
     err = spoolman_error(404, "Not Found");

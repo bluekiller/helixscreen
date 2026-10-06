@@ -592,13 +592,6 @@ class ISpoolmanAPI {
 
     virtual void delete_spoolman_filament(int filament_id, SuccessCallback on_success,
                                           ErrorCallback on_error) = 0;
-
-    virtual void get_spoolman_external_vendors(helix::VendorListCallback on_success,
-                                               ErrorCallback on_error) = 0;
-
-    virtual void get_spoolman_external_filaments(const std::string& vendor_name,
-                                                 helix::FilamentListCallback on_success,
-                                                 ErrorCallback on_error) = 0;
 };
 
 /**

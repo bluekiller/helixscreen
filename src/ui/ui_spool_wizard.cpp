@@ -25,7 +25,6 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <cstdio>
 #include <unordered_map>
@@ -813,7 +812,6 @@ void SpoolWizardOverlay::load_vendors() {
         lv_subject_set_int(&show_create_vendor_subject_, 0);
     }
 
-    // Get server + external vendors (both async via IMoonrakerAPI)
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api) {
         spdlog::warn("[{}] No API available, showing empty vendors", get_name());
@@ -825,84 +823,45 @@ void SpoolWizardOverlay::load_vendors() {
         return;
     }
 
-    // Shared context to coordinate two async calls (atomic counter for thread safety)
-    struct VendorLoadContext {
-        std::vector<VendorEntry> server_vendors;
-        std::vector<VendorEntry> external_vendors;
-        std::atomic<int> completed{0};
-    };
-    auto ctx = std::make_shared<VendorLoadContext>();
+    // The server's vendors only: Spoolman serves its external database as one
+    // multi-megabyte file with no vendor listing, too heavy to pull here.
+    // Captures a lifetime token rather than touching `this->lifetime_`
+    // off-thread (#707 TOCTOU); the deferred body is skipped outright if the
+    // overlay was deactivated in the meantime.
+    auto apply = [this, tok = lifetime_.token()](std::vector<VendorEntry> server_vendors) {
+        tok.defer("SpoolWizard::load_vendors_apply",
+                  [this, server_vendors = std::move(server_vendors)]() {
+                      all_vendors_ = merge_vendors({}, server_vendors);
+                      filtered_vendors_ = filter_vendor_list(all_vendors_, vendor_search_query_);
 
-    // Helper lambda — called by whichever callback completes second, on whichever
-    // background thread got there. Captures a lifetime token rather than touching
-    // `this->lifetime_` off-thread (#707 TOCTOU); the deferred body is skipped
-    // outright if the overlay was deactivated in the meantime.
-    auto finish = [this, ctx, tok = lifetime_.token()]() {
-        tok.defer("SpoolWizard::load_vendors_apply", [this, ctx]() {
-            all_vendors_ = merge_vendors(ctx->external_vendors, ctx->server_vendors);
-            filtered_vendors_ = filter_vendor_list(all_vendors_, vendor_search_query_);
+                      if (subjects_initialized_) {
+                          lv_subject_set_int(&vendors_loading_subject_, 0);
+                          lv_subject_set_int(&vendor_count_subject_,
+                                             static_cast<int32_t>(filtered_vendors_.size()));
+                      }
 
-            if (subjects_initialized_) {
-                lv_subject_set_int(&vendors_loading_subject_, 0);
-                lv_subject_set_int(&vendor_count_subject_,
-                                   static_cast<int32_t>(filtered_vendors_.size()));
-            }
-
-            populate_vendor_list();
-            spdlog::info("[SpoolWizard] Loaded {} vendors total ({} server + {} external)",
-                         all_vendors_.size(), ctx->server_vendors.size(),
-                         ctx->external_vendors.size());
-        });
+                      populate_vendor_list();
+                      spdlog::info("[SpoolWizard] Loaded {} vendors", all_vendors_.size());
+                  });
     };
 
-    // Fetch server vendors
-    // Fetch server vendors
     api->spoolman().get_spoolman_vendors(
-        [ctx, finish](const std::vector<VendorInfo>& server_list) {
-            ctx->server_vendors.reserve(server_list.size());
+        [apply](const std::vector<VendorInfo>& server_list) {
+            std::vector<VendorEntry> server_vendors;
+            server_vendors.reserve(server_list.size());
             for (const auto& vi : server_list) {
                 VendorEntry entry;
                 entry.name = vi.name;
                 entry.server_id = vi.id;
                 entry.from_server = true;
                 entry.from_database = false;
-                ctx->server_vendors.push_back(std::move(entry));
+                server_vendors.push_back(std::move(entry));
             }
-            spdlog::debug("[SpoolWizard] Got {} vendors from server", ctx->server_vendors.size());
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
+            apply(std::move(server_vendors));
         },
-        [ctx, finish](const MoonrakerError& err) {
+        [apply](const MoonrakerError& err) {
             spdlog::warn("[SpoolWizard] Failed to fetch server vendors: {}", err.message);
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
-        });
-
-    // Fetch external DB vendors
-    api->spoolman().get_spoolman_external_vendors(
-        [ctx, finish](const std::vector<VendorInfo>& ext_list) {
-            ctx->external_vendors.reserve(ext_list.size());
-            for (const auto& vi : ext_list) {
-                VendorEntry entry;
-                entry.name = vi.name;
-                entry.server_id = -1;
-                entry.from_server = false;
-                entry.from_database = true;
-                ctx->external_vendors.push_back(std::move(entry));
-            }
-            spdlog::debug("[SpoolWizard] Got {} vendors from external DB",
-                          ctx->external_vendors.size());
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
-        },
-        [ctx, finish](const MoonrakerError& err) {
-            spdlog::warn("[SpoolWizard] Failed to fetch external vendors: {}", err.message);
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
+            apply({});
         });
 }
 

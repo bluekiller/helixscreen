@@ -886,32 +886,6 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
         CHECK(error_called);
         CHECK_FALSE(success_called);
     }
-
-    SECTION("get_spoolman_external_vendors errors, no list delivered") {
-        bool error_called = false;
-        bool success_called = false;
-        api.spoolman().get_spoolman_external_vendors(
-            [&](const std::vector<VendorInfo>&) { success_called = true; },
-            [&](const MoonrakerError& err) {
-                error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
-            });
-        CHECK(error_called);
-        CHECK_FALSE(success_called);
-    }
-
-    SECTION("get_spoolman_external_filaments errors, no list delivered") {
-        bool error_called = false;
-        bool success_called = false;
-        api.spoolman().get_spoolman_external_filaments(
-            "Hatchbox", [&](const std::vector<FilamentInfo>&) { success_called = true; },
-            [&](const MoonrakerError& err) {
-                error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
-            });
-        CHECK(error_called);
-        CHECK_FALSE(success_called);
-    }
 }
 
 TEST_CASE("SpoolInfo - new fields have defaults", "[filament]") {
@@ -2036,4 +2010,16 @@ TEST_CASE("parse_spool_timestamp handles the timestamp shapes Spoolman emits",
     CHECK_FALSE(parse_spool_timestamp("").has_value());
     CHECK_FALSE(parse_spool_timestamp("nope").has_value());
     CHECK_FALSE(parse_spool_timestamp("2026-07-19").has_value()); // date only, too short
+}
+
+TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[spoolman][mock]") {
+    // Spoolman's external routes are /external/filament, /external/filament/search
+    // and /external/material.
+    MoonrakerClientMock client;
+    int code = 0;
+    client.send_jsonrpc(
+        "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/external/vendor"}},
+        [](const nlohmann::json&) { FAIL("Spoolman serves no external vendor list"); },
+        [&](const MoonrakerError& err) { code = err.code; });
+    CHECK(code == 404);
 }

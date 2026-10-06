@@ -3,7 +3,6 @@
 
 #include "moonraker_spoolman_api.h"
 
-#include "hv/hurl.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
 
@@ -531,70 +530,6 @@ void MoonrakerSpoolmanAPI::delete_spoolman_spool(int spool_id, SuccessCallback o
             }
         },
         on_error);
-}
-
-void MoonrakerSpoolmanAPI::get_spoolman_external_vendors(VendorListCallback on_success,
-                                                         ErrorCallback on_error) {
-    spdlog::debug("[SpoolmanAPI] get_spoolman_external_vendors()");
-
-    json params;
-    params["request_method"] = "GET";
-    params["path"] = "/v1/external/vendor";
-
-    // Silent: /v1/external/ endpoints require SpoolmanDB integration which
-    // is not available on all Spoolman versions (e.g. v0.22.x)
-    client_.send_jsonrpc(
-        "server.spoolman.proxy", params,
-        [on_success](const json& response) {
-            std::vector<VendorInfo> vendors;
-
-            if (response.contains("result") && response["result"].is_array()) {
-                for (const auto& vendor_json : response["result"]) {
-                    vendors.push_back(parse_vendor_info(vendor_json));
-                }
-            }
-
-            spdlog::debug("[SpoolmanAPI] Got {} external vendors from SpoolmanDB", vendors.size());
-
-            if (on_success) {
-                on_success(vendors);
-            }
-        },
-        on_error, 0, /*silent=*/true);
-}
-
-void MoonrakerSpoolmanAPI::get_spoolman_external_filaments(const std::string& vendor_name,
-                                                           FilamentListCallback on_success,
-                                                           ErrorCallback on_error) {
-    spdlog::debug("[SpoolmanAPI] get_spoolman_external_filaments(vendor={})", vendor_name);
-
-    std::string encoded = HUrl::escape(vendor_name);
-
-    json params;
-    params["request_method"] = "GET";
-    params["path"] = "/v1/external/filament?vendor_name=" + encoded;
-
-    // Silent: /v1/external/ endpoints require SpoolmanDB integration which
-    // is not available on all Spoolman versions (e.g. v0.22.x)
-    client_.send_jsonrpc(
-        "server.spoolman.proxy", params,
-        [on_success, vendor_name](const json& response) {
-            std::vector<FilamentInfo> filaments;
-
-            if (response.contains("result") && response["result"].is_array()) {
-                for (const auto& filament_json : response["result"]) {
-                    filaments.push_back(parse_filament_info(filament_json));
-                }
-            }
-
-            spdlog::debug("[SpoolmanAPI] Got {} external filaments for vendor '{}'",
-                          filaments.size(), vendor_name);
-
-            if (on_success) {
-                on_success(filaments);
-            }
-        },
-        on_error, 0, /*silent=*/true);
 }
 
 void MoonrakerSpoolmanAPI::get_spoolman_filaments(int vendor_id, FilamentListCallback on_success,
