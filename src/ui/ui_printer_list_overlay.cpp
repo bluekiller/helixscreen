@@ -221,7 +221,10 @@ void PrinterListOverlay::handle_add_printer() {
     // Defer dismiss + wizard launch — we're inside a click event on a child widget
     helix::ui::queue_update("PrinterListOverlay::handle_add_printer", []() {
         helix::nav::go_back();
-        NavigationManager::instance().trigger_add_printer();
+        // go_back() queues the pop, and the pop hides every stray screen child.
+        // Queued behind it, the add-printer modal opens after that sweep.
+        helix::ui::queue_update("PrinterListOverlay::trigger_add_printer",
+                                []() { NavigationManager::instance().trigger_add_printer(); });
     });
 }
 
