@@ -3337,6 +3337,41 @@ TEST_CASE("Config::init() keeps tarball default when no backup exists (fresh ins
     REQUIRE(test_config.is_wizard_required());
 }
 
+// A versionless document can name no printer at all: the installer creates
+// one holding only the keys it seeds. It must boot with the default printer
+// and its defaults, not with an empty active printer id.
+TEST_CASE("Config::init() gives a versionless config with no printer the default printer",
+          "[core][config][moonraker-update]") {
+    TarballTestEnv env("versionless_no_printer");
+    bool device_blocks = false;
+
+    SECTION("the installer's update-channel seed") {
+        env.write_config({{"update", {{"channel", 1}}}});
+    }
+    SECTION("the per-printer seed's device blocks") {
+        env.write_config({{"update", {{"channel", 1}}},
+                          {"input", {{"calibration", {{"valid", true}, {"a", 2.0}}}}},
+                          {"display", {{"rotate", 180}}}});
+        device_blocks = true;
+    }
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    REQUIRE(test_config.get_active_printer_id() == "default");
+    CHECK(test_config.get<std::string>("/printers/default/moonraker_host") == "127.0.0.1");
+    CHECK(test_config.get<int>("/printers/default/moonraker_port") == 7125);
+    CHECK(test_config.get<std::string>("/printers/default/heaters/bed") == "heater_bed");
+    CHECK(test_config.get<int>("/update/channel") == 1);
+    if (device_blocks) {
+        CHECK(test_config.get<bool>("/input/calibration/valid"));
+        CHECK(test_config.get<int>("/display/rotate") == 180);
+    }
+
+    auto on_disk = json::parse(std::ifstream(env.config_path));
+    CHECK(on_disk.value("active_printer_id", "") == "default");
+}
+
 TEST_CASE("Config::init() keeps tarball default when backup is also a tarball default",
           "[core][config][moonraker-update]") {
     TarballTestEnv env("tarball_both_default");
