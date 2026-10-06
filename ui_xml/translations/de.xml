@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" de="Ein Bild Ihres Druckers"/>
   <translation tag="A print is in progress - restart still pending" de="Ein Druck läuft - Neustart noch ausstehend"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." de="Auf diesem Gate läuft ein Druck. HelixScreen hat seine eigene Kopie gelöscht; leere ihn nach Druckende erneut."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." de="Ein Druck wurde gestartet, während Spulen als auf dem Heizbett liegend markiert sind. Falls sie noch dort liegen, stoppe den Drucker sofort mit dem Notaus."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" de="Eine Spule ist möglicherweise verheddert oder das Antriebsrad blockiert"/>
   <translation tag="A · 1,-1" de="A · 1,-1"/>
   <translation tag="ABS" de="ABS"/>
@@ -2801,8 +2802,10 @@
   <translation tag="Spoolman was not configured." de="Spoolman war nicht konfiguriert."/>
   <translation tag="Spoolman: %zu Spool%s" de="Spoolman: %zu Spule%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" de="Spoolman: %zu/%zu Spule%s"/>
+  <translation tag="Spools are off" de="Spulen sind entnommen"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" de="Spulen liegen auf dem Heizbett: entferne sie und bestätige, bevor der Drucker bewegt wird"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." de="Spulen liegen auf dem Heizbett: Tippe auf das Trocknungsbanner, um zu bestätigen, dass sie entnommen sind, und starte dann neu."/>
+  <translation tag="Spools on the bed!" de="Spulen auf dem Heizbett!"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" de="Spulen auf dem Heizbett: Trocknung starten oder bestätigen, dass keine eingelegt wurden"/>
   <translation tag="Spools removed" de="Spulen entnommen"/>
   <translation tag="Square Corner Velocity" de="Eckgeschwindigkeit"/>

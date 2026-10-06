@@ -220,15 +220,17 @@ PrePrintOptionSet parse_pre_print_option_set(const nlohmann::json& j) {
         }
     }
 
-    std::sort(set.options.begin(), set.options.end(),
-              [](const PrePrintOption& a, const PrePrintOption& b) {
-                  if (a.category != b.category) {
-                      return static_cast<int>(a.category) < static_cast<int>(b.category);
-                  }
-                  return a.order < b.order;
-              });
-
+    helix::sort_pre_print_options(set.options);
     return set;
+}
+
+void helix::sort_pre_print_options(std::vector<PrePrintOption>& options) {
+    std::sort(options.begin(), options.end(), [](const PrePrintOption& a, const PrePrintOption& b) {
+        if (a.category != b.category) {
+            return static_cast<int>(a.category) < static_cast<int>(b.category);
+        }
+        return a.order < b.order;
+    });
 }
 
 std::string render_macro_param(const PrePrintOption& opt, bool enabled) {

@@ -128,6 +128,7 @@ translations:
   A picture of your printer: Une photo de votre imprimante
   A print is in progress - restart still pending: 'Une impression est en cours - redémarrage en attente'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: Une impression est en cours sur ce gate. HelixScreen a effacé sa propre copie ; effacez-le à nouveau une fois l'impression terminée.
+  A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop.: "Une impression a démarré alors que des bobines sont signalées sur le plateau. Si elles y sont encore, arrêtez l'imprimante maintenant avec l'arrêt d'urgence."
   A spool may be tangled or the drive gear is jammed: Une bobine est peut-être emmêlée ou l'engrenage d'entraînement est bloqué
   A · 1,-1: "A · 1,-1"
   ABS: ABS
@@ -3135,9 +3136,11 @@ translations:
   Spoolman was not configured.: 'Spoolman n''était pas configuré.'
   'Spoolman: %zu Spool%s': 'Spoolman : %zu bobine%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman : %zu/%zu bobine%s'
+  Spools are off: "Bobines retirées"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Des bobines sont sur le plateau : retirez-les et confirmez avant de déplacer l''imprimante'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': "Des bobines sont sur le plateau : touchez le bandeau de séchage pour confirmer qu'elles sont retirées, puis redémarrez."
 
+  Spools on the bed!: "Bobines sur le plateau !"
   'Spools on the bed: start drying, or confirm none were placed': "Bobines sur le plateau : démarrez le séchage ou confirmez qu'aucune n'a été posée"
 
   Spools removed: Bobines retirées
