@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace helix {
@@ -345,23 +346,24 @@ inline bool stack(const CalloutLayoutInput& in, const CalloutRect& img, bool hor
     return true;
 }
 
-/// Both sides, else one side. Fit is tested against the BUDGET and only the
-/// ACTIVE chips are placed, so the image never moves as chips come and go.
-/// A part with no tagged point cannot have a line: the pinned path docks it.
-inline bool try_line_modes(const CalloutLayoutInput& in, CalloutLayout& out) {
-    if (in.budget.empty())
-        return false;
-    for (const auto* v : {&in.budget, &in.active})
-        for (const auto& c : *v)
-            if (!c.anchor)
-                return false;
+/// How far below its contain-fit size the image may shrink to make room for a
+/// leader-line column; past this, the picture loses more than the lines give.
+inline constexpr int kMaxImageShrinkPct = 8;
 
-    const CalloutRect centred = out.image;
-    const bool horiz = (in.area_w - centred.w) >= (in.area_h - centred.h);
+/// The side band's axis (true: bands left and right) and the room one column of
+/// budget chips needs across it, for the image at `img`.
+inline std::pair<bool, int> line_column(const CalloutLayoutInput& in, const CalloutRect& img) {
+    const bool horiz = (in.area_w - img.w) >= (in.area_h - img.h);
     int widest = 0;
     for (const auto& c : in.budget)
         widest = std::max(widest, c.w);
-    const int col = (horiz ? widest : in.chip_h) + in.gap + in.min_line;
+    return {horiz, (horiz ? widest : in.chip_h) + in.gap + in.min_line};
+}
+
+/// Both sides, else one side, with the image centred at `centred`.
+inline bool try_line_modes_at(const CalloutLayoutInput& in, const CalloutRect& centred,
+                              CalloutLayout& out) {
+    const auto [horiz, col] = line_column(in, centred);
     const int far_edge = (horiz ? in.area_w : in.area_h) - in.gap;
     const auto split = [&](const std::vector<CalloutChipIn>& v, bool near_half) {
         std::vector<CalloutChipIn> r;
@@ -375,6 +377,7 @@ inline bool try_line_modes(const CalloutLayoutInput& in, CalloutLayout& out) {
     const int band = horiz ? centred.x : centred.y;
     if (band >= col && stack(in, centred, horiz, true, in.gap, split(in.budget, true), scratch) &&
         stack(in, centred, horiz, false, far_edge, split(in.budget, false), scratch)) {
+        out.image = centred;
         out.chips.clear();
         stack(in, centred, horiz, true, in.gap, split(in.active, true), out.chips);
         stack(in, centred, horiz, false, far_edge, split(in.active, false), out.chips);
@@ -392,6 +395,41 @@ inline bool try_line_modes(const CalloutLayoutInput& in, CalloutLayout& out) {
         stack(in, moved, horiz, false, far_edge, in.active, out.chips);
         out.mode = CalloutMode::OneSide;
         return true;
+    }
+    return false;
+}
+
+/// Line modes at the contain-fit size, else with the image shrunk by up to
+/// kMaxImageShrinkPct: just enough for one side, then for both. Fit is tested
+/// against the BUDGET and only the ACTIVE chips are placed, so the image never
+/// moves as chips come and go. A part with no tagged point cannot have a line:
+/// the pinned path docks it.
+inline bool try_line_modes(const CalloutLayoutInput& in, CalloutLayout& out) {
+    if (in.budget.empty())
+        return false;
+    for (const auto* v : {&in.budget, &in.active})
+        for (const auto& c : *v)
+            if (!c.anchor)
+                return false;
+
+    const CalloutRect fitted = out.image;
+    if (try_line_modes_at(in, fitted, out))
+        return true;
+    const auto [horiz, col] = line_column(in, fitted);
+    const int area = horiz ? in.area_w : in.area_h;
+    const int full = horiz ? fitted.w : fitted.h;
+    const int min_extent = full - full * kMaxImageShrinkPct / 100;
+    for (const int columns : {1, 2}) {
+        const int extent = area - columns * col;
+        if (extent < min_extent || extent >= full)
+            continue;
+        CalloutRect shrunk;
+        shrunk.w = horiz ? extent : int(int64_t(fitted.w) * extent / full);
+        shrunk.h = horiz ? int(int64_t(fitted.h) * extent / full) : extent;
+        shrunk.x = (in.area_w - shrunk.w) / 2;
+        shrunk.y = (in.area_h - shrunk.h) / 2;
+        if (try_line_modes_at(in, shrunk, out))
+            return true;
     }
     return false;
 }

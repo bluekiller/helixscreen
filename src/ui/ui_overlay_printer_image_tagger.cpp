@@ -8,6 +8,7 @@
 #include "ui_panel_common.h"
 
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "panel_widgets/callout_chip.h"
 #include "panel_widgets/callout_layout.h"
 #include "printer_image_manager.h"
 #include "printer_images.h"
@@ -178,21 +179,27 @@ void PrinterImageTaggerOverlay::place_review_chips() {
     if (!img || !layer) {
         return;
     }
-    // Measured layout: the chips are content-sized, so their widths come from
-    // the laid-out chips themselves.
+    // Sized like the home widget's pinned chips; the light chip is its icon.
     lv_obj_update_layout(layer);
     CalloutChipWidths widths{};
-    int chip_h = 0;
+    lv_obj_t* probe = nullptr;
     for (size_t k = 0; k < kChipCount; ++k) {
         const std::string name = review_chip_name(static_cast<CalloutKind>(k));
-        if (lv_obj_t* chip = lv_obj_find_by_name(layer, name.c_str())) {
-            widths[k] = lv_obj_get_width(chip);
-            chip_h = std::max(chip_h, static_cast<int>(lv_obj_get_height(chip)));
-        }
+        lv_obj_t* chip = lv_obj_find_by_name(layer, name.c_str());
+        if (!chip)
+            continue;
+        probe = chip;
+        lv_obj_t* label = lv_obj_find_by_name(chip, (name + "_text").c_str());
+        widths[k] = label ? helix::ui::compact_callout_chip_w(chip, lv_label_get_text(label), 0)
+                          : static_cast<int>(lv_obj_get_width(chip));
     }
-    const CalloutLayout out = review_callout_layout(
-        session_.regions(target_.natural_w, target_.natural_h), lv_obj_get_width(img),
-        lv_obj_get_height(img), widths, chip_h, theme_manager_get_spacing("space_xs"));
+    if (!probe)
+        return;
+    const ImageRegions regions = session_.regions(target_.natural_w, target_.natural_h);
+    const int chip_h = helix::ui::compact_callout_chip_h(probe, regions.light.has_value());
+    const CalloutLayout out =
+        review_callout_layout(regions, lv_obj_get_width(img), lv_obj_get_height(img), widths,
+                              chip_h, theme_manager_get_spacing("space_xs"));
 
     bool shown[kChipCount] = {};
     for (const CalloutChipOut& c : out.chips) {
@@ -200,6 +207,8 @@ void PrinterImageTaggerOverlay::place_review_chips() {
         if (lv_obj_t* chip = lv_obj_find_by_name(layer, review_chip_name(c.kind).c_str())) {
             // DECLARATIVE_OK: measured callout layout
             lv_obj_set_pos(chip, c.rect.x, c.rect.y);
+            // DECLARATIVE_OK: measured callout layout
+            lv_obj_set_width(chip, c.rect.w);
             shown[k] = true;
         }
     }
