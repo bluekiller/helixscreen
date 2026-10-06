@@ -291,9 +291,13 @@ TEST_CASE_METHOD(RailFixture, "a keypad over an overlay keeps the rail E-stop on
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(ui_keypad_is_visible());
 
-    // The keypad brings its own backdrop, above the first overlay's.
-    const uint32_t last = lv_obj_get_child_count(test_screen()) - 1;
-    CHECK(lv_obj_get_child(test_screen(), static_cast<int32_t>(last)) == estop_);
+    // The keypad brings its own backdrop, above the first overlay's; only other
+    // rail chrome may sit above the E-stop.
+    const uint32_t count = lv_obj_get_child_count(test_screen());
+    for (uint32_t i = static_cast<uint32_t>(index_of(estop_)) + 1; i < count; ++i) {
+        CHECK(
+            helix::ui::is_screen_chrome(lv_obj_get_child(test_screen(), static_cast<int32_t>(i))));
+    }
 
     helix::ui::destroy_static_panels();
     helix::ui::UpdateQueue::instance().drain();
@@ -323,7 +327,7 @@ TEST_CASE_METHOD(RailFixture, "a printer switch leaves exactly one rail E-stop",
     CHECK(count_estops() == 1);
     lv_obj_t* current = nav.rail_estop();
     REQUIRE(current != nullptr);
-    CHECK(helix::ui::always_on_top() == current);
+    CHECK(helix::ui::is_screen_chrome(current));
     set_visible(1);
     CHECK_FALSE(lv_obj_has_flag(current, LV_OBJ_FLAG_HIDDEN));
     set_visible(0);
@@ -468,4 +472,102 @@ TEST_CASE("no root panel takes text input, so the keyboard never opens over a li
             CHECK(xml.find("<lv_textarea") == std::string::npos);
         }
     }
+}
+
+// ============================================================================
+// The spools-on-the-bed button: the same rail treatment as the E-stop, so a
+// bed-drying latch stays visible beside overlays that cover the banner.
+// ============================================================================
+
+namespace {
+
+struct DryingRailFixture : public RailFixture {
+    DryingRailFixture() {
+        drying_state_ = lv_xml_get_subject(nullptr, "bed_drying_state");
+        if (!drying_state_) {
+            // The registry keeps the pointer past this fixture, so it is static.
+            static lv_subject_t own_state;
+            lv_subject_init_int(&own_state, 0);
+            lv_xml_register_subject(nullptr, "bed_drying_state", &own_state);
+            drying_state_ = &own_state;
+            // The rail binds at creation, so rebuild it against the subject.
+            auto& nav = NavigationManager::instance();
+            nav.deinit_subjects();
+            nav.init();
+            navbar_ =
+                static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "navigation_bar", nullptr));
+            nav.wire_events(navbar_);
+            helix::ui::UpdateQueue::instance().drain();
+        }
+        saved_drying_ = lv_subject_get_int(drying_state_);
+        drying_slot_ = lv_obj_find_by_name(navbar_, "nav_drying_slot");
+        REQUIRE(drying_slot_ != nullptr);
+        drying_ = NavigationManager::instance().rail_drying();
+        REQUIRE(drying_ != nullptr);
+    }
+    ~DryingRailFixture() override {
+        lv_subject_set_int(drying_state_, saved_drying_);
+        helix::ui::UpdateQueue::instance().drain();
+    }
+
+    void set_latched(int state) {
+        lv_subject_set_int(drying_state_, state);
+        helix::ui::UpdateQueue::instance().drain();
+        lv_obj_update_layout(test_screen());
+    }
+
+    lv_subject_t* drying_state_ = nullptr;
+    int saved_drying_ = 0;
+    lv_obj_t* drying_slot_ = nullptr;
+    lv_obj_t* drying_ = nullptr;
+};
+
+} // namespace
+
+TEST_CASE_METHOD(DryingRailFixture, "rail drying button is shown exactly while spools are latched",
+                 "[estop_rail][bed_drying][navigation]") {
+    set_latched(0);
+    CHECK(lv_obj_has_flag(drying_, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(drying_slot_, LV_OBJ_FLAG_HIDDEN));
+    set_latched(4); // any non-idle run state
+    CHECK_FALSE(lv_obj_has_flag(drying_, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(drying_slot_, LV_OBJ_FLAG_HIDDEN));
+    set_latched(0);
+    CHECK(lv_obj_has_flag(drying_, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(DryingRailFixture, "rail drying button does what the banner does",
+                 "[estop_rail][bed_drying][navigation]") {
+    CHECK(read_xml("ui_xml/components/rail_drying.xml")
+              .find("callback=\"on_bed_drying_banner_clicked\"") != std::string::npos);
+}
+
+TEST_CASE_METHOD(DryingRailFixture, "rail drying button sits over its slot beside the E-stop",
+                 "[estop_rail][bed_drying][navigation]") {
+    set_latched(4);
+    set_visible(1);
+    lv_area_t slot, button, estop;
+    lv_obj_get_coords(drying_slot_, &slot);
+    lv_obj_get_coords(drying_, &button);
+    lv_obj_get_coords(estop_, &estop);
+    CHECK(button.x1 == slot.x1);
+    CHECK(button.y1 == slot.y1);
+    const bool overlap = button.x1 <= estop.x2 && estop.x1 <= button.x2 && button.y1 <= estop.y2 &&
+                         estop.y1 <= button.y2;
+    CHECK_FALSE(overlap);
+}
+
+TEST_CASE_METHOD(DryingRailFixture,
+                 "rail drying button and E-stop both stay above an overlay backdrop",
+                 "[estop_rail][bed_drying][navigation]") {
+    auto& nav = NavigationManager::instance();
+    set_latched(4);
+    set_visible(1);
+    NavigationManagerTestAccess::adopt_overlay_backdrop(nav, test_screen());
+    lv_obj_t* backdrop = NavigationManagerTestAccess::overlay_backdrop(nav);
+    REQUIRE(backdrop != nullptr);
+    CHECK(index_of(drying_) > index_of(backdrop));
+    CHECK(index_of(estop_) > index_of(backdrop));
+    CHECK_FALSE(lv_obj_has_flag(drying_, LV_OBJ_FLAG_HIDDEN));
+    CHECK(helix::ui::is_screen_chrome(drying_));
 }

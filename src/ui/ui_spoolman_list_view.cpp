@@ -154,7 +154,8 @@ void SpoolmanListView::init_pool() {
             static_cast<lv_obj_t*>(lv_xml_create(container_, "spoolman_spool_row", nullptr));
 
         if (row) {
-            lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(
+                row, LV_OBJ_FLAG_HIDDEN); // XML_HIDDEN_OK: pooled row, built once with its list
             pool_.push_back(cache_row_widgets(row));
         }
     }

@@ -254,6 +254,15 @@ class WidgetCatalogCategoryFixture : public LVGLUITestFixture {
         settle();
     }
 
+    /// Build the search result rows, which the catalog defers to the first
+    /// query, and return to the category list. Rows the query filtered out stay
+    /// hidden, so a case reading visibility types its own query.
+    void build_search_rows() {
+        type_query("zzqq no such widget");
+        type_query("");
+        REQUIRE(child_count(search_results()) > 0);
+    }
+
     lv_obj_t* browse_list() {
         return lv_obj_find_by_name(WidgetCatalogOverlay::active_root(), "catalog_scroll");
     }
@@ -875,6 +884,22 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
 }
 
 TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
+                 "Widget catalog: search rows are built by the first query, not at open",
+                 "[widget_catalog][1016][search]") {
+    open_catalog();
+    lv_obj_t* results = search_results();
+    REQUIRE(results != nullptr);
+    // A row per registry def is most of what the catalog costs to show, and an
+    // open that never searches never needs them.
+    CHECK(child_count(results) == 0);
+
+    type_query("nozzle");
+    CHECK(child_count(results) == get_all_widget_defs().size());
+
+    force_close();
+}
+
+TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
                  "Widget catalog: a query hitting nothing shows the empty message",
                  "[widget_catalog][1016][search]") {
     open_catalog();
@@ -1204,13 +1229,13 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     WidgetCatalogOverlay::show(
         lv_screen_active(), *widget_config_, [](const std::string&) {}, [] {});
     lv_obj_t* group = category_group();
-    lv_obj_t* results = search_results();
     REQUIRE(child_count(group) > 0);
-    REQUIRE(child_count(results) > 0);
     // A rebuild replaces each row with a fresh object, which never carries this.
     // Marked before the first settle, so the rows show() built must also outlive
     // the observers' own registration firing.
     lv_obj_add_state(lv_obj_get_child(group, 0), LV_STATE_USER_1);
+    build_search_rows();
+    lv_obj_t* results = search_results();
     lv_obj_add_state(lv_obj_get_child(results, 0), LV_STATE_USER_1);
     settle();
     CHECK(lv_obj_has_state(lv_obj_get_child(group, 0), LV_STATE_USER_1));
@@ -1276,6 +1301,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
                  "Widget catalog: search follows runtime defs added and removed under it",
                  "[widget_catalog][widget_registry]") {
     open_catalog();
+    build_search_rows();
     lv_obj_t* results = search_results();
     REQUIRE(results != nullptr);
     const uint32_t base_rows = child_count(results);
@@ -1320,6 +1346,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     // Registered before the open, so the rows were built listing it.
     REQUIRE(register_runtime_widget_def(make_runtime_def("rt-swap-a", "Swap Alpha")));
     open_catalog();
+    build_search_rows();
     lv_obj_t* results = search_results();
     REQUIRE(results != nullptr);
     REQUIRE(lv_obj_find_by_name(results, "rt-swap-a") != nullptr);
@@ -1365,6 +1392,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     helix::test::ScopeExit cleanup([] { unregister_runtime_widget_def("rt-span-tile"); });
     REQUIRE(register_runtime_widget_def(d));
     open_catalog();
+    build_search_rows();
     lv_obj_t* results = search_results();
     REQUIRE(results != nullptr);
     lv_obj_t* row = lv_obj_find_by_name(results, "rt-span-tile");
@@ -1402,6 +1430,7 @@ TEST_CASE_METHOD(WidgetCatalogCategoryFixture,
     helix::test::ScopeExit cleanup([] { unregister_runtime_widget_def("rt-hash-tile"); });
     REQUIRE(register_runtime_widget_def(d));
     open_catalog();
+    build_search_rows();
     lv_obj_t* results = search_results();
     REQUIRE(results != nullptr);
     lv_obj_t* row = lv_obj_find_by_name(results, "rt-hash-tile");

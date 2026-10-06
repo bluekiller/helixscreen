@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ui_nav_rail_estop.h"
 #include "ui_widget_ref.h"
 
 #include <lvgl.h>
@@ -32,7 +31,7 @@ class OverlayBackdrop {
     /// its press and click. The live E-stop and the @p arriving overlay stay out of
     /// the image: both sit above the backdrop. No-op replacement if the snapshot
     /// cannot be created.
-    void adopt(lv_obj_t* screen, lv_obj_t* arriving, RailEstop& rail_estop, lv_event_cb_t click_cb);
+    void adopt(lv_obj_t* screen, lv_obj_t* arriving, lv_event_cb_t click_cb);
 
     /// Re-take the snapshot from the live widget tree, for a change outside the
     /// overlay that lands behind it (the navbar). Hides every screen child except

@@ -102,6 +102,11 @@ struct HomePanelTestAccess {
         panel.wire_grid_edit_page_callbacks();
     }
 
+    /// The widget-config rebuild callback finalize_setup() registers.
+    static void register_config_rebuild_callback(HomePanel& panel) {
+        panel.register_config_rebuild_callback();
+    }
+
     /// Tear the carousel down and build it again showing @p shown, as a
     /// page-set change does before it shows the edit session a page.
     static void rebuild_carousel(HomePanel& panel, int shown) {
