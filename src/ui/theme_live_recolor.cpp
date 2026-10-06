@@ -300,6 +300,8 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
 
     // Parse palette colors
     lv_color_t screen_bg = theme_manager_parse_hex_color(palette.screen_bg.c_str());
+    lv_color_t overlay_bg = theme_manager_parse_hex_color(palette.overlay_bg.c_str());
+    lv_color_t card_bg = theme_manager_parse_hex_color(palette.card_bg.c_str());
     lv_color_t elevated_bg = theme_manager_parse_hex_color(palette.elevated_bg.c_str());
     lv_color_t border = theme_manager_parse_hex_color(palette.border.c_str());
     lv_color_t text_primary = theme_manager_parse_hex_color(palette.text.c_str());
@@ -424,7 +426,9 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
     // Outlined fields (dropdown, textarea, spinbox) - unfilled, outline, text
     if (lv_obj_check_type(obj, &lv_dropdown_class) || lv_obj_check_type(obj, &lv_textarea_class) ||
         lv_obj_check_type(obj, &lv_spinbox_class)) {
-        set_palette_color(obj, LV_STYLE_BORDER_COLOR, text_subtle, LV_PART_MAIN);
+        lv_color_t outline =
+            helix::field_outline_color(text_subtle, screen_bg, overlay_bg, card_bg, elevated_bg);
+        set_palette_color(obj, LV_STYLE_BORDER_COLOR, outline, LV_PART_MAIN);
         set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
         return;
     }

@@ -203,11 +203,71 @@ TEST_CASE_METHOD(LVGLTestFixture, "InputBg style is an unfilled field with a tex
     REQUIRE(lv_style_get_prop(input, LV_STYLE_BG_OPA, &v) == LV_STYLE_RES_FOUND);
     CHECK(v.num == LV_OPA_0);
 
+    const auto& pal = tm.current_palette();
     REQUIRE(lv_style_get_prop(input, LV_STYLE_BORDER_COLOR, &v) == LV_STYLE_RES_FOUND);
-    CHECK(lv_color_eq(v.color, tm.current_palette().text_subtle));
+    CHECK(lv_color_eq(v.color,
+                      helix::field_outline_color(pal.text_subtle, pal.screen_bg, pal.overlay_bg,
+                                                 pal.card_bg, pal.elevated_bg)));
 
     REQUIRE(lv_style_get_prop(input, LV_STYLE_BORDER_WIDTH, &v) == LV_STYLE_RES_FOUND);
     CHECK(v.num > 0);
+}
+
+TEST_CASE("field_outline_color keeps text_subtle when it already clears every surface",
+          "[theme-manager][input-style]") {
+    lv_color_t subtle = lv_color_hex(0x9A9AA4);
+    lv_color_t bg = lv_color_hex(0x101012);
+    REQUIRE(helix::contrast_ratio(subtle, bg) >= helix::kFieldOutlineContrastThreshold);
+    CHECK(lv_color_eq(helix::field_outline_color(subtle, bg, bg, bg, bg), subtle));
+}
+
+TEST_CASE("field_outline_color clears 3:1 on every surface of every shipped theme",
+          "[theme-manager][input-style]") {
+    // __FILE__ is relative to the repo root in some builds and absolute in others.
+    const std::string src = __FILE__;
+    const size_t pos = src.rfind("tests/unit/");
+    const std::string root = (pos == 0 || pos == std::string::npos) ? "." : src.substr(0, pos - 1);
+    int palettes_checked = 0;
+    for (const auto& entry :
+         std::filesystem::directory_iterator(root + "/assets/config/themes/defaults")) {
+        if (entry.path().extension() != ".json")
+            continue;
+        helix::ThemeData theme = helix::load_theme_from_file(entry.path().string());
+        for (bool dark : {true, false}) {
+            if (dark ? !theme.supports_dark() : !theme.supports_light())
+                continue;
+            const helix::ModePalette& mp = dark ? theme.dark : theme.light;
+            auto c = [](const std::string& hex) {
+                return theme_manager_parse_hex_color(hex.c_str());
+            };
+            lv_color_t outline =
+                helix::field_outline_color(c(mp.text_subtle), c(mp.screen_bg), c(mp.overlay_bg),
+                                           c(mp.card_bg), c(mp.elevated_bg));
+            for (const std::string* surface :
+                 {&mp.screen_bg, &mp.overlay_bg, &mp.card_bg, &mp.elevated_bg}) {
+                INFO(entry.path().filename().string()
+                     << (dark ? " dark" : " light") << " on " << *surface);
+                CHECK(helix::contrast_ratio(outline, c(*surface)) >=
+                      helix::kFieldOutlineContrastThreshold - 0.01);
+            }
+            ++palettes_checked;
+        }
+    }
+    REQUIRE(palettes_checked > 10);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Themed dropdown is an unfilled field with an opaque popup list",
+                 "[theme-manager][input-style]") {
+    // Attaches the theme to the display, so widgets created below get its apply callback.
+    theme_manager_init(lv_display_get_default(), theme_manager_is_dark_mode());
+    lv_obj_t* dd = lv_dropdown_create(lv_screen_active());
+    lv_obj_t* list = lv_dropdown_get_list(dd);
+    REQUIRE(list != nullptr);
+
+    REQUIRE(lv_obj_get_style_bg_opa(dd, LV_PART_MAIN) == LV_OPA_TRANSP);
+    CHECK(lv_obj_get_style_bg_opa(list, LV_PART_MAIN) == LV_OPA_COVER);
+
+    lv_obj_delete(dd);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "All registered configure functions are called",

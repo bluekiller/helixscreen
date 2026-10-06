@@ -296,6 +296,9 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
     }
     if (lv_obj_check_type(obj, &lv_dropdownlist_class)) {
         lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+        // The popup floats over other content, so unlike the field it needs a fill.
+        lv_obj_set_style_bg_color(obj, tm.current_palette().elevated_bg, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
 
         // Clip highlight rectangles to rounded corners
         lv_obj_set_style_clip_corner(obj, true, LV_PART_MAIN);
