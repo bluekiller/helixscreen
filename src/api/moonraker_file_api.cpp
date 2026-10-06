@@ -10,6 +10,7 @@
 #include "moonraker_api_internal.h"
 #include "spdlog/spdlog.h"
 #include "text_io.h"
+#include "try_reserve.h"
 
 using namespace moonraker_internal;
 
@@ -99,9 +100,14 @@ void MoonrakerFileAPI::list_files(const std::string& root, const std::string& pa
     client_.send_jsonrpc(
         "server.files.list", params,
         [this, on_success, on_error](const json& response) {
-            std::vector<FileInfo> files = parse_file_list(response);
-            spdlog::trace("[FileAPI] Found {} files", files.size());
-            on_success(files);
+            std::optional<std::vector<FileInfo>> files = parse_file_list(response);
+            if (!files) {
+                moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN,
+                                                 "list_files", "not enough memory for the listing");
+                return;
+            }
+            spdlog::trace("[FileAPI] Found {} files", files->size());
+            on_success(*files);
         },
         on_error);
 }
@@ -129,10 +135,16 @@ void MoonrakerFileAPI::get_directory(const std::string& root, const std::string&
     client_.send_jsonrpc(
         "server.files.get_directory", params,
         [this, full_path, on_success, on_error](const json& response) {
-            std::vector<FileInfo> files = parse_file_list(response);
+            std::optional<std::vector<FileInfo>> files = parse_file_list(response);
+            if (!files) {
+                moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN,
+                                                 "get_directory",
+                                                 "not enough memory for the listing");
+                return;
+            }
             spdlog::debug("[FileAPI] get_directory response for '{}': {} items", full_path,
-                          files.size());
-            on_success(files);
+                          files->size());
+            on_success(*files);
         },
         [full_path, on_error](const MoonrakerError& error) {
             spdlog::error("[FileAPI] get_directory FAILED for '{}': {} ({})", full_path,
@@ -372,7 +384,7 @@ void MoonrakerFileAPI::delete_directory(const std::string& path, bool force,
 // File List/Metadata Parsing
 // ============================================================================
 
-std::vector<FileInfo> MoonrakerFileAPI::parse_file_list(const json& response) {
+std::optional<std::vector<FileInfo>> MoonrakerFileAPI::parse_file_list(const json& response) {
     std::vector<FileInfo> files;
 
     if (!response.contains("result")) {
@@ -380,6 +392,21 @@ std::vector<FileInfo> MoonrakerFileAPI::parse_file_list(const json& response) {
     }
 
     const json& result = response["result"];
+
+    size_t entries = 0;
+    if (result.is_array()) {
+        entries = result.size();
+    } else if (result.is_object()) {
+        for (const char* key : {"dirs", "files"}) {
+            if (result.contains(key) && result[key].is_array()) {
+                entries += result[key].size();
+            }
+        }
+    }
+    if (!helix::try_reserve(files, entries)) {
+        spdlog::error("[FileAPI] No memory for a {}-entry file listing", entries);
+        return std::nullopt;
+    }
 
     // Every field is read type-safely, as in parse_file_metadata below (Moonraker
     // returns null for missing metadata, and some forks send numbers as JSON
