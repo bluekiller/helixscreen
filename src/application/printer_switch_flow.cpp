@@ -140,7 +140,7 @@ void PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
 
     // Show toast with the new printer name
     const std::string printer_name = m_config->get_active_printer_name();
-    std::string toast_msg = fmt::format(fmt::runtime(lv_tr("Connected to {}")), printer_name);
+    std::string toast_msg = fmt::format(fmt::runtime(lv_tr("Switched to {}")), printer_name);
     ToastManager::instance().show(ToastSeverity::INFO, toast_msg.c_str());
 
     spdlog::info("[PrinterSwitchFlow] Switched to printer '{}'", printer_id);
