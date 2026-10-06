@@ -117,3 +117,56 @@ TEST_CASE("BoundedSlotCounter::max_depth() reports the configured depth", "[esp3
     REQUIRE(slots.max_depth() == 8);
     REQUIRE(slots.in_flight() == 0);
 }
+
+TEST_CASE("initial_buffer_bytes sizes from Content-Length, never past the cap",
+          "[esp32][http][lane_buffer]") {
+    using helix::http::initial_buffer_bytes;
+    using helix::http::UNKNOWN_LENGTH_START_BYTES;
+    // A 9 KB thumbnail under a 512 KB cap takes 9 KB, not 512 KB.
+    CHECK(initial_buffer_bytes(HARD_CAP_BYTES, 9274) == 9274);
+    // A 200 KB range answered with its own length.
+    CHECK(initial_buffer_bytes(200 * 1024, 200 * 1024) == 200 * 1024);
+    // A server ignoring Range reports the whole file: the cap bounds it.
+    CHECK(initial_buffer_bytes(200 * 1024, 53472182LL) == 200 * 1024);
+    // Unknown length (chunked, or no header) starts small.
+    CHECK(initial_buffer_bytes(HARD_CAP_BYTES, -1) == UNKNOWN_LENGTH_START_BYTES);
+    CHECK(initial_buffer_bytes(HARD_CAP_BYTES, 0) == UNKNOWN_LENGTH_START_BYTES);
+    CHECK(initial_buffer_bytes(4096, -1) == 4096);
+}
+
+TEST_CASE("next_buffer_bytes doubles and stops at the cap", "[esp32][http][lane_buffer]") {
+    using helix::http::next_buffer_bytes;
+    CHECK(next_buffer_bytes(16 * 1024, HARD_CAP_BYTES) == 32 * 1024);
+    CHECK(next_buffer_bytes(300 * 1024, HARD_CAP_BYTES) == HARD_CAP_BYTES);
+    CHECK(next_buffer_bytes(HARD_CAP_BYTES, HARD_CAP_BYTES) == HARD_CAP_BYTES);
+}
+
+TEST_CASE("try_reserve reports an impossible allocation instead of aborting",
+          "[esp32][http][lane_buffer]") {
+    using helix::http::try_reserve;
+    std::string s = "kept";
+    // Past what a string can hold: reserve() would throw, an abort on the firmware.
+    CHECK_FALSE(try_reserve(s, s.max_size() + 1));
+    CHECK(s == "kept");
+
+    REQUIRE(try_reserve(s, 64 * 1024));
+    CHECK(s.capacity() >= 64 * 1024);
+    CHECK(s == "kept");
+}
+
+TEST_CASE("reserve_allocation_bytes predicts what reserve() really allocates",
+          "[esp32][http][lane_buffer]") {
+    using helix::http::reserve_allocation_bytes;
+    std::string s;
+    s.reserve(128 * 1024);
+    const size_t before = s.capacity();
+    REQUIRE(before >= 128 * 1024);
+    REQUIRE(before < 200 * 1024);
+
+    // libstdc++ grows to at least twice the old capacity, so asking for 200 KB
+    // from 128 KB allocates 256 KB: the probe has to cover that, not 200 KB.
+    const size_t predicted = reserve_allocation_bytes(before, 200 * 1024, s.max_size());
+    s.reserve(200 * 1024);
+    CHECK(predicted == s.capacity());
+    CHECK(predicted > 200 * 1024);
+}

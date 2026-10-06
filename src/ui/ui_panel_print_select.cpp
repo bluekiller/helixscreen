@@ -1512,54 +1512,12 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                                          self->get_name(), filename_copy, error);
                         });
 #else
-                    // ESP32 (Task 11 R2): no disk thumbnail cache on this platform
-                    // (Task 10 R6), so bypass ThumbnailCache/ThumbnailProcessor
-                    // entirely and fetch the PNG bytes directly via the HTTP lane,
-                    // decoding into a PSRAM-backed lv_image_dsc_t instead of a
-                    // cache file (see esp_psram_thumbnail.h).
-                    //
-                    // MANDATORY threading: EspHttpLane invokes on_success/on_error
-                    // directly on its own worker thread with no built-in
-                    // marshaling. This callback therefore does only local
-                    // byte-copy/PSRAM work on the worker thread and defers every
-                    // `self`/file_list_ touch via panel_tok.defer() — `self` is
-                    // captured here only to pass into that deferred lambda, never
-                    // dereferenced on this thread.
-                    spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", self->get_name(),
-                                  d->filename, d->thumb_path);
-
-                    size_t file_idx = d->index;
-                    std::string filename_copy = d->filename;
-                    constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
-
-                    self->api_->transfers().download_file_partial(
-                        "gcodes", d->thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-                        // Success callback — runs on the EspHttpLane worker thread.
-                        [self, panel_tok, file_idx, filename_copy](const std::string& png_bytes) {
-                            auto thumb = helix::ui::EspPsramThumbnail::create(png_bytes);
-                            if (!thumb) {
-                                spdlog::warn("[PrintSelectPanel] PSRAM alloc failed for "
-                                             "thumbnail: {}",
-                                             filename_copy);
-                                return;
-                            }
-                            panel_tok.defer(
-                                "PrintSelectPanel::on_psram_thumbnail_fetched",
-                                [self, file_idx, filename_copy,
-                                 thumb = std::move(thumb)]() mutable {
-                                    if (file_idx < self->file_list_.size() &&
-                                        self->file_list_[file_idx].filename == filename_copy) {
-                                        self->file_list_[file_idx].esp_thumbnail = std::move(thumb);
-                                        self->schedule_view_refresh();
-                                    }
-                                });
-                        },
-                        // Error callback — bg thread, log only, no member access.
-                        [filename_copy](const MoonrakerError& error) {
-                            spdlog::debug(
-                                "[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}",
-                                filename_copy, error.message);
-                        });
+                    // ESP32: no disk thumbnail cache; see fetch_esp_thumbnail().
+                    if (self->fetch_esp_thumbnail(d->index, d->filename, d->thumb_path) ==
+                        PrintSelectPanel::EspThumbnailFetch::QueueFull) {
+                        self->defer_esp_thumbnail({d->index, d->filename, d->thumb_path},
+                                                  /*front=*/false);
+                    }
 #endif
                 }
             } else if (self->api_) {
@@ -3674,3 +3632,109 @@ void PrintSelectPanel::on_usb_drive_removed() {
     // Note: The usb_source_ module handles switching to Printer source if needed,
     // and the on_source_changed callback triggers refresh_files()
 }
+
+#if defined(HELIX_PLATFORM_ESP32)
+// No disk thumbnail cache on this platform, so the PNG bytes come straight off
+// the HTTP lane into a PSRAM-backed lv_image_dsc_t (see esp_psram_thumbnail.h).
+// The lane calls back on its own worker thread: the callbacks only build the
+// image there and defer every member touch to the main thread.
+PrintSelectPanel::EspThumbnailFetch
+PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                      const std::string& thumb_path) {
+    constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
+    // An error reported before download_file_partial() returns means nothing
+    // was started: either the lane's queue was full, or the request was invalid.
+    auto submitting = std::make_shared<std::atomic<bool>>(true);
+    auto refused = std::make_shared<std::atomic<bool>>(false);
+    auto rejected = std::make_shared<std::atomic<bool>>(false);
+    auto tok = object_lifetime_.token();
+    spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", get_name(), filename, thumb_path);
+
+    api_->transfers().download_file_partial(
+        "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
+        [this, tok, index, filename](const std::string& png_bytes) {
+            auto thumb = helix::ui::EspPsramThumbnail::create(png_bytes);
+            if (!thumb) {
+                spdlog::warn("[PrintSelectPanel] PSRAM alloc failed for thumbnail: {}", filename);
+            }
+            tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
+                      [this, index, filename, thumb = std::move(thumb)]() mutable {
+                          --esp_thumbnails_in_flight_;
+                          if (thumb && index < file_list_.size() &&
+                              file_list_[index].filename == filename) {
+                              file_list_[index].esp_thumbnail = std::move(thumb);
+                              schedule_view_refresh();
+                          }
+                          drain_esp_thumbnail_backlog();
+                      });
+        },
+        [this, tok, filename, submitting, refused, rejected](const MoonrakerError& error) {
+            if (submitting->load()) {
+                if (error.type == MoonrakerErrorType::QUEUE_FULL) {
+                    refused->store(true);
+                } else {
+                    rejected->store(true);
+                    spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}",
+                                  filename, error.message);
+                }
+                return;
+            }
+            spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}", filename,
+                          error.message);
+            tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
+                --esp_thumbnails_in_flight_;
+                drain_esp_thumbnail_backlog();
+            });
+        });
+    submitting->store(false);
+    if (refused->load()) {
+        return EspThumbnailFetch::QueueFull;
+    }
+    if (rejected->load()) {
+        return EspThumbnailFetch::Failed;
+    }
+    ++esp_thumbnails_in_flight_;
+    return EspThumbnailFetch::Started;
+}
+
+void PrintSelectPanel::defer_esp_thumbnail(PendingEspThumbnail pending, bool front) {
+    if (esp_thumbnails_in_flight_ > 0) {
+        if (front) {
+            esp_thumbnail_backlog_.push_front(std::move(pending));
+        } else {
+            esp_thumbnail_backlog_.push_back(std::move(pending));
+        }
+        return;
+    }
+    // Nothing of ours will complete to retry it: the lane is full of other
+    // work. Unmark the file so the next visible-range pass (the file poll)
+    // fetches its metadata and thumbnail again.
+    if (pending.index < file_list_.size() &&
+        file_list_[pending.index].filename == pending.filename) {
+        file_list_[pending.index].metadata_fetched = false;
+    }
+}
+
+void PrintSelectPanel::drain_esp_thumbnail_backlog() {
+    while (!esp_thumbnail_backlog_.empty()) {
+        PendingEspThumbnail next = std::move(esp_thumbnail_backlog_.front());
+        esp_thumbnail_backlog_.pop_front();
+        if (next.index >= file_list_.size() || file_list_[next.index].filename != next.filename) {
+            // A refresh re-sorted the list: follow the file, not its old slot.
+            auto it =
+                std::find_if(file_list_.begin(), file_list_.end(), [&next](const PrintFileData& f) {
+                    return f.filename == next.filename;
+                });
+            if (it == file_list_.end()) {
+                continue; // the file is gone
+            }
+            next.index = static_cast<size_t>(it - file_list_.begin());
+        }
+        if (fetch_esp_thumbnail(next.index, next.filename, next.thumb_path) ==
+            EspThumbnailFetch::QueueFull) {
+            defer_esp_thumbnail(std::move(next), /*front=*/true);
+            return;
+        }
+    }
+}
+#endif
