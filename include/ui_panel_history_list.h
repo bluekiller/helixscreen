@@ -248,7 +248,6 @@ class HistoryListPanel : public OverlayBase {
 
     // Pagination state for infinite scroll
     static constexpr int JOBS_PER_PAGE = 50; ///< Jobs per API request
-    uint64_t total_job_count_ = 0;           ///< Total jobs on server (from API)
     /// Single-flight guard for the "load next page" fetch, with a 30s self-heal
     /// so a silently-lost response can't permanently block infinite scroll.
     helix::InFlightGuard load_more_guard_{std::chrono::milliseconds(30000)};
@@ -341,7 +340,11 @@ class HistoryListPanel : public OverlayBase {
      *
      * Clears existing rows and creates new ones from filtered_jobs_ vector.
      */
-    void populate_list();
+    void populate_list(bool preserve_scroll = false);
+
+    /// Re-read the shared cache after it changed (an older page, a history
+    /// event) without moving the user's scroll position.
+    void refresh_from_manager();
 
     /**
      * @brief Clear all row widgets from the list
@@ -360,7 +363,7 @@ class HistoryListPanel : public OverlayBase {
      *
      * Chain: search → status filter → sort → populate_list()
      */
-    void apply_filters_and_sort();
+    void apply_filters_and_sort(bool preserve_scroll = false);
 
     /**
      * @brief Apply search filter to jobs
