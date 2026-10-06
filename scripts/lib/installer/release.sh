@@ -5,7 +5,7 @@
 #
 # Reads: GITHUB_REPO, TMP_DIR, INSTALL_DIR, SUDO, MIGRATE_FROM_DIR,
 #        HELIX_MOD_PAYLOAD, HOST_MOD_ROOT (payload supersession sweep)
-# Writes: CLEANUP_TMP, BACKUP_CONFIG, BACKUP_ENV, ORIGINAL_INSTALL_EXISTS
+# Writes: CLEANUP_TMP, BACKUP_CONFIG, BACKUP_ENV
 
 # Source guard
 [ -n "${_HELIX_RELEASE_SOURCED:-}" ] && return 0
@@ -1713,7 +1713,6 @@ extract_release() {
     # is the standalone-install contract; the payload root must never be mv'd
     # aside or rm -rf'd as a whole, so none of it may run in this mode.
     if [ "${HELIX_MOD_PAYLOAD:-}" = "1" ]; then
-        [ -d "${INSTALL_DIR}" ] && ORIGINAL_INSTALL_EXISTS=true
         if ! payload_replace_contents "$new_install" "${INSTALL_DIR}"; then
             log_error "Payload update failed at ${INSTALL_DIR}; entries already replaced are gone."
             cd / 2>/dev/null || true
@@ -1730,8 +1729,6 @@ extract_release() {
     backup_existing_config "$(_config_source_dir)"
 
     if [ -d "${INSTALL_DIR}" ]; then
-        ORIGINAL_INSTALL_EXISTS=true
-
         # Under NoNewPrivileges (self-update from in-app), we prefer the
         # atomic swap (mv old; mv new) if the parent dir is writable (service
         # file v0.97.4+ adds ReadWritePaths for it).  Fall back to the racy
@@ -1945,10 +1942,9 @@ extract_release() {
     # Does a user config actually exist to restore?  Must match the candidate
     # chain the restore below walks, or the removal here outruns it.
     #
-    # ORIGINAL_INSTALL_EXISTS is not that test: it is set from `[ -d INSTALL_DIR ]`
-    # alone, and embedded targets keep logs and cache under the install dir
-    # (K1: /usr/data/helixscreen/{logs,cache}), so the directory routinely
-    # predates a first install with no config in it.
+    # The install dir existing is not that test: embedded targets keep logs and
+    # cache under it (K1: /usr/data/helixscreen/{logs,cache}), so the directory
+    # routinely predates a first install with no config in it.
     _have_restore_candidate=false
     if [ -n "${BACKUP_CONFIG:-}" ] && [ -s "$BACKUP_CONFIG" ]; then
         _have_restore_candidate=true
@@ -2405,10 +2401,17 @@ cleanup_superseded_payload() {
 }
 
 cleanup_old_install() {
-    # Keep .old as a last-resort recovery path if config wasn't restored.
-    # Without this guard, a failed Phase 6 + cleanup = permanent config loss.
-    if [ "$ORIGINAL_INSTALL_EXISTS" = true ] && [ ! -f "${INSTALL_DIR}/config/settings.json" ]; then
-        log_warn "Config not restored — keeping .old backup for recovery"
+    # Keep the backup as a last-resort recovery path if the old install had a
+    # config that did not come across. Without this guard, a failed Phase 6 +
+    # cleanup = permanent config loss. _have_restore_candidate is extract_release's
+    # record of whether that config existed; an old dir holding only logs and
+    # cache never had one, so its absence afterwards loses nothing.
+    if [ "${_have_restore_candidate:-}" = true ] && [ ! -f "${INSTALL_DIR}/config/settings.json" ]; then
+        if [ -n "${INSTALL_BACKUP:-}" ] && [ -d "$INSTALL_BACKUP" ]; then
+            log_warn "Config not restored: keeping ${INSTALL_BACKUP} for recovery"
+        else
+            log_warn "Config not restored, and no backup of the previous install remains"
+        fi
         return 0
     fi
 
