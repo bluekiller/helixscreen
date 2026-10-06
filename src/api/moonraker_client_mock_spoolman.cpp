@@ -580,7 +580,7 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         }
         if (body.contains("vendor_id") && body["vendor_id"].is_number_integer()) {
             filament.vendor_id = body["vendor_id"].get<int>();
-            for (const auto& v : vendors_) {
+            for (const auto& v : vendor_list()) {
                 if (v.id == filament.vendor_id) {
                     filament.vendor_name = v.name;
                     break;

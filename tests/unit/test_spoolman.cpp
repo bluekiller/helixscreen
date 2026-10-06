@@ -2156,3 +2156,26 @@ TEST_CASE("search_spoolman_external_filaments searches the catalog through the p
         CHECK(code == 404);
     }
 }
+
+TEST_CASE("mock Spoolman names the vendor of a filament created on a listed vendor",
+          "[spoolman][mock]") {
+    // Spoolman serves a filament with its whole vendor, whichever vendor it was
+    // created under.
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    std::vector<VendorInfo> vendors;
+    api.spoolman().get_spoolman_vendors([&](const std::vector<VendorInfo>& v) { vendors = v; },
+                                        nullptr);
+    REQUIRE_FALSE(vendors.empty());
+
+    FilamentInfo created;
+    api.spoolman().create_spoolman_filament(
+        {{"vendor_id", vendors.front().id},
+         {"material", "PLA"},
+         {"density", 1.24},
+         {"diameter", 1.75}},
+        [&](const FilamentInfo& f) { created = f; }, nullptr);
+    CHECK(created.vendor_name == vendors.front().name);
+}
