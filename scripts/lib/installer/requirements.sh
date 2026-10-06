@@ -462,24 +462,18 @@ Moonraker is running but not responding on http://127.0.0.1:7125."
     log_warn "HelixScreen requires Klipper and Moonraker to function."
     log_warn "It will install but won't work until these services are available."
 
-    # Non-interactive mode: just warn and continue
-    if [ ! -t 0 ]; then
-        log_warn "Non-interactive mode: continuing anyway."
+    # A dry run never asks; tty_confirm answers yes itself under --yes.
+    if [ "${DRY_RUN:-false}" = true ]; then
+        log_warn "Continuing without them."
         return 0
     fi
 
-    printf "Continue anyway? [y/N] "
-    read -r answer
-    case "$answer" in
-        [Yy]|[Yy][Ee][Ss])
-            log_info "Continuing installation..."
-            return 0
-            ;;
-        *)
-            log_error "Installation cancelled."
-            exit 1
-            ;;
-    esac
+    if tty_confirm "Continue anyway?" y; then
+        log_info "Continuing installation..."
+        return 0
+    fi
+    log_error "Installation cancelled."
+    exit 1
 }
 
 # Verify a binary that was built for the mod's chroot, from outside it.

@@ -95,7 +95,9 @@ confirm_point() { # platform version
         tty_confirm "Continue?" y || { printf '%s\n' "Nothing changed." >&2; exit 0; }
     fi
 
-    if [ -n "${SUDO:-}" ] && ! $SUDO -n true 2>/dev/null; then
+    # Under NoNewPrivileges (the in-app updater) sudo cannot work at all; the
+    # steps that need it already check _has_no_new_privs and skip.
+    if [ -n "${SUDO:-}" ] && ! _has_no_new_privs && ! $SUDO -n true 2>/dev/null; then
         printf '%s\n' "sudo is needed to install the service and system files." >&2
         $SUDO -v || { log_error "sudo was not granted; nothing changed."; exit 1; }
     fi

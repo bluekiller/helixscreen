@@ -427,6 +427,8 @@ remove_installation() {
     # Sweep state dirs holding rolling config backups (out-of-INSTALL_DIR by design).
     # Defined in lib/installer/common.sh; bundled into this script.
     clean_helix_state_dirs
+    # Our leftovers in the AD5M's gcodes root show in the print-file picker.
+    if [ "${platform:-}" = "ad5m" ] && type cleanup_ad5m_gcodes_root >/dev/null 2>&1; then cleanup_ad5m_gcodes_root; fi
 }
 
 # Refuse to run if $0 lives inside $INSTALL_DIR — we're about to delete

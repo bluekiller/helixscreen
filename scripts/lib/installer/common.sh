@@ -305,7 +305,8 @@ tty_can_ask() {
 }
 
 # Ask a yes/no question. Under `curl | sh` stdin is the script, so the answer
-# comes from the controlling terminal; with neither, the default stands.
+# comes from the controlling terminal; with neither, the default stands. An
+# empty line takes the default; end of input (Ctrl-D) is a no.
 tty_confirm() { # question default(y|n)
     [ "${ASSUME_YES:-false}" = true ] && return 0
     _tc_dev="${HELIX_TTY_DEVICE:-/dev/tty}"
@@ -313,10 +314,10 @@ tty_confirm() { # question default(y|n)
     _tc_ans=""
     if { : < "$_tc_dev"; } 2>/dev/null; then
         printf '%s %s ' "$1" "$_tc_hint" >&2
-        IFS= read -r _tc_ans < "$_tc_dev" || _tc_ans=""
+        IFS= read -r _tc_ans < "$_tc_dev" || [ -n "$_tc_ans" ] || _tc_ans=n
     elif [ -t 0 ]; then
         printf '%s %s ' "$1" "$_tc_hint" >&2
-        IFS= read -r _tc_ans || _tc_ans=""
+        IFS= read -r _tc_ans || [ -n "$_tc_ans" ] || _tc_ans=n
     else
         _tc_ans="$2"
     fi

@@ -1003,20 +1003,39 @@ _release_candidates() {
     fi
 }
 
-# True when a HEAD request finds the URL. curl and wget both say so without
-# fetching the body. A host with neither (python-only) cannot ask, so the URL
-# counts as found and download_release remains the check.
-_url_exists() {
+# Ask for a URL with a HEAD request; never fetches the body or writes a file.
+# Echoes found, missing (an HTTP 404) or unknown (anything else: DNS, timeout,
+# TLS, a proxy, a refusal). A wget that does not list --spider (the python
+# shim some K2 firmware ships as wget) is not asked at all, and neither is
+# python: both read as unknown, leaving download_release as the check.
+_url_probe() {
+    local code err
     if _has_real_curl; then
-        curl -sfIL --connect-timeout 10 -A "$_INSTALLER_UA" -o /dev/null "$1" 2>/dev/null
-    elif command -v wget >/dev/null 2>&1; then
-        wget -q --spider --timeout=10 "$1" 2>/dev/null
+        code=$(curl -sIL --connect-timeout 10 --max-time 20 -A "$_INSTALLER_UA" \
+            -o /dev/null -w '%{http_code}' "$1" 2>/dev/null) || true
+        case "$code" in
+            2??) echo found ;;
+            404) echo missing ;;
+            *) echo unknown ;;
+        esac
+    elif command -v wget >/dev/null 2>&1 && wget --help 2>&1 | grep -q -- '--spider'; then
+        if err=$(wget --spider -O /dev/null -T 10 "$1" 2>&1); then
+            echo found
+        else
+            case "$err" in
+                *404*) echo missing ;;
+                *) echo unknown ;;
+            esac
+        fi
+    else
+        echo unknown
     fi
 }
 
 # The read-only half of download_release, for the plan: confirms the archive
-# exists and says whether it can be verified, writing nothing. Exits 1 when no
-# candidate exists, which is where download_release would have failed.
+# exists and says whether it can be verified, writing nothing. Exits 1 only
+# when every candidate answers 404; a probe that cannot tell continues with
+# "release not checked" and download_release stays the real check.
 # Sets PROBE_SIZE_TEXT. Args: version platform
 probe_release() {
     if [ -n "${local_tarball:-}" ]; then
@@ -1024,7 +1043,7 @@ probe_release() {
         return 0
     fi
     local zip_filename tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http
-    local zip_sha tar_sha manifest_ok url
+    local zip_sha tar_sha manifest_ok url answer unknown=false
     _release_candidates "$(_release_tag "$1")" "$(get_release_platform "$2")"
     # shellcheck disable=SC2034  # consumed by plan.sh (confirm_point)
     if [ -n "$zip_sha$tar_sha" ]; then
@@ -1033,8 +1052,15 @@ probe_release() {
         PROBE_SIZE_TEXT="no SHA256 published"
     fi
     for url in "$zip_r2" "$tar_r2" "$zip_gh" "$tar_gh" "$zip_http" "$tar_http"; do
-        _url_exists "$url" && return 0
+        answer=$(_url_probe "$url")
+        [ "$answer" = found ] && return 0
+        [ "$answer" = unknown ] && unknown=true
     done
+    if [ "$unknown" = true ]; then
+        # shellcheck disable=SC2034  # consumed by plan.sh (confirm_point)
+        PROBE_SIZE_TEXT="release not checked"
+        return 0
+    fi
     log_error "No HelixScreen $1 release for $2."
     exit 1
 }

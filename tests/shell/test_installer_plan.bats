@@ -36,7 +36,7 @@ setup() {
     # bats' back so a failing test still reports.
     local bats_traps
     bats_traps="$(trap -p EXIT INT TERM HUP)"
-    for m in common logo host_profile platform requirements competing_uis moonraker kiauh release plan uninstall main; do
+    for m in common logo host_profile platform permissions requirements competing_uis release service moonraker kiauh plan uninstall main; do
         . "$LIB/$m.sh"
     done
     trap - ERR EXIT INT TERM HUP
@@ -277,7 +277,7 @@ exit 1'
     stub curl 'case "$*" in
   --version*) echo "curl 8.0.0" ;;
   *manifest.json*) printf "{\"version\":\"1.2.3\",\"assets\":{\"pi\":{\"zip_sha256\":\"ab\"}}}" ;;
-  *r2.test/releases/v1.2.3/helixscreen-pi.zip*) exit 0 ;;
+  *r2.test/releases/v1.2.3/helixscreen-pi.zip*) printf 200 ;;
   *) exit 22 ;;
 esac'
     probe_release v1.2.3 pi
@@ -286,14 +286,56 @@ esac'
     grep -q 'r2.test/releases/v1.2.3/helixscreen-pi.zip' "$BATS_TEST_TMPDIR/calls.log"
 }
 
-@test "probe_release fails the way a download would when no archive exists" {
+_probe_setup() {
     TMP_DIR="$BATS_TEST_TMPDIR/scratch"
     R2_BASE_URL=https://r2.test HTTP_BASE_URL=http://mirror.test R2_CHANNEL=stable
     local_tarball=""
-    stub curl 'case "$*" in --version*) echo "curl 8.0.0" ;; *) exit 22 ;; esac'
+}
+
+@test "probe_release stops when every candidate answers 404" {
+    _probe_setup
+    stub curl 'case "$*" in --version*) echo "curl 8.0.0" ;; *http_code*) printf 404 ;; *) exit 22 ;; esac'
     run probe_release v9.9.9 pi
     [ "$status" -eq 1 ]
     contains "No HelixScreen v9.9.9 release for pi" "$output"
+}
+
+@test "probe_release continues unchecked when a candidate cannot be reached" {
+    _probe_setup
+    stub curl 'case "$*" in
+  --version*) echo "curl 8.0.0" ;;
+  *http_code*r2.test*) printf 000; exit 28 ;;
+  *http_code*) printf 404 ;;
+  *) exit 22 ;;
+esac'
+    run probe_release v1.2.3 pi
+    [ "$status" -eq 0 ]
+    probe_release v1.2.3 pi
+    contains "release not checked" "$PROBE_SIZE_TEXT"
+}
+
+@test "probe_release HEAD requests are time-limited" {
+    _probe_setup
+    stub curl 'case "$*" in --version*) echo "curl 8.0.0" ;; *http_code*) printf 200 ;; *) exit 22 ;; esac'
+    probe_release v1.2.3 pi
+    grep 'http_code' "$BATS_TEST_TMPDIR/calls.log" | grep -q -- '--max-time' \
+        || fail "HEAD without --max-time"
+}
+
+@test "_url_probe through wget writes no file and reads 404 as missing" {
+    _has_real_curl() { return 1; }
+    stub wget 'case "$*" in --help*) echo "  --spider" ;; *) echo "wget: server returned error: HTTP/1.1 404 Not Found" >&2; exit 8 ;; esac'
+    cd "$BATS_TEST_TMPDIR"
+    [ "$(_url_probe http://mirror.test/x.zip)" = missing ]
+    grep -q -- '--spider' "$BATS_TEST_TMPDIR/calls.log"
+    grep -q -- '-O /dev/null' "$BATS_TEST_TMPDIR/calls.log"
+}
+
+@test "_url_probe does not trust a wget that does not offer --spider" {
+    _has_real_curl() { return 1; }
+    stub wget 'case "$*" in --help*) echo "usage: wget URL" ;; *) exit 0 ;; esac'
+    [ "$(_url_probe http://mirror.test/x.zip)" = unknown ]
+    if grep -q 'mirror.test' "$BATS_TEST_TMPDIR/calls.log"; then fail "the shim was asked to fetch"; fi
 }
 
 @test "probe_release sizes a --local archive without the network" {
@@ -362,6 +404,7 @@ _cp_setup() {
 
 @test "confirm_point asks sudo for its password once, before any step" {
     _cp_setup
+    _has_no_new_privs() { return 1; }
     UI_TTY=0
     SUDO=sudo
     stub sudo 'case "$1" in -n) exit 1 ;; -v) exit 0 ;; esac; exit 1'
@@ -372,6 +415,7 @@ _cp_setup() {
 
 @test "confirm_point stops with nothing changed when sudo is refused" {
     _cp_setup
+    _has_no_new_privs() { return 1; }
     UI_TTY=0
     SUDO=sudo
     stub sudo 'exit 1'
@@ -391,4 +435,83 @@ _cp_setup() {
     [ ! -e "$(host_payload_root_record)" ]
     record_payload_root_if_payload
     [ "$(cat "$(host_payload_root_record)")" = "$INSTALL_DIR" ]
+}
+
+@test "confirm_point continues under NoNewPrivileges, where sudo cannot work" {
+    _cp_setup
+    UI_TTY=0
+    SUDO=sudo
+    _has_no_new_privs() { return 0; }
+    stub sudo 'exit 1'
+    run confirm_point pi v1.2.3
+    [ "$status" -eq 0 ]
+    contains "Checked system" "$output"
+}
+
+@test "tty_confirm: end of input at the prompt is a no, an empty line the default" {
+    HELIX_TTY_DEVICE="$BATS_TEST_TMPDIR/tty"
+    ASSUME_YES=false
+    printf '' > "$HELIX_TTY_DEVICE"
+    run tty_confirm "Continue?" y < /dev/null
+    [ "$status" -eq 1 ]
+    printf '\n' > "$HELIX_TTY_DEVICE"
+    run tty_confirm "Continue?" y < /dev/null
+    [ "$status" -eq 0 ]
+}
+
+_klipper_down() {
+    stub ps 'exit 0'
+    HELIX_TTY_DEVICE="$BATS_TEST_TMPDIR/tty"
+    printf 'n\n' > "$HELIX_TTY_DEVICE"
+    DRY_RUN=false ASSUME_YES=false
+}
+
+@test "check_klipper_ecosystem asks through the terminal device" {
+    _klipper_down
+    run check_klipper_ecosystem k1 < /dev/null
+    [ "$status" -eq 1 ]
+    contains "Installation cancelled." "$output"
+}
+
+@test "check_klipper_ecosystem never asks on a dry run" {
+    _klipper_down
+    DRY_RUN=true
+    run check_klipper_ecosystem k1 < /dev/null
+    [ "$status" -eq 0 ]
+    contains "Klipper does not appear to be running" "$output"
+}
+
+@test "check_klipper_ecosystem never asks under --yes" {
+    _klipper_down
+    ASSUME_YES=true
+    run check_klipper_ecosystem k1 < /dev/null
+    [ "$status" -eq 0 ]
+}
+
+# The body of function $1 in file $2, comments stripped.
+_fn_body() {
+    awk -v fn="$1" '$0 ~ "^"fn"\\(\\) *\\{" {c=1} c{print} c&&/^\}/{exit}' "$2" | sed 's/#.*//'
+}
+
+@test "install.sh --uninstall sweeps the AD5M gcodes root" {
+    _fn_body uninstall "$LIB/uninstall.sh" \
+        | grep -q '"$platform" = "ad5m" ].*cleanup_ad5m_gcodes_root' \
+        || fail "uninstall() does not sweep the gcodes root on ad5m"
+}
+
+@test "the bundled uninstaller sweeps the AD5M gcodes root" {
+    _fn_body remove_installation "$WORKTREE_ROOT/scripts/bundle-uninstaller.sh" \
+        | grep -q '"${platform:-}" = "ad5m" ].*cleanup_ad5m_gcodes_root' \
+        || fail "remove_installation() does not sweep the gcodes root on ad5m"
+}
+
+@test "the AD5M gcodes sweep in uninstall runs for ad5m only" {
+    AD5M_GCODES_ROOT="$BATS_TEST_TMPDIR/data"
+    mkdir -p "$AD5M_GCODES_ROOT"
+    : > "$AD5M_GCODES_ROOT/helixscreen-ad5m-v1.0.0.zip"
+    line=$(_fn_body uninstall "$LIB/uninstall.sh" | grep 'cleanup_ad5m_gcodes_root')
+    platform=k1; eval "$line"
+    [ -f "$AD5M_GCODES_ROOT/helixscreen-ad5m-v1.0.0.zip" ]
+    platform=ad5m; eval "$line"
+    [ ! -e "$AD5M_GCODES_ROOT/helixscreen-ad5m-v1.0.0.zip" ]
 }

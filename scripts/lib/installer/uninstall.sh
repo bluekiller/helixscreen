@@ -893,6 +893,8 @@ uninstall() {
     # Sweep state dirs holding rolling config backups (out-of-INSTALL_DIR by
     # design).  Also sweeps the .uninstalling sentinel dropped at the top.
     clean_helix_state_dirs
+    # Our leftovers in the AD5M's gcodes root show in the print-file picker.
+    if [ "$platform" = "ad5m" ] && type cleanup_ad5m_gcodes_root >/dev/null 2>&1; then cleanup_ad5m_gcodes_root; fi
 
     # Strip the legacy [shell_command helix_recover] block from moonraker.conf
     # (dead since v0.99.61 — kept around on already-installed K2s until they
