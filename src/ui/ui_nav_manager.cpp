@@ -1885,13 +1885,14 @@ void NavigationManager::cancel_pending_push(lv_obj_t* panel) {
     spdlog::debug("[NavigationManager] Cancelled pending push of overlay {}", (void*)root);
     // The caller sees an overlay that opened and closed: owners prime state in
     // show() and release it in on_deactivate() and the close callback, so both
-    // run, in queue order like any close. The overlay itself was never shown,
-    // activated or stacked.
-    helix::ui::queue_update("NavigationManager::cancel_pending_push", [root]() {
-        if (!lv_obj_is_valid(root)) {
+    // run, in queue order like any close. A stacked overlay's pending push was
+    // a duplicate, and its own close delivers both.
+    helix::ui::queue_update("NavigationManager::cancel_pending_push", [root]() mutable {
+        auto& mgr = NavigationManager::instance();
+        root = mgr.resolve_rebuilt(root);
+        if (!lv_obj_is_valid(root) || mgr.is_panel_in_stack(root)) {
             return;
         }
-        auto& mgr = NavigationManager::instance();
         if (auto* lifecycle = mgr.resolve_overlay_lifecycle(root)) {
             lifecycle->on_deactivate(DeactivateReason::NavigateAway);
         }

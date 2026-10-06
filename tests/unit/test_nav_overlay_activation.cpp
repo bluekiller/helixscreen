@@ -402,6 +402,20 @@ TEST_CASE_METHOD(OverlayActivationFixture, "go_back with a pending push still po
     CHECK_FALSE(nav.has_open_overlays());
 }
 
+TEST_CASE_METHOD(OverlayActivationFixture,
+                 "close_overlay of a stacked overlay with a duplicate push pending closes it once",
+                 "[navigation][overlay][pending_push]") {
+    auto& nav = NavigationManager::instance();
+    open_overlay();
+
+    nav.push_overlay(overlay_);
+    nav.close_overlay(overlay_);
+    drain();
+
+    REQUIRE(overlay_lifecycle_.deactivates == 1);
+    CHECK_FALSE(nav.has_open_overlays());
+}
+
 TEST_CASE_METHOD(OverlayActivationFixture, "close_overlay while its push is pending drops the push",
                  "[navigation][overlay][pending_push]") {
     auto& nav = NavigationManager::instance();
