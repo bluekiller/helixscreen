@@ -433,7 +433,6 @@ step_skip() {
 RUN_LOGGED_TAIL=${RUN_LOGGED_TAIL:-15}
 
 # The failure block: what ran, how it ended, and the last lines it said.
-# UNCALLED_OK: callers land in Task 5
 print_failure() { # description rc output-file [hint]
     _ui_emit "${RED}$1 failed (exit $2):${NC}"
     if [ -s "$3" ]; then
@@ -449,7 +448,6 @@ print_failure() { # description rc output-file [hint]
 # its output goes to a temp file, never a pipe, so $? is the command's own.
 # The exit code is captured with && ||, so a failing command does not abort a
 # caller running under set -e before the failure block prints.
-# UNCALLED_OK: callers land in Task 5
 run_logged() {
     _log_write "RUN $*"
     _rl_out=$(mktemp "${TMPDIR:-/tmp}/helix-run.XXXXXX") || { "$@" && return 0 || return $?; }

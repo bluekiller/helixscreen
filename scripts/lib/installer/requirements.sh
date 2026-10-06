@@ -131,7 +131,7 @@ install_runtime_deps() {
         log_info "Installing missing libraries: $missing"
         _apt_update_once
         # shellcheck disable=SC2086
-        if ! $SUDO apt-get install -y --no-install-recommends $missing; then
+        if ! run_logged $SUDO apt-get install -y --no-install-recommends $missing; then
             log_warn "Failed to install some runtime libraries: $missing"
             log_warn "The update will continue. Install manually: sudo apt-get install $missing"
         else
@@ -550,7 +550,7 @@ verify_binary_deps() {
                 # Try installing the compat package if available
                 if apt-cache show libssl1.1 >/dev/null 2>&1; then
                     log_info "Installing libssl1.1 compatibility package..."
-                    $SUDO apt-get install -y --no-install-recommends libssl1.1
+                    run_logged $SUDO apt-get install -y --no-install-recommends libssl1.1
                 else
                     log_error "libssl1.1 package not available in your repositories."
                     log_error "This binary was built against OpenSSL 1.1 but your system has OpenSSL 3."

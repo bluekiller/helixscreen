@@ -805,7 +805,7 @@ restart_moonraker() {
 
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet moonraker 2>/dev/null; then
         log_info "Restarting Moonraker to apply configuration..."
-        $SUDO systemctl restart moonraker || true
+        run_logged $SUDO systemctl restart moonraker || true
         return 0
     fi
 

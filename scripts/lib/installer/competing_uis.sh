@@ -467,7 +467,7 @@ install_qidi_3mf_thumbs() {
         log_warn "QIDI thumbnail units script missing under ${INSTALL_DIR}/config -- skipping"
         return 0
     fi
-    HELIX_QIDI_HOME="${HELIX_QIDI_HOME:-${KLIPPER_HOME:-}}" \
+    run_logged env HELIX_QIDI_HOME="${HELIX_QIDI_HOME:-${KLIPPER_HOME:-}}" \
         $SUDO "$units_sh" "${KLIPPER_USER:-}" "${KLIPPER_GROUP:-}" || true
     return 0
 }

@@ -284,3 +284,14 @@ _set_e_script() {
     run grep -c 'RUN sh -c' "$BATS_TEST_TMPDIR/install.log"
     [ "$output" = 1 ]
 }
+
+@test "enabling the service does not print systemctl's own output" {
+    . "$WORKTREE_ROOT/scripts/lib/installer/service.sh"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    printf '#!/bin/sh\necho "Created symlink /etc/systemd/system/x.wants/helixscreen.service"\n' > "$BATS_TEST_TMPDIR/bin/systemctl"
+    chmod +x "$BATS_TEST_TMPDIR/bin/systemctl"
+    PATH="$BATS_TEST_TMPDIR/bin:$PATH" SUDO="" SERVICE_NAME=helixscreen
+    run _enable_helixscreen_unit
+    [ "$status" -eq 0 ]
+    case "$output" in *"Created symlink"*) fail "systemctl output reached the screen: $output" ;; esac
+}
