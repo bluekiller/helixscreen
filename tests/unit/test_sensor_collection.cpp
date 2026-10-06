@@ -91,6 +91,14 @@ TEST_CASE("SensorCollection - reconcile keep_missing keeps the dropped sensor's 
     REQUIRE(c.state("b")->value == 2.0f);
 }
 
+TEST_CASE("SensorCollection - clear drops configs and states", "[sensors][sensor_collection]") {
+    Collection c;
+    c.reconcile({cfg("a")});
+    c.clear();
+    REQUIRE(c.empty());
+    REQUIRE(c.state("a") == nullptr);
+}
+
 TEST_CASE("SensorCollection - reconcile keeps discovery order", "[sensors][sensor_collection]") {
     Collection c;
     c.reconcile({cfg("z"), cfg("a"), cfg("m")});
@@ -187,14 +195,15 @@ TEST_CASE("SensorCollection - apply_json skips unknown sensors and malformed fie
     REQUIRE_FALSE(c.apply_json(json::object(), role_from));
     REQUIRE_FALSE(c.apply_json(json{{"sensors", "nope"}}, role_from));
 
-    const json saved = {{"sensors", json::array({
-                                        {{"klipper_name", "ghost"}, {"role", "main"}},
-                                        {{"role", "main"}},
-                                        {{"klipper_name", "a"}, {"enabled", nullptr}},
-                                    })}};
+    const json saved = {
+        {"sensors", json::array({
+                        {{"klipper_name", "ghost"}, {"role", "main"}},
+                        {{"role", "main"}},
+                        {{"klipper_name", "a"}, {"role", "main"}, {"enabled", nullptr}},
+                    })}};
     REQUIRE(c.apply_json(saved, role_from));
     REQUIRE(c.find("ghost") == nullptr);
-    REQUIRE(c.find("a")->role == Role::AUX);
+    REQUIRE(c.find("a")->role == Role::MAIN);
     REQUIRE(c.find("a")->enabled);
 }
 
