@@ -788,6 +788,7 @@
   <translation tag="Date (oldest)" de="Datum (älteste)" en="Date (oldest)" es="Fecha (más antiguo)" fr="Date (plus ancien)" it="Data (più vecchio)" ja="日付（古い順）" pt="Data (mais antigo)" ru="Дата (старые)" zh="日期（最早）"/>
   <translation tag="Day" de="Tag" en="Day" es="Día" fr="Jour" it="Giorno" ja="日" pt="Dia" ru="День" zh="日"/>
   <translation tag="Debug" de="Debug" en="Debug" es="Depuración" fr="Débogage" it="Debug" ja="デバッグ" pt="Depuração" ru="Отладка" zh="调试"/>
+  <translation tag="Deep Black" de="Tiefschwarz" en="Deep Black" es="Negro profundo" fr="Noir profond" it="Nero intenso" ja="ディープブラック" pt="Preto profundo" ru="Глубокий чёрный" zh="深黑色"/>
   <translation tag="Default" de="Standard" en="Default" es="Predeterminado" fr="Par défaut" it="Predefinito" ja="デフォルト" pt="Padrão" ru="По умолчанию" zh="默认"/>
   <translation tag="Default Parameters" de="Standardparameter" en="Default Parameters" es="Parámetros predeterminados" fr="Paramètres par défaut" it="Parametri predefiniti" ja="デフォルトのパラメータ" pt="Parâmetros padrão" ru="Параметры по умолчанию" zh="默认参数"/>
   <translation tag="Default border thickness" de="Standard-Rahmendicke" en="Default border thickness" es="Grosor de borde predeterminado" fr="Épaisseur de bordure par défaut" it="Spessore bordo predefinito" ja="デフォルトの境界線の太さ" pt="Espessura padrão da borda" ru="Толщина границы по умолчанию" zh="默认边框厚度"/>

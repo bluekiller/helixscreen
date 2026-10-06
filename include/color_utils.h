@@ -22,8 +22,9 @@ namespace helix {
  *
  * Uses HSL color space to generate descriptive names like:
  * - "Vibrant Red", "Deep Blue", "Light Muted Green"
- * - Special cases: "White", "Black", "Gray" (with a lightness prefix)
- * - Near-black (l < 8% at any saturation, or l < 18% with s < 25%) is "Black";
+ * - Special cases: "White", "Black", "Deep Black", "Gray" (with a lightness prefix)
+ * - Near-black (l < 8% at any saturation, or l < 18% with s < 25%) is "Black"
+ *   (neutral l < 4.5% is "Deep Black");
  *   near-white (l > 98%, or l >= 94% with s < 25%) is "White"
  *
  * Algorithm ported from Klipper DESCRIBE_COLOR macro.

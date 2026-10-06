@@ -277,7 +277,8 @@ TEST_CASE("describe_color: basic colors", "[color][describe]") {
 
 TEST_CASE("describe_color: grayscale", "[color][describe]") {
     REQUIRE(helix::describe_color(0xFFFFFF) == "White");
-    REQUIRE(helix::describe_color(0x000000) == "Black");
+    REQUIRE(helix::describe_color(0x000000) == "Deep Black");
+    REQUIRE(helix::describe_color(0x0A0A0A) == "Deep Black");
 
     std::string gray = helix::describe_color(0x808080);
     REQUIRE(gray.find("Gray") != std::string::npos);
