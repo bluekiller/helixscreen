@@ -745,23 +745,11 @@ void SpoolWizardOverlay::on_creation_error(const std::string& message, int rollb
 // ============================================================================
 
 std::vector<SpoolWizardOverlay::VendorEntry>
-SpoolWizardOverlay::merge_vendors(const std::vector<VendorEntry>& external_vendors,
-                                  const std::vector<VendorEntry>& server_vendors) {
-    // Build a map keyed by lowercased name for deduplication
+SpoolWizardOverlay::sorted_vendors(const std::vector<VendorEntry>& server_vendors) {
+    // Spoolman does not keep vendor names unique; the last of a name wins.
     std::unordered_map<std::string, VendorEntry> by_name;
-
-    // Server vendors first (they have IDs, so they take priority)
     for (const auto& sv : server_vendors) {
         by_name[helix::text_io::to_lower(sv.name)] = sv;
-    }
-
-    // Merge in external DB vendors -- mark from_database, keep server ID if already present
-    for (const auto& ext : external_vendors) {
-        auto [it, inserted] = by_name.try_emplace(helix::text_io::to_lower(ext.name),
-                                                  VendorEntry{ext.name, -1, false, true});
-        if (!inserted) {
-            it->second.from_database = true;
-        }
     }
 
     // Collect and sort alphabetically by name (case-insensitive)
@@ -832,7 +820,7 @@ void SpoolWizardOverlay::load_vendors() {
     auto apply = [this, tok = lifetime_.token()](std::vector<VendorEntry> server_vendors) {
         tok.defer("SpoolWizard::load_vendors_apply",
                   [this, server_vendors = std::move(server_vendors)]() {
-                      all_vendors_ = merge_vendors({}, server_vendors);
+                      all_vendors_ = sorted_vendors(server_vendors);
                       filtered_vendors_ = filter_vendor_list(all_vendors_, vendor_search_query_);
 
                       if (subjects_initialized_) {
@@ -855,7 +843,6 @@ void SpoolWizardOverlay::load_vendors() {
                 entry.name = vi.name;
                 entry.server_id = vi.id;
                 entry.from_server = true;
-                entry.from_database = false;
                 server_vendors.push_back(std::move(entry));
             }
             apply(std::move(server_vendors));
@@ -969,13 +956,10 @@ void SpoolWizardOverlay::populate_vendor_list() {
         // Set source badge
         lv_obj_t* source_label = lv_obj_find_by_name(row, "vendor_source");
         if (source_label) {
-            if (vendor.from_server && vendor.from_database) {
-                lv_label_set_text(source_label, lv_tr("Both"));
-            } else if (vendor.from_server) {
-                lv_label_set_text(source_label, "Spoolman"); // i18n: product name, do not translate
-            } else {
-                lv_label_set_text(source_label, lv_tr("Database"));
-            }
+            // A vendor not yet on the server is one the user is creating.
+            lv_label_set_text(source_label, vendor.from_server
+                                                ? "Spoolman"
+                                                : ""); // i18n: product name, do not translate
         }
     }
 
@@ -1038,7 +1022,7 @@ void SpoolWizardOverlay::confirm_create_vendor() {
     }
 
     // Set as selected vendor with server_id = -1 (will be created on final submit)
-    VendorEntry new_vendor = {name, -1, false, false};
+    VendorEntry new_vendor = {name, -1, false};
     selected_vendor_ = new_vendor;
 
     // Add to vendor lists and re-sort alphabetically
@@ -1095,99 +1079,6 @@ void SpoolWizardOverlay::confirm_create_vendor() {
 // ============================================================================
 // Filament Step Logic
 // ============================================================================
-
-std::vector<SpoolWizardOverlay::FilamentEntry>
-SpoolWizardOverlay::merge_filaments(const std::vector<FilamentInfo>& server_filaments,
-                                    const std::vector<FilamentInfo>& external_filaments) {
-    // Build a dedup set keyed by lowercase(material) + "|" + lowercase(color_hex)
-    std::unordered_map<std::string, FilamentEntry> by_key;
-
-    auto make_key = [](const std::string& material, const std::string& color_hex) {
-        return helix::text_io::to_lower(material) + "|" + helix::text_io::to_lower(color_hex);
-    };
-
-    // Helper to create a FilamentEntry from a FilamentInfo
-    auto to_entry = [](const FilamentInfo& fi, bool is_server) -> FilamentEntry {
-        FilamentEntry entry;
-        entry.name = fi.display_name();
-        entry.material = fi.material;
-        entry.color_hex = fi.color_hex;
-        // FilamentEntry::color_name means a colour word ("Red") — it is what the
-        // colour picker fills on the create-new path. FilamentInfo::filament_name
-        // is the filament's own name and already reaches the entry through
-        // display_name() above, so it must not be copied here.
-        entry.server_id = is_server ? fi.id : -1;
-        entry.vendor_id = is_server ? fi.vendor_id : -1;
-        entry.density = fi.density;
-        entry.diameter = fi.diameter;
-        entry.weight = fi.weight;
-        entry.spool_weight = fi.spool_weight;
-        entry.nozzle_temp_min = fi.nozzle_temp_min;
-        entry.nozzle_temp_max = fi.nozzle_temp_max;
-        entry.bed_temp_min = fi.bed_temp_min;
-        entry.bed_temp_max = fi.bed_temp_max;
-        entry.from_server = is_server;
-        entry.from_database = !is_server;
-        return entry;
-    };
-
-    // Server filaments first (they have real IDs, so they take priority)
-    for (const auto& sf : server_filaments) {
-        std::string key = make_key(sf.material, sf.color_hex);
-        by_key[key] = to_entry(sf, true);
-    }
-
-    // Merge in external DB filaments — fill in extras, mark from_database
-    for (const auto& ext : external_filaments) {
-        std::string key = make_key(ext.material, ext.color_hex);
-        auto it = by_key.find(key);
-        if (it != by_key.end()) {
-            // Already have this from server — mark as also from external DB
-            it->second.from_database = true;
-            // Fill in missing temperature data from external if server has none
-            if (it->second.nozzle_temp_min == 0 && ext.nozzle_temp_min > 0) {
-                it->second.nozzle_temp_min = ext.nozzle_temp_min;
-            }
-            if (it->second.nozzle_temp_max == 0 && ext.nozzle_temp_max > 0) {
-                it->second.nozzle_temp_max = ext.nozzle_temp_max;
-            }
-            if (it->second.bed_temp_min == 0 && ext.bed_temp_min > 0) {
-                it->second.bed_temp_min = ext.bed_temp_min;
-            }
-            if (it->second.bed_temp_max == 0 && ext.bed_temp_max > 0) {
-                it->second.bed_temp_max = ext.bed_temp_max;
-            }
-            if (it->second.density == 0 && ext.density > 0) {
-                it->second.density = ext.density;
-            }
-            if (it->second.weight == 0 && ext.weight > 0) {
-                it->second.weight = ext.weight;
-            }
-            if (it->second.spool_weight == 0 && ext.spool_weight > 0) {
-                it->second.spool_weight = ext.spool_weight;
-            }
-        } else {
-            // External DB-only entry
-            by_key[key] = to_entry(ext, false);
-        }
-    }
-
-    // Collect and sort by material then name
-    std::vector<FilamentEntry> result;
-    result.reserve(by_key.size());
-    for (auto& [_, entry] : by_key) {
-        result.push_back(std::move(entry));
-    }
-    std::sort(result.begin(), result.end(), [](const FilamentEntry& a, const FilamentEntry& b) {
-        std::string a_mat = helix::text_io::to_lower(a.material);
-        std::string b_mat = helix::text_io::to_lower(b.material);
-        if (a_mat != b_mat)
-            return a_mat < b_mat;
-        return a.name < b.name;
-    });
-
-    return result;
-}
 
 void SpoolWizardOverlay::load_filaments() {
     spdlog::debug("[{}] Loading filaments for vendor '{}' (server_id={})", get_name(),

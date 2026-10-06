@@ -289,8 +289,8 @@ char* format_temperature_pair_f(float current, float target, char* buffer, size_
  * @brief Format a temperature range for material specs
  *
  * Formats as "200-230°C" for AMS material temperature ranges. A range whose
- * ends are equal, or whose minimum is unset, is one temperature: "210°C". The
- * separator is the locale's.
+ * ends are equal, or with only one end set, is one temperature: "210°C". Ends
+ * given in the wrong order are swapped. The separator is the locale's.
  *
  * @param min_temp Minimum temperature in degrees
  * @param max_temp Maximum temperature in degrees

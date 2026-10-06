@@ -659,6 +659,16 @@ TEST_CASE("Temperature Utils: format_temperature_range - AMS material temps",
         REQUIRE(std::string(buf) == "215°C");
     }
 
+    SECTION("Ends in the wrong order are swapped") {
+        format_temperature_range(230, 200, buf, sizeof(buf));
+        REQUIRE(std::string(buf) == "200-230°C");
+    }
+
+    SECTION("Unset max is the single min") {
+        format_temperature_range(205, 0, buf, sizeof(buf));
+        REQUIRE(std::string(buf) == "205°C");
+    }
+
     SECTION("Zero range") {
         format_temperature_range(0, 0, buf, sizeof(buf));
         REQUIRE(std::string(buf) == "0°C");

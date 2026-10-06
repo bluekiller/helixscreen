@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <utility>
 
 namespace helix {
 namespace ui {
@@ -130,6 +131,12 @@ char* format_target_or_off(int target, char* buffer, size_t buffer_size) {
 
 char* format_temperature_range(int min_temp, int max_temp, char* buffer, size_t buffer_size,
                                bool with_unit) {
+    if (min_temp > max_temp && max_temp > 0) {
+        std::swap(min_temp, max_temp);
+    }
+    if (max_temp <= 0) {
+        max_temp = min_temp; // only the minimum is set
+    }
     if (min_temp == max_temp || min_temp <= 0) {
         snprintf(buffer, buffer_size, with_unit ? "%d°C" : "%d", max_temp);
     } else {

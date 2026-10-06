@@ -785,7 +785,6 @@
   <translation tag="Danger" de="Gefahr" en="Danger" es="Peligro" fr="Danger" it="Pericolo" ja="危険" pt="Perigo" ru="Опасность" zh="危险"/>
   <translation tag="Danger Zone" de="Gefahrenbereich" en="Danger Zone" es="Zona de peligro" fr="Zone dangereuse" it="Zona pericolosa" ja="危険ゾーン" pt="Zona de Perigo" ru="Опасная зона" zh="危险区域"/>
   <translation tag="Dark Mode" de="Dunkelmodus" en="Dark Mode" es="Modo Oscuro" fr="Mode sombre" it="Modalità scura" ja="ダークモード" pt="Modo Escuro" ru="Тёмный режим" zh="深色模式"/>
-  <translation tag="Database" de="Datenbank" en="Database" es="Base de Datos" fr="Base de données" it="Database" ja="データベース" pt="Banco de Dados" ru="База данных" zh="数据库"/>
   <translation tag="Date (newest)" de="Datum (neueste)" en="Date (newest)" es="Fecha (más reciente)" fr="Date (plus récent)" it="Data (più recente)" ja="日付（新しい順）" pt="Data (mais recente)" ru="Дата (новые)" zh="日期（最新）"/>
   <translation tag="Date (oldest)" de="Datum (älteste)" en="Date (oldest)" es="Fecha (más antiguo)" fr="Date (plus ancien)" it="Data (più vecchio)" ja="日付（古い順）" pt="Data (mais antigo)" ru="Дата (старые)" zh="日期（最早）"/>
   <translation tag="Day" de="Tag" en="Day" es="Día" fr="Jour" it="Giorno" ja="日" pt="Dia" ru="День" zh="日"/>
