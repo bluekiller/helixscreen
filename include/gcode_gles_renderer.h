@@ -387,6 +387,34 @@ class GCodeGLESRenderer {
     void render_selection_tag(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
                               int layer_start, int layer_end);
 
+    /**
+     * @brief Grey out the excluded objects and tag them for the red hatch.
+     *
+     * Re-draws each excluded object's runs with the lit program in flat grey
+     * (LEQUAL, so only where it is frontmost), then writes kExcludedAlpha over
+     * the solid range for stroke_exclusion_hatch() to find in the readback. The
+     * ghost range is greyed at ghost opacity and left untagged. Runs before
+     * render_selection_tag(), whose tag wins on an object that is both.
+     */
+    void render_excluded(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
+                         int solid_start, int solid_end, int ghost_start, int ghost_end);
+
+    /// Interned-index lookup of `names` in `gcode`; empty when none of them is in it.
+    static std::vector<bool> object_mask(const ParsedGCodeFile& gcode,
+                                         const std::unordered_set<std::string>& names);
+
+    /// Draw every object run in [layer_start, layer_end] whose object is set in
+    /// `mask`, with the currently bound program. `a_normal` < 0 binds position only.
+    size_t draw_object_runs(const std::vector<bool>& mask, int layer_start, int layer_end,
+                            int a_position, int a_normal);
+
+    /// Overwrite the alpha byte of `mask`'s visible pixels with `tag`.
+    void write_alpha_tag(const std::vector<bool>& mask, const glm::mat4& mvp_dequant,
+                         int layer_start, int layer_end, uint8_t tag);
+
+    /// One glGetError() for an overlay pass; on a fatal error, fall back to 2D.
+    bool check_overlay_error(const char* pass);
+
     // ====== Frame Skip ======
 
     struct CachedRenderState {
