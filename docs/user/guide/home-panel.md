@@ -893,6 +893,8 @@ The list is filtered to your printer's motion type, the same way the setup wizar
 
 ### Status Chips on the Printer Image
 
+> Added in 1.1.
+
 While the printer is working, small chips on the printer image show what each part is doing:
 
 - **Nozzle, bed and chamber** - a temperature chip appears while the heater has a target, and stays, greyed, until a heater you turned off has cooled below 50°C. The chamber chip appears only on printers with a chamber heater.

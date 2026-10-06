@@ -7,7 +7,7 @@
 #include "config.h"
 #include "config_testing.h"
 #include "helix_fs.h"
-#include "input_settings_manager.h"
+#include "input_defaults.h"
 #include "json_utils.h"
 #include "platform_capabilities.h"
 #include "text_io.h"
@@ -1226,7 +1226,7 @@ static void migrate_v26_to_v27(json& config, const std::string& /*config_path*/)
         return;
     }
     const int stored = input["scroll_throw"].get<int>();
-    const int migrated = migrated_scroll_throw(stored, InputSettingsManager::DEFAULT_SCROLL_THROW);
+    const int migrated = migrated_scroll_throw(stored, helix::input_defaults::SCROLL_THROW);
     if (migrated != stored) {
         input["scroll_throw"] = migrated;
         spdlog::info("[Config] Migration v27: input.scroll_throw {} -> {}", stored, migrated);
