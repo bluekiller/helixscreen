@@ -56,6 +56,9 @@ android {
                         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
                     ]
                 }
+                if (System.getenv("ANDROID_KEYSTORE_PATH") || project.hasProperty('helixDiagUploads')) {
+                    cmakeArgs += ["-DHELIX_DIAGNOSTIC_UPLOADS=ON"]
+                }
                 arguments(*cmakeArgs)
                 abiFilters(*helixAbis)
             }
