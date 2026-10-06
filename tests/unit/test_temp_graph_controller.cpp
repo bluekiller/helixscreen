@@ -351,6 +351,46 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     REQUIRE(count_series_points_eq(controller->graph(), 2000) > 0);
 }
 
+TEST_CASE_METHOD(TempGraphControllerFixture,
+                 "A paused graph takes the seed backfill on resume and not while paused",
+                 "[controller][temp_graph_controller][backfill]") {
+    auto& ps = get_printer_state();
+    TemperatureHistoryManager mgr(ps);
+    ScopedTestHistoryManager installed(&mgr);
+
+    TempGraphControllerConfig cfg;
+    cfg.series = {{"extruder", lv_color_hex(0xFF4444), true}};
+    auto controller = std::make_unique<TempGraphController>(screen, cfg);
+    REQUIRE(controller->is_valid());
+    auto& queue = helix::ui::UpdateQueue::instance();
+    queue.drain();
+    lv_timer_handler_safe();
+    controller->pause();
+
+    TemperatureStore store;
+    TemperatureStoreSeries series;
+    for (int i = 0; i < 40; ++i) {
+        series.temperatures.push_back(200.0f);
+        series.targets.push_back(210.0f);
+        series.powers.push_back(0.5f);
+    }
+    store["extruder"] = series;
+    const int64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::system_clock::now().time_since_epoch())
+                               .count();
+    mgr.seed_from_store(store, now_ms);
+
+    TempGraphController::refresh_all_from_history();
+    queue.drain();
+    lv_timer_handler_safe();
+    CHECK(count_series_points_eq(controller->graph(), 2000) == 0);
+
+    controller->resume();
+    queue.drain();
+    lv_timer_handler_safe();
+    CHECK(count_series_points_eq(controller->graph(), 2000) > 0);
+}
+
 // ============================================================================
 // Regression tests for #1117 — deferred-delete / queued-callback races
 // ============================================================================
