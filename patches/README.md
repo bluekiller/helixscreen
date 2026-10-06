@@ -63,6 +63,7 @@ Applied in order by `mk/patches.mk`. Grouped by subsystem.
 | `lvgl_slider_scroll_chain.patch` | `lv_slider.c` | Block perpendicular scroll chain during drag (touchscreen UX) | PR #9828 closed — still needed at v9.5.0 |
 | `lvgl_arc_draw_guard.patch` | `lv_draw_arc.c`, `lv_arc.c` | Guard negative inner radius and zero-radius arc invalidation | PR #9830 |
 | `lvgl-evdev-protocol-a.patch` | `lv_evdev.c`, `lv_evdev.h` | Protocol-A touch release synthesis for Goodix GT9xx, plus `lv_evdev_get_last_raw()` - reads back the pre-swap, pre-scale digitizer coordinate so three-point calibration can solve for the true ABS range and axis transposition (#1259, #1276) | PR #9829 (release synthesis only; the raw getter is project-specific and is not part of the PR) |
+| `lvgl_scroll_throw_time_based.patch` | `lv_indev.c`, `lv_indev_private.h`, `lv_indev_scroll.c` | Scroll momentum by elapsed time: the throw vector is sampled in pixels per `LV_DEF_REFR_PERIOD` however slowly the device reads, and each throw step decays and moves by the ms since the last one, so a 300 ms frame glides like ten 33 ms frames. Identical to stock at the nominal period | Project-specific |
 
 ### Core & Stdlib
 
@@ -106,6 +107,16 @@ LVGL 9.5 removed the entire XML system from core. These patches are now in `lib/
 | `libhv-websocket-backoff-on-upgrade.patch` | Undo `open()`'s premature backoff reset when the upgrade handshake never reached WS_OPENED — a failing upgrade used to restart the reconnect delay from scratch on every attempt |
 | `libhv-websocket-open-install-once.patch` | Install the TcpClient-level channel callbacks exactly once in the constructor — `open()` reassigned those `std::function` members from the caller's thread, freeing the closure's heap storage under a concurrently running callback |
 
+## Lua Patches
+
+Base: Lua v5.4.9 (`lib/lua`). Lua is compiled as C++ for the plugin runtime (`src/plugin/`).
+
+| Patch | Purpose |
+|-------|---------|
+| `lua-pattern-step-budget.patch` | Every 16384 calls to `lstrlib.c`'s `match()`, run the state's count hook with a NULL `lua_Debug`. The count hook counts VM instructions, so it never fires inside a C function, and a backtracking pattern such as `("a"):rep(1e4):find(".-.-.-.-x")` would freeze the UI past the plugin time budget. `LuaRuntime::budget_hook` is that hook |
+
+A worktree set up before `lib/lua` joined the private checkouts still has it as a symlink into the main tree, so its build patches the shared copy. Convert it with `scripts/setup-worktree.sh <branch> --setup-only` from the main tree; `test -L lib/lua` in the worktree then reports false.
+
 ## Usage
 
 ```bash
@@ -115,7 +126,7 @@ make apply-patches
 # Force reset and reapply all
 make reapply-patches
 
-# Regenerate a patch after manual edits in lib/lvgl/ — SEE THE WARNING BELOW FIRST
+# Regenerate a patch after manual edits in lib/lvgl/ (or lib/libhv/, lib/lua/) — SEE THE WARNING BELOW FIRST
 git -C lib/lvgl diff src/path/to/file.c > patches/patch_name.patch
 ```
 

@@ -582,6 +582,7 @@ void GCodeLayerRenderer::invalidate_solid_cache() {
     cached_up_to_layer_ = -1;
     ssao_cache_valid_ = false;
     selection_rim_stamped_ = false;
+    exclusion_hatch_stamped_ = false;
 }
 
 void GCodeLayerRenderer::invalidate_cache() {
@@ -860,6 +861,7 @@ int GCodeLayerRenderer::render_layers_to_cache(int from_layer, int to_layer) {
                           layer_idx, last_rendered);
             if (last_rendered >= from_layer) {
                 ssao_cache_valid_ = false;
+                exclusion_hatch_stamped_ = false;
             }
             return last_rendered;
         }
@@ -933,24 +935,17 @@ int GCodeLayerRenderer::render_layers_to_cache(int from_layer, int to_layer) {
             // rim scan after the cache completes turns that tag into the white
             // silhouette; nothing here paints white.
             const SelectionFlags sel = selection_.classify(seg.object_name_index);
-            const auto style =
-                selection::resolve(sel_palette_, sel.excluded, sel.highlighted, seg.is_extrusion);
-            if (style.override_color) {
-                r = sel_palette_.excluded_r();
-                g = sel_palette_.excluded_g();
-                b = sel_palette_.excluded_b();
+            const auto style = selection::resolve(sel.excluded, sel.highlighted, seg.is_extrusion);
+            uint32_t rgb = (r << 16) | (g << 8) | b;
+            if (style.grey) {
+                rgb = selection::excluded_grey(rgb);
             }
-
-            const uint32_t color =
-                (static_cast<uint32_t>(style.opa) << 24) | (r << 16) | (g << 8) | b;
+            const uint32_t color = (static_cast<uint32_t>(style.opa) << 24) | rgb;
 
             // A tagged segment must not be antialiased: blend_coverage writes
             // coverage into alpha, which would strip the tag from precisely the
-            // edge pixels the rim is derived from. Excluded objects were already
-            // aliased for their own reason (partial alpha over partial alpha
-            // compounds into mud), so this only changes selected objects.
-            const bool aa = antialias_enabled_.load(std::memory_order_relaxed) && !style.tagged &&
-                            !style.override_color;
+            // edge pixels the rim and the hatch are derived from.
+            const bool aa = antialias_enabled_.load(std::memory_order_relaxed) && !style.tagged;
             helix::gcode::thick_line(cache_target(), p1.x, p1.y, p2.x, p2.y, color, line_width,
                                      aa ? helix::gcode::Aa::On : helix::gcode::Aa::Off);
             ++segments_rendered;
@@ -967,6 +962,8 @@ int GCodeLayerRenderer::render_layers_to_cache(int from_layer, int to_layer) {
     // Cache content changed, so the shading is stale. apply_ssao() restores
     // before it re-scans, so simply marking it invalid is enough here.
     ssao_cache_valid_ = false;
+    // New pixels carry the excluded tag unstriped.
+    exclusion_hatch_stamped_ = false;
 
     return last_rendered;
 }
@@ -1174,6 +1171,18 @@ void GCodeLayerRenderer::render(lv_layer_t* layer, const lv_area_t* widget_area)
                           last_segment_count_,
                           antialias_enabled_.load(std::memory_order_relaxed) ? "on" : "off",
                           layers_per_frame_);
+        }
+
+        // Unlike the rim, the hatch is safe to re-stamp onto a grown cache: it
+        // keys on the pixel's position, not on the shape's boundary.
+        if (selection_.any_excluded() && !exclusion_hatch_stamped_ &&
+            cached_up_to_layer_ >= target_layer) {
+            helix::gcode::stroke_exclusion_hatch(cache_target(), selection::kHatchPeriodPx,
+                                                 selection::kHatchStripePx, sel_palette_.excluded,
+                                                 helix::gcode::ChannelOrder::Bgra,
+                                                 helix::gcode::RowOrder::TopDown);
+            exclusion_hatch_stamped_ = true;
+            ssao_cache_valid_ = false;
         }
 
         if (selection_.any_highlighted() && !selection_rim_stamped_ &&
@@ -1541,25 +1550,22 @@ std::optional<std::string> GCodeLayerRenderer::pick_object_at(int screen_x, int 
 }
 
 lv_color_t GCodeLayerRenderer::get_segment_color(const ToolpathSegment& seg) const {
-    // Check excluded state first. Highlight is deliberately absent: a selected
-    // object keeps its filament color and is marked by the white rim instead.
-    const SelectionFlags sel = selection_.classify(seg.object_name_index);
-    if (sel.excluded) {
-        return lv_color_hex(sel_palette_.excluded);
-    }
-
-    // Existing logic below
+    // Highlight is deliberately absent: a selected object keeps its filament
+    // color and is marked by the white rim instead. An excluded object keeps its
+    // shading but drains to grey; its stripes are a cache pass, not a color.
+    lv_color_t base = color_extrusion_;
     if (!seg.is_extrusion) {
-        return color_travel_;
+        base = color_travel_;
+    } else if (is_support_segment(seg)) {
+        base = color_support_;
+    } else if (tool_palette_.has_tool_colors()) {
+        // Per-tool color from palette (multi-color prints or AMS overrides)
+        base = tool_palette_.resolve(seg.tool_index, color_extrusion_);
     }
-    if (is_support_segment(seg)) {
-        return color_support_;
+    if (selection_.classify(seg.object_name_index).excluded) {
+        return lv_color_hex(selection::excluded_grey(lv_color_to_u32(base) & 0xFFFFFF));
     }
-    // Per-tool color from palette (multi-color prints or AMS overrides)
-    if (tool_palette_.has_tool_colors()) {
-        return tool_palette_.resolve(seg.tool_index, color_extrusion_);
-    }
-    return color_extrusion_;
+    return base;
 }
 
 void GCodeLayerRenderer::render_selection_brackets(lv_layer_t* layer) {
@@ -1965,24 +1971,17 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
                 uint8_t tb = wash_to_white(tc.blue, GHOST_WASH_PERCENT) * bright_pct / 100;
                 seg_color = (255u << 24) | (tr << 16) | (tg << 8) | tb;
             }
+            // Same tags the solid cache applies, for the same reason: the rim and
+            // the hatch are derived from them once the buffer is complete. The
+            // ghost is what is visible for most of a print, so a cue that skipped
+            // it would be a cue you cannot see.
             const SelectionFlags ghost_sel = local_selection.classify(seg.object_name_index);
-            if (ghost_sel.excluded) {
-                // Excluded: dim orange-red
-                uint8_t ex_r = local_palette.excluded_r() * GHOST_INFILL_BRIGHT_PERCENT / 100;
-                uint8_t ex_g = local_palette.excluded_g() * GHOST_INFILL_BRIGHT_PERCENT / 100;
-                uint8_t ex_b = local_palette.excluded_b() * GHOST_INFILL_BRIGHT_PERCENT / 100;
-                seg_color = (255u << 24) | (ex_r << 16) | (ex_g << 8) | ex_b;
-            }
-
-            // Same tag the solid cache applies, for the same reason: the rim is
-            // derived from it once the buffer is complete. The ghost is what is
-            // visible for most of a print, so a cue that skipped it would be a
-            // cue you cannot see.
             const auto ghost_style =
-                selection::resolve(local_palette, false, ghost_sel.highlighted, seg.is_extrusion);
-            if (ghost_style.tagged) {
-                seg_color = (static_cast<uint32_t>(ghost_style.opa) << 24) | (seg_color & 0xFFFFFF);
+                selection::resolve(ghost_sel.excluded, ghost_sel.highlighted, seg.is_extrusion);
+            if (ghost_style.grey) {
+                seg_color = selection::excluded_grey(seg_color & 0xFFFFFF);
             }
+            seg_color = (static_cast<uint32_t>(ghost_style.opa) << 24) | (seg_color & 0xFFFFFF);
 
             // Draw line using Bresenham algorithm (width-aware)
             helix::gcode::thick_line(ghost_target(), p1.x, p1.y, p2.x, p2.y, seg_color,
@@ -2003,6 +2002,12 @@ void GCodeLayerRenderer::background_ghost_render_thread(GhostSnapshot snap) {
     // The ghost buffer is rendered whole on every pass, so the rim can be stamped
     // straight into it with no staleness to manage — unlike the solid cache,
     // which grows a layer at a time.
+    if (local_selection.any_excluded()) {
+        helix::gcode::stroke_exclusion_hatch(ghost_target(), selection::kHatchPeriodPx,
+                                             selection::kHatchStripePx, local_palette.excluded,
+                                             helix::gcode::ChannelOrder::Bgra,
+                                             helix::gcode::RowOrder::TopDown);
+    }
     if (local_selection.any_highlighted()) {
         helix::gcode::stroke_selection_rim(ghost_target(),
                                            selection::outline_width_px(ghost_raw_width_),

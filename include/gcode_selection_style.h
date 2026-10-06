@@ -29,17 +29,24 @@
 
 namespace helix::gcode::selection {
 
-/// 60% opacity, spelled as the literal the software rasterizer needs. Equals
-/// LV_OPA_60 for the lv_draw_line paths. An alpha, not a color, so it stays
-/// here rather than becoming an XML token.
-inline constexpr uint8_t kExcludedOpa = 153;
+/// An excluded object keeps its shading but loses its hue: excluded_grey() maps
+/// the renderer's shaded color to a grey this bright at full white, plus this
+/// floor so the darkest wall still reads against the dark viewer background.
+inline constexpr int kExcludedGreyScalePct = 50;
+inline constexpr int kExcludedGreyFloor = 70;
+
+/// Hatch stripes over an excluded object, in SCREEN PIXELS at the widget size.
+/// The GLES renderer scales these into its readback the same way it scales the
+/// rim (scale_px).
+inline constexpr int kHatchPeriodPx = 6;
+inline constexpr int kHatchStripePx = 2;
 
 /**
  * @brief The three selection colors, resolved once from ui_xml/gcode_tokens.xml.
  *
- * These used to be constexpr literals in this header. They are XML tokens now
- * (`gcode_selection_outline`, `_excluded`, `_bracket`), which makes the XML the
- * single source of truth and this struct the way the value reaches a renderer.
+ * They are XML tokens (`gcode_selection_outline`, `_excluded`, `_bracket`), which
+ * makes the XML the single source of truth and this struct the way the value
+ * reaches a renderer.
  *
  * The member defaults are NOT a production fallback - every shipped tree
  * carries ui_xml, and no packaging rule omits it. They exist for the headless
@@ -56,21 +63,9 @@ inline constexpr uint8_t kExcludedOpa = 153;
  * ghost thread would be a background-thread LVGL access.
  */
 struct Palette {
-    uint32_t excluded = 0xFF6B35; ///< Orange-red for excluded (cancelled) objects
+    uint32_t excluded = 0xFF3B30; ///< Red hatch stripes over excluded (cancelled) objects
     uint32_t outline = 0xFFFFFF;  ///< White silhouette rim on the selected object
     uint32_t bracket = 0xC0C0C0;  ///< Light grey 24-arm corner wireframe
-
-    /// Channel split of `excluded`, for rasterizer paths that assemble ARGB
-    /// words byte by byte rather than passing a packed color.
-    constexpr uint8_t excluded_r() const {
-        return (excluded >> 16) & 0xFF;
-    }
-    constexpr uint8_t excluded_g() const {
-        return (excluded >> 8) & 0xFF;
-    }
-    constexpr uint8_t excluded_b() const {
-        return excluded & 0xFF;
-    }
 };
 
 /**
@@ -122,6 +117,14 @@ inline int outline_width_px(int target_width_px) {
     return (target_width_px <= kSmallPanelWidthPx) ? kOutlineSmallPanelPx : kOutlinePx;
 }
 
+/// A widget-pixel length expressed in a readback `fbo_width_px` wide displayed at
+/// `widget_width_px`, never below 1. Shared by the rim and the hatch.
+inline int scale_px(int px, int widget_width_px, int fbo_width_px) {
+    const float scale =
+        static_cast<float>(fbo_width_px) / static_cast<float>(std::max(1, widget_width_px));
+    return std::max(1, static_cast<int>(std::lround(static_cast<float>(px) * scale)));
+}
+
 /// Rim width for a readback `fbo_width_px` wide that is displayed at a widget
 /// `widget_width_px` wide: the GLES renderer strokes its rim on the readback,
 /// which supersampled stills render at 2x and moving frames at half resolution.
@@ -130,60 +133,61 @@ inline int outline_width_px(int target_width_px) {
 /// than one pixel, and a highlighted object with no visible rim reads as
 /// un-highlighted.
 inline int outline_width_px_scaled(int widget_width_px, int fbo_width_px) {
-    const float scale =
-        static_cast<float>(fbo_width_px) / static_cast<float>(std::max(1, widget_width_px));
-    const int scaled = static_cast<int>(std::lround(outline_width_px(widget_width_px) * scale));
-    return std::max(1, scaled);
+    return scale_px(outline_width_px(widget_width_px), widget_width_px, fbo_width_px);
 }
 
 /**
  * @brief Resolved draw style for one segment.
  *
- * `override_color == false` means "keep whatever color the renderer computed"
- * (filament color, tool palette, depth shading). A selected object deliberately
- * keeps its own color: the halo carries the selection, as in Orca. Only
- * exclusion recolors.
+ * A selected object keeps its own color: the rim carries the selection, as in
+ * Orca. An excluded object keeps its shading but is drained to grey
+ * (excluded_grey) and tagged, so stroke_exclusion_hatch() can stripe it red.
  */
 struct SegmentStyle {
-    bool override_color = false;
-    uint32_t rgb = 0;  ///< valid only when override_color
-    uint8_t opa = 255; ///< selection/exclusion opacity; renderer applies its own for travels
+    bool grey = false; ///< pass the renderer's shaded color through excluded_grey()
+    uint8_t opa = 255; ///< alpha byte: opaque, or the tag a post-pass reads
 
-    /// True when `opa` is kSelectedAlpha, i.e. this segment carries the tag the
-    /// rim scan reads. The renderer must draw it WITHOUT antialiasing: the AA
-    /// rasterizer writes coverage into alpha and would erase the tag along every
-    /// edge, which is where the rim needs it most.
+    /// True when `opa` is a tag (kSelectedAlpha or kExcludedAlpha). The renderer
+    /// must draw the segment WITHOUT antialiasing: the AA rasterizer writes
+    /// coverage into alpha and would erase the tag along every edge, which is
+    /// where the rim needs it most.
     bool tagged = false;
 };
 
 /**
  * @brief Decide how a segment draws given its selection and exclusion state.
  *
- * Exclusion wins on color: that mirrors the existing cache-path precedence,
- * where the excluded branch `continue`s before the highlight check runs. The
- * halo is still emitted for an excluded-and-selected object, because you have to
- * see which object you picked in order to un-exclude it.
+ * Excluded-and-selected draws grey inside the white rim, without stripes: a
+ * pixel carries one tag, and you have to see which object you picked in order
+ * to un-exclude it.
  *
- * Travels never halo. A travel move belonging to the selected object cuts across
- * the interior and would spray white through the middle of the silhouette.
+ * Travels never take the selection tag. A travel move belonging to the selected
+ * object cuts across the interior and would spray white through the middle of
+ * the silhouette.
  */
-inline SegmentStyle resolve(const Palette& palette, bool excluded, bool highlighted,
-                            bool is_extrusion) {
+inline SegmentStyle resolve(bool excluded, bool highlighted, bool is_extrusion) {
     SegmentStyle s;
     if (excluded) {
-        s.override_color = true;
-        s.rgb = palette.excluded;
-        s.opa = kExcludedOpa;
+        s.grey = true;
+        s.opa = kExcludedAlpha;
+        s.tagged = true;
     }
     if (highlighted && is_extrusion) {
-        // The tag replaces the opacity, including the excluded object's 60%: an
-        // object cannot be tagged and faded at once, and being able to see what
-        // you just picked matters more than the fade. Excluded-and-selected
-        // draws opaque orange inside a white rim, which reads correctly.
         s.opa = kSelectedAlpha;
         s.tagged = true;
     }
     return s;
+}
+
+/// The grey an excluded object draws in: the luminance of its shaded `rgb`,
+/// compressed toward the middle so shading survives but no hue does.
+inline uint32_t excluded_grey(uint32_t rgb) {
+    const uint32_t r = (rgb >> 16) & 0xFF;
+    const uint32_t g = (rgb >> 8) & 0xFF;
+    const uint32_t b = rgb & 0xFF;
+    const uint32_t luma = (r * 77 + g * 150 + b * 29) >> 8; // Rec.601, 0..255
+    const uint32_t v = kExcludedGreyFloor + luma * kExcludedGreyScalePct / 100;
+    return (v << 16) | (v << 8) | v;
 }
 
 /**

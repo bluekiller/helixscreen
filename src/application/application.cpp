@@ -37,6 +37,7 @@
 #include "hardware_validator.h"
 #include "helix_version.h"
 #include "http_executor.h"
+#include "input_settings_manager.h"
 #include "job_queue_state.h"
 #include "keyboard_shortcuts.h"
 #include "lan_client_auth_router.h"
@@ -297,7 +298,9 @@ bool s_safe_mode_active = false;
  * that have triggered SIGBUS on resource-constrained MIPS/ARM devices when
  * external supervisors aggressively respawn us. Persisted state (settings,
  * telemetry queue, crash history) is written on each change, so nothing is
- * lost by skipping the explicit flush.
+ * lost by skipping the explicit flush. The exception is plugin storage, which
+ * is written up to 500 ms after a change: a SIGTERM inside that window drops
+ * the plugin's latest helix.storage.set calls.
  *
  * Async-signal-safe: only write(2) and _exit(2) used — no spdlog.
  */
@@ -1290,7 +1293,8 @@ bool Application::init_display() {
     config.size_was_explicit = m_args.size_was_explicit;
 
     // Get scroll config from settings.json
-    config.scroll_throw = m_config->get<int>("/input/scroll_throw", 25);
+    config.scroll_throw =
+        m_config->get<int>("/input/scroll_throw", InputSettingsManager::DEFAULT_SCROLL_THROW);
     config.scroll_limit = m_config->get<int>("/input/scroll_limit", 10);
 
     // Allow headless/VNC operation without a touchscreen

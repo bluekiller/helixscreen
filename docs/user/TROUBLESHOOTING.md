@@ -1093,7 +1093,7 @@ Both live under `input` in `settings.json` (path varies by platform - see [Confi
 
 > **Stop the service before editing `settings.json`** — the daemon rewrites the file periodically and your edits can be clobbered. Stop, edit, start.
 >
-> **Want to try a value before committing it?** `scroll_limit` is a slider under **Settings > Touch & Input** on the printer itself (Scroll Engage Distance), so you can feel the change immediately and keep it only if it helps; it takes effect after the restart the panel prompts for. `scroll_throw` has no on-screen control, so set it in `settings.json` directly.
+> **Want to try a value before committing it?** `scroll_limit` is a slider under **Settings > Touch & Input** on the printer itself (Scroll Engage Distance), so you can feel the change immediately and keep it only if it helps; it takes effect on the next touch, no restart needed. `scroll_throw` has no on-screen control, so set it in `settings.json` directly.
 
 ---
 

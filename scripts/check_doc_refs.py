@@ -348,7 +348,7 @@ def patch_created_files(targets):
             roots.append(root)
     roots.append(os.getcwd())
     created = set()
-    subs = {'LVGL_DIR': 'lib/lvgl', 'LIBHV_DIR': 'lib/libhv'}
+    subs = {'LVGL_DIR': 'lib/lvgl', 'LIBHV_DIR': 'lib/libhv', 'LUA_DIR': 'lib/lua'}
     for root in roots:
         mk = os.path.join(root, 'mk', 'patches.mk')
         pdir = os.path.join(root, 'patches')

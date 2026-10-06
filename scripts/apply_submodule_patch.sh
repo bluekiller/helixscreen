@@ -102,6 +102,7 @@ marker_state() {
     --tsv "${HELIX_PATCH_MARKERS_TSV:-$here/../mk/patch-markers.tsv}" \
     --lvgl "${HELIX_MARKER_LVGL_DIR:-lib/lvgl}" \
     --libhv "${HELIX_MARKER_LIBHV_DIR:-lib/libhv}" \
+    --lua "${HELIX_MARKER_LUA_DIR:-lib/lua}" \
     --only "$(basename "$patch_file")" >/dev/null 2>&1
 }
 

@@ -288,27 +288,24 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // caused stale reads when the subject changed between notification and handler.
     print_thumbnail_path_observer_ = observe<const char*>(
         printer_state_.print_state().get_print_thumbnail_path_subject(), this,
-        [](PrintStatusWidget* self, const char* path) {
+        [](PrintStatusWidget* self, const char* /*path*/) {
             if (!self->widget_obj_)
                 return;
-            self->on_print_thumbnail_path_changed(path);
+            self->defer_apply_active_thumbnail();
         },
         printer_state_.get_subjects_lifetime(), Dispatch::Immediate);
 
 #if defined(HELIX_PLATFORM_ESP32)
     // ESP32 has no disk thumbnail cache, so print_thumbnail_path stays empty and
     // the image arrives as a PSRAM buffer instead. Observe the generation counter
-    // ActivePrintMediaManager bumps when it installs one. observe<int>
-    // for the same reason as the path observer above: the handler only does
-    // lv_image_set_src plus a shared_ptr swap (no observer lifecycle changes, no
-    // widget destruction), and the setter always runs on the UI thread — so the
-    // extra deferral would only add a frame and a stale-read window.
+    // ActivePrintMediaManager bumps when it installs or clears one, and
+    // join the path observer's deferred apply, which reads whichever is current.
     print_psram_thumb_observer_ = observe<int>(
         printer_state_.print_state().get_print_psram_thumb_gen_subject(), this,
         [](PrintStatusWidget* self, int /*gen*/) {
             if (!self->widget_obj_)
                 return;
-            self->apply_esp_psram_thumbnail();
+            self->defer_apply_active_thumbnail();
             // The thumbnail can land after the card went idle for a finished
             // print; the idle thumbs show it only through a fresh resolve.
             if (!self->is_active_) {
@@ -396,14 +393,6 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
         const PrintState state = printer_state_.print_state().get_print_lifecycle();
         if (job_holds_machine(state)) {
             on_print_state_changed(state);
-#if defined(HELIX_PLATFORM_ESP32)
-            // Widget instances are recycled across page rebuilds, so a fresh
-            // attach lands on a print that already has its thumbnail loaded and
-            // no further generation bump coming. Re-apply from the held buffer;
-            // on other platforms the print_thumbnail_path observer's initial
-            // notification covers this.
-            apply_esp_psram_thumbnail();
-#endif
         } else {
             // Defer the initial idle reset: synchronous reset_print_card_to_idle
             // cascades lv_image_set_src → update_align → lv_obj_update_layout up
@@ -457,6 +446,7 @@ void PrintStatusWidget::detach() {
     lifetime_.invalidate();
     live_instances().erase(this);
     idle_reset_pending_ = false;
+    active_apply_pending_ = false;
     // The next attach may bring fresh XML thumbs that show nothing of this.
     shown_idle_thumb_ = {};
 
@@ -794,17 +784,6 @@ void PrintStatusWidget::on_print_state_changed(PrintState state) {
     }
 }
 
-void PrintStatusWidget::on_print_thumbnail_path_changed(const char* path) {
-    if (!widget_obj_ || !print_card_active_thumb_) {
-        return;
-    }
-
-    // No empty-path branch: ActivePrintMediaManager is the subject's sole writer
-    // and publishes no_thumbnail_placeholder() — the very image this used to
-    // substitute — when a file has no thumbnail, so the value is always an image.
-    defer_apply_active_thumbnail(path);
-}
-
 #if defined(HELIX_PLATFORM_ESP32)
 void PrintStatusWidget::apply_esp_psram_thumbnail() {
     if (!widget_obj_ || !print_card_active_thumb_) {
@@ -958,36 +937,60 @@ void PrintStatusWidget::defer_reset_print_card_to_idle() {
     });
 }
 
-void PrintStatusWidget::defer_apply_active_thumbnail(const char* path) {
-    // Copy the path: the subject may publish again before the tick, and the
-    // pointer it handed us is its own buffer. The LifetimeToken is what keeps
-    // this safe: detach() invalidates it, so a pending write cannot land on a
-    // widget that has already let go of its objects.
-    //
-    // run_next_tick escapes the UpdateQueue::process_pending() batch this
-    // observer body runs in, the same escape defer_reset_print_card_to_idle()
-    // makes for the idle sibling.
-    helix::ui::run_next_tick(
-        lifetime_.token(), [self = this, thumb_path = std::string(path ? path : "")]() {
-            if (!self->widget_obj_ || !self->print_card_active_thumb_)
-                return;
+void PrintStatusWidget::defer_apply_active_thumbnail() {
+    if (active_apply_pending_) {
+        return;
+    }
+    active_apply_pending_ = true;
+    // run_next_tick escapes the UpdateQueue::process_pending() batch the
+    // observers run in, the same escape defer_reset_print_card_to_idle() makes
+    // for the idle sibling. detach() invalidates lifetime_, so a callback queued
+    // before it is skipped and the next attach queues its own.
+    helix::ui::run_next_tick(lifetime_.token(), [this]() {
+        if (!active_apply_pending_) {
+            return;
+        }
+        active_apply_pending_ = false;
+        if (!widget_obj_ || !print_card_active_thumb_) {
+            return;
+        }
+        // Trigger hardening (#1001), matching reset_print_card_to_idle(): by the
+        // time the tick fires, populate_page's safe_clean_children() may have
+        // reparented this subtree onto lv_layer_top() to await deletion.
+        // lv_image_set_src → update_align → lv_obj_update_layout would then walk
+        // the whole layer and recurse into sibling condemned grid subtrees whose
+        // children may already be freed → SIGSEGV in grid calc().
+        if (!helix::ui::is_on_active_screen(print_card_active_thumb_)) {
+            spdlog::debug("[PrintStatusWidget] Skip active thumbnail: off active screen "
+                          "(mid-teardown)");
+            return;
+        }
+        apply_active_thumbnail();
+    });
+}
 
-            // Trigger hardening (#1001), matching reset_print_card_to_idle():
-            // by the time the tick fires, populate_page's safe_clean_children()
-            // may have reparented this subtree onto lv_layer_top() to await
-            // deletion. lv_image_set_src → update_align → lv_obj_update_layout
-            // would then walk the whole layer and recurse into sibling condemned
-            // grid subtrees whose children may already be freed → SIGSEGV in
-            // grid calc().
-            if (!helix::ui::is_on_active_screen(self->print_card_active_thumb_)) {
-                spdlog::debug("[PrintStatusWidget] Skip active thumbnail: off active screen "
-                              "(mid-teardown)");
-                return;
-            }
-
-            lv_image_set_src(self->print_card_active_thumb_, thumb_path.c_str());
-            spdlog::info("[PrintStatusWidget] Active print thumbnail updated: {}", thumb_path);
-        });
+void PrintStatusWidget::apply_active_thumbnail() {
+#if defined(HELIX_PLATFORM_ESP32)
+    // ESP32 publishes only the placeholder as a path; a loaded image is the
+    // PSRAM buffer.
+    if (printer_state_.print_state().get_print_psram_thumbnail()) {
+        apply_esp_psram_thumbnail();
+        return;
+    }
+    // Cleared for a new file or a cleared print: holding the old buffer keeps
+    // PSRAM the next file's decode needs.
+    if (esp_thumbnail_) {
+        unpoint_thumbs_from(esp_thumbnail_->dsc());
+        esp_thumbnail_.reset();
+    }
+#endif
+    // No empty-path branch: ActivePrintMediaManager publishes
+    // no_thumbnail_placeholder() when a file has no thumbnail, so the value is
+    // always an image.
+    const char* path =
+        lv_subject_get_string(printer_state_.print_state().get_print_thumbnail_path_subject());
+    lv_image_set_src(print_card_active_thumb_, path);
+    spdlog::info("[PrintStatusWidget] Active print thumbnail updated: {}", path);
 }
 
 void PrintStatusWidget::reset_print_card_to_idle() {

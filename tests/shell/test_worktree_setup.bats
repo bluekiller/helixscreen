@@ -5,12 +5,12 @@
 #
 # The script symlinks each lib/ submodule into the main tree so a worktree
 # builds in seconds instead of recompiling ~GB of submodules. That is right for
-# the submodules nothing rewrites, and wrong for the three that are rewritten
-# per branch: lib/helix-xml is ours and is edited directly, and lib/lvgl and
-# lib/libhv are rewritten by patches/, which is per-branch. Sharing one checkout
-# between branches that disagree about either is unsatisfiable — each tree's
-# correct action invalidates the other's — so those three get a private checkout
-# per worktree.
+# the submodules nothing rewrites, and wrong for the ones that are rewritten
+# per branch: lib/helix-xml is ours and is edited directly, and lib/lvgl,
+# lib/libhv and lib/lua are rewritten by patches/, which is per-branch. Sharing
+# one checkout between branches that disagree about either is unsatisfiable —
+# each tree's correct action invalidates the other's — so those get a private
+# checkout per worktree.
 
 load helpers
 
@@ -30,15 +30,14 @@ setup() {
     # A patched submodule left symlinked is the whole defect: patches/ is
     # per-branch and the checkout would not be, so one tree's reapply-patches
     # silently redefines what every other tree compiles.
-    patched=$(grep -oE '^(LVGL|LIBHV)_PATCHED_FILES' mk/patches.mk | sort -u)
-    [ -n "$patched" ] || return 1
+    # The submodule each list belongs to is its <NAME>_DIR in the Makefile.
+    patched=$(grep -oE '^[A-Z0-9]+_PATCHED_FILES' mk/patches.mk | sort -u)
+    [ "$(wc -w <<<"$patched")" -ge 3 ] || return 1
     private=$(grep -E '^LIB_PRIVATE_SUBMODULES=' "$SCRIPT")
     for p in $patched; do
-        case "$p" in
-            LVGL_PATCHED_FILES) path="lib/lvgl" ;;
-            LIBHV_PATCHED_FILES) path="lib/libhv" ;;
-        esac
-        [[ "$private" == *"$path"* ]] || { echo "patched but shared: $path" >&2; return 1; }
+        path=$(sed -n "s/^${p%_PATCHED_FILES}_DIR := //p" Makefile)
+        [ -n "$path" ] || { echo "no ${p%_PATCHED_FILES}_DIR in the Makefile" >&2; return 1; }
+        [[ "$private" == *"\"$path\""* ]] || { echo "patched but shared: $path" >&2; return 1; }
     done
 }
 
@@ -151,6 +150,22 @@ build_fixture_repo() {
     # sharing the private checkout exists to remove.
     run cat "$wt/lib/lvgl/.git"
     [[ "$output" == *"worktrees/iso/modules/"*"lvgl" ]] || { echo "$output" >&2; return 1; }
+    rm -rf "$tmp"
+}
+
+@test "lib/lua is a private checkout, not a symlink into the main tree" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    git -C "$tmp/main" -c protocol.file.allow=always submodule add -q "$tmp/upstream" lib/lua
+    git -C "$tmp/main" commit -qm "lua submodule"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/iso
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+
+    wt="$tmp/main/.worktrees/iso"
+    [ ! -L "$wt/lib/lua" ] || { echo "lib/lua is a symlink: $(readlink "$wt/lib/lua")" >&2; return 1; }
+    run cat "$wt/lib/lua/.git"
+    [[ "$output" == *"worktrees/iso/modules/"*"lua" ]] || { echo "$output" >&2; return 1; }
     rm -rf "$tmp"
 }
 
@@ -481,4 +496,110 @@ JSON
     # the same directory on macOS and either spelling can appear.
     grep -q "\.worktrees/frag/scripts/setup-worktree\.sh" "$wt/build/obj/mainpath.ccj" \
         || fail "fragment was not repointed: $(cat "$wt/build/obj/mainpath.ccj")"
+}
+
+# --- an existing worktree is somebody's -----------------------------------------
+#
+# The default path is .worktrees/<last segment of the branch>, so a new branch
+# can name a tree another session is working in. Every setup step rewrites what
+# it finds there (private submodule patches reset, mtimes synced, build outputs
+# pruned), so an existing directory stops the script unless it is a deliberate
+# --setup-only of the same branch by a session that does not collide with a
+# live claim on it.
+
+# Stamps the existing tree's private submodule so a test can tell whether setup
+# touched it.
+mark_tree() {
+    echo "int wip = 1;" > "$1/lib/lvgl/src/lv_thing.c"
+}
+
+@test "a new branch whose last segment names another branch's worktree is refused untouched" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build fix/shared-name
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    wt="$tmp/main/.worktrees/shared-name"
+    mark_tree "$wt"
+
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build test/shared-name
+    [ "$status" -eq 1 ] || fail "a colliding branch was set up: $output"
+    [[ "$output" == *"already holds branch 'fix/shared-name'"* ]] || fail "no reason given: $output"
+    grep -q "wip" "$wt/lib/lvgl/src/lv_thing.c" || fail "the existing tree's submodule was rewritten"
+    run git -C "$tmp/main" rev-parse --verify --quiet test/shared-name
+    [ "$status" -ne 0 ] || fail "the colliding branch was created anyway"
+    [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = "fix/shared-name" ]
+    rm -rf "$tmp"
+}
+
+@test "re-running for the same branch without --setup-only is refused untouched" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/again
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    wt="$tmp/main/.worktrees/again"
+    mark_tree "$wt"
+
+    run bash "$tmp/main/scripts/setup-worktree.sh" --no-build feat/again
+    [ "$status" -eq 1 ] || fail "an existing worktree was set up again: $output"
+    [[ "$output" == *"--setup-only"* ]] || fail "no way forward offered: $output"
+    grep -q "wip" "$wt/lib/lvgl/src/lv_thing.c" || fail "the existing tree's submodule was rewritten"
+    rm -rf "$tmp"
+}
+
+@test "--setup-only of the same branch still runs" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/again
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build feat/again
+    [ "$status" -eq 0 ] || fail "a deliberate re-setup was refused: $output"
+    rm -rf "$tmp"
+}
+
+@test "--setup-only of a different branch's worktree is refused" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build fix/shared-name
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build test/shared-name
+    [ "$status" -eq 1 ] || fail "set up a tree holding another branch: $output"
+    rm -rf "$tmp"
+}
+
+@test "a live claim by another session refuses even a same-branch --setup-only" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf" HELIX_CLAIM_DIR="$tmp/claims"
+    build_fixture_repo "$tmp"
+    cp scripts/helix-claim "$tmp/main/scripts/"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/held
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    wt="$tmp/main/.worktrees/held"
+    mark_tree "$wt"
+
+    sleep 60 &
+    holder=$!
+    (cd "$tmp/main" && scripts/helix-claim take worktree:held impl --pid "$holder") >/dev/null
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build feat/held
+    kill "$holder"
+    [ "$status" -eq 1 ] || fail "set up a tree another session holds: $output"
+    [[ "$output" == *"another session holds"* ]] || fail "no reason given: $output"
+    grep -q "wip" "$wt/lib/lvgl/src/lv_thing.c" || fail "the held tree's submodule was rewritten"
+    rm -rf "$tmp"
+}
+
+@test "your own claim on the tree does not block a --setup-only" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf" HELIX_CLAIM_DIR="$tmp/claims"
+    build_fixture_repo "$tmp"
+    cp scripts/helix-claim "$tmp/main/scripts/"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/mine
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    (cd "$tmp/main" && scripts/helix-claim take worktree:mine impl) >/dev/null
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build feat/mine
+    [ "$status" -eq 0 ] || fail "your own claim blocked you: $output"
+    rm -rf "$tmp"
 }

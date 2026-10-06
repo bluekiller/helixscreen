@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" fr="État du passage à la bobine de secours inconnu"/>
   <translation tag="Barcode Scanner" fr="Scanner de codes-barres"/>
   <translation tag="Base" fr="Référence"/>
+  <translation tag="Based on the newest {} prints" fr="Basé sur les {} impressions les plus récentes"/>
   <translation tag="Batch load failed" fr="Échec du chargement groupé"/>
   <translation tag="Batch unload failed" fr="Échec du déchargement groupé"/>
   <translation tag="Beacon auto-calibrate sent" fr="Beacon auto-calibrage envoyé"/>

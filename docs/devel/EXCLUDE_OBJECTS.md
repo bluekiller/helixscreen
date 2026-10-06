@@ -179,7 +179,7 @@ The `PrintExcludeObjectManager` implements a state machine with three states:
 
 3. **Confirmation modal**: `ExcludeObjectModal` shows "Exclude Object?" with the object name and Exclude/Cancel buttons.
 
-4. **Visual preview**: On confirm, the object is immediately shown as excluded in the G-code viewer (red/orange at reduced opacity) before the API call is made.
+4. **Visual preview**: On confirm, the object is immediately shown as excluded in the G-code viewer (greyed out with red diagonal stripes) before the API call is made.
 
 5. **Undo window**: A 5-second timer starts. A toast with an "Undo" action button is shown. If the user taps Undo, the timer is cancelled and the visual state is reverted.
 
@@ -223,7 +223,7 @@ The side list is built from `ui_xml/components/exclude_object_side_list.xml`, th
 The 2D layer renderer (`GCodeLayerRenderer`) is what the Auto render mode lands on for builds without the GLES 3D renderer (and what `HELIX_GCODE_MODE=2D` / `--render-2d` force everywhere). It supports the full exclude objects feature:
 
 - **Object picking**: `pick_object_at()` is a two-stage hit test (`src/rendering/gcode_layer_renderer.cpp#pick_object_at`). Stage 1 projects each object's 3D bounding box — accumulated over the object's whole toolpath, clamped to the drawn Z range (only layers up to the current one are on screen), and inflated by the pick threshold — and returns that object immediately when it is the only candidate whose footprint covers the touch point; no segment is touched. Objects that have not started printing yet, and support objects while supports are hidden, are skipped at this stage. Only when footprints overlap does stage 2 run: it walks layers downward from the current layer, finds the closest segment to the touch point (`PICK_THRESHOLD_PX`, 15px), and the first layer that produces a hit wins — so a tap over a stack picks what is visually on top.
-- **Excluded object rendering**: Excluded objects are drawn in orange-red (`0xFF6B35`) at reduced opacity (`LV_OPA_60`) with 1px line width.
+- **Excluded object rendering**: Excluded objects keep their shading but drain to grey, with red (`gcode_selection_excluded`) 45-degree stripes over them. See the state table below.
 - **Selection brackets**: Highlighted objects show corner bracket wireframes around their 3D bounding box (20% of shortest edge, capped at 5mm). 8 corners x 3 axes = 24 bracket lines per object.
 - **Interaction model**: a press-and-hold excludes the object under the finger; a tap (release with minimal movement, no two-finger gesture, long-press not already fired) toggles single-selection, which is what draws the corner brackets. On the 3D preview, a pinch zooms about the fingers and pans with them and a two-finger drag pans; in 2D and 3D alike, rotate, tap and long-press stay off from the first two-finger frame until every finger lifts. The skip-objects icon (`btn_objects` on the print status panel, visible when `exclude_objects_available` is set) opens the map + side-list panel instead.
 - **Long-press detection**: In 2D mode, mouse/touch micro-jitter during pressing events is ignored (the `pressing` callback returns early in 2D mode), which prevents accidental cancellation of the long-press timer.
@@ -436,8 +436,8 @@ theme.
 |-------|-----------------|
 | Normal | Default filament color, standard line width |
 | Highlighted (selected) | **Keeps its own filament color**, plus a white silhouette rim tracing the object's contour and the corner-bracket wireframe around its bounding box |
-| Excluded | Orange-red (`gcode_selection_excluded`, `#FF6B35`) at 60% opacity. Line width is **unchanged** |
-| Excluded *and* selected | Opaque orange-red inside the white rim: the selection tag replaces the 60% fade, because an object cannot be tagged and faded at once and seeing what you picked matters more |
+| Excluded | Shading kept, hue drained to grey (`selection::excluded_grey`), red stripes (`gcode_selection_excluded`, `#FF3B30`) every 6px at 45 degrees. Line width is **unchanged**. Same in 2D, the 2D ghost and 3D; the 3D ghost (about 2% opacity) is left as is, and a 3D frame drawn while the camera is moving shows filament color until the still render lands |
+| Excluded *and* selected | Grey inside the white rim, without stripes: a pixel carries one alpha tag and the selection tag wins, because seeing what you picked matters more |
 | Pending exclusion | Same as excluded (visual preview before API call) |
 
 Two corrections to what this table used to say, both worth knowing if you are

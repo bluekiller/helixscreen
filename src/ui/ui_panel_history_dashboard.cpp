@@ -101,6 +101,11 @@ void HistoryDashboardPanel::init_subjects() {
 
     UI_MANAGED_SUBJECT_STRING(trend_period_subject_, trend_period_buf_, "Last 7 days",
                               "trend_period", subjects_);
+
+    UI_MANAGED_SUBJECT_INT(history_coverage_partial_subject_, 0, "history_coverage_partial",
+                           subjects_);
+    UI_MANAGED_SUBJECT_STRING(history_coverage_subject_, history_coverage_buf_, "",
+                              "history_coverage", subjects_);
 }
 
 void HistoryDashboardPanel::deinit_subjects() {
@@ -320,8 +325,17 @@ void HistoryDashboardPanel::refresh_data() {
     spdlog::debug("[{}] Filtering history since {} (filter={})", get_name(), since,
                   static_cast<int>(current_filter_));
 
+    // A window the cache stops short of pages older jobs in; each page lands
+    // through the history observer, which comes back here.
+    const bool covered =
+        since > 0.0 ? history_manager_->covers_since(since) : history_manager_->holds_every_job();
+    if (since > 0.0 && !covered) {
+        history_manager_->ensure_covers_since(since);
+    }
+
     // Get time-filtered jobs from manager (DRY: uses shared cache)
     cached_jobs_ = history_manager_->get_jobs_since(since);
+    update_coverage_note(!covered);
     spdlog::info("[{}] Got {} jobs from manager (filter={})", get_name(), cached_jobs_.size(),
                  static_cast<int>(current_filter_));
 
@@ -876,4 +890,15 @@ void HistoryDashboardPanel::update_filament_chart(const std::vector<PrintHistory
     }
 
     spdlog::debug("[{}] Filament chart updated: {} types", get_name(), sorted_types.size());
+}
+
+void HistoryDashboardPanel::update_coverage_note(bool partial) {
+    if (partial) {
+        const std::string note = fmt::format(fmt::runtime(lv_tr("Based on the newest {} prints")),
+                                             history_manager_->get_jobs().size());
+        lv_subject_copy_string(&history_coverage_subject_, note.c_str());
+    } else {
+        lv_subject_copy_string(&history_coverage_subject_, "");
+    }
+    lv_subject_set_int(&history_coverage_partial_subject_, partial ? 1 : 0);
 }

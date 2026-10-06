@@ -608,7 +608,7 @@ Located in the `input` section:
 
 ### `scroll_throw`
 **Type:** integer
-**Default:** `25`
+**Default:** `25` (`35` on ESP32 screens such as the BTT K-Touch)
 **Range:** `5` - `50` (UI-clamped)
 **Description:** Scroll momentum decay rate — how quickly a flicked list coasts to a stop. Higher values = faster decay (less "throw"). LVGL's native default is 10; we use 25 because touchscreens feel sluggish with long coasting. Lower it if lists feel too "sticky" at the end of a flick.
 

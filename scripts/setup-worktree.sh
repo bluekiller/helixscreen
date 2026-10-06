@@ -32,7 +32,7 @@ usage() {
     echo "  --setup-only    Only set up an existing worktree, don't create it"
     echo "  --unlink        Replace the remaining lib/ symlinks with what git expects,"
     echo "                  so git status/merge/rebase/stash work in this worktree."
-    echo "                  Private checkouts (lvgl, libhv, helix-xml) are untouched."
+    echo "                  Private checkouts (lvgl, libhv, lua, helix-xml) are untouched."
     echo "  --relink        Restore the lib/ symlinks after --unlink"
     echo "  --no-build      Skip the initial build after setup"
     echo "  -h, --help      Show this help message"
@@ -59,7 +59,7 @@ usage() {
     echo "  - Configures ccache for cross-worktree reuse (no cold rebuild per worktree)"
     echo "  - Clones build/obj/ from main tree (APFS copy-on-write — instant, zero disk)"
     echo "  - Symlinks the unpatched lib/ submodules from the main tree (sources +"
-    echo "    generated headers), and gives lvgl/libhv/helix-xml a PRIVATE checkout"
+    echo "    generated headers), and gives lvgl/libhv/lua/helix-xml a PRIVATE checkout"
     echo "    copied from it, so this branch's patches/ stay inside this worktree"
     echo "  - Clones compiled libraries (libhv.a) and the PCH — copies, not symlinks,"
     echo "    so a rebuild here can never write back into the main tree"
@@ -101,7 +101,7 @@ LIB_NON_SUBMODULE_ITEMS=("mdns")
 # branches could not hold different engine versions, and an edit made here would
 # surface as dirt in main's `git status` for another session to sweep up.
 #
-# lib/lvgl and lib/libhv are here for a second reason: they are the two
+# lib/lvgl, lib/libhv and lib/lua are here for a second reason: they are the
 # submodules patches/ rewrites, and patches/ is per-branch. One shared checkout
 # cannot satisfy two branches carrying different patch sets — each tree's
 # `make reapply-patches` redefines what every other tree compiles, and each
@@ -111,7 +111,7 @@ LIB_NON_SUBMODULE_ITEMS=("mdns")
 #
 # A real checkout is also what git expects, so these need no --unlink/--relink
 # dance; the submodules still symlinked below do.
-LIB_PRIVATE_SUBMODULES=("lib/helix-xml" "lib/lvgl" "lib/libhv")
+LIB_PRIVATE_SUBMODULES=("lib/helix-xml" "lib/lvgl" "lib/libhv" "lib/lua")
 
 is_private_submodule() {
     local candidate="$1" p
@@ -343,6 +343,34 @@ if [[ -e "$WORKTREE_PATH" ]] \
     exit 1
 fi
 
+# Guard: an existing directory is a worktree someone may be working in. The
+# default path is derived from the branch's LAST segment, so a new branch can
+# name a peer's tree, and every step below rewrites what it finds: it resets the
+# private submodules' patches, syncs mtimes and prunes build outputs. Only a
+# deliberate re-setup (--setup-only) of the same branch, by the session that
+# holds the tree, may proceed.
+if [[ -e "$WORKTREE_PATH" ]]; then
+    EXISTING_BRANCH="$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    if [[ "$EXISTING_BRANCH" != "$BRANCH" ]]; then
+        echo -e "${RED}Error: $WORKTREE_PATH already holds branch '${EXISTING_BRANCH:-<not a git worktree>}', not '$BRANCH'.${RESET}"
+        echo -e "The directory is named after the branch's last segment ('${BRANCH##*/}')."
+        echo -e "Pick a branch whose last segment is free, or name a path as the second argument."
+        exit 1
+    fi
+    if [[ "$SETUP_ONLY" == "false" ]]; then
+        echo -e "${RED}Error: a worktree for '$BRANCH' already exists at $WORKTREE_PATH.${RESET}"
+        echo -e "To re-run setup on it: ${CYAN}$0 --setup-only $BRANCH${RESET}"
+        exit 1
+    fi
+    if [[ -x "$SCRIPT_DIR/helix-claim" ]] \
+       && CLAIM_HOLDER="$(cd "$MAIN_TREE" && "$SCRIPT_DIR/helix-claim" held-by-other "worktree:$(basename "$WORKTREE_PATH")")"; then
+        echo -e "${RED}Error: another session holds $WORKTREE_PATH:${RESET}"
+        echo -e "$CLAIM_HOLDER"
+        echo -e "Ask it (the message= address above) before setting up its tree."
+        exit 1
+    fi
+fi
+
 echo -e "${BOLD}${CYAN}HelixScreen Worktree Setup${RESET}"
 echo -e "Main tree:    $MAIN_TREE"
 echo -e "Worktree:     $WORKTREE_PATH"
@@ -351,73 +379,69 @@ echo ""
 
 # Step 1: Create or verify the worktree
 if [[ "$SETUP_ONLY" == "false" ]]; then
-    if [[ -d "$WORKTREE_PATH" ]]; then
-        echo -e "${YELLOW}Worktree already exists at $WORKTREE_PATH${RESET}"
-    else
-        # Validate BEFORE creating anything, so a rejected invocation leaves no
-        # half-made directory behind.
-        BRANCH_EXISTS=false
-        if git -C "$MAIN_TREE" rev-parse --verify --quiet "$BRANCH" >/dev/null; then
-            BRANCH_EXISTS=true
-            if [[ -n "$BASE_REF" ]]; then
-                echo -e "${RED}Error: branch '$BRANCH' already exists, so --base would be ignored.${RESET}"
-                echo -e "Drop --base to check it out, or pick a new branch name."
-                exit 1
-            fi
-        elif [[ -n "$BASE_REF" ]] \
-             && ! git -C "$MAIN_TREE" rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
-            echo -e "${RED}Error: base '$BASE_REF' is not a valid commit or branch${RESET}"
+    # Validate BEFORE creating anything, so a rejected invocation leaves no
+    # half-made directory behind.
+    BRANCH_EXISTS=false
+    if git -C "$MAIN_TREE" rev-parse --verify --quiet "$BRANCH" >/dev/null; then
+        BRANCH_EXISTS=true
+        if [[ -n "$BASE_REF" ]]; then
+            echo -e "${RED}Error: branch '$BRANCH' already exists, so --base would be ignored.${RESET}"
+            echo -e "Drop --base to check it out, or pick a new branch name."
             exit 1
         fi
-
-        echo -e "${CYAN}Creating worktree...${RESET}"
-        mkdir -p "$(dirname "$WORKTREE_PATH")"
-
-        if [[ "$BRANCH_EXISTS" == "true" ]]; then
-            git -C "$MAIN_TREE" worktree add "$WORKTREE_PATH" "$BRANCH"
-        else
-            # Branch from the tracked upstream rather than local HEAD. A main
-            # that has not been fetched today omits commits the new branch is
-            # meant to build on, and nothing surfaces that gap until the work is
-            # already under review. "--base HEAD" asks for the local tip.
-            BASE="$BASE_REF"
-            if [[ -z "$BASE" ]]; then
-                UPSTREAM="$(git -C "$MAIN_TREE" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-                if [[ -n "$UPSTREAM" ]]; then
-                    if [[ "$NO_FETCH" != "true" ]]; then
-                        echo -e "${CYAN}Refreshing $UPSTREAM...${RESET}"
-                        git -C "$MAIN_TREE" fetch --quiet "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null \
-                            || echo -e "${YELLOW}  fetch failed; using the $UPSTREAM already on disk${RESET}"
-                    fi
-                    BASE="$UPSTREAM"
-                else
-                    echo -e "${YELLOW}Current branch tracks no upstream; falling back to HEAD${RESET}"
-                    BASE="HEAD"
-                fi
-            fi
-            BASE_DESC="$(git -C "$MAIN_TREE" log --oneline -1 "$BASE")"
-            echo -e "${YELLOW}Branch '$BRANCH' doesn't exist, creating from ${BOLD}$BASE${RESET}${YELLOW}:${RESET}"
-            echo -e "  ${CYAN}$BASE_DESC${RESET}"
-            LOCAL_ONLY="$(git -C "$MAIN_TREE" rev-list --count "$BASE..HEAD" 2>/dev/null || echo 0)"
-            # Only worth saying when the base was picked FOR you. An explicit
-            # --base onto another line (a backport, say) leaves hundreds of
-            # commits behind by design, and counting them there is noise.
-            if [[ -z "$BASE_REF" && "$LOCAL_ONLY" != "0" ]]; then
-                echo -e "${YELLOW}  local HEAD has $LOCAL_ONLY commit(s) not in $BASE, excluded from this branch${RESET}"
-                echo -e "${YELLOW}  re-run with --base HEAD if you meant to build on them${RESET}"
-            fi
-            # Repeated in the closing summary. A build can run for minutes after
-            # this point, so a reader who sees only the tail of the log would
-            # otherwise never learn which base the branch was cut from.
-            CREATED_BASE="$BASE"
-            CREATED_BASE_SHA="$(git -C "$MAIN_TREE" rev-parse --short "$BASE")"
-            if [[ -z "$BASE_REF" ]]; then
-                EXCLUDED_COMMITS="$LOCAL_ONLY"
-            fi
-            git -C "$MAIN_TREE" worktree add -b "$BRANCH" "$WORKTREE_PATH" "$BASE"
-        fi
-        echo -e "${GREEN}✓ Worktree created${RESET}"
+    elif [[ -n "$BASE_REF" ]] \
+         && ! git -C "$MAIN_TREE" rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
+        echo -e "${RED}Error: base '$BASE_REF' is not a valid commit or branch${RESET}"
+        exit 1
     fi
+
+    echo -e "${CYAN}Creating worktree...${RESET}"
+    mkdir -p "$(dirname "$WORKTREE_PATH")"
+
+    if [[ "$BRANCH_EXISTS" == "true" ]]; then
+        git -C "$MAIN_TREE" worktree add "$WORKTREE_PATH" "$BRANCH"
+    else
+        # Branch from the tracked upstream rather than local HEAD. A main
+        # that has not been fetched today omits commits the new branch is
+        # meant to build on, and nothing surfaces that gap until the work is
+        # already under review. "--base HEAD" asks for the local tip.
+        BASE="$BASE_REF"
+        if [[ -z "$BASE" ]]; then
+            UPSTREAM="$(git -C "$MAIN_TREE" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+            if [[ -n "$UPSTREAM" ]]; then
+                if [[ "$NO_FETCH" != "true" ]]; then
+                    echo -e "${CYAN}Refreshing $UPSTREAM...${RESET}"
+                    git -C "$MAIN_TREE" fetch --quiet "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null \
+                        || echo -e "${YELLOW}  fetch failed; using the $UPSTREAM already on disk${RESET}"
+                fi
+                BASE="$UPSTREAM"
+            else
+                echo -e "${YELLOW}Current branch tracks no upstream; falling back to HEAD${RESET}"
+                BASE="HEAD"
+            fi
+        fi
+        BASE_DESC="$(git -C "$MAIN_TREE" log --oneline -1 "$BASE")"
+        echo -e "${YELLOW}Branch '$BRANCH' doesn't exist, creating from ${BOLD}$BASE${RESET}${YELLOW}:${RESET}"
+        echo -e "  ${CYAN}$BASE_DESC${RESET}"
+        LOCAL_ONLY="$(git -C "$MAIN_TREE" rev-list --count "$BASE..HEAD" 2>/dev/null || echo 0)"
+        # Only worth saying when the base was picked FOR you. An explicit
+        # --base onto another line (a backport, say) leaves hundreds of
+        # commits behind by design, and counting them there is noise.
+        if [[ -z "$BASE_REF" && "$LOCAL_ONLY" != "0" ]]; then
+            echo -e "${YELLOW}  local HEAD has $LOCAL_ONLY commit(s) not in $BASE, excluded from this branch${RESET}"
+            echo -e "${YELLOW}  re-run with --base HEAD if you meant to build on them${RESET}"
+        fi
+        # Repeated in the closing summary. A build can run for minutes after
+        # this point, so a reader who sees only the tail of the log would
+        # otherwise never learn which base the branch was cut from.
+        CREATED_BASE="$BASE"
+        CREATED_BASE_SHA="$(git -C "$MAIN_TREE" rev-parse --short "$BASE")"
+        if [[ -z "$BASE_REF" ]]; then
+            EXCLUDED_COMMITS="$LOCAL_ONLY"
+        fi
+        git -C "$MAIN_TREE" worktree add -b "$BRANCH" "$WORKTREE_PATH" "$BASE"
+    fi
+    echo -e "${GREEN}✓ Worktree created${RESET}"
 else
     if [[ ! -d "$WORKTREE_PATH" ]]; then
         echo -e "${RED}Error: Worktree doesn't exist at $WORKTREE_PATH${RESET}"
@@ -1528,6 +1552,6 @@ echo -e "  ${CYAN}./build/bin/helix-screen --test -vv --remote-socket \"\$HELIX_
 echo -e "  ${CYAN}./build/bin/helix-screen ctl -s \"\$HELIX_SOCK\" navigate settings${RESET}"
 echo -e "See ${CYAN}docs/devel/HELIXCTL.md${RESET} § \"Running a fully isolated second instance\"."
 echo ""
-echo -e "${YELLOW}Note: lib/lvgl, lib/libhv and lib/helix-xml are private to this worktree —"
+echo -e "${YELLOW}Note: lib/lvgl, lib/libhv, lib/lua and lib/helix-xml are private to this worktree —"
 echo -e "patches applied here reach no other tree. The remaining lib/ submodules are"
 echo -e "symlinked from the main tree; un-symlink one before modifying it.${RESET}"

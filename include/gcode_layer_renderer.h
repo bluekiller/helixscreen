@@ -731,6 +731,8 @@ class GCodeLayerRenderer {
     /// cache_buf_. The rim is pixels, not an overlay, so this is what stops a
     /// progressive append from building on top of a boundary that has moved.
     bool selection_rim_stamped_ = false;
+    /// The red stripes are in the cache; cleared whenever new layers land.
+    bool exclusion_hatch_stamped_ = false;
 
     // Ghost cache - all layers rendered once at reduced opacity
     // Note: We only use draw buffers (no canvas widgets) to avoid clip area
