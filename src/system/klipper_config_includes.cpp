@@ -132,8 +132,25 @@ std::vector<std::string> extract_includes(const std::string& content) {
 // Active file resolution (pure)
 // ============================================================================
 
+namespace {
+
+/// [begin, end) of each line extract_includes() takes an include from, in the same order.
+std::vector<std::pair<size_t, size_t>> include_line_ranges(const std::string& content) {
+    std::vector<std::pair<size_t, size_t>> ranges;
+    for (std::string_view line : helix::text_io::lines(content)) {
+        if (!extract_includes(std::string(line)).empty()) {
+            const auto begin = static_cast<size_t>(line.data() - content.data());
+            ranges.emplace_back(begin, begin + line.size());
+        }
+    }
+    return ranges;
+}
+
+} // namespace
+
 std::set<std::string> resolve_active_files(const std::map<std::string, std::string>& files,
-                                           const std::string& root_file, int max_depth) {
+                                           const std::string& root_file, int max_depth,
+                                           std::vector<ConfigSegment>* read_order) {
     std::set<std::string> active;
 
     std::function<void(const std::string&, int)> process_file;
@@ -160,7 +177,15 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
 
         // Extract and process includes
         auto includes = extract_includes(it->second);
-        for (const auto& include_pattern : includes) {
+        const auto include_lines =
+            read_order ? include_line_ranges(it->second) : std::vector<std::pair<size_t, size_t>>{};
+        size_t segment_begin = 0;
+        for (size_t k = 0; k < includes.size(); ++k) {
+            const auto& include_pattern = includes[k];
+            if (read_order) {
+                read_order->push_back({file_path, segment_begin, include_lines[k].first});
+                segment_begin = include_lines[k].second;
+            }
             bool has_wildcard = include_pattern.find('*') != std::string::npos ||
                                 include_pattern.find('?') != std::string::npos;
 
@@ -173,6 +198,9 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
                 std::string resolved = config_resolve_path(file_path, include_pattern);
                 process_file(resolved, depth + 1);
             }
+        }
+        if (read_order) {
+            read_order->push_back({file_path, segment_begin, it->second.size()});
         }
     };
 

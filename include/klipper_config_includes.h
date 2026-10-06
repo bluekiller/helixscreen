@@ -42,16 +42,26 @@ config_match_glob(const std::map<std::string, std::string>& files, const std::st
 /// Returns a list of include paths/patterns (e.g., "macros.cfg", "conf.d/*.cfg").
 [[nodiscard]] std::vector<std::string> extract_includes(const std::string& content);
 
+/// A byte range [begin, end) of one config file. Klipper reads the active config
+/// as a sequence of these: a file up to an [include] line, everything that include
+/// reads, then the rest of the file. A later section overrides an earlier one.
+struct ConfigSegment {
+    std::string file;
+    size_t begin = 0;
+    size_t end = 0;
+};
+
 /// Walk the include chain from root_file and return the set of active file paths.
 /// Pure function: given a map of filename->content, follows [include ...] directives
 /// recursively, handling globs and cycle detection.
 /// @param files Map of filename -> content (all files in config directory)
 /// @param root_file Starting file (usually "printer.cfg")
 /// @param max_depth Maximum recursion depth (default 5)
+/// @param read_order If set, receives the active config in Klipper's read order
 /// @return Set of file paths that are part of the active include chain
 [[nodiscard]] std::set<std::string>
 resolve_active_files(const std::map<std::string, std::string>& files, const std::string& root_file,
-                     int max_depth = 5);
+                     int max_depth = 5, std::vector<ConfigSegment>* read_order = nullptr);
 
 // ============================================================================
 // Async Moonraker integration

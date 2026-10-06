@@ -717,7 +717,6 @@ TEST_CASE("PrintStartAnalyzer: get_config_file_path helper", "[print_start][path
 TEST_CASE("PrintStartAnalyzer searches pre-downloaded content", "[print_start]") {
     helix::PrintStartAnalyzer analyzer;
 
-    std::set<std::string> active_files = {"printer.cfg", "macros.cfg"};
     std::map<std::string, std::string> file_contents = {{"printer.cfg", "[include macros.cfg]\n"},
                                                         {"macros.cfg", "[gcode_macro PRINT_START]\n"
                                                                        "gcode:\n"
@@ -727,7 +726,7 @@ TEST_CASE("PrintStartAnalyzer searches pre-downloaded content", "[print_start]")
     helix::PrintStartAnalysis result;
     bool callback_fired = false;
 
-    analyzer.analyze(active_files, file_contents, [&](const helix::PrintStartAnalysis& analysis) {
+    analyzer.analyze(file_contents, [&](const helix::PrintStartAnalysis& analysis) {
         result = analysis;
         callback_fired = true;
     });
@@ -744,14 +743,13 @@ TEST_CASE("PrintStartAnalyzer searches pre-downloaded content", "[print_start]")
 TEST_CASE("PrintStartAnalyzer cached search reports not found correctly", "[print_start]") {
     helix::PrintStartAnalyzer analyzer;
 
-    std::set<std::string> active_files = {"printer.cfg"};
     std::map<std::string, std::string> file_contents = {
         {"printer.cfg", "[stepper_x]\nstep_pin: PA0\n"}};
 
     bool callback_fired = false;
     helix::PrintStartAnalysis result;
 
-    analyzer.analyze(active_files, file_contents, [&](const helix::PrintStartAnalysis& analysis) {
+    analyzer.analyze(file_contents, [&](const helix::PrintStartAnalysis& analysis) {
         result = analysis;
         callback_fired = true;
     });
@@ -766,13 +764,29 @@ TEST_CASE("PrintStartAnalyzer cached search reports not found correctly", "[prin
 
 namespace {
 
-helix::PrintStartAnalysis analyze_single_file(const std::string& content) {
+helix::PrintStartAnalysis analyze_files(const std::map<std::string, std::string>& files) {
     helix::PrintStartAnalyzer analyzer;
     helix::PrintStartAnalysis result;
-    analyzer.analyze({"macros.cfg"}, {{"macros.cfg", content}},
-                     [&](const helix::PrintStartAnalysis& analysis) { result = analysis; });
+    analyzer.analyze(files, [&](const helix::PrintStartAnalysis& analysis) { result = analysis; });
     return result;
 }
+
+helix::PrintStartAnalysis analyze_single_file(const std::string& content) {
+    return analyze_files({{"printer.cfg", content}});
+}
+
+bool qgl_controllable(const helix::PrintStartAnalysis& result) {
+    const auto* qgl = result.get_operation(helix::PrintStartOpCategory::QGL);
+    return qgl && qgl->has_skip_param;
+}
+
+const char* const UNCONTROLLED_START_PRINT_BODY = "[gcode_macro START_PRINT]\n"
+                                                  "gcode:\n"
+                                                  "  QUAD_GANTRY_LEVEL\n";
+
+const char* const WRAPPER_PRINT_START = "[gcode_macro PRINT_START]\n"
+                                        "gcode:\n"
+                                        "  START_PRINT {rawparams}\n";
 
 const char* const VORON_START_PRINT_BODY = "[gcode_macro START_PRINT]\n"
                                            "gcode:\n"
@@ -891,6 +905,140 @@ TEST_CASE("PrintStartAnalyzer does not follow an override of a detected operatio
                                       "gcode:\n"
                                       "  CLEAN_NOZZLE\n"
                                       "  _BED_MESH_CALIBRATE {rawparams}\n");
+
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START"});
+    REQUIRE_FALSE(result.has_operation(helix::PrintStartOpCategory::NOZZLE_CLEAN));
+}
+
+TEST_CASE("PrintStartAnalyzer ignores a commented-out macro header", "[print_start][follow]") {
+    auto result = analyze_single_file(std::string(WRAPPER_PRINT_START) + VORON_START_PRINT_BODY +
+                                      "#[gcode_macro START_PRINT]\n"
+                                      "#gcode:\n"
+                                      "#  CLEAN_NOZZLE\n");
+
+    REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START", "START_PRINT"});
+    REQUIRE(result.has_operation(helix::PrintStartOpCategory::HOMING));
+    REQUIRE(qgl_controllable(result));
+}
+
+TEST_CASE("PrintStartAnalyzer uses the last definition of a macro in Klipper's read order",
+          "[print_start][follow]") {
+    SECTION("within one file") {
+        auto result = analyze_single_file(std::string(WRAPPER_PRINT_START) +
+                                          VORON_START_PRINT_BODY + UNCONTROLLED_START_PRINT_BODY);
+        REQUIRE(result.has_operation(helix::PrintStartOpCategory::QGL));
+        REQUIRE_FALSE(qgl_controllable(result));
+        REQUIRE_FALSE(result.has_operation(helix::PrintStartOpCategory::HOMING));
+    }
+    SECTION("across files, in include order rather than name order") {
+        auto result = analyze_files({{"printer.cfg", std::string("[include z_base.cfg]\n"
+                                                                 "[include a_custom.cfg]\n") +
+                                                         WRAPPER_PRINT_START},
+                                     {"z_base.cfg", VORON_START_PRINT_BODY},
+                                     {"a_custom.cfg", UNCONTROLLED_START_PRINT_BODY}});
+        REQUIRE(result.has_operation(helix::PrintStartOpCategory::QGL));
+        REQUIRE_FALSE(qgl_controllable(result));
+    }
+    SECTION("an include after a section overrides it") {
+        auto result =
+            analyze_files({{"printer.cfg", std::string(WRAPPER_PRINT_START) +
+                                               VORON_START_PRINT_BODY + "[include late.cfg]\n"},
+                           {"late.cfg", UNCONTROLLED_START_PRINT_BODY}});
+        REQUIRE_FALSE(qgl_controllable(result));
+    }
+    SECTION("a section after an include overrides it") {
+        auto result =
+            analyze_files({{"printer.cfg", std::string("[include early.cfg]\n") +
+                                               WRAPPER_PRINT_START + VORON_START_PRINT_BODY},
+                           {"early.cfg", UNCONTROLLED_START_PRINT_BODY}});
+        REQUIRE(qgl_controllable(result));
+    }
+    SECTION("the print start macro itself") {
+        auto result = analyze_files({{"printer.cfg", std::string("[include z_old.cfg]\n"
+                                                                 "[include a_new.cfg]\n")},
+                                     {"z_old.cfg", "[gcode_macro PRINT_START]\n"
+                                                   "gcode:\n"
+                                                   "  G28\n"},
+                                     {"a_new.cfg", "[gcode_macro PRINT_START]\n"
+                                                   "gcode:\n"
+                                                   "  BED_MESH_CALIBRATE\n"}});
+        REQUIRE(result.source_file == "a_new.cfg");
+        REQUIRE(result.has_operation(helix::PrintStartOpCategory::BED_MESH));
+        REQUIRE_FALSE(result.has_operation(helix::PrintStartOpCategory::HOMING));
+    }
+}
+
+TEST_CASE("PrintStartAnalyzer decides from the call line whether a skip param reaches the callee",
+          "[print_start][follow]") {
+    auto with_call = [](const std::string& call) {
+        return analyze_single_file("[gcode_macro PRINT_START]\ngcode:\n  " + call + "\n" +
+                                   VORON_START_PRINT_BODY);
+    };
+    SECTION("a for loop over params forwards everything") {
+        REQUIRE(qgl_controllable(
+            with_call("START_PRINT {% for p in params %}{p}={params[p]} {% endfor %}")));
+    }
+    SECTION("forwarded under its own name") {
+        REQUIRE(qgl_controllable(with_call("START_PRINT SKIP_QGL={params.SKIP_QGL|default(0)}")));
+    }
+    SECTION("renamed") {
+        REQUIRE_FALSE(qgl_controllable(with_call("START_PRINT SKIP_QGL={params.SKIP_LEVELING}")));
+    }
+    SECTION("a different param forwarded into its name") {
+        REQUIRE_FALSE(qgl_controllable(with_call("START_PRINT SKIP_LEVELING={params.SKIP_QGL}")));
+    }
+    SECTION("every hop must forward it") {
+        auto result = analyze_single_file(std::string("[gcode_macro PRINT_START]\n"
+                                                      "gcode:\n"
+                                                      "  _STAGE BED={params.BED}\n"
+                                                      "[gcode_macro _STAGE]\n"
+                                                      "gcode:\n"
+                                                      "  START_PRINT {rawparams}\n") +
+                                          VORON_START_PRINT_BODY);
+        REQUIRE(result.macro_chain ==
+                std::vector<std::string>{"PRINT_START", "_STAGE", "START_PRINT"});
+        REQUIRE_FALSE(qgl_controllable(result));
+    }
+    SECTION("hardcoded") {
+        REQUIRE_FALSE(qgl_controllable(with_call("START_PRINT SKIP_QGL=0")));
+    }
+    SECTION("a longer name that starts with it") {
+        REQUIRE_FALSE(
+            qgl_controllable(with_call("START_PRINT SKIP_QGL_SOAK={params.SKIP_QGL_SOAK}")));
+        REQUIRE_FALSE(qgl_controllable(with_call("START_PRINT SKIP_QGL={params.SKIP_QGL_SOAK}")));
+    }
+}
+
+TEST_CASE("PrintStartAnalyzer follows at most MAX_FOLLOW_DEPTH calls deep",
+          "[print_start][follow]") {
+    const int depth = helix::PrintStartAnalyzer::MAX_FOLLOW_DEPTH;
+    std::string config = "[gcode_macro PRINT_START]\ngcode:\n  _L1\n";
+    for (int i = 1; i <= depth + 1; ++i) {
+        const std::string next = "_L" + std::to_string(i + 1);
+        config += "[gcode_macro _L" + std::to_string(i) + "]\ngcode:\n  " +
+                  (i == depth       ? "CLEAN_NOZZLE\n  " + next
+                   : i == depth + 1 ? std::string("BED_MESH_CALIBRATE")
+                                    : next) +
+                  "\n";
+    }
+
+    auto result = analyze_single_file(config);
+
+    REQUIRE(result.macro_chain.size() == static_cast<size_t>(depth) + 1);
+    REQUIRE(result.macro_chain.back() == "_L" + std::to_string(depth));
+    REQUIRE(result.has_operation(helix::PrintStartOpCategory::NOZZLE_CLEAN));
+    REQUIRE_FALSE(result.has_operation(helix::PrintStartOpCategory::BED_MESH));
+}
+
+TEST_CASE("PrintStartAnalyzer does not follow a numbered gcode override", "[print_start][follow]") {
+    auto result = analyze_single_file("[gcode_macro PRINT_START]\n"
+                                      "gcode:\n"
+                                      "  M190 S{params.BED}\n"
+                                      "[gcode_macro M190]\n"
+                                      "rename_existing: M190.1\n"
+                                      "gcode:\n"
+                                      "  CLEAN_NOZZLE\n"
+                                      "  M190.1 {rawparams}\n");
 
     REQUIRE(result.macro_chain == std::vector<std::string>{"PRINT_START"});
     REQUIRE_FALSE(result.has_operation(helix::PrintStartOpCategory::NOZZLE_CLEAN));

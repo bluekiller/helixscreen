@@ -180,16 +180,18 @@ class PrintStartAnalyzer {
     /**
      * @brief Analyze PRINT_START macro from pre-downloaded config content
      *
-     * Searches the provided file contents directly for PRINT_START macro variants.
+     * Reads the config from ROOT_CONFIG_FILE through its includes, in Klipper's
+     * read order, and analyzes the macro definitions Klipper would run.
      * No HTTP requests are made -- this is a synchronous operation.
      *
-     * @param active_files Set of active config file paths (from include resolution)
      * @param file_contents Map of filename -> content (already downloaded)
      * @param on_complete Callback with analysis result (called synchronously)
      */
-    void analyze(const std::set<std::string>& active_files,
-                 const std::map<std::string, std::string>& file_contents,
+    void analyze(const std::map<std::string, std::string>& file_contents,
                  AnalysisCallback on_complete);
+
+    /// The config file Klipper starts reading from.
+    static constexpr const char* ROOT_CONFIG_FILE = "printer.cfg";
 
     // === Static Parsing Methods (for unit testing) ===
 
