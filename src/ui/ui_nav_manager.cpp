@@ -463,9 +463,8 @@ void NavigationManager::handle_active_panel_change(int32_t new_active_panel) {
     // nested inner change if switch_to_panel_impl cascaded here).
     NavTransitionScrim scrim_guard(nav_scrim_active_, panels_.needs_build(new_active_panel));
 #endif
-    // Deferred bring-up: catches navigation paths that set active_panel directly
-    // (set_active from connection/klippy handlers, etc.) without going through
-    // switch_to_panel_impl. No-op on desktop and for already-built panels.
+    // Deferred bring-up for writes to active_panel that bypass set_active() and
+    // switch_to_panel_impl(). No-op on desktop and for already-built panels.
     panels_.ensure_built(new_active_panel);
     panels_.show_only(new_active_panel);
 }
@@ -986,12 +985,18 @@ void NavigationManager::set_active(PanelId panel_id) {
         return;
     }
 
+#if defined(HELIX_PLATFORM_ESP32)
+    NavTransitionScrim scrim_guard(nav_scrim_active_,
+                                   panels_.needs_build(static_cast<int>(panel_id)));
+#endif
+    // A deferred panel must exist before the stack update and on_activate()
+    // below: activation is what starts its data (PrintSelectPanel's file list).
+    panels_.ensure_built(static_cast<int>(panel_id));
+
     PanelId old_panel = active_panel_;
 
-    // Update panel stack
-    // IMPORTANT: Only update the base panel in the stack, preserving any overlays.
-    // This fixes the bug where closing an overlay from Controls would return to Home
-    // because set_active() was clearing the entire stack unconditionally.
+    // Replace only the base panel and keep any overlays above it: closing an
+    // overlay must reveal the panel it was opened over, not Home.
     if (lv_obj_t* new_base = panels_.widget(static_cast<int>(panel_id))) {
         if (panel_stack_.empty()) {
             // Stack is empty - just push the new panel
