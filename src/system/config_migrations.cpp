@@ -7,6 +7,7 @@
 #include "config.h"
 #include "config_testing.h"
 #include "helix_fs.h"
+#include "input_settings_manager.h"
 #include "json_utils.h"
 #include "platform_capabilities.h"
 #include "text_io.h"
@@ -1213,6 +1214,25 @@ static void migrate_v25_to_v26(json& config, const std::string& /*config_path*/)
                  config["completion_alert"].get<int>());
 }
 
+/// Move a stored scroll_throw that is still the old shipped default onto the
+/// platform default. ESP32 is the only platform whose default differs, so
+/// elsewhere this leaves every document as it is.
+static void migrate_v26_to_v27(json& config, const std::string& /*config_path*/) {
+    if (!config.contains("input") || !config["input"].is_object()) {
+        return;
+    }
+    json& input = config["input"];
+    if (!input.contains("scroll_throw") || !input["scroll_throw"].is_number_integer()) {
+        return;
+    }
+    const int stored = input["scroll_throw"].get<int>();
+    const int migrated = migrated_scroll_throw(stored, InputSettingsManager::DEFAULT_SCROLL_THROW);
+    if (migrated != stored) {
+        input["scroll_throw"] = migrated;
+        spdlog::info("[Config] Migration v27: input.scroll_throw {} -> {}", stored, migrated);
+    }
+}
+
 using MigrationFn = void (*)(json& config, const std::string& config_path);
 
 /// The ladder, oldest first. A row runs when the document's stamp is below
@@ -1226,7 +1246,7 @@ constexpr struct {
     {16, migrate_v15_to_v16}, {17, migrate_v16_to_v17}, {18, migrate_v17_to_v18},
     {19, migrate_v18_to_v19}, {20, migrate_v19_to_v20}, {21, migrate_v20_to_v21},
     {22, migrate_v21_to_v22}, {23, migrate_v22_to_v23}, {24, migrate_v23_to_v24},
-    {25, migrate_v24_to_v25}, {26, migrate_v25_to_v26},
+    {25, migrate_v24_to_v25}, {26, migrate_v25_to_v26}, {27, migrate_v26_to_v27},
 };
 
 static_assert(kMigrations[std::size(kMigrations) - 1].to_version == CURRENT_CONFIG_VERSION,
@@ -1291,4 +1311,10 @@ void run_versioned_migrations(json& config, const std::string& config_path) {
     config["config_version"] = CURRENT_CONFIG_VERSION;
 }
 
+} // namespace helix::config_detail
+
+namespace helix::config_detail {
+int migrated_scroll_throw(int stored, int platform_default) {
+    return stored == 25 ? platform_default : stored;
+}
 } // namespace helix::config_detail
