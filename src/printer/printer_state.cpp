@@ -501,6 +501,13 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
     // Fold the helper-macro install status in with the same snapshot.
     plugin_status_state_.set_helix_macros_base_status(MacroManager::evaluate_status(discovery_));
 
+    // Stored option settings belong to the machine that reported them. A
+    // machine whose firmware stores none must not inherit the previous one's.
+    if (discovery_.objects_reported() &&
+        !helix::preprint_prefs::firmware_persists_options(discovery_)) {
+        profile_state_.clear_firmware_option_defaults();
+    }
+
     // Re-synthesize dynamic pre-print options now that hardware capabilities are
     // known. The bed_mesh option's adaptive_active flag (which relabels it to
     // "Adaptive Bed Mesh" and enables the adaptive param) depends on

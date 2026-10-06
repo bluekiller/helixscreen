@@ -648,9 +648,9 @@ class PrintPreparationManager {
      * @brief Collect operations that user wants to disable
      *
      * Compares checkbox states against cached scan result to identify
-     * operations that are embedded in the file but disabled by user. An off
-     * state that only mirrors the firmware's stored preference is the
-     * firmware's setting, not a request to edit the file, so it strips nothing.
+     * operations that are embedded in the file but disabled by user. An option
+     * whose value a self-storing firmware holds strips nothing: that firmware
+     * gates the file's own command on its setting.
      */
     [[nodiscard]] std::vector<gcode::OperationType> collect_ops_to_disable() const;
 

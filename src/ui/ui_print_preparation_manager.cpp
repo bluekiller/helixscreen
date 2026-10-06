@@ -941,13 +941,13 @@ std::optional<gcode::OperationType> file_embeddable_op_for_id(const std::string&
     return std::nullopt;
 }
 
-// Whether an off state of this option is the user's own choice. Off is not
-// theirs when it only mirrors what a self-storing firmware holds (the default
-// came from preprint_prefs::read_persisted_defaults()): that firmware already
-// gates the sliced gcode on its own setting, so the file is left alone. An
-// option with no firmware-supplied default is always the user's.
-bool disabled_state_is_users(const PrePrintOption& opt) {
-    return !(opt.default_from_firmware && !opt.default_enabled);
+// Whether turning this option off may strip its op out of the sliced file. Not
+// when a self-storing firmware holds the option's value (supplied through
+// preprint_prefs::read_persisted_defaults()): that firmware skips the file's
+// own command when its setting is off, so the option only drives its
+// pre-start line. Every other option may.
+bool option_may_strip_file(const PrePrintOption& opt) {
+    return !opt.default_from_firmware;
 }
 
 // Transfer callbacks run on the HTTP thread. BusyOverlay is process-wide, so
@@ -975,9 +975,9 @@ std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disabl
             continue;
         }
         const PrePrintOption* opt = get_cached_options().find(id);
-        if (opt && !disabled_state_is_users(*opt)) {
-            spdlog::debug("[PrintPreparationManager] '{}' is off by firmware preference, "
-                          "leaving the file's embedded op alone",
+        if (opt && !option_may_strip_file(*opt)) {
+            spdlog::debug("[PrintPreparationManager] '{}' is gated by the firmware's stored "
+                          "setting, leaving the file's embedded op alone",
                           id);
             continue;
         }
@@ -996,7 +996,7 @@ bool PrintPreparationManager::disabling_option_requires_plugin(const PrePrintOpt
     const std::optional<gcode::OperationType> embedded_op = file_embeddable_op_for_id(opt.id);
     const bool file_embedded = embedded_op.has_value() && cached_scan_result_.has_value() &&
                                cached_scan_result_->has_operation(*embedded_op) &&
-                               disabled_state_is_users(opt);
+                               option_may_strip_file(opt);
 
     // (b) is the MacroParam skip-rewrite path. If neither (a) nor a MacroParam
     //     skip is in play, nothing about this option needs the plugin.

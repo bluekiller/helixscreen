@@ -28,6 +28,7 @@
 #include "preprint_predictor.h"
 #include "print_start_analyzer.h"
 #include "printer_detector.h"
+#include "printer_discovery.h"
 #include "printer_state.h"
 
 #include <spdlog/sinks/null_sink.h>
@@ -3252,7 +3253,7 @@ TEST_CASE_METHOD(HelixTestFixture,
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
-                 "disabling_option_requires_plugin: a firmware-seeded off strips nothing",
+                 "disabling_option_requires_plugin: a firmware-held option never needs it",
                  "[print_preparation][preprint][plugin_gate][firmware_seeded]") {
     // RuntimeCommand isolates the file-embedded term (see the case above).
     PrePrintOptionSet set;
@@ -3261,20 +3262,21 @@ TEST_CASE_METHOD(HelixTestFixture,
     GateFixture fx(std::move(set));
     fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
                                       "f.gcode");
-    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", true}});
     helix::ui::UpdateQueue::instance().drain();
+    fx.manager.set_option_state_provider([](const std::string&) { return 0; });
 
     REQUIRE(PrintPreparationManagerTestAccess::get_ops_to_disable(fx.manager).empty());
     REQUIRE(fx.requires_plugin("bed_mesh") == false);
 }
 
 // ============================================================================
-// An option that is off because the firmware stores it off is the firmware's
-// setting, not a request to edit the file: it strips no embedded op.
+// An option whose value a self-storing firmware holds strips no embedded op,
+// however it came to be off: that firmware skips the file's own command when
+// its setting is off.
 // ============================================================================
 
-TEST_CASE_METHOD(HelixTestFixture,
-                 "collect_ops_to_disable: firmware-seeded off strips nothing, a user off does",
+TEST_CASE_METHOD(HelixTestFixture, "collect_ops_to_disable: a firmware-held option strips nothing",
                  "[print_preparation][preprint][firmware_seeded]") {
     PrePrintOptionSet set;
     set.macro_name = "START_PRINT";
@@ -3304,12 +3306,15 @@ TEST_CASE_METHOD(HelixTestFixture,
     SECTION("firmware stores it on and the user turned it off") {
         seed_firmware(true);
         fx.manager.set_option_state_provider([](const std::string&) { return 0; });
-        REQUIRE(ops() == std::vector<gcode::OperationType>{gcode::OperationType::BED_MESH});
+        REQUIRE(fx.manager.get_option_state("bed_mesh") == PrePrintOptionState::DISABLED);
+        REQUIRE(ops().empty());
+        // Nothing to drop, so the start path has no plugin warning to give.
+        REQUIRE(fx.manager.describe_dropped_modifications(ops()).empty());
     }
 
-    SECTION("a printer with no persisted-prefs provider strips as before") {
-        // No firmware defaults were merged: a database default off is the
-        // generic path, and it strips the embedded op exactly as it always has.
+    SECTION("a printer with no persisted-prefs provider strips the embedded op") {
+        // No firmware defaults were merged: a database default off is a user
+        // choice, and it strips the embedded op.
         PrePrintOptionSet db;
         db.macro_name = "START_PRINT";
         db.options.push_back(make_pre_start_gcode_opt("bed_mesh"));
@@ -3317,6 +3322,41 @@ TEST_CASE_METHOD(HelixTestFixture,
         PrinterStateTestAccess::set_option_set(fx.ps, std::move(db));
         REQUIRE(ops() == std::vector<gcode::OperationType>{gcode::OperationType::BED_MESH});
     }
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "collect_ops_to_disable: a printer switched to keeps none of the last one's "
+                 "stored settings",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    GateFixture fx(PrePrintOptionSet{});
+    auto hardware = [](const std::vector<std::string>& names) {
+        PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json(names));
+        return hw;
+    };
+
+    // A U1 whose firmware stores bed_mesh off.
+    fx.ps.set_printer_type_sync("Snapmaker U1");
+    fx.ps.set_hardware(hardware({"print_task_config", "bed_mesh"}));
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    helix::ui::UpdateQueue::instance().drain();
+
+    // Switch to a printer that stores nothing, type first as a rediscovery does.
+    fx.ps.set_printer_type_sync("FlashForge Adventurer 5M");
+    fx.ps.set_hardware(hardware({"bed_mesh"}));
+    helix::ui::UpdateQueue::instance().drain();
+
+    const PrePrintOption* opt = fx.ps.profile_state().pre_print_option_set().find("bed_mesh");
+    REQUIRE(opt != nullptr);
+    CHECK_FALSE(opt->default_from_firmware);
+    CHECK(opt->default_enabled);
+
+    fx.manager.set_option_state_provider(
+        [](const std::string& id) { return id == "bed_mesh" ? 0 : -1; });
+    fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
+                                      "ad5m.gcode");
+    REQUIRE(PrintPreparationManagerTestAccess::get_ops_to_disable(fx.manager) ==
+            std::vector<gcode::OperationType>{gcode::OperationType::BED_MESH});
 }
 
 // ============================================================================

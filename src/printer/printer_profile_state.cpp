@@ -105,6 +105,15 @@ bool PrinterProfileState::merge_firmware_option_defaults(
     return changed;
 }
 
+bool PrinterProfileState::clear_firmware_option_defaults() {
+    if (firmware_option_defaults_.empty()) {
+        return false;
+    }
+    firmware_option_defaults_.clear();
+    pre_print_option_set_ = PrinterDetector::get_pre_print_option_set(printer_type_);
+    return true;
+}
+
 void PrinterProfileState::apply_dynamic_options(bool exclude_object_known,
                                                 bool timelapse_available) {
     // Strip any previously synthesized dynamic options before re-adding so
