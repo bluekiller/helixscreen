@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "helix_version.h" // HELIX_VERSION for server.connection.identify
+#include "http_lane_queue.h"
 #include "json_utils.h"
 
 #include <spdlog/spdlog.h>
@@ -497,8 +498,10 @@ void EspMoonrakerClient::on_ws_data(const esp_websocket_event_data_t* d) {
         rx_skip_ = (static_cast<size_t>(d->payload_len) > MAX_MESSAGE_BYTES);
         if (rx_skip_) {
             ESP_LOGE(TAG, "dropping %d-byte message (cap 256KB)", d->payload_len);
-        } else {
-            rx_buf_.reserve(std::min(static_cast<size_t>(d->payload_len), MAX_MESSAGE_BYTES));
+        } else if (!helix::http::try_reserve(rx_buf_, static_cast<size_t>(d->payload_len))) {
+            // The whole message is reserved here, so appends below never allocate.
+            rx_skip_ = true;
+            ESP_LOGE(TAG, "dropping %d-byte message (no memory)", d->payload_len);
         }
     }
 
