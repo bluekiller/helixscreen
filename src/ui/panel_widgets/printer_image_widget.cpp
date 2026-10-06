@@ -12,6 +12,7 @@
 #include "ui_timer_guard.h"
 
 #include "app_globals.h"
+#include "callout_chip.h"
 #include "config.h"
 #include "display_settings_manager.h"
 #include "grid_layout.h"
@@ -87,19 +88,11 @@ void glow_opa_anim_cb(void* glow, int32_t opa) {
     lv_obj_set_style_bg_opa(static_cast<lv_obj_t*>(glow), static_cast<lv_opa_t>(opa), 0);
 }
 
-/// Pinned chips sit on the picture, so they drop the unit letter ("60 / 70°").
-std::string compact_callout_text(std::string s) {
-    static constexpr char kDegree[] = "°";
-    for (size_t p; (p = s.find("°C")) != std::string::npos;)
-        s.erase(p + sizeof(kDegree) - 1, 1);
-    return s;
-}
-
 /// Writes a chip's text, compact while the chips are pinned. True on a change.
 bool publish_callout_text(lv_subject_t* text, const std::string& full) {
     const bool pinned =
         lv_subject_get_int(&s_printer_callout_mode) == static_cast<int>(helix::CalloutMode::Pinned);
-    const std::string t = pinned ? compact_callout_text(full) : full;
+    const std::string t = pinned ? helix::ui::compact_callout_text(full) : full;
     if (t == lv_subject_get_string(text))
         return false;
     lv_subject_copy_string(text, t.c_str());
@@ -944,9 +937,6 @@ void PrinterImageWidget::apply_callout_layout() {
         return;
     const lv_font_t* text_font = theme_manager_get_font("font_small");
     const lv_font_t* icon_font = theme_manager_get_font("icon_font_xs");
-    // Pinned chips drop their icons and set chip_text in font_xs (the
-    // printer_callout_mode binding in panel_widget_printer_image.xml).
-    const lv_font_t* compact_font = theme_manager_get_font("font_xs");
     const int border = lv_obj_get_style_border_width(probe, LV_PART_MAIN);
     const int chrome_w = lv_obj_get_style_pad_left(probe, LV_PART_MAIN) +
                          lv_obj_get_style_pad_right(probe, LV_PART_MAIN) + 2 * border;
@@ -965,18 +955,14 @@ void PrinterImageWidget::apply_callout_layout() {
             return chrome_w + icons;
         return around_text(icons) + helix::ui::measure_text_px(text.c_str(), text_font) + comfort;
     };
-    // A compact text chip is its text alone: hidden icons take no flex gap.
+    // Pinned chips drop their icons and set chip_text in font_xs (the
+    // printer_callout_mode binding in panel_widget_printer_image.xml).
     const auto compact_w = [&](int icons, const std::string& text) {
-        if (text.empty())
-            return chrome_w + icons;
-        return chrome_w +
-               helix::ui::measure_text_px(compact_callout_text(text).c_str(), compact_font) +
-               comfort;
+        return helix::ui::compact_callout_chip_w(probe, text, icons);
     };
-    const int chrome_h = lv_obj_get_style_pad_top(probe, LV_PART_MAIN) +
-                         lv_obj_get_style_pad_bottom(probe, LV_PART_MAIN) + 2 * border;
-    in.chip_h =
-        std::max(lv_font_get_line_height(text_font), lv_font_get_line_height(icon_font)) + chrome_h;
+    in.chip_h = std::max(lv_font_get_line_height(text_font), lv_font_get_line_height(icon_font)) +
+                lv_obj_get_style_pad_top(probe, LV_PART_MAIN) +
+                lv_obj_get_style_pad_bottom(probe, LV_PART_MAIN) + 2 * border;
     in.gap = theme_manager_get_spacing("space_xs");
     in.min_line = theme_manager_get_spacing("space_md");
 
@@ -1047,7 +1033,8 @@ void PrinterImageWidget::apply_callout_layout() {
         // The budget decided the mode; the chips placed on the picture are
         // compact. Without the budget the second pass cannot pick another mode.
         in.budget.clear();
-        in.chip_h = lv_font_get_line_height(compact_font) + chrome_h;
+        in.chip_h =
+            helix::ui::compact_callout_chip_h(probe, lv_subject_get_int(&s_callout_light_shown));
         in.active.clear();
         for (const Chip& c : chips)
             if (lv_subject_get_int(c.shown))
@@ -1057,6 +1044,8 @@ void PrinterImageWidget::apply_callout_layout() {
                           anchor(CalloutKind::Toolhead)};
         out = compute_callout_layout(in);
     }
+    spdlog::trace("[PrinterImageWidget] callouts: placed {} chips, chip_h {}", out.chips.size(),
+                  in.chip_h);
     const bool compact = out.mode == CalloutMode::Pinned;
     lv_subject_set_int(&s_callout_toolhead_merged, out.toolhead_merged ? 1 : 0);
     lv_subject_set_int(&s_printer_callout_mode, static_cast<int>(out.mode));

@@ -191,9 +191,13 @@ which returns a `CalloutMode`, the image rect, and each chip's rect and leader l
   text ends in dots instead of spilling.
 - **Pinned chips are compact.** A pinned chip sits on the picture, so it drops its icon
   and unit letter and sets its text in `font_xs` (`printer_callout_mode` bindings in the
-  XML; the text in `compact_callout_text()`). The budget pass still measures full chips
-  to pick the mode; a second pass without the budget places the active chips at their
-  compact widths. The merged toolhead chip exists only in pinned mode, so it is text alone.
+  XML). The text and the chip's width and height come from
+  `src/ui/panel_widgets/callout_chip.h`, which the image tagger's review uses too, so its
+  preview is the home chip. The budget pass still measures full chips to pick the mode; a
+  second pass without the budget places the active chips at their compact size. The light
+  chip keeps its xs icon, which at some breakpoints is taller than a `font_xs` line, so
+  while it shows every chip slot takes the icon's height. The merged toolhead chip exists
+  only in pinned mode, so it is text alone.
 - **Geometry is set only from the deferred timer.** Observers publish subjects and call
   `schedule_callout_layout()`; the one-shot timer measures and places. Nothing forces a
   layout pass during a grid rebuild (#983, #1025). Unchanged coordinates are not

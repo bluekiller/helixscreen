@@ -27,6 +27,7 @@
 #include "printer_image_regions.h"
 #include "printer_images.h"
 #include "printer_state.h"
+#include "src/ui/panel_widgets/callout_chip.h"
 #include "src/ui/panel_widgets/printer_image_widget.h"
 #include "src/ui/panel_widgets/text_measure.h"
 #include "static_panel_registry.h"
@@ -280,6 +281,30 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(has_led, 1);
     settle();
     CHECK(shown(h, "callout_chip_light"));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a compact chip slot is as tall as the light chip's icon when it shows",
+                 "[printer_image][callouts]") {
+    // Small and below pair a 15px font_xs line with an 18px xs icon line; stand
+    // in for that by pointing icon_font_xs at a taller face than font_xs.
+    const std::string icon_font = lv_xml_get_const_silent(nullptr, "icon_font_xs");
+    struct Restore {
+        std::string v;
+        ~Restore() {
+            lv_xml_update_const(nullptr, "icon_font_xs", v.c_str());
+        }
+    } restore{icon_font};
+    REQUIRE(lv_xml_update_const(nullptr, "icon_font_xs", "mdi_icons_32") == LV_RESULT_OK);
+    const int text_line = lv_font_get_line_height(theme_manager_get_font("font_xs"));
+    const int icon_line = lv_font_get_line_height(theme_manager_get_font("icon_font_xs"));
+    REQUIRE(icon_line > text_line);
+
+    lv_obj_t* chip = lv_obj_create(test_screen());
+    lv_obj_set_style_pad_ver(chip, 3, 0);
+    lv_obj_set_style_border_width(chip, 1, 0);
+    CHECK(helix::ui::compact_callout_chip_h(chip, false) == text_line + 2 * 3 + 2);
+    CHECK(helix::ui::compact_callout_chip_h(chip, true) == icon_line + 2 * 3 + 2);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
