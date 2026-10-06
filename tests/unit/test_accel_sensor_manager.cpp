@@ -37,7 +37,6 @@ class AccelSensorManagerTestAccess {
     static void reset(AccelSensorManager& obj) {
         std::lock_guard<std::recursive_mutex> lock(obj.mutex_);
         obj.sensors_.clear();
-        obj.states_.clear();
         obj.deinit_subjects();
     }
 };
@@ -274,6 +273,15 @@ TEST_CASE_METHOD(AccelSensorTestFixture, "AccelSensorManager - config-based disc
         auto configs = mgr().get_sensors();
         REQUIRE(configs[0].klipper_name == "beacon");
         REQUIRE(configs[0].type == AccelSensorType::LIS2DW);
+    }
+
+    SECTION("Beacon found via resonance_tester survives rediscovery") {
+        json config_keys = {{"resonance_tester", {{"accel_chip", "beacon"}}}};
+        mgr().discover_from_config(config_keys);
+        mgr().discover_from_config(config_keys);
+
+        REQUIRE(mgr().sensor_count() == 1);
+        REQUIRE(mgr().get_sensors()[0].klipper_name == "beacon");
     }
 
     SECTION("Discovers Beacon accelerometer via resonance_tester accel_chip_x") {

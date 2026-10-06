@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>bd208f0b6</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>1c9c77a87</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 117 done, 8 in progress, 11 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 122 done, 5 in progress, 9 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -789,10 +789,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="DEAD-8" data-tag="dead" data-size="1.1" data-status="progress">
-<summary><span class="fid">DEAD-8</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">refactor/defer-lifetime</code><span class="ftitle">Dead observer value/transform/raw family, async_helpers.h, empty revalidate_all</span><span class="fimpact">~-490 framework lines</span></summary>
+<details class="f" id="DEAD-8" data-tag="dead" data-size="1.1" data-status="done">
+<summary><span class="fid">DEAD-8</span><span class="chip t-dead">dead</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">e16081bd9</code><span class="ftitle">Dead observer value/transform/raw family, async_helpers.h, empty revalidate_all</span><span class="fimpact">~-490 framework lines</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: the unused half of <code>include/async_helpers.h</code> and the other dead framework pieces went out in <code>refactor/dead-code-sweep</code> (main <code>11e3e7b2f</code>). Still open: 8 raw-<code>this</code> <code>queue_update</code> captures in <code>async_helpers.h</code>, tracked as <a href="#FW-14">FW-14</a>, in progress on <code>refactor/defer-lifetime</code>.</p>
+<p class="branch">Done: the observer value/transform/raw family and the unused half of <code>async_helpers.h</code> went out in <code>refactor/dead-code-sweep</code> (<code>11e3e7b2f</code>); <code>e16081bd9</code> moved the remaining PrinterState setters onto <code>async_lifetime_</code> and deleted the header (<a href="#FW-14">FW-14</a>).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/observer_factory.h#create_value_observer</code>, <code>#create_transform_observer</code>, <code>#create_raw_observer</code>, <code>#observe_connection_state</code>, <code>#observe_string_async</code>; <code>include/async_helpers.h#call_method</code>, <code>#call_method2</code>, <code>#invoke_weak</code>; <code>include/ui_observer_guard.h#revalidate_all</code></dd>
 <dt>Evidence</dt><dd>Observer family: 0 hits outside the header across src/include/tests/lib; 260-line block (111 code) the header still advertises as "the three observer patterns"; <code>observe_string_async</code> test-only. async_helpers.h: 150 lines (92 comments), one includer (<code>printer_state.cpp</code>), 8 calls, <code>call_method2</code>/<code>invoke_weak</code> 0 callers, <code>if (!instance)</code> guards dead since every call passes <code>this</code>. <code>revalidate_all()</code>: body <code>{}</code>, 3 callers in application.cpp under a stale NOTE.</dd>
@@ -937,10 +937,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </details>
 </section>
 <section id="sec-d"><h2>D. Framework consolidation</h2><p class="lede">The biggest wins: each one stops a pattern that every new feature copies.</p>
-<details class="f" id="FW-1" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">FW-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">743eed883</code><span class="ftitle">OverlayBase owns show(), default create() and lazy_global&lt;T&gt;() for 70 overlays</span><span class="fimpact">~-2,300 of ~6,300 ceremony lines</span></summary>
+<details class="f" id="FW-1" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">FW-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">04c38ebf8</code><span class="ftitle">OverlayBase owns show(), default create() and lazy_global&lt;T&gt;() for 70 overlays</span><span class="fimpact">~-2,300 of ~6,300 ceremony lines</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) added <code>OverlayBase::show()</code>, the default <code>create()</code> and <code>helix::lazy_global</code>. Three overlay sweeps merged to main (print-misc <code>a1f2c83aa</code>, settings <code>b663be0e8</code>, ams-cal <code>94c107fe5</code>) and the final sweep at <code>743eed883</code> moved the settings panel and plugin overlays onto <code>OverlayBase::show</code>, deleted <code>lazy_create_and_push_overlay</code> and the global-overlay macros, and added the shrink-only gate <code>scripts/check_overlay_boilerplate.py</code>. Remaining: 8 hand-rolled "already exists" guards and 30 <code>static std::unique_ptr</code> accessor slots in <code>src/ui</code>, which the gate holds at those counts until they convert to <code>lazy_global</code>.</p>
+<p class="branch">Shipped in <code>04c38ebf8</code>: 41 hand-rolled slots and guards became <code>lazy_global</code> / <code>lazy_global_with_teardown</code>; the gate baseline is 3 slots / 3 guards, each one a deliberate exception (advanced panel replaces its instance in tests, change-host modal survives <code>destroy_all</code>, print-select, snake game, busy overlay).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/overlay_base.h#OverlayBase</code>, <code>src/ui/overlay_base.cpp#OverlayBase::create_overlay_from_xml</code>, e.g. <code>src/ui/ui_settings_safety.cpp#SafetySettingsOverlay::show</code>, <code>src/ui/ui_settings_system.cpp#SystemSettingsOverlay::create</code>, <code>src/ui/ui_settings_connection.cpp</code></dd>
 <dt>Evidence</dt><dd>Four blocks recur near byte-for-byte in 70 files: lazy accessor (80 files, 422 lines), <code>create()</code> (1,245 lines; 41 hand-roll it, 29 with the identical "already exists" string, only 13 use <code>create_overlay_from_xml</code>), <code>show()</code> (613 lines; there is no <code>OverlayBase::show</code>), log-only ctor/dtor and pass-through lifecycle (402 lines). A 20-file sample is 39% ceremony; ui_settings_connection.cpp has no behaviour at all.</dd>
@@ -1509,10 +1509,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="REN-6" data-tag="dup" data-size="1.1" data-status="open">
-<summary><span class="fid">REN-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">Bed mesh: two full render backends and three frames in RAM</span><span class="fimpact">~-1,400 lines, -0.75-1.5MB RAM</span></summary>
+<details class="f" id="REN-6" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">REN-6</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">1c9c77a87</code><span class="ftitle">Bed mesh: two full render backends and three frames in RAM</span><span class="fimpact">~-1,400 lines, -0.75-1.5MB RAM</span></summary>
 <div class="fbody">
-<p class="branch">The three-frames half shipped with <a href="#RAM-3">RAM-3</a> (<code>b0a1d3e05</code>). The two render backends remain.</p>
+<p class="branch">Shipped in <code>1c9c77a87</code>: the LVGL synchronous backend is deleted (-1,100 net lines); the 2D heatmap, drawn only by the deleted path and so showing 3D on main, renders off-screen; one <code>compute_bed_extent()</code> and <code>compute_heatmap_layout()</code> replace the pasted copies; overlays and touch follow the shown frame's recorded mode and size. Two 627 KB buffers while rendering at 800x480, none when off.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/rendering/bed_mesh_renderer.cpp#bed_mesh_renderer_render</code> vs <code>#bed_mesh_renderer_render_to_buffer</code>, <code>src/rendering/bed_mesh_overlays.cpp</code>, <code>src/rendering/bed_mesh_rasterizer.cpp</code>, <code>src/rendering/bed_mesh_buffer.cpp</code>, <code>src/ui/ui_bed_mesh.cpp#bed_mesh_draw_cb</code>, <code>include/bed_mesh_render_thread.h</code></dd>
 <dt>Evidence</dt><dd><code>BedMeshPanel::ensure_async_rendering</code> enables async whenever data exists, so the LVGL sync backend almost never draws; twins are line-for-line (<code>render_reference_grids</code> 117 vs 112); 7 <code>GRADIENT_*</code> constants re-declared. Front + back + <code>blit_pixel_data</code> = 3 frames of 0.75-1.5MB each, full memcpy on every draw even with no new frame; blit buffer survives async shutdown (#1246). Grid extents pasted 4x, already disagreeing on <code>has_bed_bounds</code>.</dd>
@@ -1659,10 +1659,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </div>
 </details>
 <h3>Printer</h3>
-<details class="f" id="PRN-1" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">PRN-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">011543e4e</code><span class="ftitle">PrinterDetector DB lookup hand-rolled 18 times next to its helper</span><span class="fimpact">~-300 lines; one ESP32 abort path</span></summary>
+<details class="f" id="PRN-1" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">PRN-1</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">14e7a50ed</code><span class="ftitle">PrinterDetector DB lookup hand-rolled 18 times next to its helper</span><span class="fimpact">~-300 lines; one ESP32 abort path</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/printer-cleanup</code> (<code>011543e4e</code>) added the <code>find_printer_entry</code> helper and routes some accessors through it. Several accessors still hand-roll the database loop.</p>
+<p class="branch">Shipped in <code>14e7a50ed</code>: <code>database_printers()</code> owns the load-and-shape preamble, every accessor routes through <code>find_printer_entry</code>/<code>printer_member</code>/<code>printer_flag</code>; a wrong-shape database fails to load instead of throwing, and a failed load is remembered so it toasts once. DEAD-8 is done too: <code>e16081bd9</code>.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/printer/printer_detector.cpp#find_printer_entry</code>, <code>#get_z_offset_calibration_strategy</code>, <code>#get_probe_type</code>, <code>#get_toolhead_style</code>, <code>#is_enclosed</code>, <code>#get_image_for_printer</code>, <code>#get_print_start_profile</code></dd>
 <dt>Evidence</dt><dd>18 loops over <code>g_database.data["printers"]</code>, each with its own <code>load()</code> + <code>contains/is_array</code> preamble and 1-2 tolower transforms (49 in the file); accessors are 17-40 lines where 3-6 would do. Newer <code>get_print_start_profile</code>/<code>get_thermal_rates</code> already use the helper. <code>printer-&gt;value("print_start_profile", "")</code> throws on a non-string, and the file is in the ESP32 app_srcs (-fno-exceptions: abort). Dead: <code>get_image_for_printer_id</code>, <code>is_voron_printer</code>, <code>get_load_status</code> (test-only).</dd>
@@ -1734,9 +1734,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="PRN-6" data-tag="dup" data-size="later" data-status="open">
-<summary><span class="fid">PRN-6</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">Sensor managers are one class copy-pasted with a different noun</span><span class="fimpact">~-500-600 lines; 7th sensor = 1 file</span></summary>
+<details class="f" id="PRN-6" data-tag="dup" data-size="later" data-status="done">
+<summary><span class="fid">PRN-6</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">9329bddf0</code><span class="ftitle">Sensor managers are one class copy-pasted with a different noun</span><span class="fimpact">~-500-600 lines; 7th sensor = 1 file</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>9329bddf0</code>: <code>SensorCollection</code> plus a role-name table replace the copy-pasted find/has/count/reconcile and config load/save in accel, humidity, load_cell, probe, temperature, width and filament managers (-841 lines). Unifying the copies fixed the accel manager dropping a resonance_tester Beacon every second discovery.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/sensors/{accel,color,humidity,load_cell,probe,temperature,width}_*manager.cpp</code>, <code>src/print/filament_sensor_manager.cpp</code></dd>
 <dt>Evidence</dt><dd>Normalized similarity to the first copy: <code>has_sensors</code>/<code>get_sensors</code>/<code>sensor_count</code>/<code>set_sync_mode</code>/<code>instance</code> 1.00 in all 7-8; <code>find_config</code> 1.00 x6; <code>save_config</code> 0.91-1.00 x6; <code>load_config</code> 0.95-1.00 x5; <code>deinit_subjects</code> 1.00 x5. The ~35-line discover reconcile block appears verbatim in 7 files. 6 managers total 4,070 lines (529-789 each), clone windows 54-63 lines between every pair; 7 headers total 1,899 lines; 8 <code>*_types.h</code> hand-write role string switches.</dd>

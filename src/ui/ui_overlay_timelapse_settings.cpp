@@ -14,26 +14,18 @@
 
 #include <spdlog/spdlog.h>
 
-// Global instance (constructed with the API, so not a lazy_global)
-static std::unique_ptr<TimelapseSettingsOverlay> g_timelapse_settings;
-
 TimelapseSettingsOverlay& get_global_timelapse_settings() {
-    if (!g_timelapse_settings) {
+    auto* instance = helix::lazy_global_if_exists<TimelapseSettingsOverlay>();
+    if (!instance) {
         spdlog::error(
             "[Timelapse Settings] get_global_timelapse_settings() called before initialization!");
         throw std::runtime_error("TimelapseSettingsOverlay not initialized");
     }
-    return *g_timelapse_settings;
+    return *instance;
 }
 
 void init_global_timelapse_settings(IMoonrakerAPI* api) {
-    if (g_timelapse_settings) {
-        spdlog::warn("[Timelapse Settings] TimelapseSettingsOverlay already initialized, skipping");
-        return;
-    }
-    g_timelapse_settings = std::make_unique<TimelapseSettingsOverlay>(api);
-    StaticPanelRegistry::instance().register_destroy("TimelapseSettingsOverlay",
-                                                     []() { g_timelapse_settings.reset(); });
+    helix::lazy_global<TimelapseSettingsOverlay>("TimelapseSettingsOverlay", api);
     spdlog::trace("[Timelapse Settings] TimelapseSettingsOverlay initialized");
 }
 

@@ -35,15 +35,8 @@ using namespace helix;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardLedSelectStep> g_wizard_led_select_step;
-
 WizardLedSelectStep* get_wizard_led_select_step() {
-    if (!g_wizard_led_select_step) {
-        g_wizard_led_select_step = std::make_unique<WizardLedSelectStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardLedSelectStep", []() { g_wizard_led_select_step.reset(); });
-    }
-    return g_wizard_led_select_step.get();
+    return &helix::lazy_global<WizardLedSelectStep>("WizardLedSelectStep");
 }
 
 // ============================================================================

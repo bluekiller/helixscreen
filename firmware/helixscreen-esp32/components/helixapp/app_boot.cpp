@@ -63,11 +63,13 @@
 #include "connection_state.h"
 #include "data_root_resolver.h"
 #include "esp_heap_caps.h"
+#include "esp_http_lane.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "filament_sensor_manager.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "helix_fs.h"
 #include "helix_sparkline.h"
 #include "i_moonraker_client.h"
 #include "job_queue_state.h"
@@ -77,6 +79,7 @@
 #include "moonraker_types.h" // FileInfo/FileMetadata/ThumbnailInfo/resolve_thumbnail_path — HTTP HIL probe
 #include "panel_factory.h"
 #include "pending_startup_warnings.h"
+#include "print_history_manager.h"
 #include "printer_discovery.h" // helix::PrinterDiscovery + init_subsystems (discovery callback args)
 #include "printer_fan_state.h" // helix::FanRoleConfig for the non-mock fan-role resolve
 #include "printer_state.h"
@@ -92,6 +95,7 @@
 #include "temperature_sensor_manager.h"
 #include "text_io.h"
 #include "theme_manager.h"
+#include "thumbnail_cache.h"
 #include "tips_manager.h"
 #include "tool_state.h"
 #include "translation_loader.h"
@@ -881,6 +885,12 @@ extern "C" void app_boot_ui(void) {
     static JobQueueState job_queue(manager.api(), manager.client());
     job_queue.init_subjects();
     set_job_queue_state(&job_queue);
+
+    // Print history cache: Reprint Last, the print-status idle card and the
+    // file list's success marks all read it through get_print_history_manager()
+    // and render as "no history" while that returns null.
+    static PrintHistoryManager print_history(manager.api(), manager.client());
+    set_print_history_manager(&print_history);
     log_heap_milestone("subjects-up");
 
     // Global software keyboard — one shared lv_keyboard, hidden until a
@@ -969,6 +979,14 @@ extern "C" void app_boot_ui(void) {
     // The .bin font loads at ~2s print into the WiFi RF-cal serial dead window
     // (CH340 drops off USB); re-log them here where serial is reliable.
     helix_fonts_log_summary();
+
+    // The HTTP lane's worker runs on a PSRAM stack and must never touch
+    // LittleFS. Its callbacks reach get_thumbnail_cache(), whose first call
+    // creates the cache directory, so the cache is built here on the UI thread,
+    // and the worker is barred from storage before it takes a request.
+    helix::http::EspHttpLane::set_worker_start_hook(
+        [] { helix::fs::forbid_storage_on_this_thread("http_lane"); });
+    get_thumbnail_cache();
 
 #if !CONFIG_HELIX_MOCK_PRINTER && !CONFIG_HELIX_NET_HIL
     // Bring up WiFi + connect to Moonraker, LAST — the shell is already up, so

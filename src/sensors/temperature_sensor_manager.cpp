@@ -6,7 +6,6 @@
 #include "ui_update_queue.h"
 
 #include "device_display_name.h"
-#include "json_utils.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
 #include "text_io.h"
@@ -45,9 +44,7 @@ void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_
     spdlog::debug("[TemperatureSensorManager] Discovering temperature sensors from {} objects",
                   klipper_objects.size());
 
-    // Clear existing sensors
-    sensors_.clear();
-
+    std::vector<TemperatureSensorConfig> discovered;
     for (const auto& klipper_name : klipper_objects) {
         std::string sensor_name;
         TemperatureSensorType type = TemperatureSensorType::TEMPERATURE_SENSOR;
@@ -90,17 +87,6 @@ void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_
             config.priority = 100;
         }
 
-        sensors_.push_back(config);
-
-        // Initialize state if not already present
-        if (states_.find(klipper_name) == states_.end()) {
-            TemperatureSensorState state;
-            state.available = true;
-            states_[klipper_name] = state;
-        } else {
-            states_[klipper_name].available = true;
-        }
-
         // Ensure a dynamic subject exists for this sensor
         ensure_sensor_subject(klipper_name);
 
@@ -108,44 +94,16 @@ void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_
                       "priority: {})",
                       sensor_name, temp_type_to_string(type), temp_role_to_string(config.role),
                       config.priority);
+        discovered.push_back(std::move(config));
     }
-
-    // Mark sensors that disappeared as unavailable
-    for (auto& [name, state] : states_) {
-        bool found = false;
-        for (const auto& sensor : sensors_) {
-            if (sensor.klipper_name == name) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            state.available = false;
-        }
-    }
-
-    // Remove stale entries to prevent unbounded memory growth
-    for (auto it = states_.begin(); it != states_.end();) {
-        if (!it->second.available) {
-            it = states_.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    sensors_.reconcile(std::move(discovered));
 
     // Remove stale dynamic subjects using explicit two-phase protocol:
     // Phase 1: Expire lifetime tokens — invalidates ObserverGuard weak_ptrs
     //          so they won't call lv_observer_remove() on freed observers.
     // Phase 2: Erase subjects — DynamicIntSubject destructor calls lv_subject_deinit().
     for (auto& [name, subj] : temp_subjects_) {
-        bool found = false;
-        for (const auto& sensor : sensors_) {
-            if (sensor.klipper_name == name) {
-                found = true;
-                break;
-            }
-        }
-        if (!found && subj) {
+        if (!sensors_.find(name) && subj) {
             spdlog::trace("[TemperatureSensorManager] Expiring lifetime token for orphaned "
                           "sensor: {}",
                           name);
@@ -155,14 +113,7 @@ void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_
         }
     }
     for (auto it = temp_subjects_.begin(); it != temp_subjects_.end();) {
-        bool found = false;
-        for (const auto& sensor : sensors_) {
-            if (sensor.klipper_name == it->first) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
+        if (!sensors_.find(it->first)) {
             it = temp_subjects_.erase(it); // Phase 2: deinit via destructor
         } else {
             ++it;
@@ -194,7 +145,7 @@ void TemperatureSensorManager::update_from_status(const nlohmann::json& status) 
             }
 
             const auto& sensor_data = status[key];
-            auto& state = states_[sensor.klipper_name];
+            auto& state = sensors_.state_at(sensor.klipper_name);
             TemperatureSensorState old_state = state;
 
             // Field-restricted Moonraker subscriptions send null for fields the
@@ -245,30 +196,9 @@ void TemperatureSensorManager::load_config(const nlohmann::json& config) {
 
     spdlog::debug("[TemperatureSensorManager] Loading config");
 
-    if (!config.contains("sensors") || !config["sensors"].is_array()) {
+    if (!sensors_.apply_json(config, temp_role_from_string)) {
         spdlog::debug("[TemperatureSensorManager] No sensors config found");
         return;
-    }
-
-    for (const auto& sensor_json : config["sensors"]) {
-        if (!sensor_json.contains("klipper_name")) {
-            continue;
-        }
-
-        std::string klipper_name = helix::json_util::as_string(sensor_json["klipper_name"]);
-        auto* sensor = find_config(klipper_name);
-
-        if (sensor) {
-            if (sensor_json.contains("role")) {
-                sensor->role =
-                    temp_role_from_string(helix::json_util::as_string(sensor_json["role"]));
-            }
-            if (sensor_json.contains("enabled")) {
-                sensor->enabled = helix::json_util::as_bool(sensor_json["enabled"]);
-            }
-            spdlog::debug("[TemperatureSensorManager] Loaded config for {}: role={}, enabled={}",
-                          klipper_name, temp_role_to_string(sensor->role), sensor->enabled);
-        }
     }
 
     update_subjects();
@@ -280,19 +210,7 @@ nlohmann::json TemperatureSensorManager::save_config() const {
 
     spdlog::debug("[TemperatureSensorManager] Saving config");
 
-    nlohmann::json config;
-    nlohmann::json sensors_array = nlohmann::json::array();
-
-    for (const auto& sensor : sensors_) {
-        nlohmann::json sensor_json;
-        sensor_json["klipper_name"] = sensor.klipper_name;
-        sensor_json["role"] = temp_role_to_string(sensor.role);
-        sensor_json["enabled"] = sensor.enabled;
-        sensor_json["type"] = temp_type_to_string(sensor.type);
-        sensors_array.push_back(sensor_json);
-    }
-
-    config["sensors"] = sensors_array;
+    auto config = sensors_.to_json(temp_role_to_string, temp_type_to_string);
 
     spdlog::info("[TemperatureSensorManager] Config saved");
     return config;
@@ -338,7 +256,6 @@ void TemperatureSensorManager::deinit_subjects() {
         // Clear all collections under mutex to prevent background thread access
         // to stale iterators during shutdown race
         sensors_.clear();
-        states_.clear();
 
         // Signal subject death before clearing — sets bool to false so ALL
         // ObserverGuards detect dead subjects even with outstanding shared_ptr
@@ -367,13 +284,13 @@ bool TemperatureSensorManager::has_sensors() const {
 
 std::vector<TemperatureSensorConfig> TemperatureSensorManager::get_sensors() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return sensors_; // Return thread-safe copy
+    return sensors_.configs(); // Return thread-safe copy
 }
 
 std::vector<TemperatureSensorConfig> TemperatureSensorManager::get_sensors_sorted() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto sorted = sensors_;
+    auto sorted = sensors_.configs();
     std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
         if (a.priority != b.priority) {
             return a.priority < b.priority;
@@ -397,8 +314,7 @@ void TemperatureSensorManager::set_sensor_role(const std::string& klipper_name,
                                                TemperatureSensorRole role) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
+    if (auto* sensor = sensors_.find(klipper_name)) {
         sensor->role = role;
         spdlog::info("[TemperatureSensorManager] Set role for {} to {}", sensor->sensor_name,
                      temp_role_to_string(role));
@@ -412,7 +328,7 @@ void TemperatureSensorManager::apply_chamber_sensor_override(const std::string& 
     // A name this printer does not report would demote the incumbent CHAMBER
     // below and promote nothing in its place, vacating the chamber role. Keep
     // the auto-categorizer's classification standing instead.
-    if (!klipper_name.empty() && !find_config(klipper_name)) {
+    if (!klipper_name.empty() && !sensors_.find(klipper_name)) {
         spdlog::debug("[TemperatureSensorManager] Chamber override '{}' not found in discovered "
                       "sensors; keeping auto-categorized roles",
                       klipper_name);
@@ -457,7 +373,7 @@ void TemperatureSensorManager::apply_chamber_sensor_override(const std::string& 
     }
 
     // Promote the specified sensor to CHAMBER role.
-    if (auto* sensor = find_config(klipper_name)) {
+    if (auto* sensor = sensors_.find(klipper_name)) {
         sensor->role = TemperatureSensorRole::CHAMBER;
         sensor->priority = 0;
         spdlog::info("[TemperatureSensorManager] Manual chamber sensor override: {}", klipper_name);
@@ -469,8 +385,7 @@ void TemperatureSensorManager::apply_chamber_sensor_override(const std::string& 
 void TemperatureSensorManager::set_sensor_enabled(const std::string& klipper_name, bool enabled) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
+    if (auto* sensor = sensors_.find(klipper_name)) {
         sensor->enabled = enabled;
         spdlog::info("[TemperatureSensorManager] Set enabled for {} to {}", sensor->sensor_name,
                      enabled);
@@ -486,12 +401,8 @@ std::optional<TemperatureSensorState>
 TemperatureSensorManager::get_sensor_state(const std::string& klipper_name) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto it = states_.find(klipper_name);
-    if (it == states_.end()) {
-        return std::nullopt;
-    }
-
-    return it->second; // Return thread-safe copy
+    const auto* state = sensors_.state(klipper_name);
+    return state ? std::optional(*state) : std::nullopt;
 }
 
 // ============================================================================
@@ -575,25 +486,6 @@ bool TemperatureSensorManager::parse_klipper_name(const std::string& klipper_nam
     return false;
 }
 
-TemperatureSensorConfig* TemperatureSensorManager::find_config(const std::string& klipper_name) {
-    for (auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const TemperatureSensorConfig*
-TemperatureSensorManager::find_config(const std::string& klipper_name) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
 void TemperatureSensorManager::ensure_sensor_subject(const std::string& klipper_name) {
     if (temp_subjects_.find(klipper_name) != temp_subjects_.end()) {
         return; // Already exists
@@ -620,13 +512,13 @@ void TemperatureSensorManager::update_subjects() {
             continue;
         }
 
-        auto state_it = states_.find(sensor.klipper_name);
-        if (state_it == states_.end()) {
+        const auto* state = sensors_.state(sensor.klipper_name);
+        if (!state) {
             continue;
         }
 
         // Convert temperature to decidegrees (×10 for 0.1°C resolution)
-        int decidegrees = helix::units::to_decidegrees(state_it->second.temperature);
+        int decidegrees = helix::units::to_decidegrees(state->temperature);
         lv_subject_set_int(&subj_it->second->subject, decidegrees);
     }
 

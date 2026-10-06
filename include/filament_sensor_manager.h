@@ -9,6 +9,7 @@
 #include "filament_sensor_types.h"
 #include "json_fwd.h"
 #include "lvgl.h"
+#include "sensor_collection.h"
 #include "subject_managed_panel.h"
 
 #include "hv/json.hpp"
@@ -559,19 +560,6 @@ class FilamentSensorManager {
                             FilamentSensorType& type) const;
 
     /**
-     * @brief Find config by Klipper name
-     * @return Pointer to config, or nullptr if not found
-     */
-    FilamentSensorConfig* find_config(const std::string& klipper_name);
-    const FilamentSensorConfig* find_config(const std::string& klipper_name) const;
-
-    /**
-     * @brief Find config by assigned role
-     * @return Pointer to config, or nullptr if no sensor has this role
-     */
-    const FilamentSensorConfig* find_config_by_role(FilamentSensorRole role) const;
-
-    /**
      * @brief Whether this sensor's reading counts for runout/presence decisions
      *
      * One rule shared by every runout consumer: the user's config enables the
@@ -628,7 +616,7 @@ class FilamentSensorManager {
 
     // Configuration
     bool master_enabled_ = true;
-    std::vector<FilamentSensorConfig> sensors_;
+    sensors::SensorCollection<FilamentSensorConfig, FilamentSensorState> sensors_;
 
     /// Klipper names of sensors WE armed for bypass (restore set). Empty when
     /// no bypass arming is outstanding.
@@ -642,9 +630,6 @@ class FilamentSensorManager {
     /// command shape and error disposition stay identical.
     void send_firmware_sensor_enable(class IMoonrakerAPI* api, const FilamentSensorConfig& sensor,
                                      bool enabled);
-
-    // Runtime state (keyed by klipper_name)
-    std::map<std::string, FilamentSensorState> states_;
 
     /// Runout-role sensors whose removal toast is serving
     /// helix::RUNOUT_TOAST_DWELL, keyed by klipper_name and holding

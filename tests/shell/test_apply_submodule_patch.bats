@@ -225,9 +225,10 @@ EOF
     # an unchanged grep marker blesses hunks the patch gained since. Holds
     # for both submodules. The pattern is $'...'-quoted: grep reads a bare
     # \t as the letter t, which would make this assertion unable to fail.
-    [ "$(grep -cE 'APPLY_PATCH\) \$\((LVGL|LIBHV)_DIR\)' mk/patches.mk)" -gt 50 ]
+    [ "$(grep -cE 'APPLY_PATCH\) \$\((LVGL|LIBHV|LUA)_DIR\)' mk/patches.mk)" -gt 50 ]
     ! grep -qE $'^\t+git -C \$\(LVGL_DIR\) apply' mk/patches.mk
     ! grep -qE $'^\t+git -C \$\(LIBHV_DIR\) apply' mk/patches.mk
+    ! grep -qE $'^\t+git -C \$\(LUA_DIR\) apply' mk/patches.mk
 }
 
 @test "reapply-patches judges from clean" {

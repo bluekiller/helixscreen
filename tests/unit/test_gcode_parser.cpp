@@ -1404,6 +1404,34 @@ TEST_CASE("get_best_thumbnail - real file picks the largest block", "[gcode][thu
     REQUIRE(thumb.png_data[1] == 'P');
 }
 
+TEST_CASE("get_cached_thumbnail - a cache entry that is not a PNG is regenerated",
+          "[gcode][thumbnail]") {
+    const std::string test_file = "assets/test_gcodes/3DBenchy.gcode";
+    if (!std::ifstream(test_file).good()) {
+        SKIP("Test G-code file not found: " << test_file);
+    }
+    char dir_tmpl[] = "/tmp/helix_thumb_cache_XXXXXX";
+    REQUIRE(mkdtemp(dir_tmpl) != nullptr);
+    const std::string cache_dir = dir_tmpl;
+    const std::string cache_file = cache_dir + "/3DBenchy.png";
+
+    // JPEG bytes under a .png name, newer than the G-code.
+    {
+        std::ofstream out(cache_file, std::ios::binary);
+        out << "\xff\xd8\xff\xe0\x00\x10JFIF-not-a-png";
+    }
+
+    REQUIRE(get_cached_thumbnail(test_file, cache_dir) == cache_file);
+
+    std::ifstream in(cache_file, std::ios::binary);
+    char head[4] = {};
+    in.read(head, 4);
+    CHECK(std::memcmp(head, "\x89PNG", 4) == 0);
+
+    std::remove(cache_file.c_str());
+    rmdir(cache_dir.c_str());
+}
+
 TEST_CASE("GCodeParser - Real 3DBenchy layer count", "[gcode][parser][layers][integration]") {
     // Integration test with real test file
     std::string test_file = "assets/test_gcodes/3DBenchy.gcode";

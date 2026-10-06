@@ -81,7 +81,7 @@ static constexpr uint32_t RESTART_FLAG_TIMEOUT = EXTRA;
  * @brief Emergency stop visibility coordinator
  *
  * Manages the estop_visible subject that drives the E-Stop button on the
- * navigation rail, plus the ones on screens that cover the rail (lock screen,
+ * navbar, plus the ones on screens that cover the navbar (lock screen,
  * fullscreen camera). Buttons are shown while a job holds the machine, via
  * XML subject binding. The button triggers an M112 emergency stop
  * command via Moonraker.
@@ -137,7 +137,7 @@ class EmergencyStopOverlay {
      * @brief Initialize visibility coordination
      *
      * Sets up observers to update the estop_visible subject based on print
-     * state. The rail's E-Stop and the ones on rail-covering screens bind to
+     * state. The navbar's E-Stop and the ones on navbar-covering screens bind to
      * this subject for reactive visibility.
      *
      * Must be called after:

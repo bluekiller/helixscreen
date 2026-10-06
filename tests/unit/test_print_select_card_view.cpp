@@ -151,3 +151,95 @@ TEST_CASE_METHOD(LVGLUITestFixture, "CardView: the pool holds the visible window
     view.cleanup();
     lv_obj_delete(container);
 }
+
+TEST_CASE_METHOD(
+    LVGLUITestFixture,
+    "CardView: cards on a solid background draw an opaque gradient, otherwise a masked one",
+    "[ui][card_view][print_select]") {
+    lv_obj_t* page = lv_obj_create(test_screen());
+    lv_obj_set_size(page, 720, 420);
+    lv_obj_set_style_bg_opa(page, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(page, lv_color_hex(0x101418), LV_PART_MAIN);
+    lv_obj_t* container = lv_obj_create(page);
+    lv_obj_set_size(container, 700, 400);
+    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW_WRAP);
+
+    const bool graded = GENERATE(false, true);
+    CAPTURE(graded);
+    if (graded) {
+        lv_obj_set_style_bg_grad_dir(page, LV_GRAD_DIR_VER, LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_color(page, lv_color_hex(0x303030), LV_PART_MAIN);
+    }
+
+    PrintSelectCardView view;
+    REQUIRE(view.setup(container, [](size_t) {}, nullptr));
+    view.populate(make_files(8), CardDimensions{4, 2, 160, 200});
+
+    lv_obj_t* gradient = lv_obj_find_by_name(container, "gradient_bg");
+    REQUIRE(gradient != nullptr);
+    const auto* buf = static_cast<const lv_draw_buf_t*>(lv_image_get_src(gradient));
+    REQUIRE(buf != nullptr);
+    CHECK(buf->header.cf == (graded ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_NATIVE));
+
+    view.cleanup();
+    lv_obj_delete(page);
+}
+
+namespace {
+
+std::string fixture_path(const char* name) {
+    std::string dir = __FILE__;
+    const auto pos = dir.rfind("/tests/unit/");
+    dir = pos != std::string::npos ? dir.substr(0, pos) + "/tests/fixtures/" : "tests/fixtures/";
+    return "A:" + std::filesystem::absolute(dir + name).string();
+}
+
+/// The file path a shown card's thumbnail image points at, "" for none.
+std::string card_thumb_src(lv_obj_t* container, size_t file_index) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(container); ++i) {
+        lv_obj_t* card = lv_obj_get_child(container, static_cast<int32_t>(i));
+        if (lv_obj_has_flag(card, LV_OBJ_FLAG_HIDDEN) ||
+            reinterpret_cast<size_t>(lv_obj_get_user_data(card)) != file_index) {
+            continue;
+        }
+        lv_obj_t* img = lv_obj_find_by_name(card, "thumbnail");
+        const void* src = img ? lv_image_get_src(img) : nullptr;
+        return src && lv_image_src_get_type(src) == LV_IMAGE_SRC_FILE
+                   ? static_cast<const char*>(src)
+                   : "";
+    }
+    return "";
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture, "CardView: an arrived thumbnail updates only its own card",
+                 "[ui][card_view][print_select]") {
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_set_size(container, 700, 400);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW_WRAP);
+
+    PrintSelectCardView view;
+    REQUIRE(view.setup(container, [](size_t) {}, nullptr));
+    const CardDimensions dims{4, 2, 160, 200};
+    auto files = make_files(20);
+    view.populate(files, dims);
+
+    // Two files gain a thumbnail, but only file 3's arrival is reported.
+    const std::string thumb = fixture_path("thumb_filters_rgba.png");
+    files[1].thumbnail_path = thumb;
+    files[3].thumbnail_path = thumb;
+    REQUIRE(card_thumb_src(container, 3) != thumb);
+
+    CHECK(view.update_thumbnail(3, files[3]));
+    CHECK(card_thumb_src(container, 3) == thumb);
+    CHECK(card_thumb_src(container, 1) != thumb);
+
+    // A file no card shows changes nothing.
+    files[19].thumbnail_path = thumb;
+    CHECK_FALSE(view.update_thumbnail(19, files[19]));
+
+    view.cleanup();
+    lv_obj_delete(container);
+}

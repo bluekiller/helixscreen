@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" zh="备用料盘切换状态未知"/>
   <translation tag="Barcode Scanner" zh="条码扫描器"/>
   <translation tag="Base" zh="基准"/>
+  <translation tag="Based on the newest {} prints" zh="基于最近 {} 次打印"/>
   <translation tag="Batch load failed" zh="批量加载失败"/>
   <translation tag="Batch unload failed" zh="批量卸载失败"/>
   <translation tag="Beacon auto-calibrate sent" zh="Beacon自动校准已发送"/>
@@ -2021,6 +2022,7 @@
   <translation tag="Options" zh="选项"/>
   <translation tag="Or Enter Manually" zh="或手动输入"/>
   <translation tag="Or instead of turning the others" zh="或者，无需转动其他螺丝"/>
+  <translation tag="Original file location unknown" zh="原始文件位置未知"/>
   <translation tag="Oscillating... cycle %d/%d" zh="振荡中... 循环 %d/%d"/>
   <translation tag="Outcome" zh="结果"/>
   <translation tag="Output Device" zh="输出设备"/>
@@ -2231,7 +2233,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" zh="打印机命令 &apos;{}&apos; 在 {} 毫秒后超时"/>
   <translation tag="Printer connection unavailable" zh="打印机连接不可用"/>
   <translation tag="Printer database format error" zh="打印机数据库格式错误"/>
-  <translation tag="Printer database is corrupt" zh="打印机数据库已损坏"/>
   <translation tag="Printer default" zh="打印机默认"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" zh="打印机无响应 — 请确保已开机且在范围内"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" zh="打印机未提供预期的服务 — 设备是否有误？"/>

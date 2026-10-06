@@ -724,7 +724,7 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 continue;
             }
 
-            // Screen chrome (the rail E-stop) is not an overlay.
+            // Screen chrome (the navbar E-stop) is not an overlay.
             if (child == app_layout_widget_ || helix::ui::is_screen_chrome(child)) {
                 continue;
             }
@@ -939,8 +939,8 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         },
         subject_never_freed());
 
-    rail_estop_.create(navbar);
-    rail_drying_.create(navbar);
+    navbar_estop_.create(navbar);
+    navbar_drying_.create(navbar);
 
     spdlog::trace(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");
@@ -1336,8 +1336,8 @@ void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriv
     backdrop_.adopt(screen, arriving, backdrop_click_event_cb);
 }
 
-void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
-    rail_estop_.set_keyboard_top(top);
+void NavigationManager::set_navbar_estop_keyboard_top(int32_t top) {
+    navbar_estop_.set_keyboard_top(top);
 }
 
 void NavigationManager::refresh_overlay_backdrop() {
@@ -1955,10 +1955,10 @@ void NavigationManager::deinit_subjects() {
     app_layout_widget_ = nullptr;
     backdrop_.reset();
     navbar_widget_ = nullptr;
-    // The rail buttons live on the screen, not in the app layout a printer
+    // The navbar buttons live on the screen, not in the app layout a printer
     // switch rebuilds, so they go explicitly or the rebuild leaves orphans.
-    rail_estop_.destroy();
-    rail_drying_.destroy();
+    navbar_estop_.destroy();
+    navbar_drying_.destroy();
     active_panel_ = PanelId::Home;
     previous_connection_state_ = -1;
     previous_klippy_state_ = -1;

@@ -47,6 +47,11 @@ class PrintHistoryManagerTestAccess {
                                           : PrintHistoryManager::kNoFetch);
     }
 
+    /// Shrink the cached-job budget so a test can reach it with a few jobs.
+    static void set_job_budget(PrintHistoryManager& m, size_t budget) {
+        m.job_budget_ = budget;
+    }
+
     /// Deliver a fetch result on the calling thread, as the deferred success
     /// callback does on the main thread. `requested` is the limit the request
     /// carried, which is what tells the cache whether it now holds everything.

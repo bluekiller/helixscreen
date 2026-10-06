@@ -5,6 +5,8 @@
 
 #include "text_io.h"
 
+#include <spdlog/spdlog.h>
+
 #include <cerrno>
 #include <climits>
 #include <cstdio>
@@ -21,8 +23,28 @@ namespace helix::fs {
 
 namespace {
 
+thread_local const char* t_storage_forbidden_by = nullptr;
+
+} // namespace
+
+void forbid_storage_on_this_thread(const char* thread_name) {
+    t_storage_forbidden_by = thread_name ? thread_name : "?";
+}
+
+bool storage_allowed(const char* op, std::string_view path) {
+    if (t_storage_forbidden_by == nullptr) {
+        return true;
+    }
+    spdlog::error("[helix_fs] {}('{}') refused: the {} thread must not touch storage", op, path,
+                  t_storage_forbidden_by);
+    errno = EPERM;
+    return false;
+}
+
+namespace {
+
 bool stat_ok(const std::string& p, struct stat& st) {
-    return ::stat(p.c_str(), &st) == 0;
+    return storage_allowed("stat", p) && ::stat(p.c_str(), &st) == 0;
 }
 
 // ESP32's C library links no lstat; it has no symlinks either, so stat is exact there.
@@ -183,7 +205,7 @@ bool is_symlink(const std::string& p) {
     return false;
 #else
     struct stat st;
-    return ::lstat(p.c_str(), &st) == 0 && S_ISLNK(st.st_mode);
+    return storage_allowed("lstat", p) && ::lstat(p.c_str(), &st) == 0 && S_ISLNK(st.st_mode);
 #endif
 }
 
@@ -206,6 +228,9 @@ std::optional<std::int64_t> mtime_ns(const std::string& p) {
 }
 
 std::optional<std::uint64_t> space_available(const std::string& p) {
+    if (!storage_allowed("space_available", p)) {
+        return std::nullopt;
+    }
 #if defined(HELIX_PLATFORM_ESP32)
     (void)p;
     return std::nullopt;
@@ -224,6 +249,9 @@ std::optional<std::string> canonical(const std::string& p) {
 #else
     constexpr size_t kPathMax = PATH_MAX;
 #endif
+    if (!storage_allowed("canonical", p)) {
+        return std::nullopt;
+    }
     char buf[kPathMax];
     if (::realpath(p.c_str(), buf) == nullptr) {
         return std::nullopt;
@@ -236,6 +264,9 @@ std::optional<std::string> canonical(const std::string& p) {
 // ---------------------------------------------------------------------------
 
 bool create_directories(const std::string& p) {
+    if (!storage_allowed("create_directories", p)) {
+        return false;
+    }
     if (p.empty()) {
         errno = ENOENT;
         return false;
@@ -259,6 +290,9 @@ bool create_directories(const std::string& p) {
 }
 
 bool remove(const std::string& p) {
+    if (!storage_allowed("remove", p)) {
+        return false;
+    }
     struct stat st;
     if (lstat_compat(p.c_str(), &st) != 0) {
         return false; // errno from lstat: ENOENT when absent
@@ -268,6 +302,9 @@ bool remove(const std::string& p) {
 }
 
 bool rename(const std::string& from, const std::string& to) {
+    if (!storage_allowed("rename", from)) {
+        return false;
+    }
     return ::rename(from.c_str(), to.c_str()) == 0;
 }
 
@@ -313,6 +350,9 @@ bool copy_file(const std::string& from, const std::string& to, bool overwrite) {
 // ---------------------------------------------------------------------------
 
 std::optional<std::vector<DirEntry>> list_dir(const std::string& dir) {
+    if (!storage_allowed("list_dir", dir)) {
+        return std::nullopt;
+    }
     DIR* d = ::opendir(dir.c_str());
     if (d == nullptr) {
         return std::nullopt;

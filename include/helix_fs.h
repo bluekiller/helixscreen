@@ -98,4 +98,18 @@ struct DirEntry {
 /// (errno set). A read error part way returns the entries read so far.
 std::optional<std::vector<DirEntry>> list_dir(const std::string& dir);
 
+// ---------------------------------------------------------------------------
+// Threads that must never reach storage
+// ---------------------------------------------------------------------------
+
+/// Marks the calling thread as one that must never touch the filesystem. On the
+/// ESP32 a thread whose stack is in PSRAM crashes the board inside the flash
+/// driver on any LittleFS access, so every helix::fs and helix::text_io call it
+/// makes afterwards fails with errno EPERM and logs the call, path and thread.
+void forbid_storage_on_this_thread(const char* thread_name);
+
+/// False, after logging, when the calling thread was marked by
+/// forbid_storage_on_this_thread(); true everywhere else.
+bool storage_allowed(const char* op, std::string_view path);
+
 } // namespace helix::fs

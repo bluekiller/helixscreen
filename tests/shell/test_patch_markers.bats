@@ -186,16 +186,30 @@ EOF
     # the edge (the dry-run test below pins that). Everything else gated on
     # the patch stamp must also wait on the marker stamp.
     watched=$(awk -F'\t' 'NR>1 && !s[$4"/"$5]++ \
-        {print ($4=="LVGL_DIR" ? "lib/lvgl" : "lib/libhv") "/" $5}' mk/patch-markers.tsv)
+        {print ($4=="LVGL_DIR" ? "lib/lvgl" : $4=="LIBHV_DIR" ? "lib/libhv" : "lib/lua") "/" $5}' mk/patch-markers.tsv)
     [ -n "$watched" ]
     gated=$(grep -hF '$(PATCHES_STAMP)' mk/rules.mk mk/egl-link.mk \
         | grep -v '^[[:space:]]*#' || true)
     [ "$(printf '%s\n' "$gated" | grep -c .)" -ge 8 ]
     ungated=$(printf '%s\n' "$gated" | grep -vF '$(PATCH_MARKER_STAMP)' \
-        | sed 's/:.*//; s/\$(LVGL_DIR)/lib\/lvgl/; s/\$(LIBHV_DIR)/lib\/libhv/' \
+        | sed 's/:.*//; s/\$(LVGL_DIR)/lib\/lvgl/; s/\$(LIBHV_DIR)/lib\/libhv/; s/\$(LUA_DIR)/lib\/lua/' \
         | grep . || true)
     stray=$(printf '%s\n' "$ungated" | grep -vxF "$watched" || true)
     [ -z "$stray" ] || { printf 'rules gated on patches but not markers:\n%s\n' "$stray"; return 1; }
+}
+
+@test "PATCH_MARKER_DEPS watches each marker file in its own submodule" {
+    # The awk in mk/patches.mk maps the table's dir column to a checkout. A
+    # submodule it does not know lands under another one's path, the wildcard
+    # drops the file that is not there, and restoring that file between builds
+    # no longer re-runs the marker check.
+    watched=$(awk -F'\t' 'NR>1 && !s[$4"/"$5]++ \
+        {print ($4=="LVGL_DIR" ? "lib/lvgl" : $4=="LIBHV_DIR" ? "lib/libhv" : "lib/lua") "/" $5}' mk/patch-markers.tsv)
+    grep -q '^lib/lua/' <<<"$watched"
+    deps=$(make -pn help 2>/dev/null | sed -n 's/^PATCH_MARKER_DEPS := //p' | tr ' ' '\n')
+    missing=$(printf '%s\n' "$watched" | while IFS= read -r f; do
+        [ -f "$f" ] && ! grep -qxF "$f" <<<"$deps" && printf '%s ' "$f"; done; true)
+    [ -z "$missing" ] || { printf 'marker files not watched: %s\n' "$missing"; return 1; }
 }
 
 @test "the build graph has no circular dependency make would silently drop" {
@@ -207,7 +221,7 @@ EOF
     # state, and the watched files must exist or the wildcard drops their
     # edges and the check would pass vacuously.
     missing=$(awk -F'\t' 'NR>1 && !s[$4"/"$5]++ \
-        {print ($4=="LVGL_DIR" ? "lib/lvgl" : "lib/libhv") "/" $5}' mk/patch-markers.tsv \
+        {print ($4=="LVGL_DIR" ? "lib/lvgl" : $4=="LIBHV_DIR" ? "lib/libhv" : "lib/lua") "/" $5}' mk/patch-markers.tsv \
         | while IFS= read -r f; do [ -f "$f" ] || printf '%s ' "$f"; done)
     [ -z "$missing" ] || { printf 'watched files absent, graph incomplete: %s\n' "$missing"; return 1; }
     graph="$BATS_TEST_TMPDIR/pi-graph.log"

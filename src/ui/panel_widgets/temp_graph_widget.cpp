@@ -113,6 +113,10 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     applied_visibility_signature_ = current_visibility_signature();
 
     controller_ = std::make_unique<TempGraphController>(widget_obj_, std::move(ctrl_config));
+    // Live only while the panel shows it: attach() also runs on rebuilds under
+    // an overlay and for pages that are not on screen, and on_activate() resumes.
+    if (!active_)
+        controller_->pause();
 
     // Discovery lands after the WebSocket connects, which is later than the
     // startup attach of a dashboard widget. When it adds extruders this config
@@ -175,6 +179,10 @@ void TempGraphWidget::on_size_changed(int colspan, int rowspan, int width_px, in
 }
 
 void TempGraphWidget::on_activate() {
+    active_ = true;
+    if (controller_)
+        controller_->resume();
+
     // Follow mode: rebuild if the overlay's visibility snapshot drifted while
     // the user was on the full-screen graph.
     if (!follow_overlay_ || !widget_obj_ || !parent_screen_)
@@ -185,7 +193,14 @@ void TempGraphWidget::on_activate() {
     rebuild_in_place();
 }
 
-void TempGraphWidget::on_deactivate() {}
+// Off screen, or under an overlay, the graph takes no live samples: each one
+// invalidates the chart, and that redraw merges with whatever the overlay is
+// redrawing and drags the panel beneath it into every frame. resume() backfills.
+void TempGraphWidget::on_deactivate() {
+    active_ = false;
+    if (controller_)
+        controller_->pause();
+}
 
 void TempGraphWidget::refresh_series_names() {
     if (!controller_ || !config_.contains("sensors") || !config_["sensors"].is_array()) {

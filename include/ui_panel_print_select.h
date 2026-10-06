@@ -855,12 +855,26 @@ class PrintSelectPanel : public PanelBase {
     enum class EspThumbnailFetch { Started, QueueFull, Failed };
     EspThumbnailFetch fetch_esp_thumbnail(size_t index, const std::string& filename,
                                           const std::string& thumb_path);
+    /// Buffers card thumbnails decode into while this panel is shown: reused as
+    /// cards scroll, freed when it is left. Created on first need.
+    std::shared_ptr<helix::ThumbnailSlotPool> esp_slots_;
+    /// The last deactivate kept the thumbnails for a detail view push.
+    bool esp_kept_for_detail_ = false;
+    /// The HTTP lane refused a card fetch and none of ours has completed since.
+    bool esp_lane_refused_ = false;
+    /// Clears a refusal when no fetch of ours is in flight to free a lane slot.
+    helix::ui::LvglTimerGuard esp_lane_retry_timer_;
+    static constexpr uint32_t ESP_LANE_RETRY_MS = 500;
+
     /// The card window [first, end) the last sync saw.
     size_t esp_window_first_ = 0;
     size_t esp_window_end_ = 0;
     /// Applies plan_card_thumbnails() to the card window [first, end): fetches
     /// within CARD_THUMBNAIL_BUDGET and drops every thumbnail outside it.
     void sync_esp_thumbnails(size_t first, size_t end);
+    /// Drops every card thumbnail and the slot pool, and empties the window so
+    /// nothing fetches until the cards report one again.
+    void release_esp_card_thumbnails();
 #endif
 
     /// Navigation generation counter: incremented on each directory change.

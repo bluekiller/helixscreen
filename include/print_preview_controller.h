@@ -85,8 +85,10 @@ class PrintPreviewController {
     void reapply_thumbnail_if_blank();
 
 #if defined(HELIX_PLATFORM_ESP32)
-    /// Pull the PSRAM thumbnail from PrinterState and show it.
+    /// Pull the PSRAM thumbnail from PrinterState and show it, or release the
+    /// held one when PrinterState has cleared it.
     void apply_psram_thumbnail();
+    void release_psram_thumbnail();
 #endif
 
     /// Fetch @p filename's G-code and load it into the viewer.

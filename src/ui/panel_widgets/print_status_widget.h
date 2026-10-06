@@ -419,6 +419,8 @@ class PrintStatusWidget : public PanelWidget {
     // tick (attach, the print-state observer's first notification, activation)
     // joins it rather than issuing its own request for the same file.
     bool idle_reset_pending_ = false;
+    // Same coalescing for the active-print thumbnail write.
+    bool active_apply_pending_ = false;
 
     // Thermal tint for the detailed-active heater icons. Plain by-value members
     // of THIS instance — never on the shared/refcounted s_formatter_ below.
@@ -553,7 +555,6 @@ class PrintStatusWidget : public PanelWidget {
     [[nodiscard]] time_t get_last_print_source_modified() const;
     void handle_print_card_clicked();
     void on_print_state_changed(PrintState state);
-    void on_print_thumbnail_path_changed(const char* path);
 #if defined(HELIX_PLATFORM_ESP32)
     /// Pull the current PSRAM thumbnail from PrinterState, hold a reference,
     /// and point print_card_active_thumb_ at its descriptor. Main thread only;
@@ -590,9 +591,11 @@ class PrintStatusWidget : public PanelWidget {
     // reasoning as defer_reset_print_card_to_idle() above — the observer body
     // runs inside UpdateQueue::process_pending(), and lv_image_set_src there
     // cascades into lv_obj_update_layout across a page grid populate_page may
-    // still be rebuilding. The path is copied because the subject can publish
-    // again before the tick fires.
-    void defer_apply_active_thumbnail(const char* path);
+    // still be rebuilding. The tick reads the thumbnail current THEN, never a
+    // value captured here: another source can apply a newer image before it
+    // fires, and a captured value would overwrite it.
+    void defer_apply_active_thumbnail();
+    void apply_active_thumbnail();
     void update_idle_compact_mode();
     void update_active_layout_mode();
     // Apply the imperative print-card row/column flex layout for is_column_.

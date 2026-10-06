@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" fr="État du passage à la bobine de secours inconnu"/>
   <translation tag="Barcode Scanner" fr="Scanner de codes-barres"/>
   <translation tag="Base" fr="Référence"/>
+  <translation tag="Based on the newest {} prints" fr="Basé sur les {} impressions les plus récentes"/>
   <translation tag="Batch load failed" fr="Échec du chargement groupé"/>
   <translation tag="Batch unload failed" fr="Échec du déchargement groupé"/>
   <translation tag="Beacon auto-calibrate sent" fr="Beacon auto-calibrage envoyé"/>
@@ -2021,6 +2022,7 @@
   <translation tag="Options" fr="Options"/>
   <translation tag="Or Enter Manually" fr="Ou entrer manuellement"/>
   <translation tag="Or instead of turning the others" fr="Ou, au lieu de tourner les autres"/>
+  <translation tag="Original file location unknown" fr="Emplacement du fichier original inconnu"/>
   <translation tag="Oscillating... cycle %d/%d" fr="Oscillation... cycle %d/%d"/>
   <translation tag="Outcome" fr="Résultat"/>
   <translation tag="Output Device" fr="Périphérique de sortie"/>
@@ -2231,7 +2233,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" fr="La commande d&apos;imprimante &apos;{}&apos; a expiré après {} ms"/>
   <translation tag="Printer connection unavailable" fr="Connexion à l&apos;imprimante indisponible"/>
   <translation tag="Printer database format error" fr="Erreur de format de la base de données d&apos;imprimantes"/>
-  <translation tag="Printer database is corrupt" fr="La base de données d&apos;imprimantes est corrompue"/>
   <translation tag="Printer default" fr="Par défaut de l’imprimante"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" fr="L&apos;imprimante n&apos;a pas répondu — vérifiez qu&apos;elle est allumée et à portée"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" fr="L&apos;imprimante n&apos;expose pas le service attendu — mauvais appareil ?"/>

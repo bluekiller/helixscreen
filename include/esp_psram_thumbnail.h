@@ -18,6 +18,7 @@
 #include "miniz.h" // the ROM's streaming inflater
 #include "thumbnail_downscale.h"
 #include "thumbnail_png_stream.h"
+#include "thumbnail_slot_pool.h"
 
 #include <lvgl/src/misc/cache/instance/lv_image_cache.h> // lv_image_cache_drop()
 
@@ -69,7 +70,11 @@ class EspPsramThumbnail {
             if (helix::internal::on_main_thread()) {
                 lv_image_cache_drop(dsc());
             }
-            heap_caps_free(data_);
+            if (slots_) {
+                slots_->release(data_);
+            } else {
+                heap_caps_free(data_);
+            }
         }
     }
 
@@ -97,6 +102,37 @@ class EspPsramThumbnail {
             failure = helix::ThumbnailDecodeFailure::OutOfMemory;
             return nullptr;
         }
+        return std::shared_ptr<EspPsramThumbnail>(thumb);
+    }
+
+    /// The same decode, written into a slot of @p slots, so a card that scrolls
+    /// away and another that scrolls in reuse one buffer rather than freeing and
+    /// allocating one. The slot goes back to @p slots when the thumbnail goes.
+    /// Safe on the HTTP lane worker: the pool locks.
+    static std::shared_ptr<EspPsramThumbnail>
+    create_decoded(const std::string& png_bytes, int max_w, int max_h,
+                   const std::shared_ptr<helix::ThumbnailSlotPool>& slots,
+                   helix::ThumbnailDecodeFailure& failure) {
+        uint8_t* slot = slots ? slots->acquire() : nullptr;
+        if (!slot) {
+            failure = helix::ThumbnailDecodeFailure::OutOfMemory;
+            return nullptr;
+        }
+        const helix::DecodedThumbnail decoded = helix::decode_png_thumbnail<RomInflate>(
+            reinterpret_cast<const uint8_t*>(png_bytes.data()), png_bytes.size(), max_w, max_h,
+            slot, slots->slot_bytes());
+        failure = decoded.failure;
+        auto* thumb = decoded.pixels ? new (std::nothrow) EspPsramThumbnail(
+                                           slot, helix::rgb565a8_size(decoded.dims), decoded.dims)
+                                     : nullptr;
+        if (!thumb) {
+            slots->release(slot);
+            if (decoded.pixels) {
+                failure = helix::ThumbnailDecodeFailure::OutOfMemory;
+            }
+            return nullptr;
+        }
+        thumb->slots_ = slots;
         return std::shared_ptr<EspPsramThumbnail>(thumb);
     }
 
@@ -146,6 +182,7 @@ class EspPsramThumbnail {
     }
 
     uint8_t* data_ = nullptr;
+    std::shared_ptr<helix::ThumbnailSlotPool> slots_; ///< owns data_ when set
     lv_image_dsc_t dsc_{};
 };
 
