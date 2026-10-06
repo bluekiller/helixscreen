@@ -132,8 +132,8 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
                 [initial_version](TempGraphWidget* self, int version) {
                     if (version == initial_version)
                         return; // Series were built against this version already
-                    // A rediscovery can rename an extruder ("Nozzle" to "Nozzle 1");
-                    // so does a language switch, which bumps this version too.
+                    // A rediscovery that changes the tool count can rename an
+                    // extruder ("Nozzle" to "Nozzle 1").
                     self->refresh_series_names();
                     self->schedule_discovery_rebuild();
                 },

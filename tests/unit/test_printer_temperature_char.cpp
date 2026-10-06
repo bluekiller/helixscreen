@@ -745,13 +745,12 @@ TEST_CASE("Multi-extruder: re-init with different count works cleanly",
     temp.update_from_status(status);
     REQUIRE(lv_subject_get_int(temp.get_extruder_temp_subject("extruder1")) == 2200);
 
-    // Re-init with 3 extruders - old subjects cleaned up, new ones at 0
+    // Re-init with 3 extruders - survivors keep their subjects, the new one starts at 0
     temp.init_extruders({"extruder", "extruder1", "extruder2"});
     REQUIRE(temp.extruder_count() == 3);
 
-    // New subjects should start at 0
-    REQUIRE(lv_subject_get_int(temp.get_extruder_temp_subject("extruder")) == 0);
-    REQUIRE(lv_subject_get_int(temp.get_extruder_temp_subject("extruder1")) == 0);
+    REQUIRE(lv_subject_get_int(temp.get_extruder_temp_subject("extruder")) == 2000);
+    REQUIRE(lv_subject_get_int(temp.get_extruder_temp_subject("extruder1")) == 2200);
     REQUIRE(lv_subject_get_int(temp.get_extruder_temp_subject("extruder2")) == 0);
 }
 

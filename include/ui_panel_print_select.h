@@ -22,6 +22,7 @@
 #include "gcode_ops_detector.h"
 #include "helix_plugin_installer.h"
 #include "in_flight_guard.h"
+#include "moonraker_error.h"
 #include "print_file_data.h"
 #include "print_history_manager.h"
 #include "print_select_button_view.h"
@@ -356,6 +357,18 @@ class PrintSelectPanel : public PanelBase {
      */
     void process_metadata_result(size_t i, const std::string& filename,
                                  const FileMetadata& metadata);
+
+    /**
+     * @brief Handles a metadata request the connection took down with it
+     *
+     * A lost connection says nothing about the file, so instead of falling back
+     * to a metascan and gcode extraction, file @p i is marked unfetched and the
+     * refresh after reconnecting asks again.
+     *
+     * @return true when @p error was a connection loss and has been handled
+     */
+    bool refetch_after_connection_loss(size_t i, const std::string& filename,
+                                       const MoonrakerError& error);
 
     /**
      * @brief Navigate into a subdirectory

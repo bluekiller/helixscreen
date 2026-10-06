@@ -187,3 +187,17 @@ _link_settings_into_printer_data() {
     seed_full_preset_for_printer creator5
     python3 -c "import json;d=json.load(open('$SETTINGS_FILE'))['display'];assert d['rotate']==180 and d['sleep_sec']==60 and d['rotation_probed'] is True,d"
 }
+
+@test "full preset seed writes the preset's touch calibration" {
+    # The display backend loads /input/calibration before Moonraker connects,
+    # so the runtime preset apply comes too late for the first boot.
+    rm -f "$SETTINGS_FILE"
+    seed_full_preset_for_printer sovol_sv06_ace
+    python3 -c "import json;c=json.load(open('$SETTINGS_FILE'))['input']['calibration'];assert c['valid'] is True and c['a']==1.66 and c['e']==1.76,c;assert '_comment' not in c,c"
+}
+
+@test "full preset seed keeps the user's touch calibration" {
+    printf '{"config_version": 9, "input": {"calibration": {"valid": true, "a": 1.1, "b": 0.0, "c": 3.0, "d": 0.0, "e": 1.2, "f": 4.0}}}\n' > "$SETTINGS_FILE"
+    seed_full_preset_for_printer sovol_sv06_ace
+    python3 -c "import json;c=json.load(open('$SETTINGS_FILE'))['input']['calibration'];assert (c['a'],c['c'],c['e'],c['f'])==(1.1,3.0,1.2,4.0),c"
+}
