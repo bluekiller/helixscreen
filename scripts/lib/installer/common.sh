@@ -299,6 +299,32 @@ log_open() {
     _LOG_BUFFER=""
 }
 
+# True when a question can reach a person: the controlling terminal opens, or
+# stdin is one.
+tty_can_ask() {
+    { : < "${HELIX_TTY_DEVICE:-/dev/tty}"; } 2>/dev/null || [ -t 0 ]
+}
+
+# Ask a yes/no question. Under `curl | sh` stdin is the script, so the answer
+# comes from the controlling terminal; with neither, the default stands.
+tty_confirm() { # question default(y|n)
+    [ "${ASSUME_YES:-false}" = true ] && return 0
+    _tc_dev="${HELIX_TTY_DEVICE:-/dev/tty}"
+    _tc_hint="[y/N]"; [ "$2" = y ] && _tc_hint="[Y/n]"
+    _tc_ans=""
+    if { : < "$_tc_dev"; } 2>/dev/null; then
+        printf '%s %s ' "$1" "$_tc_hint" >&2
+        IFS= read -r _tc_ans < "$_tc_dev" || _tc_ans=""
+    elif [ -t 0 ]; then
+        printf '%s %s ' "$1" "$_tc_hint" >&2
+        IFS= read -r _tc_ans || _tc_ans=""
+    else
+        _tc_ans="$2"
+    fi
+    _log_write "ASK $1 -> ${_tc_ans:-$2}"
+    case "${_tc_ans:-$2}" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
+}
+
 # Strip \033[...m sequences from a message before it reaches the log. The ESC
 # byte comes from printf: BusyBox sed does not understand \x1b.
 _ESC=$(printf '\033')

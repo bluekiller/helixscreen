@@ -48,8 +48,12 @@ usage() {
     echo "                 re-enable a stock UI this install disabled."
     echo "                 Asks for confirmation."
     echo "  --yes, -y      Confirm destructive prompts non-interactively."
-    echo "                 Required for --clean when stdin is not a terminal"
+    echo "                 Required for --clean when no terminal can answer"
     echo "                 (e.g. curl ... | sh -s -- --clean --yes)"
+    echo "  --dry-run      Show what would be installed and changed, then exit."
+    echo "                 Changes nothing; exits non-zero if a check would stop the install."
+    echo "  --verbose, -v  Print every detail line and command output as it happens."
+    echo "                 The full log is always written either way."
     echo "  --version VER  Install specific version (default: latest)"
     echo "  --local FILE   Install from local archive (.zip or .tar.gz, skip download)"
     echo "  --skip-kiauh-registration"
@@ -88,6 +92,8 @@ parse_installer_args() {
     uninstall_mode=false
     clean_mode=false
     ASSUME_YES=false
+    # shellcheck disable=SC2034  # consumed by main()'s read-only pass
+    DRY_RUN=false
     version=""
     local_tarball=""
     skip_kiauh_registration=false
@@ -117,6 +123,16 @@ parse_installer_args() {
                 # the documented `curl ... | sh` invocation always has one.
                 # shellcheck disable=SC2034  # consumed by uninstall.sh (clean_old_installation)
                 ASSUME_YES=true
+                shift
+                ;;
+            --dry-run)
+                # shellcheck disable=SC2034  # consumed by main()'s read-only pass
+                DRY_RUN=true
+                shift
+                ;;
+            --verbose|-v)
+                # shellcheck disable=SC2034  # consumed by common.sh (log_info, run_logged)
+                HELIX_INSTALL_VERBOSE=1
                 shift
                 ;;
             --version)
@@ -722,7 +738,10 @@ main() {
 
     # Pre-flight checks
     log_info "Running pre-flight checks..."
+    detect_missing_unzip
     check_requirements
+    install_missing_unzip
+    detect_missing_runtime_deps "$platform"
     install_runtime_deps "$platform"
     check_disk_space "$platform"
     detect_init_system

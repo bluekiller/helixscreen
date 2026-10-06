@@ -922,11 +922,11 @@ uninstall() {
 
 # Gate --clean's irreversible sweep on explicit consent.
 #
-# "stdin is not a terminal" is NOT consent. The documented invocation is
+# A question nobody can answer is NOT consent. The documented invocation is
 # `curl … | sh -s -- --clean`, where stdin is the pipe carrying the script, so
-# a bare `[ -t 0 ]` guard skipped the "PERMANENTLY DELETE your configuration"
-# prompt on exactly the path users actually take. Non-interactive runs must opt
-# in with --yes (ASSUME_YES, set by main.sh's argument parser).
+# the prompt goes to the controlling terminal (tty_confirm); with no terminal
+# at all, non-interactive runs must opt in with --yes (ASSUME_YES, set by
+# main.sh's argument parser).
 #
 # Returns 0 to proceed; otherwise exits (0 = user declined, 1 = no consent).
 confirm_clean_install() {
@@ -935,23 +935,15 @@ confirm_clean_install() {
         return 0
     fi
 
-    if [ -t 0 ]; then
-        printf "Are you sure? [y/N] "
-        read -r response
-        case "$response" in
-            [yY][eE][sS]|[yY])
-                return 0
-                ;;
-            *)
-                log_info "Clean install cancelled."
-                exit 0
-                ;;
-        esac
+    if tty_can_ask; then
+        tty_confirm "Are you sure?" n && return 0
+        log_info "Clean install cancelled."
+        exit 0
     fi
 
     log_error "Refusing to run --clean without confirmation."
-    log_error "stdin is not a terminal (a piped 'curl ... | sh' has the script on"
-    log_error "stdin), so the y/N prompt cannot be answered."
+    log_error "There is no terminal to answer the y/N prompt (a piped"
+    log_error "'curl ... | sh' with no controlling terminal)."
     log_error "Re-run with --yes to confirm the deletions listed above:"
     log_error "  curl -sSL https://releases.helixscreen.org/install.sh | sh -s -- --clean --yes"
     exit 1

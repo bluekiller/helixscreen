@@ -45,21 +45,13 @@ check_requirements() {
     # unzip but ship python3). The fallback needs zipfile + zlib (release zips
     # are DEFLATE-compressed), so gate on those modules rather than mere python
     # presence — otherwise a zlib-less python passes here and the install dies
-    # in extract_release instead of failing fast with a clear message. Try a
-    # transparent apt-install of unzip on Debian/Ubuntu images that lack it
-    # (notably Snapmaker U1 extended firmware); only mark it missing when
-    # there's no apt AND no usable python zipfile fallback.
-    if ! command -v unzip >/dev/null 2>&1; then
-        if command -v apt-get >/dev/null 2>&1 && ! _has_no_new_privs; then
-            log_info "Installing missing dependency: unzip"
-            _apt_update_once
-            $SUDO apt-get install -y --no-install-recommends unzip >/dev/null 2>&1 || true
-            if ! command -v unzip >/dev/null 2>&1 && ! _py_has_module zipfile zlib; then
-                _helix_add_missing "unzip"
-            fi
-        elif ! _py_has_module zipfile zlib; then
-            _helix_add_missing "unzip"
-        fi
+    # in extract_release instead of failing fast with a clear message. Where
+    # apt can install unzip (detect_missing_unzip), install_missing_unzip does
+    # that after the confirm point; only mark it missing when there's no apt
+    # AND no usable python zipfile fallback.
+    if ! command -v unzip >/dev/null 2>&1 && [ -z "${MISSING_UNZIP_PKG:-}" ] \
+        && ! _py_has_module zipfile zlib; then
+        _helix_add_missing "unzip"
     fi
 
     if [ -n "$missing" ]; then
@@ -71,11 +63,39 @@ check_requirements() {
     log_success "All required commands available"
 }
 
-# Install runtime dependencies for Pi platform
-# Required for DRM display and evdev input handling
-# AD5M uses framebuffer with static linking, no deps needed
-install_runtime_deps() {
+# unzip is missing and apt can install it (notably Snapmaker U1 extended
+# firmware). Read-only: sets MISSING_UNZIP_PKG to "unzip" or empty.
+detect_missing_unzip() {
+    MISSING_UNZIP_PKG=""
+    command -v unzip >/dev/null 2>&1 && return 0
+    if command -v apt-get >/dev/null 2>&1 && ! _has_no_new_privs; then
+        MISSING_UNZIP_PKG=unzip
+    fi
+    return 0
+}
+
+# Install what detect_missing_unzip found. Exits when zip extraction is still
+# impossible afterwards.
+install_missing_unzip() {
+    [ -n "${MISSING_UNZIP_PKG:-}" ] || return 0
+    log_info "Installing missing dependency: $MISSING_UNZIP_PKG"
+    _apt_update_once
+    run_logged $SUDO apt-get install -y --no-install-recommends "$MISSING_UNZIP_PKG" || true
+    if ! command -v unzip >/dev/null 2>&1 && ! _py_has_module zipfile zlib; then
+        log_error "Missing required commands: unzip"
+        log_error "Please install them and try again."
+        exit 1
+    fi
+    return 0
+}
+
+# Runtime libraries the Pi build needs that are not installed yet. Read-only:
+# sets MISSING_RUNTIME_DEPS (space-separated package names, empty if none).
+# Required for DRM display and evdev input handling; AD5M uses framebuffer
+# with static linking, no deps needed.
+detect_missing_runtime_deps() {
     local platform=$1
+    MISSING_RUNTIME_DEPS=""
 
     # Only needed for Pi (32-bit and 64-bit) - AD5M uses framebuffer with static linking
     if [ "$platform" != "pi" ] && [ "$platform" != "pi32" ]; then
@@ -90,7 +110,6 @@ install_runtime_deps() {
     #   Debian names it libturbojpeg0, Ubuntu names it libturbojpeg
     # Note: OpenSSL is statically linked for Pi builds, no runtime libssl needed
     local deps="libdrm2 libinput10 libgbm1 libegl1 libgles2"
-    local missing=""
 
     # turbojpeg: package name varies by distro (Debian=libturbojpeg0, Ubuntu=libturbojpeg)
     local turbo_pkg=""
@@ -111,13 +130,21 @@ install_runtime_deps() {
     for dep in $deps; do
         # Check if package is installed (dpkg-query returns 0 if installed)
         if ! dpkg-query -W -f='${Status}' "$dep" 2>/dev/null | grep -q "install ok installed"; then
-            if [ -n "$missing" ]; then
-                missing="$missing $dep"
-            else
-                missing="$dep"
-            fi
+            MISSING_RUNTIME_DEPS="${MISSING_RUNTIME_DEPS:+$MISSING_RUNTIME_DEPS }$dep"
         fi
     done
+
+    return 0
+}
+
+# Install what detect_missing_runtime_deps found.
+install_runtime_deps() {
+    local missing="${MISSING_RUNTIME_DEPS:-}"
+
+    # Only needed for Pi (32-bit and 64-bit) - AD5M uses framebuffer with static linking
+    if [ "$1" != "pi" ] && [ "$1" != "pi32" ]; then
+        return 0
+    fi
 
     if [ -n "$missing" ]; then
         # Under NoNewPrivileges (self-update from the running app), sudo is blocked.

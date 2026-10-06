@@ -827,6 +827,31 @@ restart_moonraker() {
     return 0
 }
 
+# What configure_moonraker_updates would add, for the plan. Read-only: the
+# same gates and the same conf, with nothing written. Sets MOONRAKER_ADDS
+# (space-separated: any of update-manager, allowlist; empty if none).
+# Args: $1 = platform
+# UNCALLED_OK: called from main() in Task 8
+detect_moonraker_integration() {
+    local conf asvc
+    MOONRAKER_ADDS=""
+    [ "${1:-}" = "ad5m" ] && return 0
+    [ "${HELIX_MOD_PAYLOAD:-}" = "1" ] && return 0
+
+    conf=$(find_moonraker_conf)
+    [ -n "$conf" ] || return 0
+
+    if ! has_update_manager_section "$conf" \
+        && [ "$(moonraker_asset_name_support)" != "unsupported" ]; then
+        MOONRAKER_ADDS="update-manager"
+    fi
+    asvc="$(dirname "$(dirname "$conf")")/moonraker.asvc"
+    if [ -f "$asvc" ] && ! grep -q '^helixscreen$' "$asvc" 2>/dev/null; then
+        MOONRAKER_ADDS="${MOONRAKER_ADDS:+$MOONRAKER_ADDS }allowlist"
+    fi
+    return 0
+}
+
 # Configure Moonraker update_manager
 # Called during installation on platforms with web UI (Pi, K1 with Simple AF)
 configure_moonraker_updates() {

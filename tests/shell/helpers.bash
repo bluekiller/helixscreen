@@ -28,6 +28,11 @@ export HELIX_SYSTEMD_UNIT_DIR="$BATS_TEST_TMPDIR/etc/systemd/system"
 # file under a PATH with no coreutils.
 export HELIX_PROC_ROOT="$BATS_TEST_TMPDIR/proc"
 
+# Where the installer opens the controlling terminal to ask a question. A
+# developer running bats from a terminal would otherwise be prompted, and the
+# test would wait on them. A test that wants an answer writes this file.
+export HELIX_TTY_DEVICE="$BATS_TEST_TMPDIR/no-tty"
+
 # Fake one process under HELIX_PROC_ROOT. The comm carries a space and a ')'
 # because the real field can, and the parser must split after the LAST ')'.
 # Args: $1 = pid, $2 = ppid, $3.. = environment entries (KEY=value)

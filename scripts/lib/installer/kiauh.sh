@@ -34,6 +34,16 @@ detect_kiauh_dir() {
     return 0
 }
 
+# Where install_kiauh_extension would register, for the plan. Sets KIAUH_DIR
+# (empty when KIAUH is absent or --skip-kiauh-registration was given).
+# UNCALLED_OK: called from main() in Task 8
+# shellcheck disable=SC2034  # KIAUH_DIR is read by main()'s plan
+detect_kiauh() {
+    KIAUH_DIR=""
+    [ "${skip_kiauh_registration:-false}" = "true" ] && return 0
+    KIAUH_DIR=$(detect_kiauh_dir)
+}
+
 # Install KIAUH extension for HelixScreen
 # Args: $1 = skip flag ("true" to skip, anything else to install)
 #
