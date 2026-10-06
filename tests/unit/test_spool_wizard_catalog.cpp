@@ -4,6 +4,7 @@
 // The spool wizard's SpoolmanDB search: the catalog-to-filament mapping, vendor
 // and filament reuse, and the wizard's handling of late or missing answers.
 
+#include "ui_search_debounce.h"
 #include "ui_spool_wizard.h"
 #include "ui_update_queue.h"
 
@@ -113,8 +114,8 @@ TEST_CASE("entry_from_catalog pre-fills everything Spoolman's create path takes"
 TEST_CASE("find_server_vendor matches a server vendor by name, ignoring case",
           "[spool_wizard][spoolman_db]") {
     const std::vector<SpoolWizardOverlay::VendorEntry> vendors{
-        {"Acme", -1, false}, {"POLYMAKER", 7, true}, {"eSUN", 2, true}};
-    CHECK(SpoolWizardOverlay::find_server_vendor(vendors, "Polymaker") == 1);
+        {"Acme", -1, false}, {"POLYMAKER ", 7, true}, {"eSUN", 2, true}};
+    CHECK(SpoolWizardOverlay::find_server_vendor(vendors, " Polymaker") == 1);
     CHECK(SpoolWizardOverlay::find_server_vendor(vendors, "esun") == 2);
     // A vendor only typed into the wizard is not on the server yet.
     CHECK(SpoolWizardOverlay::find_server_vendor(vendors, "acme") == -1);
@@ -197,7 +198,7 @@ TEST_CASE_METHOD(WizardCatalogFixture,
                  "[spool_wizard][spoolman_db]") {
     // The server already has Polymaker, and the PETG Blue the catalog names.
     client.spoolman_mock().add_vendor(7, "Polymaker");
-    client.spoolman_mock().add_filament(70, 7, "PETG", "1e5aa8");
+    client.spoolman_mock().add_filament(70, 7, "PETG", "1e5aa8", " polylite petg blue");
     wizard.load_vendors();
     drain();
 
@@ -265,4 +266,58 @@ TEST_CASE_METHOD(WizardCatalogFixture, "an answer after the wizard closes is ign
     client.fire_deferred("server.spoolman.proxy");
     drain();
     CHECK(wizard.catalog_results().empty());
+}
+
+TEST_CASE_METHOD(WizardCatalogFixture, "a SpoolmanDB pick never lands on a different filament",
+                 "[spool_wizard][spoolman_db]") {
+    // Same vendor, material and colour, but another product line.
+    client.spoolman_mock().add_vendor(7, "Polymaker");
+    client.spoolman_mock().add_filament(70, 7, "PETG", "1E5AA8", "PolyMax PETG Blue");
+    wizard.load_vendors();
+    drain();
+
+    wizard.apply_catalog_results({catalog_filament()});
+    wizard.select_catalog_result(0);
+    drain();
+    CHECK(wizard.selected_vendor().server_id == 7);
+    CHECK(wizard.selected_filament().server_id == -1);
+}
+
+TEST_CASE_METHOD(WizardCatalogFixture, "picking a result stops a search still settling",
+                 "[spool_wizard][spoolman_db]") {
+    client.spoolman_mock().add_vendor(7, "Polymaker");
+    wizard.load_vendors();
+    drain();
+    wizard.apply_catalog_results({catalog_filament()});
+    REQUIRE(wizard.catalog_state() == SpoolWizardOverlay::CatalogState::Results);
+
+    // A keystroke is still debouncing when the row is tapped.
+    wizard.on_search_key();
+    wizard.select_catalog_result(0);
+    drain();
+    process_lvgl(static_cast<int>(2 * helix::ui::kDefaultSearchDebounceMs));
+    drain();
+
+    // The settled search never ran over the pick.
+    CHECK(wizard.current_step() == SpoolWizardOverlay::Step::SPOOL_DETAILS);
+    CHECK(wizard.catalog_state() == SpoolWizardOverlay::CatalogState::Results);
+}
+
+TEST_CASE_METHOD(WizardCatalogFixture,
+                 "Back from a SpoolmanDB pick lands on the vendor's filaments",
+                 "[spool_wizard][spoolman_db]") {
+    client.spoolman_mock().add_vendor(7, "Polymaker");
+    client.spoolman_mock().add_filament(70, 7, "PLA", "1A1A1A", "PolyLite PLA Black");
+    wizard.load_vendors();
+    drain();
+    wizard.apply_catalog_results({catalog_filament()});
+    wizard.select_catalog_result(0);
+    drain();
+    REQUIRE(wizard.current_step() == SpoolWizardOverlay::Step::SPOOL_DETAILS);
+
+    wizard.navigate_back();
+    CHECK(wizard.current_step() == SpoolWizardOverlay::Step::FILAMENT);
+    CHECK(
+        std::any_of(wizard.all_filaments().begin(), wizard.all_filaments().end(),
+                    [](const SpoolWizardOverlay::FilamentEntry& e) { return e.server_id == 70; }));
 }

@@ -296,6 +296,8 @@ class SpoolWizardOverlay : public OverlayBase {
     lv_subject_t vendors_loading_subject_{};
     lv_subject_t filaments_loading_subject_{};
     lv_subject_t can_create_vendor_subject_{};
+    lv_subject_t summary_color_subject_{};
+    lv_subject_t summary_edge_subject_{};
     lv_subject_t catalog_available_subject_{};
     lv_subject_t catalog_state_subject_{};
     lv_subject_t catalog_count_subject_{};

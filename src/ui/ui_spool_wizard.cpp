@@ -19,6 +19,7 @@
 #include "app_globals.h"
 #include "color_utils.h"
 #include "filament_database.h"
+#include "filament_display_name.h"
 #include "i_moonraker_api.h"
 #include "static_panel_registry.h"
 #include "text_io.h"
@@ -96,6 +97,9 @@ void SpoolWizardOverlay::init_subjects() {
                                   "wizard_summary_vendor", subjects_);
         UI_MANAGED_SUBJECT_STRING(summary_filament_subject_, summary_filament_buf_, "",
                                   "wizard_summary_filament", subjects_);
+        UI_MANAGED_SUBJECT_COLOR(summary_color_subject_, lv_color_hex(0x808080),
+                                 "wizard_summary_color", subjects_);
+        UI_MANAGED_SUBJECT_INT(summary_edge_subject_, 0, "wizard_summary_edge", subjects_);
 
         // Create vendor/filament form visibility toggles
         UI_MANAGED_SUBJECT_INT(show_create_vendor_subject_, 0, "spool_wizard_show_create_vendor",
@@ -346,13 +350,6 @@ void SpoolWizardOverlay::on_activate() {
     // Load vendors for step 0
     load_vendors();
     probe_catalog_search();
-
-    // One timer for the session, paused between keystroke bursts, so a
-    // keystroke only resets it.
-    if (!search_timer_) {
-        search_timer_ = lv_timer_create(search_timer_cb, helix::ui::kDefaultSearchDebounceMs, this);
-        lv_timer_pause(search_timer_);
-    }
 }
 
 void SpoolWizardOverlay::on_deactivating(DeactivateReason) {
@@ -479,14 +476,15 @@ void SpoolWizardOverlay::enter_spool_details() {
             std::snprintf(buf, sizeof(buf), "%.0f", spool_remaining_weight_);
             lv_textarea_set_text(weight_input, buf);
         }
+    }
 
-        // Update summary color swatch from selected filament
-        lv_obj_t* swatch =
-            helix::ui::find_required(overlay_root_, "summary_color_swatch", get_name());
-        uint32_t color_val = 0;
-        if (swatch && helix::parse_hex_color(selected_filament_.color_hex.c_str(), color_val)) {
-            lv_obj_set_style_bg_color(swatch, lv_color_hex(color_val), 0);
-        }
+    // The summary swatch, edged where its colour would vanish into the card
+    uint32_t color_val = 0x808080;
+    helix::parse_hex_color(selected_filament_.color_hex.c_str(), color_val);
+    if (subjects_initialized_) {
+        lv_subject_set_color(&summary_color_subject_, lv_color_hex(color_val));
+        lv_subject_set_int(&summary_edge_subject_,
+                           helix::ui::swatch_needs_edge_here(color_val) ? 1 : 0);
     }
 
     // Enable proceed if weight is pre-filled
@@ -1281,10 +1279,10 @@ void SpoolWizardOverlay::select_filament(int index) {
 
 void SpoolWizardOverlay::publish_filament_summary() {
     if (subjects_initialized_) {
-        std::string summary = selected_filament_.material;
-        if (!selected_filament_.name.empty()) {
-            summary += " - " + selected_filament_.name;
-        }
+        // The shared label rule, so a name that already says the material
+        // does not repeat it
+        const std::string summary =
+            helix::compose_filament_label("", selected_filament_.name, selected_filament_.material);
         std::snprintf(summary_filament_buf_, sizeof(summary_filament_buf_), "%s", summary.c_str());
         lv_subject_copy_string(&summary_filament_subject_, summary_filament_buf_);
     }
@@ -1709,9 +1707,12 @@ SpoolWizardOverlay::entry_from_catalog(const helix::ExternalFilament& f) {
 
 int SpoolWizardOverlay::find_server_vendor(const std::vector<VendorEntry>& vendors,
                                            const std::string& name) {
-    const std::string needle = helix::text_io::to_lower(name);
+    auto folded = [](const std::string& s) {
+        return helix::text_io::to_lower(std::string(helix::text_io::trim(s)));
+    };
+    const std::string needle = folded(name);
     for (size_t i = 0; i < vendors.size(); ++i) {
-        if (vendors[i].server_id >= 0 && helix::text_io::to_lower(vendors[i].name) == needle) {
+        if (vendors[i].server_id >= 0 && folded(vendors[i].name) == needle) {
             return static_cast<int>(i);
         }
     }
@@ -1764,15 +1765,19 @@ void SpoolWizardOverlay::probe_catalog_search() {
 }
 
 void SpoolWizardOverlay::on_search_key() {
-    if (search_timer_) {
-        lv_timer_reset(search_timer_);
-        lv_timer_resume(search_timer_);
+    // One one-shot timer for the session, made on the first keystroke and kept
+    // (not auto-deleted) between bursts, so every later keystroke only re-arms it.
+    if (!search_timer_) {
+        search_timer_ = lv_timer_create(search_timer_cb, helix::ui::kDefaultSearchDebounceMs, this);
+        lv_timer_set_auto_delete(search_timer_, false);
     }
+    lv_timer_set_repeat_count(search_timer_, 1);
+    lv_timer_reset(search_timer_);
+    lv_timer_resume(search_timer_);
     spdlog::debug("[SpoolWizard] search keystroke");
 }
 
 void SpoolWizardOverlay::search_timer_cb(lv_timer_t* timer) {
-    lv_timer_pause(timer);
     static_cast<SpoolWizardOverlay*>(lv_timer_get_user_data(timer))->apply_search_text();
 }
 
@@ -1907,7 +1912,15 @@ void SpoolWizardOverlay::select_catalog_result(int index) {
         spdlog::warn("[{}] Invalid SpoolmanDB result index: {}", get_name(), index);
         return;
     }
-    const helix::ExternalFilament& picked = catalog_results_[static_cast<size_t>(index)];
+    const helix::ExternalFilament picked = catalog_results_[static_cast<size_t>(index)];
+
+    // The pick ends the search: typing that settles now, or an answer still on
+    // its way, must not run over it.
+    if (search_timer_) {
+        lv_timer_set_repeat_count(search_timer_, 0);
+        lv_timer_pause(search_timer_);
+    }
+    catalog_has_pending_ = false;
 
     // A vendor the server already has is reused; otherwise it is created on save.
     const int vendor = find_server_vendor(all_vendors_, picked.manufacturer);
@@ -1915,6 +1928,9 @@ void SpoolWizardOverlay::select_catalog_result(int index) {
                                    : VendorEntry{picked.manufacturer, -1, false};
     new_vendor_name_.clear();
     new_vendor_url_.clear();
+    // The filament step behind the spool step lists this vendor's filaments,
+    // so Back lands on a loaded list. It resets the selection, so it goes first.
+    load_filaments();
     selected_filament_ = entry_from_catalog(picked);
     creating_new_filament_ = false;
     spdlog::info("[{}] Picked SpoolmanDB '{}' ({}; vendor server_id={})", get_name(), picked.name,
@@ -1944,8 +1960,12 @@ void SpoolWizardOverlay::select_catalog_result(int index) {
                 if (!catalog_.is_current(ticket)) {
                     return;
                 }
-                if (const FilamentInfo* f = helix::spoolman::find_matching_filament(
-                        filaments, selected_filament_.material, selected_filament_.color_hex)) {
+                const std::string& colors = selected_filament_.multi_color_hexes.empty()
+                                                ? selected_filament_.color_hex
+                                                : selected_filament_.multi_color_hexes;
+                if (const FilamentInfo* f = helix::spoolman::find_catalog_filament(
+                        filaments, vendor_id, selected_filament_.name, selected_filament_.material,
+                        colors)) {
                     selected_filament_.server_id = f->id;
                     selected_filament_.vendor_id = vendor_id;
                     selected_filament_.from_server = true;
