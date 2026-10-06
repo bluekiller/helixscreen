@@ -256,7 +256,7 @@ rest of the UI.
 
 ### XML Layout
 
-The side list is built from `ui_xml/components/exclude_object_side_list.xml`, the map from `ui_xml/components/exclude_object_map.xml`. Rows are populated dynamically in C++ because the object list is not known at compile time (this is an allowed exception to the "no `lv_obj_add_event_cb()`" rule noted in the code).
+The side list is built from `ui_xml/components/exclude_object_side_list.xml`, the map from `ui_xml/components/exclude_object_map.xml`. Rows are populated dynamically in C++ because the object list is not known at compile time (this is an allowed exception to the "no `lv_obj_add_event_cb()`" rule noted in the code). Rows are rebuilt only when the defined object set changes. Exclusions and the printing object restyle the existing rows in place through one int subject per row (`exclude_row_state_<i>`: 0 idle, 1 printing, 2 excluded) that `exclude_object_row.xml` binds to, so the list keeps its scroll position while the printing object changes.
 
 ---
 

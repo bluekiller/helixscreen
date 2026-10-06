@@ -224,6 +224,11 @@ class PanelWidgetConfig {
     /// Remove an entry entirely from ANY page (first match).
     void delete_entry(const std::string& id);
 
+    /// Take entry @p index off page @p page_index the way Edit Mode's trash
+    /// does: an added instance ("fan:1") is deleted, a built-in widget stays in
+    /// the catalog disabled and unplaced. Does not save().
+    void remove_from_page(size_t page_index, size_t index);
+
     /// Generate the default layout for a measured grid.
     ///
     /// @p grid_cols / @p grid_rows are the track counts the layout will be

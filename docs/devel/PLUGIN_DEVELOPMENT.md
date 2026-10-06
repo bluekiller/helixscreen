@@ -121,8 +121,9 @@ Each `widgets` entry:
 | `component` | string | required | `<id>__<name>`, a file in `ui/` |
 | `icon` | string | `puzzle_outline` | an icon name from `include/ui_icon_codepoints.h` |
 | `description` | string | empty | catalog help text |
-| `colspan`, `rowspan` | integer | `1` | 1 to 8 grid cells |
-| `max_colspan`, `max_rowspan` | integer | `0` | `0` = not resizable on that axis; otherwise `colspan` to 8 |
+| `colspan`, `rowspan` | number | `1` | 1 to 8 grid cells; whole cells unless `half_cells` |
+| `max_colspan`, `max_rowspan` | number | `0` | `0` = not resizable on that axis; otherwise `colspan` to 8 |
+| `half_cells` | boolean | `false` | resizes in half cells, and the spans above may be written as halves (`1.5`) |
 
 Widget tiles appear in the home panel's widget catalog under the Plugins category, never
 enabled by default, one instance each. A tile's saved placement survives a disabled or
@@ -270,7 +271,7 @@ optional:
 |---|---|
 | `on_attach()` | the tile's tree enters the home panel |
 | `on_detach()` | the tile's tree leaves it |
-| `on_size(cols, rows, w, h)` | `cols`/`rows` in whole cells, `w`/`h` in pixels |
+| `on_size(cols, rows, w, h)` | `cols`/`rows` in cells (a `half_cells` tile can get `1.5`), `w`/`h` in pixels |
 | `on_activate()` / `on_deactivate()` | the page holding the tile is shown / hidden |
 
 ### helix.canvas (`src/plugin/lua_bind_canvas.cpp`)

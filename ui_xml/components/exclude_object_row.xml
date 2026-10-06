@@ -5,24 +5,28 @@
   <!-- One printed object in the exclude-object side list:
        [numbered disc] [object name ....] [status].
        The disc carries the same number and color the map gives the object.
-       An excluded object is dimmed, muted and not clickable. C++ sets the
-       object name, which comes from the slicer and so cannot travel as a prop:
-       a leading '#' would read as a const. -->
+       state_subject names the row's int state: 0 idle, 1 printing now, 2 excluded.
+       An excluded object is dimmed, muted and not clickable. The row restyles in
+       place, so the list keeps its scroll position while the printing object moves.
+       C++ sets the object name, which comes from the slicer and so cannot travel as
+       a prop: a leading '#' would read as a const. -->
+  <styles>
+    <style name="row_excluded" opa="150"/>
+    <style name="name_idle" text_color="#text"/>
+    <style name="name_excluded" text_color="#text_muted"/>
+  </styles>
   <api>
     <prop name="badge_text" type="string" default=""/>
     <prop name="badge_color" type="string" default="#primary"/>
-    <prop name="name_color" type="string" default="#text"/>
-    <prop name="status_text" type="string" default=""/>
-    <prop name="status_color" type="string" default="#text_muted"/>
-    <prop name="row_opa" type="string" default="255"/>
-    <prop name="row_clickable" type="boolean" default="true"/>
+    <prop name="state_subject" type="string" default=""/>
   </api>
   <view extends="lv_obj"
         width="100%" height="content" flex_flow="row" style_flex_main_place="start" style_flex_cross_place="center"
         style_flex_track_place="center" style_pad_all="#space_sm" style_pad_gap="#space_sm" style_radius="6"
-        style_bg_color="#card_bg" style_bg_opa="255" style_border_width="0" style_opa="$row_opa" scrollable="false"
-        clickable="$row_clickable">
+        style_bg_color="#card_bg" style_bg_opa="255" style_border_width="0" scrollable="false" clickable="true">
     <style name="styles.press_wash" selector="pressed"/>
+    <bind_style_if_eq name="row_excluded" subject="$state_subject" ref_value="2"/>
+    <bind_flag_if_not_eq subject="$state_subject" flag="clickable" ref_value="2"/>
     <!-- SIZE_OK: the index disc is a fixed 24px circle at every breakpoint -->
     <lv_obj width="24"
             height="24" style_radius="12" style_bg_color="$badge_color" style_bg_opa="255" style_border_width="0"
@@ -30,9 +34,19 @@
       <lv_label align="center"
                 text="$badge_text" style_text_color="#FFFFFF" style_text_font="#font_small" event_bubble="true"/>
     </lv_obj>
-    <lv_label name="object_name"
-              text="" flex_grow="1" long_mode="wrap" style_text_font="#font_body" style_text_color="$name_color"
-              event_bubble="true"/>
-    <lv_label text="$status_text" style_text_font="#font_small" style_text_color="$status_color" event_bubble="true"/>
+    <lv_label name="object_name" text="" flex_grow="1" long_mode="wrap" style_text_font="#font_body" event_bubble="true">
+      <bind_style_if_not_eq name="name_idle" subject="$state_subject" ref_value="2"/>
+      <bind_style_if_eq name="name_excluded" subject="$state_subject" ref_value="2"/>
+    </lv_label>
+    <text_small name="status_printing"
+                text="Printing now" translation_tag="Printing now" style_text_color="#success" hidden="true"
+                event_bubble="true">
+      <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="1"/>
+    </text_small>
+    <text_small name="status_excluded"
+                text="Excluded" translation_tag="Excluded" style_text_color="#text_muted" hidden="true"
+                event_bubble="true">
+      <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="2"/>
+    </text_small>
   </view>
 </component>

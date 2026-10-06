@@ -270,7 +270,18 @@ class DebugBundleCollector {
     /// Collect Moonraker state via REST (server info, printer state, config).
     /// The snapshot carries which mains-monitor objects the printer-state
     /// query should also fetch.
-    static nlohmann::json collect_moonraker_info(const PrinterSnapshot& snap);
+    static nlohmann::json collect_moonraker_info(const PrinterSnapshot& snap,
+                                                 const nlohmann::json& object_list);
+
+    /// The klipper_status section: the triage objects in `object_list`,
+    /// queried and bounded. A non-array `object_list` is the error from
+    /// fetch_object_list() and is returned as the section.
+    static nlohmann::json collect_klipper_status(const std::string& base_url,
+                                                 const nlohmann::json& object_list);
+
+    /// printer.objects.list as an array, or an {"error"} object when Moonraker
+    /// cannot answer.
+    static nlohmann::json fetch_object_list(const std::string& base_url);
 
     /// The /printer/objects/query path for the printer-state section: the core
     /// object list plus any firmware mains monitors. Pure and static so the
@@ -289,7 +300,7 @@ class DebugBundleCollector {
     static nlohmann::json collect_moonraker_local_probe();
 
     /// Collect filament system data (AFC, Happy Hare, ACE, Spoolman, tool changers)
-    static nlohmann::json collect_filament_system_info();
+    static nlohmann::json collect_filament_system_info(const nlohmann::json& object_list);
 
     /// The Moonraker DB namespaces holding per-lane filament overrides, which
     /// are what decide the colour, material and Spoolman link the user actually
@@ -306,6 +317,31 @@ class DebugBundleCollector {
 
     /// Filter a Klipper object list to filament-related objects (public for testing)
     static nlohmann::json filter_filament_objects(const nlohmann::json& object_list);
+
+    /// Filter a Klipper object list to the cheap, triage-worthy objects that
+    /// printer_state does not already carry: klippy state, config warnings,
+    /// probes, leveling, bed mesh, MCUs, host load (public for testing). A base
+    /// name matches itself and its named instances: "mcu" takes "mcu nhk".
+    static nlohmann::json filter_triage_objects(const nlohmann::json& object_list);
+
+    /// The /printer/objects/query path for a list of object names, spaces
+    /// percent-encoded. `configfile` is narrowed to its warnings: the bundle
+    /// already ships the config files, and the parsed config is the largest
+    /// object Klipper publishes.
+    static std::string objects_query_path(const nlohmann::json& names);
+
+    /// Bound an objects/query `status` map (object -> field -> value) for the
+    /// bundle. A field whose JSON exceeds `max_field_bytes` becomes
+    /// {"omitted_bytes", "length", "shape"} (a full-resolution mesh matrix, a
+    /// long exclude_object polygon list); then whole objects are dropped
+    /// largest-first until the map fits `max_total_bytes`.
+    static nlohmann::json bound_status(nlohmann::json status, size_t max_field_bytes = 4096,
+                                       size_t max_total_bytes = 40960);
+
+    /// A Moonraker response with `result.<map_key>` run through bound_status()
+    /// and the whole thing sanitized: the path every Klipper status section and
+    /// the update-manager status take into the bundle.
+    static nlohmann::json bound_response(nlohmann::json resp, const char* map_key);
 
     /// Extract bare `gcode_macro` NAMES from a Klipper object list (public for testing).
     ///
@@ -470,6 +506,10 @@ class DebugBundleCollector {
     /// Blocking HTTP GET to a Moonraker endpoint, returns parsed JSON or error object
     static nlohmann::json moonraker_get(const std::string& base_url, const std::string& endpoint,
                                         int timeout_sec = 10);
+
+    /// Query `names` and return the response with its status bounded and sanitized.
+    static nlohmann::json query_objects_bounded(const std::string& base_url,
+                                                const nlohmann::json& names);
 
     /// Get the Moonraker HTTP base URL (from IMoonrakerAPI if connected)
     static std::string get_moonraker_url();

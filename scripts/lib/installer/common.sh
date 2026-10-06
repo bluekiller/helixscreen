@@ -241,8 +241,6 @@ klipper_config_dir() {
 CLEANUP_TMP=false
 BACKUP_CONFIG=""
 BACKUP_ENV=""
-# shellcheck disable=SC2034  # consumed by release.sh (set true at the swap, read at config restore)
-ORIGINAL_INSTALL_EXISTS=false
 
 # Colors (if terminal supports it)
 setup_colors() {
@@ -658,12 +656,8 @@ kill_process_by_name() {
 #
 # Reads: KLIPPER_HOME, SUDO, HELIX_STATE_VAR_LIB, HELIX_STATE_ROOT_HOME
 retire_legacy_config_backups() {
-    local state_var_lib="${HELIX_STATE_VAR_LIB:-/var/lib/helixscreen}"
-    local state_root_home="${HELIX_STATE_ROOT_HOME:-/root/.helixscreen}"
-
     local tier
-    for tier in "$state_var_lib" "$state_root_home" "${KLIPPER_HOME:+${KLIPPER_HOME}/.helixscreen}"; do
-        [ -n "$tier" ] || continue
+    config_backup_tiers | while IFS= read -r tier; do
         [ -f "${tier}/helixconfig.json.backup" ] || continue
         # The gate: no current backup means the legacy file is still load-bearing.
         [ -f "${tier}/settings.json.backup" ] || continue
@@ -672,6 +666,17 @@ retire_legacy_config_backups() {
             log_info "Removed superseded config backup: ${tier}/helixconfig.json.backup"
         fi
     done
+}
+
+# The directories Config::init searches for a rolling settings backup, one per
+# line: the StateDirectory, then each HOME/.helixscreen the service may run with
+# (config_backup_primary/fallback, include/app_constants.h).
+# Reads: KLIPPER_HOME, HELIX_STATE_VAR_LIB, HELIX_STATE_ROOT_HOME
+config_backup_tiers() {
+    echo "${HELIX_STATE_VAR_LIB:-/var/lib/helixscreen}"
+    echo "${HELIX_STATE_ROOT_HOME:-/root/.helixscreen}"
+    [ -n "${KLIPPER_HOME:-}" ] && echo "${KLIPPER_HOME}/.helixscreen"
+    return 0
 }
 
 clean_helix_state_dirs() {
