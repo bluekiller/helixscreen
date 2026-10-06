@@ -56,6 +56,9 @@ class helix::TempGraphWidgetTestAccess {
     static bool has_controller(const TempGraphWidget& w) {
         return w.controller_ != nullptr;
     }
+    static const TempGraphController* controller(const TempGraphWidget& w) {
+        return w.controller_.get();
+    }
     static const nlohmann::json& get_config(const TempGraphWidget& w) {
         return w.config_;
     }
@@ -979,4 +982,24 @@ TEST_CASE_METHOD(TempGraphFeatureFixture,
     REQUIRE(TempGraphWidgetTestAccess::build_series(widget).size() == 3);
 
     widget.detach();
+}
+
+TEST_CASE_METHOD(TempGraphFeatureFixture,
+                 "TempGraphWidget takes no live samples while its panel is inactive",
+                 "[temp_graph][panel_widget]") {
+    TempGraphWidget w("test_pause");
+    lv_obj_t* container = lv_obj_create(screen);
+    lv_obj_set_size(container, 400, 300);
+    w.attach(container, screen);
+    REQUIRE(TempGraphWidgetTestAccess::controller(w) != nullptr);
+    CHECK_FALSE(TempGraphWidgetTestAccess::controller(w)->paused());
+
+    w.on_deactivate();
+    CHECK(TempGraphWidgetTestAccess::controller(w)->paused());
+
+    w.on_activate();
+    CHECK_FALSE(TempGraphWidgetTestAccess::controller(w)->paused());
+
+    w.detach();
+    lv_obj_delete(container);
 }
