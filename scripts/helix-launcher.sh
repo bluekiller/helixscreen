@@ -703,7 +703,10 @@ fi
 # Creality SonicPad/Nebula Pad ships display-sleep.sh which polls X11 DPMS via
 # xset. When X isn't running (fbdev mode), xset fails and the script interprets
 # the empty response as "monitor Off", killing the backlight every 2 seconds.
-if command -v systemctl >/dev/null 2>&1; then
+# Only a host that has the unit is asked to stop it: listing unit files is a
+# read, while a stop sent to a host without it still asks polkit for rights.
+if command -v systemctl >/dev/null 2>&1 &&
+    systemctl list-unit-files --no-legend display-sleep.service 2>/dev/null | grep -q .; then
     systemctl stop display-sleep.service 2>/dev/null || true
 fi
 killall display-sleep.sh 2>/dev/null || true
