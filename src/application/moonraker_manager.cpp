@@ -664,6 +664,10 @@ void MoonrakerManager::create_api(const RuntimeConfig& runtime_config) {
         // create_client() records the concrete pointer as it builds it, so no
         // downcast is needed to get back to it here.
         assert(m_concrete_client && "create_client() must run before create_api()");
+        if (!runtime_config.should_mock_moonraker()) {
+            spdlog::warn("[MoonrakerManager] Mock API on a REAL Moonraker connection: database "
+                         "and Spoolman calls reach the real printer");
+        }
         m_api = std::make_unique<MoonrakerAPIMock>(*m_concrete_client, get_printer_state());
     } else {
 #endif
