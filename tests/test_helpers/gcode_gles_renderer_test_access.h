@@ -24,6 +24,19 @@ class GCodeGLESRendererTestAccess {
     static const SelectionState& selection(const GCodeGLESRenderer& renderer) {
         return renderer.selection_;
     }
+
+    /// What a finished frame leaves behind, minus the GL: setup_frame() records
+    /// the camera's MVP and the blit latches it as the image on screen.
+    static void show_frame(GCodeGLESRenderer& renderer, const GCodeCamera& camera, int width,
+                           int height) {
+        start_frame(renderer, camera);
+        renderer.latch_shown_image(width, height);
+    }
+
+    /// A frame begun (setup_frame ran) but not finished: refinement in progress.
+    static void start_frame(GCodeGLESRenderer& renderer, const GCodeCamera& camera) {
+        renderer.frame_mvp_ = renderer.build_mvp(camera);
+    }
 };
 
 } // namespace gcode
