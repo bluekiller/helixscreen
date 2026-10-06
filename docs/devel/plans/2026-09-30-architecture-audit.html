@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>f3256d7a8</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>d060595e7</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 123 done, 5 in progress, 8 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 124 done, 5 in progress, 7 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -1344,9 +1344,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-2" data-tag="dup" data-size="later" data-status="open">
-<summary><span class="fid">API-2</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">Database and Spoolman mocked twice: API-level and client-level</span><span class="fimpact">~1.5-2K mock lines; real parsers run in --test</span></summary>
+<details class="f" id="API-2" data-tag="dup" data-size="later" data-status="done">
+<summary><span class="fid">API-2</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">d060595e7</code><span class="ftitle">Database and Spoolman mocked twice: API-level and client-level</span><span class="fimpact">~1.5-2K mock lines; real parsers run in --test</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>d060595e7</code> (Spoolman + database slice, plus a follow-up aligning every Spoolman call with Spoolman's schema): the API-level mocks and their second store are gone; the client mock answers JSON-RPC with generic <code>fail_next</code>/<code>defer_next</code> and is schema-strict; it exposed and fixed production bugs in lane_data 404s, deleted-spool 404s, filament temperatures, spool weight edits and the external catalog. Thumbnail/file-transfer overrides remain.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/moonraker_api_mock.h</code>, <code>src/api/moonraker_api_mock.cpp</code>, <code>src/api/moonraker_client_mock_server.cpp</code>, <code>src/api/moonraker_client_mock.cpp#MoonrakerClientMock::send_jsonrpc</code></dd>
 <dt>Evidence</dt><dd>DB: client mock registers <code>server.database.{get,post,delete}_item</code> with a store; <code>MoonrakerAPIMock</code> overrides them with a second store plus 16 fault-injection methods used by 3 test files. Spoolman: <code>MoonrakerSpoolmanAPIMock</code> overrides 27 methods + a 367-line <code>init_mock_spools</code>, bypassing the real <code>parse_spool_info</code>/<code>parse_filament_info</code>, while <code>server.spoolman.status</code> is answered at client level. Thumbnails: 13 FileTransfer overrides (~450 lines). 76 test files use <code>MoonrakerAPIMock</code>.</dd>
