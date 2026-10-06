@@ -1818,6 +1818,9 @@ void PrintSelectPanel::repopulate() {
 }
 
 void PrintSelectPanel::on_activate() {
+#if defined(HELIX_PLATFORM_ESP32)
+    esp_kept_for_detail_ = false;
+#endif
     // "Print Last" flow: suppress panel flash while detail view is pending/open
     if (return_to_home_on_close_) {
         bool detail_open = detail_view_ && detail_view_->is_visible();
@@ -1912,10 +1915,12 @@ void PrintSelectPanel::on_activate() {
 void PrintSelectPanel::on_deactivating(DeactivateReason) {
 #if defined(HELIX_PLATFORM_ESP32)
     // Leaving the panel frees the card thumbnails and their slots. The detail
-    // view being pushed over it right now keeps them for the way back: it is
-    // marked open and not yet shown. A navbar switch away from an open detail
-    // view finds it shown, and frees them.
-    const bool detail_opening = detail_view_open_ && !(detail_view_ && detail_view_->is_visible());
+    // view being pushed over it keeps them for the way back. A second
+    // deactivate with no activate between is a navbar switch away from that
+    // detail view, and frees them.
+    const bool detail_opening =
+        !esp_kept_for_detail_ && detail_view_open_ && !(detail_view_ && detail_view_->is_visible());
+    esp_kept_for_detail_ = detail_opening;
     if (!detail_opening) {
         release_esp_card_thumbnails();
     }

@@ -858,6 +858,8 @@ class PrintSelectPanel : public PanelBase {
     /// Buffers card thumbnails decode into while this panel is shown: reused as
     /// cards scroll, freed when it is left. Created on first need.
     std::shared_ptr<helix::ThumbnailSlotPool> esp_slots_;
+    /// The last deactivate kept the thumbnails for a detail view push.
+    bool esp_kept_for_detail_ = false;
 
     /// The card window [first, end) the last sync saw.
     size_t esp_window_first_ = 0;
