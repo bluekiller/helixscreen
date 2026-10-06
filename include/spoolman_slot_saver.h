@@ -135,9 +135,9 @@ class SpoolmanSlotSaver {
     /**
      * @brief Split spool edits into the two Spoolman PATCH bodies.
      *
-     * Per-spool fields (remaining_weight, price, lot_nr, comment, location) go
-     * into @p spool_patch; shared-filament fields (spool_weight, color_hex) go
-     * into @p filament_patch. A field is emitted only when it differs from the
+     * Per-spool fields (remaining_weight, price, lot_nr, comment, location,
+     * spool_weight) go into @p spool_patch; the shared-filament field color_hex
+     * goes into @p filament_patch. A field is emitted only when it differs from the
      * original (weights beyond WEIGHT_THRESHOLD, price beyond 0.001). Shared by
      * the AMS edit overlay's spool-edit save and the standalone SpoolEditModal.
      */

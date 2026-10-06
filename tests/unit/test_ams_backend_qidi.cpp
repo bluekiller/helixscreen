@@ -2086,7 +2086,7 @@ TEST_CASE("QIDI Box tag fingerprint change clears a prior user edit", "[ams][qid
     QidiBoxTestAccess::inject_override_store(backend, std::move(store));
 
     QidiBoxTestAccess::apply_filas_list(backend, STOCK_FILAS_EXCERPT);
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF362D"}});
 
@@ -2107,7 +2107,7 @@ TEST_CASE("QIDI Box tag fingerprint change clears a prior user edit", "[ams][qid
         backend, json{{"filament_slot0", 11}, {"color_slot0", 2}, {"vendor_slot0", 2}});
 
     CHECK_FALSE(QidiBoxTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     const auto lane = helix::ams::lane_sources(harness.lane(0));
     CHECK_FALSE(lane.local_user.has_value());
     CHECK_FALSE(lane.remembered.has_value());
@@ -2335,7 +2335,7 @@ TEST_CASE("QIDI Box a user edit persists its override to the lane_data record", 
     helix::test::edit_slot_as_user(backend, 0, info);
 
     // Round-trip through the wire format rather than asserting field spellings.
-    const auto rec = api.mock_get_db_value("lane_data", "lane1");
+    const auto rec = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE_FALSE(rec.is_null());
     const auto parsed = helix::ams::from_lane_data_record(rec);
     REQUIRE(parsed.has_value());
@@ -2353,7 +2353,7 @@ TEST_CASE("QIDI Box startup loads persisted overrides from the database", "[ams]
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
     ovr.spoolman_id = 42;
-    api.mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, ovr));
+    mock_printer.client.mock_db_set("lane_data", "lane1", helix::ams::to_lane_data_record(0, ovr));
 
     QidiBoxTestAccess::start_load(backend);
 
@@ -2377,7 +2377,8 @@ TEST_CASE("QIDI Box clear_slot_override erases the edit, its lane record and the
 
     QidiBoxTestAccess::apply_filas_list(backend, STOCK_FILAS_EXCERPT);
     QidiBoxTestAccess::parse_vars(backend, json{{"vendor_slot0", 2}});
-    api.mock_set_db_value("lane_data", "lane1", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2388,7 +2389,7 @@ TEST_CASE("QIDI Box clear_slot_override erases the edit, its lane record and the
     backend.clear_slot_override(0);
 
     CHECK_FALSE(QidiBoxTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     const auto lane = helix::ams::lane_sources(harness.lane(0));
     CHECK_FALSE(lane.local_user.has_value());
     CHECK_FALSE(lane.remembered.has_value());
@@ -2448,7 +2449,7 @@ TEST_CASE("QIDI Box a stored edit shows again after a restart", "[ams][qidi_box]
         info.brand = "eSUN";
         info.color_rgb = 0x060606u;
         helix::test::edit_slot_as_user(first, 0, info);
-        REQUIRE_FALSE(api.mock_get_db_value("lane_data", "lane1").is_null());
+        REQUIRE_FALSE(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     }
 
     // Restart: the lane store died with the process, the database record did
@@ -2651,7 +2652,8 @@ TEST_CASE("QIDI Box a restart compares against the fingerprint the record carrie
     helix::ams::FilamentSlotOverride saved;
     saved.brand = "Polymaker";
     saved.spoolman_id = 42;
-    api.mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, saved));
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    helix::ams::to_lane_data_record(0, saved));
     {
         helix::test::RegisteredBackend<AmsBackendQidi> session1(&api, nullptr);
         QidiBoxTestAccess::apply_filas_list(*session1, STOCK_FILAS_EXCERPT);
@@ -2659,7 +2661,7 @@ TEST_CASE("QIDI Box a restart compares against the fingerprint the record carrie
         REQUIRE(QidiBoxTestAccess::get_override(*session1, 0).has_value());
         QidiBoxTestAccess::parse_vars(
             *session1, json{{"filament_slot0", 1}, {"color_slot0", 18}, {"vendor_slot0", 1}});
-        const auto stored = api.mock_get_db_value("lane_data", "lane1");
+        const auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
         REQUIRE(!stored.is_null());
         REQUIRE(stored.contains("helix_fingerprint"));
         CHECK(stored.at("helix_fingerprint") == "1|18");
@@ -2675,7 +2677,7 @@ TEST_CASE("QIDI Box a restart compares against the fingerprint the record carrie
         QidiBoxTestAccess::parse_vars(
             *session2, json{{"filament_slot0", 11}, {"color_slot0", 2}, {"vendor_slot0", 2}});
         CHECK_FALSE(QidiBoxTestAccess::get_override(*session2, 0).has_value());
-        CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+        CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
         // The new tag's identity is what the slot shows.
         CHECK(session2->get_slot_info(0).material == "ABS");
         CHECK(session2->get_slot_info(0).brand == "eSUN");
@@ -2690,7 +2692,7 @@ TEST_CASE("QIDI Box a restart compares against the fingerprint the record carrie
         const auto ovr = QidiBoxTestAccess::get_override(*session2, 0);
         REQUIRE(ovr.has_value());
         CHECK(ovr->brand == "Polymaker");
-        CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+        CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     }
 }
 

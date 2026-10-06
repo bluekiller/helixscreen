@@ -1282,6 +1282,7 @@ bool GCodeGLESRenderer::setup_frame(const GCodeCamera& camera, float scale, bool
     glUseProgram(program_);
 
     mvp = build_mvp(camera);
+    frame_mvp_ = mvp;
 
     // Normal matrix (inverse transpose of upper-left 3x3 of model-view).
     glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 0, 1));
@@ -1703,6 +1704,7 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
         spdlog::error("[GCode GLES] draw_buf_ data is null");
         return;
     }
+    latch_shown_image(widget_w, widget_h);
     auto* dest = static_cast<uint8_t*>(draw_buf_->data);
     const auto* src = readback_buf_.data();
     bool needs_scale = (fbo_width_ != widget_w || fbo_height_ != widget_h);
@@ -2070,6 +2072,7 @@ void GCodeGLESRenderer::clear_cached_frame() {
         draw_buf_width_ = 0;
         draw_buf_height_ = 0;
     }
+    has_shown_image_ = false;
     render_defer_frames_ = 0;
 }
 
@@ -2149,6 +2152,9 @@ void GCodeGLESRenderer::release_geometry() {
     }
     active_geometry_ = nullptr;
     current_filename_.clear();
+    // The image on screen belongs to the file being released; badges for the
+    // next one must not project through its transform.
+    has_shown_image_ = false;
     geometry_uploaded_ = false;
     upload_next_layer_ = 0;
     upload_total_layers_ = 0;
@@ -2268,6 +2274,20 @@ glm::mat4 GCodeGLESRenderer::build_mvp(const GCodeCamera& camera) const {
         proj[3][1] += -content_offset_y_percent_ * 2.0f;
     }
     return proj * camera.get_view_matrix() * model;
+}
+
+void GCodeGLESRenderer::latch_shown_image(int width, int height) {
+    shown_mvp_ = frame_mvp_;
+    shown_width_ = width;
+    shown_height_ = height;
+    has_shown_image_ = true;
+}
+
+std::optional<glm::vec2> GCodeGLESRenderer::project_to_shown_image(const glm::vec3& world) const {
+    if (!has_shown_image_) {
+        return std::nullopt;
+    }
+    return project_clip_to_screen(shown_mvp_, world, shown_width_, shown_height_);
 }
 
 // ============================================================

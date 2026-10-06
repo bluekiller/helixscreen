@@ -1,5 +1,7 @@
 locale: en
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (timed out)'
   ' frames': ' frames'
   ' left': ' left'
@@ -842,16 +844,16 @@ translations:
   Danger: Danger
   Danger Zone: Danger Zone
   Dark Mode: Dark Mode
-  Database: Database
   Date (newest): Date (newest)
   Date (oldest): Date (oldest)
   Day: Day
   Debug: Debug
+  Deep Black: Deep Black
   Default: Default
   Default Parameters: Default Parameters
   Default border thickness: Default border thickness
-  'Default: %d-%d°C nozzle, %d°C bed': 'Default: %d-%d°C nozzle, %d°C bed'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber'
+  'Default: %s nozzle, %d°C bed': 'Default: %s nozzle, %d°C bed'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Default: %s nozzle, %d°C bed, %d°C chamber'
   Defaults restored: Defaults restored
   Define macros in your printer.cfg: Define macros in your printer.cfg
   Delete: Delete

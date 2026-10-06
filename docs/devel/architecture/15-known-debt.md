@@ -231,15 +231,15 @@ fails reads and writes together, so a partial write cannot be staged and the rea
 branch would ship with nothing able to pin it.
 
 **The mock cannot express a vendor-only filament change.**
-`MoonrakerSpoolmanAPIMock`'s vendor-filtered `get_spoolman_filaments` overload
-([`src/api/moonraker_api_mock.cpp`](../../../src/api/moonraker_api_mock.cpp))
+The mock Spoolman server's vendor-filtered `GET /v1/filament?vendor.id=`
+([`src/api/moonraker_client_mock_spoolman.cpp`](../../../src/api/moonraker_client_mock_spoolman.cpp))
 returns every filament it synthesises from the mock spool inventory regardless of the vendor
 asked for, and `SpoolmanSlotSaver::find_or_create_filament()`
 ([`src/spoolman/spoolman_slot_saver.cpp#find_or_create_filament`](../../../src/spoolman/spoolman_slot_saver.cpp))
 matches on material and colour alone, trusting the server to have applied the vendor filter.
 A brand-only save therefore resolves back to the linked spool's own filament and the served
 vendor never moves, so no test can observe a brand save through the mock. Honouring `vendor_id`
-in that overload is the fix; it changes what several saver cases see, so it is its own change.
+in that route is the fix; it changes what several saver cases see, so it is its own change.
 
 ### Deliberate tolerations: C++ that is correct, not debt
 

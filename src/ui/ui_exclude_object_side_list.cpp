@@ -8,7 +8,6 @@
 #include "ui_utils.h"
 
 #include "color_utils.h"
-#include "display_numbering.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "theme_manager.h"
@@ -134,6 +133,15 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterState* printer_state
             }
         },
         printer_state_->get_subjects_lifetime());
+    const auto restyle = [](ExcludeObjectSideList* self, int) {
+        if (self->root_) {
+            self->restyle_rows_if_stale();
+        }
+    };
+    theme_obs_ =
+        observe<int>(theme_manager_get_changed_subject(), this, restyle, subject_never_freed());
+    breakpoint_obs_ =
+        observe<int>(theme_manager_get_breakpoint_subject(), this, restyle, subject_never_freed());
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -172,6 +180,8 @@ void ExcludeObjectSideList::destroy() {
     // down with their parent before any further input can dispatch.
     excluded_version_obs_.reset();
     defined_version_obs_.reset();
+    theme_obs_.reset();
+    breakpoint_obs_.reset();
     lifetime_.invalidate();
 
     // Cancel the slide-in animation (no slide-out — the lv_obj_delete_async
@@ -230,39 +240,53 @@ void ExcludeObjectSideList::rebuild_rows() {
     // States first, so each row binds to its real state on creation.
     update_row_states();
 
-    int index = 0;
-    for (const auto& name : row_names_) {
-        create_row(rows_container_, index, name);
-        ++index;
+    rows_look_ = resolve_badge_look({});
+    for (const auto& badge :
+         compute_object_badges(printer_state_->excluded_objects_state(), nullptr)) {
+        create_row(rows_container_, badge);
     }
+}
+
+void ExcludeObjectSideList::restyle_rows_if_stale() {
+    if (!rows_container_ || badge_look_current(rows_look_)) {
+        return;
+    }
+    // The container keeps its own scroll offset across the swap of children.
+    row_names_.clear(); // forces rebuild_rows() past its unchanged-list shortcut
+    rebuild_rows();
 }
 
 void ExcludeObjectSideList::update_row_states() {
     if (!printer_state_) {
         return;
     }
-    const auto& excluded = printer_state_->excluded_objects_state().get_excluded_objects();
-    const auto& current = printer_state_->excluded_objects_state().get_current_object();
-
-    for (size_t i = 0; i < row_names_.size(); ++i) {
-        const std::string& name = row_names_[i];
-        const int state = excluded.count(name) > 0 ? 2 : (name == current ? 1 : 0);
+    // Rows are matched to objects by position, which only holds while they
+    // show the current list. A rebuild for the new list is already queued and
+    // publishes the states itself.
+    if (printer_state_->excluded_objects_state().get_defined_objects() != row_names_) {
+        return;
+    }
+    const auto badges = compute_object_badges(printer_state_->excluded_objects_state(), nullptr);
+    for (size_t i = 0; i < badges.size(); ++i) {
+        const int state = badges[i].excluded ? 2 : (badges[i].current ? 1 : 0);
         if (lv_subject_get_int(row_states_.at(i)) != state) {
             row_states_.set_int(i, state);
         }
     }
 }
 
-void ExcludeObjectSideList::create_row(lv_obj_t* parent, int index, const std::string& name) {
-    char num_buf[8];
-    snprintf(num_buf, sizeof(num_buf), "%d", lane_number(index));
-    const std::string badge_color =
-        helix::color_to_hex_string(lv_color_to_u32(color_for_index(index)));
-    const std::string state_subject = "exclude_row_state_" + std::to_string(index);
+void ExcludeObjectSideList::create_row(lv_obj_t* parent, const ObjectBadge& badge) {
+    const std::string& name = badge.name;
+    const lv_color_t fill = object_badge_color(badge.defined_index);
+    const std::string badge_color = helix::color_to_hex_string(lv_color_to_u32(fill));
+    const std::string badge_text_color =
+        helix::color_to_hex_string(lv_color_to_u32(object_badge_text_color(fill)));
+    const std::string state_subject = "exclude_row_state_" + std::to_string(badge.defined_index);
 
     const char* attrs[] = {
-        "badge_text",          num_buf, "badge_color", badge_color.c_str(), "state_subject",
-        state_subject.c_str(), nullptr,
+        "badge_text",        badge.number.c_str(),  "badge_color",
+        badge_color.c_str(), "badge_text_color",    badge_text_color.c_str(),
+        "state_subject",     state_subject.c_str(), nullptr,
     };
     lv_obj_t* row = static_cast<lv_obj_t*>(lv_xml_create(parent, "exclude_object_row", attrs));
     if (!row) {
@@ -298,10 +322,6 @@ void ExcludeObjectSideList::on_row_clicked(lv_event_t* e) {
     }
 
     self->manager_->request_exclude(std::string(name));
-}
-
-lv_color_t ExcludeObjectSideList::color_for_index(int index) {
-    return theme_manager_get_object_palette_color(index);
 }
 
 } // namespace helix::ui

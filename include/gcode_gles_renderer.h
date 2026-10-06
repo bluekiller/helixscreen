@@ -248,6 +248,14 @@ class GCodeGLESRenderer {
                                            const ParsedGCodeFile& gcode,
                                            const GCodeCamera& camera) const;
 
+    /// World point -> widget-local pixel in the image on screen now.
+    ///
+    /// That image can lag the camera: the last finished frame stays up during
+    /// VBO upload, render deferral and refinement, so this projects through the
+    /// MVP that image was rendered with, not the live one. nullopt before any
+    /// image, and behind the camera.
+    std::optional<glm::vec2> project_to_shown_image(const glm::vec3& world) const;
+
     // ====== Ghost Layer / Print Progress ======
 
     void set_print_progress_layer(int current_layer);
@@ -544,6 +552,15 @@ class GCodeGLESRenderer {
 
     /// Reads the upload flag and selection sets without a GL context.
     friend class GCodeGLESRendererTestAccess;
+
+    /// The FBO holds a finished frame drawn with frame_mvp_, and it is what
+    /// the widget shows until the next one.
+    void latch_shown_image(int width, int height);
+    glm::mat4 frame_mvp_{1.0f}; ///< MVP of the last setup_frame()
+    glm::mat4 shown_mvp_{1.0f};
+    int shown_width_ = 0;
+    int shown_height_ = 0;
+    bool has_shown_image_ = false;
 
     // ====== Configuration ======
 
