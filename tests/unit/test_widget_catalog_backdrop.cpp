@@ -49,3 +49,33 @@ TEST_CASE_METHOD(LVGLUITestFixture, "widget catalog: nothing shows before the pu
     NavigationManager::instance().go_back();
     process_lvgl(10);
 }
+
+// A close and a reopen inside one queue drain: only the reopened catalog's
+// backdrop may land, whatever address its overlay got.
+TEST_CASE_METHOD(LVGLUITestFixture, "widget catalog: a reopen in the same drain makes one backdrop",
+                 "[widget_catalog]") {
+    PanelWidgetConfig config("test_widget_catalog_backdrop", *Config::get_instance());
+    config.load();
+    auto full_screen_children = [this] {
+        int n = 0;
+        lv_obj_update_layout(test_screen());
+        for (lv_obj_t* c : visible_children(test_screen()))
+            if (lv_obj_get_width(c) == lv_obj_get_width(test_screen()) &&
+                lv_obj_get_height(c) == lv_obj_get_height(test_screen()))
+                ++n;
+        return n;
+    };
+    const int before = full_screen_children();
+
+    WidgetCatalogOverlay::show(test_screen(), config, [](const std::string&) {});
+    WidgetCatalogOverlay::close();
+    WidgetCatalogOverlay::show(test_screen(), config, [](const std::string&) {});
+    process_lvgl(10);
+
+    // Three full-screen backdrops land in this sequence; the closed opening's
+    // queued backdrop would make a fourth, orphaned one that nothing deletes.
+    CHECK(full_screen_children() == before + 3);
+
+    NavigationManager::instance().go_back();
+    process_lvgl(10);
+}

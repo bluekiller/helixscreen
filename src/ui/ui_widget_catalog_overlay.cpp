@@ -62,6 +62,10 @@ struct DefRowIdentity {
     }
 };
 
+// Bumped by every show(): work queued by one opening must not land on a later
+// one, and a close-then-reopen can reuse the overlay's address.
+uint32_t g_catalog_generation = 0;
+
 struct CatalogState {
     lv_obj_t* overlay_root = nullptr;
     lv_obj_t* backdrop = nullptr;      // Semi-transparent dark backdrop behind the catalog
@@ -786,8 +790,10 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     // The backdrop is made by the same queue drain that runs the push below, just
     // ahead of it, so the screen changes once: made here, it would be drawn in a
     // frame of its own and the whole screen drawn again when the push lands.
-    helix::ui::queue_update("WidgetCatalog::backdrop", [parent_screen, overlay, backdrop_opa]() {
-        if (g_catalog_state.overlay_root != overlay || !lv_obj_is_valid(parent_screen))
+    const uint32_t generation = ++g_catalog_generation;
+    helix::ui::queue_update("WidgetCatalog::backdrop", [parent_screen, generation, backdrop_opa]() {
+        if (generation != g_catalog_generation || !g_catalog_state.overlay_root ||
+            !lv_obj_is_valid(parent_screen))
             return;
         auto* backdrop = helix::ui::create_fullscreen_backdrop(parent_screen, backdrop_opa);
         if (backdrop) {
