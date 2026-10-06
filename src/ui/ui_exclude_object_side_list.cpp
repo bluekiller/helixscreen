@@ -123,10 +123,12 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterState* printer_state
             self->populate_rows();
         }
     };
-    excluded_version_obs_ = observe<int>(printer_state_->get_excluded_objects_version_subject(),
-                                         this, repopulate, printer_state_->get_subjects_lifetime());
-    defined_version_obs_ = observe<int>(printer_state_->get_defined_objects_version_subject(), this,
-                                        repopulate, printer_state_->get_subjects_lifetime());
+    excluded_version_obs_ = observe<int>(
+        printer_state_->excluded_objects_state().get_excluded_objects_version_subject(), this,
+        repopulate, printer_state_->get_subjects_lifetime());
+    defined_version_obs_ =
+        observe<int>(printer_state_->excluded_objects_state().get_defined_objects_version_subject(),
+                     this, repopulate, printer_state_->get_subjects_lifetime());
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -199,9 +201,9 @@ void ExcludeObjectSideList::populate_rows() {
     // (CLAUDE.md § "No sync widget deletion in queued callbacks").
     helix::ui::safe_clean_children(rows_container_);
 
-    const auto& defined = printer_state_->get_defined_objects();
-    const auto& excluded = printer_state_->get_excluded_objects();
-    const auto& current = printer_state_->get_current_object();
+    const auto& defined = printer_state_->excluded_objects_state().get_defined_objects();
+    const auto& excluded = printer_state_->excluded_objects_state().get_excluded_objects();
+    const auto& current = printer_state_->excluded_objects_state().get_current_object();
 
     if (empty_state_) {
         if (defined.empty()) {

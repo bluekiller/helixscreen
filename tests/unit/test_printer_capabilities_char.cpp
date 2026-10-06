@@ -113,7 +113,7 @@ TEST_CASE("Capabilities characterization: set_hardware updates capability subjec
 
         lv_subject_t* subject = get_subject_by_name("printer_has_probe");
         REQUIRE(lv_subject_get_int(subject) == 1);
-        REQUIRE(state.has_probe() == true);
+        REQUIRE(state.capabilities_state().has_probe() == true);
     }
 
     SECTION("set_hardware updates heater_bed from hardware discovery") {
@@ -160,7 +160,7 @@ TEST_CASE("Capabilities characterization: set_hardware updates capability subjec
         state.set_hardware(hardware);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-        lv_subject_t* subject = state.get_printer_has_timelapse_subject();
+        lv_subject_t* subject = state.capabilities_state().subject(Capability::HasTimelapse);
         REQUIRE(lv_subject_get_int(subject) == 1);
     }
 }
@@ -198,7 +198,7 @@ TEST_CASE("Capabilities characterization: set_hardware with empty hardware sets 
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_accelerometer")) == 0);
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_speaker")) == 0);
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_firmware_retraction")) == 0);
-    REQUIRE(lv_subject_get_int(state.get_printer_has_timelapse_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::HasTimelapse)) == 0);
 }
 
 // ============================================================================
@@ -251,7 +251,7 @@ TEST_CASE("Capabilities characterization: set_spoolman_available updates subject
     }
 
     SECTION("set_spoolman_available(true) sets to 1") {
-        state.set_spoolman_available(true);
+        state.capabilities_state().set_spoolman_available(true);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
         REQUIRE(lv_subject_get_int(subject) == 1);
@@ -259,12 +259,12 @@ TEST_CASE("Capabilities characterization: set_spoolman_available updates subject
 
     SECTION("set_spoolman_available(false) sets to 0") {
         // First enable
-        state.set_spoolman_available(true);
+        state.capabilities_state().set_spoolman_available(true);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
         REQUIRE(lv_subject_get_int(subject) == 1);
 
         // Then disable
-        state.set_spoolman_available(false);
+        state.capabilities_state().set_spoolman_available(false);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
         REQUIRE(lv_subject_get_int(subject) == 0);
     }
@@ -282,7 +282,7 @@ TEST_CASE("Capabilities characterization: set_kinematics updates printer_has_ind
     PrinterStateTestAccess::reset(state);
     state.init_subjects(true);
 
-    lv_subject_t* subject = state.get_printer_has_individual_xyz_homing_subject();
+    lv_subject_t* subject = state.capabilities_state().subject(Capability::HasIndividualXyzHoming);
 
     SECTION("delta kinematics sets has_individual_xyz_homing to 0 (no individual XYZ homing)") {
         state.set_kinematics("delta");
@@ -343,7 +343,7 @@ TEST_CASE("Capabilities characterization: set_kinematics updates printer_bed_mov
     PrinterStateTestAccess::reset(state);
     state.init_subjects(true);
 
-    lv_subject_t* subject = state.get_printer_bed_moves_subject();
+    lv_subject_t* subject = state.capabilities_state().subject(Capability::BedMoves);
 
     SECTION("corexy kinematics sets bed_moves to 1 (bed moves on Z)") {
         state.set_kinematics("corexy");
@@ -394,7 +394,7 @@ TEST_CASE("Capabilities characterization: printer_has_purge_line from printer ty
     PrinterStateTestAccess::reset(state);
     state.init_subjects(true);
 
-    lv_subject_t* subject = state.get_printer_has_purge_line_subject();
+    lv_subject_t* subject = state.capabilities_state().subject(Capability::HasPurgeLine);
 
     SECTION("initial value is 0 (no printer type set)") {
         REQUIRE(lv_subject_get_int(subject) == 0);
@@ -454,7 +454,7 @@ TEST_CASE("Capabilities characterization: observer fires when capability changes
 
     SECTION("observer fires when printer_bed_moves changes") {
         int user_data[2] = {0, -1};
-        lv_subject_t* subject = state.get_printer_bed_moves_subject();
+        lv_subject_t* subject = state.capabilities_state().subject(Capability::BedMoves);
 
         lv_observer_t* observer = lv_subject_add_observer(subject, observer_cb, user_data);
 
@@ -513,7 +513,7 @@ TEST_CASE("Capabilities characterization: capability subjects are independent",
         state.set_kinematics("corexy");
 
         // bed_moves should change, but not other capabilities
-        REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+        REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
         REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_probe")) == 1);
         REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_heater_bed")) == 1);
     }
@@ -529,7 +529,7 @@ TEST_CASE("Capabilities characterization: capability subjects are independent",
         REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_probe")) == 1);
 
         // Set spoolman
-        state.set_spoolman_available(true);
+        state.capabilities_state().set_spoolman_available(true);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
         REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_spoolman")) == 1);
@@ -558,13 +558,13 @@ TEST_CASE("Capabilities characterization: subjects survive reset_for_testing cyc
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     state.set_kinematics("corexy");
-    state.set_spoolman_available(true);
+    state.capabilities_state().set_spoolman_available(true);
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     // Verify values were set
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_probe")) == 1);
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_spoolman")) == 1);
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
 
     // Reset and reinitialize
     PrinterStateTestAccess::reset(state);
@@ -575,11 +575,11 @@ TEST_CASE("Capabilities characterization: subjects survive reset_for_testing cyc
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_heater_bed")) == 0);
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_led")) == 0);
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_spoolman")) == 0);
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 
     // Subjects should still be functional after reset
     state.set_kinematics("corexy");
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 1);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 1);
 }
 
 // ============================================================================
@@ -595,7 +595,7 @@ TEST_CASE("Capabilities characterization: has_probe() method",
     state.init_subjects(true);
 
     SECTION("has_probe() returns false initially") {
-        REQUIRE(state.has_probe() == false);
+        REQUIRE(state.capabilities_state().has_probe() == false);
     }
 
     SECTION("has_probe() returns true after setting probe capability") {
@@ -605,7 +605,7 @@ TEST_CASE("Capabilities characterization: has_probe() method",
         state.set_hardware(hardware);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-        REQUIRE(state.has_probe() == true);
+        REQUIRE(state.capabilities_state().has_probe() == true);
     }
 
     SECTION("has_probe() returns true for bltouch") {
@@ -615,7 +615,7 @@ TEST_CASE("Capabilities characterization: has_probe() method",
         state.set_hardware(hardware);
         UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
-        REQUIRE(state.has_probe() == true);
+        REQUIRE(state.capabilities_state().has_probe() == true);
     }
 }
 
@@ -791,7 +791,7 @@ TEST_CASE("Capabilities characterization: typical Voron 2.4 configuration",
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_firmware_retraction")) == 1);
 
     // CoreXY + QGL = gantry moves on Z (Voron 2.4)
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 
     // Z-tilt not present on Voron 2.4 (uses QGL instead)
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_z_tilt")) == 0);
@@ -820,7 +820,7 @@ TEST_CASE("Capabilities characterization: typical Ender 3 configuration",
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_heater_bed")) == 1);
 
     // Cartesian = gantry moves on Z
-    REQUIRE(lv_subject_get_int(state.get_printer_bed_moves_subject()) == 0);
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::BedMoves)) == 0);
 
     // No QGL or Z-tilt on Ender 3
     REQUIRE(lv_subject_get_int(get_subject_by_name("printer_has_qgl")) == 0);

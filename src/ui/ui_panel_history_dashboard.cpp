@@ -199,7 +199,8 @@ lv_obj_t* HistoryDashboardPanel::create(lv_obj_t* parent) {
 
     // Register connection state observer to auto-refresh when connected
     // This handles the case where the panel is opened before connection is established
-    lv_subject_t* conn_subject = get_printer_state().get_printer_connection_state_subject();
+    lv_subject_t* conn_subject =
+        get_printer_state().network_state().get_printer_connection_state_subject();
     connection_observer_ = helix::ui::observe<int>(
         conn_subject, this,
         [](HistoryDashboardPanel* self, int state) {

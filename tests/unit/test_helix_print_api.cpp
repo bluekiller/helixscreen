@@ -76,7 +76,7 @@ class HelixPrintAPITestFixture {
 TEST_CASE_METHOD(HelixPrintAPITestFixture, "HelixPrint API - has_helix_plugin initial state",
                  "[print][api]") {
     // Initially, plugin should not be detected (no check performed yet)
-    REQUIRE(state.service_has_helix_plugin() == false);
+    REQUIRE(state.plugin_status_state().service_has_helix_plugin() == false);
 }
 
 TEST_CASE_METHOD(HelixPrintAPITestFixture,
@@ -100,7 +100,7 @@ TEST_CASE_METHOD(HelixPrintAPITestFixture,
     // Should complete (either success with false, or trigger error->false path)
     // The implementation treats errors as "plugin not available"
     // So either way, service_has_helix_plugin should be false
-    REQUIRE(state.service_has_helix_plugin() == false);
+    REQUIRE(state.plugin_status_state().service_has_helix_plugin() == false);
 }
 
 // ============================================================================
@@ -213,8 +213,8 @@ TEST_CASE("print_modified outlives a print-start macro that heats synchronously"
     MoonrakerAPI api(client, state);
 
     api.job().start_modified_print(
-        "benchy.gcode", ".helix_temp/mod_benchy.gcode", {},
-        [](const ModifiedPrintResult&) {}, [](const MoonrakerError&) {});
+        "benchy.gcode", ".helix_temp/mod_benchy.gcode", {}, [](const ModifiedPrintResult&) {},
+        [](const MoonrakerError&) {});
 
     REQUIRE(client.print_modified_calls == 1);
     CHECK(client.print_modified_timeout_ms >

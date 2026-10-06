@@ -285,7 +285,7 @@ void seed_printer_topology(PrinterState& state) {
     topo.active_tool = 0;
     ToolState::instance().set_ams_topology(topo);
 
-    state.init_extruders({"extruder"});
+    state.temperature_state().init_extruders({"extruder"});
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 }
 

@@ -227,7 +227,8 @@ void AmsContextMenu::on_created(lv_obj_t* menu_obj) {
             helix::ui::read_unload_target_loaded(backend, ext_sys, helix::ui::EXTERNAL_SPOOL_SLOT);
 
         const helix::ui::OpButtonState ext_state = helix::ui::build_external_spool_gating_state(
-            bypass_loaded, backend && ext_sys.is_busy(), get_printer_state().get_print_lifecycle(),
+            bypass_loaded, backend && ext_sys.is_busy(),
+            get_printer_state().print_state().get_print_lifecycle(),
             backend && backend->filament_ops_self_home());
 
         const helix::ui::OpButtonGating ext_gating = helix::ui::compute_op_button_gating(ext_state);
@@ -318,7 +319,7 @@ void AmsContextMenu::on_created(lv_obj_t* menu_obj) {
     // only on a backend whose filament macro homes itself (AD5X IFS). Reading
     // the raw print_active subject here — which is 1 for both — would keep the
     // menu greyed through the runout pause that is the whole recovery workflow.
-    const auto lifecycle = get_printer_state().get_print_lifecycle();
+    const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
     const bool print_blocks_op = helix::ui::print_blocks_filament_op(
         lifecycle, backend_ && backend_->filament_ops_self_home());
 

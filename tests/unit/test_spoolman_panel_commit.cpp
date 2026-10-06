@@ -89,7 +89,7 @@ struct SpoolmanPanelCommitFixture : LVGLTestFixture {
         // notify (LVGL notifies on set, not on change). Same recipe as
         // test_spoolman_identity_cache.cpp.
         helix::ui::UpdateQueue::instance().drain();
-        get_printer_state().set_spoolman_available(true);
+        get_printer_state().capabilities_state().set_spoolman_available(true);
         helix::ui::UpdateQueue::instance().drain();
 
         ams.set_moonraker_api(&api);

@@ -781,7 +781,8 @@ void PrinterSession::setup_discovery_callbacks() {
                 n,
                 hw_changed,
                 helix::discovery_print_active(
-                    lv_subject_get_int(get_printer_state().get_print_active_subject()) != 0,
+                    lv_subject_get_int(
+                        get_printer_state().print_state().get_print_active_subject()) != 0,
                     *status_snapshot)};
             helix::run_discovery_steps(ctx);
         });

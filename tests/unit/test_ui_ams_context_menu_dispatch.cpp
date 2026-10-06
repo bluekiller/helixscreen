@@ -188,7 +188,7 @@ struct LifecycleGuard {
             // Preparing is phase-derived, not a print_stats state, so the wire
             // driver cannot name it, so the enum value is the sanctioned route
             // (print_state_test_drivers.h).
-            lv_subject_set_int(get_printer_state().get_print_lifecycle_subject(),
+            lv_subject_set_int(get_printer_state().print_state().get_print_lifecycle_subject(),
                                static_cast<int>(PrintState::Preparing));
         } else {
             helix::test::set_wire_state(get_printer_state(), wire_job_state(state));

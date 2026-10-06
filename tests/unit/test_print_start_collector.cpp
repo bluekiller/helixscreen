@@ -566,7 +566,7 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
     PrintStartCollectorHeaterFixture() {
         state_.init_subjects(false);
         // Mark print as active so set_print_start_state() accepts phase updates
-        lv_subject_set_int(state_.get_print_active_subject(), 1);
+        lv_subject_set_int(state_.print_state().get_print_active_subject(), 1);
         client_ = std::make_unique<MoonrakerClientMock>();
         collector_ = std::make_shared<PrintStartCollector>(*client_, state_);
         collector_->set_profile(PrintStartProfile::load_default());
@@ -595,14 +595,14 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
      */
     PrintStartPhase get_current_phase() {
         return static_cast<PrintStartPhase>(
-            lv_subject_get_int(state_.get_print_start_phase_subject()));
+            lv_subject_get_int(state_.print_state().get_print_start_phase_subject()));
     }
 
     /**
      * @brief Get current print start message from PrinterState subject
      */
     std::string get_current_message() {
-        return lv_subject_get_string(state_.get_print_start_message_subject());
+        return lv_subject_get_string(state_.print_state().get_print_start_message_subject());
     }
 
     /**
@@ -612,16 +612,18 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
      * Example: 60.0C = 600 decidegrees
      */
     void set_bed_temps(int temp_decideg, int target_decideg) {
-        lv_subject_set_int(state_.get_bed_temp_subject(), temp_decideg);
-        lv_subject_set_int(state_.get_bed_target_subject(), target_decideg);
+        lv_subject_set_int(state_.temperature_state().get_bed_temp_subject(), temp_decideg);
+        lv_subject_set_int(state_.temperature_state().get_bed_target_subject(), target_decideg);
     }
 
     /**
      * @brief Set extruder temperature and target in PrinterState subjects
      */
     void set_extruder_temps(int temp_decideg, int target_decideg) {
-        lv_subject_set_int(state_.get_active_extruder_temp_subject(), temp_decideg);
-        lv_subject_set_int(state_.get_active_extruder_target_subject(), target_decideg);
+        lv_subject_set_int(state_.temperature_state().get_active_extruder_temp_subject(),
+                           temp_decideg);
+        lv_subject_set_int(state_.temperature_state().get_active_extruder_target_subject(),
+                           target_decideg);
     }
 
     /**
@@ -636,8 +638,8 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
      * @brief Set progress and layer for completion fallback tests
      */
     void set_progress_and_layer(int progress, int layer) {
-        lv_subject_set_int(state_.get_print_progress_subject(), progress);
-        lv_subject_set_int(state_.get_print_layer_current_subject(), layer);
+        lv_subject_set_int(state_.print_state().get_print_progress_subject(), progress);
+        lv_subject_set_int(state_.print_state().get_print_layer_current_subject(), layer);
     }
 
     /**
@@ -675,12 +677,12 @@ class PrintStartCollectorHeaterFixture : public LVGLTestFixture {
     void reset_collector_to_idle() {
         // Ensure print is considered active so set_print_start_state() doesn't
         // reject non-IDLE phase updates via the print_active_ guard
-        lv_subject_set_int(state_.get_print_active_subject(), 1);
+        lv_subject_set_int(state_.print_state().get_print_active_subject(), 1);
 
         collector_->reset();
-        drain_async_updates();            // Process reset()'s queued INITIALIZING state
-        state_.reset_print_start_state(); // Override back to IDLE
-        drain_async_updates();            // Process the IDLE update
+        drain_async_updates(); // Process reset()'s queued INITIALIZING state
+        state_.print_state().reset_print_start_state(); // Override back to IDLE
+        drain_async_updates();                          // Process the IDLE update
     }
 
     /// One fallback check as the ETA timer runs it, with the updates it queues applied.
@@ -1686,7 +1688,7 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
         collector().stop();
         // Simulate the stale-layer carryover: subject reads a positive value
         // from the prior print at the moment the next print's collector starts.
-        lv_subject_set_int(state().get_print_layer_current_subject(), 250);
+        lv_subject_set_int(state().print_state().get_print_layer_current_subject(), 250);
         collector().start();
         drain_async_updates();
         REQUIRE_FALSE(collector().has_seen_layer_zero());
@@ -1763,7 +1765,7 @@ class PrintStartCollectorSequentialFixture : public LVGLTestFixture {
     PrintStartCollectorSequentialFixture() {
         state_.init_subjects(false);
         // Mark print as active so set_print_start_state() accepts phase updates
-        lv_subject_set_int(state_.get_print_active_subject(), 1);
+        lv_subject_set_int(state_.print_state().get_print_active_subject(), 1);
         client_ = std::make_unique<MoonrakerClientMock>();
         collector_ = std::make_shared<PrintStartCollector>(*client_, state_);
         collector_->set_profile(PrintStartProfile::load("forge_x"));
@@ -1788,16 +1790,16 @@ class PrintStartCollectorSequentialFixture : public LVGLTestFixture {
     }
 
     int get_current_progress() {
-        return lv_subject_get_int(state_.get_print_start_progress_subject());
+        return lv_subject_get_int(state_.print_state().get_print_start_progress_subject());
     }
 
     PrintStartPhase get_current_phase() {
         return static_cast<PrintStartPhase>(
-            lv_subject_get_int(state_.get_print_start_phase_subject()));
+            lv_subject_get_int(state_.print_state().get_print_start_phase_subject()));
     }
 
     std::string get_current_message() {
-        return lv_subject_get_string(state_.get_print_start_message_subject());
+        return lv_subject_get_string(state_.print_state().get_print_start_message_subject());
     }
 
     void send_gcode_response(const std::string& line) {
@@ -1966,7 +1968,8 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     drain_async_updates();
 
     // start() publishes the provisional estimate immediately.
-    const int provisional = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int provisional =
+        lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(provisional > 0);
 
     // Heater targets land (K1C CX_ROUGH_G28 stage: nozzle to probe temp, bed
@@ -1978,14 +1981,15 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     PrintStartCollectorTestAccess::run_eta_update(collector());
     drain_async_updates();
 
-    const int corrected = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int corrected =
+        lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(corrected > provisional);
 
     // The corrected estimate is the new anchor: without further input changes
     // remaining must not creep back up on later ticks.
     PrintStartCollectorTestAccess::run_eta_update(collector());
     drain_async_updates();
-    const int settled = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int settled = lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(settled <= corrected);
 }
 
@@ -2006,7 +2010,8 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     drain_async_updates();
     PrintStartCollectorTestAccess::run_eta_update(collector());
     drain_async_updates();
-    const int probe_stage = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int probe_stage =
+        lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(probe_stage > 0);
 
     // Firmware raises the nozzle to print temp; nozzle temp is still well
@@ -2017,7 +2022,8 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     PrintStartCollectorTestAccess::run_eta_update(collector());
     drain_async_updates();
 
-    const int print_stage = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int print_stage =
+        lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(print_stage > probe_stage);
 }
 
@@ -2061,12 +2067,14 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     // With bed 26C short at ~1s/C the unfinished heating work is ~26s of the
     // bed phase alone; the estimate must still hold most of the prep. The old
     // behavior dropped both 90s heating phases as "completed".
-    const int remaining = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int remaining =
+        lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(remaining > 150);
 
     // And the bar (total - remaining) must not front-load: 20s into a 300s
     // prep it has no business showing a third.
-    const int progress = lv_subject_get_int(state().get_print_start_progress_subject());
+    const int progress =
+        lv_subject_get_int(state().print_state().get_print_start_progress_subject());
     REQUIRE(progress < 30);
 }
 
@@ -2101,7 +2109,8 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     // ...so the mesh's 124s publish instead of clamping to 39.
     PrintStartCollectorTestAccess::run_eta_update(collector());
     drain_async_updates();
-    const int remaining = lv_subject_get_int(state().get_preprint_remaining_subject());
+    const int remaining =
+        lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
     REQUIRE(remaining > 100);
 }
 
@@ -2161,7 +2170,7 @@ void arm_probe_telemetry(PrintStartCollectorHeaterFixture& f,
 }
 
 int published_remaining(PrintStartCollectorHeaterFixture& f) {
-    return lv_subject_get_int(f.state().get_preprint_remaining_subject());
+    return lv_subject_get_int(f.state().print_state().get_preprint_remaining_subject());
 }
 
 } // namespace
@@ -3509,7 +3518,7 @@ TEST_CASE_METHOD(SnapmakerCollectorFixture,
     // homed_axes string is partial during homing ("xy" = z not yet homed). The
     // proactive detector must show "Homing", not mislabel the concurrent warm-up
     // as "Heating Bed".
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xy");
     set_all_temps(/*bed*/ 250, 550, /*ext*/ 0, 0);
     collector().check_fallback_completion();
     drain_async_updates();
@@ -3519,14 +3528,14 @@ TEST_CASE_METHOD(SnapmakerCollectorFixture,
     // Klipper clears homed_axes to "" as each axis re-homes during G28. That
     // empty-string blip must NOT flip the label to "Heating Bed" — the HOMING
     // latch holds until the toolhead is actually fully homed.
-    lv_subject_copy_string(state().get_homed_axes_subject(), "");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "");
     collector().check_fallback_completion();
     drain_async_updates();
     drain_async_updates();
     REQUIRE(get_current_phase() == PrintStartPhase::HOMING);
 
     // Once fully homed, proactive may surface the bed heating (still pre-signal).
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xyz");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
     collector().check_fallback_completion();
     drain_async_updates();
     drain_async_updates();
@@ -3650,8 +3659,9 @@ class SnapmakerHeaterWaitFixture : public SnapmakerCollectorFixture {
     }
 
     void set_chamber(int temp_decideg, int target_decideg) {
-        lv_subject_set_int(state().get_chamber_temp_subject(), temp_decideg);
-        lv_subject_set_int(state().get_chamber_target_subject(), target_decideg);
+        lv_subject_set_int(state().temperature_state().get_chamber_temp_subject(), temp_decideg);
+        lv_subject_set_int(state().temperature_state().get_chamber_target_subject(),
+                           target_decideg);
     }
 
     helix::sim::SimulatedClock::ManualScope clock_{helix::sim::SimSpeed::of(1.0)};
@@ -3861,7 +3871,7 @@ TEST_CASE_METHOD(SnapmakerCollectorFixture,
     collector().enable_fallbacks();
     // Proactive detection owns this window: mid-home, it shows Homing even
     // with the bed far below its target and a wait reporting.
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xy");
     set_all_temps(/*bed*/ 250, 1000, /*ext*/ 0, 0);
     feed_gcode("B:25.0 /100.0");
     collector().check_fallback_completion();
@@ -3919,7 +3929,7 @@ class ArtilleryHeaterWaitFixture : public PrintStartCollectorHeaterFixture {
     }
 
     int progress() {
-        return lv_subject_get_int(state().get_print_start_progress_subject());
+        return lv_subject_get_int(state().print_state().get_print_start_progress_subject());
     }
 
     helix::sim::SimulatedClock::ManualScope clock_{helix::sim::SimSpeed::of(1.0)};
@@ -3975,8 +3985,8 @@ TEST_CASE_METHOD(ArtilleryHeaterWaitFixture,
     feed("[AM1P] State: HEAT_BED");
     REQUIRE(get_current_phase() == PrintStartPhase::HEATING_BED);
     set_all_temps(/*bed*/ 970, 1000, /*ext*/ 2100, 2100);
-    lv_subject_set_int(state().get_chamber_temp_subject(), 300);
-    lv_subject_set_int(state().get_chamber_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_chamber_temp_subject(), 300);
+    lv_subject_set_int(state().temperature_state().get_chamber_target_subject(), 600);
     feed("B:97.0 /100.0 T0:210.0 /210.0");
     tick();
     REQUIRE(get_current_phase() == PrintStartPhase::HEATING_BED);
@@ -5026,8 +5036,8 @@ TEST_CASE_METHOD(PrintStartCollectorSequentialFixture,
     // proactive detector would relabel the phase HEATING_BED on its next
     // check. A phase-object state IS the firmware narrating, so it must latch
     // the same real_signal_seen_ gate a console match latches.
-    lv_subject_set_int(state().get_bed_temp_subject(), 250);
-    lv_subject_set_int(state().get_bed_target_subject(), 600);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 250);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     collector().start();
     collector().enable_fallbacks();
     drain_async_updates();
@@ -5220,7 +5230,7 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     // Mid-G28 with the bed still climbing. Only the proactive detector can
     // reach HOMING from here: the heating correction beneath it never leaves
     // the two heating phases, so a gated-off detector shows HEATING_BED.
-    lv_subject_copy_string(state().get_homed_axes_subject(), "xy");
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xy");
     set_all_temps(/*bed*/ 235, 600, /*ext*/ 0, 0);
     collector().check_fallback_completion();
     drain_async_updates();
@@ -5287,7 +5297,7 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
         clock.advance(std::chrono::seconds(701));
         PrintStartCollectorTestAccess::run_eta_update(collector());
         drain_async_updates();
-        REQUIRE(lv_subject_get_int(state().get_preprint_elapsed_subject()) == 701);
+        REQUIRE(lv_subject_get_int(state().print_state().get_preprint_elapsed_subject()) == 701);
     }
 
     SECTION("fast-forwarding real time is what buys the simulated seconds") {

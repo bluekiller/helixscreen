@@ -55,23 +55,23 @@ class PlrStateTestFixture {
     }
 
     bool pl_env_valid() {
-        return state_.is_pl_env_valid();
+        return state_.print_state().is_pl_env_valid();
     }
 
     const std::string& pl_recovery_file() {
-        return state_.pl_recovery_file();
+        return state_.print_state().pl_recovery_file();
     }
 
     bool plr_power_loss_signal() {
-        return state_.is_plr_power_loss_signal();
+        return state_.print_state().is_plr_power_loss_signal();
     }
 
     bool qidi_plr_capable() {
-        return state_.is_plr_resume_macro_present();
+        return state_.print_state().is_plr_resume_macro_present();
     }
 
     bool qidi_was_interrupted() {
-        return state_.is_plr_interrupted_flag();
+        return state_.print_state().is_plr_interrupted_flag();
     }
 
   private:
@@ -164,8 +164,8 @@ TEST_CASE_METHOD(PlrStateTestFixture,
     // The offer controller performs exactly this on a CONNECTED->not-CONNECTED
     // edge so a reconnect re-derives a genuine 0->1 pl_env_valid edge from the
     // fresh status: force the subject to 0 and drop the stale recovery file.
-    lv_subject_set_int(state().get_pl_env_valid_subject(), 0);
-    state().clear_pl_recovery_file();
+    lv_subject_set_int(state().print_state().get_pl_env_valid_subject(), 0);
+    state().print_state().clear_pl_recovery_file();
     REQUIRE(pl_env_valid() == false);
     REQUIRE(pl_recovery_file().empty());
 }

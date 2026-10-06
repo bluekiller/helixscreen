@@ -448,7 +448,7 @@ void SubjectInitializer::init_observers() {
 
         // Connection state observer — safe without mutex because these subjects
         // are only updated via ui_queue_update() (fires on LVGL/main thread).
-        auto* conn_subject = ps.get_printer_connection_state_subject();
+        auto* conn_subject = ps.network_state().get_printer_connection_state_subject();
         if (conn_subject) {
             m_observers.push_back(ObserverGuard(
                 conn_subject,
@@ -460,7 +460,7 @@ void SubjectInitializer::init_observers() {
         }
 
         // Klippy state observer
-        auto* klippy_subject = ps.get_klippy_state_subject();
+        auto* klippy_subject = ps.network_state().get_klippy_state_subject();
         if (klippy_subject) {
             m_observers.push_back(ObserverGuard(
                 klippy_subject,

@@ -38,7 +38,7 @@ bool pauses_visible(PauseMarkerCtx* ctx, helix::PrinterState*& out_ps) {
     }
     // The identity gate: only the pauses of the file currently being printed
     // may appear, so a scan that finished after a print switch is invisible.
-    if (!ctx->ps->pause_markers_match_current_file()) {
+    if (!ctx->ps->print_state().pause_markers_match_current_file()) {
         return false;
     }
     out_ps = ctx->ps;
@@ -79,8 +79,8 @@ void bar_pause_marker_draw_cb(lv_event_t* e) {
 
     lv_draw_line_dsc_t dsc;
     fill_tick_dsc(dsc);
-    const auto axis = ps->get_pause_marker_axis();
-    for (const auto& pause : ps->get_scheduled_pauses()) {
+    const auto axis = ps->print_state().get_pause_marker_axis();
+    for (const auto& pause : ps->print_state().get_scheduled_pauses()) {
         const float fraction = helix::gcode::display_fraction(pause, axis);
         dsc.p1.x =
             static_cast<float>(coords.x1 + pad_left + static_cast<int32_t>(fraction * track_width));
@@ -136,8 +136,8 @@ void arc_pause_marker_draw_cb(lv_event_t* e) {
 
     lv_draw_line_dsc_t dsc;
     fill_tick_dsc(dsc);
-    const auto axis = ps->get_pause_marker_axis();
-    for (const auto& pause : ps->get_scheduled_pauses()) {
+    const auto axis = ps->print_state().get_pause_marker_axis();
+    for (const auto& pause : ps->print_state().get_scheduled_pauses()) {
         const float fraction = helix::gcode::display_fraction(pause, axis);
         // LVGL angles: 0deg at 3 o'clock, growing clockwise, y axis down —
         // plain cos/sin with +angle lands where lv_arc draws it.
@@ -175,7 +175,7 @@ void attach_pause_markers(lv_obj_t* widget, helix::PrinterState& printer_state,
     ctx->ps = &printer_state;
     ctx->owner = widget;
     ctx->version_guard = observe<int>(
-        printer_state.get_pause_markers_version_subject(), ctx,
+        printer_state.print_state().get_pause_markers_version_subject(), ctx,
         [](PauseMarkerCtx* self, int version) { pause_markers_invalidate(self, version); },
         printer_state.get_subjects_lifetime(), Dispatch::Immediate);
     lv_obj_add_event_cb(widget, draw_cb, LV_EVENT_DRAW_POST, ctx);

@@ -130,33 +130,34 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     // Nozzle observers are separate so they can be rebound when switching
     // extruders in multi-extruder setups (bed/chamber observers stay constant).
     nozzle.temp_observer = observe<int>(
-        printer_state_.get_active_extruder_temp_subject(), this,
+        printer_state_.temperature_state().get_active_extruder_temp_subject(), this,
         [](TemperatureService* self, int temp) { self->on_temp_changed(HeaterType::Nozzle, temp); },
         printer_state_.get_subjects_lifetime());
     nozzle.target_observer = observe<int>(
-        printer_state_.get_active_extruder_target_subject(), this,
+        printer_state_.temperature_state().get_active_extruder_target_subject(), this,
         [](TemperatureService* self, int target) {
             self->on_target_changed(HeaterType::Nozzle, target);
         },
         printer_state_.get_subjects_lifetime());
     bed.temp_observer = observe<int>(
-        printer_state_.get_bed_temp_subject(bed.temp_lifetime), this,
+        printer_state_.temperature_state().get_bed_temp_subject(bed.temp_lifetime), this,
         [](TemperatureService* self, int temp) { self->on_temp_changed(HeaterType::Bed, temp); },
         bed.temp_lifetime);
     bed.target_observer = observe<int>(
-        printer_state_.get_bed_target_subject(bed.target_lifetime), this,
+        printer_state_.temperature_state().get_bed_target_subject(bed.target_lifetime), this,
         [](TemperatureService* self, int target) {
             self->on_target_changed(HeaterType::Bed, target);
         },
         bed.target_lifetime);
     chamber.temp_observer = observe<int>(
-        printer_state_.get_chamber_temp_subject(chamber.temp_lifetime), this,
+        printer_state_.temperature_state().get_chamber_temp_subject(chamber.temp_lifetime), this,
         [](TemperatureService* self, int temp) {
             self->on_temp_changed(HeaterType::Chamber, temp);
         },
         chamber.temp_lifetime);
     chamber.target_observer = observe<int>(
-        printer_state_.get_chamber_target_subject(chamber.target_lifetime), this,
+        printer_state_.temperature_state().get_chamber_target_subject(chamber.target_lifetime),
+        this,
         [](TemperatureService* self, int target) {
             self->on_target_changed(HeaterType::Chamber, target);
         },
@@ -165,7 +166,9 @@ TemperatureService::TemperatureService(PrinterState& printer_state, IMoonrakerAP
     // the heater target stays 0. Observe it too so the effective chamber setpoint
     // reflects "Maintaining" sets. recompute_chamber_target() reads BOTH subjects.
     chamber.fan_target_observer = observe<int>(
-        printer_state_.get_chamber_fan_target_subject(chamber.fan_target_lifetime), this,
+        printer_state_.temperature_state().get_chamber_fan_target_subject(
+            chamber.fan_target_lifetime),
+        this,
         [](TemperatureService* self, int /*fan_target*/) { self->recompute_chamber_target(); },
         chamber.fan_target_lifetime);
 
@@ -241,10 +244,11 @@ void TemperatureService::recompute_chamber_target() {
     // subjects, which fold in the cooling-fan resting target so M141 S0 reads as
     // Off (effective 0) rather than a deliberate "Maintaining" set at the resting
     // temperature.
-    chamber.target = lv_subject_get_int(printer_state_.get_chamber_effective_target_subject());
+    chamber.target = lv_subject_get_int(
+        printer_state_.temperature_state().get_chamber_effective_target_subject());
     chamber.chamber_mode =
         helix::ui::temperature::chamber_mode_word(static_cast<helix::ChamberMode>(
-            lv_subject_get_int(printer_state_.get_chamber_mode_subject())));
+            lv_subject_get_int(printer_state_.temperature_state().get_chamber_mode_subject())));
 
     update_display(HeaterType::Chamber);
     update_status(HeaterType::Chamber);
@@ -280,7 +284,7 @@ void TemperatureService::update_status(HeaterType type) {
 
     // Re-check read_only for chamber from live capability subject
     if (type == HeaterType::Chamber) {
-        auto* cap_subj = printer_state_.get_printer_has_chamber_heater_subject();
+        auto* cap_subj = printer_state_.capabilities_state().subject(Capability::HasChamberHeater);
         h.read_only = (lv_subject_get_int(cap_subj) == 0);
     }
 
@@ -297,8 +301,8 @@ void TemperatureService::update_status(HeaterType type) {
         // they can never disagree. The chamber passes its mode: Maintaining
         // treats the target as a cooling ceiling, not a heat goal.
         auto mode = (type == HeaterType::Chamber)
-                        ? static_cast<helix::ChamberMode>(
-                              lv_subject_get_int(printer_state_.get_chamber_mode_subject()))
+                        ? static_cast<helix::ChamberMode>(lv_subject_get_int(
+                              printer_state_.temperature_state().get_chamber_mode_subject()))
                         : helix::ChamberMode::Heating;
         auto status =
             helix::ui::temperature::classify_heater_status(h.current, h.target, power_pct, mode);
@@ -469,14 +473,15 @@ void TemperatureService::select_extruder(const std::string& name) {
 
     // Sync the global active extruder subjects (extruder_temp/extruder_target)
     // so XML-bound elements (temp_display, nozzle_icon) update to the selected tool
-    printer_state_.set_active_extruder(name);
+    printer_state_.temperature_state().set_active_extruder(name);
 
     auto& nozzle = heaters_[idx(HeaterType::Nozzle)];
 
     // Rebind nozzle observers to the selected extruder's subjects
     SubjectLifetime temp_lt, target_lt;
-    auto* temp_subj = printer_state_.get_extruder_temp_subject(name, temp_lt);
-    auto* target_subj = printer_state_.get_extruder_target_subject(name, target_lt);
+    auto* temp_subj = printer_state_.temperature_state().get_extruder_temp_subject(name, temp_lt);
+    auto* target_subj =
+        printer_state_.temperature_state().get_extruder_target_subject(name, target_lt);
 
     if (temp_subj) {
         nozzle.temp_observer = observe<int>(
@@ -566,7 +571,8 @@ void TemperatureService::setup_mini_combined_graph(lv_obj_t* container) {
     // Add chamber series if printer has a chamber heater or sensor
     {
         const auto& chamber = heaters_[idx(HeaterType::Chamber)];
-        auto* heater_subj = printer_state_.get_printer_has_chamber_heater_subject();
+        auto* heater_subj =
+            printer_state_.capabilities_state().subject(Capability::HasChamberHeater);
         bool has_heater = heater_subj && lv_subject_get_int(heater_subj) != 0;
         // One source for the reading, so this series cannot disagree with the
         // chamber readout about which probe it means. A target line needs a

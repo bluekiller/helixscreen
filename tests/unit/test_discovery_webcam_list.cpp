@@ -91,7 +91,7 @@ struct DiscoveryRun {
     }
     ~DiscoveryRun() {
         // The global PrinterState outlives this test; leave it as "no webcam".
-        get_printer_state().set_webcam_available(false);
+        get_printer_state().capabilities_state().set_webcam_available(false);
         helix::ui::UpdateQueue::instance().drain();
     }
     WebcamListClient client;
@@ -111,7 +111,7 @@ TEST_CASE("Discovery keeps every enabled webcam and derives the auto-pick from t
     }));
 
     auto& ps = get_printer_state();
-    const auto& cams = ps.get_webcams();
+    const auto& cams = ps.capabilities_state().get_webcams();
     REQUIRE(cams.size() == 3); // the disabled one is not offered at all
     CHECK(cams[0].name == "Chamber");
     CHECK(cams[1].name == "Nozzle");
@@ -123,8 +123,8 @@ TEST_CASE("Discovery keeps every enabled webcam and derives the auto-pick from t
     // subjects behind has_webcam()/webcam_count are pinned on a standalone
     // PrinterCapabilitiesState in test_printer_state_webcams.cpp; the global
     // PrinterState's subjects are not initialized under this fixture.)
-    CHECK(ps.get_webcam_stream_url() == "/webcam/?action=stream");
-    CHECK(ps.get_webcam_snapshot_url() == "/webcam/?action=snapshot");
+    CHECK(ps.capabilities_state().get_webcam_stream_url() == "/webcam/?action=stream");
+    CHECK(ps.capabilities_state().get_webcam_snapshot_url() == "/webcam/?action=snapshot");
 }
 
 TEST_CASE("Mock webcam spec parses into a Moonraker-shaped list", "[mock][webcam][camera]") {
@@ -152,11 +152,11 @@ TEST_CASE("Discovery marks an unreachable absolute snapshot URL and moves on",
     }));
 
     auto& ps = get_printer_state();
-    const auto& cams = ps.get_webcams();
+    const auto& cams = ps.capabilities_state().get_webcams();
     REQUIRE(cams.size() == 2);
     // Still listed (a picker can show it as unavailable), but ruled out.
     CHECK(cams[0].name == "Stale");
     CHECK(cams[0].unavailable_reason.rfind("unreachable", 0) == 0);
     CHECK(cams[1].unavailable_reason.empty());
-    CHECK(ps.get_webcam_stream_url() == "/webcam/?action=stream");
+    CHECK(ps.capabilities_state().get_webcam_stream_url() == "/webcam/?action=stream");
 }

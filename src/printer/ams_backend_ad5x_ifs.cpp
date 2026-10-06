@@ -73,12 +73,12 @@ namespace {
     // Equivalent to the old raw comparison — derive_print_state() excepts PAUSED
     // from the "a live phase outranks the job state" rule, so the two can never
     // disagree — but expressed on the one axis everything else now reads.
-    return get_printer_state().get_print_lifecycle() == PrintState::Paused;
+    return get_printer_state().print_state().get_print_lifecycle() == PrintState::Paused;
 }
 
 [[nodiscard]] bool job_holds_machine_now() {
     return get_printer_state().are_subjects_initialized() &&
-           job_holds_machine(get_printer_state().get_print_lifecycle());
+           job_holds_machine(get_printer_state().print_state().get_print_lifecycle());
 }
 
 /// Fallback purge for a runout recovery: 50 mm of fresh filament at 10 mm/s.
@@ -750,7 +750,8 @@ void AmsBackendAd5xIfs::handle_status(const json& status_obj) {
     // queue, so the fast cadence is still the right choice there.
     bool printing_now = false;
     if (get_printer_state().are_subjects_initialized()) {
-        printing_now = get_printer_state().get_print_job_state() == helix::PrintJobState::PRINTING;
+        printing_now = get_printer_state().print_state().get_print_job_state() ==
+                       helix::PrintJobState::PRINTING;
     }
 
     auto now = std::chrono::steady_clock::now();

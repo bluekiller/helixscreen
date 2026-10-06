@@ -68,7 +68,7 @@ class RecoveryPreheatFixture : public LVGLUITestFixture {
         // execute_gcode() refuses everything while Klipper reads SHUTDOWN, which
         // is where the subjects initialize.
         st.set_klippy_state_sync(helix::KlippyState::READY);
-        lv_subject_set_int(st.get_print_state_enum_subject(),
+        lv_subject_set_int(st.print_state().get_print_state_enum_subject(),
                            static_cast<int>(helix::PrintJobState::STANDBY));
 
         SafetyLimits limits; // min_extrude_temp_celsius = 170 (Klipper default)
@@ -90,7 +90,9 @@ class RecoveryPreheatFixture : public LVGLUITestFixture {
     }
 
     void set_nozzle_c(int celsius) {
-        lv_subject_set_int(get_printer_state().get_active_extruder_temp_subject(), celsius * 10);
+        lv_subject_set_int(
+            get_printer_state().temperature_state().get_active_extruder_temp_subject(),
+            celsius * 10);
     }
 
     helix::ui::RecoveryModalPresenter& presenter() {

@@ -67,7 +67,8 @@ void PrinterStatusIcon::init() {
     PrinterState& printer_state = get_printer_state();
 
     // Printer connection observer
-    lv_subject_t* conn_subject = printer_state.get_printer_connection_state_subject();
+    lv_subject_t* conn_subject =
+        printer_state.network_state().get_printer_connection_state_subject();
     spdlog::trace("[PrinterStatusIcon] Registering observer on printer_connection_state_subject at "
                   "{}",
                   (void*)conn_subject);
@@ -82,7 +83,7 @@ void PrinterStatusIcon::init() {
         printer_state.get_subjects_lifetime());
 
     // Klippy state observer
-    lv_subject_t* klippy_subject = printer_state.get_klippy_state_subject();
+    lv_subject_t* klippy_subject = printer_state.network_state().get_klippy_state_subject();
     spdlog::trace("[PrinterStatusIcon] Registering observer on klippy_state_subject at {}",
                   (void*)klippy_subject);
     klippy_observer_ = observe<int>(
@@ -130,7 +131,7 @@ void PrinterStatusIcon::update_icon_state() {
     const bool expected_restart = EmergencyStopOverlay::instance().is_expected_restart();
     PrinterIconState new_state =
         compute_state(cached_connection_state_, cached_klippy_state_,
-                      get_printer_state().was_ever_connected(), expected_restart);
+                      get_printer_state().network_state().was_ever_connected(), expected_restart);
 
     spdlog::debug("[PrinterStatusIcon] conn={} klippy={} expected_restart={} -> icon state {}",
                   cached_connection_state_, cached_klippy_state_, expected_restart,

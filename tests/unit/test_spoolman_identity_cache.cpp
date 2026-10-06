@@ -164,7 +164,7 @@ class IdentityCacheFixture : public LVGLTestFixture {
     }
 
     void set_spoolman_available(bool available) {
-        get_printer_state().set_spoolman_available(available);
+        get_printer_state().capabilities_state().set_spoolman_available(available);
         helix::ui::UpdateQueue::instance().drain();
     }
 

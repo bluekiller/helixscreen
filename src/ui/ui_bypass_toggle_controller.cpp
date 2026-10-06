@@ -49,7 +49,7 @@ void BypassToggleController::toggle() {
     // has filament staged mid-path, and a host-side pre-start block is actively
     // homing and probing). The tile's own binding in panel_widget_bypass.xml
     // greys it on the same subject; this is the handler half of the same guard.
-    const PrintState state = get_printer_state().get_print_lifecycle();
+    const PrintState state = get_printer_state().print_state().get_print_lifecycle();
     if (job_holds_machine(state)) {
         NOTIFY_WARNING(lv_tr("Bypass cannot be changed while printing"));
         spdlog::info("[BypassToggle] Refused — print active ({})", static_cast<int>(state));
@@ -107,7 +107,7 @@ void BypassToggleController::ensure_engaged_then(std::function<void()> on_ready)
 bool BypassToggleController::begin_engage() {
     // Print guard — see toggle(). Repeated here rather than hoisted because
     // ensure_engaged_then() reaches this path without going through toggle().
-    const PrintState state = get_printer_state().get_print_lifecycle();
+    const PrintState state = get_printer_state().print_state().get_print_lifecycle();
     if (job_holds_machine(state)) {
         NOTIFY_WARNING(lv_tr("Bypass cannot be changed while printing"));
         spdlog::info("[BypassToggle] Refused — print active ({})", static_cast<int>(state));

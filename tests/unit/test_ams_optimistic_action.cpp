@@ -234,8 +234,10 @@ struct OptimisticSidebarFixture : public XMLTestFixture {
     }
 
     void set_nozzle(int temp_c, int target_c) {
-        lv_subject_set_int(state().get_active_extruder_target_subject(), target_c * 10);
-        lv_subject_set_int(state().get_active_extruder_temp_subject(), temp_c * 10);
+        lv_subject_set_int(state().temperature_state().get_active_extruder_target_subject(),
+                           target_c * 10);
+        lv_subject_set_int(state().temperature_state().get_active_extruder_temp_subject(),
+                           temp_c * 10);
         // The sidebar's temperature observers run deferred, one frame at a time.
         helix::ui::UpdateQueue::instance().drain();
     }

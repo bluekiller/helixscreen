@@ -1443,7 +1443,8 @@ void AmsBackendCfs::handle_status(const nlohmann::json& params) {
     // mirroring the filament-op guard's null path in ams_subscription_backend.
     bool print_holds_machine = false;
     if (api_) {
-        print_holds_machine = job_holds_machine(api_->printer_state().get_print_lifecycle());
+        print_holds_machine =
+            job_holds_machine(api_->printer_state().print_state().get_print_lifecycle());
     }
 
     // Drop the previous frame's derived LOADED stamp before anything below
@@ -4174,7 +4175,7 @@ AmsError refuse_calibration_if_printing(IMoonrakerAPI* api) {
         // AmsSubscriptionBackend::refuse_if_printing's null-api path).
         return AmsErrorHelper::success();
     }
-    const auto lifecycle = api->printer_state().get_print_lifecycle();
+    const auto lifecycle = api->printer_state().print_state().get_print_lifecycle();
     if (print_blocks_filament_op(lifecycle, /*backend_self_homes=*/true)) {
         return AmsErrorHelper::print_active(lifecycle == PrintState::Paused,
                                             /*pause_allows_ops=*/false);

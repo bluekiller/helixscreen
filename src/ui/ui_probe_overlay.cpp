@@ -555,7 +555,7 @@ void ProbeOverlay::handle_probe_accuracy() {
     std::string gcode;
     if (!all_homed) {
         // Diagnostic-only re-fetch — all_homed above already decided the branch.
-        const char* homed_dbg = lv_subject_get_string(ps.get_homed_axes_subject());
+        const char* homed_dbg = lv_subject_get_string(ps.motion_state().get_homed_axes_subject());
         spdlog::info("[Probe] Axes not homed (homed_axes='{}'), homing first",
                      homed_dbg ? homed_dbg : "");
         gcode = "G28\n";

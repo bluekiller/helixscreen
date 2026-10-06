@@ -67,7 +67,7 @@ class AnalysisRefreshFixture : public LVGLUITestFixture {
     }
 
     void set_connection(ConnectionState s) {
-        state().set_printer_connection_state_internal(static_cast<int>(s), "");
+        state().network_state().set_printer_connection_state_internal(static_cast<int>(s), "");
     }
 
     void settle() {
