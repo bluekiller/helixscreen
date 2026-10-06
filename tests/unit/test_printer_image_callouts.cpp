@@ -808,6 +808,35 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: a both-sides layout with a shrunk image places it at its rect",
+                 "[printer_image][callouts]") {
+    // Too short to stack the three budget chips on one side, so only both sides
+    // draws lines; narrowing the tile reaches the widths where that needs the shrink.
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    lv_obj_t* img = h.child("printer_image");
+    lv_obj_t* container = h.child("printer_container");
+    bool shrunk_seen = false;
+    for (int w = 480; w >= 320 && !shrunk_seen; w -= 2) {
+        h.resize(8, 4, w, 120);
+        settle();
+        lv_obj_update_layout(h.root());
+        if (mode_now() != static_cast<int>(CalloutMode::BothSides))
+            break;
+        if (lv_obj_get_width(img) == lv_obj_get_content_width(container))
+            continue;
+        shrunk_seen = true;
+        const CalloutRect fit = fitted_image(h);
+        CAPTURE(w, fit.w, lv_obj_get_width(img));
+        CHECK(lv_obj_get_width(img) < fit.w);
+        CHECK(lv_obj_get_width(img) >= fit.w - fit.w * callout_detail::kMaxImageShrinkPct / 100);
+        CHECK(lv_obj_get_x(img) ==
+              (lv_obj_get_content_width(container) - lv_obj_get_width(img)) / 2);
+    }
+    CHECK(shrunk_seen);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
                  "callouts: a moved image drops the exact-size copy cut for its old rect",
                  "[printer_image][callouts]") {
     const auto regions = prepare_tagged_widget();
