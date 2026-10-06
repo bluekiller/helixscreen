@@ -1307,7 +1307,7 @@ TEST_CASE_METHOD(SpoolmanLaneFixture,
     drain();
     REQUIRE(ts.tools()[0].spoolman_id == 1);
     REQUIRE_FALSE(helix::ToolStateTestAccess::spool_dirty(ts));
-    const int saves_after_link = tool_api.mock_db_post_count();
+    const int saves_after_link = client.call_count("server.database.post_item");
     REQUIRE(saves_after_link > 0);
 
     // A print draining the spool: each poll finds less on the server.
@@ -1322,7 +1322,7 @@ TEST_CASE_METHOD(SpoolmanLaneFixture,
                 std::to_string(static_cast<int>(remaining)) + "g");
     }
 
-    CHECK(tool_api.mock_db_post_count() == saves_after_link);
+    CHECK(client.call_count("server.database.post_item") == saves_after_link);
 }
 
 TEST_CASE_METHOD(SpoolmanLaneFixture,

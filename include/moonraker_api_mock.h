@@ -773,7 +773,8 @@ class MoonrakerJobAPIMock : public MoonrakerJobAPI {
 /**
  * @brief Mock MoonrakerAPI for testing without real printer connection
  *
- * Overrides connection, database, and calibration methods for mock mode.
+ * Overrides connection and calibration methods for mock mode. The Moonraker
+ * database is served by MoonrakerClientMock.
  * File transfer mocking is handled by MoonrakerFileTransferAPIMock (sub-API).
  *
  * Usage:
@@ -795,7 +796,7 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     ~MoonrakerAPIMock() override = default;
 
     // ========================================================================
-    // Overridden Connection/Subscription/Database Proxies (no-ops for mock)
+    // Overridden Connection/Subscription Proxies (no-ops for mock)
     // ========================================================================
 
     helix::SubscriptionId
@@ -818,18 +819,6 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     void get_gcode_store(int count,
                          std::function<void(const std::vector<GcodeStoreEntry>&)> on_success,
                          std::function<void(const MoonrakerError&)> on_error) override;
-    void database_get_item(const std::string& namespace_name, const std::string& key,
-                           std::function<void(const json&)> on_success,
-                           ErrorCallback on_error = nullptr) override;
-    void database_post_item(const std::string& namespace_name, const std::string& key,
-                            const json& value, std::function<void()> on_success = nullptr,
-                            ErrorCallback on_error = nullptr) override;
-    void database_get_namespace(const std::string& namespace_name,
-                                std::function<void(const json&)> on_success,
-                                ErrorCallback on_error = nullptr) override;
-    void database_delete_item(const std::string& namespace_name, const std::string& key,
-                              std::function<void()> on_success = nullptr,
-                              ErrorCallback on_error = nullptr) override;
 
     // ========================================================================
     // Overridden Power Device Methods (return mock data)
@@ -995,106 +984,6 @@ class MoonrakerAPIMock : public MoonrakerAPI {
      */
     MoonrakerRestAPIMock& rest_mock();
 
-    /// Set a mock database value for testing
-    void mock_set_db_value(const std::string& namespace_name, const std::string& key,
-                           const nlohmann::json& value);
-
-    /// Fetch a mock database value for test assertions. Returns null JSON if the
-    /// key is absent.
-    nlohmann::json mock_get_db_value(const std::string& namespace_name,
-                                     const std::string& key) const;
-
-    /// Number of times database_post_item() was called on this mock instance.
-    /// Counts every invocation — including calls later rejected via
-    /// mock_reject_next_db_post() or captured via mock_defer_next_db_post() — so
-    /// tests can assert "a write was attempted" or "no write happened".
-    [[nodiscard]] int mock_db_post_count() const {
-        return db_post_count_;
-    }
-
-    /// Number of times database_get_namespace() was called on this mock
-    /// instance. Counts every invocation (see mock_db_post_count() for
-    /// rejection/defer semantics), so a test can assert that a round-trip was
-    /// made, or that none was.
-    [[nodiscard]] int mock_db_namespace_get_count() const {
-        return db_namespace_get_count_;
-    }
-
-    /// Number of times database_delete_item() was called on this mock instance.
-    /// Counts every invocation (see mock_db_post_count() for rejection/defer
-    /// semantics).
-    [[nodiscard]] int mock_db_delete_count() const {
-        return db_delete_count_;
-    }
-
-    /// Cause the next database_post_item() call to fire its on_error callback
-    /// with the given MoonrakerError, and skip writing to the mock DB. The
-    /// rejection is consumed on the first call — subsequent posts succeed
-    /// normally unless this is called again. The no-arg overload uses a
-    /// generic UNKNOWN error with a descriptive message.
-    /// Not thread-safe: call from the main test thread before the rejection
-    /// is consumed. Catch2 runs tests sequentially so this is safe today.
-    void mock_reject_next_db_post();
-    void mock_reject_next_db_post(MoonrakerError err);
-
-    /// Cause the next database_delete_item() call to fire its on_error callback
-    /// with the given MoonrakerError, and skip erasing from the mock DB. The
-    /// rejection is consumed on the first call — subsequent deletes succeed
-    /// normally unless this is called again. The no-arg overload uses a
-    /// generic UNKNOWN error with a descriptive message.
-    ///
-    /// Note: the mock mirrors MoonrakerAPI's missing-key normalization. If the
-    /// injected error has code == 404 or its message contains "not found",
-    /// on_success is called instead of on_error — faithfully simulating the
-    /// real API's contract. Tests relying on this remap can inject specific
-    /// errors and verify callers handle normalized results.
-    ///
-    /// Not thread-safe: call from the main test thread before the rejection
-    /// is consumed.
-    void mock_reject_next_db_delete();
-    void mock_reject_next_db_delete(MoonrakerError err);
-
-    /// Cause the next database_get_namespace() call to fire its on_error callback
-    /// with the given MoonrakerError, and skip returning any value. The rejection
-    /// is consumed on the first call — subsequent gets succeed normally unless
-    /// this is called again. The no-arg overload uses a generic UNKNOWN error.
-    /// Used to exercise load_blocking()'s "MR DB unreachable → fall back to
-    /// local cache" path.
-    /// Not thread-safe: call from the main test thread before the rejection
-    /// is consumed.
-    void mock_reject_next_db_get();
-    void mock_reject_next_db_get(MoonrakerError err);
-
-    /// Cause the next database_post_item() call to capture its callbacks without
-    /// firing them. The captured callbacks can later be fired via
-    /// fire_deferred_db_post_success() or fire_deferred_db_post_error(err).
-    /// Used to simulate the "callback fires after caller destroyed" window so
-    /// tests can prove the caller's lifetime discipline (value-capture + shared
-    /// state) actually prevents UAF.
-    /// When deferred, the mock also skips writing to the DB until the success
-    /// callback fires — matching real-API semantics (no durable state until ACK).
-    /// If fire_deferred_*() is called with no captured callbacks, it is a no-op.
-    /// Not thread-safe: call from the main test thread.
-    void mock_defer_next_db_post();
-    void fire_deferred_db_post_success();
-    void fire_deferred_db_post_error(MoonrakerError err);
-
-    /// Same mechanism for database_delete_item(). When deferred, the mock also
-    /// skips erasing from the DB until the success callback fires.
-    void mock_defer_next_db_delete();
-    void fire_deferred_db_delete_success();
-    void fire_deferred_db_delete_error(MoonrakerError err);
-
-    /// Same mechanism for database_get_namespace() (NOT database_get_item()).
-    /// Used to exercise load_blocking()'s cv.wait_for timeout path.
-    void mock_defer_next_db_get();
-    void fire_deferred_db_get_success(const nlohmann::json& value);
-    void fire_deferred_db_get_error(MoonrakerError err);
-
-    /// Ensure a namespace/key is absent from the mock database so subsequent
-    /// database_get_item() calls route to on_error.
-    void set_database_empty(const std::string& namespace_name, const std::string& key);
-
   private:
     // Shared mock state for coordination with MoonrakerClientMock
     std::shared_ptr<MockPrinterState> mock_state_;
@@ -1108,48 +997,4 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     // Test spy state for suppress_disconnect_modal()
     size_t suppress_disconnect_modal_calls_ = 0;
     uint32_t last_suppress_disconnect_modal_ms_ = 0;
-
-    /// Mock database storage: key = "namespace:key", value = JSON
-    std::map<std::string, nlohmann::json> mock_db_;
-
-    /// Call counters for database write ops. Incremented at the top of each
-    /// override, before any rejection/defer branch, so a rejected or deferred
-    /// call still counts as an attempt. Exposed via mock_db_post_count() /
-    /// mock_db_delete_count() / mock_db_namespace_get_count().
-    int db_post_count_ = 0;
-    int db_delete_count_ = 0;
-    int db_namespace_get_count_ = 0;
-
-    /// One-shot rejection for database_post_item (set by mock_reject_next_db_post).
-    std::optional<MoonrakerError> next_db_post_rejection_;
-
-    /// One-shot rejection for database_delete_item (set by mock_reject_next_db_delete).
-    std::optional<MoonrakerError> next_db_delete_rejection_;
-
-    /// One-shot rejection for database_get_namespace (set by mock_reject_next_db_get).
-    std::optional<MoonrakerError> next_db_get_rejection_;
-
-    // One-shot deferred captures. Post/delete share the same shape (void()
-    // success, error with MoonrakerError). Get captures a nlohmann::json value.
-    struct DeferredDbPost {
-        std::function<void()> on_success;
-        std::function<void(const MoonrakerError&)> on_error;
-        // Post/delete need the captured write/erase info so fire_*_success can
-        // apply the same DB mutation the synchronous path would have applied.
-        // (For delete, `value` is ignored — the erase is unconditional.)
-        std::string namespace_name;
-        std::string key;
-        nlohmann::json value;
-    };
-    struct DeferredDbGet {
-        std::function<void(const nlohmann::json&)> on_success;
-        std::function<void(const MoonrakerError&)> on_error;
-        std::string namespace_name;
-    };
-    bool defer_next_db_post_ = false;
-    std::optional<DeferredDbPost> deferred_db_post_;
-    bool defer_next_db_delete_ = false;
-    std::optional<DeferredDbPost> deferred_db_delete_;
-    bool defer_next_db_get_ = false;
-    std::optional<DeferredDbGet> deferred_db_get_;
 };

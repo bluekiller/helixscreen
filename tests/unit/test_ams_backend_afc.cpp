@@ -1525,7 +1525,7 @@ TEST_CASE_METHOD(AfcLockedLaneFixture, "AFC weight persist writes the weight and
     // Both of AFC's durable homes for a weight: the lane's own, and the record
     // a restart reads back.
     CHECK(helper.has_gcode("SET_WEIGHT LANE=lane1 WEIGHT=730"));
-    const nlohmann::json stored = api->mock_get_db_value("lane_data", "lane1");
+    const nlohmann::json stored = client.mock_db_get("lane_data", "lane1");
     REQUIRE_FALSE(stored.is_null());
     CHECK(stored["remaining_weight_g"] == 730.0f);
 
@@ -1547,7 +1547,7 @@ TEST_CASE_METHOD(AfcLockedLaneFixture, "AFC weight persist writes the weight and
 
 TEST_CASE_METHOD(AfcLockedLaneFixture, "AFC weight update without persist writes nothing durable",
                  "[ams][afc][persistence][filament_slot_override][1652]") {
-    const nlohmann::json stored_before = api->mock_get_db_value("lane_data", "lane1");
+    const nlohmann::json stored_before = client.mock_db_get("lane_data", "lane1");
     REQUIRE_FALSE(stored_before.is_null());
     const float recorded_before = record().remaining_weight_g;
 
@@ -1557,7 +1557,7 @@ TEST_CASE_METHOD(AfcLockedLaneFixture, "AFC weight update without persist writes
     CHECK(helper.get_slot_info(0).remaining_weight_g == Catch::Approx(500.0f));
     // ...and nothing durable does.
     CHECK(helper.captured_gcodes.empty());
-    CHECK(api->mock_get_db_value("lane_data", "lane1") == stored_before);
+    CHECK(client.mock_db_get("lane_data", "lane1") == stored_before);
     CHECK(record().remaining_weight_g == Catch::Approx(recorded_before));
 }
 

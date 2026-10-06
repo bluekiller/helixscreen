@@ -549,10 +549,10 @@ per-backend `test_ams_backend_*.cpp` files. Shared patterns:
 - **`TmpCacheDir` RAII helper**. Overrides `HELIX_USER_CONFIG_DIR` to a
   temp directory for the test's lifetime and rm's it on teardown. Keeps
   cache writes from touching the developer's real `~/.helixscreen/`.
-- **Mock hooks for MR DB**: `mock_set_db_value`, `mock_get_db_value`,
-  `mock_reject_next_db_{post,delete,get}`,
-  `mock_defer_next_db_{post,delete,get}` + `fire_deferred_*`. The deferred
-  variants are how we exercise the "callback fires after the store is
+- **Mock hooks for MR DB** (on `MoonrakerClientMock`, which serves
+  `server.database.*`): `mock_db_set`, `mock_db_get`, and the generic
+  per-method `fail_next`, `defer_next` + `fire_deferred` /
+  `fire_deferred_error`, and `call_count`. The deferred hooks are how we exercise the "callback fires after the store is
   destroyed" lifetime regression — seed a deferred call, destroy the store,
   fire the callback, assert nothing crashes.
 - **Tags**:
