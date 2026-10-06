@@ -94,3 +94,69 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"WARN w"* ]]
 }
+
+@test "no terminal: a step prints one numbered line when done" {
+    STEP_TOTAL=8
+    step "Downloaded"
+    run step_done "100 MB, SHA256 verified"
+    [ "$output" = "[1/8] Downloaded ... ok (100 MB, SHA256 verified)" ]
+}
+
+@test "no terminal: nothing prints until the step resolves" {
+    STEP_TOTAL=8
+    run step "Downloaded"
+    [ -z "$output" ]
+}
+
+@test "no terminal: steps without a total are not numbered" {
+    STEP_TOTAL=0
+    step "Checked system"
+    run step_done
+    [ "$output" = "Checked system ... ok" ]
+}
+
+@test "no terminal: a failed step says FAILED" {
+    STEP_TOTAL=3
+    step "Installing libraries"
+    run step_fail
+    [ "$output" = "[1/3] Installing libraries ... FAILED" ]
+}
+
+@test "step_skip prints nothing and does not consume a number" {
+    STEP_TOTAL=2
+    step "Installing libraries"; step_skip
+    step "Downloaded"
+    run step_done
+    [ "$output" = "[1/2] Downloaded ... ok" ]
+}
+
+@test "warnings inside a step are indented under it" {
+    STEP_TOTAL=2
+    step "Downloaded"
+    run log_warn "plain-HTTP mirror"
+    [ "$output" = "      [WARN] plain-HTTP mirror" ]
+}
+
+@test "terminal + UTF-8: done line uses a check mark and erases the spinner" {
+    NO_COLOR=1 HELIX_INSTALL_TTY=1 LANG=en_US.UTF-8 TERM=vt100 ui_detect
+    step "Downloaded"
+    run step_done "100 MB"
+    contains $'\r' "$output"
+    contains "✓ Downloaded" "$output"
+    contains "100 MB" "$output"
+}
+
+@test "terminal without UTF-8 falls back to ASCII marks" {
+    NO_COLOR=1 HELIX_INSTALL_TTY=1 LC_ALL=C LANG=C TERM=vt100 ui_detect
+    step "Downloaded"
+    run step_done
+    contains "ok Downloaded" "$output"
+    case "$output" in *"✓"*) fail "unicode mark on a non-UTF-8 terminal" ;; esac
+}
+
+@test "steps are recorded in the log" {
+    log_open "$BATS_TEST_TMPDIR/install.log"
+    step "Downloaded"; step_done "100 MB" >/dev/null 2>&1
+    run grep -E 'STEP Downloaded|DONE Downloaded \(100 MB\)' "$BATS_TEST_TMPDIR/install.log"
+    [ "${#lines[@]}" -eq 2 ]
+}

@@ -304,9 +304,52 @@ log_open() {
 _ESC=$(printf '\033')
 _log_plain() { printf '%b' "$1" | sed "s/${_ESC}\\[[0-9;]*m//g"; }
 
-# Screen output for the four levels. _ui_emit is redefined by the step layer
-# to indent under an open step; here it prints the line as given.
-_ui_emit() { printf '%b\n' "$1" >&2; }
+# Steps: a titled unit of work that resolves to done, failed or skipped. On a
+# terminal the open step is a spinner line that later lines redraw beneath;
+# without one nothing prints until the step resolves, as one numbered line.
+# STEP_TOTAL is set by the plan; 0 means "do not number".
+STEP_TOTAL=0
+STEP_NUM=0
+STEP_OPEN=0
+STEP_TITLE=""
+_SPIN_I=0
+
+_ui_marks() {
+    if [ "$UI_UTF8" = 1 ]; then
+        MARK_OK="✓"; MARK_FAIL="✗"; ELLIPSIS="…"
+    else
+        MARK_OK="ok"; MARK_FAIL="FAIL"; ELLIPSIS="..."
+    fi
+}
+
+_spin_frame() {
+    if [ "$UI_UTF8" = 1 ]; then
+        set -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+    else
+        set -- '|' '/' '-' '\'
+    fi
+    _SPIN_I=$(( (_SPIN_I % $#) + 1 ))
+    eval "printf '%s' \"\${$_SPIN_I}\""
+}
+
+# Redraw the open step's line (terminal only). Called by step and by every
+# line printed while the step is open, so the spinner advances as work logs.
+_step_redraw() {
+    [ "$UI_TTY" = 1 ] && [ "$STEP_OPEN" = 1 ] || return 0
+    printf '\r\033[K  %b%s%b %s%s' "$CYAN" "$(_spin_frame)" "$NC" "$STEP_TITLE" "$ELLIPSIS" >&2
+}
+
+# Screen output for the four levels: indented under an open step, as given
+# otherwise.
+_ui_emit() {
+    if [ "$STEP_OPEN" = 1 ]; then
+        [ "$UI_TTY" = 1 ] && printf '\r\033[K' >&2
+        printf '%b\n' "      $1" >&2
+        _step_redraw
+    else
+        printf '%b\n' "$1" >&2
+    fi
+}
 
 log_info() {
     _log_write "INFO $(_log_plain "$1")"
@@ -331,6 +374,59 @@ log_error() {
 log_note() {
     _log_write "NOTE $(_log_plain "$1")"
     _ui_emit "    $1"
+}
+
+# UNCALLED_OK: called from main() once steps land
+step() {
+    [ "$STEP_OPEN" = 1 ] && step_done
+    _ui_marks
+    STEP_TITLE="$1"
+    STEP_OPEN=1
+    _log_write "STEP $1"
+    _step_redraw
+}
+
+_step_close() { # mark color word detail
+    STEP_NUM=$((STEP_NUM + 1))
+    if [ "$UI_TTY" = 1 ]; then
+        if [ -n "$4" ]; then
+            printf '\r\033[K  %b%s%b %-22s %b%s%b\n' "$2" "$1" "$NC" "$STEP_TITLE" "$DIM" "$4" "$NC" >&2
+        else
+            printf '\r\033[K  %b%s%b %s\n' "$2" "$1" "$NC" "$STEP_TITLE" >&2
+        fi
+    else
+        _sc_prefix=""
+        [ "$STEP_TOTAL" -gt 0 ] && _sc_prefix="[$STEP_NUM/$STEP_TOTAL] "
+        if [ -n "$4" ]; then
+            printf '%s%s ... %s (%s)\n' "$_sc_prefix" "$STEP_TITLE" "$3" "$4" >&2
+        else
+            printf '%s%s ... %s\n' "$_sc_prefix" "$STEP_TITLE" "$3" >&2
+        fi
+    fi
+    STEP_OPEN=0
+}
+
+# UNCALLED_OK: called from main() once steps land
+# shellcheck disable=SC2120  # step() closes a stale step with no detail
+step_done() {
+    [ "$STEP_OPEN" = 1 ] || return 0
+    if [ -n "${1:-}" ]; then _log_write "DONE $STEP_TITLE ($1)"; else _log_write "DONE $STEP_TITLE"; fi
+    _step_close "$MARK_OK" "$GREEN" ok "${1:-}"
+}
+
+# UNCALLED_OK: called from main() once steps land
+step_fail() {
+    [ "$STEP_OPEN" = 1 ] || return 0
+    _log_write "FAIL $STEP_TITLE${1:+ ($1)}"
+    _step_close "$MARK_FAIL" "$RED" FAILED "${1:-}"
+}
+
+# UNCALLED_OK: called from main() once steps land
+step_skip() {
+    [ "$STEP_OPEN" = 1 ] || return 0
+    _log_write "SKIP $STEP_TITLE"
+    [ "$UI_TTY" = 1 ] && printf '\r\033[K' >&2
+    STEP_OPEN=0
 }
 
 # Error handler - cleanup and report what went wrong
