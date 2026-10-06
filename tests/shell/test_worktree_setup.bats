@@ -5,12 +5,12 @@
 #
 # The script symlinks each lib/ submodule into the main tree so a worktree
 # builds in seconds instead of recompiling ~GB of submodules. That is right for
-# the submodules nothing rewrites, and wrong for the three that are rewritten
-# per branch: lib/helix-xml is ours and is edited directly, and lib/lvgl and
-# lib/libhv are rewritten by patches/, which is per-branch. Sharing one checkout
-# between branches that disagree about either is unsatisfiable — each tree's
-# correct action invalidates the other's — so those three get a private checkout
-# per worktree.
+# the submodules nothing rewrites, and wrong for the ones that are rewritten
+# per branch: lib/helix-xml is ours and is edited directly, and lib/lvgl,
+# lib/libhv and lib/lua are rewritten by patches/, which is per-branch. Sharing
+# one checkout between branches that disagree about either is unsatisfiable —
+# each tree's correct action invalidates the other's — so those get a private
+# checkout per worktree.
 
 load helpers
 
@@ -30,15 +30,14 @@ setup() {
     # A patched submodule left symlinked is the whole defect: patches/ is
     # per-branch and the checkout would not be, so one tree's reapply-patches
     # silently redefines what every other tree compiles.
-    patched=$(grep -oE '^(LVGL|LIBHV)_PATCHED_FILES' mk/patches.mk | sort -u)
-    [ -n "$patched" ] || return 1
+    # The submodule each list belongs to is its <NAME>_DIR in the Makefile.
+    patched=$(grep -oE '^[A-Z0-9]+_PATCHED_FILES' mk/patches.mk | sort -u)
+    [ "$(wc -w <<<"$patched")" -ge 3 ] || return 1
     private=$(grep -E '^LIB_PRIVATE_SUBMODULES=' "$SCRIPT")
     for p in $patched; do
-        case "$p" in
-            LVGL_PATCHED_FILES) path="lib/lvgl" ;;
-            LIBHV_PATCHED_FILES) path="lib/libhv" ;;
-        esac
-        [[ "$private" == *"$path"* ]] || { echo "patched but shared: $path" >&2; return 1; }
+        path=$(sed -n "s/^${p%_PATCHED_FILES}_DIR := //p" Makefile)
+        [ -n "$path" ] || { echo "no ${p%_PATCHED_FILES}_DIR in the Makefile" >&2; return 1; }
+        [[ "$private" == *"\"$path\""* ]] || { echo "patched but shared: $path" >&2; return 1; }
     done
 }
 
@@ -151,6 +150,22 @@ build_fixture_repo() {
     # sharing the private checkout exists to remove.
     run cat "$wt/lib/lvgl/.git"
     [[ "$output" == *"worktrees/iso/modules/"*"lvgl" ]] || { echo "$output" >&2; return 1; }
+    rm -rf "$tmp"
+}
+
+@test "lib/lua is a private checkout, not a symlink into the main tree" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    git -C "$tmp/main" -c protocol.file.allow=always submodule add -q "$tmp/upstream" lib/lua
+    git -C "$tmp/main" commit -qm "lua submodule"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/iso
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+
+    wt="$tmp/main/.worktrees/iso"
+    [ ! -L "$wt/lib/lua" ] || { echo "lib/lua is a symlink: $(readlink "$wt/lib/lua")" >&2; return 1; }
+    run cat "$wt/lib/lua/.git"
+    [[ "$output" == *"worktrees/iso/modules/"*"lua" ]] || { echo "$output" >&2; return 1; }
     rm -rf "$tmp"
 }
 

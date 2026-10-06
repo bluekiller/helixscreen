@@ -450,6 +450,8 @@ void LuaRuntime::fault(const std::string& reason) {
         on_fault_(reason);
 }
 
+// The string library also runs this from inside a pattern match, which no VM instruction
+// interrupts, passing a NULL ar (patches/lua-pattern-step-budget.patch): it must not read ar.
 void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
     auto& rt = from(L);
     if (!rt.killed_ && thread_cpu_time() < rt.deadline_)

@@ -103,7 +103,7 @@ scripts/zeus-run.sh sweep                   # make unit-sweep on zeus
 
 # Worktrees — MUST use for MAJOR work. Always in .worktrees/ (project root).
 scripts/setup-worktree.sh feature/my-branch  # Symlinks shared deps, builds fast
-#   lib/lvgl, lib/libhv and lib/helix-xml get a PRIVATE checkout per worktree
+#   lib/lvgl, lib/libhv, lib/lua and lib/helix-xml get a PRIVATE checkout per worktree
 #   (patches/ is per-branch); everything else in lib/ is a symlink shared with
 #   the main tree. Also writes .claude/settings.local.json with PROJECT_DIR set
 #   to the MAIN tree so claude-recall writes lessons and stats there.

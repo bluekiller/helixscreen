@@ -43,8 +43,8 @@ usage() {
     echo "  $0 my-feature -n              # show the plan"
     echo ""
     echo "Why this exists rather than 'git worktree remove':"
-    echo "  setup-worktree.sh gives each worktree PRIVATE checkouts of lvgl, libhv"
-    echo "  and helix-xml, and git refuses to remove a worktree containing"
+    echo "  setup-worktree.sh gives each worktree PRIVATE checkouts of lvgl, libhv,"
+    echo "  lua and helix-xml, and git refuses to remove a worktree containing"
     echo "  submodules. The removal is therefore a guarded rm -rf plus a prune."
     exit 0
 }
@@ -228,10 +228,10 @@ if (( GIT_POINTER_OK )); then
     fi
 
     # The private submodules are the ones that can hold work nothing else has.
-    # lvgl and libhv are routinely dirty from patches/ and that is reproducible;
+    # lvgl, libhv and lua are routinely dirty from patches/ and that is reproducible;
     # helix-xml is our own repo and is edited directly, so unpushed commits there
     # are real work that this script must not silently delete.
-    for sub in helix-xml libhv lvgl; do
+    for sub in helix-xml libhv lua lvgl; do
         [[ -d "$WT_ABS/lib/$sub/.git" || -f "$WT_ABS/lib/$sub/.git" ]] || continue
         # No upstream configured is a git fatal, not an error here: a submodule with
         # no remote tracking branch simply has nothing that could be unpushed.
@@ -281,7 +281,7 @@ restore_shared_module_pointers "$MAIN_ABS" "$WT_ABS" "$DRY_RUN"
 say ""
 say "${BOLD}Removing the worktree${RESET}"
 say "  lib/ holds symlinks into the main tree plus private checkouts of lvgl,"
-say "  libhv and helix-xml. rm -rf removes a symlink, never its target, so the"
+say "  libhv, lua and helix-xml. rm -rf removes a symlink, never its target, so the"
 say "  main tree's copies are untouched."
 if (( DRY_RUN )); then
     say "  ${CYAN}would run:${RESET} rm -rf $WT_ABS (contents first, .git pointer last)"

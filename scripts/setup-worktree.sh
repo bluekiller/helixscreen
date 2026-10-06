@@ -32,7 +32,7 @@ usage() {
     echo "  --setup-only    Only set up an existing worktree, don't create it"
     echo "  --unlink        Replace the remaining lib/ symlinks with what git expects,"
     echo "                  so git status/merge/rebase/stash work in this worktree."
-    echo "                  Private checkouts (lvgl, libhv, helix-xml) are untouched."
+    echo "                  Private checkouts (lvgl, libhv, lua, helix-xml) are untouched."
     echo "  --relink        Restore the lib/ symlinks after --unlink"
     echo "  --no-build      Skip the initial build after setup"
     echo "  -h, --help      Show this help message"
@@ -59,7 +59,7 @@ usage() {
     echo "  - Configures ccache for cross-worktree reuse (no cold rebuild per worktree)"
     echo "  - Clones build/obj/ from main tree (APFS copy-on-write — instant, zero disk)"
     echo "  - Symlinks the unpatched lib/ submodules from the main tree (sources +"
-    echo "    generated headers), and gives lvgl/libhv/helix-xml a PRIVATE checkout"
+    echo "    generated headers), and gives lvgl/libhv/lua/helix-xml a PRIVATE checkout"
     echo "    copied from it, so this branch's patches/ stay inside this worktree"
     echo "  - Clones compiled libraries (libhv.a) and the PCH — copies, not symlinks,"
     echo "    so a rebuild here can never write back into the main tree"
@@ -101,7 +101,7 @@ LIB_NON_SUBMODULE_ITEMS=("mdns")
 # branches could not hold different engine versions, and an edit made here would
 # surface as dirt in main's `git status` for another session to sweep up.
 #
-# lib/lvgl and lib/libhv are here for a second reason: they are the two
+# lib/lvgl, lib/libhv and lib/lua are here for a second reason: they are the
 # submodules patches/ rewrites, and patches/ is per-branch. One shared checkout
 # cannot satisfy two branches carrying different patch sets — each tree's
 # `make reapply-patches` redefines what every other tree compiles, and each
@@ -111,7 +111,7 @@ LIB_NON_SUBMODULE_ITEMS=("mdns")
 #
 # A real checkout is also what git expects, so these need no --unlink/--relink
 # dance; the submodules still symlinked below do.
-LIB_PRIVATE_SUBMODULES=("lib/helix-xml" "lib/lvgl" "lib/libhv")
+LIB_PRIVATE_SUBMODULES=("lib/helix-xml" "lib/lvgl" "lib/libhv" "lib/lua")
 
 is_private_submodule() {
     local candidate="$1" p
@@ -1528,6 +1528,6 @@ echo -e "  ${CYAN}./build/bin/helix-screen --test -vv --remote-socket \"\$HELIX_
 echo -e "  ${CYAN}./build/bin/helix-screen ctl -s \"\$HELIX_SOCK\" navigate settings${RESET}"
 echo -e "See ${CYAN}docs/devel/HELIXCTL.md${RESET} § \"Running a fully isolated second instance\"."
 echo ""
-echo -e "${YELLOW}Note: lib/lvgl, lib/libhv and lib/helix-xml are private to this worktree —"
+echo -e "${YELLOW}Note: lib/lvgl, lib/libhv, lib/lua and lib/helix-xml are private to this worktree —"
 echo -e "patches applied here reach no other tree. The remaining lib/ submodules are"
 echo -e "symlinked from the main tree; un-symlink one before modifying it.${RESET}"
