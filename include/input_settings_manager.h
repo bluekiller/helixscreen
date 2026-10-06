@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "input_defaults.h"
 #include "lvgl/lvgl.h"
 #include "persisted_setting.h"
 #include "subject_managed_panel.h"
@@ -24,14 +25,8 @@ class InputSettingsManager {
   public:
     static InputSettingsManager& instance();
 
-    /// Default scroll momentum decay in percent per indev read (LVGL scroll_throw).
-    /// ESP32 panels redraw a scrolling list slowly, so a long glide there reads
-    /// as a stutter rather than momentum; a stronger decay keeps it short.
-#if defined(ESP_PLATFORM)
-    static constexpr int DEFAULT_SCROLL_THROW = 35;
-#else
-    static constexpr int DEFAULT_SCROLL_THROW = 25;
-#endif
+    /// Default scroll momentum decay; see helix::input_defaults::SCROLL_THROW.
+    static constexpr int DEFAULT_SCROLL_THROW = helix::input_defaults::SCROLL_THROW;
 
     // Non-copyable
     InputSettingsManager(const InputSettingsManager&) = delete;
