@@ -667,6 +667,22 @@ struct GcodeViewerWatchdogTrack {
 /// reaches through a 2D render stalling on a live print.
 GcodeViewerWatchdogTrack gcode_viewer_watchdog_track(lv_obj_t* viewer);
 void gcode_viewer_set_watchdog_track(lv_obj_t* viewer, const GcodeViewerWatchdogTrack& track);
+
+/// Install @p file as a finished load drawn by the 2D renderer, past the first
+/// frame, so the next refresh runs the real draw pass. Returns that renderer.
+helix::gcode::GCodeLayerRenderer*
+gcode_viewer_show_2d(lv_obj_t* viewer, std::unique_ptr<helix::gcode::ParsedGCodeFile> file);
+
+/// The exclude badges the viewer holds and the fill colour it resolved for each.
+std::vector<helix::ui::ObjectBadge> gcode_viewer_object_badges(lv_obj_t* viewer);
+std::vector<lv_color_t> gcode_viewer_badge_fills(lv_obj_t* viewer);
+
+/// A badge the last frame drew: its object and widget-local centre.
+struct GcodeViewerDrawnBadge {
+    std::string name;
+    glm::vec2 center{0.0f, 0.0f};
+};
+std::vector<GcodeViewerDrawnBadge> gcode_viewer_drawn_badges(lv_obj_t* viewer);
 } // namespace helix::test_access
 
 #endif

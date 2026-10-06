@@ -210,7 +210,11 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     : printer_state_(printer_state), api_(api),
       preview_(get_name(), printer_state, lifecycle_,
                {[this](bool show) { show_gcode_viewer(show); },
-                [this]() { recompute_scoped_runout(); }, [this]() { return is_active_; }}),
+                [this]() {
+                    recompute_scoped_runout();
+                    refresh_render_badges();
+                },
+                [this]() { return is_active_; }}),
       progress_text_(printer_state, lifecycle_),
       layout_fitter_(
           get_name(), printer_state,

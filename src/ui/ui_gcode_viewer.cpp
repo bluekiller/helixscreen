@@ -38,7 +38,6 @@
 
 #include <cerrno>
 #include <cmath>
-#include <functional>
 
 // FPS tracking constants (for diagnostic logging, not mode selection)
 constexpr float MIN_ACTUAL_RENDER_MS = 2.0f; // Minimum render time to count as actual render
@@ -292,48 +291,38 @@ void helix::gcode_viewer::apply_budget_forced_2d(gcode_viewer_state_t* st, lv_ob
 }
 
 // Exclude-mode badges, drawn on top of whichever renderer painted this frame.
-// Anchors are projected through that renderer's live transform, so the badges
-// follow pan, zoom and rotation; ones landing outside the widget are skipped.
-// Overlapping badges are drawn as-is.
+// Each anchor is projected through the transform of the image actually on
+// screen, so the badges follow pan, zoom and rotation and never run ahead of a
+// frame that is still refining; ones landing outside the widget are skipped.
+// Overlapping badges are drawn in defined order, the later one on top.
 static void draw_object_badges(gcode_viewer_state_t* st, lv_layer_t* layer,
                                const lv_area_t& widget_coords) {
-    st->drawn_badge_centers.clear();
-    st->drawn_badge_names.clear();
     if (st->object_badges.empty()) {
         return;
     }
 
     // The top of what is on screen: badges sit on the current layer while an
     // object is still printing, and on the object's own top once it is done.
-    std::function<std::optional<glm::vec2>(const helix::ui::ObjectBadge&)> project;
-    if (st->is_using_2d_mode()) {
-        if (!st->layer_renderer_2d_) {
+    const bool two_d = st->is_using_2d_mode();
+    const helix::gcode::GCodeLayerRenderer* r2d = nullptr;
+    float drawn_top = 0.0f;
+    if (two_d) {
+        r2d = st->layer_renderer_2d_.get();
+        if (!r2d) {
             return;
         }
-        const auto* r = st->layer_renderer_2d_.get();
-        const float drawn_top = r->current_layer_z();
-        project = [r, drawn_top](const helix::ui::ObjectBadge& b) -> std::optional<glm::vec2> {
-            const float z = std::min(b.top_z.value_or(drawn_top), drawn_top);
-            return glm::vec2(r->project_to_screen(b.anchor.x, b.anchor.y, z));
-        };
+        drawn_top = r2d->current_layer_z();
     }
 #ifdef ENABLE_3D_RENDERER
     else {
-        if (!st->renderer_ || !st->camera_ || !st->gcode_file || st->gcode_file->layers.empty()) {
+        if (!st->renderer_ || !st->gcode_file || st->gcode_file->layers.empty()) {
             return;
         }
         const auto& layers = st->gcode_file->layers;
+        const int last = static_cast<int>(layers.size()) - 1;
         const int top_layer =
-            st->print_progress_layer_ >= 0
-                ? std::min<int>(st->print_progress_layer_, static_cast<int>(layers.size()) - 1)
-                : static_cast<int>(layers.size()) - 1;
-        const float drawn_top = layers[static_cast<size_t>(top_layer)].z_height;
-        const auto* r = st->renderer_.get();
-        const auto* cam = st->camera_.get();
-        project = [r, cam, drawn_top](const helix::ui::ObjectBadge& b) {
-            const float z = std::min(b.top_z.value_or(drawn_top), drawn_top);
-            return r->project_to_screen(glm::vec3(b.anchor, z), *cam);
-        };
+            st->print_progress_layer_ >= 0 ? std::min(st->print_progress_layer_, last) : last;
+        drawn_top = layers[static_cast<size_t>(top_layer)].z_height;
     }
 #else
     else {
@@ -343,21 +332,29 @@ static void draw_object_badges(gcode_viewer_state_t* st, lv_layer_t* layer,
 
     const float w = static_cast<float>(lv_area_get_width(&widget_coords));
     const float h = static_cast<float>(lv_area_get_height(&widget_coords));
-    for (const auto& badge : st->object_badges) {
+    for (size_t i = 0; i < st->object_badges.size(); ++i) {
+        const auto& badge = st->object_badges[i];
         if (!badge.has_anchor) {
             continue;
         }
-        const auto p = project(badge);
+        const float z = std::min(badge.top_z.value_or(drawn_top), drawn_top);
+        std::optional<glm::vec2> p;
+        if (two_d) {
+            p = glm::vec2(r2d->project_to_screen(badge.anchor.x, badge.anchor.y, z));
+        }
+#ifdef ENABLE_3D_RENDERER
+        else {
+            p = st->renderer_->project_to_shown_image(glm::vec3(badge.anchor, z));
+        }
+#endif
         if (!p || p->x < 0.0f || p->y < 0.0f || p->x >= w || p->y >= h) {
             continue;
         }
-        helix::ui::draw_object_badge(layer, badge,
+        helix::ui::draw_object_badge(layer, st->badge_look, i, badge,
                                      widget_coords.x1 + static_cast<int32_t>(std::lround(p->x)),
                                      widget_coords.y1 + static_cast<int32_t>(std::lround(p->y)));
-        if (!badge.excluded) {
-            st->drawn_badge_centers.push_back(*p);
-            st->drawn_badge_names.push_back(badge.name);
-        }
+        st->drawn_badge_index.push_back(static_cast<int>(i));
+        st->drawn_badge_centers.push_back(*p);
     }
 }
 
@@ -369,6 +366,10 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
     if (!st || !layer) {
         return;
     }
+
+    // Pick targets describe this frame only; every early return below draws none.
+    st->drawn_badge_index.clear();
+    st->drawn_badge_centers.clear();
 
     // Check if rendering is paused (visibility optimization)
     if (st->rendering_paused_) {
@@ -1149,6 +1150,12 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
     }
 
     st->view_options.excluded = object_names;
+    // An excluded object is no longer a selection: drop its brackets and rim,
+    // and the tap toggle state that would otherwise re-select it.
+    for (const auto& name : object_names) {
+        st->view_options.highlighted.erase(name);
+        st->selected_objects.erase(name);
+    }
     apply_view_options(st);
     lv_obj_invalidate(obj);
 
@@ -1158,13 +1165,13 @@ void ui_gcode_viewer_set_excluded_objects(lv_obj_t* obj,
 // NAMESPACE_OK: joins this file's global ui_gcode_viewer_* API
 void ui_gcode_viewer_set_object_badges(lv_obj_t* obj, std::vector<helix::ui::ObjectBadge> badges) {
     gcode_viewer_state_t* st = get_state(obj);
-    if (!st)
+    if (!st || badges == st->object_badges)
         return;
     st->object_badges = std::move(badges);
-    if (st->object_badges.empty()) {
-        st->drawn_badge_centers.clear();
-        st->drawn_badge_names.clear();
-    }
+    st->badge_look = helix::ui::resolve_badge_look(st->object_badges);
+    // Drawn indices name the old list; the next frame records the new one.
+    st->drawn_badge_index.clear();
+    st->drawn_badge_centers.clear();
     // Only the overlay changed: the renderers repaint from their caches.
     lv_obj_invalidate(obj);
 }
@@ -1747,6 +1754,42 @@ void gcode_viewer_set_watchdog_track(lv_obj_t* viewer, const GcodeViewerWatchdog
     st->watchdog_last_cached_layer_ = track.prev_cached;
     st->watchdog_last_target_layer_ = track.prev_target;
     st->watchdog_stall_streak_ = track.stall_streak;
+}
+
+helix::gcode::GCodeLayerRenderer*
+gcode_viewer_show_2d(lv_obj_t* viewer, std::unique_ptr<helix::gcode::ParsedGCodeFile> file) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (!st) {
+        return nullptr;
+    }
+    st->gcode_file = std::move(file);
+    st->viewer_state = GcodeViewerState::Loaded;
+    st->first_render = false;
+    apply_budget_forced_2d(st, viewer);
+    return st->layer_renderer_2d_.get();
+}
+
+std::vector<helix::ui::ObjectBadge> gcode_viewer_object_badges(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->object_badges : std::vector<helix::ui::ObjectBadge>{};
+}
+
+std::vector<lv_color_t> gcode_viewer_badge_fills(lv_obj_t* viewer) {
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    return st ? st->badge_look.fill : std::vector<lv_color_t>{};
+}
+
+std::vector<GcodeViewerDrawnBadge> gcode_viewer_drawn_badges(lv_obj_t* viewer) {
+    std::vector<GcodeViewerDrawnBadge> out;
+    gcode_viewer_state_t* st = viewer ? get_state(viewer) : nullptr;
+    if (!st) {
+        return out;
+    }
+    for (size_t i = 0; i < st->drawn_badge_index.size(); ++i) {
+        out.push_back({st->object_badges[static_cast<size_t>(st->drawn_badge_index[i])].name,
+                       st->drawn_badge_centers[i]});
+    }
+    return out;
 }
 
 } // namespace helix::test_access

@@ -1,0 +1,97 @@
+// Copyright (C) 2026 356C LLC
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// While the exclude-object side list is open, the print status panel keeps the
+// G-code viewer's numbered badges in step with it: the same number and colour
+// per object as the list's chips, refreshed when objects are excluded or the
+// printing object moves, and gone when the list closes.
+
+#include "ui_gcode_viewer.h"
+
+#include "../test_helpers/print_status_panel_fixture.h"
+#include "printer_excluded_objects_state.h"
+
+#include <string>
+#include <vector>
+
+#include "../catch_amalgamated.hpp"
+
+using helix::ui::UpdateQueue;
+using print_status_panel_test::PrintStatusPanelFixture;
+using ObjectInfo = helix::PrinterExcludedObjectsState::ObjectInfo;
+
+namespace {
+
+ObjectInfo placed(const std::string& name, float x, float y) {
+    ObjectInfo o;
+    o.name = name;
+    o.center = {x, y};
+    o.bbox_min = {x - 10.0f, y - 10.0f};
+    o.bbox_max = {x + 10.0f, y + 10.0f};
+    return o;
+}
+
+std::vector<helix::ui::ObjectBadge> badges_of(lv_obj_t* viewer) {
+    return helix::test_access::gcode_viewer_object_badges(viewer);
+}
+
+} // namespace
+
+TEST_CASE_METHOD(PrintStatusPanelFixture,
+                 "Render badges follow the exclude side list open, update and close",
+                 "[exclude_badges][print_status]") {
+    auto& objects = state().excluded_objects_state();
+    // Defined order is not name order: Zed is number 1.
+    objects.set_defined_objects_with_geometry(
+        {placed("Zed", 30, 30), placed("Alpha", 90, 30), placed("Mid", 150, 30)});
+    UpdateQueue::instance().drain();
+
+    lv_obj_t* viewer = PrintStatusPanelTestAccess::gcode_viewer(panel());
+    REQUIRE(viewer != nullptr);
+    CHECK(badges_of(viewer).empty()); // exclude mode is off
+
+    PrintStatusPanelTestAccess::show_exclude(panel());
+    UpdateQueue::instance().drain();
+
+    auto badges = badges_of(viewer);
+    REQUIRE(badges.size() == 3);
+    CHECK(badges[0].name == "Zed");
+    CHECK(badges[0].number == "1");
+
+    // The side list's chips and the render badges agree for every object.
+    lv_obj_t* rows = lv_obj_find_by_name(root_, "rows_container");
+    REQUIRE(rows != nullptr);
+    REQUIRE(lv_obj_get_child_count(rows) == 3);
+    const auto fills = helix::test_access::gcode_viewer_badge_fills(viewer);
+    REQUIRE(fills.size() == 3);
+    for (int i = 0; i < 3; ++i) {
+        INFO("row " << i);
+        lv_obj_t* row = lv_obj_get_child(rows, i);
+        lv_obj_t* disc = lv_obj_get_child(row, 0);
+        lv_obj_t* number = lv_obj_get_child(disc, 0);
+        CHECK(std::string(lv_label_get_text(number)) == badges[static_cast<size_t>(i)].number);
+        CHECK(lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN),
+                          fills[static_cast<size_t>(i)]));
+    }
+    CHECK_FALSE(lv_color_eq(fills[0], fills[1]));
+
+    objects.set_excluded_objects({"Alpha"});
+    UpdateQueue::instance().drain();
+    badges = badges_of(viewer);
+    REQUIRE(badges.size() == 3);
+    CHECK(badges[1].excluded);
+    CHECK_FALSE(badges[0].excluded);
+
+    objects.set_current_object("Mid");
+    UpdateQueue::instance().drain();
+    CHECK(badges_of(viewer)[2].current);
+
+    PrintStatusPanelTestAccess::hide_exclude(panel());
+    UpdateQueue::instance().drain();
+    CHECK(badges_of(viewer).empty());
+
+    // A version bump with the list closed does not bring them back.
+    objects.set_current_object("Zed");
+    UpdateQueue::instance().drain();
+    CHECK(badges_of(viewer).empty());
+}

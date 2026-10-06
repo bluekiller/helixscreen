@@ -8,8 +8,6 @@
 #include "printer_excluded_objects_state.h"
 #include "theme_manager.h"
 
-#include <glm/geometric.hpp>
-
 namespace helix::ui {
 
 std::vector<ObjectBadge> compute_object_badges(const PrinterExcludedObjectsState& state,
@@ -81,43 +79,51 @@ int32_t object_badge_diameter() {
     return font ? lv_font_get_line_height(font) : 0;
 }
 
-void draw_object_badge(lv_layer_t* layer, const ObjectBadge& badge, int32_t cx, int32_t cy) {
-    const int32_t d = object_badge_diameter();
+BadgeLook resolve_badge_look(const std::vector<ObjectBadge>& badges) {
+    BadgeLook look;
+    look.font = object_badge_font();
+    look.diameter = object_badge_diameter();
+    look.ring_color = theme_manager_get_color("success");
+    look.ring_width = theme_manager_get_spacing("space_xxs");
+    look.fill.reserve(badges.size());
+    look.text.reserve(badges.size());
+    for (const auto& b : badges) {
+        const lv_color_t fill = object_badge_color(b.defined_index);
+        look.fill.push_back(fill);
+        look.text.push_back(object_badge_text_color(fill));
+    }
+    return look;
+}
+
+void draw_object_badge(lv_layer_t* layer, const BadgeLook& look, size_t i, const ObjectBadge& badge,
+                       int32_t cx, int32_t cy) {
+    const int32_t d = look.diameter;
     const int32_t r = d / 2;
     const lv_area_t area = {cx - r, cy - r, cx - r + d - 1, cy - r + d - 1};
-    const lv_color_t fill = object_badge_color(badge.defined_index);
     const lv_opa_t opa = object_badge_opa(badge.excluded);
 
     lv_draw_rect_dsc_t disc;
     lv_draw_rect_dsc_init(&disc);
-    disc.bg_color = fill;
+    disc.bg_color = look.fill[i];
     disc.bg_opa = opa;
     disc.radius = LV_RADIUS_CIRCLE;
+    if (badge.current && !badge.excluded) {
+        disc.outline_color = look.ring_color;
+        disc.outline_width = look.ring_width;
+        disc.outline_opa = opa;
+    }
     lv_draw_rect(layer, &disc, &area);
 
     lv_draw_label_dsc_t label;
     lv_draw_label_dsc_init(&label);
-    label.font = object_badge_font();
-    label.color = object_badge_text_color(fill);
+    label.font = look.font;
+    label.color = look.text[i];
     label.opa = opa;
     label.align = LV_TEXT_ALIGN_CENTER;
     label.text = badge.number.c_str();
     label.text_local = 1;
-    // Vertically centre one line inside the disc.
-    lv_area_t text_area = area;
-    const int32_t line_h = label.font ? lv_font_get_line_height(label.font) : d;
-    text_area.y1 = cy - line_h / 2;
-    text_area.y2 = text_area.y1 + line_h - 1;
-    lv_draw_label(layer, &label, &text_area);
-}
-
-int badge_hit_index(const std::vector<glm::vec2>& centers, float x, float y, float radius) {
-    for (int i = 0; i < static_cast<int>(centers.size()); ++i) {
-        if (glm::distance(centers[static_cast<size_t>(i)], glm::vec2(x, y)) <= radius) {
-            return i;
-        }
-    }
-    return -1;
+    // The disc is one font line tall, so the label box is the disc itself.
+    lv_draw_label(layer, &label, &area);
 }
 
 } // namespace helix::ui

@@ -7,14 +7,25 @@
 
 #include "ui_exclude_object_badges.h"
 #include "ui_exclude_object_map_view.h"
+#include "ui_gcode_viewer.h"
 
 #include "../test_fixtures.h"
+#include "../test_helpers/gcode_layer_renderer_test_access.h"
+#include "../test_helpers/scoped_pointer_indev.h"
+#include "gcode_camera.h"
+#ifdef ENABLE_GLES_3D
+#include "../test_helpers/gcode_gles_renderer_test_access.h"
+#endif
 #include "gcode_layer_renderer.h"
 #include "gcode_parser.h"
+#include "lvgl/src/display/lv_display_private.h"
 #include "printer_excluded_objects_state.h"
 #include "theme_manager.h"
 
+#include <cmath>
 #include <glm/glm.hpp>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,6 +36,8 @@ using helix::gcode::ParsedGCodeFile;
 using helix::ui::compute_object_badges;
 using helix::ui::ObjectBadge;
 using ObjectInfo = PrinterExcludedObjectsState::ObjectInfo;
+using helix::gcode::GCodeLayerRendererTestAccess;
+using helix_test::ScopedPointerIndev;
 
 namespace {
 
@@ -188,27 +201,6 @@ TEST_CASE("Object badges with names only (no geometry)", "[exclude_badges]") {
     state.deinit_subjects();
 }
 
-// The side list colours its chips from the same object palette, by defined index.
-TEST_CASE_METHOD(XMLTestFixture, "Object badge colour is the object palette at its index",
-                 "[exclude_badges]") {
-    for (int i = 0; i < 10; ++i) {
-        INFO("index " << i);
-        CHECK(lv_color_eq(helix::ui::object_badge_color(i),
-                          theme_manager_get_object_palette_color(i)));
-    }
-    CHECK_FALSE(lv_color_eq(helix::ui::object_badge_color(0), helix::ui::object_badge_color(1)));
-    CHECK(helix::ui::object_badge_diameter() > 0);
-    CHECK(helix::ui::object_badge_opa(true) < helix::ui::object_badge_opa(false));
-}
-
-TEST_CASE("badge_hit_index finds the disc under a point", "[exclude_badges]") {
-    const std::vector<glm::vec2> centers = {{10, 10}, {100, 100}};
-    CHECK(helix::ui::badge_hit_index(centers, 12, 9, 5.0f) == 0);
-    CHECK(helix::ui::badge_hit_index(centers, 104, 103, 5.0f) == 1);
-    CHECK(helix::ui::badge_hit_index(centers, 50, 50, 5.0f) == -1);
-    CHECK(helix::ui::badge_hit_index(centers, 16, 10, 5.0f) == -1);
-}
-
 // ============================================================================
 // Thumbnail map: badge numbers and colours key on the defined index
 // ============================================================================
@@ -276,7 +268,7 @@ ParsedGCodeFile make_two_squares() {
     constexpr int kLayers = 4;
     for (int li = 0; li < kLayers; ++li) {
         helix::gcode::Layer layer;
-        layer.z_height = 0.2f * static_cast<float>(li + 1);
+        layer.z_height = 2.0f * static_cast<float>(li + 1);
         for (const auto& s : squares) {
             const int16_t idx = f.intern_object_name(s.name);
             const glm::vec3 c[4] = {{s.x0, s.y0, layer.z_height},
@@ -298,8 +290,8 @@ ParsedGCodeFile make_two_squares() {
         f.layers.push_back(std::move(layer));
     }
     for (const auto& s : squares) {
-        add_parsed_object(f, s.name, {s.x0 + kSide / 2, s.y0 + kSide / 2}, {s.x0, s.y0, 0.2f},
-                          {s.x0 + kSide, s.y0 + kSide, 0.2f * kLayers});
+        add_parsed_object(f, s.name, {s.x0 + kSide / 2, s.y0 + kSide / 2}, {s.x0, s.y0, 2.0f},
+                          {s.x0 + kSide, s.y0 + kSide, 2.0f * kLayers});
     }
     f.total_segments = 4 * 2 * kLayers;
     return f;
@@ -307,36 +299,274 @@ ParsedGCodeFile make_two_squares() {
 
 } // namespace
 
-TEST_CASE("2D badge anchors project onto their own object", "[exclude_badges][layer_renderer]") {
-    PrinterExcludedObjectsState state;
-    state.init_subjects(false);
-    // Klipper names only, defined Right-first, so number order != map order.
-    state.set_defined_objects({"Right", "Left"});
+// ============================================================================
+// The viewer: the real draw pass, the pick path, and the 3D image transform
+// ============================================================================
 
-    auto parsed = make_two_squares();
-    helix::gcode::GCodeLayerRenderer renderer;
-    renderer.set_gcode(&parsed);
-    renderer.set_canvas_size(400, 300);
-    renderer.auto_fit();
-    renderer.set_current_layer(static_cast<int>(parsed.layers.size()) - 1);
+namespace {
 
-    const auto badges = compute_object_badges(state, &parsed);
-    REQUIRE(badges.size() == 2);
-    for (const auto& b : badges) {
-        INFO(b.name);
-        REQUIRE(b.has_anchor);
-        const float z =
-            std::min(b.top_z.value_or(renderer.current_layer_z()), renderer.current_layer_z());
-        const glm::ivec2 p = renderer.project_to_screen(b.anchor.x, b.anchor.y, z);
-        CHECK(p.x >= 0);
-        CHECK(p.x < 400);
-        CHECK(p.y >= 0);
-        CHECK(p.y < 300);
+constexpr int kViewerX = 50;
+constexpr int kViewerY = 40;
+constexpr int kViewerW = 300;
+constexpr int kViewerH = 240;
 
-        // Tapping the badge picks the object it labels.
-        const auto picked = renderer.pick_object_at(p.x, p.y);
-        REQUIRE(picked.has_value());
-        CHECK(*picked == b.name);
-    }
-    state.deinit_subjects();
+struct Taps {
+    std::vector<std::string> names;
+};
+
+void on_tap(lv_obj_t*, const char* name, void* user_data) {
+    static_cast<Taps*>(user_data)->names.emplace_back(name ? name : "");
 }
+
+/// A 2D viewer drawing make_two_squares() through the real draw callback.
+struct BadgeViewer {
+    lv_obj_t* viewer = nullptr;
+    helix::gcode::GCodeLayerRenderer* renderer = nullptr;
+    Taps taps;
+
+    BadgeViewer() {
+        viewer = ui_gcode_viewer_create(lv_screen_active());
+        REQUIRE(viewer != nullptr);
+        lv_obj_set_size(viewer, kViewerW, kViewerH);
+        lv_obj_set_pos(viewer, kViewerX, kViewerY);
+        lv_obj_update_layout(viewer);
+        ui_gcode_viewer_set_render_mode(viewer, helix::GcodeViewerRenderMode::Layer2D);
+        ui_gcode_viewer_set_object_tap_callback(viewer, on_tap, &taps);
+        renderer = helix::test_access::gcode_viewer_show_2d(
+            viewer, std::make_unique<ParsedGCodeFile>(make_two_squares()));
+        REQUIRE(renderer != nullptr);
+    }
+    ~BadgeViewer() {
+        lv_obj_delete(viewer);
+    }
+
+    void draw() {
+        lv_obj_invalidate(viewer);
+        lv_refr_now(nullptr);
+    }
+
+    std::vector<helix::test_access::GcodeViewerDrawnBadge> drawn() const {
+        return helix::test_access::gcode_viewer_drawn_badges(viewer);
+    }
+
+    void tap_local(glm::vec2 local) {
+        ScopedPointerIndev indev;
+        const int x = kViewerX + static_cast<int>(std::lround(local.x));
+        const int y = kViewerY + static_cast<int>(std::lround(local.y));
+        indev.press(x, y);
+        indev.release(x, y);
+    }
+};
+
+ObjectBadge make_badge(int index, const std::string& name, glm::vec2 anchor,
+                       std::optional<float> top_z = std::nullopt, bool excluded = false) {
+    ObjectBadge b;
+    b.defined_index = index;
+    b.name = name;
+    b.number = std::to_string(index + 1);
+    b.has_anchor = true;
+    b.anchor = anchor;
+    b.top_z = top_z;
+    b.excluded = excluded;
+    return b;
+}
+
+// Squares from make_two_squares(): "Left" spans (20..50, 20..50), "Right"
+// spans (120..150, 60..90), layers at z 2, 4, 6, 8.
+const glm::vec2 kLeftCenter{35.0f, 35.0f};
+const glm::vec2 kRightCenter{135.0f, 75.0f};
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "2D badges sit on the drawn top of their object",
+                 "[exclude_badges][gcode_viewer]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_print_progress(v.viewer, 1); // drawn top: z 4
+    ui_gcode_viewer_set_object_badges(v.viewer,
+                                      {
+                                          // Taller than what is drawn: rides the current layer.
+                                          make_badge(0, "Left", kLeftCenter, 8.0f),
+                                          // Already finished below it: sits on its own top.
+                                          make_badge(1, "Right", kRightCenter, 2.0f),
+                                      });
+    v.draw();
+
+    const auto drawn = v.drawn();
+    REQUIRE(drawn.size() == 2);
+    REQUIRE(v.renderer->current_layer_z() == Catch::Approx(4.0f));
+    const glm::vec2 left_at_layer(v.renderer->project_to_screen(35.0f, 35.0f, 4.0f));
+    const glm::vec2 left_at_top(v.renderer->project_to_screen(35.0f, 35.0f, 8.0f));
+    const glm::vec2 right_at_top(v.renderer->project_to_screen(135.0f, 75.0f, 2.0f));
+    REQUIRE(left_at_layer != left_at_top); // the view shows Z, so the choice is visible
+    CHECK(drawn[0].name == "Left");
+    CHECK(drawn[0].center == left_at_layer);
+    CHECK(drawn[1].name == "Right");
+    CHECK(drawn[1].center == right_at_top);
+
+    // And the badge lands on its object: a tap there picks it even without
+    // the badge (geometry alone), which is what makes the anchor right.
+    for (const auto& d : drawn) {
+        const auto picked = v.renderer->pick_object_at(static_cast<int>(std::lround(d.center.x)),
+                                                       static_cast<int>(std::lround(d.center.y)));
+        REQUIRE(picked.has_value());
+        CHECK(*picked == d.name);
+    }
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "A badge outside the widget is not drawn",
+                 "[exclude_badges][gcode_viewer]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_object_badges(v.viewer, {
+                                                    make_badge(0, "Left", kLeftCenter),
+                                                    make_badge(1, "Far", {5000.0f, 5000.0f}),
+                                                });
+    v.draw();
+    const auto drawn = v.drawn();
+    REQUIRE(drawn.size() == 1);
+    CHECK(drawn[0].name == "Left");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "A tap on a badge picks the badge's object over the geometry",
+                 "[exclude_badges][gcode_viewer][pick]") {
+    BadgeViewer v;
+    // "Right"'s badge drawn over Left's geometry: the badge must win.
+    ui_gcode_viewer_set_object_badges(v.viewer, {make_badge(1, "Right", kLeftCenter)});
+    v.draw();
+    REQUIRE(v.drawn().size() == 1);
+    v.tap_local(v.drawn()[0].center);
+    REQUIRE(v.taps.names.size() == 1);
+    CHECK(v.taps.names[0] == "Right");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Overlapping badges: the one drawn on top is picked",
+                 "[exclude_badges][gcode_viewer][pick]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_object_badges(v.viewer, {
+                                                    make_badge(0, "Under", kLeftCenter),
+                                                    make_badge(1, "Over", kLeftCenter),
+                                                });
+    v.draw();
+    REQUIRE(v.drawn().size() == 2);
+    v.tap_local(v.drawn()[1].center);
+    REQUIRE(v.taps.names.size() == 1);
+    CHECK(v.taps.names[0] == "Over");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "An excluded badge is drawn but the tap goes to the geometry",
+                 "[exclude_badges][gcode_viewer][pick]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_object_badges(
+        v.viewer, {make_badge(1, "Right", kLeftCenter, std::nullopt, /*excluded=*/true)});
+    v.draw();
+    REQUIRE(v.drawn().size() == 1);
+    v.tap_local(v.drawn()[0].center);
+    REQUIRE(v.taps.names.size() == 1);
+    CHECK(v.taps.names[0] == "Left");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Clearing the badges removes them and their pick targets",
+                 "[exclude_badges][gcode_viewer][pick]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_object_badges(v.viewer, {make_badge(1, "Right", kLeftCenter)});
+    v.draw();
+    const auto drawn = v.drawn();
+    REQUIRE(drawn.size() == 1);
+
+    ui_gcode_viewer_set_object_badges(v.viewer, {});
+    CHECK(v.drawn().empty()); // before any redraw
+    v.tap_local(drawn[0].center);
+    REQUIRE(v.taps.names.size() == 1);
+    CHECK(v.taps.names[0] == "Left");
+    v.draw();
+    CHECK(v.drawn().empty());
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "A frame that draws nothing leaves no stale pick targets",
+                 "[exclude_badges][gcode_viewer][pick]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_object_badges(v.viewer, {make_badge(1, "Right", kLeftCenter)});
+    v.draw();
+    const auto drawn = v.drawn();
+    REQUIRE(drawn.size() == 1);
+
+    ui_gcode_viewer_set_paused(v.viewer, true);
+    v.draw();
+    CHECK(v.drawn().empty());
+    v.tap_local(drawn[0].center);
+    REQUIRE(v.taps.names.size() == 1);
+    CHECK(v.taps.names[0] == "Left");
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Setting the same badges again does not invalidate the viewer",
+                 "[exclude_badges][gcode_viewer]") {
+    BadgeViewer v;
+    const std::vector<ObjectBadge> badges = {make_badge(0, "Left", kLeftCenter)};
+    ui_gcode_viewer_set_object_badges(v.viewer, badges);
+    v.draw();
+    lv_display_t* disp = lv_display_get_default();
+    REQUIRE(disp->inv_p == 0);
+
+    ui_gcode_viewer_set_object_badges(v.viewer, badges);
+    CHECK(disp->inv_p == 0);
+
+    auto changed = badges;
+    changed[0].excluded = true;
+    ui_gcode_viewer_set_object_badges(v.viewer, changed);
+    CHECK(disp->inv_p > 0);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "Excluding a selected object drops its selection",
+                 "[exclude_badges][gcode_viewer]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_highlighted_objects(v.viewer, {"Left", "Right"});
+    REQUIRE(GCodeLayerRendererTestAccess::selection(*v.renderer).highlighted().count("Left") == 1);
+
+    ui_gcode_viewer_set_excluded_objects(v.viewer, {"Left"});
+    const auto& sel = GCodeLayerRendererTestAccess::selection(*v.renderer);
+    CHECK(sel.highlighted().count("Left") == 0);
+    CHECK(sel.highlighted().count("Right") == 1);
+}
+
+#ifdef ENABLE_GLES_3D
+TEST_CASE("3D badges project through the image on screen, not the live camera",
+          "[exclude_badges][gles]") {
+    helix::gcode::GCodeGLESRenderer renderer;
+    renderer.set_viewport_size(400, 300);
+    helix::gcode::GCodeCamera camera;
+    camera.set_viewport_size(400, 300);
+    helix::gcode::AABB box;
+    box.expand({0.0f, 0.0f, 0.0f});
+    box.expand({100.0f, 100.0f, 20.0f});
+    camera.fit_to_bounds(box);
+
+    const glm::vec3 centre = box.center();
+    const glm::vec3 corner{100.0f, 0.0f, 20.0f};
+    CHECK_FALSE(renderer.project_to_shown_image(centre).has_value()); // no image yet
+
+    helix::gcode::GCodeGLESRendererTestAccess::show_frame(renderer, camera, 400, 300);
+    const auto c = renderer.project_to_shown_image(centre);
+    REQUIRE(c.has_value());
+    // Fitted to the box, the model centre lands near the middle of the image.
+    CHECK(c->x == Catch::Approx(200.0f).margin(40.0f));
+    CHECK(c->y == Catch::Approx(150.0f).margin(60.0f));
+    const auto before = renderer.project_to_shown_image(corner);
+    REQUIRE(before.has_value());
+
+    // The camera moves and a refinement starts, but the image on screen is
+    // still the old frame until the new one is finished and blitted.
+    camera.rotate(60.0f, 0.0f);
+    helix::gcode::GCodeGLESRendererTestAccess::start_frame(renderer, camera);
+    const auto lagging = renderer.project_to_shown_image(corner);
+    REQUIRE(lagging.has_value());
+    CHECK(*lagging == *before);
+
+    // A new frame lands: the badges move with it.
+    helix::gcode::GCodeGLESRendererTestAccess::show_frame(renderer, camera, 400, 300);
+    const auto after = renderer.project_to_shown_image(corner);
+    REQUIRE(after.has_value());
+    CHECK(glm::distance(*after, *before) > 5.0f);
+
+    renderer.clear_cached_frame();
+    CHECK_FALSE(renderer.project_to_shown_image(corner).has_value());
+}
+#endif

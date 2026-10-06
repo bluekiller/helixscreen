@@ -35,6 +35,15 @@ struct ObjectBadge {
     bool has_anchor = false;
     glm::vec2 anchor{0.0f, 0.0f}; ///< World XY (mm) the badge sits over
     std::optional<float> top_z;   ///< Top of the object's toolpath, when the file was parsed
+
+    bool operator==(const ObjectBadge& o) const {
+        return defined_index == o.defined_index && name == o.name && number == o.number &&
+               excluded == o.excluded && current == o.current && has_anchor == o.has_anchor &&
+               anchor == o.anchor && top_z == o.top_z;
+    }
+    bool operator!=(const ObjectBadge& o) const {
+        return !(*this == o);
+    }
 };
 
 /**
@@ -64,10 +73,19 @@ inline lv_opa_t object_badge_opa(bool excluded) {
     return excluded ? LV_OPA_30 : LV_OPA_COVER;
 }
 
-/// Draw @p badge as a numbered disc centred on (@p cx, @p cy) in screen coordinates.
-void draw_object_badge(lv_layer_t* layer, const ObjectBadge& badge, int32_t cx, int32_t cy);
+/// Every token a badge pass reads, resolved once so drawing looks nothing up.
+struct BadgeLook {
+    int32_t diameter = 0;
+    const lv_font_t* font = nullptr;
+    lv_color_t ring_color{}; ///< Outline marking the object printing now
+    int32_t ring_width = 0;
+    std::vector<lv_color_t> fill; ///< Per badge, parallel to the badge list
+    std::vector<lv_color_t> text;
+};
+BadgeLook resolve_badge_look(const std::vector<ObjectBadge>& badges);
 
-/// Index into @p centers of the disc containing (@p x, @p y), or -1.
-int badge_hit_index(const std::vector<glm::vec2>& centers, float x, float y, float radius);
+/// Draw badge @p i of the list @p look was resolved for, centred on (@p cx, @p cy).
+void draw_object_badge(lv_layer_t* layer, const BadgeLook& look, size_t i, const ObjectBadge& badge,
+                       int32_t cx, int32_t cy);
 
 } // namespace helix::ui
