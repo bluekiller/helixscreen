@@ -80,7 +80,6 @@ class ClogDetectionConfigModal : public Modal {
     static void on_source_encoder(lv_event_t* e);
     static void on_source_flowguard(lv_event_t* e);
     static void on_source_afc(lv_event_t* e);
-    static void on_source_pressure(lv_event_t* e);
     static void on_mode_auto(lv_event_t* e);
     static void on_mode_manual(lv_event_t* e);
     static void on_threshold_changed(lv_event_t* e);
@@ -88,12 +87,14 @@ class ClogDetectionConfigModal : public Modal {
 
     std::string widget_id_;
     std::string panel_id_;
-    int source_ = 0;             // 0=auto, 1=encoder, 2=flowguard, 3=afc, 4=pressure
+    int source_ = 0;             // 0=auto, 1=encoder, 2=flowguard, 3=afc
     int detection_mode_ = 2;     // 0=off, 1=manual, 2=auto
     int danger_threshold_ = 0;   // 0=use computed default
     float detection_length_ = 0; // mm, from firmware (used for manual mode)
     int original_detection_mode_ = 2;
-    helix::AmsSystemInfo::ClogSources sources_;
+    bool has_encoder_ = false;
+    bool has_flowguard_ = false;
+    bool has_afc_ = false;
 
     // C++-owned subjects for XML bindings (lifetime = modal lifetime)
     bool subjects_initialized_ = false;
@@ -111,7 +112,6 @@ class ClogDetectionConfigModal : public Modal {
     lv_subject_t src_encoder_active_{};
     lv_subject_t src_flowguard_active_{};
     lv_subject_t src_afc_active_{};
-    lv_subject_t src_pressure_active_{};
     lv_subject_t mode_auto_active_{};
     lv_subject_t mode_manual_active_{};
 };

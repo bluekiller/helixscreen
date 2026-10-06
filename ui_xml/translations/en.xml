@@ -1559,7 +1559,6 @@
   <translation tag="LOAD CELLS" en="LOAD CELLS"/>
   <translation tag="LOADED" en="LOADED"/>
   <translation tag="LOCKED" en="LOCKED"/>
-  <translation tag="LOOSE" en="LOOSE"/>
   <translation tag="LOT-2024-001" en="LOT-2024-001"/>
   <translation tag="Label Printer" en="Label Printer"/>
   <translation tag="Label Size" en="Label Size"/>
@@ -2158,7 +2157,6 @@
   <translation tag="Presets come from the WLED device. Edit them in the WLED app." en="Presets come from the WLED device. Edit them in the WLED app."/>
   <translation tag="Press Abort to stop" en="Press Abort to stop"/>
   <translation tag="Press Scan to search" en="Press Scan to search"/>
-  <translation tag="Pressure" en="Pressure"/>
   <translation tag="Pressure Adv." en="Pressure Adv."/>
   <translation tag="Pressure Advance" en="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" en="Pressure Advance Calibration"/>
@@ -2884,7 +2882,6 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." en="Switching heater control to MPC. Klipper will restart."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." en="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." en="Switching to MPC requires a config change and Klipper restart."/>
-  <translation tag="Sync" en="Sync"/>
   <translation tag="Sync during printing" en="Sync during printing"/>
   <translation tag="Sync with Spoolman" en="Sync with Spoolman"/>
   <translation tag="Sysfs" en="Sysfs"/>
@@ -2899,7 +2896,6 @@
   <translation tag="TD-1 filament color detection" en="TD-1 filament color detection"/>
   <translation tag="TEMPERATURE SENSORS" en="TEMPERATURE SENSORS"/>
   <translation tag="THEME COLORS" en="THEME COLORS"/>
-  <translation tag="TIGHT" en="TIGHT"/>
   <translation tag="TOGGLE: {}" en="TOGGLE: {}"/>
   <translation tag="TOOLS" en="TOOLS"/>
   <translation tag="TPU" en="TPU"/>

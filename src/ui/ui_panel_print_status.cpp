@@ -1167,8 +1167,8 @@ lv_obj_t* PrintStatusPanel::create(lv_obj_t* parent) {
 
     // Wire LV_EVENT_SIZE_CHANGED on controls_section so any column-width change
     // triggers a density + fit recompute. Direct lv_obj_add_event_cb is correct
-    // here — SIZE_CHANGED has no XML binding equivalent (same pattern as
-    // ui_ams_mini_status.cpp).
+    // here — SIZE_CHANGED has no XML binding equivalent (pattern from
+    // ui_buffer_meter.cpp:52 and ui_ams_mini_status.cpp:540).
     if (lv_obj_t* controls_section = find_required(overlay_root_, "controls_section", get_name())) {
         lv_obj_add_event_cb(controls_section, on_controls_size_changed, LV_EVENT_SIZE_CHANGED,
                             this);

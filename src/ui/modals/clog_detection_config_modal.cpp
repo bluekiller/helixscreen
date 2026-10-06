@@ -32,7 +32,6 @@ ClogDetectionConfigModal::ClogDetectionConfigModal(const std::string& widget_id,
     lv_xml_register_event_cb(nullptr, "on_clog_source_encoder", on_source_encoder);
     lv_xml_register_event_cb(nullptr, "on_clog_source_flowguard", on_source_flowguard);
     lv_xml_register_event_cb(nullptr, "on_clog_source_afc", on_source_afc);
-    lv_xml_register_event_cb(nullptr, "on_clog_source_pressure", on_source_pressure);
     lv_xml_register_event_cb(nullptr, "on_clog_mode_auto", on_mode_auto);
     lv_xml_register_event_cb(nullptr, "on_clog_mode_manual", on_mode_manual);
     lv_xml_register_event_cb(nullptr, "on_clog_threshold_changed", on_threshold_changed);
@@ -67,7 +66,6 @@ void ClogDetectionConfigModal::init_subjects() {
     lv_subject_init_int(&src_encoder_active_, 0);
     lv_subject_init_int(&src_flowguard_active_, 0);
     lv_subject_init_int(&src_afc_active_, 0);
-    lv_subject_init_int(&src_pressure_active_, 0);
     lv_subject_init_int(&mode_auto_active_, 1); // auto selected by default
     lv_subject_init_int(&mode_manual_active_, 0);
 
@@ -80,7 +78,6 @@ void ClogDetectionConfigModal::init_subjects() {
     subjects_.publish("clog_src_encoder_active", &src_encoder_active_);
     subjects_.publish("clog_src_flowguard_active", &src_flowguard_active_);
     subjects_.publish("clog_src_afc_active", &src_afc_active_);
-    subjects_.publish("clog_src_pressure_active", &src_pressure_active_);
     subjects_.publish("clog_mode_auto_active", &mode_auto_active_);
     subjects_.publish("clog_mode_manual_active", &mode_manual_active_);
 
@@ -119,7 +116,15 @@ void ClogDetectionConfigModal::on_show() {
         auto info = backend->get_system_info();
         detection_mode_ = info.encoder_info.detection_mode;
         detection_length_ = info.encoder_info.detection_length;
-        sources_ = info.clog_sources();
+
+        has_encoder_ = info.encoder_info.enabled;
+        has_flowguard_ = info.flowguard_info.enabled;
+        for (const auto& unit : info.units) {
+            if (unit.buffer_health && unit.buffer_health->fault_detection_enabled) {
+                has_afc_ = true;
+                break;
+            }
+        }
     }
     original_detection_mode_ = detection_mode_;
 
@@ -133,8 +138,8 @@ void ClogDetectionConfigModal::on_show() {
     update_source_visibility();
 
     // If current source override points to an unavailable source, reset to auto
-    if ((source_ == 1 && !sources_.encoder) || (source_ == 2 && !sources_.flowguard) ||
-        (source_ == 3 && !sources_.afc_buffer) || (source_ == 4 && !sources_.pressure)) {
+    if ((source_ == 1 && !has_encoder_) || (source_ == 2 && !has_flowguard_) ||
+        (source_ == 3 && !has_afc_)) {
         source_ = 0;
     }
 
@@ -189,7 +194,6 @@ void ClogDetectionConfigModal::sync_source_subjects() {
     lv_subject_set_int(&src_encoder_active_, source_ == 1 ? 1 : 0);
     lv_subject_set_int(&src_flowguard_active_, source_ == 2 ? 1 : 0);
     lv_subject_set_int(&src_afc_active_, source_ == 3 ? 1 : 0);
-    lv_subject_set_int(&src_pressure_active_, source_ == 4 ? 1 : 0);
 }
 
 void ClogDetectionConfigModal::sync_mode_subjects() {
@@ -200,19 +204,27 @@ void ClogDetectionConfigModal::sync_mode_subjects() {
 void ClogDetectionConfigModal::update_source_visibility() {
     if (!dialog())
         return;
-    const std::pair<const char*, bool> buttons[] = {
-        {"btn_source_encoder", sources_.encoder},
-        {"btn_source_flowguard", sources_.flowguard},
-        {"btn_source_afc", sources_.afc_buffer},
-        {"btn_source_pressure", sources_.pressure},
-    };
-    for (const auto& [name, available] : buttons) {
-        if (auto* btn = lv_obj_find_by_name(dialog(), name)) {
-            if (available)
-                lv_obj_remove_flag(btn, LV_OBJ_FLAG_HIDDEN);
-            else
-                lv_obj_add_flag(btn, LV_OBJ_FLAG_HIDDEN);
-        }
+    auto* btn_enc = lv_obj_find_by_name(dialog(), "btn_source_encoder");
+    auto* btn_fg = lv_obj_find_by_name(dialog(), "btn_source_flowguard");
+    auto* btn_afc = lv_obj_find_by_name(dialog(), "btn_source_afc");
+
+    if (btn_enc) {
+        if (has_encoder_)
+            lv_obj_remove_flag(btn_enc, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(btn_enc, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (btn_fg) {
+        if (has_flowguard_)
+            lv_obj_remove_flag(btn_fg, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(btn_fg, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (btn_afc) {
+        if (has_afc_)
+            lv_obj_remove_flag(btn_afc, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(btn_afc, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -304,13 +316,6 @@ void ClogDetectionConfigModal::on_source_flowguard(lv_event_t* e) {
 void ClogDetectionConfigModal::on_source_afc(lv_event_t* e) {
     if (auto* m = get_modal(e)) {
         m->source_ = 3;
-        m->sync_source_subjects();
-    }
-}
-
-void ClogDetectionConfigModal::on_source_pressure(lv_event_t* e) {
-    if (auto* m = get_modal(e)) {
-        m->source_ = 4;
         m->sync_source_subjects();
     }
 }

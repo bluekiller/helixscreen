@@ -2779,8 +2779,8 @@ class AmsBackend {
      * Happy Hare reports printer.mmu.sync_feedback_bias directly; AFC (FPS_PSF
      * buffers) and OpenAMS map their filament pressure sensor onto it. The value
      * is meaningful only when > -1.5 (the sentinel for "no bias data"), which
-     * every other backend leaves in place. The path canvas tint gates on this,
-     * and the clog meter offers it as its Pressure source.
+     * every other backend leaves in place. The buffer meter, path canvas
+     * tinting, and clog-detection buffer page all gate on this.
      *
      * @param info Current system snapshot (carries sync_feedback_bias)
      * @return true if a proportional sync-feedback bias is available

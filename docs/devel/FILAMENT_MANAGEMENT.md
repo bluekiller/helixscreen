@@ -1198,24 +1198,10 @@ Per-slot error indicators and per-unit error badges, driven by `SlotInfo.error` 
 
 ### Clog / flow meter
 
-Four sources (encoder, Flowguard, AFC buffer, filament pressure) feed one set of
-`clog_meter_*` subjects, derived in `AmsState::sync_clog_meter_from_info()`
-(`src/printer/ams_state_clog.cpp`). Source precedence is **flowguard > encoder > AFC
-buffer > pressure**, overridable per-widget via `set_source_override()` (0 auto,
-1 encoder, 2 flowguard, 3 AFC, 4 pressure). `AmsSystemInfo::clog_sources()` is what
-both the derivation and the config modal's source picker read as available.
-
-The three detectors outrank pressure because they are what pauses a print; a
-buffer's position is a running reading of how the feed keeps up. **Pressure** is
-`sync_feedback_bias` as a symmetrical -100..+100 reading with `TIGHT` / `LOOSE`
-ends: Happy Hare's sync feedback (mode text "Sync", centre the bias), or a
-filament pressure sensor on AFC / OpenAMS (mode text "FPS", centre the raw
-pressure). Its bands, `kPressureWarningPct` (30) and `kPressureFaultPct` (70) in
-`clog_meter_geometry.h`, are one decision via `pressure_status()`: the meter's status
-glyph and fill tint, and the path canvas's buffer-box tint, all read it. The shaded
-danger zone starts at the fault band. The Buffer
-Status modal's balanced / pulling tight / loose line comes from `buffer_lean()` beside
-it.
+Three sources (encoder, Flowguard, AFC buffer) feed one set of `clog_meter_*`
+subjects, derived in `AmsState::sync_clog_meter_from_info()`
+(`src/printer/ams_state.cpp`). Source precedence is **flowguard > encoder > AFC
+buffer**, overridable per-widget via `set_source_override()`.
 
 **Two presentations, one model.** `UiClogBar` draws a wide horizontal scale,
 `UiClogMeter` a compact arc. Neither owns any interpretation:
@@ -1258,8 +1244,7 @@ linear modes** (only Flowguard's two directions mean different faults).
 **Mock scenarios:** `helix-screen ctl scenario <name>` drives the mock *backend*,
 so the whole derivation runs — `clog_healthy`, `clog_warning`, `clog_blocked`,
 `flowguard_neutral`, `flowguard_tangle`, `flowguard_clog`, `buffer_safe`,
-`buffer_fault`, `buffer_fps` / `buffer_fps_loose` (a pressure sensor under / over its
-set point; any mock type but Happy Hare), `sync_feedback_tight` (Happy Hare), `clog_off`.
+`buffer_fault`, `buffer_fps` (a pressure sensor under its set point), `clog_off`.
 
 ### AFC buffers: switched vs FPS_PSF
 
@@ -1275,8 +1260,8 @@ config-only and never published**, so the tuning range cannot be read at runtime
 advance/trailing triggers compare the smoothed one.
 
 The result is published as `sync_feedback_bias`, the same signal Happy Hare
-reports, so the clog meter's Pressure source and the path-canvas tint work on both
-without knowing the backend. OpenAMS lanes carry the same sensor and publish it the same way
+reports, so `UiBufferMeter` and the path-canvas tint work on both without knowing
+the backend. OpenAMS lanes carry the same sensor and publish it the same way
 (`AmsSystemInfo::pressure_sensor_bias()`); per-unit views draw
 `AmsSystemInfo::buffer_bias(unit)`, the unit's own sensor. A switched buffer sends
 none of these keys, leaves `fps_reported` false, and is unchanged.

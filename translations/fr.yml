@@ -1753,7 +1753,6 @@ translations:
   LOAD CELLS: 'CELLULES DE CHARGE'
   LOADED: CHARGÉ
   LOCKED: VERROUILLÉ
-  LOOSE: DÉTENDU
   LOT-2024-001: LOT-2024-001
   Label Printer: Imprimante d'étiquettes
   Label Size: Taille d'étiquette
@@ -2406,7 +2405,6 @@ translations:
   Press Scan to search: Appuyez sur Scanner pour rechercher
   'Pressure:': 'Pression :'
   'Pressure: {}% (target {}%)': 'Pression : {}% (cible {}%)'
-  Pressure: Pression
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'Calibration Pressure Advance'
@@ -3233,7 +3231,6 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Le passage à MPC change la façon dont ce chauffage est contrôlé, puis le calibre. Cela prend plusieurs minutes à température.
   Switching to MPC requires a config change and Klipper restart.: Le passage à MPC
     nécessite une modification de la config et un redémarrage de Klipper.
-  Sync: Sync
   Sync during printing: 'Synchroniser pendant l''impression'
   Sync with Spoolman: Synchroniser avec Spoolman
   Sysfs: Sysfs
@@ -3248,7 +3245,6 @@ translations:
   TD-1 filament color detection: Détection de couleur de filament TD-1
   TEMPERATURE SENSORS: CAPTEURS DE TEMPÉRATURE
   THEME COLORS: COULEURS DU THÈME
-  TIGHT: TENDU
   'TOGGLE: {}': 'BASCULER : {}'
   TOOLS: OUTILS
   TPU: TPU

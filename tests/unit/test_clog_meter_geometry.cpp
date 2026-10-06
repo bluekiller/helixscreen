@@ -14,8 +14,6 @@
 
 #include "clog_meter_geometry.h"
 
-#include <string>
-
 #include "../catch_amalgamated.hpp"
 
 using namespace helix::ui;
@@ -24,7 +22,6 @@ namespace {
 constexpr int kMode_Encoder = static_cast<int>(ClogMeterMode::Encoder);
 constexpr int kMode_Flowguard = static_cast<int>(ClogMeterMode::Flowguard);
 constexpr int kMode_Buffer = static_cast<int>(ClogMeterMode::Buffer);
-constexpr int kMode_Pressure = static_cast<int>(ClogMeterMode::Pressure);
 constexpr int kTrack = 200;
 } // namespace
 
@@ -151,15 +148,12 @@ TEST_CASE("clog_meter_status: an unset threshold has no opinion", "[clog][status
 // ClogMeterSample — the derived state both renderers must agree on
 // ===========================================================================
 
-TEST_CASE("ClogMeterSample: Flowguard and Pressure read out from a centre", "[clog][model][1017]") {
+TEST_CASE("ClogMeterSample: only Flowguard reads out from a centre", "[clog][model][1017]") {
     // The arc encodes this as LV_ARC_MODE_SYMMETRICAL over 0..200 and the bar
     // as centre-out geometry. Two encodings are fine; two decisions are not.
-    for (int mode : {kMode_Flowguard, kMode_Pressure}) {
-        ClogMeterSample s;
-        s.mode = mode;
-        INFO("mode " << mode);
-        CHECK(s.is_symmetrical());
-    }
+    ClogMeterSample fg;
+    fg.mode = kMode_Flowguard;
+    CHECK(fg.is_symmetrical());
 
     for (int mode : {static_cast<int>(ClogMeterMode::None), kMode_Encoder, kMode_Buffer}) {
         ClogMeterSample s;
@@ -307,49 +301,4 @@ TEST_CASE("clog_bar_geometry: out-of-range values are clamped, not wrapped", "[c
 
     auto silly_danger = clog_bar_geometry(kMode_Encoder, 50, /*danger=*/900, 0, kTrack);
     CHECK(silly_danger.danger_hi_w == 0); // shading collapses, it does not invert
-}
-
-// ===========================================================================
-// Pressure (sync-feedback bias)
-// ===========================================================================
-
-TEST_CASE("clog_bar_geometry: Pressure fills out from the centre", "[clog][bar][pressure]") {
-    const auto tight = clog_bar_geometry(kMode_Pressure, -50, kPressureFaultPct, 0, kTrack);
-    CHECK(tight.fill_x == kTrack / 4);
-    CHECK(tight.fill_w == kTrack / 4);
-    const auto loose = clog_bar_geometry(kMode_Pressure, 50, kPressureFaultPct, 0, kTrack);
-    CHECK(loose.fill_x == kTrack / 2);
-    // Both ends are shaded: either one is the buffer near its end stop.
-    CHECK(loose.danger_lo_w > 0);
-    CHECK(loose.danger_hi_w == loose.danger_lo_w);
-}
-
-TEST_CASE("pressure_status: the bands, by magnitude", "[clog][status][pressure]") {
-    CHECK(pressure_status(0) == ClogMeterStatus::Ok);
-    CHECK(pressure_status(kPressureWarningPct - 1) == ClogMeterStatus::Ok);
-    CHECK(pressure_status(kPressureWarningPct) == ClogMeterStatus::Warning);
-    CHECK(pressure_status(-kPressureWarningPct) == ClogMeterStatus::Warning);
-    CHECK(pressure_status(kPressureFaultPct - 1) == ClogMeterStatus::Warning);
-    CHECK(pressure_status(kPressureFaultPct) == ClogMeterStatus::Fault);
-    CHECK(pressure_status(-100) == ClogMeterStatus::Fault);
-    // The meter's danger threshold (its shading) does not move the warning band.
-    CHECK(clog_meter_status(kMode_Pressure, kPressureWarningPct, 0, 90) ==
-          ClogMeterStatus::Warning);
-}
-
-TEST_CASE("clog_meter_tint: Pressure turns warning off balance, either way",
-          "[clog][tint][pressure]") {
-    CHECK(std::string(clog_meter_tint(kMode_Pressure, 10, 0).a) == "primary");
-    CHECK(std::string(clog_meter_tint(kMode_Pressure, -kPressureWarningPct, 0).a) == "warning");
-    CHECK(std::string(clog_meter_tint(kMode_Pressure, kPressureWarningPct, 0).a) == "warning");
-    CHECK(std::string(clog_meter_tint(kMode_Pressure, 90, 1).a) == "danger");
-}
-
-TEST_CASE("buffer_lean: tension is tight, compression loose, a deadband between",
-          "[clog][pressure]") {
-    CHECK(buffer_lean(0.0f) == BufferLean::Balanced);
-    CHECK(buffer_lean(-0.019f) == BufferLean::Balanced);
-    CHECK(buffer_lean(0.019f) == BufferLean::Balanced);
-    CHECK(buffer_lean(-0.3f) == BufferLean::Tight);
-    CHECK(buffer_lean(0.15f) == BufferLean::Loose);
 }

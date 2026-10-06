@@ -1244,7 +1244,8 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
                 // the sync so an observer that re-reads backend state sees the
                 // synced values, not the previous ones. Main thread already (we
                 // are inside the queue_update body), so the subject write is safe.
-                AmsState::instance().bump_data_revision();
+                auto* rev = AmsState::instance().get_ams_data_revision_subject();
+                lv_subject_set_int(rev, lv_subject_get_int(rev) + 1);
             });
     };
 

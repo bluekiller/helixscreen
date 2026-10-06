@@ -13,7 +13,6 @@
 
 #include "ams_state.h"
 #include "app_globals.h" // get_printer_state: the print lifecycle the clear guard reads
-#include "clog_meter_geometry.h"
 #include "display_numbering.h"
 #include "filament_op_dispatch.h"      // EXTERNAL_SPOOL_SLOT: the bypass sentinel
 #include "filament_op_slot_resolver.h" // clear_spool_blocked_by_print: the print guard
@@ -632,14 +631,19 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
             }
         }
     }
-    // Proportional sync feedback (Happy Hare, or this unit's pressure sensor):
-    // the same severity the clog meter's Pressure mode reports.
+    // Proportional sync feedback (Happy Hare, or this unit's pressure sensor)
+    // → fault state based on bias magnitude.
+    // Use same thresholds as buffer meter: <0.3 green, 0.3-0.7 orange, >0.7 red
     const float buffer_bias = backend->supports_sync_feedback_visualization(info)
                                   ? info.buffer_bias(effective_unit)
                                   : -2.0f; // discrete mode
     if (buffer_fault == 0 && buffer_bias > -1.5f) {
-        buffer_fault = static_cast<int>(
-            helix::ui::pressure_status(static_cast<int>(std::lround(buffer_bias * 100.0f))));
+        float abs_bias = std::fabs(buffer_bias);
+        if (abs_bias >= 0.7f) {
+            buffer_fault = 2;
+        } else if (abs_bias >= 0.3f) {
+            buffer_fault = 1;
+        }
     }
 
     ui_filament_path_canvas_set_buffer_fault_state(canvas, buffer_fault);

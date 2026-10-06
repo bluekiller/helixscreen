@@ -1559,7 +1559,6 @@
   <translation tag="LOAD CELLS" es="CELDAS DE CARGA"/>
   <translation tag="LOADED" es="CARGADO"/>
   <translation tag="LOCKED" es="BLOQUEADO"/>
-  <translation tag="LOOSE" es="SUELTO"/>
   <translation tag="LOT-2024-001" es="LOT-2024-001"/>
   <translation tag="Label Printer" es="Impresora de Etiquetas"/>
   <translation tag="Label Size" es="Tamaño de Etiqueta"/>
@@ -2158,7 +2157,6 @@
   <translation tag="Presets come from the WLED device. Edit them in the WLED app." es="Los preajustes vienen del dispositivo WLED. Edítalos en la app de WLED."/>
   <translation tag="Press Abort to stop" es="Pulse Abortar para detener"/>
   <translation tag="Press Scan to search" es="Presione Escanear para buscar"/>
-  <translation tag="Pressure" es="Presión"/>
   <translation tag="Pressure Adv." es="Pressure Adv."/>
   <translation tag="Pressure Advance" es="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" es="Calibración de Pressure Advance"/>
@@ -2884,7 +2882,6 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." es="Cambiando control del calentador a MPC. Klipper se reiniciará."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." es="Cambiar a MPC cambia cómo se controla este calentador y luego lo calibra. Eso tarda varios minutos a temperatura."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." es="Cambiar a MPC requiere modificar la configuración y reiniciar Klipper."/>
-  <translation tag="Sync" es="Sinc."/>
   <translation tag="Sync during printing" es="Sincronizar durante la impresión"/>
   <translation tag="Sync with Spoolman" es="Sincronizar con Spoolman"/>
   <translation tag="Sysfs" es="Sysfs"/>
@@ -2899,7 +2896,6 @@
   <translation tag="TD-1 filament color detection" es="Detección de color de filamento TD-1"/>
   <translation tag="TEMPERATURE SENSORS" es="SENSORES DE TEMPERATURA"/>
   <translation tag="THEME COLORS" es="COLORES DEL TEMA"/>
-  <translation tag="TIGHT" es="TENSO"/>
   <translation tag="TOGGLE: {}" es="CONMUTAR: {}"/>
   <translation tag="TOOLS" es="HERRAMIENTAS"/>
   <translation tag="TPU" es="TPU"/>

@@ -1559,7 +1559,6 @@
   <translation tag="LOAD CELLS" fr="CELLULES DE CHARGE"/>
   <translation tag="LOADED" fr="CHARGÉ"/>
   <translation tag="LOCKED" fr="VERROUILLÉ"/>
-  <translation tag="LOOSE" fr="DÉTENDU"/>
   <translation tag="LOT-2024-001" fr="LOT-2024-001"/>
   <translation tag="Label Printer" fr="Imprimante d&apos;étiquettes"/>
   <translation tag="Label Size" fr="Taille d&apos;étiquette"/>
@@ -2158,7 +2157,6 @@
   <translation tag="Presets come from the WLED device. Edit them in the WLED app." fr="Les préréglages viennent de l&apos;appareil WLED. Modifiez-les dans l&apos;app WLED."/>
   <translation tag="Press Abort to stop" fr="Appuyez sur Abandonner pour arrêter"/>
   <translation tag="Press Scan to search" fr="Appuyez sur Scanner pour rechercher"/>
-  <translation tag="Pressure" fr="Pression"/>
   <translation tag="Pressure Adv." fr="Pressure Adv."/>
   <translation tag="Pressure Advance" fr="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" fr="Calibration Pressure Advance"/>
@@ -2884,7 +2882,6 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." fr="Basculement du chauffage vers MPC. Klipper va redémarrer."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." fr="Le passage à MPC change la façon dont ce chauffage est contrôlé, puis le calibre. Cela prend plusieurs minutes à température."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." fr="Le passage à MPC nécessite une modification de la config et un redémarrage de Klipper."/>
-  <translation tag="Sync" fr="Sync"/>
   <translation tag="Sync during printing" fr="Synchroniser pendant l&apos;impression"/>
   <translation tag="Sync with Spoolman" fr="Synchroniser avec Spoolman"/>
   <translation tag="Sysfs" fr="Sysfs"/>
@@ -2899,7 +2896,6 @@
   <translation tag="TD-1 filament color detection" fr="Détection de couleur de filament TD-1"/>
   <translation tag="TEMPERATURE SENSORS" fr="CAPTEURS DE TEMPÉRATURE"/>
   <translation tag="THEME COLORS" fr="COULEURS DU THÈME"/>
-  <translation tag="TIGHT" fr="TENDU"/>
   <translation tag="TOGGLE: {}" fr="BASCULER : {}"/>
   <translation tag="TOOLS" fr="OUTILS"/>
   <translation tag="TPU" fr="TPU"/>

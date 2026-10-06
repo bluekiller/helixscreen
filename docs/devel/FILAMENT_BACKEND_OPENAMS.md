@@ -74,19 +74,17 @@ The backend puts the reading on every unit of that lane as its `BufferHealth`
   the same label;
 - `BufferHealth::fps_to_bias()` maps it onto the -1..+1 sync-feedback bias,
   the same conversion AFC uses for an `FPS_PSF` buffer, so the box tints like
-  any other buffer;
+  any other buffer and the buffer modal draws the plunger meter with its
+  balanced / pulling tight / loose description;
 - `sync_feedback_bias` carries `AmsSystemInfo::pressure_sensor_bias()`: the
   lane feeding the current slot, else the first unit with a sensor (with
-  several lanes loaded there is no current slot). It is the clog meter's
-  Pressure source (sidebar arc, home tile, loaded card, Buffer Status modal),
-  with `FPS` as its mode text and the raw pressure as its centre number.
-  Per-unit views (path canvas, the modal's text rows) read that unit's own lane
-  via `AmsSystemInfo::buffer_bias()`;
-- tapping it opens the buffer modal's pressure view, "Pressure: 62% (target 50%)",
-  with a balanced / pulling tight / loose line.
+  several lanes loaded there is no current slot). It drives the clog-detection
+  widget's buffer page. Per-unit views (path canvas, buffer modal) draw that
+  unit's own lane via `AmsSystemInfo::buffer_bias()`;
+- tapping it opens the buffer modal's pressure view, "Pressure: 62% (target 50%)".
 
 A lane with no `set_point` cannot be placed either side of its target, so it
-gets the pressure reading alone, with no meter source or tint. A manager that
+gets the pressure reading alone, with no meter or tint. A manager that
 publishes no `pressure` gets no buffer box.
 
 ## Operations
@@ -155,7 +153,7 @@ OpenAMS reports no colour, material or spool identity, so identity is HelixScree
 | Endless spool | Not exposed |
 | Runout surface | No error hook, so the generic runout modal and toast remain (`runtime_config.cpp`) |
 | Environment sensors | No |
-| Filament pressure | Per lane, from `lanes[].pressure` and `set_point`; drawn as the FPS box with bias tint; the clog meter's Pressure source |
+| Filament pressure | Per lane, from `lanes[].pressure` and `set_point`; drawn as the FPS box with bias tint and buffer meter |
 
 ## Tests
 

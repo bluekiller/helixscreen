@@ -24,13 +24,8 @@ namespace helix {
 using ams_state_detail::assert_main_thread;
 
 void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
-    // Priority: flowguard > encoder > afc_buffer > pressure > legacy > none
-    // Source override: 0=auto (use priority), 1=encoder, 2=flowguard, 3=afc,
-    // 4=pressure
-    //
-    // The three detectors outrank pressure: they are what pauses a print,
-    // while a buffer's position is a running reading of how the feed is
-    // keeping up. Pressure is shown when nothing detects clogs, or by choice.
+    // Priority: flowguard > encoder > afc_buffer > legacy > none
+    // Source override: 0=auto (use priority), 1=encoder, 2=flowguard, 3=afc
     //
     // Every text slot below has exactly one job, and no slot repeats another:
     //   mode_text   what is measuring, and nothing else. It is drawn beside a
@@ -57,13 +52,35 @@ void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
     char left_buf[24] = "";
     char right_buf[24] = "";
 
-    // A forced source is used only if this snapshot has it.
-    const auto sources = info.clog_sources();
-    const bool forced = source_override_ >= 1 && source_override_ <= 4;
-    const bool use_encoder = sources.encoder && (!forced || source_override_ == 1);
-    const bool use_flowguard = sources.flowguard && (!forced || source_override_ == 2);
-    const bool use_afc = sources.afc_buffer && (!forced || source_override_ == 3);
-    const bool use_pressure = sources.pressure && (!forced || source_override_ == 4);
+    // Determine which sources are available
+    bool has_flowguard = info.flowguard_info.enabled;
+    bool has_encoder = info.encoder_info.enabled;
+    bool has_afc = false;
+    for (const auto& unit : info.units) {
+        if (unit.buffer_health && unit.buffer_health->fault_detection_enabled) {
+            has_afc = true;
+            break;
+        }
+    }
+
+    // Apply source override: skip to the forced source if available
+    bool use_flowguard = has_flowguard;
+    bool use_encoder = has_encoder;
+    bool use_afc = has_afc;
+
+    if (source_override_ == 1) {
+        // Force encoder only
+        use_flowguard = false;
+        use_afc = false;
+    } else if (source_override_ == 2) {
+        // Force flowguard only
+        use_encoder = false;
+        use_afc = false;
+    } else if (source_override_ == 3) {
+        // Force AFC only
+        use_flowguard = false;
+        use_encoder = false;
+    }
 
     if (use_flowguard) {
         // Flowguard mode: bidirectional (-100 to +100)
@@ -88,7 +105,7 @@ void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
         snprintf(left_buf, sizeof(left_buf), "%s", lv_tr("TANGLE"));
         snprintf(right_buf, sizeof(right_buf), "%s", lv_tr("CLOG"));
 
-    } else if (use_encoder) {
+    } else if (use_encoder && info.encoder_info.enabled) {
         // Encoder mode: 0-100 clog percentage
         mode = 1;
         value = info.encoder_info.get_clog_pct();
@@ -154,29 +171,6 @@ void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
             }
         }
 
-        // The buffer's position: Happy Hare's sync feedback, or a filament
-        // pressure sensor mapped onto the same -1..+1 bias.
-        if (mode == 0 && use_pressure) {
-            mode = static_cast<int>(helix::ui::ClogMeterMode::Pressure);
-            value = std::clamp(static_cast<int>(std::lround(info.sync_feedback_bias * 100.0f)),
-                               -100, 100);
-            warning =
-                helix::ui::pressure_status(value) == helix::ui::ClogMeterStatus::Fault ? 1 : 0;
-            new_danger_pct = helix::ui::kPressureFaultPct;
-            new_peak_pct = 0;
-            if (const BufferHealth* fps = info.feeding_pressure_sensor()) {
-                // i18n: do not translate - hardware abbreviation
-                snprintf(mode_text, sizeof(mode_text), "FPS");
-                snprintf(center_buf, sizeof(center_buf), "%d%%",
-                         static_cast<int>(std::lround(fps->fps_value * 100.0f)));
-            } else {
-                snprintf(mode_text, sizeof(mode_text), "%s", lv_tr("Sync"));
-                snprintf(center_buf, sizeof(center_buf), "%+d%%", value);
-            }
-            snprintf(left_buf, sizeof(left_buf), "%s", lv_tr("TIGHT"));
-            snprintf(right_buf, sizeof(right_buf), "%s", lv_tr("LOOSE"));
-        }
-
         // Legacy fallback: clog_detection enabled but no encoder_info
         if (mode == 0 && info.clog_detection > 0) {
             mode = 1;
@@ -209,8 +203,6 @@ void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
     const int status =
         static_cast<int>(helix::ui::clog_meter_status(mode, value, warning, new_danger_pct));
     lv_subject_set_int(&clog_meter_status_, status);
-    lv_subject_set_int(&clog_meter_symmetrical_,
-                       helix::ui::clog_meter_is_symmetrical(mode) ? 1 : 0);
     if (strcmp(lv_subject_get_string(&clog_meter_mode_text_), mode_text) != 0) {
         lv_subject_copy_string(&clog_meter_mode_text_, mode_text);
     }

@@ -6,7 +6,6 @@
 #include "theme_manager.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdlib>
 
 namespace helix::ui {
@@ -32,10 +31,6 @@ ClogMeterTint clog_meter_tint(int mode, int value, int warning) {
     }
 
     const auto m = static_cast<ClogMeterMode>(mode);
-    if (m == ClogMeterMode::Pressure) {
-        return std::abs(value) >= kPressureWarningPct ? ClogMeterTint{"warning", "warning", 255}
-                                                      : ClogMeterTint{"primary", "primary", 255};
-    }
     if (m != ClogMeterMode::Encoder && m != ClogMeterMode::Buffer) {
         return {"primary", "primary", 255};
     }
@@ -60,34 +55,12 @@ ClogMeterStatus clog_meter_status(int mode, int value, int warning, int danger_p
     if (clog_meter_is_safe(mode, value)) {
         return ClogMeterStatus::Ok;
     }
-    // Pressure warns from its own band; its danger zone (the shading) is the
-    // fault band beyond that, so the two thresholds differ.
-    if (static_cast<ClogMeterMode>(mode) == ClogMeterMode::Pressure) {
-        danger_pct = kPressureWarningPct;
-    }
     // A threshold of zero would make every reading a warning, including a
     // perfectly neutral one, so an unset threshold means "no opinion".
     if (danger_pct > 0 && std::abs(value) >= danger_pct) {
         return ClogMeterStatus::Warning;
     }
     return ClogMeterStatus::Ok;
-}
-
-bool clog_meter_is_symmetrical(int mode) {
-    const auto m = static_cast<ClogMeterMode>(mode);
-    return m == ClogMeterMode::Flowguard || m == ClogMeterMode::Pressure;
-}
-
-ClogMeterStatus pressure_status(int pct) {
-    return clog_meter_status(static_cast<int>(ClogMeterMode::Pressure), pct,
-                             std::abs(pct) >= kPressureFaultPct ? 1 : 0, kPressureFaultPct);
-}
-
-BufferLean buffer_lean(float bias) {
-    if (std::fabs(bias) < 0.02f) {
-        return BufferLean::Balanced;
-    }
-    return bias < 0 ? BufferLean::Tight : BufferLean::Loose;
 }
 
 bool clog_meter_is_safe(int mode, int value) {
@@ -100,7 +73,7 @@ ClogBarGeometry clog_bar_geometry(int mode, int value, int danger_pct, int peak_
         return g;
     }
 
-    const bool symmetrical = clog_meter_is_symmetrical(mode);
+    const bool symmetrical = static_cast<ClogMeterMode>(mode) == ClogMeterMode::Flowguard;
     danger_pct = std::clamp(danger_pct, 0, 100);
     peak_pct = std::clamp(std::abs(peak_pct), 0, 100);
 

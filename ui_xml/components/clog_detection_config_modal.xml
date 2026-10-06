@@ -47,12 +47,6 @@
             <bind_style name="clog_btn_unselected" subject="clog_src_afc_active" ref_value="0"/>
             <event_cb trigger="clicked" callback="on_clog_source_afc"/>
           </ui_button>
-          <ui_button name="btn_source_pressure"
-                     text="Pressure" translation_tag="Pressure" flex_grow="1" clickable="true">
-            <bind_style name="clog_btn_selected" subject="clog_src_pressure_active" ref_value="1"/>
-            <bind_style name="clog_btn_unselected" subject="clog_src_pressure_active" ref_value="0"/>
-            <event_cb trigger="clicked" callback="on_clog_source_pressure"/>
-          </ui_button>
         </lv_obj>
       </lv_obj>
 
