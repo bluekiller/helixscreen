@@ -1041,7 +1041,7 @@ _url_probe() {
 # Sets PROBE_SIZE_TEXT. Args: version platform
 probe_release() {
     if [ -n "${local_tarball:-}" ]; then
-        PROBE_SIZE_TEXT="local file, $(du -h "$local_tarball" 2>/dev/null | cut -f1)"
+        PROBE_SIZE_TEXT="local file, $(file_size_text "$local_tarball")"
         return 0
     fi
     local zip_filename tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http

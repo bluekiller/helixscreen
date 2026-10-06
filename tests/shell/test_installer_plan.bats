@@ -314,6 +314,14 @@ esac'
     contains "release not checked" "$PROBE_SIZE_TEXT"
 }
 
+@test "probe_release sizes a --local archive the way the step does" {
+    local_tarball="$BATS_TEST_TMPDIR/helixscreen-pi-v1.2.3.tar.gz"
+    head -c 1700000 /dev/zero > "$local_tarball"
+    probe_release v1.2.3 pi
+    [ "$PROBE_SIZE_TEXT" = "local file, $(file_size_text "$local_tarball")" ] \
+        || fail "plan says '$PROBE_SIZE_TEXT', step says '$(file_size_text "$local_tarball")'"
+}
+
 @test "probe_release HEAD requests are time-limited" {
     _probe_setup
     stub curl 'case "$*" in --version*) echo "curl 8.0.0" ;; *http_code*) printf 200 ;; *) exit 22 ;; esac'
