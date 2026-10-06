@@ -201,3 +201,73 @@ TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: destruction cancels an in-flight
 
     lv_obj_delete(scene.container);
 }
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: a page switch that stops the snap leaves the rebuild to exit",
+                 "[grid_edit][grid_edit_snap_anim]") {
+    helix::ui::ScopedAnimationsEnabled animations_on;
+    GridEditScene scene(test_screen(), "test_grid_edit_snap_anim_switch");
+    lv_obj_t* other_page = lv_obj_create(test_screen());
+
+    GridEditMode em;
+    int rebuilds = 0;
+    em.set_rebuild_callback([&rebuilds]() { ++rebuilds; });
+    arm_resize(em, scene);
+    commit_snap_resize(em);
+    REQUIRE(GridEditModeTestAccess::snap_animating(em));
+
+    // The switch lays the widget out at its new cell but cannot rebuild its
+    // content for the new span; leaving edit mode does.
+    em.switch_page(other_page, 0);
+    REQUIRE_FALSE(GridEditModeTestAccess::snap_animating(em));
+    process_lvgl(50);
+    REQUIRE(rebuilds == 0);
+    em.exit();
+    process_lvgl(50);
+    CHECK(rebuilds == 1);
+
+    lv_obj_delete(other_page);
+    lv_obj_delete(scene.container);
+}
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: the snap eases the whole outline onto the committed cell",
+                 "[grid_edit][grid_edit_snap_anim]") {
+    helix::ui::ScopedAnimationsEnabled animations_on;
+    GridEditScene scene(test_screen(), "test_grid_edit_snap_anim_target");
+    // Off the screen's origin, so a target in the container's own coordinates
+    // would land somewhere else.
+    lv_obj_set_pos(scene.container, 40, 30);
+    lv_obj_update_layout(scene.container);
+
+    GridEditMode em;
+    em.set_rebuild_callback([]() {});
+    arm_resize(em, scene);
+    const auto bars = GridEditModeTestAccess::resize_outline(em);
+    commit_snap_resize(em);
+    // Just short of the 150 ms ease-out, where the outline has all but arrived.
+    process_lvgl(140);
+    REQUIRE(GridEditModeTestAccess::snap_animating(em));
+
+    lv_area_t content;
+    lv_obj_get_content_coords(scene.container, &content);
+    const helix::CellMetrics m = GridEditModeTestAccess::cell_metrics(em);
+    const int target_x2 =
+        content.x1 +
+        static_cast<int>(grid_track_origin(m.cell_w, m.gutter, 0) +
+                         grid_track_extent(m.cell_w, m.gutter,
+                                           GridEditScene::COLSPAN + GridLayout::TRACKS_PER_CELL));
+    lv_obj_t* layer = lv_display_get_layer_top(lv_obj_get_display(scene.container));
+    lv_obj_update_layout(layer);
+    lv_area_t right;
+    lv_obj_get_coords(bars[3], &right);
+    lv_area_t top;
+    lv_obj_get_coords(bars[0], &top);
+    INFO("right bar ends at " << right.x2 + 1 << ", target " << target_x2);
+    CHECK(std::abs(right.x2 + 1 - target_x2) <= 3);
+    CHECK(std::abs(top.y1 - content.y1) <= 3);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}

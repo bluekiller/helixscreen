@@ -306,3 +306,25 @@ TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: the lattice is drawn, not built 
     process_lvgl(50);
     lv_obj_delete(scene.container);
 }
+
+TEST_CASE_METHOD(XMLTestFixture,
+                 "GridEditMode: drawing the selection chrome leaves layout to the next refresh",
+                 "[grid_edit][grid_edit_redraw]") {
+    GridEditScene scene(test_screen(), "test_grid_edit_redraw_chrome_layout");
+    GridEditMode em;
+    em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+    flush_invalidation();
+    lv_obj_t* screen = lv_obj_get_screen(scene.container);
+    REQUIRE_FALSE(screen->scr_layout_inv);
+
+    // The chrome is placed from coordinates already known; a forced layout
+    // pass here lays out the whole screen (~50 ms on a slow board) on every
+    // selection.
+    em.select_widget(scene.widget);
+    REQUIRE(GridEditModeTestAccess::selection_overlay(em) != nullptr);
+    CHECK(screen->scr_layout_inv);
+
+    em.exit();
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}

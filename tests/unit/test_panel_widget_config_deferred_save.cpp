@@ -182,3 +182,41 @@ TEST_CASE_METHOD(LVGLTestFixture, "PanelWidgetConfig: a destroyed config never f
     process_lvgl(PanelWidgetConfig::SAVE_SETTLE_MS + 200);
     CHECK(stored_col(path) == 0);
 }
+
+TEST_CASE_METHOD(XMLTestFixture, "GridEditMode: every edit asks for a save once edits settle",
+                 "[grid_edit][deferred_save]") {
+    GridEditScene scene(test_screen(), "test_deferred_save_every_edit");
+    GridEditMode em;
+    bool rebuilt = false;
+    em.set_rebuild_callback([&rebuilt]() { rebuilt = true; });
+
+    SECTION("entering syncs a drifted position") {
+        // The entry says column 4; the widget is laid out in column 0.
+        scene.config->page_entries_mut(GridEditScene::PAGE_INDEX)[0].col = 4;
+        em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+        REQUIRE(scene.config->page_entries(GridEditScene::PAGE_INDEX)[0].col == 0);
+        CHECK(scene.config->save_pending());
+    }
+    SECTION("removing a widget") {
+        em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+        scene.config->flush_pending_save();
+        em.select_widget(scene.widget);
+        lv_obj_t* remove = GridEditModeTestAccess::remove_button(em);
+        REQUIRE(remove != nullptr);
+        lv_obj_send_event(remove, LV_EVENT_CLICKED, nullptr);
+        REQUIRE_FALSE(scene.config->is_placed("temperature"));
+        CHECK(scene.config->save_pending());
+    }
+    SECTION("placing a widget from the catalog") {
+        em.enter(scene.container, scene.config, static_cast<int>(GridEditScene::PAGE_INDEX));
+        scene.config->flush_pending_save();
+        GridEditModeTestAccess::place_from_catalog(em, "clock");
+        REQUIRE(scene.config->is_placed("clock"));
+        CHECK(scene.config->save_pending());
+    }
+
+    em.exit();
+    CHECK_FALSE(scene.config->save_pending());
+    process_lvgl(50);
+    lv_obj_delete(scene.container);
+}
