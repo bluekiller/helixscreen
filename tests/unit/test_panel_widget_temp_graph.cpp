@@ -992,13 +992,27 @@ TEST_CASE_METHOD(TempGraphFeatureFixture,
     lv_obj_set_size(container, 400, 300);
     w.attach(container, screen);
     REQUIRE(TempGraphWidgetTestAccess::controller(w) != nullptr);
+    // Attached before its panel shows it (a page off screen, or a rebuild
+    // under an overlay): no samples until on_activate().
+    CHECK(TempGraphWidgetTestAccess::controller(w)->paused());
+
+    w.on_activate();
     CHECK_FALSE(TempGraphWidgetTestAccess::controller(w)->paused());
 
     w.on_deactivate();
     CHECK(TempGraphWidgetTestAccess::controller(w)->paused());
 
-    w.on_activate();
-    CHECK_FALSE(TempGraphWidgetTestAccess::controller(w)->paused());
+    SECTION("a rebuild while shown stays live") {
+        w.on_activate();
+        w.detach();
+        w.attach(container, screen);
+        CHECK_FALSE(TempGraphWidgetTestAccess::controller(w)->paused());
+    }
+    SECTION("a rebuild while hidden stays paused") {
+        w.detach();
+        w.attach(container, screen);
+        CHECK(TempGraphWidgetTestAccess::controller(w)->paused());
+    }
 
     w.detach();
     lv_obj_delete(container);

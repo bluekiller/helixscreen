@@ -113,6 +113,10 @@ void TempGraphWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     applied_visibility_signature_ = current_visibility_signature();
 
     controller_ = std::make_unique<TempGraphController>(widget_obj_, std::move(ctrl_config));
+    // Live only while the panel shows it: attach() also runs on rebuilds under
+    // an overlay and for pages that are not on screen, and on_activate() resumes.
+    if (!active_)
+        controller_->pause();
 
     // Discovery lands after the WebSocket connects, which is later than the
     // startup attach of a dashboard widget. When it adds extruders this config
@@ -175,6 +179,7 @@ void TempGraphWidget::on_size_changed(int colspan, int rowspan, int width_px, in
 }
 
 void TempGraphWidget::on_activate() {
+    active_ = true;
     if (controller_)
         controller_->resume();
 
@@ -192,6 +197,7 @@ void TempGraphWidget::on_activate() {
 // invalidates the chart, and that redraw merges with whatever the overlay is
 // redrawing and drags the panel beneath it into every frame. resume() backfills.
 void TempGraphWidget::on_deactivate() {
+    active_ = false;
     if (controller_)
         controller_->pause();
 }
