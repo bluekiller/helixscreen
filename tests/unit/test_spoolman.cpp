@@ -205,7 +205,6 @@ TEST_CASE("VendorInfo - default initialization", "[filament]") {
     SECTION("All fields default correctly") {
         REQUIRE(vendor.id == 0);
         REQUIRE(vendor.name.empty());
-        REQUIRE(vendor.url.empty());
     }
 }
 
@@ -486,7 +485,6 @@ TEST_CASE("MoonrakerAPIMock - create_spoolman_vendor", "[filament][mock]") {
     SECTION("Creates vendor and returns it") {
         nlohmann::json data;
         data["name"] = "Test Vendor";
-        data["url"] = "https://example.com";
 
         bool callback_called = false;
         api.spoolman().create_spoolman_vendor(
@@ -495,7 +493,6 @@ TEST_CASE("MoonrakerAPIMock - create_spoolman_vendor", "[filament][mock]") {
                 callback_called = true;
                 REQUIRE(vendor.id > 0);
                 REQUIRE(vendor.name == "Test Vendor");
-                REQUIRE(vendor.url == "https://example.com");
             },
             [](const MoonrakerError&) { FAIL("Error callback should not be called"); });
 
@@ -882,32 +879,6 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
         bool success_called = false;
         api.spoolman().delete_spoolman_filament(
             1, [&]() { success_called = true; },
-            [&](const MoonrakerError& err) {
-                error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
-            });
-        CHECK(error_called);
-        CHECK_FALSE(success_called);
-    }
-
-    SECTION("get_spoolman_external_vendors errors, no list delivered") {
-        bool error_called = false;
-        bool success_called = false;
-        api.spoolman().get_spoolman_external_vendors(
-            [&](const std::vector<VendorInfo>&) { success_called = true; },
-            [&](const MoonrakerError& err) {
-                error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
-            });
-        CHECK(error_called);
-        CHECK_FALSE(success_called);
-    }
-
-    SECTION("get_spoolman_external_filaments errors, no list delivered") {
-        bool error_called = false;
-        bool success_called = false;
-        api.spoolman().get_spoolman_external_filaments(
-            "Hatchbox", [&](const std::vector<FilamentInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
                 CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
@@ -2039,4 +2010,37 @@ TEST_CASE("parse_spool_timestamp handles the timestamp shapes Spoolman emits",
     CHECK_FALSE(parse_spool_timestamp("").has_value());
     CHECK_FALSE(parse_spool_timestamp("nope").has_value());
     CHECK_FALSE(parse_spool_timestamp("2026-07-19").has_value()); // date only, too short
+}
+
+TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[spoolman][mock]") {
+    // Spoolman's external routes are /external/filament, /external/filament/search
+    // and /external/material.
+    MoonrakerClientMock client;
+    int code = 0;
+    client.send_jsonrpc(
+        "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/external/vendor"}},
+        [](const nlohmann::json&) { FAIL("Spoolman serves no external vendor list"); },
+        [&](const MoonrakerError& err) { code = err.code; });
+    CHECK(code == 404);
+}
+
+TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[spoolman][mock]") {
+    // Spoolman serves a spool with its whole filament, whichever filament it
+    // was created on.
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    std::vector<FilamentInfo> filaments;
+    api.spoolman().get_spoolman_filaments(
+        [&](const std::vector<FilamentInfo>& f) { filaments = f; }, nullptr);
+    REQUIRE_FALSE(filaments.empty());
+    const FilamentInfo& listed = filaments.front();
+
+    SpoolInfo created;
+    api.spoolman().create_spoolman_spool(
+        {{"filament_id", listed.id}}, [&](const SpoolInfo& s) { created = s; }, nullptr);
+    CHECK(created.material == listed.material);
+    CHECK(created.vendor == listed.vendor_name);
+    CHECK(created.nozzle_temp_recommended == listed.nozzle_temp_max);
 }

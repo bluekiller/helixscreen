@@ -15,6 +15,8 @@
   <translation tag="%d slots" ja="%d スロット"/>
   <translation tag="%d toolheads" ja="%d ツールヘッド"/>
   <translation tag="%d tools" ja="%d ツール"/>
+  <translation tag="%d-%d" ja="%d〜%d"/>
+  <translation tag="%d-%d°C" ja="%d〜%d°C"/>
   <translation tag="%d:%02d left" ja="残り %d:%02d"/>
   <translation tag="%dh" ja="%d時間"/>
   <translation tag="%dh %02dm" ja="%d時間%02d分"/>
@@ -783,7 +785,6 @@
   <translation tag="Danger" ja="危険"/>
   <translation tag="Danger Zone" ja="危険ゾーン"/>
   <translation tag="Dark Mode" ja="ダークモード"/>
-  <translation tag="Database" ja="データベース"/>
   <translation tag="Date (newest)" ja="日付（新しい順）"/>
   <translation tag="Date (oldest)" ja="日付（古い順）"/>
   <translation tag="Day" ja="日"/>
@@ -791,8 +792,8 @@
   <translation tag="Default" ja="デフォルト"/>
   <translation tag="Default Parameters" ja="デフォルトのパラメータ"/>
   <translation tag="Default border thickness" ja="デフォルトの境界線の太さ"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" ja="デフォルト: ノズル %d〜%d°C、ベッド %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" ja="デフォルト: ノズル %d〜%d°C、ベッド %d°C、チャンバー %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" ja="デフォルト: ノズル %s、ベッド %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" ja="デフォルト: ノズル %s、ベッド %d°C、チャンバー %d°C"/>
   <translation tag="Defaults restored" ja="デフォルトを復元しました"/>
   <translation tag="Define macros in your printer.cfg" ja="printer.cfg でマクロを定義してください"/>
   <translation tag="Delete" ja="削除"/>

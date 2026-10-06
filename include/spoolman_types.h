@@ -32,7 +32,6 @@
 struct VendorInfo {
     int id = 0;       ///< Spoolman vendor ID
     std::string name; ///< Vendor name (e.g., "Hatchbox", "Polymaker")
-    std::string url;  ///< Vendor website URL (optional)
 
     /**
      * @brief Get display name for the vendor

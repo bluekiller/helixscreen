@@ -506,10 +506,10 @@ void PIDCalibrationPanel::update_temp_hint() {
         if (mat) {
             char hint[64];
             if (selected_heater_ == Heater::EXTRUDER) {
-                snprintf(hint, sizeof(hint),
-                         "%s: %d-%d\xC2\xB0"
-                         "C range",
-                         selected_material_.c_str(), mat->nozzle_min, mat->nozzle_max);
+                char range[24];
+                helix::ui::temperature::format_temperature_range(mat->nozzle_min, mat->nozzle_max,
+                                                                 range, sizeof(range));
+                snprintf(hint, sizeof(hint), "%s: %s range", selected_material_.c_str(), range);
             } else {
                 snprintf(hint, sizeof(hint),
                          "%s: bed temp %d\xC2\xB0"

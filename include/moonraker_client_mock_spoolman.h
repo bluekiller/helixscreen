@@ -5,6 +5,7 @@
 #include "moonraker_error.h"
 #include "spoolman_types.h"
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -86,6 +87,7 @@ class MockSpoolmanServer {
   private:
     std::vector<SpoolInfo> spools_;
     std::vector<VendorInfo> vendors_;
+    std::map<int, std::string> vendor_comments_;
     std::vector<FilamentInfo> filaments_;
     /// Spools PATCHed to archived=true stay in spools_ (the single-spool GET
     /// still serves them) but are filtered from list GETs, as Spoolman does.

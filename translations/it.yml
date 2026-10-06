@@ -1,5 +1,7 @@
 locale: it
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (tempo scaduto)'
   ' frames': ' fotogrammi'
   ' left': ' rimanente'
@@ -870,7 +872,6 @@ translations:
   Danger: Pericolo
   Danger Zone: Zona pericolosa
   Dark Mode: Modalità scura
-  Database: Database
   Date (newest): Data (più recente)
   Date (oldest): Data (più vecchio)
   Day: Giorno
@@ -878,8 +879,8 @@ translations:
   Default: 'Predefinito'
   Default Parameters: 'Parametri predefiniti'
   Default border thickness: Spessore bordo predefinito
-  'Default: %d-%d°C nozzle, %d°C bed': 'Predefinito: %d-%d°C ugello, %d°C piano'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Predefinito: %d-%d°C ugello, %d°C piano, %d°C camera'
+  'Default: %s nozzle, %d°C bed': 'Predefinito: %s ugello, %d°C piano'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Predefinito: %s ugello, %d°C piano, %d°C camera'
   Defaults restored: Predefiniti ripristinati
   Define macros in your printer.cfg: Definire le macro nel proprio printer.cfg
   Delete: Elimina

@@ -28,16 +28,14 @@ json or_null(int v) {
     return v > 0 ? json(v) : json(nullptr);
 }
 
-json vendor_json(const VendorInfo& v) {
-    json j = {{"id", v.id},
-              {"registered", "2025-01-01T00:00:00Z"},
-              {"name", v.name},
-              {"external_id", nullptr},
-              {"extra", json::object()}};
-    if (!v.url.empty()) {
-        j["url"] = v.url;
-    }
-    return j;
+json vendor_json(const VendorInfo& v, const std::string& comment = "") {
+    return {{"id", v.id},
+            {"registered", "2025-01-01T00:00:00Z"},
+            {"name", v.name},
+            {"comment", or_null(comment)},
+            {"empty_spool_weight", nullptr},
+            {"external_id", nullptr},
+            {"extra", json::object()}};
 }
 
 /// Spoolman keeps one temperature per filament. A range held in the mock's
@@ -65,7 +63,7 @@ json filament_json(const FilamentInfo& f) {
               {"external_id", nullptr},
               {"extra", json::object()}};
     if (f.vendor_id > 0 || !f.vendor_name.empty()) {
-        j["vendor"] = vendor_json(VendorInfo{f.vendor_id, f.vendor_name, ""});
+        j["vendor"] = vendor_json(VendorInfo{f.vendor_id, f.vendor_name});
     } else {
         j["vendor"] = nullptr;
     }
@@ -125,19 +123,6 @@ std::string query_value(const std::string& query, const std::string& key) {
         pos = amp + 1;
     }
     return "";
-}
-
-std::string url_decode(const std::string& s) {
-    std::string out;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '%' && i + 2 < s.size()) {
-            out += static_cast<char>(std::strtol(s.substr(i + 1, 2).c_str(), nullptr, 16));
-            i += 2;
-        } else {
-            out += s[i] == '+' ? ' ' : s[i];
-        }
-    }
-    return out;
 }
 
 } // namespace
@@ -238,7 +223,7 @@ json MockSpoolmanServer::spool_json(const SpoolInfo& s) const {
         {"external_id", nullptr},
         {"extra", json::object()}};
     filament["vendor"] = (!s.vendor.empty() || s.vendor_id > 0)
-                             ? vendor_json(VendorInfo{s.vendor_id, s.vendor, ""})
+                             ? vendor_json(VendorInfo{s.vendor_id, s.vendor})
                              : json(nullptr);
     const double used = std::max(0.0, s.initial_weight_g - s.remaining_weight_g);
     return {{"id", s.id},
@@ -338,13 +323,15 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             str("location", spool->location);
             if (body.contains("filament_id") && body["filament_id"].is_number_integer()) {
                 spool->filament_id = body["filament_id"].get<int>();
-                for (const auto& f : filaments_) {
+                for (const auto& f : filament_list()) {
                     if (f.id == spool->filament_id) {
                         spool->material = f.material;
                         spool->filament_name = f.filament_name;
                         spool->color_hex = f.color_hex;
                         spool->vendor_id = f.vendor_id;
                         spool->vendor = f.vendor_name;
+                        spool->nozzle_temp_recommended = f.nozzle_temp_max;
+                        spool->bed_temp_recommended = f.bed_temp_max;
                         break;
                     }
                 }
@@ -373,13 +360,15 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         spool.spool_weight_g = body.value("spool_weight", 0.0);
         if (body.contains("filament_id") && body["filament_id"].is_number_integer()) {
             spool.filament_id = body["filament_id"].get<int>();
-            for (const auto& f : filaments_) {
+            for (const auto& f : filament_list()) {
                 if (f.id == spool.filament_id) {
                     spool.material = f.material;
                     spool.filament_name = f.filament_name;
                     spool.color_hex = f.color_hex;
                     spool.vendor_id = f.vendor_id;
                     spool.vendor = f.vendor_name;
+                    spool.nozzle_temp_recommended = f.nozzle_temp_max;
+                    spool.bed_temp_recommended = f.bed_temp_max;
                     break;
                 }
             }
@@ -395,7 +384,8 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
     if (method == "GET" && path == "/v1/vendor") {
         result = json::array();
         for (const auto& v : vendor_list()) {
-            result.push_back(vendor_json(v));
+            auto c = vendor_comments_.find(v.id);
+            result.push_back(vendor_json(v, c == vendor_comments_.end() ? "" : c->second));
         }
         return true;
     }
@@ -405,9 +395,12 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         vendor.id = next_created_vendor_id > 0 ? next_created_vendor_id
                                                : static_cast<int>(spools_.size()) + 100;
         vendor.name = body.value("name", "");
-        vendor.url = body.value("url", "");
+        const std::string comment = body.contains("comment") && body["comment"].is_string()
+                                        ? body["comment"].get<std::string>()
+                                        : "";
+        vendor_comments_[vendor.id] = comment;
         vendors_.push_back(vendor);
-        result = vendor_json(vendor);
+        result = vendor_json(vendor, comment);
         return true;
     }
     if (method == "DELETE" && id_after(path, "/v1/vendor/")) {
@@ -527,40 +520,6 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             result = json::object();
             return true;
         }
-    }
-
-    // SpoolmanDB, served by Spoolman under /v1/external.
-    if (method == "GET" && path == "/v1/external/vendor") {
-        result = json::array({
-            {{"id", 1}, {"name", "Hatchbox"}, {"url", "https://www.hatchbox3d.com"}},
-            {{"id", 2}, {"name", "Polymaker"}, {"url", "https://www.polymaker.com"}},
-            {{"id", 3}, {"name", "eSUN"}, {"url", "https://www.esun3d.com"}},
-            {{"id", 4}, {"name", "Prusament"}, {"url", "https://www.prusa3d.com"}},
-        });
-        return true;
-    }
-    if (method == "GET" && path == "/v1/external/filament") {
-        const std::string vendor = url_decode(query_value(query, "vendor_name"));
-        auto external = [&vendor](int id, const char* material, const char* name, const char* hex,
-                                  int nmin, int nmax, int bmin, int bmax) {
-            FilamentInfo f;
-            f.id = id;
-            f.vendor_name = vendor;
-            f.material = material;
-            f.filament_name = name;
-            f.color_hex = hex;
-            f.diameter = 1.75f;
-            f.weight = 1000.0f;
-            f.nozzle_temp_min = nmin;
-            f.nozzle_temp_max = nmax;
-            f.bed_temp_min = bmin;
-            f.bed_temp_max = bmax;
-            return filament_json(f);
-        };
-        result = json::array({external(1, "PLA", "Black", "000000", 190, 220, 50, 60),
-                              external(2, "PLA", "White", "FFFFFF", 190, 220, 50, 60),
-                              external(3, "PETG", "Blue", "0000FF", 220, 250, 70, 80)});
-        return true;
     }
 
     err = spoolman_error(404, "Not Found");
