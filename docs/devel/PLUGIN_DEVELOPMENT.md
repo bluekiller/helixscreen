@@ -473,7 +473,7 @@ approval* instead of loading; enabling it again approves only the new lines.
 
 | Limit | Value | Source |
 |---|---|---|
-| Time per Lua entry | 50 ms of the main thread's CPU time, so a busy machine cannot trip it; once tripped, no depth of `pcall` holds the entry open | `include/lua_runtime.h#LuaRuntime/Limits`, `src/plugin/lua_runtime.cpp#budget_hook` |
+| Time per Lua entry | 50 ms of the main thread's CPU time, so a busy machine cannot trip it, or 1 s in all, which catches a plugin blocked in a synchronous storage write; once tripped, no depth of `pcall` holds the entry open | `include/lua_runtime.h#LuaRuntime/Limits`, `src/plugin/lua_runtime.cpp#budget_hook` |
 | Memory per plugin | the manifest's `memory_mb` (1-64, default 2) | `src/plugin/plugin_host.cpp#load` |
 | Memory, all plugins | min(RAM / 16, 64 MB); a plugin that does not fit stays *over memory budget* | `src/plugin/plugin_host.cpp#plugin_memory_budget` |
 | Errors | the third within 60 s faults the plugin | `src/plugin/lua_runtime.cpp#report_error` |

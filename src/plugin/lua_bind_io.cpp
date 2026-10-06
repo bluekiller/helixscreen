@@ -175,6 +175,8 @@ int storage_set(lua_State* L) {
     if (!helix::text_io::write_file_atomic(path, text))
         return luaL_error(L, "helix.storage.set: cannot write %s", path.c_str());
     storage_of(L) = std::move(next);
+    // The write and its fsyncs block the main thread off-CPU.
+    LuaRuntime::enforce_budget(L);
     return 0;
 }
 

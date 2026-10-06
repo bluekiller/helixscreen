@@ -52,6 +52,11 @@ bool file_exists(const std::string& path) {
 
 const char kLoadedKey = 0; // its address keys the require cache in the registry
 
+std::string budget_reason(const LuaRuntime::Limits& limits) {
+    return "exceeded its time budget (" + std::to_string(limits.time_budget.count()) +
+           " ms of CPU, " + std::to_string(limits.wall_ceiling.count()) + " ms in all)";
+}
+
 std::string memory_cap_reason(size_t cap_bytes) {
     return "out of memory (cap " + std::to_string(cap_bytes / 1024) + " KB)";
 }
@@ -373,6 +378,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     }
     if (depth_ == 0) {
         deadline_ = thread_cpu_time() + limits_.time_budget;
+        wall_deadline_ = Clock::now() + limits_.wall_ceiling;
         killed_ = false;
     }
     bool outer_yielded = yielded_for_async_;
@@ -390,7 +396,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     if (depth_ == 0 && killed_) {
         lua_pop(co, nres);
         drop(co);
-        fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
+        fault(budget_reason(limits_));
         return false;
     }
     if (status == LUA_OK) {
@@ -417,7 +423,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
     }
     drop(co);
     if (killed_)
-        fault("exceeded its " + std::to_string(limits_.time_budget.count()) + " ms time budget");
+        fault(budget_reason(limits_));
     else if (status == LUA_ERRMEM)
         fault(memory_cap_reason(limits_.memory_bytes));
     else
@@ -451,8 +457,14 @@ void LuaRuntime::fault(const std::string& reason) {
 }
 
 void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
+    enforce_budget(L);
+}
+
+void LuaRuntime::enforce_budget(lua_State* L) {
     auto& rt = from(L);
-    if (!rt.killed_ && thread_cpu_time() < rt.deadline_)
+    if (rt.depth_ == 0) // no entry is running, so no budget applies
+        return;
+    if (!rt.killed_ && thread_cpu_time() < rt.deadline_ && Clock::now() < rt.wall_deadline_)
         return;
     rt.killed_ = true;
     // Firing on every instruction means each instruction outside the innermost pcall raises

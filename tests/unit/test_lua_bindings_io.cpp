@@ -126,6 +126,17 @@ TEST_CASE_METHOD(LVGLTestFixture, "storage persists across runtimes", "[plugin][
     CHECK(b.t.global("g") == "nil");
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "a storage write past the wall ceiling faults the plugin",
+                 "[plugin][bindings][io][lua_budget]") {
+    TempDir dir;
+    LuaRuntime::Limits limits;
+    limits.wall_ceiling = std::chrono::milliseconds(0);
+    BoundRuntime b({&install_io_bindings}, {Permission::Storage}, {}, dir.file("s.json"), limits);
+    CHECK_FALSE(b.t.run(R"(helix.storage.set("k", 1))"));
+    CHECK(b.t.rt->faulted());
+    CHECK(b.t.fault.find("time budget") != std::string::npos);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "storage refuses to grow past 256 KB", "[plugin][bindings][io]") {
     TempDir dir;
     BoundRuntime b({&install_io_bindings}, {Permission::Storage}, {}, dir.file("s.json"));

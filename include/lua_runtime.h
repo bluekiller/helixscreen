@@ -47,7 +47,10 @@ class LuaRuntime {
 
     struct Limits {
         size_t memory_bytes = 2 * 1024 * 1024;
-        std::chrono::milliseconds time_budget{50};
+        std::chrono::milliseconds time_budget{50}; ///< main-thread CPU time per entry
+        /// Wall time per entry. Far above time_budget, so preemption alone never reaches
+        /// it; it stops a plugin blocked off-CPU, which time_budget cannot see.
+        std::chrono::milliseconds wall_ceiling{1000};
     };
 
     /// Called once, when the runtime faults. The runtime refuses further entries; the owner
@@ -140,6 +143,11 @@ class LuaRuntime {
     /// Work that runs before lua_close, in reverse order of registration.
     void on_close(std::function<void()> fn);
 
+    /// Raises a Lua error once the running entry is over its budget; returns otherwise.
+    /// The count hook sees only Lua instructions, so a binding that blocks the main
+    /// thread calls this after the blocking work.
+    static void enforce_budget(lua_State* L);
+
     /// Logs a plugin error; the third within 60 s faults the plugin.
     void report_error(const std::string& message);
 
@@ -169,6 +177,7 @@ class LuaRuntime {
     int depth_ = 0;     ///< active entries; the memory cap applies only while > 0
     int host_work_ = 0; ///< host-side bookkeeping in progress; the cap is not enforced on it
     std::chrono::nanoseconds deadline_{}; ///< in thread CPU time; see thread_cpu_time()
+    Clock::time_point wall_deadline_{};
     bool yielded_for_async_ = false;
     bool killed_ = false;
     bool faulted_ = false;
