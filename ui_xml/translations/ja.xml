@@ -2881,6 +2881,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." ja="ヒーター制御をMPCに切り替えます。Klipperが再起動します。"/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." ja="MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。"/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." ja="MPCへの切り替えには設定変更とKlipperの再起動が必要です。"/>
+  <translation tag="Switching to {}" ja="{}に切り替えています"/>
   <translation tag="Sync during printing" ja="印刷中に同期"/>
   <translation tag="Sync with Spoolman" ja="Spoolman と同期"/>
   <translation tag="Sysfs" ja="Sysfs"/>

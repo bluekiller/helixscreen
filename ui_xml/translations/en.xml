@@ -2881,6 +2881,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." en="Switching heater control to MPC. Klipper will restart."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." en="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." en="Switching to MPC requires a config change and Klipper restart."/>
+  <translation tag="Switching to {}" en="Switching to {}"/>
   <translation tag="Sync during printing" en="Sync during printing"/>
   <translation tag="Sync with Spoolman" en="Sync with Spoolman"/>
   <translation tag="Sysfs" en="Sysfs"/>

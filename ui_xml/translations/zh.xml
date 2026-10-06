@@ -2881,6 +2881,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." zh="正在将加热控制切换为 MPC。Klipper 将重启。"/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." zh="切换到 MPC 会改变此加热器的控制方式，随后会进行校准。这需要在工作温度下耗时数分钟。"/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." zh="切换到 MPC 需要修改配置并重启 Klipper。"/>
+  <translation tag="Switching to {}" zh="正在切换到 {}"/>
   <translation tag="Sync during printing" zh="打印期间同步"/>
   <translation tag="Sync with Spoolman" zh="与 Spoolman 同步"/>
   <translation tag="Sysfs" zh="Sysfs"/>

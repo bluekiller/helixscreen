@@ -35,6 +35,7 @@
 #include "ui_ams_mini_status.h"
 #include "ui_bed_mesh.h"
 #include "ui_card.h"
+#include "ui_change_host_modal.h"
 #include "ui_component_header_bar.h"
 #include "ui_dialog.h"
 #include "ui_emergency_stop.h"
@@ -64,6 +65,7 @@
 #include "data_root_resolver.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "filament_sensor_manager.h"
 #include "freertos/FreeRTOS.h"
@@ -79,6 +81,7 @@
 #include "pending_startup_warnings.h"
 #include "printer_discovery.h" // helix::PrinterDiscovery + init_subsystems (discovery callback args)
 #include "printer_fan_state.h" // helix::FanRoleConfig for the non-mock fan-role resolve
+#include "printer_name_sync.h"
 #include "printer_state.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
@@ -209,6 +212,45 @@ void register_widgets() {
     ui_component_header_bar_init();
 }
 
+// Makes `printer_id` the active printer and restarts onto it: boot connects to the active
+// printer's host, so a restart is a complete switch, with every heap back at its boot state.
+// The label is the only feedback; it is drawn synchronously because nothing runs after.
+void restart_into_printer(const std::string& printer_id) {
+    helix::Config* config = helix::Config::get_instance();
+    if (!config->set_active_printer(printer_id)) {
+        spdlog::error("app_boot: cannot switch to unknown printer '{}'", printer_id);
+        return;
+    }
+    config->save();
+
+    lv_obj_t* label = lv_label_create(lv_layer_top());
+    const std::string text =
+        fmt::format(fmt::runtime(lv_tr("Switching to {}")), config->get_active_printer_name());
+    lv_label_set_text(label, text.c_str());
+    lv_obj_center(label);
+    lv_refr_now(nullptr);
+
+    ESP_LOGI(TAG, "app_boot: restarting into printer '%s'", printer_id.c_str());
+    esp_restart();
+}
+
+void wire_printer_callbacks() {
+    NavigationManager::instance().set_printer_callbacks(
+        [](const std::string& printer_id) {
+            if (printer_id != helix::Config::get_instance()->get_active_printer_id()) {
+                restart_into_printer(printer_id);
+            }
+        },
+        [] {
+            helix::ui::show_add_printer_modal([](const std::string& host, int port) {
+                helix::Config* config = helix::Config::get_instance();
+                const std::string id = config->next_printer_id();
+                config->add_printer(id, {{"moonraker_host", host}, {"moonraker_port", port}});
+                restart_into_printer(id);
+            });
+        });
+}
+
 // Build the app shell: app_layout.xml instantiates the navbar and all six
 // panels resident-and-hidden (the desktop memory model), then PanelFactory
 // finds + wires them. Mirrors Application::init_ui() (application.cpp:1721).
@@ -232,6 +274,7 @@ bool build_shell() {
         return false;
     }
     NavigationManager::instance().wire_events(navbar);
+    wire_printer_callbacks();
 
     lv_obj_t* panel_container = lv_obj_find_by_name(content_area, "panel_container");
     if (!panel_container) {
@@ -478,6 +521,8 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 }
                 helix::ToolState::instance().init_tools(*snapshot);
                 helix::ToolState::instance().load_spool_assignments(api);
+                // Names a printer added from the K-Touch after its Mainsail/Fluidd name.
+                helix::PrinterNameSync::resolve(api, snapshot->hostname());
                 if (c) {
                     // Graphs start from Moonraker's cached history, as on desktop.
                     helix::TempGraphController::seed_from_moonraker(*c);

@@ -3206,6 +3206,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Cambiar a MPC cambia cómo se controla este calentador y luego lo calibra. Eso tarda varios minutos a temperatura.
   Switching to MPC requires a config change and Klipper restart.: Cambiar a MPC requiere
     modificar la configuración y reiniciar Klipper.
+  Switching to {}: Cambiando a {}
   Sync during printing: Sincronizar durante la impresión
   Sync with Spoolman: Sincronizar con Spoolman
   Sysfs: Sysfs
