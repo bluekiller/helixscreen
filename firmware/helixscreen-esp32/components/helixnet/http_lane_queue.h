@@ -55,6 +55,15 @@ inline constexpr size_t next_buffer_bytes(size_t current, size_t cap) {
     return current >= cap / 2 ? cap : current * 2;
 }
 
+// What std::string::reserve(@p bytes) allocates from @p capacity: libstdc++
+// grows to at least twice the old capacity, so 128 KB -> 200 KB takes 256 KB.
+inline constexpr size_t reserve_allocation_bytes(size_t capacity, size_t bytes, size_t max_size) {
+    if (bytes > capacity && bytes < 2 * capacity) {
+        return 2 * capacity < max_size ? 2 * capacity : max_size;
+    }
+    return bytes;
+}
+
 // std::string::reserve() without the abort. The firmware builds
 // -fno-exceptions, so a failed std::string allocation calls abort(); malloc
 // returns null instead, so it probes first. Returns false, leaving @p s
@@ -68,7 +77,7 @@ inline bool try_reserve(std::string& s, size_t bytes) {
     if (bytes > s.max_size()) {
         return false;
     }
-    void* probe = std::malloc(bytes + 1);
+    void* probe = std::malloc(reserve_allocation_bytes(s.capacity(), bytes, s.max_size()) + 1);
     if (!probe) {
         return false;
     }

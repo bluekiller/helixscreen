@@ -859,10 +859,10 @@ class PrintSelectPanel : public PanelBase {
     std::deque<PendingEspThumbnail> esp_thumbnail_backlog_;
     int esp_thumbnails_in_flight_ = 0;
 
-    /// Start one card thumbnail fetch. False when the lane refused it before
-    /// returning (queue full); nothing was started.
-    bool fetch_esp_thumbnail(size_t index, const std::string& filename,
-                             const std::string& thumb_path);
+    /// How a card thumbnail fetch left the lane. Only QueueFull is retried.
+    enum class EspThumbnailFetch { Started, QueueFull, Failed };
+    EspThumbnailFetch fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                          const std::string& thumb_path);
     /// Queue a refused fetch behind this panel's in-flight ones, or, with none in
     /// flight, leave the file for the next visible-range metadata pass.
     void defer_esp_thumbnail(PendingEspThumbnail pending, bool front);

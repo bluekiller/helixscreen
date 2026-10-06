@@ -1509,7 +1509,8 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                         });
 #else
                     // ESP32: no disk thumbnail cache; see fetch_esp_thumbnail().
-                    if (!self->fetch_esp_thumbnail(d->index, d->filename, d->thumb_path)) {
+                    if (self->fetch_esp_thumbnail(d->index, d->filename, d->thumb_path) ==
+                        PrintSelectPanel::EspThumbnailFetch::QueueFull) {
                         self->defer_esp_thumbnail({d->index, d->filename, d->thumb_path},
                                                   /*front=*/false);
                     }
@@ -3633,12 +3634,15 @@ void PrintSelectPanel::on_usb_drive_removed() {
 // the HTTP lane into a PSRAM-backed lv_image_dsc_t (see esp_psram_thumbnail.h).
 // The lane calls back on its own worker thread: the callbacks only build the
 // image there and defer every member touch to the main thread.
-bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
-                                           const std::string& thumb_path) {
+PrintSelectPanel::EspThumbnailFetch
+PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
+                                      const std::string& thumb_path) {
     constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
-    // The lane reports a full queue by calling on_error before it returns.
+    // An error reported before download_file_partial() returns means nothing
+    // was started: either the lane's queue was full, or the request was invalid.
     auto submitting = std::make_shared<std::atomic<bool>>(true);
     auto refused = std::make_shared<std::atomic<bool>>(false);
+    auto rejected = std::make_shared<std::atomic<bool>>(false);
     auto tok = object_lifetime_.token();
     spdlog::debug("[{}] Fetching PSRAM thumbnail for {}: {}", get_name(), filename, thumb_path);
 
@@ -3660,9 +3664,15 @@ bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& file
                           drain_esp_thumbnail_backlog();
                       });
         },
-        [this, tok, filename, submitting, refused](const MoonrakerError& error) {
+        [this, tok, filename, submitting, refused, rejected](const MoonrakerError& error) {
             if (submitting->load()) {
-                refused->store(true);
+                if (error.type == MoonrakerErrorType::QUEUE_FULL) {
+                    refused->store(true);
+                } else {
+                    rejected->store(true);
+                    spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}",
+                                  filename, error.message);
+                }
                 return;
             }
             spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}", filename,
@@ -3674,10 +3684,13 @@ bool PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& file
         });
     submitting->store(false);
     if (refused->load()) {
-        return false;
+        return EspThumbnailFetch::QueueFull;
+    }
+    if (rejected->load()) {
+        return EspThumbnailFetch::Failed;
     }
     ++esp_thumbnails_in_flight_;
-    return true;
+    return EspThumbnailFetch::Started;
 }
 
 void PrintSelectPanel::defer_esp_thumbnail(PendingEspThumbnail pending, bool front) {
@@ -3703,9 +3716,18 @@ void PrintSelectPanel::drain_esp_thumbnail_backlog() {
         PendingEspThumbnail next = std::move(esp_thumbnail_backlog_.front());
         esp_thumbnail_backlog_.pop_front();
         if (next.index >= file_list_.size() || file_list_[next.index].filename != next.filename) {
-            continue; // the list changed under it
+            // A refresh re-sorted the list: follow the file, not its old slot.
+            auto it =
+                std::find_if(file_list_.begin(), file_list_.end(), [&next](const PrintFileData& f) {
+                    return f.filename == next.filename;
+                });
+            if (it == file_list_.end()) {
+                continue; // the file is gone
+            }
+            next.index = static_cast<size_t>(it - file_list_.begin());
         }
-        if (!fetch_esp_thumbnail(next.index, next.filename, next.thumb_path)) {
+        if (fetch_esp_thumbnail(next.index, next.filename, next.thumb_path) ==
+            EspThumbnailFetch::QueueFull) {
             defer_esp_thumbnail(std::move(next), /*front=*/true);
             return;
         }
