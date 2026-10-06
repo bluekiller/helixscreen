@@ -170,3 +170,17 @@ TEST_CASE("reserve_allocation_bytes predicts what reserve() really allocates",
     CHECK(predicted == s.capacity());
     CHECK(predicted > 200 * 1024);
 }
+
+TEST_CASE("try_reserve on a vector fails cleanly and leaves it untouched",
+          "[esp32][http][lane_buffer][oom]") {
+    std::vector<int> v{1, 2, 3};
+    const size_t cap = v.capacity();
+    helix::try_reserve_fails_for_test().store(true);
+    CHECK_FALSE(helix::try_reserve(v, 1000));
+    helix::try_reserve_fails_for_test().store(false);
+    CHECK(v.capacity() == cap);
+    CHECK(v.size() == 3);
+
+    REQUIRE(helix::try_reserve(v, 1000));
+    CHECK(v.capacity() >= 1000);
+}

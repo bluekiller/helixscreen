@@ -26,6 +26,7 @@
 #include "moonraker_types.h"
 #include "print_file_data.h"
 #include "printer_state.h"
+#include "try_reserve.h"
 
 #include <algorithm>
 #include <memory>
@@ -168,4 +169,28 @@ TEST_CASE_METHOD(FileProviderGenFixture,
 
     cap->success_cbs[0](one_file("only.gcode"));
     REQUIRE(std::find(delivered.begin(), delivered.end(), "only.gcode") != delivered.end());
+}
+
+TEST_CASE_METHOD(FileProviderGenFixture,
+                 "FileProvider keeps the shown list when the new one cannot be allocated",
+                 "[fileprovider][print_select][oom]") {
+    REQUIRE(provider_.is_ready());
+
+    int ready_calls = 0;
+    std::string error;
+    provider_.set_on_files_ready([&ready_calls](std::vector<PrintFileData>&&) { ++ready_calls; });
+    provider_.set_on_error([&error](const std::string& e) { error = e; });
+
+    provider_.refresh_files("");
+    auto* cap = api_->capturing;
+    REQUIRE(cap->success_cbs.size() == 1);
+
+    // PSRAM too fragmented for the list: the build fails instead of aborting,
+    // and nothing replaces the list the panel is showing.
+    helix::try_reserve_fails_for_test().store(true);
+    cap->success_cbs[0](one_file("big.gcode"));
+    helix::try_reserve_fails_for_test().store(false);
+
+    CHECK(ready_calls == 0);
+    CHECK_FALSE(error.empty());
 }
