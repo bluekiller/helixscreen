@@ -56,9 +56,11 @@ capture_logs() {
     export -f log_warn log_info
 }
 
-# The kill list of the single `for proc in ...` loop in $1.
+# The K1 kill list in $1: the hook's `for proc in ...` literal, or the list the
+# installer names once as K1_STOCK_UI_PROCS.
 extract_kill_list() {
-    grep -m1 'for proc in ' "$1" | sed 's/.*for proc in //; s/; do.*//; s/ *\\$//'
+    grep -m1 -e 'for proc in ' -e '^K1_STOCK_UI_PROCS=' "$1" \
+        | sed 's/.*for proc in //; s/; do.*//; s/ *\\$//; s/^K1_STOCK_UI_PROCS="//; s/"$//'
 }
 
 # Write an executable stock S99start_app into the mock root.
