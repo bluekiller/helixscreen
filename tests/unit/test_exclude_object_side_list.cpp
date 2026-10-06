@@ -52,7 +52,8 @@ bool shows_text(lv_obj_t* row, const char* text) {
     const uint32_t n = lv_obj_get_child_count(row);
     for (uint32_t i = 0; i < n; ++i) {
         lv_obj_t* child = lv_obj_get_child(row, static_cast<int32_t>(i));
-        if (lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN) ||
+            lv_obj_get_style_opa(child, LV_PART_MAIN) == LV_OPA_TRANSP) {
             continue;
         }
         if (lv_obj_check_type(child, &lv_label_class)) {
@@ -154,34 +155,78 @@ TEST_CASE_METHOD(SideListFixture, "Side list rebuilds its rows when the defined 
     }
 }
 
-TEST_CASE_METHOD(SideListFixture, "Side list rows keep their height as the printing object moves",
-                 "[exclude_side_list]") {
-    REQUIRE(container != nullptr);
-    // Whatever the name length, showing "Printing now" must not reflow the
-    // name: sweep lengths across the point where a name stops fitting beside
-    // a status, since that is where a row would grow.
+namespace {
+/// Whatever the name length, a status appearing must not reflow the name:
+/// sweep lengths across the point where a name stops fitting beside a status,
+/// since that is where a row would grow.
+void check_row_heights_hold(SideListFixture& f) {
     for (int len = 4; len <= 64; len += 2) {
         const std::string name = "Part_" + std::string(static_cast<size_t>(len), 'm');
         INFO("name length " << name.size());
-        objects().set_defined_objects({name, "obj_1"});
-        objects().set_current_object("");
-        settle();
-        auto rows = rows_of(container);
+        f.objects().set_defined_objects({name, "obj_1"});
+        f.objects().set_current_object("");
+        f.settle();
+        auto rows = rows_of(f.container);
         REQUIRE(rows.size() == 2);
-        lv_obj_update_layout(container);
+        lv_obj_update_layout(f.container);
         const int32_t idle_h = lv_obj_get_height(rows[0]);
 
-        objects().set_current_object(name);
-        settle();
-        lv_obj_update_layout(container);
+        f.objects().set_current_object(name);
+        f.settle();
+        lv_obj_update_layout(f.container);
         CHECK(lv_obj_get_height(rows[0]) == idle_h);
 
-        objects().set_excluded_objects({name});
-        settle();
-        lv_obj_update_layout(container);
+        f.objects().set_excluded_objects({name});
+        f.settle();
+        lv_obj_update_layout(f.container);
         CHECK(lv_obj_get_height(rows[0]) == idle_h);
-        objects().set_excluded_objects({});
+        f.objects().set_excluded_objects({});
     }
+}
+} // namespace
+
+TEST_CASE_METHOD(SideListFixture, "Side list rows keep their height as the printing object moves",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    check_row_heights_hold(*this);
+}
+
+TEST_CASE_METHOD(SideListFixture,
+                 "Portrait side list rows keep their height and put the status beside the name",
+                 "[exclude_side_list]") {
+    lv_subject_t* portrait = lv_xml_get_subject(nullptr, "ui_is_portrait");
+    REQUIRE(portrait != nullptr);
+    const int was = lv_subject_get_int(portrait);
+    lv_subject_set_int(portrait, 1);
+    list.destroy();
+    settle();
+    list.create(test_screen(), &state(), &manager, exclude_side_list_geometry(true));
+    settle();
+    container = lv_obj_find_by_name(list.root(), "rows_container");
+    REQUIRE(container != nullptr);
+
+    check_row_heights_hold(*this);
+
+    // Side by side: the status slot sits right of the name, on the same line.
+    objects().set_defined_objects({"Cube_id_1_copy_0", "obj_1"});
+    objects().set_current_object("Cube_id_1_copy_0");
+    settle();
+    lv_obj_t* row = rows_of(container)[0];
+    lv_obj_update_layout(row);
+    lv_obj_t* name = lv_obj_find_by_name(row, "object_name");
+    lv_obj_t* status = lv_obj_find_by_name(row, "status_printing");
+    REQUIRE(name != nullptr);
+    REQUIRE(status != nullptr);
+    lv_area_t na, sa;
+    lv_obj_get_coords(name, &na);
+    lv_obj_get_coords(status, &sa);
+    CHECK(sa.x1 > na.x2);                                      // right of the name
+    CHECK(lv_area_get_width(&na) > lv_obj_get_width(row) / 2); // the name keeps most of the row
+    const int32_t status_mid = (sa.y1 + sa.y2) / 2;
+    CHECK(status_mid >= na.y1); // level with the name, not below it
+    CHECK(status_mid <= na.y2);
+
+    lv_subject_set_int(portrait, was);
 }
 
 namespace {

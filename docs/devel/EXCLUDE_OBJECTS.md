@@ -202,11 +202,15 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 `ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by `PrintStatusPanel`. Each row shows:
 
 - **Numbered chip**: the object's number and colour from `compute_object_badges()` (below), so it matches the badge on the map and the render
-- **Object name**, with the full row width
-- **Status line** under the name ("Printing now", "Excluded", or blank); excluded rows are dimmed
+- **Object name**
+- **Status** ("Printing now", "Excluded", or blank); excluded rows are dimmed
 
-The status line keeps its height when blank, so a row's height depends on its name alone and
-never changes as the printing object moves.
+One component arranges these by orientation through `ui_is_portrait`. In landscape, where
+the list is a narrow column, the status sits on its own line under the full-width name. In
+portrait, where the list spans the screen, it sits in a slot right of the name. Both status
+strings are always present but invisible inside that area, so it keeps its height when blank
+and, in portrait, is as wide as the longer string in the active language. A row's height
+therefore never changes as the printing object moves.
 
 ### Behavior
 
