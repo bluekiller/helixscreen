@@ -3,10 +3,12 @@
 
 #include "ui_card.h"
 
+#include "helix-xml/src/xml/lv_xml.h"
 #include "helix-xml/src/xml/lv_xml_parser.h"
 #include "helix-xml/src/xml/lv_xml_widget.h"
 #include "helix-xml/src/xml/parsers/lv_xml_obj_parser.h"
 #include "lvgl/lvgl.h"
+#include "platform_capabilities.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -38,14 +40,17 @@ static void* ui_card_xml_create(lv_xml_parser_state_t* state, const char** attrs
     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 
     // Pressed state: scale-down for touch feedback (avoids per-frame opacity blending).
-    // The ESP32 software renderer draws a scaled card through a TRANSFORM layer:
-    // the press frame of a file card costs ~115ms there against ~27ms unscaled.
-#ifndef ESP_PLATFORM
-    lv_obj_set_style_transform_scale_x(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED); // 96%
-    lv_obj_set_style_transform_scale_y(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_transform_pivot_x(obj, LV_PCT(50), LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_transform_pivot_y(obj, LV_PCT(50), LV_PART_MAIN | LV_STATE_PRESSED);
-#endif
+    // A scaled card renders through a TRANSFORM layer, which the limited tiers
+    // cannot afford: a file card's press frame costs ~115ms on the K-Touch against
+    // ~27ms unscaled. The tier is seeded once at startup, so reading it at create
+    // time is as current as a binding.
+    lv_subject_t* tier = lv_xml_get_subject(nullptr, "platform_tier");
+    if (!tier || lv_subject_get_int(tier) >= static_cast<int>(helix::PlatformTier::STANDARD)) {
+        lv_obj_set_style_transform_scale_x(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED); // 96%
+        lv_obj_set_style_transform_scale_y(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_transform_pivot_x(obj, LV_PCT(50), LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_transform_pivot_y(obj, LV_PCT(50), LV_PART_MAIN | LV_STATE_PRESSED);
+    }
 
     // Disabled state: 50% opacity for visual feedback
     lv_obj_set_style_opa(obj, LV_OPA_50, LV_PART_MAIN | LV_STATE_DISABLED);
