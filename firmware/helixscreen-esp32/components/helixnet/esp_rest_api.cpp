@@ -171,9 +171,9 @@ void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
 
     bool queued = helix::http::EspHttpLane::instance().submit_get(
         url, max_bytes,
-        [on_success](const uint8_t* data, size_t size) {
+        [on_success](std::string& body) {
             if (on_success) {
-                on_success(std::string(reinterpret_cast<const char*>(data), size));
+                on_success(body);
             }
         },
         [on_error](const std::string& message) {
@@ -211,8 +211,8 @@ void MoonrakerFileTransferAPI::download_file(const std::string& root, const std:
     std::string url = http_base_url_ + "/server/files/" + root + "/" + esp_url_escape_path(path);
     bool queued = helix::http::EspHttpLane::instance().submit_get(
         url, WHOLE_FILE_CAP_BYTES + 1,
-        [on_success, on_error](const uint8_t* data, size_t size) {
-            if (size > WHOLE_FILE_CAP_BYTES) {
+        [on_success, on_error](std::string& body) {
+            if (body.size() > WHOLE_FILE_CAP_BYTES) {
                 moonraker_internal::report_error(
                     on_error, MoonrakerErrorType::UNKNOWN, "download_file",
                     "file exceeds the " + std::to_string(WHOLE_FILE_CAP_BYTES) +
@@ -220,7 +220,7 @@ void MoonrakerFileTransferAPI::download_file(const std::string& root, const std:
                 return;
             }
             if (on_success) {
-                on_success(std::string(reinterpret_cast<const char*>(data), size));
+                on_success(body);
             }
         },
         [on_error](const std::string& message) {
@@ -318,17 +318,15 @@ void MoonrakerRestAPI::call_rest_get(const std::string& endpoint, RestCallback o
 
     bool queued = helix::http::EspHttpLane::instance().submit_get(
         url, REST_GET_CAP_BYTES,
-        [on_complete](const uint8_t* data, size_t size) {
+        [on_complete](std::string& body) {
             RestResponse resp;
             resp.success = true;
             resp.status_code = 200; // the lane only succeeds on HTTP 200/206
-            if (size > 0) {
-                resp.data = nlohmann::json::parse(reinterpret_cast<const char*>(data),
-                                                  reinterpret_cast<const char*>(data) + size,
-                                                  nullptr, false);
+            if (!body.empty()) {
+                resp.data = nlohmann::json::parse(body, nullptr, false);
                 if (resp.data.is_discarded()) {
                     resp.data = nlohmann::json::object();
-                    resp.data["_raw_body"] = std::string(reinterpret_cast<const char*>(data), size);
+                    resp.data["_raw_body"] = std::move(body);
                 }
             }
             if (on_complete) {
