@@ -270,7 +270,18 @@ class DebugBundleCollector {
     /// Collect Moonraker state via REST (server info, printer state, config).
     /// The snapshot carries which mains-monitor objects the printer-state
     /// query should also fetch.
-    static nlohmann::json collect_moonraker_info(const PrinterSnapshot& snap);
+    static nlohmann::json collect_moonraker_info(const PrinterSnapshot& snap,
+                                                 const nlohmann::json& object_list);
+
+    /// The klipper_status section: the triage objects in `object_list`,
+    /// queried and bounded. A non-array `object_list` is the error from
+    /// fetch_object_list() and is returned as the section.
+    static nlohmann::json collect_klipper_status(const std::string& base_url,
+                                                 const nlohmann::json& object_list);
+
+    /// printer.objects.list as an array, or an {"error"} object when Moonraker
+    /// cannot answer.
+    static nlohmann::json fetch_object_list(const std::string& base_url);
 
     /// The /printer/objects/query path for the printer-state section: the core
     /// object list plus any firmware mains monitors. Pure and static so the
@@ -289,7 +300,7 @@ class DebugBundleCollector {
     static nlohmann::json collect_moonraker_local_probe();
 
     /// Collect filament system data (AFC, Happy Hare, ACE, Spoolman, tool changers)
-    static nlohmann::json collect_filament_system_info();
+    static nlohmann::json collect_filament_system_info(const nlohmann::json& object_list);
 
     /// The Moonraker DB namespaces holding per-lane filament overrides, which
     /// are what decide the colour, material and Spoolman link the user actually
@@ -495,9 +506,6 @@ class DebugBundleCollector {
     /// Blocking HTTP GET to a Moonraker endpoint, returns parsed JSON or error object
     static nlohmann::json moonraker_get(const std::string& base_url, const std::string& endpoint,
                                         int timeout_sec = 10);
-
-    /// printer.objects.list as an array; empty when Moonraker cannot answer.
-    static nlohmann::json fetch_object_list(const std::string& base_url);
 
     /// Query `names` and return the response with its status bounded and sanitized.
     static nlohmann::json query_objects_bounded(const std::string& base_url,

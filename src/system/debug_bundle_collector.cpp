@@ -204,8 +204,11 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
         bundle["settings"] = json{{"error", e.what()}};
     }
 
+    // Read once: the moonraker and filament_system sections both select from it.
+    const json object_list = fetch_object_list(get_moonraker_url());
+
     try {
-        bundle["moonraker"] = collect_moonraker_info(options.printer);
+        bundle["moonraker"] = collect_moonraker_info(options.printer, object_list);
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect moonraker info: {}", e.what());
         bundle["moonraker"] = json{{"error", e.what()}};
@@ -221,7 +224,7 @@ json DebugBundleCollector::collect(const BundleOptions& options) {
     }
 
     try {
-        bundle["filament_system"] = collect_filament_system_info();
+        bundle["filament_system"] = collect_filament_system_info(object_list);
     } catch (const std::exception& e) {
         spdlog::warn("[DebugBundle] Failed to collect filament system info: {}", e.what());
         bundle["filament_system"] = json{{"error", e.what()}};
@@ -756,6 +759,11 @@ bool DebugBundleCollector::is_sensitive_key(const std::string& key) {
         "token",      "password", "secret",        "key",          "webhook",
         "credential", "auth",     "serial_number", "serialnumber", "bearer"};
 
+    // Klipper's `webhooks` object is klippy state and state_message, not a
+    // notification URL; webhook URLs are caught by value in sanitize_value().
+    if (lower_key == "webhooks")
+        return false;
+
     for (const auto& pattern : sensitive_patterns) {
         if (lower_key.find(pattern) != std::string::npos) {
             return true;
@@ -787,7 +795,10 @@ std::string DebugBundleCollector::sanitize_value(const std::string& value) {
         // Check for long token-like strings (40+ chars of hex/base64/alphanum with prefix)
         static const helix::Regex token_re(
             R"(^(?:ghp_|gho_|glpat-|xoxb-|xoxp-)?[A-Za-z0-9+/=_-]{36,}$)");
-        if (helix::regex_match(value, token_re)) {
+        // A lowercase 40-hex string is a git SHA-1 (update_manager hashes),
+        // which identifies a public commit, not a secret.
+        static const helix::Regex git_sha_re(R"(^[0-9a-f]{40}$)");
+        if (!helix::regex_match(value, git_sha_re) && helix::regex_match(value, token_re)) {
             return "[REDACTED_TOKEN]";
         }
 
@@ -999,7 +1010,8 @@ DebugBundleCollector::printer_objects_query(const std::vector<std::string>& extr
     return query;
 }
 
-json DebugBundleCollector::collect_moonraker_info(const PrinterSnapshot& snap) {
+json DebugBundleCollector::collect_moonraker_info(const PrinterSnapshot& snap,
+                                                  const json& object_list) {
     json mr;
     std::string base_url = get_moonraker_url();
 
@@ -1052,12 +1064,10 @@ json DebugBundleCollector::collect_moonraker_info(const PrinterSnapshot& snap) {
         mr["printer_state"] = json{{"error", e.what()}};
     }
 
-    // Everything else cheap that triage keeps asking for, chosen from what
-    // this printer actually publishes: naming an object Klipper lacks fails
-    // the whole query.
+    // Everything else cheap that triage keeps asking for, limited to what this
+    // printer publishes so the query names no object it would answer empty.
     try {
-        mr["klipper_status"] =
-            query_objects_bounded(base_url, filter_triage_objects(fetch_object_list(base_url)));
+        mr["klipper_status"] = collect_klipper_status(base_url, object_list);
     } catch (const std::exception& e) {
         spdlog::debug("[DebugBundle] klipper_status collection failed: {}", e.what());
         mr["klipper_status"] = json{{"error", e.what()}};
@@ -1285,7 +1295,14 @@ json DebugBundleCollector::fetch_object_list(const std::string& base_url) {
         resp["result"]["objects"].is_array()) {
         return resp["result"]["objects"];
     }
-    return json::array();
+    return resp.contains("error") ? resp : json{{"error", "No objects in /printer/objects/list"}};
+}
+
+json DebugBundleCollector::collect_klipper_status(const std::string& base_url,
+                                                  const json& object_list) {
+    if (!object_list.is_array())
+        return object_list;
+    return query_objects_bounded(base_url, filter_triage_objects(object_list));
 }
 
 json DebugBundleCollector::query_objects_bounded(const std::string& base_url, const json& names) {
@@ -1327,7 +1344,7 @@ json DebugBundleCollector::extract_gcode_macro_names(const json& object_list) {
     return result;
 }
 
-json DebugBundleCollector::collect_filament_system_info() {
+json DebugBundleCollector::collect_filament_system_info(const json& object_list) {
     json fs;
     std::string base_url = get_moonraker_url();
 
@@ -1349,10 +1366,9 @@ json DebugBundleCollector::collect_filament_system_info() {
     json macro_names = json::array();
     size_t total_macros = 0;
     try {
-        const json objects = fetch_object_list(base_url);
-        discovered = filter_filament_objects(objects);
-        macro_names = extract_gcode_macro_names(objects);
-        for (const auto& obj : objects) {
+        discovered = filter_filament_objects(object_list);
+        macro_names = extract_gcode_macro_names(object_list);
+        for (const auto& obj : object_list) {
             if (obj.is_string() && obj.get<std::string>().rfind("gcode_macro ", 0) == 0) {
                 ++total_macros;
             }
