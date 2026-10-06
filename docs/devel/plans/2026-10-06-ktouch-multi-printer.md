@@ -140,11 +140,13 @@ browser behind `IMdnsDiscovery`). Meanwhile `.local` names typed into the modal 
 
 ## 8. Risks, tests, commits
 
-Risks: R1 stale subjects for A-only objects (section 3). R2 thumbnail cache is keyed by relative path
-only (`ThumbnailCache::compute_hash`), so same-named files on two printers share a thumbnail, on
-both platforms. R3 a switch mid-print on A leaves A printing, which is correct but needs a confirm
-("A is printing, switch anyway?"). R4 pending A requests time out after the switch and may toast.
-R5 home rebuild time on device is the unknown that decides "seconds".
+Risks: R1 stale subjects for A-only objects (section 3). R2 (resolved) thumbnails are keyed by
+printer. R3 (resolved) leaving a printing printer asks first. R4 (resolved) a REST reply from A that
+finishes after the switch reaches its caller as CONNECTION_LOST (`http_request_epoch.h`). R5 home
+rebuild time on device is the unknown that decides "seconds". R6 a printer whose discovery crashes
+the firmware bricks the panel until reflash: the firmware has no crash-restart tracking to build
+on, so a boot crash counter (N crashes right after connecting to a just-switched-to printer: boot
+the previous printer instead) is planned, not built.
 
 Desktop unit tests: `PrinterSwitchFlow` with fake hooks (latch, unknown id, save before teardown,
 add/cancel bookkeeping, hook order); `next_printer_id` (gaps, collisions);
@@ -157,13 +159,10 @@ per switch against the cold-boot values; AMS lanes and fans match each printer; 
 via typed IP; Cancel mid-add keeps A connected; remove the active printer; force the fallback by
 lowering the margin and confirm the restart lands on B.
 
-Commits, in order (status as of this revision):
-1. `Config::next_printer_id()` (landed) + move switch/add/cancel into `PrinterSwitchFlow`.
-2. `retarget_printer_connection`; ChangeHostModal uses it. Landed already: Cancel-after-Test
-   reconnects; a new host clears AMS backends (reproduced on desktop, `HELIX_MOCK_AMS=medusahc`).
-3. Shared active-name seed and `PrinterNameSync::resolve` in firmware discovery (landed).
-4. Firmware: `set_printer_callbacks` with retarget hooks, heap check, restart fallback, timing
-   logs, printing confirm. A restart-only wiring is on the branch now and gets replaced.
-5. ChangeHostModal add-printer mode + Add flow (landed).
-6. mDNS on firmware: blocked on IPv6 in `mdns.h` (section 6); needs a decision.
-7. WS task PSRAM-stack patch, only if device testing shows the 8 KB block does not come back.
+Landed on `feature/ktouch-multi-printer`: v1 restart switch, `next_printer_id`, shared name lookup,
+Change Host fixes (Cancel-after-Test reconnect, AMS clear), add-printer modal mode,
+`PrinterSwitchFlow` (request_switch with the printing confirm, the connected-printer id, save-failure
+handling, add without duplicates), `retarget_printer_connection`, the firmware live hooks with the
+10 KB internal-block check and the counted restart fallback, the HTTP reply epoch, and per-printer
+thumbnail keys. Open: mDNS (blocked, section 6), the WS task PSRAM-stack patch (only if device
+testing shows the block does not come back), the boot crash counter (R6).
