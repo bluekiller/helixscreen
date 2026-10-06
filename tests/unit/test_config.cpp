@@ -3348,6 +3348,13 @@ TEST_CASE("Config::init() gives a versionless config with no printer the default
     SECTION("the installer's update-channel seed") {
         env.write_config({{"update", {{"channel", 1}}}});
     }
+    SECTION("the device blocks with an explicit version 0") {
+        env.write_config({{"config_version", 0},
+                          {"update", {{"channel", 1}}},
+                          {"input", {{"calibration", {{"valid", true}, {"a", 2.0}}}}},
+                          {"display", {{"rotate", 180}}}});
+        device_blocks = true;
+    }
     SECTION("the per-printer seed's device blocks") {
         env.write_config({{"update", {{"channel", 1}}},
                           {"input", {{"calibration", {{"valid", true}, {"a", 2.0}}}}},
@@ -3363,13 +3370,51 @@ TEST_CASE("Config::init() gives a versionless config with no printer the default
     CHECK(test_config.get<int>("/printers/default/moonraker_port") == 7125);
     CHECK(test_config.get<std::string>("/printers/default/heaters/bed") == "heater_bed");
     CHECK(test_config.get<int>("/update/channel") == 1);
+    // Everything else a fresh install starts with, under the seeded keys.
+    CHECK(test_config.get<std::string>("/log_path") == "/tmp/helixscreen.log");
+    CHECK(test_config.get<int>("/gcode_viewer/tube_sides") == 4);
     if (device_blocks) {
         CHECK(test_config.get<bool>("/input/calibration/valid"));
+        CHECK(test_config.get<double>("/input/calibration/a") == 2.0);
         CHECK(test_config.get<int>("/display/rotate") == 180);
+        // A calibration the installer just seeded is not one to re-check.
+        CHECK_FALSE(test_config.get<bool>("/input/calibration/recheck_pending", false));
     }
 
     auto on_disk = json::parse(std::ifstream(env.config_path));
     CHECK(on_disk.value("active_printer_id", "") == "default");
+    CHECK(on_disk.value("config_version", 0) == CURRENT_CONFIG_VERSION);
+}
+
+// The fresh-install path is for documents that hold no printer at all. A real
+// config, versioned or a shipped preset's versionless /printer, keeps its own
+// shape and runs the migration chain.
+TEST_CASE("Config::init() leaves a config with a printer off the fresh-install path",
+          "[core][config][moonraker-update]") {
+    TarballTestEnv env("versionless_with_printer");
+
+    SECTION("a versionless preset with a /printer") {
+        env.write_config({{"input", {{"calibration", {{"valid", true}, {"a", 2.0}}}}},
+                          {"printer", {{"moonraker_host", "192.168.1.50"}}}});
+        Config test_config;
+        test_config.init(env.config_path);
+
+        CHECK(test_config.get<std::string>("/printers/default/moonraker_host") == "192.168.1.50");
+        CHECK(test_config.get<bool>("/input/calibration/recheck_pending", false));
+        CHECK_FALSE(test_config.exists("/log_path"));
+    }
+    SECTION("a versioned config with a printer") {
+        env.write_config({{"config_version", CURRENT_CONFIG_VERSION},
+                          {"active_printer_id", "voron"},
+                          {"printers", {{"voron", {{"moonraker_host", "192.168.1.60"}}}}}});
+        Config test_config;
+        test_config.init(env.config_path);
+
+        CHECK(test_config.get_active_printer_id() == "voron");
+        CHECK(test_config.get<std::string>("/printers/voron/moonraker_host") == "192.168.1.60");
+        CHECK_FALSE(test_config.exists("/log_path"));
+        CHECK_FALSE(test_config.exists("/printers/default"));
+    }
 }
 
 TEST_CASE("Config::init() keeps tarball default when backup is also a tarball default",

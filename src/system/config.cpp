@@ -581,6 +581,28 @@ json get_default_config(const std::string& moonraker_host, bool include_user_pre
     return config;
 }
 
+/// Whether a document holds only keys the installer seeded: no config_version,
+/// no single /printer, and no printer object under /printers. That is a fresh
+/// install, not a config to migrate - the chain would treat the seeded keys as
+/// old data (v18 flags a just-seeded touch calibration for a recheck).
+static bool is_installer_seed_document(const json& config) {
+    if (helix::json_util::safe_int(config, "config_version", 0) != 0) {
+        return false;
+    }
+    if (config.contains("printer") && config["printer"].is_object()) {
+        return false;
+    }
+    const auto printers = config.find("printers");
+    if (printers != config.end() && printers->is_object()) {
+        for (const auto& [key, value] : printers->items()) {
+            if (value.is_object()) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 using helix::config_backup::find_backup;
 using helix::config_backup::remove_backups;
 using helix::config_backup::restore_from_backup;
@@ -851,6 +873,19 @@ void Config::init(const std::string& config_path) {
                     }
                 }
             }
+        }
+
+        // A document holding only installer-seeded keys starts from the fresh
+        // defaults, with the seeded keys laid over them.
+        if (is_installer_seed_document(data)) {
+            spdlog::info("[Config] Config holds no printer and no version: starting from "
+                         "defaults under its {} seeded key(s)",
+                         data.size());
+            json fresh = get_default_config("127.0.0.1", false);
+            fresh.merge_patch(data);
+            fresh["config_version"] = CURRENT_CONFIG_VERSION;
+            data = std::move(fresh);
+            config_modified = true;
         }
 
         // With exceptions, the migrations run under their own catch-all,
