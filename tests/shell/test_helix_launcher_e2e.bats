@@ -509,3 +509,32 @@ WDEOF
 
     [ ! -f "$status_file" ]
 }
+
+# =============================================================================
+# display-sleep.service is stopped only while it is running
+# =============================================================================
+
+@test "e2e: launcher leaves display-sleep.service alone when it is not running" {
+    cp "$LAUNCHER" "$MOCK_INSTALL/bin/helix-launcher.sh"
+    local calls="$BATS_TEST_TMPDIR/systemctl-calls"
+    mock_command_script "systemctl" "echo \"\$*\" >> \"$calls\"
+case \"\$1\" in is-active) exit 3 ;; esac"
+
+    MOCK_INSTALL="$MOCK_INSTALL" \
+        sh "$MOCK_INSTALL/bin/helix-launcher.sh" 2>/dev/null || true
+
+    grep -q '^is-active -q display-sleep.service$' "$calls"
+    refute_grep '^stop display-sleep' "$calls"
+}
+
+@test "e2e: launcher stops display-sleep.service when it is running" {
+    cp "$LAUNCHER" "$MOCK_INSTALL/bin/helix-launcher.sh"
+    local calls="$BATS_TEST_TMPDIR/systemctl-calls"
+    mock_command_script "systemctl" "echo \"\$*\" >> \"$calls\"
+case \"\$1\" in is-active) exit 0 ;; esac"
+
+    MOCK_INSTALL="$MOCK_INSTALL" \
+        sh "$MOCK_INSTALL/bin/helix-launcher.sh" 2>/dev/null || true
+
+    grep -q '^stop display-sleep.service$' "$calls"
+}

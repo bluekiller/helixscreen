@@ -1,5 +1,7 @@
 locale: ja
 translations:
+  '%d-%d': '%d〜%d'
+  '%d-%d°C': '%d〜%d°C'
   ' (timed out)': （タイムアウト）
   ' frames': ' フレーム'
   ' left': ' 残り'
@@ -806,16 +808,16 @@ translations:
   Danger: 危険
   Danger Zone: 危険ゾーン
   Dark Mode: ダークモード
-  Database: データベース
   Date (newest): 日付（新しい順）
   Date (oldest): 日付（古い順）
   Day: 日
   Debug: デバッグ
+  Deep Black: ディープブラック
   Default: 'デフォルト'
   Default Parameters: 'デフォルトのパラメータ'
   Default border thickness: デフォルトの境界線の太さ
-  'Default: %d-%d°C nozzle, %d°C bed': 'デフォルト: ノズル %d〜%d°C、ベッド %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'デフォルト: ノズル %d〜%d°C、ベッド %d°C、チャンバー %d°C'
+  'Default: %s nozzle, %d°C bed': 'デフォルト: ノズル %s、ベッド %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'デフォルト: ノズル %s、ベッド %d°C、チャンバー %d°C'
   Defaults restored: デフォルトを復元しました
   Define macros in your printer.cfg: printer.cfg でマクロを定義してください
   Delete: 削除

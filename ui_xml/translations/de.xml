@@ -15,6 +15,8 @@
   <translation tag="%d slots" de="%d Slots"/>
   <translation tag="%d toolheads" de="%d Werkzeugköpfe"/>
   <translation tag="%d tools" de="%d Werkzeuge"/>
+  <translation tag="%d-%d" de="%d-%d"/>
+  <translation tag="%d-%d°C" de="%d-%d°C"/>
   <translation tag="%d:%02d left" de="noch %d:%02d"/>
   <translation tag="%dh" de="%d Std"/>
   <translation tag="%dh %02dm" de="%d Std %02d Min"/>
@@ -783,16 +785,16 @@
   <translation tag="Danger" de="Gefahr"/>
   <translation tag="Danger Zone" de="Gefahrenbereich"/>
   <translation tag="Dark Mode" de="Dunkelmodus"/>
-  <translation tag="Database" de="Datenbank"/>
   <translation tag="Date (newest)" de="Datum (neueste)"/>
   <translation tag="Date (oldest)" de="Datum (älteste)"/>
   <translation tag="Day" de="Tag"/>
   <translation tag="Debug" de="Debug"/>
+  <translation tag="Deep Black" de="Tiefschwarz"/>
   <translation tag="Default" de="Standard"/>
   <translation tag="Default Parameters" de="Standardparameter"/>
   <translation tag="Default border thickness" de="Standard-Rahmendicke"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" de="Standard: %d-%d°C Düse, %d°C Bett"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" de="Standard: %d-%d°C Düse, %d°C Bett, %d°C Kammer"/>
+  <translation tag="Default: %s nozzle, %d°C bed" de="Standard: %s Düse, %d°C Bett"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" de="Standard: %s Düse, %d°C Bett, %d°C Kammer"/>
   <translation tag="Defaults restored" de="Standardeinstellungen wiederhergestellt"/>
   <translation tag="Define macros in your printer.cfg" de="Makros in Ihrer printer.cfg definieren"/>
   <translation tag="Delete" de="Löschen"/>

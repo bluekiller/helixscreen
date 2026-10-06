@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "hv/json.hpp"
+
 // Forward declarations
 namespace helix::ui {
 class ColorPicker;
@@ -107,22 +109,19 @@ class SpoolWizardOverlay : public OverlayBase {
         int bed_temp_min = 0;
         int bed_temp_max = 0;
         bool from_server = false;
-        bool from_database = false;
     };
 
-    // ========== Vendor entry (merged from SpoolmanDB + server) ==========
+    // ========== Vendor entry ==========
     struct VendorEntry {
         std::string name;
-        int server_id = -1;         ///< Spoolman server ID, -1 = DB-only
-        bool from_server = false;   ///< Present on Spoolman server
-        bool from_database = false; ///< Present in SpoolmanDB
+        int server_id = -1;       ///< Spoolman server ID, -1 = not created yet
+        bool from_server = false; ///< Present on Spoolman server
     };
 
     // ========== Vendor step logic (public for testing) ==========
 
-    /// Merge external DB vendors with server vendors, deduplicate by name
-    static std::vector<VendorEntry> merge_vendors(const std::vector<VendorEntry>& external_vendors,
-                                                  const std::vector<VendorEntry>& server_vendors);
+    /// The server's vendors, one per case-insensitive name, sorted by name
+    static std::vector<VendorEntry> sorted_vendors(const std::vector<VendorEntry>& server_vendors);
 
     /// Filter vendor list by case-insensitive substring match
     static std::vector<VendorEntry> filter_vendor_list(const std::vector<VendorEntry>& vendors,
@@ -162,10 +161,11 @@ class SpoolWizardOverlay : public OverlayBase {
 
     // ========== Filament step logic (public for testing) ==========
 
-    /// Merge server filaments with external DB filaments, deduplicate by material+color_hex
-    static std::vector<FilamentEntry>
-    merge_filaments(const std::vector<FilamentInfo>& server_filaments,
-                    const std::vector<FilamentInfo>& external_filaments);
+    /// The POST /v1/vendor body for a new vendor named @p name with website @p url
+    static nlohmann::json vendor_create_payload(const std::string& name, const std::string& url);
+
+    /// The POST /v1/filament body for @p f under @p vendor_id
+    static nlohmann::json filament_create_payload(const FilamentEntry& f, int vendor_id);
 
     /// Load filaments for the selected vendor from server + SpoolmanDB
     void load_filaments();

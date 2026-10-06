@@ -37,8 +37,8 @@ class PrintPreviewController {
     struct Host {
         /// Switch between the thumbnail and the G-code viewer.
         std::function<void(bool show_viewer)> show_viewer;
-        /// Re-derive the print-scoped runout badge from the viewer's parsed file.
-        std::function<void()> refresh_scoped_runout;
+        /// The viewer finished loading a parsed file; re-derive whatever reads it.
+        std::function<void()> parsed_file_loaded;
         /// Is the panel on screen? A G-code load is only queued while it is.
         std::function<bool()> is_active;
     };

@@ -288,15 +288,19 @@ char* format_temperature_pair_f(float current, float target, char* buffer, size_
 /**
  * @brief Format a temperature range for material specs
  *
- * Formats as "200-230°C" for AMS material temperature ranges.
+ * Formats as "200-230°C" for AMS material temperature ranges. A range whose
+ * ends are equal, or with only one end set, is one temperature: "210°C". Ends
+ * given in the wrong order are swapped. The separator is the locale's.
  *
  * @param min_temp Minimum temperature in degrees
  * @param max_temp Maximum temperature in degrees
  * @param buffer Output buffer
  * @param buffer_size Size of buffer (recommended: 16)
+ * @param with_unit false drops the "°C", for a caller that states the unit itself
  * @return Pointer to buffer for chaining convenience
  */
-char* format_temperature_range(int min_temp, int max_temp, char* buffer, size_t buffer_size);
+char* format_temperature_range(int min_temp, int max_temp, char* buffer, size_t buffer_size,
+                               bool with_unit = true);
 
 // ============================================================================
 // Display Color Functions

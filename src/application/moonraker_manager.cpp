@@ -664,17 +664,11 @@ void MoonrakerManager::create_api(const RuntimeConfig& runtime_config) {
         // create_client() records the concrete pointer as it builds it, so no
         // downcast is needed to get back to it here.
         assert(m_concrete_client && "create_client() must run before create_api()");
-        auto mock_api = std::make_unique<MoonrakerAPIMock>(*m_concrete_client, get_printer_state());
-
-        // Check HELIX_MOCK_SPOOLMAN env var
-        const char* spoolman_env = std::getenv("HELIX_MOCK_SPOOLMAN");
-        if (spoolman_env &&
-            (std::string(spoolman_env) == "0" || std::string(spoolman_env) == "off")) {
-            mock_api->spoolman_mock().set_mock_spoolman_enabled(false);
-            spdlog::info("[MoonrakerManager] Mock Spoolman disabled via HELIX_MOCK_SPOOLMAN=0");
+        if (!runtime_config.should_mock_moonraker()) {
+            spdlog::warn("[MoonrakerManager] Mock API on a REAL Moonraker connection: database "
+                         "and Spoolman calls reach the real printer");
         }
-
-        m_api = std::move(mock_api);
+        m_api = std::make_unique<MoonrakerAPIMock>(*m_concrete_client, get_printer_state());
     } else {
 #endif
         m_api = std::make_unique<MoonrakerAPI>(*m_client, get_printer_state());
