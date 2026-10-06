@@ -35,6 +35,7 @@
 #include "ams_remap.h"
 #include "ams_state.h"
 #include "app_globals.h"
+#include "card_thumbnail_plan.h"
 #include "config.h"
 #include "connection_state.h" // For ConnectionState enum
 #include "display_manager.h"
@@ -3677,7 +3678,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                               file_list_[index].esp_thumbnail = std::move(thumb);
                               schedule_view_refresh();
                           }
-                          drain_esp_thumbnail_backlog();
+                          sync_esp_thumbnails(esp_window_first_, esp_window_end_);
                       });
         },
         [this, tok, filename, submitting, refused, rejected](const MoonrakerError& error) {
@@ -3695,7 +3696,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                           error.message);
             tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
                 --esp_thumbnails_in_flight_;
-                drain_esp_thumbnail_backlog();
+                sync_esp_thumbnails(esp_window_first_, esp_window_end_);
             });
         });
     submitting->store(false);
@@ -3709,89 +3710,36 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     return EspThumbnailFetch::Started;
 }
 
-size_t PrintSelectPanel::esp_thumbnail_bytes() const {
-    const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
-    size_t bytes = static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)) *
-                   helix::rgb565a8_size({target.width, target.height});
-    for (const auto& f : file_list_) {
-        if (f.esp_thumbnail) {
-            bytes += f.esp_thumbnail->bytes();
-        }
-    }
-    return bytes;
-}
-
 void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
-    end = std::min(end, file_list_.size());
-    first = std::min(first, end);
     esp_window_first_ = first;
     esp_window_end_ = end;
 
-    // Cards off screen hold nothing; a card coming back fetches again.
+    std::vector<helix::CardThumbnailState> states(file_list_.size());
     for (size_t i = 0; i < file_list_.size(); ++i) {
-        if (i < first || i >= end) {
-            file_list_[i].esp_thumbnail.reset();
-            file_list_[i].esp_thumbnail_tried = false;
-        }
+        const PrintFileData& f = file_list_[i];
+        states[i].fetchable = !f.is_dir && !f.original_thumbnail_url.empty();
+        states[i].tried = f.esp_thumbnail_tried;
+        states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
     }
-
     const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
-    const size_t estimate = helix::rgb565a8_size({target.width, target.height});
-    for (size_t i = first; i < end; ++i) {
+    const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
+        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)),
+        helix::rgb565a8_size({target.width, target.height}), helix::CARD_THUMBNAIL_BUDGET);
+
+    // Cards off screen hold nothing; a card coming back fetches again.
+    for (size_t i : plan.drop) {
+        file_list_[i].esp_thumbnail.reset();
+        file_list_[i].esp_thumbnail_tried = false;
+    }
+    for (size_t i : plan.fetch) {
         PrintFileData& f = file_list_[i];
-        if (f.is_dir || f.esp_thumbnail || f.esp_thumbnail_tried ||
-            f.original_thumbnail_url.empty()) {
-            continue;
-        }
-        if (!helix::card_thumbnail_fits_budget(esp_thumbnail_bytes(), estimate)) {
-            return; // the rest keep the placeholder until a card frees its share
-        }
         f.esp_thumbnail_tried = true;
         if (fetch_esp_thumbnail(i, f.filename, f.original_thumbnail_url) ==
             EspThumbnailFetch::QueueFull) {
-            defer_esp_thumbnail({i, f.filename, f.original_thumbnail_url}, /*front=*/false);
-        }
-    }
-}
-
-void PrintSelectPanel::defer_esp_thumbnail(PendingEspThumbnail pending, bool front) {
-    if (esp_thumbnails_in_flight_ > 0) {
-        if (front) {
-            esp_thumbnail_backlog_.push_front(std::move(pending));
-        } else {
-            esp_thumbnail_backlog_.push_back(std::move(pending));
-        }
-        return;
-    }
-    // Nothing of ours will complete to retry it: the lane is full of other
-    // work. Unmark the file so the next visible-range pass (the file poll)
-    // fetches its metadata and thumbnail again.
-    if (pending.index < file_list_.size() &&
-        file_list_[pending.index].filename == pending.filename) {
-        file_list_[pending.index].metadata_fetched = false;
-        file_list_[pending.index].esp_thumbnail_tried = false;
-    }
-}
-
-void PrintSelectPanel::drain_esp_thumbnail_backlog() {
-    while (!esp_thumbnail_backlog_.empty()) {
-        PendingEspThumbnail next = std::move(esp_thumbnail_backlog_.front());
-        esp_thumbnail_backlog_.pop_front();
-        if (next.index >= file_list_.size() || file_list_[next.index].filename != next.filename) {
-            // A refresh re-sorted the list: follow the file, not its old slot.
-            auto it =
-                std::find_if(file_list_.begin(), file_list_.end(), [&next](const PrintFileData& f) {
-                    return f.filename == next.filename;
-                });
-            if (it == file_list_.end()) {
-                continue; // the file is gone
-            }
-            next.index = static_cast<size_t>(it - file_list_.begin());
-        }
-        if (fetch_esp_thumbnail(next.index, next.filename, next.thumb_path) ==
-            EspThumbnailFetch::QueueFull) {
-            defer_esp_thumbnail(std::move(next), /*front=*/true);
-            return;
+            // The lane is busy: try this one again on the next pass, which every
+            // completion, scroll and listing triggers.
+            f.esp_thumbnail_tried = false;
+            break;
         }
     }
 }

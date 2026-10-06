@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-// ESP32-only (Task 11 R2). PSRAM-resident thumbnail for the print-select cards
+// ESP32-only. PSRAM-resident thumbnail for the print-select cards
 // and the print status panel. LittleFS is too small for a disk thumbnail cache
-// on this platform (Task 10 R6 hard gate — see thumbnail_cache.cpp), so a
+// on this platform (see thumbnail_cache.cpp), so a
 // thumbnail fetched via download_file_partial is decoded once, fitted to the
 // size it is drawn at, and kept as an RGB565A8 lv_image_dsc_t in PSRAM: the
 // form a prescaled .bin takes elsewhere. Drawing the PNG itself would hold a
@@ -49,7 +49,7 @@ class EspPsramThumbnail {
             // address gets reused for a later EspPsramThumbnail and the old
             // cache entry hasn't LRU-evicted yet, lv_image_set_src(new dsc)
             // could hit the stale decoded bitmap — a card showing a previous
-            // file's thumbnail (review Focus 2). Drop it explicitly.
+            // file's thumbnail. Drop it explicitly.
             //
             // lv_image_cache_drop() reaches into the draw units
             // (LV_EVENT_INVALIDATE_AREA broadcast) and is documented unsafe
