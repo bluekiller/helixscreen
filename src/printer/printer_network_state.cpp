@@ -62,6 +62,8 @@ void PrinterNetworkState::init_subjects(bool register_xml) {
     // UI-facing mirror of helix::is_moonraker_on_same_host().
     INIT_SUBJECT_INT(moonraker_is_remote, 0, subjects_, register_xml);
 
+    INIT_SUBJECT_INT(klippy_state_message_seq, 0, subjects_, register_xml);
+
     subjects_initialized_ = true;
     spdlog::trace("[PrinterNetworkState] Subjects initialized successfully");
 }
@@ -154,6 +156,7 @@ bool PrinterNetworkState::apply_webhooks(const nlohmann::json& webhooks, double 
                       watermark, from_cached_snapshot);
     } else {
         bool applied_state = false;
+        auto message_describes = static_cast<KlippyState>(lv_subject_get_int(&klippy_state_));
 
         if (webhooks.contains("state") && webhooks["state"].is_string()) {
             std::string klippy_state_str = webhooks["state"].get<std::string>();
@@ -187,12 +190,14 @@ bool PrinterNetworkState::apply_webhooks(const nlohmann::json& webhooks, double 
             if (recognized) {
                 changed = set_klippy_state_internal(new_state);
                 applied_state = true;
+                message_describes = new_state;
             }
         }
 
         // Capture state_message (error/shutdown reason text)
         if (webhooks.contains("state_message") && webhooks["state_message"].is_string()) {
-            set_klippy_state_message(webhooks["state_message"].get<std::string>());
+            set_klippy_state_message(webhooks["state_message"].get<std::string>(),
+                                     message_describes);
         }
 
         // Only a frame that actually carried a usable state moves the guard.
@@ -238,13 +243,29 @@ bool PrinterNetworkState::set_klippy_state_internal(KlippyState state) {
 
     // Clear state message when returning to READY (error is resolved)
     if (state == KlippyState::READY) {
-        klippy_state_message_.clear();
+        set_klippy_state_message("", state);
     }
     return true;
 }
 
-void PrinterNetworkState::set_klippy_state_message(const std::string& message) {
+std::string PrinterNetworkState::get_klippy_fault_message() const {
+    if (klippy_state_message_describes_ == KlippyState::READY ||
+        klippy_state_message_describes_ == KlippyState::STARTUP) {
+        return {};
+    }
+    return klippy_state_message_;
+}
+
+void PrinterNetworkState::set_klippy_state_message(const std::string& message,
+                                                   std::optional<KlippyState> describes) {
+    const bool changed =
+        message != klippy_state_message_ || describes != klippy_state_message_describes_;
     klippy_state_message_ = message;
+    klippy_state_message_describes_ = describes;
+    if (changed && subjects_initialized_) {
+        lv_subject_set_int(&klippy_state_message_seq_,
+                           lv_subject_get_int(&klippy_state_message_seq_) + 1);
+    }
     if (!message.empty()) {
         spdlog::info("[PrinterNetworkState] Klippy state message: {}", message);
     }

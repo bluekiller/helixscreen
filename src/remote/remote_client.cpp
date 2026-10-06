@@ -128,6 +128,17 @@ static const HelpEntry HELP[] = {
     {nullptr, "scroll <target> [dx dy]", "Scroll into view, or by a delta", nullptr},
     {nullptr, "focus <target>", "Focus a widget through its input group",
      "Raises the on-screen keyboard for a textarea (click does not)."},
+    {nullptr, "overflow [target]", "List widgets whose content spills past their box",
+     "Per widget: px past each edge, and whether it scrolls (else it\n"
+     "clips). Catches a stray scrollbar or a clipped row in one call."},
+
+    {"Home grid (positions and spans in cells; 1.5 for half cells)", "home [list]",
+     "Every page's grid size and placed widgets", nullptr},
+    {nullptr, "home place <id> <col> <row> <w> <h> [page]", "Put a widget at a cell rectangle",
+     "Checked like an Edit Mode drop: the widget's span limits, half-cell\n"
+     "support and free cells. Adds a widget not yet on the grid."},
+    {nullptr, "home resize <id> <w> <h>", "Resize a placed widget in place", nullptr},
+    {nullptr, "home remove <id>", "Take a widget off the grid, as Edit Mode's trash does", nullptr},
 
     {"Synthetic pointer (drives LVGL's real input pipeline — gestures, long-press,\n"
      "scroll-vs-tap — unlike `click`, which sends a bare widget event)",
@@ -135,6 +146,7 @@ static const HelpEntry HELP[] = {
     {nullptr, "move <x> <y>", "Move it (a drag while pressed, a hover while not)", nullptr},
     {nullptr, "release [x y]", "Lift it, at x,y if given, else where it is",
      "e.g. long-press: press 100 300; sleep 0.6; release"},
+    {nullptr, "tap <x> <y>", "Press and release at x,y (also: click <x> <y>)", nullptr},
 
     {"Diagnostics & lifecycle", "wait_idle [--timeout N]",
      "Block until UpdateQueue and HttpExecutor are both quiet",
@@ -480,6 +492,13 @@ static nlohmann::json target_param(const std::string& t) {
 
 /// Build a JSON-RPC request from a command + args vector.
 /// Returns empty json on parse error (with error printed to stderr).
+/// A token that is a whole decimal number, so `click 427 133` reads as coordinates.
+static bool is_int(const std::string& t) {
+    char* end = nullptr;
+    std::strtol(t.c_str(), &end, 10);
+    return !t.empty() && end && *end == '\0';
+}
+
 static nlohmann::json build_request_from_tokens(const std::vector<std::string>& tokens) {
     if (tokens.empty())
         return {};
@@ -608,6 +627,41 @@ static nlohmann::json build_request_from_tokens(const std::vector<std::string>& 
         return build_request("freeze");
     } else if (cmd == "unfreeze") {
         return build_request("unfreeze");
+    } else if (cmd == "tap" ||
+               (cmd == "click" && tokens.size() >= 3 && is_int(tokens[1]) && is_int(tokens[2]))) {
+        if (tokens.size() < 3) {
+            fprintf(stderr, "Error: tap requires x and y coordinates\n");
+            return {};
+        }
+        return build_request("pointer_tap", {{"x", std::atoi(tokens[1].c_str())},
+                                             {"y", std::atoi(tokens[2].c_str())}});
+    } else if (cmd == "overflow") {
+        return build_request("overflow", tokens.size() >= 2 ? target_param(tokens[1])
+                                                            : nlohmann::json::object());
+    } else if (cmd == "home") {
+        const std::string action = tokens.size() >= 2 ? tokens[1] : "list";
+        const auto num = [](const std::string& t) { return std::atof(t.c_str()); };
+        if (action == "list") {
+            return build_request("home", {{"action", "list"}});
+        } else if (action == "remove" && tokens.size() >= 3) {
+            return build_request("home", {{"action", "remove"}, {"id", tokens[2]}});
+        } else if (action == "resize" && tokens.size() >= 5) {
+            return build_request("home", {{"action", "place"},
+                                          {"id", tokens[2]},
+                                          {"w", num(tokens[3])},
+                                          {"h", num(tokens[4])}});
+        } else if (action == "place" && tokens.size() >= 7) {
+            nlohmann::json params = {{"action", "place"},     {"id", tokens[2]},
+                                     {"col", num(tokens[3])}, {"row", num(tokens[4])},
+                                     {"w", num(tokens[5])},   {"h", num(tokens[6])}};
+            if (tokens.size() >= 8) {
+                params["page"] = std::atoi(tokens[7].c_str());
+            }
+            return build_request("home", params);
+        }
+        fprintf(stderr, "Error: home [list] | place <id> <col> <row> <w> <h> [page] | "
+                        "resize <id> <w> <h> | remove <id>\n");
+        return {};
     } else if (cmd == "click") {
         if (tokens.size() < 2) {
             fprintf(stderr, "Error: click requires a widget name or @path\n");
@@ -795,6 +849,9 @@ static const char* REPL_COMMANDS[] = {"ping",
                                       "click",
                                       "set_value",
                                       "focus",
+                                      "tap",
+                                      "overflow",
+                                      "home",
                                       "press",
                                       "move",
                                       "release",

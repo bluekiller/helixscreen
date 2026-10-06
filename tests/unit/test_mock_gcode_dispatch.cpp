@@ -592,7 +592,7 @@ const std::vector<DispatchCase>& cases() {
              nullptr,
              false,
              {"SDCARD_PRINT_FILE FILENAME=3DBenchy.gcode", "M112"},
-             R"G(SDCARD_PRINT_FILE FILENAME=3DBenchy.gcode => rc=0 err=[] ;; M112 => rc=0 err=[] ;; klippy=0 phase=6 excluded= mesh=default profiles=default,adaptive, tool=-1)G"},
+             R"G(SDCARD_PRINT_FILE FILENAME=3DBenchy.gcode => rc=0 err=[] ;; M112 => rc=0 err=[] ;; klippy=2 phase=6 excluded= mesh=default profiles=default,adaptive, tool=-1)G"},
             {PT::VORON_24,
              nullptr,
              nullptr,
@@ -610,7 +610,7 @@ const std::vector<DispatchCase>& cases() {
              nullptr,
              false,
              {"M112"},
-             R"G(M112 => rc=0 err=[] ;; klippy=0 phase=6 excluded= mesh=default profiles=default,adaptive, tool=-1)G"},
+             R"G(M112 => rc=0 err=[] ;; klippy=2 phase=6 excluded= mesh=default profiles=default,adaptive, tool=-1)G"},
 
             // --- fans ------------------------------------------------------------
             {PT::VORON_24,

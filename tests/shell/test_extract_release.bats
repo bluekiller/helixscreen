@@ -25,7 +25,6 @@ setup() {
     export INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
     export SUDO=""
     export BACKUP_CONFIG=""
-    export ORIGINAL_INSTALL_EXISTS=""
 
     mkdir -p "$TMP_DIR"
 }
@@ -306,7 +305,6 @@ setup_existing_install() {
     echo '{"user": true}' > "$INSTALL_DIR/config/settings.json"
     mkdir -p "${INSTALL_DIR}.old/bin"
     echo "old" > "${INSTALL_DIR}.old/bin/helix-screen"
-    ORIGINAL_INSTALL_EXISTS=true
     cleanup_old_install
     [ ! -d "${INSTALL_DIR}.old" ]
 }
@@ -316,11 +314,37 @@ setup_existing_install() {
     # No settings.json — config restore failed
     mkdir -p "${INSTALL_DIR}.old/config"
     echo '{"user": true}' > "${INSTALL_DIR}.old/config/settings.json"
-    ORIGINAL_INSTALL_EXISTS=true
-    cleanup_old_install
+    INSTALL_BACKUP="${INSTALL_DIR}.old"
+    _have_restore_candidate=true
+    run cleanup_old_install
     # .old must be preserved as last-resort recovery
     [ -d "${INSTALL_DIR}.old" ]
     [ -f "${INSTALL_DIR}.old/config/settings.json" ]
+    contains "keeping ${INSTALL_DIR}.old" "$output"
+}
+
+@test "cleanup_old_install: an old install that never had a config is not a lost config" {
+    # An install dir holding only logs and a binary predates any settings.json,
+    # so the update has nothing to carry across and nothing to warn about.
+    mkdir -p "$INSTALL_DIR/bin" "$INSTALL_DIR/logs"
+    echo "old binary" > "$INSTALL_DIR/bin/helix-screen"
+    create_test_tarball "ad5m"
+    extract_release "ad5m"
+    [ ! -f "$INSTALL_DIR/config/settings.json" ]
+
+    run cleanup_old_install
+    [ "$status" -eq 0 ]
+    lacks "Config not restored" "$output"
+    [ ! -d "${INSTALL_DIR}.old" ]
+}
+
+@test "cleanup_old_install: the warning never names a backup that is not there" {
+    mkdir -p "$INSTALL_DIR/config"
+    INSTALL_BACKUP="${INSTALL_DIR}.old"
+    _have_restore_candidate=true
+    run cleanup_old_install
+    contains "Config not restored" "$output"
+    lacks ".old" "$output"
 }
 
 @test "cleanup_old_install: no-op when .old does not exist" {

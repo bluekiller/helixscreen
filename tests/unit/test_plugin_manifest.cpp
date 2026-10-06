@@ -85,7 +85,7 @@ TEST_CASE("a complete manifest parses", "[plugin][manifest]") {
     CHECK(r.manifest->settings_overlay == "orca-cal__settings");
     REQUIRE(r.manifest->widgets.size() == 1);
     CHECK(r.manifest->widgets[0].id == "orca-cal__launch");
-    CHECK(r.manifest->widgets[0].max_colspan == 2);
+    CHECK(r.manifest->widgets[0].max_colspan == 4); // two cells, in tracks
     REQUIRE(r.manifest->settings.size() == 7);
     CHECK(r.manifest->settings[2].type == SettingType::Int);
     CHECK(r.manifest->settings[2].default_value == 5);
@@ -242,9 +242,33 @@ TEST_CASE("manifest widgets parse with cell spans", "[plugin][manifest]") {
     CHECK(w.id == "ab__launch");
     CHECK(w.component == "ab__widget");
     CHECK(w.icon == "tune");
-    CHECK(w.colspan == 1);
-    CHECK(w.max_colspan == 2);
-    CHECK(w.max_rowspan == 1);
+    // Stored in tracks, half a cell each.
+    CHECK(w.colspan == 2);
+    CHECK(w.max_colspan == 4);
+    CHECK(w.max_rowspan == 2);
+    CHECK_FALSE(w.half_cells);
+}
+
+TEST_CASE("manifest widgets take half cells only when they opt in", "[plugin][manifest]") {
+    auto r = with_widgets(R"({"id":"ab__l","name":"L","component":"ab__w","half_cells":true,
+        "colspan":1.5,"max_colspan":3.5})");
+    REQUIRE(r.manifest);
+    REQUIRE(r.manifest->widgets.size() == 1);
+    const auto& w = r.manifest->widgets[0];
+    CHECK(w.half_cells);
+    CHECK(w.colspan == 3);
+    CHECK(w.max_colspan == 7);
+
+    CHECK(has_error_containing(
+        with_widgets(R"({"id":"ab__l","name":"L","component":"ab__w","colspan":1.5})"),
+        "'colspan'"));
+    CHECK(has_error_containing(
+        with_widgets(
+            R"({"id":"ab__l","name":"L","component":"ab__w","half_cells":true,"colspan":1.25})"),
+        "'colspan'"));
+    CHECK(has_error_containing(
+        with_widgets(R"({"id":"ab__l","name":"L","component":"ab__w","half_cells":"yes"})"),
+        "'half_cells'"));
 }
 
 TEST_CASE("manifest widgets reject bad names and spans", "[plugin][manifest]") {

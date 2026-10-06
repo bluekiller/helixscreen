@@ -448,10 +448,10 @@ void TemperatureHistoryManager::target_observer_callback(lv_observer_t* observer
 }
 
 void TemperatureHistoryManager::subscribe_to_subjects() {
-    // Discovery republishes the extruder and sensor lists — and recreates their
-    // subjects — after the WebSocket connects, long after this manager is built
-    // at startup. Watch both version subjects so the recorders reattach instead
-    // of silently sampling nothing for the rest of the session.
+    // Discovery republishes the extruder and sensor lists — creating subjects for
+    // new names, freeing those for removed ones — after the WebSocket connects, long after this
+    // manager is built at startup. Watch both version subjects so the recorders reattach instead of
+    // silently sampling nothing for the rest of the session.
     if (lv_subject_t* extruder_version =
             printer_state_.temperature_state().get_extruder_version_subject()) {
         extruder_version_observer_ = ObserverGuard(
