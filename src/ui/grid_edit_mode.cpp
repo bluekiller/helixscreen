@@ -393,8 +393,12 @@ void GridEditMode::exit() {
     clear_gesture_state();
     // Before config_ is nulled below: the snap animation's completion callback
     // dereferences it unconditionally.
-    const bool rebuild = cancel_snap_animation() || rebuild_on_exit_;
+    // A relayout still waiting for its tick never runs once the session is
+    // gone, and a page whose widget list is unchanged is not repopulated, so
+    // the rebuild has to lay the committed cells out instead.
+    const bool rebuild = cancel_snap_animation() || rebuild_on_exit_ || relayout_pending_;
     rebuild_on_exit_ = false;
+    relayout_pending_ = false;
 
     // The widgets stay as they are; only the session's own objects go: the
     // shield (its lattice and delete-page button are its children), the
@@ -2415,8 +2419,8 @@ void GridEditMode::commit_resize_with_snap(const ResizeResult& result) {
         snap_anim_cell_ = result;
 
         // The animation drives the outline from here on; snap_anim_outline_ is
-        // the handle now. The bars stay owned by the container and die with the
-        // rebuild.
+        // the handle now. The bars live on the top layer, so nothing deletes
+        // them but the animation's end or cancel_snap_animation().
         resize_outline_ = {};
     } else {
         delete_outline(resize_outline_);
@@ -2544,8 +2548,10 @@ void GridEditMode::relayout_then_select(std::string widget_id, std::vector<std::
     // where the relayout leaves it.
     destroy_selection_chrome();
     selected_ = nullptr;
+    relayout_pending_ = true;
     helix::ui::run_next_tick(lifetime_.token(), [this, widget_id = std::move(widget_id),
                                                  changed_ids = std::move(changed_ids), resized]() {
+        relayout_pending_ = false;
         if (!active_ || !container_) {
             return;
         }

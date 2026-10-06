@@ -19,8 +19,8 @@ class TileSizing;
 /// belong anywhere inside one: PageScrollAutoInject cuts its tree walk here
 /// rather than descending into a tile's scrollable innards.
 ///
-/// LVGL gives us four user flag bits and this repo has now claimed three of
-/// them. Check this ledger before taking another:
+/// LVGL gives us four user flag bits and this repo has claimed all four. A new
+/// marker has to share one or find another mechanism:
 ///   USER_1  ui_dialog.cpp        "inside a dialog" elevated-surface marker
 ///   USER_2  ui_utils.h           EDIT_CLICK_SUPPRESSED_FLAG, clicks edit mode took
 ///   USER_3  here                 home panel widget tile

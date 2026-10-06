@@ -718,6 +718,9 @@ class GridEditMode {
     /// A stopped resize snap left a widget at its new cell with content sized
     /// for the old span (see cancel_snap_animation()); exit() rebuilds it.
     bool rebuild_on_exit_ = false;
+    /// relayout_then_select() has scheduled its tick and it has not run yet;
+    /// exit() rebuilds in its place.
+    bool relayout_pending_ = false;
     /// Work to run after the pending rebuild, in request order.
     std::vector<std::function<void()>> rebuild_posts_;
 

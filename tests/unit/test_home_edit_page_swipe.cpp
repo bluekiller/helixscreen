@@ -1788,6 +1788,25 @@ TEST_CASE_METHOD(EditHomeFixture,
     CHECK(stored_home_col("temperature") == moved_col);
 }
 
+TEST_CASE_METHOD(EditHomeFixture,
+                 "leaving edit mode before a drop's relayout runs still lays out the drop",
+                 "[1638][edit-swipe][home][grid_edit]") {
+    build_home();
+    lv_obj_t* widget = widget_on(0, "temperature");
+    enter_edit_mode();
+    const lv_point_t pointer = drag_one_cell(widget);
+    // The release commits the move and leaves the re-seat for the next tick;
+    // the session ends first.
+    indev.release(pointer.x, pointer.y);
+    const int committed_col = entry_on_page(0, "temperature").col;
+    panel().exit_grid_edit_mode();
+    settle();
+
+    lv_obj_t* landed = widget_on(0, "temperature");
+    REQUIRE(landed != nullptr);
+    CHECK(lv_obj_get_style_grid_cell_column_pos(landed, LV_PART_MAIN) == committed_col);
+}
+
 TEST_CASE_METHOD(EditHomeFixture, "entering edit mode disarms clicks on every page",
                  "[1638][edit-swipe][home][grid_edit]") {
     build_home();
