@@ -36,15 +36,8 @@ extern lv_subject_t connection_test_passed;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardFanSelectStep> g_wizard_fan_select_step;
-
 WizardFanSelectStep* get_wizard_fan_select_step() {
-    if (!g_wizard_fan_select_step) {
-        g_wizard_fan_select_step = std::make_unique<WizardFanSelectStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardFanSelectStep", []() { g_wizard_fan_select_step.reset(); });
-    }
-    return g_wizard_fan_select_step.get();
+    return &helix::lazy_global<WizardFanSelectStep>("WizardFanSelectStep");
 }
 
 // ============================================================================

@@ -31,15 +31,8 @@ using namespace helix;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardHeaterSelectStep> g_wizard_heater_select_step;
-
 WizardHeaterSelectStep* get_wizard_heater_select_step() {
-    if (!g_wizard_heater_select_step) {
-        g_wizard_heater_select_step = std::make_unique<WizardHeaterSelectStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardHeaterSelectStep", []() { g_wizard_heater_select_step.reset(); });
-    }
-    return g_wizard_heater_select_step.get();
+    return &helix::lazy_global<WizardHeaterSelectStep>("WizardHeaterSelectStep");
 }
 
 // ============================================================================

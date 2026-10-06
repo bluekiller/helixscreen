@@ -1226,13 +1226,6 @@ void HomePanel::open_widget_catalog() {
 // Global instance
 // ============================================================================
 
-static std::unique_ptr<HomePanel> g_home_panel;
-
 HomePanel& get_global_home_panel() {
-    if (!g_home_panel) {
-        g_home_panel = std::make_unique<HomePanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy("HomePanel",
-                                                         []() { g_home_panel.reset(); });
-    }
-    return *g_home_panel;
+    return helix::lazy_global<HomePanel>("HomePanel", get_printer_state(), nullptr);
 }
