@@ -25,7 +25,10 @@ setup() {
     PATH="$STUBBIN:$PATH"
 
     load helpers
-    # helpers.bash prepends its own exit-0 systemctl; these stubs come first.
+    # From here helpers.bash owns systemctl: its inert shim, scripted with
+    # mock_command_script. The rest of the stubs go back in front of
+    # everything, the test sandbox included.
+    rm "$STUBBIN/systemctl"
     PATH="$STUBBIN:$PATH"
     export HELIX_INSTALL_TTY=0
     export SUDO=""
@@ -141,7 +144,9 @@ EOF
 }
 
 @test "detect_competing_uis lists an active KlipperScreen unit without stopping it" {
-    stub systemctl 'case "$*" in *is-active*KlipperScreen*) exit 0 ;; esac; exit 1'
+    mock_command_script systemctl 'echo "systemctl $*" >> "'"$BATS_TEST_TMPDIR"'/calls.log"
+case "$*" in *is-active*KlipperScreen*) exit 0 ;; esac
+exit 1'
     INIT_SYSTEM=systemd
     detect_competing_uis
     [ "${COMPETING_UIS_FOUND#*KlipperScreen}" != "$COMPETING_UIS_FOUND" ]
