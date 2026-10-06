@@ -226,6 +226,11 @@ std::optional<PrePrintOption> parse_pre_print_option(const nlohmann::json& j);
  */
 PrePrintOptionSet parse_pre_print_option_set(const nlohmann::json& j);
 
+namespace helix {
+/// Sort by (category, order): the on-screen order every option set keeps.
+void sort_pre_print_options(std::vector<PrePrintOption>& options);
+} // namespace helix
+
 /**
  * @brief Render a `MacroParam` option as `KEY=value` token. The `enabled`
  *        argument selects the option's `enable_value` vs `skip_value`.

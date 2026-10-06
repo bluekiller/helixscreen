@@ -168,7 +168,7 @@ class LuaRuntime {
     size_t used_ = 0;
     int depth_ = 0;     ///< active entries; the memory cap applies only while > 0
     int host_work_ = 0; ///< host-side bookkeeping in progress; the cap is not enforced on it
-    Clock::time_point deadline_{};
+    std::chrono::nanoseconds deadline_{}; ///< in thread CPU time; see thread_cpu_time()
     bool yielded_for_async_ = false;
     bool killed_ = false;
     bool faulted_ = false;
