@@ -204,6 +204,44 @@ std::string lower(std::string s) {
     return s;
 }
 
+/// The curated entries plus synthetic ones, so a common query such as "pla"
+/// or "poly" fills a whole page of results the way the real catalog does.
+const json& mock_external_catalog_full() {
+    static const json catalog = [] {
+        json all = mock_external_catalog();
+        static constexpr const char* kMakers[] = {"Polymaker", "Prusament", "eSUN", "Sunlu"};
+        static constexpr const char* kLines[] = {"PolyLite", "PolyTerra", "Basic", "Matte"};
+        static constexpr const char* kMaterials[] = {"PLA", "PETG", "ASA"};
+        static constexpr const char* kColors[][2] = {
+            {"Red", "C62828"},  {"Orange", "EF6C00"}, {"Yellow", "F9A825"}, {"Green", "2E7D32"},
+            {"Teal", "00838F"}, {"Navy", "1A237E"},   {"Purple", "6A1B9A"}, {"Pink", "AD1457"},
+            {"Grey", "757575"}, {"Brown", "5D4037"}};
+        for (size_t m = 0; m < std::size(kMakers); ++m) {
+            for (const char* material : kMaterials) {
+                for (const auto& color : kColors) {
+                    const std::string name =
+                        std::string(kLines[m]) + " " + material + " " + color[0];
+                    all.push_back({{"id", lower(std::string(kMakers[m]) + "_" + name)},
+                                   {"manufacturer", kMakers[m]},
+                                   {"name", name},
+                                   {"material", material},
+                                   {"density", 1.24},
+                                   {"weight", 1000},
+                                   {"spool_weight", 200},
+                                   {"diameter", 1.75},
+                                   {"color_hex", color[1]},
+                                   {"extruder_temp", 215},
+                                   {"bed_temp", 60},
+                                   {"translucent", false},
+                                   {"glow", false}});
+                }
+            }
+        }
+        return all;
+    }();
+    return catalog;
+}
+
 /// Spoolman's search: every whitespace-separated word of the query must appear,
 /// case-insensitively, in the manufacturer, name and material together.
 bool catalog_matches(const json& entry, const std::string& query) {
@@ -235,6 +273,9 @@ MockSpoolmanServer::MockSpoolmanServer() {
         external_search_supported_ = false;
         spdlog::info("[MockSpoolman] SpoolmanDB search off via HELIX_MOCK_SPOOLMAN_DB_SEARCH=0 "
                      "(an older Spoolman)");
+    }
+    if (const char* env = std::getenv("HELIX_MOCK_SPOOLMAN_DB_SEARCH_LATENCY_MS")) {
+        external_search_latency_ms_ = std::clamp(std::atoi(env), 0, 10000);
     }
 }
 
@@ -634,7 +675,7 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         const std::string q = url_decode(query_value(query, "query"));
         const int limit = std::clamp(std::atoi(query_value(query, "limit").c_str()), 1, 100);
         result = json::array();
-        for (const auto& entry : mock_external_catalog()) {
+        for (const auto& entry : mock_external_catalog_full()) {
             if (static_cast<int>(result.size()) >= limit) {
                 break;
             }

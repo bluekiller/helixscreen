@@ -2138,7 +2138,7 @@ TEST_CASE("search_spoolman_external_filaments searches the catalog through the p
         for (const auto& f : poly) {
             CHECK(f.manufacturer == "Polymaker");
         }
-        auto petg = search("POLYMAKER petg", 25);
+        auto petg = search("POLYMAKER petg BLUE", 25);
         REQUIRE(petg.size() == 1);
         CHECK(petg[0].name == "PolyLite PETG Blue");
     }

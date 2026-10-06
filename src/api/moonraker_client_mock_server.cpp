@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "env_knobs.h"
+#include "http_executor.h"
 #include "moonraker_client_mock_internal.h"
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -317,7 +320,28 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         }
         json result;
         MoonrakerError err;
-        if (!self->spoolman_mock().proxy(params, result, err)) {
+        const bool ok = self->spoolman_mock().proxy(params, result, err);
+        const int latency_ms = self->spoolman_mock().external_search_latency_ms();
+        const std::string path = params.contains("path") && params["path"].is_string()
+                                     ? params["path"].get<std::string>()
+                                     : std::string();
+        if (latency_ms > 0 && path.rfind("/v1/external/filament/search", 0) == 0) {
+            // Answer from a worker thread after the delay, as a real response
+            // arrives on the WebSocket thread.
+            helix::http::HttpExecutor::fast().submit(
+                [ok, latency_ms, result = std::move(result), err, success_cb, error_cb]() mutable {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(latency_ms));
+                    if (!ok) {
+                        if (error_cb) {
+                            error_cb(err);
+                        }
+                    } else if (success_cb) {
+                        success_cb(json{{"jsonrpc", "2.0"}, {"result", std::move(result)}});
+                    }
+                });
+            return true;
+        }
+        if (!ok) {
             if (error_cb) {
                 error_cb(err);
             }
