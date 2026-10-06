@@ -8,10 +8,12 @@
 #include "ams_state.h"
 #include "app_globals.h"
 #include "bed_drying_controller.h"
+#include "display_manager.h"
 #include "filament_op_execute.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "printer_state.h"
+#include "sound_manager.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -196,6 +198,26 @@ void show_bed_drying_remove_prompt() {
                           ctrl->confirm_removed();
                       }
                   });
+}
+
+void show_spools_on_bed_print_alarm() {
+    if (auto* dm = DisplayManager::instance()) {
+        dm->wake_display();
+    }
+    SoundManager::instance().play("error_alert");
+    ConfirmOptions opts;
+    opts.cancel_text = lv_tr("Dismiss");
+    modal_confirm(
+        lv_tr("Spools on the bed!"),
+        lv_tr("A print started while spools are marked as on the bed. If they are "
+              "still there, stop the printer now with the E-stop."),
+        ModalSeverity::Error, lv_tr("Spools are off"),
+        [] {
+            if (auto* ctrl = get_bed_drying_controller()) {
+                ctrl->confirm_removed();
+            }
+        },
+        opts);
 }
 
 void on_bed_drying_banner_clicked() {

@@ -96,7 +96,10 @@ class HomePanel : public PanelBase {
     SubjectManager subjects_;
     bool populating_widgets_ = false; // Reentrancy guard for populate_widgets()
     bool panel_active_ = false;       // Whether on_activate() has been called
-    bool finalized_ = false;          // Whether finalize_setup() has run
+    /// A widget config change asked for a rebuild while edit mode was live;
+    /// leaving edit mode runs it.
+    bool config_rebuild_deferred_ = false;
+    bool finalized_ = false; // Whether finalize_setup() has run
 
     // Cached image path for skipping redundant refresh_printer_image() calls
     std::string last_printer_image_path_;
@@ -161,10 +164,16 @@ class HomePanel : public PanelBase {
     void update_populated_pages_subject();
 
     /// Give edit mode the page work it asks the panel for: the rebuild that
-    /// repopulates every page from config, and the page-deletion confirmation.
+    /// repopulates every page from config, the in-place relayout of the edited
+    /// page (relayout_edit_page()), and the page-deletion confirmation.
     /// Part of finalize_setup(); the constructor wires the callbacks that must
     /// work before a carousel exists.
     void wire_grid_edit_page_callbacks();
+
+    /// Rebuild every page when the home widget config changes (settings
+    /// toggles, a widget's own config, the catalog's reset). During edit mode
+    /// the rebuild waits for the session to end.
+    void register_config_rebuild_callback();
 
     /// Build the carousel from config, showing @p initial_page (clamped to the
     /// config pages), and populate every page. Re-scopes no edit session: the
@@ -190,6 +199,12 @@ class HomePanel : public PanelBase {
     void add_page_from_slot();
     void update_arrow_visibility(int page);
     void populate_page(int page_index, bool force);
+    /// Re-seat the edit session's page in place after a move or resize placed
+    /// @p changed_ids (PanelWidgetManager::relayout_tiles), giving the tile
+    /// named @p resized_id (empty for none) its new span. False when the page
+    /// needs a full populate instead.
+    bool relayout_edit_page(const std::vector<std::string>& changed_ids,
+                            const std::string& resized_id);
 
     /// Apply the carousel swipe policy for the edit session: Disabled while an
     /// edit gesture owns the pointer or the widget catalog is open, Auto (swipe

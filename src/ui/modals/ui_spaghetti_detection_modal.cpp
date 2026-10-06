@@ -7,6 +7,7 @@
 
 #include "abort_manager.h"
 #include "app_globals.h"
+#include "display_manager.h"
 #include "i_moonraker_api.h"
 #include "settings_manager.h"
 #include "static_subject_registry.h"
@@ -79,6 +80,10 @@ void present_detection(const DetectionEvent& e, DetectionPolicy p) {
     const auto response = DetectionManager::instance().response_for(p);
     if (response == DetectionResponse::Suppressed)
         return;
+    // A detection pause waits on the user; a sleeping screen would hide it.
+    if (auto* dm = DisplayManager::instance()) {
+        dm->wake_display();
+    }
     // Warn-only still owes a self-paused print the Resume/Abort decision: a
     // print the firmware already paused cannot be left on a vanishing toast
     // with no path forward, so it escalates to the modal below.

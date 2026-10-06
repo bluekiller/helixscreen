@@ -135,6 +135,13 @@ class BedDryingController {
         on_ready_to_remove_ = std::move(cb);
     }
 
+    /// Called once each time a print takes hold of the machine while spools
+    /// are latched on the bed: a start from another client or a macro, which
+    /// the latch cannot refuse.
+    void set_on_print_while_latched(std::function<void()> cb) {
+        on_print_while_latched_ = std::move(cb);
+    }
+
     lv_subject_t* get_state_subject() {
         return &bed_drying_state_;
     }
@@ -161,6 +168,7 @@ class BedDryingController {
     void hold_idle(int seconds);
     [[nodiscard]] bool klipper_ready() const;
     void publish();
+    void check_print_alarm();
     void set_latch(bool on);
     void cancel_timer();
     void finish_unload_wait(bool done);
@@ -194,6 +202,9 @@ class BedDryingController {
 
     lv_timer_t* timer_ = nullptr;
     std::function<void()> on_ready_to_remove_;
+    std::function<void()> on_print_while_latched_;
+    ObserverGuard print_watch_;
+    bool print_alarm_raised_ = false;
 
     ObserverGuard unload_watch_;
     lv_timer_t* unload_timer_ = nullptr;

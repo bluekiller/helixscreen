@@ -12,6 +12,7 @@
 #include "i_moonraker_api.h"
 #include "print_file_data.h"
 #include "thumbnail_cache.h"
+#include "try_reserve.h"
 
 #include <spdlog/spdlog.h>
 
@@ -89,6 +90,18 @@ void PrintSelectFileProvider::refresh_files(const std::string& current_path,
             }
 
             std::vector<PrintFileData> file_list;
+            // Sized up front: on the firmware a vector that cannot grow aborts
+            // the board. A list whose buffer does not fit keeps the one on
+            // screen. Each entry's strings still allocate as it is added.
+            if (!helix::try_reserve(file_list, files.size() + 1)) {
+                spdlog::error("[FileProvider] No memory for a {}-entry file list; keeping the "
+                              "current one",
+                              files.size());
+                if (on_err) {
+                    on_err("not enough memory to list " + std::to_string(files.size()) + " files");
+                }
+                return;
+            }
 
             // Add ".." parent directory entry if not at root
             if (!path_copy.empty()) {
