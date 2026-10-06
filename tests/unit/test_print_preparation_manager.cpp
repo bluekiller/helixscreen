@@ -82,26 +82,6 @@ TEST_CASE("PrintPreparationManager: has_macro_analysis when no analysis availabl
     REQUIRE(manager.has_macro_analysis() == false);
 }
 
-TEST_CASE("PrintPreparationManager: is_macro_op_controllable", "[print_preparation][macro]") {
-    PrintPreparationManager manager;
-
-    SECTION("Returns false when no analysis available") {
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::BED_MESH) == false);
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::QGL) == false);
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::Z_TILT) == false);
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::NOZZLE_CLEAN) == false);
-    }
-}
-
-TEST_CASE("PrintPreparationManager: get_macro_skip_param", "[print_preparation][macro]") {
-    PrintPreparationManager manager;
-
-    SECTION("Returns empty string when no analysis available") {
-        REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::BED_MESH).empty());
-        REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::QGL).empty());
-    }
-}
-
 // ============================================================================
 // Tests: File Operations Scanning
 // ============================================================================
@@ -3824,6 +3804,11 @@ TEST_CASE_METHOD(HelixTestFixture,
         REQUIRE(rows.find("qgl") == nullptr);
         REQUIRE(rows.options.size() ==
                 printer_state.profile_state().pre_print_option_set().options.size());
+    }
+
+    SECTION("no analysis gives no rows") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        REQUIRE(manager.displayed_options().options.empty());
     }
 
     SECTION("an empty analysis gives no rows") {

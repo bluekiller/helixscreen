@@ -441,41 +441,6 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
         });
 }
 
-bool PrintPreparationManager::is_macro_op_controllable(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return false;
-    }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    return op && op->has_skip_param;
-}
-
-std::string
-PrintPreparationManager::get_macro_skip_param(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return "";
-    }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    if (op && op->has_skip_param) {
-        return op->skip_param_name;
-    }
-    return "";
-}
-
-helix::ParameterSemantic
-PrintPreparationManager::get_macro_param_semantic(helix::PrintStartOpCategory category) const {
-    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
-        return helix::ParameterSemantic::OPT_OUT; // Default assumption
-    }
-
-    const auto* op = macro_analysis_->get_operation(category);
-    if (op && op->has_skip_param) {
-        return op->param_semantic;
-    }
-    return helix::ParameterSemantic::OPT_OUT; // Default assumption
-}
-
 PrePrintOptionSet PrintPreparationManager::displayed_options() const {
     PrePrintOptionSet displayed = get_cached_options();
     const bool database_declares_options =

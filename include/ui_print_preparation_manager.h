@@ -210,31 +210,6 @@ class PrintPreparationManager {
     }
 
     /**
-     * @brief Check if a specific operation in PRINT_START is controllable
-     *
-     * @param category The operation category to check
-     * @return true if the operation has a skip parameter in the macro
-     */
-    [[nodiscard]] bool is_macro_op_controllable(helix::PrintStartOpCategory category) const;
-
-    /**
-     * @brief Get the skip parameter name for a macro operation (if controllable)
-     *
-     * @param category The operation category
-     * @return Parameter name (e.g., "SKIP_BED_MESH") or empty string if not controllable
-     */
-    [[nodiscard]] std::string get_macro_skip_param(helix::PrintStartOpCategory category) const;
-
-    /**
-     * @brief Get the parameter semantic for a macro operation
-     *
-     * @param category The operation category
-     * @return ParameterSemantic (OPT_OUT for SKIP_*, OPT_IN for PERFORM_*)
-     */
-    [[nodiscard]] helix::ParameterSemantic
-    get_macro_param_semantic(helix::PrintStartOpCategory category) const;
-
-    /**
      * @brief The options the detail view shows as rows
      *
      * The printer's option set. When the printer database declares no options
