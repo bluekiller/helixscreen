@@ -1194,6 +1194,30 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
     REQUIRE(api_->history_last_limit() == PrintHistoryManager::kCompleteJobLimit);
 }
 
+TEST_CASE_METHOD(HistoryManagerTestFixture,
+                 "A whole-history load cut off by its limit covers only what it holds",
+                 "[history_manager][coverage]") {
+    const double now = 1'000'000.0;
+    const double week_ago = now - 7 * 24 * 3600;
+
+    // A COMPLETE load that came back full: the limit, not the printer, ended it,
+    // so jobs older than the last one cached may exist. The limit is forced to
+    // 3 here; the ESP32 caps the real one at 100.
+    std::vector<PrintHistoryJob> page;
+    for (int i = 0; i < 3; ++i) {
+        PrintHistoryJob job;
+        job.job_id = "job" + std::to_string(i);
+        job.filename = "a.gcode";
+        job.start_time = now - static_cast<double>(i) * 3600;
+        page.push_back(job);
+    }
+    install_live_cache(page, HistoryScope::COMPLETE, 3);
+
+    REQUIRE(manager_->is_loaded(HistoryScope::COMPLETE)); // no re-fetch loop
+    CHECK_FALSE(manager_->covers_since(week_ago));
+    CHECK(manager_->covers_since(now - 2 * 3600));
+}
+
 TEST_CASE_METHOD(HistoryManagerTestFixture, "A cold cache is covered by loading the slice",
                  "[history_manager][coverage]") {
     REQUIRE_FALSE(manager_->covers_since(0.0));
