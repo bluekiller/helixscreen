@@ -883,3 +883,24 @@ TEST_CASE("Subscription: OpenAMS subscribes every oams_manager field its backend
         CHECK_FALSE(subs.contains("oams_manager"));
     }
 }
+
+TEST_CASE("Subscription: a firmware that stores pre-print settings gets its store subscribed",
+          "[moonraker][subscription][firmware_seeded]") {
+    SECTION("from the provider table, whatever the AMS type") {
+        DiscoveryFixture fx;
+        fx.add("print_task_config", {});
+        PrinterDiscovery hw;
+        hw.parse_objects(fx.all_objects);
+        REQUIRE(hw.mmu_type() != helix::AmsType::SNAPMAKER);
+
+        json subs = fx.build(hw);
+        REQUIRE(subs.contains("print_task_config"));
+        CHECK(subs["print_task_config"].is_null()); // every field
+    }
+
+    SECTION("not for a printer without one") {
+        DiscoveryFixture fx;
+        json subs = fx.build();
+        CHECK_FALSE(subs.contains("print_task_config"));
+    }
+}
