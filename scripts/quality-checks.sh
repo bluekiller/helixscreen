@@ -920,28 +920,6 @@ fi
 
 echo ""
 
-# ESP32 firmware app_srcs manifest drift. The manifest is a hand-maintained
-# subset of src/ (v1 Core+AMS cut); a new src/ file that misses it breaks the
-# firmware link ~25 min into esp32-build CI. This makes the drift loud here.
-if python3 scripts/check_esp32_app_srcs.py >/tmp/esp32_app_srcs.out 2>&1; then
-  echo "✅ ESP32 app_srcs manifest covers src/ (no drift)"
-else
-  cat /tmp/esp32_app_srcs.out
-  EXIT_CODE=1
-fi
-
-# The same boundary at link level: a listed file calling a symbol that only an
-# excluded file defines compiles everywhere and fails the firmware link. It reads
-# the native build's objects, which this hook may not have built yet or may hold
-# from an older build, so it is advisory.
-python3 scripts/check_esp32_app_srcs.py --link >/tmp/esp32_app_srcs_link.out 2>&1
-case $? in
-  0) echo "✅ ESP32 link boundary: no listed file needs an excluded file's symbols" ;;
-  2) echo "ℹ️  ESP32 link boundary: no native objects to read (advisory, skipped)" ;;
-  *) echo "⚠️  ESP32 link boundary findings (advisory):"
-     cat /tmp/esp32_app_srcs_link.out ;;
-esac
-
 # android/app/src/main/assets/ is a Gradle build output (the copyAssets task
 # wipes and re-copies it from ui_xml/, assets/ and config/). It is ignored
 # wholesale, so a snapshot from an old build lingers on disk looking exactly like
@@ -1003,6 +981,42 @@ echo ""
 #  its first line to the next '# ====' banner. Wrapping the sections in
 #  functions moved the banners above them, so without this the extraction
 #  ran on past the body and swallowed the return/closing brace.)
+  return $EXIT_CODE
+}
+
+# ====================================================================
+# ESP32 firmware app_srcs manifest and link boundary
+# ====================================================================
+qc_esp32_app_srcs() {
+  local EXIT_CODE=0
+# ESP32 firmware app_srcs manifest drift. The manifest is a hand-maintained
+# subset of src/ (v1 Core+AMS cut); a new src/ file that misses it breaks the
+# firmware link ~25 min into esp32-build CI. This makes the drift loud here.
+if python3 scripts/check_esp32_app_srcs.py >/tmp/esp32_app_srcs.out 2>&1; then
+  echo "✅ ESP32 app_srcs manifest covers src/ (no drift)"
+else
+  cat /tmp/esp32_app_srcs.out
+  EXIT_CODE=1
+fi
+
+# The same boundary at link level: a listed file calling a symbol that only an
+# excluded file defines compiles everywhere and fails the firmware link. It reads
+# the native build's objects, which this hook may not have built yet or may hold
+# from an older build, so it is advisory.
+python3 scripts/check_esp32_app_srcs.py --link >/tmp/esp32_app_srcs_link.out 2>&1
+case $? in
+  0) echo "✅ ESP32 link boundary: no listed file needs an excluded file's symbols" ;;
+  2) echo "ℹ️  ESP32 link boundary: no build/obj objects to read (advisory, skipped)" ;;
+  *) echo "⚠️  ESP32 link boundary findings (advisory):"
+     cat /tmp/esp32_app_srcs_link.out ;;
+esac
+
+echo ""
+
+# ====================================================================
+# (terminator: tests/shell/*.bats extract a section's body by awk-ing from
+#  its first line to the next '# ====' banner, which must stop before the
+#  return and closing brace.)
   return $EXIT_CODE
 }
 
@@ -2309,13 +2323,21 @@ echo -n "🗺️  Checking the platform manifest against its consumers..."
 # It reports drift between the manifest and the build files, install-root lists
 # and renders that derive from it; --strict makes the same findings fail once
 # every consumer reads the manifest.
-python3 scripts/check_platform_manifest.py --quiet >/tmp/platform_manifest.out 2>&1 || true
-section_time $SECTION_START
-echo ""
-if [ -s /tmp/platform_manifest.out ]; then
+# Without --strict it exits 0 on findings, so a non-zero exit is the script
+# itself failing to run.
+if ! python3 scripts/check_platform_manifest.py --quiet >/tmp/platform_manifest.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/platform_manifest.out
+  EXIT_CODE=1
+elif [ -s /tmp/platform_manifest.out ]; then
+  section_time $SECTION_START
+  echo ""
   echo "ℹ️  platform manifest findings (advisory):"
   cat /tmp/platform_manifest.out
 else
+  section_time $SECTION_START
+  echo ""
   echo "✅ platform manifest agrees with its consumers"
 fi
 
@@ -3361,7 +3383,7 @@ echo ""
   return $EXIT_CODE
 }
 
-QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_xml_create_registered qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
+QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_esp32_app_srcs qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_xml_create_registered qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
 
 QC_PARALLEL=""
 for fn in $QC_ALL; do
@@ -3385,6 +3407,7 @@ qc_trigger_re() {
     qc_xml_tools)        echo '\.xml$|^src/ui/|^tools/validate_xml|^tools/xml-linter/' ;;
     qc_overlay_width)   echo '\.xml$|\.(cpp|h)$' ;;
     qc_design_pixels)   echo '\.xml$' ;;
+    qc_esp32_app_srcs)  echo '^src/|^firmware/helixscreen-esp32/components/helixapp/|^scripts/check_esp32_app_srcs\.py$|^scripts/esp32_link_baseline\.txt$' ;;
     qc_phase2)          echo '\.(cpp|c|h|mm|xml)$' ;;
     qc_icon_font|qc_mdi_codepoints)
                         echo '\.xml$|icon|font' ;;

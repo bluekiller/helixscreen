@@ -66,7 +66,8 @@ MODES
                      excluded file defines, which the source checks cannot see.
                      A symbol the firmware's own sources stub, or a reference whose
                      every mention sits in a branch the firmware does not compile,
-                     is fine. Known references are ratcheted in LINK_BASELINE.
+                     is fine. Known references are ratcheted in --baseline
+                     (default scripts/esp32_link_baseline.txt).
                      Exit 2 when listed objects are missing (no native build yet).
   --write-exclusions SEEDING/BULK-ADD tool, not the answer to routine drift.
                      Adds the currently-undecided files to the baseline,
@@ -94,6 +95,8 @@ DEFAULT_EXCLUSIONS = REPO_ROOT / "firmware/helixscreen-esp32/components/helixapp
 DEFAULT_SRC_ROOT = REPO_ROOT / "src"
 DEFAULT_OBJ_ROOT = REPO_ROOT / "build/obj"
 DEFAULT_FIRMWARE_ROOT = REPO_ROOT / "firmware/helixscreen-esp32"
+DEFAULT_LINK_BASELINE = REPO_ROOT / "scripts/esp32_link_baseline.txt"
+LINK_CEILING_KEY = "max-edges"
 SRC_SUFFIXES = (".cpp", ".c")
 
 # The exact shape CMake's `REGEX "^[^#].*\.(cpp|c)$"` accepts AND that yields a
@@ -140,7 +143,7 @@ EXCEPTION_CONSTRUCT = re.compile(r"\btry\s*\{|\bcatch\s*\(|\bthrow\b(?!_)")
 STRING_LITERAL = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
 # Defined by the toolchain or IDF on every firmware compile, or never defined there.
 FIRMWARE_TOOLCHAIN_DEFINES = {"ESP_PLATFORM": "1"}
-FIRMWARE_UNDEFINED = {"__cpp_exceptions", "HELIX_ENABLE_MOCKS"}
+FIRMWARE_UNDEFINED = {"__cpp_exceptions", "HELIX_ENABLE_MOCKS", "__APPLE__", "__ANDROID__"}
 
 
 def firmware_defines(cmake_text: str) -> dict[str, str]:
@@ -203,8 +206,14 @@ def firmware_code_lines(text: str, defines: dict[str, str]):
     whose condition this cannot evaluate counts as compiled.
     """
     stack, in_block_comment = [], False
-    for lineno, raw in enumerate(text.splitlines(), 1):
+    lines = text.splitlines()
+    for lineno, raw in enumerate(lines, 1):
         line = raw
+        if line.lstrip().startswith("#"):
+            while line.endswith("\\") and lineno < len(lines):
+                line = line[:-1] + " " + lines[lineno]
+                lines[lineno] = ""
+                lineno += 1
         if in_block_comment:
             if "*/" not in line:
                 continue
@@ -213,20 +222,23 @@ def firmware_code_lines(text: str, defines: dict[str, str]):
         if stripped.startswith("#"):
             directive = re.sub(r"\s+", " ", stripped[1:].split("//", 1)[0]).strip()
             # Each frame: [does the firmware compile this branch (None = unknown),
-            #              has an earlier branch of this #if been compiled].
+            #              has an earlier branch of this #if been compiled,
+            #              could an earlier branch have been compiled].
             if directive.startswith("if"):
                 cond = firmware_condition(directive, defines)
-                stack.append([cond, cond is True])
-            elif directive.startswith("elif") and stack:
-                stack[-1][0] = False if stack[-1][1] else None
-            elif directive.startswith("else") and stack:
+                stack.append([cond, cond is True, cond is None])
+            elif directive.startswith(("elif", "else")) and stack:
                 frame = stack[-1]
+                cond = (firmware_condition("if" + directive[4:], defines)
+                        if directive.startswith("elif") else True)
                 if frame[1]:
                     frame[0] = False
-                elif frame[0] is False:
-                    frame[0] = True
-                else:
+                elif frame[2] and cond is not False:
                     frame[0] = None
+                else:
+                    frame[0] = cond
+                frame[1] = frame[1] or frame[0] is True
+                frame[2] = frame[2] or frame[0] is None
             elif directive.startswith("endif") and stack:
                 stack.pop()
             continue
@@ -478,53 +490,20 @@ def compute(manifest: Path, exclusions: Path, src_root: Path) -> Findings:
                     exception_constructs=exception_constructs, universe=universe)
 
 
-# (listed file, excluded file) references the firmware links today although the
-# excluded file supplies the symbol natively. The ESP-IDF link pulls objects out of
-# a static archive and drops unreferenced sections, so a reference from code the
-# firmware never reaches links there; this check cannot see reachability. The list
-# only shrinks: an entry that no longer occurs is reported for deletion.
-LINK_BASELINE: set[tuple[str, str]] = {
-    ("src/api/wifi_backend.cpp", "src/api/netd_protocol.cpp"),
-    ("src/api/wifi_backend.cpp", "src/api/wifi_backend_netd.cpp"),
-    ("src/api/wifi_backend.cpp", "src/api/wifi_backend_wpa_supplicant.cpp"),
-    ("src/api/wifi_manager.cpp", "src/api/wifi_backend_wpa_supplicant.cpp"),
-    ("src/application/moonraker_manager.cpp", "src/api/mock_http_file_server.cpp"),
-    ("src/application/moonraker_manager.cpp", "src/api/moonraker_client_mock.cpp"),
-    ("src/rendering/gcode_file_modifier.cpp", "src/rendering/gcode_streaming_config.cpp"),
-    ("src/system/sound_manager.cpp", "src/system/alsa_sound_backend.cpp"),
-    ("src/system/sound_manager.cpp", "src/system/sdl_sound_backend.cpp"),
-    ("src/system/sound_manager.cpp", "src/system/tracker_module_mod.cpp"),
-    ("src/system/sound_manager.cpp", "src/system/tracker_player.cpp"),
-    ("src/ui/print_preview_controller.cpp", "src/ui/gcode_viewer_loader.cpp"),
-    ("src/ui/ui_ams_edit_overlay.cpp", "src/system/label_printer_settings.cpp"),
-    ("src/ui/ui_external_spool_menu.cpp", "src/ui/ui_overlay_qr_scanner.cpp"),
-    ("src/ui/ui_gcode_viewer.cpp", "src/rendering/gcode_camera.cpp"),
-    ("src/ui/ui_gcode_viewer.cpp", "src/rendering/gcode_layer_renderer.cpp"),
-    ("src/ui/ui_gcode_viewer.cpp", "src/rendering/gcode_streaming_controller.cpp"),
-    ("src/ui/ui_panel_controls.cpp", "src/ui/ui_panel_calibration_pa.cpp"),
-    ("src/ui/ui_panel_settings.cpp", "src/plugin/plugins_overlay.cpp"),
-    ("src/ui/ui_print_select_detail_view.cpp", "src/ui/gcode_viewer_loader.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/app_globals.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/system/platform_info.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_ams_identify.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_filament_sensor_select.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_printer_identify.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_touch_calibration.cpp"),
-    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_wifi.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_ams_identify.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_connection.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_fan_select.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_filament_sensor_select.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_heater_select.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_input_shaper.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_language_chooser.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_led_select.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_printer_identify.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_summary.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_telemetry.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_touch_calibration.cpp"),
-    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_wifi.cpp"),
-}
+def load_link_baseline(path: Path) -> tuple[set[tuple[str, str]], int | None]:
+    """(edges, max-edges ceiling) from a `listed -> excluded` per-line baseline."""
+    edges: set[tuple[str, str]] = set()
+    ceiling = None
+    if not path.exists():
+        return edges, ceiling
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if line.startswith(LINK_CEILING_KEY + ":"):
+            ceiling = int(line.split(":", 1)[1])
+        elif " -> " in line:
+            user, _, definer = line.partition(" -> ")
+            edges.add((user.strip(), definer.strip()))
+    return edges, ceiling
 
 
 IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
@@ -566,13 +545,58 @@ def symbol_name(demangled: str) -> list[str]:
         if stripped == name:
             break
         name = stripped
-    return [part.lstrip("~") for part in name.split("::")]
+    return name.split("::")
+
+
+NOT_A_FUNCTION = {"if", "for", "while", "switch", "return", "sizeof", "catch", "defined",
+                  "alignof", "decltype", "static_assert"}
+CALLEE = re.compile(r"(?<![\w.>:~])((?:\w+::)*~?\w+)\s*\(")
+AFTER_PARAMS = re.compile(
+    r"(?:\s|\bconst\b|\bnoexcept\b|\boverride\b|\bfinal\b)*(?:[{]|:(?!:)|=\s*default\b)")
+VARIABLE_DEFINITION = re.compile(r"^[ \t]*(?:(?:static|extern|const|constexpr|inline|"
+                                 r"thread_local)\s+)*(?!return\b)[\w:]+(?:<[^;{]*>)?[\s*&]+"
+                                 r"((?:\w+::)*\w+)\s*(?:[{=;\[])", re.M)
+
+
+def defined_functions(code: str) -> set[str]:
+    """Names, as written (`Cls::fn`, `fn`), of each function `code` gives a body.
+
+    A name counts when its closing parenthesis is followed, past cv/noexcept
+    qualifiers, by `{`, a constructor's `:` or `= default`. A call is followed by
+    `;`, `)`, `.` or an operator instead. Namespace-scope variables count too: a
+    declaration with a type before the name and an initializer or `;` after it.
+    """
+    out = set(VARIABLE_DEFINITION.findall(code))
+    for m in CALLEE.finditer(code):
+        if m.group(1).rsplit("::", 1)[-1] in NOT_A_FUNCTION:
+            continue
+        depth, k = 0, m.end() - 1
+        while k < len(code):
+            depth += {"(": 1, ")": -1}.get(code[k], 0)
+            if depth == 0:
+                break
+            k += 1
+        if AFTER_PARAMS.match(code, k + 1):
+            out.add(m.group(1))
+    return out
+
+
+def firmware_defines_symbol(parts: list[str], defined: set[str], namespaces: set[str]) -> bool:
+    """Whether a firmware source gives `parts` (from symbol_name) a body.
+
+    A vtable or typeinfo names a class: any out-of-line member of it counts.
+    """
+    name = parts[-1]
+    if len(parts) > 1 and f"{parts[-2]}::{name}" in defined:
+        return True
+    return name in defined and (len(parts) == 1 or parts[-2] in namespaces)
 
 
 @dataclass
 class LinkFindings:
     new: dict[tuple[str, str], list[str]] = field(default_factory=dict)  # edge -> symbols
     stale_baseline: list[tuple[str, str]] = field(default_factory=list)
+    over_ceiling: tuple[int, int | None] | None = None  # (entries, ceiling)
     missing_objects: list[str] = field(default_factory=list)
 
 
@@ -580,9 +604,8 @@ def compute_link(manifest: Path, exclusions: Path, src_root: Path, obj_root: Pat
                  firmware_root: Path, baseline: set[tuple[str, str]]) -> LinkFindings:
     """References from firmware-listed objects that only an excluded object satisfies.
 
-    A symbol counts as supplied when a listed object defines it, or when the
-    firmware's own sources (stubs, platform seams) mention both its name and its
-    enclosing scope. A reference counts as live unless every mention of the name in
+    A symbol counts as supplied when a listed object defines it, or when one of the
+    firmware's own sources (stubs, platform seams) gives it a body. A reference counts as live unless every mention of the name in
     the referencing source sits in a branch the firmware does not compile.
     """
     included, _ = load_manifest(manifest)
@@ -603,7 +626,8 @@ def compute_link(manifest: Path, exclusions: Path, src_root: Path, obj_root: Pat
                      if object_path(obj_root, f).exists()}
 
     undefined = nm_symbols(listed_objs, "--undefined-only")
-    supplied = set().union(*nm_symbols(listed_objs, "--defined-only").values())
+    supplied = {sym for syms in nm_symbols(listed_objs, "--defined-only").values()
+                for sym in syms}
     owner: dict[str, str] = {}
     for f, syms in nm_symbols(excluded_objs, "--defined-only").items():
         for sym in syms:
@@ -611,19 +635,38 @@ def compute_link(manifest: Path, exclusions: Path, src_root: Path, obj_root: Pat
     wanted = sorted({sym for syms in undefined.values() for sym in syms
                      if sym in owner and sym not in supplied})
     if not wanted:
+        found.stale_baseline = sorted(e for e in baseline if e[0] in listed_objs)
         return found
     demangled = dict(zip(wanted, subprocess.run(
         ["c++filt"], input="\n".join(wanted), capture_output=True, text=True,
         check=True).stdout.splitlines()))
 
-    firmware_words = {w for p in firmware_root.rglob("*") if p.suffix in SRC_SUFFIXES
-                      for w in IDENTIFIER.findall(p.read_text(errors="replace"))}
     cmake = manifest.parent / "CMakeLists.txt"
-    defines = firmware_defines(cmake.read_text() if cmake.exists() else "")
+    cmake_text = cmake.read_text() if cmake.exists() else ""
+    defines = firmware_defines(cmake_text)
     base = src_root.parent
+    include_dirs = [base / d for d in re.findall(r"\$\{REPO_ROOT\}/([\w./-]+)", cmake_text)]
+    firmware_defined: set[str] = set()
+    firmware_namespaces: set[str] = set()
+    for p in sorted(firmware_root.rglob("*")):
+        if p.suffix not in SRC_SUFFIXES:
+            continue
+        text = p.read_text(errors="replace")
+        # A single-header library defines its functions in the source that sets
+        # its *_IMPLEMENTATION macro before including it.
+        if re.search(r"^\s*#\s*define\s+\w+_IMPLEMENTATION\b", text, re.M):
+            for header in re.findall(r'^\s*#\s*include\s*"([^"]+)"', text, re.M):
+                hits = [d / header for d in (p.parent, *include_dirs) if (d / header).is_file()]
+                if hits:
+                    text += "\n" + hits[0].read_text(errors="replace")
+        code = "\n".join(c for _, c in firmware_code_lines(text, defines))
+        firmware_defined |= defined_functions(code)
+        for ns in re.findall(r"\bnamespace\s+([\w:]+)", code):
+            firmware_namespaces |= set(ns.split("::"))
+    firmware_classes = {d.split("::")[-2] for d in firmware_defined if "::" in d}
     seen: set[tuple[str, str]] = set()
     for f in sorted(undefined):
-        syms = sorted(undefined[f] & set(demangled))
+        syms = sorted(undefined[f] & demangled.keys())
         if not syms:
             continue
         text = (base / f).read_text(errors="replace")
@@ -632,9 +675,13 @@ def compute_link(manifest: Path, exclusions: Path, src_root: Path, obj_root: Pat
                       for w in IDENTIFIER.findall(c)}
         for sym in syms:
             parts = symbol_name(demangled[sym])
-            if parts[-1] in firmware_words and (len(parts) == 1 or parts[-2] in firmware_words):
+            if demangled[sym].startswith(("vtable for ", "typeinfo for ")):
+                if parts[-1] in firmware_classes:
+                    continue
+            elif firmware_defines_symbol(parts, firmware_defined, firmware_namespaces):
                 continue
-            if parts[-1] in words and parts[-1] not in live_words:
+            word = parts[-1].lstrip("~")
+            if word in words and word not in live_words:
                 continue
             edge = (f, owner[sym])
             seen.add(edge)
@@ -657,10 +704,14 @@ def report_link(f: LinkFindings) -> None:
               "defining file\n      on the firmware (move it to app_srcs.txt), or stub it in "
               "firmware/helixscreen-esp32/.", file=sys.stderr)
     if f.stale_baseline:
-        print(f"FAIL: {len(f.stale_baseline)} LINK_BASELINE entr(ies) no longer occur; "
-              "delete them:", file=sys.stderr)
+        print(f"FAIL: {len(f.stale_baseline)} link baseline entr(ies) no longer occur; "
+              "delete them and lower max-edges:", file=sys.stderr)
         for user, definer in f.stale_baseline:
-            print(f"        (\"{user}\", \"{definer}\"),", file=sys.stderr)
+            print(f"        {user} -> {definer}", file=sys.stderr)
+    if f.over_ceiling:
+        entries, ceiling = f.over_ceiling
+        print(f"FAIL: the link baseline holds {entries} entries against max-edges: {ceiling}.\n"
+              "      It only shrinks; fix the reference instead of listing it.", file=sys.stderr)
 
 
 def compress_dirs(undecided_set: set[str], universe: set[str]) -> dict[str, list[str]]:
@@ -825,20 +876,26 @@ def main() -> int:
                          "from a listed file that only an excluded file defines")
     ap.add_argument("--obj-root", type=Path, default=DEFAULT_OBJ_ROOT)
     ap.add_argument("--firmware-root", type=Path, default=DEFAULT_FIRMWARE_ROOT)
+    ap.add_argument("--baseline", type=Path, default=DEFAULT_LINK_BASELINE,
+                    help="with --link: the known `listed -> excluded` edges and their "
+                         f"{LINK_CEILING_KEY}: ceiling")
     args = ap.parse_args()
 
     if args.link:
+        baseline, ceiling = load_link_baseline(args.baseline)
         lf = compute_link(args.manifest, args.exclusions, args.src_root, args.obj_root,
-                          args.firmware_root, LINK_BASELINE)
+                          args.firmware_root, baseline)
         if lf.missing_objects:
             print(f"SKIP: {len(lf.missing_objects)} listed file(s) have no object under "
                   f"{display(args.obj_root)}; build first (make).", file=sys.stderr)
             return 2
-        if lf.new or lf.stale_baseline:
+        if ceiling is None or len(baseline) > ceiling:
+            lf.over_ceiling = (len(baseline), ceiling)
+        if lf.new or lf.stale_baseline or lf.over_ceiling:
             report_link(lf)
             return 1
-        print("OK: no firmware-listed object references a symbol only an excluded file "
-              "defines.")
+        print(f"OK: no firmware-listed object references a symbol only an excluded file "
+              f"defines beyond the {len(baseline)} baselined edge(s).")
         return 0
 
     f = compute(args.manifest, args.exclusions, args.src_root)

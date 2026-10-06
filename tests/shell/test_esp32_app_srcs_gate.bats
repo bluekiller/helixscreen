@@ -468,7 +468,10 @@ build_link_fixture() {
     c++ -c "$ROOT/src/printer/excluded_one.cpp" -o "$ROOT/obj/printer/excluded_one.o"
     printf 'target_compile_definitions(${COMPONENT_LIB} PRIVATE\n    HELIX_HAS_CAMERA=0)\n' \
         > "$ROOT/CMakeLists.txt"
+    printf 'max-edges: 0\n' > "$ROOT/link_baseline.txt"
 }
+
+EDGE="src/printer/compiled.cpp -> src/printer/excluded_one.cpp"
 
 run_link_gate() {
     run python3 "$GATE" --link \
@@ -476,7 +479,8 @@ run_link_gate() {
         --exclusions "$ROOT/excluded.txt" \
         --src-root "$ROOT/src" \
         --obj-root "$ROOT/obj" \
-        --firmware-root "$ROOT/fwroot"
+        --firmware-root "$ROOT/fwroot" \
+        --baseline "$ROOT/link_baseline.txt"
 }
 
 @test "--link fails when a listed file calls a symbol only an excluded file defines" {
@@ -506,4 +510,47 @@ run_link_gate() {
     run_link_gate
     [ "$status" -eq 2 ]
     contains "build first" "$output"
+}
+
+@test "--link: a firmware source that only mentions the name and its class does not stub it" {
+    printf 'struct SoundMgr { static int start(); };\n' > "$ROOT/src/printer/excluded_one.h"
+    printf '#include "excluded_one.h"\nint caller() { return SoundMgr::start(); }\n' \
+        > "$ROOT/src/printer/compiled.cpp"
+    printf '#include "excluded_one.h"\nint SoundMgr::start() { return 1; }\n' \
+        > "$ROOT/src/printer/excluded_one.cpp"
+    mkdir -p "$ROOT/obj/printer" "$ROOT/fwroot"
+    c++ -I"$ROOT/src/printer" -c "$ROOT/src/printer/compiled.cpp" -o "$ROOT/obj/printer/compiled.o"
+    c++ -I"$ROOT/src/printer" -c "$ROOT/src/printer/excluded_one.cpp" \
+        -o "$ROOT/obj/printer/excluded_one.o"
+    printf 'max-edges: 0\n' > "$ROOT/link_baseline.txt"
+    # Both words appear, and Other::start has a body, but nothing defines SoundMgr::start.
+    printf '// SoundMgr is not built here\nstruct Other { int start(); };\nint Other::start() { return SoundMgr::start(); }\n' \
+        > "$ROOT/fwroot/stubs.cpp"
+    run_link_gate
+    [ "$status" -eq 1 ]
+    contains "SoundMgr::start()" "$output"
+}
+
+@test "--link: a baselined edge passes" {
+    build_link_fixture 'return only_excluded_defines();'
+    printf 'max-edges: 1\n%s\n' "$EDGE" > "$ROOT/link_baseline.txt"
+    run_link_gate
+    [ "$status" -eq 0 ]
+}
+
+@test "--link: a baselined edge that no longer occurs fails" {
+    build_link_fixture 'return 0;'
+    printf 'max-edges: 1\n%s\n' "$EDGE" > "$ROOT/link_baseline.txt"
+    run_link_gate
+    [ "$status" -eq 1 ]
+    contains "no longer occur" "$output"
+    contains "$EDGE" "$output"
+}
+
+@test "--link: a baseline holding more entries than max-edges fails" {
+    build_link_fixture 'return only_excluded_defines();'
+    printf 'max-edges: 0\n%s\n' "$EDGE" > "$ROOT/link_baseline.txt"
+    run_link_gate
+    [ "$status" -eq 1 ]
+    contains "against max-edges: 0" "$output"
 }
