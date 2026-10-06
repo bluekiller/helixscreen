@@ -4234,6 +4234,114 @@ TEST_CASE("PrinterDetector: pre-print lookups share one entry, and rates name kn
     }
 }
 
+// printer_database.json is user-editable on the device and the firmware build
+// has no exceptions, so a malformed file must degrade to "no printers", never throw.
+TEST_CASE("PrinterDetector: a malformed database degrades without throwing",
+          "[printer][db_shape]") {
+    namespace fs = std::filesystem;
+    auto temp_root =
+        fs::temp_directory_path() / ("test_printer_detector_shape_" + std::to_string(getpid()));
+    struct RestoreDatabase {
+        fs::path root;
+        ~RestoreDatabase() {
+            PrinterDetector::reload();
+            fs::remove_all(root);
+        }
+    } restore{temp_root};
+
+    // An extension that both adds a printer and defines a filter set exercises
+    // every write merge_user_extensions makes into the bundled document.
+    const char* extension = R"({
+            "console_filter_sets": { "noise": { "patterns": ["x"] } },
+            "printers": [ { "id": "ext", "name": "Extension Printer", "probe_type": "eddy" } ]
+        })";
+
+    std::string bundled;
+    SECTION("top level is an array") {
+        bundled = "[]";
+    }
+    SECTION("printers is an object") {
+        bundled = R"({ "printers": { "a": 1 } })";
+    }
+
+    {
+        EnvGuard data_g("HELIX_DATA_DIR");
+        EnvGuard config_g("HELIX_CONFIG_DIR");
+        CwdGuard cwd_g;
+
+        fs::remove_all(temp_root);
+        fs::create_directories(temp_root / "assets" / "config");
+        fs::create_directories(temp_root / "config_dir" / "printer_database.d");
+        std::ofstream(temp_root / "assets" / "config" / "printer_database.json") << bundled;
+        std::ofstream(temp_root / "config_dir" / "printer_database.d" / "ext.json") << extension;
+        setenv("HELIX_DATA_DIR", temp_root.c_str(), 1);
+        setenv("HELIX_CONFIG_DIR", (temp_root / "config_dir").c_str(), 1);
+        REQUIRE(chdir(temp_root.c_str()) == 0);
+
+        REQUIRE_NOTHROW(PrinterDetector::reload());
+        REQUIRE_FALSE(PrinterDetector::get_load_status().loaded);
+        REQUIRE(PrinterDetector::get_probe_type("Extension Printer").empty());
+        REQUIRE(PrinterDetector::get_list_names() ==
+                std::vector<std::string>{"Custom/Other", "Unknown"});
+    }
+}
+
+TEST_CASE("PrinterDetector: wrong-typed entry fields read as absent", "[printer][db_shape]") {
+    namespace fs = std::filesystem;
+    auto temp_root =
+        fs::temp_directory_path() / ("test_printer_detector_types_" + std::to_string(getpid()));
+    struct RestoreDatabase {
+        fs::path root;
+        ~RestoreDatabase() {
+            PrinterDetector::reload();
+            fs::remove_all(root);
+        }
+    } restore{temp_root};
+    {
+        EnvGuard data_g("HELIX_DATA_DIR");
+        EnvGuard config_g("HELIX_CONFIG_DIR");
+        CwdGuard cwd_g;
+
+        fs::remove_all(temp_root);
+        fs::create_directories(temp_root / "assets" / "config");
+        fs::create_directories(temp_root / "config_dir");
+        std::ofstream(temp_root / "assets" / "config" / "printer_database.json") << R"({
+                "printers": [
+                    7,
+                    {
+                        "id": "typed", "name": "Typed Printer", "preset": 5,
+                        "print_start_profile": 42, "probe_type": ["eddy"],
+                        "image": {}, "toolhead_style": null, "enclosed": [true],
+                        "calibration": "none", "thermal_rates": [1],
+                        "print_start_default_phases": { "HOMING": "slow" },
+                        "console_filters": "noise", "console_filter_patterns": [3],
+                        "aliases": 9
+                    }
+                ]
+            })";
+        setenv("HELIX_DATA_DIR", temp_root.c_str(), 1);
+        setenv("HELIX_CONFIG_DIR", (temp_root / "config_dir").c_str(), 1);
+        REQUIRE(chdir(temp_root.c_str()) == 0);
+        REQUIRE_NOTHROW(PrinterDetector::reload());
+        REQUIRE_NOTHROW(PrinterDetector::compact_database());
+
+        const std::string name = "Typed Printer";
+        REQUIRE(PrinterDetector::get_print_start_profile(name).empty());
+        REQUIRE(PrinterDetector::get_probe_type(name).empty());
+        REQUIRE(PrinterDetector::get_image_for_printer(name).empty());
+        REQUIRE(PrinterDetector::get_toolhead_style(name).empty());
+        REQUIRE(PrinterDetector::get_preset_for_name(name).empty());
+        REQUIRE_FALSE(PrinterDetector::is_enclosed(name));
+        REQUIRE(PrinterDetector::get_bed_mesh_calibrate_gcode(name).empty());
+        REQUIRE_FALSE(PrinterDetector::get_bed_mesh_self_prepares(name));
+        REQUIRE(PrinterDetector::get_thermal_rates(name).empty());
+        REQUIRE(PrinterDetector::get_print_start_default_phases(name).empty());
+        REQUIRE(PrinterDetector::get_console_filter_patterns(name).empty());
+        REQUIRE(PrinterDetector::canonical_type_name("Old Name") == "Old Name");
+        REQUIRE(PrinterDetector::get_name_for_preset("5").empty());
+    }
+}
+
 TEST_CASE("PrinterDetector: print_start_default_phases empty for unknown printer",
           "[printer][preprint]") {
     auto phases = PrinterDetector::get_print_start_default_phases("Not A Real Printer");

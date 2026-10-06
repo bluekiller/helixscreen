@@ -81,10 +81,16 @@ struct PrinterDatabase {
         }
 
         data = json::parse(*db_text, nullptr, /*allow_exceptions=*/false);
-        if (data.is_discarded()) {
+        // Every reader, and the extension merge, works on an object holding a
+        // "printers" array; this file is user-editable, so any other shape is
+        // rejected here rather than met by a throwing accessor later.
+        const json* printers = helix::json_util::find_member(data, "printers");
+        if (printers == nullptr || !printers->is_array()) {
             data = json();
             NOTIFY_ERROR(lv_tr("Printer database format error"));
-            LOG_ERROR_INTERNAL("[PrinterDetector] Failed to parse printer database: {}", db_path);
+            LOG_ERROR_INTERNAL(
+                "[PrinterDetector] Printer database is not an object with a 'printers' array: {}",
+                db_path);
             return false;
         }
         loaded_files.push_back(db_path);
@@ -118,20 +124,22 @@ struct PrinterDatabase {
     void compact() {
         if (compacted || !loaded)
             return;
-        if (data.contains("printers") && data["printers"].is_array()) {
-            for (auto& printer : data["printers"]) {
-                // Extract kinematics before stripping heuristics (needed for filtered lists)
-                if (!printer.contains("_kinematics") && printer.contains("heuristics") &&
-                    printer["heuristics"].is_array()) {
-                    for (const auto& h : printer["heuristics"]) {
-                        if (helix::json_util::safe_string(h, "type") == "kinematics_match") {
-                            printer["_kinematics"] = helix::json_util::safe_string(h, "pattern");
-                            break;
-                        }
+        for (auto& printer : data["printers"]) {
+            // erase() throws on a non-object, and a stray entry is the user's typo.
+            if (!printer.is_object()) {
+                continue;
+            }
+            // Extract kinematics before stripping heuristics (needed for filtered lists)
+            if (!printer.contains("_kinematics") && printer.contains("heuristics") &&
+                printer["heuristics"].is_array()) {
+                for (const auto& h : printer["heuristics"]) {
+                    if (helix::json_util::safe_string(h, "type") == "kinematics_match") {
+                        printer["_kinematics"] = helix::json_util::safe_string(h, "pattern");
+                        break;
                     }
                 }
-                printer.erase("heuristics");
             }
+            printer.erase("heuristics");
         }
         compacted = true;
 
