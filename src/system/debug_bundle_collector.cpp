@@ -1401,34 +1401,7 @@ json DebugBundleCollector::collect_platform_files() {
 // =============================================================================
 
 std::vector<std::string> DebugBundleCollector::parse_include_patterns(const std::string& body) {
-    std::vector<std::string> patterns;
-    std::istringstream stream(body);
-    std::string line;
-    while (std::getline(stream, line)) {
-        // Strip a trailing CR so CRLF configs parse (Klipper accepts them).
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
-        // Klipper section headers must start at column 0; a leading space makes
-        // the line a continuation of the previous option, not a new section.
-        // Comments (# or ;) are not section headers either.
-        if (line.compare(0, 9, "[include ") != 0) {
-            continue;
-        }
-        const size_t close = line.find(']', 9);
-        if (close == std::string::npos) {
-            continue;
-        }
-        std::string pattern = line.substr(9, close - 9);
-        // Trim surrounding whitespace: "[include  foo.cfg ]" is valid.
-        const size_t first = pattern.find_first_not_of(" \t");
-        const size_t last = pattern.find_last_not_of(" \t");
-        if (first == std::string::npos) {
-            continue;
-        }
-        patterns.push_back(pattern.substr(first, last - first + 1));
-    }
-    return patterns;
+    return helix::system::extract_includes(body);
 }
 
 std::vector<std::string>

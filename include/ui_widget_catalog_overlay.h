@@ -85,6 +85,19 @@ class WidgetCatalogOverlay {
     /// while the catalog is open.
     static void refresh_gated_rows();
 
+    /// Flip the catalog between the category list and the flat search results,
+    /// and show or hide result rows by match. Rows are built on the first query
+    /// of an open; later keystrokes only toggle flags, the same treatment the
+    /// wizard's ~105-row list gets.
+    static void apply_search(const std::string& query);
+
+    /// Build the search result rows into @p results, one per registry def in
+    /// registry order, with the entries they are filtered by.
+    static void build_search_rows(lv_obj_t* results);
+
+    /// The search box's value_changed callback.
+    static void on_search_changed(lv_event_t* e);
+
     /// Click dispatch for the top-level category rows.
     static void on_category_row_clicked(lv_event_t* e);
 

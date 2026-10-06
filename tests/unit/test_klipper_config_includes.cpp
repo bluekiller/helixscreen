@@ -72,6 +72,15 @@ TEST_CASE("extract_includes - parses include directives", "[config][includes]") 
         REQUIRE(result.size() == 1);
         REQUIRE(result[0] == "macros.cfg");
     }
+
+    SECTION("Only a column-0 header counts") {
+        std::string content = "  [include indented.cfg]\n"
+                              "\t[include tabbed.cfg]\n"
+                              "#[include commented.cfg]\n"
+                              "[include real.cfg]\r\n";
+        auto result = extract_includes(content);
+        REQUIRE(result == std::vector<std::string>{"real.cfg"});
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +174,32 @@ TEST_CASE("config_match_glob - matches files against glob pattern", "[config][in
 // ---------------------------------------------------------------------------
 // resolve_active_files - core integration tests
 // ---------------------------------------------------------------------------
+
+TEST_CASE("resolve_active_files - a file included from two places is read twice",
+          "[config][includes]") {
+    std::map<std::string, std::string> files = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[include common.cfg]\n"},
+        {"b.cfg", "[include common.cfg]\n[include b.cfg]\n"},
+        {"common.cfg", "[gcode_macro X]\ngcode: G28\n"},
+    };
+
+    std::vector<ConfigSegment> read_order;
+    auto active = resolve_active_files(files, "printer.cfg", 5, &read_order);
+
+    REQUIRE(active.size() == 4);
+    std::vector<std::string> common_reads;
+    for (const auto& segment : read_order) {
+        if (segment.file == "common.cfg") {
+            common_reads.push_back(segment.file);
+        }
+    }
+    REQUIRE(common_reads.size() == 2);
+    // b.cfg including itself is recursion, which Klipper refuses: read once.
+    REQUIRE(std::count_if(read_order.begin(), read_order.end(), [](const ConfigSegment& s) {
+                return s.file == "b.cfg" && s.begin == 0;
+            }) == 1);
+}
 
 TEST_CASE("resolve_active_files - determines active config files", "[config][includes]") {
     SECTION("Simple chain - one include") {

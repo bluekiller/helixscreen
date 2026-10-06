@@ -12,10 +12,20 @@
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
+#include <time.h>
 
 namespace helix::plugin {
 
 namespace {
+
+/// CPU time the calling thread has used. The budget charges a plugin for its own
+/// work: a busy machine preempting the main thread must not fault a plugin that
+/// stays within it, and a runaway loop burns CPU time just as it burns wall time.
+std::chrono::nanoseconds thread_cpu_time() {
+    timespec ts{};
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    return std::chrono::seconds(ts.tv_sec) + std::chrono::nanoseconds(ts.tv_nsec);
+}
 
 // Trims the base library. Runs as trusted code before any plugin code.
 constexpr const char* kSandboxPrelude = R"(
@@ -362,7 +372,7 @@ bool LuaRuntime::enter(lua_State* co, int nargs) {
         return false;
     }
     if (depth_ == 0) {
-        deadline_ = Clock::now() + limits_.time_budget;
+        deadline_ = thread_cpu_time() + limits_.time_budget;
         killed_ = false;
     }
     bool outer_yielded = yielded_for_async_;
@@ -442,7 +452,7 @@ void LuaRuntime::fault(const std::string& reason) {
 
 void LuaRuntime::budget_hook(lua_State* L, lua_Debug*) {
     auto& rt = from(L);
-    if (!rt.killed_ && Clock::now() < rt.deadline_)
+    if (!rt.killed_ && thread_cpu_time() < rt.deadline_)
         return;
     rt.killed_ = true;
     // Firing on every instruction means each instruction outside the innermost pcall raises

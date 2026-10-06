@@ -540,7 +540,7 @@ TEST_CASE_METHOD(XMLTestFixture,
 
     // resizing_ + resize_edge_ are the direct witness: together they prove the
     // gesture was admitted by the guard AND classified as the right-hand edge.
-    // resize_preview_ alone would only prove the branch ran; dragging_ tells a
+    // The resize outline alone would only prove the branch ran; dragging_ tells a
     // gesture dropped at the guard apart from one that fell through to a move.
     CHECK(GridEditModeTestAccess::resizing(em));
     CHECK(GridEditModeTestAccess::resize_edge(em) == GridEditMode::ResizeEdge::Right);
