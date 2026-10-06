@@ -977,6 +977,12 @@ void PrintStatusWidget::apply_active_thumbnail() {
         apply_esp_psram_thumbnail();
         return;
     }
+    // Cleared for a new file or a cleared print: holding the old buffer keeps
+    // PSRAM the next file's decode needs.
+    if (esp_thumbnail_) {
+        unpoint_thumbs_from(esp_thumbnail_->dsc());
+        esp_thumbnail_.reset();
+    }
 #endif
     // No empty-path branch: ActivePrintMediaManager publishes
     // no_thumbnail_placeholder() when a file has no thumbnail, so the value is
