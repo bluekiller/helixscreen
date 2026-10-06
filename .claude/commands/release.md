@@ -159,6 +159,18 @@ make full-test-run
 to `make test-all` (see above), also run `make test-shell`. A missing bats or a failure
 is a STOP with the make output shown.
 
+### UI tests
+`make full-test-run` does not run the out-of-process UI suite, and CI does. A stale
+`tests/ui/` case passes every local gate and then reds CI's Test job on the release head.
+
+```bash
+make && make test-ui-pytest
+```
+
+- If it passes → continue
+- If it fails → STOP: "UI tests failed — fix before releasing." Show the failing test.
+- A missing `.venv` is `make venv-setup`, not a reason to skip the suite.
+
 ### Regenerate the XML linter schema
 
 `tools/xml-linter/schema/schema.json` is a committed snapshot of every constant and

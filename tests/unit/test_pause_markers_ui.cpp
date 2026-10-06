@@ -218,7 +218,7 @@ TEST_CASE_METHOD(PauseMarkerFixture, "Pause markers: degrade to absent, never to
         REQUIRE_FALSE(diff_columns(marked, baseline).empty());
         lv_draw_buf_destroy(marked);
 
-        state_.reset_for_new_print();
+        state_.print_state().reset_for_new_print();
 
         lv_draw_buf_t* cleared = take_snapshot(bar);
         CHECK(diff_columns(cleared, baseline).empty());
@@ -232,7 +232,7 @@ TEST_CASE_METHOD(PauseMarkerFixture, "Pause markers: degrade to absent, never to
         const int v1 = lv_subject_get_int(state_.print_state().get_pause_markers_version_subject());
         CHECK(v1 > v0);
 
-        state_.reset_for_new_print();
+        state_.print_state().reset_for_new_print();
         const int v2 = lv_subject_get_int(state_.print_state().get_pause_markers_version_subject());
         CHECK(v2 > v1);
     }

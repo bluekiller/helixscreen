@@ -174,6 +174,10 @@ class PrintStartController {
     // dialog introspection).
     friend class ::PrintStartControllerTestAccess;
 
+    /// With spools latched on the bed, opens the drying banner's prompt instead
+    /// of a start the API layer would refuse. True when the start must stop.
+    bool divert_to_spool_removal();
+
     /**
      * @brief Execute the actual print start
      *

@@ -785,3 +785,22 @@ TEST_CASE("remap restore: only firmware-sourced registry writes bump the generat
     reg.set_tool_mapping(99, 0, SlotRegistry::MappingSource::Firmware);
     CHECK(reg.firmware_mapping_generation() == start + 2);
 }
+
+// Spools latched on the bed refuse every print start in the API layer, so a
+// reprint stops before it prepares anything and the drying prompt explains why.
+TEST_CASE("reprint with spools latched on the bed never begins preparing",
+          "[print-start][spool-latch]") {
+    LVGLTestFixture fx;
+    Harness h;
+    h.ps.print_state().set_spool_latch(true);
+
+    bool errored = false;
+    bool started = false;
+    h.controller.initiate_reprint(
+        "part.gcode", "part.gcode", {}, [&] { started = true; }, [&] { errored = true; });
+
+    CHECK(errored);
+    CHECK_FALSE(started);
+    CHECK_FALSE(h.ps.print_state().has_preparing_job());
+    h.ps.print_state().set_spool_latch(false);
+}
