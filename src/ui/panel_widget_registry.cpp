@@ -198,6 +198,8 @@ void rebuild_all_defs() {
         d.rowspan = r.rowspan;
         d.max_colspan = r.max_colspan;
         d.max_rowspan = r.max_rowspan;
+        d.supports_half_col = r.supports_half_col;
+        d.supports_half_row = r.supports_half_row;
         d.factory = r.factory;
         s_all_defs.push_back(d);
     }
@@ -300,6 +302,8 @@ bool register_runtime_widget_def(RuntimeWidgetDef def) {
         cur.rowspan = def.rowspan;
         cur.max_colspan = def.max_colspan;
         cur.max_rowspan = def.max_rowspan;
+        cur.supports_half_col = def.supports_half_col;
+        cur.supports_half_row = def.supports_half_row;
         cur.factory = std::move(def.factory);
         if (!it->second.active)
             ++s_active_runtime_defs;

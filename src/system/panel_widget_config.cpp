@@ -672,6 +672,15 @@ void PanelWidgetConfig::delete_entry(const std::string& id) {
     }
 }
 
+void PanelWidgetConfig::remove_from_page(size_t page_index, size_t index) {
+    auto& widgets = pages_[page_index].widgets;
+    if (widgets[index].id.find(':') != std::string::npos) {
+        widgets.erase(widgets.begin() + static_cast<std::ptrdiff_t>(index));
+    } else {
+        widgets[index].disable_and_unplace();
+    }
+}
+
 bool PanelWidgetConfig::is_enabled(const std::string& id) const {
     for (const auto& page : pages_) {
         auto it = std::find_if(page.widgets.begin(), page.widgets.end(),

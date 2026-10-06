@@ -115,6 +115,15 @@ bool is_registered_diagnostics_object(const std::string& token) {
     return false;
 }
 
+// webhooks.state_message as Klipper reports it after M112 (klippy.py's
+// message_shutdown appended to the reason).
+constexpr const char* kM112ShutdownMessage =
+    "Shutdown due to M112 command\n"
+    "Once the underlying issue is corrected, use the\n"
+    "\"FIRMWARE_RESTART\" command to reset the firmware, reload the\n"
+    "config, and restart the host software.\n"
+    "Printer is shutdown\n";
+
 } // namespace
 
 // Delegating constructor - uses default speedup of 1.0
@@ -3162,7 +3171,12 @@ void MoonrakerClientMock::emergency_stop_internal() {
     print_state_.store(5); // error
     dispatch_print_state_notification("error");
 
-    // Set klippy state to SHUTDOWN (must defer to main thread)
+    // Klippy enters SHUTDOWN, reported both ways Moonraker does: a webhooks
+    // frame carrying the state with Klipper's reason, and notify_klippy_shutdown
+    // (which lands on the global PrinterState, so must defer to main thread).
+    klippy_state_.store(KlippyState::SHUTDOWN);
+    dispatch_status_update(
+        {{"webhooks", {{"state", "shutdown"}, {"state_message", kM112ShutdownMessage}}}});
     helix::ui::queue_update("MoonrakerClientMock::estop_shutdown", []() {
         get_printer_state().set_klippy_state_sync(helix::KlippyState::SHUTDOWN);
     });
@@ -3448,7 +3462,10 @@ void MoonrakerClientMock::dispatch_initial_state() {
           {"extrude_factor", flow / 100.0},
           {"homing_origin", {0.0, 0.0, z_offset, 0.0}}}},
         {"fan", {{"speed", fan / 255.0}}},
-        {"webhooks", {{"state", klippy_str}, {"state_message", "Printer is ready"}}},
+        {"webhooks",
+         {{"state", klippy_str},
+          {"state_message",
+           klippy == KlippyState::SHUTDOWN ? kM112ShutdownMessage : "Printer is ready"}}},
         {"print_stats", {{"state", print_state_str}, {"filename", filename}}},
         {"virtual_sdcard", {{"progress", progress}}},
         {"bed_mesh", bed_mesh_status()}};
