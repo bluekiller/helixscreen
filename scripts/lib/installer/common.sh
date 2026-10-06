@@ -461,7 +461,8 @@ display_path() {
 
 # A file's size for display, in whole MB, or KB below one MB.
 file_size_text() {
-    _fst=$(wc -c < "$1" 2>/dev/null) || return 0
+    [ -f "$1" ] || return 0
+    _fst=$(wc -c < "$1")
     if [ "$_fst" -ge 1048576 ]; then
         printf '%s MB' "$((_fst / 1048576))"
     else

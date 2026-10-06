@@ -549,3 +549,16 @@ _count_apply_install_steps() {
     lacks "KIAUH" "$output"
     lacks "editable" "$output"
 }
+
+@test "file_size_text: a missing file prints nothing, on either stream" {
+    run file_size_text "$BATS_TEST_TMPDIR/absent.zip"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ] || fail "printed: $output"
+}
+
+@test "file_size_text: MB from a megabyte up, KB below" {
+    head -c 2097152 /dev/zero > "$BATS_TEST_TMPDIR/two.bin"
+    head -c 3072 /dev/zero > "$BATS_TEST_TMPDIR/small.bin"
+    [ "$(file_size_text "$BATS_TEST_TMPDIR/two.bin")" = "2 MB" ]
+    [ "$(file_size_text "$BATS_TEST_TMPDIR/small.bin")" = "3 KB" ]
+}
