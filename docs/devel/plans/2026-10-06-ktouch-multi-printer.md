@@ -116,12 +116,11 @@ One modal, reached from the badge menu's "Add printer" and from Settings > Conne
 - The name fills itself from Mainsail/Fluidd/hostname (`PrinterNameSync`); rename stays in the
   existing printer manager overlay. No setup wizard: the K-Touch takes fans and heaters from discovery.
 
-**mDNS on firmware: blocked, decision open.** The shared browser (`src/network/mdns_discovery.cpp`
+**mDNS on firmware: deferred.** The future route is the ESP-IDF `mdns` component as a second implementation behind `IMdnsDiscovery`. The shared browser (`src/network/mdns_discovery.cpp`
 over the vendored `lib/mdns/mdns.h`) does not compile for the ESP32: the header uses
 `sockaddr_in6`, `IPPROTO_IPV6` and `IPV6_JOIN_GROUP` throughout, AAAA parsing included, and the
 firmware's lwIP has no IPv6. Options: enable `CONFIG_LWIP_IPV6` (internal-RAM cost, unmeasured),
-guard IPv6 out of the vendored header (invasive), or the ESP-IDF `mdns` component (a second
-browser behind `IMdnsDiscovery`). Meanwhile `.local` names typed into the modal resolve.
+guard IPv6 out of the vendored header (invasive), or that component. Meanwhile `.local` names typed into the modal resolve.
 
 ## 7. Memory plan
 
@@ -143,7 +142,8 @@ browser behind `IMdnsDiscovery`). Meanwhile `.local` names typed into the modal 
 Risks: R1 stale subjects for A-only objects (section 3). R2 (resolved) thumbnails are keyed by
 printer. R3 (resolved) leaving a printing printer asks first. R4 (resolved) a REST reply from A that
 finishes after the switch reaches its caller as CONNECTION_LOST (`http_request_epoch.h`). R5 home
-rebuild time on device is the unknown that decides "seconds". R6 a printer whose discovery crashes
+rebuild time on device is the unknown that decides "seconds"; running it inside an UpdateQueue
+batch (the add path) is safe, because `HomePanel` clears its grid with `safe_clean_children`. R6 a printer whose discovery crashes
 the firmware bricks the panel until reflash: the firmware has no crash-restart tracking to build
 on, so a boot crash counter (N crashes right after connecting to a just-switched-to printer: boot
 the previous printer instead) is planned, not built.
@@ -164,5 +164,5 @@ Change Host fixes (Cancel-after-Test reconnect, AMS clear), add-printer modal mo
 `PrinterSwitchFlow` (request_switch with the printing confirm, the connected-printer id, save-failure
 handling, add without duplicates), `retarget_printer_connection`, the firmware live hooks with the
 10 KB internal-block check and the counted restart fallback, the HTTP reply epoch, and per-printer
-thumbnail keys. Open: mDNS (blocked, section 6), the WS task PSRAM-stack patch (only if device
+thumbnail keys. Open: mDNS (deferred, section 6), the WS task PSRAM-stack patch (only if device
 testing shows the block does not come back), the boot crash counter (R6).
