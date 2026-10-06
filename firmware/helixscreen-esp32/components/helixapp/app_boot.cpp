@@ -289,7 +289,8 @@ void wire_printer_callbacks() {
                 helix::Config* config = helix::Config::get_instance();
                 const std::string id = config->next_printer_id();
                 config->add_printer(id, {{"moonraker_host", host}, {"moonraker_port", port}});
-                switch_flow().switch_printer(id);
+                config->save();
+                switch_flow().request_switch(id);
             });
         });
 }
