@@ -172,3 +172,19 @@ TEST_CASE_METHOD(MigrationV18Fixture,
     REQUIRE_FALSE(config.get<bool>("/input/calibration/recheck_pending", false));
     REQUIRE(config.get<bool>("/input/calibration/valid", false));
 }
+
+TEST_CASE_METHOD(MigrationV18Fixture,
+                 "Config migration v18: a versionless user config with a finished wizard is "
+                 "rechecked",
+                 "[config][migration]") {
+    // v0.9.10 and earlier wrote no config_version: a single /printer, the
+    // wizard flag at the root, and the wizard's affine under /display.
+    json user = {{"wizard_completed", true},
+                 {"printer", {{"moonraker_host", "192.168.1.50"}}},
+                 {"display", {{"calibration", {{"valid", true}, {"a", 1.5}, {"e", 1.7}}}}}};
+    write_and_init(user);
+
+    REQUIRE(config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE(config.get<bool>("/input/calibration/valid", false));
+    REQUIRE(config.get<bool>("/input/calibration/recheck_pending", false));
+}

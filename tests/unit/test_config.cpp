@@ -3438,6 +3438,7 @@ TEST_CASE("Config::init() leaves a config with a printer off the fresh-install p
         test_config.init(env.config_path);
 
         CHECK(test_config.get<std::string>("/printers/default/moonraker_host") == "192.168.1.50");
+        CHECK_FALSE(test_config.get<bool>("/input/calibration/recheck_pending", false));
         CHECK_FALSE(test_config.exists("/log_path"));
     }
     SECTION("a versioned config with a printer") {

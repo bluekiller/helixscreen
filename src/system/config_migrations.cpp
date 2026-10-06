@@ -461,6 +461,20 @@ static void migrate_v16_to_v17(json& config, const std::string& /*config_path*/)
     }
 }
 
+/// Whether the active printer records a finished setup wizard. Runs after
+/// normalize_versionless_document(), which copies an old root-level flag into
+/// the printer it creates, so one place covers both shapes.
+static bool records_finished_wizard(const json& config) {
+    const auto printers = config.find("printers");
+    if (printers == config.end() || !printers->is_object()) {
+        return false;
+    }
+    const auto printer =
+        printers->find(helix::json_util::safe_string(config, "active_printer_id", "default"));
+    return printer != printers->end() &&
+           helix::json_util::safe_bool(*printer, "wizard_completed", false);
+}
+
 /// v17 → v18: After the #943/#986 touch-scaling fix, the DRM/fbdev backends apply
 /// evdev linear scaling to MT-only digitizers (e.g. Qidi Q2: 800x480 controller on a
 /// 480x272 panel). Any affine calibration captured before the fix was computed in the
@@ -470,12 +484,16 @@ static void migrate_v16_to_v17(json& config, const std::string& /*config_path*/)
 /// recheck_pending flag here; the display backend decides at boot — when it knows the
 /// device's resistive/capacitive nature and live ABS range — whether to invalidate.
 ///
-/// Only a versioned document can hold a calibration the app captured. A versionless
-/// one is a shipped preset or an installer seed, whose calibration is solved for
-/// the current scaling, so it is left unflagged. The runner stamps config_version
-/// after the whole chain, so here it still reads the document's original version.
+/// A versionless document whose wizard never completed is a shipped preset or an
+/// installer seed: its calibration came from a known-good matrix solved for the
+/// current scaling, and nobody has captured another, so it is left unflagged. A
+/// versionless document with a finished wizard is a user config from before
+/// config_version existed, and its wizard affine is exactly what this recheck is
+/// for. The runner stamps config_version after the whole chain, so here it still
+/// reads the document's original version.
 static void migrate_v17_to_v18(json& config, const std::string& /*config_path*/) {
-    if (helix::json_util::safe_int(config, "config_version", 0) == 0) {
+    if (helix::json_util::safe_int(config, "config_version", 0) == 0 &&
+        !records_finished_wizard(config)) {
         return;
     }
     // Guard ([L087]): an absent/default-constructed json is null, and writing into a
