@@ -149,6 +149,7 @@ void PrinterProfileState::apply_dynamic_options(bool exclude_object_known,
         auto it = firmware_option_defaults_.find(opt.id);
         if (it != firmware_option_defaults_.end()) {
             opt.default_enabled = it->second;
+            opt.default_from_firmware = true;
         }
     }
 

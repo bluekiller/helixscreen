@@ -165,6 +165,10 @@ struct PrePrintOption {
     /// Mesh" and, when ENABLED, the print-start params include the adaptive token
     /// (e.g. `ADAPTIVE=1`) alongside the enable param. No separate sub-toggle.
     bool adaptive_active = false;
+
+    /// Runtime flag (NOT parsed from JSON): `default_enabled` is the value a
+    /// self-storing firmware holds, set by PrinterProfileState::apply_dynamic_options().
+    bool default_from_firmware = false;
 };
 
 /**
