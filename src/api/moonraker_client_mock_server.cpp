@@ -84,10 +84,18 @@ void store_db_value(json& db, const std::string& ns, const std::string& key, con
     (*node)[segments.back()] = value;
 }
 
+/// Moonraker's database raises ServerError(..., 404), which its JSON-RPC layer
+/// sends as code -32601 with the message kept.
 MoonrakerError db_not_found(const std::string& method, const std::string& what) {
-    MoonrakerError err = MoonrakerError::json_rpc_error(method, what + " not found");
-    err.code = 404;
-    return err;
+    return MoonrakerError::from_json_rpc({{"code", -32601}, {"message", what + " not found"}},
+                                         method);
+}
+
+/// Moonraker's answer for a method it has not registered, as when the
+/// spoolman component is not configured.
+MoonrakerError method_not_found(const std::string& method) {
+    return MoonrakerError::from_json_rpc({{"code", -32601}, {"message", "Method not found"}},
+                                         method);
 }
 
 } // namespace
@@ -286,8 +294,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
            std::function<void(const MoonrakerError&)> error_cb) -> bool {
         if (!self->is_mock_spoolman_enabled()) {
             if (error_cb) {
-                error_cb(MoonrakerError::json_rpc_error("server.spoolman.post_spool_id",
-                                                        "Spoolman component not available"));
+                error_cb(method_not_found("server.spoolman.post_spool_id"));
             }
             return true;
         }
@@ -310,8 +317,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
            std::function<void(const MoonrakerError&)> error_cb) -> bool {
         if (!self->is_mock_spoolman_enabled()) {
             if (error_cb) {
-                error_cb(MoonrakerError::json_rpc_error("server.spoolman.proxy",
-                                                        "Spoolman component not available"));
+                error_cb(method_not_found("server.spoolman.proxy"));
             }
             return true;
         }

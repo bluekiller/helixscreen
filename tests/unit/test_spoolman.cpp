@@ -602,13 +602,15 @@ TEST_CASE("MoonrakerAPIMock - delete_spoolman_spool", "[filament][mock]") {
             [](const MoonrakerError&) {});
     }
 
-    SECTION("Deleting a non-existent spool answers Spoolman's 404") {
-        int error_code = 0;
+    SECTION("Deleting a non-existent spool answers Spoolman's 404, as Moonraker relays it") {
+        MoonrakerError got;
         api.spoolman().delete_spoolman_spool(
             9999, []() { FAIL("success should not be called"); },
-            [&](const MoonrakerError& err) { error_code = err.code; });
+            [&](const MoonrakerError& err) { got = err; });
 
-        REQUIRE(error_code == 404);
+        CHECK(got.code == -32601);
+        CHECK(got.message == "Not Found");
+        CHECK(got.is_not_found());
     }
 }
 
@@ -671,7 +673,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&](const std::optional<SpoolInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -684,7 +687,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             [&](const std::vector<SpoolInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -699,7 +703,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, patch, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -714,7 +719,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             300, patch, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -728,7 +734,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             9, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -742,7 +749,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, 500.0, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -755,7 +763,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             300, "00FF00", [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -768,7 +777,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             [&](const std::vector<VendorInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -781,7 +791,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             [&](const std::vector<FilamentInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -794,7 +805,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             2, [&](const std::vector<FilamentInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -809,7 +821,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             vendor, [&](const VendorInfo&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -825,7 +838,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             filament, [&](const FilamentInfo&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -841,7 +855,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             spool, [&](const SpoolInfo&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -855,7 +870,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -868,7 +884,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -881,7 +898,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -2021,7 +2039,7 @@ TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[
         "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/external/vendor"}},
         [](const nlohmann::json&) { FAIL("Spoolman serves no external vendor list"); },
         [&](const MoonrakerError& err) { code = err.code; });
-    CHECK(code == 404);
+    CHECK(code == -32601);
 }
 
 TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[spoolman][mock]") {
