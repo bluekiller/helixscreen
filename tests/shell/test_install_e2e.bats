@@ -51,7 +51,12 @@ case "$1" in
     stop) rm -f "/run/e2e-active-$unit" ;;
     is-active) [ -e "/run/e2e-active-$unit" ] || exit 3 ;;
     is-enabled) [ -e "/run/e2e-enabled-$unit" ] || exit 1 ;;
-    enable) touch "/run/e2e-enabled-$unit" ;;
+    enable)
+        if [ -e "/run/e2e-fail-enable-$unit" ]; then
+            echo "Failed to enable unit: Unit file $unit.service is masked." >&2
+            exit 1
+        fi
+        touch "/run/e2e-enabled-$unit" ;;
     disable) rm -f "/run/e2e-enabled-$unit" ;;
 esac
 exit 0
@@ -87,7 +92,7 @@ if [ -n "$f" ] && [ -f "$f" ]; then
 else
     code=404
 fi
-[ -n "$wfmt" ] && printf '\n%s' "$code"
+[ -n "$wfmt" ] && printf '%b' "$(printf '%s' "$wfmt" | sed "s/%{http_code}/$code/")"
 [ "$code" = 200 ]
 STUB
     chmod +x "$art/stubs/curl"
@@ -128,6 +133,9 @@ _make_release() {
 
 setup() {
     load helpers
+    # The installer runs at its default verbosity, which helpers.bash turns up
+    # for the unit tests; a test that needs log_info lines exports it again.
+    unset HELIX_INSTALL_VERBOSE
     command -v unshare >/dev/null 2>&1 || skip "unshare not available"
     # Real root keeps real root inside the namespace, and the uninstall sweep
     # names host paths outside the tmpfs set (/srv, /usr/data, /mnt/UDISK).
@@ -144,13 +152,65 @@ setup() {
     mkdir -p "$WORK/out"
 }
 
+# Run the scenario steps in one fresh root, leaving $status and $output; the
+# scenario stops at the first step that exits non-zero.
+run_scenario_status() {
+    run unshare --user --map-root-user --mount --pid --net --fork bash "$SCENARIO" "$WORK" "$@"
+    if [[ "$output" == *"SANDBOX_MOUNT_FAIL"* ]]; then skip "namespace mounts not permitted here"; fi
+}
+
 # Run the scenario steps in one fresh root; fails the test unless all complete.
 run_scenario() {
-    run unshare --user --map-root-user --mount --pid --net --fork bash "$SCENARIO" "$WORK" "$@"
-    [[ "$output" == *"SANDBOX_MOUNT_FAIL"* ]] && skip "namespace mounts not permitted here"
+    run_scenario_status "$@"
     [ "$status" -eq 0 ] && [[ "$output" == *"SCENARIO_DONE"* ]] \
         || fail "scenario ($*) failed, status $status:
 $output"
+}
+
+# The seeded tree, as the scenario left it before its first step.
+snap_seed() {
+    snap 0-seed
+}
+
+# What step <n> printed: the lines between its two === STEP markers.
+step_output() { # n output
+    printf '%s\n' "$2" | sed -n "/^=== STEP $1: /,/^=== STEP $1: .* exit=/p" | sed '1d;$d'
+}
+
+# A transcript with what varies between runs replaced: timestamps, archive
+# sizes and scratch paths.
+normalize_transcript() {
+    printf '%s\n' "$1" | sed -E \
+        -e 's/\[[0-9]{2}:[0-9]{2}:[0-9]{2}\] ?//g' \
+        -e 's/\b[0-9]+(\.[0-9]+)? ?[KMG]i?B?\b/<size>/g' \
+        -e 's#/tmp/[^ ]*#<tmp>#g'
+}
+
+# Compare step <n>'s output with fixtures/install_transcripts/<name>.txt.
+# HELIX_E2E_WRITE_GOLDENS=1 writes the golden instead.
+matches_golden() { # name n
+    local golden="$BATS_TEST_DIRNAME/fixtures/install_transcripts/$1.txt" got
+    got=$(normalize_transcript "$(step_output "$2" "$output")")
+    if [ "${HELIX_E2E_WRITE_GOLDENS:-0}" = 1 ]; then
+        mkdir -p "$(dirname "$golden")"
+        printf '%s\n' "$got" > "$golden"
+    fi
+    # What Mainsail and KIAUH show: no color, no cursor movement, no redraws.
+    if printf '%s' "$got" | grep -q "$(printf '[\033\r]')"; then
+        fail "escape or carriage-return bytes in the $1 transcript"
+    fi
+    diff -u "$golden" <(printf '%s\n' "$got")
+}
+
+# The systemctl calls that change something, from a snapshot's stub log.
+changing_systemctl_calls() {
+    grep -E '^systemctl (stop|start|enable|disable|restart|reload|mask|unmask|daemon-reload|kill)' \
+        "$1/var/log/e2e-systemctl.log" 2>/dev/null || true
+}
+
+need_cdn_stub() {
+    [ -x /usr/bin/curl ] || [ -x /usr/sbin/curl ] || [ -x /bin/curl ] || [ -x /sbin/curl ] \
+        || skip "no curl on this host for the stub CDN to bind over"
 }
 
 # The snapshot taken after step <n>-<name>.
@@ -241,6 +301,8 @@ snap_resolve() {
 }
 
 @test "install.sh e2e: uninstall removes the payload, the units and the updater entry" {
+    # The preserved-config line is a log_info, shown only when verbose.
+    export HELIX_INSTALL_VERBOSE=1
     run_scenario install uninstall
     local s
     s=$(snap 2-uninstall)
@@ -285,7 +347,9 @@ snap_resolve() {
 
 @test "install.sh e2e: --clean over a home-directory install wipes it, config included" {
     # --clean shares uninstall's sweep list, so a $KLIPPER_HOME/helixscreen
-    # install is wiped the same way an /opt one always was.
+    # install is wiped the same way an /opt one always was. "Removing" is a
+    # log_info, shown only when verbose.
+    export HELIX_INSTALL_VERBOSE=1
     run_scenario install seed-user clean-install
     local s
     s=$(snap 3-clean-install)
@@ -337,4 +401,95 @@ snap_resolve() {
     run_scenario net-probe
     printf '%s\n' "$output" | grep -qx "NET_IFACES: lo" \
         || fail "the scenario sees more than a loopback: $(printf '%s\n' "$output" | grep NET_IFACES)"
+}
+
+@test "install.sh e2e: --dry-run checks the release, prints the plan and changes nothing" {
+    need_cdn_stub
+    run_scenario dry-run
+    local s
+    s=$(snap 1-dry-run)
+
+    contains "Dry run, nothing changed." "$output"
+    contains "SHA256 available" "$output"
+    # It asked the stub CDN, so the release check really ran.
+    grep -q "^curl https://e2e.invalid/beta/manifest.json" "$s/var/log/e2e-curl.log" \
+        || fail "dry-run never read the manifest"
+    # The stubs' own call logs are the only difference from the seeded tree.
+    run diff -r -x 'e2e-*.log' "$(snap_seed)" "$s"
+    [ "$status" -eq 0 ] || fail "dry-run changed the tree:
+$output"
+    [ -z "$(changing_systemctl_calls "$s")" ] \
+        || fail "dry-run made changing systemctl calls: $(changing_systemctl_calls "$s")"
+}
+
+@test "install.sh e2e: --dry-run exits non-zero when the release does not exist" {
+    need_cdn_stub
+    E2E_RELEASE_VERSION=v9.9.9 run_scenario_status dry-run
+    [ "$status" -ne 0 ] || fail "dry-run of a missing release exited 0:
+$output"
+    contains "=== STEP 1: dry-run exit=1" "$output"
+    contains "No HelixScreen v9.9.9 release for x86." "$output"
+    lacks "Dry run, nothing changed." "$output"
+}
+
+@test "install.sh e2e: answering n at the prompt changes nothing" {
+    command -v script >/dev/null 2>&1 || skip "no script(1) for a pseudo-terminal"
+    run_scenario install-tty-no
+    lacks "SKIP no script" "$output"
+    local s
+    s=$(snap 1-install-tty-no)
+
+    contains "Continue? [Y/n]" "$output"
+    contains "Nothing changed." "$output"
+    run diff -r -x 'e2e-*.log' "$(snap_seed)" "$s"
+    [ "$status" -eq 0 ] || fail "answering n changed the tree:
+$output"
+    [ -z "$(changing_systemctl_calls "$s")" ] \
+        || fail "answering n made changing systemctl calls: $(changing_systemctl_calls "$s")"
+}
+
+@test "install.sh e2e: answering y at the prompt installs" {
+    command -v script >/dev/null 2>&1 || skip "no script(1) for a pseudo-terminal"
+    run_scenario install-tty-yes
+    lacks "SKIP no script" "$output"
+    local s
+    s=$(snap 1-install-tty-yes)
+
+    contains "Continue? [Y/n]" "$output"
+    [ -f "$s$UNIT" ] || fail "no systemd unit after answering y"
+    [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.0.0" ]
+    grep -qx "systemctl start helixscreen" "$s/var/log/e2e-systemctl.log"
+}
+
+@test "install.sh e2e: a no-terminal install prints the golden transcript" {
+    run_scenario install
+    lacks "Continue?" "$output"
+    matches_golden fresh 1
+}
+
+@test "install.sh e2e: a no-terminal update prints the golden transcript" {
+    run_scenario install update
+    lacks "Continue?" "$(step_output 2 "$output")"
+    matches_golden update 2
+}
+
+@test "install.sh e2e: --dry-run prints the golden transcript" {
+    need_cdn_stub
+    run_scenario dry-run
+    matches_golden dry-run 1
+}
+
+@test "install.sh e2e: a failed step reports the command, the state and the log" {
+    run_scenario_status install-fail-enable
+    [ "$status" -ne 0 ] || fail "a failed systemctl enable exited 0:
+$output"
+    contains "=== STEP 1: install-fail-enable exit=1" "$output"
+    contains "[6/6] Started HelixScreen ... FAILED" "$output"
+    contains "systemctl enable helixscreen failed (exit 1):" "$output"
+    contains "Failed to enable unit: Unit file helixscreen.service is masked." "$output"
+    contains "re-run the installer to finish." "$output"
+    contains "Full log: ~/printer_data/logs/helixscreen-install.log" "$output"
+    grep -q "FAIL Started HelixScreen" "$(snap 1-install-fail-enable)/root/printer_data/logs/helixscreen-install.log" \
+        || fail "the kept log has no FAIL marker"
+    matches_golden fail-enable 1
 }
