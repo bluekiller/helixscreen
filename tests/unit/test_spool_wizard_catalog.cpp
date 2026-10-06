@@ -121,22 +121,40 @@ TEST_CASE("find_server_vendor matches a server vendor by name, ignoring case",
     CHECK(SpoolWizardOverlay::find_server_vendor(vendors, "Prusament") == -1);
 }
 
-TEST_CASE_METHOD(WizardCatalogFixture, "a superseded SpoolmanDB answer is dropped",
+TEST_CASE_METHOD(WizardCatalogFixture,
+                 "searches never stack: one in flight, the latest waiting, the superseded answer "
+                 "dropped",
                  "[spool_wizard][spoolman_db]") {
-    // The first query's answer is held back until the second has landed.
+    // The first query's answer is held back while three more are typed.
     client.defer_next("server.spoolman.proxy");
+    const int before = client.call_count("server.spoolman.proxy");
     wizard.run_catalog_search("poly");
+    wizard.run_catalog_search("esun");
+    wizard.run_catalog_search("sunlu");
     wizard.run_catalog_search("prusament");
     drain();
-    REQUIRE_FALSE(wizard.catalog_results().empty());
-    CHECK(wizard.catalog_results().front().manufacturer == "Prusament");
+    CHECK(client.call_count("server.spoolman.proxy") == before + 1);
+    CHECK(wizard.catalog_results().empty());
+    CHECK(wizard.catalog_state() == SpoolWizardOverlay::CatalogState::Loading);
 
+    // The held answer lands: it is dropped, and only the latest query goes.
     client.fire_deferred("server.spoolman.proxy");
     drain();
+    drain();
+    CHECK(client.call_count("server.spoolman.proxy") == before + 2);
+    REQUIRE_FALSE(wizard.catalog_results().empty());
     for (const auto& f : wizard.catalog_results()) {
         CHECK(f.manufacturer == "Prusament");
     }
     CHECK(wizard.catalog_state() == SpoolWizardOverlay::CatalogState::Results);
+}
+
+TEST_CASE_METHOD(WizardCatalogFixture, "a search shows at most a page of 25 results",
+                 "[spool_wizard][spoolman_db]") {
+    wizard.run_catalog_search("pla");
+    drain();
+    CHECK(wizard.catalog_results().size() ==
+          static_cast<size_t>(SpoolmanCatalogSearch::kResultLimit));
 }
 
 TEST_CASE_METHOD(WizardCatalogFixture, "a short query sends nothing and clears the section",

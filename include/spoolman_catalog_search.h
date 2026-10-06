@@ -24,6 +24,7 @@ class SpoolmanCatalogSearch {
   public:
     enum class Availability { Unknown, Available, Unavailable };
 
+    /// Also the number of result rows ui_xml/spool_wizard.xml builds.
     static constexpr int kResultLimit = 25;
     static constexpr size_t kMinQueryLength = 2;
 

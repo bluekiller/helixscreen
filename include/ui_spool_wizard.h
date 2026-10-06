@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "ui_search_debounce.h"
-
 #include "helix/xml/indexed_subject_pool.h"
 #include "overlay_base.h"
 #include "spoolman_catalog_search.h"
@@ -237,10 +235,12 @@ class SpoolWizardOverlay : public OverlayBase {
     /// The server vendor named @p name, compared case-insensitively, or -1.
     static int find_server_vendor(const std::vector<VendorEntry>& vendors, const std::string& name);
 
-    /// Restart the debounced SpoolmanDB search for @p query.
-    void on_catalog_query_changed(const std::string& query);
+    /// A keystroke in the search box: restarts the debounce and nothing else.
+    void on_search_key();
 
-    /// Send @p query now, when the server has the route and it is long enough.
+    /// Searches for @p query, when the server has the route and it is long
+    /// enough. With a search already in flight, @p query waits as the one
+    /// pending search and the in-flight answer is dropped on arrival.
     void run_catalog_search(const std::string& query);
 
     /// Show @p results for the current query.
@@ -347,9 +347,16 @@ class SpoolWizardOverlay : public OverlayBase {
 
     // ========== SpoolmanDB search state ==========
     helix::SpoolmanCatalogSearch catalog_;
-    helix::ui::SearchDebounce catalog_debounce_;
     std::vector<helix::ExternalFilament> catalog_results_;
     CatalogState catalog_state_ = CatalogState::Idle;
+    bool catalog_in_flight_ = false;
+    bool catalog_has_pending_ = false;
+    std::string catalog_pending_query_;
+    lv_timer_t* search_timer_ = nullptr; ///< Paused between keystroke bursts
+    static void search_timer_cb(lv_timer_t* timer);
+    void cancel_search_timer();
+    void apply_search_text();
+    void send_catalog_search(std::string query);
     void set_catalog_state(CatalogState state);
     void sync_catalog_available();
     void probe_catalog_search();

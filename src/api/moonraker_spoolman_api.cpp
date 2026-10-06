@@ -9,6 +9,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <string>
 
 using namespace helix;
@@ -647,17 +648,26 @@ void MoonrakerSpoolmanAPI::search_spoolman_external_filaments(
     client_.send_jsonrpc(
         "server.spoolman.proxy", params,
         [on_success](const json& response) {
+            // Parsed here, on the thread that received the response, so the UI
+            // thread is handed finished rows.
+            const auto started = std::chrono::steady_clock::now();
             std::vector<ExternalFilament> filaments;
             const json* result = json_util::find_member(response, "result");
             if (result && result->is_array()) {
+                filaments.reserve(result->size());
                 for (const auto& entry : *result) {
                     if (auto f = spoolman_detail::parse_external_filament(entry)) {
                         filaments.push_back(std::move(*f));
                     }
                 }
             }
+            spdlog::debug("[SpoolmanAPI] SpoolmanDB search: parsed {} results in {} us",
+                          filaments.size(),
+                          std::chrono::duration_cast<std::chrono::microseconds>(
+                              std::chrono::steady_clock::now() - started)
+                              .count());
             if (on_success) {
-                on_success(filaments);
+                on_success(std::move(filaments));
             }
         },
         on_error, 0, /*silent=*/true);

@@ -8,8 +8,10 @@
 #include "ui_modal.h"
 #include "ui_nav.h"
 #include "ui_panel_common.h"
+#include "ui_search_debounce.h"
 #include "ui_subject_registry.h"
 #include "ui_temperature_utils.h"
+#include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -28,6 +30,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <unordered_map>
 
@@ -56,10 +59,10 @@ void set_spoolman_temp(nlohmann::json& data, const char* key, int min_val, int m
 // ============================================================================
 
 // Out of line: ColorPicker is incomplete in the header.
-SpoolWizardOverlay::SpoolWizardOverlay()
-    : catalog_debounce_([this](const std::string& query) { run_catalog_search(query); }) {}
+SpoolWizardOverlay::SpoolWizardOverlay() = default;
 
 SpoolWizardOverlay::~SpoolWizardOverlay() {
+    cancel_search_timer();
     deinit_subjects();
 }
 
@@ -175,14 +178,7 @@ void SpoolWizardOverlay::register_callbacks() {
              }
          }},
         {"on_wizard_vendor_search_changed",
-         [](lv_event_t* e) {
-             lv_obj_t* ta = static_cast<lv_obj_t*>(lv_event_get_target(e));
-             const char* text = lv_textarea_get_text(ta);
-             spdlog::debug("[SpoolWizard] Vendor search: '{}'", text ? text : "");
-             auto& wiz = get_global_spool_wizard();
-             wiz.filter_vendors(text ? text : "");
-             wiz.on_catalog_query_changed(text ? text : "");
-         }},
+         [](lv_event_t*) { get_global_spool_wizard().on_search_key(); }},
         {"on_wizard_catalog_result_selected",
          [](lv_event_t* e) {
              const char* index = static_cast<const char*>(lv_event_get_user_data(e));
@@ -350,14 +346,23 @@ void SpoolWizardOverlay::on_activate() {
     // Load vendors for step 0
     load_vendors();
     probe_catalog_search();
+
+    // One timer for the session, paused between keystroke bursts, so a
+    // keystroke only resets it.
+    if (!search_timer_) {
+        search_timer_ = lv_timer_create(search_timer_cb, helix::ui::kDefaultSearchDebounceMs, this);
+        lv_timer_pause(search_timer_);
+    }
 }
 
 void SpoolWizardOverlay::on_deactivating(DeactivateReason) {
     spdlog::debug("[{}] on_deactivating()", get_name());
 
     // A search answering after the wizard closed has nothing to show.
-    catalog_debounce_.cancel();
+    cancel_search_timer();
     catalog_.invalidate();
+    catalog_in_flight_ = false;
+    catalog_has_pending_ = false;
 
     // Close create vendor modal if open
     if (create_vendor_dialog_) {
@@ -404,8 +409,10 @@ void SpoolWizardOverlay::reset_state() {
     spool_notes_.clear();
 
     // SpoolmanDB search state
-    catalog_debounce_.cancel();
     catalog_.invalidate();
+    catalog_in_flight_ = false;
+    catalog_has_pending_ = false;
+    catalog_pending_query_.clear();
     catalog_results_.clear();
     catalog_state_ = CatalogState::Idle;
 
@@ -1756,8 +1763,33 @@ void SpoolWizardOverlay::probe_catalog_search() {
                         }));
 }
 
-void SpoolWizardOverlay::on_catalog_query_changed(const std::string& query) {
-    catalog_debounce_.schedule(query);
+void SpoolWizardOverlay::on_search_key() {
+    if (search_timer_) {
+        lv_timer_reset(search_timer_);
+        lv_timer_resume(search_timer_);
+    }
+    spdlog::debug("[SpoolWizard] search keystroke");
+}
+
+void SpoolWizardOverlay::search_timer_cb(lv_timer_t* timer) {
+    lv_timer_pause(timer);
+    static_cast<SpoolWizardOverlay*>(lv_timer_get_user_data(timer))->apply_search_text();
+}
+
+void SpoolWizardOverlay::cancel_search_timer() {
+    if (search_timer_) {
+        helix::ui::lv_timer_cancel_safe(search_timer_);
+        search_timer_ = nullptr;
+    }
+}
+
+void SpoolWizardOverlay::apply_search_text() {
+    lv_obj_t* input = overlay_root_ ? lv_obj_find_by_name(overlay_root_, "vendor_search") : nullptr;
+    const char* text = input ? lv_textarea_get_text(input) : nullptr;
+    const std::string query = text ? text : "";
+    spdlog::debug("[SpoolWizard] search settled on '{}'", query);
+    filter_vendors(query);
+    run_catalog_search(query);
 }
 
 void SpoolWizardOverlay::run_catalog_search(const std::string& query) {
@@ -1768,30 +1800,66 @@ void SpoolWizardOverlay::run_catalog_search(const std::string& query) {
             helix::SpoolmanCatalogSearch::Availability::Unavailable ||
         !helix::SpoolmanCatalogSearch::is_searchable(query)) {
         catalog_.invalidate();
+        catalog_has_pending_ = false;
         set_catalog_state(CatalogState::Idle);
         return;
     }
 
+    if (catalog_in_flight_) {
+        // One search in flight at most: this query waits, and the in-flight
+        // answer is dropped when it lands.
+        catalog_.invalidate();
+        catalog_pending_query_ = query;
+        catalog_has_pending_ = true;
+        set_catalog_state(CatalogState::Loading);
+        return;
+    }
+    send_catalog_search(query);
+}
+
+void SpoolWizardOverlay::send_catalog_search(std::string query) {
+    IMoonrakerAPI* api = get_moonraker_api();
+    if (!api) {
+        return;
+    }
+    const uint64_t conn = api->get_client().connection_generation();
     const uint64_t ticket = catalog_.begin();
+    catalog_in_flight_ = true;
     set_catalog_state(CatalogState::Loading);
+    spdlog::debug("[SpoolWizard] SpoolmanDB search #{} sent for '{}'", ticket, query);
+
+    // Whichever way it ends, the in-flight slot frees and a waiting query goes.
+    auto finish = [this]() {
+        catalog_in_flight_ = false;
+        if (catalog_has_pending_) {
+            catalog_has_pending_ = false;
+            send_catalog_search(std::move(catalog_pending_query_));
+            return true;
+        }
+        return false;
+    };
+
     api->spoolman().search_spoolman_external_filaments(
         std::string(helix::text_io::trim(query)), helix::SpoolmanCatalogSearch::kResultLimit,
         lifetime_.bg_cb("SpoolWizard::catalog_results",
-                        [this, ticket, conn](const std::vector<helix::ExternalFilament>& results) {
+                        [this, ticket, conn, finish](std::vector<helix::ExternalFilament> results) {
                             helix::SpoolmanCatalogSearch::record_success(conn);
                             sync_catalog_available();
-                            if (!catalog_.is_current(ticket)) {
-                                spdlog::debug("[SpoolWizard] Dropping a superseded SpoolmanDB "
-                                              "search answer");
+                            const bool current = catalog_.is_current(ticket);
+                            if (finish() || !current) {
+                                spdlog::debug("[SpoolWizard] SpoolmanDB search #{} superseded; "
+                                              "answer dropped",
+                                              ticket);
                                 return;
                             }
-                            apply_catalog_results(results);
+                            apply_catalog_results(std::move(results));
                         }),
         lifetime_.bg_cb(
-            "SpoolWizard::catalog_error", [this, ticket, conn](const MoonrakerError& err) {
+            "SpoolWizard::catalog_error", [this, ticket, conn, finish](const MoonrakerError& err) {
                 helix::SpoolmanCatalogSearch::record_error(conn, err);
                 sync_catalog_available();
-                if (!catalog_.is_current(ticket)) {
+                const bool current = catalog_.is_current(ticket);
+                if (finish() || !current) {
                     return;
                 }
                 spdlog::warn("[SpoolWizard] SpoolmanDB search failed: {} (code {})", err.message,
@@ -1804,6 +1872,7 @@ void SpoolWizardOverlay::run_catalog_search(const std::string& query) {
 }
 
 void SpoolWizardOverlay::apply_catalog_results(std::vector<helix::ExternalFilament> results) {
+    const auto started = std::chrono::steady_clock::now();
     const size_t limit = static_cast<size_t>(helix::SpoolmanCatalogSearch::kResultLimit);
     if (results.size() > limit) {
         results.resize(limit);
@@ -1827,6 +1896,10 @@ void SpoolWizardOverlay::apply_catalog_results(std::vector<helix::ExternalFilame
         lv_subject_set_int(&catalog_count_subject_, static_cast<int32_t>(catalog_results_.size()));
     }
     set_catalog_state(catalog_results_.empty() ? CatalogState::NoResults : CatalogState::Results);
+    spdlog::debug("[SpoolWizard] SpoolmanDB rows applied: {} in {} us", catalog_results_.size(),
+                  std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::steady_clock::now() - started)
+                      .count());
 }
 
 void SpoolWizardOverlay::select_catalog_result(int index) {

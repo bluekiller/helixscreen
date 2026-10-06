@@ -409,8 +409,9 @@ struct ExternalFilament {
     int bed_temp = 0;                     ///< °C, 0 when unknown
 };
 
-/// SpoolmanDB search results callback
-using ExternalFilamentListCallback = std::function<void(const std::vector<ExternalFilament>&)>;
+/// SpoolmanDB search results callback. By value, so the list parsed on the
+/// network thread moves through to the UI thread without a copy.
+using ExternalFilamentListCallback = std::function<void(std::vector<ExternalFilament>)>;
 
 /// Single spool creation callback (returns the created spool)
 using SpoolCreateCallback = std::function<void(const SpoolInfo&)>;

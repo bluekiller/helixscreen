@@ -38,7 +38,11 @@
         <!-- Vendor list (scrollable) -->
         <lv_obj name="vendor_list"
                 width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
-                style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_sm"/>
+                style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_sm">
+          <!-- No matching vendor while SpoolmanDB answers: give it the room. -->
+          <bind_flag_if cond="spool_wizard_vendor_count eq 0 and spool_db_available eq 1 and spool_db_state ne 0"
+                        flag="hidden"/>
+        </lv_obj>
 
         <!-- SpoolmanDB search: the same query searched in Spoolman's catalog.
              Hidden on a server without the route and while the query is too short. -->
@@ -52,7 +56,9 @@
                   style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"
                   hidden="true">
             <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="2"/>
-            <repeat count="spool_db_result_count">
+            <!-- One row per result slot, built once; a new answer rebinds their
+                 subjects and shows as many as it has. -->
+            <repeat count="25">
               <wizard_catalog_row index="$i"/>
             </repeat>
           </lv_obj>
@@ -78,7 +84,8 @@
 
         <!-- Empty state for vendor list -->
         <centered_column name="vendor_empty_state" flex_grow="1" hidden="true">
-          <bind_flag_if_not_eq subject="spool_wizard_vendor_count" flag="hidden" ref_value="0"/>
+          <bind_flag_if cond="spool_wizard_vendor_count ne 0 or (spool_db_available eq 1 and spool_db_state ne 0)"
+                        flag="hidden"/>
           <icon src="inbox_outline" size="xl" variant="secondary"/>
           <text_body text="No vendors found"
                      translation_tag="No vendors found" style_text_align="center" style_text_color="#text_muted"/>
