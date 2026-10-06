@@ -323,13 +323,15 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             str("location", spool->location);
             if (body.contains("filament_id") && body["filament_id"].is_number_integer()) {
                 spool->filament_id = body["filament_id"].get<int>();
-                for (const auto& f : filaments_) {
+                for (const auto& f : filament_list()) {
                     if (f.id == spool->filament_id) {
                         spool->material = f.material;
                         spool->filament_name = f.filament_name;
                         spool->color_hex = f.color_hex;
                         spool->vendor_id = f.vendor_id;
                         spool->vendor = f.vendor_name;
+                        spool->nozzle_temp_recommended = f.nozzle_temp_max;
+                        spool->bed_temp_recommended = f.bed_temp_max;
                         break;
                     }
                 }
@@ -358,13 +360,15 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         spool.spool_weight_g = body.value("spool_weight", 0.0);
         if (body.contains("filament_id") && body["filament_id"].is_number_integer()) {
             spool.filament_id = body["filament_id"].get<int>();
-            for (const auto& f : filaments_) {
+            for (const auto& f : filament_list()) {
                 if (f.id == spool.filament_id) {
                     spool.material = f.material;
                     spool.filament_name = f.filament_name;
                     spool.color_hex = f.color_hex;
                     spool.vendor_id = f.vendor_id;
                     spool.vendor = f.vendor_name;
+                    spool.nozzle_temp_recommended = f.nozzle_temp_max;
+                    spool.bed_temp_recommended = f.bed_temp_max;
                     break;
                 }
             }

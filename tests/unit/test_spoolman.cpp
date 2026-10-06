@@ -2023,3 +2023,24 @@ TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[
         [&](const MoonrakerError& err) { code = err.code; });
     CHECK(code == 404);
 }
+
+TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[spoolman][mock]") {
+    // Spoolman serves a spool with its whole filament, whichever filament it
+    // was created on.
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    std::vector<FilamentInfo> filaments;
+    api.spoolman().get_spoolman_filaments(
+        [&](const std::vector<FilamentInfo>& f) { filaments = f; }, nullptr);
+    REQUIRE_FALSE(filaments.empty());
+    const FilamentInfo& listed = filaments.front();
+
+    SpoolInfo created;
+    api.spoolman().create_spoolman_spool(
+        {{"filament_id", listed.id}}, [&](const SpoolInfo& s) { created = s; }, nullptr);
+    CHECK(created.material == listed.material);
+    CHECK(created.vendor == listed.vendor_name);
+    CHECK(created.nozzle_temp_recommended == listed.nozzle_temp_max);
+}
