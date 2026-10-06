@@ -1845,8 +1845,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     // pages_.empty() in src/system/panel_widget_config.cpp), so the test's
     // two widgets live on a second page, the same trick test_grid_edit_drag_path
     // uses. main_page_index points AT that second page so the lattice does not
-    // also get a delete_page_btn_ child, which would throw off the exact
-    // child-count checks below.
+    // also get a delete_page_btn_.
     const std::string panel_id = "test_grid_edit_mode_dots";
     constexpr int kPageIndex = 1;
     auto* cfg = Config::get_instance();
@@ -1887,22 +1886,22 @@ TEST_CASE_METHOD(XMLTestFixture,
     REQUIRE(dots_for_temperature != nullptr);
     // The same shield object: the indev glues a live gesture to its press
     // target, so the shield must never be destroyed mid-session. What changes
-    // with the selection is its lattice children, the legal drop targets.
+    // with the selection is the lattice it draws, the legal drop targets.
     CHECK(dots_for_temperature == dots_at_enter);
     // Both these tiles snap by a single track now, so the lattice is at its
     // finest pitch. The two counts must differ, or this case would pass with a
     // lattice that ignored the selection entirely.
     REQUIRE(GridEditMode::dot_count(ncols, nrows, 1, 1) !=
             GridEditMode::dot_count(ncols, nrows, cell, cell));
-    CHECK(lv_obj_get_child_count(dots_for_temperature) ==
-          static_cast<uint32_t>(GridEditMode::dot_count(ncols, nrows, 1, 1)));
+    CHECK(GridEditModeTestAccess::drawn_dot_count(em) ==
+          GridEditMode::dot_count(ncols, nrows, 1, 1));
 
     em.select_widget(shutdown_widget);
     lv_obj_t* dots_for_shutdown = GridEditModeTestAccess::shield(em);
     REQUIRE(dots_for_shutdown != nullptr);
     CHECK(dots_for_shutdown == dots_for_temperature);
-    CHECK(lv_obj_get_child_count(dots_for_shutdown) ==
-          static_cast<uint32_t>(GridEditMode::dot_count(ncols, nrows, 1, 1)));
+    CHECK(GridEditModeTestAccess::drawn_dot_count(em) ==
+          GridEditMode::dot_count(ncols, nrows, 1, 1));
 
     em.exit();
     mgr.clear_panel_config(panel_id);

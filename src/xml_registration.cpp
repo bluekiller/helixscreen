@@ -571,6 +571,7 @@ void register_xml_components() {
 
     // Main navigation and panels
     register_xml("components/rail_estop.xml");
+    register_xml("components/rail_drying.xml");
     register_xml("navigation_bar.xml");
     // Every home carousel page, then the next-page slot built around one
     register_xml("components/home_page_container.xml");

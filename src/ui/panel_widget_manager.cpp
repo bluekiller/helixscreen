@@ -160,6 +160,168 @@ void port_legacy_page_layouts(PanelWidgetConfig& widget_config, const std::strin
 
 } // namespace
 
+std::vector<CardRect> card_background_rects(const std::vector<CardFootprint>& footprints) {
+    // Tracks covered by widgets that share the fused card, and tracks blocked
+    // by widgets that bring a background of their own.
+    struct TrackHash {
+        size_t operator()(const std::pair<int, int>& p) const {
+            return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 16);
+        }
+    };
+    std::unordered_set<std::pair<int, int>, TrackHash> merged_tracks;
+    std::unordered_set<std::pair<int, int>, TrackHash> occupied_by_own_card;
+    // Footprints of the merging widgets, so no card piece ends inside one.
+    std::vector<const CardFootprint*> merged_footprints;
+    for (const auto& f : footprints) {
+        auto& covered = f.merges ? merged_tracks : occupied_by_own_card;
+        if (f.merges) {
+            merged_footprints.push_back(&f);
+        }
+        for (int r = f.row; r < f.row + f.rowspan; r++) {
+            for (int c = f.col; c < f.col + f.colspan; c++) {
+                covered.insert({c, r});
+            }
+        }
+    }
+
+    std::vector<CardRect> cards;
+    // BFS flood-fill to find connected components (4-directional adjacency)
+    std::unordered_set<std::pair<int, int>, TrackHash> visited;
+    for (const auto& track : merged_tracks) {
+        if (visited.count(track)) {
+            continue;
+        }
+
+        // BFS from this track to collect the connected component
+        std::queue<std::pair<int, int>> q;
+        q.push(track);
+        visited.insert(track);
+
+        std::vector<std::pair<int, int>> component_tracks;
+        while (!q.empty()) {
+            auto [c, r] = q.front();
+            q.pop();
+            component_tracks.push_back({c, r});
+
+            const std::pair<int, int> neighbors[] = {
+                {c - 1, r}, {c + 1, r}, {c, r - 1}, {c, r + 1}};
+            for (const auto& n : neighbors) {
+                if (merged_tracks.count(n) && !visited.count(n)) {
+                    visited.insert(n);
+                    q.push(n);
+                }
+            }
+        }
+
+        // Build the card coverage: bounding box of the component, filling
+        // gaps between merging widgets, but excluding tracks occupied by a
+        // widget that paints its own background and intrudes on the region.
+        int min_col = component_tracks[0].first;
+        int max_col = min_col;
+        int min_row = component_tracks[0].second;
+        int max_row_card = min_row;
+        for (const auto& [c, r] : component_tracks) {
+            min_col = std::min(min_col, c);
+            max_col = std::max(max_col, c);
+            min_row = std::min(min_row, r);
+            max_row_card = std::max(max_row_card, r);
+        }
+
+        // Cover the component's bounding box, minus any track a non-merging
+        // widget sits in, then split what is left into maximal rectangles.
+        //
+        // Both halves of that matter. Running the bounding box straight
+        // over a non-merging widget makes the card butt against that
+        // widget's own card with no gutter, and two abutting Card surfaces
+        // read as one continuous slab — a readout block and the graph below
+        // it stop looking like separate things. Carving the tracks out is
+        // what keeps the gutter.
+        //
+        // Every emitted piece is a rectangle.
+        std::unordered_set<std::pair<int, int>, TrackHash> remaining;
+        for (int r = min_row; r <= max_row_card; r++) {
+            for (int c = min_col; c <= max_col; c++) {
+                if (!occupied_by_own_card.count({c, r})) {
+                    remaining.insert({c, r});
+                }
+            }
+        }
+
+        while (!remaining.empty()) {
+            // Top-left of what is left: min row, then min col.
+            auto top_left = *std::min_element(
+                remaining.begin(), remaining.end(), [](const auto& a, const auto& b) {
+                    return a.second < b.second || (a.second == b.second && a.first < b.first);
+                });
+
+            int start_col = top_left.first;
+            int start_row = top_left.second;
+
+            int max_end_col = start_col;
+            while (remaining.count({max_end_col + 1, start_row})) {
+                max_end_col++;
+            }
+
+            // A piece that ends partway through a widget draws that widget
+            // across two cards with a seam through it, so every widget the
+            // piece touches must lie wholly inside it.
+            auto cuts_a_widget = [&](int c0, int r0, int c1, int r1) {
+                for (const CardFootprint* w : merged_footprints) {
+                    const int w_c1 = w->col + w->colspan - 1;
+                    const int w_r1 = w->row + w->rowspan - 1;
+                    const bool touches = w->col <= c1 && c0 <= w_c1 && w->row <= r1 && r0 <= w_r1;
+                    const bool inside = c0 <= w->col && w_c1 <= c1 && r0 <= w->row && w_r1 <= r1;
+                    if (touches && !inside) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            // Widest run first, then as tall as it extends as a full
+            // rectangle, backing off until no widget is cut. The widget (or
+            // bare gap track) at the top-left always qualifies on its own,
+            // because pieces never take part of a widget, so this ends.
+            int end_col = start_col;
+            int end_row = start_row;
+            for (int c1 = max_end_col; c1 >= start_col; c1--) {
+                int r1 = start_row;
+                for (;;) {
+                    bool can_extend = true;
+                    for (int c = start_col; c <= c1; c++) {
+                        if (!remaining.count({c, r1 + 1})) {
+                            can_extend = false;
+                            break;
+                        }
+                    }
+                    if (!can_extend) {
+                        break;
+                    }
+                    r1++;
+                }
+                while (r1 >= start_row && cuts_a_widget(start_col, start_row, c1, r1)) {
+                    r1--;
+                }
+                if (r1 >= start_row) {
+                    end_col = c1;
+                    end_row = r1;
+                    break;
+                }
+            }
+
+            for (int r = start_row; r <= end_row; r++) {
+                for (int c = start_col; c <= end_col; c++) {
+                    remaining.erase({c, r});
+                }
+            }
+
+            cards.push_back(
+                {start_col, start_row, end_col - start_col + 1, end_row - start_row + 1});
+        }
+    }
+    return cards;
+}
+
 PanelWidgetManager::PanelWidgetManager() = default;
 
 PanelWidgetManager::~PanelWidgetManager() {
@@ -320,9 +482,56 @@ std::optional<WidgetSlot> resolve_slot(const std::string& panel_id, const PanelW
     return slot;
 }
 
+/// Create the card-styled background object for @p card in @p container,
+/// placed in its grid cell.
+lv_obj_t* create_card_background(lv_obj_t* container, const CardRect& card,
+                                 const CellMetrics& metrics) {
+    lv_obj_t* card_bg = lv_obj_create(container);
+    lv_obj_remove_style(card_bg, nullptr, LV_PART_MAIN);
+    lv_obj_add_style(card_bg, ThemeManager::instance().get_style(StyleRole::Card), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(card_bg, 0, 0);
+    lv_obj_remove_flag(card_bg, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(card_bg, LV_OBJ_FLAG_SCROLLABLE);
+    // Set initial size from the track dimensions so the card renders at
+    // approximately the right shape on the first frame, before the grid layout
+    // resolves. Grid STRETCH overrides once layout runs.
+    if (metrics.cell_w > 0 && metrics.cell_h > 0) {
+        lv_obj_set_size(
+            card_bg,
+            static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, card.colspan)),
+            static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, card.rowspan)));
+    }
+    lv_obj_set_grid_cell(card_bg, LV_GRID_ALIGN_STRETCH, card.col, card.colspan,
+                         LV_GRID_ALIGN_STRETCH, card.row, card.rowspan);
+    spdlog::debug("[PanelWidgetManager] Card background at ({},{} {}x{} tracks)", card.col,
+                  card.row, card.colspan, card.rowspan);
+    return card_bg;
+}
+
 struct TileCell {
     int col, row, colspan, rowspan;
 };
+
+// Tell a tile the cell it holds: its attached instance (if any) through
+// notify_size_changed(), which records the grant first so a widget that
+// rebuilds its contents later lays them out against the same cell, and the AMS
+// mini status (a pure XML widget) its width.
+void announce_tile_size(lv_obj_t* tile, const std::string& widget_id, PanelWidget* instance,
+                        const TileCell& cell, const CellMetrics& metrics) {
+    const int width =
+        static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan));
+    if (instance) {
+        instance->notify_size_changed(
+            cell.colspan, cell.rowspan, width,
+            static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, cell.rowspan)));
+    }
+    if (widget_id == "ams") {
+        lv_obj_t* ams_child = lv_obj_get_child(tile, 0);
+        if (ams_child && ui_ams_mini_status_is_valid(ams_child)) {
+            ui_ams_mini_status_set_width(ams_child, width);
+        }
+    }
+}
 
 // Create one tile in its grid cell: the XML component, its name and tile flag,
 // the gated treatment or the attached PanelWidget (moved into @p result), and
@@ -406,33 +615,17 @@ lv_obj_t* create_tile(lv_obj_t* container, WidgetSlot& slot, const TileCell& cel
     }
 
     // Attach the pre-created PanelWidget instance if present and NOT gated
+    PanelWidget* attached = nullptr;
     if (slot.instance && !slot.hardware_gated) {
         if (auto* sizing = slot.instance->tile_sizing()) {
             sizing->set_content_root(widget);
         }
         slot.instance->attach_tile(widget, lv_scr_act());
-
-        // Notify widget of its grid allocation and approximate pixel size.
-        // notify_size_changed() records it first, so a widget that rebuilds
-        // its contents later can lay them out against the same cell.
-        slot.instance->notify_size_changed(
-            cell.colspan, cell.rowspan,
-            static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan)),
-            static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter, cell.rowspan)));
-
+        attached = slot.instance.get();
         result.push_back(std::move(slot.instance));
     }
+    announce_tile_size(widget, slot.widget_id, attached, cell, metrics);
     log_if_slow_build(slot.widget_id.c_str(), t_create, t_attach);
-
-    // Propagate width to AMS mini status (pure XML widget, no PanelWidget)
-    if (slot.widget_id == "ams") {
-        lv_obj_t* ams_child = lv_obj_get_child(widget, 0);
-        if (ams_child && ui_ams_mini_status_is_valid(ams_child)) {
-            ui_ams_mini_status_set_width(
-                ams_child,
-                static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter, cell.colspan)));
-        }
-    }
     return widget;
 }
 } // namespace
@@ -1080,43 +1273,14 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
     // widget is sized against and the fits_at() answers that seated it must
     // come from one CellMetrics.
     const CellMetrics& metrics = place_metrics;
-    int cell_w = static_cast<int>(metrics.cell_w);
-    int cell_h = static_cast<int>(metrics.cell_h);
     spdlog::debug("[PanelWidgetManager] Track geometry: {:.2f}x{:.2f}px, gutter {}px",
                   metrics.cell_w, metrics.cell_h, gutter);
 
-    // Create merged card backgrounds behind adjacent widgets that ask for one.
-    // BFS flood-fill finds connected components of merging widgets, then a
-    // single card object spans each component's bounding rectangle.
-    //
-    // All analysis happens in TRACK coordinates - the same units the grid is
-    // addressed in. It used to work in cells and convert back, which forced
-    // every widget off a cell boundary out of the merge entirely: a widget that
-    // supports half-cell resolution can be dragged onto an odd track, and
-    // dividing that position into cells truncates it, so the card would have
-    // landed half a cell from the widget it belongs to. Excluding those left
-    // them with no background at all. Tracks divide exactly, so there is
-    // nothing to exclude.
-    //
-    // Use ALL enabled config entries (not just currently-placed ones) so that
-    // cards for hardware-gated widgets appear from the first frame, preventing
-    // the grid from visually jumping when hardware gates fire.
+    // Card backgrounds behind adjacent widgets that ask for one, from ALL
+    // enabled config entries (not just currently-placed ones) so that cards for
+    // hardware-gated widgets appear from the first frame, preventing the grid
+    // from visually jumping when hardware gates fire.
     {
-        // Tracks covered by widgets that share the fused card, and tracks
-        // blocked by widgets that bring a background of their own.
-        struct TrackHash {
-            size_t operator()(const std::pair<int, int>& p) const {
-                return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 16);
-            }
-        };
-        std::unordered_set<std::pair<int, int>, TrackHash> merged_tracks;
-        std::unordered_set<std::pair<int, int>, TrackHash> occupied_by_own_card;
-        // Footprints of the merging widgets, so no card piece ends inside one.
-        struct TrackRect {
-            int col, row, colspan, rowspan;
-        };
-        std::vector<TrackRect> merged_footprints;
-
         // Where each widget ACTUALLY landed, which is not always where its entry
         // asks for. Auto-placement and span reduction both move a widget without
         // touching the saved entry, so the authored position is a request, not a
@@ -1129,6 +1293,7 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
             }
         }
 
+        std::vector<CardFootprint> footprints;
         for (const auto& entry : widget_config.page_entries(page_index)) {
             if (!entry.is_placed()) {
                 continue;
@@ -1175,182 +1340,12 @@ PanelWidgetManager::populate_widgets(const std::string& panel_id, lv_obj_t* cont
             // a widget that opts out blocks merges through the tracks it
             // touches and is on its own for a background.
             const auto* def = find_widget_def(entry.id);
-            const bool merges = def && def->merges_into_card;
-            auto& covered = merges ? merged_tracks : occupied_by_own_card;
-            if (merges) {
-                merged_footprints.push_back(
-                    {fitted.col, fitted.row, fitted.colspan, fitted.rowspan});
-            }
-            for (int r = fitted.row; r < fitted.row + fitted.rowspan; r++) {
-                for (int c = fitted.col; c < fitted.col + fitted.colspan; c++) {
-                    covered.insert({c, r});
-                }
-            }
+            footprints.push_back({fitted.col, fitted.row, fitted.colspan, fitted.rowspan,
+                                  def && def->merges_into_card});
         }
 
-        // BFS flood-fill to find connected components (4-directional adjacency)
-        std::unordered_set<std::pair<int, int>, TrackHash> visited;
-        for (const auto& track : merged_tracks) {
-            if (visited.count(track)) {
-                continue;
-            }
-
-            // BFS from this track to collect the connected component
-            std::queue<std::pair<int, int>> q;
-            q.push(track);
-            visited.insert(track);
-
-            std::vector<std::pair<int, int>> component_tracks;
-            while (!q.empty()) {
-                auto [c, r] = q.front();
-                q.pop();
-                component_tracks.push_back({c, r});
-
-                const std::pair<int, int> neighbors[] = {
-                    {c - 1, r}, {c + 1, r}, {c, r - 1}, {c, r + 1}};
-                for (const auto& n : neighbors) {
-                    if (merged_tracks.count(n) && !visited.count(n)) {
-                        visited.insert(n);
-                        q.push(n);
-                    }
-                }
-            }
-
-            // Build the card coverage: bounding box of the component, filling
-            // gaps between merging widgets, but excluding tracks occupied by a
-            // widget that paints its own background and intrudes on the region.
-            int min_col = component_tracks[0].first;
-            int max_col = min_col;
-            int min_row = component_tracks[0].second;
-            int max_row_card = min_row;
-            for (const auto& [c, r] : component_tracks) {
-                min_col = std::min(min_col, c);
-                max_col = std::max(max_col, c);
-                min_row = std::min(min_row, r);
-                max_row_card = std::max(max_row_card, r);
-            }
-
-            // Cover the component's bounding box, minus any track a non-merging
-            // widget sits in, then split what is left into maximal rectangles.
-            //
-            // Both halves of that matter. Running the bounding box straight
-            // over a non-merging widget makes the card butt against that
-            // widget's own card with no gutter, and two abutting Card surfaces
-            // read as one continuous slab — a readout block and the graph below
-            // it stop looking like separate things. Carving the tracks out is
-            // what keeps the gutter.
-            //
-            // Every emitted piece is still a rectangle. The ragged look this
-            // used to have came from carving a hole in the MIDDLE of a run:
-            // ams sat one cell into the readout row while painting its own
-            // card, which split that row into three pieces of differing
-            // heights. It merges now, so a carve-out only ever trims an edge.
-            std::unordered_set<std::pair<int, int>, TrackHash> remaining;
-            for (int r = min_row; r <= max_row_card; r++) {
-                for (int c = min_col; c <= max_col; c++) {
-                    if (!occupied_by_own_card.count({c, r})) {
-                        remaining.insert({c, r});
-                    }
-                }
-            }
-
-            while (!remaining.empty()) {
-                // Top-left of what is left: min row, then min col.
-                auto top_left = *std::min_element(
-                    remaining.begin(), remaining.end(), [](const auto& a, const auto& b) {
-                        return a.second < b.second || (a.second == b.second && a.first < b.first);
-                    });
-
-                int start_col = top_left.first;
-                int start_row = top_left.second;
-
-                int max_end_col = start_col;
-                while (remaining.count({max_end_col + 1, start_row})) {
-                    max_end_col++;
-                }
-
-                // A piece that ends partway through a widget draws that widget
-                // across two cards with a seam through it, so every widget the
-                // piece touches must lie wholly inside it.
-                auto cuts_a_widget = [&](int c0, int r0, int c1, int r1) {
-                    for (const auto& w : merged_footprints) {
-                        const int w_c1 = w.col + w.colspan - 1;
-                        const int w_r1 = w.row + w.rowspan - 1;
-                        const bool touches = w.col <= c1 && c0 <= w_c1 && w.row <= r1 && r0 <= w_r1;
-                        const bool inside = c0 <= w.col && w_c1 <= c1 && r0 <= w.row && w_r1 <= r1;
-                        if (touches && !inside) {
-                            return true;
-                        }
-                    }
-                    return false;
-                };
-
-                // Widest run first, then as tall as it extends as a full
-                // rectangle, backing off until no widget is cut. The widget (or
-                // bare gap track) at the top-left always qualifies on its own,
-                // because pieces never take part of a widget, so this ends.
-                int end_col = start_col;
-                int end_row = start_row;
-                for (int c1 = max_end_col; c1 >= start_col; c1--) {
-                    int r1 = start_row;
-                    for (;;) {
-                        bool can_extend = true;
-                        for (int c = start_col; c <= c1; c++) {
-                            if (!remaining.count({c, r1 + 1})) {
-                                can_extend = false;
-                                break;
-                            }
-                        }
-                        if (!can_extend) {
-                            break;
-                        }
-                        r1++;
-                    }
-                    while (r1 >= start_row && cuts_a_widget(start_col, start_row, c1, r1)) {
-                        r1--;
-                    }
-                    if (r1 >= start_row) {
-                        end_col = c1;
-                        end_row = r1;
-                        break;
-                    }
-                }
-
-                for (int r = start_row; r <= end_row; r++) {
-                    for (int c = start_col; c <= end_col; c++) {
-                        remaining.erase({c, r});
-                    }
-                }
-
-                // Already in track coordinates, which is what the grid takes.
-                int track_col = start_col;
-                int track_row = start_row;
-                int track_colspan = end_col - start_col + 1;
-                int track_rowspan = end_row - start_row + 1;
-
-                // Create a plain lv_obj with Card styling as the background
-                lv_obj_t* card_bg = lv_obj_create(container);
-                lv_obj_remove_style(card_bg, nullptr, LV_PART_MAIN);
-                lv_obj_add_style(card_bg, ThemeManager::instance().get_style(StyleRole::Card),
-                                 LV_PART_MAIN);
-                lv_obj_set_style_pad_all(card_bg, 0, 0);
-                lv_obj_remove_flag(card_bg, LV_OBJ_FLAG_CLICKABLE);
-                lv_obj_remove_flag(card_bg, LV_OBJ_FLAG_SCROLLABLE);
-                // Set initial size from cached track dimensions so the card renders
-                // at approximately the right shape on the first frame, before the
-                // grid layout resolves. Grid STRETCH overrides once layout runs.
-                if (cell_w > 0 && cell_h > 0) {
-                    lv_obj_set_size(
-                        card_bg,
-                        static_cast<int>(grid_track_extent(metrics.cell_w, gutter, track_colspan)),
-                        static_cast<int>(grid_track_extent(metrics.cell_h, gutter, track_rowspan)));
-                }
-                lv_obj_set_grid_cell(card_bg, LV_GRID_ALIGN_STRETCH, track_col, track_colspan,
-                                     LV_GRID_ALIGN_STRETCH, track_row, track_rowspan);
-
-                spdlog::debug("[PanelWidgetManager] Card background at ({},{} {}x{} tracks)",
-                              track_col, track_row, track_colspan, track_rowspan);
-            }
+        for (const CardRect& card : card_background_rects(footprints)) {
+            create_card_background(container, card, metrics);
         }
     }
 
@@ -1539,6 +1534,149 @@ PanelWidgetManager::swap_gated_tiles(const std::string& panel_id, lv_obj_t* cont
     spdlog::debug("[PanelWidgetManager] Swapped {} gate-flipped tile(s) in place for '{}:{}'",
                   targets.size(), panel_id, page_index);
     return fresh;
+}
+
+bool PanelWidgetManager::relayout_tiles(const std::string& panel_id, lv_obj_t* container,
+                                        int page_index, const std::vector<std::string>& changed_ids,
+                                        const std::string& resized_id,
+                                        std::vector<std::unique_ptr<PanelWidget>>& widgets) {
+    if (!container || populating_) {
+        return false;
+    }
+    const int cols =
+        grid_count_tracks(lv_obj_get_style_grid_column_dsc_array(container, LV_PART_MAIN));
+    const int rows =
+        grid_count_tracks(lv_obj_get_style_grid_row_dsc_array(container, LV_PART_MAIN));
+    if (cols <= 0 || rows <= 0) {
+        return false;
+    }
+    const CellMetrics metrics =
+        grid_cell_metrics(lv_obj_get_content_width(container), lv_obj_get_content_height(container),
+                          cols, rows, GridLayout::gutter_px());
+    const auto& entries = get_widget_config(panel_id).page_entries(page_index);
+
+    // An entry's cell as a populate seats it.
+    auto entry_cell = [&](const PanelWidgetEntry& e) {
+        const auto [col_step, row_step] = GridEditMode::snap_step_for(e.id);
+        const auto f =
+            clamp_to_grid(e.col, e.row, e.colspan, e.rowspan, cols, rows, col_step, row_step);
+        return TileCell{f.col, f.row, f.colspan, f.rowspan};
+    };
+
+    // Check every tile before touching any, so a refusal changes nothing.
+    struct Seat {
+        lv_obj_t* tile;
+        const PanelWidgetEntry* entry;
+        TileCell cell;
+    };
+    std::vector<Seat> seats;
+    std::vector<lv_obj_t*> cards;
+    const Seat* resized = nullptr;
+    const uint32_t count = lv_obj_get_child_count(container);
+    for (uint32_t i = 0; i < count; ++i) {
+        lv_obj_t* child = lv_obj_get_child(container, static_cast<int32_t>(i));
+        // A hidden child is condemned: safe_delete_deferred() hides what it
+        // queues for deletion.
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+            continue;
+        }
+        const char* name = lv_obj_get_name(child);
+        if (!lv_obj_has_flag(child, PANEL_WIDGET_TILE_FLAG)) {
+            // Card backgrounds are the unnamed grid children; edit mode's own
+            // objects float.
+            if (!name && !lv_obj_has_flag(child, LV_OBJ_FLAG_FLOATING)) {
+                cards.push_back(child);
+            }
+            continue;
+        }
+        auto entry = std::find_if(entries.begin(), entries.end(), [name](const auto& e) {
+            return name && e.enabled && e.id == name;
+        });
+        if (entry == entries.end() || !entry->is_placed()) {
+            return false;
+        }
+        // A tile the edit did not touch must already sit where its entry says.
+        // Populate can seat one elsewhere (auto-placement, a span reduced or
+        // grown for this grid) and does not always write that back, and moving
+        // it to its entry here could land it on another tile.
+        const TileCell cell = entry_cell(*entry);
+        const bool changed =
+            std::find(changed_ids.begin(), changed_ids.end(), entry->id) != changed_ids.end();
+        if (!changed &&
+            (lv_obj_get_style_grid_cell_column_pos(child, LV_PART_MAIN) != cell.col ||
+             lv_obj_get_style_grid_cell_row_pos(child, LV_PART_MAIN) != cell.row ||
+             lv_obj_get_style_grid_cell_column_span(child, LV_PART_MAIN) != cell.colspan ||
+             lv_obj_get_style_grid_cell_row_span(child, LV_PART_MAIN) != cell.rowspan)) {
+            return false;
+        }
+        seats.push_back({child, &*entry, cell});
+    }
+    for (const auto& seat : seats) {
+        if (!resized_id.empty() && seat.entry->id == resized_id) {
+            resized = &seat;
+        }
+    }
+    if (!resized_id.empty() && !resized) {
+        return false;
+    }
+    auto instance = std::find_if(widgets.begin(), widgets.end(),
+                                 [&](const auto& w) { return w && resized_id == w->id(); });
+    if (resized && instance != widgets.end() &&
+        !(*instance)->fits_at(static_cast<int>(grid_track_extent(metrics.cell_w, metrics.gutter,
+                                                                 resized->cell.colspan)),
+                              static_cast<int>(grid_track_extent(metrics.cell_h, metrics.gutter,
+                                                                 resized->cell.rowspan)))) {
+        return false;
+    }
+
+    populating_ = true;
+    for (const auto& seat : seats) {
+        lv_obj_set_grid_cell(seat.tile, LV_GRID_ALIGN_STRETCH, seat.cell.col, seat.cell.colspan,
+                             LV_GRID_ALIGN_STRETCH, seat.cell.row, seat.cell.rowspan);
+    }
+
+    // The resized tile keeps its tree: what a widget builds depends on its
+    // config, never its span, so the new size reaches it the way a populate's
+    // does, through on_size_changed().
+    if (resized) {
+        announce_tile_size(resized->tile, resized_id,
+                           instance != widgets.end() ? instance->get() : nullptr, resized->cell,
+                           metrics);
+    }
+
+    // Cards: keep the ones the new arrangement still has, replace the rest.
+    std::vector<CardFootprint> footprints;
+    for (const auto& e : entries) {
+        if (e.is_placed()) {
+            const TileCell c = entry_cell(e);
+            const auto* def = find_widget_def(e.id);
+            footprints.push_back(
+                {c.col, c.row, c.colspan, c.rowspan, def && def->merges_into_card});
+        }
+    }
+    std::vector<CardRect> wanted = card_background_rects(footprints);
+    for (lv_obj_t* card : cards) {
+        const CardRect have{lv_obj_get_style_grid_cell_column_pos(card, LV_PART_MAIN),
+                            lv_obj_get_style_grid_cell_row_pos(card, LV_PART_MAIN),
+                            lv_obj_get_style_grid_cell_column_span(card, LV_PART_MAIN),
+                            lv_obj_get_style_grid_cell_row_span(card, LV_PART_MAIN)};
+        auto kept = std::find(wanted.begin(), wanted.end(), have);
+        if (kept != wanted.end()) {
+            wanted.erase(kept);
+        } else {
+            helix::ui::safe_delete_deferred(card);
+        }
+    }
+    for (const CardRect& card : wanted) {
+        lv_obj_move_to_index(create_card_background(container, card, metrics), 0);
+    }
+
+    lv_obj_update_layout(container);
+    populating_ = false;
+
+    spdlog::debug("[PanelWidgetManager] Relaid out {} tile(s) in place for '{}:{}'{}", seats.size(),
+                  panel_id, page_index, resized ? " (one resized)" : "");
+    return true;
 }
 
 std::vector<std::string> PanelWidgetManager::compute_visible_widget_ids(const std::string& panel_id,

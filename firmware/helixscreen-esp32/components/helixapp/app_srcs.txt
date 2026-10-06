@@ -471,7 +471,7 @@ src/ui/ui_nav_backdrop.cpp
 src/ui/ui_nav_manager.cpp
 src/ui/ui_nav_panel_registry.cpp
 src/ui/ui_nav_printer_badge.cpp
-src/ui/ui_nav_rail_estop.cpp
+src/ui/ui_nav_rail_button.cpp
 src/ui/ui_notification.cpp
 src/ui/ui_notification_badge.cpp
 src/ui/ui_notification_history.cpp

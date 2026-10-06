@@ -9,6 +9,7 @@
 #include "grid_layout.h"
 #include "lvgl/lvgl.h"
 
+#include <array>
 #include <functional>
 #include <optional>
 #include <string>
@@ -20,6 +21,7 @@ namespace helix {
 
 class PanelWidgetConfig;
 struct PanelWidgetDef;
+struct GridLatticeSpec;
 struct GridEditModeTestAccess; // test-only friend (tests/test_helpers/)
 
 /// A grid spot the catalog placement search found for a widget: the cell it
@@ -81,6 +83,15 @@ class GridEditMode {
     /// it, which deletes the scoped container, so it calls forget_scope() first,
     /// then shows the focus page; the grid skips its own deferred rebuild.
     using PagesChangedCallback = std::function<void(const helix::PageSetChange& change)>;
+
+    /// Asked, on the tick after a move or resize committed on the scoped page,
+    /// to re-seat that page's tiles at their config cells in place
+    /// (PanelWidgetManager::relayout_tiles): the first argument names the
+    /// widgets the commit placed, the second (empty for none) the one told its
+    /// new span. Returns false when the page needs
+    /// the full rebuild instead, which then runs.
+    using RelayoutCallback = std::function<bool(const std::vector<std::string>& changed_ids,
+                                                const std::string& resized_id)>;
 
     GridEditMode() = default;
     ~GridEditMode();
@@ -153,6 +164,10 @@ class GridEditMode {
 
     void set_rebuild_callback(RebuildCallback cb) {
         rebuild_cb_ = std::move(cb);
+    }
+
+    void set_relayout_callback(RelayoutCallback cb) {
+        relayout_cb_ = std::move(cb);
     }
 
     void set_delete_page_callback(DeletePageCallback cb) {
@@ -362,14 +377,17 @@ class GridEditMode {
     /// existing one there, then redraw its lattice. The object must survive
     /// selection changes and page flips mid-session: the indev glues a gesture
     /// to its press target, and destroying that target mid-gesture ends the
-    /// press with no event reaching the grid handlers. The shield carries no
-    /// callback: its events bubble to the handlers on carousel_host.
+    /// press with no event reaching the grid handlers. Its input events bubble
+    /// to the handlers on carousel_host; its only callbacks draw the lattice
+    /// and free what that draw reads.
     void ensure_shield();
-    /// Redraw the shield's children for the current selection: the lattice
-    /// dots, which are the boundaries the selected widget can snap to, and the
-    /// delete-page button. Mid-gesture safe: children are never the press
-    /// target.
+    /// Redraw the shield for the current selection: the lattice it draws, the
+    /// boundaries the selected widget can snap to, and its one child, the
+    /// delete-page button. Mid-gesture safe: the button is never the press
+    /// target and the shield itself is kept.
     void rebuild_lattice();
+    /// Dots in the lattice the shield draws, 0 with none.
+    int drawn_dot_count() const;
     std::string selected_widget_id() const;
     void create_selection_chrome(lv_obj_t* widget);
     void destroy_selection_chrome();
@@ -435,8 +453,15 @@ class GridEditMode {
     void handle_drag_start(lv_event_t* e);
     void handle_drag_move(lv_event_t* e);
     /// Put the dragged widget, and its selection outline, at screen point
-    /// @p widget_pos, relative to the scoped container where it is now.
+    /// @p widget_pos on the top layer.
     void place_dragged_widget(lv_point_t widget_pos);
+    /// Move the selected widget and its selection outline from the page to the
+    /// top layer at the screen position they hold, for a drag.
+    void lift_dragged_widget();
+    /// Put a lifted widget back into the scoped page, in its grid cell below the
+    /// shield, as it was before the lift; with no page to return to, delete it.
+    /// Nothing when no widget is lifted. Every end of a drag runs this.
+    void settle_dragged_widget();
     /// Resolve the release with helix::resolve_drop(), commit it, prune the
     /// page it emptied, and save once.
     void handle_drag_end(lv_event_t* e);
@@ -483,6 +508,15 @@ class GridEditMode {
     /// before the rebuild ran.
     void rebuild_then_select(std::string widget_id);
 
+    /// After a commit that placed @p changed_ids on the scoped page and changed
+    /// nothing else: drop the selection now, then on the next tick ask
+    /// relayout_cb_ to re-seat the page in place (giving @p widget_id its new
+    /// span when @p resized) and select @p widget_id again. Falls back to
+    /// rebuild_then_select() when the relayout is refused or there is no
+    /// callback.
+    void relayout_then_select(std::string widget_id, std::vector<std::string> changed_ids,
+                              bool resized);
+
     // Resize helpers
     bool is_selected_widget_resizable() const;
     void handle_resize_move(lv_event_t* e);
@@ -496,14 +530,16 @@ class GridEditMode {
     /// Its completion callback holds a raw `this` and dereferences config_, so
     /// both exit() (which nulls config_) and the destructor must run this. The
     /// animation's deleted_cb frees the heap context and clears
-    /// snap_anim_preview_, so this is also the leak-free cancel path. The
+    /// snap_anim_outline_, so this is also the leak-free cancel path. The
     /// in-place layout is a grid cell write that creates and deletes nothing,
     /// so a stop no rebuild follows (switch_page) still shows the committed
     /// span, from inside input dispatch or under a live gesture alike.
-    void cancel_snap_animation();
+    /// @return Whether a widget was laid out at its committed cell, which leaves
+    ///         its content sized for the old span until something rebuilds it.
+    bool cancel_snap_animation();
 
     /// Finish a resize snap animation in flight: stop it, retire its preview,
-    /// and schedule the rebuild its completion would have run, re-selecting
+    /// and schedule the relayout its completion would have run, re-selecting
     /// the resized widget. Nothing when no snap is in flight.
     void finish_resize_snap();
 
@@ -525,6 +561,7 @@ class GridEditMode {
     PanelWidgetConfig* config_ = nullptr;
     int page_index_ = 0;
     RebuildCallback rebuild_cb_;
+    RelayoutCallback relayout_cb_;
     DeletePageCallback delete_page_cb_;
     GestureOwnershipCallback gesture_ownership_cb_;
     ShowPageCallback show_page_cb_;
@@ -581,6 +618,14 @@ class GridEditMode {
     static void crossing_flip_cb(lv_timer_t* timer);
     static void dwell_flip_cb(lv_timer_t* timer);
     lv_obj_t* delete_page_btn_ = nullptr;
+    /// What the shield draws as the lattice, owned by the shield.
+    GridLatticeSpec* lattice_spec_ = nullptr;
+    /// What the drawn lattice was built for: the shield and page holding it,
+    /// the grid, the selection's snap steps, the content size and whether the
+    /// delete-page button shows. rebuild_lattice() keeps a lattice whose key
+    /// still matches.
+    using LatticeKey = std::tuple<lv_obj_t*, lv_obj_t*, int, int, int, int, int, int, bool>;
+    LatticeKey lattice_key_{};
 
     // Drag threshold: track press origin, only start real drag after movement
     static constexpr int DRAG_THRESHOLD_PX = 12;
@@ -604,7 +649,8 @@ class GridEditMode {
     /// neither arm nor select, and its holds neither grab nor open the
     /// catalog. Set for the hold that entered edit mode, which has made its
     /// one selection, and for a press that finished a resize snap, whose
-    /// rebuild replaces the objects under it on the next tick.
+    /// relayout can fall back to a rebuild that replaces every object under
+    /// the press on the next tick.
     /// clear_gesture_state() resets it.
     bool gesture_inert_ = false;
 
@@ -616,19 +662,42 @@ class GridEditMode {
     int drag_orig_colspan_ = 1;
     int drag_orig_rowspan_ = 1;
     lv_point_t drag_offset_ = {0, 0};
-    lv_obj_t* snap_preview_ = nullptr;
+    /// The selected widget is on the top layer for a drag
+    /// (lift_dragged_widget()), and the local width and height it had before
+    /// the lift pinned its size, restored when it settles.
+    bool lifted_ = false;
+    bool lifted_had_w_ = false;
+    bool lifted_had_h_ = false;
+    lv_style_value_t lifted_w_{};
+    lv_style_value_t lifted_h_{};
     int snap_preview_col_ = -1;
     int snap_preview_row_ = -1;
+    /// The cell, span and validity snap_preview_ is drawn for: {col, row,
+    /// colspan, rowspan, valid}. Meaningful only while snap_preview_ exists.
+    std::tuple<int, int, int, int, bool> snap_preview_rect_{};
 
     // Resize state
     bool resizing_ = false;
     ResizeEdge resize_edge_ = ResizeEdge::None;
-    lv_obj_t* resize_preview_ = nullptr; // Pixel-tracking preview overlay
+    /// An edit preview's four edge bars (top, bottom, left, right) on the top
+    /// layer (ensure_outline() in grid_edit_mode.cpp says why). All null, or
+    /// all live.
+    using ResizeOutline = std::array<lv_obj_t*, 4>;
+    /// The pixel-tracking resize outline.
+    ResizeOutline resize_outline_{};
+    /// The box resize_outline_ is drawn around, in screen coordinates.
+    lv_area_t resize_outline_box_{};
+    /// The grid-snapped landing preview of a drag or resize.
+    ResizeOutline snap_preview_{};
 
-    // Widget the resize snap animation is driving, or nullptr when none is in
-    // flight. It is the animation's `var`, which is what lets LVGL auto-cancel
-    // on widget deletion and what cancel_snap_animation() cancels by.
-    lv_obj_t* snap_anim_preview_ = nullptr;
+    // Outline the resize snap animation is driving, all null when none is in
+    // flight. Bar 0 is the animation's `var`, which is what lets LVGL
+    // auto-cancel on its deletion and what cancel_snap_animation() cancels by;
+    // deleting any other bar cancels it too.
+    ResizeOutline snap_anim_outline_{};
+    /// The page the animating resize ran on, where a stopped snap lays the
+    /// widget out (cancel_snap_animation). Checked live before use.
+    lv_obj_t* snap_anim_page_ = nullptr;
     /// The widget that snap animation resized, which the rebuild after it
     /// selects again. Empty when no snap is in flight.
     std::string snap_anim_widget_id_;
@@ -646,6 +715,12 @@ class GridEditMode {
 
     /// A deferred rebuild is scheduled and has not run yet.
     bool rebuild_pending_ = false;
+    /// A stopped resize snap left a widget at its new cell with content sized
+    /// for the old span (see cancel_snap_animation()); exit() rebuilds it.
+    bool rebuild_on_exit_ = false;
+    /// relayout_then_select() has scheduled its tick and it has not run yet;
+    /// exit() rebuilds in its place.
+    bool relayout_pending_ = false;
     /// Work to run after the pending rebuild, in request order.
     std::vector<std::function<void()>> rebuild_posts_;
 
