@@ -29,7 +29,7 @@
 #   update-beta-version  --update --version of release 3 from the stub CDN
 #   self-update    --update to release 2 under HELIX_SELF_UPDATE=1
 #   uninstall      --uninstall
-#   net-probe      try to reach a public address; prints NET_REACHABLE or NET_ISOLATED
+#   net-probe      print the network interfaces the scenario can see
 
 set -uo pipefail
 
@@ -132,11 +132,9 @@ for step in "$@"; do
             run_installer --uninstall || rc=$?
             ;;
         net-probe)
-            if python3 -c 'import socket; socket.create_connection(("1.1.1.1", 443), 3)' 2>/dev/null; then
-                echo "NET_REACHABLE"
-            else
-                echo "NET_ISOLATED"
-            fi
+            # /proc is this namespace's own mount, so /proc/net/dev lists the
+            # interfaces of the network namespace the scenario runs in.
+            echo "NET_IFACES: $(sed -n 's/^ *\([^:]*\):.*/\1/p' /proc/net/dev | sort | paste -sd' ' -)"
             ;;
         *)
             echo "unknown step: $step"

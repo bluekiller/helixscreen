@@ -327,7 +327,9 @@ snap_resolve() {
 
 @test "install.sh e2e: the scenario has no route off the box" {
     # A failure path that falls through to wget or python must not reach a
-    # real release server from a test.
+    # real release server from a test. Only a loopback means no route, whether
+    # or not the host itself is online.
     run_scenario net-probe
-    contains "NET_ISOLATED" "$output"
+    printf '%s\n' "$output" | grep -qx "NET_IFACES: lo" \
+        || fail "the scenario sees more than a loopback: $(printf '%s\n' "$output" | grep NET_IFACES)"
 }
