@@ -143,6 +143,8 @@ void ThumbnailProcessor::process_file_async(const std::string& png_path,
                                             ProcessErrorCallback on_error) {
     auto path_copy = png_path;
     auto source_copy = source_path;
+    // ThumbnailCache sweeps a source's variants by this same key.
+    std::string key = ThumbnailCache::compute_hash(source_path);
 
     // Same locked-commit structure as process_async() — see the #1202 commentary
     // there for why commit() must happen under mutex_.
@@ -153,7 +155,7 @@ void ThumbnailProcessor::process_file_async(const std::string& png_path,
             std::shared_ptr<ThumbnailWriteJournal> journal_copy = write_journal_.lock();
 
             thread_pool_->commit([this, path_copy = std::move(path_copy),
-                                  source_copy = std::move(source_copy),
+                                  source_copy = std::move(source_copy), key = std::move(key),
                                   cache_dir_copy = std::move(cache_dir_copy),
                                   journal_copy = std::move(journal_copy), target, on_success,
                                   on_error]() {
@@ -183,7 +185,7 @@ void ThumbnailProcessor::process_file_async(const std::string& png_path,
                 file.close();
 
                 ProcessResult result =
-                    do_process(png_data, source_copy, target, cache_dir_copy, journal_copy);
+                    do_process(png_data, source_copy, key, target, cache_dir_copy, journal_copy);
                 deliver_result(result, source_copy, on_success, on_error);
             });
             return;
@@ -205,6 +207,7 @@ void ThumbnailProcessor::process_async(const std::vector<uint8_t>& png_data,
     // shutdown() needs to acquire.
     auto png_copy = png_data;
     auto source_copy = source_path;
+    std::string key = ThumbnailCache::compute_hash(source_path);
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -236,11 +239,11 @@ void ThumbnailProcessor::process_async(const std::vector<uint8_t>& png_data,
             // notifies. It does not block.
             thread_pool_->commit(
                 [this, png_copy = std::move(png_copy), source_copy = std::move(source_copy),
-                 cache_dir_copy = std::move(cache_dir_copy), journal_copy = std::move(journal_copy),
-                 target, on_success, on_error]() {
+                 key = std::move(key), cache_dir_copy = std::move(cache_dir_copy),
+                 journal_copy = std::move(journal_copy), target, on_success, on_error]() {
                     helix::install_thread_altstack();
-                    ProcessResult result =
-                        do_process(png_copy, source_copy, target, cache_dir_copy, journal_copy);
+                    ProcessResult result = do_process(png_copy, source_copy, key, target,
+                                                      cache_dir_copy, journal_copy);
                     deliver_result(result, source_copy, on_success, on_error);
                 });
             return;
@@ -265,7 +268,8 @@ ProcessResult ThumbnailProcessor::process_sync(const std::vector<uint8_t>& png_d
         cache_dir_copy = cache_dir_;
         journal_copy = write_journal_.lock();
     }
-    return do_process(png_data, source_path, target, cache_dir_copy, journal_copy);
+    return do_process(png_data, source_path, ThumbnailCache::compute_hash(source_path), target,
+                      cache_dir_copy, journal_copy);
 }
 
 std::string ThumbnailProcessor::get_if_processed(const std::string& source_path,
@@ -277,7 +281,8 @@ std::string ThumbnailProcessor::get_if_processed(const std::string& source_path,
         cache_dir_copy = cache_dir_;
     }
 
-    std::string filename = generate_cache_filename(source_path, target);
+    std::string filename =
+        generate_cache_filename(ThumbnailCache::compute_hash(source_path), target);
     std::string full_path = cache_dir_copy + "/" + filename;
 
     if (std::filesystem::exists(full_path)) {
@@ -499,18 +504,15 @@ void ThumbnailProcessor::submit_test_task(std::function<void()> task) {
 // Private Implementation
 // ============================================================================
 
-std::string ThumbnailProcessor::generate_cache_filename(const std::string& source_path,
+std::string ThumbnailProcessor::generate_cache_filename(const std::string& cache_key,
                                                         const ThumbnailTarget& target) const {
-    // ThumbnailCache sweeps a source's variants by this same key.
-    const std::string hash = ThumbnailCache::compute_hash(source_path);
-
     // Always ARGB8888 now
     const char* format_str = "ARGB8888";
 
     // Generate filename: {hash}_{w}x{h}_{format}.bin
     // NOTE: Must use .bin extension for LVGL's bin decoder (lv_bin_decoder.c only accepts .bin)
     char filename[128];
-    std::snprintf(filename, sizeof(filename), "%s_%dx%d_%s.bin", hash.c_str(), target.width,
+    std::snprintf(filename, sizeof(filename), "%s_%dx%d_%s.bin", cache_key.c_str(), target.width,
                   target.height, format_str);
 
     return filename;
@@ -547,7 +549,8 @@ static bool is_complete_png(const std::vector<uint8_t>& data) {
 
 ProcessResult
 ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::string& source_path,
-                               const ThumbnailTarget& target, const std::string& cache_dir,
+                               const std::string& cache_key, const ThumbnailTarget& target,
+                               const std::string& cache_dir,
                                const std::shared_ptr<ThumbnailWriteJournal>& journal) {
     ProcessResult result;
 
@@ -681,7 +684,7 @@ ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::
     // ========================================================================
     // Step 5: Write LVGL binary file
     // ========================================================================
-    std::string filename = generate_cache_filename(source_path, target);
+    std::string filename = generate_cache_filename(cache_key, target);
     std::string output_path = cache_dir + "/" + filename;
 
     if (!write_lvbin(output_path, out_width, out_height, target.color_format, resized_pixels.data(),
