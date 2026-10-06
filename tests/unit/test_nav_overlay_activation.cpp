@@ -366,6 +366,91 @@ TEST_CASE_METHOD(OverlayActivationFixture,
 }
 
 // ============================================================================
+// A queued push that is dismissed before it drains never shows
+// ============================================================================
+
+TEST_CASE_METHOD(OverlayActivationFixture, "go_back while a push is pending drops the push",
+                 "[navigation][overlay][pending_push]") {
+    auto& nav = NavigationManager::instance();
+
+    nav.push_overlay(overlay_);
+    nav.go_back();
+    drain();
+
+    CHECK(overlay_lifecycle_.activates == 0);
+    // Owners release what show() primed in on_deactivate(), so a cancelled
+    // open still closes.
+    CHECK(overlay_lifecycle_.deactivates == 1);
+    CHECK(home_panel_.deactivates == 0);
+    CHECK_FALSE(nav.is_push_pending(overlay_));
+    CHECK_FALSE(nav.has_open_overlays());
+    CHECK(lv_obj_has_flag(overlay_, LV_OBJ_FLAG_HIDDEN));
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture, "go_back with a pending push still pops what is shown",
+                 "[navigation][overlay][pending_push]") {
+    auto& nav = NavigationManager::instance();
+    open_overlay();
+
+    // A duplicate push of a stacked overlay is ignored, so it must not swallow
+    // the back that follows it.
+    nav.push_overlay(overlay_);
+    nav.go_back();
+    drain();
+
+    CHECK_FALSE(nav.is_push_pending(overlay_));
+    CHECK_FALSE(nav.has_open_overlays());
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture,
+                 "close_overlay of a stacked overlay with a duplicate push pending closes it once",
+                 "[navigation][overlay][pending_push]") {
+    auto& nav = NavigationManager::instance();
+    open_overlay();
+
+    nav.push_overlay(overlay_);
+    nav.close_overlay(overlay_);
+    drain();
+
+    REQUIRE(overlay_lifecycle_.deactivates == 1);
+    CHECK_FALSE(nav.has_open_overlays());
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture, "close_overlay while its push is pending drops the push",
+                 "[navigation][overlay][pending_push]") {
+    auto& nav = NavigationManager::instance();
+
+    nav.push_overlay(overlay_);
+    nav.close_overlay(overlay_);
+    drain();
+
+    CHECK(overlay_lifecycle_.activates == 0);
+    // Owners release what show() primed in on_deactivate(), so a cancelled
+    // open still closes.
+    CHECK(overlay_lifecycle_.deactivates == 1);
+    CHECK(home_panel_.deactivates == 0);
+    CHECK_FALSE(nav.is_push_pending(overlay_));
+    CHECK_FALSE(nav.has_open_overlays());
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture, "Deleting a root with a pending push drops the push",
+                 "[navigation][overlay][pending_push]") {
+    auto& nav = NavigationManager::instance();
+
+    nav.push_overlay(overlay_);
+    lv_obj_t* deleted = overlay_;
+    lv_obj_delete(overlay_);
+    overlay_ = nullptr;
+
+    // A new overlay allocated at the freed address must not read as already
+    // opening, nor be pushed by the dead root's queued push.
+    CHECK_FALSE(nav.is_push_pending(deleted));
+    drain();
+    CHECK(overlay_lifecycle_.activates == 0);
+    CHECK_FALSE(nav.has_open_overlays());
+}
+
+// ============================================================================
 // mark_disconnect_expected() — one-shot, immune to callback ordering
 // ============================================================================
 

@@ -399,7 +399,7 @@ what it can still show you: that the probe runs, cycles, times out, and hands of
 
 Override the screen resolution. Alternative to the `-s` / `--size` command-line flag, useful for persistent configuration via `helixscreen.env` or systemd `EnvironmentFile`.
 
-The name says size, but the value is a resolution: it selects the display mode, and the layout breakpoint is classified from that resolution rather than set directly. `HELIX_DPI` is the separate knob for UI scale.
+The name says size, but the value is a resolution: it selects the display mode, and the layout breakpoint is classified from that resolution rather than set directly. The UI Scale setting (`/display/ui_scale_percent`), or `HELIX_DPI` while that is Automatic, is the separate knob for UI scale.
 
 | Property | Value |
 |----------|-------|
@@ -445,7 +445,9 @@ Size of LVGL's decoded-image cache. `0` (the built-in default) means no image is
 
 ### `HELIX_DPI`
 
-Override the display DPI (dots per inch). Useful for screens where spacing looks too large or too small at the auto-detected DPI.
+> Changed in 1.1: the DPI drives the UI scale. In 1.0 it only reached LVGL's built-in padding.
+
+Override the panel's physical DPI. It replaces the measured DPI as input to `DisplayMetrics::resolve_dpi` (`include/display_metrics.h`), and `ui_scale_for_dpi` turns that into the UI scale: `1.0` at or below 225 DPI, then +0.0032118 per DPI, capped at `2.0` (`500` is about 1.88x). The scale never drops below `1.0`, so a low DPI cannot shrink the UI. A non-Automatic `/display/ui_scale_percent` setting overrides the DPI-derived scale.
 
 | Property | Value |
 |----------|-------|
