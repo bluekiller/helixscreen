@@ -410,6 +410,35 @@ _cp_setup() {
     [ -f "$TMP_DIR/install.log" ]
 }
 
+@test "an --update plan reads Update <installed> -> <target>" {
+    _cp_setup
+    update_mode=true
+    mkdir -p "$INSTALL_DIR"
+    printf '{"project_name":"helixscreen","version":"v1.2.2"}' > "$INSTALL_DIR/release_info.json"
+    run confirm_point pi v1.2.3
+    contains "  Update     v1.2.2 -> v1.2.3 (stable)" "$output"
+    lacks "  Install " "$output"
+}
+
+@test "an --update plan reads the installed version from the binary without release_info.json" {
+    _cp_setup
+    update_mode=true
+    mkdir -p "$INSTALL_DIR/bin"
+    printf '#!/bin/sh\necho "HelixScreen v1.2.1 (abc123)"\n' > "$INSTALL_DIR/bin/helix-screen"
+    chmod +x "$INSTALL_DIR/bin/helix-screen"
+    run confirm_point pi v1.2.3
+    contains "  Update     v1.2.1 -> v1.2.3 (stable)" "$output"
+}
+
+@test "an --update plan with no readable installed version keeps the Install line" {
+    _cp_setup
+    update_mode=true
+    mkdir -p "$INSTALL_DIR"
+    run confirm_point pi v1.2.3
+    contains "  Install    v1.2.3 (stable)" "$output"
+    lacks "Update " "$output"
+}
+
 @test "confirm_point asks sudo for its password once, before any step" {
     _cp_setup
     _has_no_new_privs() { return 1; }

@@ -126,6 +126,9 @@ _make_release() {
     (cd "$WORKTREE_ROOT" && git ls-files -z config | xargs -0 cp --parents -t "$pkg")
     rm -f "$pkg/config/settings.json" "$pkg/config/helixconfig.json"
     echo "$version" > "$pkg/ui_xml/e2e-release.txt"
+    # The release bakes this in (mk/cross.mk write-release-info).
+    printf '{"project_name":"helixscreen","project_owner":"prestonbrown","version":"%s","asset_name":"helixscreen-x86.zip"}\n' \
+        "$version" > "$pkg/release_info.json"
     # Incompressible, so the archive clears the installer's 1MB floor.
     head -c 1600000 /dev/urandom > "$pkg/assets/e2e-pad.bin"
     tar -czf "$art/release-$n/helixscreen-x86-$version.tar.gz" -C "$art/pkg$n" helixscreen
@@ -473,6 +476,7 @@ $output"
 @test "install.sh e2e: a no-terminal update prints the golden transcript" {
     run_scenario install update
     lacks "Continue?" "$(step_output 2 "$output")"
+    contains "  Update     v1.0.0 → v1.0.1 (stable)" "$(step_output 2 "$output")"
     matches_golden update 2
 }
 

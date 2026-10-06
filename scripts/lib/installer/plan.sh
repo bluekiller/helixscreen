@@ -73,11 +73,15 @@ plan_adds_line() {
 # asks sudo for its password once, then opens the log. Returns only when the
 # install goes ahead.
 confirm_point() { # platform version
+    # An update reads "Update <installed> -> <target>" when the installed
+    # version is known, and like a fresh install otherwise.
+    _cp_label=Install
     _cp_install="$2 (${R2_CHANNEL:-stable})"
-    if [ "${update_mode:-false}" = true ] && [ -f "${INSTALL_DIR:-}/release_info.json" ]; then
-        _cp_from=$(parse_json_string_field version < "$INSTALL_DIR/release_info.json")
+    if [ "${update_mode:-false}" = true ] && [ -d "${INSTALL_DIR:-}" ]; then
+        _cp_from=$(installed_version)
         if [ -n "$_cp_from" ]; then
             if [ "$UI_UTF8" = 1 ]; then _cp_arrow="→"; else _cp_arrow="->"; fi
+            _cp_label=Update
             _cp_install="$_cp_from $_cp_arrow $_cp_install"
         fi
     fi
@@ -86,7 +90,7 @@ confirm_point() { # platform version
 
     plan_set Printer "$(plan_printer_line "$1")"
     [ -d "${INSTALL_DIR:-}" ] && plan_set Found "HelixScreen at $INSTALL_DIR"
-    plan_set Install "$_cp_install${PROBE_SIZE_TEXT:+$(_plan_sep)$PROBE_SIZE_TEXT}"
+    plan_set "$_cp_label" "$_cp_install${PROBE_SIZE_TEXT:+$(_plan_sep)$PROBE_SIZE_TEXT}"
     [ -n "$_cp_libs" ] && plan_set Libraries "$_cp_libs (apt)"
     [ -n "${COMPETING_UIS_FOUND:-}" ] && plan_set Disable "$COMPETING_UIS_FOUND"
     [ -n "$_cp_add" ] && plan_set Add "$_cp_add"

@@ -551,6 +551,19 @@ cleanup_unsupported_options() {
     log_success "Cleaned up unsupported options from moonraker.conf"
 }
 
+# The version of the install at INSTALL_DIR: its release_info.json, else what
+# its binary reports. Empty when neither says.
+installed_version() {
+    _iv=""
+    if [ -f "${INSTALL_DIR}/release_info.json" ]; then
+        _iv=$(parse_json_string_field version < "${INSTALL_DIR}/release_info.json")
+    fi
+    if [ -z "$_iv" ] && [ -x "${INSTALL_DIR}/bin/helix-screen" ]; then
+        _iv=$("${INSTALL_DIR}/bin/helix-screen" --version 2>/dev/null | head -n 1 | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+[^ ]*' || true)
+    fi
+    printf '%s' "$_iv"
+}
+
 # Write release_info.json if not already present
 # Moonraker type:web needs this file to detect installed version
 write_release_info() {
@@ -560,11 +573,9 @@ write_release_info() {
         return 0
     fi
 
-    # Try to detect version from binary
-    local version=""
-    if [ -x "${INSTALL_DIR}/bin/helix-screen" ]; then
-        version=$("${INSTALL_DIR}/bin/helix-screen" --version 2>/dev/null | head -n 1 | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+[^ ]*' || echo "")
-    fi
+    # With no release_info.json, this is the version the binary reports.
+    local version
+    version=$(installed_version)
 
     if [ -z "$version" ]; then
         log_warn "Could not detect version for release_info.json"

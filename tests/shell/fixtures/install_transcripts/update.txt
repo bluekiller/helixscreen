@@ -1,13 +1,12 @@
 HelixScreen installer v1.0.1 (stable)
   Printer    x86 · systemd · user root
   Found      HelixScreen at /root/helixscreen
-  Install    v1.0.1 (stable) · local file, <size>
+  Update     v1.0.0 → v1.0.1 (stable) · local file, <size>
 
 [1/6] Checked system ... ok (x86 · systemd · user root)
 [2/6] Unpacked local archive ... ok (<size>)
 [3/6] Installed files ... ok (~/helixscreen)
 [4/6] Set up service ... ok
-      [WARN] Could not detect version for release_info.json
       [WARN] Could not locate the Moonraker source to verify asset_name support.
       [WARN] Configuring the updater anyway. If Moonraker is older than v0.10.0,
       [WARN] use HelixScreen's built-in updater (Settings -> Updates) instead of
