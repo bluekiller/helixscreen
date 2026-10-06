@@ -303,14 +303,7 @@ void NotificationHistoryPanel::on_clear_clicked(lv_event_t* e) {
 // GLOBAL INSTANCE (needed by main.cpp)
 // ============================================================================
 
-static std::unique_ptr<NotificationHistoryPanel> g_notification_history_panel;
-
 NotificationHistoryPanel& get_global_notification_history_panel() {
-    if (!g_notification_history_panel) {
-        g_notification_history_panel =
-            std::make_unique<NotificationHistoryPanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy(
-            "NotificationHistoryPanel", []() { g_notification_history_panel.reset(); });
-    }
-    return *g_notification_history_panel;
+    return helix::lazy_global<NotificationHistoryPanel>("NotificationHistoryPanel",
+                                                        get_printer_state(), nullptr);
 }

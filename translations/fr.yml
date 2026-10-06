@@ -2254,6 +2254,7 @@ translations:
   Options: Options
   Or Enter Manually: Ou entrer manuellement
   Or instead of turning the others: Ou, au lieu de tourner les autres
+  Original file location unknown: Emplacement du fichier original inconnu
   Oscillating... cycle %d/%d: Oscillation... cycle %d/%d
   Outcome: Résultat
   Output Device: Périphérique de sortie
@@ -2485,7 +2486,6 @@ translations:
   Printer command '{}' timed out after {}ms: La commande d'imprimante '{}' a expiré après {} ms
   Printer connection unavailable: Connexion à l'imprimante indisponible
   Printer database format error: Erreur de format de la base de données d'imprimantes
-  Printer database is corrupt: La base de données d'imprimantes est corrompue
   Printer default: Par défaut de l’imprimante
   Printer didn't respond — make sure it's on and in range: L'imprimante n'a pas répondu
     — vérifiez qu'elle est allumée et à portée

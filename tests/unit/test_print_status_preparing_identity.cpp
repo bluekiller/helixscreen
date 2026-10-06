@@ -19,6 +19,7 @@
  *    through the previous print's name indefinitely.
  */
 
+#include "ui_filename_utils.h"
 #include "ui_panel_print_status.h"
 #include "ui_update_queue.h"
 
@@ -171,4 +172,62 @@ TEST_CASE_METHOD(PreparingIdentityFixture, "Reprinting the same file keeps the p
     drain();
 
     REQUIRE(Access::identity_override(panel()) == "repeat.gcode");
+}
+
+TEST_CASE_METHOD(PreparingIdentityFixture,
+                 "Reprint starts the original, not the rewritten temp copy",
+                 "[print_status][preparing_identity][reprint]") {
+    // print_stats names the rewrite, which is deleted when the print ends.
+    const std::string temp = helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode");
+
+    SECTION("a print this session prepared") {
+        state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
+        state().print_state().retire_preparing(PreparingExit::Confirmed);
+        drain();
+        report_filename(temp);
+
+        REQUIRE(Access::current_print_filename(panel()) == temp);
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
+    }
+
+    SECTION("after a restart, with only the printer's report to go on") {
+        report_filename(temp);
+
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
+    }
+
+    SECTION("after a restart, printed through the HelixPrint plugin") {
+        report_filename(".helix_print/full/parts/benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
+    }
+
+    // Names that carry only the bare filename: a same-named root file may
+    // exist, and reprinting it would print the wrong part.
+    SECTION("after a restart, an older staged name refuses rather than guesses") {
+        report_filename(".helix_temp/modified_1766807545_benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()).empty());
+    }
+    SECTION("after a restart, an older plugin's link refuses rather than guesses") {
+        report_filename(".helix_print/benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()).empty());
+    }
+    SECTION("a print another client started since is the one reprinted") {
+        state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
+        state().print_state().retire_preparing(PreparingExit::Confirmed);
+        drain();
+        report_filename(helix::gcode::make_rewritten_gcode_path("other/benchy.gcode"));
+
+        REQUIRE(Access::reprint_filename(panel()) == "other/benchy.gcode");
+    }
+    SECTION("a print this session prepared still knows its original") {
+        state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
+        state().print_state().retire_preparing(PreparingExit::Confirmed);
+        drain();
+        report_filename(".helix_temp/modified_1766807545_benchy.gcode");
+
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
+    }
 }

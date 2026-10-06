@@ -28,8 +28,8 @@ namespace helix::settings {
  * @class SafetySettingsOverlay
  * @brief Overlay for configuring safety and notification settings
  *
- * Every row callback writes straight through its settings manager; the rows
- * that are not yet bound to their subject are re-synced on activate.
+ * Every row binds its settings subject and its callback writes straight
+ * through the settings manager.
  */
 class SafetySettingsOverlay : public OverlayBase {
   public:
@@ -41,11 +41,6 @@ class SafetySettingsOverlay : public OverlayBase {
     }
 
     void register_callbacks() override;
-    void on_activate() override;
-
-  private:
-    void init_estop_toggle();
-    void init_completion_alert_dropdown();
 };
 
 inline SafetySettingsOverlay& get_safety_settings_overlay() {

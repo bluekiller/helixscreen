@@ -80,6 +80,9 @@ class PrintStatusPanelTestAccess {
         return panel.printer_state_.print_state().get_print_identity_override();
     }
 
+    static std::string reprint_filename(const PrintStatusPanel& panel) {
+        return panel.reprint_filename();
+    }
     static const std::string& current_print_filename(const PrintStatusPanel& panel) {
         return panel.current_print_filename_;
     }

@@ -34,15 +34,8 @@ using namespace helix;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardSummaryStep> g_wizard_summary_step;
-
 WizardSummaryStep* get_wizard_summary_step() {
-    if (!g_wizard_summary_step) {
-        g_wizard_summary_step = std::make_unique<WizardSummaryStep>();
-        StaticPanelRegistry::instance().register_destroy("WizardSummaryStep",
-                                                         []() { g_wizard_summary_step.reset(); });
-    }
-    return g_wizard_summary_step.get();
+    return &helix::lazy_global<WizardSummaryStep>("WizardSummaryStep");
 }
 
 // ============================================================================

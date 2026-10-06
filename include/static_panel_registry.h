@@ -146,6 +146,28 @@ template <typename T> std::unique_ptr<T>& lazy_global_slot() {
 } // namespace detail
 
 /**
+ * @brief lazy_global() whose destruction runs @p teardown first
+ *
+ * For an instance that owns state outside itself (a cached widget tree, a
+ * registered responder) which must be released while the instance still exists.
+ * The teardown reaches the instance through lazy_global_if_exists<T>().
+ */
+template <typename T, typename... Args>
+T& lazy_global_with_teardown(const char* name, void (*teardown)(), Args&&... args) {
+    auto& instance = detail::lazy_global_slot<T>();
+    if (!instance) {
+        instance = std::make_unique<T>(std::forward<Args>(args)...);
+        StaticPanelRegistry::instance().register_destroy(name, [teardown] {
+            if (teardown) {
+                teardown();
+            }
+            detail::lazy_global_slot<T>().reset();
+        });
+    }
+    return *instance;
+}
+
+/**
  * @brief The process-wide instance of T, constructed on first use
  *
  * Registers its destruction with StaticPanelRegistry, so destroy_all() (shutdown
@@ -153,13 +175,7 @@ template <typename T> std::unique_ptr<T>& lazy_global_slot() {
  * reach the constructor only on that first call. Main thread only.
  */
 template <typename T, typename... Args> T& lazy_global(const char* name, Args&&... args) {
-    auto& instance = detail::lazy_global_slot<T>();
-    if (!instance) {
-        instance = std::make_unique<T>(std::forward<Args>(args)...);
-        StaticPanelRegistry::instance().register_destroy(
-            name, [] { detail::lazy_global_slot<T>().reset(); });
-    }
-    return *instance;
+    return lazy_global_with_teardown<T>(name, nullptr, std::forward<Args>(args)...);
 }
 
 /**

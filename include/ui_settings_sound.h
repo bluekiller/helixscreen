@@ -42,7 +42,6 @@ class SoundSettingsOverlay : public OverlayBase {
     void handle_test_tracker();
 
   private:
-    void init_sounds_toggle();
     void init_volume_slider();
     void init_sound_theme_dropdown();
     void init_audio_device_dropdown();

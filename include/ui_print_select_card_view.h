@@ -295,6 +295,7 @@ class PrintSelectCardView : public ContainerDeleteNet {
     int32_t cached_gradient_w_ = 0;
     int32_t cached_gradient_h_ = 0;
     bool cached_gradient_dark_ = true;
+    uint32_t cached_gradient_behind_ = 0; ///< solid color the corners are flattened onto, 0 = none
 
     /// Ensure gradient buffer matches current card dimensions and theme
     void ensure_gradient_cache(int32_t card_width, int32_t card_height);

@@ -243,7 +243,9 @@ void TempGraphController::refresh_all_from_history() {
     spdlog::debug("[TempGraphController] refresh_all_from_history: {} live controllers",
                   snapshot.size());
     for (auto* c : snapshot) {
-        if (c) {
+        // A paused graph is off screen; resume() backfills it from the same
+        // history when it comes back.
+        if (c && !c->paused_) {
             c->refresh_from_history();
         }
     }

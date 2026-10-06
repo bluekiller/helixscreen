@@ -55,15 +55,8 @@ extern lv_subject_t connection_test_passed;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardPrinterIdentifyStep> g_wizard_printer_identify_step;
-
 WizardPrinterIdentifyStep* get_wizard_printer_identify_step() {
-    if (!g_wizard_printer_identify_step) {
-        g_wizard_printer_identify_step = std::make_unique<WizardPrinterIdentifyStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardPrinterIdentifyStep", []() { g_wizard_printer_identify_step.reset(); });
-    }
-    return g_wizard_printer_identify_step.get();
+    return &helix::lazy_global<WizardPrinterIdentifyStep>("WizardPrinterIdentifyStep");
 }
 
 // ============================================================================

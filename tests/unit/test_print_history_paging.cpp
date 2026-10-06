@@ -16,6 +16,7 @@
 #include "../../include/print_history_data.h"
 #include "../../include/print_history_manager.h"
 #include "../../include/printer_state.h"
+#include "../../include/ui_filename_utils.h"
 #include "../../include/ui_update_queue.h"
 #include "../test_helpers/history_call_counting_api.h"
 #include "../test_helpers/print_history_manager_test_access.h"
@@ -271,4 +272,24 @@ TEST_CASE_METHOD(PagingFixture, "a reload nobody asked to cover does not page ba
                                                   HistoryScope::COMPLETE, 3);
     pump();
     CHECK(history().requests.empty());
+}
+
+TEST_CASE_METHOD(PagingFixture, "a rewritten job on an older page shows as the original's print",
+                 "[history_manager][paging][reprint]") {
+    FileMetadata meta;
+    meta.modified = 42.0;
+    api_->metadata_table().table["parts/benchy.gcode"] = meta;
+
+    install_capped(3);
+    manager_->load_older();
+    auto page = jobs_from(3, 1, 3.0);
+    page[0].filename = helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode");
+    history().answer(page);
+    pump();
+
+    const PrintHistoryJob& job = manager_->get_jobs().back();
+    CHECK(job.filename == "parts/benchy.gcode");
+    CHECK(job.exists);
+    CHECK(job.modified == 42.0);
+    CHECK(api_->metadata_table().calls == 1);
 }

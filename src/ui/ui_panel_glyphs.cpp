@@ -148,15 +148,8 @@ void GlyphsPanel::populate_glyphs() {
 // GLOBAL INSTANCE (needed by main.cpp)
 // ============================================================================
 
-static std::unique_ptr<GlyphsPanel> g_glyphs_panel;
-
 GlyphsPanel& get_global_glyphs_panel() {
-    if (!g_glyphs_panel) {
-        g_glyphs_panel = std::make_unique<GlyphsPanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy("GlyphsPanel",
-                                                         []() { g_glyphs_panel.reset(); });
-    }
-    return *g_glyphs_panel;
+    return helix::lazy_global<GlyphsPanel>("GlyphsPanel", get_printer_state(), nullptr);
 }
 
 // Legacy create wrapper (test panel - still used by main.cpp)

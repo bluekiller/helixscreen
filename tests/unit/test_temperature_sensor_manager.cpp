@@ -41,7 +41,6 @@ class TemperatureSensorManagerTestAccess {
     static void reset(TemperatureSensorManager& obj) {
         std::lock_guard<std::recursive_mutex> lock(obj.mutex_);
         obj.sensors_.clear();
-        obj.states_.clear();
         obj.temp_subjects_.clear();
         obj.sync_mode_ = true;
         obj.deinit_subjects();

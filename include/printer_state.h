@@ -851,6 +851,10 @@ class PrinterState {
     /// `shared_ptr<bool>` death signals and carry no deferral machinery.
     AsyncLifetimeGuard async_lifetime_;
 
+    /// Bumped by set_hardware(), so firmware option settings read off the
+    /// previous machine's status cannot land on the next one.
+    std::atomic<uint64_t> hardware_epoch_{0};
+
     // Cached display pointer to detect LVGL reinitialization (for test isolation)
     lv_display_t* cached_display_ = nullptr;
 

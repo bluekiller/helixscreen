@@ -119,6 +119,108 @@ TEST_CASE("resolve_gcode_filename() extracts the original from each rewrite pref
     CHECK(resolve_gcode_filename("/tmp/helixscreen_mod_123_Model.gcode") == "Model.gcode");
 }
 
+TEST_CASE("make_rewritten_gcode_path() keeps the original's whole path recoverable",
+          "[filename_utils][identity][reprint]") {
+    for (const std::string original :
+         {"benchy.gcode", "parts/benchy.gcode", "a/b/My_Part.gcode", "odd~s~~name/x~.gcode"}) {
+        const std::string staged = helix::gcode::make_rewritten_gcode_path(original);
+        INFO(staged);
+        // One flat file in the staging directory: the cleanups list it there.
+        CHECK(staged.rfind(".helix_temp/modified_", 0) == 0);
+        CHECK(staged.find('/', std::string(".helix_temp/").size()) == std::string::npos);
+        CHECK(helix::gcode::is_uploaded_rewrite_path(staged));
+        CHECK(resolve_gcode_filename(staged) == original);
+        CHECK(resolve_gcode_filename("gcodes/" + staged) == original);
+    }
+}
+
+TEST_CASE("resolve_gcode_filename() decodes a staged subfolder path",
+          "[filename_utils][identity][reprint]") {
+    CHECK(resolve_gcode_filename(".helix_temp/modified_1748p_parts~sbenchy.gcode") ==
+          "parts/benchy.gcode");
+    // Without the path marker the name is a bare filename, taken literally.
+    CHECK(resolve_gcode_filename(".helix_temp/modified_1748_a~sb.gcode") == "a~sb.gcode");
+}
+
+TEST_CASE("resolve_gcode_filename() unwraps a HelixPrint plugin symlink path",
+          "[filename_utils][identity][reprint]") {
+    CHECK(resolve_gcode_filename(".helix_print/parts/benchy.gcode") == "parts/benchy.gcode");
+    CHECK(resolve_gcode_filename(".helix_print/benchy.gcode") == "benchy.gcode");
+    // Only the plugin's own directory, as the leading segment.
+    CHECK(resolve_gcode_filename("my.helix_print/b.gcode") == "my.helix_print/b.gcode");
+    CHECK_FALSE(helix::gcode::is_rewritten_gcode_path("models/.helix_print/full/x.gcode"));
+    CHECK(resolve_gcode_filename("models/.helix_print/full/x.gcode") ==
+          "models/.helix_print/full/x.gcode");
+    CHECK(helix::gcode::trusted_original_path("models/.helix_print/full/x.gcode") ==
+          "models/.helix_print/full/x.gcode");
+    CHECK(resolve_gcode_filename(".helix_print/") == ".helix_print/");
+
+    // A plugin-started print is ours, but its symlink is the plugin's to remove.
+    CHECK(helix::gcode::is_rewritten_gcode_path(".helix_print/parts/benchy.gcode"));
+    CHECK_FALSE(helix::gcode::is_uploaded_rewrite_path(".helix_print/parts/benchy.gcode"));
+    CHECK_FALSE(helix::gcode::is_rewritten_gcode_path("my.helix_print/b.gcode"));
+}
+
+TEST_CASE("trusted_original_path() answers only for names that place the original",
+          "[filename_utils][identity][reprint]") {
+    using helix::gcode::trusted_original_path;
+    // Not a rewrite: the path names itself.
+    CHECK(trusted_original_path("parts/benchy.gcode") == "parts/benchy.gcode");
+    // Whole-path forms.
+    CHECK(trusted_original_path(helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode")) ==
+          "parts/benchy.gcode");
+    CHECK(trusted_original_path(".helix_print/full/parts/benchy.gcode") == "parts/benchy.gcode");
+    CHECK(trusted_original_path(".helix_print/full/benchy.gcode") == "benchy.gcode");
+    // Bare-filename forms could be a same-named file in any folder.
+    CHECK_FALSE(trusted_original_path(".helix_temp/modified_1748_benchy.gcode"));
+    CHECK_FALSE(trusted_original_path(".helix_print/benchy.gcode"));
+    CHECK_FALSE(trusted_original_path("x/gcode_mod/mod_1_benchy.gcode"));
+    CHECK_FALSE(trusted_original_path(".helix_temp/modified_mine.gcode"));
+    // resolve_gcode_filename() still guesses, for display and lookups.
+    CHECK(resolve_gcode_filename(".helix_print/benchy.gcode") == "benchy.gcode");
+    CHECK(resolve_gcode_filename(".helix_print/full/parts/benchy.gcode") == "parts/benchy.gcode");
+}
+
+TEST_CASE("make_rewritten_gcode_path() keeps a staged name within NAME_MAX",
+          "[filename_utils][identity][reprint]") {
+    std::string deep;
+    for (int i = 0; i < 30; ++i) {
+        deep += "folder_" + std::to_string(i) + "/";
+    }
+    const std::string original = deep + "benchy.gcode";
+    const std::string staged = helix::gcode::make_rewritten_gcode_path(original);
+    INFO(staged);
+    const std::string name = staged.substr(std::string(".helix_temp/").size());
+    CHECK(name.size() <= 255);
+    CHECK(name.find('/') == std::string::npos);
+    CHECK(helix::gcode::is_uploaded_rewrite_path(staged));
+    // Too long to carry the path, so it cannot vouch for one.
+    CHECK_FALSE(helix::gcode::trusted_original_path(staged));
+    CHECK(resolve_gcode_filename(staged) == "benchy.gcode");
+
+    // A cut that falls inside a multibyte character moves to the next one.
+    for (int pad = 0; pad < 3; ++pad) {
+        std::string cjk;
+        for (int i = 0; i < 90; ++i) {
+            cjk += "\xE6\xA8\xA1"; // 模, three bytes
+        }
+        const std::string staged_cjk = helix::gcode::make_rewritten_gcode_path(
+            cjk + std::string(static_cast<size_t>(pad), 'a') + ".gcode");
+        const std::string cut = staged_cjk.substr(std::string(".helix_temp/modified_").size());
+        const std::string kept = cut.substr(cut.find('_') + 1);
+        INFO("pad " << pad);
+        CHECK(staged_cjk.size() - std::string(".helix_temp/").size() <= 255);
+        REQUIRE_FALSE(kept.empty());
+        CHECK((static_cast<unsigned char>(kept[0]) & 0xC0) != 0x80);
+        CHECK(kept.substr(kept.size() - 6) == ".gcode");
+    }
+
+    const std::string long_name = std::string(250, 'x') + ".gcode";
+    const std::string staged_long = helix::gcode::make_rewritten_gcode_path(long_name);
+    CHECK(staged_long.size() - std::string(".helix_temp/").size() <= 255);
+    CHECK(staged_long.substr(staged_long.size() - 6) == ".gcode");
+}
+
 TEST_CASE("resolve_gcode_filename() finds the prefix anywhere in the path",
           "[filename_utils][identity]") {
     // print_stats reports the path relative to the gcodes root, so the marker is

@@ -6,9 +6,9 @@
 #include "async_lifetime_guard.h"
 #include "lvgl.h"
 #include "probe_sensor_types.h"
+#include "sensor_collection.h"
 #include "subject_managed_panel.h"
 
-#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -263,19 +263,6 @@ class ProbeSensorManager {
                                    ProbeSensorType& type);
 
     /**
-     * @brief Find config by Klipper name
-     * @return Pointer to config, or nullptr if not found
-     */
-    ProbeSensorConfig* find_config(const std::string& klipper_name);
-    const ProbeSensorConfig* find_config(const std::string& klipper_name) const;
-
-    /**
-     * @brief Find config by assigned role
-     * @return Pointer to config, or nullptr if no sensor has this role
-     */
-    const ProbeSensorConfig* find_config_by_role(ProbeSensorRole role) const;
-
-    /**
      * @brief Update all LVGL subjects from current state
      * @note Internal method - MUST only be called from main LVGL thread
      */
@@ -284,11 +271,7 @@ class ProbeSensorManager {
     // Recursive mutex for thread-safe state access
     mutable std::recursive_mutex mutex_;
 
-    // Configuration
-    std::vector<ProbeSensorConfig> sensors_;
-
-    // Runtime state (keyed by klipper_name)
-    std::map<std::string, ProbeSensorState> states_;
+    SensorCollection<ProbeSensorConfig, ProbeSensorState> sensors_;
 
     // Test mode: when true, update_from_status() calls update_subjects() synchronously
     bool sync_mode_ = false;

@@ -77,11 +77,17 @@
     <style name="transient_edge"
            shadow_width="20" shadow_offset_x="-10" shadow_spread="0" shadow_color="#shadow_cast"
            shadow_opa="#overlay_shadow_opa"/>
+    <!-- Square corners on the limited tiers. Every overlay panel is full height
+         at the screen's right edge, and a rounded corner fails LVGL's cover test
+         for any redraw band touching it, so the whole screen beneath the panel
+         is drawn again in that band, every frame of a scroll. -->
+    <style name="corners_square" radius="0"/>
   </styles>
   <view extends="lv_obj"
         width="#overlay_width_transient" height="100%" align="right_mid" style_pad_all="0" style_border_width="0"
         style_bg_opa="255" style_bg_color="$bg_color" scrollable="false" flex_flow="column">
     <style name="transient_edge" selector="user_1"/>
+    <bind_style_if_lt name="corners_square" subject="platform_tier" ref_value="2"/>
     <!-- Header Bar -->
     <header_bar name="overlay_header"
                 title="$title" title_tag="$title_tag" title_subject="$title_subject" title_transform="$title_transform"

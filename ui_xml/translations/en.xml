@@ -2022,6 +2022,7 @@
   <translation tag="Options" en="Options"/>
   <translation tag="Or Enter Manually" en="Or Enter Manually"/>
   <translation tag="Or instead of turning the others" en="Or instead of turning the others"/>
+  <translation tag="Original file location unknown" en="Original file location unknown"/>
   <translation tag="Oscillating... cycle %d/%d" en="Oscillating... cycle %d/%d"/>
   <translation tag="Outcome" en="Outcome"/>
   <translation tag="Output Device" en="Output Device"/>
@@ -2232,7 +2233,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" en="Printer command &apos;{}&apos; timed out after {}ms"/>
   <translation tag="Printer connection unavailable" en="Printer connection unavailable"/>
   <translation tag="Printer database format error" en="Printer database format error"/>
-  <translation tag="Printer database is corrupt" en="Printer database is corrupt"/>
   <translation tag="Printer default" en="Printer default"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" en="Printer didn&apos;t respond — make sure it&apos;s on and in range"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" en="Printer doesn&apos;t expose the expected service — wrong device?"/>

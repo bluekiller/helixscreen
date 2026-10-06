@@ -67,6 +67,9 @@ static void setting_group_draw_dividers(lv_event_t* e) {
     }
 }
 
+static void setting_group_track_focus(lv_obj_t* group, lv_obj_t* obj);
+static void setting_group_sync_focus_clip(lv_obj_t* group);
+
 // setting_group_header's root carries this name, which is how a group tells
 // its header from its rows.
 static constexpr const char* kHeaderName = "setting_group_header";
@@ -83,6 +86,9 @@ static constexpr const char* kHeaderName = "setting_group_header";
 // resizes it.
 static void setting_group_sync_header(lv_event_t* e) {
     lv_obj_t* group = lv_event_get_target_obj(e);
+    // Rows arrive and move with size changes; see setting_group_track_focus.
+    setting_group_track_focus(group, group);
+    setting_group_sync_focus_clip(group);
     lv_obj_t* header = nullptr;
     bool has_row = false;
     uint32_t n = lv_obj_get_child_count(group);
@@ -100,6 +106,75 @@ static void setting_group_sync_header(lv_event_t* e) {
     }
     lv_obj_set_flag(header, LV_OBJ_FLAG_HIDDEN, !has_row);
     lv_obj_set_state(group, LV_STATE_USER_1, !has_row);
+}
+
+// True when a focused descendant reaches into one of the group's rounded
+// corners. A ring on a middle row never touches a corner, and LVGL focuses the
+// row under every scroll drag, so focus alone would keep the clip on nearly
+// always.
+static bool setting_group_focus_in_corner(lv_obj_t* obj, const lv_area_t& g, int32_t r) {
+    uint32_t n = lv_obj_get_child_count(obj);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t* child = lv_obj_get_child(obj, i);
+        if (lv_obj_has_state(child, LV_STATE_FOCUSED)) {
+            lv_area_t c;
+            lv_obj_get_coords(child, &c);
+            const bool near_x = c.x1 < g.x1 + r || c.x2 > g.x2 - r;
+            const bool near_y = c.y1 < g.y1 + r || c.y2 > g.y2 - r;
+            if (near_x && near_y)
+                return true;
+        }
+        if (setting_group_focus_in_corner(child, g, r))
+            return true;
+    }
+    return false;
+}
+
+static void setting_group_sync_focus_clip(lv_obj_t* group) {
+    lv_area_t g;
+    lv_obj_get_coords(group, &g);
+    const int32_t short_side = LV_MIN(lv_area_get_width(&g), lv_area_get_height(&g));
+    const int32_t r = LV_MIN(lv_obj_get_style_radius(group, LV_PART_MAIN), short_side / 2);
+    lv_obj_set_state(group, LV_STATE_USER_2, r > 0 && setting_group_focus_in_corner(group, g, r));
+}
+
+// A focused row's ring runs to the card's edge, so a row in a corner needs the
+// card's rounded corners clipped onto it.
+static void setting_group_row_state_changed(lv_event_t* e) {
+    setting_group_sync_focus_clip(static_cast<lv_obj_t*>(lv_event_get_user_data(e)));
+}
+
+// LVGL tells no parent when a descendant gains focus, so each clickable
+// descendant reports its own state changes.
+static void setting_group_track_focus(lv_obj_t* group, lv_obj_t* obj) {
+    uint32_t n = lv_obj_get_child_count(obj);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t* child = lv_obj_get_child(obj, i);
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_CLICKABLE)) {
+            bool tracked = false;
+            uint32_t events = lv_obj_get_event_count(child);
+            for (uint32_t k = 0; k < events && !tracked; k++) {
+                tracked = lv_event_dsc_get_cb(lv_obj_get_event_dsc(child, k)) ==
+                          setting_group_row_state_changed;
+            }
+            if (!tracked) {
+                lv_obj_add_event_cb(child, setting_group_row_state_changed, LV_EVENT_STATE_CHANGED,
+                                    group);
+            }
+        }
+        setting_group_track_focus(group, child);
+    }
+}
+
+static lv_style_t* setting_group_focus_clip_style() {
+    static lv_style_t style;
+    static bool initialized = false;
+    if (!initialized) {
+        lv_style_init(&style);
+        lv_style_set_clip_corner(&style, true);
+        initialized = true;
+    }
+    return &style;
 }
 
 static lv_style_t* setting_group_collapsed_style() {
@@ -132,9 +207,10 @@ static void* setting_group_xml_create(lv_xml_parser_state_t* state, const char**
     lv_obj_remove_style(obj, nullptr, LV_PART_MAIN);
     lv_obj_add_style(obj, ThemeManager::instance().get_style(StyleRole::Card), LV_PART_MAIN);
 
-    // Clip children to the rounded rect: first/last row corners round automatically,
-    // honoring the theme radius fully (no clamp) including Pill/Full.
-    lv_obj_set_style_clip_corner(obj, true, LV_PART_MAIN);
+    // Clip children to the rounded rect only while a focus ring reaches a corner
+    // (LV_STATE_USER_2, see setting_group_sync_focus_clip): rows draw nothing else
+    // there, and the clip renders the card's corner bands through extra layers.
+    lv_obj_add_style(obj, setting_group_focus_clip_style(), LV_PART_MAIN | LV_STATE_USER_2);
 
     // Full width; rows own their own internal padding, so the card has none.
     lv_obj_set_width(obj, LV_PCT(100));

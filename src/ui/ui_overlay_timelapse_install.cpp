@@ -30,24 +30,17 @@ using namespace helix;
 // GLOBAL INSTANCE
 // ============================================================================
 
-static std::unique_ptr<TimelapseInstallOverlay> g_timelapse_install;
-
 TimelapseInstallOverlay& get_global_timelapse_install() {
-    if (!g_timelapse_install) {
+    auto* instance = helix::lazy_global_if_exists<TimelapseInstallOverlay>();
+    if (!instance) {
         spdlog::error("[Timelapse Install] get_global called before init!");
         throw std::runtime_error("TimelapseInstallOverlay not initialized");
     }
-    return *g_timelapse_install;
+    return *instance;
 }
 
 void init_global_timelapse_install(IMoonrakerAPI* api) {
-    if (g_timelapse_install) {
-        spdlog::warn("[Timelapse Install] Already initialized, skipping");
-        return;
-    }
-    g_timelapse_install = std::make_unique<TimelapseInstallOverlay>(api);
-    StaticPanelRegistry::instance().register_destroy("TimelapseInstallOverlay",
-                                                     []() { g_timelapse_install.reset(); });
+    helix::lazy_global<TimelapseInstallOverlay>("TimelapseInstallOverlay", api);
     spdlog::trace("[Timelapse Install] Initialized");
 }
 
@@ -603,9 +596,10 @@ void TimelapseInstallOverlay::step_restart_moonraker() {
                 lv_timer_create(
                     [](lv_timer_t* timer) {
                         lv_timer_delete(timer);
-                        if (!g_timelapse_install || !g_timelapse_install->wizard_active_)
+                        auto* overlay = helix::lazy_global_if_exists<TimelapseInstallOverlay>();
+                        if (!overlay || !overlay->wizard_active_)
                             return;
-                        g_timelapse_install->step_verify();
+                        overlay->step_verify();
                     },
                     8000, nullptr);
             });

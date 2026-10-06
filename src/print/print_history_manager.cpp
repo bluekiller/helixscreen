@@ -3,6 +3,7 @@
 
 #include "print_history_manager.h"
 
+#include "ui_filename_utils.h"
 #include "ui_update_queue.h"
 
 #include "connection_staleness.h"
@@ -14,6 +15,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <optional>
 
 using namespace helix;
 
@@ -248,6 +250,7 @@ void PrintHistoryManager::on_older_page(std::vector<PrintHistoryJob>&& jobs, uin
         for (auto& job : jobs) {
             auto same_id = [&job](const PrintHistoryJob& j) { return j.job_id == job.job_id; };
             if (std::none_of(cached_jobs_.begin(), cached_jobs_.end(), same_id)) {
+                adopt_original(job);
                 cached_jobs_.push_back(std::move(job));
                 ++added;
             }
@@ -310,6 +313,10 @@ void PrintHistoryManager::watch_connection_state() {
 void PrintHistoryManager::invalidate() {
     spdlog::debug("[HistoryManager] Cache invalidated");
     is_loaded_ = false;
+    // A file change can be the original being deleted or re-sliced. Answers
+    // still in flight describe the file as it was, so they are dropped.
+    originals_.clear();
+    ++originals_generation_;
 }
 
 // ============================================================================
@@ -349,6 +356,9 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
     spdlog::debug("[HistoryManager] Fetched {} jobs (limit={})", jobs.size(), requested);
 
     cached_jobs_ = std::move(jobs);
+    for (auto& job : cached_jobs_) {
+        adopt_original(job);
+    }
     ++cache_generation_;
     older_exhausted_ = false;
     if (!coverage_load_pending_) {
@@ -381,6 +391,7 @@ void PrintHistoryManager::on_history_fetched(std::vector<PrintHistoryJob>&& jobs
 }
 
 void PrintHistoryManager::apply_job_update(PrintHistoryJob&& job) {
+    adopt_original(job);
     auto same_id = [&job](const PrintHistoryJob& j) { return j.job_id == job.job_id; };
     auto it = std::find_if(cached_jobs_.begin(), cached_jobs_.end(), same_id);
 
@@ -407,6 +418,84 @@ void PrintHistoryManager::apply_job_update(PrintHistoryJob&& job) {
     // covers_since() reports, and the growth is bounded by prints this session.
     build_filename_stats();
     notify_observers();
+}
+
+void PrintHistoryManager::apply_original(PrintHistoryJob& job, const OriginalFile& original) {
+    job.exists = original.exists;
+    job.modified = original.modified;
+    job.thumbnails = original.thumbnails;
+    const ThumbnailInfo* largest = select_thumbnail(job.thumbnails, 0, 0);
+    job.thumbnail_path = largest ? largest->relative_path : std::string{};
+}
+
+void PrintHistoryManager::adopt_original(PrintHistoryJob& job) {
+    if (!helix::gcode::is_rewritten_gcode_path(job.filename)) {
+        return;
+    }
+    // The rewrite's own file and thumbnails are deleted when the print ends.
+    apply_original(job, OriginalFile{});
+
+    // A name that cannot place the original stays as reported: adopting a
+    // same-named file from another folder would reprint the wrong one.
+    std::optional<std::string> original = helix::gcode::trusted_original_path(job.filename);
+    if (!original) {
+        return;
+    }
+    job.filename = std::move(*original);
+    job.from_rewrite = true;
+
+    if (auto it = originals_.find(job.filename); it != originals_.end()) {
+        apply_original(job, it->second); // answered, or still missing while asked
+        return;
+    }
+    if (!api_) {
+        return; // nothing asked, so nothing to remember
+    }
+    originals_.emplace(job.filename, OriginalFile{});
+
+    const std::string filename = job.filename;
+    const uint64_t generation = originals_generation_;
+    auto token = lifetime_.token();
+    api_->files().get_file_metadata(
+        filename,
+        [this, token, filename, generation](const FileMetadata& metadata) {
+            OriginalFile answer;
+            answer.exists = true;
+            answer.modified = metadata.modified;
+            answer.thumbnails = metadata.thumbnails;
+            token.defer("PrintHistoryManager::original_metadata",
+                        [this, filename, generation, answer = std::move(answer)]() mutable {
+                            on_original_answered(filename, generation, std::move(answer));
+                        });
+        },
+        [this, token, filename, generation](const MoonrakerError&) {
+            token.defer("PrintHistoryManager::original_missing", [this, filename, generation]() {
+                on_original_answered(filename, generation, OriginalFile{});
+            });
+        },
+        /*silent=*/true);
+}
+
+void PrintHistoryManager::on_original_answered(const std::string& filename, uint64_t generation,
+                                               OriginalFile original) {
+    if (generation != originals_generation_) {
+        return; // asked before an invalidation; the refetch asks again
+    }
+    spdlog::debug("[HistoryManager] Original '{}' of a rewritten job: {}", filename,
+                  original.exists ? "found" : "missing");
+    bool changed = false;
+    for (auto& job : cached_jobs_) {
+        // A job that printed the original directly keeps its own record.
+        if (job.from_rewrite && job.filename == filename) {
+            apply_original(job, original);
+            changed = true;
+        }
+    }
+    originals_[filename] = std::move(original);
+    if (changed) {
+        build_filename_stats();
+        notify_observers();
+    }
 }
 
 void PrintHistoryManager::invalidate_and_refetch() {
