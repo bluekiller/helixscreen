@@ -1111,6 +1111,10 @@ void PrintSelectPanel::fetch_metadata_range(size_t start, size_t end) {
                                         if (self->nav_generation_.load() != captured_gen) {
                                             return;
                                         }
+                                        if (self->refetch_after_connection_loss(i, filename,
+                                                                                error)) {
+                                            return;
+                                        }
                                         spdlog::debug("[{}] Metascan failed for {}: {}, "
                                                       "trying gcode extraction",
                                                       self->get_name(), filename, error.message);
@@ -1141,6 +1145,9 @@ void PrintSelectPanel::fetch_metadata_range(size_t start, size_t end) {
                     }
                     spdlog::debug("[{}] Failed to get metadata for {}: {} ({})", self->get_name(),
                                   filename, error.message, error.get_type_string());
+                    if (self->refetch_after_connection_loss(i, filename, error)) {
+                        return;
+                    }
 
                     if (!self->api_) {
                         return;
@@ -1164,6 +1171,10 @@ void PrintSelectPanel::fetch_metadata_range(size_t start, size_t end) {
                                             if (self->nav_generation_.load() != captured_gen) {
                                                 return;
                                             }
+                                            if (self->refetch_after_connection_loss(i, filename,
+                                                                                    scan_error)) {
+                                                return;
+                                            }
                                             spdlog::debug("[{}] Metascan also failed for {}: {}, "
                                                           "trying gcode extraction",
                                                           self->get_name(), filename,
@@ -1182,6 +1193,19 @@ void PrintSelectPanel::fetch_metadata_range(size_t start, size_t end) {
         spdlog::trace("[{}] fetch_metadata_range({}, {}): started {} metadata requests", get_name(),
                       start, end, fetch_count);
     }
+}
+
+bool PrintSelectPanel::refetch_after_connection_loss(size_t i, const std::string& filename,
+                                                     const MoonrakerError& error) {
+    if (error.type != MoonrakerErrorType::CONNECTION_LOST) {
+        return false;
+    }
+    if (i < file_list_.size() && file_list_[i].filename == filename) {
+        file_list_[i].metadata_fetched = false;
+    }
+    spdlog::debug("[{}] Metadata for {} lost with the connection; fetching again after reconnect",
+                  get_name(), filename);
+    return true;
 }
 
 /**
