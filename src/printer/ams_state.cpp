@@ -383,6 +383,10 @@ void AmsState::clear_backends() {
     lv_subject_set_int(&ams_is_filament_system_, 0);
     lv_subject_set_int(&backend_count_, 0);
     lv_subject_set_int(&active_backend_, 0);
+    // Home widget gates: left set, a live printer switch keeps the filament cards on a
+    // printer that has no filament system.
+    lv_subject_set_int(&ams_slot_count_, 0);
+    lv_subject_set_int(&supports_bypass_, 0);
 }
 
 bool AmsState::any_bypass_active() const {
