@@ -43,6 +43,18 @@ _G.collectgarbage = function(opt, ...)
     end
     return collect(opt, ...)
 end
+-- An empty result returns at once: stock rep loops n times building nothing, with no
+-- allocation for the memory cap to refuse and no instruction for the time budget to see.
+-- Any non-empty result is sized up front, so the memory cap bounds it.
+local rep, tointeger = string.rep, math.tointeger
+string.rep = function(s, n, sep)
+    local count = tointeger(n)
+    if count and count > 1 and type(s) == "string" and #s == 0
+            and (sep == nil or (type(sep) == "string" and #sep == 0)) then
+        return ""
+    end
+    return rep(s, n, sep)
+end
 )";
 
 bool file_exists(const std::string& path) {
