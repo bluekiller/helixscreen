@@ -104,8 +104,11 @@ class PrinterNetworkState {
     /**
      * @brief Set Klipper state message (error/shutdown reason from webhooks)
      * @param message The state_message string from Moonraker webhooks
+     * @param describes The klippy state the message was reported with, when known.
+     *        A message reported with READY or STARTUP is never a fault reason.
      */
-    void set_klippy_state_message(const std::string& message);
+    void set_klippy_state_message(const std::string& message,
+                                  std::optional<KlippyState> describes = std::nullopt);
 
     /**
      * @brief Apply a webhooks status object unless it is older than the state held
@@ -194,6 +197,16 @@ class PrinterNetworkState {
         return klippy_state_message_;
     }
 
+    /// The state message when it can describe a shutdown or error: empty when it
+    /// was reported alongside READY or STARTUP ("Printer is ready"), which can
+    /// still be cached when a shutdown edge lands ahead of its webhooks frame.
+    std::string get_klippy_fault_message() const;
+
+    /// Bumped whenever the state message changes, so a view showing it can refresh.
+    lv_subject_t* get_klippy_state_message_seq_subject() {
+        return &klippy_state_message_seq_;
+    }
+
     // ========================================================================
     // Query methods
     // ========================================================================
@@ -235,12 +248,14 @@ class PrinterNetworkState {
     lv_subject_t nav_buttons_enabled_{};        // Derived: 1 when connected AND klippy ready
     lv_subject_t moonraker_connection_state_{}; // Derived: 1 when Moonraker WebSocket connected
     lv_subject_t moonraker_is_remote_{};        // 1 when connected Moonraker is not this host
+    lv_subject_t klippy_state_message_seq_{};   // Bumped on every state message change
 
     // String buffer for connection message
     char printer_connection_message_buf_[128];
 
     // Klipper state message (error/shutdown reason from webhooks.state_message)
     std::string klippy_state_message_;
+    std::optional<KlippyState> klippy_state_message_describes_;
 
     // Track if we've ever successfully connected (for UI display)
     bool was_ever_connected_ = false;

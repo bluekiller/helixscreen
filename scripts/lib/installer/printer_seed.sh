@@ -346,8 +346,9 @@ PY
 }
 
 # Seed the FULL preset (B-path) into settings.json.
-# Writes preset["printer"] under printers.<active_id>, seeds top-level display,
-# sets the top-level "preset" marker, and sets wizard_completed=false.
+# Seeds the device-level blocks through seed_settings_for_printer, writes
+# preset["printer"] under printers.<active_id>, sets the top-level "preset"
+# marker, and sets wizard_completed=false.
 # This mirrors the runtime apply_preset_file so that first-boot enters
 # preset-mode immediately without waiting for Moonraker detection.
 #
@@ -363,6 +364,7 @@ seed_full_preset_for_printer() {
         log_warn "python3 not available; skipping full-preset seed for ${printer_id}"
         return 0
     fi
+    seed_settings_for_printer "$printer_id"
     log_info "Seeding FULL preset for ${printer_id} (preset-mode)..."
     if FRAGMENT_PATH="$fragment" PRESET_ID="$printer_id" _rewrite_settings_json '
 def strip_us(o):
@@ -381,12 +383,6 @@ def transform(base):
         preset = {}
     preset = strip_us(preset) if isinstance(preset, dict) else {}
     preset_id = os.environ["PRESET_ID"]
-
-    # Seed top-level display block (device-level, needed at first boot).
-    if isinstance(preset.get("display"), dict):
-        display = base.get("display")
-        base["display"] = deep_merge(display if isinstance(display, dict) else {},
-                                     preset["display"])
 
     # Place preset["printer"] under printers.<active_id>.
     active = base.get("active_printer_id", "default")
