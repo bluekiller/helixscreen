@@ -36,6 +36,7 @@
 #include "print_lifecycle_state.h"
 #include "printer_state.h"
 #include "replace_method_callback.h"
+#include "runtime_config.h"
 #include "spdlog/spdlog.h"
 #include "system/config_trust.h"
 #include "system/helix_paths.h"
@@ -1813,6 +1814,18 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
         flog_info("[UpdateChecker] do_install() cancelled, aborting");
         std::remove(tarball_path.c_str());
         report_download_status(DownloadStatus::Idle, 0, "");
+        return;
+    }
+
+    // install.sh stops, reloads and restarts systemd units with the host's own
+    // systemctl, and on a dev machine every one of those asks polkit.
+    if (auto* rc = get_runtime_config(); rc && rc->test_mode) {
+        flog_warn("[UpdateChecker] TEST MODE: not running the installer for {} on this host",
+                  version);
+        std::remove(tarball_path.c_str());
+        report_download_status(DownloadStatus::Error, 0,
+                               lv_tr("Error: This install can't update itself"),
+                               "Test mode never runs the installer");
         return;
     }
 
