@@ -478,6 +478,7 @@ sync_update_manager_path() {
     ' "$conf" > "${conf}.tmp" && $fs mv "${conf}.tmp" "$conf"
 
     log_success "update_manager path now names ${INSTALL_DIR}"
+    _UPDATE_MANAGER_SYNCED=yes
 }
 
 # Point an existing stanza's `channel:` at the channel this install resolved.
@@ -516,6 +517,7 @@ sync_update_manager_channel() {
     ' "$conf" > "${conf}.tmp" && $fs mv "${conf}.tmp" "$conf"
 
     log_success "update_manager channel now ${want}"
+    _UPDATE_MANAGER_SYNCED=yes
 }
 
 cleanup_unsupported_options() {
@@ -964,6 +966,9 @@ configure_moonraker_updates() {
 
     if has_update_manager_section "$conf"; then
         log_info "update_manager section already exists in $conf"
+        # Set by the sync_* rewrites below; Moonraker reads its config only at
+        # startup, so a rewritten stanza needs a restart before Mainsail sees it.
+        _UPDATE_MANAGER_SYNCED=""
         # path: is only ever written when the section is first added, so an
         # install that has moved leaves it naming the tree we left behind.
         sync_update_manager_path "$conf"
@@ -976,6 +981,9 @@ configure_moonraker_updates() {
         disable_system_updates_on_buildroot "$conf"
         # Still ensure asvc is correct even if section already exists
         ensure_moonraker_asvc "$conf"
+        if [ "$_UPDATE_MANAGER_SYNCED" = "yes" ]; then
+            restart_moonraker
+        fi
         return 0
     fi
 
