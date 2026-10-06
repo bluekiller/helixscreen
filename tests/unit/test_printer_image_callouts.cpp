@@ -180,6 +180,10 @@ struct ScopedLedStrips {
     }
 };
 
+int mode_now() {
+    return lv_subject_get_int(lv_xml_get_subject(nullptr, "printer_callout_mode"));
+}
+
 } // namespace
 
 TEST_CASE_METHOD(LVGLUITestFixture,
@@ -187,7 +191,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                  "[printer_image][callouts]") {
     const auto regions = prepare_tagged_widget();
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 160, 160);
+    h.resize(8, 4, 480, 160);
     lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
@@ -223,7 +227,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: heater off but hot keeps the chip
     lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 640);
     settle();
     CHECK(shown(h, "callout_chip_bed"));
-    CHECK(text_of(h, "callout_chip_bed") == helix::ui::temperature::heater_display(640, 0).temp);
+    CHECK(text_of(h, "callout_chip_bed") == "64°"); // pinned: no unit letter
     lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 500);
     settle();
     CHECK_FALSE(shown(h, "callout_chip_bed"));
@@ -312,17 +316,45 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(shown(h, "callout_chip_toolhead"));
     CHECK_FALSE(shown(h, "callout_chip_nozzle"));
     CHECK_FALSE(shown(h, "callout_chip_fan"));
-    const std::string nozzle = helix::ui::temperature::heater_display(1800, 2200).temp;
-    CHECK(text_of(h, "callout_chip_toolhead") == nozzle + "  50%");
-    // Reads nozzle, fan, text, like the two chips it merges.
+    REQUIRE(mode_now() == static_cast<int>(CalloutMode::Pinned));
+    CHECK(text_of(h, "callout_chip_toolhead") == "180 / 220°  50%");
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "callouts: pinned chips are compact: no icon, no unit letter, a smaller font",
+                 "[printer_image][callouts]") {
+    const auto regions = prepare_tagged_widget();
+    PanelWidgetHarness<PrinterImageWidget> h(test_screen());
+    h.resize(4, 4, 160, 160);
+    lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
+    lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
+    settle();
     lv_obj_update_layout(h.root());
-    lv_obj_t* toolhead = h.child("callout_chip_toolhead");
-    lv_obj_t* nozzle_icon = lv_obj_find_by_name(toolhead, "nozzle_icon");
-    lv_obj_t* fan_icon = lv_obj_find_by_name(toolhead, "callout_toolhead_fan_icon");
-    REQUIRE(nozzle_icon);
-    REQUIRE(fan_icon);
-    CHECK(lv_obj_get_x(nozzle_icon) < lv_obj_get_x(fan_icon));
-    CHECK(lv_obj_get_x(fan_icon) < lv_obj_get_x(lv_obj_find_by_name(toolhead, "chip_text")));
+    REQUIRE(mode_now() == static_cast<int>(CalloutMode::Pinned));
+    lv_obj_t* chip = h.child("callout_chip_bed");
+    lv_obj_t* label = lv_obj_find_by_name(chip, "chip_text");
+    CHECK(text_of(h, "callout_chip_bed") == "40 / 60°");
+    CHECK(lv_obj_has_flag(lv_obj_find_by_name(chip, "heater_icon"), LV_OBJ_FLAG_HIDDEN));
+    const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    CHECK(font == theme_manager_get_font("font_xs"));
+    // Placed at the width it renders: its text plus chrome, no icon gap.
+    const int text_px = helix::ui::measure_text_px(lv_label_get_text(label), font);
+    CHECK(lv_obj_get_width(label) >= text_px);
+    const int chrome = lv_obj_get_style_pad_left(chip, LV_PART_MAIN) +
+                       lv_obj_get_style_pad_right(chip, LV_PART_MAIN) +
+                       2 * lv_obj_get_style_border_width(chip, LV_PART_MAIN);
+    CHECK(lv_obj_get_width(chip) == chrome + text_px + theme_manager_get_spacing("space_md"));
+    const int compact_w = lv_obj_get_width(chip);
+
+    // The same chip in a line mode is the full chip.
+    h.resize(8, 4, 480, 160);
+    settle();
+    lv_obj_update_layout(h.root());
+    REQUIRE(mode_now() == static_cast<int>(CalloutMode::BothSides));
+    CHECK(text_of(h, "callout_chip_bed") == helix::ui::temperature::heater_display(400, 600).temp);
+    CHECK_FALSE(lv_obj_has_flag(lv_obj_find_by_name(chip, "heater_icon"), LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_get_style_text_font(label, LV_PART_MAIN) == theme_manager_get_font("font_small"));
+    CHECK(lv_obj_get_width(chip) > compact_w);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "callouts: single cell hides the whole layer",
@@ -376,7 +408,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "callouts: a chip narrower than its text dot
     // bed chip, so clamp_into shrinks the chip below its text.
     const auto regions = prepare_tagged_widget(400, 1600);
     PanelWidgetHarness<PrinterImageWidget> h(test_screen());
-    h.resize(4, 4, 80, 320);
+    h.resize(4, 4, 48, 320);
     lv_subject_set_int(state().temperature_state().get_bed_temp_subject(), 400);
     lv_subject_set_int(state().temperature_state().get_bed_target_subject(), 600);
     settle();
@@ -426,7 +458,9 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(lv_obj_get_width(label) >= text_px);
     settle();
     lv_obj_update_layout(h.root());
-    CHECK(lv_obj_get_width(label) >= text_px);
+    CHECK(lv_obj_get_width(label) >=
+          helix::ui::measure_text_px(lv_label_get_text(label),
+                                     lv_obj_get_style_text_font(label, LV_PART_MAIN)));
     CHECK(within_chip(chip, label));
 }
 
@@ -673,10 +707,6 @@ namespace {
 CalloutRect fitted_image(PanelWidgetHarness<PrinterImageWidget>& h) {
     lv_obj_t* c = h.child("printer_container");
     return fit_image(lv_obj_get_content_width(c), lv_obj_get_content_height(c), 1601, 1204);
-}
-
-int mode_now() {
-    return lv_subject_get_int(lv_xml_get_subject(nullptr, "printer_callout_mode"));
 }
 
 /// Deletes one scaled-image cache entry, refusing anything outside the cache.

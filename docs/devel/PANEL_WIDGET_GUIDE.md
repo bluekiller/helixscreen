@@ -189,6 +189,11 @@ which returns a `CalloutMode`, the image rect, and each chip's rect and leader l
   `around_text()` is the single expression for everything in a chip except its text. It
   sizes the chip and bounds the label's `max_width`, so a chip clamped narrower than its
   text ends in dots instead of spilling.
+- **Pinned chips are compact.** A pinned chip sits on the picture, so it drops its icon
+  and unit letter and sets its text in `font_xs` (`printer_callout_mode` bindings in the
+  XML; the text in `compact_callout_text()`). The budget pass still measures full chips
+  to pick the mode; a second pass without the budget places the active chips at their
+  compact widths. The merged toolhead chip exists only in pinned mode, so it is text alone.
 - **Geometry is set only from the deferred timer.** Observers publish subjects and call
   `schedule_callout_layout()`; the one-shot timer measures and places. Nothing forces a
   layout pass during a grid rebuild (#983, #1025). Unchanged coordinates are not
