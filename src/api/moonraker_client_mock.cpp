@@ -10,6 +10,7 @@
 #include "chamber_heater_backend.h"
 #include "env_knobs.h"
 #include "gcode_parser.h"
+#include "helix_thread.h"
 #include "macro_param_cache.h"
 #include "mock_persona.h"
 #include "mock_planted_gcodes.h"
@@ -3784,7 +3785,8 @@ void MoonrakerClientMock::start_temperature_simulation() {
         return;
     }
 
-    simulation_thread_ = std::thread(&MoonrakerClientMock::temperature_simulation_loop, this);
+    simulation_thread_ =
+        helix::make_thread(&MoonrakerClientMock::temperature_simulation_loop, this);
     spdlog::debug("[MoonrakerClientMock] Temperature simulation started");
 }
 
@@ -5608,7 +5610,7 @@ void MoonrakerClientMock::trigger_restart(bool is_firmware) {
 
         // Launch new restart thread (still under lock to prevent race on assignment)
         restart_pending_.store(true);
-        restart_thread_ = std::thread([this, effective_delay, is_firmware]() {
+        restart_thread_ = helix::make_thread([this, effective_delay, is_firmware]() {
             // Sleep in small increments to allow early exit on destruction
             int total_ms = static_cast<int>(effective_delay * 1000);
             int elapsed_ms = 0;

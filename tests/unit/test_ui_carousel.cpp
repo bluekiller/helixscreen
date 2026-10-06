@@ -550,8 +550,16 @@ TEST_CASE_METHOD(LVGLTestFixture, "set_real_page_count -1 reverts to tile count"
 
 TEST_CASE_METHOD(LVGLTestFixture, "set_real_page_count on non-carousel is safe",
                  "[carousel][real_page_count]") {
+    // user_data that is not a carousel's state is left alone.
+    CarouselState foreign;
+    foreign.magic = 0;
     lv_obj_t* plain = lv_obj_create(test_screen());
-    ui_carousel_set_real_page_count(plain, 3); // Should not crash
+    lv_obj_set_user_data(plain, &foreign);
+
+    ui_carousel_set_real_page_count(plain, 3);
+    REQUIRE(foreign.real_page_count == -1);
+
+    lv_obj_set_user_data(plain, nullptr);
 }
 
 // ============================================================================
@@ -645,8 +653,19 @@ TEST_CASE_METHOD(LVGLTestFixture, "remove_item with out-of-range index is safe",
 
 TEST_CASE_METHOD(LVGLTestFixture, "remove_item on non-carousel is safe",
                  "[carousel][remove_item]") {
+    // user_data that is not a carousel's state is left alone.
+    CarouselState foreign;
+    foreign.magic = 0;
     lv_obj_t* plain = lv_obj_create(test_screen());
-    ui_carousel_remove_item(plain, 0); // Should not crash
+    lv_obj_t* tile = lv_obj_create(plain);
+    foreign.real_tiles.push_back(tile);
+    lv_obj_set_user_data(plain, &foreign);
+
+    ui_carousel_remove_item(plain, 0);
+    REQUIRE(foreign.real_tiles.size() == 1);
+    REQUIRE(lv_obj_is_valid(tile));
+
+    lv_obj_set_user_data(plain, nullptr);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "remove_item removing all items leaves empty carousel",

@@ -11,7 +11,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_position_utils.h"
 
 #include "ams_backend.h"
@@ -87,8 +87,8 @@ void CfsChuteCalibrationOverlay::register_callbacks() {
          [](lv_event_t*) { get_cfs_chute_calibration_overlay().save_position(); }},
         // The exit gcode (Y_SAFE after PREPARE) rides on_deactivating(), so the
         // buttons only pop the overlay.
-        {"on_chute_cancel_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
-        {"on_chute_done_clicked", [](lv_event_t*) { NavigationManager::instance().go_back(); }},
+        {"on_chute_cancel_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
+        {"on_chute_done_clicked", [](lv_event_t*) { helix::nav::go_back(); }},
     });
 }
 

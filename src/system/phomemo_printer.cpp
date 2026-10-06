@@ -7,6 +7,7 @@
 
 #include "ui_update_queue.h"
 
+#include "helix_thread.h"
 #include "phomemo_protocol.h"
 #include "text_io.h"
 
@@ -110,7 +111,7 @@ void PhomemoPrinter::print(const LabelBitmap& bitmap, const LabelSize& size,
     // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
     // if it escapes an LVGL event frame (#724, #837, [L083]).
     try {
-        std::thread([vid, pid, commands = std::move(commands), callback]() {
+        helix::make_thread([vid, pid, commands = std::move(commands), callback]() {
             bool success = false;
             std::string error;
 

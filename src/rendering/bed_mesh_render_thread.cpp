@@ -5,6 +5,8 @@
 
 #include "bed_mesh_render_thread.h"
 
+#include "helix_thread.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -38,7 +40,7 @@ void BedMeshRenderThread::start(int width, int height) {
     last_render_time_ms_.store(0.0f);
 
     running_.store(true);
-    thread_ = std::thread(&BedMeshRenderThread::render_loop, this);
+    thread_ = helix::make_thread(&BedMeshRenderThread::render_loop, this);
 
     spdlog::info("[BedMeshRenderThread] Started ({}x{}, two buffers)", width, height);
 }

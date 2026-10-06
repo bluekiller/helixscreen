@@ -1671,6 +1671,7 @@ translations:
   Load Filament: 加载耗材
   Load a filament first before trying to unload: 请先装载耗材，再尝试卸载
   Load a new spool in this slot, or turn on auto-refill to switch to a matching one: 请在此槽位装入新料盘，或开启自动续料以切换到匹配的料盘
+  'Load cancelled: nozzle target dropped': '加载已取消：喷嘴目标温度已降低'
   Load complete: '装载完成'
   Load failed: 装载失败
   Load filament: '装载耗材'

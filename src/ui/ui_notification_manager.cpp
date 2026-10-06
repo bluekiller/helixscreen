@@ -2,8 +2,9 @@
 
 #include "ui_notification_manager.h"
 
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_notification_history.h"
+#include "ui_panel_common.h"
 #include "ui_panel_notification_history.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
@@ -45,10 +46,10 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
 
     auto& mgr = NotificationManager::instance();
 
-    // Prevent multiple panel instances - if panel already exists and is visible, ignore click
-    if (mgr.notification_panel_obj_ &&
-        !lv_obj_has_flag(mgr.notification_panel_obj_, LV_OBJ_FLAG_HIDDEN)) {
-        spdlog::debug("[NotificationManager] Notification panel already visible, ignoring click");
+    // One panel at a time: open, or built with its push still queued (hidden until then)
+    if (mgr.notification_panel_obj_ && (helix::nav::is_in_stack(mgr.notification_panel_obj_) ||
+                                        helix::nav::is_push_pending(mgr.notification_panel_obj_))) {
+        spdlog::debug("[NotificationManager] Notification panel already open, ignoring click");
         return;
     }
 
@@ -69,8 +70,7 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
     }
 
     // Now create XML component
-    lv_obj_t* panel_obj =
-        static_cast<lv_obj_t*>(lv_xml_create(parent, "notification_history_panel", nullptr));
+    lv_obj_t* panel_obj = helix::ui::create_xml_hidden(parent, "notification_history_panel");
     if (!panel_obj) {
         spdlog::error("[NotificationManager] Failed to create notification_history_panel from XML");
         return;
@@ -83,9 +83,9 @@ void NotificationManager::notification_history_clicked([[maybe_unused]] lv_event
     panel.setup(panel_obj, parent);
 
     // Register with nullptr lifecycle — notification history extends PanelBase, not OverlayBase
-    NavigationManager::instance().register_overlay_instance(panel_obj, nullptr);
+    helix::nav::register_overlay(panel_obj, nullptr);
 
-    NavigationManager::instance().push_overlay(panel_obj);
+    helix::nav::push_overlay(panel_obj);
 }
 
 // ============================================================================

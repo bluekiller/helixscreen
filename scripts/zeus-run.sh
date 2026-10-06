@@ -5,6 +5,8 @@
 #   scripts/zeus-run.sh mutate --tests '[1543]'     # the mutation gate
 #   scripts/zeus-run.sh asan '[1543]'               # AddressSanitizer, one tag
 #   scripts/zeus-run.sh asan                        # AddressSanitizer, full suite, sharded as CI runs it
+#   scripts/zeus-run.sh tsan '[ams],[spoolman]'     # ThreadSanitizer, tags as ONE argument
+#   scripts/zeus-run.sh tsan                        # ThreadSanitizer, full suite, sharded
 #   scripts/zeus-run.sh test '[netd]'               # plain suite, one tag
 #   scripts/zeus-run.sh sweep                       # make unit-sweep, sharded
 #   scripts/zeus-run.sh asan-app help-qr --repeat 50  # the APP under ASAN
@@ -60,7 +62,7 @@ ARC_CAP_GB="${ZEUS_ARC_CAP_GB:-64}"     # 0 disables the cap entirely
 GB_PER_JOB="${ZEUS_GB_PER_JOB:-1}"      # asan overrides to 1.5 below
 
 WHAT="${1:-}"
-[ -n "$WHAT" ] || { sed -n '2,35p' "$0" | sed 's/^# \?//'; exit 2; }
+[ -n "$WHAT" ] || { sed -n '2,37p' "$0" | sed 's/^# \?//'; exit 2; }
 shift
 
 SHA=$(git rev-parse HEAD)
@@ -84,6 +86,16 @@ case "$WHAT" in
             else
                 CMD='make test-asan-one TEST="'"$_tag"'" -j$HELIX_J '"$*"
             fi
+            GB_PER_JOB=1.5 ;;
+    tsan)   _tag="${1:-}"; [ $# -gt 0 ] && shift
+            # Same shape as asan: trailing args become make overrides, and no
+            # tag is the sharded full-suite run.
+            if [ -z "$_tag" ]; then
+                CMD='make test-tsan -j$HELIX_J '"$*"
+            else
+                CMD='make test-tsan-one TEST="'"$_tag"'" -j$HELIX_J '"$*"
+            fi
+            TSAN_TAG="$_tag"
             GB_PER_JOB=1.5 ;;
     test)   CMD='make test -j$HELIX_J && ./build/bin/helix-tests "'"${1:-}"'"' ;;
     # Trailing args become make overrides, e.g. SHARD_CONCURRENCY=24.
@@ -118,7 +130,7 @@ case "$WHAT" in
         CMD="make $WHAT $_vars"' -j$HELIX_J'
         EXPECTED_REPEAT="${_repeat:-25}"
         GB_PER_JOB=1.5 ;;
-    *)      echo "✗ unknown job '$WHAT' (mutate | asan | test | sweep | asan-app | tsan-app)" >&2; exit 2 ;;
+    *)      echo "✗ unknown job '$WHAT' (mutate | asan | tsan | test | sweep | asan-app | tsan-app)" >&2; exit 2 ;;
 esac
 
 LOG="${TMPDIR:-/tmp}/zeus-$WHAT-$SHORT.log"
@@ -207,7 +219,7 @@ HELIX_J=\$(awk -v per=$GB_PER_JOB -v cpus="\$(nproc)" '
 echo "→ MemAvailable \$(awk '/^MemAvailable/{printf "%.0fGB", \$2/1048576}' /proc/meminfo), using -j\$HELIX_J"
 
 # The container is long-lived but has no restart policy, so it is stopped after
-# every NAS reboot and `docker exec` fails with a message about the container
+# every NAS reboot and docker exec fails with a message about the container
 # not running, several steps before anything explains why. Starting it is
 # idempotent and costs nothing when it is already up.
 if ! sudo -n docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
@@ -257,6 +269,18 @@ if [ "$WHAT" = asan ] && ! grep -qE 'All tests passed|test cases:|assertions:' "
     echo ""
     echo "✗ no Catch2 summary in $LOG — the suite did not run, so this is not a clean ASAN result" >&2
     exit 1
+fi
+# A tagged TSan run tees the binary's own output, so it must carry a Catch2
+# summary. The sharded full run keeps shard logs to itself and prints only the
+# verdict, so that is what it must carry.
+if [ "$WHAT" = tsan ]; then
+    if [ -n "${TSAN_TAG:-}" ]; then _want='All tests passed|test cases:|assertions:'
+    else _want='TSAN clean'; fi
+    if ! grep -qE "$_want" "$LOG"; then
+        echo ""
+        echo "✗ no '$_want' in $LOG — the suite did not run, so this is not a clean TSAN result" >&2
+        exit 1
+    fi
 fi
 
 # An app run has no Catch2 summary to check; its evidence is the verdict line

@@ -13,6 +13,9 @@
 #include "filament_consumption_tracker_test_access.h"
 #include "printer_state.h"
 
+#include <string>
+#include <vector>
+
 #include "../catch_amalgamated.hpp"
 
 using helix::AmsSlotSink;
@@ -342,6 +345,75 @@ TEST_CASE_METHOD(LVGLTestFixture,
     tracker.stop();
     ams.clear_backends();
     ams.clear_external_spool_info();
+}
+
+namespace {
+// Records the order clear_backends() reaches each teardown step, and whether
+// the backend was still registered when its sink's final flush persisted.
+class TeardownOrderBackend : public helix::AmsBackendMock {
+  public:
+    TeardownOrderBackend(int slots, std::vector<std::string>& log)
+        : helix::AmsBackendMock(slots), log_(log) {}
+    void persist_slot_weight(int slot_index, float, float) override {
+        const bool registered = helix::AmsState::instance().get_backend(0) == this;
+        log_.push_back("flush slot " + std::to_string(slot_index) +
+                       (registered ? " registered" : " unregistered"));
+    }
+    void stop() override {
+        log_.push_back(helix::AmsState::instance().get_backend(0) == this ? "stop registered"
+                                                                          : "stop unregistered");
+        helix::AmsBackendMock::stop();
+    }
+
+  private:
+    std::vector<std::string>& log_;
+};
+} // namespace
+
+TEST_CASE_METHOD(
+    LVGLTestFixture,
+    "clear_backends flushes slot sinks while the backend is registered and stops it after",
+    "[consumption_sink][ams][tracker_registry]") {
+    auto& ams = helix::AmsState::instance();
+    auto& printer = get_printer_state();
+    auto& tracker = FilamentConsumptionTracker::instance();
+
+    ams.clear_backends();
+    ams.deinit_subjects();
+    printer.init_subjects(false);
+    ams.init_subjects(false);
+    ams.clear_backends();
+
+    std::vector<std::string> log;
+    auto m = std::make_unique<TeardownOrderBackend>(4, log);
+    TeardownOrderBackend* mock = m.get();
+    REQUIRE(ams.add_backend(std::move(m)) == 0);
+    helix::SlotInfo seed = mock->get_slot_info(0);
+    seed.material = "PLA";
+    seed.remaining_weight_g = 500.0f;
+    seed.total_weight_g = 1000.0f;
+    seed.spoolman_id = 0;
+    mock->sync_external_identity(0, seed);
+
+    // PRINTING snapshots every sink; only slot 0 is trackable, so only its
+    // flush persists.
+    tracker.start();
+    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.get_print_state_enum_subject(),
+                       static_cast<int>(helix::PrintJobState::PRINTING));
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(log.empty());
+
+    ams.clear_backends();
+
+    CHECK(log == std::vector<std::string>{"flush slot 0 registered", "stop unregistered"});
+    CHECK(ams.get_backend(0) == nullptr);
+
+    lv_subject_set_int(printer.get_print_state_enum_subject(),
+                       static_cast<int>(helix::PrintJobState::STANDBY));
+    helix::ui::UpdateQueue::instance().drain();
+    tracker.stop();
+    ams.deinit_subjects();
 }
 
 // ---------------------------------------------------------------------------

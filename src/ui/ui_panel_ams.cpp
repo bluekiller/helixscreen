@@ -18,7 +18,7 @@
 #include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_overlay_qr_scanner.h"
 #include "ui_panel_common.h"
 #include "ui_spool_canvas.h"
@@ -1449,7 +1449,7 @@ AmsPanel& get_global_ams_panel() {
 
         // Create the panel on the active screen
         lv_obj_t* screen = lv_scr_act();
-        s_ams_panel_obj = static_cast<lv_obj_t*>(lv_xml_create(screen, "ams_panel", nullptr));
+        s_ams_panel_obj = helix::ui::create_xml_hidden(screen, "ams_panel");
 
         if (s_ams_panel_obj) {
             // Initialize panel observers (AmsState already initialized above)
@@ -1461,14 +1461,12 @@ AmsPanel& get_global_ams_panel() {
             g_ams_panel->setup(s_ams_panel_obj, screen);
             lv_obj_add_flag(s_ams_panel_obj, LV_OBJ_FLAG_HIDDEN); // Hidden by default
 
-            NavigationManager::instance().register_overlay_instance(s_ams_panel_obj,
-                                                                    g_ams_panel.get());
+            helix::nav::register_overlay(s_ams_panel_obj, g_ams_panel.get());
 
             // Destroy on overlay close to free memory on tight devices (AD5M/AD5X
             // ~107MB RAM). The C++ instance survives via g_ams_panel for state
             // preservation; widgets are recreated on next open.
-            NavigationManager::instance().register_overlay_close_callback(
-                s_ams_panel_obj, []() { destroy_ams_panel_ui(); });
+            helix::nav::on_close(s_ams_panel_obj, []() { destroy_ams_panel_ui(); });
 
             spdlog::info("[AMS Panel] Lazy-created panel UI with close callback");
         } else {

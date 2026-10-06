@@ -19,6 +19,7 @@
 
 #include "ams_bypass_policy.h"
 #include "exception_policy.h"
+#include "helix_thread.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "lane_apply.h"
@@ -264,8 +265,10 @@ PathSegment AmsBackendAce::get_filament_segment() const {
     std::lock_guard<std::mutex> lock(mutex_);
 
     // A seated tool is the whole answer, and outranks the sensors: both are
-    // still made with filament in the nozzle.
-    if (system_info_.filament_loaded) {
+    // still made with filament in the nozzle. Not while the driver swaps it
+    // out, though: the seat stands until the new tool is in, so only the
+    // sensors say where the strand on the path has got to.
+    if (system_info_.filament_loaded && !driver_action_) {
         return PathSegment::NOZZLE;
     }
 
@@ -296,7 +299,8 @@ PathSegment AmsBackendAce::get_slot_filament_segment(int slot_index) const {
 
     const auto& slot = unit.slots[static_cast<size_t>(slot_index)];
 
-    if (system_info_.filament_loaded && system_info_.current_slot == slot_index) {
+    if (system_info_.filament_loaded && system_info_.current_slot == slot_index &&
+        !driver_action_) {
         return PathSegment::NOZZLE;
     }
 
@@ -886,18 +890,28 @@ bool AmsBackendAce::apply_target_index_locked(const json& data) {
 
     if (target_index_ >= 0 && target_index_ != system_info_.current_tool) {
         system_info_.pending_target_slot = displayed_slot_for_global_index_locked(target_index_);
-        // Only an idle hub is promoted: an error, or a LOADING this backend
-        // set for its own command, already says more than the target does.
-        if (system_info_.action == AmsAction::IDLE) {
-            system_info_.action = AmsAction::LOADING;
-            driver_loading_ = true;
+        if (path_sensors_seen_ && !rdm_sensor_) {
+            swap_hub_cleared_ = true;
+        }
+        const bool retracting =
+            system_info_.filament_loaded && path_sensors_seen_ && rdm_sensor_ && !swap_hub_cleared_;
+        // Only an idle hub, or one this target already moved, is driven: an
+        // error, or a LOADING this backend set for its own command, already
+        // says more than the target does.
+        const AmsAction action = system_info_.action;
+        if (action == AmsAction::IDLE ||
+            (driver_action_ && (action == AmsAction::LOADING || action == AmsAction::UNLOADING))) {
+            system_info_.action = retracting ? AmsAction::UNLOADING : AmsAction::LOADING;
+            driver_action_ = true;
         }
     } else {
         system_info_.pending_target_slot = -1;
-        if (driver_loading_ && system_info_.action == AmsAction::LOADING) {
+        if (driver_action_ && (system_info_.action == AmsAction::LOADING ||
+                               system_info_.action == AmsAction::UNLOADING)) {
             system_info_.action = AmsAction::IDLE;
         }
-        driver_loading_ = false;
+        driver_action_ = false;
+        swap_hub_cleared_ = false;
     }
 
     return system_info_.pending_target_slot != prev_pending || system_info_.action != prev_action;
@@ -1226,12 +1240,12 @@ void AmsBackendAce::parse_ace_object(const json& data) {
         seat_from_global_index_locked(data["current_index"].get<int>());
     }
 
-    // After the seat and the status-derived action, so a toolchange the
-    // driver started itself still reads as LOADING over a unit status that
-    // stays "ready" through it.
-    apply_target_index_locked(data);
-
     apply_path_sensors_locked(data);
+
+    // After the seat, the sensors and the status-derived action, so a
+    // toolchange the driver started itself still reads as LOADING over a unit
+    // status that stays "ready" through it, in the phase the hub sensor shows.
+    apply_target_index_locked(data);
 
     // The master switch. Presence is the capability, so a rig without one is
     // left reporting no bypass rather than one that is permanently off.
@@ -1404,7 +1418,7 @@ void AmsBackendAce::start_rest_fallback() {
     }
     // EAGAIN under thread exhaustion throws std::system_error ([L083]).
     if (!helix::contain_exceptions("[ACE] Spawning the REST polling thread", [&] {
-            rest_polling_thread_ = std::thread(&AmsBackendAce::rest_polling_loop, this);
+            rest_polling_thread_ = helix::make_thread(&AmsBackendAce::rest_polling_loop, this);
         })) {
         use_rest_fallback_ = false;
         return;

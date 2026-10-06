@@ -3,6 +3,7 @@
 
 #include "wifi_backend_netd.h"
 
+#include "helix_thread.h"
 #include "spdlog/spdlog.h"
 #include "wifi_ui_utils.h"
 
@@ -143,6 +144,7 @@ WiFiError WifiBackendNetd::start() {
         try {
             spdlog::info("[WifiBackendNetd] Starting event loop thread");
             hv::EventLoopThread::start(true, [this]() -> int {
+                helix::install_thread_altstack();
                 init_netd();
                 return 0;
             });
@@ -195,7 +197,7 @@ void WifiBackendNetd::start_async() {
 
     // Wrap — EAGAIN under thread exhaustion throws std::system_error.
     try {
-        async_init_thread_ = std::thread([this]() {
+        async_init_thread_ = helix::make_thread([this]() {
             const WiFiError result = start();
             const bool ran_init = init_complete_.load();
             async_init_in_progress_.store(false);

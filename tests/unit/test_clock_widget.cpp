@@ -118,11 +118,21 @@ TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: detach stops timer", "[clock_
     widget.attach_tile(container, test_screen());
     widget.on_activate();
 
-    // Detach should stop the timer even if on_deactivate() wasn't called
-    widget.detach_tile();
+    // The clock timer carries the widget as its user_data.
+    auto timer_count = [&widget]() {
+        int n = 0;
+        for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) {
+            if (lv_timer_get_user_data(t) == &widget) {
+                ++n;
+            }
+        }
+        return n;
+    };
+    REQUIRE(timer_count() == 1);
 
-    // Processing LVGL timers after detach should not crash
-    process_lvgl(100);
+    // Detach stops the timer even if on_deactivate() wasn't called
+    widget.detach_tile();
+    REQUIRE(timer_count() == 0);
 }
 
 TEST_CASE_METHOD(ClockWidgetFixture, "ClockWidget: subjects populated on attach",

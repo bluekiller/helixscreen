@@ -18,6 +18,7 @@
 #include "gcode_render_mode_policy.h"
 #include "gcode_ssao_policy.h"
 #include "gcode_streaming_controller.h"
+#include "helix_thread.h"
 #include "memory_utils.h"
 #include "system/crash_handler.h"
 #include "view_gestures.h"
@@ -198,7 +199,7 @@ class GCodeViewerState {
         // frame and abort via std::terminate ([L083]). This is the exact
         // hot path for L081-family crashes (RPHAV9T7).
         try {
-            build_thread_ = std::thread([this, func = std::move(build_func)]() {
+            build_thread_ = helix::make_thread([this, func = std::move(build_func)]() {
                 func();
                 building_.store(false);
             });

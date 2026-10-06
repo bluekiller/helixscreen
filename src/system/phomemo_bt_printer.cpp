@@ -8,6 +8,7 @@
 
 #include "bluetooth_loader.h"
 #include "bt_print_utils.h"
+#include "helix_thread.h"
 #include "log_redact.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "phomemo_printer.h"
@@ -64,7 +65,7 @@ void PhomemoBluetoothPrinter::print(const LabelBitmap& bitmap, const LabelSize& 
     // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
     // if it escapes an LVGL event frame (#724, #837, [L083]).
     try {
-        std::thread([mac, use_spp, commands = std::move(commands), callback]() {
+        helix::make_thread([mac, use_spp, commands = std::move(commands), callback]() {
             bool success = false;
             std::string error;
 

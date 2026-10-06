@@ -507,10 +507,10 @@ nlohmann::json RemoteControlServer::handle_reset(const nlohmann::json& /*params*
                          actual_depth, MAX_DEPTH, MAX_DEPTH);
         }
         for (int i = 0; i < overlays_popped; ++i) {
-            nav.go_back();
+            helix::nav::go_back();
         }
 
-        nav.set_active(helix::PanelId::Home);
+        helix::nav::set_active(helix::PanelId::Home);
 
         return {{"panel", panel_id_to_name(nav.get_active())},
                 {"overlays_popped", overlays_popped},
@@ -564,7 +564,7 @@ nlohmann::json RemoteControlServer::handle_log(const nlohmann::json& params) {
 
 nlohmann::json RemoteControlServer::handle_go_back(const nlohmann::json& /*params*/) {
     return execute_on_ui_thread([]() -> nlohmann::json {
-        bool result = NavigationManager::instance().go_back();
+        bool result = helix::nav::go_back();
         return {{"success", result}};
     });
 }

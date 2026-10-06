@@ -43,11 +43,15 @@ TEST_CASE("TimelapseState: deinit_subjects cleans up", "[timelapse_state]") {
     auto& state = TimelapseState::instance();
     state.deinit_subjects();
     state.init_subjects(false);
+    lv_subject_set_int(state.get_frame_count_subject(), 7);
 
-    // Should not crash
+    state.deinit_subjects();
+    // Double deinit is a no-op
     state.deinit_subjects();
 
-    // Double deinit should be safe
+    // Torn down for real: the next init starts the subjects over.
+    state.init_subjects(false);
+    REQUIRE(lv_subject_get_int(state.get_frame_count_subject()) == 0);
     state.deinit_subjects();
 }
 

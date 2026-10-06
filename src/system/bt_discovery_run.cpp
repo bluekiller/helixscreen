@@ -3,6 +3,7 @@
 #include "bt_discovery_run.h"
 
 #include "bluetooth_loader.h"
+#include "helix_thread.h"
 
 #include <spdlog/spdlog.h>
 
@@ -72,7 +73,7 @@ bool DiscoveryRun::start(std::shared_ptr<SharedContext> ctx, int timeout_ms, Lif
 
     // Detached spawns are wrapped: EAGAIN under thread exhaustion throws (#724).
     try {
-        std::thread([state, timeout_ms]() mutable {
+        helix::make_thread([state, timeout_ms]() mutable {
             auto& loader = BluetoothLoader::instance();
             helix_bt_context* bt = state->ctx->get();
             int result = -ENODEV;

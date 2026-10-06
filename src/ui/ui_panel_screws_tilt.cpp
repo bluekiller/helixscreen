@@ -5,7 +5,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_fonts.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_screws_tilt_share_modal.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -243,7 +243,7 @@ void ScrewsTiltPanel::cleanup() {
 
     // Unregister from NavigationManager
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     OverlayBase::cleanup();
@@ -771,7 +771,7 @@ void ScrewsTiltPanel::handle_done_clicked() {
     probe_count_ = 0;
     clear_results();
     set_state(State::IDLE);
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 void ScrewsTiltPanel::handle_retry_clicked() {

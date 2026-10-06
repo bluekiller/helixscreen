@@ -128,6 +128,19 @@ teardown() {
     [ "${#output}" -eq 64 ]
 }
 
+@test "the ESP32 firmware zip never becomes a manifest platform" {
+    printf 'PK\003\004dummyzip' > "$TEST_DIR/helixscreen-esp32-ktouch-v0.9.5.zip"
+    bash "$SCRIPT" \
+        --version "0.9.5" --tag "v0.9.5" --notes "Test" \
+        --dir "$TEST_DIR" \
+        --base-url "https://releases.helixscreen.org/dev" \
+        --output "$TEST_DIR/manifest.json"
+
+    run jq -r '.assets | keys | join(" ")' "$TEST_DIR/manifest.json"
+    [ "$status" -eq 0 ]
+    [ "$output" = "ad5m k1 pi pi32" ] || fail "manifest platforms: $output"
+}
+
 @test "--no-include-zip suppresses zip_url even when a .zip is present" {
     printf 'PK\003\004dummyzip' > "$TEST_DIR/helixscreen-pi.zip"
     bash "$SCRIPT" \

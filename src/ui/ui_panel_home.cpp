@@ -9,7 +9,6 @@
 #include "ui_fonts.h"
 #include "ui_icon_codepoints.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
 #include "ui_next_tick.h"
 #include "ui_panel_ams.h"
 #include "ui_update_queue.h"

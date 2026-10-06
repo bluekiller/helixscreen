@@ -6,7 +6,7 @@
 #include "plugin_host.h"
 
 #include "ui_callback_helpers.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_toast_manager.h"
 #include "ui_utils.h"
 
@@ -660,14 +660,13 @@ bool PluginHost::owns_row_binding(const void* ud) {
 }
 
 void PluginHost::close_settings_screens(const std::string& id) {
-    auto& nav = NavigationManager::instance();
     // Newest first, matching pop order. Every screen leaves through navigation:
     // the on-top root takes go_back's restore path, a buried one is dropped by
     // close_overlay itself, and either way the close callback erases the screen.
     for (auto it = settings_screens_.rbegin(); it != settings_screens_.rend(); ++it) {
         if ((*it)->plugin_id() != id)
             continue;
-        nav.close_overlay((*it)->root());
+        helix::nav::close_overlay((*it)->root());
     }
 }
 

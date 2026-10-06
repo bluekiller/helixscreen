@@ -10,11 +10,12 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_effects.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
 #include "display_settings_manager.h"
+#include "helix_thread.h"
 #include "i_moonraker_api.h"
 #include "printer_state.h"
 #include "sound_manager.h"
@@ -182,7 +183,7 @@ void QrScannerOverlay::on_activate() {
                 if (overlay.cancel_callback_) {
                     overlay.cancel_callback_();
                 }
-                NavigationManager::instance().go_back();
+                helix::nav::go_back();
             }
             delete d;
             lv_timer_delete(timer);
@@ -470,7 +471,7 @@ void QrScannerOverlay::on_camera_frame(lv_draw_buf_t* frame) {
         // ARM (AD5M/CC1) throws std::system_error which aborts with std::terminate
         // if it escapes an LVGL event frame (#724, #837, [L083]).
         try {
-            std::thread([this, qr_buf, qr_w, qr_h, decode_tok]() {
+            helix::make_thread([this, qr_buf, qr_w, qr_h, decode_tok]() {
                 auto result = qr_decoder_->decode(qr_buf->data(), qr_w, qr_h);
                 decode_busy_ = false;
 
@@ -605,7 +606,7 @@ void QrScannerOverlay::on_spool_found(const SpoolInfo& spool) {
                 auto callback = d->callback;
                 auto spool = d->spool;
                 // Close the overlay properly via navigation (handles backdrop cleanup)
-                NavigationManager::instance().go_back();
+                helix::nav::go_back();
                 // Fire callback AFTER close — the caller (modal) was hidden by
                 // go_back but is re-shown by the modal's own show logic
                 if (callback) {
@@ -660,7 +661,7 @@ void QrScannerOverlay::handle_close() {
         cancel_callback_();
     }
 
-    NavigationManager::instance().go_back();
+    helix::nav::go_back();
 }
 
 } // namespace helix::ui

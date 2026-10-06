@@ -14,7 +14,7 @@
 #include "ui_event_safety.h"
 #include "ui_external_spool_menu.h"
 #include "ui_filament_path_canvas.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_overlay_qr_scanner.h"
 #include "ui_panel_ams.h"
 #include "ui_panel_common.h"
@@ -1148,7 +1148,7 @@ static void ensure_overview_registered() {
         if (panel && panel->is_in_detail_mode()) {
             panel->show_overview();
         } else {
-            NavigationManager::instance().go_back();
+            helix::nav::go_back();
         }
     });
 
@@ -1230,8 +1230,7 @@ AmsOverviewPanel& get_global_ams_overview_panel() {
 
         // Create the panel on the active screen
         lv_obj_t* screen = lv_scr_act();
-        s_ams_overview_panel_obj =
-            static_cast<lv_obj_t*>(lv_xml_create(screen, "ams_overview_panel", nullptr));
+        s_ams_overview_panel_obj = helix::ui::create_xml_hidden(screen, "ams_overview_panel");
 
         if (s_ams_overview_panel_obj) {
             // Initialize panel observers
@@ -1244,12 +1243,11 @@ AmsOverviewPanel& get_global_ams_overview_panel() {
             lv_obj_add_flag(s_ams_overview_panel_obj, LV_OBJ_FLAG_HIDDEN);
 
             // Register overlay instance for lifecycle management
-            NavigationManager::instance().register_overlay_instance(s_ams_overview_panel_obj,
-                                                                    g_ams_overview_panel.get());
+            helix::nav::register_overlay(s_ams_overview_panel_obj, g_ams_overview_panel.get());
 
             // Register close callback to destroy UI when overlay is closed
-            NavigationManager::instance().register_overlay_close_callback(
-                s_ams_overview_panel_obj, []() { destroy_ams_overview_panel_ui(); });
+            helix::nav::on_close(s_ams_overview_panel_obj,
+                                 []() { destroy_ams_overview_panel_ui(); });
 
             spdlog::info("[AMS Overview] Lazy-created panel UI with close callback");
         } else {
@@ -1410,8 +1408,8 @@ void navigate_to_ams_panel() {
             // overlay_instances_ on navbar switches (keeping only the
             // persistent map), so a cached panel re-opened after a navbar tap
             // loses its lifecycle registration. Idempotent (keyed by widget).
-            NavigationManager::instance().register_overlay_instance(panel, &overview);
-            NavigationManager::instance().push_overlay(panel);
+            helix::nav::register_overlay(panel, &overview);
+            helix::nav::push_overlay(panel);
         }
     } else {
         // Single-unit (or no units): go directly to detail panel
@@ -1421,8 +1419,8 @@ void navigate_to_ams_panel() {
         if (panel) {
             // Re-register before push (see multi-unit branch above): cached
             // panel re-opened after a navbar switch loses its registration.
-            NavigationManager::instance().register_overlay_instance(panel, &detail);
-            NavigationManager::instance().push_overlay(panel);
+            helix::nav::register_overlay(panel, &detail);
+            helix::nav::push_overlay(panel);
         }
     }
 }

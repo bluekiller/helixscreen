@@ -937,25 +937,61 @@ TEST_CASE("ACE driver-started toolchange shows its target lane before it seats",
     CHECK(helper.get_filament_segment() == PathSegment::NOZZLE);
 }
 
-TEST_CASE("ACE mid-print toolchange shows the incoming lane, not the seated one",
+// A swap from a seated tool retracts the old strand past the hub before the
+// new one feeds. The hub sensor is made, clears, then is made again; only the
+// clear tells the two phases apart.
+TEST_CASE("ACE mid-print toolchange draws the old lane retracting, then the new one loading",
           "[ams][ace][segment][1678]") {
     AmsBackendAceTestHelper helper;
     helper.set_running(true);
     AceTestAccess::parse_ace(helper, make_kobra_instance_object());
-    AceTestAccess::parse_ace(helper, make_kobra_manager_object(0));
-    REQUIRE(helper.get_test_system_info().current_slot == 0);
+    json seated = make_kobra_manager_object(0);
+    seated["rdm_sensor"] = true;
+    seated["toolhead_sensor"] = true;
+    AceTestAccess::parse_ace(helper, seated);
+    REQUIRE(helper.get_filament_segment() == PathSegment::NOZZLE);
 
+    // target_index 3: T0 still in the hub, so this is its unload
     notify_ace(helper, {{"target_index", 3}});
     auto info = helper.get_test_system_info();
+    CHECK(info.action == AmsAction::UNLOADING);
     CHECK(info.pending_target_slot == 3);
+    CHECK(info.path_active_slot() == 0);
+    CHECK(helper.get_filament_segment() == PathSegment::TOOLHEAD);
+
+    notify_ace(helper, {{"toolhead_sensor", false}});
+    CHECK(helper.get_test_system_info().action == AmsAction::UNLOADING);
+    CHECK(helper.get_filament_segment() == PathSegment::OUTPUT);
+
+    // hub clear: T0 is parked, the path moves to lane 3
+    notify_ace(helper, {{"rdm_sensor", false}});
+    info = helper.get_test_system_info();
     CHECK(info.action == AmsAction::LOADING);
     CHECK(info.path_active_slot() == 3);
+    CHECK(helper.get_filament_segment() == PathSegment::NONE);
+    CHECK(helper.get_slot_filament_segment(0) == PathSegment::SPOOL);
+
+    // T3 reaches the hub: still loading, the latch holds
+    notify_ace(helper, {{"rdm_sensor", true}});
+    info = helper.get_test_system_info();
+    CHECK(info.action == AmsAction::LOADING);
+    CHECK(info.path_active_slot() == 3);
+    CHECK(helper.get_filament_segment() == PathSegment::OUTPUT);
+
+    notify_ace(helper, {{"toolhead_sensor", true}});
+    CHECK(helper.get_filament_segment() == PathSegment::TOOLHEAD);
 
     notify_ace(helper, {{"current_index", 3}, {"target_index", -1}});
     info = helper.get_test_system_info();
-    CHECK(info.pending_target_slot == -1);
     CHECK(info.action == AmsAction::IDLE);
     CHECK(info.path_active_slot() == 3);
+    CHECK(helper.get_filament_segment() == PathSegment::NOZZLE);
+
+    SECTION("the next swap starts in its unload phase again") {
+        notify_ace(helper, {{"target_index", 1}});
+        CHECK(helper.get_test_system_info().action == AmsAction::UNLOADING);
+        CHECK(helper.get_test_system_info().path_active_slot() == 3);
+    }
 }
 
 TEST_CASE("ACE target_index leaves an error and a screen-started load alone", "[ams][ace][1678]") {

@@ -7,7 +7,7 @@
 #include "ui_effects.h"
 #include "ui_error_reporting.h"
 #include "ui_modal.h"
-#include "ui_nav_manager.h"
+#include "ui_nav.h"
 #include "ui_step_progress.h"
 #include "ui_subject_registry.h"
 #include "ui_timer_guard.h"
@@ -371,7 +371,7 @@ void NetworkSettingsOverlay::cleanup() {
 
     // Unregister from NavigationManager before cleaning up
     if (overlay_root_) {
-        NavigationManager::instance().unregister_overlay_instance(overlay_root_);
+        helix::nav::unregister_overlay(overlay_root_);
     }
 
     // Call base class to set cleanup_called_ flag

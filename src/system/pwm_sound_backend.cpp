@@ -4,6 +4,7 @@
 #include "pwm_sound_backend.h"
 
 #include "env_knobs.h"
+#include "helix_thread.h"
 
 #include <spdlog/spdlog.h>
 
@@ -509,7 +510,7 @@ void PWMSoundBackend::start_render_thread() {
     // call; sound is optional, the printer is not. Clearing the flag also keeps
     // stop_render_thread() away from a thread that was never created.
     try {
-        render_thread_ = std::thread(&PWMSoundBackend::render_loop, this);
+        render_thread_ = helix::make_thread(&PWMSoundBackend::render_loop, this);
     } catch (const std::system_error& e) {
         render_running_.store(false);
         spdlog::error("[PWMSoundBackend] Failed to spawn PCM render thread: {}", e.what());

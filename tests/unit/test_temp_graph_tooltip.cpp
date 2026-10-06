@@ -617,3 +617,33 @@ TEST_CASE("caption shrinks to fit when taller than the plot", "[ui][tooltip][lay
     CHECK(a.y1 >= geo.cy1);
     CHECK(a.y2 <= geo.cy1 + geo.ch);
 }
+
+TEST_CASE_METHOD(TooltipTestFixture, "the time axis follows a wall-clock step",
+                 "[ui][temp_graph][clock_step]") {
+    // Samples pushed while the clock read 1970 (an ESP32 before SNTP), then one
+    // after the clock is set: the window is the last point_count slots ending at
+    // the newest push, not a span from 1970.
+    ui_temp_graph_t* g = make_graph();
+    int id = ui_temp_graph_add_series(g, "Nozzle", lv_color_hex(0xFF4444));
+    for (int i = 0; i < 20; i++) {
+        ui_temp_graph_update_series_with_time(g, id, 100.0f + i, 60000LL + i * 3000);
+    }
+    const int64_t now_ms = 1791178240000LL;
+    ui_temp_graph_update_series_with_time(g, id, 120.0f, now_ms);
+
+    const auto axis = helix::temp_graph_internal::temp_graph_time_axis(g);
+    CHECK(axis.latest_ms == now_ms);
+    CHECK(axis.total_ms ==
+          static_cast<int64_t>(g->point_count) * UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000);
+    CHECK(axis.leftmost_ms == now_ms - axis.total_ms);
+
+    // A sample taken on the 1970 clock reads as one slot before the newest.
+    const int prev = g->point_count - 2;
+    lv_point_t p = point_pos(g, id, prev);
+    auto hit = tooltip_hit_test(g, p.x, p.y);
+    REQUIRE(hit.has_value());
+    CHECK(hit->deci_temp == 1190);
+    CHECK(hit->timestamp_ms == now_ms - UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000);
+
+    ui_temp_graph_destroy(g);
+}

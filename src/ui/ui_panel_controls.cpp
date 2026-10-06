@@ -9,7 +9,6 @@
 #include "ui_fan_control_overlay.h"
 #include "ui_modal.h"
 #include "ui_motors_off.h"
-#include "ui_nav_manager.h"
 #include "ui_notification.h"
 #include "ui_overlay_temp_graph.h"
 #include "ui_panel_bed_mesh.h"

@@ -660,10 +660,9 @@ TEST_CASE_METHOD(HardwareValidatorConfigFixture,
     HardwareValidator validator;
     auto result = validator.validate(&config, client.hardware());
 
-    for (const auto& issue : result.expected_missing) {
-        INFO("unexpected missing LED: " << issue.hardware_name);
-        REQUIRE(issue.hardware_type != HardwareType::LED);
-    }
+    REQUIRE(
+        std::none_of(result.expected_missing.begin(), result.expected_missing.end(),
+                     [](const auto& issue) { return issue.hardware_type == HardwareType::LED; }));
 }
 
 // leds/auto_state/strips names devices the user chose, so it counts as configuring
@@ -838,9 +837,6 @@ TEST_CASE_METHOD(HardwareValidatorConfigFixture,
     // These should be no-ops with nullptr (no crash)
     HardwareValidator::set_hardware_optional(nullptr, "test", true);
     HardwareValidator::add_expected_hardware(nullptr, "test");
-
-    // If we got here without crashing, the test passes
-    REQUIRE(true);
 }
 
 // ============================================================================

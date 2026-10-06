@@ -6,7 +6,7 @@ XML subject names AmsState::init_subjects() publishes (prestonbrown/helixscreen#
 init_subjects() registers each name on first init; register_xml_subject_names()
 re-publishes the same subjects when a later init_subjects(true) re-enters an
 already-initialized singleton (#1374). The two lists are hand-written copies in
-src/printer/ams_state.cpp. A name added to the first and forgotten in the second
+src/printer/ams_state_subjects.cpp. A name added to the first and forgotten in the second
 stays unpublished after a register_xml=false first init, and nothing else fires.
 
 Both function bodies are brace-matched with comments blanked, then every
@@ -28,7 +28,7 @@ function, or a function yielding no pairs is a failure, never a pass.
 
 Usage:
   ./scripts/check_ams_xml_mirror.py
-  ./scripts/check_ams_xml_mirror.py --file /path/to/ams_state.cpp
+  ./scripts/check_ams_xml_mirror.py --file /path/to/ams_state_subjects.cpp
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_FILE = "src/printer/ams_state.cpp"
+DEFAULT_FILE = "src/printer/ams_state_subjects.cpp"
 FIRST_INIT = "AmsState::init_subjects"
 MIRROR = "AmsState::register_xml_subject_names"
 
