@@ -7,6 +7,7 @@
 #include "ui_notification.h"
 
 #include "http_executor.h"
+#include "http_request_epoch.h"
 #include "hv/hfile.h"
 #include "hv/hurl.h"
 #include "hv/requests.h"
@@ -37,6 +38,7 @@ MoonrakerFileTransferAPI::~MoonrakerFileTransferAPI() = default;
 
 void MoonrakerFileTransferAPI::download_file(const std::string& root, const std::string& path,
                                              StringCallback on_success, ErrorCallback on_error) {
+    on_success = helix::http_epoch::guard_reply(on_success, on_error, "download_file");
     // Validate inputs
     if (reject_invalid_path(path, "download_file", on_error))
         return;
@@ -81,6 +83,7 @@ void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
                                                      const std::string& path, size_t max_bytes,
                                                      StringCallback on_success,
                                                      ErrorCallback on_error) {
+    on_success = helix::http_epoch::guard_reply(on_success, on_error, "download_file_partial");
     // Validate inputs
     if (reject_invalid_path(path, "download_file_partial", on_error))
         return;
@@ -163,6 +166,7 @@ void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
 void MoonrakerFileTransferAPI::download_file_tail(const std::string& root, const std::string& path,
                                                   size_t max_bytes, StringCallback on_success,
                                                   ErrorCallback on_error) {
+    on_success = helix::http_epoch::guard_reply(on_success, on_error, "download_file_tail");
     if (reject_invalid_path(path, "download_file_tail", on_error))
         return;
 
@@ -225,6 +229,7 @@ void MoonrakerFileTransferAPI::download_file_tail(const std::string& root, const
 void MoonrakerFileTransferAPI::download_file_to_path(
     const std::string& root, const std::string& path, const std::string& dest_path,
     StringCallback on_success, ErrorCallback on_error, ProgressCallback on_progress) {
+    on_success = helix::http_epoch::guard_reply(on_success, on_error, "download_file_to_path");
     if (http_base_url_.empty()) {
         spdlog::error("[Moonraker API] HTTP base URL not set - cannot download file");
         report_connection_error(on_error, "download_file_to_path", "HTTP base URL not configured");
@@ -264,6 +269,7 @@ void MoonrakerFileTransferAPI::download_thumbnail(const std::string& thumbnail_p
                                                   const std::string& cache_path,
                                                   StringCallback on_success,
                                                   ErrorCallback on_error) {
+    on_success = helix::http_epoch::guard_reply(on_success, on_error, "download_thumbnail");
     // Validate inputs
     if (thumbnail_path.empty()) {
         spdlog::warn("[Moonraker API] Empty thumbnail path");
