@@ -31,6 +31,7 @@ constexpr int HTTP_TIMEOUT_MS = 15000;
 constexpr size_t CLIENT_BUFFER_BYTES = 4096;
 
 std::atomic<EspHttpLane::DateHeaderHook> s_date_hook{nullptr};
+std::atomic<EspHttpLane::WorkerStartHook> s_worker_start_hook{nullptr};
 
 esp_err_t on_http_event(esp_http_client_event_t* evt) {
     if (evt->event_id == HTTP_EVENT_ON_HEADER && strcasecmp(evt->header_key, "Date") == 0) {
@@ -44,6 +45,10 @@ esp_err_t on_http_event(esp_http_client_event_t* evt) {
 
 void EspHttpLane::set_date_header_hook(DateHeaderHook hook) {
     s_date_hook.store(hook);
+}
+
+void EspHttpLane::set_worker_start_hook(WorkerStartHook hook) {
+    s_worker_start_hook.store(hook);
 }
 
 EspHttpLane& EspHttpLane::instance() {
@@ -91,8 +96,10 @@ bool EspHttpLane::ensure_worker_started_locked() {
 
     // The stack goes in PSRAM: after WiFi is up the internal heap's largest
     // block can be smaller than the stack, and what it has is WiFi/lwIP headroom.
-    // Safe because the worker never starts a flash operation (no esp_partition,
-    // nvs or spi_flash writes, and the ESP32 thumbnail cache writes nothing).
+    // Safe only while the worker never starts a flash operation: any flash
+    // access, a LittleFS read included, disables the cache this stack lives
+    // behind and trips the flash driver's assert. The worker-start hook bars
+    // the thread from storage so a stray call fails loudly instead.
     // esp_pthread's cfg is thread-local and sticky, so the caller's is restored.
     esp_pthread_cfg_t saved_cfg{};
     const bool had_cfg = esp_pthread_get_cfg(&saved_cfg) == ESP_OK;
@@ -122,6 +129,9 @@ bool EspHttpLane::ensure_worker_started_locked() {
 }
 
 void* EspHttpLane::worker_main(void* self) {
+    if (auto hook = s_worker_start_hook.load()) {
+        hook();
+    }
     static_cast<EspHttpLane*>(self)->worker_loop();
     return nullptr;
 }

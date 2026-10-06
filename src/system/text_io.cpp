@@ -3,6 +3,8 @@
 
 #include "text_io.h"
 
+#include "helix_fs.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -20,6 +22,9 @@
 namespace helix::text_io {
 
 File open_file(const std::string& path, const char* mode) {
+    if (!helix::fs::storage_allowed("fopen", path)) {
+        return File(nullptr);
+    }
     return File(std::fopen(path.c_str(), mode));
 }
 
@@ -71,7 +76,7 @@ std::optional<std::string> read_first_line(const std::string& path) {
 
 std::optional<std::uint64_t> file_size(const std::string& path) {
     struct stat st;
-    if (::stat(path.c_str(), &st) != 0) {
+    if (!helix::fs::storage_allowed("stat", path) || ::stat(path.c_str(), &st) != 0) {
         return std::nullopt;
     }
     return static_cast<std::uint64_t>(st.st_size);

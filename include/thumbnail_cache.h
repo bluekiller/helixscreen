@@ -696,6 +696,17 @@ constexpr size_t GCODE_THUMBNAIL_HEADER_BYTES = 100 * 1024;
 /// path.
 inline constexpr const char* GCODE_THUMBNAIL_NONE_EMBEDDED = "no embedded thumbnails in ";
 
+/// Whether a gcode-header extraction can deliver a thumbnail on this platform.
+/// The ESP32 keeps no disk thumbnail cache (save_raw_png() refuses to write), so
+/// an extraction there would download the header only to throw it away.
+constexpr bool gcode_thumbnail_extraction_available() {
+#if defined(HELIX_PLATFORM_ESP32)
+    return false;
+#else
+    return true;
+#endif
+}
+
 /**
  * @brief Self-serve a thumbnail from the gcode file header when metadata has none
  *

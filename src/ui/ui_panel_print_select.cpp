@@ -1534,7 +1534,7 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                     self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
 #endif
                 }
-            } else if (self->api_) {
+            } else if (self->api_ && helix::gcode_thumbnail_extraction_available()) {
                 // No thumbnail from metadata - try extracting from gcode file directly
                 // This handles USB files where Moonraker can't write .thumbs directory
                 // because the USB mount is read-only.

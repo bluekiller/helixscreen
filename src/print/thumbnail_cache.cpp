@@ -1173,6 +1173,10 @@ void helix::fetch_thumbnail_from_gcode(const std::string& gcode_path, size_t max
         report_error("no API available for gcode thumbnail extraction");
         return;
     }
+    if constexpr (!gcode_thumbnail_extraction_available()) {
+        report_error("gcode thumbnail extraction is not available on this platform");
+        return;
+    }
 
     api->transfers().download_file_partial(
         "gcodes", gcode_path, max_header_bytes,
