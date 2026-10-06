@@ -356,11 +356,32 @@ _set_e_script() {
     [ ! -e "$INSTALL_DIR/logs" ] || fail "fell back to the install dir"
 }
 
-@test "finalize_install_log falls back to INSTALL_DIR/logs without printer_data" {
+@test "finalize_install_log on a bare host keeps the log outside the payload, across a swap" {
     KLIPPER_HOME="$BATS_TEST_TMPDIR/nohome"; INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
-    log_open "$BATS_TEST_TMPDIR/install.log"; log_warn "bare host"
+    STATE_DIR="" STATE_ROOT=""
+    mkdir -p "$INSTALL_DIR"
+    log_open "$BATS_TEST_TMPDIR/one.log"; log_warn "first run"
     finalize_install_log
-    grep -q "bare host" "$INSTALL_DIR/logs/helixscreen-install.log"
+    log_open "$BATS_TEST_TMPDIR/two.log"; log_warn "second run"
+    finalize_install_log
+    dest=$(install_log_dest)
+    case "$dest" in "$INSTALL_DIR"/*) fail "log inside the payload: $dest" ;; esac
+    # An update's atomic swap: the payload is moved aside and later deleted.
+    mv "$INSTALL_DIR" "$INSTALL_DIR.old"; mkdir -p "$INSTALL_DIR"; rm -rf "$INSTALL_DIR.old"
+    grep -q "second run" "$dest" || fail "this run's log was lost"
+    grep -q "first run" "$dest.1" || fail "the previous run's log was lost"
+}
+
+@test "install_log_dest without printer_data uses the platform's state root" {
+    KLIPPER_HOME="$BATS_TEST_TMPDIR/nohome"
+    INSTALL_DIR=/mnt/UDISK/helixscreen STATE_DIR=/mnt/UDISK/helixscreen-state STATE_ROOT=""
+    [ "$(install_log_dest)" = /mnt/UDISK/helixscreen-state/logs/helixscreen-install.log ]
+    INSTALL_DIR=/opt/helixscreen STATE_DIR="" STATE_ROOT=/data/.helixscreen
+    [ "$(install_log_dest)" = /data/.helixscreen/logs/helixscreen-install.log ]
+    INSTALL_DIR=/usr/data/helixscreen STATE_DIR="" STATE_ROOT=""
+    [ "$(install_log_dest)" = /usr/data/helixscreen-state/logs/helixscreen-install.log ]
+    INSTALL_DIR=/opt/helixscreen
+    [ "$(install_log_dest)" = /opt/.helixscreen/logs/helixscreen-install.log ]
 }
 
 @test "finalize_install_log twice does not rotate this run's own log away" {
