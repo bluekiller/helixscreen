@@ -1003,7 +1003,9 @@ void PrinterImageWidget::apply_callout_layout() {
     const CalloutLayout out = compute_callout_layout(in);
     lv_subject_set_int(&s_callout_toolhead_merged, out.toolhead_merged ? 1 : 0);
     lv_subject_set_int(&s_printer_callout_mode, static_cast<int>(out.mode));
-    place_printer_image(out.mode == CalloutMode::OneSide ? &out.image : nullptr);
+    // A one-side or shrunk image leaves the container's contain-fit rect.
+    const bool fitted = out.image.w == fit_image(in.area_w, in.area_h, in.image_w, in.image_h).w;
+    place_printer_image(out.mode == CalloutMode::OneSide || !fitted ? &out.image : nullptr);
 
     // The glow is an ellipse over the bed's near edge, as wide as the edge.
     lv_obj_t* glow = lv_obj_find_by_name(widget_obj_, "callout_bed_glow");
