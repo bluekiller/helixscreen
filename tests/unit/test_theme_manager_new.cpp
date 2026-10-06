@@ -191,6 +191,25 @@ TEST_CASE_METHOD(LVGLTestFixture, "ObjBase style has transparent background",
     REQUIRE(bg_opa.num == LV_OPA_0);
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "InputBg style is an unfilled field with a text_subtle outline",
+                 "[theme-manager][input-style]") {
+    auto& tm = ThemeManager::instance();
+    tm.init();
+
+    lv_style_t* input = tm.get_style(StyleRole::InputBg);
+    REQUIRE(input != nullptr);
+
+    lv_style_value_t v;
+    REQUIRE(lv_style_get_prop(input, LV_STYLE_BG_OPA, &v) == LV_STYLE_RES_FOUND);
+    CHECK(v.num == LV_OPA_0);
+
+    REQUIRE(lv_style_get_prop(input, LV_STYLE_BORDER_COLOR, &v) == LV_STYLE_RES_FOUND);
+    CHECK(lv_color_eq(v.color, tm.current_palette().text_subtle));
+
+    REQUIRE(lv_style_get_prop(input, LV_STYLE_BORDER_WIDTH, &v) == LV_STYLE_RES_FOUND);
+    CHECK(v.num > 0);
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "All registered configure functions are called",
                  "[theme-manager][configure-all]") {
     auto& tm = ThemeManager::instance();

@@ -83,7 +83,7 @@
                   style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false">
             <text_input name="hex_input"
                         width="100" height="content" max_length="9" text="#808080" placeholder_text="#hex_placeholder"
-                        style_border_width="0" style_outline_width="0" scrollable="false">
+                        style_outline_width="0" scrollable="false">
               <event_cb trigger="value_changed" callback="hex_input_changed_cb"/>
               <event_cb trigger="defocused" callback="hex_input_defocused_cb"/>
             </text_input>
@@ -149,7 +149,7 @@
           <!-- Hex input -->
           <text_input name="hex_input_tiny"
                       width="100" height="content" max_length="9" text="#808080" placeholder_text="#hex_placeholder"
-                      style_border_width="0" style_outline_width="0" scrollable="false">
+                      style_outline_width="0" scrollable="false">
             <event_cb trigger="value_changed" callback="hex_input_changed_cb"/>
             <event_cb trigger="defocused" callback="hex_input_defocused_cb"/>
           </text_input>

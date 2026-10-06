@@ -53,9 +53,12 @@ void configure_obj_base(lv_style_t* s, const ThemePalette& p) {
 }
 
 void configure_input_bg(lv_style_t* s, const ThemePalette& p) {
-    lv_style_set_bg_color(s, p.elevated_bg);
-    lv_style_set_bg_opa(s, LV_OPA_COVER);
-    apply_border(s, p, p.elevated_bg);
+    // Outlined field: no fill, so it reads correctly on any surface (screen, card, dialog).
+    // text_subtle keeps the outline at the 3:1 non-text contrast a field boundary needs.
+    lv_style_set_bg_opa(s, LV_OPA_TRANSP);
+    lv_style_set_border_color(s, p.text_subtle);
+    lv_style_set_border_width(s, p.border_width);
+    lv_style_set_border_opa(s, LV_OPA_COVER);
     lv_style_set_radius(s, p.border_radius);
     lv_style_set_text_color(s, p.text);
 }
