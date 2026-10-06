@@ -940,6 +940,7 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
         subject_never_freed());
 
     rail_estop_.create(navbar);
+    rail_drying_.create(navbar);
 
     spdlog::trace(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");
@@ -1332,7 +1333,7 @@ void NavigationManager::overlay_delete_event_cb(lv_event_t* e) {
 }
 
 void NavigationManager::adopt_overlay_backdrop(lv_obj_t* screen, lv_obj_t* arriving) {
-    backdrop_.adopt(screen, arriving, rail_estop_, backdrop_click_event_cb);
+    backdrop_.adopt(screen, arriving, backdrop_click_event_cb);
 }
 
 void NavigationManager::set_rail_estop_keyboard_top(int32_t top) {
@@ -1954,9 +1955,10 @@ void NavigationManager::deinit_subjects() {
     app_layout_widget_ = nullptr;
     backdrop_.reset();
     navbar_widget_ = nullptr;
-    // The E-stop lives on the screen, not in the app layout a printer switch
-    // rebuilds, so it goes explicitly or the rebuild leaves an orphan behind.
+    // The rail buttons live on the screen, not in the app layout a printer
+    // switch rebuilds, so they go explicitly or the rebuild leaves orphans.
     rail_estop_.destroy();
+    rail_drying_.destroy();
     active_panel_ = PanelId::Home;
     previous_connection_state_ = -1;
     previous_klippy_state_ = -1;

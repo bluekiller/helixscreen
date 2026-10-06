@@ -6,6 +6,7 @@
 #include "lvgl/lvgl.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace helix::ui {
 
@@ -69,19 +70,34 @@ void create_touch_marker(lv_obj_t* parent, lv_coord_t x, lv_coord_t y);
 lv_obj_t* create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity = 180);
 
 /**
- * @brief Register the one screen object that stays in front of every backdrop
+ * @brief Register a screen object that stays in front of every backdrop
  *
- * The navigation rail's E-stop: it has to stay tappable above any overlay,
- * modal or keypad backdrop while a job holds the machine. nullptr clears it.
+ * The navigation rail's buttons (the E-stop, the spools-on-the-bed button):
+ * they have to stay tappable above any overlay, modal or keypad backdrop.
  */
-void set_always_on_top(lv_obj_t* obj);
+void add_always_on_top(lv_obj_t* obj);
 
-/// The object registered with set_always_on_top(), or nullptr.
-lv_obj_t* always_on_top();
+/// Unregister @p obj; unknown objects are ignored.
+void remove_always_on_top(lv_obj_t* obj);
+
+/**
+ * @brief Hides every always-on-top object while a screen snapshot is taken,
+ *        so a dimmed copy is not baked into the image
+ */
+class ScopedHideChrome {
+  public:
+    ScopedHideChrome();
+    ~ScopedHideChrome();
+    ScopedHideChrome(const ScopedHideChrome&) = delete;
+    ScopedHideChrome& operator=(const ScopedHideChrome&) = delete;
+
+  private:
+    std::vector<lv_obj_t*> hidden_;
+};
 
 /**
  * @brief Bring @p obj to the front of its parent, keeping the always-on-top
- *        object in front of it
+ *        objects in front of it
  *
  * Every screen-level backdrop goes up through this, so none of them can bury
  * the E-stop. An object that must cover the E-stop (the lock screen, which

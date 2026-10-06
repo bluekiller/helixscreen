@@ -7,7 +7,7 @@
 #include "ui_nav_backdrop.h"
 #include "ui_nav_panel_registry.h"
 #include "ui_nav_printer_badge.h"
-#include "ui_nav_rail_estop.h"
+#include "ui_nav_rail_button.h"
 #include "ui_observer_guard.h"
 #include "ui_widget_ref.h"
 
@@ -123,6 +123,11 @@ class NavigationManager {
     /// The E-stop kept over the rail's nav_estop_slot, or nullptr.
     [[nodiscard]] lv_obj_t* rail_estop() const {
         return rail_estop_.widget();
+    }
+
+    /// The spools-on-the-bed button kept over the rail's nav_drying_slot, or nullptr.
+    [[nodiscard]] lv_obj_t* rail_drying() const {
+        return rail_drying_.widget();
     }
 
     /**
@@ -692,7 +697,8 @@ class NavigationManager {
      */
     void refresh_overlay_backdrop();
 
-    helix::ui::RailEstop rail_estop_;
+    helix::ui::RailButton rail_estop_{"nav_estop_slot", "rail_estop", "nav_btn_estop", true};
+    helix::ui::RailButton rail_drying_{"nav_drying_slot", "rail_drying", "nav_btn_drying", false};
 
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);
