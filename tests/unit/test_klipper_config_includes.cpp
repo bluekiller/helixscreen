@@ -3,6 +3,8 @@
 
 #include "klipper_config_includes.h"
 
+#include <algorithm>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -325,4 +327,272 @@ TEST_CASE("config_glob_match - single star stops at directory separator",
         CHECK(config_glob_match("conf.d/options.cfg", "conf.d/options.cfg"));
         CHECK_FALSE(config_glob_match("conf.d/options.cfg", "conf.d/other.cfg"));
     }
+}
+
+// ---------------------------------------------------------------------------
+// download_include_graph
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/// Holds every download until the test answers it, so a case controls the order
+/// and can read how many were outstanding at once.
+struct DeferredDownloads {
+    struct Pending {
+        std::string path;
+        std::function<void(std::string)> ok;
+        std::function<void(std::string)> fail;
+    };
+
+    std::map<std::string, std::string> server;
+    std::vector<Pending> pending;
+    std::vector<std::string> requested;
+    size_t max_outstanding = 0;
+
+    ConfigDownloadFn fn() {
+        return [this](const std::string& path, std::function<void(std::string)> ok,
+                      std::function<void(std::string)> fail) {
+            requested.push_back(path);
+            pending.push_back({path, std::move(ok), std::move(fail)});
+            max_outstanding = std::max(max_outstanding, pending.size());
+        };
+    }
+
+    /// Answer the oldest outstanding download from `server`.
+    bool answer_next() {
+        if (pending.empty())
+            return false;
+        Pending p = std::move(pending.front());
+        pending.erase(pending.begin());
+        p.ok(server.at(p.path));
+        return true;
+    }
+
+    void answer_all() {
+        while (answer_next()) {
+        }
+    }
+
+    bool fail_path(const std::string& path) {
+        for (auto it = pending.begin(); it != pending.end(); ++it) {
+            if (it->path == path) {
+                Pending p = std::move(*it);
+                pending.erase(it);
+                p.fail("could not be queued");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::vector<std::string> listing() const {
+        std::vector<std::string> out;
+        for (const auto& [path, _] : server)
+            out.push_back(path);
+        return out;
+    }
+};
+
+struct GraphResult {
+    int completions = 0;
+    int errors = 0;
+    std::set<std::string> active;
+    std::map<std::string, std::string> contents;
+    std::string error;
+};
+
+void run_graph(DeferredDownloads& dl, GraphResult& r, size_t max_in_flight = 4) {
+    download_include_graph(
+        dl.listing(), "printer.cfg", dl.fn(),
+        [&r](const std::set<std::string>& active, const std::map<std::string, std::string>& c) {
+            ++r.completions;
+            r.active = active;
+            r.contents = c;
+        },
+        [&r](const std::string& err) {
+            ++r.errors;
+            r.error = err;
+        },
+        max_in_flight);
+}
+
+} // namespace
+
+TEST_CASE("download_include_graph - fetches only files the include chain reaches",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include macros.cfg]\n[include conf.d/*.cfg]\n[include sub/x.cfg]\n"},
+        {"macros.cfg", "[gcode_macro PRINT_START]\ngcode:\n  G28\n"},
+        {"conf.d/a.cfg", "[fan]\n"},
+        {"conf.d/b.cfg", "[heater_bed]\n"},
+        {"conf.d/nested/c.cfg", "[never]\n"},
+        {"config_backups/printer-20250205_154251.cfg", "[include macros.cfg]\n"},
+        {"sub/x.cfg", "[include y.cfg]\n"},
+        {"sub/y.cfg", "[stepper_x]\n"},
+        {"unrelated.cfg", "[nope]\n"},
+    };
+    GraphResult r;
+    run_graph(dl, r);
+    dl.answer_all();
+
+    const std::set<std::string> expected = {"printer.cfg",  "macros.cfg", "conf.d/a.cfg",
+                                            "conf.d/b.cfg", "sub/x.cfg",  "sub/y.cfg"};
+    CHECK(std::set<std::string>(dl.requested.begin(), dl.requested.end()) == expected);
+    CHECK(dl.requested.size() == expected.size()); // nothing fetched twice
+    REQUIRE(r.completions == 1);
+    CHECK(r.errors == 0);
+    CHECK(r.active == expected);
+    CHECK(r.contents.at("macros.cfg") == dl.server.at("macros.cfg"));
+    CHECK(r.contents.count("config_backups/printer-20250205_154251.cfg") == 0);
+}
+
+TEST_CASE("download_include_graph - never has more than the limit outstanding",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    for (int i = 0; i < 12; ++i) {
+        const std::string name = "conf.d/f" + std::to_string(i) + ".cfg";
+        dl.server[name] = "[x" + std::to_string(i) + "]\n";
+    }
+    dl.server["printer.cfg"] = "[include conf.d/*.cfg]\n";
+    GraphResult r;
+    run_graph(dl, r, 4);
+    dl.answer_all();
+
+    REQUIRE(r.completions == 1);
+    CHECK(dl.requested.size() == 13);
+    CHECK(dl.max_outstanding == 4);
+    CHECK(r.active.size() == 13);
+}
+
+TEST_CASE("download_include_graph - a failed download reports an error, not a partial result",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n[include c.cfg]\n"},
+        {"a.cfg", "[a]\n"},
+        {"b.cfg", "[gcode_macro PRINT_START]\ngcode:\n  G28\n"},
+        {"c.cfg", "[include d.cfg]\n"},
+        {"d.cfg", "[d]\n"},
+    };
+    GraphResult r;
+    run_graph(dl, r);
+    REQUIRE(dl.answer_next()); // printer.cfg
+    REQUIRE(dl.fail_path("b.cfg"));
+    CHECK(r.errors == 0); // a.cfg and c.cfg are still outstanding
+    dl.answer_all();
+
+    CHECK(r.completions == 0);
+    REQUIRE(r.errors == 1);
+    CHECK(r.error.find("b.cfg") != std::string::npos);
+    // Nothing new is started once the result is known to be incomplete.
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "d.cfg") == 0);
+}
+
+TEST_CASE("download_include_graph - a download rejected before it returns reports once",
+          "[config][includes][include_graph]") {
+    std::map<std::string, std::string> server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[a]\n"},
+        {"b.cfg", "[b]\n"},
+    };
+    std::vector<std::string> listing;
+    for (const auto& [p, _] : server)
+        listing.push_back(p);
+    int completions = 0;
+    int errors = 0;
+    download_include_graph(
+        listing, "printer.cfg",
+        [&server](const std::string& path, std::function<void(std::string)> ok,
+                  std::function<void(std::string)> fail) {
+            if (path == "printer.cfg")
+                ok(server.at(path));
+            else
+                fail("HTTP request could not be queued");
+        },
+        [&](const std::set<std::string>&, const std::map<std::string, std::string>&) {
+            ++completions;
+        },
+        [&](const std::string&) { ++errors; });
+
+    CHECK(completions == 0);
+    CHECK(errors == 1);
+}
+
+TEST_CASE("download_include_graph - a full queue is backpressure while downloads are in flight",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n[include c.cfg]\n"},
+        {"a.cfg", "[a]\n"},
+        {"b.cfg", "[b]\n"},
+        {"c.cfg", "[c]\n"},
+    };
+    // The lane refuses c.cfg once, before returning, as a full HTTP queue does.
+    int rejections_left = 1;
+    auto deferred = dl.fn();
+    GraphResult r;
+    download_include_graph(
+        dl.listing(), "printer.cfg",
+        [&](const std::string& path, std::function<void(std::string)> ok,
+            std::function<void(std::string)> fail) {
+            if (path == "c.cfg" && rejections_left > 0) {
+                --rejections_left;
+                dl.requested.push_back(path);
+                fail("HTTP request could not be queued");
+                return;
+            }
+            deferred(path, std::move(ok), std::move(fail));
+        },
+        [&r](const std::set<std::string>& active, const std::map<std::string, std::string>& c) {
+            ++r.completions;
+            r.active = active;
+            r.contents = c;
+        },
+        [&r](const std::string& err) {
+            ++r.errors;
+            r.error = err;
+        });
+    dl.answer_all();
+
+    REQUIRE(rejections_left == 0); // the rejection happened
+    CHECK(r.errors == 0);
+    REQUIRE(r.completions == 1);
+    CHECK(r.active == std::set<std::string>{"printer.cfg", "a.cfg", "b.cfg", "c.cfg"});
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "c.cfg") == 2);
+}
+
+TEST_CASE("download_include_graph - an include cycle terminates and fetches each file once",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n"},
+        {"a.cfg", "[include b.cfg]\n"},
+        {"b.cfg", "[include a.cfg]\n"},
+    };
+    GraphResult r;
+    run_graph(dl, r);
+    dl.answer_all();
+
+    REQUIRE(r.completions == 1);
+    CHECK(dl.requested.size() == 3);
+    CHECK(r.active == std::set<std::string>{"printer.cfg", "a.cfg", "b.cfg"});
+}
+
+TEST_CASE("download_include_graph - a file included by two parents is fetched once",
+          "[config][includes][include_graph]") {
+    DeferredDownloads dl;
+    dl.server = {
+        {"printer.cfg", "[include a.cfg]\n[include b.cfg]\n"},
+        {"a.cfg", "[include shared.cfg]\n"},
+        {"b.cfg", "[include shared.cfg]\n"},
+        {"shared.cfg", "[shared]\n"},
+    };
+    GraphResult r;
+    run_graph(dl, r);
+    dl.answer_all();
+
+    REQUIRE(r.completions == 1);
+    CHECK(std::count(dl.requested.begin(), dl.requested.end(), "shared.cfg") == 1);
+    CHECK(r.active.count("shared.cfg") == 1);
 }
