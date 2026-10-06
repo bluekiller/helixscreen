@@ -48,7 +48,7 @@ bool connect_active_printer() {
     const std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
     const int port = config->get<int>(config->df() + "moonraker_port", 7125);
 
-    const std::string ws_url = "ws://" + host + ":" + std::to_string(port) + "/websocket";
+    const std::string ws_url = active_printer_ws_url();
     const std::string http_url = "http://" + host + ":" + std::to_string(port);
 
     spdlog::info("[PrinterRetarget] Connecting to {}:{}", host, port);
@@ -60,6 +60,12 @@ bool connect_active_printer() {
 }
 
 } // namespace
+
+std::string active_printer_ws_url() {
+    Config* config = Config::get_instance();
+    return "ws://" + config->get<std::string>(config->df() + "moonraker_host", "") + ":" +
+           std::to_string(config->get<int>(config->df() + "moonraker_port", 7125)) + "/websocket";
+}
 
 void set_connect_gate(std::function<bool()> gate) {
     connect_gate() = std::move(gate);

@@ -272,6 +272,12 @@ void arm_switch_watchdog() {
                 return;
             }
             helix::IMoonrakerClient* client = g_manager ? g_manager->client() : nullptr;
+            // Change Host's Test borrows the client for another host, connected with no
+            // discovery by design; only a connection to the switched-to printer counts.
+            if (client && client->get_last_url() != helix::active_printer_ws_url()) {
+                ESP_LOGI(TAG, "[switch] client lent to another host; watchdog stands down");
+                return;
+            }
             if (client && client->get_connection_state() == helix::ConnectionState::CONNECTED) {
                 ESP_LOGW(TAG, "[switch] connected but no discovery after %u ms",
                          (unsigned)SWITCH_DISCOVERY_TIMEOUT_MS);

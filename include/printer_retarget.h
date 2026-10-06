@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <string>
 
 namespace helix {
 
@@ -14,6 +15,9 @@ void set_connect_gate(std::function<bool()> gate);
 
 /// True when no gate is installed or the installed one allows a connect now.
 bool connect_gate_open();
+
+/// The WebSocket URL of the active printer's Moonraker, the one the reconnects below use.
+std::string active_printer_ws_url();
 
 /// Reconnects the live client to the host and port the active printer's config names.
 /// Main thread only. False when there is no client or manager, the gate is closed, or the

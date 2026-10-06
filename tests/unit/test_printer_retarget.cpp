@@ -136,3 +136,8 @@ TEST_CASE_METHOD(RetargetFixture, "Retarget: a transport that cannot start repor
     CHECK_FALSE(helix::retarget_printer_connection());
     CHECK(client_->get_last_url() == "ws://10.0.0.2:7126/websocket");
 }
+
+TEST_CASE_METHOD(RetargetFixture, "Retarget: the active printer's WebSocket URL",
+                 "[multi-printer][retarget]") {
+    CHECK(helix::active_printer_ws_url() == "ws://10.0.0.2:7126/websocket");
+}

@@ -101,6 +101,12 @@ There is no UpdateQueue drain. What A can still deliver after step 2, and why it
 - REST downloads that finish after the switch reach `on_error` as CONNECTION_LOST.
 - JSON-RPC requests pending on A fail with connection_lost when the stop reports DISCONNECTED,
   or by timeout; replies cannot arrive once the socket is closed.
+- `on_discovery_complete` fires from one place, the subscribe reply, behind a
+  `connection_generation_` check; A's WS task is joined before `connect(B)` bumps that generation,
+  and timeouts from `process_timeouts` deliver only error callbacks, so A's discovery cannot complete
+  for B. The HTTP epoch read on the WS task drops anything already queued.
+- The 30 s watchdog stands down while Change Host's Test has lent the client to another host
+  (the client's URL is not `active_printer_ws_url()`).
 - Success callbacks A queued before the disconnect (a file list, say) may still run once; B's
   forced refresh on connect replaces them. Names that resolve late go to the printer they were
   asked for.
@@ -148,6 +154,10 @@ to 14.7 KB free / 7,680 B largest for ~340 ms; mid-run reconnects did not show i
 passes in steady state, a transport that cannot start makes `retarget_printer_connection` return
 false (restart fallback), and a switch whose discovery has not landed 30 s after a live connection
 restarts into the printer; an unreachable printer stays on the normal reconnect loop.
+
+Add after Test runs two 8 KB stack cycles: the modal returns the client to the current printer,
+then the switch stops it again. A later optimisation can skip that reconnect when the add is about
+to switch anyway; it is correct as is, and the connect gate covers both cycles.
 
 ## 8. Risks, tests, commits
 
