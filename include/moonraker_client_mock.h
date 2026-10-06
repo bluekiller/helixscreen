@@ -1826,6 +1826,8 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     std::map<std::string, int> call_counts_;
     mutable std::mutex fault_mutex_;
 
+    // Unlocked: the handlers answer on the calling thread, and every caller of
+    // the database and Spoolman routes is on the main thread.
     json mock_db_ = json::object();
     MockSpoolmanServer spoolman_;
 
