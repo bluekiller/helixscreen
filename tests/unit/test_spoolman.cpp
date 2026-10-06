@@ -602,13 +602,15 @@ TEST_CASE("MoonrakerAPIMock - delete_spoolman_spool", "[filament][mock]") {
             [](const MoonrakerError&) {});
     }
 
-    SECTION("Deleting a non-existent spool answers Spoolman's 404") {
-        int error_code = 0;
+    SECTION("Deleting a non-existent spool answers Spoolman's 404, as Moonraker relays it") {
+        MoonrakerError got;
         api.spoolman().delete_spoolman_spool(
             9999, []() { FAIL("success should not be called"); },
-            [&](const MoonrakerError& err) { error_code = err.code; });
+            [&](const MoonrakerError& err) { got = err; });
 
-        REQUIRE(error_code == 404);
+        CHECK(got.code == -32601);
+        CHECK(got.message == "Not Found");
+        CHECK(got.is_not_found());
     }
 }
 
@@ -2021,7 +2023,7 @@ TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[
         "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/external/vendor"}},
         [](const nlohmann::json&) { FAIL("Spoolman serves no external vendor list"); },
         [&](const MoonrakerError& err) { code = err.code; });
-    CHECK(code == 404);
+    CHECK(code == -32601);
 }
 
 TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[spoolman][mock]") {
@@ -2147,13 +2149,13 @@ TEST_CASE("search_spoolman_external_filaments searches the catalog through the p
         CHECK(search("pla", 2).size() == 2);
     }
 
-    SECTION("an older server answers 404") {
+    SECTION("an older server answers not-found") {
         client.spoolman_mock().set_external_search_supported(false);
         int code = 0;
         api.spoolman().search_spoolman_external_filaments(
             "poly", 25, [](const std::vector<ExternalFilament>&) { FAIL("no route"); },
             [&](const MoonrakerError& err) { code = err.code; });
-        CHECK(code == 404);
+        CHECK(code == -32601);
     }
 }
 

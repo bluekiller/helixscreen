@@ -6,6 +6,7 @@
 #include "moonraker_error.h"
 #include "text_io.h"
 
+#include <algorithm>
 #include <cctype>
 #include <optional>
 
@@ -36,7 +37,7 @@ void SpoolmanCatalogSearch::record_success(uint64_t connection_generation) {
 
 void SpoolmanCatalogSearch::record_error(uint64_t connection_generation,
                                          const MoonrakerError& err) {
-    if (err.code == 404) {
+    if (err.is_not_found()) {
         s_cached = CachedAvailability{connection_generation, false};
     }
 }
@@ -81,6 +82,56 @@ const FilamentInfo* find_matching_filament(const std::vector<FilamentInfo>& fila
     }
     for (const auto& f : filaments) {
         if (f.material == material && normalize_color_hex(f.color_hex) == needle) {
+            return &f;
+        }
+    }
+    return nullptr;
+}
+
+namespace {
+
+std::string folded(const std::string& s) {
+    return text_io::to_lower(std::string(text_io::trim(s)));
+}
+
+/// The normalized colours in a comma-separated list, sorted; empty when any
+/// entry is not a colour.
+std::vector<std::string> color_set(const std::string& colors) {
+    std::vector<std::string> set;
+    size_t pos = 0;
+    while (pos <= colors.size()) {
+        const size_t comma = colors.find(',', pos);
+        const std::string part =
+            colors.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
+        const std::string hex = normalize_color_hex(std::string(text_io::trim(part)));
+        if (hex.empty()) {
+            return {};
+        }
+        set.push_back(hex);
+        if (comma == std::string::npos) {
+            break;
+        }
+        pos = comma + 1;
+    }
+    std::sort(set.begin(), set.end());
+    return set;
+}
+
+} // namespace
+
+const FilamentInfo* find_catalog_filament(const std::vector<FilamentInfo>& filaments, int vendor_id,
+                                          const std::string& name, const std::string& material,
+                                          const std::string& colors) {
+    const std::vector<std::string> wanted = color_set(colors);
+    if (wanted.empty()) {
+        return nullptr;
+    }
+    const std::string wanted_name = folded(name);
+    const std::string wanted_material = folded(material);
+    for (const auto& f : filaments) {
+        const std::string& theirs = f.multi_color_hexes.empty() ? f.color_hex : f.multi_color_hexes;
+        if (f.vendor_id == vendor_id && folded(f.filament_name) == wanted_name &&
+            folded(f.material) == wanted_material && color_set(theirs) == wanted) {
             return &f;
         }
     }

@@ -57,15 +57,16 @@ struct FilamentInfo {
     /// Spoolman has no colour-name field, only `color_hex`. Anything needing a
     /// human colour label derives it from the hex (`helix::describe_color`).
     std::string filament_name;
-    std::string color_hex;   ///< Hex color code (e.g., "#1A1A2E")
-    float density = 0;       ///< Material density (g/cm³)
-    float diameter = 1.75f;  ///< Filament diameter in mm
-    float weight = 0;        ///< Net weight per spool (g)
-    float spool_weight = 0;  ///< Empty spool weight (g)
-    int nozzle_temp_min = 0; ///< Minimum nozzle temperature
-    int nozzle_temp_max = 0; ///< Maximum nozzle temperature
-    int bed_temp_min = 0;    ///< Minimum bed temperature
-    int bed_temp_max = 0;    ///< Maximum bed temperature
+    std::string color_hex;         ///< Hex color code (e.g., "#1A1A2E")
+    std::string multi_color_hexes; ///< Comma-separated colours of a multi-colour filament
+    float density = 0;             ///< Material density (g/cm³)
+    float diameter = 1.75f;        ///< Filament diameter in mm
+    float weight = 0;              ///< Net weight per spool (g)
+    float spool_weight = 0;        ///< Empty spool weight (g)
+    int nozzle_temp_min = 0;       ///< Minimum nozzle temperature
+    int nozzle_temp_max = 0;       ///< Maximum nozzle temperature
+    int bed_temp_min = 0;          ///< Minimum bed temperature
+    int bed_temp_max = 0;          ///< Maximum bed temperature
 
     /**
      * @brief Get display name combining vendor, filament name, and material

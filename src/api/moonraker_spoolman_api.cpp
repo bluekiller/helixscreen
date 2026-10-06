@@ -133,6 +133,7 @@ static FilamentInfo parse_filament_info(const nlohmann::json& filament_json) {
     info.material = safe_string(filament_json, "material");
     info.filament_name = safe_string(filament_json, "name");
     info.color_hex = safe_string(filament_json, "color_hex");
+    info.multi_color_hexes = safe_string(filament_json, "multi_color_hexes");
     info.density = safe_float(filament_json, "density", 0.0f);
     info.diameter = safe_float(filament_json, "diameter", 1.75f);
     info.weight = safe_float(filament_json, "weight", 0.0f);
@@ -257,7 +258,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_spool(int spool_id, SpoolCallback on_suc
             // Moonraker's proxy relays Spoolman's 404 for a deleted spool as a
             // JSON-RPC error. That is an answer ("no such spool"), not a
             // failure to reach the server.
-            if (err.code == 404) {
+            if (err.is_not_found()) {
                 spdlog::debug("[SpoolmanAPI] Spool {} not found", spool_id);
                 if (on_success) {
                     on_success(std::nullopt);

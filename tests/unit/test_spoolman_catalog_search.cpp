@@ -20,10 +20,15 @@ struct CacheReset {
     }
 };
 
-MoonrakerError error_with_code(int code) {
-    MoonrakerError err = MoonrakerError::json_rpc_error("server.spoolman.proxy", "x");
-    err.code = code;
-    return err;
+/// An error shaped as Moonraker sends it over JSON-RPC.
+MoonrakerError moonraker_error(int code, const char* message) {
+    return MoonrakerError::from_json_rpc({{"code", code}, {"message", message}},
+                                         "server.spoolman.proxy");
+}
+
+/// Spoolman's 404 through the proxy (moonraker/common.py maps 404 to -32601).
+MoonrakerError route_missing() {
+    return moonraker_error(-32601, "Not Found");
 }
 
 } // namespace
@@ -39,14 +44,19 @@ TEST_CASE("SpoolmanCatalogSearch caches availability per connection", "[spoolman
         CHECK(SpoolmanCatalogSearch::availability(6) == Availability::Unknown);
     }
 
-    SECTION("a 404 makes it unavailable") {
-        SpoolmanCatalogSearch::record_error(5, error_with_code(404));
+    SECTION("Spoolman's 404, relayed as -32601, makes it unavailable") {
+        SpoolmanCatalogSearch::record_error(5, route_missing());
         CHECK(SpoolmanCatalogSearch::availability(5) == Availability::Unavailable);
+    }
+
+    SECTION("a missing proxy method proves nothing about the route") {
+        SpoolmanCatalogSearch::record_error(5, moonraker_error(-32601, "Method not found"));
+        CHECK(SpoolmanCatalogSearch::availability(5) == Availability::Unknown);
     }
 
     SECTION("any other error proves nothing about the route") {
         SpoolmanCatalogSearch::record_success(5);
-        SpoolmanCatalogSearch::record_error(5, error_with_code(500));
+        SpoolmanCatalogSearch::record_error(5, moonraker_error(500, "Internal Server Error"));
         CHECK(SpoolmanCatalogSearch::availability(5) == Availability::Available);
 
         SpoolmanCatalogSearch::record_error(7, MoonrakerError::connection_lost("x"));
@@ -54,7 +64,7 @@ TEST_CASE("SpoolmanCatalogSearch caches availability per connection", "[spoolman
     }
 
     SECTION("a new connection asks again") {
-        SpoolmanCatalogSearch::record_error(5, error_with_code(404));
+        SpoolmanCatalogSearch::record_error(5, route_missing());
         CHECK(SpoolmanCatalogSearch::availability(6) == Availability::Unknown);
         SpoolmanCatalogSearch::record_success(6);
         CHECK(SpoolmanCatalogSearch::availability(6) == Availability::Available);
@@ -116,5 +126,53 @@ TEST_CASE("find_matching_filament is the one Spoolman filament match", "[spoolma
         CHECK(find_matching_filament(filaments, "PLA", "") == nullptr);
         CHECK(normalize_color_hex("red").empty());
         CHECK(normalize_color_hex("12345").empty());
+    }
+}
+
+TEST_CASE("find_catalog_filament matches one catalog product exactly", "[spoolman_db]") {
+    using helix::spoolman::find_catalog_filament;
+
+    auto filament = [](int id, int vendor, const char* name, const char* material, const char* hex,
+                       const char* multi = "") {
+        FilamentInfo f;
+        f.id = id;
+        f.vendor_id = vendor;
+        f.filament_name = name;
+        f.material = material;
+        f.color_hex = hex;
+        f.multi_color_hexes = multi;
+        return f;
+    };
+    const std::vector<FilamentInfo> filaments{
+        filament(1, 7, "PolyTerra PLA Black", "PLA", "1A1A1A"),
+        filament(2, 7, "PolyLite PLA Black", "PLA", "1a1a1a"),
+        filament(3, 7, "Silk PLA Rainbow", "PLA", "", "E53935,FFEB3B"),
+        filament(4, 8, "PolyLite PLA Black", "PLA", "1A1A1A"),
+    };
+
+    SECTION("name, material and vendor all have to agree") {
+        const FilamentInfo* f =
+            find_catalog_filament(filaments, 7, " polylite pla black ", "pla", "#1A1A1A");
+        REQUIRE(f != nullptr);
+        CHECK(f->id == 2);
+        CHECK(find_catalog_filament(filaments, 9, "PolyLite PLA Black", "PLA", "1A1A1A") ==
+              nullptr);
+        CHECK(find_catalog_filament(filaments, 7, "PolyLite PLA Black", "PETG", "1A1A1A") ==
+              nullptr);
+        CHECK(find_catalog_filament(filaments, 7, "PolyLite PLA Black", "PLA", "1A1A2E") ==
+              nullptr);
+    }
+
+    SECTION("a multi-colour product matches its colour set, in any order") {
+        const FilamentInfo* f =
+            find_catalog_filament(filaments, 7, "Silk PLA Rainbow", "PLA", "ffeb3b, e53935");
+        REQUIRE(f != nullptr);
+        CHECK(f->id == 3);
+    }
+
+    SECTION("a multi-colour product never lands on a solid filament") {
+        CHECK(find_catalog_filament(filaments, 7, "PolyLite PLA Black", "PLA", "1A1A1A,FFFFFF") ==
+              nullptr);
+        CHECK(find_catalog_filament(filaments, 7, "Silk PLA Rainbow", "PLA", "E53935") == nullptr);
     }
 }

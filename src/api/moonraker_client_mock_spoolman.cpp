@@ -60,7 +60,7 @@ json filament_json(const FilamentInfo& f) {
               {"color_hex", or_null(f.color_hex)},
               {"settings_extruder_temp", one_temp(f.nozzle_temp_min, f.nozzle_temp_max)},
               {"settings_bed_temp", one_temp(f.bed_temp_min, f.bed_temp_max)},
-              {"multi_color_hexes", nullptr},
+              {"multi_color_hexes", or_null(f.multi_color_hexes)},
               {"external_id", nullptr},
               {"extra", json::object()}};
     if (f.vendor_id > 0 || !f.vendor_name.empty()) {
@@ -71,10 +71,16 @@ json filament_json(const FilamentInfo& f) {
     return j;
 }
 
-MoonrakerError spoolman_error(int code, const std::string& message) {
-    MoonrakerError err = MoonrakerError::json_rpc_error("server.spoolman.proxy", message);
-    err.code = code;
-    return err;
+/// A Spoolman HTTP error as Moonraker's proxy relays it: raise_for_status()
+/// raises ServerError(<HTTP reason phrase>, status), and the JSON-RPC layer
+/// sends a 404 as code -32601. Spoolman's own response body is not passed on.
+MoonrakerError spoolman_error(int status) {
+    const char* reason = status == 404   ? "Not Found"
+                         : status == 422 ? "Unprocessable Entity"
+                                         : "Internal Server Error";
+    const int code = status == 404 ? -32601 : status;
+    return MoonrakerError::from_json_rpc({{"code", code}, {"message", reason}},
+                                         "server.spoolman.proxy");
 }
 
 /// Spoolman's request models type settings_extruder_temp and settings_bed_temp
@@ -89,7 +95,8 @@ bool temps_valid(const json& body, MoonrakerError& err) {
             v.is_number_integer() ||
             (v.is_number_float() && v.get<double>() == std::floor(v.get<double>()));
         if (!v.is_null() && !integral) {
-            err = spoolman_error(422, std::string(key) + ": Input should be a valid integer");
+            spdlog::debug("[MockSpoolman] 422: {} is not an integer", key);
+            err = spoolman_error(422);
             return false;
         }
     }
@@ -287,12 +294,13 @@ void MockSpoolmanServer::add_vendor(int id, std::string name) {
 }
 
 void MockSpoolmanServer::add_filament(int id, int vendor_id, std::string material,
-                                      std::string color_hex) {
+                                      std::string color_hex, std::string name) {
     FilamentInfo f;
     f.id = id;
     f.vendor_id = vendor_id;
     f.material = std::move(material);
     f.color_hex = std::move(color_hex);
+    f.filament_name = std::move(name);
     filaments_.push_back(std::move(f));
 }
 
@@ -410,7 +418,8 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
     spdlog::debug("[MockSpoolman] {} {}", method, full_path);
 
     auto not_found = [&err](const std::string& kind, int id) {
-        err = spoolman_error(404, "No " + kind + " with ID " + std::to_string(id) + " found.");
+        spdlog::debug("[MockSpoolman] 404: no {} with ID {}", kind, id);
+        err = spoolman_error(404);
         return false;
     };
 
@@ -597,7 +606,8 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
     if (method == "POST" && path == "/v1/filament") {
         created_filaments.push_back(body);
         if (!body.contains("density") || !body.contains("diameter")) {
-            err = spoolman_error(422, "density and diameter are required");
+            spdlog::debug("[MockSpoolman] 422: density and diameter are required");
+            err = spoolman_error(422);
             return false;
         }
         if (!temps_valid(body, err)) {
@@ -608,6 +618,7 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         filament.material = body.value("material", "");
         filament.filament_name = body.value("name", "");
         filament.color_hex = body.value("color_hex", "");
+        filament.multi_color_hexes = body.value("multi_color_hexes", "");
         filament.diameter = body.value("diameter", 1.75f);
         filament.weight = body.value("weight", 0.0f);
         filament.spool_weight = body.value("spool_weight", 0.0f);
@@ -686,7 +697,7 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         return true;
     }
 
-    err = spoolman_error(404, "Not Found");
+    err = spoolman_error(404);
     return false;
 }
 

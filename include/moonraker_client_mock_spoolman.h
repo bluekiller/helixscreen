@@ -69,7 +69,8 @@ class MockSpoolmanServer {
     void add_vendor(int id, std::string name);
     /// Seeds a filament served ahead of the ones synthesized from spools; the
     /// vendor-filtered GET returns it only for its own vendor.
-    void add_filament(int id, int vendor_id, std::string material, std::string color_hex);
+    void add_filament(int id, int vendor_id, std::string material, std::string color_hex,
+                      std::string name = "");
 
     // Test inspection: request bodies as they arrived on the wire.
     struct FilamentUpdateRecord {
