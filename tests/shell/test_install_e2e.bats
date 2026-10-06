@@ -32,6 +32,7 @@ setup_file() {
     _make_release "$art" 1 v1.0.0
     _make_release "$art" 2 v1.0.1
     _make_release "$art" 3 v1.1.0-beta.1
+    _make_release_server "$art" 3 v1.1.0-beta.1 beta
 
     cp /etc/os-release "$art/seed/os-release"
     printf 'root:x:0:0:root:/root:/bin/sh\n' > "$art/seed/passwd"
@@ -56,6 +57,52 @@ esac
 exit 0
 STUB
     chmod +x "$art/stubs/systemctl"
+
+    # Stands in for the release CDN: https://e2e.invalid/<path> and
+    # http://e2e.invalid/<path> are served from /mnt/r2/<path>, anything else is
+    # a 404, so a --version run reaches no real network through curl. The
+    # scenario points R2_BASE_URL and HTTP_BASE_URL at that host.
+    cat > "$art/stubs/curl" <<'STUB'
+#!/bin/sh
+[ "${1:-}" = "--version" ] && { echo "curl 8.0.0 (e2e stub)"; exit 0; }
+url="" out="" wfmt=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) out=$2; shift ;;
+        -w) wfmt=$2; shift ;;
+        -A | --connect-timeout | --max-time | --speed-limit | --speed-time) shift ;;
+        -*) ;;
+        *) url=$1 ;;
+    esac
+    shift
+done
+f=""
+case "$url" in
+    https://e2e.invalid/* | http://e2e.invalid/*) f="/mnt/r2/${url#*://e2e.invalid/}" ;;
+esac
+echo "curl $url" >> /var/log/e2e-curl.log
+if [ -n "$f" ] && [ -f "$f" ]; then
+    code=200
+    if [ -n "$out" ]; then cp "$f" "$out"; else cat "$f"; fi
+else
+    code=404
+fi
+[ -n "$wfmt" ] && printf '\n%s' "$code"
+[ "$code" = 200 ]
+STUB
+    chmod +x "$art/stubs/curl"
+}
+
+# Publish release <n> on the stub CDN under <channel>, with a manifest carrying
+# its hash, the way the release workflow lays out R2.
+_make_release_server() {
+    local art=$1 n=$2 version=$3 channel=$4
+    local tar="helixscreen-x86-$version.tar.gz"
+    mkdir -p "$art/r2/releases/$version" "$art/r2/$channel"
+    cp "$art/release-$n/$tar" "$art/r2/releases/$version/"
+    printf '{"version": "%s", "assets": {"x86": {"url": "https://e2e.invalid/releases/%s/%s", "sha256": "%s"}}}\n' \
+        "${version#v}" "$version" "$tar" "$(sha256sum "$art/release-$n/$tar" | cut -d' ' -f1)" \
+        > "$art/r2/$channel/manifest.json"
 }
 
 # A release archive in the shipped layout, marked with its version.
@@ -244,18 +291,33 @@ snap_resolve() {
         || fail "--clean kept the old settings.json"
 }
 
-@test "install.sh e2e: a prerelease update with no saved channel moves app and Moonraker to beta" {
+@test "install.sh e2e: --version of a prerelease with no saved channel moves app and Moonraker to beta" {
     # seed-user writes a settings.json with no update channel, so the beta
     # version decides it, after the installed config has been read.
-    run_scenario install seed-user update-beta
+    run_scenario install seed-user update-beta-version
     local s settings
-    s=$(snap 3-update-beta)
+    s=$(snap 3-update-beta-version)
     settings=$(snap_resolve "$s" "$INST/config/settings.json")
 
     [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.1.0-beta.1" ]
+    contains "SHA256 verified" "$output"
     grep -qx "channel: beta" "$s/root/printer_data/config/moonraker.conf" \
         || fail "update_manager still on $(grep '^channel:' "$s/root/printer_data/config/moonraker.conf")"
     [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["update"]["channel"])' "$settings")" = "1" ] \
         || fail "settings.json has no beta channel: $(cat "$settings")"
+    grep -q '"e2e_user_value": "kept"' "$settings" || fail "user settings lost"
+}
+
+@test "install.sh e2e: a --local prerelease archive leaves the update channel alone" {
+    # Installing an archive by hand picks a build, not a channel to follow.
+    run_scenario install seed-user update-beta-local
+    local s settings
+    s=$(snap 3-update-beta-local)
+    settings=$(snap_resolve "$s" "$INST/config/settings.json")
+
+    [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.1.0-beta.1" ]
+    grep -qx "channel: stable" "$s/root/printer_data/config/moonraker.conf" \
+        || fail "update_manager moved to $(grep '^channel:' "$s/root/printer_data/config/moonraker.conf")"
+    lacks '"channel"' "$(cat "$settings")"
     grep -q '"e2e_user_value": "kept"' "$settings" || fail "user settings lost"
 }
