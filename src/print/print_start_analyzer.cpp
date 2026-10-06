@@ -251,8 +251,10 @@ bool call_forwards_param(std::string_view call_line, const std::string& param) {
 /// merging their operations. A callee is skipped when it is itself a detected
 /// operation (an override such as a BED_MESH_CALIBRATE wrapper), a G/M code,
 /// undefined, or already analyzed. Iterative: the ESP32 runs this on a small stack.
+/// `contributing` receives the macros that added at least one operation.
 PrintStartAnalysis analyze_chain(const std::string& name, const std::string& gcode,
-                                 const MacroDefinitions& definitions) {
+                                 const MacroDefinitions& definitions,
+                                 std::vector<std::string>& contributing) {
     struct Visit {
         std::string name;
         const std::string* gcode;
@@ -281,6 +283,7 @@ PrintStartAnalysis analyze_chain(const std::string& name, const std::string& gco
         if (index == 0) {
             result.known_params = std::move(parsed.known_params);
         }
+        const size_t ops_before = result.operations.size();
         for (auto& op : parsed.operations) {
             for (int hop = index; op.has_skip_param && visits[hop].caller >= 0;
                  hop = visits[hop].caller) {
@@ -295,6 +298,9 @@ PrintStartAnalysis analyze_chain(const std::string& name, const std::string& gco
             if (!duplicate) {
                 result.operations.push_back(std::move(op));
             }
+        }
+        if (result.operations.size() > ops_before) {
+            contributing.push_back(visits[index].name);
         }
 
         if (visits[index].depth >= PrintStartAnalyzer::MAX_FOLLOW_DEPTH) {
@@ -342,12 +348,20 @@ void PrintStartAnalyzer::analyze(const std::map<std::string, std::string>& file_
             continue;
         }
         const MacroDefinition& definition = def_it->second;
-        PrintStartAnalysis result = analyze_chain(MACRO_NAMES[i], definition.gcode, definitions);
+        std::vector<std::string> contributing;
+        PrintStartAnalysis result =
+            analyze_chain(MACRO_NAMES[i], definition.gcode, definitions, contributing);
         result.found = true;
         result.macro_name = MACRO_NAMES[i];
         result.source_file = definition.file;
-        spdlog::info("[PrintStartAnalyzer] Found macro '{}' in {} ({} chars), analyzed {}",
-                     MACRO_NAMES[i], definition.file, definition.gcode.size(), chain_text(result));
+        std::string sources;
+        for (const auto& macro : contributing) {
+            sources += (sources.empty() ? "" : ", ") + macro;
+        }
+        spdlog::info("[PrintStartAnalyzer] Found macro '{}' in {} ({} chars), operations from: {}",
+                     MACRO_NAMES[i], definition.file, definition.gcode.size(),
+                     sources.empty() ? "none" : sources);
+        spdlog::debug("[PrintStartAnalyzer] Analyzed {}", chain_text(result));
         if (on_complete) {
             on_complete(result);
         }
