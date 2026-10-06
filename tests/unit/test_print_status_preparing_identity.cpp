@@ -214,6 +214,14 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
 
         REQUIRE(Access::reprint_filename(panel()).empty());
     }
+    SECTION("a print another client started since is the one reprinted") {
+        state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
+        state().print_state().retire_preparing(PreparingExit::Confirmed);
+        drain();
+        report_filename(helix::gcode::make_rewritten_gcode_path("other/benchy.gcode"));
+
+        REQUIRE(Access::reprint_filename(panel()) == "other/benchy.gcode");
+    }
     SECTION("a print this session prepared still knows its original") {
         state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
         state().print_state().retire_preparing(PreparingExit::Confirmed);

@@ -103,16 +103,15 @@ static const std::string helix_print_full_segment = "full/";
 static const std::string gcode_mod_prefix = "/gcode_mod/mod_";
 static const std::string legacy_prefix = "/tmp/helixscreen_mod_";
 
-// Start of the original's path inside a plugin symlink path, or npos. The
-// prefix counts only as a whole leading path segment, so a user folder that
-// merely ends in ".helix_print" is not mistaken for one.
+// Start of the original's path inside a plugin symlink path, or npos. Klipper
+// reports gcodes-relative paths, so the plugin's directory is only ever the
+// leading segment; a user folder of that name deeper down is not a link.
 static size_t helix_print_original_pos(const std::string& path) {
-    const size_t pos = path.find(helix_print_prefix);
-    if (pos == std::string::npos || (pos > 0 && path[pos - 1] != '/')) {
+    if (path.size() <= helix_print_prefix.size() ||
+        path.compare(0, helix_print_prefix.size(), helix_print_prefix) != 0) {
         return std::string::npos;
     }
-    const size_t start = pos + helix_print_prefix.size();
-    return start < path.size() ? start : std::string::npos;
+    return helix_print_prefix.size();
 }
 
 bool is_rewritten_gcode_path(const std::string& path) {
@@ -278,7 +277,13 @@ std::string make_rewritten_gcode_path(const std::string& original_path) {
     std::string name = basename_of(original_path);
     const size_t room = name_max - (staged.size() - staging_dir.size());
     if (name.size() > room) {
-        name = name.substr(name.size() - room); // keep the extension
+        // Keep the extension, and start on a UTF-8 lead byte: a name cut inside
+        // a multibyte character is not a valid filename to upload.
+        size_t start = name.size() - room;
+        while (start < name.size() && (static_cast<unsigned char>(name[start]) & 0xC0) == 0x80) {
+            ++start;
+        }
+        name = name.substr(start);
     }
     return staged + name;
 }

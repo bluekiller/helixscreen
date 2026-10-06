@@ -1821,11 +1821,16 @@ std::string PrintStatusPanel::reprint_filename() const {
     // rewrote is a temp file deleted when the print ends. An identity this
     // session recorded at commit names the original exactly; without one, the
     // report places the original only when it encodes the whole path.
+    // The recorded identity only fills in what the report cannot place: a
+    // report naming another file means another client printed since.
     const auto& print_state = printer_state_.print_state();
-    if (!print_state.get_print_identity_override().empty()) {
-        return print_state.get_effective_print_filename();
+    const std::optional<std::string> reported =
+        helix::gcode::trusted_original_path(current_print_filename_);
+    const std::string& recorded = print_state.get_print_identity_override();
+    if (!recorded.empty() && (!reported || *reported == recorded)) {
+        return recorded;
     }
-    return helix::gcode::trusted_original_path(current_print_filename_).value_or("");
+    return reported.value_or("");
 }
 
 void PrintStatusPanel::handle_reprint_button() {

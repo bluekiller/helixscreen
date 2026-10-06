@@ -146,9 +146,13 @@ TEST_CASE("resolve_gcode_filename() unwraps a HelixPrint plugin symlink path",
           "[filename_utils][identity][reprint]") {
     CHECK(resolve_gcode_filename(".helix_print/parts/benchy.gcode") == "parts/benchy.gcode");
     CHECK(resolve_gcode_filename(".helix_print/benchy.gcode") == "benchy.gcode");
-    CHECK(resolve_gcode_filename("gcodes/.helix_print/a/b.gcode") == "a/b.gcode");
-    // Only the plugin's own directory, as a whole segment.
+    // Only the plugin's own directory, as the leading segment.
     CHECK(resolve_gcode_filename("my.helix_print/b.gcode") == "my.helix_print/b.gcode");
+    CHECK_FALSE(helix::gcode::is_rewritten_gcode_path("models/.helix_print/full/x.gcode"));
+    CHECK(resolve_gcode_filename("models/.helix_print/full/x.gcode") ==
+          "models/.helix_print/full/x.gcode");
+    CHECK(helix::gcode::trusted_original_path("models/.helix_print/full/x.gcode") ==
+          "models/.helix_print/full/x.gcode");
     CHECK(resolve_gcode_filename(".helix_print/") == ".helix_print/");
 
     // A plugin-started print is ours, but its symlink is the plugin's to remove.
@@ -193,6 +197,23 @@ TEST_CASE("make_rewritten_gcode_path() keeps a staged name within NAME_MAX",
     // Too long to carry the path, so it cannot vouch for one.
     CHECK_FALSE(helix::gcode::trusted_original_path(staged));
     CHECK(resolve_gcode_filename(staged) == "benchy.gcode");
+
+    // A cut that falls inside a multibyte character moves to the next one.
+    for (int pad = 0; pad < 3; ++pad) {
+        std::string cjk;
+        for (int i = 0; i < 90; ++i) {
+            cjk += "\xE6\xA8\xA1"; // 模, three bytes
+        }
+        const std::string staged_cjk = helix::gcode::make_rewritten_gcode_path(
+            cjk + std::string(static_cast<size_t>(pad), 'a') + ".gcode");
+        const std::string cut = staged_cjk.substr(std::string(".helix_temp/modified_").size());
+        const std::string kept = cut.substr(cut.find('_') + 1);
+        INFO("pad " << pad);
+        CHECK(staged_cjk.size() - std::string(".helix_temp/").size() <= 255);
+        REQUIRE_FALSE(kept.empty());
+        CHECK((static_cast<unsigned char>(kept[0]) & 0xC0) != 0x80);
+        CHECK(kept.substr(kept.size() - 6) == ".gcode");
+    }
 
     const std::string long_name = std::string(250, 'x') + ".gcode";
     const std::string staged_long = helix::gcode::make_rewritten_gcode_path(long_name);
