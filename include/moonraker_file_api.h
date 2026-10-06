@@ -22,6 +22,7 @@
 #include <chrono>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -236,8 +237,12 @@ class MoonrakerFileAPI : public IFilesAPI {
 
     /**
      * @brief Parse file list response from server.files.list
+     *
+     * @return The entries, or nullopt when memory for them cannot be had (the
+     *         server decides how many there are; on the firmware a container
+     *         that cannot grow aborts the board).
      */
-    std::vector<FileInfo> parse_file_list(const json& response);
+    std::optional<std::vector<FileInfo>> parse_file_list(const json& response);
 
     /**
      * @brief Parse metadata response from server.files.metadata

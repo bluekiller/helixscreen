@@ -27,6 +27,11 @@ bool migrate_config_keys(json& data,
 /// @p preferred and then the first printer object; "" when there is none.
 std::string find_active_printer_key(const json& config, const std::string& preferred = "");
 
+/// The scroll_throw a pre-v27 document keeps: the old shipped default 25 was
+/// written into every config but never chosen by a user, so it becomes
+/// @p platform_default; any other value is the user's and stays.
+int migrated_scroll_throw(int stored, int platform_default);
+
 /// Upgrade @p config from its config_version to CURRENT_CONFIG_VERSION and
 /// stamp it. @p config_path locates sidecar files a migration folds in.
 void run_versioned_migrations(json& config, const std::string& config_path);

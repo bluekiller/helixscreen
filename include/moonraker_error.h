@@ -22,6 +22,7 @@ enum class MoonrakerErrorType {
     NOT_READY,         ///< Klipper not in ready state
     FILE_NOT_FOUND,    ///< Requested file doesn't exist
     PERMISSION_DENIED, ///< Operation not allowed
+    QUEUE_FULL,        ///< Not sent: the transport's request queue was full; retry later
     UNKNOWN            ///< Unknown error
 };
 
@@ -82,6 +83,8 @@ struct MoonrakerError {
             return "FILE_NOT_FOUND";
         case MoonrakerErrorType::PERMISSION_DENIED:
             return "PERMISSION_DENIED";
+        case MoonrakerErrorType::QUEUE_FULL:
+            return "QUEUE_FULL";
         case MoonrakerErrorType::UNKNOWN:
             return "UNKNOWN";
         default:

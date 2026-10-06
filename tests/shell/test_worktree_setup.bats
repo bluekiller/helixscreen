@@ -482,3 +482,109 @@ JSON
     grep -q "\.worktrees/frag/scripts/setup-worktree\.sh" "$wt/build/obj/mainpath.ccj" \
         || fail "fragment was not repointed: $(cat "$wt/build/obj/mainpath.ccj")"
 }
+
+# --- an existing worktree is somebody's -----------------------------------------
+#
+# The default path is .worktrees/<last segment of the branch>, so a new branch
+# can name a tree another session is working in. Every setup step rewrites what
+# it finds there (private submodule patches reset, mtimes synced, build outputs
+# pruned), so an existing directory stops the script unless it is a deliberate
+# --setup-only of the same branch by a session that does not collide with a
+# live claim on it.
+
+# Stamps the existing tree's private submodule so a test can tell whether setup
+# touched it.
+mark_tree() {
+    echo "int wip = 1;" > "$1/lib/lvgl/src/lv_thing.c"
+}
+
+@test "a new branch whose last segment names another branch's worktree is refused untouched" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build fix/shared-name
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    wt="$tmp/main/.worktrees/shared-name"
+    mark_tree "$wt"
+
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build test/shared-name
+    [ "$status" -eq 1 ] || fail "a colliding branch was set up: $output"
+    [[ "$output" == *"already holds branch 'fix/shared-name'"* ]] || fail "no reason given: $output"
+    grep -q "wip" "$wt/lib/lvgl/src/lv_thing.c" || fail "the existing tree's submodule was rewritten"
+    run git -C "$tmp/main" rev-parse --verify --quiet test/shared-name
+    [ "$status" -ne 0 ] || fail "the colliding branch was created anyway"
+    [ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = "fix/shared-name" ]
+    rm -rf "$tmp"
+}
+
+@test "re-running for the same branch without --setup-only is refused untouched" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/again
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    wt="$tmp/main/.worktrees/again"
+    mark_tree "$wt"
+
+    run bash "$tmp/main/scripts/setup-worktree.sh" --no-build feat/again
+    [ "$status" -eq 1 ] || fail "an existing worktree was set up again: $output"
+    [[ "$output" == *"--setup-only"* ]] || fail "no way forward offered: $output"
+    grep -q "wip" "$wt/lib/lvgl/src/lv_thing.c" || fail "the existing tree's submodule was rewritten"
+    rm -rf "$tmp"
+}
+
+@test "--setup-only of the same branch still runs" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/again
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build feat/again
+    [ "$status" -eq 0 ] || fail "a deliberate re-setup was refused: $output"
+    rm -rf "$tmp"
+}
+
+@test "--setup-only of a different branch's worktree is refused" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf"
+    build_fixture_repo "$tmp"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build fix/shared-name
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build test/shared-name
+    [ "$status" -eq 1 ] || fail "set up a tree holding another branch: $output"
+    rm -rf "$tmp"
+}
+
+@test "a live claim by another session refuses even a same-branch --setup-only" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf" HELIX_CLAIM_DIR="$tmp/claims"
+    build_fixture_repo "$tmp"
+    cp scripts/helix-claim "$tmp/main/scripts/"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/held
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    wt="$tmp/main/.worktrees/held"
+    mark_tree "$wt"
+
+    sleep 60 &
+    holder=$!
+    (cd "$tmp/main" && scripts/helix-claim take worktree:held impl --pid "$holder") >/dev/null
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build feat/held
+    kill "$holder"
+    [ "$status" -eq 1 ] || fail "set up a tree another session holds: $output"
+    [[ "$output" == *"another session holds"* ]] || fail "no reason given: $output"
+    grep -q "wip" "$wt/lib/lvgl/src/lv_thing.c" || fail "the held tree's submodule was rewritten"
+    rm -rf "$tmp"
+}
+
+@test "your own claim on the tree does not block a --setup-only" {
+    tmp="$(mktemp -d)"
+    export CCACHE_CONFIGPATH="$tmp/ccache.conf" HELIX_CLAIM_DIR="$tmp/claims"
+    build_fixture_repo "$tmp"
+    cp scripts/helix-claim "$tmp/main/scripts/"
+    run bash "$tmp/main/scripts/setup-worktree.sh" --base HEAD --no-build feat/mine
+    [ "$status" -eq 0 ] || fail "first setup failed: $output"
+    (cd "$tmp/main" && scripts/helix-claim take worktree:mine impl) >/dev/null
+    run bash "$tmp/main/scripts/setup-worktree.sh" --setup-only --no-build feat/mine
+    [ "$status" -eq 0 ] || fail "your own claim blocked you: $output"
+    rm -rf "$tmp"
+}

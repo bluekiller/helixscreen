@@ -37,6 +37,7 @@
 #include "hardware_validator.h"
 #include "helix_version.h"
 #include "http_executor.h"
+#include "input_settings_manager.h"
 #include "job_queue_state.h"
 #include "keyboard_shortcuts.h"
 #include "lan_client_auth_router.h"
@@ -1292,7 +1293,8 @@ bool Application::init_display() {
     config.size_was_explicit = m_args.size_was_explicit;
 
     // Get scroll config from settings.json
-    config.scroll_throw = m_config->get<int>("/input/scroll_throw", 25);
+    config.scroll_throw =
+        m_config->get<int>("/input/scroll_throw", InputSettingsManager::DEFAULT_SCROLL_THROW);
     config.scroll_limit = m_config->get<int>("/input/scroll_limit", 10);
 
     // Allow headless/VNC operation without a touchscreen

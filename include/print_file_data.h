@@ -91,6 +91,10 @@ struct PrintFileData {
     // thumbnail_path. shared_ptr so list sort/merge copies share one PSRAM
     // allocation rather than re-copying image bytes.
     std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail;
+    /// A fetch was started for this file while its card has been on screen:
+    /// in flight, done, or failed. Cleared when the card leaves the screen, so a
+    /// failed thumbnail is tried again only when the card is next shown.
+    bool esp_thumbnail_tried = false;
 #endif
 
     // ========================================================================
