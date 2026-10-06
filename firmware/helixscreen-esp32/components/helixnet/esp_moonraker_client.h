@@ -122,6 +122,9 @@ class EspMoonrakerClient final : public IMoonrakerClient {
 
     // --- Lifetime guard ---
     std::weak_ptr<bool> lifetime_weak() const override;
+    uint64_t connection_generation() const override {
+        return connection_generation_.load();
+    }
 
   private:
     // Reassembly cap: a single WS message larger than this is dropped whole.
