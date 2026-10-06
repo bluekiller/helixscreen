@@ -9,6 +9,7 @@
 #include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
+#include "ui_temperature_utils.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -1460,12 +1461,9 @@ void SpoolWizardOverlay::populate_filament_list() {
         lv_obj_t* temps_label = lv_obj_find_by_name(row, "filament_temps");
         if (temps_label) {
             char temp_buf[32] = {};
-            // Spoolman's single temperature arrives as min == max.
-            if (fil.nozzle_temp_min > 0 && fil.nozzle_temp_max > fil.nozzle_temp_min) {
-                std::snprintf(temp_buf, sizeof(temp_buf), "%d-%d\u00B0C", fil.nozzle_temp_min,
-                              fil.nozzle_temp_max);
-            } else if (fil.nozzle_temp_max > 0) {
-                std::snprintf(temp_buf, sizeof(temp_buf), "%d\u00B0C", fil.nozzle_temp_max);
+            if (fil.nozzle_temp_max > 0) {
+                helix::ui::temperature::format_temperature_range(
+                    fil.nozzle_temp_min, fil.nozzle_temp_max, temp_buf, sizeof(temp_buf));
             }
             lv_label_set_text(temps_label, temp_buf);
         }

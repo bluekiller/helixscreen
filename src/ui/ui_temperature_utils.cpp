@@ -129,7 +129,11 @@ char* format_target_or_off(int target, char* buffer, size_t buffer_size) {
 }
 
 char* format_temperature_range(int min_temp, int max_temp, char* buffer, size_t buffer_size) {
-    snprintf(buffer, buffer_size, "%d-%d°C", min_temp, max_temp);
+    if (min_temp == max_temp || min_temp <= 0) {
+        snprintf(buffer, buffer_size, "%d°C", max_temp);
+    } else {
+        snprintf(buffer, buffer_size, "%d-%d°C", min_temp, max_temp);
+    }
     return buffer;
 }
 

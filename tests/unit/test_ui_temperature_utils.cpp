@@ -627,7 +627,7 @@ TEST_CASE("Temperature Utils: format_temperature_pair_f - float pair formatting"
 }
 
 // ============================================================================
-// format_temperature_range() Tests (NEW - range formatting for AMS)
+// format_temperature_range() Tests
 // ============================================================================
 
 TEST_CASE("Temperature Utils: format_temperature_range - AMS material temps",
@@ -649,14 +649,19 @@ TEST_CASE("Temperature Utils: format_temperature_range - AMS material temps",
         REQUIRE(std::string(buf) == "55-65°C");
     }
 
-    SECTION("Same min and max") {
+    SECTION("Same min and max is one temperature") {
         format_temperature_range(60, 60, buf, sizeof(buf));
-        REQUIRE(std::string(buf) == "60-60°C");
+        REQUIRE(std::string(buf) == "60°C");
+    }
+
+    SECTION("Unset min is one temperature") {
+        format_temperature_range(0, 215, buf, sizeof(buf));
+        REQUIRE(std::string(buf) == "215°C");
     }
 
     SECTION("Zero range") {
         format_temperature_range(0, 0, buf, sizeof(buf));
-        REQUIRE(std::string(buf) == "0-0°C");
+        REQUIRE(std::string(buf) == "0°C");
     }
 }
 
