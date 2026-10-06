@@ -62,6 +62,10 @@ struct DefRowIdentity {
     }
 };
 
+// Bumped by every show(): work queued by one opening must not land on a later
+// one, and a close-then-reopen can reuse the overlay's address.
+uint32_t g_catalog_generation = 0;
+
 struct CatalogState {
     lv_obj_t* overlay_root = nullptr;
     lv_obj_t* backdrop = nullptr;      // Semi-transparent dark backdrop behind the catalog
@@ -711,13 +715,6 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
         if (val >= 0 && val <= 255)
             backdrop_opa = static_cast<lv_opa_t>(val);
     }
-    auto* backdrop = helix::ui::create_fullscreen_backdrop(parent_screen, backdrop_opa);
-    if (backdrop) {
-        // Don't block clicks — let taps on the backdrop close the catalog
-        lv_obj_remove_flag(backdrop, LV_OBJ_FLAG_CLICKABLE);
-        helix::ui::bring_to_front(backdrop);
-    }
-    g_catalog_state.backdrop = backdrop;
 
     // Park the callbacks before anything can fail. GridEditMode has already set
     // catalog_open_ by the time it calls us, and it
@@ -789,6 +786,23 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
 
     // Register with nullptr lifecycle — this overlay is function-based, not class-based
     helix::nav::register_overlay(overlay, nullptr);
+
+    // The backdrop is made by the same queue drain that runs the push below, just
+    // ahead of it, so the screen changes once: made here, it would be drawn in a
+    // frame of its own and the whole screen drawn again when the push lands.
+    const uint32_t generation = ++g_catalog_generation;
+    helix::ui::queue_update("WidgetCatalog::backdrop", [parent_screen, generation, backdrop_opa]() {
+        if (generation != g_catalog_generation || !g_catalog_state.overlay_root ||
+            !lv_obj_is_valid(parent_screen))
+            return;
+        auto* backdrop = helix::ui::create_fullscreen_backdrop(parent_screen, backdrop_opa);
+        if (backdrop) {
+            // Don't block clicks — let taps on the backdrop close the catalog
+            lv_obj_remove_flag(backdrop, LV_OBJ_FLAG_CLICKABLE);
+            helix::ui::bring_to_front(backdrop);
+        }
+        g_catalog_state.backdrop = backdrop;
+    });
 
     // Push onto navigation stack — keep the home panel visible behind the catalog
     helix::nav::push_overlay(overlay, /*hide_previous=*/false);

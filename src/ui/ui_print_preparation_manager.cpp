@@ -687,7 +687,7 @@ std::string PrintPreparationManager::get_temp_directory() const {
 bool PrintPreparationManager::can_modify_gcode() const {
     // Pre-print modifications rewrite the job file, and the plugin is what puts
     // the original filename back in Moonraker's history afterwards. Without it
-    // finished jobs are listed as ".helix_temp/modified_1766807545_name.gcode",
+    // finished jobs are listed as ".helix_temp/modified_1766807545p_name.gcode",
     // so we decline rather than clutter the history.
     return printer_state_ != nullptr &&
            printer_state_->plugin_status_state().service_has_helix_plugin();
@@ -893,27 +893,10 @@ void PrintPreparationManager::start_print(const std::string& filename,
     if (needs_file_modification || needs_macro_params) {
         helix::MemoryMonitor::log_now("print_modification_start", spdlog::level::debug);
         if (!can_modify_gcode()) {
-            spdlog::warn("[PrintPreparationManager] No HelixPrint plugin - skipping modification, "
-                         "printing original file");
-            // Name the features being dropped. "Cannot modify G-code" alone left
-            // the user guessing which of the print dialog's controls it referred
-            // to — #1269 was filed against filament remapping, which does not
-            // touch G-code at all, because the toast fires at the same moment.
-            const std::string dropped = describe_dropped_modifications(ops_to_disable);
+            warn_modifications_need_plugin(ops_to_disable);
             // Clear modifications so we fall through to normal print path
             ops_to_disable.clear();
             macro_skip_params.clear();
-            // Show user notification about skipped modification
-            if (dropped.empty()) {
-                // One reason exists, so state it. Interpolating a reason string
-                // into a translated sentence left the English fragment showing
-                // in every other locale.
-                NOTIFY_WARNING(
-                    lv_tr("Modifying G-code needs the HelixPrint plugin. Printing original file."));
-            } else {
-                NOTIFY_WARNING(lv_tr("{} needs the HelixPrint plugin. Printing original file."),
-                               dropped);
-            }
         } else {
             spdlog::info("[PrintPreparationManager] Modifying G-code server-side: {} file ops, "
                          "{} macro params",
@@ -958,6 +941,15 @@ std::optional<gcode::OperationType> file_embeddable_op_for_id(const std::string&
     return std::nullopt;
 }
 
+// Whether turning this option off may strip its op out of the sliced file. Not
+// when a self-storing firmware holds the option's value (supplied through
+// preprint_prefs::read_persisted_defaults()): that firmware skips the file's
+// own command when its setting is off, so the option only drives its
+// pre-start line. Every other option may.
+bool option_may_strip_file(const PrePrintOption& opt) {
+    return !opt.default_from_firmware;
+}
+
 // Transfer callbacks run on the HTTP thread. BusyOverlay is process-wide, so
 // these updates belong to no object and still run if the manager is gone.
 void queue_busy_hide() {
@@ -978,11 +970,19 @@ std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disabl
     // State resolution flows through the new framework via get_option_state(id).
     for (const char* id : {"bed_mesh", "qgl", "z_tilt", "nozzle_clean"}) {
         const std::optional<gcode::OperationType> op = file_embeddable_op_for_id(id);
-        if (get_option_state(id) == PrePrintOptionState::DISABLED &&
-            cached_scan_result_->has_operation(*op)) {
-            ops_to_disable.push_back(*op);
-            spdlog::debug("[PrintPreparationManager] User disabled '{}', file has it embedded", id);
+        if (get_option_state(id) != PrePrintOptionState::DISABLED ||
+            !cached_scan_result_->has_operation(*op)) {
+            continue;
         }
+        const PrePrintOption* opt = get_cached_options().find(id);
+        if (opt && !option_may_strip_file(*opt)) {
+            spdlog::debug("[PrintPreparationManager] '{}' is gated by the firmware's stored "
+                          "setting, leaving the file's embedded op alone",
+                          id);
+            continue;
+        }
+        ops_to_disable.push_back(*op);
+        spdlog::debug("[PrintPreparationManager] User disabled '{}', file has it embedded", id);
     }
 
     return ops_to_disable;
@@ -995,7 +995,8 @@ bool PrintPreparationManager::disabling_option_requires_plugin(const PrePrintOpt
     //     embedded in the currently-scanned file?
     const std::optional<gcode::OperationType> embedded_op = file_embeddable_op_for_id(opt.id);
     const bool file_embedded = embedded_op.has_value() && cached_scan_result_.has_value() &&
-                               cached_scan_result_->has_operation(*embedded_op);
+                               cached_scan_result_->has_operation(*embedded_op) &&
+                               option_may_strip_file(opt);
 
     // (b) is the MacroParam skip-rewrite path. If neither (a) nor a MacroParam
     //     skip is in play, nothing about this option needs the plugin.
@@ -1003,30 +1004,40 @@ bool PrintPreparationManager::disabling_option_requires_plugin(const PrePrintOpt
         return false;
     }
 
-    // Would start_print() short-circuit into a plugin-free pre-start path BEFORE
-    // reaching can_modify_gcode()? That happens when a pre-start
-    // gcode block is emitted:
-    //   - printer-level setup_gcode fires (it is gated on a MacroParam skip
-    //     being present — see emit_printer_setup in start_print()), OR
-    //   - any per-option PreStartGcode line is present.
-    // In that path, embedded-op removal goes through modify_and_print (streaming,
-    // no capability check) and the MacroParam skip is handled by the native
-    // setup_gcode macro — so the plugin is NOT required. This is exactly the K2
-    // Plus PREPARE case (MacroParam bed_mesh + setup_gcode): it must stay visible
-    // even without the plugin. Note this makes (a) narrower than "file-embedded
-    // always needs the plugin": a printer with a pre-start mechanism strips the
-    // embedded op without one.
+    // Does disabling it still do something without the plugin? A PreStartGcode
+    // option always emits its own line. A MacroParam skip rides a pre-start
+    // block: printer-level setup_gcode (gated on a MacroParam skip, see
+    // emit_printer_setup in start_print()) or any PreStartGcode line. This is
+    // the K2 Plus PREPARE case (MacroParam bed_mesh + setup_gcode), which must
+    // stay visible without the plugin.
     const auto& option_set = get_cached_options();
-    const bool setup_gcode_fires = is_macro_param && !option_set.setup_gcode.empty();
-    const bool pre_start_lines_present = !collect_pre_start_gcode_lines().empty();
-    if (setup_gcode_fires || pre_start_lines_present) {
+    const bool pre_start_block =
+        !option_set.setup_gcode.empty() || !collect_pre_start_gcode_lines().empty();
+    if (opt.strategy_kind == PrePrintStrategyKind::PreStartGcode ||
+        (is_macro_param && pre_start_block)) {
         return false;
     }
 
-    // No short-circuit: start_print() reaches can_modify_gcode(),
-    // which warns "Requires HelixPrint plugin" and drops the modification when
-    // the plugin is absent. So disabling this option genuinely needs the plugin.
+    // Left: an embedded-op strip or a MacroParam rewrite of the START_PRINT
+    // call, both of which every start path drops when the plugin is absent.
     return true;
+}
+
+void PrintPreparationManager::warn_modifications_need_plugin(
+    const std::vector<gcode::OperationType>& ops_to_disable) const {
+    spdlog::warn("[PrintPreparationManager] No HelixPrint plugin - skipping modification, "
+                 "printing original file");
+    // Name the features being dropped: "Cannot modify G-code" alone leaves the
+    // user guessing which of the print dialog's controls it refers to (#1269).
+    const std::string dropped = describe_dropped_modifications(ops_to_disable);
+    if (dropped.empty()) {
+        // A fixed sentence rather than an interpolated reason, so no English
+        // fragment shows up in other locales.
+        NOTIFY_WARNING(
+            lv_tr("Modifying G-code needs the HelixPrint plugin. Printing original file."));
+    } else {
+        NOTIFY_WARNING(lv_tr("{} needs the HelixPrint plugin. Printing original file."), dropped);
+    }
 }
 
 // Translated, comma-joined names of the features a dropped modification would
@@ -1372,9 +1383,12 @@ void PrintPreparationManager::continue_print_start(
         }
     }
 
-    if (!ops_to_disable.empty()) {
+    if (ops_to_disable.empty()) {
+        start_print_directly(filename, on_navigate_to_status, on_completion);
+    } else if (can_modify_gcode()) {
         modify_and_print(filename, ops_to_disable, {}, on_navigate_to_status);
     } else {
+        warn_modifications_need_plugin(ops_to_disable);
         start_print_directly(filename, on_navigate_to_status, on_completion);
     }
 }
@@ -1581,7 +1595,7 @@ void PrintPreparationManager::modify_and_print_streaming(
     // Generate unique temp file paths
     auto timestamp = std::to_string(std::time(nullptr));
     std::string local_download_path = temp_dir + "/helix_download_" + timestamp + ".gcode";
-    std::string remote_temp_path = gcode::make_rewritten_gcode_path(display_filename);
+    std::string remote_temp_path = gcode::make_rewritten_gcode_path(file_path);
 
     spdlog::info("[PrintPreparationManager] Streaming modification: downloading to {}",
                  local_download_path);
@@ -1856,7 +1870,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
         return;
     }
 
-    const std::string remote_temp_path = gcode::make_rewritten_gcode_path(display_filename);
+    const std::string remote_temp_path = gcode::make_rewritten_gcode_path(file_path);
 
     spdlog::info("[PrintPreparationManager] Remap modification: {} tool mapping(s), downloading {}",
                  remap.size(), file_path);

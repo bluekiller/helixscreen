@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "sensor_enum_names.h"
+
 #include <optional>
 #include <string>
 
@@ -35,18 +37,13 @@ struct LoadCellState {
     bool available = false;                      ///< Sensor available in current config
 };
 
-/// @brief Convert role enum to config string
-/// @param role The role to convert
-/// @return Config-safe string for JSON storage
+inline constexpr EnumName<LoadCellRole> kLoadCellRoles[] = {
+    {LoadCellRole::NONE, "none", "Unassigned"},
+    {LoadCellRole::SPOOL_WEIGHT, "spool_weight", "Spool Weight"},
+};
+
 [[nodiscard]] inline std::string load_cell_role_to_string(LoadCellRole role) {
-    switch (role) {
-    case LoadCellRole::NONE:
-        return "none";
-    case LoadCellRole::SPOOL_WEIGHT:
-        return "spool_weight";
-    default:
-        return "none";
-    }
+    return enum_id(kLoadCellRoles, role);
 }
 
 } // namespace helix::sensors

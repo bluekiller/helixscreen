@@ -5,10 +5,10 @@
 
 #include "async_lifetime_guard.h"
 #include "lvgl.h"
+#include "sensor_collection.h"
 #include "subject_managed_panel.h"
 #include "width_sensor_types.h"
 
-#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -237,19 +237,6 @@ class WidthSensorManager {
                             WidthSensorType& type) const;
 
     /**
-     * @brief Find config by Klipper name
-     * @return Pointer to config, or nullptr if not found
-     */
-    WidthSensorConfig* find_config(const std::string& klipper_name);
-    const WidthSensorConfig* find_config(const std::string& klipper_name) const;
-
-    /**
-     * @brief Find config by assigned role
-     * @return Pointer to config, or nullptr if no sensor has this role
-     */
-    const WidthSensorConfig* find_config_by_role(WidthSensorRole role) const;
-
-    /**
      * @brief Update all LVGL subjects from current state
      * @note Internal method - MUST only be called from main LVGL thread
      */
@@ -258,11 +245,7 @@ class WidthSensorManager {
     // Recursive mutex for thread-safe state access
     mutable std::recursive_mutex mutex_;
 
-    // Configuration
-    std::vector<WidthSensorConfig> sensors_;
-
-    // Runtime state (keyed by klipper_name)
-    std::map<std::string, WidthSensorState> states_;
+    SensorCollection<WidthSensorConfig, WidthSensorState> sensors_;
 
     // Test mode: when true, update_from_status() calls update_subjects() synchronously
     bool sync_mode_ = false;

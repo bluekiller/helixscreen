@@ -641,7 +641,7 @@ void BedMeshPanel::ensure_async_rendering() {
     }
 
     lv_obj_invalidate(canvas_);
-    ui_bed_mesh_request_async_render(canvas_);
+    ui_bed_mesh_redraw(canvas_);
 }
 
 void BedMeshPanel::on_deactivating(DeactivateReason) {

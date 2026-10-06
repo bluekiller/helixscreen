@@ -142,6 +142,11 @@ class TempGraphController {
     /// Resume updates and backfill any missed history
     void resume();
 
+    /// True between pause() and resume()
+    bool paused() const {
+        return paused_;
+    }
+
     /**
      * @brief Re-read history from the manager and repopulate every series.
      *

@@ -46,9 +46,7 @@ void LoadCellManager::discover(const std::vector<std::string>& klipper_objects) 
         spdlog::debug("[LoadCellManager] Discovering load cells from {} objects",
                       klipper_objects.size());
 
-        // Clear existing sensors
-        sensors_.clear();
-
+        std::vector<LoadCellConfig> discovered;
         for (const auto& klipper_name : klipper_objects) {
             const auto sensor_name = parse_klipper_name(klipper_name);
             if (!sensor_name) {
@@ -69,43 +67,11 @@ void LoadCellManager::discover(const std::vector<std::string>& klipper_objects) 
                 config.priority = 100;
             }
 
-            sensors_.push_back(config);
-
-            // Initialize state if not already present
-            if (states_.find(klipper_name) == states_.end()) {
-                LoadCellState state;
-                state.available = true;
-                states_[klipper_name] = state;
-            } else {
-                states_[klipper_name].available = true;
-            }
-
             spdlog::debug("[LoadCellManager] Discovered sensor: {} (role: {}, priority: {})",
                           *sensor_name, load_cell_role_to_string(config.role), config.priority);
+            discovered.push_back(std::move(config));
         }
-
-        // Mark sensors that disappeared as unavailable
-        for (auto& [name, state] : states_) {
-            bool found = false;
-            for (const auto& sensor : sensors_) {
-                if (sensor.klipper_name == name) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                state.available = false;
-            }
-        }
-
-        // Remove stale entries to prevent unbounded memory growth
-        for (auto it = states_.begin(); it != states_.end();) {
-            if (!it->second.available) {
-                it = states_.erase(it);
-            } else {
-                ++it;
-            }
-        }
+        sensors_.reconcile(std::move(discovered));
 
         // Update sensor count subject
         if (subjects_initialized_) {
@@ -134,7 +100,7 @@ void LoadCellManager::update_from_status(const nlohmann::json& status) {
             }
 
             const auto& sensor_data = status[key];
-            auto& state = states_[sensor.klipper_name];
+            auto& state = sensors_.state_at(sensor.klipper_name);
             LoadCellState old_state = state;
 
             // Field-restricted Moonraker subscriptions send null for fields the
@@ -222,7 +188,6 @@ void LoadCellManager::deinit_subjects() {
         // Clear all collections under mutex to prevent background thread access
         // to stale iterators during shutdown race
         sensors_.clear();
-        states_.clear();
 
         subjects_.deinit_all();
         subjects_initialized_ = false;
@@ -236,17 +201,14 @@ void LoadCellManager::deinit_subjects() {
 // ============================================================================
 
 bool LoadCellManager::has_spool_weight_load_cell() const {
-    if (find_config_by_role(LoadCellRole::SPOOL_WEIGHT)) {
-        return true;
-    }
-
-    return false;
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return sensors_.find_by_role(LoadCellRole::SPOOL_WEIGHT) != nullptr;
 }
 
 std::vector<LoadCellConfig> LoadCellManager::get_sensors_sorted() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto sorted = sensors_;
+    auto sorted = sensors_.configs();
     std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
         if (a.priority != b.priority) {
             return a.priority < b.priority;
@@ -294,17 +256,6 @@ LoadCellManager::parse_klipper_name(const std::string& klipper_name) const {
     return std::nullopt;
 }
 
-const LoadCellConfig* LoadCellManager::find_config_by_role(LoadCellRole role) const {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    for (const auto& load_cell : sensors_) {
-        if (load_cell.role == role) {
-            return &load_cell;
-        }
-    }
-    return nullptr;
-}
-
 void LoadCellManager::update_subjects() {
     if (!subjects_initialized_) {
         return;
@@ -314,14 +265,10 @@ void LoadCellManager::update_subjects() {
     {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-        const auto& spool_weight_config = find_config_by_role(LoadCellRole::SPOOL_WEIGHT);
-        if (spool_weight_config) {
-            auto it = states_.find(spool_weight_config->klipper_name);
-            if (it == states_.end() || !it->second.available) {
-                // Sensor transiently unavailable.
-            } else {
-                spool_weight = it->second.force_g;
-            }
+        // A transiently unavailable sensor publishes nothing.
+        const auto* state = sensors_.role_state(LoadCellRole::SPOOL_WEIGHT);
+        if (state && state->available) {
+            spool_weight = state->force_g;
         }
     }
 

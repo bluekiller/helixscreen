@@ -566,7 +566,9 @@ class PrintStatusPanel : public OverlayBase {
     void recompute_paused_overlay_visibility();
     void handle_tune_button();
     void handle_reprint_button(); ///< Reprint the cancelled file
-    void handle_files_click();    ///< Open print select while this overlay holds the screen
+    /// The file Reprint starts: the original, never a rewritten temp copy.
+    [[nodiscard]] std::string reprint_filename() const;
+    void handle_files_click(); ///< Open print select while this overlay holds the screen
     void handle_resize();
 
     /// @brief Tool indices used by the currently-loaded G-code (for U1 native pre-send).

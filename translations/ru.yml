@@ -2218,6 +2218,7 @@ translations:
   Options: Параметры
   Or Enter Manually: Или введите вручную
   Or instead of turning the others: Или вместо вращения остальных винтов
+  Original file location unknown: Расположение исходного файла неизвестно
   Oscillating... cycle %d/%d: Осцилляция... цикл %d/%d
   Outcome: Результат
   Output Device: Устройство вывода
@@ -2445,7 +2446,6 @@ translations:
   Printer command '{}' timed out after {}ms: Время ожидания команды принтера '{}' истекло через {} мс
   Printer connection unavailable: Подключение к принтеру недоступно
   Printer database format error: Ошибка формата базы данных принтеров
-  Printer database is corrupt: База данных принтеров повреждена
   Printer default: По умолчанию для принтера
   Printer didn't respond — make sure it's on and in range: Принтер не ответил — убедитесь,
     что он включён и в зоне доступа

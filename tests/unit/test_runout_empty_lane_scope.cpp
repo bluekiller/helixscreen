@@ -83,7 +83,6 @@ class RunoutScopeTestAccess {
     static void reset(helix::FilamentSensorManager& mgr) {
         std::lock_guard<std::recursive_mutex> lock(mgr.mutex_);
         mgr.sensors_.clear();
-        mgr.states_.clear();
         mgr.master_enabled_ = true;
         mgr.sync_mode_ = true;
         mgr.initial_status_received_ = false;

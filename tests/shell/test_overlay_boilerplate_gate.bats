@@ -36,6 +36,17 @@ CPP
     contains "'static_unique': 0" "$output"
 }
 
+@test "a user-facing string and a function returning unique_ptr are not counted" {
+    cat > "$ROOT/src/ui/demo.cpp" <<'CPP'
+static std::unique_ptr<Geometry>
+build_geometry(const File& file) { return nullptr; }
+void f() { toast(lv_tr("Vendor already exists")); }
+CPP
+    run python3 "$GATE" --repo-root "$ROOT"
+    contains "'already_exists': 0" "$output"
+    contains "'static_unique': 0" "$output"
+}
+
 @test "the baseline fails growth and passes a hold" {
     printf 'already_exists=1\nstatic_unique=1\n' > "$ROOT/baseline.txt"
     cat > "$ROOT/src/ui/demo.cpp" <<'CPP'

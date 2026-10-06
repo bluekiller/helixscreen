@@ -87,6 +87,11 @@ class PrinterProfileState {
     /// one setting is silent about the rest. @return true when any changed
     bool merge_firmware_option_defaults(const std::map<std::string, bool>& defaults);
 
+    /// Forget the stored settings, when the connected machine changes. Options
+    /// they overrode get their database defaults back;
+    /// the caller re-runs apply_dynamic_options(). @return true when any were held
+    bool clear_firmware_option_defaults();
+
     const std::string& printer_type() const {
         return printer_type_;
     }

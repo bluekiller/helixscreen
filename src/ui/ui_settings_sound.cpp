@@ -72,7 +72,6 @@ void SoundSettingsOverlay::register_callbacks() {
 void SoundSettingsOverlay::on_activate() {
     OverlayBase::on_activate();
 
-    init_sounds_toggle();
     init_volume_slider();
     init_sound_theme_dropdown();
     init_audio_device_dropdown();
@@ -87,17 +86,6 @@ void SoundSettingsOverlay::on_activate() {
 // ============================================================================
 // INIT METHODS
 // ============================================================================
-
-void SoundSettingsOverlay::init_sounds_toggle() {
-    lv_obj_t* row = find_required(overlay_root_, "row_sounds", get_name());
-    if (lv_obj_t* toggle = find_required(row, "toggle", get_name())) {
-        if (AudioSettingsManager::instance().get_sounds_enabled()) {
-            lv_obj_add_state(toggle, LV_STATE_CHECKED);
-        } else {
-            lv_obj_remove_state(toggle, LV_STATE_CHECKED);
-        }
-    }
-}
 
 void SoundSettingsOverlay::init_volume_slider() {
     lv_obj_t* row = find_required(overlay_root_, "row_volume", get_name());

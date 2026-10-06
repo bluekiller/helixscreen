@@ -3230,23 +3230,15 @@ void FilamentPanel::show_unload_warning() {
 // GLOBAL INSTANCE (needed by main.cpp)
 // ============================================================================
 
-static std::unique_ptr<FilamentPanel> g_filament_panel;
-
 FilamentPanel& get_global_filament_panel() {
-    if (!g_filament_panel) {
-        g_filament_panel = std::make_unique<FilamentPanel>(get_printer_state(), nullptr);
-        StaticPanelRegistry::instance().register_destroy("FilamentPanel",
-                                                         []() { g_filament_panel.reset(); });
-    }
-    return *g_filament_panel;
+    return helix::lazy_global<FilamentPanel>("FilamentPanel", get_printer_state(), nullptr);
 }
 
 void filament_panel_report_unknown_command(const std::string& command) {
-    // Reads g_filament_panel directly rather than going through
-    // get_global_filament_panel(): the caller is GcodeNarrationRouter on a
+    // Does not go through get_global_filament_panel(): the caller is GcodeNarrationRouter on a
     // gcode-response line, and a console message must not be what causes a panel
     // to be constructed.
-    if (g_filament_panel) {
-        g_filament_panel->fail_op_on_unknown_command(command);
+    if (auto* panel = helix::lazy_global_if_exists<FilamentPanel>()) {
+        panel->fail_op_on_unknown_command(command);
     }
 }
