@@ -43,6 +43,12 @@ class WifiApSteering {
     static constexpr int64_t AVOID_MS = 30 * 60'000;
     /// An alternative weaker than this is not worth moving to.
     static constexpr int MIN_RSSI = -85;
+    /// An alternative may be at most this much weaker than the current access
+    /// point. Stalls on the printer's side count too, so this keeps a run of
+    /// printer restarts from moving a strong link to a marginal one.
+    static constexpr int MAX_RSSI_LOSS_DB = 10;
+    /// A steering scan that has not completed within this long is abandoned.
+    static constexpr int64_t SCAN_REQUEST_TTL_MS = 30'000;
 
     void on_associated(const Bssid& bssid);
 
@@ -50,8 +56,17 @@ class WifiApSteering {
     ///         call pick_alternative() with what the scan saw.
     bool on_link_drop(int64_t now_ms, int64_t silence_ms);
 
+    /// The scan on_link_drop() asked for has started.
+    void scan_started(int64_t now_ms);
+
+    /// @return true when a completed scan answers a pending steering request,
+    ///         which it then clears. Any other scan steers nothing.
+    bool take_scan_request(int64_t now_ms);
+
     /// Marks the current access point avoided and returns the strongest other
-    /// candidate that is not avoided; nullopt means stay.
+    /// candidate that is not avoided, clears MIN_RSSI and is within
+    /// MAX_RSSI_LOSS_DB of the current access point when the scan saw it;
+    /// nullopt means stay.
     std::optional<Bssid> pick_alternative(const std::vector<Candidate>& seen, int64_t now_ms);
 
     int stalled_drops() const {
@@ -71,6 +86,7 @@ class WifiApSteering {
     bool associated_ = false;
     int stalled_drops_ = 0;
     int64_t first_drop_ms_ = 0;
+    std::optional<int64_t> scan_requested_ms_;
     std::vector<Avoided> avoided_;
 };
 

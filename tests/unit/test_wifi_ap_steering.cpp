@@ -109,18 +109,53 @@ TEST_CASE("AP steering: an abandoned AP is skipped, then used again once it reco
     WifiApSteering s;
     s.on_associated(AP_A);
     stall_out(s, 0);
-    REQUIRE(s.pick_alternative({{AP_A, -60}, {AP_B, -74}}, 100'000) == AP_B);
+    REQUIRE(s.pick_alternative({{AP_A, -70}, {AP_B, -74}}, 100'000) == AP_B);
 
     // B stalls too while A is still avoided: nowhere better to go.
     s.on_associated(AP_B);
     stall_out(s, 200'000);
-    CHECK_FALSE(s.pick_alternative({{AP_A, -60}, {AP_B, -74}}, 300'000).has_value());
+    CHECK_FALSE(s.pick_alternative({{AP_A, -70}, {AP_B, -74}}, 300'000).has_value());
 
     // Long after A was abandoned it is eligible again.
     stall_out(s, 300'000 + WifiApSteering::AVOID_MS);
-    auto pick = s.pick_alternative({{AP_A, -60}, {AP_B, -74}}, 400'000 + WifiApSteering::AVOID_MS);
+    auto pick = s.pick_alternative({{AP_A, -70}, {AP_B, -74}}, 400'000 + WifiApSteering::AVOID_MS);
     REQUIRE(pick.has_value());
     CHECK(*pick == AP_A);
+}
+
+TEST_CASE("AP steering: an alternative much weaker than the current AP is not picked",
+          "[wifi][steering]") {
+    // Stalls caused by the printer side (a reboot, a busy Moonraker) count too,
+    // so they must not be able to move a strong link to a marginal one.
+    WifiApSteering s;
+    s.on_associated(AP_A);
+    stall_out(s, 0);
+    const int margin = WifiApSteering::MAX_RSSI_LOSS_DB;
+    CHECK_FALSE(s.pick_alternative({{AP_A, -45}, {AP_B, -45 - margin - 1}}, 100'000).has_value());
+
+    stall_out(s, 200'000);
+    auto pick = s.pick_alternative({{AP_A, -45}, {AP_B, -45 - margin}}, 300'000);
+    REQUIRE(pick.has_value());
+    CHECK(*pick == AP_B);
+}
+
+TEST_CASE("AP steering: only a scan started for steering, and still recent, answers it",
+          "[wifi][steering]") {
+    WifiApSteering s;
+    s.on_associated(AP_A);
+    // No request: an unrelated scan (the WiFi settings list) steers nothing.
+    CHECK_FALSE(s.take_scan_request(0));
+
+    stall_out(s, 0);
+    s.scan_started(100'000);
+    CHECK(s.take_scan_request(103'000));
+    // Answered once.
+    CHECK_FALSE(s.take_scan_request(104'000));
+
+    // A request whose scan never completed expires.
+    s.scan_started(200'000);
+    CHECK_FALSE(s.take_scan_request(200'000 + WifiApSteering::SCAN_REQUEST_TTL_MS + 1));
+    CHECK_FALSE(s.take_scan_request(200'000 + WifiApSteering::SCAN_REQUEST_TTL_MS + 2));
 }
 
 TEST_CASE("AP steering: formats a BSSID for the log", "[wifi][steering]") {

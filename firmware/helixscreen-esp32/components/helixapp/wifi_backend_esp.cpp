@@ -505,7 +505,11 @@ class WifiBackendEsp : public WifiBackend {
 
     // Access point associations are held to after steering away from a
     // stalling one; guarded by cfg_mutex_. After PINNED_JOIN_ATTEMPTS
-    // unrequested disconnects it is dropped and the station joins by signal.
+    // unrequested disconnects in a row it is dropped and the station joins by
+    // signal. That join cannot honour the avoid list: the driver can be held
+    // to one BSSID but cannot exclude one, and finding another first would
+    // need a scan before every rejoin. Landing back on an avoided access point
+    // that still stalls starts the next run of stalled drops.
     std::optional<helix::WifiApSteering::Bssid> pinned_bssid_;
     int pinned_join_failures_ = 0;
 
@@ -517,10 +521,8 @@ class WifiBackendEsp : public WifiBackend {
     std::mutex steering_mutex_;
     helix::WifiApSteering steering_;
     std::optional<std::vector<helix::WifiApSteering::Candidate>> scanned_candidates_;
-    // A link-drop asked for a scan; the next completed scan answers it.
-    std::atomic<bool> steer_scan_pending_{false};
 
-    int retry_count_ = 0;
+    std::atomic<int> retry_count_{0};
     esp_timer_handle_t assoc_timeout_timer_ = nullptr;
     esp_timer_handle_t retry_timer_ = nullptr;
 
@@ -647,7 +649,7 @@ class WifiBackendEsp : public WifiBackend {
         if (!retry_timer_ || !has_ssid_configured()) {
             return;
         }
-        int shift = std::min(retry_count_, RETRY_BACKOFF_MAX_SHIFT);
+        int shift = std::min(retry_count_.load(), RETRY_BACKOFF_MAX_SHIFT);
         uint64_t backoff_us =
             std::min<uint64_t>(RETRY_BACKOFF_FLOOR_US << shift, RETRY_BACKOFF_CAP_US);
         esp_timer_stop(retry_timer_);
@@ -679,6 +681,8 @@ class WifiBackendEsp : public WifiBackend {
             // Associated (pre-DHCP) — cancel the assoc-timeout; GOT_IP (or a
             // later disconnect) resolves the attempt from here.
             self->cancel_assoc_timeout();
+            // A disconnect we expected and never got must not swallow the next real one.
+            self->own_disconnect_pending_.store(false);
             if (data) {
                 helix::WifiApSteering::Bssid bssid{};
                 std::memcpy(bssid.data(), static_cast<wifi_event_sta_connected_t*>(data)->bssid,
@@ -768,6 +772,10 @@ class WifiBackendEsp : public WifiBackend {
         cancel_assoc_timeout();
         explicit_connect_pending_.store(false);
         retry_count_ = 0;
+        {
+            std::lock_guard<std::mutex> lock(cfg_mutex_);
+            pinned_join_failures_ = 0;
+        }
 
         char ip_str[16] = {};
         if (event) {
@@ -852,13 +860,21 @@ class WifiBackendEsp : public WifiBackend {
         if (!leave) {
             return;
         }
-        steer_scan_pending_.store(true);
+        // Recorded before the start so a fast SCAN_DONE still finds it.
+        {
+            std::lock_guard<std::mutex> lock(steering_mutex_);
+            steering_.scan_started(esp_timer_get_time() / 1000);
+        }
         wifi_scan_config_t scan_cfg = {};
         esp_err_t rc = esp_wifi_scan_start(&scan_cfg, false);
         if (rc == ESP_OK) {
             spdlog::info("[WifiBackend] esp32: scanning for another access point than {}", bssid);
         } else {
-            // A scan already running answers the pending request when it completes.
+            {
+                std::lock_guard<std::mutex> lock(steering_mutex_);
+                steering_.take_scan_request(esp_timer_get_time() / 1000);
+            }
+            // The next stalled drop asks again.
             spdlog::warn("[WifiBackend] esp32: scan for another access point not started: {}",
                          esp_err_to_name(rc));
         }
@@ -916,7 +932,9 @@ class WifiBackendEsp : public WifiBackend {
             pinned_bssid_ = *pick;
             pinned_join_failures_ = 0;
         }
-        if (esp_wifi_disconnect() == ESP_OK) {
+        wifi_ap_record_t ap_info = {};
+        const bool associated = esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK;
+        if (esp_wifi_disconnect() == ESP_OK && associated) {
             own_disconnect_pending_.store(true);
         }
         apply_wifi_config_locked();
@@ -935,7 +953,12 @@ class WifiBackendEsp : public WifiBackend {
             esp_wifi_scan_get_ap_records(&num, records.data());
         }
 
-        if (steer_scan_pending_.exchange(false)) {
+        bool steering_scan = false;
+        {
+            std::lock_guard<std::mutex> lock(steering_mutex_);
+            steering_scan = steering_.take_scan_request(esp_timer_get_time() / 1000);
+        }
+        if (steering_scan) {
             collect_steering_candidates(records);
         }
 
