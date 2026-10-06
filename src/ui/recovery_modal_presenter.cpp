@@ -50,7 +50,7 @@ constexpr uint32_t PREHEAT_TIMEOUT_MS = 300000;
 constexpr int TEMP_THRESHOLD_C = 5;
 
 int nozzle_current_c() {
-    auto* subj = get_printer_state().get_active_extruder_temp_subject();
+    auto* subj = get_printer_state().temperature_state().get_active_extruder_temp_subject();
     return subj ? helix::ui::temperature::deci_to_degrees(lv_subject_get_int(subj)) : 0;
 }
 
@@ -289,8 +289,8 @@ int RecoveryModalPresenter::resolve_preheat_target() const {
     //    this gate covers. Same value TemperatureController floors against for
     //    keep_previous_hot, so a deferred recovery reheats to where the failed
     //    operation was running rather than to a guess.
-    int target = static_cast<int>(
-        std::lround(get_printer_state().get_active_extruder_last_nonzero_target()));
+    int target = static_cast<int>(std::lround(
+        get_printer_state().temperature_state().get_active_extruder_last_nonzero_target()));
 
     // 2. Nothing latched (the operation failed before it ever heated, or this is
     //    a fresh session): ask the loaded filament. get_active_material() is the

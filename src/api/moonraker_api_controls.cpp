@@ -212,7 +212,7 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
     // CONNECTION_LOST (#909).
     {
         const bool connected = client_.get_connection_state() == helix::ConnectionState::CONNECTED;
-        const int klippy = lv_subject_get_int(state_.get_klippy_state_subject());
+        const int klippy = lv_subject_get_int(state_.network_state().get_klippy_state_subject());
         if (connected && (klippy == static_cast<int>(helix::KlippyState::SHUTDOWN) ||
                           klippy == static_cast<int>(helix::KlippyState::ERROR))) {
             if (!silent) {
@@ -260,7 +260,8 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
     // bypass_busy_gate is for the print-launch send: its on_success chains the
     // job launch, so queueing it fire-and-forget would orphan the print start.
     if (!bypass_busy_gate && helix::is_discretionary_gcode(gcode) &&
-        (state_.is_external_blocking_operation_active() || state_.is_in_print_start())) {
+        (state_.is_external_blocking_operation_active() ||
+         state_.print_state().is_in_print_start())) {
         // A physical MOVE must never queue behind the blocking op: a jog that fires
         // minutes late, after the user has walked away, can crash the toolhead.
         // Refuse it up front (recovery/homing are non-discretionary and never reach
@@ -333,7 +334,7 @@ void MoonrakerAPI::execute_gcode(const std::string& gcode, SuccessCallback on_su
         // predicates deliberately do not read it — narrowing them would let a
         // late jog through during a filament op (#1108).
         if (!silent && !state_.app_macro_activity().recently_active() &&
-            state_.claim_busy_queue_toast()) {
+            state_.calibration_state().claim_busy_queue_toast()) {
             NOTIFY_INFO("Printer is busy — your {} will run when it's ready.",
                         helix::discretionary_gcode_noun(gcode));
         }
@@ -700,7 +701,7 @@ void MoonrakerAPI::update_safety_limits_from_printer(SuccessCallback on_success,
                 if (endstop_val.is_number()) {
                     double endstop = endstop_val.get<double>();
                     int microns = static_cast<int>(endstop * 1000.0);
-                    state_.set_stepper_z_endstop_microns(microns);
+                    state_.capabilities_state().set_stepper_z_endstop_microns(microns);
                     spdlog::debug(
                         "[Moonraker API] stepper_z position_endstop: {:.3f}mm ({} microns)",
                         endstop, microns);

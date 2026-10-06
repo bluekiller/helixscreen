@@ -21,6 +21,7 @@
 #include "printer_discovery.h"
 #include "printer_state.h"
 #include "static_subject_registry.h"
+#include "status_dispatch.h"
 #include "text_io.h"
 
 #include <spdlog/spdlog.h>
@@ -113,7 +114,7 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
     // Prevents toggle buttons staying greyed forever when a WebSocket drop
     // arrives while an LED command ACK is pending.
     conn_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_printer_connection_state_subject(), this,
+        get_printer_state().network_state().get_printer_connection_state_subject(), this,
         [](LedController* self, int state) {
             if (state != static_cast<int>(helix::ConnectionState::CONNECTED)) {
                 self->force_clear_in_flight();
@@ -130,7 +131,7 @@ void LedController::init(IMoonrakerAPI* api, IMoonrakerClient* client) {
     // force_clear_in_flight() is a no-op at count 0, so a simultaneous
     // disconnect firing both observers is harmless.
     klippy_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_klippy_state_subject(), this,
+        get_printer_state().network_state().get_klippy_state_subject(), this,
         [](LedController* self, int state) {
             if (state != static_cast<int>(helix::KlippyState::READY)) {
                 self->force_clear_in_flight();
@@ -1304,7 +1305,7 @@ void OutputPinBackend::set_brightness(const std::string& pin_id, int brightness_
               silent);
 }
 
-// Called from UI thread (via UpdateQueue dispatch in printer_state.cpp)
+// Called from UI thread (via dispatch_status_frame in moonraker_manager.cpp)
 bool OutputPinBackend::update_from_status(const nlohmann::json& status) {
     bool carried = false;
     for (const auto& pin : pins_) {
@@ -1976,18 +1977,20 @@ void LedController::query_led_state() {
     if (!client_) {
         return;
     }
-    client_->send_jsonrpc(
-        "printer.objects.query", {{"objects", query_objects}}, [](const nlohmann::json& response) {
-            if (!response.contains("result") || !response["result"].contains("status")) {
-                spdlog::warn("[LedController] query_led_state: no result/status in response");
-                return;
-            }
-            const auto& status = response["result"]["status"];
-            spdlog::debug("[LedController] query_led_state: got {}",
-                          helix::json_util::safe_dump(status).substr(0, 200));
-            helix::ui::queue_update("LedController::query_led_state",
-                                    [status]() { get_printer_state().update_from_status(status); });
-        });
+    client_->send_jsonrpc("printer.objects.query", {{"objects", query_objects}},
+                          [](const nlohmann::json& response) { apply_query_response(response); });
+}
+
+void LedController::apply_query_response(const nlohmann::json& response) {
+    if (!response.contains("result") || !response["result"].contains("status")) {
+        spdlog::warn("[LedController] query_led_state: no result/status in response");
+        return;
+    }
+    const auto& status = response["result"]["status"];
+    spdlog::debug("[LedController] query_led_state: got {}",
+                  helix::json_util::safe_dump(status).substr(0, 200));
+    helix::ui::queue_update("LedController::query_led_state",
+                            [status]() { helix::dispatch_status(status); });
 }
 
 void LedController::set_look(const std::vector<std::string>& ids, uint32_t rgb, double w,

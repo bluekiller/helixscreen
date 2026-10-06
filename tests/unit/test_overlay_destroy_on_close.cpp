@@ -109,9 +109,9 @@ TEST_CASE_METHOD(DestroyOnCloseFixture, "Motion observers fired after close touc
     expect_rebuilt_on_reopen([&] { REQUIRE(p.show(lv_screen_active())); },
                              [&] { return p.get_root(); });
     // The homed and position observers outlive the tree and reach for the jog pad.
-    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "xyz");
+    lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "xyz");
     settle();
-    lv_subject_copy_string(get_printer_state().get_homed_axes_subject(), "");
+    lv_subject_copy_string(get_printer_state().motion_state().get_homed_axes_subject(), "");
     settle();
     CHECK(p.get_root() == nullptr);
 }
@@ -220,10 +220,10 @@ TEST_CASE_METHOD(DestroyOnCloseFixture,
     // The probe observers die with the tree: a Klipper-side probe starting
     // while the overlay is closed must not move a closed panel to ADJUSTING.
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_manual_probe_active_subject(), 1);
+    lv_subject_set_int(ps.calibration_state().get_manual_probe_active_subject(), 1);
     settle();
     CHECK(p.get_state() == ZOffsetCalibrationPanel::State::IDLE);
-    lv_subject_set_int(ps.get_manual_probe_active_subject(), 0);
+    lv_subject_set_int(ps.calibration_state().get_manual_probe_active_subject(), 0);
     settle();
 
     p.update_z_position(0.2f);

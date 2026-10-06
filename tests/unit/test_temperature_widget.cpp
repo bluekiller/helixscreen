@@ -129,10 +129,13 @@ TEST_CASE_METHOD(TempWidgetFixture,
     }
 
     SECTION("subject getters resolve to the heater's own subjects") {
-        REQUIRE(chamber.temp_getter(state()) == state().get_chamber_temp_subject());
-        REQUIRE(chamber.target_getter(state()) == state().get_chamber_target_subject());
-        REQUIRE(bed.temp_getter(state()) == state().get_bed_temp_subject());
-        REQUIRE(nozzle.temp_getter(state()) == state().get_active_extruder_temp_subject());
+        REQUIRE(chamber.temp_getter(state()) ==
+                state().temperature_state().get_chamber_temp_subject());
+        REQUIRE(chamber.target_getter(state()) ==
+                state().temperature_state().get_chamber_target_subject());
+        REQUIRE(bed.temp_getter(state()) == state().temperature_state().get_bed_temp_subject());
+        REQUIRE(nozzle.temp_getter(state()) ==
+                state().temperature_state().get_active_extruder_temp_subject());
         // Distinct heaters never alias the same subject.
         REQUIRE(chamber.temp_getter(state()) != bed.temp_getter(state()));
         REQUIRE(chamber.temp_getter(state()) != nozzle.temp_getter(state()));

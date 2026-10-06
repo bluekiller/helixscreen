@@ -75,7 +75,7 @@ struct NozzleTempsFixture : public LVGLUITestFixture {
 /// One extruder, one tool ("T0" -> "extruder"), matching the real mock
 /// printer's single-nozzle topology.
 void configure_one_extruder(PrinterState& state) {
-    state.init_extruders({"extruder"});
+    state.temperature_state().init_extruders({"extruder"});
 
     ToolState::instance().deinit_subjects();
     ToolState::instance().init_subjects(false);
@@ -99,7 +99,7 @@ void add_second_extruder(PrinterState& state) {
                                             "extruder1", "heater_bed", "gcode_move"}));
     ToolState::instance().init_tools(hw);
 
-    state.init_extruders({"extruder", "extruder1"});
+    state.temperature_state().init_extruders({"extruder", "extruder1"});
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 }
 
@@ -113,7 +113,7 @@ void add_third_extruder(PrinterState& state) {
                                "extruder1", "extruder2", "heater_bed", "gcode_move"}));
     ToolState::instance().init_tools(hw);
 
-    state.init_extruders({"extruder", "extruder1", "extruder2"});
+    state.temperature_state().init_extruders({"extruder", "extruder1", "extruder2"});
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 }
 

@@ -137,9 +137,10 @@ void NozzleTempsWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Safety is provided by: (1) weak_alive in observe<int> context (expires when
     // version_observer_ is reset in detach()), (2) rebuilding_ re-entrancy guard,
     // (3) initial_version skip for the attach-time callback.
-    int initial_version = lv_subject_get_int(printer_state_.get_extruder_version_subject());
+    int initial_version =
+        lv_subject_get_int(printer_state_.temperature_state().get_extruder_version_subject());
     version_observer_ = helix::ui::observe<int>(
-        printer_state_.get_extruder_version_subject(), this,
+        printer_state_.temperature_state().get_extruder_version_subject(), this,
         [initial_version](NozzleTempsWidget* self, int version) {
             if (version == initial_version)
                 return; // Skip initial callback — rows already built in attach()
@@ -272,10 +273,10 @@ void NozzleTempsWidget::rebuild_rows() {
         create_extruder_row(container, row);
 
         // Observe per-extruder temp subject with lifetime token
-        lv_subject_t* temp_subj =
-            printer_state_.get_extruder_temp_subject(row.name, row.temp_lifetime);
-        lv_subject_t* target_subj =
-            printer_state_.get_extruder_target_subject(row.name, row.target_lifetime);
+        lv_subject_t* temp_subj = printer_state_.temperature_state().get_extruder_temp_subject(
+            row.name, row.temp_lifetime);
+        lv_subject_t* target_subj = printer_state_.temperature_state().get_extruder_target_subject(
+            row.name, row.target_lifetime);
 
         if (temp_subj) {
             row.cached_temp = lv_subject_get_int(temp_subj);
@@ -336,8 +337,10 @@ void NozzleTempsWidget::rebuild_rows() {
     create_bed_row(container);
 
     // Bed subjects are destroyed during deinit_subjects() — use lifetime tokens (#734)
-    lv_subject_t* bed_temp_subj = printer_state_.get_bed_temp_subject(bed_temp_lifetime_);
-    lv_subject_t* bed_target_subj = printer_state_.get_bed_target_subject(bed_target_lifetime_);
+    lv_subject_t* bed_temp_subj =
+        printer_state_.temperature_state().get_bed_temp_subject(bed_temp_lifetime_);
+    lv_subject_t* bed_target_subj =
+        printer_state_.temperature_state().get_bed_target_subject(bed_target_lifetime_);
 
     if (bed_temp_subj) {
         cached_bed_temp_ = lv_subject_get_int(bed_temp_subj);

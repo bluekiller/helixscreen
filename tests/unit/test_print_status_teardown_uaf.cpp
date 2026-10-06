@@ -82,7 +82,7 @@ TEST_CASE_METHOD(
     // A print-start-progress change fires the panel's observe<int> observer
     // synchronously; the handler itself is queued. This is the pending lambda
     // the nightly drained after the tree was already gone.
-    lv_subject_set_int(state().get_print_start_progress_subject(), 42);
+    lv_subject_set_int(state().print_state().get_print_start_progress_subject(), 42);
 
     // Tree dies while the handler is still sitting in the queue.
     delete_widget_tree();

@@ -855,14 +855,15 @@ void open_standalone_camera_fullscreen(lv_obj_t* parent_screen) {
 
     // Apply Moonraker flips (no per-user transform persisted for the standalone view)
     auto& ps = get_printer_state();
-    state->stream->set_flip(ps.get_webcam_flip_horizontal(), ps.get_webcam_flip_vertical());
+    state->stream->set_flip(ps.capabilities_state().get_webcam_flip_horizontal(),
+                            ps.capabilities_state().get_webcam_flip_vertical());
 
     if (auto* disp = lv_display_get_default()) {
         state->stream->set_target_size(lv_display_get_horizontal_resolution(disp),
                                        lv_display_get_vertical_resolution(disp));
     }
 
-    int target_fps = ps.get_webcam_target_fps();
+    int target_fps = ps.capabilities_state().get_webcam_target_fps();
     if (target_fps <= 0)
         target_fps = 15;
     state->stream->set_max_fps(target_fps);

@@ -271,7 +271,7 @@ TEST_CASE_METHOD(PrintStatsLifetimeFixture,
     // The staleness watcher is queued with the socket down and stales any cache
     // it finds when it runs, so drain it and bring the socket up first.
     process_lvgl(20);
-    lv_subject_set_int(printer_state_.get_printer_connection_state_subject(),
+    lv_subject_set_int(printer_state_.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(ConnectionState::CONNECTED));
     process_lvgl(20);
     helix::PrintHistoryManagerTestAccess::set_loaded_jobs(*manager_, page, HistoryScope::RECENT,

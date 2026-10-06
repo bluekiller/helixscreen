@@ -147,7 +147,7 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     // main thread, so observing it re-runs rebuild_rows() once real macros
     // exist (this also covers reconnect / printer switch).
     nav_enabled_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_nav_buttons_enabled_subject(), this,
+        get_printer_state().network_state().get_nav_buttons_enabled_subject(), this,
         [](MacrosPanel* self, int) {
             // Re-fetch from the API (macros may have just been populated) then
             // rebuild — rebuild_rows() alone would reuse the stale cached list.

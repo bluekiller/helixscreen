@@ -62,7 +62,7 @@ void apply_notification(PrinterState& state, const nlohmann::json& notification,
 }
 
 void apply_notification(PrinterState& state, const nlohmann::json& notification) {
-    apply_notification(state, notification, state.klippy_epoch());
+    apply_notification(state, notification, state.network_state().klippy_epoch());
 }
 
 class KlippyFreshnessFixture : public LVGLTestFixture {
@@ -103,7 +103,8 @@ class KlippyFreshnessFixture : public LVGLTestFixture {
     }
 
     KlippyState klippy() {
-        return static_cast<KlippyState>(lv_subject_get_int(state.get_klippy_state_subject()));
+        return static_cast<KlippyState>(
+            lv_subject_get_int(state.network_state().get_klippy_state_subject()));
     }
 
     MoonrakerClient client;
@@ -182,7 +183,7 @@ TEST_CASE_METHOD(KlippyFreshnessFixture, "Klippy freshness: reset re-arms cold s
 
     // Post-reboot Klipper restarts its clock, so the next session's frames carry
     // eventtimes far below the old watermark.
-    state.reset_klippy_state_freshness();
+    state.network_state().reset_klippy_state_freshness();
     helix::ui::UpdateQueue::instance().drain();
     live("ready", 3.0);
     CHECK(klippy() == KlippyState::READY);
@@ -197,11 +198,13 @@ TEST_CASE_METHOD(KlippyFreshnessFixture, "Klippy freshness: stale state_message 
                  "[core][klippy][freshness]") {
     live("shutdown", 100.0, "MCU 'mcu' shutdown: Timer too close");
     REQUIRE(klippy() == KlippyState::SHUTDOWN);
-    REQUIRE(state.get_klippy_state_message() == "MCU 'mcu' shutdown: Timer too close");
+    REQUIRE(state.network_state().get_klippy_state_message() ==
+            "MCU 'mcu' shutdown: Timer too close");
 
     replay("ready", "");
     CHECK(klippy() == KlippyState::SHUTDOWN);
-    CHECK(state.get_klippy_state_message() == "MCU 'mcu' shutdown: Timer too close");
+    CHECK(state.network_state().get_klippy_state_message() ==
+          "MCU 'mcu' shutdown: Timer too close");
 }
 
 // ============================================================================
@@ -235,7 +238,7 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 
     synthetic_live("shutdown", "Mock shutdown");
     CHECK(klippy() == KlippyState::SHUTDOWN);
-    CHECK(state.get_klippy_state_message() == "Mock shutdown");
+    CHECK(state.network_state().get_klippy_state_message() == "Mock shutdown");
 
     synthetic_live("ready");
     CHECK(klippy() == KlippyState::READY);
@@ -278,8 +281,8 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
 
     {
         helix::ui::UpdateQueue::ScopedFreeze freeze(helix::ui::UpdateQueue::instance());
-        state.reset_klippy_state_freshness(); // the link drops
-        live("shutdown", 5.0);                // the next session's clock restarted
+        state.network_state().reset_klippy_state_freshness(); // the link drops
+        live("shutdown", 5.0);                                // the next session's clock restarted
         CHECK(klippy() == KlippyState::SHUTDOWN);
     }
     helix::ui::UpdateQueue::instance().drain();
@@ -307,12 +310,13 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
                  "Klippy freshness: a frame queued before a reset cannot block the next session",
                  "[core][klippy][freshness]") {
     live("ready", 100.0);
-    const uint64_t old_epoch = state.klippy_epoch();
+    const uint64_t old_epoch = state.network_state().klippy_epoch();
     const nlohmann::json queued = {
         {"method", "notify_status_update"},
         {"params", nlohmann::json::array({webhooks_status("ready"), 150.0})}};
 
-    state.reset_klippy_state_freshness(); // the link drops; `queued` is still in the queue
+    state.network_state()
+        .reset_klippy_state_freshness(); // the link drops; `queued` is still in the queue
     apply_notification(state, queued, old_epoch);
     helix::ui::UpdateQueue::instance().drain();
 
@@ -333,12 +337,13 @@ TEST_CASE("Klippy freshness: an auto-reconnect leaves a queued old frame behind"
     ps.init_subjects(false);
     MoonrakerClient client;
     const auto klippy = [&ps] {
-        return static_cast<KlippyState>(lv_subject_get_int(ps.get_klippy_state_subject()));
+        return static_cast<KlippyState>(
+            lv_subject_get_int(ps.network_state().get_klippy_state_subject()));
     };
 
     apply_notification(ps, {{"method", "notify_status_update"},
                             {"params", nlohmann::json::array({webhooks_status("ready"), 100.0})}});
-    const uint64_t old_epoch = ps.klippy_epoch();
+    const uint64_t old_epoch = ps.network_state().klippy_epoch();
     const nlohmann::json queued = {
         {"method", "notify_status_update"},
         {"params", nlohmann::json::array({webhooks_status("ready"), 150.0})}};
@@ -366,11 +371,11 @@ TEST_CASE_METHOD(KlippyFreshnessFixture,
                  "[core][klippy][freshness]") {
     auto callback = [](lv_observer_t* observer, lv_subject_t*) {
         auto* self = static_cast<KlippyFreshnessFixture*>(lv_observer_get_user_data(observer));
-        self->state.reset_klippy_state_freshness();
+        self->state.network_state().reset_klippy_state_freshness();
         self->state.set_klippy_state_sync(KlippyState::SHUTDOWN);
     };
     lv_observer_t* observer =
-        lv_subject_add_observer(state.get_klippy_state_subject(), callback, this);
+        lv_subject_add_observer(state.network_state().get_klippy_state_subject(), callback, this);
 
     live("ready", 100.0);
     CHECK(klippy() == KlippyState::SHUTDOWN);

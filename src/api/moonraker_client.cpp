@@ -802,7 +802,7 @@ void MoonrakerClient::on_ws_close() {
         // genuinely-current frames look older than the last session's and be
         // rejected for the life of the process. Touches two POD fields under their
         // own lock, no LVGL: safe from this event-loop thread.
-        get_printer_state().reset_klippy_state_freshness();
+        get_printer_state().network_state().reset_klippy_state_freshness();
 
         if (was_connected_) {
             spdlog::warn("[Moonraker Client] WebSocket connection closed");

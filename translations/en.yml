@@ -1738,6 +1738,7 @@ translations:
   Load Filament: Load Filament
   Load a filament first before trying to unload: Load a filament first before trying to unload
   Load a new spool in this slot, or turn on auto-refill to switch to a matching one: Load a new spool in this slot, or turn on auto-refill to switch to a matching one
+  'Load cancelled: nozzle target dropped': 'Load cancelled: nozzle target dropped'
   Load complete: Load complete
   Load failed: Load failed
   Load filament: Load filament

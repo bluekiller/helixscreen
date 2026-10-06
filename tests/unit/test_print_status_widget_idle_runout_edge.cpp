@@ -185,7 +185,7 @@ TEST_CASE_METHOD(IdleRunoutEdgeFixture, "An empty sensor found on arrival still 
     // fixture, the same sensor and the same idle state, differing only in whether
     // the widget watched the filament leave.
     set_filament(false);
-    REQUIRE(get_printer_state().get_print_lifecycle() == PrintState::Idle);
+    REQUIRE(get_printer_state().print_state().get_print_lifecycle() == PrintState::Idle);
 
     PrintStatusWidget widget;
     widget.attach(create_mock_tree(), test_screen());

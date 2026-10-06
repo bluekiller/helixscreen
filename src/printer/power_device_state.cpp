@@ -90,7 +90,7 @@ void PowerDeviceState::set_devices(const std::vector<PowerDevice>& devices) {
             // terminal state, for the whole of a host-side pre-start block. On
             // the enum this observer simply would not fire, and the widened
             // predicate below would be dead code.
-            auto* print_subj = ps.get_print_lifecycle_subject();
+            auto* print_subj = ps.print_state().get_print_lifecycle_subject();
             if (print_subj) {
                 print_state_observer_ = ui::observe<int>(
                     print_subj, this,
@@ -160,7 +160,7 @@ void PowerDeviceState::update_device_status(const std::string& device, const std
         it->second.raw_status = new_raw;
         int effective = new_raw;
         if (it->second.locked_while_printing && new_raw == 1) {
-            if (job_holds_machine(get_printer_state().get_print_lifecycle())) {
+            if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
                 effective = 2;
             }
         }
@@ -213,7 +213,7 @@ void PowerDeviceState::on_power_changed(const nlohmann::json& msg) {
             // Evaluate effective status (may be locked)
             int effective = new_raw;
             if (it->second.locked_while_printing && new_raw == 1) {
-                if (job_holds_machine(get_printer_state().get_print_lifecycle())) {
+                if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
                     effective = 2; // locked
                 }
             }
@@ -242,7 +242,7 @@ void PowerDeviceState::reevaluate_lock_states() {
     // a host-side pre-start block the printer is homing and probing under power,
     // so cutting it there is as destructive as cutting it mid-layer - and the
     // wire cannot say so.
-    const bool is_printing = job_holds_machine(ps.get_print_lifecycle());
+    const bool is_printing = job_holds_machine(ps.print_state().get_print_lifecycle());
 
     for (auto& [name, info] : devices_) {
         if (!info.status_subject) {

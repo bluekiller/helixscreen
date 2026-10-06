@@ -1060,7 +1060,7 @@ class ManagerCollectorArmingFixture : public ApplicationTestFixture {
         // STANDBY so the write below is a real no-job -> PRINTING edge.
         auto& ps = get_printer_state();
         ps.init_subjects(false);
-        lv_subject_set_int(ps.get_print_state_enum_subject(),
+        lv_subject_set_int(ps.print_state().get_print_state_enum_subject(),
                            static_cast<int>(PrintJobState::STANDBY));
 
         REQUIRE(mgr.init(config(), nullptr));
@@ -1095,12 +1095,12 @@ TEST_CASE_METHOD(ManagerCollectorArmingFixture,
                  "print-state observer arms the collector off IDLE on a printer-edge start",
                  "[application][print_start]") {
     auto& ps = get_printer_state();
-    auto* phase_subject = ps.get_print_start_phase_subject();
+    auto* phase_subject = ps.print_state().get_print_start_phase_subject();
     REQUIRE(lv_subject_get_int(phase_subject) == static_cast<int>(PrintStartPhase::IDLE));
-    REQUIRE_FALSE(ps.is_in_print_start());
+    REQUIRE_FALSE(ps.print_state().is_in_print_start());
 
     // A print started from another frontend: only print_stats moves.
-    lv_subject_set_int(ps.get_print_state_enum_subject(),
+    lv_subject_set_int(ps.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
@@ -1109,5 +1109,5 @@ TEST_CASE_METHOD(ManagerCollectorArmingFixture,
     // what is_in_print_start() reads.
     CHECK(mgr.print_start_collector()->is_active());
     CHECK(lv_subject_get_int(phase_subject) != static_cast<int>(PrintStartPhase::IDLE));
-    CHECK(ps.is_in_print_start());
+    CHECK(ps.print_state().is_in_print_start());
 }

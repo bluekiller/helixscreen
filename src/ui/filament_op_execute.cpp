@@ -37,10 +37,12 @@ OpNozzle resolve_op_nozzle(AmsBackend* backend, int slot, PrinterState& state,
         extruder =
             ToolState::instance().extruder_name_for_tool(backend->get_slot_info(slot).mapped_tool);
     }
-    lv_subject_t* target = extruder.empty() ? nullptr : state.get_extruder_target_subject(extruder);
+    lv_subject_t* target = extruder.empty()
+                               ? nullptr
+                               : state.temperature_state().get_extruder_target_subject(extruder);
     if (!target) {
-        extruder = state.active_extruder_name();
-        target = state.get_active_extruder_target_subject();
+        extruder = state.temperature_state().active_extruder_name();
+        target = state.temperature_state().get_active_extruder_target_subject();
     }
 
     OpNozzle nozzle;

@@ -766,8 +766,9 @@ nlohmann::json RemoteControlServer::handle_status(const nlohmann::json& /*params
         std::string current_panel = panel_id_to_name(nav.get_active());
 
         auto& ps = get_printer_state();
-        int conn_state = lv_subject_get_int(ps.get_printer_connection_state_subject());
-        int klippy_state = lv_subject_get_int(ps.get_klippy_state_subject());
+        int conn_state =
+            lv_subject_get_int(ps.network_state().get_printer_connection_state_subject());
+        int klippy_state = lv_subject_get_int(ps.network_state().get_klippy_state_subject());
 
         return {{"panel", current_panel},
                 {"overlays", nav.overlay_stack_names()},

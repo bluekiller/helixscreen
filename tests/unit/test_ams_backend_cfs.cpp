@@ -33,6 +33,7 @@
 #include "settings_manager.h"
 #include "test_helpers/backend_user_edit.h"
 #include "test_helpers/cfs_test_access.h"
+#include "test_helpers/gcode_recording_api.h"
 #include "test_helpers/print_state_test_drivers.h"
 #include "test_helpers/registered_backend.h"
 #include "test_helpers/seeded_override.h"
@@ -6361,47 +6362,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "CFS stock: AmsState publishes a unit behind a
 
 namespace {
 
-/// Records every gcode the backend sends through IMoonrakerAPI, and fails G28
-/// through the error callback the way Klipper reports a homing failure.
-class GcodeRecordingApi : public MoonrakerAPIMock {
-  public:
-    using MoonrakerAPIMock::MoonrakerAPIMock;
-
-    void execute_gcode(const std::string& gcode, SuccessCallback on_success, ErrorCallback on_error,
-                       uint32_t timeout_ms = 0, bool silent = false,
-                       SuccessCallback on_queued = nullptr, bool caller_surfaces_errors = true,
-                       bool bypass_busy_gate = false) override {
-        (void)timeout_ms;
-        (void)silent;
-        (void)on_queued;
-        (void)caller_surfaces_errors;
-        sent.push_back(gcode);
-        if (gcode == "G28" && fail_homing) {
-            if (on_error) {
-                MoonrakerError err;
-                err.type = MoonrakerErrorType::UNKNOWN;
-                err.message = "No trigger on y after full movement";
-                on_error(err);
-            }
-            return;
-        }
-        if (on_success) {
-            on_success();
-        }
-    }
-
-    bool contains(const std::string& needle) const {
-        for (const auto& g : sent) {
-            if (g.find(needle) != std::string::npos) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool fail_homing = true;
-    std::vector<std::string> sent;
-};
+using helix::test::GcodeRecordingApi;
 
 /// CFS backend that reports the toolhead unhomed so ensure_homed_then() sends
 /// its G28, and that skips the confirmation prompt the UI would normally raise.
@@ -6421,6 +6382,7 @@ TEST_CASE("CFS: a failed pre-op G28 does not send the envelope unwind", "[ams][c
     MoonrakerClientMock client{MoonrakerClientMock::PrinterType::CREALITY_K1};
     helix::PrinterState state;
     GcodeRecordingApi api{client, state};
+    api.fail = {"G28"}; // Klipper's homing failure
 
     UnhomedCfsBackend backend{&api, &client};
 
@@ -6446,7 +6408,7 @@ TEST_CASE("CFS: a failed payload still sends the envelope unwind", "[ams][cfs][h
     MoonrakerClientMock client{MoonrakerClientMock::PrinterType::CREALITY_K1};
     helix::PrinterState state;
     GcodeRecordingApi api{client, state};
-    api.fail_homing = false; // G28 succeeds; the body is what fails
+    // G28 succeeds; the body is what fails
 
     UnhomedCfsBackend backend{&api, &client};
 

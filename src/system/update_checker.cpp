@@ -1270,7 +1270,7 @@ void UpdateChecker::start_download() {
     // Safety: refuse download while a job owns the machine. Preparing counts —
     // a user who just committed to a print should not have the CPU and network
     // pulled out from under the pre-start block.
-    const auto lifecycle = get_printer_state().get_print_lifecycle();
+    const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
     if (job_holds_machine(lifecycle)) {
         spdlog::warn("[UpdateChecker] Cannot download update while printing");
         report_download_status(DownloadStatus::Error, 0,
@@ -3039,7 +3039,7 @@ void UpdateChecker::start_auto_check() {
                 }
 
                 // Skip while a job owns the machine, Preparing included.
-                const auto lifecycle = get_printer_state().get_print_lifecycle();
+                const auto lifecycle = get_printer_state().print_state().get_print_lifecycle();
                 if (job_holds_machine(lifecycle)) {
                     spdlog::info("[UpdateChecker] Auto-check: skipping notification during print");
                     return;

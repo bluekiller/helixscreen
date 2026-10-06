@@ -77,7 +77,7 @@ void seed_two_hotends(PrinterState& state) {
     PrinterDiscovery dual;
     dual.parse_objects(nlohmann::json::array({"extruder", "extruder1", "heater_bed", "fan"}));
     ToolState::instance().init_tools(dual);
-    state.init_extruders({"extruder", "extruder1"});
+    state.temperature_state().init_extruders({"extruder", "extruder1"});
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
     REQUIRE(ToolState::instance().has_multiple_extruders());
 }

@@ -140,7 +140,7 @@ void PrinterRecoveryService::recover(SuccessCallback on_success, ErrorCallback o
     // Refused here, before the chain: a refused firmware_restart would
     // otherwise escalate to the local script and a service restart, which
     // release the steppers just the same (prestonbrown/helixscreen#1730).
-    if (get_printer_state().spool_latch_active()) {
+    if (get_printer_state().print_state().spool_latch_active()) {
         spdlog::warn("[Recovery] Refusing firmware restart while spools are on the bed");
         on_error(
             MoonrakerError::refusal("printer.firmware_restart", spool_latch_restart_message()));

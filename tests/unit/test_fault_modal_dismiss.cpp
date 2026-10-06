@@ -359,7 +359,7 @@ TEST_CASE_METHOD(KlippyRecoveryFixture,
     lv_obj_t* alert = raise_fault("Printer Error", reason);
     REQUIRE(helix::ui::tracked_fault_modal_count() == 1);
 
-    state().set_klippy_state_message(reason);
+    state().network_state().set_klippy_state_message(reason);
     state().set_klippy_state_sync(KlippyState::SHUTDOWN);
     settle();
     settle();
@@ -385,7 +385,8 @@ TEST_CASE_METHOD(KlippyRecoveryFixture,
     settle();
 
     raise_fault("Printer Error", "Heater dragonbreath not heating at expected rate");
-    state().set_klippy_state_message("Heater dragonbreath not heating at expected rate");
+    state().network_state().set_klippy_state_message(
+        "Heater dragonbreath not heating at expected rate");
     state().set_klippy_state_sync(KlippyState::SHUTDOWN);
     settle();
     settle();
@@ -395,7 +396,7 @@ TEST_CASE_METHOD(KlippyRecoveryFixture,
 
     // The alert it retired is gone, so the reason must survive the upgrade even
     // though a stale cached message would read as something else.
-    state().set_klippy_state_message("Printer is ready");
+    state().network_state().set_klippy_state_message("Printer is ready");
     EmergencyStopOverlay::instance().show_recovery_for(RecoveryReason::DISCONNECTED);
     settle();
     settle();
@@ -419,7 +420,7 @@ TEST_CASE_METHOD(KlippyRecoveryFixture, "A shutdown with no reason text keeps th
 
     // The recovery dialog falls back to generic text, so the alert is the only
     // place the reason is on screen.
-    state().set_klippy_state_message("");
+    state().network_state().set_klippy_state_message("");
     state().set_klippy_state_sync(KlippyState::SHUTDOWN);
     settle();
     settle();

@@ -95,7 +95,7 @@ void FanWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // handles binding once init_fans() bumps fans_version.
     if (selected_fan_.empty()) {
         auto_select_first_fan();
-    } else if (!get_printer_state().get_fans().empty()) {
+    } else if (!get_printer_state().fan_state().get_fans().empty()) {
         bind_speed_observer();
         update_display();
     } else {
@@ -105,7 +105,7 @@ void FanWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Observe fan version to detect fan discovery/reconnection
     auto token = lifetime_.token();
     version_observer_ = helix::ui::observe<int>(
-        get_printer_state().get_fans_version_subject(), this,
+        get_printer_state().fan_state().get_fans_version_subject(), this,
         [token](FanWidget* self, int /*version*/) {
             if (token.expired())
                 return;
@@ -151,7 +151,7 @@ void FanWidget::handle_clicked() {
 }
 
 void FanWidget::resolve_display_name() {
-    const auto& fans = get_printer_state().get_fans();
+    const auto& fans = get_printer_state().fan_state().get_fans();
     for (const auto& fan : fans) {
         if (fan.object_name == selected_fan_) {
             display_name_ = fan.display_name;
@@ -162,7 +162,7 @@ void FanWidget::resolve_display_name() {
 }
 
 void FanWidget::auto_select_first_fan() {
-    const auto& fans = get_printer_state().get_fans();
+    const auto& fans = get_printer_state().fan_state().get_fans();
     if (!fans.empty()) {
         select_fan(fans.front().object_name);
     }
@@ -178,7 +178,7 @@ void FanWidget::bind_speed_observer() {
         return;
 
     auto& ps = get_printer_state();
-    lv_subject_t* subj = ps.get_fan_speed_subject(selected_fan_, speed_lifetime_);
+    lv_subject_t* subj = ps.fan_state().get_fan_speed_subject(selected_fan_, speed_lifetime_);
     if (subj) {
         auto token = lifetime_.token();
         speed_observer_ = helix::ui::observe<int>(
@@ -226,7 +226,7 @@ void FanWidget::update_display() {
         } else {
             // Read current value from subject
             auto& ps = get_printer_state();
-            lv_subject_t* subj = ps.get_fan_speed_subject(selected_fan_);
+            lv_subject_t* subj = ps.fan_state().get_fan_speed_subject(selected_fan_);
             if (subj) {
                 int speed = lv_subject_get_int(subj);
                 snprintf(speed_buffer_, sizeof(speed_buffer_), "%d%%", speed);
@@ -266,7 +266,7 @@ void FanWidget::show_fan_picker() {
         return;
     }
 
-    if (get_printer_state().get_fans().empty()) {
+    if (get_printer_state().fan_state().get_fans().empty()) {
         spdlog::warn("[FanWidget] No fans available for picker");
         return;
     }
@@ -284,7 +284,7 @@ void FanWidget::FanPicker::on_created(lv_obj_t* menu_obj) {
         return;
     }
 
-    const auto& fans = get_printer_state().get_fans();
+    const auto& fans = get_printer_state().fan_state().get_fans();
 
     int space_xs = resolve_space_token("space_xs", 4);
     int space_sm = resolve_space_token("space_sm", 6);

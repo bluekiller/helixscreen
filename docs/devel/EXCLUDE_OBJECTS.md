@@ -410,7 +410,7 @@ excluded_observer_ = ObserverGuard(
     printer_state.get_excluded_objects_version_subject(),
     [](lv_observer_t* obs, lv_subject_t*) {
         auto* self = static_cast<MyPanel*>(lv_observer_get_user_data(obs));
-        const auto& excluded = self->printer_state_.get_excluded_objects();
+        const auto& excluded = self->printer_state_.excluded_objects_state().get_excluded_objects();
         // Update UI based on new excluded set
     },
     this);

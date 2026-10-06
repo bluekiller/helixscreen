@@ -110,7 +110,7 @@ struct TransportLossFixture : public LVGLUITestFixture {
 /// The follow-up arms against the GLOBAL printer state's idle subject — the
 /// one the driver reads (get_printer_state()), not the per-fixture state.
 lv_subject_t* global_idle_subject() {
-    return get_printer_state().get_idle_timeout_printing_subject();
+    return get_printer_state().calibration_state().get_idle_timeout_printing_subject();
 }
 
 /// True when @p timer is still in LVGL's timer list AND still able to fire.

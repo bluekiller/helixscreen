@@ -79,7 +79,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     CountingPanel panel;
     ObserverGuard guard = helix::ui::observe<int>(
-        state.get_print_progress_subject(), &panel,
+        state.print_state().get_print_progress_subject(), &panel,
         [](CountingPanel* p, int /*v*/) { p->notifications++; }, state.get_subjects_lifetime());
     REQUIRE(static_cast<bool>(guard));
 
@@ -102,7 +102,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     PrinterState state;
     state.init_subjects(false);
 
-    lv_subject_t* subject = state.get_print_progress_subject();
+    lv_subject_t* subject = state.print_state().get_print_progress_subject();
     REQUIRE(subject != nullptr);
     const uint32_t baseline = lv_ll_get_len(&subject->subs_ll);
 

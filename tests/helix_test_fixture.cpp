@@ -315,9 +315,10 @@ void HelixTestFixture::reset_printer_state() {
     {
         auto& ps = get_printer_state();
         if (ps.are_subjects_initialized() &&
-            (ps.get_print_lifecycle() != PrintState::Idle || ps.is_in_print_start() ||
-             ps.get_print_job_state() != helix::PrintJobState::STANDBY)) {
-            ps.reset_print_start_state(); // deferred: drained below
+            (ps.print_state().get_print_lifecycle() != PrintState::Idle ||
+             ps.print_state().is_in_print_start() ||
+             ps.print_state().get_print_job_state() != helix::PrintJobState::STANDBY)) {
+            ps.print_state().reset_print_start_state(); // deferred: drained below
             ps.update_from_status(nlohmann::json{{"print_stats", {{"state", "standby"}}}});
             helix::ui::UpdateQueue::instance().drain();
         }

@@ -50,8 +50,8 @@ struct PrintSelectGlobalStateReset {
         auto& ps = get_printer_state();
         PrinterStateTestAccess::reset(ps);
         ps.init_subjects(false);
-        if (ps.has_preparing_job()) {
-            ps.retire_preparing(helix::PreparingExit::Superseded);
+        if (ps.print_state().has_preparing_job()) {
+            ps.print_state().retire_preparing(helix::PreparingExit::Superseded);
         }
         helix::test::set_wire_state(ps, PrintJobState::STANDBY);
     }

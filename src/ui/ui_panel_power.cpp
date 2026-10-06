@@ -249,8 +249,8 @@ void PowerPanel::create_device_row(const PowerDevice& device) {
     // than the wire: the lock has to cover the pre-print window, where the
     // printer still reports standby while the toolhead homes and probes, and
     // cutting the PSU there is what the flag exists to prevent.
-    bool is_locked =
-        device.locked_while_printing && job_holds_machine(printer_state_.get_print_lifecycle());
+    bool is_locked = device.locked_while_printing &&
+                     job_holds_machine(printer_state_.print_state().get_print_lifecycle());
 
     if (is_locked) {
         // Disable toggle interaction
