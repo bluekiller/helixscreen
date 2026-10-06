@@ -68,7 +68,7 @@ TEST_CASE("downscale packs RGB565 then an alpha plane", "[thumbnail][downscale]"
     const auto src = solid(4, 4, 255, 0, 0, 255);
     const ThumbnailDims d{2, 2};
     std::vector<uint8_t> out(helix::rgb565a8_size(d), 0xAA);
-    helix::downscale_to_rgb565a8(src.data(), 4, 4, 4, d, out.data());
+    helix::downscale_rgba_to_rgb565a8(src.data(), 4, 4, d, out.data());
     for (int y = 0; y < 2; ++y) {
         for (int x = 0; x < 2; ++x) {
             CHECK(colour_at(out, d, x, y) == 0xF800);
@@ -78,12 +78,12 @@ TEST_CASE("downscale packs RGB565 then an alpha plane", "[thumbnail][downscale]"
 
     const auto green = solid(2, 2, 0, 255, 0, 255);
     std::vector<uint8_t> g_out(helix::rgb565a8_size({2, 2}));
-    helix::downscale_to_rgb565a8(green.data(), 4, 2, 2, {2, 2}, g_out.data());
+    helix::downscale_rgba_to_rgb565a8(green.data(), 2, 2, {2, 2}, g_out.data());
     CHECK(colour_at(g_out, {2, 2}, 1, 1) == 0x07E0);
 
     const auto blue = solid(2, 2, 0, 0, 255, 128);
     std::vector<uint8_t> b_out(helix::rgb565a8_size({1, 1}));
-    helix::downscale_to_rgb565a8(blue.data(), 4, 2, 2, {1, 1}, b_out.data());
+    helix::downscale_rgba_to_rgb565a8(blue.data(), 2, 2, {1, 1}, b_out.data());
     CHECK(colour_at(b_out, {1, 1}, 0, 0) == 0x001F);
     CHECK(alpha_at(b_out, {1, 1}, 0, 0) == 128);
 }
@@ -92,14 +92,14 @@ TEST_CASE("downscale averages each box, weighting colour by alpha", "[thumbnail]
     // 2x1 source: an opaque white pixel next to a fully transparent black one.
     const std::vector<uint8_t> src = {255, 255, 255, 255, 0, 0, 0, 0};
     std::vector<uint8_t> out(helix::rgb565a8_size({1, 1}));
-    helix::downscale_to_rgb565a8(src.data(), 4, 2, 1, {1, 1}, out.data());
+    helix::downscale_rgba_to_rgb565a8(src.data(), 2, 1, {1, 1}, out.data());
     // Colour stays white rather than greying toward the transparent neighbour.
     CHECK(colour_at(out, {1, 1}, 0, 0) == 0xFFFF);
     CHECK(alpha_at(out, {1, 1}, 0, 0) == 127);
 
     // Fully transparent box.
     const std::vector<uint8_t> clear = {10, 20, 30, 0, 40, 50, 60, 0};
-    helix::downscale_to_rgb565a8(clear.data(), 4, 2, 1, {1, 1}, out.data());
+    helix::downscale_rgba_to_rgb565a8(clear.data(), 2, 1, {1, 1}, out.data());
     CHECK(alpha_at(out, {1, 1}, 0, 0) == 0);
 
     // Each output pixel reads only its own box: left half black, right half white.
@@ -113,27 +113,7 @@ TEST_CASE("downscale averages each box, weighting colour by alpha", "[thumbnail]
         }
     }
     std::vector<uint8_t> h_out(helix::rgb565a8_size({2, 1}));
-    helix::downscale_to_rgb565a8(halves.data(), 4, 4, 2, {2, 1}, h_out.data());
+    helix::downscale_rgba_to_rgb565a8(halves.data(), 4, 2, {2, 1}, h_out.data());
     CHECK(colour_at(h_out, {2, 1}, 0, 0) == 0x0000);
     CHECK(colour_at(h_out, {2, 1}, 1, 0) == 0xFFFF);
-}
-
-TEST_CASE("downscale reads grey, grey+alpha and RGB sources", "[thumbnail][downscale]") {
-    std::vector<uint8_t> out(helix::rgb565a8_size({1, 1}));
-
-    const std::vector<uint8_t> rgb = {0, 0, 255, 0, 0, 255};
-    helix::downscale_to_rgb565a8(rgb.data(), 3, 2, 1, {1, 1}, out.data());
-    CHECK(colour_at(out, {1, 1}, 0, 0) == 0x001F);
-    CHECK(alpha_at(out, {1, 1}, 0, 0) == 255);
-
-    const std::vector<uint8_t> grey = {255, 255};
-    helix::downscale_to_rgb565a8(grey.data(), 1, 2, 1, {1, 1}, out.data());
-    CHECK(colour_at(out, {1, 1}, 0, 0) == 0xFFFF);
-    CHECK(alpha_at(out, {1, 1}, 0, 0) == 255);
-
-    // Grey+alpha: an opaque white pixel beside a transparent one.
-    const std::vector<uint8_t> grey_alpha = {255, 255, 0, 0};
-    helix::downscale_to_rgb565a8(grey_alpha.data(), 2, 2, 1, {1, 1}, out.data());
-    CHECK(colour_at(out, {1, 1}, 0, 0) == 0xFFFF);
-    CHECK(alpha_at(out, {1, 1}, 0, 0) == 127);
 }

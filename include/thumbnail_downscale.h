@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace helix {
 
@@ -31,13 +32,35 @@ inline size_t rgb565a8_size(ThumbnailDims dims) {
     return static_cast<size_t>(dims.w) * static_cast<size_t>(dims.h) * 3;
 }
 
-/// Box-filters an 8-bit image of @p channels per pixel (1 grey, 2 grey+alpha,
-/// 3 RGB, 4 RGBA; rows packed) down to @p dst and writes it to @p out in LVGL's
-/// RGB565A8 layout: dst.w * dst.h native-endian RGB565 pixels, then dst.w *
-/// dst.h alpha bytes. Colour is averaged weighted by alpha, so transparent
-/// pixels do not darken edges. @p out must hold rgb565a8_size(dst). @p dst must
-/// not exceed the source.
-void downscale_to_rgb565a8(const uint8_t* px, int channels, int src_w, int src_h, ThumbnailDims dst,
-                           uint8_t* out);
+/// Box-filters RGBA8888 rows (bytes R,G,B,A per pixel), fed top to bottom, down
+/// to @p dst, writing LVGL's RGB565A8 layout into @p out: dst.w * dst.h
+/// native-endian RGB565 pixels, then dst.w * dst.h alpha bytes. Colour is
+/// averaged weighted by alpha, so transparent pixels do not darken edges. Holds
+/// one output row of sums, so a source never has to exist whole. @p out must
+/// hold rgb565a8_size(dst); @p dst must not exceed the source.
+class RowDownscaler {
+  public:
+    RowDownscaler(int src_w, int src_h, ThumbnailDims dst, uint8_t* out);
+    /// The next source row, src_w RGBA pixels.
+    void add_row(const uint8_t* rgba);
+    /// True once every source row has been added.
+    bool complete() const {
+        return src_y_ == src_h_;
+    }
+
+  private:
+    int src_w_, src_h_;
+    ThumbnailDims dst_;
+    uint8_t* out_;
+    int src_y_ = 0;
+    int dst_y_ = 0;
+    std::vector<int> x0_;        ///< first source column of each output column
+    std::vector<int> x1_;        ///< one past its last
+    std::vector<uint32_t> sums_; ///< r, g, b, a per output column of the open row
+};
+
+/// Box-filters a whole RGBA8888 image (rows packed) the same way.
+void downscale_rgba_to_rgb565a8(const uint8_t* rgba, int src_w, int src_h, ThumbnailDims dst,
+                                uint8_t* out);
 
 } // namespace helix

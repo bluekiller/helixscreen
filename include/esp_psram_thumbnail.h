@@ -15,14 +15,13 @@
 #include "async_lifetime_guard.h" // for helix::internal::on_main_thread()
 #include "esp_heap_caps.h"
 #include "lvgl.h"
-#include "stb_image.h"
+#include "miniz.h" // the ROM's streaming inflater
 #include "thumbnail_downscale.h"
-#include "thumbnail_scratch.h"
+#include "thumbnail_png_stream.h"
 
 #include <lvgl/src/misc/cache/instance/lv_image_cache.h> // lv_image_cache_drop()
 
 #include <memory>
-#include <mutex>
 #include <string>
 
 namespace helix::ui {
@@ -73,67 +72,95 @@ class EspPsramThumbnail {
         }
     }
 
-    /// Reserves the decode scratch (thumbnail_scratch_bytes(), ~0.94MB of PSRAM,
-    /// held for the life of the process). Call once at boot, before PSRAM
-    /// fragments. False when the reservation failed; thumbnails then show the
-    /// placeholder.
-    static bool reserve_scratch() {
-        helix::ScratchArena& arena = scratch();
-        if (arena.capacity() == 0) {
-            const size_t size = helix::thumbnail_scratch_bytes();
-            auto* buf = static_cast<uint8_t*>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
-            arena.reset(buf, size);
-        }
-        return arena.capacity() != 0;
-    }
-
     /// Decodes png_bytes once and keeps it as an RGB565A8 image fitted inside
     /// max_w x max_h, so drawing it needs no PNG decoder and no image-cache
-    /// entry. The full-size decode happens in the boot-time scratch, one at a
-    /// time; a PNG the scratch cannot hold is refused, never allocated for.
-    /// Only the kept image (3 bytes per pixel) is a new allocation. Touches no
-    /// widget state, so it is safe on the HTTP lane worker. Returns nullptr
-    /// when nothing was produced, and says why in @p failure.
+    /// entry. The PNG is inflated and unfiltered a row at a time and each row
+    /// goes straight into the downscale, so the full-size image never exists:
+    /// the decode needs the ROM inflater's state and 32KB window, two rows and
+    /// the kept image (3 bytes per kept pixel), and no block larger than that.
+    /// Touches no widget state, so it is safe on the HTTP lane worker. Returns
+    /// nullptr when nothing was produced, and says why in @p failure.
     static std::shared_ptr<EspPsramThumbnail>
     create_decoded(const std::string& png_bytes, int max_w, int max_h,
                    helix::ThumbnailDecodeFailure& failure) {
-        failure = helix::ThumbnailDecodeFailure::None;
+        failure = helix::ThumbnailDecodeFailure::BadImage;
         const auto* png = reinterpret_cast<const uint8_t*>(png_bytes.data());
-        if (!helix::thumbnail_fits_scratch(png, png_bytes.size())) {
-            helix::PngHeader header;
-            failure = helix::read_png_header(png, png_bytes.size(), header)
-                          ? helix::ThumbnailDecodeFailure::TooLarge
-                          : helix::ThumbnailDecodeFailure::BadImage;
+        helix::PngHeader header;
+        if (!helix::read_png_header(png, png_bytes.size(), header)) {
             return nullptr;
         }
+        if (!helix::png_thumbnail_supported(header)) {
+            failure = helix::ThumbnailDecodeFailure::TooLarge;
+            return nullptr;
+        }
+        const helix::ThumbnailDims dims =
+            helix::fit_thumbnail(header.width, header.height, max_w, max_h);
+        const size_t size = helix::rgb565a8_size(dims);
 
-        std::lock_guard<std::mutex> lock(scratch_mutex());
-        helix::ScratchArena& arena = scratch();
-        if (arena.capacity() == 0) {
+        struct Buffers {
+            uint8_t* out = nullptr;
+            tinfl_decompressor* inflater = nullptr;
+            uint8_t* window = nullptr;
+            ~Buffers() {
+                heap_caps_free(out);
+                heap_caps_free(inflater);
+                heap_caps_free(window);
+            }
+        } b;
+        b.out = static_cast<uint8_t*>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+        b.inflater = static_cast<tinfl_decompressor*>(
+            heap_caps_malloc(sizeof(tinfl_decompressor), MALLOC_CAP_SPIRAM));
+        b.window = static_cast<uint8_t*>(heap_caps_malloc(TINFL_LZ_DICT_SIZE, MALLOC_CAP_SPIRAM));
+        if (!b.out || !b.inflater || !b.window) {
             failure = helix::ThumbnailDecodeFailure::OutOfMemory;
             return nullptr;
         }
-        helix::ScratchScope scope(arena);
-        int w = 0;
-        int h = 0;
-        int channels = 0;
-        uint8_t* pixels =
-            stbi_load_from_memory(png, static_cast<int>(png_bytes.size()), &w, &h, &channels, 0);
-        if (!pixels) {
-            failure = helix::ThumbnailDecodeFailure::BadImage;
+
+        helix::RowDownscaler scaler(header.width, header.height, dims, b.out);
+        helix::PngPalette palette;
+        helix::PngRowDecoder rows(header, palette,
+                                  [&scaler](const uint8_t* rgba) { scaler.add_row(rgba); });
+        tinfl_init(b.inflater);
+        size_t window_at = 0;
+        tinfl_status status = TINFL_STATUS_NEEDS_MORE_INPUT;
+        // Inflates one IDAT payload (or, with more_input false, flushes the end of
+        // the stream) through the circular window into the row decoder.
+        auto inflate = [&](const uint8_t* in, size_t in_left, bool more_input) {
+            const mz_uint32 flags =
+                TINFL_FLAG_PARSE_ZLIB_HEADER | (more_input ? TINFL_FLAG_HAS_MORE_INPUT : 0);
+            for (;;) {
+                size_t in_size = in_left;
+                size_t out_size = TINFL_LZ_DICT_SIZE - window_at;
+                status = tinfl_decompress(b.inflater, in, &in_size, b.window, b.window + window_at,
+                                          &out_size, flags);
+                in += in_size;
+                in_left -= in_size;
+                if (out_size && !rows.feed(b.window + window_at, out_size)) {
+                    return false;
+                }
+                window_at = (window_at + out_size) & (TINFL_LZ_DICT_SIZE - 1);
+                if (status < TINFL_STATUS_DONE) {
+                    return false;
+                }
+                if (status == TINFL_STATUS_DONE ||
+                    (status == TINFL_STATUS_NEEDS_MORE_INPUT && in_left == 0)) {
+                    return true;
+                }
+            }
+        };
+        const bool walked = helix::for_each_png_idat(
+            png, png_bytes.size(), palette, [&](const uint8_t* data, size_t len) {
+                return status == TINFL_STATUS_DONE || inflate(data, len, true);
+            });
+        if (!walked || (status != TINFL_STATUS_DONE && !inflate(nullptr, 0, false)) ||
+            !rows.complete()) {
             return nullptr;
         }
-        const helix::ThumbnailDims dims = helix::fit_thumbnail(w, h, max_w, max_h);
-        const size_t size = helix::rgb565a8_size(dims);
-        auto* buf =
-            size ? static_cast<uint8_t*>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM)) : nullptr;
-        if (!buf) {
-            failure = size ? helix::ThumbnailDecodeFailure::OutOfMemory
-                           : helix::ThumbnailDecodeFailure::BadImage;
-            return nullptr;
-        }
-        helix::downscale_to_rgb565a8(pixels, channels, w, h, dims, buf);
-        return std::shared_ptr<EspPsramThumbnail>(new EspPsramThumbnail(buf, size, dims));
+
+        failure = helix::ThumbnailDecodeFailure::None;
+        uint8_t* out = b.out;
+        b.out = nullptr;
+        return std::shared_ptr<EspPsramThumbnail>(new EspPsramThumbnail(out, size, dims));
     }
 
     /// Pointer suitable for lv_image_set_src().
@@ -142,15 +169,6 @@ class EspPsramThumbnail {
     }
 
   private:
-    static helix::ScratchArena& scratch() {
-        static helix::ScratchArena arena;
-        return arena;
-    }
-    static std::mutex& scratch_mutex() {
-        static std::mutex m;
-        return m;
-    }
-
     EspPsramThumbnail(uint8_t* data, size_t size, helix::ThumbnailDims dims) : data_(data) {
         dsc_.header.magic = LV_IMAGE_HEADER_MAGIC;
         dsc_.header.cf = LV_COLOR_FORMAT_RGB565A8;
