@@ -24,6 +24,8 @@ This row is hidden on the desktop simulator. There you rotate the window from yo
 
 ## UI Scale
 
+> Added in 1.1.
+
 Sets how big everything is drawn. Choose **Automatic**, or a size from 100% to 200%.
 
 **Automatic** picks a size from how densely your screen packs its pixels, so buttons and text stay the same physical size on any screen. On every supported printer this works out to 100%. It only makes the interface bigger on very sharp screens, such as an Android phone or tablet. The menu shows the size it picked, for example *Automatic (158%)*.

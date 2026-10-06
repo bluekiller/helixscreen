@@ -1,5 +1,7 @@
 # Add-On Chamber Heater Setup
 
+> Added in 1.1.
+
 An add-on chamber heater is a separate box that sits in your enclosure, heats the
 air and filters it. The one HelixScreen understands in detail is the **BIGTREETECH
 Panda Breath**.

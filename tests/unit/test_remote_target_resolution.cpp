@@ -696,3 +696,38 @@ TEST_CASE_METHOD(LVGLTestFixture, "ctl click: a checkable button toggles and sti
         ::unlink(sock.c_str());
     }
 }
+
+// --- ctl overflow ------------------------------------------------------------
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "ctl overflow: reports content past the box, not content inside it",
+                 "[remote][ctl]") {
+    auto box = [&](lv_obj_t* parent, const char* name, int32_t w, int32_t h) {
+        lv_obj_t* o = lv_obj_create(parent);
+        lv_obj_set_name(o, name);
+        lv_obj_set_size(o, w, h);
+        lv_obj_set_style_pad_all(o, 0, 0);
+        lv_obj_set_style_border_width(o, 0, 0);
+        return o;
+    };
+    lv_obj_t* root = box(test_screen(), "root", 400, 400);
+    lv_obj_t* tight = box(root, "tight", 100, 100);
+    box(tight, "wide_child", 104, 50);
+    lv_obj_t* roomy = box(root, "roomy", 100, 100);
+    box(roomy, "small_child", 90, 90);
+    lv_obj_t* hidden = box(root, "hidden", 100, 100);
+    box(hidden, "hidden_child", 150, 150);
+    lv_obj_add_flag(hidden, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t* dotted = lv_label_create(box(root, "dotted_host", 100, 30));
+    lv_obj_set_size(dotted, 40, 20);
+    lv_label_set_long_mode(dotted, LV_LABEL_LONG_MODE_DOTS);
+    lv_label_set_text(dotted, "a label far too long to fit in forty pixels");
+    lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
+    lv_obj_update_layout(root);
+
+    const auto found = helix::find_overflow(root);
+    REQUIRE(found.size() == 1);
+    CHECK(found[0].obj == tight);
+    CHECK(found[0].right == 4);
+    CHECK(found[0].bottom == 0);
+}

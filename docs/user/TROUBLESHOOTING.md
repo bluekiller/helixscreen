@@ -556,7 +556,7 @@ HELIX_SCREEN_SIZE=large
 Despite the name, this is a resolution, not a UI scale factor. The named values are
 aliases for resolutions (`large` is 1024x600), and the layout follows from whichever
 resolution you set. If the resolution is already correct and only the interface looks
-too big or too small, you want `HELIX_DPI` instead, covered in
+too big or too small, you want the UI Scale setting instead, covered in
 [UI elements look too large or too small](#ui-elements-look-too-large-or-too-small).
 
 Then restart:
@@ -654,25 +654,14 @@ This lists the resolutions the DRM driver will accept for `HELIX_SCREEN_SIZE`.
 - The resolution is correct (the whole screen is used), but the *scale* of the interface looks wrong
 
 **Cause:**
-HelixScreen sizes spacing and padding from the display's DPI (dots per inch). On unusual or high-density panels the auto-detected DPI can be off, so the layout is scaled too large or too small.
+The interface is sized by the screen's resolution and by the **UI Scale** setting. On Automatic the scale is 100% on every supported printer and only grows on very high-density screens such as a phone. The scale never goes below 100%.
 
-**Fix:** Override the DPI in your `helixscreen.env` file (typically `~/helixscreen/config/helixscreen.env`), then restart HelixScreen. The default is `160`; valid range is `50` to `500`.
+**Fix:**
 
-- **Everything too large / cramped / overflowing** — set a **lower** DPI:
-  ```
-  HELIX_DPI=100
-  ```
-- **Everything too small / lots of empty space** — set a **higher** DPI:
-  ```
-  HELIX_DPI=200
-  ```
+- **Everything too small:** open **Settings > Display > UI Scale**, pick a size above 100%, and restart HelixScreen. See [UI Scale](guide/settings/display.md#ui-scale). The `helixscreen.env` equivalent is a `HELIX_DPI` above `225` (for example `300` is about 124%, `400` about 156%), which only applies while UI Scale is on Automatic.
+- **Everything too large:** if UI Scale is above 100%, set it to 100%. Nothing shrinks the interface below 100%, and a `HELIX_DPI` of 225 or lower changes nothing. Controls are sized for the resolution's layout size, so on a monitor that offers several modes a higher resolution (`HELIX_SCREEN_SIZE`) gives them proportionally less of the screen.
 
-Restart after editing:
-```bash
-sudo systemctl restart helixscreen
-```
-
-Adjust in steps (e.g. 110, 100, 90 or 160, 200, 240) until the interface looks right. Lower DPI = tighter/smaller; higher DPI = larger/roomier.
+UI Scale and the DPI-driven scale are new in 1.1. On 1.0 the resolution is the only lever.
 
 > **Tip:** If instead the *whole layout tier* is wrong — for example a compact phone-style layout on a big screen, or vice versa — the resolution rather than the DPI is being mis-detected. Force a layout size with `HELIX_SCREEN_SIZE` (named preset `micro`/`tiny`/`small`/`medium`/`large`/`xlarge`, or `WxH` like `1024x600`), covered in [Wrong screen size or resolution](#wrong-screen-size-or-resolution).
 
@@ -693,7 +682,7 @@ HelixScreen detects both orientations and adjusts the navigation bar and grid si
 **What you can do:**
 
 - **On a portrait panel, rotate it to landscape.** This is the well-tested path and what the Creality K2 does out of the box. Set `"rotate": 90` (or `270`) in the `display` section of your config — see [Display upside down or rotated](#display-upside-down-or-rotated).
-- **On an ultrawide screen,** there is no better fallback today. Reducing DPI (`HELIX_DPI`) can claw back some usable density, but the layout will still be a landscape layout stretched wide.
+- **On an ultrawide screen,** there is no better fallback today. The layout will be a landscape layout stretched wide.
 - **Force the standard layout** if the alpha layout is worse than the fallback: `--layout standard`, or `"layout": "standard"` in the `display` section.
 
 Contributions are very welcome here and only need XML, not C++ — see the [UI Contributor Guide](../devel/UI_CONTRIBUTOR_GUIDE.md).
