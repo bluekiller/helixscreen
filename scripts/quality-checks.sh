@@ -930,6 +930,18 @@ else
   EXIT_CODE=1
 fi
 
+# The same boundary at link level: a listed file calling a symbol that only an
+# excluded file defines compiles everywhere and fails the firmware link. It reads
+# the native build's objects, which this hook may not have built yet or may hold
+# from an older build, so it is advisory.
+python3 scripts/check_esp32_app_srcs.py --link >/tmp/esp32_app_srcs_link.out 2>&1
+case $? in
+  0) echo "✅ ESP32 link boundary: no listed file needs an excluded file's symbols" ;;
+  2) echo "ℹ️  ESP32 link boundary: no native objects to read (advisory, skipped)" ;;
+  *) echo "⚠️  ESP32 link boundary findings (advisory):"
+     cat /tmp/esp32_app_srcs_link.out ;;
+esac
+
 # android/app/src/main/assets/ is a Gradle build output (the copyAssets task
 # wipes and re-copies it from ui_xml/, assets/ and config/). It is ignored
 # wholesale, so a snapshot from an old build lingers on disk looking exactly like

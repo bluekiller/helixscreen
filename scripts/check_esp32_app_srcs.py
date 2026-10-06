@@ -61,6 +61,13 @@ MODES
   (default)          check; exit 0 if clean, 1 on any finding above.
   --list             print the undecided files, one per line.
   --summary          one-line counts.
+  --link             link-level check over the native build's objects (build/obj):
+                     fails when a listed file references a symbol that only an
+                     excluded file defines, which the source checks cannot see.
+                     A symbol the firmware's own sources stub, or a reference whose
+                     every mention sits in a branch the firmware does not compile,
+                     is fine. Known references are ratcheted in LINK_BASELINE.
+                     Exit 2 when listed objects are missing (no native build yet).
   --write-exclusions SEEDING/BULK-ADD tool, not the answer to routine drift.
                      Adds the currently-undecided files to the baseline,
                      compressing whole directories to dir-level entries.
@@ -76,6 +83,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -84,6 +92,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = REPO_ROOT / "firmware/helixscreen-esp32/components/helixapp/app_srcs.txt"
 DEFAULT_EXCLUSIONS = REPO_ROOT / "firmware/helixscreen-esp32/components/helixapp/app_srcs_excluded.txt"
 DEFAULT_SRC_ROOT = REPO_ROOT / "src"
+DEFAULT_OBJ_ROOT = REPO_ROOT / "build/obj"
+DEFAULT_FIRMWARE_ROOT = REPO_ROOT / "firmware/helixscreen-esp32"
 SRC_SUFFIXES = (".cpp", ".c")
 
 # The exact shape CMake's `REGEX "^[^#].*\.(cpp|c)$"` accepts AND that yields a
@@ -186,9 +196,13 @@ def firmware_condition(directive: str, defines: dict[str, str]) -> bool | None:
     return None
 
 
-def exception_sites(text: str, defines: dict[str, str]) -> list[tuple[int, str]]:
-    """(line, construct) for each try/catch/throw in a branch the firmware compiles."""
-    sites, stack, in_block_comment = [], [], False
+def firmware_code_lines(text: str, defines: dict[str, str]):
+    """Yield (line, code) for each line in a branch the firmware compiles.
+
+    Code is the line with string literals blanked and comments cut. A branch
+    whose condition this cannot evaluate counts as compiled.
+    """
+    stack, in_block_comment = [], False
     for lineno, raw in enumerate(text.splitlines(), 1):
         line = raw
         if in_block_comment:
@@ -222,6 +236,13 @@ def exception_sites(text: str, defines: dict[str, str]) -> list[tuple[int, str]]
             in_block_comment = "*/" not in rest
         if any(frame[0] is False for frame in stack):
             continue
+        yield lineno, code
+
+
+def exception_sites(text: str, defines: dict[str, str]) -> list[tuple[int, str]]:
+    """(line, construct) for each try/catch/throw in a branch the firmware compiles."""
+    sites = []
+    for lineno, code in firmware_code_lines(text, defines):
         m = EXCEPTION_CONSTRUCT.search(code)
         if m:
             sites.append((lineno, m.group(0).rstrip("({ ")))
@@ -457,6 +478,191 @@ def compute(manifest: Path, exclusions: Path, src_root: Path) -> Findings:
                     exception_constructs=exception_constructs, universe=universe)
 
 
+# (listed file, excluded file) references the firmware links today although the
+# excluded file supplies the symbol natively. The ESP-IDF link pulls objects out of
+# a static archive and drops unreferenced sections, so a reference from code the
+# firmware never reaches links there; this check cannot see reachability. The list
+# only shrinks: an entry that no longer occurs is reported for deletion.
+LINK_BASELINE: set[tuple[str, str]] = {
+    ("src/api/wifi_backend.cpp", "src/api/netd_protocol.cpp"),
+    ("src/api/wifi_backend.cpp", "src/api/wifi_backend_netd.cpp"),
+    ("src/api/wifi_backend.cpp", "src/api/wifi_backend_wpa_supplicant.cpp"),
+    ("src/api/wifi_manager.cpp", "src/api/wifi_backend_wpa_supplicant.cpp"),
+    ("src/application/moonraker_manager.cpp", "src/api/mock_http_file_server.cpp"),
+    ("src/application/moonraker_manager.cpp", "src/api/moonraker_client_mock.cpp"),
+    ("src/rendering/gcode_file_modifier.cpp", "src/rendering/gcode_streaming_config.cpp"),
+    ("src/system/sound_manager.cpp", "src/system/alsa_sound_backend.cpp"),
+    ("src/system/sound_manager.cpp", "src/system/sdl_sound_backend.cpp"),
+    ("src/system/sound_manager.cpp", "src/system/tracker_module_mod.cpp"),
+    ("src/system/sound_manager.cpp", "src/system/tracker_player.cpp"),
+    ("src/ui/print_preview_controller.cpp", "src/ui/gcode_viewer_loader.cpp"),
+    ("src/ui/ui_ams_edit_overlay.cpp", "src/system/label_printer_settings.cpp"),
+    ("src/ui/ui_external_spool_menu.cpp", "src/ui/ui_overlay_qr_scanner.cpp"),
+    ("src/ui/ui_gcode_viewer.cpp", "src/rendering/gcode_camera.cpp"),
+    ("src/ui/ui_gcode_viewer.cpp", "src/rendering/gcode_layer_renderer.cpp"),
+    ("src/ui/ui_gcode_viewer.cpp", "src/rendering/gcode_streaming_controller.cpp"),
+    ("src/ui/ui_panel_controls.cpp", "src/ui/ui_panel_calibration_pa.cpp"),
+    ("src/ui/ui_panel_settings.cpp", "src/plugin/plugins_overlay.cpp"),
+    ("src/ui/ui_print_select_detail_view.cpp", "src/ui/gcode_viewer_loader.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/app_globals.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/system/platform_info.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_ams_identify.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_filament_sensor_select.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_printer_identify.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_touch_calibration.cpp"),
+    ("src/ui/ui_wizard.cpp", "src/ui/ui_wizard_wifi.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_ams_identify.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_connection.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_fan_select.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_filament_sensor_select.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_heater_select.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_input_shaper.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_language_chooser.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_led_select.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_printer_identify.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_summary.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_telemetry.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_touch_calibration.cpp"),
+    ("src/ui/wizard_step_registry.cpp", "src/ui/ui_wizard_wifi.cpp"),
+}
+
+
+IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+
+
+def object_path(obj_root: Path, rel: str) -> Path:
+    """build/obj/<path under src/>.o, the native build's object for src/<path>."""
+    return obj_root / Path(rel).relative_to("src").with_suffix(".o")
+
+
+def nm_symbols(objects: dict[str, Path], flag: str) -> dict[str, set[str]]:
+    """rel -> symbols `nm <flag>` lists for that object."""
+    by_path = {str(p): rel for rel, p in objects.items()}
+    out: dict[str, set[str]] = {rel: set() for rel in objects}
+    paths = list(by_path)
+    for i in range(0, len(paths), 500):
+        res = subprocess.run(["nm", "-A", "-P", flag, *paths[i:i + 500]],
+                             capture_output=True, text=True, check=True)
+        for line in res.stdout.splitlines():
+            obj, _, rest = line.partition(": ")
+            if rest:
+                out[by_path[obj]].add(rest.split()[0])
+    return out
+
+
+def symbol_name(demangled: str) -> list[str]:
+    """`ns::Cls::fn(args) const` -> ['ns', 'Cls', 'fn']; vtables name their class."""
+    name = demangled.removeprefix("vtable for ").removeprefix("typeinfo for ")
+    depth = 0
+    for i, c in enumerate(name):
+        depth += c == "<"
+        depth -= c == ">"
+        if c == "(" and depth == 0:
+            name = name[:i]
+            break
+    name = re.sub(r"\[abi:\w+\]", "", name)
+    while "<" in name:
+        stripped = re.sub(r"<[^<>]*>", "", name)
+        if stripped == name:
+            break
+        name = stripped
+    return [part.lstrip("~") for part in name.split("::")]
+
+
+@dataclass
+class LinkFindings:
+    new: dict[tuple[str, str], list[str]] = field(default_factory=dict)  # edge -> symbols
+    stale_baseline: list[tuple[str, str]] = field(default_factory=list)
+    missing_objects: list[str] = field(default_factory=list)
+
+
+def compute_link(manifest: Path, exclusions: Path, src_root: Path, obj_root: Path,
+                 firmware_root: Path, baseline: set[tuple[str, str]]) -> LinkFindings:
+    """References from firmware-listed objects that only an excluded object satisfies.
+
+    A symbol counts as supplied when a listed object defines it, or when the
+    firmware's own sources (stubs, platform seams) mention both its name and its
+    enclosing scope. A reference counts as live unless every mention of the name in
+    the referencing source sits in a branch the firmware does not compile.
+    """
+    included, _ = load_manifest(manifest)
+    ex_files, ex_dirs = split_exclusions(load_exclusions(exclusions))
+    universe = scan_universe(src_root)
+    listed = sorted(f for f in included if f in universe)
+    excluded = sorted(f for f in universe
+                      if f not in included and is_excluded(f, ex_files, ex_dirs))
+    found = LinkFindings()
+    listed_objs = {}
+    for f in listed:
+        o = object_path(obj_root, f)
+        if o.exists():
+            listed_objs[f] = o
+        else:
+            found.missing_objects.append(f)
+    excluded_objs = {f: object_path(obj_root, f) for f in excluded
+                     if object_path(obj_root, f).exists()}
+
+    undefined = nm_symbols(listed_objs, "--undefined-only")
+    supplied = set().union(*nm_symbols(listed_objs, "--defined-only").values())
+    owner: dict[str, str] = {}
+    for f, syms in nm_symbols(excluded_objs, "--defined-only").items():
+        for sym in syms:
+            owner.setdefault(sym, f)
+    wanted = sorted({sym for syms in undefined.values() for sym in syms
+                     if sym in owner and sym not in supplied})
+    if not wanted:
+        return found
+    demangled = dict(zip(wanted, subprocess.run(
+        ["c++filt"], input="\n".join(wanted), capture_output=True, text=True,
+        check=True).stdout.splitlines()))
+
+    firmware_words = {w for p in firmware_root.rglob("*") if p.suffix in SRC_SUFFIXES
+                      for w in IDENTIFIER.findall(p.read_text(errors="replace"))}
+    cmake = manifest.parent / "CMakeLists.txt"
+    defines = firmware_defines(cmake.read_text() if cmake.exists() else "")
+    base = src_root.parent
+    seen: set[tuple[str, str]] = set()
+    for f in sorted(undefined):
+        syms = sorted(undefined[f] & set(demangled))
+        if not syms:
+            continue
+        text = (base / f).read_text(errors="replace")
+        words = set(IDENTIFIER.findall(text))
+        live_words = {w for _, c in firmware_code_lines(text, defines)
+                      for w in IDENTIFIER.findall(c)}
+        for sym in syms:
+            parts = symbol_name(demangled[sym])
+            if parts[-1] in firmware_words and (len(parts) == 1 or parts[-2] in firmware_words):
+                continue
+            if parts[-1] in words and parts[-1] not in live_words:
+                continue
+            edge = (f, owner[sym])
+            seen.add(edge)
+            if edge not in baseline:
+                found.new.setdefault(edge, []).append(demangled[sym])
+    found.stale_baseline = sorted(e for e in baseline - seen if e[0] in listed_objs)
+    return found
+
+
+def report_link(f: LinkFindings) -> None:
+    if f.new:
+        print(f"FAIL: {len(f.new)} firmware-listed file(s) reference symbols only an "
+              "app_srcs_excluded.txt file defines.\n      The ESP32 link has no definition "
+              "for them:", file=sys.stderr)
+        for (user, definer), syms in sorted(f.new.items()):
+            print(f"        {user} -> {definer}", file=sys.stderr)
+            for sym in syms:
+                print(f"            {sym}", file=sys.stderr)
+        print("\n      Guard the call with the subsystem's HELIX_HAS_* macro, compile the "
+              "defining file\n      on the firmware (move it to app_srcs.txt), or stub it in "
+              "firmware/helixscreen-esp32/.", file=sys.stderr)
+    if f.stale_baseline:
+        print(f"FAIL: {len(f.stale_baseline)} LINK_BASELINE entr(ies) no longer occur; "
+              "delete them:", file=sys.stderr)
+        for user, definer in f.stale_baseline:
+            print(f"        (\"{user}\", \"{definer}\"),", file=sys.stderr)
+
+
 def compress_dirs(undecided_set: set[str], universe: set[str]) -> dict[str, list[str]]:
     """Map each whole-undecided directory to the undecided files it covers.
 
@@ -614,7 +820,26 @@ def main() -> int:
     ap.add_argument("--force", action="store_true",
                     help="with --write-exclusions: merge into an existing baseline "
                          "(existing entries and hand-written reasons are preserved)")
+    ap.add_argument("--link", action="store_true",
+                    help="check the native build's objects instead: fail on a reference "
+                         "from a listed file that only an excluded file defines")
+    ap.add_argument("--obj-root", type=Path, default=DEFAULT_OBJ_ROOT)
+    ap.add_argument("--firmware-root", type=Path, default=DEFAULT_FIRMWARE_ROOT)
     args = ap.parse_args()
+
+    if args.link:
+        lf = compute_link(args.manifest, args.exclusions, args.src_root, args.obj_root,
+                          args.firmware_root, LINK_BASELINE)
+        if lf.missing_objects:
+            print(f"SKIP: {len(lf.missing_objects)} listed file(s) have no object under "
+                  f"{display(args.obj_root)}; build first (make).", file=sys.stderr)
+            return 2
+        if lf.new or lf.stale_baseline:
+            report_link(lf)
+            return 1
+        print("OK: no firmware-listed object references a symbol only an excluded file "
+              "defines.")
+        return 0
 
     f = compute(args.manifest, args.exclusions, args.src_root)
 
