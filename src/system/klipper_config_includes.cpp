@@ -96,35 +96,21 @@ std::vector<std::string> config_match_glob(const std::map<std::string, std::stri
 
 std::vector<std::string> extract_includes(const std::string& content) {
     std::vector<std::string> includes;
-
-    for (std::string_view sv : helix::text_io::lines(content)) {
-        std::string line(sv);
-        // Trim leading whitespace
-        size_t start = line.find_first_not_of(" \t");
-        if (start == std::string::npos)
+    for (std::string_view line : helix::text_io::lines(content)) {
+        // A Klipper section header starts at column 0: an indented line continues
+        // the previous option, and a commented one is not a section at all.
+        if (line.substr(0, 9) != "[include ") {
             continue;
-
-        std::string trimmed = line.substr(start);
-
-        // Match [include <path>] directive — minimum valid: "[include X]" = 11 chars
-        if (trimmed.size() > 10 && trimmed[0] == '[') {
-            // Check for [include ...]
-            if (trimmed.compare(1, 8, "include ") == 0) {
-                // Find closing bracket
-                auto end = trimmed.find(']', 9);
-                if (end != std::string::npos) {
-                    std::string path = trimmed.substr(9, end - 9);
-                    // Trim whitespace from path
-                    auto path_start = path.find_first_not_of(" \t");
-                    auto path_end = path.find_last_not_of(" \t");
-                    if (path_start != std::string::npos && path_end != std::string::npos) {
-                        includes.push_back(path.substr(path_start, path_end - path_start + 1));
-                    }
-                }
-            }
+        }
+        const size_t close = line.find(']', 9);
+        if (close == std::string_view::npos) {
+            continue;
+        }
+        const std::string_view path = helix::text_io::trim(line.substr(9, close - 9));
+        if (!path.empty()) {
+            includes.emplace_back(path);
         }
     }
-
     return includes;
 }
 
@@ -165,11 +151,13 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
                                            const std::string& root_file, int max_depth,
                                            std::vector<ConfigSegment>* read_order) {
     std::set<std::string> active;
+    // Klipper refuses only a file that includes itself through the chain it is
+    // being read from; a file included from two places is read twice.
+    std::set<std::string> reading;
 
     std::function<void(const std::string&, int)> process_file;
     process_file = [&](const std::string& file_path, int depth) {
-        // Cycle detection
-        if (active.count(file_path))
+        if (reading.count(file_path))
             return;
 
         // Depth check
@@ -187,6 +175,7 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
         }
 
         active.insert(file_path);
+        reading.insert(file_path);
 
         auto includes = extract_includes(it->second);
         const auto include_lines =
@@ -204,6 +193,7 @@ std::set<std::string> resolve_active_files(const std::map<std::string, std::stri
         if (read_order) {
             read_order->push_back({file_path, segment_begin, it->second.size()});
         }
+        reading.erase(file_path);
     };
 
     process_file(root_file, 0);

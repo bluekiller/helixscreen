@@ -953,6 +953,16 @@ TEST_CASE("PrintStartAnalyzer uses the last definition of a macro in Klipper's r
                            {"early.cfg", UNCONTROLLED_START_PRINT_BODY}});
         REQUIRE(qgl_controllable(result));
     }
+    SECTION("a file included from two places is read at both") {
+        auto result = analyze_files(
+            {{"printer.cfg", std::string("[include a.cfg]\n"
+                                         "[include b.cfg]\n") +
+                                 WRAPPER_PRINT_START},
+             {"a.cfg", "[include common.cfg]\n"},
+             {"b.cfg", std::string(UNCONTROLLED_START_PRINT_BODY) + "[include common.cfg]\n"},
+             {"common.cfg", VORON_START_PRINT_BODY}});
+        REQUIRE(qgl_controllable(result));
+    }
     SECTION("the print start macro itself") {
         auto result = analyze_files({{"printer.cfg", std::string("[include z_old.cfg]\n"
                                                                  "[include a_new.cfg]\n")},
@@ -974,6 +984,14 @@ TEST_CASE("PrintStartAnalyzer decides from the call line whether a skip param re
         return analyze_single_file("[gcode_macro PRINT_START]\ngcode:\n  " + call + "\n" +
                                    VORON_START_PRINT_BODY);
     };
+    SECTION("a guard testing for a param in params forwards nothing") {
+        REQUIRE_FALSE(
+            qgl_controllable(with_call("{% if 'SKIP_QGL' in params %}START_PRINT{% endif %}")));
+    }
+    SECTION("a for loop over params.items() forwards everything") {
+        REQUIRE(qgl_controllable(
+            with_call("START_PRINT {% for k, v in params.items() %}{k}={v} {% endfor %}")));
+    }
     SECTION("a for loop over params forwards everything") {
         REQUIRE(qgl_controllable(
             with_call("START_PRINT {% for p in params %}{p}={params[p]} {% endfor %}")));

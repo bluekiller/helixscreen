@@ -239,11 +239,36 @@ bool contains_token(std::string_view line, std::string_view token) {
     return false;
 }
 
+/// A `{% for ... in params %}` loop on the line, which re-sends every param the
+/// macro received. An `{% if 'X' in params %}` guard is not one.
+bool loops_over_params(std::string_view line) {
+    const std::string lower = helix::text_io::to_lower(line);
+    for (size_t pos = lower.find("in params"); pos != std::string::npos;
+         pos = lower.find("in params", pos + 1)) {
+        if (pos > 0 && is_word_char(lower[pos - 1])) {
+            continue;
+        }
+        // Back to the start of the statement: `for` and the loop variables
+        // (`p`, or `k, v`) must be all that precedes `in params`.
+        size_t i = pos;
+        while (i > 0 && (is_word_char(lower[i - 1]) || lower[i - 1] == ',' || lower[i - 1] == ' ' ||
+                         lower[i - 1] == '\t')) {
+            --i;
+        }
+        const std::string_view head =
+            helix::text_io::trim(std::string_view(lower).substr(i, pos - i));
+        if (head.size() > 4 && head.compare(0, 4, "for ") == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Whether a skip param sent to the calling macro reaches the macro `call_line` calls.
 /// It does through {rawparams}, a `for ... in params` loop, or NAME={params.NAME};
 /// a renamed or hardcoded argument does not.
 bool call_forwards_param(std::string_view call_line, const std::string& param) {
-    return contains_token(call_line, "rawparams") || contains_token(call_line, "in params") ||
+    return contains_token(call_line, "rawparams") || loops_over_params(call_line) ||
            (contains_token(call_line, param + "=") && contains_token(call_line, "params." + param));
 }
 
