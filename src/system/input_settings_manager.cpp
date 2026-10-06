@@ -4,6 +4,7 @@
 #include "input_settings_manager.h"
 
 #include "app_constants.h"
+#include "display_manager.h"
 #include "runtime_config.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
@@ -82,6 +83,10 @@ void InputSettingsManager::apply_to_pointers() const {
         lv_indev_set_scroll_throw(indev, static_cast<uint8_t>(get_scroll_throw()));
         lv_indev_set_scroll_limit(indev, static_cast<uint8_t>(get_scroll_limit()));
         lv_indev_set_long_press_time(indev, static_cast<uint16_t>(get_long_press_time()));
+    }
+    // The post-scroll click guard decides "was this a scroll" by the same limit.
+    if (auto* dm = DisplayManager::instance()) {
+        dm->set_scroll_guard_limit(get_scroll_limit());
     }
 }
 
