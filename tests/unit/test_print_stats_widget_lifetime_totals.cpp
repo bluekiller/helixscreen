@@ -240,9 +240,16 @@ TEST_CASE_METHOD(PrintStatsLifetimeFixture,
     process_lvgl(20);
 
     // `server.history.totals` is lifetime-only, so a 7-day window can only come
-    // from the cache. The mock spreads jobs one per day going back, so a 3-job
-    // cache is entirely inside the last week.
-    const auto weekly_jobs = manager_->get_jobs().size();
+    // from the cache. A 3-job cache stops short of the week (the mock spreads
+    // jobs one per day), so the widget pages older jobs in until it is covered.
+    REQUIRE(wait_until([&]() {
+        process_lvgl(20);
+        return manager_->covers_since(static_cast<double>(std::time(nullptr)) - 7 * 24 * 3600);
+    }));
+    process_lvgl(20);
+    const auto weekly_jobs =
+        manager_->get_jobs_since(static_cast<double>(std::time(nullptr)) - 7 * 24 * 3600).size();
+    REQUIRE(weekly_jobs > 3);
     CHECK(std::to_string(weekly_jobs) == std::string(subject_text("print_stats_total_prints")));
     CHECK(std::string(subject_text("print_stats_total_prints")) !=
           std::to_string(server.total_jobs));

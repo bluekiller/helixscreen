@@ -63,7 +63,7 @@ OverlayWidths compute_overlay_widths(int32_t hor_res, int32_t ver_res, int32_t n
     const bool portrait = is_portrait_layout(detect_layout_type(hor_res, ver_res));
     if (portrait) {
         // Portrait's nav bar is a bottom strip (compute_overlay_heights), not a
-        // side rail, so it costs an overlay nothing horizontally — and neither
+        // side navbar, so it costs an overlay nothing horizontally — and neither
         // does the "you will return from this" gap: that gap belongs on the
         // axis the nav bar occupies. Both classes are full width; the gap is
         // carried by compute_overlay_heights instead. An override in

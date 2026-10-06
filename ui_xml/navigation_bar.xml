@@ -25,9 +25,9 @@
     <string name="icon_size_nav_inactive_xlarge" value="md"/>
     <string name="icon_size_nav_inactive_xxlarge" value="md"/>
 
-    <!-- Rail E-stop diameter: the larger of #button_height and 44px, so the
+    <!-- Navbar E-stop diameter: the larger of #button_height and 44px, so the
          target never shrinks below the circles it stands in for. micro is
-         capped at the 42px rail width. -->
+         capped at the 42px navbar width. -->
     <px name="nav_estop_size_micro" value="42"/>
     <px name="nav_estop_size_tiny" value="44"/>
     <px name="nav_estop_size_small" value="48"/>
@@ -251,7 +251,7 @@
       </lv_obj>
     </ui_button>
     <!-- Room for the spools-on-the-bed button while a bed-drying run has them
-         latched; the button is the rail_drying component, kept over this slot
+         latched; the button is the navbar_drying component, kept over this slot
          the same way as the E-stop below. -->
     <lv_obj name="nav_drying_slot"
             width="#nav_estop_size" height="#nav_estop_size" style_bg_opa="0" style_border_width="0" style_pad_all="0"
@@ -259,9 +259,9 @@
       <bind_flag_if_eq subject="bed_drying_state" flag="hidden" ref_value="0"/>
     </lv_obj>
     <!-- Room for the E-stop while a job holds the machine. The button itself is
-         the rail_estop component, which NavigationManager keeps over this slot
+         the navbar_estop component, which NavigationManager keeps over this slot
          on the screen so backdrops never dim it. Last in the bar: the bottom of
-         the rail, the end of the portrait bar. -->
+         the navbar, the end of the portrait bar. -->
     <lv_obj name="nav_estop_slot"
             width="#nav_estop_size" height="#nav_estop_size" style_bg_opa="0" style_border_width="0" style_pad_all="0"
             clickable="false" scrollable="false" hidden="true">

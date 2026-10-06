@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" pt="Estado da troca para carretel de reserva desconhecido"/>
   <translation tag="Barcode Scanner" pt="Leitor de Código de Barras"/>
   <translation tag="Base" pt="Referência"/>
+  <translation tag="Based on the newest {} prints" pt="Com base nas {} impressões mais recentes"/>
   <translation tag="Batch load failed" pt="Falha no carregamento em lote"/>
   <translation tag="Batch unload failed" pt="Falha no descarregamento em lote"/>
   <translation tag="Beacon auto-calibrate sent" pt="Beacon auto-calibração enviada"/>

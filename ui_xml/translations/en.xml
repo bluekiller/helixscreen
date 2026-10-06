@@ -291,6 +291,7 @@
   <translation tag="Backup spool switching state unknown" en="Backup spool switching state unknown"/>
   <translation tag="Barcode Scanner" en="Barcode Scanner"/>
   <translation tag="Base" en="Base"/>
+  <translation tag="Based on the newest {} prints" en="Based on the newest {} prints"/>
   <translation tag="Batch load failed" en="Batch load failed"/>
   <translation tag="Batch unload failed" en="Batch unload failed"/>
   <translation tag="Beacon auto-calibrate sent" en="Beacon auto-calibrate sent"/>
