@@ -482,6 +482,12 @@ AmsSystemInfo AmsBackendMock::get_system_info() const {
     // slots_.set_tool_mapping() instead, which keeps the two directions in step.
     auto info = slots_.build_system_info(system_info_);
 
+    // The sync feedback set up in the constructor is Happy Hare's. Every other
+    // simulated type publishes its units' pressure sensors, as AFC and OpenAMS do.
+    if (info.type != AmsType::HAPPY_HARE) {
+        info.sync_feedback_bias = info.pressure_sensor_bias();
+    }
+
     // Populate environment sensor data based on configured mode
     populate_environment_data(info);
 

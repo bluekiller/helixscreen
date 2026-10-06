@@ -2161,6 +2161,7 @@
   <translation tag="Pressure Advance" zh="压力提前"/>
   <translation tag="Pressure Advance Calibration" zh="压力提前校准"/>
   <translation tag="Pressure:" zh="压力:"/>
+  <translation tag="Pressure: {}% (target {}%)" zh="压力: {}% (目标 {}%)"/>
   <translation tag="Preview Sounds" zh="预览声音"/>
   <translation tag="Previous" zh="上一步"/>
   <translation tag="Price" zh="价格"/>

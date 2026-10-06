@@ -311,9 +311,10 @@ void AmsBackendOpenAms::parse_snapshot_locked() {
         if (!lane_json.is_object()) {
             continue;
         }
-        // The lane's filament pressure sensor: compression from 0 (none) to 1
-        // (full). A manager that publishes no pressure leaves the lane with no
-        // buffer rather than a made-up reading.
+        // The lane's filament pressure sensor, 0 to 1. Below set_point the
+        // extruder pulls harder than the hub feeds; above it the hub overfeeds.
+        // A manager that publishes no pressure leaves the lane with no buffer
+        // rather than a made-up reading.
         auto pressure = lane_json.find("pressure");
         if (pressure != lane_json.end() && pressure->is_number()) {
             BufferHealth fps;
@@ -354,6 +355,7 @@ void AmsBackendOpenAms::parse_snapshot_locked() {
     next.filament_loaded = !current_slots.empty();
     next.current_slot = current_slots.size() == 1 ? *current_slots.begin() : -1;
     next.current_tool = current_slots.size() == 1 ? tool_from_group(current_group) : -1;
+    next.sync_feedback_bias = next.pressure_sensor_bias();
 
     remote_slot_ids_ = std::move(next_remote_ids);
     slot_groups_ = std::move(next_slot_groups);

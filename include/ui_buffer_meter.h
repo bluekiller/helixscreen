@@ -18,12 +18,10 @@ namespace helix::ui {
  * - Compression (bias>0): inner slides down, near-complete overlap
  *
  * Driven by `sync_feedback_bias`, whatever produces it: Happy Hare publishes
- * one directly, and an AFC_buffer configured `type: FPS_PSF` has an analog
- * filament pressure sensor that AmsBackendAfc maps onto the same -1..+1 scale.
- * A switched TurtleNeck buffer has no proportional reading and gates this out.
- *
- * (This said "Happy Hare only — AFC has no proportional sensor data", which was
- * only ever true of the switched buffer.)
+ * one directly, and a filament pressure sensor (an AFC_buffer configured
+ * `type: FPS_PSF`, or an OpenAMS lane) is mapped onto the same -1..+1 scale by
+ * BufferHealth::fps_to_bias(). A switched TurtleNeck buffer has no
+ * proportional reading and gates this out.
  */
 class UiBufferMeter {
   public:

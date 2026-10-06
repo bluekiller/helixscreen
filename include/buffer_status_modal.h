@@ -12,7 +12,8 @@ class UiClogBar;
 } // namespace helix::ui
 
 /**
- * @brief Read-only modal showing buffer/sync status for Happy Hare or AFC
+ * @brief Read-only modal showing buffer/sync status for Happy Hare, AFC or a
+ *        filament pressure sensor (OpenAMS)
  *
  * Subjects are static (shared across instances) because lv_xml_register_subject
  * rejects duplicate names — the first registration wins and the pointer persists.
@@ -58,6 +59,8 @@ class BufferStatusModal : public Modal {
 
     static lv_subject_t description_subject_;
     static char description_buf_[128];
+    static lv_subject_t pressure_subject_;
+    static char pressure_buf_[128];
     /// Shown when the filament system reports no buffer/flow data at all, so
     /// the dialog says why instead of rendering an empty box.
     static lv_subject_t unsupported_subject_;

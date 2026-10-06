@@ -2161,6 +2161,7 @@
   <translation tag="Pressure Advance" de="Pressure Advance" en="Pressure Advance" es="Pressure Advance" fr="Pressure Advance" it="Pressure Advance" ja="Pressure Advance" pt="Pressure Advance" ru="Pressure Advance" zh="压力提前"/>
   <translation tag="Pressure Advance Calibration" de="Pressure-Advance-Kalibrierung" en="Pressure Advance Calibration" es="Calibración de Pressure Advance" fr="Calibration Pressure Advance" it="Calibrazione pressure advance" ja="プレッシャーアドバンスキャリブレーション" pt="Calibração do pressure advance" ru="Калибровка Pressure Advance" zh="压力提前校准"/>
   <translation tag="Pressure:" de="Druck:" en="Pressure:" es="Presión:" fr="Pression :" it="Pressione:" ja="圧力:" pt="Pressão:" ru="Давление:" zh="压力:"/>
+  <translation tag="Pressure: {}% (target {}%)" de="Druck: {}% (Ziel {}%)" en="Pressure: {}% (target {}%)" es="Presión: {}% (objetivo {}%)" fr="Pression : {}% (cible {}%)" it="Pressione: {}% (obiettivo {}%)" ja="圧力: {}% (目標 {}%)" pt="Pressão: {}% (alvo {}%)" ru="Давление: {}% (цель {}%)" zh="压力: {}% (目标 {}%)"/>
   <translation tag="Preview Sounds" de="Sounds vorhören" en="Preview Sounds" es="Vista previa de sonidos" fr="Aperçu des sons" it="Anteprima suoni" ja="サウンドをプレビュー" pt="Visualizar Sons" ru="Предпросмотр звуков" zh="预览声音"/>
   <translation tag="Previous" de="Zurück" en="Previous" es="Anterior" fr="Précédent" it="Precedente" ja="前回" pt="Anterior" ru="Прежняя" zh="上一步"/>
   <translation tag="Price" de="Preis" en="Price" es="Precio" fr="Prix" it="Prezzo" ja="価格" pt="Preço" ru="Цена" zh="价格"/>

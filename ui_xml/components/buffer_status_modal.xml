@@ -41,6 +41,11 @@
       <!-- Info column -->
       <lv_obj name="info_col" width="1" height="content" flex_grow="1" flex_flow="column" style_pad_gap="#space_xs">
 
+        <!-- What the meter shows (balanced / pulling tight / loose), for every buffer that has one -->
+        <text_small name="bias_description" width="100%" bind_text="buf_description" long_mode="wrap">
+          <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
+        </text_small>
+
         <!-- ============ Unsupported system ============ -->
         <!-- buf_type 0 = no Happy Hare, AFC or pressure-sensor data. Without this the dialog is
              a header and a button row over an empty box. -->
@@ -50,18 +55,15 @@
         </lv_obj>
 
         <!-- ============ Filament pressure sensor ============ -->
-        <!-- buf_type 3 = a pressure sensor reporting compression only. -->
+        <!-- buf_type 3 = a pressure sensor outside AFC (OpenAMS): its reading and target. -->
         <lv_obj name="pressure_section" width="100%" height="content" flex_flow="column" style_pad_gap="#space_xs">
           <bind_flag_if_not_eq subject="buf_type" flag="hidden" ref_value="3"/>
-          <text_small name="pressure_description" width="100%" bind_text="buf_description" long_mode="wrap"/>
+          <text_small name="pressure_reading" width="100%" bind_text="buf_pressure" long_mode="wrap"/>
         </lv_obj>
 
         <!-- ============ Happy Hare section ============ -->
         <lv_obj name="hh_section" width="100%" height="content" flex_flow="column" style_pad_gap="#space_xs">
           <bind_flag_if_not_eq subject="buf_type" flag="hidden" ref_value="1"/>
-
-          <!-- Description -->
-          <text_small name="hh_description" width="100%" bind_text="buf_description" long_mode="wrap"/>
 
           <!-- Spool motor row -->
           <lv_obj name="espooler_row" width="100%" height="content" flex_flow="row" style_pad_gap="#space_sm">

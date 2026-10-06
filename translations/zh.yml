@@ -2236,6 +2236,7 @@ translations:
   Press Abort to stop: 按中止以停止
   Press Scan to search: 按扫描搜索
   'Pressure:': '压力:'
+  'Pressure: {}% (target {}%)': '压力: {}% (目标 {}%)'
   Pressure Adv.: '压力提前'
   Pressure Advance: '压力提前'
   Pressure Advance Calibration: '压力提前校准'

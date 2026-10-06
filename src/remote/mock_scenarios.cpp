@@ -190,6 +190,18 @@ static std::vector<MockScenario> clog_scenarios() {
                      });
                  }});
 
+    s.push_back(
+        {"buffer_fps", "Filament pressure sensor below its set point (pulling tight)", []() {
+             apply_clog_state([](AmsBackendMock& m) {
+                 clear_clog_sources(m);
+                 BufferHealth h;
+                 h.fps_value = h.smoothed_fps = 0.32f;
+                 h.fps_set_point = 0.5f;
+                 h.fps_reported = true;
+                 m.set_unit_buffer_health(0, h);
+             });
+         }});
+
     s.push_back({"clog_off", "No clog detection hardware — the meter hides itself",
                  []() { apply_clog_state([](AmsBackendMock& m) { clear_clog_sources(m); }); }});
 

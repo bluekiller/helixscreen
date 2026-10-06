@@ -39,6 +39,9 @@ class TestableBufferStatusModal : public BufferStatusModal {
     const char* description_value() {
         return lv_subject_get_string(&description_subject_);
     }
+    const char* pressure_value() {
+        return lv_subject_get_string(&pressure_subject_);
+    }
     const char* espooler_value() {
         return lv_subject_get_string(&espooler_value_subject_);
     }
@@ -418,13 +421,59 @@ TEST_CASE_METHOD(LVGLTestFixture, "BufferStatusModal shows a pressure sensor's r
     modal.populate(info, 0);
 
     CHECK(modal.type_value() == 3);
-    CHECK(modal.show_meter_value() == 0);
-    CHECK(std::string(modal.description_value()).find("62%") != std::string::npos);
     CHECK(std::string(modal.unsupported_value()).empty());
+
+    SECTION("with a set_point: meter, description and target") {
+        CHECK(modal.show_meter_value() == 1);
+        CHECK(std::string(modal.description_value()) == "Filament is loose");
+        CHECK(std::string(modal.pressure_value()) == "Pressure: 62% (target 50%)");
+    }
+
+    SECTION("under set_point the filament is pulling tight") {
+        info.units[0].buffer_health->smoothed_fps = 0.3f;
+        modal.populate(info, 0);
+        CHECK(std::string(modal.description_value()) == "Filament is pulling tight");
+    }
+
+    SECTION("without a set_point: the reading alone, no meter") {
+        info.units[0].buffer_health->fps_set_point = -1.0f;
+        modal.populate(info, 0);
+        CHECK(modal.type_value() == 3);
+        CHECK(modal.show_meter_value() == 0);
+        CHECK(std::string(modal.description_value()).empty());
+        CHECK(std::string(modal.pressure_value()) == "Pressure: 62%");
+    }
 
     SECTION("a buffer with no pressure reading stays unsupported") {
         info.units[0].buffer_health->fps_reported = false;
         modal.populate(info, 0);
         CHECK(modal.type_value() == 0);
+    }
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "BufferStatusModal draws the meter for an AFC FPS_PSF buffer",
+                 "[modals][buffer_status]") {
+    TestableBufferStatusModal modal;
+    auto info = make_afc_info();
+    auto& bh = *info.units[0].buffer_health;
+
+    SECTION("switched TurtleNeck: state rows only") {
+        modal.populate(info, 0);
+        CHECK(modal.type_value() == 2);
+        CHECK(modal.show_meter_value() == 0);
+        CHECK(std::string(modal.description_value()).empty());
+    }
+
+    SECTION("FPS_PSF: meter and the same description Happy Hare gets") {
+        bh.fps_value = bh.smoothed_fps = 0.505f;
+        bh.fps_set_point = 0.5f;
+        bh.fps_reported = true;
+        modal.populate(info, 0);
+        CHECK(modal.type_value() == 2);
+        CHECK(modal.show_meter_value() == 1);
+        CHECK(std::string(modal.description_value()) == "Filament tension is balanced");
+        // AFC's own rows stay.
+        CHECK(std::string(modal.afc_state_value()) == "Feeding filament forward");
+        CHECK(modal.show_distance_value() == 1);
     }
 }

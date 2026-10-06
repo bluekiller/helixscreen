@@ -631,10 +631,14 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
             }
         }
     }
-    // HH sync feedback → fault state based on bias magnitude
+    // Proportional sync feedback (Happy Hare, or this unit's pressure sensor)
+    // → fault state based on bias magnitude.
     // Use same thresholds as buffer meter: <0.3 green, 0.3-0.7 orange, >0.7 red
-    if (buffer_fault == 0 && backend->supports_sync_feedback_visualization(info)) {
-        float abs_bias = std::fabs(info.sync_feedback_bias);
+    const float buffer_bias = backend->supports_sync_feedback_visualization(info)
+                                  ? info.buffer_bias(effective_unit)
+                                  : -2.0f; // discrete mode
+    if (buffer_fault == 0 && buffer_bias > -1.5f) {
+        float abs_bias = std::fabs(buffer_bias);
         if (abs_bias >= 0.7f) {
             buffer_fault = 2;
         } else if (abs_bias >= 0.3f) {
@@ -683,12 +687,7 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
     ui_filament_path_canvas_set_buffer_info(canvas, buffer_present, buffer_state,
                                             pressure_sensor ? "FPS" : "BUF");
 
-    // Set proportional bias for backends with continuous sync feedback
-    if (backend->supports_sync_feedback_visualization(info)) {
-        ui_filament_path_canvas_set_buffer_bias(canvas, info.sync_feedback_bias);
-    } else {
-        ui_filament_path_canvas_set_buffer_bias(canvas, -2.0f); // discrete mode
-    }
+    ui_filament_path_canvas_set_buffer_bias(canvas, buffer_bias);
 
     // Set external spool color and assignment state. Only while bypass is
     // actually engaged: an assigned external spool is not in the filament path

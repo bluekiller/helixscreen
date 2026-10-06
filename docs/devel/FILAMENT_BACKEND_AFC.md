@@ -679,9 +679,10 @@ since a buffer landing on the wrong unit is what it exists to show.
 `AFC_buffer` configured `type: FPS_PSF` (AFC v1.2.0+) carries an analog filament-pressure
 sensor where the stock TurtleNeck carries a mechanical switch: `get_status()` publishes
 `fps_value`, `smoothed_fps` and `set_point`, and `BufferHealth::has_fps()` /
-`afc_fps_to_bias()` (`include/ams_types.h`) normalize `smoothed_fps` - the value AFC's own
+`fps_to_bias()` (`include/ams_types.h`) normalize `smoothed_fps` - the value AFC's own
 advance/trailing triggers compare - onto the `-1..+1` bias Happy Hare publishes directly.
-`get_system_info()` copies the first unit's reading into `sync_feedback_bias`, so the
+`get_system_info()` publishes `AmsSystemInfo::pressure_sensor_bias()` (the current slot's
+unit, else the first unit with a sensor) as `sync_feedback_bias`, so the
 buffer meter, the path-canvas hub tint and the widget's second carousel page work on AFC
 without any of them knowing which backend fed them. A switched TurtleNeck reports no
 pressure and keeps the "no data" sentinel, unchanged. The pressure rail is 0..1 by

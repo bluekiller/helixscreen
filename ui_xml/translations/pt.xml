@@ -2161,6 +2161,7 @@
   <translation tag="Pressure Advance" pt="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" pt="Calibração do pressure advance"/>
   <translation tag="Pressure:" pt="Pressão:"/>
+  <translation tag="Pressure: {}% (target {}%)" pt="Pressão: {}% (alvo {}%)"/>
   <translation tag="Preview Sounds" pt="Visualizar Sons"/>
   <translation tag="Previous" pt="Anterior"/>
   <translation tag="Price" pt="Preço"/>

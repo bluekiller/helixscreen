@@ -2388,6 +2388,7 @@ translations:
   Press Abort to stop: Pulse Abortar para detener
   Press Scan to search: Presione Escanear para buscar
   'Pressure:': 'Presión:'
+  'Pressure: {}% (target {}%)': 'Presión: {}% (objetivo {}%)'
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'Calibración de Pressure Advance'

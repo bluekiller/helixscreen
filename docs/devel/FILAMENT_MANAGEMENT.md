@@ -1244,7 +1244,7 @@ linear modes** (only Flowguard's two directions mean different faults).
 **Mock scenarios:** `helix-screen ctl scenario <name>` drives the mock *backend*,
 so the whole derivation runs — `clog_healthy`, `clog_warning`, `clog_blocked`,
 `flowguard_neutral`, `flowguard_tangle`, `flowguard_clog`, `buffer_safe`,
-`buffer_fault`, `clog_off`.
+`buffer_fault`, `buffer_fps` (a pressure sensor under its set point), `clog_off`.
 
 ### AFC buffers: switched vs FPS_PSF
 
@@ -1255,14 +1255,16 @@ which reads an analog filament pressure sensor over ADC.
 An FPS buffer adds exactly three keys to `get_status`: `fps_value`,
 `smoothed_fps` and `set_point`. **`low_point`, `high_point` and `deadband` are
 config-only and never published**, so the tuning range cannot be read at runtime
-— `BufferHealth::afc_fps_to_bias()` normalizes each side against the sensor's own
+— `BufferHealth::fps_to_bias()` normalizes each side against the sensor's own
 0..1 rail instead. Read `smoothed_fps`, not `fps_value`: AFC's own
 advance/trailing triggers compare the smoothed one.
 
 The result is published as `sync_feedback_bias`, the same signal Happy Hare
 reports, so `UiBufferMeter` and the path-canvas tint work on both without knowing
-the backend. A switched buffer sends none of these keys, leaves
-`fps_reported` false, and is unchanged.
+the backend. OpenAMS lanes carry the same sensor and publish it the same way
+(`AmsSystemInfo::pressure_sensor_bias()`); per-unit views draw
+`AmsSystemInfo::buffer_bias(unit)`, the unit's own sensor. A switched buffer sends
+none of these keys, leaves `fps_reported` false, and is unchanged.
 
 > **Unverified on hardware.** The only AFC rig here is a BoxTurtle with a
 > switched buffer; its live status carries none of the FPS fields. The mapping is

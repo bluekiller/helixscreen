@@ -2161,6 +2161,7 @@
   <translation tag="Pressure Advance" ja="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" ja="プレッシャーアドバンスキャリブレーション"/>
   <translation tag="Pressure:" ja="圧力:"/>
+  <translation tag="Pressure: {}% (target {}%)" ja="圧力: {}% (目標 {}%)"/>
   <translation tag="Preview Sounds" ja="サウンドをプレビュー"/>
   <translation tag="Previous" ja="前回"/>
   <translation tag="Price" ja="価格"/>

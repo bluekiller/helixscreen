@@ -2161,6 +2161,7 @@
   <translation tag="Pressure Advance" ru="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" ru="Калибровка Pressure Advance"/>
   <translation tag="Pressure:" ru="Давление:"/>
+  <translation tag="Pressure: {}% (target {}%)" ru="Давление: {}% (цель {}%)"/>
   <translation tag="Preview Sounds" ru="Предпросмотр звуков"/>
   <translation tag="Previous" ru="Прежняя"/>
   <translation tag="Price" ru="Цена"/>

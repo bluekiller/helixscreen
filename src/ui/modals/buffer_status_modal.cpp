@@ -23,6 +23,8 @@ lv_subject_t BufferStatusModal::description_subject_;
 lv_subject_t BufferStatusModal::unsupported_subject_;
 char BufferStatusModal::unsupported_buf_[128];
 char BufferStatusModal::description_buf_[128]{};
+lv_subject_t BufferStatusModal::pressure_subject_;
+char BufferStatusModal::pressure_buf_[128]{};
 lv_subject_t BufferStatusModal::espooler_value_subject_;
 char BufferStatusModal::espooler_buf_[128]{};
 lv_subject_t BufferStatusModal::gear_sync_value_subject_;
@@ -58,6 +60,7 @@ void BufferStatusModal::init_subjects() {
 
     lv_subject_init_string(&description_subject_, description_buf_, nullptr,
                            sizeof(description_buf_), "");
+    lv_subject_init_string(&pressure_subject_, pressure_buf_, nullptr, sizeof(pressure_buf_), "");
     lv_subject_init_string(&unsupported_subject_, unsupported_buf_, nullptr,
                            sizeof(unsupported_buf_), "");
     lv_subject_init_string(&espooler_value_subject_, espooler_buf_, nullptr, sizeof(espooler_buf_),
@@ -76,6 +79,7 @@ void BufferStatusModal::init_subjects() {
     lv_xml_register_subject(nullptr, "buf_show_flow", &show_flow_subject_);
     lv_xml_register_subject(nullptr, "buf_show_distance", &show_distance_subject_);
     lv_xml_register_subject(nullptr, "buf_description", &description_subject_);
+    lv_xml_register_subject(nullptr, "buf_pressure", &pressure_subject_);
     lv_xml_register_subject(nullptr, "buf_unsupported", &unsupported_subject_);
     lv_xml_register_subject(nullptr, "buf_espooler_value", &espooler_value_subject_);
     lv_xml_register_subject(nullptr, "buf_gear_sync_value", &gear_sync_value_subject_);
@@ -99,6 +103,15 @@ const BufferHealth* pressure_sensor(const AmsSystemInfo& info, int unit) {
     return health.has_value() && health->fps_reported ? &*health : nullptr;
 }
 
+/// What a sync-feedback bias means for the filament, whichever backend
+/// produced it.
+const char* bias_description(float bias) {
+    if (std::fabs(bias) < 0.02f) {
+        return lv_tr("Filament tension is balanced");
+    }
+    return bias < 0 ? lv_tr("Filament is pulling tight") : lv_tr("Filament is loose");
+}
+
 } // namespace
 } // namespace helix
 
@@ -107,24 +120,14 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
     // a previous open would otherwise sit under a supported backend's body.
     lv_subject_copy_string(&unsupported_subject_, "");
 
+    // The meter and its description follow whichever buffer this unit has:
+    // Happy Hare's system-level bias, or the unit's own pressure sensor.
+    const float bias = info.buffer_bias(effective_unit);
+    const bool has_bias = bias > -1.5f;
+    lv_subject_copy_string(&description_subject_, has_bias ? helix::bias_description(bias) : "");
+
     if (info.type == helix::AmsType::HAPPY_HARE) {
         lv_subject_set_int(&type_subject_, 1);
-
-        // Description based on bias
-        bool has_bias = info.sync_feedback_bias > -1.5f;
-        if (has_bias) {
-            float abs_bias = std::fabs(info.sync_feedback_bias);
-            if (abs_bias < 0.02f) {
-                lv_subject_copy_string(&description_subject_,
-                                       lv_tr("Filament tension is balanced"));
-            } else if (info.sync_feedback_bias < 0) {
-                lv_subject_copy_string(&description_subject_, lv_tr("Filament is pulling tight"));
-            } else {
-                lv_subject_copy_string(&description_subject_, lv_tr("Filament is loose"));
-            }
-        } else {
-            lv_subject_copy_string(&description_subject_, "");
-        }
 
         // eSpooler
         if (!info.espooler_state.empty()) {
@@ -162,7 +165,7 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
 
     } else if (info.type == helix::AmsType::AFC) {
         lv_subject_set_int(&type_subject_, 2);
-        lv_subject_set_int(&show_meter_subject_, 0);
+        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
 
         bool found_health = false;
         if (effective_unit >= 0 && effective_unit < static_cast<int>(info.units.size())) {
@@ -202,12 +205,16 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
             lv_subject_set_int(&show_distance_subject_, 0);
         }
     } else if (const helix::BufferHealth* fps = helix::pressure_sensor(info, effective_unit)) {
-        // A filament pressure sensor measures compression only, 0 to 1, so its
-        // reading is the whole story: no tension side, no spool motor.
+        // The target is the set_point the feeder regulates to; without one the
+        // reading cannot be placed either side of it, so there is no meter.
         lv_subject_set_int(&type_subject_, 3);
-        lv_subject_set_int(&show_meter_subject_, 0);
-        auto text = fmt::format("{} {:.0f}%", lv_tr("Pressure:"), fps->fps_value * 100.0f);
-        lv_subject_copy_string(&description_subject_, text.c_str());
+        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
+        const int pressure = static_cast<int>(std::lround(fps->fps_value * 100.0f));
+        auto text = fps->fps_set_point > 0.0f
+                        ? fmt::format(fmt::runtime(lv_tr("Pressure: {}% (target {}%)")), pressure,
+                                      static_cast<int>(std::lround(fps->fps_set_point * 100.0f)))
+                        : fmt::format("{} {}%", lv_tr("Pressure:"), pressure);
+        lv_subject_copy_string(&pressure_subject_, text.c_str());
     } else {
         // Neither buffer backend. Stock CFS, AD5X IFS, tool changers, ACE,
         // Snapmaker and QIDI report none of this - see AmsBackendCfs's own note
@@ -244,13 +251,12 @@ void BufferStatusModal::on_show() {
         }
     }
 
-    // Create UiBufferMeter programmatically in the meter column
-    bool has_bias = info_.type == helix::AmsType::HAPPY_HARE && info_.sync_feedback_bias > -1.5f;
-    if (has_bias && dialog()) {
+    // Create UiBufferMeter programmatically in the meter column populate() showed
+    if (lv_subject_get_int(&show_meter_subject_) != 0 && dialog()) {
         lv_obj_t* meter_col = lv_obj_find_by_name(dialog(), "meter_col");
         if (meter_col) {
             meter_ = new helix::ui::UiBufferMeter(meter_col);
-            meter_->set_bias(info_.sync_feedback_bias);
+            meter_->set_bias(info_.buffer_bias(effective_unit_));
         }
     }
 

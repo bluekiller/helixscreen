@@ -855,9 +855,10 @@ struct BufferHealth {
     /// -1 = not reported (fault detection off, or older firmware).
     float fault_timer = -1.0f;
 
-    /// Filament pressure sensor, present only on an `AFC_buffer` configured
-    /// `type: FPS_PSF` (AFCFPSBuffer, AFC v1.2.0+). A TurtleNeck buffer is
-    /// `type: switched` and reports none of these; -1 = not reported.
+    /// Filament pressure sensor: an `AFC_buffer` configured `type: FPS_PSF`
+    /// (AFCFPSBuffer, AFC v1.2.0+), or an OpenAMS lane's `pressure` and
+    /// `set_point`. A TurtleNeck buffer is `type: switched` and reports none of
+    /// these; -1 = not reported.
     ///
     /// `smoothed_fps` is the one to read: AFC's own advance/trailing triggers
     /// compare it, not the raw `fps_value`, so it is what the firmware means by
@@ -866,7 +867,7 @@ struct BufferHealth {
     /// Note what is NOT here. `low_point` / `high_point` / `deadband` are
     /// config-only — AFCFPSBuffer::get_status publishes `fps_value`,
     /// `smoothed_fps` and `set_point` and nothing else — so the tuning range
-    /// cannot be read at runtime. afc_fps_to_bias() normalizes against the
+    /// cannot be read at runtime. fps_to_bias() normalizes against the
     /// sensor's own 0..1 rail instead.
     float fps_value = -1.0f;
     float smoothed_fps = -1.0f;
@@ -887,23 +888,24 @@ struct BufferHealth {
         return fps_reported && fps_set_point > 0.0f;
     }
 
-    /// Map an AFC filament-pressure reading onto the -1..+1 sync-feedback bias
-    /// Happy Hare publishes directly, so one buffer meter can draw both.
+    /// Map a filament-pressure reading onto the -1..+1 sync-feedback bias
+    /// Happy Hare publishes directly, so one buffer meter can draw all of them.
     ///
     /// Sign follows the existing convention: negative is tension (filament
-    /// pulling tight), positive is compression (filament loose). AFC agrees —
-    /// its `low_point` is max tension and `high_point` max compression.
+    /// pulling tight), positive is compression (filament loose). Below
+    /// `set_point` the extruder is pulling harder than the feeder pushes; above
+    /// it the feeder is overfeeding. AFC's `low_point` is max tension and
+    /// `high_point` max compression.
     ///
-    /// The scale is the honest part. The plan for this wanted to normalize
-    /// against `high_point - set_point`, but neither point is published, so
-    /// each side is normalized against the distance from `set_point` to the
-    /// sensor's own rail (0.0 and 1.0). With the default set_point of 0.5 the
-    /// two agree; with an off-centre one this reads slightly conservative,
-    /// which is the right direction to be wrong in for a fault indicator.
+    /// Neither point is published, so each side is normalized against the
+    /// distance from `set_point` to the sensor's own rail (0.0 and 1.0). With
+    /// the default set_point of 0.5 the two agree; with an off-centre one this
+    /// reads slightly conservative, which is the right direction to be wrong in
+    /// for a fault indicator.
     ///
     /// Returns -1.5 (the "no data" sentinel the rest of the UI gates on) when
-    /// the buffer is not an FPS one.
-    [[nodiscard]] float afc_fps_to_bias() const {
+    /// the buffer is not an FPS one or its set_point is unknown.
+    [[nodiscard]] float fps_to_bias() const {
         if (!has_fps()) {
             return -1.5f;
         }
@@ -1752,6 +1754,34 @@ struct AmsSystemInfo {
         if (!unit)
             return -1;
         return unit->unit_index;
+    }
+
+    /// The bias one unit's buffer is drawn with: that unit's own pressure
+    /// sensor when it has a buffer (-1.5 for a switched one), else the
+    /// system-level sync_feedback_bias, which is how Happy Hare reports its
+    /// single buffer. -1.5 or below = nothing to draw.
+    [[nodiscard]] float buffer_bias(int unit_index) const {
+        const AmsUnit* unit = get_unit(unit_index);
+        if (unit && unit->buffer_health) {
+            return unit->buffer_health->fps_to_bias();
+        }
+        return sync_feedback_bias;
+    }
+
+    /// System-level bias for backends with a pressure sensor per unit: the one
+    /// feeding the toolhead (the current slot's unit), else the first unit
+    /// that has one. -1.5 when no unit reports pressure.
+    [[nodiscard]] float pressure_sensor_bias() const {
+        const AmsUnit* active = get_unit_for_slot(current_slot);
+        if (active && active->buffer_health && active->buffer_health->has_fps()) {
+            return active->buffer_health->fps_to_bias();
+        }
+        for (const auto& unit : units) {
+            if (unit.buffer_health && unit.buffer_health->has_fps()) {
+                return unit.buffer_health->fps_to_bias();
+            }
+        }
+        return -1.5f;
     }
 };
 
