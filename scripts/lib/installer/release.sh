@@ -5,7 +5,7 @@
 #
 # Reads: GITHUB_REPO, TMP_DIR, INSTALL_DIR, SUDO, MIGRATE_FROM_DIR,
 #        HELIX_MOD_PAYLOAD, HOST_MOD_ROOT (payload supersession sweep)
-# Writes: CLEANUP_TMP, BACKUP_CONFIG, BACKUP_ENV, ORIGINAL_INSTALL_EXISTS
+# Writes: CLEANUP_TMP, BACKUP_CONFIG, BACKUP_ENV
 
 # Source guard
 [ -n "${_HELIX_RELEASE_SOURCED:-}" ] && return 0
@@ -415,7 +415,28 @@ resolve_update_channel() {
         2) R2_CHANNEL=dev ;;
         *) R2_CHANNEL=stable ;;
     esac
+    case "$num" in
+        0 | 1 | 2) _R2_CHANNEL_FROM_SETTINGS=yes ;;
+    esac
     log_info "Update channel: ${R2_CHANNEL} (read from ${settings})"
+}
+
+# An explicit --version decides the channel when nothing else has: a
+# prerelease (any '-' suffix, the same test scripts/release-channel.sh applies
+# to tags) pinned on a fresh install or one with no settings.json is a beta
+# install, and the channel written into moonraker.conf must follow it.
+# _R2_CHANNEL_FROM_VERSION tells seed_update_channel to persist it for the app.
+# Args: the requested version tag
+match_channel_to_version() {
+    [ "${_R2_CHANNEL_FROM_ENV:-}" = "yes" ] && return 0
+    [ "${_R2_CHANNEL_FROM_SETTINGS:-}" = "yes" ] && return 0
+    case "$1" in
+        *-*)
+            R2_CHANNEL=beta
+            _R2_CHANNEL_FROM_VERSION=yes
+            log_info "Update channel: beta (${1} is a prerelease)"
+            ;;
+    esac
 }
 
 # Extract the version from a release tarball path. Args: path or basename.
@@ -552,19 +573,47 @@ _verify_archive_hash() {
 # second (matching get_latest_version's own source order), so an HTTPS-capable
 # box gets an authenticated set of hashes even when it later has to fall back
 # to the HTTP mirror for the much larger archive.
-# Returns 0 when a manifest is in hand.
+#
+# Each channel's manifest describes only that channel's latest release, so
+# given a version the install channel's manifest does not cover, the other
+# channels' manifests are tried: a beta pinned with --version on a stable
+# install is listed in beta's.
+# Args: [version tag the manifest must cover]
+# Returns 0 when a manifest (covering that version, if given) is in hand.
 _ensure_manifest() {
-    [ -n "$_R2_MANIFEST" ] && return 0
+    local want=${1:-} ch
+    if [ -n "$_R2_MANIFEST" ]; then
+        if [ -z "$want" ] || _manifest_covers_version "$want"; then
+            return 0
+        fi
+    fi
 
+    if _fetch_channel_manifest "$R2_CHANNEL" &&
+        { [ -z "$want" ] || _manifest_covers_version "$want"; }; then
+        return 0
+    fi
+    [ -n "$want" ] || return 1
+    for ch in stable beta dev; do
+        [ "$ch" = "$R2_CHANNEL" ] && continue
+        if _fetch_channel_manifest "$ch" && _manifest_covers_version "$want"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Fetch one channel's manifest into _R2_MANIFEST / _R2_MANIFEST_TRANSPORT.
+# Args: channel
+_fetch_channel_manifest() {
     if check_https_capability; then
-        _R2_MANIFEST=$(fetch_url "${R2_BASE_URL}/${R2_CHANNEL}/manifest.json") || true
+        _R2_MANIFEST=$(fetch_url "${R2_BASE_URL}/${1}/manifest.json") || true
         if [ -n "$_R2_MANIFEST" ]; then
             _R2_MANIFEST_TRANSPORT="https"
             return 0
         fi
     fi
 
-    _R2_MANIFEST=$(fetch_url_http "${HTTP_BASE_URL}/${R2_CHANNEL}/manifest.json") || true
+    _R2_MANIFEST=$(fetch_url_http "${HTTP_BASE_URL}/${1}/manifest.json") || true
     if [ -n "$_R2_MANIFEST" ]; then
         _R2_MANIFEST_TRANSPORT="http"
         return 0
@@ -928,7 +977,7 @@ download_release() {
     # invoked as `version=$(get_latest_version ...)`, so the _R2_MANIFEST it
     # caches lives and dies in that command substitution's subshell and never
     # reaches here — without this refetch every download is unverifiable.
-    _ensure_manifest || true
+    _ensure_manifest "$version" || true
 
     # The channel manifest only ever describes the LATEST release. Anything it
     # says (asset URLs *and* hashes) is off-limits when the caller pinned an
@@ -1713,7 +1762,6 @@ extract_release() {
     # is the standalone-install contract; the payload root must never be mv'd
     # aside or rm -rf'd as a whole, so none of it may run in this mode.
     if [ "${HELIX_MOD_PAYLOAD:-}" = "1" ]; then
-        [ -d "${INSTALL_DIR}" ] && ORIGINAL_INSTALL_EXISTS=true
         if ! payload_replace_contents "$new_install" "${INSTALL_DIR}"; then
             log_error "Payload update failed at ${INSTALL_DIR}; entries already replaced are gone."
             cd / 2>/dev/null || true
@@ -1730,8 +1778,6 @@ extract_release() {
     backup_existing_config "$(_config_source_dir)"
 
     if [ -d "${INSTALL_DIR}" ]; then
-        ORIGINAL_INSTALL_EXISTS=true
-
         # Under NoNewPrivileges (self-update from in-app), we prefer the
         # atomic swap (mv old; mv new) if the parent dir is writable (service
         # file v0.97.4+ adds ReadWritePaths for it).  Fall back to the racy
@@ -1945,10 +1991,9 @@ extract_release() {
     # Does a user config actually exist to restore?  Must match the candidate
     # chain the restore below walks, or the removal here outruns it.
     #
-    # ORIGINAL_INSTALL_EXISTS is not that test: it is set from `[ -d INSTALL_DIR ]`
-    # alone, and embedded targets keep logs and cache under the install dir
-    # (K1: /usr/data/helixscreen/{logs,cache}), so the directory routinely
-    # predates a first install with no config in it.
+    # The install dir existing is not that test: embedded targets keep logs and
+    # cache under it (K1: /usr/data/helixscreen/{logs,cache}), so the directory
+    # routinely predates a first install with no config in it.
     _have_restore_candidate=false
     if [ -n "${BACKUP_CONFIG:-}" ] && [ -s "$BACKUP_CONFIG" ]; then
         _have_restore_candidate=true
@@ -2405,10 +2450,17 @@ cleanup_superseded_payload() {
 }
 
 cleanup_old_install() {
-    # Keep .old as a last-resort recovery path if config wasn't restored.
-    # Without this guard, a failed Phase 6 + cleanup = permanent config loss.
-    if [ "$ORIGINAL_INSTALL_EXISTS" = true ] && [ ! -f "${INSTALL_DIR}/config/settings.json" ]; then
-        log_warn "Config not restored — keeping .old backup for recovery"
+    # Keep the backup as a last-resort recovery path if the old install had a
+    # config that did not come across. Without this guard, a failed Phase 6 +
+    # cleanup = permanent config loss. _have_restore_candidate is extract_release's
+    # record of whether that config existed; an old dir holding only logs and
+    # cache never had one, so its absence afterwards loses nothing.
+    if [ "${_have_restore_candidate:-}" = true ] && [ ! -f "${INSTALL_DIR}/config/settings.json" ]; then
+        if [ -n "${INSTALL_BACKUP:-}" ] && [ -d "$INSTALL_BACKUP" ]; then
+            log_warn "Config not restored: keeping ${INSTALL_BACKUP} for recovery"
+        else
+            log_warn "Config not restored, and no backup of the previous install remains"
+        fi
         return 0
     fi
 

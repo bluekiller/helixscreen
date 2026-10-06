@@ -11,6 +11,7 @@
 
 #include "grid_edit_drop.h"
 #include "grid_layout.h"
+#include "panel_widget_registry.h"
 
 #include <vector>
 
@@ -374,4 +375,31 @@ TEST_CASE("a swap that does not fit both ways commits nothing", "[1503][grid_edi
          -1,
          -1},
     });
+}
+
+// --- placement_refusal: the check behind `ctl home place` -------------------
+
+TEST_CASE("a placement is refused outside the def's spans, off whole cells, or on a taken track",
+          "[grid_edit][ctl]") {
+    helix::PanelWidgetDef def;
+    def.id = "probe";
+    def.colspan = 2;
+    def.rowspan = 2;
+    def.max_colspan = 8;
+    def.max_rowspan = 4;
+    GridLayout occupancy(UiBreakpoint::Medium, {COLS, ROWS});
+    REQUIRE(occupancy.place({"other", 8, 0, 2, 2}));
+
+    CHECK(helix::placement_refusal(def, occupancy, 0, 0, 8, 4).empty());
+    CHECK_FALSE(helix::placement_refusal(def, occupancy, 0, 0, 10, 2).empty()); // past max
+    CHECK_FALSE(helix::placement_refusal(def, occupancy, 0, 0, 2, 6).empty());  // past max
+    CHECK_FALSE(helix::placement_refusal(def, occupancy, 0, 0, 3, 2).empty());  // half cell
+    CHECK(helix::placement_refusal(def, occupancy, 6, 0, 4, 2) ==
+          "2x1 at (3, 0) overlaps another widget");
+    CHECK(helix::placement_refusal(def, occupancy, 10, 2, 4, 2) ==
+          "2x1 at (5, 1) leaves the 6x4 grid");
+
+    def.supports_half_col = true;
+    CHECK(helix::placement_refusal(def, occupancy, 0, 0, 3, 2).empty());
+    CHECK_FALSE(helix::placement_refusal(def, occupancy, 0, 0, 2, 3).empty()); // rows stay whole
 }

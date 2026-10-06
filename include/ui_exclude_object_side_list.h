@@ -4,6 +4,7 @@
 #include "ui_observer_guard.h"
 
 #include "async_lifetime_guard.h"
+#include "helix/xml/indexed_subject_pool.h"
 #include "print_status_layout_decision.h"
 
 #include <functional>
@@ -63,9 +64,11 @@ class ExcludeObjectSideList {
     }
 
   private:
-    void populate_rows();
-    void create_row(lv_obj_t* parent, int index, const std::string& name, bool is_excluded,
-                    bool is_current);
+    /// Recreate the rows when the defined object set differs from the one shown.
+    void rebuild_rows();
+    /// Publish each row's state; rows restyle in place and keep the scroll position.
+    void update_row_states();
+    void create_row(lv_obj_t* parent, int index, const std::string& name);
     static lv_color_t color_for_index(int index);
     static void on_row_clicked(lv_event_t* e);
     static void on_close_clicked(lv_event_t* e);
@@ -77,6 +80,12 @@ class ExcludeObjectSideList {
 
     PrinterState* printer_state_{nullptr};
     PrintExcludeObjectManager* manager_{nullptr};
+
+    /// Names the rows were built from, in row order.
+    std::vector<std::string> row_names_;
+    /// One int per row, bound by exclude_object_row.xml: 0 idle, 1 printing, 2 excluded.
+    helix::xml::IndexedSubjectPool row_states_{"exclude_row_state",
+                                               helix::xml::IndexedSubjectPool::Type::Int};
 
     ObserverGuard excluded_version_obs_;
     ObserverGuard defined_version_obs_;

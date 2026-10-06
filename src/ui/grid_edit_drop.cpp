@@ -3,6 +3,9 @@
 #include "grid_edit_drop.h"
 
 #include "grid_edit_cross_page.h"
+#include "panel_widget_registry.h"
+
+#include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
 
@@ -87,6 +90,46 @@ DropResolution resolve_drop(const DropInput& in, const GridLayout& occupancy) {
         return nothing;
     }
     return swap;
+}
+
+std::string placement_refusal(const PanelWidgetDef& def, const GridLayout& occupancy, int col,
+                              int row, int colspan, int rowspan) {
+    // Reported in cells, the unit a person places widgets in.
+    const auto cells = [](int tracks) {
+        return fmt::format("{:g}", static_cast<double>(tracks) / GridLayout::TRACKS_PER_CELL);
+    };
+    const auto span_refusal = [&](const char* axis, int span, int lo, int hi,
+                                  bool half) -> std::string {
+        if (span < lo || span > hi) {
+            return fmt::format("{} {} is outside {}'s {}..{} cells", axis, cells(span), def.id,
+                               cells(lo), cells(hi));
+        }
+        if (!half && span % GridLayout::TRACKS_PER_CELL != 0) {
+            return fmt::format("{} {} is not whole cells, and {} has no half cells", axis,
+                               cells(span), def.id);
+        }
+        return {};
+    };
+    std::string why = span_refusal("width", colspan, def.effective_min_colspan(),
+                                   def.effective_max_colspan(), def.supports_half_col);
+    if (why.empty()) {
+        why = span_refusal("height", rowspan, def.effective_min_rowspan(),
+                           def.effective_max_rowspan(), def.supports_half_row);
+    }
+    if (!why.empty()) {
+        return why;
+    }
+    const auto where =
+        fmt::format("{}x{} at ({}, {})", cells(colspan), cells(rowspan), cells(col), cells(row));
+    if (col < 0 || row < 0 || col + colspan > occupancy.cols() ||
+        row + rowspan > occupancy.rows()) {
+        return fmt::format("{} leaves the {}x{} grid", where, cells(occupancy.cols()),
+                           cells(occupancy.rows()));
+    }
+    if (!occupancy.can_place(col, row, colspan, rowspan)) {
+        return where + " overlaps another widget";
+    }
+    return {};
 }
 
 } // namespace helix
