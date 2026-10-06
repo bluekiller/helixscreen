@@ -935,27 +935,120 @@ _try_download_candidate() {
     return 0
 }
 
+# Normalize to the v-prefixed release tag. Release artifacts live under the
+# tag at every transport — R2 dir (releases/vX.Y.Z/), versioned tar filename
+# (helixscreen-<plat>-vX.Y.Z.tar.gz), and the GitHub tag (vX.Y.Z). A bare
+# version arrives whenever the caller bypasses get_latest_version's own
+# normalization: an explicit `--version 0.99.80`, or the in-app updater
+# passing the manifest's bare `.version` field. Without the `v` every
+# candidate URL 404s. ("local" placeholder for --local installs is untouched.)
+# Args: version
+_release_tag() {
+    case "$1" in
+        [0-9]*) echo "v$1" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+# The candidate archive URLs, in the order download_release tries them, and
+# the manifest's hashes for them. Fetches the manifest when it is not cached.
+# Sets, in the caller's scope (declare them local first): zip_filename
+# tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http zip_sha tar_sha
+# manifest_ok.
+# Args: release tag (from _release_tag), release platform (get_release_platform)
+_release_candidates() {
+    local version=$1 platform=$2 manifest_url
+
+    # NOTE: *_filename are the fixed server-side asset names (fetch URLs). Only
+    # the local staged names carry the version.
+    zip_filename="helixscreen-${platform}.zip"
+    tar_filename="helixscreen-${platform}-${version}.tar.gz"
+
+    # get_latest_version() is invoked as `version=$(get_latest_version ...)`,
+    # so the _R2_MANIFEST it caches lives and dies in that command
+    # substitution's subshell; without this refetch every download is
+    # unverifiable.
+    _ensure_manifest "$version" || true
+
+    # The channel manifest only ever describes the LATEST release. Anything it
+    # says (asset URLs *and* hashes) is off-limits when the caller pinned an
+    # older --version, or we would download the newest build under the old
+    # version's name and then fail its hash.
+    manifest_ok=false
+    manifest_url=""
+    if _manifest_covers_version "$version"; then
+        manifest_ok=true
+        manifest_url=$(echo "$_R2_MANIFEST" | parse_manifest_platform_url "$platform")
+    fi
+
+    # Zip gets tried before tar at every transport.
+    zip_r2="${R2_BASE_URL}/releases/${version}/${zip_filename}"
+    tar_r2="${manifest_url:-${R2_BASE_URL}/releases/${version}/${tar_filename}}"
+    zip_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${zip_filename}"
+    tar_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${tar_filename}"
+    zip_http="${HTTP_BASE_URL}/releases/${version}/${zip_filename}"
+    tar_http="${HTTP_BASE_URL}/releases/${version}/${tar_filename}"
+    if [ -n "$manifest_url" ]; then
+        tar_http=$(echo "$manifest_url" | sed "s|${R2_BASE_URL}|${HTTP_BASE_URL}|")
+    fi
+
+    # All three transports serve byte-identical artifacts (one CI job uploads
+    # the same files to the GitHub release and to R2, and generates the
+    # manifest from them), so one pair of hashes covers every candidate.
+    zip_sha=""
+    tar_sha=""
+    if [ "$manifest_ok" = true ]; then
+        zip_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform" zip)
+        tar_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform")
+    fi
+}
+
+# True when a HEAD request finds the URL. curl and wget both say so without
+# fetching the body. A host with neither (python-only) cannot ask, so the URL
+# counts as found and download_release remains the check.
+_url_exists() {
+    if _has_real_curl; then
+        curl -sfIL --connect-timeout 10 -A "$_INSTALLER_UA" -o /dev/null "$1" 2>/dev/null
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --spider --timeout=10 "$1" 2>/dev/null
+    fi
+}
+
+# The read-only half of download_release, for the plan: confirms the archive
+# exists and says whether it can be verified, writing nothing. Exits 1 when no
+# candidate exists, which is where download_release would have failed.
+# Sets PROBE_SIZE_TEXT. Args: version platform
+probe_release() {
+    if [ -n "${local_tarball:-}" ]; then
+        PROBE_SIZE_TEXT="local file, $(du -h "$local_tarball" 2>/dev/null | cut -f1)"
+        return 0
+    fi
+    local zip_filename tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http
+    local zip_sha tar_sha manifest_ok url
+    _release_candidates "$(_release_tag "$1")" "$(get_release_platform "$2")"
+    # shellcheck disable=SC2034  # consumed by plan.sh (confirm_point)
+    if [ -n "$zip_sha$tar_sha" ]; then
+        PROBE_SIZE_TEXT="SHA256 available"
+    else
+        PROBE_SIZE_TEXT="no SHA256 published"
+    fi
+    for url in "$zip_r2" "$tar_r2" "$zip_gh" "$tar_gh" "$zip_http" "$tar_http"; do
+        _url_exists "$url" && return 0
+    done
+    log_error "No HelixScreen $1 release for $2."
+    exit 1
+}
+
 # Download release archive. Prefers the unversioned .zip (consumed by both this
 # installer and Moonraker Update Manager) and falls back to the legacy versioned
 # .tar.gz if no .zip is available at any transport — kept for bridge releases
 # during the zip migration. Sets _ARCHIVE_FORMAT to record which format won.
 # Tries R2 CDN, then GitHub Releases, then the plain-HTTP mirror.
 download_release() {
-    local version=$1
-    local platform=$2
-    platform=$(get_release_platform "$platform")
-
-    # Normalize to the v-prefixed release tag. Release artifacts live under the
-    # tag at every transport — R2 dir (releases/vX.Y.Z/), versioned tar filename
-    # (helixscreen-<plat>-vX.Y.Z.tar.gz), and the GitHub tag (vX.Y.Z). A bare
-    # version reaches here whenever the caller bypasses get_latest_version's own
-    # normalization: an explicit `--version 0.99.80`, or the in-app updater
-    # passing the manifest's bare `.version` field. Without the `v` every
-    # candidate URL 404s. ("local" placeholder for --local installs is untouched.)
-    case "$version" in
-        v* | local) ;;
-        [0-9]*) version="v${version}" ;;
-    esac
+    local version
+    local platform
+    version=$(_release_tag "$1")
+    platform=$(get_release_platform "$2")
 
     # Stage downloads under an identifiable local name (helixscreen-<plat>-<ver>.zip);
     # extract_release()/use_local_tarball() read it back via _archive_tmp_path().
@@ -965,60 +1058,15 @@ download_release() {
     mkdir -p "$TMP_DIR"
     CLEANUP_TMP=true
 
-    # NOTE: *_filename are the fixed server-side asset names (fetch URLs); *_dest are
-    # the local staged paths. Only the local names carry the version — keep them in
-    # sync with _archive_tmp_path() above.
-    local zip_filename="helixscreen-${platform}.zip"
+    # *_dest are the local staged paths; keep them in sync with
+    # _archive_tmp_path() above.
+    local zip_filename tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http
+    local zip_sha tar_sha manifest_ok
+    _release_candidates "$version" "$platform"
     local zip_dest="${TMP_DIR}/helixscreen-${platform}-${version}.zip"
-    local tar_filename="helixscreen-${platform}-${version}.tar.gz"
     local tar_dest="${TMP_DIR}/helixscreen-${platform}-${version}.tar.gz"
 
-    # Make sure we have a manifest to check against. get_latest_version() is
-    # invoked as `version=$(get_latest_version ...)`, so the _R2_MANIFEST it
-    # caches lives and dies in that command substitution's subshell and never
-    # reaches here — without this refetch every download is unverifiable.
-    _ensure_manifest "$version" || true
-
-    # The channel manifest only ever describes the LATEST release. Anything it
-    # says (asset URLs *and* hashes) is off-limits when the caller pinned an
-    # older --version, or we would download the newest build under the old
-    # version's name and then fail its hash.
-    local manifest_ok=false
-    if _manifest_covers_version "$version"; then
-        manifest_ok=true
-    fi
-
-    # Build candidate URL lists. Zip gets tried before tar at every transport.
-    local zip_r2="${R2_BASE_URL}/releases/${version}/${zip_filename}"
-    local tar_r2=""
     if [ "$manifest_ok" = true ]; then
-        tar_r2=$(echo "$_R2_MANIFEST" | parse_manifest_platform_url "$platform")
-    fi
-    if [ -z "$tar_r2" ]; then
-        tar_r2="${R2_BASE_URL}/releases/${version}/${tar_filename}"
-    fi
-
-    local zip_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${zip_filename}"
-    local tar_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${tar_filename}"
-
-    local zip_http="${HTTP_BASE_URL}/releases/${version}/${zip_filename}"
-    local tar_http="${HTTP_BASE_URL}/releases/${version}/${tar_filename}"
-    if [ "$manifest_ok" = true ]; then
-        local http_manifest_url
-        http_manifest_url=$(echo "$_R2_MANIFEST" | parse_manifest_platform_url "$platform")
-        if [ -n "$http_manifest_url" ]; then
-            tar_http=$(echo "$http_manifest_url" | sed "s|${R2_BASE_URL}|${HTTP_BASE_URL}|")
-        fi
-    fi
-
-    # Expected SHA256s. All three transports serve byte-identical artifacts
-    # (one CI job uploads the same files to the GitHub release and to R2, and
-    # generates the manifest from them), so one pair of hashes covers every
-    # candidate.
-    local zip_sha="" tar_sha=""
-    if [ "$manifest_ok" = true ]; then
-        zip_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform" zip)
-        tar_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform")
         # A hash fetched over the plain-HTTP mirror travelled the same
         # unauthenticated channel as the archive will, so it proves integrity
         # (truncation, a stale mirror) but not authenticity. Say so rather than

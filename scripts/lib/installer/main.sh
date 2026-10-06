@@ -263,8 +263,8 @@ mod_payload_autodetect() {
 #
 # Nothing is ever deleted here: the legacy root and its service are the
 # operator's to remove, with the commands printed below or the shipped
-# uninstaller. An adoption IS recorded (the record write later in
-# mod_payload_mode_block), which is also how the next run resumes it without
+# uninstaller. An adoption IS recorded (record_payload_root_if_payload, after
+# the confirm point), which is also how the next run resumes it without
 # re-asking.
 payload_legacy_adopt_or_warn() {
     # Only an armed, bare payload install reaching for the mod's default
@@ -325,19 +325,17 @@ payload_legacy_adopt_or_warn() {
     log_warn "  --payload-root $legacy"
 }
 
-# Ask the adopt question where it can be answered: a TTY. The curl|sh pipe
-# cannot answer (stdin carries the script), so every other stdin declines -
-# the same rule confirm_clean_install applies, except a decline proceeds at
-# the mod default rather than aborting.
+# Ask the adopt question on the terminal, which tty_confirm reaches under
+# curl|sh too. With nothing that can answer, the offer is declined and the
+# install proceeds at the mod default. --yes does not answer it: --yes
+# consents to destructive prompts, and where the payload lands is a choice.
 # Returns 0 to adopt.
 payload_legacy_prompt_adopt() {
-    [ -t 0 ] || return 1
-    printf "Adopt the existing install at %s as the payload root? [y/N] " "$1"
-    read -r response
-    case "$response" in
-        [yY][eE][sS]|[yY]) return 0 ;;
-        *) return 1 ;;
-    esac
+    local assume_yes="${ASSUME_YES:-false}" rc=0
+    ASSUME_YES=false
+    tty_confirm "Adopt the existing install at $1 as the payload root?" n || rc=1
+    ASSUME_YES="$assume_yes"
+    return "$rc"
 }
 
 # Payload-mode wiring. Runs after set_install_paths (INSTALL_DIR holds the
@@ -419,11 +417,6 @@ mod_payload_mode_block() {
         # capture, since the record now names THIS run's root instead).
         # shellcheck disable=SC2034  # consumed by uninstall.sh (clean_old_installation sweeps it)
         HELIX_PRIOR_PAYLOAD_ROOT=$(read_payload_root_record 2>/dev/null || true)
-        # Record where this payload install actually landed, so a later armed
-        # uninstall removes THIS root (its own --payload-root, else this
-        # record, else the probed default). Install runs only: an uninstall
-        # must not re-point the record on its way out the door.
-        record_payload_root "$INSTALL_DIR"
 
         if [ "${MOD_PAYLOAD_FLAG_GIVEN:-}" = "1" ]; then
             log_info "--mod-payload: replacing payload contents in place at $INSTALL_DIR"
@@ -436,6 +429,17 @@ mod_payload_mode_block() {
         log_warn "--payload-root names a root this host's profile did not find;"
         log_warn "applying the in-place payload contract anyway."
     fi
+}
+
+# Record where this payload install actually lands, so a later armed uninstall
+# removes THIS root (its own --payload-root, else this record, else the probed
+# default). main() calls it after the confirm point, before --clean sweeps:
+# the sweep reads HELIX_PRIOR_PAYLOAD_ROOT, captured by mod_payload_mode_block
+# before this write replaces the record. Install runs only: an uninstall must
+# not re-point the record on its way out the door.
+record_payload_root_if_payload() {
+    [ "${HELIX_MOD_PAYLOAD:-}" = "1" ] || return 0
+    record_payload_root "$INSTALL_DIR"
 }
 
 # Configure platform-specific settings before stopping competing UIs
@@ -496,12 +500,17 @@ install_platform_hooks() {
 # ad5x is the exception on the non-Pi side: one install package covers the
 # AD5X and both Creator 5 boards, so the board name leads and the key is
 # reframed as the package, same shape as the non-Pi SBC case above.
+#
+# Sets HARDWARE_LABEL, the board name the plan's Printer line leads with
+# (empty where the platform key already says it).
 print_platform_banner() {
     local platform="$1"
     local _hw_label
+    HARDWARE_LABEL=""
 
     if [ "$platform" = "ad5x" ]; then
-        log_info "Detected hardware: ${BOLD}$(ad5x_board_name)${NC}"
+        HARDWARE_LABEL=$(ad5x_board_name)
+        log_info "Detected hardware: ${BOLD}${HARDWARE_LABEL}${NC}"
         log_info "Install package: ${BOLD}${platform}${NC} (unified MIPS FlashForge build)"
         return 0
     fi
@@ -512,6 +521,7 @@ print_platform_banner() {
     fi
 
     _hw_label=$(describe_hardware)
+    HARDWARE_LABEL="$_hw_label"
     case "$_hw_label" in
         "Raspberry Pi"*)
             log_info "Detected platform: ${BOLD}${platform}${NC}"
@@ -736,13 +746,13 @@ main() {
         exit 99
     fi
 
-    # Pre-flight checks
+    # Pre-flight checks. Everything from here to the confirm point only reads:
+    # --dry-run exits there, and the plan screen promises nothing has changed.
+    # A static test holds every call here to a read-only allowlist.
     log_info "Running pre-flight checks..."
     detect_missing_unzip
     check_requirements
-    install_missing_unzip
     detect_missing_runtime_deps "$platform"
-    install_runtime_deps "$platform"
     check_disk_space "$platform"
     detect_init_system
     check_klipper_ecosystem "$platform"
@@ -780,6 +790,27 @@ main() {
         fi
     fi
     log_info "Target version: ${BOLD}${version}${NC}"
+
+    # The release must exist before the plan offers it; HEAD requests only.
+    probe_release "$version" "$download_platform"
+    # After detect_init_system: systemd units are only looked for on systemd.
+    detect_competing_uis
+    detect_moonraker_integration "$platform"
+    detect_kiauh
+
+    confirm_point "$platform" "$version"
+
+    # The machine changes from here on.
+    if [ "$platform" = "ad5m" ]; then
+        cleanup_ad5m_gcodes_root
+    fi
+    record_payload_root_if_payload
+    # A write probe sudo would have had to prompt for runs now that it can.
+    if [ -n "${DISK_CHECK_DEFERRED:-}" ]; then
+        check_disk_space "$platform"
+    fi
+    install_missing_unzip
+    install_runtime_deps "$platform"
 
     # Download/stage the release archive BEFORE any step that modifies the
     # running printer (stock-UI disable, competing-UI shutdown, old-install

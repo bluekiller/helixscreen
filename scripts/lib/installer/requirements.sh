@@ -4,7 +4,7 @@
 # Pre-flight checks: commands, dependencies, disk space, init system
 #
 # Reads: PLATFORM, SUDO
-# Writes: INIT_SYSTEM
+# Writes: INIT_SYSTEM, MISSING_UNZIP_PKG, MISSING_RUNTIME_DEPS, DISK_CHECK_DEFERRED
 
 # Source guard
 [ -n "${_HELIX_REQUIREMENTS_SOURCED:-}" ] && return 0
@@ -123,8 +123,8 @@ detect_missing_runtime_deps() {
     if [ -n "$turbo_pkg" ]; then
         deps="$deps $turbo_pkg"
     else
-        log_warn "No turbojpeg package found (tried libturbojpeg0, libturbojpeg)"
-        log_warn "JPEG thumbnail decoding may not work"
+        log_info "No turbojpeg package found (tried libturbojpeg0, libturbojpeg)"
+        log_info "JPEG thumbnail decoding may not work"
     fi
 
     for dep in $deps; do
@@ -137,8 +137,10 @@ detect_missing_runtime_deps() {
     return 0
 }
 
-# Install what detect_missing_runtime_deps found.
+# Install what detect_missing_runtime_deps found, detecting first when it has
+# not run.
 install_runtime_deps() {
+    [ -n "${MISSING_RUNTIME_DEPS+x}" ] || detect_missing_runtime_deps "$1"
     local missing="${MISSING_RUNTIME_DEPS:-}"
 
     # Only needed for Pi (32-bit and 64-bit) - AD5M uses framebuffer with static linking
@@ -175,9 +177,18 @@ install_runtime_deps() {
 # ENOSPC the filesystem is asked directly instead. Shared by
 # check_service_dest_space and check_disk_space's no-df-target fallback so
 # both ask the same way.
+#
+# Before the confirm point sudo must not prompt, so a probe that would need a
+# password returns 2 (undetermined) and DISK_CHECK_DEFERRED asks main() to
+# repeat the check once confirm_point has been granted sudo.
 _fs_probe_write_kb() {
     local dir="$1" kb="$2"
     local probe="${dir%/}/.helixscreen-space-probe.$$"
+    if [ -n "$SUDO" ] && [ "${HELIX_CONFIRMED:-}" != 1 ] && ! $SUDO -n true 2>/dev/null; then
+        # shellcheck disable=SC2034  # consumed by main.sh and plan.sh (confirm_point)
+        DISK_CHECK_DEFERRED=1
+        return 2
+    fi
     if $SUDO dd if=/dev/zero of="$probe" bs=1024 count="$kb" \
             >/dev/null 2>&1; then
         $SUDO rm -f "$probe" 2>/dev/null || true
@@ -234,8 +245,10 @@ check_disk_space() {
     if [ -z "$available_mb" ]; then
         # df could not answer (no directory to point it at, or df itself
         # failed). Ask the filesystem with a real write instead.
-        if _fs_probe_write_kb "$check_dir" "$SERVICE_DEST_PROBE_KB"; then
-            log_info "Disk space check: $check_dir accepts a real write"
+        local probe_rc=0
+        _fs_probe_write_kb "$check_dir" "$SERVICE_DEST_PROBE_KB" || probe_rc=$?
+        if [ "$probe_rc" -ne 1 ]; then
+            [ "$probe_rc" -eq 0 ] && log_info "Disk space check: $check_dir accepts a real write"
             # INSTALL_DIR is not the only filesystem this install writes to.
             check_service_dest_space
             return 0
@@ -327,10 +340,13 @@ check_service_dest_space() {
     done
     [ "$(_fs_id "$dest_dir")" != "$(_fs_id "$install_probe")" ] || return 0
 
-    if _fs_probe_write_kb "$dest_dir" "$SERVICE_DEST_PROBE_KB"; then
-        log_info "Service directory check: $(_fs_free_mb "$dest_dir")MB available on $dest_dir"
-        return 0
-    fi
+    local probe_rc=0
+    _fs_probe_write_kb "$dest_dir" "$SERVICE_DEST_PROBE_KB" || probe_rc=$?
+    case "$probe_rc" in
+        0) log_info "Service directory check: $(_fs_free_mb "$dest_dir")MB available on $dest_dir"
+           return 0 ;;
+        2) return 0 ;;
+    esac
 
     local upper
     upper=$(_overlay_upperdir)

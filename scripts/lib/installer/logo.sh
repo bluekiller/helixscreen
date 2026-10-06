@@ -48,7 +48,6 @@ _logotype() {
     fi
 }
 
-# UNCALLED_OK: called from confirm_point (Task 8)
 print_banner() { # version channel
     if [ "$UI_TTY" != 1 ]; then
         printf 'HelixScreen installer %s (%s)\n' "$1" "$2" >&2

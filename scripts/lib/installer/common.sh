@@ -291,7 +291,6 @@ _log_write() {
     fi
 }
 
-# UNCALLED_OK: callers land in Task 8/9
 log_open() {
     INSTALL_LOG="$1"
     : > "$INSTALL_LOG" 2>/dev/null || { INSTALL_LOG=""; return 1; }
@@ -403,7 +402,6 @@ log_note() {
     _ui_emit "    $1"
 }
 
-# UNCALLED_OK: called from main() once steps land
 step() {
     [ "$STEP_OPEN" = 1 ] && step_done
     _ui_marks
@@ -433,7 +431,6 @@ _step_close() { # mark color word detail
     STEP_OPEN=0
 }
 
-# UNCALLED_OK: called from main() once steps land
 # shellcheck disable=SC2120  # step() closes a stale step with no detail
 step_done() {
     [ "$STEP_OPEN" = 1 ] || return 0

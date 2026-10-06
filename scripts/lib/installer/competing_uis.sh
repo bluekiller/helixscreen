@@ -230,6 +230,17 @@ stop_forgex_competing_uis() {
     fi
 }
 
+# PIDs of python processes running KlipperScreen's screen.py, one per line.
+# BusyBox ps doesn't support 'aux', so this uses the portable -ef.
+_kmod_klipperscreen_pids() {
+    # shellcheck disable=SC2009
+    ps -ef 2>/dev/null | grep -E 'KlipperScreen.*screen\.py' | grep -v grep | awk '{print $2}'
+}
+
+# Framebuffer contenders on stock K1 firmware. Monitor is listed first: it is
+# a watchdog that respawns display-server moments after a kill.
+K1_STOCK_UI_PROCS="Monitor display-server"
+
 # Stop Klipper Mod-specific competing UIs (Xorg, KlipperScreen)
 stop_kmod_competing_uis() {
     # Stop Xorg first (required for framebuffer access)
@@ -246,9 +257,7 @@ stop_kmod_competing_uis() {
     fi
 
     # Kill python processes running KlipperScreen (common on Klipper Mod)
-    # BusyBox ps doesn't support 'aux', use portable approach
-    # shellcheck disable=SC2009
-    for pid in $(ps -ef 2>/dev/null | grep -E 'KlipperScreen.*screen\.py' | grep -v grep | awk '{print $2}'); do
+    for pid in $(_kmod_klipperscreen_pids); do
         log_info "Killing KlipperScreen python process (PID $pid)..."
         $SUDO kill "$pid" 2>/dev/null || true
         found_any=true
@@ -310,9 +319,8 @@ stop_k1_stock_competing_uis() {
         fi
     fi
 
-    # Kill any remaining framebuffer contenders. Monitor dies first: it is a
-    # watchdog that respawns display-server moments after the kill below.
-    for proc in Monitor display-server; do
+    # Kill any remaining framebuffer contenders, Monitor first.
+    for proc in $K1_STOCK_UI_PROCS; do
         if kill_process_by_name "$proc"; then
             log_info "Killed remaining $proc process"
             found_any=true
@@ -685,21 +693,24 @@ _competing_ui_found() {
 # What stop_competing_uis would take down, for the plan. Read-only: the same
 # predicates and platform gates, with every stop, disable, chmod and kill left
 # out. Sets COMPETING_UIS_FOUND (space-separated names, empty if none).
-# UNCALLED_OK: called from main() in Task 8
 detect_competing_uis() {
-    local ui initscript bin unit comp dm current_ui
+    local ui initscript bin unit comp dm current_ui proc
     COMPETING_UIS_FOUND=""
     _is_self_update && return 0
     [ "${HOST_OWNS_COMPETING_UIS:-}" = "1" ] && return 0
     [ "${AD5M_FIRMWARE:-}" = "zmod" ] && return 0
 
-    if [ "${AD5M_FIRMWARE:-}" = "klipper_mod" ] && [ -x /etc/init.d/S40xorg ]; then
-        _competing_ui_found Xorg
+    if [ "${AD5M_FIRMWARE:-}" = "klipper_mod" ]; then
+        [ -x /etc/init.d/S40xorg ] && _competing_ui_found Xorg
+        [ -n "$(_kmod_klipperscreen_pids)" ] && _competing_ui_found KlipperScreen
     fi
     [ -f /opt/PROGRAM/ffstartup-arm ] && _competing_ui_found FlashForge-UI
     case "${K1_FIRMWARE:-}" in
         stock_klipper|guilouz)
             [ -f /etc/init.d/S99start_app ] && _competing_ui_found Creality-UI
+            for proc in $K1_STOCK_UI_PROCS; do
+                pidof "$proc" >/dev/null 2>&1 && _competing_ui_found Creality-UI
+            done
             ;;
     esac
     if [ -f /home/sovol/printer_data/build/mksclient ] || ls /home/*/printer_data/build/mksclient >/dev/null 2>&1; then

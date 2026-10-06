@@ -831,7 +831,6 @@ restart_moonraker() {
 # same gates and the same conf, with nothing written. Sets MOONRAKER_ADDS
 # (space-separated: any of update-manager, allowlist; empty if none).
 # Args: $1 = platform
-# UNCALLED_OK: called from main() in Task 8
 detect_moonraker_integration() {
     local conf asvc
     MOONRAKER_ADDS=""
