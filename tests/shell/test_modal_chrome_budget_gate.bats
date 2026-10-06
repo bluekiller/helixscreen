@@ -158,6 +158,38 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "silent on a button row wrapped so it hides as a unit" {
+    cat > "${FIXTURE}/ui_xml/wrapped_row.xml" <<'EOF'
+<component>
+  <view name="wrapped_row" extends="ui_dialog" height="content" style_max_height="85%">
+    <lv_obj name="content" height="content" style_max_height="#dialog_content_max"/>
+    <lv_obj name="actions" height="content">
+      <bind_flag_if_eq subject="can_act" flag="hidden" ref_value="0"/>
+      <modal_button_row/>
+    </lv_obj>
+  </view>
+</component>
+EOF
+    run python3 "${GATE}" --repo-root "${FIXTURE}"
+    [ "$status" -eq 0 ]
+}
+
+@test "flags a wrapper holding the row AND another block" {
+    cat > "${FIXTURE}/ui_xml/stuffed_row.xml" <<'EOF'
+<component>
+  <view name="stuffed_row" extends="ui_dialog" height="content" style_max_height="85%">
+    <lv_obj name="content" height="content" style_max_height="#dialog_content_max"/>
+    <lv_obj name="actions" height="content">
+      <lv_obj name="pinned_graphic" height="content"/>
+      <modal_button_row/>
+    </lv_obj>
+  </view>
+</component>
+EOF
+    run python3 "${GATE}" --repo-root "${FIXTURE}"
+    [ "$status" -eq 1 ]
+}
+
 @test "silent on a self-sized modal that uses no shared ladder" {
     # favorite_macro_config_modal caps its card at a flat 520px and never
     # references a #dialog_content_* token — it sized itself and is not the

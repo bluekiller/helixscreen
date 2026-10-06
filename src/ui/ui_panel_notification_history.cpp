@@ -146,13 +146,14 @@ void NotificationHistoryPanel::refresh() {
         // Format timestamp
         std::string timestamp_str = format_timestamp(entry.timestamp_ms);
 
-        // Use title if present, otherwise use severity-based default
-        const char* title = entry.title[0] ? entry.title : lv_tr("Notification");
+        // An untitled entry (every plain toast) leads with its message; the icon and
+        // border already carry the severity, so a placeholder title says nothing.
+        const bool has_title = entry.title[0] != '\0';
 
         // Build attributes array - just pass semantic severity, widget handles colors
         const char* attrs[] = {"severity",  severity_to_string(entry.severity),
-                               "title",     title,
-                               "message",   entry.message,
+                               "title",     has_title ? entry.title : entry.message,
+                               "message",   has_title ? entry.message : "",
                                "timestamp", timestamp_str.c_str(),
                                nullptr};
 
