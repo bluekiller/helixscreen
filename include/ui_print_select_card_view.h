@@ -329,6 +329,12 @@ class PrintSelectCardView : public ContainerDeleteNet {
 #if defined(HELIX_PLATFORM_ESP32)
     /// Drops a card's thumbnail, so the window's budget is all that holds them.
     static void release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data);
+
+  public:
+    /// Drops every card's thumbnail; cards show the placeholder until rebound.
+    void release_esp_thumbnails();
+
+  private:
 #endif
 
     /**

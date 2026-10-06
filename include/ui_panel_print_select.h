@@ -855,6 +855,10 @@ class PrintSelectPanel : public PanelBase {
     enum class EspThumbnailFetch { Started, QueueFull, Failed };
     EspThumbnailFetch fetch_esp_thumbnail(size_t index, const std::string& filename,
                                           const std::string& thumb_path);
+    /// Buffers card thumbnails decode into while this panel is shown: reused as
+    /// cards scroll, freed when it is left. Created on first need.
+    std::shared_ptr<helix::ThumbnailSlotPool> esp_slots_;
+
     /// The card window [first, end) the last sync saw.
     size_t esp_window_first_ = 0;
     size_t esp_window_end_ = 0;

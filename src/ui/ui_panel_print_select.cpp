@@ -1905,6 +1905,17 @@ void PrintSelectPanel::on_activate() {
 }
 
 void PrintSelectPanel::on_deactivating(DeactivateReason) {
+#if defined(HELIX_PLATFORM_ESP32)
+    // Leaving the panel frees the card thumbnails and their slots; the detail
+    // view opened from a card keeps them for the way back.
+    if (!detail_view_open_) {
+        sync_esp_thumbnails(0, 0);
+        if (card_view_) {
+            card_view_->release_esp_thumbnails();
+        }
+        esp_slots_.reset();
+    }
+#endif
     // Restore opacity if we were in "Print Last" pass-through mode
     if (return_to_home_on_close_) {
         if (panel_) {
@@ -3658,10 +3669,10 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
 
     api_->transfers().download_file_partial(
         "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
-        [this, tok, index, filename, target](const std::string& png_bytes) {
+        [this, tok, index, filename, target, slots = esp_slots_](const std::string& png_bytes) {
             helix::ThumbnailDecodeFailure failure{};
-            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(png_bytes, target.width,
-                                                                      target.height, failure);
+            auto thumb = helix::ui::EspPsramThumbnail::create_decoded(
+                png_bytes, target.width, target.height, slots, failure);
             if (!thumb) {
                 spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
                              failure == helix::ThumbnailDecodeFailure::OutOfMemory
@@ -3722,9 +3733,18 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
         states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
     }
     const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
+    const size_t estimate = helix::rgb565a8_size({target.width, target.height});
     const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
-        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)),
-        helix::rgb565a8_size({target.width, target.height}), helix::CARD_THUMBNAIL_BUDGET);
+        states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)), estimate,
+        helix::CARD_THUMBNAIL_BUDGET);
+    if (!plan.fetch.empty() && (!esp_slots_ || esp_slots_->slot_bytes() != estimate)) {
+        // One slot per card the budget allows. A pool for an older card size
+        // stays alive only while thumbnails decoded into it are still held.
+        esp_slots_ = std::make_shared<helix::ThumbnailSlotPool>(
+            estimate, helix::CARD_THUMBNAIL_BUDGET / estimate,
+            [](size_t n) { return heap_caps_malloc(n, MALLOC_CAP_SPIRAM); },
+            [](void* p) { heap_caps_free(p); });
+    }
 
     // Cards off screen hold nothing; a card coming back fetches again.
     for (size_t i : plan.drop) {

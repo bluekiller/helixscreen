@@ -374,6 +374,14 @@ void PrintSelectCardView::create_spacers() {
 // ============================================================================
 
 #if defined(HELIX_PLATFORM_ESP32)
+void PrintSelectCardView::release_esp_thumbnails() {
+    for (size_t i = 0; i < card_pool_.size() && i < card_data_pool_.size(); ++i) {
+        release_esp_thumbnail(card_pool_[i], *card_data_pool_[i]);
+        lv_subject_set_int(&card_data_pool_[i]->thumbnail_state_subject, 1);
+        card_pool_indices_[i] = -1; // rebind on the next pass
+    }
+}
+
 void PrintSelectCardView::release_esp_thumbnail(lv_obj_t* card, CardWidgetData& data) {
     if (!data.esp_thumbnail) {
         return;
