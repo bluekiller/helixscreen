@@ -36,6 +36,12 @@ class TempGraphControllerFixture {
 
         // Initialize PrinterState subjects (needed by controller's setup_observers)
         get_printer_state().init_subjects(false);
+
+        // PrinterState is process-global and rediscovery keeps a surviving
+        // tool's subjects, readings included. Start every case from a freshly
+        // discovered single tool reading 0 rather than a previous case's values.
+        get_printer_state().temperature_state().init_extruders({});
+        get_printer_state().temperature_state().init_extruders({"extruder"});
     }
 
     ~TempGraphControllerFixture() {}
@@ -535,9 +541,9 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     REQUIRE(count_series_points_eq(controller->graph(), 2295) > 0);
 }
 
-// Discovery re-runs on every klippy ready (FIRMWARE_RESTART keeps the WebSocket
-// up), and init_extruders() recreates every per-extruder subject even when the
-// names are unchanged. A series bound before that must follow the new subject.
+// Discovery re-runs on every klippy ready with the WebSocket still up. A tool
+// that drops out of one discovery and returns in the next gets fresh subjects,
+// and a series bound to the old ones must follow.
 TEST_CASE_METHOD(TempGraphControllerFixture,
                  "Extruder series rebinds when discovery recreates its subjects",
                  "[controller][temp_graph_controller][klippy_restart]") {
@@ -575,7 +581,8 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     queue.drain();
     REQUIRE(newest() == 520);
 
-    // Klipper restarts: same extruder names, fresh subjects.
+    // The tool drops out and comes back: fresh subjects under the same name.
+    temps.init_extruders({});
     temps.init_extruders({"extruder"});
     queue.drain();
     queue.drain();

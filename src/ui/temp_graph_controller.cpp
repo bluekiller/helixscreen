@@ -489,7 +489,7 @@ void TempGraphController::setup_observers() {
 
     // Extruder and sensor subjects are created by discovery, which runs after
     // the home temp_graph widget is built and again on every klippy ready.
-    // Each run may create, or recreate, the subjects a series is bound to, so
+    // Each run may create or free the subjects a series is bound to, so
     // any graph with such a series watches the discovery subjects for as long
     // as it lives; resolve_pending_series() rebinds only what is missing or dead.
     if (extruder_series > 0 || sensor_series > 0) {
@@ -536,7 +536,7 @@ void TempGraphController::resolve_pending_series() {
     for (size_t i = 0; i < series_.size(); ++i) {
         auto& s = series_[i];
         // A dead lifetime means discovery freed the subject this series was
-        // bound to (init_extruders() recreates them on every klippy ready).
+        // bound to: its object disappeared from a rediscovery.
         const bool dead = s.lifetime && !*s.lifetime;
         if (s.temp_obs && !s.provisional && !dead)
             continue; // already bound to its real, live subject
