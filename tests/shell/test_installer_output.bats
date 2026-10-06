@@ -102,6 +102,34 @@ setup() {
     [ "$output" = "[1/8] Downloaded ... ok (100 MB, SHA256 verified)" ]
 }
 
+@test "no terminal: a step with two titles prints the done title when done" {
+    STEP_TOTAL=8
+    step "Downloading" "Downloaded"
+    run step_done "100 MB"
+    [ "$output" = "[1/8] Downloaded ... ok (100 MB)" ]
+}
+
+@test "no terminal: a step with two titles fails under its running title" {
+    STEP_TOTAL=8
+    step "Starting HelixScreen" "Started HelixScreen"
+    run step_fail
+    [ "$output" = "[1/8] Starting HelixScreen ... FAILED" ]
+}
+
+@test "terminal: the spinner shows the running title, the done line the done title" {
+    NO_COLOR=1 HELIX_INSTALL_TTY=1 LANG=en_US.UTF-8 TERM=vt100 ui_detect
+    run _two_title_step
+    contains "Starting HelixScreen…" "$output"
+    contains "✓ Started HelixScreen" "$output"
+}
+
+@test "the log records the running title and the done title" {
+    log_open "$BATS_TEST_TMPDIR/install.log"
+    step "Downloading" "Downloaded"; step_done "100 MB" >/dev/null 2>&1
+    grep -qx '\[[0-9:]*\] STEP Downloading' "$BATS_TEST_TMPDIR/install.log" || fail "no STEP Downloading"
+    grep -qx '\[[0-9:]*\] DONE Downloaded (100 MB)' "$BATS_TEST_TMPDIR/install.log" || fail "no DONE Downloaded"
+}
+
 @test "no terminal: nothing prints until the step resolves" {
     STEP_TOTAL=8
     run step "Downloaded"
@@ -162,6 +190,7 @@ setup() {
 }
 
 _two_redraws() { step "Downloaded"; log_warn a; log_warn b; }
+_two_title_step() { step "Starting HelixScreen" "Started HelixScreen"; step_done; }
 
 @test "terminal + UTF-8: the spinner advances on each redraw" {
     NO_COLOR=1 HELIX_INSTALL_TTY=1 LANG=en_US.UTF-8 TERM=vt100 ui_detect
@@ -548,8 +577,8 @@ LOG_DEST_REL=home/printer_data/logs/helixscreen-install.log
 @test "a failure in the last step still says what state the printer is in" {
     mkdir -p "$BATS_TEST_TMPDIR/helixscreen.old"
     _fail_under_traps bash 'INSTALL_SWAPPED=swapped INSTALL_BACKUP="$2/helixscreen.old"
-        STEP_NUM=5; step "Started HelixScreen"; exit 1'
-    contains "[6/6] Started HelixScreen ... FAILED" "$output"
+        STEP_NUM=5; step "Starting HelixScreen" "Started HelixScreen"; exit 1'
+    contains "[6/6] Starting HelixScreen ... FAILED" "$output"
     contains "the previous one is kept at $BATS_TEST_TMPDIR/helixscreen.old" "$output"
 }
 

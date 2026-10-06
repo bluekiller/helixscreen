@@ -902,7 +902,7 @@ apply_install() {
     fi
 
     libs=$(plan_missing_libs)
-    step "Installed libraries"
+    step "Installing libraries" "Installed libraries"
     install_missing_unzip
     install_runtime_deps "$platform"
     if [ -n "$libs" ]; then step_done "$libs"; else step_skip; fi
@@ -914,10 +914,11 @@ apply_install() {
     # download also needs the network, and stopping UIs can take it away
     # (e.g. Snapmaker U1's stock GUI owns wpa_supplicant, so restarting it
     # drops WiFi/SSH mid-update).
-    step "Downloaded"
     if [ -n "$local_tarball" ]; then
+        step "Unpacking local archive" "Unpacked local archive"
         use_local_tarball "$local_tarball"
     else
+        step "Downloading" "Downloaded"
         download_release "$version" "$download_platform"
     fi
     detail=$(file_size_text "$(_archive_tmp_path)")
@@ -930,13 +931,13 @@ apply_install() {
     # names what detection found; without a find the step stays hidden
     # unless the platform half fails.
     uis="${COMPETING_UIS_FOUND:-}"
-    step "Stopped ${uis:-the stock screen}"
+    step "Stopping ${uis:-the stock screen}" "Stopped ${uis:-the stock screen}"
     configure_platform
     INSTALL_STOPPED="${INSTALL_STOPPED:-}${uis:+ $uis}"
     stop_competing_uis
     if [ -n "$uis" ]; then step_done; else step_skip; fi
 
-    step "Installed files"
+    step "Installing files" "Installed files"
     # Clean old installation if requested
     if [ "$clean_mode" = true ]; then
         INSTALL_REMOVED_OLD=1
@@ -963,7 +964,7 @@ apply_install() {
     fix_install_ownership
     step_done "$(display_path "$INSTALL_DIR")"
 
-    step "Set up service"
+    step "Setting up service" "Set up service"
     install_service "$platform"
     install_platform_hooks
 
@@ -1020,7 +1021,7 @@ apply_install() {
     esac
     step_done
 
-    step "Connected to Moonraker"
+    step "Connecting to Moonraker" "Connected to Moonraker"
     # Symlink config into printer_data (Pi/Klipper only - enables web UI editing)
     setup_config_symlink
 
@@ -1035,7 +1036,7 @@ apply_install() {
 
     # Everything left prepares the first start, and its step resolves when
     # the UI starts. A payload install's UI starts from the mod at boot.
-    step "Started HelixScreen"
+    step "Starting HelixScreen" "Started HelixScreen"
 
     # K2: replace the stock proprietary WebRTC camera (which HelixScreen and
     # fluidd can't consume) with a static ustreamer MJPEG server and point both

@@ -4,7 +4,7 @@ HelixScreen installer v1.0.0 (stable)
   Add        Moonraker update manager
 
 [1/6] Checked system ... ok (x86 · systemd · user root)
-[2/6] Downloaded ... ok (<size>)
+[2/6] Unpacked local archive ... ok (<size>)
 [3/6] Installed files ... ok (~/helixscreen)
 [4/6] Set up service ... ok
       [WARN] Could not detect version for release_info.json

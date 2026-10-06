@@ -242,7 +242,10 @@ snap_resolve() {
     lacks "=====" "$output"
     [ "$(grep -c '^HelixScreen installer v1.0.0' <<< "$output")" -eq 1 ] \
         || fail "the installer header is not printed exactly once"
-    grep -q "STEP Started HelixScreen" "$s/root/printer_data/logs/helixscreen-install.log" \
+    # A --local archive is unpacked, not downloaded.
+    contains "[2/6] Unpacked local archive ... ok" "$output"
+    lacks "Downloaded" "$output"
+    grep -q "DONE Started HelixScreen" "$s/root/printer_data/logs/helixscreen-install.log" \
         || fail "no install log in printer_data/logs"
     [ -x "$s$INST/bin/helix-screen" ] || fail "no payload binary at $INST"
     [ -x "$s$INST/bin/helix-launcher.sh" ] || fail "no launcher at $INST"
@@ -484,12 +487,12 @@ $output"
     [ "$status" -ne 0 ] || fail "a failed systemctl enable exited 0:
 $output"
     contains "=== STEP 1: install-fail-enable exit=1" "$output"
-    contains "[6/6] Started HelixScreen ... FAILED" "$output"
+    contains "[6/6] Starting HelixScreen ... FAILED" "$output"
     contains "systemctl enable helixscreen failed (exit 1):" "$output"
     contains "Failed to enable unit: Unit file helixscreen.service is masked." "$output"
     contains "re-run the installer to finish." "$output"
     contains "Full log: ~/printer_data/logs/helixscreen-install.log" "$output"
-    grep -q "FAIL Started HelixScreen" "$(snap 1-install-fail-enable)/root/printer_data/logs/helixscreen-install.log" \
+    grep -q "FAIL Starting HelixScreen" "$(snap 1-install-fail-enable)/root/printer_data/logs/helixscreen-install.log" \
         || fail "the kept log has no FAIL marker"
     matches_golden fail-enable 1
 }

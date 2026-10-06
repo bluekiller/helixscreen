@@ -117,7 +117,7 @@ confirm_point() { # platform version
     HELIX_CONFIRMED=1
 
     plan_count_steps
-    step "Checked system"
+    step "Checking system" "Checked system"
     step_done "$(plan_printer_line "$1")"
     mkdir -p "$TMP_DIR" 2>/dev/null || $SUDO mkdir -p "$TMP_DIR"
     log_open "$TMP_DIR/install.log" || true

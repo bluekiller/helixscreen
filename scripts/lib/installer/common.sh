@@ -338,6 +338,7 @@ STEP_TOTAL=0
 STEP_NUM=0
 STEP_OPEN=0
 STEP_TITLE=""
+STEP_DONE_TITLE=""
 _SPIN_I=0
 
 _ui_marks() {
@@ -402,30 +403,33 @@ log_note() {
     _ui_emit "    $1"
 }
 
-step() {
+# A step has a running title, shown by the spinner and by a failure (what was
+# attempted), and a done title, shown once it succeeds; one title serves both.
+step() { # running-title [done-title]
     [ "$STEP_OPEN" = 1 ] && step_done
     _ui_marks
     STEP_TITLE="$1"
+    STEP_DONE_TITLE="${2:-$1}"
     STEP_OPEN=1
     _log_write "STEP $1"
     _step_redraw
 }
 
-_step_close() { # mark color word detail
+_step_close() { # mark color word detail title
     STEP_NUM=$((STEP_NUM + 1))
     if [ "$UI_TTY" = 1 ]; then
         if [ -n "$4" ]; then
-            printf '\r\033[K  %b%s%b %-22s %b%s%b\n' "$2" "$1" "$NC" "$STEP_TITLE" "$DIM" "$4" "$NC" >&2
+            printf '\r\033[K  %b%s%b %-22s %b%s%b\n' "$2" "$1" "$NC" "$5" "$DIM" "$4" "$NC" >&2
         else
-            printf '\r\033[K  %b%s%b %s\n' "$2" "$1" "$NC" "$STEP_TITLE" >&2
+            printf '\r\033[K  %b%s%b %s\n' "$2" "$1" "$NC" "$5" >&2
         fi
     else
         _sc_prefix=""
         [ "$STEP_TOTAL" -gt 0 ] && _sc_prefix="[$STEP_NUM/$STEP_TOTAL] "
         if [ -n "$4" ]; then
-            printf '%s%s ... %s (%s)\n' "$_sc_prefix" "$STEP_TITLE" "$3" "$4" >&2
+            printf '%s%s ... %s (%s)\n' "$_sc_prefix" "$5" "$3" "$4" >&2
         else
-            printf '%s%s ... %s\n' "$_sc_prefix" "$STEP_TITLE" "$3" >&2
+            printf '%s%s ... %s\n' "$_sc_prefix" "$5" "$3" >&2
         fi
     fi
     STEP_OPEN=0
@@ -434,14 +438,14 @@ _step_close() { # mark color word detail
 # shellcheck disable=SC2120  # step() closes a stale step with no detail
 step_done() {
     [ "$STEP_OPEN" = 1 ] || return 0
-    if [ -n "${1:-}" ]; then _log_write "DONE $STEP_TITLE ($1)"; else _log_write "DONE $STEP_TITLE"; fi
-    _step_close "$MARK_OK" "$GREEN" ok "${1:-}"
+    if [ -n "${1:-}" ]; then _log_write "DONE $STEP_DONE_TITLE ($1)"; else _log_write "DONE $STEP_DONE_TITLE"; fi
+    _step_close "$MARK_OK" "$GREEN" ok "${1:-}" "$STEP_DONE_TITLE"
 }
 
 step_fail() {
     [ "$STEP_OPEN" = 1 ] || return 0
     _log_write "FAIL $STEP_TITLE${1:+ ($1)}"
-    _step_close "$MARK_FAIL" "$RED" FAILED "${1:-}"
+    _step_close "$MARK_FAIL" "$RED" FAILED "${1:-}" "$STEP_TITLE"
 }
 
 step_skip() {
