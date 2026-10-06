@@ -44,9 +44,7 @@ void HumiditySensorManager::discover(const std::vector<std::string>& klipper_obj
     spdlog::debug("[HumiditySensorManager] Discovering humidity sensors from {} objects",
                   klipper_objects.size());
 
-    // Clear existing sensors
-    sensors_.clear();
-
+    std::vector<HumiditySensorConfig> discovered;
     for (const auto& klipper_name : klipper_objects) {
         std::string sensor_name;
         HumiditySensorType type = HumiditySensorType::BME280;
@@ -55,44 +53,11 @@ void HumiditySensorManager::discover(const std::vector<std::string>& klipper_obj
             continue;
         }
 
-        HumiditySensorConfig config(klipper_name, sensor_name, type);
-        sensors_.push_back(config);
-
-        // Initialize state if not already present
-        if (states_.find(klipper_name) == states_.end()) {
-            HumiditySensorState state;
-            state.available = true;
-            states_[klipper_name] = state;
-        } else {
-            states_[klipper_name].available = true;
-        }
-
+        discovered.emplace_back(klipper_name, sensor_name, type);
         spdlog::debug("[HumiditySensorManager] Discovered sensor: {} (type: {})", sensor_name,
                       humidity_type_to_string(type));
     }
-
-    // Mark sensors that disappeared as unavailable
-    for (auto& [name, state] : states_) {
-        bool found = false;
-        for (const auto& sensor : sensors_) {
-            if (sensor.klipper_name == name) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            state.available = false;
-        }
-    }
-
-    // Remove stale entries to prevent unbounded memory growth
-    for (auto it = states_.begin(); it != states_.end();) {
-        if (!it->second.available) {
-            it = states_.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    sensors_.reconcile(std::move(discovered));
 
     // Update sensor count subject
     if (subjects_initialized_) {
@@ -106,8 +71,8 @@ void HumiditySensorManager::discover(const std::vector<std::string>& klipper_obj
     // the first "dryer" sensor gets DRYER. sensors_ was rebuilt above, so every
     // sensor starts at NONE here and the result depends only on the names.
     if (!sensors_.empty()) {
-        bool has_chamber_role = find_config_by_role(HumiditySensorRole::CHAMBER) != nullptr;
-        bool has_dryer_role = find_config_by_role(HumiditySensorRole::DRYER) != nullptr;
+        bool has_chamber_role = sensors_.find_by_role(HumiditySensorRole::CHAMBER) != nullptr;
+        bool has_dryer_role = sensors_.find_by_role(HumiditySensorRole::DRYER) != nullptr;
 
         for (auto& sensor : sensors_) {
             if (!has_chamber_role && sensor.role == HumiditySensorRole::NONE &&
@@ -144,7 +109,7 @@ void HumiditySensorManager::update_from_status(const nlohmann::json& status) {
             }
 
             const auto& sensor_data = status[key];
-            auto& state = states_[sensor.klipper_name];
+            auto& state = sensors_.state_at(sensor.klipper_name);
             HumiditySensorState old_state = state;
 
             // Field-restricted Moonraker subscriptions send null for absent
@@ -201,31 +166,9 @@ void HumiditySensorManager::load_config(const nlohmann::json& config) {
 
     spdlog::debug("[HumiditySensorManager] Loading config");
 
-    if (!config.contains("sensors") || !config["sensors"].is_array()) {
+    if (!sensors_.apply_json(config, humidity_role_from_string)) {
         spdlog::debug("[HumiditySensorManager] No sensors config found");
         return;
-    }
-
-    for (const auto& sensor_json : config["sensors"]) {
-        if (!sensor_json.contains("klipper_name")) {
-            continue;
-        }
-
-        std::string klipper_name = helix::json_util::as_string(sensor_json["klipper_name"]);
-        auto* sensor = find_config(klipper_name);
-
-        if (sensor) {
-            if (sensor_json.contains("role")) {
-                sensor->role =
-                    humidity_role_from_string(helix::json_util::as_string(sensor_json["role"]));
-            }
-            if (sensor_json.contains("enabled")) {
-                sensor->enabled =
-                    helix::json_util::as_bool(sensor_json["enabled"], sensor->enabled);
-            }
-            spdlog::debug("[HumiditySensorManager] Loaded config for {}: role={}, enabled={}",
-                          klipper_name, humidity_role_to_string(sensor->role), sensor->enabled);
-        }
     }
 
     update_subjects();
@@ -237,19 +180,7 @@ nlohmann::json HumiditySensorManager::save_config() const {
 
     spdlog::debug("[HumiditySensorManager] Saving config");
 
-    nlohmann::json config;
-    nlohmann::json sensors_array = nlohmann::json::array();
-
-    for (const auto& sensor : sensors_) {
-        nlohmann::json sensor_json;
-        sensor_json["klipper_name"] = sensor.klipper_name;
-        sensor_json["role"] = humidity_role_to_string(sensor.role);
-        sensor_json["enabled"] = sensor.enabled;
-        sensor_json["type"] = humidity_type_to_string(sensor.type);
-        sensors_array.push_back(sensor_json);
-    }
-
-    config["sensors"] = sensors_array;
+    auto config = sensors_.to_json(humidity_role_to_string, humidity_type_to_string);
 
     spdlog::info("[HumiditySensorManager] Config saved");
     return config;
@@ -308,7 +239,7 @@ bool HumiditySensorManager::has_sensors() const {
 
 std::vector<HumiditySensorConfig> HumiditySensorManager::get_sensors() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return sensors_; // Return thread-safe copy
+    return sensors_.configs(); // Return thread-safe copy
 }
 
 size_t HumiditySensorManager::sensor_count() const {
@@ -324,20 +255,7 @@ void HumiditySensorManager::set_sensor_role(const std::string& klipper_name,
                                             HumiditySensorRole role) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    // If assigning a role, clear it from any other sensor first
-    if (role != HumiditySensorRole::NONE) {
-        for (auto& sensor : sensors_) {
-            if (sensor.role == role && sensor.klipper_name != klipper_name) {
-                spdlog::debug("[HumiditySensorManager] Clearing role {} from {}",
-                              humidity_role_to_string(role), sensor.sensor_name);
-                sensor.role = HumiditySensorRole::NONE;
-            }
-        }
-    }
-
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
-        sensor->role = role;
+    if (auto* sensor = sensors_.assign_exclusive_role(klipper_name, role)) {
         spdlog::info("[HumiditySensorManager] Set role for {} to {}", sensor->sensor_name,
                      humidity_role_to_string(role));
         update_subjects();
@@ -347,8 +265,7 @@ void HumiditySensorManager::set_sensor_role(const std::string& klipper_name,
 void HumiditySensorManager::set_sensor_enabled(const std::string& klipper_name, bool enabled) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
+    if (auto* sensor = sensors_.find(klipper_name)) {
         sensor->enabled = enabled;
         spdlog::info("[HumiditySensorManager] Set enabled for {} to {}", sensor->sensor_name,
                      enabled);
@@ -363,38 +280,13 @@ void HumiditySensorManager::set_sensor_enabled(const std::string& klipper_name, 
 std::optional<HumiditySensorState>
 HumiditySensorManager::get_sensor_state(HumiditySensorRole role) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (role == HumiditySensorRole::NONE) {
-        return std::nullopt;
-    }
-
-    const auto* config = find_config_by_role(role);
-    if (!config) {
-        return std::nullopt;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    if (it == states_.end()) {
-        return std::nullopt;
-    }
-
-    return it->second; // Return thread-safe copy
+    const auto* state = sensors_.role_state(role);
+    return state ? std::optional(*state) : std::nullopt;
 }
 
 bool HumiditySensorManager::is_sensor_available(HumiditySensorRole role) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (role == HumiditySensorRole::NONE) {
-        return false;
-    }
-
-    const auto* config = find_config_by_role(role);
-    if (!config || !config->enabled) {
-        return false;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    return it != states_.end() && it->second.available;
+    return sensors_.live_state(role) != nullptr;
 }
 
 // ============================================================================
@@ -447,94 +339,20 @@ bool HumiditySensorManager::parse_klipper_name(const std::string& klipper_name,
     return true;
 }
 
-HumiditySensorConfig* HumiditySensorManager::find_config(const std::string& klipper_name) {
-    for (auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const HumiditySensorConfig*
-HumiditySensorManager::find_config(const std::string& klipper_name) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const HumiditySensorConfig*
-HumiditySensorManager::find_config_by_role(HumiditySensorRole role) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.role == role) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
 void HumiditySensorManager::update_subjects() {
     if (!subjects_initialized_) {
         return;
     }
 
-    // Get chamber humidity value
-    auto get_chamber_humidity_value = [this]() -> int {
-        const auto* config = find_config_by_role(HumiditySensorRole::CHAMBER);
-        if (!config || !config->enabled) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        // Convert humidity to int (% x 10)
-        return static_cast<int>(it->second.humidity * 10.0f);
-    };
-
-    // Get chamber pressure value
-    auto get_chamber_pressure_value = [this]() -> int {
-        const auto* config = find_config_by_role(HumiditySensorRole::CHAMBER);
-        if (!config || !config->enabled) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        // Convert pressure from hPa to Pa (hPa * 100 = Pa)
-        return static_cast<int>(it->second.pressure * 100.0f);
-    };
-
-    // Get dryer humidity value
-    auto get_dryer_humidity_value = [this]() -> int {
-        const auto* config = find_config_by_role(HumiditySensorRole::DRYER);
-        if (!config || !config->enabled) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        // Convert humidity to int (% x 10)
-        return static_cast<int>(it->second.humidity * 10.0f);
-    };
-
-    int chamber_humidity = get_chamber_humidity_value();
-    lv_subject_set_int(&chamber_humidity_, chamber_humidity);
-    int chamber_pressure = get_chamber_pressure_value();
-    lv_subject_set_int(&chamber_pressure_, chamber_pressure);
-    int dryer_humidity = get_dryer_humidity_value();
-    lv_subject_set_int(&dryer_humidity_, dryer_humidity);
+    // -1 when no enabled, available sensor holds the role
+    const auto* chamber = sensors_.live_state(HumiditySensorRole::CHAMBER);
+    const auto* dryer = sensors_.live_state(HumiditySensorRole::DRYER);
+    // humidity as % x 10, pressure hPa -> Pa
+    lv_subject_set_int(&chamber_humidity_,
+                       chamber ? static_cast<int>(chamber->humidity * 10.0f) : -1);
+    lv_subject_set_int(&chamber_pressure_,
+                       chamber ? static_cast<int>(chamber->pressure * 100.0f) : -1);
+    lv_subject_set_int(&dryer_humidity_, dryer ? static_cast<int>(dryer->humidity * 10.0f) : -1);
 
     spdlog::trace("[HumiditySensorManager] Subjects updated: chamber_humidity={}, "
                   "chamber_pressure={}, dryer_humidity={}",
