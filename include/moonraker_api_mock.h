@@ -1008,6 +1008,11 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     /// Counts every invocation — including calls later rejected via
     /// mock_reject_next_db_post() or captured via mock_defer_next_db_post() — so
     /// tests can assert "a write was attempted" or "no write happened".
+    /// Make every database_get_item() fail with @p type, e.g. a connection lost mid-lookup.
+    void mock_fail_db_reads(MoonrakerErrorType type) {
+        mock_db_read_error_ = type;
+    }
+
     [[nodiscard]] int mock_db_post_count() const {
         return db_post_count_;
     }
@@ -1111,6 +1116,8 @@ class MoonrakerAPIMock : public MoonrakerAPI {
 
     /// Mock database storage: key = "namespace:key", value = JSON
     std::map<std::string, nlohmann::json> mock_db_;
+    /// When set, every database_get_item() fails with this error type.
+    std::optional<MoonrakerErrorType> mock_db_read_error_;
 
     /// Call counters for database write ops. Incremented at the top of each
     /// override, before any rejection/defer branch, so a rejected or deferred

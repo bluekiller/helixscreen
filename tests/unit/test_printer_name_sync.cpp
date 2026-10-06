@@ -245,3 +245,33 @@ TEST_CASE_METHOD(PrinterNameSyncFixture,
     ConfigTestAccess::data(*config_) = saved_data;
     ConfigTestAccess::active_printer_id(*config_) = saved_active;
 }
+
+TEST_CASE_METHOD(PrinterNameSyncFixture,
+                 "resolve: a name that lands after its printer was deleted does not bring it back",
+                 "[name-sync][multi-printer]") {
+    const nlohmann::json saved_data = ConfigTestAccess::data(*config_);
+    const std::string saved_active = ConfigTestAccess::active_printer_id(*config_);
+    config_->add_printer("gone-a", nlohmann::json::object());
+    config_->add_printer("kept-b", nlohmann::json::object());
+    REQUIRE(config_->set_active_printer("gone-a"));
+
+    api_->mock_set_db_value("mainsail", "general.printername", std::string("Printer A"));
+    PrinterNameSync::resolve(api_.get(), "a.local");
+    config_->remove_printer("gone-a");
+    drain();
+
+    CHECK_FALSE(config_->exists("/printers/gone-a"));
+
+    ConfigTestAccess::data(*config_) = saved_data;
+    ConfigTestAccess::active_printer_id(*config_) = saved_active;
+}
+
+TEST_CASE_METHOD(PrinterNameSyncFixture, "resolve: a lost connection does not seed the hostname",
+                 "[name-sync][multi-printer]") {
+    api_->mock_fail_db_reads(MoonrakerErrorType::CONNECTION_LOST);
+
+    PrinterNameSync::resolve(api_.get(), "printer-hostname");
+    drain();
+
+    CHECK(get_name().empty());
+}

@@ -225,6 +225,15 @@ void MoonrakerAPIMock::get_gcode_store(
 void MoonrakerAPIMock::database_get_item(const std::string& namespace_name, const std::string& key,
                                          std::function<void(const json&)> on_success,
                                          ErrorCallback on_error) {
+    if (mock_db_read_error_) {
+        if (on_error) {
+            MoonrakerError err;
+            err.type = *mock_db_read_error_;
+            err.method = "server.database.get_item";
+            on_error(err);
+        }
+        return;
+    }
     std::string db_key = namespace_name + ":" + key;
     auto it = mock_db_.find(db_key);
     if (it != mock_db_.end()) {

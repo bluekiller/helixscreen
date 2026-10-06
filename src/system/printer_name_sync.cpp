@@ -27,6 +27,12 @@ static constexpr const char* FLUIDD_KEY = "general.instanceName";
 static void seed_name(const std::string& name, const char* source,
                       const std::string& printer_base) {
     Config* cfg = Config::get_instance();
+    // Config::set() creates missing objects, so writing to a printer deleted meanwhile would
+    // bring it back with no host.
+    if (!cfg->exists(printer_base.substr(0, printer_base.size() - 1))) {
+        spdlog::debug("[PrinterNameSync] {} was removed; dropping its name", printer_base);
+        return;
+    }
     cfg->set<std::string>(printer_base + wizard::PRINTER_NAME, name);
     cfg->save();
 
@@ -59,7 +65,12 @@ static void try_fluidd_then_hostname(IMoonrakerAPI* api, const std::string& host
                 seed_name(name, source, printer_base);
             });
         },
-        [hostname, printer_base](const MoonrakerError&) {
+        [hostname, printer_base](const MoonrakerError& err) {
+            // A lost connection says nothing about the name; only a real "no Fluidd name"
+            // falls back to the hostname.
+            if (err.is_transport_loss()) {
+                return;
+            }
             if (hostname.empty() || hostname == "unknown")
                 return;
 
@@ -107,7 +118,10 @@ void PrinterNameSync::resolve(IMoonrakerAPI* api, const std::string& hostname) {
             // Mainsail key exists but empty — fall through to Fluidd
             try_fluidd_then_hostname(api, hostname, printer_base);
         },
-        [api, hostname, printer_base](const MoonrakerError&) {
+        [api, hostname, printer_base](const MoonrakerError& err) {
+            if (err.is_transport_loss()) {
+                return;
+            }
             // Mainsail namespace doesn't exist — try Fluidd
             try_fluidd_then_hostname(api, hostname, printer_base);
         });
