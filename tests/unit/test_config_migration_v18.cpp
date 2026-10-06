@@ -121,3 +121,35 @@ TEST_CASE_METHOD(MigrationV18Fixture,
     REQUIRE(config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
     REQUIRE(config.get<bool>("/input/calibration/recheck_pending", true) == false);
 }
+
+TEST_CASE_METHOD(MigrationV18Fixture,
+                 "Config migration v18: a seed with a printer node keeps its calibration",
+                 "[config][migration]") {
+    // seed_from_moonraker_detection's C path: a preset's input/display blocks
+    // plus a moonraker_host under printers/default, and no config_version.
+    json seed = {{"input", {{"calibration", {{"valid", true}, {"a", 1.66}, {"e", 1.76}}}}},
+                 {"display", {{"rotate", 180}}},
+                 {"active_printer_id", "default"},
+                 {"printers", {{"default", {{"moonraker_host", "127.0.0.1"}}}}}};
+    write_and_init(seed);
+
+    REQUIRE(config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE_FALSE(config.get<bool>("/input/calibration/recheck_pending", false));
+    REQUIRE(config.get<bool>("/input/calibration/valid", false));
+}
+
+TEST_CASE_METHOD(MigrationV18Fixture,
+                 "Config migration v18: a packaged preset keeps its calibration",
+                 "[config][migration]") {
+    // A preset shipped as the release tarball's settings.json, on a fresh
+    // install with no rolling backup to restore.
+    json preset = {{"preset", "artillery-m1-pro"},
+                   {"wizard_completed", false},
+                   {"input", {{"calibration", {{"valid", true}, {"a", 1.64}, {"e", 1.83}}}}},
+                   {"printer", {{"heaters", {{"bed", "heater_bed"}, {"hotend", "extruder"}}}}}};
+    write_and_init(preset);
+
+    REQUIRE(config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+    REQUIRE_FALSE(config.get<bool>("/input/calibration/recheck_pending", false));
+    REQUIRE(config.get<bool>("/input/calibration/valid", false));
+}

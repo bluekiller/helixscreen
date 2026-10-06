@@ -584,7 +584,7 @@ json get_default_config(const std::string& moonraker_host, bool include_user_pre
 /// Whether a document holds only keys the installer seeded: no config_version,
 /// no single /printer, and no printer object under /printers. That is a fresh
 /// install, not a config to migrate - the chain would treat the seeded keys as
-/// old data (v18 flags a just-seeded touch calibration for a recheck).
+/// old data and leave the defaults they lack (log_path, gcode_viewer) unset.
 static bool is_installer_seed_document(const json& config) {
     if (helix::json_util::safe_int(config, "config_version", 0) != 0) {
         return false;
