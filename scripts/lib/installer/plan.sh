@@ -165,5 +165,5 @@ print_summary() { # version
     fi
     [ -n "${COMPETING_UIS_FOUND:-}" ] && _summary_row Disabled "$COMPETING_UIS_FOUND  (re-enabled by --uninstall)"
     [ -n "${KIAUH_EXT_ADDED:-}" ] && _summary_row KIAUH "restart KIAUH to see the HelixScreen extension"
-    _summary_row Log "$(display_path "${INSTALL_LOG:-$(install_log_dest)}")"
+    [ -z "${INSTALL_LOG_KEPT:-}" ] || _summary_row Log "$(display_path "$INSTALL_LOG_KEPT")"
 }

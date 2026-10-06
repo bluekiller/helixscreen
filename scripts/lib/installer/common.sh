@@ -502,7 +502,8 @@ install_state_root() {
 # previous run's as .1. The in-app updater sends stdout and stderr to a log
 # file of its own, through a descriptor that does not append: should that be
 # the same file, this run's log is written through that descriptor, and the
-# file is never rotated, replaced or appended to by name.
+# file is never rotated, replaced or appended to by name. Sets
+# INSTALL_LOG_KEPT to where the log now is.
 finalize_install_log() {
     [ -n "$INSTALL_LOG" ] && [ -f "$INSTALL_LOG" ] || return 0
     _fil_dest=$(install_log_dest)
@@ -510,11 +511,11 @@ finalize_install_log() {
     # -ef is in dash, BusyBox ash and bash, every shell this runs under.
     # shellcheck disable=SC3013
     if [ "$_fil_dest" -ef /proc/self/fd/2 ]; then
-        cat "$INSTALL_LOG" >&2; INSTALL_LOG=""; return 0
+        cat "$INSTALL_LOG" >&2; INSTALL_LOG=""; INSTALL_LOG_KEPT="$_fil_dest"; return 0
     fi
     # shellcheck disable=SC3013
     if [ "$_fil_dest" -ef /proc/self/fd/1 ]; then
-        cat "$INSTALL_LOG"; INSTALL_LOG=""; return 0
+        cat "$INSTALL_LOG"; INSTALL_LOG=""; INSTALL_LOG_KEPT="$_fil_dest"; return 0
     fi
     _fil_dir=$(dirname "$_fil_dest")
     mkdir -p "$_fil_dir" 2>/dev/null || $SUDO mkdir -p "$_fil_dir" 2>/dev/null || return 0
@@ -524,6 +525,8 @@ finalize_install_log() {
     fi
     $_fil_sudo mv -f "$INSTALL_LOG" "$_fil_dest" 2>/dev/null || return 0
     INSTALL_LOG="$_fil_dest"
+    # shellcheck disable=SC2034  # read by main.sh and plan.sh
+    INSTALL_LOG_KEPT="$_fil_dest"
 }
 
 RUN_LOGGED_TAIL=${RUN_LOGGED_TAIL:-15}
@@ -660,6 +663,9 @@ error_handler() {
             fi
         fi
     fi
+
+    # The log lives in TMP_DIR until it is kept.
+    finalize_install_log
 
     # Cleanup temporary files after restores are done
     if [ "$CLEANUP_TMP" = true ] && [ -d "$TMP_DIR" ]; then

@@ -433,7 +433,7 @@ _count_apply_install_steps() {
     [ $# -eq 0 ] || export "$@"
     local fn
     for fn in $(declare -f apply_install | grep -oE '[a-z_][a-z0-9_]*' | sort -u); do
-        case "$fn" in apply_install|step|step_done|step_skip|step_fail|plan_*) continue ;; esac
+        case "$fn" in apply_install|step|step_done|step_skip|step_fail|plan_*|_is_self_update) continue ;; esac
         [ "$(type -t "$fn")" = function ] && eval "$fn() { :; }"
     done
     platform=pi; version=v1.2.3; TMP_DIR="$BATS_TEST_TMPDIR/none"
@@ -464,70 +464,154 @@ _count_apply_install_steps() {
     [ "$COUNTED" = "5/5" ] || fail "steps closed/counted: $COUNTED"
 }
 
-# Failures under main.sh's real traps.
-@test "a failure inside a step: FAILED, the state line, and the log in printer_data" {
+@test "apply_install marks what it stops and removes before doing it" {
+    mkdir -p "$BATS_TEST_TMPDIR/opt/helixscreen"
+    _count_apply_install_steps update_mode=true clean_mode=true \
+        COMPETING_UIS_FOUND=KlipperScreen INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
+    contains HelixScreen "${INSTALL_STOPPED:-}"
+    contains KlipperScreen "${INSTALL_STOPPED:-}"
+    [ "${INSTALL_REMOVED_OLD:-}" = 1 ] || fail "--clean not marked"
+}
+
+@test "apply_install does not mark HelixScreen stopped on a self-update" {
+    mkdir -p "$BATS_TEST_TMPDIR/opt/helixscreen"
+    _count_apply_install_steps update_mode=true HELIX_SELF_UPDATE=1 \
+        INSTALL_DIR="$BATS_TEST_TMPDIR/opt/helixscreen"
+    lacks HelixScreen "${INSTALL_STOPPED:-}"
+}
+
+# Failures under main.sh's real traps. $1 is the shell; $2 runs after the
+# confirm point with step 5 of 6 next, and is expected to end the run.
+_fail_under_traps() {
+    local shell=$1 body=$2
     mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
-    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+    run $shell -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
         KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
-        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
-        step "Installed files"; log_error "boom"; exit 1' \
-        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+        HELIX_CONFIRMED=1; log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
+        '"$body" _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+}
+
+LOG_DEST_REL=home/printer_data/logs/helixscreen-install.log
+
+@test "a failure before anything changed: FAILED, nothing changed, and the log in printer_data" {
+    _fail_under_traps bash 'step "Installed files"; log_error "boom"; exit 1'
     [ "$status" -eq 1 ]
     contains "[5/6] Installed files ... FAILED" "$output"
     contains "Nothing on your printer was changed after this step." "$output"
-    contains "Full log: $BATS_TEST_TMPDIR/home/printer_data/logs/helixscreen-install.log" "$output"
-    grep -q "boom" "$BATS_TEST_TMPDIR/home/printer_data/logs/helixscreen-install.log"
+    contains "Full log: $BATS_TEST_TMPDIR/$LOG_DEST_REL" "$output"
+    grep -q "boom" "$BATS_TEST_TMPDIR/$LOG_DEST_REL"
     [ ! -d "$BATS_TEST_TMPDIR/helixscreen-install" ] || fail "scratch dir left behind"
 }
 
-@test "a failure after the swap names where the previous install is" {
-    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs" "$BATS_TEST_TMPDIR/helixscreen.old"
-    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
-        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
-        INSTALL_BACKUP="$2/helixscreen.old"
-        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
-        step "Set up service"; exit 1' \
-        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
-    contains "The previous install is kept at $BATS_TEST_TMPDIR/helixscreen.old." "$output"
+@test "a failure after a competing UI was stopped names it" {
+    _fail_under_traps bash 'INSTALL_STOPPED=KlipperScreen; step "Installed files"; exit 1'
+    contains "KlipperScreen was stopped; re-run the installer to finish." "$output"
     lacks "Nothing on your printer was changed" "$output"
 }
 
-@test "a failure after a rollback says the previous install was restored" {
-    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
-    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
-        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
-        INSTALL_BACKUP="$2/helixscreen.old"
-        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=4
-        step "Installed files"; exit 1' \
-        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
-    contains "The previous install was put back." "$output"
+@test "a failed update names HelixScreen and the UIs it stopped" {
+    _fail_under_traps bash 'INSTALL_STOPPED="HelixScreen KlipperScreen"; step "Installed files"; exit 1'
+    contains "HelixScreen and KlipperScreen were stopped; re-run the installer to finish." "$output"
+}
+
+@test "a failed --clean says the old install was removed" {
+    _fail_under_traps bash 'INSTALL_REMOVED_OLD=1; step "Installed files"; exit 1'
+    contains "The old install was removed; re-run the installer to finish." "$output"
+}
+
+@test "a fresh install that fails after the swap does not claim nothing changed" {
+    _fail_under_traps bash 'INSTALL_SWAPPED=swapped; step "Set up service"; exit 1'
+    contains "[5/6] Set up service ... FAILED" "$output"
+    contains "The new install is in place but not set up; re-run the installer to finish." "$output"
+    lacks "Nothing on your printer was changed" "$output"
+}
+
+@test "an update that fails after the swap names where the previous install is" {
+    mkdir -p "$BATS_TEST_TMPDIR/helixscreen.old"
+    _fail_under_traps bash 'INSTALL_SWAPPED=swapped INSTALL_BACKUP="$2/helixscreen.old"
+        INSTALL_STOPPED=HelixScreen; step "Set up service"; exit 1'
+    contains "The new install is in place but not set up; the previous one is kept at $BATS_TEST_TMPDIR/helixscreen.old. Re-run the installer to finish." "$output"
+    lacks "Nothing on your printer was changed" "$output"
+}
+
+@test "an in-place update that fails midway says the install is partly replaced" {
+    _fail_under_traps bash 'INSTALL_DIR=/opt/helixscreen INSTALL_SWAPPED=in-place; step "Installed files"; exit 1'
+    contains "HelixScreen at /opt/helixscreen was partly replaced; re-run the installer to finish." "$output"
+}
+
+@test "a failure after a rollback says the previous install was put back" {
+    _fail_under_traps bash 'INSTALL_BACKUP="$2/helixscreen.old" INSTALL_STOPPED=HelixScreen
+        step "Installed files"; exit 1'
+    contains "The previous install was put back; HelixScreen was stopped; re-run the installer to finish." "$output"
 }
 
 @test "a failure in the last step still says what state the printer is in" {
-    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs" "$BATS_TEST_TMPDIR/helixscreen.old"
-    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
-        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
-        INSTALL_BACKUP="$2/helixscreen.old"
-        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=5
-        step "Started HelixScreen"; exit 1' \
-        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    mkdir -p "$BATS_TEST_TMPDIR/helixscreen.old"
+    _fail_under_traps bash 'INSTALL_SWAPPED=swapped INSTALL_BACKUP="$2/helixscreen.old"
+        STEP_NUM=5; step "Started HelixScreen"; exit 1'
     contains "[6/6] Started HelixScreen ... FAILED" "$output"
-    contains "The previous install is kept at $BATS_TEST_TMPDIR/helixscreen.old." "$output"
+    contains "the previous one is kept at $BATS_TEST_TMPDIR/helixscreen.old" "$output"
+}
+
+@test "a failure in the cleanup after every step prints no state line" {
+    _fail_under_traps bash 'INSTALL_SWAPPED=swapped INSTALL_COMPLETE=1; exit 1'
+    lacks "re-run the installer" "$output"
+    lacks "Nothing on your printer" "$output"
+    contains "Full log:" "$output"
 }
 
 @test "an interrupt under the installer's traps resolves the step and keeps the log" {
     command -v busybox >/dev/null || skip "no busybox"
-    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
-    run busybox ash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
-        KLIPPER_HOME="$2/home"; TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"
-        log_open "$TMP_DIR/install.log"; STEP_TOTAL=6; STEP_NUM=2
-        step Downloaded; kill -INT $$; sleep 1; echo AFTER' \
-        _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    _fail_under_traps "busybox ash" 'STEP_NUM=2; step Downloaded; kill -INT $$; sleep 1; echo AFTER'
     [ "$status" -eq 130 ]
     contains "[3/6] Downloaded ... FAILED (interrupted)" "$output"
     contains "Full log:" "$output"
     lacks AFTER "$output"
-    grep -q "FAIL Downloaded (interrupted)" "$BATS_TEST_TMPDIR/home/printer_data/logs/helixscreen-install.log"
+    grep -q "FAIL Downloaded (interrupted)" "$BATS_TEST_TMPDIR/$LOG_DEST_REL"
+}
+
+# An SSH drop: the terminal is gone (writes fail), then HUP arrives.
+_hup_with_dead_terminal() { # shell
+    _fail_under_traps "$1" 'set -eu; STEP_NUM=2; step Downloaded
+        exec 2>/dev/full 1>/dev/full; kill -HUP $$; sleep 1'
+}
+
+@test "a hangup with the terminal gone still keeps the log and cleans up (busybox ash)" {
+    command -v busybox >/dev/null || skip "no busybox"
+    _hup_with_dead_terminal "busybox ash"
+    [ "$status" -eq 129 ] || fail "exit status $status, wanted 129"
+    grep -q "FAIL Downloaded (interrupted)" "$BATS_TEST_TMPDIR/$LOG_DEST_REL" || fail "log not kept"
+    [ ! -d "$BATS_TEST_TMPDIR/helixscreen-install" ] || fail "scratch dir left behind"
+}
+
+@test "a hangup with the terminal gone still keeps the log and cleans up (dash)" {
+    command -v dash >/dev/null || skip "no dash"
+    _hup_with_dead_terminal dash
+    [ "$status" -eq 129 ] || fail "exit status $status, wanted 129"
+    grep -q "FAIL Downloaded (interrupted)" "$BATS_TEST_TMPDIR/$LOG_DEST_REL" || fail "log not kept"
+    [ ! -d "$BATS_TEST_TMPDIR/helixscreen-install" ] || fail "scratch dir left behind"
+}
+
+@test "a failure after the confirm point is reported even when the log could not open" {
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; TMP_DIR="$2/none"; HELIX_CONFIRMED=1
+        log_open "$2/no/such/dir/install.log" || true; STEP_TOTAL=6; STEP_NUM=4
+        step "Installed files"; exit 1' _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    contains "[5/6] Installed files ... FAILED" "$output"
+    contains "Nothing on your printer was changed after this step." "$output"
+    lacks "Full log:" "$output"
+}
+
+@test "bash's ERR handler keeps the log before it removes the scratch dir" {
+    mkdir -p "$BATS_TEST_TMPDIR/home/printer_data/logs"
+    run bash -c '. "$1/common.sh"; . "$1/main.sh"; HELIX_INSTALL_TTY=0 ui_detect
+        KLIPPER_HOME="$2/home"; INSTALL_DIR="$2/opt/helixscreen"
+        TMP_DIR="$2/helixscreen-install"; mkdir -p "$TMP_DIR"; CLEANUP_TMP=true
+        HELIX_CONFIRMED=1; log_open "$TMP_DIR/install.log"; log_warn "before the error"
+        false' _ "$WORKTREE_ROOT/scripts/lib/installer" "$BATS_TEST_TMPDIR"
+    [ "$status" -ne 0 ]
+    grep -q "before the error" "$BATS_TEST_TMPDIR/$LOG_DEST_REL" || fail "log lost"
+    contains "Full log: $BATS_TEST_TMPDIR/$LOG_DEST_REL" "$output"
 }
 
 @test "a run that exits 0 before the log opens prints no failure block" {
@@ -547,7 +631,7 @@ _count_apply_install_steps() {
     R2_CHANNEL=beta HOST_SERVICE_MECHANISM=systemd
     HELIX_CONFIG_EDITABLE="$HOME/printer_data/config/helixscreen"
     COMPETING_UIS_FOUND=KlipperScreen KIAUH_EXT_ADDED=1
-    INSTALL_LOG="$HOME/printer_data/logs/helixscreen-install.log"
+    INSTALL_LOG_KEPT="$HOME/printer_data/logs/helixscreen-install.log"
     run print_summary v1.1.0-beta.4
     contains "HelixScreen v1.1.0-beta.4 is running (beta channel)." "$output"
     contains "Config     ~/printer_data/config/helixscreen  (editable in Mainsail/Fluidd)" "$output"

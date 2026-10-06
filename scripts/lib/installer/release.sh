@@ -1838,6 +1838,8 @@ extract_release() {
     # is the standalone-install contract; the payload root must never be mv'd
     # aside or rm -rf'd as a whole, so none of it may run in this mode.
     if [ "${HELIX_MOD_PAYLOAD:-}" = "1" ]; then
+        # shellcheck disable=SC2034  # INSTALL_SWAPPED is read by main.sh (install_state_line)
+        INSTALL_SWAPPED=in-place
         if ! payload_replace_contents "$new_install" "${INSTALL_DIR}"; then
             log_error "Payload update failed at ${INSTALL_DIR}; entries already replaced are gone."
             cd / 2>/dev/null || true
@@ -1846,6 +1848,7 @@ extract_release() {
         fi
         cd / 2>/dev/null || true
         rm -rf "$extract_dir"
+        INSTALL_SWAPPED=swapped
         log_success "Payload contents replaced in place at ${INSTALL_DIR}"
         return 0
     fi
@@ -1888,6 +1891,7 @@ extract_release() {
                 # The loops below rm -rf every child of INSTALL_DIR — refuse
                 # before the first one touches a mod-owned payload root.
                 host_refuse_mod_owned "in-place update of" "$INSTALL_DIR"
+                INSTALL_SWAPPED=in-place
 
                 # Remove old contents (except config/).
                 # Don't use || true — if rm fails, we must not proceed to mv
@@ -1959,6 +1963,7 @@ extract_release() {
                 fi
 
                 rm -rf "$extract_dir"
+                INSTALL_SWAPPED=swapped
                 log_success "Updated in-place at ${INSTALL_DIR}"
                 return 0
             fi
@@ -2056,6 +2061,8 @@ extract_release() {
         rm -rf "$extract_dir"
         exit 1
     fi
+    # shellcheck disable=SC2034  # read by main.sh (install_state_line)
+    INSTALL_SWAPPED=swapped
 
     # Phase 6: Restore config and settings
     # User's config always takes priority over bundled defaults so customizations

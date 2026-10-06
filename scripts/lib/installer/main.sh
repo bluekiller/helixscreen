@@ -30,30 +30,96 @@ trap 'error_handler $LINENO' ERR 2>/dev/null || true
 # unaffected, and it routes through _safe_remove_tmp_dir, which is what
 # refuses to rm -rf a mountpoint. A signal handler that returns resumes the
 # script with its download gone, so each signal exits with the shell's own
-# 128+N status, and the EXIT trap then reports it.
+# 128+N status, and the EXIT trap then reports it. The signal traps print
+# nothing: after an SSH drop the terminal is gone, and a failed write under
+# set -e would end the trap before the log is kept.
 trap 'installer_exit_report $?; cleanup_on_success' EXIT
-trap 'step_fail interrupted; exit 129' HUP
-trap 'step_fail interrupted; exit 130' INT
-trap 'step_fail interrupted; exit 143' TERM
+trap 'STEP_FAIL_REASON=interrupted; exit 129' HUP
+trap 'STEP_FAIL_REASON=interrupted; exit 130' INT
+trap 'STEP_FAIL_REASON=interrupted; exit 143' TERM
 
-# The failure block's closing lines, for a run that changed the machine (the
-# log opens at the confirm point) and then stopped: what state the rollback
-# paths left, and where the full log is.
+# The failure block's closing lines, for a run that passed the confirm point
+# and then stopped: the failed step, what state the printer is in, and where
+# the full log is. The log is kept before anything prints, and nothing here
+# may end the shell early: stderr can be a terminal that no longer exists.
 installer_exit_report() { # exit status
-    [ "$1" -ne 0 ] && [ -n "${INSTALL_LOG:-}" ] || return 0
-    step_fail
-    printf '\n' >&2
-    if [ -n "${INSTALL_COMPLETE:-}" ]; then
-        :
-    elif [ -z "${INSTALL_BACKUP:-}" ]; then
-        printf '%s\n' "Nothing on your printer was changed after this step." >&2
-    elif [ -d "$INSTALL_BACKUP" ]; then
-        printf '%s\n' "The previous install is kept at $INSTALL_BACKUP." >&2
-    else
-        printf '%s\n' "The previous install was put back." >&2
-    fi
+    set +e
+    [ "$1" -ne 0 ] && [ -n "${HELIX_CONFIRMED:-}" ] || return 0
+    _ier_state=$(install_state_line)
     finalize_install_log
-    printf '%s\n' "Full log: $(display_path "${INSTALL_LOG:-$(install_log_dest)}")" >&2
+    step_fail "${STEP_FAIL_REASON:-}"
+    printf '\n' >&2
+    if [ -n "$_ier_state" ]; then
+        _log_write "STATE $_ier_state"
+        printf '%s\n' "$_ier_state" >&2
+    fi
+    if [ -n "${INSTALL_LOG_KEPT:-}" ]; then
+        printf '%s\n' "Full log: $(display_path "$INSTALL_LOG_KEPT")" >&2
+    fi
+    return 0
+}
+
+# "a", "a and b", "a, b and c".
+_and_list() {
+    case $# in
+        0) ;;
+        1) printf '%s' "$1" ;;
+        *)
+            _al=""
+            while [ $# -gt 2 ]; do _al="$_al$1, "; shift; done
+            printf '%s%s and %s' "$_al" "$1" "$2"
+            ;;
+    esac
+}
+
+# What a stopped run left on the printer, from the marks apply_install and
+# extract_release set as they change it: INSTALL_SWAPPED (the new tree
+# landed, or an in-place replace began), INSTALL_BACKUP (the previous tree,
+# put back by a rollback when it no longer exists), INSTALL_STOPPED (services
+# stopped) and INSTALL_REMOVED_OLD (--clean). Empty once every step is done.
+install_state_line() {
+    [ -n "${INSTALL_COMPLETE:-}" ] && return 0
+    case "${INSTALL_SWAPPED:-}" in
+        in-place)
+            printf 'HelixScreen at %s was partly replaced; re-run the installer to finish.' "$INSTALL_DIR"
+            return 0
+            ;;
+        swapped)
+            if [ -n "${INSTALL_BACKUP:-}" ] && [ -d "$INSTALL_BACKUP" ]; then
+                printf 'The new install is in place but not set up; the previous one is kept at %s. Re-run the installer to finish.' "$INSTALL_BACKUP"
+            else
+                printf 'The new install is in place but not set up; re-run the installer to finish.'
+            fi
+            return 0
+            ;;
+    esac
+
+    _isl=""
+    if [ -n "${INSTALL_BACKUP:-}" ]; then
+        if [ -d "$INSTALL_BACKUP" ]; then
+            _isl="The previous install is at $INSTALL_BACKUP"
+        else
+            _isl="The previous install was put back"
+        fi
+    fi
+    if [ -n "${INSTALL_STOPPED:-}" ]; then
+        # shellcheck disable=SC2086  # names are single words
+        set -- $INSTALL_STOPPED
+        if [ $# -eq 1 ]; then _isl_v=was; else _isl_v=were; fi
+        _isl="${_isl:+$_isl; }$(_and_list "$@") $_isl_v stopped"
+    fi
+    if [ -n "${INSTALL_REMOVED_OLD:-}" ]; then
+        if [ -n "$_isl" ]; then
+            _isl="$_isl; the old install was removed"
+        else
+            _isl="The old install was removed"
+        fi
+    fi
+    if [ -z "$_isl" ]; then
+        printf 'Nothing on your printer was changed after this step.'
+    else
+        printf '%s; re-run the installer to finish.' "$_isl"
+    fi
 }
 
 # Print usage
@@ -866,18 +932,22 @@ apply_install() {
     uis="${COMPETING_UIS_FOUND:-}"
     step "Stopped ${uis:-the stock screen}"
     configure_platform
+    INSTALL_STOPPED="${INSTALL_STOPPED:-}${uis:+ $uis}"
     stop_competing_uis
     if [ -n "$uis" ]; then step_done; else step_skip; fi
 
     step "Installed files"
     # Clean old installation if requested
     if [ "$clean_mode" = true ]; then
+        INSTALL_REMOVED_OLD=1
         clean_old_installation "$platform"
     fi
 
     if [ "$update_mode" = true ]; then
         if [ ! -d "$INSTALL_DIR" ]; then
             log_warn "No existing installation found. Performing fresh install."
+        elif ! _is_self_update; then
+            INSTALL_STOPPED="HelixScreen${INSTALL_STOPPED:+ $INSTALL_STOPPED}"
         fi
         stop_service "$platform"
     fi
