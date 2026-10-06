@@ -29,16 +29,8 @@
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardFilamentSensorSelectStep> g_wizard_filament_sensor_select_step;
-
 WizardFilamentSensorSelectStep* get_wizard_filament_sensor_select_step() {
-    if (!g_wizard_filament_sensor_select_step) {
-        g_wizard_filament_sensor_select_step = std::make_unique<WizardFilamentSensorSelectStep>();
-        StaticPanelRegistry::instance().register_destroy("WizardFilamentSensorSelectStep", []() {
-            g_wizard_filament_sensor_select_step.reset();
-        });
-    }
-    return g_wizard_filament_sensor_select_step.get();
+    return &helix::lazy_global<WizardFilamentSensorSelectStep>("WizardFilamentSensorSelectStep");
 }
 
 // ============================================================================

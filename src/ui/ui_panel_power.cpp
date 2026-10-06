@@ -543,13 +543,7 @@ lv_obj_t* PowerPanel::get_or_create_overlay(lv_obj_t* parent_screen) {
 }
 
 // Global instance accessor
-static std::unique_ptr<PowerPanel> g_power_panel;
 
 PowerPanel& get_global_power_panel() {
-    if (!g_power_panel) {
-        g_power_panel = std::make_unique<PowerPanel>(get_printer_state(), get_moonraker_api());
-        StaticPanelRegistry::instance().register_destroy("PowerPanel",
-                                                         []() { g_power_panel.reset(); });
-    }
-    return *g_power_panel;
+    return helix::lazy_global<PowerPanel>("PowerPanel", get_printer_state(), get_moonraker_api());
 }

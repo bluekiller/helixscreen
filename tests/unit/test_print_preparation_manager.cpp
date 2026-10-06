@@ -28,6 +28,7 @@
 #include "preprint_predictor.h"
 #include "print_start_analyzer.h"
 #include "printer_detector.h"
+#include "printer_discovery.h"
 #include "printer_state.h"
 
 #include <spdlog/sinks/null_sink.h>
@@ -3029,15 +3030,14 @@ TEST_CASE_METHOD(HelixTestFixture,
 // disabling_option_requires_plugin — pre-print toggle plugin-gating predicate
 //
 // A pre-print toggle is hidden (via the renderer's visibility subject) when
-// DISABLING it would require the HelixPrint plugin. "Requires the plugin" means
-// start_print() would reach check_modification_capability() and be forced to
-// drop the modification with a "Requires HelixPrint plugin" warning when the
-// plugin is absent. That only happens when NO pre-start short-circuit fires:
+// DISABLING it does nothing without the HelixPrint plugin. It still does
+// something when it is a PreStartGcode option (its line is emitted either way)
+// or a MacroParam whose skip rides a pre-start block (setup_gcode, or any
+// PreStartGcode line). Otherwise it is hidden when:
 //
-//   (b) MacroParam option AND the printer has no pre-start mechanism
-//       (setup_gcode empty AND no PreStartGcode option emits a line), OR
+//   (b) it is a MacroParam whose skip must be rewritten into START_PRINT, OR
 //   (a) a file-embeddable op (bed_mesh/qgl/z_tilt/nozzle_clean) is embedded in
-//       the sliced file — UNLESS the same short-circuit fires.
+//       the sliced file: every start path drops that strip without the plugin.
 //
 // The K2 Plus PREPARE case (MacroParam bed_mesh + setup_gcode) MUST stay
 // visible: its native START_PRINT/PRINT_PREPARED handles the skip without the
@@ -3128,12 +3128,9 @@ TEST_CASE_METHOD(
         REQUIRE(fx.requires_plugin("bed_mesh") == false);
     }
 
-    SECTION("file ALSO embeds bed_mesh — still not required (correction to naive "
-            "\"file-embedded => plugin\")") {
-        // start_print() emits the setup_gcode pre-start block (MacroParam skip
-        // present + setup_gcode present), then routes the embedded-op removal
-        // through modify_and_print, which streams WITHOUT a capability check.
-        // So even a file-embedded op does not require the plugin here.
+    SECTION("file ALSO embeds bed_mesh — still visible") {
+        // The embedded strip needs the plugin, but the skip the native macro
+        // takes does not, so the toggle still does something.
         fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
                                           "k2_file.gcode");
         REQUIRE(fx.requires_plugin("bed_mesh") == false);
@@ -3220,6 +3217,194 @@ TEST_CASE_METHOD(
         GateFixture fx(std::move(set));
         REQUIRE(fx.requires_plugin("timelapse") == false);
     }
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "disabling_option_requires_plugin: embedded strip needs the plugin on the "
+                 "pre-start path too",
+                 "[print_preparation][preprint][plugin_gate]") {
+    PrePrintOptionSet set;
+    set.macro_name = "START_PRINT";
+    set.options.push_back(make_runtime_command_opt("bed_mesh"));
+    set.options.push_back(make_pre_start_gcode_opt("ai_detect"));
+    GateFixture fx(std::move(set));
+    fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
+                                      "f.gcode");
+
+    // A pre-start line sends the start through continue_print_start(), which
+    // drops the strip without the plugin just as the direct path does.
+    REQUIRE(fx.requires_plugin("bed_mesh") == true);
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "disabling_option_requires_plugin: PreStartGcode option with an embedded op "
+                 "stays visible",
+                 "[print_preparation][preprint][plugin_gate]") {
+    // Snapmaker U1 shape: bed_mesh writes a firmware preference. The strip of
+    // the file's own mesh needs the plugin, the preference does not.
+    PrePrintOptionSet set;
+    set.macro_name = "START_PRINT";
+    set.options.push_back(make_pre_start_gcode_opt("bed_mesh"));
+    GateFixture fx(std::move(set));
+    fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
+                                      "u1.gcode");
+
+    REQUIRE(fx.requires_plugin("bed_mesh") == false);
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "disabling_option_requires_plugin: a firmware-held option never needs it",
+                 "[print_preparation][preprint][plugin_gate][firmware_seeded]") {
+    // RuntimeCommand isolates the file-embedded term (see the case above).
+    PrePrintOptionSet set;
+    set.macro_name = "START_PRINT";
+    set.options.push_back(make_runtime_command_opt("bed_mesh"));
+    GateFixture fx(std::move(set));
+    fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
+                                      "f.gcode");
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", true}});
+    helix::ui::UpdateQueue::instance().drain();
+    fx.manager.set_option_state_provider([](const std::string&) { return 0; });
+
+    REQUIRE(PrintPreparationManagerTestAccess::get_ops_to_disable(fx.manager).empty());
+    REQUIRE(fx.requires_plugin("bed_mesh") == false);
+}
+
+// ============================================================================
+// An option whose value a self-storing firmware holds strips no embedded op,
+// however it came to be off: that firmware skips the file's own command when
+// its setting is off.
+// ============================================================================
+
+TEST_CASE_METHOD(HelixTestFixture, "collect_ops_to_disable: a firmware-held option strips nothing",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    PrePrintOptionSet set;
+    set.macro_name = "START_PRINT";
+    set.options.push_back(make_pre_start_gcode_opt("bed_mesh"));
+    GateFixture fx(std::move(set));
+    fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
+                                      "u1.gcode");
+
+    auto ops = [&]() { return PrintPreparationManagerTestAccess::get_ops_to_disable(fx.manager); };
+    auto seed_firmware = [&](bool enabled) {
+        PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", enabled}});
+        helix::ui::UpdateQueue::instance().drain();
+    };
+
+    SECTION("firmware stores it off and the user left it alone") {
+        seed_firmware(false);
+        REQUIRE(fx.manager.get_option_state("bed_mesh") == PrePrintOptionState::DISABLED);
+        REQUIRE(ops().empty());
+    }
+
+    SECTION("same, with the dialog's row reporting the seeded state") {
+        seed_firmware(false);
+        fx.manager.set_option_state_provider([](const std::string&) { return 0; });
+        REQUIRE(ops().empty());
+    }
+
+    SECTION("firmware stores it on and the user turned it off") {
+        seed_firmware(true);
+        fx.manager.set_option_state_provider([](const std::string&) { return 0; });
+        REQUIRE(fx.manager.get_option_state("bed_mesh") == PrePrintOptionState::DISABLED);
+        REQUIRE(ops().empty());
+        // Nothing to drop, so the start path has no plugin warning to give.
+        REQUIRE(fx.manager.describe_dropped_modifications(ops()).empty());
+    }
+
+    SECTION("a printer with no persisted-prefs provider strips the embedded op") {
+        // No firmware defaults were merged: a database default off is a user
+        // choice, and it strips the embedded op.
+        PrePrintOptionSet db;
+        db.macro_name = "START_PRINT";
+        db.options.push_back(make_pre_start_gcode_opt("bed_mesh"));
+        db.options.back().default_enabled = false;
+        PrinterStateTestAccess::set_option_set(fx.ps, std::move(db));
+        REQUIRE(ops() == std::vector<gcode::OperationType>{gcode::OperationType::BED_MESH});
+    }
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "collect_ops_to_disable: a printer switched to keeps none of the last one's "
+                 "stored settings",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    GateFixture fx(PrePrintOptionSet{});
+    auto hardware = [](const std::vector<std::string>& names) {
+        PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json(names));
+        return hw;
+    };
+
+    // A U1 whose firmware stores bed_mesh off.
+    fx.ps.set_printer_type_sync("Snapmaker U1");
+    fx.ps.set_hardware(hardware({"print_task_config", "bed_mesh"}));
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    helix::ui::UpdateQueue::instance().drain();
+
+    // Switch to a printer that stores nothing, type first as a rediscovery does.
+    fx.ps.set_printer_type_sync("FlashForge Adventurer 5M");
+    fx.ps.set_hardware(hardware({"bed_mesh"}));
+    helix::ui::UpdateQueue::instance().drain();
+
+    const PrePrintOption* opt = fx.ps.profile_state().pre_print_option_set().find("bed_mesh");
+    REQUIRE(opt != nullptr);
+    CHECK_FALSE(opt->default_from_firmware);
+    CHECK(opt->default_enabled);
+
+    fx.manager.set_option_state_provider(
+        [](const std::string& id) { return id == "bed_mesh" ? 0 : -1; });
+    fx.manager.set_cached_scan_result(scan_with_embedded_op(gcode::OperationType::BED_MESH),
+                                      "ad5m.gcode");
+    REQUIRE(PrintPreparationManagerTestAccess::get_ops_to_disable(fx.manager) ==
+            std::vector<gcode::OperationType>{gcode::OperationType::BED_MESH});
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "collect_ops_to_disable: a stored setting read off the previous printer does "
+                 "not land on the next",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    GateFixture fx(PrePrintOptionSet{});
+    auto hardware = [](const std::vector<std::string>& names) {
+        PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json(names));
+        return hw;
+    };
+
+    fx.ps.set_printer_type_sync("Snapmaker U1");
+    fx.ps.set_hardware(hardware({"print_task_config", "bed_mesh"}));
+    helix::ui::UpdateQueue::instance().drain();
+
+    // The U1's last frame is read, and its merge is still queued when the
+    // switch to a printer that stores nothing replaces the hardware.
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    fx.ps.set_printer_type_sync("FlashForge Adventurer 5M");
+    fx.ps.set_hardware(hardware({"bed_mesh"}));
+    helix::ui::UpdateQueue::instance().drain();
+
+    const PrePrintOption* opt = fx.ps.profile_state().pre_print_option_set().find("bed_mesh");
+    REQUIRE(opt != nullptr);
+    CHECK_FALSE(opt->default_from_firmware);
+    CHECK(opt->default_enabled);
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "collect_ops_to_disable: new hardware starts from no stored settings",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    GateFixture fx(PrePrintOptionSet{});
+    PrinterDiscovery u1;
+    u1.parse_objects(nlohmann::json(std::vector<std::string>{"print_task_config", "bed_mesh"}));
+
+    fx.ps.set_printer_type_sync("Snapmaker U1");
+    fx.ps.set_hardware(u1);
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(fx.ps.profile_state().pre_print_option_set().find("bed_mesh")->default_from_firmware);
+
+    // Another U1, or the same one reconnecting: it reports its own settings.
+    fx.ps.set_hardware(u1);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(
+        fx.ps.profile_state().pre_print_option_set().find("bed_mesh")->default_from_firmware);
 }
 
 // ============================================================================
@@ -3389,6 +3574,38 @@ TEST_CASE_METHOD(HelixTestFixture,
     REQUIRE(downloads.size() == 1);
     CHECK_FALSE(std::filesystem::exists(downloads[0]));
     CHECK_FALSE(std::filesystem::exists(uploads[0].local_path));
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "PrintPreparationManager: a staged copy names the original's whole path",
+                 "[print_preparation][remap][reprint]") {
+    lv_init_safe();
+    PrinterStateTestAccess::reset(get_printer_state());
+    get_printer_state().init_subjects(false);
+
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
+
+    PrintPreparationManager manager;
+    manager.set_dependencies(&api, &state);
+    const std::string original = std::string("parts/") + kRemapFixture;
+    state.print_state().begin_preparing(PrintJobRef{original, "gcodes", ""});
+
+    SECTION("remap") {
+        manager.modify_and_print_with_remap(original, {{1, 2}}, nullptr);
+    }
+    SECTION("pre-print modification") {
+        manager.set_cached_scan_result(gcode::ScanResult{}, original);
+        PrintPreparationManagerTestAccess::modify_and_print(manager, original);
+    }
+    drain_until_quiet();
+
+    // The printer reports only the staged name; after a restart it is all
+    // there is to recover the original from.
+    const auto& uploads = api.transfers_mock().path_uploads();
+    REQUIRE(uploads.size() == 1);
+    CHECK(gcode::resolve_gcode_filename(uploads[0].dest_path) == original);
 }
 
 TEST_CASE_METHOD(HelixTestFixture,

@@ -23,15 +23,8 @@ char WizardAmsIdentifyStep::ams_details_buffer_[128] = {};
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardAmsIdentifyStep> g_wizard_ams_identify_step;
-
 WizardAmsIdentifyStep* get_wizard_ams_identify_step() {
-    if (!g_wizard_ams_identify_step) {
-        g_wizard_ams_identify_step = std::make_unique<WizardAmsIdentifyStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardAmsIdentifyStep", []() { g_wizard_ams_identify_step.reset(); });
-    }
-    return g_wizard_ams_identify_step.get();
+    return &helix::lazy_global<WizardAmsIdentifyStep>("WizardAmsIdentifyStep");
 }
 
 // ============================================================================
