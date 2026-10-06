@@ -847,16 +847,16 @@ class WifiBackendEsp : public WifiBackend {
     void count_stalled_drop(int64_t silence_ms) {
         bool leave = false;
         int drops = 0;
-        std::string bssid;
+        std::string ap;
         {
             std::lock_guard<std::mutex> lock(steering_mutex_);
             leave = steering_.on_link_drop(esp_timer_get_time() / 1000, silence_ms);
             drops = steering_.stalled_drops();
-            bssid = helix::format_bssid(steering_.current());
+            ap = helix::redact::mac(helix::format_bssid(steering_.current()));
         }
         spdlog::info("[WifiBackend] esp32: Moonraker link silent {}ms before the drop via {} "
                      "({}/{} stalled drops)",
-                     silence_ms, bssid, drops, helix::WifiApSteering::LINK_STALL_DROPS);
+                     silence_ms, ap, drops, helix::WifiApSteering::LINK_STALL_DROPS);
         if (!leave) {
             return;
         }
@@ -868,7 +868,7 @@ class WifiBackendEsp : public WifiBackend {
         wifi_scan_config_t scan_cfg = {};
         esp_err_t rc = esp_wifi_scan_start(&scan_cfg, false);
         if (rc == ESP_OK) {
-            spdlog::info("[WifiBackend] esp32: scanning for another access point than {}", bssid);
+            spdlog::info("[WifiBackend] esp32: scanning for another access point than {}", ap);
         } else {
             {
                 std::lock_guard<std::mutex> lock(steering_mutex_);
@@ -909,7 +909,7 @@ class WifiBackendEsp : public WifiBackend {
         std::string from;
         {
             std::lock_guard<std::mutex> lock(steering_mutex_);
-            from = helix::format_bssid(steering_.current());
+            from = helix::redact::mac(helix::format_bssid(steering_.current()));
             pick = steering_.pick_alternative(candidates, esp_timer_get_time() / 1000);
         }
         if (!pick) {
@@ -925,7 +925,7 @@ class WifiBackendEsp : public WifiBackend {
             }
         }
         spdlog::info("[WifiBackend] esp32: steering from {} to {} ({} dBm), avoiding {} for {} min",
-                     from, helix::format_bssid(*pick), rssi, from,
+                     from, helix::redact::mac(helix::format_bssid(*pick)), rssi, from,
                      helix::WifiApSteering::AVOID_MS / 60'000);
         {
             std::lock_guard<std::mutex> lock(cfg_mutex_);
