@@ -582,6 +582,11 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 // Hardware into PrinterState first — init_fans / init_extruders
                 // build their subjects from it, and set_hardware seeds the
                 // capability flags the home/motion panels read.
+                // Macros, the probe's bed centre and delta detection read the API's copy.
+                // A copy: the lines below still read *snapshot.
+                if (IMoonrakerAPI* a = mgr->api()) {
+                    a->hardware() = *snapshot;
+                }
                 ps.set_hardware(*snapshot);
 
                 const auto& fans = snapshot->fans();
