@@ -249,8 +249,9 @@ print(d)' "$1" "$2"
 
 @test "seed_update_channel: a box with only the legacy backup gets the channel" {
     mkdir -p "$HELIX_STATE_VAR_LIB" "$KLIPPER_HOME/.helixscreen"
-    printf '{"config_version": 27, "language": "de"}\n' > "$HELIX_STATE_VAR_LIB/helixconfig.json.backup"
-    printf '{"config_version": 27, "update": {"channel": 0}}\n' > "$KLIPPER_HOME/.helixscreen/helixconfig.json.backup"
+    # Every legacy backup predates the settings.json rename at config_version 8.
+    printf '{"config_version": 8, "language": "de"}\n' > "$HELIX_STATE_VAR_LIB/helixconfig.json.backup"
+    printf '{"config_version": 7, "update": {"channel": 0}}\n' > "$KLIPPER_HOME/.helixscreen/helixconfig.json.backup"
     _R2_CHANNEL_FROM_VERSION=yes
 
     seed_update_channel
