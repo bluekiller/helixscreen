@@ -235,8 +235,12 @@ void register_widgets() {
     lv_obj_center(label);
     lv_refr_now(nullptr);
 
-    ESP_LOGW(TAG, "app_boot: restarting into printer '%s'",
-             config->get_active_printer_id().c_str());
+    // Counted across restarts: how often a live switch could not get its WebSocket stack.
+    const int fallbacks = config->get<int>("/switch_restart_fallbacks", 0) + 1;
+    config->set<int>("/switch_restart_fallbacks", fallbacks);
+    config->save();
+    ESP_LOGW(TAG, "app_boot: restarting into printer '%s' (switch fallback #%d)",
+             config->get_active_printer_id().c_str(), fallbacks);
     esp_restart();
 }
 
@@ -258,7 +262,6 @@ bool ws_stack_available() {
 helix::PrinterSwitchFlow& switch_flow() {
     static helix::Config* config = helix::Config::get_instance();
     static helix::AsyncLifetimeGuard lifetime;
-    static std::string connected_id = config->get_active_printer_id();
     static helix::PrinterSwitchFlow flow(
         config, lifetime,
         {[] { g_switch_started_us = esp_timer_get_time(); },
@@ -267,11 +270,12 @@ helix::PrinterSwitchFlow& switch_flow() {
              if (!helix::retarget_printer_connection(ws_stack_available)) {
                  restart_into_active_printer();
              }
-             if (config->get<nlohmann::json>("/printers/" + connected_id + "/panel_widgets", {}) !=
+             // The flow still names the previous printer until the switch completes.
+             const std::string& previous_id = switch_flow().connected_printer_id();
+             if (config->get<nlohmann::json>("/printers/" + previous_id + "/panel_widgets", {}) !=
                  config->get<nlohmann::json>(config->df() + "panel_widgets", {})) {
                  helix::PanelWidgetManager::instance().notify_config_changed("home");
              }
-             connected_id = config->get_active_printer_id();
          },
          [] {
              NavigationManager::instance().request_panel(helix::PanelId::Home,
@@ -281,17 +285,12 @@ helix::PrinterSwitchFlow& switch_flow() {
 }
 
 void wire_printer_callbacks() {
-    switch_flow(); // records the printer connected at boot
+    switch_flow().set_connected_printer_id(helix::Config::get_instance()->get_active_printer_id());
     NavigationManager::instance().set_printer_callbacks(
         [](const std::string& printer_id) { switch_flow().request_switch(printer_id); },
         [] {
-            helix::ui::show_add_printer_modal([](const std::string& host, int port) {
-                helix::Config* config = helix::Config::get_instance();
-                const std::string id = config->next_printer_id();
-                config->add_printer(id, {{"moonraker_host", host}, {"moonraker_port", port}});
-                config->save();
-                switch_flow().request_switch(id);
-            });
+            helix::ui::show_add_printer_modal(
+                [](const std::string& host, int port) { switch_flow().add_printer(host, port); });
         });
 }
 

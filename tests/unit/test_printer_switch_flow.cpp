@@ -60,6 +60,10 @@ class SwitchFlowFixture : public XMLTestFixture {
         helix::ConfigTestAccess::active_printer_id(*cfg_) = "alpha";
         helix::PrinterCacheRegistry::instance().clear();
 
+        saved_read_only_ = helix::ConfigTestAccess::read_only_mode(*cfg_);
+        helix::ConfigTestAccess::read_only_mode(*cfg_) = false;
+        flow_.set_connected_printer_id("alpha");
+
         get_printer_state().init_subjects(false);
         set_job(PrintJobState::STANDBY);
     }
@@ -73,6 +77,7 @@ class SwitchFlowFixture : public XMLTestFixture {
         set_job(PrintJobState::STANDBY);
         helix::ConfigTestAccess::data(*cfg_) = saved_data_;
         helix::ConfigTestAccess::active_printer_id(*cfg_) = saved_active_;
+        helix::ConfigTestAccess::read_only_mode(*cfg_) = saved_read_only_;
     }
 
     static void set_job(PrintJobState state) {
@@ -97,6 +102,7 @@ class SwitchFlowFixture : public XMLTestFixture {
   private:
     nlohmann::json saved_data_;
     std::string saved_active_;
+    bool saved_read_only_ = false;
 };
 
 const std::vector<std::string> kFullRestart = {"teardown", "rebuild", "home"};
@@ -173,5 +179,78 @@ TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: dismissing the question lets t
 
     flow_.request_switch("beta");
     CHECK(Modal::get_top() != nullptr);
+    CHECK(events_.empty());
+}
+
+TEST_CASE_METHOD(SwitchFlowFixture,
+                 "Switch flow: deleting the connected printer switches to the one config moved to",
+                 "[multi-printer][switch_flow]") {
+    // Config::remove_printer() moves the active id to the remaining printer before the
+    // Printers list asks for a switch to that same id.
+    cfg_->remove_printer("alpha");
+    REQUIRE(cfg_->get_active_printer_id() == "beta");
+
+    flow_.request_switch("beta");
+
+    CHECK(events_ == kFullRestart);
+    CHECK(flow_.connected_printer_id() == "beta");
+}
+
+TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: a switch records the newly connected printer",
+                 "[multi-printer][switch_flow]") {
+    flow_.request_switch("beta");
+    REQUIRE(flow_.connected_printer_id() == "beta");
+    events_.clear();
+
+    flow_.request_switch("beta");
+    CHECK(events_.empty());
+}
+
+TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: a failed save stays on the current printer",
+                 "[multi-printer][switch_flow]") {
+    helix::ConfigTestAccess::read_only_mode(*cfg_) = true;
+
+    flow_.request_switch("beta");
+
+    CHECK(events_.empty());
+    CHECK(cfg_->get_active_printer_id() == "alpha");
+    CHECK(flow_.connected_printer_id() == "alpha");
+}
+
+TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: adding a new address creates it and switches",
+                 "[multi-printer][switch_flow]") {
+    flow_.add_printer("10.0.0.9", 7125);
+
+    const std::string id = cfg_->get_active_printer_id();
+    CHECK(id != "alpha");
+    CHECK(id != "beta");
+    CHECK(cfg_->get<std::string>("/printers/" + id + "/moonraker_host") == "10.0.0.9");
+    CHECK(cfg_->get<int>("/printers/" + id + "/moonraker_port") == 7125);
+    CHECK(events_ == kFullRestart);
+    CHECK(flow_.connected_printer_id() == id);
+}
+
+TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: adding a known address switches to that printer",
+                 "[multi-printer][switch_flow]") {
+    nlohmann::json& data = helix::ConfigTestAccess::data(*cfg_);
+    data["printers"]["beta"]["moonraker_host"] = "10.0.0.2";
+    data["printers"]["beta"]["moonraker_port"] = 7125;
+
+    flow_.add_printer("10.0.0.2", 7125);
+
+    CHECK(cfg_->get_printer_ids().size() == 2);
+    CHECK(cfg_->get_active_printer_id() == "beta");
+    CHECK(events_ == kFullRestart);
+}
+
+TEST_CASE_METHOD(SwitchFlowFixture,
+                 "Switch flow: an add whose save fails keeps the entry and stays",
+                 "[multi-printer][switch_flow]") {
+    helix::ConfigTestAccess::read_only_mode(*cfg_) = true;
+
+    flow_.add_printer("10.0.0.9", 7125);
+
+    CHECK(cfg_->get_printer_ids().size() == 3);
+    CHECK(cfg_->get_active_printer_id() == "alpha");
     CHECK(events_.empty());
 }

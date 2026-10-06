@@ -66,7 +66,7 @@ void PrinterSwitchFlow::request_switch(const std::string& printer_id) {
                      printer_id);
         return;
     }
-    if (printer_id == m_config->get_active_printer_id()) {
+    if (printer_id == m_connected_printer_id) {
         return;
     }
     if (!active_printer_is_printing()) {
@@ -108,12 +108,17 @@ void PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
 
     spdlog::info("[PrinterSwitchFlow] Switching to printer '{}'...", printer_id);
 
-    // Validate printer exists in config
+    const std::string previous_id = m_config->get_active_printer_id();
     if (!m_config->set_active_printer(printer_id)) {
         spdlog::error("[PrinterSwitchFlow] Failed to switch — unknown printer '{}'", printer_id);
         return;
     }
-    m_config->save();
+    // A switch the config does not remember would come back as the old printer after a
+    // restart, so an unsaved switch does not happen.
+    if (!save_or_report()) {
+        m_config->set_active_printer(previous_id);
+        return;
+    }
 
     // Per-printer state lives at /printers/<active>/… and is reached via Config::df().
     // The active printer just changed, so df() now points at the new printer — fire every
@@ -125,6 +130,7 @@ void PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
     m_restart.rebuild();
 
     m_restart.land_home();
+    m_connected_printer_id = printer_id;
 
     // Show toast with the new printer name
     const std::string printer_name = m_config->get_active_printer_name();
@@ -150,7 +156,11 @@ void PrinterSwitchFlow::add_printer_via_wizard() {
     nlohmann::json printer_data = {{"wizard_completed", false}};
     m_config->add_printer(new_id, printer_data);
     m_config->set_active_printer(new_id);
-    m_config->save();
+    if (!save_or_report()) {
+        m_config->remove_printer(new_id);
+        m_config->set_active_printer(previous_id);
+        return;
+    }
 
     // Store previous ID so wizard cancellation can recover
     m_wizard_previous_printer_id = previous_id;
@@ -171,6 +181,7 @@ void PrinterSwitchFlow::add_printer_via_wizard() {
     set_wizard_cancel_callback([this]() { cancel_add_printer_wizard(); });
 
     m_restart.rebuild();
+    m_connected_printer_id = new_id;
 }
 
 void PrinterSwitchFlow::cancel_add_printer_wizard() {
@@ -193,7 +204,8 @@ void PrinterSwitchFlow::cancel_add_printer_wizard() {
 
     m_config->remove_printer(failed_id);
     m_config->set_active_printer(restore_id);
-    m_config->save();
+    // Unsaved, the abandoned entry reappears after a restart; the restore still runs.
+    save_or_report();
     m_wizard_previous_printer_id.clear();
 
     // Defer wizard teardown + soft restart — we're called from a wizard button click handler,
@@ -211,7 +223,36 @@ void PrinterSwitchFlow::cancel_add_printer_wizard() {
         m_restart.teardown();
         m_restart.rebuild();
         m_restart.land_home();
+        m_connected_printer_id = m_config->get_active_printer_id();
     });
+}
+
+void PrinterSwitchFlow::add_printer(const std::string& host, int port) {
+    const std::string existing = m_config->find_printer_by_host(host, port);
+    if (!existing.empty()) {
+        spdlog::info("[PrinterSwitchFlow] {}:{} is already printer '{}'", host, port, existing);
+        request_switch(existing);
+        return;
+    }
+
+    const std::string id = m_config->next_printer_id();
+    m_config->add_printer(id, {{"moonraker_host", host}, {"moonraker_port", port}});
+    spdlog::info("[PrinterSwitchFlow] Added printer '{}' at {}:{}", id, host, port);
+    // Kept in the list unsaved rather than dropped, and not switched to.
+    if (!save_or_report()) {
+        return;
+    }
+    request_switch(id);
+}
+
+bool PrinterSwitchFlow::save_or_report() {
+    if (m_config->save()) {
+        return true;
+    }
+    spdlog::error("[PrinterSwitchFlow] Saving the printer list failed");
+    ToastManager::instance().show(ToastSeverity::ERROR,
+                                  lv_tr("Failed to save printer configuration"));
+    return false;
 }
 
 } // namespace helix

@@ -658,6 +658,9 @@ void PrinterSession::setup_discovery_callbacks() {
 }
 
 bool PrinterSession::connect_moonraker() {
+    // Boot and every rebuild connect through here, to the active printer.
+    m_flow.set_connected_printer_id(m_config->get_active_printer_id());
+
     // Determine if we should connect
     std::string saved_host = m_config->get<std::string>(m_config->df() + "moonraker_host", "");
     bool has_cli_url = !m_host.args.moonraker_url.empty();

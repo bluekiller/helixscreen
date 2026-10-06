@@ -32,8 +32,23 @@ class PrinterSwitchFlow {
     PrinterSwitchFlow(Config*& config, AsyncLifetimeGuard& async, Restart restart);
 
     /// Switches to `printer_id`, asking first when the current printer is printing.
-    /// Picking the active printer does nothing.
+    /// Picking the connected printer does nothing.
     void request_switch(const std::string& printer_id);
+
+    /// Adds the printer at `host`:`port` and switches to it the way request_switch() does. An
+    /// address already in the list switches to that printer instead of adding a duplicate.
+    void add_printer(const std::string& host, int port);
+
+    /// The printer the app is connected to. Compared against instead of the config's active
+    /// id, which a removal moves to another printer before the switch is requested.
+    [[nodiscard]] const std::string& connected_printer_id() const {
+        return m_connected_printer_id;
+    }
+
+    /// Records the printer the owner connected to outside a switch, at boot.
+    void set_connected_printer_id(std::string printer_id) {
+        m_connected_printer_id = std::move(printer_id);
+    }
 
     /// Makes `printer_id` the active printer and restarts onto it. Ignored while a restart
     /// or a switch confirmation is running; an unknown id changes nothing.
@@ -72,6 +87,10 @@ class PrinterSwitchFlow {
     bool m_confirm_pending = false;
 
     std::string m_wizard_previous_printer_id;
+    std::string m_connected_printer_id;
+
+    /// Saves the config, telling the user when it could not.
+    bool save_or_report();
 };
 
 } // namespace helix

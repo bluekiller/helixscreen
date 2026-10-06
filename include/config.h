@@ -586,6 +586,10 @@ class Config {
      */
     std::string next_printer_id() const;
 
+    /// The id of the printer whose Moonraker is at @p host : @p port (7125 when unset); empty
+    /// when no printer is.
+    std::string find_printer_by_host(const std::string& host, int port) const;
+
     /// The active printer's display name; its id when no name has been set.
     std::string get_active_printer_name() const;
 

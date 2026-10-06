@@ -2518,6 +2518,21 @@ TEST_CASE_METHOD(ConfigTestFixture, "Config: get_active_printer_name falls back 
     REQUIRE(config.get_active_printer_name() == "printer-2");
 }
 
+TEST_CASE_METHOD(ConfigTestFixture, "Config: find_printer_by_host matches host and port",
+                 "[core][config][multi-printer]") {
+    set_data_for_plural_test(
+        {{"active_printer_id", "voron"},
+         {"printers",
+          {{"show_printer_switcher", true},
+           {"voron", {{"moonraker_host", "192.168.1.10"}}},
+           {"ender3", {{"moonraker_host", "192.168.1.20"}, {"moonraker_port", 7126}}}}}});
+
+    CHECK(config.find_printer_by_host("192.168.1.10", 7125) == "voron"); // port defaults to 7125
+    CHECK(config.find_printer_by_host("192.168.1.20", 7126) == "ender3");
+    CHECK(config.find_printer_by_host("192.168.1.20", 7125).empty());
+    CHECK(config.find_printer_by_host("192.168.1.30", 7125).empty());
+}
+
 TEST_CASE_METHOD(ConfigTestFixture, "Config: next_printer_id picks an id no printer uses",
                  "[core][config][multi-printer]") {
     SECTION("numbers from the printer count") {

@@ -1182,6 +1182,17 @@ std::string Config::next_printer_id() const {
     return id;
 }
 
+std::string Config::find_printer_by_host(const std::string& host, int port) const {
+    for (const auto& id : get_printer_ids()) {
+        const std::string base = "/printers/" + id + "/";
+        if (get<std::string>(base + "moonraker_host", "") == host &&
+            get<int>(base + "moonraker_port", 7125) == port) {
+            return id;
+        }
+    }
+    return {};
+}
+
 std::string Config::get_active_printer_name() const {
     return get<std::string>(df() + "printer_name", active_printer_id_);
 }
