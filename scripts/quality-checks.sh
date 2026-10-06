@@ -2325,7 +2325,9 @@ echo -n "🗺️  Checking the platform manifest against its consumers..."
 # every consumer reads the manifest.
 # Without --strict it exits 0 on findings, so a non-zero exit is the script
 # itself failing to run.
-if ! python3 scripts/check_platform_manifest.py --quiet >/tmp/platform_manifest.out 2>&1; then
+python3 scripts/check_platform_manifest.py --quiet >/tmp/platform_manifest.out 2>&1
+PLATFORM_MANIFEST_RC=$?
+if [ "$PLATFORM_MANIFEST_RC" -ne 0 ]; then
   section_time $SECTION_START
   echo ""
   cat /tmp/platform_manifest.out
