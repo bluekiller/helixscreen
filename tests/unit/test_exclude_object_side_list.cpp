@@ -16,6 +16,7 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "printer_state.h"
+#include "theme_manager.h"
 
 #include <algorithm>
 #include <cstring>
@@ -276,4 +277,42 @@ TEST_CASE_METHOD(SideListFixture, "Side list never publishes a new object's stat
         CHECK(names.find("old_") == std::string::npos);
     }
     CHECK(shows_text(rows_of(container)[1], "Excluded"));
+}
+
+TEST_CASE_METHOD(SideListFixture, "Side list chips follow a theme switch and keep the scroll",
+                 "[exclude_side_list]") {
+    REQUIRE(container != nullptr);
+    REQUIRE(rows_of(container).size() == 20);
+    lv_obj_scroll_to_y(container, 60, LV_ANIM_OFF);
+    REQUIRE(lv_obj_get_scroll_y(container) == 60);
+
+    auto chip_text = [](lv_obj_t* row) {
+        return lv_obj_get_style_text_color(lv_obj_get_child(lv_obj_get_child(row, 0), 0),
+                                           LV_PART_MAIN);
+    };
+    std::vector<lv_color_t> before;
+    for (lv_obj_t* row : rows_of(container)) {
+        before.push_back(chip_text(row));
+    }
+
+    theme_manager_toggle_dark_mode(); // the defined list is unchanged
+    settle();
+
+    const auto rows = rows_of(container);
+    REQUIRE(rows.size() == 20);
+    bool any_changed = false;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        INFO("row " << i);
+        lv_obj_t* disc = lv_obj_get_child(rows[i], 0);
+        const lv_color_t fill = object_badge_color(static_cast<int>(i));
+        CHECK(lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN), fill));
+        CHECK(lv_color_eq(chip_text(rows[i]), object_badge_text_color(fill)));
+        any_changed = any_changed || !lv_color_eq(chip_text(rows[i]), before[i]);
+    }
+    CHECK(lv_obj_get_scroll_y(container) == 60);
+
+    theme_manager_toggle_dark_mode();
+    settle();
+    // The theme moved at least one chip's number colour, or this proves nothing.
+    REQUIRE(any_changed);
 }

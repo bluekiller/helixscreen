@@ -133,6 +133,15 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterState* printer_state
             }
         },
         printer_state_->get_subjects_lifetime());
+    const auto restyle = [](ExcludeObjectSideList* self, int) {
+        if (self->root_) {
+            self->restyle_rows_if_stale();
+        }
+    };
+    theme_obs_ =
+        observe<int>(theme_manager_get_changed_subject(), this, restyle, subject_never_freed());
+    breakpoint_obs_ =
+        observe<int>(theme_manager_get_breakpoint_subject(), this, restyle, subject_never_freed());
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -171,6 +180,8 @@ void ExcludeObjectSideList::destroy() {
     // down with their parent before any further input can dispatch.
     excluded_version_obs_.reset();
     defined_version_obs_.reset();
+    theme_obs_.reset();
+    breakpoint_obs_.reset();
     lifetime_.invalidate();
 
     // Cancel the slide-in animation (no slide-out — the lv_obj_delete_async
@@ -229,10 +240,20 @@ void ExcludeObjectSideList::rebuild_rows() {
     // States first, so each row binds to its real state on creation.
     update_row_states();
 
+    rows_look_ = resolve_badge_look({});
     for (const auto& badge :
          compute_object_badges(printer_state_->excluded_objects_state(), nullptr)) {
         create_row(rows_container_, badge);
     }
+}
+
+void ExcludeObjectSideList::restyle_rows_if_stale() {
+    if (!rows_container_ || badge_look_current(rows_look_)) {
+        return;
+    }
+    // The container keeps its own scroll offset across the swap of children.
+    row_names_.clear(); // forces rebuild_rows() past its unchanged-list shortcut
+    rebuild_rows();
 }
 
 void ExcludeObjectSideList::update_row_states() {
