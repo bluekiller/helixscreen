@@ -31,6 +31,7 @@ setup_file() {
 
     _make_release "$art" 1 v1.0.0
     _make_release "$art" 2 v1.0.1
+    _make_release "$art" 3 v1.1.0-beta.1
 
     cp /etc/os-release "$art/seed/os-release"
     printf 'root:x:0:0:root:/root:/bin/sh\n' > "$art/seed/passwd"
@@ -241,4 +242,18 @@ snap_resolve() {
     [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.0.1" ]
     ! grep -q "e2e_user_value" "$(snap_resolve "$s" "$INST/config/settings.json")" \
         || fail "--clean kept the old settings.json"
+}
+
+@test "install.sh e2e: a prerelease update with no saved channel moves Moonraker to beta" {
+    # seed-user writes a settings.json with no update channel, so the beta
+    # version decides it, after the installed config has been read.
+    run_scenario install seed-user update-beta
+    local s settings
+    s=$(snap 3-update-beta)
+    settings=$(snap_resolve "$s" "$INST/config/settings.json")
+
+    [ "$(cat "$s$INST/ui_xml/e2e-release.txt")" = "v1.1.0-beta.1" ]
+    grep -qx "channel: beta" "$s/root/printer_data/config/moonraker.conf" \
+        || fail "update_manager still on $(grep '^channel:' "$s/root/printer_data/config/moonraker.conf")"
+    grep -q '"e2e_user_value": "kept"' "$settings" || fail "user settings lost"
 }

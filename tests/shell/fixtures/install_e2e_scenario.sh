@@ -25,6 +25,7 @@
 #   customize-unit add a local line to the installed systemd unit
 #   clean-install  --clean --yes install of release 2
 #   update         --update to release 2
+#   update-beta    --update to release 3, a prerelease
 #   self-update    --update to release 2 under HELIX_SELF_UPDATE=1
 #   uninstall      --uninstall
 
@@ -105,6 +106,9 @@ for step in "$@"; do
             ;;
         update)
             run_installer --update --local /mnt/release-2/helixscreen-x86-v1.0.1.tar.gz || rc=$?
+            ;;
+        update-beta)
+            run_installer --update --local /mnt/release-3/helixscreen-x86-v1.1.0-beta.1.tar.gz || rc=$?
             ;;
         self-update)
             (export HELIX_SELF_UPDATE=1
