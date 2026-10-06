@@ -478,7 +478,8 @@ lv_draw_buf_t* ui_gradient_canvas_create_buf(int32_t width, int32_t height, bool
 namespace helix::ui {
 
 lv_draw_buf_t* gradient_canvas_create_opaque_buf(int32_t width, int32_t height, bool dark_mode,
-                                                 int32_t radius, lv_color_t behind) {
+                                                 int32_t radius, lv_color_t behind,
+                                                 lv_color_t under) {
     lv_draw_buf_t* masked = ui_gradient_canvas_create_buf(width, height, dark_mode, radius);
     if (!masked)
         return nullptr;
@@ -498,9 +499,12 @@ lv_draw_buf_t* gradient_canvas_create_opaque_buf(int32_t width, int32_t height, 
         uint8_t* dst = out->data + static_cast<uint32_t>(y) * out->header.stride;
         for (int32_t x = 0; x < width; x++) {
             const lv_color32_t p = src[x];
-            const lv_color_t c =
-                lv_color_make(mix(p.red, behind.red, p.alpha), mix(p.green, behind.green, p.alpha),
-                              mix(p.blue, behind.blue, p.alpha));
+            // The masked image's fringe let the card's own rounded background,
+            // anti-aliased by about the same coverage, show over the page.
+            const uint8_t a = p.alpha;
+            const lv_color_t c = lv_color_make(mix(p.red, mix(under.red, behind.red, a), a),
+                                               mix(p.green, mix(under.green, behind.green, a), a),
+                                               mix(p.blue, mix(under.blue, behind.blue, a), a));
 #if LV_COLOR_DEPTH == 16
             reinterpret_cast<uint16_t*>(dst)[x] = lv_color_to_u16(c);
 #else

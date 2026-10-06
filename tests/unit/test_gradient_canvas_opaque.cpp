@@ -32,8 +32,10 @@ TEST_CASE_METHOD(
     "[gradient_canvas]") {
     constexpr int32_t W = 160, H = 200, R = 8;
     const lv_color_t behind = lv_color_hex(0x101418);
+    const lv_color_t under = lv_color_hex(0x2A2E33);
     lv_draw_buf_t* masked = ui_gradient_canvas_create_buf(W, H, true, R);
-    lv_draw_buf_t* opaque = helix::ui::gradient_canvas_create_opaque_buf(W, H, true, R, behind);
+    lv_draw_buf_t* opaque =
+        helix::ui::gradient_canvas_create_opaque_buf(W, H, true, R, behind, under);
     REQUIRE(masked != nullptr);
     REQUIRE(opaque != nullptr);
 
@@ -48,12 +50,14 @@ TEST_CASE_METHOD(
             const lv_color32_t m = pixel(masked, x, y);
             const lv_color32_t o = pixel(opaque, x, y);
             const uint8_t a = m.alpha;
-            auto expect = [&](uint8_t fg, uint8_t bg, int bits) {
-                return as_shown(static_cast<uint8_t>((fg * a + bg * (255 - a) + 127) / 255), bits);
+            auto over = [&](int fg, int bg) { return (fg * a + bg * (255 - a) + 127) / 255; };
+            auto expect = [&](uint8_t fg, uint8_t card, uint8_t page, int bits) {
+                return as_shown(static_cast<uint8_t>(over(fg, over(card, page))), bits);
             };
-            const bool ok = std::abs(o.red - expect(m.red, behind.red, 5)) <= tol_rb &&
-                            std::abs(o.green - expect(m.green, behind.green, 6)) <= tol_g &&
-                            std::abs(o.blue - expect(m.blue, behind.blue, 5)) <= tol_rb;
+            const bool ok =
+                std::abs(o.red - expect(m.red, under.red, behind.red, 5)) <= tol_rb &&
+                std::abs(o.green - expect(m.green, under.green, behind.green, 6)) <= tol_g &&
+                std::abs(o.blue - expect(m.blue, under.blue, behind.blue, 5)) <= tol_rb;
             if (!ok && mismatches++ < 3) {
                 UNSCOPED_INFO("x=" << x << " y=" << y << " a=" << int(a) << " got " << int(o.red)
                                    << "," << int(o.green) << "," << int(o.blue));

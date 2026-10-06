@@ -94,9 +94,12 @@ namespace helix::ui {
  * solid color.
  *
  * @param behind The solid color the image's corners sit on
+ * @param under  The color of the rounded background drawn under the image, whose
+ *               anti-aliased edge shows through the corner fringe
  * @return Owned lv_draw_buf_t*, or nullptr on allocation failure
  */
 lv_draw_buf_t* gradient_canvas_create_opaque_buf(int32_t width, int32_t height, bool dark_mode,
-                                                 int32_t radius, lv_color_t behind);
+                                                 int32_t radius, lv_color_t behind,
+                                                 lv_color_t under);
 } // namespace helix::ui
 #endif

@@ -186,8 +186,9 @@ void PrintSelectCardView::ensure_gradient_cache(int32_t card_width, int32_t card
     lv_draw_buf_t* old_gradient = cached_gradient_;
     // On a solid background the corners are flattened onto it, so every card
     // draws a plain copy instead of blending a full-card alpha image.
-    cached_gradient_ = solid ? helix::ui::gradient_canvas_create_opaque_buf(card_width, card_height,
-                                                                            dark, radius, behind)
+    cached_gradient_ = solid ? helix::ui::gradient_canvas_create_opaque_buf(
+                                   card_width, card_height, dark, radius, behind,
+                                   theme_manager_get_color("card_bg"))
                              : ui_gradient_canvas_create_buf(card_width, card_height, dark, radius);
     cached_gradient_behind_ = behind_key;
     cached_gradient_w_ = card_width;
