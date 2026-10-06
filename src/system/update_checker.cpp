@@ -946,6 +946,25 @@ uint64_t UpdateChecker::required_download_space_bytes(uint64_t download_bytes) {
     return need < DOWNLOAD_SPACE_FLOOR_BYTES ? DOWNLOAD_SPACE_FLOOR_BYTES : need;
 }
 
+std::string UpdateChecker::install_failure_detail(const std::vector<std::string>& lines) {
+    std::string bracket_error, error, warning;
+    for (const auto& raw : lines) {
+        const std::string line = strip_ansi_codes(raw);
+        if (line.find("[ERROR]") != std::string::npos) {
+            bracket_error = line;
+        }
+        if (line.find("ERROR") != std::string::npos || line.find("FAILED") != std::string::npos) {
+            error = line;
+        } else if (line.find("WARNING") != std::string::npos) {
+            warning = line;
+        }
+    }
+    std::string detail =
+        !bracket_error.empty() ? bracket_error : (!error.empty() ? error : warning);
+    detail.erase(0, detail.find_first_not_of(" \t"));
+    return detail;
+}
+
 std::string UpdateChecker::download_filename_for_url(const std::string& url) {
     return path_is_zip(url) ? DOWNLOAD_FILENAME_ZIP : DOWNLOAD_FILENAME;
 }
@@ -1989,8 +2008,7 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
     // process is killed by systemd's stop_service during the install step.
     int ret = -1;
     bool timed_out = false;
-    std::string last_error_line;   // last line containing ERROR or FAILED
-    std::string last_warning_line; // last line containing WARNING (lower priority)
+    std::vector<std::string> install_lines; // install.sh output, for the UI's failure detail
     {
         int log_fd = open(install_log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0640);
         if (log_fd < 0) {
@@ -2115,15 +2133,7 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
                 }
                 spdlog::info("[install.sh] {}", line);
                 line_count++;
-                // Capture last ERROR/WARNING line for UI display.
-                // Prioritize ERROR/FAILED over WARNING so rollback messages
-                // don't mask the actual failure reason.
-                std::string s(line);
-                if (s.find("ERROR") != std::string::npos || s.find("FAILED") != std::string::npos) {
-                    last_error_line = strip_ansi_codes(s);
-                } else if (s.find("WARNING") != std::string::npos) {
-                    last_warning_line = strip_ansi_codes(s);
-                }
+                install_lines.emplace_back(line);
             }
             flog_info("[UpdateChecker] ---- end install.sh output ({} lines) ----", line_count);
             fclose(lf);
@@ -2147,7 +2157,7 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
         // Build a user-visible error message with detail from the install log
         std::string ui_text =
             timed_out ? lv_tr("Installation timed out") : lv_tr("Installation failed");
-        const auto& detail = !last_error_line.empty() ? last_error_line : last_warning_line;
+        const std::string detail = install_failure_detail(install_lines);
         if (!detail.empty()) {
             ui_text += "\n" + detail;
         }

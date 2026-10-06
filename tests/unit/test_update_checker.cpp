@@ -750,6 +750,50 @@ static void require_outside_install_root(const std::string& staging,
     REQUIRE(staging.rfind(install_root + "/", 0) != 0);
 }
 
+TEST_CASE("UpdateChecker install_failure_detail names the cause, not the step",
+          "[update_checker][install_failure_detail]") {
+    using UC = UpdateChecker;
+
+    // The installer's step line ("[n/N] <title> ... FAILED") follows the
+    // [ERROR] lines that say why; the touchscreen needs the why.
+    SECTION("an [ERROR] line wins over a later FAILED step line") {
+        const std::vector<std::string> lines = {
+            "[3/6] Downloaded ... ok (40 MB)",
+            "      \033[0;31m[ERROR]\033[0m Not enough space on /opt (12MB free)",
+            "[4/6] Installed files ... FAILED",
+            "Nothing on your printer was changed after this step.",
+        };
+        REQUIRE(UC::install_failure_detail(lines) ==
+                "[ERROR] Not enough space on /opt (12MB free)");
+    }
+
+    SECTION("the last [ERROR] line is the one shown") {
+        const std::vector<std::string> lines = {
+            "[ERROR] first",
+            "[ERROR] second",
+            "[2/6] Downloaded ... FAILED",
+        };
+        REQUIRE(UC::install_failure_detail(lines) == "[ERROR] second");
+    }
+
+    SECTION("without an [ERROR] line, the last ERROR or FAILED line") {
+        const std::vector<std::string> lines = {
+            "[WARN] careful",
+            "[2/6] Downloaded ... FAILED (interrupted)",
+        };
+        REQUIRE(UC::install_failure_detail(lines) == "[2/6] Downloaded ... FAILED (interrupted)");
+    }
+
+    SECTION("a WARNING line only when nothing failed louder") {
+        const std::vector<std::string> lines = {"ok", "WARNING: low disk"};
+        REQUIRE(UC::install_failure_detail(lines) == "WARNING: low disk");
+    }
+
+    SECTION("nothing to show") {
+        REQUIRE(UC::install_failure_detail({"all fine"}).empty());
+    }
+}
+
 TEST_CASE("UpdateChecker compute_update_staging_dir derives a safe subdir", "[update_checker]") {
     using UC = UpdateChecker;
 
