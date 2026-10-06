@@ -2674,10 +2674,8 @@ void PrintSelectPanel::ensure_detail_view_model() {
     detail_view_->set_analysis_dependencies(api_, &printer_state_);
 
     // Re-enable the print button when macro analysis completes.
-    if (auto* prep_mgr = detail_view_->get_prep_manager()) {
-        prep_mgr->set_macro_analysis_callback(
-            [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
-    }
+    detail_view_->set_on_macro_analysis(
+        [this](const helix::PrintStartAnalysis& /*analysis*/) { update_print_button_state(); });
 }
 
 void PrintSelectPanel::create_detail_view() {

@@ -415,6 +415,17 @@ void PrintSelectDetailView::set_analysis_dependencies(IMoonrakerAPI* api,
         prep_manager_ = std::make_unique<PrintPreparationManager>();
         // A scan answer can be what a deferred Print tap is waiting on.
         prep_manager_->set_on_scan_answered([this]() { fire_on_preflight_ready(); });
+        // Macro rows come and go with the analysis, so an open view rebuilds
+        // them now; a hidden one rebuilds in on_activate().
+        prep_manager_->set_macro_analysis_callback(
+            [this](const helix::PrintStartAnalysis& analysis) {
+                if (is_visible()) {
+                    populate_option_rows();
+                }
+                if (on_macro_analysis_cb_) {
+                    on_macro_analysis_cb_(analysis);
+                }
+            });
     }
     // Per-option toggle state flows through the OptionStateProvider that
     // populate_option_rows() registers with the prep manager.
@@ -768,7 +779,7 @@ void PrintSelectDetailView::on_activate() {
     spdlog::debug("[DetailView] on_activate() for file: {}", current_filename_);
 
     // (Re)build dynamic option rows from the active printer's option set.
-    // Idempotent — only rebuilds when the printer type has changed.
+    // Idempotent — only rebuilds when the printer or its option ids changed.
     populate_option_rows();
 
     // A queued job's saved states override the defaults for this render.

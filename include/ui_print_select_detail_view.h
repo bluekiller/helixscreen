@@ -197,6 +197,12 @@ class PrintSelectDetailView : public OverlayBase {
         on_dismissed_cb_ = std::move(callback);
     }
 
+    /// Set callback fired when a PRINT_START analysis completes, after the view
+    /// has rebuilt its option rows from it.
+    void set_on_macro_analysis(MacroAnalysisCallback callback) {
+        on_macro_analysis_cb_ = std::move(callback);
+    }
+
     /**
      * @brief Handle a tap on the filament card.
      *
@@ -872,6 +878,7 @@ class PrintSelectDetailView : public OverlayBase {
     std::function<void()> on_remap_requested_;
     std::function<void()> on_plugin_setup_requested_;
     std::function<void()> on_dismissed_cb_;
+    MacroAnalysisCallback on_macro_analysis_cb_;
 
     // === Internal Methods ===
 
