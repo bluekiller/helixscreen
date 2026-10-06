@@ -128,11 +128,14 @@ char* format_target_or_off(int target, char* buffer, size_t buffer_size) {
     return buffer;
 }
 
-char* format_temperature_range(int min_temp, int max_temp, char* buffer, size_t buffer_size) {
+char* format_temperature_range(int min_temp, int max_temp, char* buffer, size_t buffer_size,
+                               bool with_unit) {
     if (min_temp == max_temp || min_temp <= 0) {
-        snprintf(buffer, buffer_size, "%d°C", max_temp);
+        snprintf(buffer, buffer_size, with_unit ? "%d°C" : "%d", max_temp);
     } else {
-        snprintf(buffer, buffer_size, "%d-%d°C", min_temp, max_temp);
+        // Translated for the separator: Japanese writes a range with "〜".
+        snprintf(buffer, buffer_size, with_unit ? lv_tr("%d-%d°C") : lv_tr("%d-%d"), min_temp,
+                 max_temp);
     }
     return buffer;
 }

@@ -663,6 +663,13 @@ TEST_CASE("Temperature Utils: format_temperature_range - AMS material temps",
         format_temperature_range(0, 0, buf, sizeof(buf));
         REQUIRE(std::string(buf) == "0°C");
     }
+
+    SECTION("Without the unit, for a caller that states it") {
+        format_temperature_range(35, 70, buf, sizeof(buf), false);
+        REQUIRE(std::string(buf) == "35-70");
+        format_temperature_range(60, 60, buf, sizeof(buf), false);
+        REQUIRE(std::string(buf) == "60");
+    }
 }
 
 // ============================================================================

@@ -15,6 +15,8 @@
   <translation tag="%d slots" ru="%d слотов"/>
   <translation tag="%d toolheads" ru="%d печатающих головок"/>
   <translation tag="%d tools" ru="%d инструментов"/>
+  <translation tag="%d-%d" ru="%d-%d"/>
+  <translation tag="%d-%d°C" ru="%d-%d°C"/>
   <translation tag="%d:%02d left" ru="осталось %d:%02d"/>
   <translation tag="%dh" ru="%d ч"/>
   <translation tag="%dh %02dm" ru="%d ч %02d мин"/>
@@ -791,8 +793,8 @@
   <translation tag="Default" ru="По умолчанию"/>
   <translation tag="Default Parameters" ru="Параметры по умолчанию"/>
   <translation tag="Default border thickness" ru="Толщина границы по умолчанию"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" ru="По умолчанию: сопло %d-%d°C, стол %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" ru="По умолчанию: сопло %d-%d°C, стол %d°C, камера %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" ru="По умолчанию: сопло %s, стол %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" ru="По умолчанию: сопло %s, стол %d°C, камера %d°C"/>
   <translation tag="Defaults restored" ru="Настройки по умолчанию восстановлены"/>
   <translation tag="Define macros in your printer.cfg" ru="Определите макросы в вашем printer.cfg"/>
   <translation tag="Delete" ru="Удалить"/>

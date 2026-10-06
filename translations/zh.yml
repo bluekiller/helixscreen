@@ -1,5 +1,7 @@
 locale: zh
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': （超时）
   ' frames': ' 帧'
   ' left': ' 剩余'
@@ -812,8 +814,8 @@ translations:
   Default: '默认'
   Default Parameters: '默认参数'
   Default border thickness: 默认边框厚度
-  'Default: %d-%d°C nozzle, %d°C bed': '默认: 喷嘴 %d-%d°C,热床 %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': '默认: 喷嘴 %d-%d°C,热床 %d°C,腔体 %d°C'
+  'Default: %s nozzle, %d°C bed': '默认: 喷嘴 %s,热床 %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': '默认: 喷嘴 %s,热床 %d°C,腔体 %d°C'
   Defaults restored: 已恢复默认设置
   Define macros in your printer.cfg: 在 printer.cfg 中定义宏
   Delete: 删除

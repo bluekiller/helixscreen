@@ -1,5 +1,7 @@
 locale: fr
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (délai dépassé)'
   ' frames': ' images'
   ' left': ' restant'
@@ -888,8 +890,8 @@ translations:
   Default: 'Par défaut'
   Default Parameters: 'Paramètres par défaut'
   Default border thickness: Épaisseur de bordure par défaut
-  'Default: %d-%d°C nozzle, %d°C bed': 'Par défaut : buse %d-%d°C, plateau %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Par défaut : buse %d-%d°C, plateau %d°C, enceinte %d°C'
+  'Default: %s nozzle, %d°C bed': 'Par défaut : buse %s, plateau %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Par défaut : buse %s, plateau %d°C, enceinte %d°C'
   Defaults restored: Valeurs par défaut restaurées
   Define macros in your printer.cfg: Définissez les macros dans votre printer.cfg
   Delete: Supprimer

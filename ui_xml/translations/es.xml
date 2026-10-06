@@ -15,6 +15,8 @@
   <translation tag="%d slots" es="%d ranuras"/>
   <translation tag="%d toolheads" es="%d cabezales"/>
   <translation tag="%d tools" es="%d herramientas"/>
+  <translation tag="%d-%d" es="%d-%d"/>
+  <translation tag="%d-%d°C" es="%d-%d°C"/>
   <translation tag="%d:%02d left" es="quedan %d:%02d"/>
   <translation tag="%dh" es="%d h"/>
   <translation tag="%dh %02dm" es="%d h %02d min"/>
@@ -791,8 +793,8 @@
   <translation tag="Default" es="Predeterminado"/>
   <translation tag="Default Parameters" es="Parámetros predeterminados"/>
   <translation tag="Default border thickness" es="Grosor de borde predeterminado"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" es="Predeterminado: boquilla %d-%d°C, cama %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" es="Predeterminado: boquilla %d-%d°C, cama %d°C, cámara %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" es="Predeterminado: boquilla %s, cama %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" es="Predeterminado: boquilla %s, cama %d°C, cámara %d°C"/>
   <translation tag="Defaults restored" es="Valores predeterminados restaurados"/>
   <translation tag="Define macros in your printer.cfg" es="Defina macros en su printer.cfg"/>
   <translation tag="Delete" es="Eliminar"/>
