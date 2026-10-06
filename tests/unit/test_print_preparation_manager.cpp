@@ -3359,6 +3359,54 @@ TEST_CASE_METHOD(HelixTestFixture,
             std::vector<gcode::OperationType>{gcode::OperationType::BED_MESH});
 }
 
+TEST_CASE_METHOD(HelixTestFixture,
+                 "collect_ops_to_disable: a stored setting read off the previous printer does "
+                 "not land on the next",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    GateFixture fx(PrePrintOptionSet{});
+    auto hardware = [](const std::vector<std::string>& names) {
+        PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json(names));
+        return hw;
+    };
+
+    fx.ps.set_printer_type_sync("Snapmaker U1");
+    fx.ps.set_hardware(hardware({"print_task_config", "bed_mesh"}));
+    helix::ui::UpdateQueue::instance().drain();
+
+    // The U1's last frame is read, and its merge is still queued when the
+    // switch to a printer that stores nothing replaces the hardware.
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    fx.ps.set_printer_type_sync("FlashForge Adventurer 5M");
+    fx.ps.set_hardware(hardware({"bed_mesh"}));
+    helix::ui::UpdateQueue::instance().drain();
+
+    const PrePrintOption* opt = fx.ps.profile_state().pre_print_option_set().find("bed_mesh");
+    REQUIRE(opt != nullptr);
+    CHECK_FALSE(opt->default_from_firmware);
+    CHECK(opt->default_enabled);
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
+                 "collect_ops_to_disable: new hardware starts from no stored settings",
+                 "[print_preparation][preprint][firmware_seeded]") {
+    GateFixture fx(PrePrintOptionSet{});
+    PrinterDiscovery u1;
+    u1.parse_objects(nlohmann::json(std::vector<std::string>{"print_task_config", "bed_mesh"}));
+
+    fx.ps.set_printer_type_sync("Snapmaker U1");
+    fx.ps.set_hardware(u1);
+    PrinterStateTestAccess::merge_firmware_option_defaults(fx.ps, {{"bed_mesh", false}});
+    helix::ui::UpdateQueue::instance().drain();
+    REQUIRE(fx.ps.profile_state().pre_print_option_set().find("bed_mesh")->default_from_firmware);
+
+    // Another U1, or the same one reconnecting: it reports its own settings.
+    fx.ps.set_hardware(u1);
+    helix::ui::UpdateQueue::instance().drain();
+    CHECK_FALSE(
+        fx.ps.profile_state().pre_print_option_set().find("bed_mesh")->default_from_firmware);
+}
+
 // ============================================================================
 // A start that dies inside the manager must retire the preparing job
 //

@@ -501,12 +501,12 @@ void PrinterState::set_hardware(helix::PrinterDiscovery hardware) {
     // Fold the helper-macro install status in with the same snapshot.
     plugin_status_state_.set_helix_macros_base_status(MacroManager::evaluate_status(discovery_));
 
-    // Stored option settings belong to the machine that reported them. A
-    // machine whose firmware stores none must not inherit the previous one's.
-    if (discovery_.objects_reported() &&
-        !helix::preprint_prefs::firmware_persists_options(discovery_)) {
-        profile_state_.clear_firmware_option_defaults();
-    }
+    // Stored option settings belong to the machine that reported them. New
+    // hardware starts from none: a self-storing firmware reports its own in the
+    // initial status, which is dispatched after this, and a merge still queued
+    // from the previous machine's frames is dropped by the epoch.
+    hardware_epoch_.fetch_add(1);
+    profile_state_.clear_firmware_option_defaults();
 
     // Re-synthesize dynamic pre-print options now that hardware capabilities are
     // known. The bed_mesh option's adaptive_active flag (which relabels it to
@@ -591,8 +591,12 @@ void PrinterState::merge_firmware_option_defaults(std::map<std::string, bool> de
     }
     // Both the member write and the resynthesis touch LVGL subjects, and status
     // frames arrive on the websocket thread.
+    const uint64_t epoch = hardware_epoch_.load();
     async_lifetime_.defer("PrinterState::merge_firmware_option_defaults",
-                          [this, defaults = std::move(defaults)]() {
+                          [this, epoch, defaults = std::move(defaults)]() {
+                              if (epoch != hardware_epoch_.load()) {
+                                  return; // read off a machine that has since been replaced
+                              }
                               if (!profile_state_.merge_firmware_option_defaults(defaults)) {
                                   return;
                               }
