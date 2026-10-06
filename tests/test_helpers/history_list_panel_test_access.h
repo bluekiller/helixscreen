@@ -55,6 +55,21 @@ struct HistoryListPanelTestAccess {
         p.apply_sort(jobs);
     }
 
+    /// Give the panel the two containers create() would find in its XML, so
+    /// the virtual-scroll list can be driven without the whole overlay.
+    static void set_list_containers(HistoryListPanel& p, lv_obj_t* content, lv_obj_t* rows) {
+        p.list_content_ = content;
+        p.list_rows_ = rows;
+    }
+
+    static void set_history_manager(HistoryListPanel& p, PrintHistoryManager* manager) {
+        p.history_manager_ = manager;
+    }
+
+    static void refresh_from_manager(HistoryListPanel& p) {
+        p.refresh_from_manager();
+    }
+
     // Production opens the detail overlay from a row click on a created panel.
     static void show_detail_overlay(HistoryListPanel& p, lv_obj_t* parent,
                                     const PrintHistoryJob& job) {

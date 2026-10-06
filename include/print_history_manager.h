@@ -210,6 +210,17 @@ class PrintHistoryManager {
     }
 
     /**
+     * @brief Whether the cache holds every job the printer has
+     *
+     * True only once a response came back shorter than it asked for. A full
+     * response, at any scope, may have stopped short of older jobs; a consumer
+     * showing totals over the cache must say what it covers until this is true.
+     */
+    [[nodiscard]] bool holds_every_job() const {
+        return is_loaded_ && holds_every_job_;
+    }
+
+    /**
      * @brief Get jobs filtered by start time
      *
      * Returns jobs where `start_time >= since`. Used by HistoryDashboardPanel
@@ -229,8 +240,28 @@ class PrintHistoryManager {
     /// fewer than seven jobs a day.
     static constexpr int kRecentJobLimit = 50;
 
-    /// Jobs a COMPLETE load asks for.
+    /// Jobs a COMPLETE load asks for. A job with metadata runs ~1.6 KB on the
+    /// wire, so the ESP32 asks for fewer: its WebSocket client drops any message
+    /// over 256 KB (MAX_MESSAGE_BYTES in esp_moonraker_client.h), and a dropped
+    /// response is never answered. A load that comes back full holds the newest
+    /// jobs only (see covers_since()).
+#if defined(HELIX_PLATFORM_ESP32)
+    static constexpr int kCompleteJobLimit = 100;
+#else
     static constexpr int kCompleteJobLimit = 500;
+#endif
+
+    /// Jobs one load_older() page asks for.
+    static constexpr int kOlderPageJobs = 50;
+
+    /// Jobs the cache may hold before load_older() stops paging. Each cached job
+    /// lives in RAM (PSRAM on the ESP32); past this the stats say they cover
+    /// the newest jobs only.
+#if defined(HELIX_PLATFORM_ESP32)
+    static constexpr size_t kCachedJobBudget = 300;
+#else
+    static constexpr size_t kCachedJobBudget = 5000;
+#endif
 
     /// Quiet period that collapses a burst of invalidations into one request.
     /// A klippy restart fires the config-backup move_file and the restart's own
@@ -284,6 +315,17 @@ class PrintHistoryManager {
     void ensure_covers_since(double since);
 
     /**
+     * @brief Fetch the page of jobs older than the oldest cached one
+     *
+     * Appends up to kOlderPageJobs jobs started before the oldest cached job
+     * and notifies observers. Does nothing while history is not loaded, while
+     * any request is out, once the cache holds every job, or once it holds
+     * kCachedJobBudget jobs. A full load or an
+     * invalidation replaces the cache with the newest jobs again.
+     */
+    void load_older();
+
+    /**
      * @brief Mark cache as stale
      *
      * Clears `is_loaded_` flag. Does NOT clear cached data (allows
@@ -330,6 +372,13 @@ class PrintHistoryManager {
      */
     void on_history_fetched(std::vector<PrintHistoryJob>&& jobs, helix::HistoryScope scope,
                             int requested);
+
+    /// Main-thread completion of load_older(). Appends the page unless a full
+    /// load replaced the cache since it was requested (@p generation).
+    void on_older_page(std::vector<PrintHistoryJob>&& jobs, uint64_t generation);
+
+    /// After a load lands: keep paging toward an ensure_covers_since() target.
+    void continue_coverage();
 
     /**
      * @brief Fold a single job from a history notification into the cache
@@ -453,6 +502,20 @@ class PrintHistoryManager {
     // The load came back shorter than the limit it asked for, so the cache
     // holds every job the printer has whatever scope requested it.
     bool holds_every_job_ = false;
+    // Oldest start time an ensure_covers_since() caller still needs, or 0.
+    // Each older page that lands short of it asks for the next one.
+    double wanted_since_ = 0.0;
+    // Bumped by every full load, so an older page that was out while the cache
+    // was replaced is not appended to a list it no longer extends.
+    uint64_t cache_generation_ = 0;
+    size_t job_budget_ = kCachedJobBudget;
+    // An older page added nothing new (a server ignoring before=): paging stops
+    // until the next full load, without claiming every job is held.
+    bool older_exhausted_ = false;
+    // A full load was requested by ensure_covers_since(), so its landing keeps
+    // paging toward wanted_since_. Any other full load drops the target: a
+    // consumer that still needs the window asks again.
+    bool coverage_load_pending_ = false;
     // Atomic because we clear it on the WebSocket BG thread (before posting the
     // main-thread defer) to survive UpdateQueue freeze-drops — otherwise a dropped
     // fetch_success strands the guard and blocks every subsequent fetch.

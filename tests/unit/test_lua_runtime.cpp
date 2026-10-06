@@ -9,6 +9,9 @@
 #include "../test_helpers/plugin_test_support.h"
 #include "lua_runtime.h"
 
+#include <chrono>
+#include <thread>
+
 #include "../catch_amalgamated.hpp"
 
 using namespace helix::plugin;
@@ -438,6 +441,27 @@ TEST_CASE("an async result larger than the cap faults the plugin", "[plugin][lua
     CHECK(t.rt->faulted());
     CHECK(t.fault.find("memory") != std::string::npos);
     CHECK(t.global("after") == "false"); // the entry never resumed past the wait
+}
+
+namespace {
+/// A binding that blocks the main thread off-CPU, using no CPU time.
+int blocking_binding(lua_State*) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    return 0;
+}
+} // namespace
+
+TEST_CASE("an entry that blocked off-CPU is stopped by the wall ceiling",
+          "[plugin][lua_runtime][lua_budget]") {
+    LuaRuntime::Limits limits;
+    limits.wall_ceiling = std::chrono::milliseconds(200);
+    TestRuntime t(limits);
+    lua_register(t.rt->state(), "block", &blocking_binding);
+
+    // Far under the CPU budget: only the wall time spent blocked can trip it.
+    CHECK_FALSE(t.run("block(); for i = 1, 100000 do end"));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("time budget") != std::string::npos);
 }
 
 TEST_CASE("a budget kill swallowed by coroutine.resume still faults",

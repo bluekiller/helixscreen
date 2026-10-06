@@ -1200,25 +1200,30 @@ TEST_CASE("FRONT: a tap within reach of two objects picks the nearer segment",
 
 namespace {
 
-bool is_excluded_colour(lv_color_t c) {
-    // The renderer resolves its palette from the tokens; with no ui_xml loaded
-    // in this fixture that is the compiled default, which is the same hue.
-    const lv_color_t want = lv_color_hex(helix::gcode::selection::Palette{}.excluded);
+/// True when `seg` draws as the grey of what it would draw as un-excluded.
+bool is_excluded_colour(const GCodeLayerRenderer& renderer, const ParsedGCodeFile& gcode,
+                        const ToolpathSegment& seg) {
+    GCodeLayerRenderer plain;
+    plain.set_gcode(&gcode);
+    const lv_color_t base = plain.get_segment_color(seg);
+    const lv_color_t want =
+        lv_color_hex(helix::gcode::selection::excluded_grey(lv_color_to_u32(base) & 0xFFFFFF));
+    const lv_color_t c = renderer.get_segment_color(seg);
     return c.red == want.red && c.green == want.green && c.blue == want.blue;
 }
 
 } // namespace
 
-TEST_CASE("an excluded object renders in the excluded colour", "[layer_renderer][exclude]") {
+TEST_CASE("an excluded object renders greyed out", "[layer_renderer][exclude]") {
     ParsedGCodeFile gcode = make_test_gcode();
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&gcode);
     renderer.set_excluded_objects({"cube1"});
 
     const auto& segs = gcode.layers[0].segments;
-    REQUIRE(is_excluded_colour(renderer.get_segment_color(segs[0])));       // cube1
-    REQUIRE_FALSE(is_excluded_colour(renderer.get_segment_color(segs[1]))); // cube2
-    REQUIRE_FALSE(is_excluded_colour(renderer.get_segment_color(segs[2]))); // unnamed
+    REQUIRE(is_excluded_colour(renderer, gcode, segs[0]));       // cube1
+    REQUIRE_FALSE(is_excluded_colour(renderer, gcode, segs[1])); // cube2
+    REQUIRE_FALSE(is_excluded_colour(renderer, gcode, segs[2])); // unnamed
 }
 
 TEST_CASE("an exclusion set before the gcode source still classifies",
@@ -1230,7 +1235,7 @@ TEST_CASE("an exclusion set before the gcode source still classifies",
     renderer.set_excluded_objects({"cube1"});
     renderer.set_gcode(&gcode);
 
-    REQUIRE(is_excluded_colour(renderer.get_segment_color(gcode.layers[0].segments[0])));
+    REQUIRE(is_excluded_colour(renderer, gcode, gcode.layers[0].segments[0]));
 }
 
 TEST_CASE("swapping to a different file with the same object count re-maps",
@@ -1243,7 +1248,7 @@ TEST_CASE("swapping to a different file with the same object count re-maps",
     GCodeLayerRenderer renderer;
     renderer.set_gcode(&first);
     renderer.set_excluded_objects({"cube1"});
-    REQUIRE(is_excluded_colour(renderer.get_segment_color(first.layers[0].segments[0])));
+    REQUIRE(is_excluded_colour(renderer, first, first.layers[0].segments[0]));
 
     ParsedGCodeFile second;
     {
@@ -1268,8 +1273,8 @@ TEST_CASE("swapping to a different file with the same object count re-maps",
 
     renderer.set_gcode(&second);
     // "cube1" is not in this file at all, so nothing here is excluded.
-    REQUIRE_FALSE(is_excluded_colour(renderer.get_segment_color(second.layers[0].segments[0])));
-    REQUIRE_FALSE(is_excluded_colour(renderer.get_segment_color(second.layers[0].segments[1])));
+    REQUIRE_FALSE(is_excluded_colour(renderer, second, second.layers[0].segments[0]));
+    REQUIRE_FALSE(is_excluded_colour(renderer, second, second.layers[0].segments[1]));
 }
 
 // ===========================================================================
