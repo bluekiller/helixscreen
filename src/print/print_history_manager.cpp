@@ -144,7 +144,9 @@ bool PrintHistoryManager::covers_since(double since) const {
     if (!is_loaded_) {
         return false;
     }
-    if (is_loaded(HistoryScope::COMPLETE)) {
+    // Only a short response proves the cache holds every job. A COMPLETE load
+    // that came back full was cut off by its limit, and covers only what it holds.
+    if (holds_every_job_) {
         return true;
     }
     // Newest-first order, so the last entry is the oldest job cached and marks
