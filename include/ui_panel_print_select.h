@@ -860,6 +860,11 @@ class PrintSelectPanel : public PanelBase {
     std::shared_ptr<helix::ThumbnailSlotPool> esp_slots_;
     /// The last deactivate kept the thumbnails for a detail view push.
     bool esp_kept_for_detail_ = false;
+    /// The HTTP lane refused a card fetch and none of ours has completed since.
+    bool esp_lane_refused_ = false;
+    /// Clears a refusal when no fetch of ours is in flight to free a lane slot.
+    helix::ui::LvglTimerGuard esp_lane_retry_timer_;
+    static constexpr uint32_t ESP_LANE_RETRY_MS = 500;
 
     /// The card window [first, end) the last sync saw.
     size_t esp_window_first_ = 0;

@@ -3696,6 +3696,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
                       [this, index, filename, thumb = std::move(thumb)]() mutable {
                           --esp_thumbnails_in_flight_;
+                          esp_lane_refused_ = false; // this fetch's lane slot is free
                           // Kept only while its card is still on screen.
                           if (thumb && index < file_list_.size() &&
                               file_list_[index].filename == filename &&
@@ -3721,6 +3722,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                           error.message);
             tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
                 --esp_thumbnails_in_flight_;
+                esp_lane_refused_ = false;
                 sync_esp_thumbnails(esp_window_first_, esp_window_end_);
             });
         });
@@ -3746,6 +3748,8 @@ void PrintSelectPanel::release_esp_card_thumbnails() {
         card_view_->release_esp_thumbnails();
     }
     esp_slots_.reset();
+    esp_lane_refused_ = false;
+    esp_lane_retry_timer_.reset();
 }
 
 void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
@@ -3768,7 +3772,7 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
     }
     const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
         states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)), estimate,
-        helix::CARD_THUMBNAIL_BUDGET);
+        helix::CARD_THUMBNAIL_BUDGET, esp_lane_refused_);
     if (!plan.fetch.empty() && !esp_slots_) {
         // One slot per card the budget allows.
         esp_slots_ = std::make_shared<helix::ThumbnailSlotPool>(
@@ -3787,9 +3791,21 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
         f.esp_thumbnail_tried = true;
         if (fetch_esp_thumbnail(i, f.filename, f.original_thumbnail_url) ==
             EspThumbnailFetch::QueueFull) {
-            // The lane is busy: try this one again on the next pass, which every
-            // completion, scroll and listing triggers.
+            // The lane is full: fetch again once one of ours completes, or
+            // after a pause when none is in flight to free a slot.
             f.esp_thumbnail_tried = false;
+            esp_lane_refused_ = true;
+            if (esp_thumbnails_in_flight_ <= 0 && !esp_lane_retry_timer_) {
+                esp_lane_retry_timer_.reset(lv_timer_create(
+                    [](lv_timer_t* timer) {
+                        auto* self = static_cast<PrintSelectPanel*>(lv_timer_get_user_data(timer));
+                        self->esp_lane_retry_timer_.release(); // one-shot: LVGL deletes it
+                        self->esp_lane_refused_ = false;
+                        self->sync_esp_thumbnails(self->esp_window_first_, self->esp_window_end_);
+                    },
+                    ESP_LANE_RETRY_MS, this));
+                lv_timer_set_repeat_count(esp_lane_retry_timer_.get(), 1);
+            }
             break;
         }
     }

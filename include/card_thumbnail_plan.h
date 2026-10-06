@@ -32,9 +32,13 @@ struct CardThumbnailPlan {
  * and the ones planned fit @p budget; the rest wait for a later pass. Each
  * counts at least @p estimate, the size of the slot it decodes into, so the
  * plan never starts more decodes than budget / estimate slots can take.
+ *
+ * @p lane_refused says the HTTP lane turned a fetch away and no slot has freed
+ * since: nothing is fetched until one does, however often the window is
+ * re-planned, since every fetch would be refused the same way.
  */
 CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& files, size_t first,
-                                       size_t end, size_t in_flight, size_t estimate,
-                                       size_t budget);
+                                       size_t end, size_t in_flight, size_t estimate, size_t budget,
+                                       bool lane_refused = false);
 
 } // namespace helix

@@ -56,6 +56,29 @@ TEST_CASE("wide thumbnails smaller than a slot still take a whole slot", "[card_
     CHECK(plan.fetch.size() == slots - 6);
 }
 
+TEST_CASE("after a lane refusal, re-planning fetches nothing until a slot frees",
+          "[card_thumbnail_plan]") {
+    // The lane refused card 2; card 1 is still in flight. A listing re-sync
+    // re-plans the same window with no completion in between.
+    auto f = files(10);
+    f[0].held = EST;
+    f[1].tried = true;
+    const CardThumbnailPlan resync =
+        plan_card_thumbnails(f, 0, 10, /*in_flight=*/1, EST, 12 * EST, /*lane_refused=*/true);
+    CHECK(resync.fetch.empty());
+
+    // Cards that left the window still go: a refusal holds back fetches only.
+    const CardThumbnailPlan scrolled = plan_card_thumbnails(f, 4, 10, 1, EST, 12 * EST, true);
+    CHECK(scrolled.drop == Indices{0, 1});
+    CHECK(scrolled.fetch.empty());
+
+    // A completion frees a slot and clears the refusal: card 2 is fetched again.
+    f[1].tried = false;
+    f[1].held = EST;
+    const CardThumbnailPlan freed = plan_card_thumbnails(f, 0, 10, 0, EST, 12 * EST, false);
+    CHECK(freed.fetch.front() == 2);
+}
+
 TEST_CASE("a window already over budget starts nothing, even a backlog of refused fetches",
           "[card_thumbnail_plan]") {
     // Nine cards whose fetches the lane refused earlier come back untried; with

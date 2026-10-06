@@ -8,8 +8,8 @@
 namespace helix {
 
 CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& files, size_t first,
-                                       size_t end, size_t in_flight, size_t estimate,
-                                       size_t budget) {
+                                       size_t end, size_t in_flight, size_t estimate, size_t budget,
+                                       bool lane_refused) {
     CardThumbnailPlan plan;
     end = std::min(end, files.size());
     first = std::min(first, end);
@@ -25,7 +25,7 @@ CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& fi
         }
     }
 
-    for (size_t i = first; i < end; ++i) {
+    for (size_t i = first; i < end && !lane_refused; ++i) {
         const CardThumbnailState& f = files[i];
         if (!f.fetchable || f.tried || f.held) {
             continue;
