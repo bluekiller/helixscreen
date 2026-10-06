@@ -290,6 +290,7 @@
   <translation tag="Backup spool switching state unknown" de="Reserve-Spulen-Wechsel: Status unbekannt"/>
   <translation tag="Barcode Scanner" de="Barcode-Scanner"/>
   <translation tag="Base" de="Referenz"/>
+  <translation tag="Based on the newest {} prints" de="Basierend auf den neuesten {} Drucken"/>
   <translation tag="Batch load failed" de="Mehrfachladen fehlgeschlagen"/>
   <translation tag="Batch unload failed" de="Mehrfachentladen fehlgeschlagen"/>
   <translation tag="Beacon auto-calibrate sent" de="Beacon Auto-Kalibrierung gesendet"/>

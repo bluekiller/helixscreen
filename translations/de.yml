@@ -324,6 +324,7 @@ translations:
   Backup spool switching state unknown: 'Reserve-Spulen-Wechsel: Status unbekannt'
   Barcode Scanner: Barcode-Scanner
   Base: Referenz
+  Based on the newest {} prints: 'Basierend auf den neuesten {} Drucken'
   Batch load failed: Mehrfachladen fehlgeschlagen
   Batch unload failed: Mehrfachentladen fehlgeschlagen
   Beacon auto-calibrate sent: Beacon Auto-Kalibrierung gesendet

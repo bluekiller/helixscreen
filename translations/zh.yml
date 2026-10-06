@@ -293,6 +293,7 @@ translations:
   Backup spool switching state unknown: 备用料盘切换状态未知
   Barcode Scanner: 条码扫描器
   Base: 基准
+  Based on the newest {} prints: '基于最近 {} 次打印'
   Batch load failed: 批量加载失败
   Batch unload failed: 批量卸载失败
   Beacon auto-calibrate sent: Beacon自动校准已发送

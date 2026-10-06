@@ -313,6 +313,7 @@ translations:
   Backup spool switching state unknown: 'Резервная катушка: состояние неизвестно'
   Barcode Scanner: Сканер штрих-кодов
   Base: Опорный
+  Based on the newest {} prints: 'По последним печатям ({})'
   Batch load failed: Ошибка пакетной загрузки
   Batch unload failed: Ошибка пакетной выгрузки
   Beacon auto-calibrate sent: Beacon автокалибровка отправлена

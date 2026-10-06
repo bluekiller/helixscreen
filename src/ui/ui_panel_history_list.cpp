@@ -309,7 +309,6 @@ void HistoryListPanel::on_deactivating(DeactivateReason) {
     jobs_received_ = false;
 
     // Reset pagination state
-    total_job_count_ = 0;
     load_more_guard_.release();
     has_more_data_ = true;
 
@@ -347,7 +346,6 @@ void HistoryListPanel::refresh_from_api() {
 
     // Reset pagination state for fresh fetch
     jobs_.clear();
-    total_job_count_ = 0;
     has_more_data_ = true;
     load_more_guard_.release();
 
@@ -363,8 +361,9 @@ void HistoryListPanel::refresh_from_api() {
                             spdlog::info("[{}] Received {} jobs (total: {})", get_name(),
                                          jobs.size(), total);
                             jobs_ = jobs;
-                            total_job_count_ = total;
-                            has_more_data_ = (jobs_.size() < total);
+                            // Moonraker's `count` is this page's size, not the
+                            // total: only a short page says there is no more.
+                            has_more_data_ = (jobs.size() == static_cast<size_t>(JOBS_PER_PAGE));
 
                             // Associates timelapse files with jobs, then applies filters.
                             fetch_timelapse_files();
@@ -373,13 +372,17 @@ void HistoryListPanel::refresh_from_api() {
             "HistoryListPanel::fetch_history_error", [this](const MoonrakerError& error) {
                 spdlog::error("[{}] Failed to fetch history: {}", get_name(), error.message);
                 jobs_.clear();
-                total_job_count_ = 0;
                 has_more_data_ = false;
                 apply_filters_and_sort();
             }));
 }
 
 void HistoryListPanel::load_more() {
+    if (history_manager_) {
+        // Pages into the shared cache; its observer refreshes this list.
+        history_manager_->load_older();
+        return;
+    }
     IMoonrakerAPI* api = get_moonraker_api();
     // A healthy in-flight page load short-circuits; a stuck one (response lost
     // >30s ago) falls through and is recovered by try_acquire() below.
@@ -412,7 +415,6 @@ void HistoryListPanel::load_more() {
         lifetime_.bg_cb("HistoryListPanel::load_more",
                         [this](const std::vector<PrintHistoryJob>& new_jobs, uint64_t total) {
                             load_more_guard_.release();
-                            total_job_count_ = total;
 
                             if (new_jobs.empty()) {
                                 has_more_data_ = false;
@@ -427,8 +429,9 @@ void HistoryListPanel::load_more() {
                             // Append new jobs
                             jobs_.insert(jobs_.end(), new_jobs.begin(), new_jobs.end());
 
-                            // Check if we've loaded everything
-                            has_more_data_ = (jobs_.size() < total);
+                            // Only a short page says there is no more.
+                            has_more_data_ =
+                                (new_jobs.size() == static_cast<size_t>(JOBS_PER_PAGE));
 
                             // Re-apply filters to the full job list
                             apply_filters_and_sort();
@@ -1261,7 +1264,8 @@ void HistoryListPanel::on_scroll_update_visible(lv_event_t* e) {
 }
 
 void HistoryListPanel::check_scroll_position() {
-    if (!list_content_ || !has_more_data_ || load_more_guard_.active()) {
+    const bool more = history_manager_ ? !history_manager_->holds_every_job() : has_more_data_;
+    if (!list_content_ || !more || load_more_guard_.active()) {
         return;
     }
 

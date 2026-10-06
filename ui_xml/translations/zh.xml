@@ -290,6 +290,7 @@
   <translation tag="Backup spool switching state unknown" zh="备用料盘切换状态未知"/>
   <translation tag="Barcode Scanner" zh="条码扫描器"/>
   <translation tag="Base" zh="基准"/>
+  <translation tag="Based on the newest {} prints" zh="基于最近 {} 次打印"/>
   <translation tag="Batch load failed" zh="批量加载失败"/>
   <translation tag="Batch unload failed" zh="批量卸载失败"/>
   <translation tag="Beacon auto-calibrate sent" zh="Beacon自动校准已发送"/>

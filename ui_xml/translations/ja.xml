@@ -290,6 +290,7 @@
   <translation tag="Backup spool switching state unknown" ja="バックアップスプール切り替えの状態は不明です"/>
   <translation tag="Barcode Scanner" ja="バーコードスキャナー"/>
   <translation tag="Base" ja="基準"/>
+  <translation tag="Based on the newest {} prints" ja="最新の{}件の印刷に基づく"/>
   <translation tag="Batch load failed" ja="一括装填に失敗しました"/>
   <translation tag="Batch unload failed" ja="一括排出に失敗しました"/>
   <translation tag="Beacon auto-calibrate sent" ja="Beacon自動キャリブレーション送信済み"/>

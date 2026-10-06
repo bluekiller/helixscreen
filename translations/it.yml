@@ -319,6 +319,7 @@ translations:
   Backup spool switching state unknown: Stato del cambio a bobina di riserva sconosciuto
   Barcode Scanner: Scanner codici a barre
   Base: Riferimento
+  Based on the newest {} prints: 'Basato sulle {} stampe più recenti'
   Batch load failed: Caricamento multiplo non riuscito
   Batch unload failed: Scaricamento multiplo non riuscito
   Beacon auto-calibrate sent: Beacon auto-calibrazione inviata

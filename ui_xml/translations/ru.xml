@@ -290,6 +290,7 @@
   <translation tag="Backup spool switching state unknown" ru="Резервная катушка: состояние неизвестно"/>
   <translation tag="Barcode Scanner" ru="Сканер штрих-кодов"/>
   <translation tag="Base" ru="Опорный"/>
+  <translation tag="Based on the newest {} prints" ru="По последним печатям ({})"/>
   <translation tag="Batch load failed" ru="Ошибка пакетной загрузки"/>
   <translation tag="Batch unload failed" ru="Ошибка пакетной выгрузки"/>
   <translation tag="Beacon auto-calibrate sent" ru="Beacon автокалибровка отправлена"/>

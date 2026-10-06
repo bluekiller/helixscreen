@@ -294,6 +294,7 @@ translations:
   Backup spool switching state unknown: バックアップスプール切り替えの状態は不明です
   Barcode Scanner: バーコードスキャナー
   Base: 基準
+  Based on the newest {} prints: '最新の{}件の印刷に基づく'
   Batch load failed: 一括装填に失敗しました
   Batch unload failed: 一括排出に失敗しました
   Beacon auto-calibrate sent: Beacon自動キャリブレーション送信済み
