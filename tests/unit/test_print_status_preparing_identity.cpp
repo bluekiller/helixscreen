@@ -19,6 +19,7 @@
  *    through the previous print's name indefinitely.
  */
 
+#include "ui_filename_utils.h"
 #include "ui_panel_print_status.h"
 #include "ui_update_queue.h"
 
@@ -177,7 +178,7 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
                  "Reprint starts the original, not the rewritten temp copy",
                  "[print_status][preparing_identity][reprint]") {
     // print_stats names the rewrite, which is deleted when the print ends.
-    const std::string temp = ".helix_temp/modified_1766807545_benchy.gcode";
+    const std::string temp = helix::gcode::make_rewritten_gcode_path("parts/benchy.gcode");
 
     SECTION("a print this session prepared") {
         state().print_state().begin_preparing(PrintJobRef{"parts/benchy.gcode", "", ""});
@@ -192,6 +193,6 @@ TEST_CASE_METHOD(PreparingIdentityFixture,
     SECTION("after a restart, with only the printer's report to go on") {
         report_filename(temp);
 
-        REQUIRE(Access::reprint_filename(panel()) == "benchy.gcode");
+        REQUIRE(Access::reprint_filename(panel()) == "parts/benchy.gcode");
     }
 }

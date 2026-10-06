@@ -3529,6 +3529,38 @@ TEST_CASE_METHOD(HelixTestFixture,
 }
 
 TEST_CASE_METHOD(HelixTestFixture,
+                 "PrintPreparationManager: a staged copy names the original's whole path",
+                 "[print_preparation][remap][reprint]") {
+    lv_init_safe();
+    PrinterStateTestAccess::reset(get_printer_state());
+    get_printer_state().init_subjects(false);
+
+    MockPrinter mock_printer;
+    auto& state = mock_printer.state;
+    auto& api = mock_printer.api;
+
+    PrintPreparationManager manager;
+    manager.set_dependencies(&api, &state);
+    const std::string original = std::string("parts/") + kRemapFixture;
+    state.print_state().begin_preparing(PrintJobRef{original, "gcodes", ""});
+
+    SECTION("remap") {
+        manager.modify_and_print_with_remap(original, {{1, 2}}, nullptr);
+    }
+    SECTION("pre-print modification") {
+        manager.set_cached_scan_result(gcode::ScanResult{}, original);
+        PrintPreparationManagerTestAccess::modify_and_print(manager, original);
+    }
+    drain_until_quiet();
+
+    // The printer reports only the staged name; after a restart it is all
+    // there is to recover the original from.
+    const auto& uploads = api.transfers_mock().path_uploads();
+    REQUIRE(uploads.size() == 1);
+    CHECK(gcode::resolve_gcode_filename(uploads[0].dest_path) == original);
+}
+
+TEST_CASE_METHOD(HelixTestFixture,
                  "PrintPreparationManager: a remap that changes nothing prints the original",
                  "[print_preparation][remap]") {
     lv_init_safe();

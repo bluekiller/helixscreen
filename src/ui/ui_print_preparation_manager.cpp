@@ -1595,7 +1595,7 @@ void PrintPreparationManager::modify_and_print_streaming(
     // Generate unique temp file paths
     auto timestamp = std::to_string(std::time(nullptr));
     std::string local_download_path = temp_dir + "/helix_download_" + timestamp + ".gcode";
-    std::string remote_temp_path = gcode::make_rewritten_gcode_path(display_filename);
+    std::string remote_temp_path = gcode::make_rewritten_gcode_path(file_path);
 
     spdlog::info("[PrintPreparationManager] Streaming modification: downloading to {}",
                  local_download_path);
@@ -1870,7 +1870,7 @@ void PrintPreparationManager::modify_and_print_with_remap(
         return;
     }
 
-    const std::string remote_temp_path = gcode::make_rewritten_gcode_path(display_filename);
+    const std::string remote_temp_path = gcode::make_rewritten_gcode_path(file_path);
 
     spdlog::info("[PrintPreparationManager] Remap modification: {} tool mapping(s), downloading {}",
                  remap.size(), file_path);

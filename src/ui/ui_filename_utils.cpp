@@ -103,13 +103,53 @@ bool is_rewritten_gcode_path(const std::string& path) {
            path.find(legacy_prefix) != std::string::npos;
 }
 
+// A staged copy is one flat file in the staging directory, so its name carries
+// the original's whole gcodes-relative path with '/' escaped: '~' -> "~~" and
+// '/' -> "~s". The 'p' after the timestamp marks that escaping; a name without
+// it holds a bare filename, unescaped.
+static const char path_marker = 'p';
+
+static std::string escape_path(const std::string& path) {
+    std::string out;
+    for (char c : path) {
+        if (c == '~') {
+            out += "~~";
+        } else if (c == '/') {
+            out += "~s";
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
+static std::string unescape_path(const std::string& name) {
+    std::string out;
+    for (size_t i = 0; i < name.size(); ++i) {
+        if (name[i] == '~' && i + 1 < name.size()) {
+            out += name[i + 1] == 's' ? '/' : name[i + 1];
+            ++i;
+        } else {
+            out += name[i];
+        }
+    }
+    return out;
+}
+
 std::string resolve_gcode_filename(const std::string& path) {
     size_t underscore_pos = std::string::npos;
 
     if (path.find(helix_temp_prefix) != std::string::npos) {
-        // Extract original: .helix_temp/modified_123456789_OriginalName.gcode -> OriginalName.gcode
+        // .helix_temp/modified_<ts>p_parts~sbenchy.gcode -> parts/benchy.gcode
+        // .helix_temp/modified_<ts>_benchy.gcode         -> benchy.gcode
         size_t prefix_end = path.find(helix_temp_prefix) + helix_temp_prefix.size();
         underscore_pos = path.find('_', prefix_end);
+        if (underscore_pos != std::string::npos && underscore_pos > prefix_end &&
+            path[underscore_pos - 1] == path_marker && underscore_pos + 1 < path.size()) {
+            std::string original = unescape_path(path.substr(underscore_pos + 1));
+            spdlog::debug("[resolve_gcode_filename] '{}' -> '{}'", path, original);
+            return original;
+        }
     } else if (path.find(gcode_mod_prefix) != std::string::npos) {
         // Extract original: */gcode_mod/mod_123456_OriginalName.gcode -> OriginalName.gcode
         size_t prefix_end = path.find(gcode_mod_prefix) + gcode_mod_prefix.size();
@@ -166,9 +206,9 @@ bool is_native_3mf_shadow(const std::string& name) {
     return name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-std::string make_rewritten_gcode_path(const std::string& display_filename) {
-    return helix_temp_prefix + std::to_string(static_cast<long long>(std::time(nullptr))) + "_" +
-           display_filename;
+std::string make_rewritten_gcode_path(const std::string& original_path) {
+    return helix_temp_prefix + std::to_string(static_cast<long long>(std::time(nullptr))) +
+           path_marker + "_" + escape_path(original_path);
 }
 
 bool is_uploaded_rewrite_path(const std::string& path) {

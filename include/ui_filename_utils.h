@@ -82,6 +82,7 @@ std::string get_display_filename(const std::string& path);
  *
  * When HelixScreen modifies a G-code file before printing (e.g., to add
  * filament change commands), it stores the modified file with patterns like:
+ * - `.helix_temp/modified_123456789p_dir~sOriginalName.gcode` (full path kept)
  * - `.helix_temp/modified_123456789_OriginalName.gcode`
  * - `/tmp/helixscreen_mod_123456_OriginalName.gcode`
  *
@@ -119,10 +120,13 @@ bool is_rewritten_gcode_path(const std::string& path);
  * outlives the print and its name never resolves back to the original, so the
  * job the user started shows up under a name they have never seen.
  *
- * @param display_filename Bare filename of the original, no directory component
- * @return e.g. "<staging dir>/modified_1766807545_benchy.gcode"
+ * The original's full path is encoded into the one flat name, so
+ * resolve_gcode_filename() recovers it from the printer's report alone.
+ *
+ * @param original_path The original's gcodes-root-relative path
+ * @return e.g. "<staging dir>/modified_1766807545p_parts~sbenchy.gcode"
  */
-std::string make_rewritten_gcode_path(const std::string& display_filename);
+std::string make_rewritten_gcode_path(const std::string& original_path);
 
 /**
  * @brief Is this a copy WE staged on the printer, i.e. ours to delete?

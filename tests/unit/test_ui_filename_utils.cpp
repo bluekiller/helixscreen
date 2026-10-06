@@ -119,6 +119,29 @@ TEST_CASE("resolve_gcode_filename() extracts the original from each rewrite pref
     CHECK(resolve_gcode_filename("/tmp/helixscreen_mod_123_Model.gcode") == "Model.gcode");
 }
 
+TEST_CASE("make_rewritten_gcode_path() keeps the original's whole path recoverable",
+          "[filename_utils][identity][reprint]") {
+    for (const std::string original :
+         {"benchy.gcode", "parts/benchy.gcode", "a/b/My_Part.gcode", "odd~s~~name/x~.gcode"}) {
+        const std::string staged = helix::gcode::make_rewritten_gcode_path(original);
+        INFO(staged);
+        // One flat file in the staging directory: the cleanups list it there.
+        CHECK(staged.rfind(".helix_temp/modified_", 0) == 0);
+        CHECK(staged.find('/', std::string(".helix_temp/").size()) == std::string::npos);
+        CHECK(helix::gcode::is_uploaded_rewrite_path(staged));
+        CHECK(resolve_gcode_filename(staged) == original);
+        CHECK(resolve_gcode_filename("gcodes/" + staged) == original);
+    }
+}
+
+TEST_CASE("resolve_gcode_filename() decodes a staged subfolder path",
+          "[filename_utils][identity][reprint]") {
+    CHECK(resolve_gcode_filename(".helix_temp/modified_1748p_parts~sbenchy.gcode") ==
+          "parts/benchy.gcode");
+    // Without the path marker the name is a bare filename, taken literally.
+    CHECK(resolve_gcode_filename(".helix_temp/modified_1748_a~sb.gcode") == "a~sb.gcode");
+}
+
 TEST_CASE("resolve_gcode_filename() finds the prefix anywhere in the path",
           "[filename_utils][identity]") {
     // print_stats reports the path relative to the gcodes root, so the marker is
