@@ -89,7 +89,7 @@ void CameraConfigModal::on_show() {
     // Load current config
     auto& wc = PanelWidgetManager::instance().get_widget_config(panel_id_);
     load_config(wc.get_widget_config(widget_id_));
-    publish_sources(get_printer_state().get_webcams());
+    publish_sources(get_printer_state().capabilities_state().get_webcams());
 
     spdlog::debug("[CameraConfig] Opened: source='{}', rotation={}, flip_h={}, flip_v={}", source_,
                   rotation_, flip_h_, flip_v_);

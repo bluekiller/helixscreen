@@ -500,7 +500,7 @@ TEST_CASE_METHOD(AutoStateTargetFixture,
     pin.is_pwm = true;
     ctrl.output_pin().add_pin(pin);
     auto& ps = get_printer_state();
-    lv_subject_set_int(ps.get_printer_connection_state_subject(),
+    lv_subject_set_int(ps.network_state().get_printer_connection_state_subject(),
                        static_cast<int>(helix::ConnectionState::CONNECTED));
     ps.set_klippy_state_sync(helix::KlippyState::READY);
     drain();
@@ -553,13 +553,13 @@ TEST_CASE_METHOD(AutoStateTargetFixture,
     // PRINTING is a genuine state transition (the dedup in on_state_changed()
     // skips re-applying an unchanged key). Clearing klippy ERROR and zeroing the
     // extruder target keeps compute_state_key() at "idle" for the baseline.
-    auto* print_subj = ps.get_print_state_enum_subject();
+    auto* print_subj = ps.print_state().get_print_state_enum_subject();
     REQUIRE(print_subj != nullptr);
     lv_subject_set_int(print_subj, static_cast<int>(helix::PrintJobState::STANDBY));
-    if (auto* klippy_subj = ps.get_klippy_state_subject()) {
+    if (auto* klippy_subj = ps.network_state().get_klippy_state_subject()) {
         lv_subject_set_int(klippy_subj, static_cast<int>(helix::KlippyState::READY));
     }
-    if (auto* ext_target = ps.get_active_extruder_target_subject()) {
+    if (auto* ext_target = ps.temperature_state().get_active_extruder_target_subject()) {
         lv_subject_set_int(ext_target, 0);
     }
 

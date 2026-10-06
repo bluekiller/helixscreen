@@ -10,6 +10,7 @@
 #include "update_queue_test_access.h"
 
 #include <mutex>
+#include <vector>
 
 namespace helix {
 
@@ -163,11 +164,35 @@ class PrinterCompositeVisibilityStateTestAccess {
     }
 };
 
+class PrinterProfileStateTestAccess {
+  public:
+    static void clear_data(PrinterProfileState& s) {
+        s.printer_type_.clear();
+        s.pre_print_option_set_ = PrePrintOptionSet();
+        s.z_offset_calibration_strategy_ = ZOffsetCalibrationStrategy::PROBE_CALIBRATE;
+        // A latched external-persistence flag would hold FIRMWARE_MANAGED
+        // across every later test in the binary after a mid-test failure.
+        s.external_persistence_ = false;
+        s.db_enclosed_ = false;
+        s.timelapse_default_enabled_ = false;
+        s.firmware_option_defaults_.clear();
+    }
+
+    static void pin_strategy(PrinterProfileState& s, ZOffsetCalibrationStrategy strategy) {
+        s.z_offset_calibration_strategy_ = strategy;
+    }
+
+    static void set_option_set(PrinterProfileState& s, PrePrintOptionSet set) {
+        s.pre_print_option_set_ = std::move(set);
+    }
+};
+
 class PrinterNetworkStateTestAccess {
   public:
     static void clear_data(PrinterNetworkState& s) {
         s.klippy_state_message_.clear();
         s.was_ever_connected_ = false;
+        s.last_unknown_klippy_state_.clear();
     }
 };
 
@@ -235,7 +260,7 @@ class PrinterStateTestAccess {
         ps.temperature_state_.set_chamber_cooling_fan_name("");
 
         // --- Domains with pure data ------------------------------------------
-        PrinterExcludedObjectsStateTestAccess::clear_data(*ps.get_excluded_objects_state());
+        PrinterExcludedObjectsStateTestAccess::clear_data(ps.excluded_objects_state());
         PrinterMotionStateTestAccess::clear_data(ps.motion_state_);
         PrinterCapabilitiesStateTestAccess::clear_data(ps.capabilities_state_);
         PrinterCalibrationStateTestAccess::clear_data(ps.calibration_state_);
@@ -246,20 +271,30 @@ class PrinterStateTestAccess {
         ps.versions_state_.clear_data();
 
         // --- PrinterState's own members ---------------------------------------
-        ps.printer_type_.clear();
-        ps.pre_print_option_set_ = PrePrintOptionSet();
-        ps.z_offset_calibration_strategy_ = ZOffsetCalibrationStrategy::PROBE_CALIBRATE;
-        // A latched external-persistence flag would hold FIRMWARE_MANAGED
-        // across every later test in the binary after a mid-test failure.
-        ps.z_offset_external_persistence_ = false;
+        PrinterProfileStateTestAccess::clear_data(ps.profile_state_);
         ps.auto_detected_bed_moves_ = false;
         ps.is_paused_ = false;
         ps.last_kinematics_.clear();
         ps.capability_overrides_ = CapabilityOverrides();
         ps.discovery_ = helix::PrinterDiscovery();
-        ps.last_unknown_klippy_state_.clear();
-        ps.timelapse_default_enabled_ = false;
-        ps.reset_klippy_state_freshness();
+        ps.network_state().reset_klippy_state_freshness();
+    }
+
+    /// Every domain member, in declaration order.
+    static std::vector<const void*> domain_members(PrinterState& ps) {
+        return {&ps.temperature_state_,
+                &ps.motion_state_,
+                &ps.fan_state_,
+                &ps.print_domain_,
+                &ps.capabilities_state_,
+                &ps.plugin_status_state_,
+                &ps.calibration_state_,
+                &ps.hardware_validation_state_,
+                &ps.composite_visibility_state_,
+                &ps.network_state_,
+                &ps.versions_state_,
+                &ps.excluded_objects_state_,
+                &ps.profile_state_};
     }
 
     static PrinterFanState& get_fan_state(PrinterState& ps) {
@@ -270,7 +305,7 @@ class PrinterStateTestAccess {
     /// that set_printer_type_sync() drives, for tests that need one specific
     /// arm of a strategy branch.
     static void pin_z_offset_strategy(PrinterState& ps, ZOffsetCalibrationStrategy strategy) {
-        ps.z_offset_calibration_strategy_ = strategy;
+        PrinterProfileStateTestAccess::pin_strategy(ps.profile_state_, strategy);
     }
 
     static PrinterPrintState& get_print_state(PrinterState& ps) {
@@ -291,7 +326,7 @@ class PrinterStateTestAccess {
     /// can exercise option configurations that no shipped printer declares yet —
     /// e.g. a bed_mesh option with a custom adaptive_param name.
     static void set_option_set(PrinterState& ps, PrePrintOptionSet set) {
-        ps.pre_print_option_set_ = std::move(set);
+        PrinterProfileStateTestAccess::set_option_set(ps.profile_state_, std::move(set));
     }
 
     /// Recompute has_any_preprint_options after a set_option_set(); the
@@ -320,9 +355,9 @@ class PrinterStateTestAccess {
      * test_idle_timeout_busy.cpp.
      */
     static void set_sustained_idle_timeout_printing(PrinterState& ps, bool on) {
-        lv_subject_set_int(ps.get_idle_timeout_printing_subject(), on ? 1 : 0);
-        ps.idle_timeout_busy().set_printing(on, IdleTimeoutBusy::clock::now() -
-                                                    IdleTimeoutBusy::SETTLE);
+        lv_subject_set_int(ps.calibration_state().get_idle_timeout_printing_subject(), on ? 1 : 0);
+        ps.calibration_state().idle_timeout_busy().set_printing(on, IdleTimeoutBusy::clock::now() -
+                                                                        IdleTimeoutBusy::SETTLE);
     }
 };
 

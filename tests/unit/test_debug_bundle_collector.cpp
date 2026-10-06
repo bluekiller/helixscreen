@@ -2076,7 +2076,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
     state.init_subjects(false);
     state.set_klipper_version("v9.9.9-bundle-race-probe");
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
-    REQUIRE(state.get_klipper_version_raw() == "v9.9.9-bundle-race-probe");
+    REQUIRE(state.versions_state().get_klipper_version_raw() == "v9.9.9-bundle-race-probe");
 
     const json bundle = helix::DebugBundleCollector::collect();
     CHECK(bundle["printer"].dump().find("bundle-race-probe") == std::string::npos);

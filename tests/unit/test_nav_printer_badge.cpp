@@ -28,7 +28,7 @@ class PrinterBadgeFixture : public LVGLUITestFixture {
         navbar_ = lv_obj_create(test_screen());
         dot_ = lv_obj_create(navbar_);
         lv_obj_set_name(dot_, "nav_printer_dot");
-        conn_ = get_printer_state().get_printer_connection_state_subject();
+        conn_ = get_printer_state().network_state().get_printer_connection_state_subject();
     }
 
     static void drain() {

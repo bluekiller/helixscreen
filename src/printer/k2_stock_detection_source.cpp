@@ -219,7 +219,7 @@ void K2StockDetectionSource::start() {
     // RAW_PRINT_STATE_OK: the re-arm wants the job boundary itself; lifecycle's
     // Preparing/Idle distinction would leave the edge armed across pre-print.
     state_observer_ = helix::ui::observe_print_state<K2StockDetectionSource>(
-        state_->get_print_state_enum_subject(), this,
+        state_->print_state().get_print_state_enum_subject(), this,
         [](K2StockDetectionSource* self, PrintJobState value) { self->on_print_state(value); },
         state_->get_subjects_lifetime());
 
@@ -248,7 +248,7 @@ void K2StockDetectionSource::poll_tick() {
     // RAW_PRINT_STATE_OK: the stock daemon polls while the printer itself holds
     // a job; lifecycle would also poll through Preparing, before any plastic
     // has moved.
-    if (!printer_has_job(state_->get_print_job_state()))
+    if (!printer_has_job(state_->print_state().get_print_job_state()))
         return;
 
     busy_ = true;
@@ -294,7 +294,7 @@ void K2StockDetectionSource::handle_result(const PollResult& r) {
         // ran leaves nothing to pause and no print for the modal to speak of.
         // RAW_PRINT_STATE_OK: same wire read poll_tick makes - the round's
         // result is only meaningful against the job it was launched under.
-        if (printer_has_job(state_->get_print_job_state()))
+        if (printer_has_job(state_->print_state().get_print_job_state()))
             fire(r);
     }
     last_positive_ = r.positive;
@@ -313,7 +313,7 @@ void K2StockDetectionSource::fire(const PollResult& r) {
     // from the response: the presenter reads this flag to skip its own.
     // RAW_PRINT_STATE_OK: already_paused asks PAUSED specifically; the
     // lifecycle collapses paused and printing into one PrintState.
-    e.already_paused = state_->get_print_job_state() == PrintJobState::PAUSED;
+    e.already_paused = state_->print_state().get_print_job_state() == PrintJobState::PAUSED;
     e.message = "Spaghetti detected (" + std::to_string(pct) + "%)";
     if (cb_)
         cb_(e);

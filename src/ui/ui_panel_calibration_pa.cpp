@@ -655,7 +655,8 @@ void PACalibrationPanel::start_heat_tracking() {
     stop_heat_tracking();
 
     auto& state = get_printer_state();
-    lv_subject_t* temp_subj = state.get_extruder_temp_subject(selected_heater(), temp_lifetime_);
+    lv_subject_t* temp_subj =
+        state.temperature_state().get_extruder_temp_subject(selected_heater(), temp_lifetime_);
     if (!temp_subj) {
         spdlog::warn("[{}] No temperature subject for {}", get_name(), selected_heater());
         // Without a thermometer there is no way to know when to measure.
@@ -733,7 +734,7 @@ void PACalibrationPanel::update_progress_display() {
         // two screens disagree about the same nozzle.
         auto& state = get_printer_state();
         lv_subject_t* temp_subj =
-            state.get_extruder_temp_subject(selected_heater(), temp_lifetime_);
+            state.temperature_state().get_extruder_temp_subject(selected_heater(), temp_lifetime_);
         const float temp =
             temp_subj ? helix::ui::temperature::deci_to_degrees_f(lv_subject_get_int(temp_subj))
                       : heat_start_temp_;

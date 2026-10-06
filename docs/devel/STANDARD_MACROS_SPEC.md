@@ -98,7 +98,7 @@ This is the forwarding contract behind the adaptive bed mesh behavior. It is a
 property of the **single** Bed Mesh pre-print toggle — there is no separate
 sub-row. When the printer's `pre_print_options.bed_mesh` entry declares an
 `adaptive_param`, the firmware exposes `[exclude_object]`, and there is no custom
-`calibration.bed_mesh_gcode` template, `PrinterState::apply_dynamic_options()`
+`calibration.bed_mesh_gcode` template, `PrinterProfileState::apply_dynamic_options()`
 sets `PrePrintOption::adaptive_active` on the bed_mesh option. That single flag:
 
 - **relabels** the toggle from "Auto Bed Mesh" to **"Adaptive Bed Mesh"**

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <set>
@@ -74,6 +75,29 @@ using ErrorCallback = std::function<void(const std::string&)>;
 using ActiveFilesWithContentCallback =
     std::function<void(const std::set<std::string>&, const std::map<std::string, std::string>&)>;
 
+/// Downloads one config file and calls exactly one of @p on_ok (content) or
+/// @p on_fail (message). Either may run before the call returns.
+using ConfigDownloadFn =
+    std::function<void(const std::string& path, std::function<void(std::string)> on_ok,
+                       std::function<void(std::string)> on_fail)>;
+
+/// Config downloads outstanding at once. The ESP32 HTTP lane queues 8 requests
+/// for every caller, thumbnails included, and frees a slot only after the
+/// completion callback returns, so the walk can hold one more than this.
+inline constexpr size_t kMaxConfigDownloadsInFlight = 4;
+
+/// Download @p root_file and every file its [include] chain reaches, following
+/// globs against @p listing (every path in the config root) and paths relative
+/// to the including file. Files outside the chain are never fetched. A download
+/// refused before @p download returns is retried when an in-flight one completes;
+/// with nothing in flight, and for any other failure, the whole walk fails through
+/// @p on_error once the outstanding downloads have returned. A partial set would
+/// read as a config without the missing files.
+void download_include_graph(std::vector<std::string> listing, const std::string& root_file,
+                            ConfigDownloadFn download, ActiveFilesWithContentCallback on_complete,
+                            ErrorCallback on_error,
+                            size_t max_in_flight = kMaxConfigDownloadsInFlight, int max_depth = 5);
+
 /// Async wrapper: lists config directory via Moonraker, downloads printer.cfg and
 /// all included files, then resolves the active file set.
 /// Handles glob includes by cross-referencing the full file listing — the
@@ -83,7 +107,7 @@ void resolve_active_config_files(IMoonrakerAPI& api, ActiveFilesCallback on_comp
 
 /// Async wrapper that also returns file contents for the active files.
 /// Identical to resolve_active_config_files() but the callback also receives
-/// the map of filename -> content for all downloaded config files.
+/// the map of filename -> content for every file in the include chain.
 void resolve_active_config_files_with_content(IMoonrakerAPI& api,
                                               ActiveFilesWithContentCallback on_complete,
                                               ErrorCallback on_error);

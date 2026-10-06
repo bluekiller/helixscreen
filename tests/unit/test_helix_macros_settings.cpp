@@ -72,13 +72,13 @@ struct MacrosSettingsFixture : LVGLUITestFixture {
 
     int macros_status() {
         UpdateQueue::instance().drain();
-        return lv_subject_get_int(state().get_helix_macros_status_subject());
+        return lv_subject_get_int(state().plugin_status_state().get_helix_macros_status_subject());
     }
 
     /// The restart policy reads job_holds_machine (print_active misses a
     /// host-side Preparing job), so that is the seam the tests drive.
     void set_job_holds(int v) {
-        lv_subject_set_int(state().get_job_holds_machine_subject(), v);
+        lv_subject_set_int(state().print_state().get_job_holds_machine_subject(), v);
     }
 
     bool restart_sent() const {
@@ -161,17 +161,17 @@ TEST_CASE_METHOD(MacrosSettingsFixture,
     state().set_hardware(discovery_with({"gcode_macro START_PRINT", "bed_mesh"}));
     REQUIRE(macros_status() == static_cast<int>(S::NotInstalled));
 
-    state().set_helix_macros_restart_pending(true);
+    state().plugin_status_state().set_helix_macros_restart_pending(true);
     REQUIRE(macros_status() == static_cast<int>(S::RestartPending));
 
     // Fresh scenario for the update path: clear the flag, then stage an
     // update onto an Outdated base.
-    state().set_helix_macros_restart_pending(false);
+    state().plugin_status_state().set_helix_macros_restart_pending(false);
     state().set_hardware(
         discovery_with({"gcode_macro HELIX_READY", "gcode_macro HELIX_START_PRINT",
                         "gcode_macro HELIX_CLEAN_NOZZLE", "gcode_macro HELIX_BED_MESH_IF_NEEDED"}));
     REQUIRE(macros_status() == static_cast<int>(S::Outdated)); // pending not yet set here
-    state().set_helix_macros_restart_pending(true);
+    state().plugin_status_state().set_helix_macros_restart_pending(true);
     REQUIRE(macros_status() == static_cast<int>(S::RestartPending));
     // A re-scan while the restart is still owed must not resolve the queue.
     state().set_hardware(
@@ -188,7 +188,7 @@ TEST_CASE_METHOD(MacrosSettingsFixture,
     REQUIRE(macros_status() == static_cast<int>(S::Installed));
 
     // Pending set while the macros are active never masks the truth.
-    state().set_helix_macros_restart_pending(true);
+    state().plugin_status_state().set_helix_macros_restart_pending(true);
     REQUIRE(macros_status() == static_cast<int>(S::Installed));
 }
 
@@ -366,7 +366,7 @@ TEST_CASE_METHOD(MacrosSettingsFixture, "a host-side preparing job hard-refuses 
     // Preparing: job_holds_machine is 1 while print_active stays 0 - the
     // machine is committed to a job the wire has not reported yet.
     set_job_holds(1);
-    lv_subject_set_int(state().get_print_active_subject(), 0);
+    lv_subject_set_int(state().print_state().get_print_active_subject(), 0);
     settle();
 
     tap_install_row();
@@ -411,7 +411,7 @@ TEST_CASE_METHOD(MacrosSettingsFixture, "helper macro rows follow helix_macros_s
     REQUIRE(pending_row != nullptr);
 
     auto hidden = [](lv_obj_t* o) { return lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN); };
-    lv_subject_t* status = state().get_helix_macros_status_subject();
+    lv_subject_t* status = state().plugin_status_state().get_helix_macros_status_subject();
 
     // UNKNOWN: everything hidden - no install button on a vacuum.
     lv_subject_set_int(status, -1);

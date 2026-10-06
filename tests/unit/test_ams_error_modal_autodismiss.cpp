@@ -111,7 +111,8 @@ class AmsErrorModalFixture : public XMLTestFixture {
     }
 
     void set_print_state(helix::PrintJobState s) {
-        lv_subject_set_int(state().get_print_state_enum_subject(), static_cast<int>(s));
+        lv_subject_set_int(state().print_state().get_print_state_enum_subject(),
+                           static_cast<int>(s));
     }
 
     /// Drive the real inputs so print_lifecycle is republished alongside the
@@ -123,7 +124,7 @@ class AmsErrorModalFixture : public XMLTestFixture {
     /// edge-into-Printing observer would fire on, making the keep-raw case pass
     /// against a lifecycle reader it is supposed to catch.
     void set_wire_and_phase(helix::PrintJobState s, helix::PrintStartPhase phase) {
-        state().set_print_start_state(phase, "", 0);
+        state().print_state().set_print_start_state(phase, "", 0);
         pump();
         helix::test::set_wire_state(state(), s);
         pump();
@@ -313,11 +314,11 @@ TEST_CASE_METHOD(AmsErrorModalFixture,
     REQUIRE(panel.is_error_modal_visible());
 
     // Further PRINTING updates are not transitions and must leave it alone.
-    lv_subject_notify(state().get_print_state_enum_subject());
+    lv_subject_notify(state().print_state().get_print_state_enum_subject());
     pump();
     CHECK(panel.is_error_modal_visible());
 
-    lv_subject_notify(state().get_print_state_enum_subject());
+    lv_subject_notify(state().print_state().get_print_state_enum_subject());
     pump();
     CHECK(panel.is_error_modal_visible());
 
@@ -371,7 +372,7 @@ TEST_CASE_METHOD(AmsErrorModalFixture,
     REQUIRE(panel.is_error_modal_visible());
 
     set_wire_and_phase(helix::PrintJobState::PRINTING, helix::PrintStartPhase::HOMING);
-    REQUIRE(state().get_print_lifecycle() == PrintState::Preparing);
+    REQUIRE(state().print_state().get_print_lifecycle() == PrintState::Preparing);
 
     CHECK_FALSE(panel.is_error_modal_visible());
 

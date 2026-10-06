@@ -83,7 +83,7 @@ class DefaultPlacementFixture : public LVGLUITestFixture {
         topo.active_tool = 0;
         ToolState::instance().set_ams_topology(topo);
 
-        state().init_extruders({"extruder"});
+        state().temperature_state().init_extruders({"extruder"});
         helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
         // The AMS/filament swap in build_default_grid() keys off this subject;

@@ -37,7 +37,7 @@ void U1StockSource::start() {
     // RAW_PRINT_STATE_OK: subscribes to the WIRE deliberately - U1 stock firmware raises
     // defect detection by pausing, so the edge is the printer's own.
     state_observer_ = helix::ui::observe<int>(
-        state_->get_print_state_enum_subject(), this,
+        state_->print_state().get_print_state_enum_subject(), this,
         [](U1StockSource* self, int value) { self->on_print_state(value); },
         state_->get_subjects_lifetime());
 }
@@ -60,7 +60,7 @@ void U1StockSource::on_print_state(int state_enum) {
     if (!cb_)
         return;
 
-    const int code = state_->get_print_exception_code();
+    const int code = state_->print_state().get_print_exception_code();
     if (kind_from_u1_code(code) != DetectionKind::Spaghetti)
         return;
 
@@ -69,7 +69,7 @@ void U1StockSource::on_print_state(int state_enum) {
     e.kind = DetectionKind::Spaghetti;
     e.attributable = true;
     e.already_paused = true;
-    e.message = state_->get_print_exception_message();
+    e.message = state_->print_state().get_print_exception_message();
     spdlog::info("[U1StockSource] spaghetti detected (code 2): {}", e.message);
     cb_(e);
 }

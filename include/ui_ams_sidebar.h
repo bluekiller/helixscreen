@@ -15,6 +15,7 @@
 #include "filament_op_execute.h"
 #include "filament_op_slot_resolver.h"
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include <optional>
@@ -97,6 +98,12 @@ class AmsOperationSidebar {
      * (Vger1700, bundle Z5V4K3NL: dispatch error was silently discarded).
      */
     void fail_started_operation(const AmsError& error);
+
+    /**
+     * @brief Unwind a start_operation() whose backend is not doing anything:
+     *        drop the target pulse, release the held action and resync.
+     */
+    void abandon_started_operation();
 
     /**
      * @brief Handle load request with automatic preheat if needed
@@ -208,6 +215,8 @@ class AmsOperationSidebar {
     int pending_load_slot_ = -1;
     int pending_load_target_temp_ = 0;
     bool ui_initiated_heat_ = false;
+    // The nozzle target has reached the pending preheat target at least once.
+    bool pending_load_target_seen_ = false;
     AmsAction prev_ams_action_ = AmsAction::IDLE;
 
     // Lifecycle flag — set in setup(), cleared in cleanup().
@@ -227,6 +236,21 @@ class AmsOperationSidebar {
     lv_timer_t* stall_watchdog_timer_ = nullptr;
     static constexpr uint32_t STALL_WATCHDOG_PERIOD_MS = 1500;
     static void stall_watchdog_cb(lv_timer_t* timer);
+
+    // How long the optimistic action outlives backend silence (see
+    // AmsState::hold_optimistic_action): the UI preheat, then the gap between
+    // the backend accepting the command and its first frame, which can include
+    // a G28. Each bounds an operation the backend never reports at all.
+    // A nozzle within this many degrees C of its target counts as hot enough:
+    // the preheat is done, a target counts as reached, the Heat step is over.
+    static constexpr int PREHEAT_MARGIN_C = 5;
+
+    static constexpr std::chrono::minutes OPTIMISTIC_PREHEAT_HOLD{10};
+    static constexpr std::chrono::seconds OPTIMISTIC_DISPATCH_HOLD{90};
+
+    // The backend accepted the operation: restart a held action's budget from
+    // here, and sync so a backend that set its own action at dispatch drives.
+    void hand_operation_to_backend();
 
     // Step progress state
     StepOperationType current_operation_type_ = StepOperationType::LOAD_FRESH;
@@ -279,6 +303,9 @@ class AmsOperationSidebar {
     std::map<std::string, std::string> macro_temp_prefill(helix::ui::FilamentMacroOp op,
                                                           int slot_index);
     void check_pending_load();
+    // A preheat whose nozzle target is taken away never reaches temperature, so
+    // check_pending_load() would never fire. Abandons the load instead.
+    void abandon_preheat_if_target_dropped(int target_deci);
     void handle_load_complete();
     void show_preheat_feedback(int slot_index, int target_temp);
 

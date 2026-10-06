@@ -59,7 +59,7 @@ struct FilamentPanelMacroHarness {
             AmsState::instance().set_backend(std::move(backend));
         }
         state.init_subjects(false);
-        state.init_extruders({"extruder"});
+        state.temperature_state().init_extruders({"extruder"});
         state.set_klippy_state_sync(helix::KlippyState::READY);
 
         helix::PrinterDiscovery hardware;
@@ -133,7 +133,7 @@ struct FilamentPanelMacroHarness {
 
     /// Two hotends, T0 on `extruder` and T1 on `extruder1`, as discovery builds them.
     void use_two_extruders() {
-        state.init_extruders({"extruder", "extruder1"});
+        state.temperature_state().init_extruders({"extruder", "extruder1"});
         helix::PrinterDiscovery hardware;
         hardware.parse_objects(nlohmann::json{"extruder", "extruder1"});
         ToolState::instance().init_tools(hardware);

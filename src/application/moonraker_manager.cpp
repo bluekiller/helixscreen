@@ -50,7 +50,7 @@
 #include "simulated_clock.h"
 #include "sound_manager.h"
 #include "spoolman_manager.h"
-#include "tool_state.h"
+#include "status_dispatch.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -324,9 +324,7 @@ void MoonrakerManager::process_notifications() {
             }
         } else {
             if (auto frame = helix::parse_status_notification(notification)) {
-                get_printer_state().update_from_status(*frame->status, frame->eventtime,
-                                                       frame->from_cached_snapshot, klippy_epoch);
-                helix::ToolState::instance().update_from_status(*frame->status);
+                helix::dispatch_status_frame(*frame, klippy_epoch);
             }
         }
     }
@@ -650,7 +648,8 @@ void MoonrakerManager::register_callbacks() {
         std::lock_guard<std::mutex> lock(m_notification_mutex);
         // Stamped on the WebSocket thread, the thread that resets the klippy
         // freshness on close, so a frame always carries the session it arrived in.
-        m_notification_queue.push({notification, get_printer_state().klippy_epoch()});
+        m_notification_queue.push(
+            {notification, get_printer_state().network_state().klippy_epoch()});
     });
 }
 
@@ -709,7 +708,7 @@ void MoonrakerManager::init_print_start_collector() {
     m_print_start_collector = std::make_shared<PrintStartCollector>(*m_client, get_printer_state());
 
     // Load print start profile based on detected printer type
-    std::string printer_type = get_printer_state().get_printer_type();
+    std::string printer_type = get_printer_state().profile_state().printer_type();
     if (!printer_type.empty()) {
         std::string profile_name = PrinterDetector::get_print_start_profile(printer_type);
         if (!profile_name.empty()) {
@@ -773,7 +772,7 @@ void MoonrakerManager::init_print_start_collector() {
     // RAW_PRINT_STATE_OK: the collector MEASURES the pre-print window, so every
     // state it reacts to must be the printer's own. On the lifecycle its
     // completion signal would be the very state it is waiting to observe.
-    s_arming.note_transition(get_printer_state().get_print_job_state());
+    s_arming.note_transition(get_printer_state().print_state().get_print_job_state());
     spdlog::debug("[MoonrakerManager] PRINT_START collector observer registered (initial state={})",
                   static_cast<int>(s_arming.prev_state()));
 
@@ -785,14 +784,14 @@ void MoonrakerManager::init_print_start_collector() {
     static lv_subject_t* s_progress_subject = nullptr;
     static lv_subject_t* s_print_duration_subject = nullptr;
     static lv_subject_t* s_layer_current_subject = nullptr;
-    s_progress_subject = get_printer_state().get_print_progress_subject();
-    s_print_duration_subject = get_printer_state().get_print_duration_subject();
-    s_layer_current_subject = get_printer_state().get_print_layer_current_subject();
+    s_progress_subject = get_printer_state().print_state().get_print_progress_subject();
+    s_print_duration_subject = get_printer_state().print_state().get_print_duration_subject();
+    s_layer_current_subject = get_printer_state().print_state().get_print_layer_current_subject();
 
     // Observer to start/stop collector based on print state
     m_print_start_observer = ObserverGuard(
         // RAW_PRINT_STATE_OK: collector arming - see note_transition() above.
-        get_printer_state().get_print_state_enum_subject(),
+        get_printer_state().print_state().get_print_state_enum_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector)
@@ -849,8 +848,8 @@ void MoonrakerManager::init_print_start_collector() {
                 spdlog::info("[MoonrakerManager] Skipping PRINT_START collector - mid-print ({}%)",
                              current_progress);
                 s_arming.consume_initial_transition();
-            } else if (should_stop_print_collector(new_state,
-                                                   get_printer_state().has_preparing_job())) {
+            } else if (should_stop_print_collector(
+                           new_state, get_printer_state().print_state().has_preparing_job())) {
                 // No longer printing - stop collector if active. A live
                 // preparing job means this is the transient hop INTO a print we
                 // initiated, not the end of one.
@@ -870,7 +869,7 @@ void MoonrakerManager::init_print_start_collector() {
     // the overlay shows a generic "Preparing Print..." and no phase ever
     // advances, because nothing is parsing gcode responses yet.
     m_preparing_epoch_observer = ObserverGuard(
-        get_printer_state().get_preparing_epoch_subject(),
+        get_printer_state().print_state().get_preparing_epoch_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector) {
@@ -884,7 +883,7 @@ void MoonrakerManager::init_print_start_collector() {
                 // user runs by hand is parsed as a pre-print phase, re-raising
                 // the "Preparing Print" overlay over whatever they are doing.
                 // RAW_PRINT_STATE_OK: collector teardown mirrors its arming.
-                const auto job_state = get_printer_state().get_print_job_state();
+                const auto job_state = get_printer_state().print_state().get_print_job_state();
                 if (collector->is_active() && should_stop_collector_on_retirement(job_state)) {
                     collector->stop();
                     spdlog::info("[MoonrakerManager] PRINT_START collector stopped (retired "
@@ -903,7 +902,7 @@ void MoonrakerManager::init_print_start_collector() {
 
     // Observer for print start phase completion
     m_print_start_phase_observer = ObserverGuard(
-        get_printer_state().get_print_start_phase_subject(),
+        get_printer_state().print_state().get_print_start_phase_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector)
@@ -923,7 +922,7 @@ void MoonrakerManager::init_print_start_collector() {
     // A Klipper shutdown or error ends the print even when print_stats keeps
     // reporting a job, so the collector cannot rely on the print-state observer.
     m_print_klippy_state_observer = ObserverGuard(
-        get_printer_state().get_klippy_state_subject(),
+        get_printer_state().network_state().get_klippy_state_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector || !collector->is_active())
@@ -946,7 +945,7 @@ void MoonrakerManager::init_print_start_collector() {
     // early. current_layer is firmware-agnostic and only reaches 1 at the
     // genuine first layer. See should_complete_preprint().
     m_print_layer_observer = ObserverGuard(
-        get_printer_state().get_print_layer_current_subject(),
+        get_printer_state().print_state().get_print_layer_current_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector || !collector->is_active())
@@ -958,7 +957,8 @@ void MoonrakerManager::init_print_start_collector() {
             // per-print has_real_layer_data (cleared async by
             // reset_for_new_print() after the collector starts — see
             // should_complete_preprint()).
-            bool printer_reports_layers = get_printer_state().printer_reports_layers();
+            bool printer_reports_layers =
+                get_printer_state().print_state().printer_reports_layers();
             // Arm the layer-1 edge: latch once we observe current_layer < 1 for
             // THIS print, so a stale positive carried over from the previous
             // print (reset_for_new_print() runs async, after the collector goes
@@ -988,7 +988,7 @@ void MoonrakerManager::init_print_start_collector() {
     // (the U1 premature-completion regression was this fallback firing during a
     // layer-reporting printer's pre-print purge).
     m_print_duration_observer = ObserverGuard(
-        get_printer_state().get_print_duration_subject(),
+        get_printer_state().print_state().get_print_duration_subject(),
         [](lv_observer_t*, lv_subject_t* subject) {
             auto collector = s_collector.lock();
             if (!collector || !collector->is_active())
@@ -996,7 +996,8 @@ void MoonrakerManager::init_print_start_collector() {
             int print_duration = lv_subject_get_int(subject);
             int current_layer =
                 s_layer_current_subject ? lv_subject_get_int(s_layer_current_subject) : 0;
-            bool printer_reports_layers = get_printer_state().printer_reports_layers();
+            bool printer_reports_layers =
+                get_printer_state().print_state().printer_reports_layers();
             collector->note_current_layer(current_layer);
             if (should_complete_preprint(printer_reports_layers, current_layer, print_duration,
                                          collector->has_seen_layer_zero(),
@@ -1019,12 +1020,14 @@ void MoonrakerManager::init_print_start_collector() {
             collector->check_fallback_completion();
         }
     };
-    m_print_bed_target_fallback_observer = ObserverGuard(
-        get_printer_state().get_bed_target_subject(m_print_bed_target_fallback_lifetime),
-        fallback_cb, nullptr);
+    m_print_bed_target_fallback_observer =
+        ObserverGuard(get_printer_state().temperature_state().get_bed_target_subject(
+                          m_print_bed_target_fallback_lifetime),
+                      fallback_cb, nullptr);
     m_print_bed_target_fallback_observer.set_alive_token(m_print_bed_target_fallback_lifetime);
-    m_print_ext_target_fallback_observer = ObserverGuard(
-        get_printer_state().get_active_extruder_target_subject(), fallback_cb, nullptr);
+    m_print_ext_target_fallback_observer =
+        ObserverGuard(get_printer_state().temperature_state().get_active_extruder_target_subject(),
+                      fallback_cb, nullptr);
 
     // Toolhead position feeds the collector's silent-window inference
     // ("Probing Z..." / "Checking Bed Mesh..." / sweep → bed mesh). The
@@ -1037,20 +1040,20 @@ void MoonrakerManager::init_print_start_collector() {
         if (collector && collector->is_active()) {
             auto& state = get_printer_state();
             collector->note_position_sample(
-                static_cast<float>(
-                    helix::units::from_centimm(lv_subject_get_int(state.get_position_x_subject()))),
-                static_cast<float>(
-                    helix::units::from_centimm(lv_subject_get_int(state.get_position_y_subject()))),
                 static_cast<float>(helix::units::from_centimm(
-                    lv_subject_get_int(state.get_position_z_subject()))));
+                    lv_subject_get_int(state.motion_state().get_position_x_subject()))),
+                static_cast<float>(helix::units::from_centimm(
+                    lv_subject_get_int(state.motion_state().get_position_y_subject()))),
+                static_cast<float>(helix::units::from_centimm(
+                    lv_subject_get_int(state.motion_state().get_position_z_subject()))));
         }
     };
-    m_print_position_observers[0] =
-        ObserverGuard(get_printer_state().get_position_x_subject(), position_cb, nullptr);
-    m_print_position_observers[1] =
-        ObserverGuard(get_printer_state().get_position_y_subject(), position_cb, nullptr);
-    m_print_position_observers[2] =
-        ObserverGuard(get_printer_state().get_position_z_subject(), position_cb, nullptr);
+    m_print_position_observers[0] = ObserverGuard(
+        get_printer_state().motion_state().get_position_x_subject(), position_cb, nullptr);
+    m_print_position_observers[1] = ObserverGuard(
+        get_printer_state().motion_state().get_position_y_subject(), position_cb, nullptr);
+    m_print_position_observers[2] = ObserverGuard(
+        get_printer_state().motion_state().get_position_z_subject(), position_cb, nullptr);
 
     spdlog::debug("[MoonrakerManager] Print start collector initialized");
 }

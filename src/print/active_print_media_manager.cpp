@@ -71,7 +71,7 @@ ActivePrintMediaManager::ActivePrintMediaManager(PrinterState& printer_state)
     // starts async operations — no observer lifecycle changes or widget
     // destruction, so immediate dispatch is safe.
     print_filename_observer_ = helix::ui::observe<const char*>(
-        printer_state_.get_print_filename_subject(), this,
+        printer_state_.print_state().get_print_filename_subject(), this,
         [](ActivePrintMediaManager* self, const char* filename) {
             self->process_filename(filename);
         },
@@ -89,20 +89,22 @@ ActivePrintMediaManager::ActivePrintMediaManager(PrinterState& printer_state)
     // handler only mutates identity fields and queues updates; it touches no
     // observer lifecycle and destroys no widgets.
     preparing_epoch_observer_ = helix::ui::observe<int>(
-        printer_state_.get_preparing_epoch_subject(), this,
+        printer_state_.print_state().get_preparing_epoch_subject(), this,
         [](ActivePrintMediaManager* self, int epoch) {
             if (epoch > 0) {
                 // PrinterPrintState adopted this job's identity in
                 // begin_preparing(); all that is left is to act on it. At commit
                 // Moonraker may not have reported a filename yet, which is the
                 // whole reason the identity is recorded there.
-                self->process_filename(self->printer_state_.get_effective_print_filename().c_str());
+                self->process_filename(
+                    self->printer_state_.print_state().get_effective_print_filename().c_str());
                 return;
             }
             // Confirmed means the printer took OUR job, so the override still
             // describes what is printing - a rewritten temp file may be what
             // print_stats reports. Every other exit means it does not.
-            if (self->printer_state_.last_preparing_exit() != PreparingExit::Confirmed) {
+            if (self->printer_state_.print_state().last_preparing_exit() !=
+                PreparingExit::Confirmed) {
                 // Release the identity, but do NOT blank the display subjects:
                 // clear_print_info() defers that blanking, which would land
                 // after the incoming filename had already been resolved and
@@ -145,10 +147,11 @@ void ActivePrintMediaManager::set_thumbnail_source(const std::string& original_f
     // for which print this is; this stays as the manager-facing entry point.
     // Resolve-on-store happens there, for the reason it always did: Reprint can
     // hand over the rewritten name directly.
-    printer_state_.set_print_identity_override(original_filename);
+    printer_state_.print_state().set_print_identity_override(original_filename);
 
     // If we have a current print filename, re-process it with the new source
-    const char* current = lv_subject_get_string(printer_state_.get_print_filename_subject());
+    const char* current =
+        lv_subject_get_string(printer_state_.print_state().get_print_filename_subject());
     if (current && current[0] != '\0' && !original_filename.empty()) {
         spdlog::info("[ActivePrintMediaManager] Re-processing with source override: {}",
                      original_filename);
@@ -157,7 +160,7 @@ void ActivePrintMediaManager::set_thumbnail_source(const std::string& original_f
 }
 
 void ActivePrintMediaManager::clear_thumbnail_source() {
-    printer_state_.clear_print_identity_override();
+    printer_state_.print_state().clear_print_identity_override();
     last_effective_filename_.clear();
     last_loaded_thumbnail_filename_.clear();
     cancel_thumbnail_retry();
@@ -168,7 +171,7 @@ void ActivePrintMediaManager::publish_thumbnail(const std::string& for_file,
                                                 const std::string& path) {
     assert(!path.empty() &&
            "never publish an empty thumbnail path - use no_thumbnail_placeholder()");
-    printer_state_.set_print_thumbnail(for_file, path);
+    printer_state_.print_state().set_print_thumbnail(for_file, path);
 }
 
 void ActivePrintMediaManager::set_thumbnail_path(const std::string& for_file,
@@ -189,13 +192,14 @@ void ActivePrintMediaManager::set_thumbnail_path(const std::string& for_file,
 }
 
 bool ActivePrintMediaManager::has_thumbnail_for(const std::string& filename) {
-    const char* current = lv_subject_get_string(printer_state_.get_print_thumbnail_path_subject());
+    const char* current =
+        lv_subject_get_string(printer_state_.print_state().get_print_thumbnail_path_subject());
     // The placeholder is what "no thumbnail" looks like on the wire now that the
     // empty string is never published. It must NOT read as a thumbnail here, or
     // the clear below would make load_thumbnail_for_file() skip its own fetch
     // and every print would stop at the placeholder.
     return current && current[0] != '\0' && strcmp(current, no_thumbnail_placeholder()) != 0 &&
-           !filename.empty() && printer_state_.get_print_thumbnail_file() == filename;
+           !filename.empty() && printer_state_.print_state().get_print_thumbnail_file() == filename;
 }
 
 ThumbnailCache::SuccessCallback
@@ -311,7 +315,8 @@ void ActivePrintMediaManager::process_filename(const char* raw_filename) {
     // published. This manager used to derive it independently and the panel did
     // too, from separate override members that cleared on different rules; any
     // divergence dropped the thumbnail silently (prestonbrown/helixscreen#1339).
-    const std::string effective_filename = printer_state_.get_effective_print_filename();
+    const std::string effective_filename =
+        printer_state_.print_state().get_effective_print_filename();
 
     // Skip if effective filename hasn't changed (makes processing idempotent)
     if (effective_filename == last_effective_filename_) {
@@ -328,7 +333,7 @@ void ActivePrintMediaManager::process_filename(const char* raw_filename) {
     PrinterState* state = &printer_state_;
     helix::ui::queue_update<std::string>(
         std::make_unique<std::string>(display_name),
-        [state](std::string* name) { state->set_print_display_filename(*name); });
+        [state](std::string* name) { state->print_state().set_print_display_filename(*name); });
 
     // Load thumbnail if filename changed
     if (!effective_filename.empty() && effective_filename != last_loaded_thumbnail_filename_) {
@@ -352,7 +357,7 @@ void ActivePrintMediaManager::process_filename(const char* raw_filename) {
             // short-circuit exactly like a stale path. Main thread:
             // process_filename runs from an immediate observer on
             // print_filename, which PrinterState only sets there.
-            printer_state_.set_print_psram_thumbnail(nullptr);
+            printer_state_.print_state().set_print_psram_thumbnail(nullptr);
 #endif
         }
         // New file: drop any pending retry for the previous file and reset
@@ -444,8 +449,8 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                 // these through independently of layer_count: heights are useful
                 // even when the total came from the gcode-header fallback below.
                 if (metadata.layer_height > 0.0) {
-                    printer_state_.set_print_layer_heights(metadata.layer_height,
-                                                           metadata.first_layer_height);
+                    printer_state_.print_state().set_print_layer_heights(
+                        metadata.layer_height, metadata.first_layer_height);
                     spdlog::debug("[ActivePrintMediaManager] Set layer heights from metadata: "
                                   "layer={:.3f}mm first={:.3f}mm",
                                   metadata.layer_height, metadata.first_layer_height);
@@ -453,10 +458,12 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
 
                 // Set total layer count from metadata
                 if (metadata.layer_count > 0) {
-                    printer_state_.set_print_layer_total(static_cast<int>(metadata.layer_count));
+                    printer_state_.print_state().set_print_layer_total(
+                        static_cast<int>(metadata.layer_count));
                     spdlog::debug("[ActivePrintMediaManager] Set total layers from metadata: {}",
                                   metadata.layer_count);
-                } else if (lv_subject_get_int(printer_state_.get_print_layer_total_subject()) > 0) {
+                } else if (lv_subject_get_int(
+                               printer_state_.print_state().get_print_layer_total_subject()) > 0) {
                     // Retry pass: an earlier attempt already filled the layer
                     // total (gcode header scan) — don't re-download the header.
                     spdlog::debug("[ActivePrintMediaManager] Layer total already set, "
@@ -482,14 +489,14 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                                               return;
                                           }
                                           if (header.layer_count > 0) {
-                                              printer_state_.set_print_layer_total(
+                                              printer_state_.print_state().set_print_layer_total(
                                                   static_cast<int>(header.layer_count));
                                               spdlog::info("[ActivePrintMediaManager] Set total "
                                                            "layers from gcode header: {}",
                                                            header.layer_count);
                                           }
                                           if (need_est_time && header.estimated_time_seconds > 0) {
-                                              printer_state_.set_estimated_print_time(
+                                              printer_state_.print_state().set_estimated_print_time(
                                                   static_cast<int>(header.estimated_time_seconds));
                                               spdlog::info(
                                                   "[ActivePrintMediaManager] Set estimated "
@@ -520,7 +527,7 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
 
                 // Store slicer's estimated print time for remaining time fallback
                 if (metadata.estimated_time > 0) {
-                    printer_state_.set_estimated_print_time(
+                    printer_state_.print_state().set_estimated_print_time(
                         static_cast<int>(metadata.estimated_time));
                     spdlog::debug(
                         "[ActivePrintMediaManager] Set estimated print time from metadata: {}s",
@@ -650,7 +657,8 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                                                   "thumbnail callback, ignoring");
                                     return;
                                 }
-                                printer_state_.set_print_psram_thumbnail(std::move(thumb));
+                                printer_state_.print_state().set_print_psram_thumbnail(
+                                    std::move(thumb));
                                 if (thumbnail_retry_count_ > 0) {
                                     spdlog::info("[ActivePrintMediaManager] PSRAM thumbnail "
                                                  "loaded after {} retries: {}",
@@ -823,7 +831,8 @@ void ActivePrintMediaManager::rearm_media_if_incomplete() {
     if (last_effective_filename_.empty() || !api_) {
         return;
     }
-    const bool have_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject()) > 0;
+    const bool have_layers =
+        lv_subject_get_int(printer_state_.print_state().get_print_layer_total_subject()) > 0;
     const bool have_thumbnail = thumbnail_origin_ == ThumbnailOrigin::Fetched ||
                                 thumbnail_origin_ == ThumbnailOrigin::PreSet;
     if (have_layers && have_thumbnail) {
@@ -1034,7 +1043,7 @@ void ActivePrintMediaManager::retrigger_thumbnail_load(const char* reason) {
 }
 
 void ActivePrintMediaManager::release_identity() {
-    printer_state_.clear_print_identity_override();
+    printer_state_.print_state().clear_print_identity_override();
     last_effective_filename_.clear();
     last_loaded_thumbnail_filename_.clear();
     cancel_thumbnail_retry();
@@ -1058,9 +1067,9 @@ void ActivePrintMediaManager::clear_print_info() {
         // Releases the PSRAM buffer once the UI widgets have dropped their
         // own references; this deferred body runs on the main thread, which
         // the thumbnail's destructor requires.
-        printer_state_.set_print_psram_thumbnail(nullptr);
+        printer_state_.print_state().set_print_psram_thumbnail(nullptr);
 #endif
-        printer_state_.set_print_display_filename("");
+        printer_state_.print_state().set_print_display_filename("");
         spdlog::debug("[ActivePrintMediaManager] Cleared print info subjects");
     });
 }

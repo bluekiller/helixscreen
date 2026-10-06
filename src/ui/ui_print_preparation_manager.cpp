@@ -112,7 +112,7 @@ PrintPreparationManager::~PrintPreparationManager() {
 const PrePrintOptionSet& PrintPreparationManager::get_cached_options() const {
     // Delegate to PrinterState which owns the cache
     if (printer_state_) {
-        return printer_state_->get_pre_print_option_set();
+        return printer_state_->profile_state().pre_print_option_set();
     }
 
     // Return empty set if PrinterState not set
@@ -171,11 +171,11 @@ void PrintPreparationManager::set_dependencies(IMoonrakerAPI* api, PrinterState*
 
     if (printer_state_) {
         connection_observer_ = helix::ui::observe<int>(
-            printer_state_->get_printer_connection_state_subject(), this,
+            printer_state_->network_state().get_printer_connection_state_subject(), this,
             [](PrintPreparationManager* self, int state) { self->on_connection_state(state); },
             printer_state_->get_subjects_lifetime());
         klippy_observer_ = helix::ui::observe<int>(
-            printer_state_->get_klippy_state_subject(), this,
+            printer_state_->network_state().get_klippy_state_subject(), this,
             [](PrintPreparationManager* self, int state) { self->on_klippy_state(state); },
             printer_state_->get_subjects_lifetime());
     }
@@ -256,13 +256,13 @@ void PrintPreparationManager::recalculate_estimate() {
 
     // Current temps (decidegrees -> degrees)
     float ext_temp = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_active_extruder_temp_subject()));
-    float ext_target = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_active_extruder_target_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_active_extruder_temp_subject()));
+    float ext_target = helix::ui::temperature::deci_to_degrees_f(lv_subject_get_int(
+        printer_state_->temperature_state().get_active_extruder_target_subject()));
     float bed_temp = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_bed_temp_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_bed_temp_subject()));
     float bed_target = helix::ui::temperature::deci_to_degrees_f(
-        lv_subject_get_int(printer_state_->get_bed_target_subject()));
+        lv_subject_get_int(printer_state_->temperature_state().get_bed_target_subject()));
 
     float total = 0.0f;
 
@@ -480,7 +480,7 @@ PrePrintOptionSet PrintPreparationManager::displayed_options() const {
     PrePrintOptionSet displayed = get_cached_options();
     const bool database_declares_options =
         printer_state_ &&
-        !PrinterDetector::get_pre_print_option_set(printer_state_->get_printer_type())
+        !PrinterDetector::get_pre_print_option_set(printer_state_->profile_state().printer_type())
              .options.empty();
     if (database_declares_options) {
         return displayed;
@@ -724,7 +724,8 @@ bool PrintPreparationManager::can_modify_gcode() const {
     // the original filename back in Moonraker's history afterwards. Without it
     // finished jobs are listed as ".helix_temp/modified_1766807545_name.gcode",
     // so we decline rather than clutter the history.
-    return printer_state_ != nullptr && printer_state_->service_has_helix_plugin();
+    return printer_state_ != nullptr &&
+           printer_state_->plugin_status_state().service_has_helix_plugin();
 }
 
 // ============================================================================
@@ -755,7 +756,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
     // Snapshot whether this start is under a preparing job. Only then does the
     // job disappearing later mean the user cancelled; a caller that never armed
     // one must still be able to start a print.
-    armed_at_start_ = printer_state_ && printer_state_->has_preparing_job();
+    armed_at_start_ = printer_state_ && printer_state_->print_state().has_preparing_job();
 
     if (!api_) {
         spdlog::error("[PrintPreparationManager] Cannot start print - not connected to printer");
@@ -885,7 +886,9 @@ void PrintPreparationManager::start_print(const std::string& filename,
         // ack can be judged on whether the job it belongs to still exists
         // rather than on how long it took to arrive.
         pre_start_epoch_ =
-            printer_state_ ? lv_subject_get_int(printer_state_->get_preparing_epoch_subject()) : 0;
+            printer_state_
+                ? lv_subject_get_int(printer_state_->print_state().get_preparing_epoch_subject())
+                : 0;
         // The busy gate must not queue this send fire-and-forget: its on_success
         // is the only trigger that launches the job, so a discretionary block
         // (a pre_start_gcode heater template) would never fire it and the print
@@ -963,7 +966,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
 }
 
 bool PrintPreparationManager::is_print_in_progress() const {
-    return printer_state_ && printer_state_->is_print_in_progress();
+    return printer_state_ && printer_state_->print_state().is_print_in_progress();
 }
 
 // ============================================================================
@@ -1344,10 +1347,12 @@ void PrintPreparationManager::continue_print_start(
     // blocking pre-start macro was running, or another print superseded ours.
     // A pre-start macro can run for ten minutes; starting the job after the user
     // has already cancelled it is the worst outcome available.
-    if (armed_at_start_ && printer_state_ && !printer_state_->has_preparing_job()) {
-        spdlog::info("[PrintPreparationManager] Start abandoned - '{}' is no longer being "
-                     "prepared ({})",
-                     filename, helix::preparing_exit_name(printer_state_->last_preparing_exit()));
+    if (armed_at_start_ && printer_state_ && !printer_state_->print_state().has_preparing_job()) {
+        spdlog::info(
+            "[PrintPreparationManager] Start abandoned - '{}' is no longer being "
+            "prepared ({})",
+            filename,
+            helix::preparing_exit_name(printer_state_->print_state().last_preparing_exit()));
         if (on_completion) {
             on_completion(false, "");
         }
@@ -1370,7 +1375,8 @@ void PrintPreparationManager::continue_print_start(
     // A late ack and a slow-but-wanted macro are the same code path with the
     // same signature; only the epoch tells them apart.
     if (pre_start_epoch_ != 0 && printer_state_) {
-        const int now_epoch = lv_subject_get_int(printer_state_->get_preparing_epoch_subject());
+        const int now_epoch =
+            lv_subject_get_int(printer_state_->print_state().get_preparing_epoch_subject());
         if (now_epoch != pre_start_epoch_) {
             spdlog::warn("[PrintPreparationManager] Dropping pre-start completion for a retired "
                          "job (epoch {} -> {}) - not starting '{}'",
@@ -1421,7 +1427,8 @@ void PrintPreparationManager::handle_pre_start_gcode_error(
     if ((error.type == MoonrakerErrorType::TIMEOUT ||
          error.type == MoonrakerErrorType::CONNECTION_LOST) &&
         printer_state_ &&
-        lv_subject_get_int(printer_state_->get_idle_timeout_printing_subject()) == 1) {
+        lv_subject_get_int(
+            printer_state_->calibration_state().get_idle_timeout_printing_subject()) == 1) {
         begin_pre_start_completion_wait(error, filename, ops_to_disable, on_navigate_to_status,
                                         on_completion);
         return;
@@ -1458,7 +1465,8 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
         [this, filename, ops_to_disable, on_navigate_to_status, on_completion, timeout_error]() {
             const bool still_busy =
                 printer_state_ &&
-                lv_subject_get_int(printer_state_->get_idle_timeout_printing_subject()) == 1;
+                lv_subject_get_int(
+                    printer_state_->calibration_state().get_idle_timeout_printing_subject()) == 1;
             finish_pre_start_wait();
             if (!still_busy) {
                 spdlog::info("[PrintPreparationManager] Pre-start macro finished "
@@ -1480,7 +1488,7 @@ void PrintPreparationManager::begin_pre_start_completion_wait(
     // defers the handler through UpdateQueue, so the observer can be torn down
     // from inside the handler without re-entrancy.
     pre_start_wait_observer_ = helix::ui::observe<int>(
-        printer_state_->get_idle_timeout_printing_subject(), this,
+        printer_state_->calibration_state().get_idle_timeout_printing_subject(), this,
         [this, filename, ops_to_disable, on_navigate_to_status,
          on_completion](PrintPreparationManager* self, int busy) {
             if (!self->pre_start_wait_active_ || busy == 1) {
@@ -1525,7 +1533,7 @@ void PrintPreparationManager::abandon_start(const char* where) {
     }
     spdlog::warn("[PrintPreparationManager] Start abandoned at {} - retiring the preparing job",
                  where);
-    printer_state_->retire_preparing(helix::PreparingExit::Failed);
+    printer_state_->print_state().retire_preparing(helix::PreparingExit::Failed);
 }
 
 void PrintPreparationManager::modify_and_print(
@@ -1573,7 +1581,8 @@ void PrintPreparationManager::modify_and_print(
     //
     // This prevents TTC errors on memory-constrained devices like AD5M (~108MB RAM)
     // by never loading the entire G-code file into memory.
-    bool has_plugin = printer_state_ && printer_state_->service_has_helix_plugin();
+    bool has_plugin =
+        printer_state_ && printer_state_->plugin_status_state().service_has_helix_plugin();
     spdlog::info("[PrintPreparationManager] Using unified streaming modification flow (plugin: {})",
                  has_plugin);
     modify_and_print_streaming(file_path, display_filename, ops_to_disable, macro_skip_params,
@@ -1745,8 +1754,9 @@ void PrintPreparationManager::modify_and_print_streaming(
                                             // call: PrinterState is the single authority, so
                                             // the panel and the media manager can no longer
                                             // disagree about which print this is.
-                                            get_printer_state().set_print_identity_override(
-                                                d->original_path);
+                                            get_printer_state()
+                                                .print_state()
+                                                .set_print_identity_override(d->original_path);
 
                                             if (d->navigate_cb) {
                                                 d->navigate_cb();
@@ -2016,8 +2026,9 @@ void PrintPreparationManager::modify_and_print_with_remap(
                                             display_filename, file_path, on_navigate_to_status}),
                                         [](PrintStartedData* d) {
                                             BusyOverlay::hide();
-                                            get_printer_state().set_print_identity_override(
-                                                d->original_path);
+                                            get_printer_state()
+                                                .print_state()
+                                                .set_print_identity_override(d->original_path);
                                             if (d->navigate_cb)
                                                 d->navigate_cb();
                                         });

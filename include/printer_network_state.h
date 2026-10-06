@@ -3,8 +3,14 @@
 
 #include "subject_managed_panel.h"
 
+#include <atomic>
+#include <cstdint>
 #include <lvgl.h>
+#include <mutex>
+#include <optional>
 #include <string>
+
+#include "hv/json.hpp"
 
 // Forward declare ConnectionState and KlippyState (defined in moonraker_client.h and
 // printer_state.h)
@@ -100,6 +106,39 @@ class PrinterNetworkState {
      * @param message The state_message string from Moonraker webhooks
      */
     void set_klippy_state_message(const std::string& message);
+
+    /**
+     * @brief Apply a webhooks status object unless it is older than the state held
+     *
+     * Two signals gate it: a replayed snapshot never overrides a state a live
+     * source set, and an eventtime below the watermark is an out-of-order frame.
+     * state_message is gated with the state. Main thread only.
+     *
+     * @param frame_epoch klippy_epoch() when the frame was received; a frame from
+     *        before the last reset_klippy_state_freshness() does not move the watermark
+     * @return true when the klippy state changed
+     */
+    bool apply_webhooks(const nlohmann::json& webhooks, double eventtime, bool from_cached_snapshot,
+                        std::optional<uint64_t> frame_epoch);
+
+    /// A live source set the state: replayed snapshots cannot override it from here on.
+    /// Any thread.
+    void mark_klippy_state_live() {
+        klippy_state_from_live_.store(true);
+    }
+
+    bool klippy_state_from_live() const {
+        return klippy_state_from_live_.load();
+    }
+
+    /// Start a new connection session: clears the watermark and the live latch and
+    /// advances klippy_epoch(). Synchronous, any thread.
+    void reset_klippy_state_freshness();
+
+    /// Which connection session a status frame belongs to.
+    uint64_t klippy_epoch() const {
+        return klippy_epoch_.load();
+    }
 
     /**
      * @brief Set remote-screen verdict (synchronous, must be on UI thread)
@@ -205,6 +244,29 @@ class PrinterNetworkState {
 
     // Track if we've ever successfully connected (for UI display)
     bool was_ever_connected_ = false;
+
+    /// Highest Klipper eventtime that has carried a webhooks klippy state. Klipper
+    /// derives it from the monotonic clock, so it survives a Klipper restart and
+    /// only rewinds on a host reboot. Written from the WebSocket thread (reset)
+    /// and the main thread (apply_webhooks); the mutex guards only the eventtime
+    /// and is never held across anything else, so an observer can call back in.
+    double klippy_state_eventtime_ = 0.0;
+    std::mutex klippy_freshness_mutex_;
+
+    /// Session counter behind klippy_epoch(). A frame stamped with an older
+    /// value was received before the last reset.
+    std::atomic<uint64_t> klippy_epoch_{0};
+
+    /// True once a live-sourced klippy state has been applied. Latches the state
+    /// against replayed snapshots (discovery re-dispatches its subscription
+    /// response at the end of discovery) while still allowing that same snapshot
+    /// to SEED the state when nothing live has arrived yet, which is the normal
+    /// cold-start ordering.
+    std::atomic<bool> klippy_state_from_live_{false};
+
+    /// Last unrecognised webhooks.state string, so the warning fires once per
+    /// distinct value rather than once per status frame. Main thread only.
+    std::string last_unknown_klippy_state_;
 };
 
 } // namespace helix

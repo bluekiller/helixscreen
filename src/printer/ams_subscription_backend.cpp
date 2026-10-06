@@ -518,7 +518,7 @@ AmsError AmsSubscriptionBackend::refuse_if_printing() const {
     if (!api_) {
         return AmsErrorHelper::success();
     }
-    const auto lifecycle = api_->printer_state().get_print_lifecycle();
+    const auto lifecycle = api_->printer_state().print_state().get_print_lifecycle();
     const bool is_paused = (lifecycle == PrintState::Paused);
     const bool self_homes = filament_ops_self_home();
     // print_blocks_filament_op() is the rule, shared with every surface that

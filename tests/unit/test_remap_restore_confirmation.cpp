@@ -586,7 +586,7 @@ TEST_CASE("remap restore: previous job's terminal state does not revert fresh re
     // preparing window has not opened, which is exactly what the controller
     // sees between apply_filament_remaps() and start_now.
     h.report("complete", "previous.gcode");
-    REQUIRE(lv_subject_get_int(h.ps.get_print_lifecycle_subject()) ==
+    REQUIRE(lv_subject_get_int(h.ps.print_state().get_print_lifecycle_subject()) ==
             static_cast<int>(PrintState::Complete));
 
     PrintStartControllerTestAccess::seed_saved_mapping(h.controller, {2, 1}, 0);
@@ -615,9 +615,9 @@ TEST_CASE("remap restore: latch arms when this job goes live, fires at its end",
     // start_now runs: the preparing window opens and the derived lifecycle
     // becomes Preparing, which must ARM the latch rather than fire on the
     // stale terminal wire state still sitting underneath it.
-    h.ps.begin_preparing(helix::PrintJobRef{"next.gcode", "", ""});
+    h.ps.print_state().begin_preparing(helix::PrintJobRef{"next.gcode", "", ""});
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE(lv_subject_get_int(h.ps.get_print_lifecycle_subject()) ==
+    REQUIRE(lv_subject_get_int(h.ps.print_state().get_print_lifecycle_subject()) ==
             static_cast<int>(PrintState::Preparing));
     CHECK(be.backend->calls.empty());
 

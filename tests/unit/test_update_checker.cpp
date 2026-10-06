@@ -920,9 +920,10 @@ TEST_CASE("UpdateChecker cancel_download sets cancelled flag", "[update_checker]
 // runs only from update_from_status() and set_print_start_state() — writing
 // print_state_enum directly leaves it stale.
 static void drive_lifecycle(PrinterState& ps, const char* wire_state, PrintStartPhase phase) {
-    ps.reset_print_start_state(); // force phase to IDLE so the next raise is a new print
+    ps.print_state()
+        .reset_print_start_state(); // force phase to IDLE so the next raise is a new print
     ps.update_from_status(json{{"print_stats", {{"state", wire_state}}}});
-    ps.set_print_start_state(phase, "", 0);
+    ps.print_state().set_print_start_state(phase, "", 0);
     for (int i = 0; i < 8; ++i) {
         helix::ui::UpdateQueue::instance().drain();
     }
@@ -938,7 +939,7 @@ namespace {
 struct GlobalPrintStateFixture : public HelixTestFixture {
     ~GlobalPrintStateFixture() override {
         auto& ps = get_printer_state();
-        ps.reset_print_start_state();
+        ps.print_state().reset_print_start_state();
         ps.update_from_status(nlohmann::json{{"print_stats", {{"state", "standby"}}}});
         for (int i = 0; i < 8; ++i) {
             helix::ui::UpdateQueue::instance().drain();
@@ -969,7 +970,7 @@ TEST_CASE_METHOD(GlobalPrintStateFixture,
     // Host-side pre-print block: print_stats still reads standby while the
     // lifecycle is already Preparing.
     drive_lifecycle(state, "standby", PrintStartPhase::BED_MESH);
-    REQUIRE(state.get_print_lifecycle() == PrintState::Preparing);
+    REQUIRE(state.print_state().get_print_lifecycle() == PrintState::Preparing);
 
     checker.start_download();
 
@@ -999,7 +1000,7 @@ TEST_CASE_METHOD(GlobalPrintStateFixture,
     checker.clear_cache();
 
     drive_lifecycle(state, "standby", PrintStartPhase::IDLE);
-    REQUIRE(state.get_print_lifecycle() == PrintState::Idle);
+    REQUIRE(state.print_state().get_print_lifecycle() == PrintState::Idle);
 
     checker.start_download();
 
@@ -2471,7 +2472,7 @@ void arm_stalled_download(UpdateChecker& checker, StalledHttpServer& server) {
     auto& state = get_printer_state();
     state.init_subjects(false);
     drive_lifecycle(state, "standby", PrintStartPhase::IDLE);
-    REQUIRE(state.get_print_lifecycle() == PrintState::Idle);
+    REQUIRE(state.print_state().get_print_lifecycle() == PrintState::Idle);
 
     checker.init();
     UpdateCheckerTestAccess::seed_available_update(checker, "9.9.9", server.url());

@@ -856,7 +856,9 @@ void DisplayManager::restore_display_on_shutdown() {
 #ifdef HELIX_ENABLE_SCREENSAVER
 helix::ui::SaverHost DisplayManager::screensaver_host(const DisplayBackend* backend) {
     helix::ui::SaverHost host;
-    host.is_printing = [] { return job_holds_machine(get_printer_state().get_print_lifecycle()); };
+    host.is_printing = [] {
+        return job_holds_machine(get_printer_state().print_state().get_print_lifecycle());
+    };
     host.display_backend =
         backend ? helix::ui::display_backend_key(backend->type(), backend->is_gpu_accelerated())
                 : "unknown";

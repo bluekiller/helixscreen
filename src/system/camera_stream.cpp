@@ -116,7 +116,7 @@ CameraStream::~CameraStream() {
 std::optional<WebcamInfo> CameraStream::resolve_from_printer(const std::string& source) {
     // Lazy includes — avoid header dependency on printer_state/moonraker in camera_stream.h
     auto& state = get_printer_state();
-    auto feed = webcam::select_webcam(state.get_webcams(), source);
+    auto feed = webcam::select_webcam(state.capabilities_state().get_webcams(), source);
     if (!feed) {
         return std::nullopt;
     }

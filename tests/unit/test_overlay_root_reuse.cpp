@@ -122,7 +122,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                  "a fan overlay tree deleted out from under the singleton is rebuilt on next open",
                  "[overlays][fan_control][overlay-root-reuse]") {
     FreshOverlays fresh;
-    state().init_fans({"fan", "fan_generic chamber"});
+    state().fan_state().init_fans({"fan", "fan_generic chamber"});
     seed_nav_panels(test_screen());
 
     auto& overlay = get_fan_control_overlay();
@@ -225,7 +225,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
                  "a printer switch frees the old fan overlay tree without touching the new one",
                  "[overlays][fan_control][switch][overlay-root-reuse]") {
     FreshOverlays fresh;
-    state().init_fans({"fan", "fan_generic chamber"});
+    state().fan_state().init_fans({"fan", "fan_generic chamber"});
     seed_nav_panels(test_screen());
 
     lv_obj_t* old_root = helix::open_fan_control_overlay(test_screen());

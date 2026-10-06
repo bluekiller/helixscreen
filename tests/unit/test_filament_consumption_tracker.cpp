@@ -114,13 +114,13 @@ TEST_CASE("tracker snapshots on transition to PRINTING with a valid PLA spool",
     tracker.start();
 
     // Prime: printer starts in STANDBY, filament_used at 0.
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::STANDBY));
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
     REQUIRE_FALSE(tracker.is_active());
 
     // Transition to PRINTING: tracker should snapshot and activate.
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
 
     // Flush deferred queue so the observer callback runs.
@@ -144,7 +144,7 @@ TEST_CASE("tracker stays inactive with no external spool", "[filament][tracker]"
     ams.clear_external_spool_info();
     tracker.start();
 
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -168,7 +168,7 @@ TEST_CASE("tracker stays inactive when material cannot be resolved", "[filament]
     ams.set_external_spool_info_in_memory(info);
 
     tracker.start();
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -193,14 +193,14 @@ TEST_CASE("tracker decrements remaining weight as filament_used grows", "[filame
     ams.set_external_spool_info_in_memory(info);
 
     tracker.start();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(tracker.is_active());
 
     // Consume 1000 mm of 1.75mm PLA at 1.24 g/cm^3 ≈ 2.982 g.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1000);
     helix::ui::UpdateQueue::instance().drain();
 
     auto after = ams.get_external_spool_info();
@@ -227,13 +227,13 @@ TEST_CASE("tracker clamps remaining weight at zero", "[filament][tracker]") {
     ams.set_external_spool_info_in_memory(info);
 
     tracker.start();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
 
     // Consume 10000mm = ~29.8g — would drive remaining negative without clamp.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 10000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 10000);
     helix::ui::UpdateQueue::instance().drain();
 
     auto after = ams.get_external_spool_info();
@@ -261,17 +261,17 @@ TEST_CASE("tracker persists final weight on print completion", "[filament][track
     ams.set_external_spool_info(info); // Start by persisting the initial value.
 
     tracker.start();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
 
     // Consume 1000 mm of 1.75mm PLA at 1.24 g/cm^3 ≈ 2.982 g.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1000);
     helix::ui::UpdateQueue::instance().drain();
 
     // Finish the print.
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::COMPLETE));
     helix::ui::UpdateQueue::instance().drain();
 
@@ -300,14 +300,14 @@ TEST_CASE("external weight edit during print triggers re-snapshot", "[filament][
     ams.set_external_spool_info_in_memory(info);
 
     tracker.start();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(tracker.is_active());
 
     // Consume ~3g.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1000);
     helix::ui::UpdateQueue::instance().drain();
     auto snap1 = ams.get_external_spool_info();
     REQUIRE(snap1->remaining_weight_g == Catch::Approx(997.018f).margin(0.05));
@@ -322,9 +322,9 @@ TEST_CASE("external weight edit during print triggers re-snapshot", "[filament][
     // The 1200mm tick then computes delta = (1200 - 1100) * ~0.00298 ≈ 0.298g.
     // Without re-snapshot we'd see 500 - full_1200mm_delta ≈ 496.4g (broken).
     // With re-snapshot we see 500 - 0.298 ≈ 499.7g.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1100);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1100);
     helix::ui::UpdateQueue::instance().drain();
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 1200);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 1200);
     helix::ui::UpdateQueue::instance().drain();
 
     auto snap2 = ams.get_external_spool_info();
@@ -357,8 +357,8 @@ TEST_CASE("tracker throttles disk persist during print", "[filament][tracker]") 
     tracker.start();
     REQUIRE(FilamentConsumptionTrackerTestAccess::set_persist_interval(tracker,
                                                                        1)); // every tick
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 0);
-    lv_subject_set_int(printer.get_print_state_enum_subject(),
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 0);
+    lv_subject_set_int(printer.print_state().get_print_state_enum_subject(),
                        static_cast<int>(PrintJobState::PRINTING));
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(tracker.is_active());
@@ -367,7 +367,7 @@ TEST_CASE("tracker throttles disk persist during print", "[filament][tracker]") 
     lv_tick_inc(2);
 
     // Consume ~29.8g. With interval=1ms and 2ms elapsed, this should flush to disk.
-    lv_subject_set_int(printer.get_print_filament_used_subject(), 10000);
+    lv_subject_set_int(printer.print_state().get_print_filament_used_subject(), 10000);
     helix::ui::UpdateQueue::instance().drain();
     auto persisted = settings.get_external_spool_info();
     REQUIRE(persisted.has_value());

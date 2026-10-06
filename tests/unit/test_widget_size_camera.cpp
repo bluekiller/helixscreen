@@ -170,11 +170,11 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // that file. Whether this test observes that pollution depends entirely
     // on Catch2's shard split — set_webcam_available() defers through
     // async_lifetime_, so it needs a drain to actually apply.
-    get_printer_state().set_webcam_available(false);
+    get_printer_state().capabilities_state().set_webcam_available(false);
     helix::ui::UpdateQueue::instance().drain();
 
-    REQUIRE(get_printer_state().get_webcam_stream_url().empty());
-    REQUIRE(get_printer_state().get_webcam_snapshot_url().empty());
+    REQUIRE(get_printer_state().capabilities_state().get_webcam_stream_url().empty());
+    REQUIRE(get_printer_state().capabilities_state().get_webcam_snapshot_url().empty());
 
     // Widget-owned subjects (camera_status_text) are registered lazily; the
     // harness alone does not trigger it, and panel_widget_camera.xml's

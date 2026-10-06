@@ -122,6 +122,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     AmsError do_unload_filament(int slot_index) override;
     AmsError do_select_slot(int slot_index) override;
     AmsError do_change_tool(int tool_number) override;
+    /// Load, unload and tool change: ensure_homed_then() with an error leg that
+    /// emits EVENT_ERROR, which ends an operation Happy Hare never reported.
+    AmsError dispatch_filament_op(std::string cmd);
 
   public:
     // Recovery
@@ -150,6 +153,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
         t.has_firmware_spool_persistence = true;
         // Happy Hare publishes gate spool_id in mmu status
         t.printer_reports_spool_ids = true;
+        // mmu.action stays Idle until MMU_LOAD/MMU_UNLOAD starts, and through
+        // the UI's own preheat before it.
+        t.holds_optimistic_action = true;
         return t;
     }();
     [[nodiscard]] BackendTraits traits() const override {

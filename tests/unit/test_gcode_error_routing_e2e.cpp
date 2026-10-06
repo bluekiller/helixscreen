@@ -104,7 +104,8 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     // performs before it reaches the PresentAs::MODAL arm.
     helix::ClassifyContext ctx;
     ctx.is_paused = get_printer_state().is_paused();
-    ctx.is_printing = get_printer_state().get_print_job_state() == helix::PrintJobState::PRINTING;
+    ctx.is_printing =
+        get_printer_state().print_state().get_print_job_state() == helix::PrintJobState::PRINTING;
 
     auto ev = helix::error_classify::classify(JAM_LINE, ctx);
     REQUIRE(ev.has_value());

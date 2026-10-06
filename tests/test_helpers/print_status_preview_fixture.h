@@ -210,7 +210,7 @@ class PrintStatusPreviewFixture : public LVGLTestFixture {
     }
 
     int pause_markers_version() {
-        return lv_subject_get_int(state_.get_pause_markers_version_subject());
+        return lv_subject_get_int(state_.print_state().get_pause_markers_version_subject());
     }
 
     const std::string& gcode_displayed_file() const {

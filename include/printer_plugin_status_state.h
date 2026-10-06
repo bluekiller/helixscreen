@@ -7,6 +7,8 @@
 
 namespace helix {
 
+enum class MacroInstallStatus;
+
 /**
  * @brief UI-facing status of the HelixScreen helper macro pack
  *
@@ -87,6 +89,12 @@ class PrinterPluginStatusState {
      * @param base Status derived via MacroManager::evaluate_status()
      */
     void set_helix_macros_base_status(HelixMacrosStatus base);
+
+    /// The base status for a MacroManager::evaluate_status() verdict. An
+    /// Installed verdict clears a restart-pending flag held for a staged
+    /// install or update; Outdated keeps it, since the staged pack is not
+    /// loaded until the restart.
+    void set_helix_macros_base_status(MacroInstallStatus install);
 
     /**
      * @brief Mark helper-macro files as staged and awaiting a Klipper restart
