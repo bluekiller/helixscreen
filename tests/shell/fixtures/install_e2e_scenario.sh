@@ -15,10 +15,11 @@
 #
 # <work> holds install.sh, the fake release archives, the stubs and the seed
 # files; it is reached through /mnt once /tmp is covered. Each <step> runs the
-# installer once and then copies the resulting tree to <work>/out/<n>-<step>/,
-# which is what the bats file asserts on; the seeded tree, before any step, is
-# copied to <work>/out/0-seed/. Steps share one root, so an update
-# step lands on the tree the previous install step left behind.
+# installer once and then copies the trees it may write (/etc /home /opt /root
+# /var) to <work>/out/<n>-<step>/, which is what the bats file asserts on; the
+# seeded tree, before any step, is copied to <work>/out/0-seed/. Steps share
+# one root, so an update step lands on the tree the previous install step left
+# behind.
 #
 # Steps:
 #   install        fresh install of release 1
@@ -98,9 +99,13 @@ run_installer_tty() { # answer args...
     script -qec "printf '%s\\n' '$answer' | HELIX_TTY_DEVICE=/dev/stdin $installer_shell /mnt/install.sh $*" /dev/null
 }
 
-snapshot() {
-    mkdir -p "$1"
-    cp -a /etc /opt /root /var "$1/" 2>/dev/null
+# Copy every tree the installer may write into <dir>. A copy that fails ends
+# the scenario: two snapshots missing the same files would compare equal.
+snapshot() { # dir
+    if ! { mkdir -p "$1" && cp -a /etc /home /opt /root /var "$1/"; }; then
+        echo "SNAPSHOT_FAIL $1"
+        exit 1
+    fi
 }
 
 # A Debian host running Klipper as root. E2E_HOST=printer_data (the default)
