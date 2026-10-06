@@ -694,12 +694,6 @@ main() {
         _refuse_if_firmware_managed
     fi
 
-    printf '\n'
-    printf '%b\n' "${BOLD}========================================${NC}"
-    printf '%b\n' "${BOLD}       HelixScreen Installer${NC}"
-    printf '%b\n' "${BOLD}========================================${NC}"
-    printf '\n'
-
     # Detect platform
     platform=$(detect_platform)
     # For platforms that share a binary with pi/pi32 (e.g. m1), the download

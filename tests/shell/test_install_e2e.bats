@@ -179,6 +179,9 @@ snap_resolve() {
     s=$(snap 1-install)
 
     contains "HelixScreen v1.0.0 is running" "$output"
+    lacks "=====" "$output"
+    [ "$(grep -c '^HelixScreen installer v1.0.0' <<< "$output")" -eq 1 ] \
+        || fail "the installer header is not printed exactly once"
     grep -q "STEP Started HelixScreen" "$s/root/printer_data/logs/helixscreen-install.log" \
         || fail "no install log in printer_data/logs"
     [ -x "$s$INST/bin/helix-screen" ] || fail "no payload binary at $INST"
