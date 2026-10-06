@@ -15,8 +15,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
-#include <fstream>
 #include <optional>
 #include <string_view>
 #include <sys/stat.h>
@@ -1594,12 +1592,8 @@ std::string get_cached_thumbnail(const std::string& gcode_path, const std::strin
         if (cache_stat.st_mtime >= gcode_stat.st_mtime) {
             // The consumer decodes the file as a PNG, so a fresh-looking entry that
             // is not one (e.g. raw JPEG bytes) is as useless as a missing entry.
-            static constexpr unsigned char kPngMagic[8] = {0x89, 'P',  'N',  'G',
-                                                           '\r', '\n', 0x1a, '\n'};
-            unsigned char head[8] = {};
-            std::ifstream in(cache_path, std::ios::binary);
-            in.read(reinterpret_cast<char*>(head), sizeof(head));
-            if (in.gcount() == 8 && std::memcmp(head, kPngMagic, 8) == 0) {
+            const auto head = helix::text_io::read_file(cache_path, 8);
+            if (head && head->size() == 8 && head->compare(0, 8, "\x89PNG\r\n\x1a\n", 8) == 0) {
                 spdlog::trace("[GCode Parser] Using cached thumbnail: {}", cache_path);
                 return cache_path;
             }
