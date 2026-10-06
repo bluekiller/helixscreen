@@ -116,13 +116,12 @@ One modal, reached from the badge menu's "Add printer" and from Settings > Conne
 - The name fills itself from Mainsail/Fluidd/hostname (`PrinterNameSync`); rename stays in the
   existing printer manager overlay. No setup wizard: the K-Touch takes fans and heaters from discovery.
 
-**mDNS on firmware: yes, by reusing the shared browser.** `src/network/mdns_discovery.cpp` (mjansson
-`mdns.h` over BSD sockets, `IMdnsDiscovery` interface) runs on lwIP sockets in principle. Blockers to
-clear: it spawns via `helix::make_thread` (sigaltstack, Linux-only) inside try/catch (firmware is
-`-fno-exceptions`), so it needs a thread seam (pthread with a PSRAM stack, since
-`SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y`) and `exception_policy.h`; one more socket of
-`LWIP_MAX_SOCKETS=10`; multicast join needs lwIP IGMP (default on, verify). Run it only while the
-Add modal is open. Rejected: the ESP-IDF `mdns` component, a second browser plus a resident task.
+**mDNS on firmware: blocked, decision open.** The shared browser (`src/network/mdns_discovery.cpp`
+over the vendored `lib/mdns/mdns.h`) does not compile for the ESP32: the header uses
+`sockaddr_in6`, `IPPROTO_IPV6` and `IPV6_JOIN_GROUP` throughout, AAAA parsing included, and the
+firmware's lwIP has no IPv6. Options: enable `CONFIG_LWIP_IPV6` (internal-RAM cost, unmeasured),
+guard IPv6 out of the vendored header (invasive), or the ESP-IDF `mdns` component (a second
+browser behind `IMdnsDiscovery`). Meanwhile `.local` names typed into the modal resolve.
 
 ## 7. Memory plan
 
@@ -166,5 +165,5 @@ Commits, in order (status as of this revision):
 4. Firmware: `set_printer_callbacks` with retarget hooks, heap check, restart fallback, timing
    logs, printing confirm. A restart-only wiring is on the branch now and gets replaced.
 5. ChangeHostModal add-printer mode + Add flow (landed).
-6. mDNS on firmware (thread seam + exception policy) and the found-printers list.
+6. mDNS on firmware: blocked on IPv6 in `mdns.h` (section 6); needs a decision.
 7. WS task PSRAM-stack patch, only if device testing shows the 8 KB block does not come back.
