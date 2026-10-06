@@ -40,7 +40,6 @@ class ProbeSensorManagerTestAccess {
     static void reset(ProbeSensorManager& obj) {
         std::lock_guard<std::recursive_mutex> lock(obj.mutex_);
         obj.sensors_.clear();
-        obj.states_.clear();
         obj.sync_mode_ = true;
         // Reset subject values but keep subjects initialized
         if (obj.subjects_initialized_) {
