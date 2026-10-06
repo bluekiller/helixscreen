@@ -57,7 +57,7 @@ HELIX_TEMP_TABLE = "helix_temp_files"
 DB_RECORD_MAX_AGE = 30 * 86400
 
 # Plugin version - used for API version detection by clients
-PLUGIN_VERSION = "1.0.1"
+PLUGIN_VERSION = "1.1.0"
 
 # Namespace for key-value storage fallback (Moonraker v0.8.x)
 HELIX_NAMESPACE = "helix_temp_files"
@@ -379,10 +379,11 @@ class HelixPrint:
         if copy_metadata:
             await self._copy_metadata(original_resolved, temp_resolved)
 
-        # The symlink mirrors the original's whole gcodes-relative path, so the
-        # filename Klipper reports names the original on its own, with no state
-        # held anywhere else.
-        symlink_filename = f"{self.symlink_dir}/{original_filename}"
+        # The symlink mirrors the original's whole gcodes-relative path under a
+        # `full/` segment, so the filename Klipper reports names the original on
+        # its own. The segment tells clients this shape from the bare-filename
+        # links earlier plugin versions made directly in the symlink directory.
+        symlink_filename = f"{self.symlink_dir}/full/{original_filename}"
         symlink_path = self.gc_path / symlink_filename
 
         # Validate symlink path: it must land inside the symlink directory.
@@ -403,8 +404,9 @@ class HelixPrint:
                 f"HelixPrint: Created symlink {symlink_filename} -> {temp_filename}"
             )
         except Exception as e:
-            # Clean up temp file on symlink failure
+            # Clean up temp file and any directories made for the link
             temp_path.unlink(missing_ok=True)
+            self._remove_symlink(symlink_path)
             raise self.server.error(f"Failed to create symlink: {e}", 500)
 
         # Track this print

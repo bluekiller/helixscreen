@@ -424,7 +424,7 @@ class TestStatusAPI:
         assert result["temp_dir"] == ".helix_temp"
         assert result["symlink_dir"] == ".helix_print"
         assert result["cleanup_delay"] == 3600
-        assert result["version"] == "1.0.1"
+        assert result["version"] == "1.1.0"
         assert result["active_prints"] == 0
 
 
@@ -551,7 +551,7 @@ class TestPrintModifiedAPI:
         klippy_apis = mock_server.components["klippy_apis"]
         assert klippy_apis.run_gcode.await_count == 1
         sent_command = klippy_apis.run_gcode.await_args.args[0]
-        assert ".helix_print/benchy.gcode" in sent_command
+        assert ".helix_print/full/benchy.gcode" in sent_command
 
     @pytest.mark.asyncio
     async def test_print_start_calls_klippy_apis_not_klippy_connection(
@@ -591,7 +591,7 @@ class TestPrintModifiedAPI:
         assert klippy_apis.run_gcode.await_count == 1
         sent_command = klippy_apis.run_gcode.await_args.args[0]
         assert "SDCARD_PRINT_FILE" in sent_command
-        assert 'FILENAME=".helix_print/benchy.gcode"' in sent_command
+        assert 'FILENAME=".helix_print/full/benchy.gcode"' in sent_command
 
         # klippy_connection must never be touched for this - it has no
         # run_gcode method on real Moonraker.
@@ -649,7 +649,8 @@ class TestSymlinkConflicts:
         # Create existing symlink
         symlink_dir = Path(temp_gcodes_dir) / ".helix_print"
         symlink_dir.mkdir(parents=True, exist_ok=True)
-        existing_symlink = symlink_dir / "benchy.gcode"
+        existing_symlink = symlink_dir / "full" / "benchy.gcode"
+        existing_symlink.parent.mkdir(parents=True, exist_ok=True)
         existing_symlink.symlink_to("/nonexistent")
 
         # Initialize component
@@ -768,7 +769,7 @@ class TestPathValidation:
 
         result = await mock_server.endpoints["/server/helix/print_modified"](request)
 
-        assert result["print_filename"] == ".helix_print/prints/2024/benchy.gcode"
+        assert result["print_filename"] == ".helix_print/full/prints/2024/benchy.gcode"
         assert (Path(temp_gcodes_dir) / result["print_filename"]).is_symlink()
 
     @pytest.mark.asyncio
@@ -781,7 +782,9 @@ class TestPathValidation:
         request = self._stage_nested(temp_gcodes_dir)
         await helix_print_component.component_init()
         user_dir = Path(temp_gcodes_dir) / "prints"
-        (Path(temp_gcodes_dir) / ".helix_print" / "prints").symlink_to(user_dir)
+        full_dir = Path(temp_gcodes_dir) / ".helix_print" / "full"
+        full_dir.mkdir(parents=True, exist_ok=True)
+        (full_dir / "prints").symlink_to(user_dir)
 
         with pytest.raises(Exception) as exc_info:
             await mock_server.endpoints["/server/helix/print_modified"](request)
@@ -799,20 +802,39 @@ class TestPathValidation:
         await helix_print_component.component_init()
         result = await mock_server.endpoints["/server/helix/print_modified"](request)
         symlink_root = Path(temp_gcodes_dir) / ".helix_print"
+        full_dir = symlink_root / "full"
         # A sibling keeps its directory; only what empties goes.
-        (symlink_root / "prints" / "keep.gcode").write_text("")
+        (full_dir / "prints" / "keep.gcode").write_text("")
 
         info = helix_print_component.active_prints[result["print_filename"]]
         await helix_print_component._schedule_cleanup(info)
 
-        assert not (symlink_root / "prints" / "2024").exists()
-        assert (symlink_root / "prints").is_dir()
+        assert not (full_dir / "prints" / "2024").exists()
+        assert (full_dir / "prints").is_dir()
         assert symlink_root.is_dir()
 
-        (symlink_root / "prints" / "keep.gcode").unlink()
-        helix_print_component._remove_symlink(symlink_root / "prints" / "gone.gcode")
-        assert not (symlink_root / "prints").exists()
+        (full_dir / "prints" / "keep.gcode").unlink()
+        helix_print_component._remove_symlink(full_dir / "prints" / "gone.gcode")
+        assert not (full_dir / "prints").exists()
         assert symlink_root.is_dir()
+
+    @pytest.mark.asyncio
+    async def test_failed_link_leaves_no_directories(
+        self, helix_print_component, mock_server, temp_gcodes_dir, monkeypatch
+    ):
+        request = self._stage_nested(temp_gcodes_dir)
+        await helix_print_component.component_init()
+
+        def refuse(symlink_path, target_path):
+            raise OSError("link refused")
+
+        monkeypatch.setattr(helix_print_component, "_create_symlink_atomic", refuse)
+        with pytest.raises(Exception):
+            await mock_server.endpoints["/server/helix/print_modified"](request)
+
+        symlink_root = Path(temp_gcodes_dir) / ".helix_print"
+        assert symlink_root.is_dir()
+        assert not (symlink_root / "full").exists()
 
 
 # ============================================================================
