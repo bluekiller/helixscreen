@@ -400,7 +400,10 @@ bool bed_mesh_renderer_render_to_buffer(bed_mesh_renderer_t* renderer,
 
     auto t_frame_start = std::chrono::high_resolution_clock::now();
 
-    if (bed_mesh_renderer_is_using_2d(renderer)) {
+    buffer.info.heatmap = bed_mesh_renderer_is_using_2d(renderer);
+    buffer.info.rows = renderer->rows;
+    buffer.info.cols = renderer->cols;
+    if (buffer.info.heatmap) {
         render_2d_heatmap_to_buffer(buffer, renderer);
         auto ms_total = std::chrono::duration<double, std::milli>(
                             std::chrono::high_resolution_clock::now() - t_frame_start)
@@ -1053,7 +1056,8 @@ static bool is_fps_below_threshold(const bed_mesh_renderer_t* renderer, float mi
  */
 static void render_2d_heatmap_to_buffer(helix::mesh::PixelBuffer& buf,
                                         const bed_mesh_renderer_t* renderer) {
-    const auto l = helix::mesh::compute_heatmap_layout(renderer, buf.width(), buf.height());
+    const auto l = helix::mesh::compute_heatmap_layout(renderer->rows, renderer->cols, buf.width(),
+                                                       buf.height());
     if (!l.valid) {
         spdlog::warn("[Bed Mesh] 2D heatmap requires at least 2x2 mesh (got {}x{})", renderer->cols,
                      renderer->rows);
@@ -1170,15 +1174,10 @@ void bed_mesh_renderer_evaluate_render_mode(bed_mesh_renderer_t* renderer) {
 // ============================================================================
 
 bool bed_mesh_renderer_handle_touch(bed_mesh_renderer_t* renderer, int touch_x, int touch_y,
-                                    int canvas_width, int canvas_height) {
+                                    const helix::mesh::HeatmapLayout& l) {
     if (!renderer || !renderer->has_mesh_data)
         return false;
 
-    // Only handle touch in 2D mode
-    if (!bed_mesh_renderer_is_using_2d(renderer))
-        return false;
-
-    const auto l = helix::mesh::compute_heatmap_layout(renderer, canvas_width, canvas_height);
     if (!l.valid) {
         renderer->touch_valid = false;
         return false;
@@ -1188,8 +1187,9 @@ bool bed_mesh_renderer_handle_touch(bed_mesh_renderer_t* renderer, int touch_x, 
     int col = (touch_x - l.grid_x) / l.cell_w;
     int row = (touch_y - l.grid_y) / l.cell_h;
 
-    // Check bounds (N-1 cells)
-    if (col < 0 || col >= l.cells_x || row < 0 || row >= l.cells_y) {
+    // Check bounds (N-1 cells); the shown frame may predate a smaller mesh
+    if (col < 0 || col >= l.cells_x || row < 0 || row >= l.cells_y || row >= renderer->rows ||
+        col >= renderer->cols) {
         renderer->touch_valid = false;
         return false;
     }

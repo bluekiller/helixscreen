@@ -50,8 +50,7 @@ struct HeatmapLayout {
     int cells_x, cells_y; ///< Cell count per axis
 };
 
-HeatmapLayout compute_heatmap_layout(const bed_mesh_renderer_t* renderer, int canvas_width,
-                                     int canvas_height);
+HeatmapLayout compute_heatmap_layout(int rows, int cols, int canvas_width, int canvas_height);
 
 /**
  * @brief Render axis labels (X, Y, Z indicators) on the main thread
@@ -86,10 +85,11 @@ void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_dsc, int
  *
  * Runs on the main thread over the blitted heatmap frame.
  *
+ * @param layout Layout of the frame being shown
  * @param offset_x, offset_y Widget's absolute screen position
  */
 void render_heatmap_overlay(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
-                            int canvas_width, int canvas_height, int offset_x, int offset_y);
+                            const HeatmapLayout& layout, int offset_x, int offset_y);
 
 /**
  * @brief Render grid lines on mesh surface into a pixel buffer

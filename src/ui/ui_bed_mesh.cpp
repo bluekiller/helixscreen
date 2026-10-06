@@ -64,6 +64,7 @@ typedef struct {
     lv_draw_buf_t blit_draw_buf{};
     int blit_width = 0;
     int blit_height = 0;
+    helix::mesh::FrameInfo shown_info; // What the blitted frame shows; valid while blit_width > 0
 } bed_mesh_widget_data_t;
 
 /**
@@ -76,6 +77,41 @@ template <typename F> static void with_renderer(bed_mesh_widget_data_t* data, F&
         fn();
     } else {
         fn();
+    }
+}
+
+/**
+ * Whether touches and overlays treat the canvas as the 2D heatmap. Follows the frame
+ * on screen, which lags a mode switch until the next render lands.
+ */
+static bool shows_heatmap(const bed_mesh_widget_data_t* data) {
+    if (data->blit_width > 0) {
+        return data->shown_info.heatmap;
+    }
+    return bed_mesh_renderer_is_using_2d(data->renderer);
+}
+
+/** Heatmap layout of the frame on screen; invalid when no frame is shown. */
+static helix::mesh::HeatmapLayout shown_heatmap_layout(const bed_mesh_widget_data_t* data) {
+    if (data->blit_width <= 0) {
+        return {};
+    }
+    return helix::mesh::compute_heatmap_layout(data->shown_info.rows, data->shown_info.cols,
+                                               data->blit_width, data->blit_height);
+}
+
+/** 2D touch: hit-test against the shown frame and redraw the tooltip if it hit. */
+static void heatmap_touch(lv_obj_t* obj, bed_mesh_widget_data_t* data, lv_indev_t* indev) {
+    lv_point_t point;
+    lv_indev_get_point(indev, &point);
+    lv_area_t obj_coords;
+    lv_obj_get_coords(obj, &obj_coords);
+    int local_x = point.x - obj_coords.x1;
+    int local_y = point.y - obj_coords.y1;
+    if (bed_mesh_renderer_handle_touch(data->renderer, local_x, local_y,
+                                       shown_heatmap_layout(data))) {
+        lv_obj_invalidate(obj);
+        spdlog::trace("[bed_mesh] 2D touch at ({}, {})", local_x, local_y);
     }
 }
 
@@ -175,6 +211,7 @@ static void bed_mesh_draw_cb(lv_event_t* e) {
                          (uint32_t)(buf->stride() * buf->height()));
         data->blit_width = buf->width();
         data->blit_height = buf->height();
+        data->shown_info = buf->info;
         spdlog::trace("[bed_mesh] Blit {}x{} ({:.1f}ms render)", buf->width(), buf->height(),
                       data->render_thread->last_render_time_ms());
     } else {
@@ -204,9 +241,12 @@ static void bed_mesh_draw_cb(lv_event_t* e) {
     // Text and the heatmap's touch overlay need the LVGL font engine, so they are
     // drawn here on the main thread over the blitted frame.
     std::lock_guard<std::mutex> lock(data->render_thread->render_mutex());
-    if (bed_mesh_renderer_is_using_2d(data->renderer)) {
-        helix::mesh::render_heatmap_overlay(layer, data->renderer, width, height, widget_coords.x1,
-                                            widget_coords.y1);
+    if (data->blit_width <= 0) {
+        return; // Labels only make sense over a frame
+    }
+    if (data->shown_info.heatmap) {
+        helix::mesh::render_heatmap_overlay(layer, data->renderer, shown_heatmap_layout(data),
+                                            widget_coords.x1, widget_coords.y1);
         return;
     }
 
@@ -236,26 +276,14 @@ static void bed_mesh_press_cb(lv_event_t* e) {
     if (!indev)
         return;
 
+    // In 2D mode: show cell tooltip on touch; no dragging
+    if (shows_heatmap(data)) {
+        heatmap_touch(obj, data, indev);
+        return;
+    }
+
     lv_point_t point;
     lv_indev_get_point(indev, &point);
-
-    // Get widget's absolute screen coordinates (not relative to parent)
-    // lv_indev_get_point returns screen coordinates, so we need absolute position
-    lv_area_t obj_coords;
-    lv_obj_get_coords(obj, &obj_coords);
-    int local_x = point.x - obj_coords.x1;
-    int local_y = point.y - obj_coords.y1;
-    int width = lv_area_get_width(&obj_coords);
-    int height = lv_area_get_height(&obj_coords);
-
-    // In 2D mode: show cell tooltip on touch
-    if (bed_mesh_renderer_is_using_2d(data->renderer)) {
-        if (bed_mesh_renderer_handle_touch(data->renderer, local_x, local_y, width, height)) {
-            lv_obj_invalidate(obj); // Redraw to show tooltip
-            spdlog::trace("[bed_mesh] 2D touch at ({}, {}) - showing tooltip", local_x, local_y);
-        }
-        return; // Don't start dragging in 2D mode
-    }
 
     // 3D mode: start drag gesture
     data->is_dragging = true;
@@ -284,22 +312,8 @@ static void bed_mesh_pressing_cb(lv_event_t* e) {
         return;
 
     // In 2D mode: update tooltip as finger drags across cells
-    if (bed_mesh_renderer_is_using_2d(data->renderer)) {
-        lv_point_t point;
-        lv_indev_get_point(indev, &point);
-
-        // Get widget's absolute screen coordinates
-        lv_area_t obj_coords;
-        lv_obj_get_coords(obj, &obj_coords);
-        int local_x = point.x - obj_coords.x1;
-        int local_y = point.y - obj_coords.y1;
-        int width = lv_area_get_width(&obj_coords);
-        int height = lv_area_get_height(&obj_coords);
-
-        // Update touch position - if cell changed, redraw
-        if (bed_mesh_renderer_handle_touch(data->renderer, local_x, local_y, width, height)) {
-            lv_obj_invalidate(obj);
-        }
+    if (shows_heatmap(data)) {
+        heatmap_touch(obj, data, indev);
         return;
     }
 
@@ -383,7 +397,7 @@ static void bed_mesh_release_cb(lv_event_t* e) {
         return;
 
     // In 2D mode: clear tooltip on release
-    if (bed_mesh_renderer_is_using_2d(data->renderer)) {
+    if (shows_heatmap(data)) {
         bed_mesh_renderer_clear_touch(data->renderer);
         lv_obj_invalidate(obj); // Redraw to hide tooltip
         spdlog::trace("[bed_mesh] 2D touch released - hiding tooltip");
@@ -415,7 +429,7 @@ static void bed_mesh_gesture_cb(lv_event_t* e) {
     lv_obj_t* obj = lv_event_get_target_obj(e);
     bed_mesh_widget_data_t* data = (bed_mesh_widget_data_t*)lv_obj_get_user_data(obj);
 
-    if (!data || !data->renderer || bed_mesh_renderer_is_using_2d(data->renderer))
+    if (!data || !data->renderer || shows_heatmap(data))
         return;
 
     const auto sample = helix::ui::read_two_finger_sample(e);
@@ -483,6 +497,8 @@ static void bed_mesh_size_changed_cb(lv_event_t* e) {
     // Restart the render thread at the new dimensions
     if (data && data->render_thread && width > 0 && height > 0) {
         data->render_thread->stop();
+        data->blit_draw_buf = {};
+        data->blit_width = data->blit_height = 0;
         data->render_thread->set_colors(fetch_theme_colors());
         data->render_thread->start(width, height);
         data->render_thread->request_render();
@@ -747,7 +763,7 @@ void ui_bed_mesh_evaluate_render_mode(lv_obj_t* widget) {
         return;
     }
 
-    bed_mesh_renderer_evaluate_render_mode(data->renderer);
+    with_renderer(data, [&]() { bed_mesh_renderer_evaluate_render_mode(data->renderer); });
 }
 
 /**

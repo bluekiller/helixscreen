@@ -288,8 +288,7 @@ void bed_mesh_renderer_set_dragging(bed_mesh_renderer_t* renderer, bool is_dragg
  * Buffer rendering projects the mesh at (0,0).  Overlay
  * elements drawn on the LVGL layer (axis labels, tick marks) need the
  * widget's actual screen position.  Call this before rendering overlays
- * in async mode so projected 3D→2D coordinates land at the correct
- * screen location.
+ * so projected 3D→2D coordinates land at the correct screen location.
  *
  * @param renderer Renderer instance
  * @param offset_x Widget's absolute screen X position
@@ -350,22 +349,6 @@ bool bed_mesh_renderer_is_using_2d(bed_mesh_renderer_t* renderer);
 void bed_mesh_renderer_evaluate_render_mode(bed_mesh_renderer_t* renderer);
 
 /**
- * @brief Handle touch event in 2D mode
- *
- * When in 2D heatmap mode, converts touch coordinates to mesh cell and
- * stores the cell info for tooltip display. Call this on touch/press events.
- *
- * @param renderer Renderer instance
- * @param touch_x Touch X coordinate (screen space, relative to canvas)
- * @param touch_y Touch Y coordinate (screen space, relative to canvas)
- * @param canvas_width Current canvas width
- * @param canvas_height Current canvas height
- * @return true if touch hit a valid cell, false otherwise
- */
-bool bed_mesh_renderer_handle_touch(bed_mesh_renderer_t* renderer, int touch_x, int touch_y,
-                                    int canvas_width, int canvas_height);
-
-/**
  * @brief Clear touched cell state
  *
  * Call this on touch release to clear the tooltip.
@@ -404,7 +387,19 @@ void bed_mesh_renderer_set_z_display_offset(bed_mesh_renderer_t* renderer, doubl
 // C++ only: buffer-based rendering for background thread
 namespace helix::mesh {
 class PixelBuffer;
-}
+struct HeatmapLayout;
+} // namespace helix::mesh
+
+/**
+ * @brief Hit-test a touch against the 2D heatmap shown on screen
+ *
+ * Converts canvas-local touch coordinates to a mesh cell of `layout` (the layout
+ * of the frame being shown) and stores the cell for the tooltip.
+ *
+ * @return true if touch hit a valid cell, false otherwise
+ */
+bool bed_mesh_renderer_handle_touch(bed_mesh_renderer_t* renderer, int touch_x, int touch_y,
+                                    const helix::mesh::HeatmapLayout& layout);
 
 /**
  * @brief Colors needed for off-screen buffer rendering

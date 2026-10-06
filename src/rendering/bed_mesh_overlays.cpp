@@ -158,12 +158,11 @@ BedExtent compute_bed_extent(const bed_mesh_renderer_t* renderer) {
     return ext;
 }
 
-HeatmapLayout compute_heatmap_layout(const bed_mesh_renderer_t* renderer, int canvas_width,
-                                     int canvas_height) {
+HeatmapLayout compute_heatmap_layout(int rows, int cols, int canvas_width, int canvas_height) {
     constexpr int PADDING = 8;
     HeatmapLayout l{};
-    l.cells_x = renderer->cols - 1;
-    l.cells_y = renderer->rows - 1;
+    l.cells_x = cols - 1;
+    l.cells_y = rows - 1;
     if (l.cells_x <= 0 || l.cells_y <= 0) {
         return l;
     }
@@ -178,12 +177,8 @@ HeatmapLayout compute_heatmap_layout(const bed_mesh_renderer_t* renderer, int ca
 }
 
 void render_heatmap_overlay(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
-                            int canvas_width, int canvas_height, int offset_x, int offset_y) {
-    if (!renderer || !renderer->has_mesh_data) {
-        return;
-    }
-    const HeatmapLayout l = compute_heatmap_layout(renderer, canvas_width, canvas_height);
-    if (!l.valid) {
+                            const HeatmapLayout& l, int offset_x, int offset_y) {
+    if (!renderer || !l.valid) {
         return;
     }
     const int grid_x = offset_x + l.grid_x;

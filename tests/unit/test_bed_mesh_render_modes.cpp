@@ -58,7 +58,8 @@ TEST_CASE("2D heatmap renders every cell into the buffer", "[bed_mesh]") {
     bed_mesh_renderer_set_render_mode(m.r, BedMeshRenderMode::Force2D);
     PixelBuffer buf = render(m.r);
 
-    const auto l = helix::mesh::compute_heatmap_layout(m.r, W, H);
+    REQUIRE(buf.info.heatmap);
+    const auto l = helix::mesh::compute_heatmap_layout(buf.info.rows, buf.info.cols, W, H);
     REQUIRE(l.valid);
     REQUIRE(l.cells_x == 2);
     REQUIRE(l.cells_y == 2);
@@ -92,28 +93,50 @@ TEST_CASE("3D and 2D modes produce different frames", "[bed_mesh]") {
 
 TEST_CASE("2D touch hits the cell the heatmap drew there", "[bed_mesh]") {
     Renderer m;
-    bed_mesh_renderer_set_render_mode(m.r, BedMeshRenderMode::Force2D);
-    const auto l = helix::mesh::compute_heatmap_layout(m.r, W, H);
+    const auto l = helix::mesh::compute_heatmap_layout(3, 3, W, H);
 
-    REQUIRE(bed_mesh_renderer_handle_touch(m.r, l.grid_x + l.cell_w + 1, l.grid_y + 1, W, H));
+    REQUIRE(bed_mesh_renderer_handle_touch(m.r, l.grid_x + l.cell_w + 1, l.grid_y + 1, l));
     REQUIRE(m.r->touched_row == 0);
     REQUIRE(m.r->touched_col == 1);
     REQUIRE(m.r->touched_z == Approx(0.1f));
 
-    REQUIRE_FALSE(bed_mesh_renderer_handle_touch(m.r, W - 1, H - 1, W, H));
+    REQUIRE_FALSE(bed_mesh_renderer_handle_touch(m.r, W - 1, H - 1, l));
     REQUIRE_FALSE(m.r->touch_valid);
+}
 
+TEST_CASE("A frame keeps the mode and mesh it was rendered from", "[bed_mesh]") {
+    Renderer m;
+    bed_mesh_renderer_set_render_mode(m.r, BedMeshRenderMode::Force2D);
+    PixelBuffer shown = render(m.r);
+
+    // Mode switches to 3D, but no new frame has landed: the frame on screen is still
+    // the heatmap, so its overlay and touch layout must come from it, not the mode.
     bed_mesh_renderer_set_render_mode(m.r, BedMeshRenderMode::Force3D);
-    REQUIRE_FALSE(bed_mesh_renderer_handle_touch(m.r, l.grid_x + 1, l.grid_y + 1, W, H));
+    REQUIRE(shown.info.heatmap);
+    REQUIRE(shown.info.rows == 3);
+    REQUIRE(shown.info.cols == 3);
+    const auto l = helix::mesh::compute_heatmap_layout(shown.info.rows, shown.info.cols,
+                                                       shown.width(), shown.height());
+    REQUIRE(bed_mesh_renderer_handle_touch(m.r, l.grid_x + 1, l.grid_y + l.cell_h + 1, l));
+    REQUIRE(m.r->touched_row == 1);
+
+    PixelBuffer next = render(m.r);
+    REQUIRE_FALSE(next.info.heatmap);
+}
+
+TEST_CASE("Touch on a stale larger heatmap never indexes past a smaller mesh", "[bed_mesh]") {
+    Renderer m;
+    const auto stale = helix::mesh::compute_heatmap_layout(5, 5, W, H);
+    // Cell (3,3) exists in the 5x5 frame on screen but not in the 3x3 mesh now loaded
+    REQUIRE_FALSE(bed_mesh_renderer_handle_touch(m.r, stale.grid_x + 3 * stale.cell_w + 1,
+                                                 stale.grid_y + 3 * stale.cell_h + 1, stale));
+    REQUIRE_FALSE(m.r->touch_valid);
 }
 
 TEST_CASE("Heatmap layout needs at least a 2x2 mesh", "[bed_mesh]") {
-    bed_mesh_renderer_t* r = bed_mesh_renderer_create();
-    float row[3] = {0.0f, 0.1f, 0.2f};
-    const float* p[1] = {row};
-    bed_mesh_renderer_set_mesh_data(r, p, 1, 3);
-    REQUIRE_FALSE(helix::mesh::compute_heatmap_layout(r, W, H).valid);
-    bed_mesh_renderer_destroy(r);
+    REQUIRE_FALSE(helix::mesh::compute_heatmap_layout(1, 3, W, H).valid);
+    REQUIRE_FALSE(helix::mesh::compute_heatmap_layout(3, 1, W, H).valid);
+    REQUIRE(helix::mesh::compute_heatmap_layout(2, 2, W, H).valid);
 }
 
 TEST_CASE("Bed extent follows the bed bounds once set, the mesh grid before", "[bed_mesh]") {
