@@ -498,6 +498,10 @@ struct DryingRailFixture : public RailFixture {
                 static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "navigation_bar", nullptr));
             nav.wire_events(navbar_);
             helix::ui::UpdateQueue::instance().drain();
+            // The rebuild replaced the rail the base fixture looked up.
+            slot_ = lv_obj_find_by_name(navbar_, "nav_estop_slot");
+            estop_ = nav.rail_estop();
+            REQUIRE(estop_ != nullptr);
         }
         saved_drying_ = lv_subject_get_int(drying_state_);
         drying_slot_ = lv_obj_find_by_name(navbar_, "nav_drying_slot");
