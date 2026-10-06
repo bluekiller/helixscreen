@@ -83,3 +83,27 @@ TEST_CASE_METHOD(
     lv_draw_buf_destroy(masked);
     lv_draw_buf_destroy(opaque);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "gradient canvas: the XML widget's buffer is native and alpha-free",
+                 "[gradient_canvas]") {
+    // The detail view's backdrop size on an 800x480 panel. Every pixel is
+    // opaque, so a native buffer costs half an ARGB8888 one on a 16-bit display.
+    ui_gradient_canvas_register();
+    lv_obj_t* img =
+        static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_gradient_canvas", nullptr));
+    REQUIRE(img != nullptr);
+    lv_obj_set_size(img, 512, 406);
+    lv_obj_update_layout(img);
+
+    const auto* buf = static_cast<const lv_draw_buf_t*>(lv_image_get_src(img));
+    REQUIRE(buf != nullptr);
+    CHECK(buf->header.w == 512);
+    CHECK(buf->header.h == 406);
+    CHECK(buf->header.cf == LV_COLOR_FORMAT_NATIVE);
+    CHECK(buf->data_size == lv_draw_buf_width_to_stride(512, LV_COLOR_FORMAT_NATIVE) * 406u);
+
+    // Dark theme: bright top-right, dark bottom-left.
+    const lv_color32_t tr = pixel(buf, 511, 0), bl = pixel(buf, 0, 405);
+    CHECK(tr.green > bl.green + 40);
+}

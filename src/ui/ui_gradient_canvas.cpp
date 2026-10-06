@@ -103,7 +103,7 @@ static inline int16_t bayer_threshold(int32_t x, int32_t y) {
 }
 
 /**
- * @brief Render diagonal gradient into an ARGB8888 draw buffer
+ * @brief Render diagonal gradient into an opaque ARGB8888, XRGB8888 or RGB565 draw buffer
  *
  * Renders bright at top-right, dark at bottom-left.
  * Uses ordered dithering for smooth appearance on 16-bit displays.
@@ -119,6 +119,7 @@ static void render_gradient_to_buf(lv_draw_buf_t* buf, uint8_t start_r, uint8_t 
     uint32_t stride = buf->header.stride;
     int32_t w = buf->header.w;
     int32_t h = buf->header.h;
+    const bool rgb565 = buf->header.cf == LV_COLOR_FORMAT_RGB565;
 
     // For diagonal gradient (top-right to bottom-left), max distance is (w-1)+(h-1)
     float max_dist = static_cast<float>((w - 1) + (h - 1));
@@ -148,6 +149,11 @@ static void render_gradient_to_buf(lv_draw_buf_t* buf, uint8_t start_r, uint8_t 
                 b = std::clamp<int16_t>(b + threshold, 0, 255);
             }
 
+            if (rgb565) {
+                reinterpret_cast<uint16_t*>(row)[x] = lv_color_to_u16(lv_color_make(
+                    static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b)));
+                continue;
+            }
             row[x].red = static_cast<uint8_t>(r);
             row[x].green = static_cast<uint8_t>(g);
             row[x].blue = static_cast<uint8_t>(b);
@@ -203,7 +209,7 @@ static void gradient_resize_to_widget(lv_obj_t* obj) {
     // lv_image_set_src below; a blend of it may be in flight.
     helix::safe_draw_buf_destroy(data->draw_buf, "grad_cv");
 
-    data->draw_buf = lv_draw_buf_create(buf_w, buf_h, LV_COLOR_FORMAT_ARGB8888, 0);
+    data->draw_buf = lv_draw_buf_create(buf_w, buf_h, LV_COLOR_FORMAT_NATIVE, 0);
     if (!data->draw_buf) {
         spdlog::error("[GradientCanvas] Failed to resize buffer to {}x{}", buf_w, buf_h);
         return;
@@ -267,7 +273,9 @@ static void* ui_gradient_canvas_xml_create(lv_xml_parser_state_t* state, const c
     // Create initial small buffer — gradient_resize_to_widget() will
     // recreate at actual dimensions once layout resolves
     int32_t init_size = gradient_buffer_size();
-    data_ptr->draw_buf = lv_draw_buf_create(init_size, init_size, LV_COLOR_FORMAT_ARGB8888, 0);
+    // Every pixel is opaque, so the native format: half the bytes of ARGB8888 on a
+    // 16-bit display, which a full-panel backdrop on the ESP32 cannot spare.
+    data_ptr->draw_buf = lv_draw_buf_create(init_size, init_size, LV_COLOR_FORMAT_NATIVE, 0);
 
     if (!data_ptr->draw_buf) {
         LOG_ERROR_INTERNAL("[GradientCanvas] Failed to create draw buffer");
