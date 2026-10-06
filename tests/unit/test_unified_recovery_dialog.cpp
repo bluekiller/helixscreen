@@ -532,8 +532,34 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - DISCONNECTED hides restar
     // modal_button_row's leading divider with it, so no orphaned rule is left behind.
     REQUIRE(lv_obj_has_flag(restart_row, LV_OBJ_FLAG_HIDDEN));
 
-    // Dismiss always visible
+    // The close X is always visible, and with the restart row hidden it is the
+    // only way out, so it must actually close the dialog.
     REQUIRE_FALSE(lv_obj_has_flag(dismiss_btn, LV_OBJ_FLAG_HIDDEN));
+    lv_obj_send_event(dismiss_btn, LV_EVENT_CLICKED, nullptr);
+    process_lvgl(50);
+    CHECK(lv_obj_find_by_name(lv_screen_active(), "klipper_recovery_card") == nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - close X sits in the header row",
+                 "[recovery][buttons]") {
+    auto& estop = EmergencyStopOverlay::instance();
+
+    estop.show_recovery_for(RecoveryReason::SHUTDOWN);
+    process_lvgl(50);
+
+    lv_obj_t* dialog = lv_obj_find_by_name(lv_screen_active(), "klipper_recovery_card");
+    REQUIRE(dialog != nullptr);
+    lv_obj_t* title = lv_obj_find_by_name(dialog, "recovery_title");
+    lv_obj_t* dismiss_btn = lv_obj_find_by_name(dialog, "recovery_dismiss_btn");
+    REQUIRE(title != nullptr);
+    REQUIRE(dismiss_btn != nullptr);
+
+    CHECK(lv_obj_get_parent(dismiss_btn) == lv_obj_get_parent(title));
+    // The restart row is the card's last child: nothing sits below it.
+    lv_obj_t* restart_row = lv_obj_find_by_name(dialog, "recovery_restart_actions");
+    REQUIRE(restart_row != nullptr);
+    CHECK(lv_obj_get_index(restart_row) ==
+          static_cast<int32_t>(lv_obj_get_child_count(dialog)) - 1);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "Recovery dialog - SHUTDOWN then DISCONNECTED updates buttons",

@@ -92,11 +92,11 @@ class PrinterTemperatureState {
     /**
      * @brief Initialize extruder tracking from discovered heater objects
      *
-     * Filters the heater list for extruder* names, creates ExtruderInfo entries
-     * with heap-allocated subjects, and bumps the version subject to trigger
-     * UI rebuilds.
-     *
-     * Safe to call multiple times (cleans up previous entries first).
+     * Filters the heater list for extruder* names and reconciles against the
+     * current set: an extruder still present keeps its subjects and lifetimes,
+     * a removed one has its lifetimes flipped and subjects freed, a new one
+     * gets fresh heap-allocated subjects. Display names are recomputed, and the
+     * version subject bumps only when the set changed.
      *
      * @param heaters List of Moonraker heater object names
      */

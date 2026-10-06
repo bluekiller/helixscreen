@@ -534,36 +534,27 @@
     <px name="dialog_content_pinned_max_xlarge" value="330"/>
     <px name="dialog_content_pinned_max_xxlarge" value="414"/>
 
-    <!-- dialog_content_tall_chrome_max: for modals whose card carries a SECOND
-          button row (with its divider) below the scroll area, on top of the
-          standard header + divider + one button row. dialog_content_max budgets
-          the standard chrome only, so such a modal overruns the 85% card cap and
-          its last button falls off the bottom — the shape klipper_recovery_dialog
-          first papered over by raising its card to 90%, which unsized the shared
-          ladder arithmetic (#1277). Porting that hack away is what this ladder
-          is for; do NOT raise a card above 85% to fit extra chrome.
-          Values are MEASURED, not derived — the recovery dialog was rendered at
-          each breakpoint with its scroll area pegged at the cap, and chrome was
-          read two independent ways (unclamped card minus scroll area; clamped
-          card plus button-row overhang minus scroll area), agreeing exactly:
-            micro   480x272   chrome  97  cap 231
-            tiny    480x320   chrome 118  cap 272
-            small   640x400   chrome 156  cap 340
-            medium  800x480   chrome 171  cap 408
-            large  1024x600   chrome 220  cap 510
-            xlarge 1200x900   chrome 255  cap 765
-            xxlarge 1280x1024 chrome 317  cap 870
-          so the cap is (85% cap - chrome) with ~8px spare, like pinned_max.
-          A modal with extra chrome taller than one button row (action_prompt's
-          diagram + wrapping rows + footer) is beyond any single ladder — size
-          it on device and mark it MODAL_CHROME_OK for the chrome-budget gate. -->
-    <px name="dialog_content_tall_chrome_max_micro" value="126"/>
-    <px name="dialog_content_tall_chrome_max_tiny" value="146"/>
-    <px name="dialog_content_tall_chrome_max_small" value="176"/>
-    <px name="dialog_content_tall_chrome_max_medium" value="229"/>
-    <px name="dialog_content_tall_chrome_max_large" value="282"/>
-    <px name="dialog_content_tall_chrome_max_xlarge" value="502"/>
-    <px name="dialog_content_tall_chrome_max_xxlarge" value="545"/>
+    <!-- dialog_content_recovery_max: klipper_recovery_dialog's message cap
+          (header with icon, title, error code and close X; divider; scroll area;
+          one button row). dialog_content_max leaves less room for chrome than
+          this card needs at six of seven breakpoints, so its restart row would
+          fall off the clamped card. Values are MEASURED: the card rendered with
+          its scroll area pinned at 10px gives chrome = card - scroll, and the
+          cap is (85% cap - chrome) with 8px spare:
+            micro   480x272   chrome  70  cap 231
+            tiny    480x320   chrome  85  cap 272
+            small   640x400   chrome 114  cap 340
+            medium  800x480   chrome 124  cap 408
+            large  1024x600   chrome 150  cap 510
+            xlarge 1200x900   chrome 174  cap 765
+            xxlarge 1280x1024 chrome 220  cap 870 -->
+    <px name="dialog_content_recovery_max_micro" value="153"/>
+    <px name="dialog_content_recovery_max_tiny" value="179"/>
+    <px name="dialog_content_recovery_max_small" value="218"/>
+    <px name="dialog_content_recovery_max_medium" value="276"/>
+    <px name="dialog_content_recovery_max_large" value="352"/>
+    <px name="dialog_content_recovery_max_xlarge" value="583"/>
+    <px name="dialog_content_recovery_max_xxlarge" value="642"/>
 
     <px name="dialog_content_max_micro" value="140"/>
     <px name="dialog_content_max_tiny" value="200"/>

@@ -356,3 +356,70 @@ TEST_CASE("PrinterTemperatureState: a toolchange resyncs active power",
 
     state.deinit_subjects();
 }
+
+// Discovery re-runs on every klippy ready. A tool that is still there keeps its
+// subjects, so whatever is bound to them keeps receiving readings.
+TEST_CASE("PrinterTemperatureState: rediscovery keeps the subjects of unchanged extruders",
+          "[core][temperature][rediscovery]") {
+    lv_init_safe();
+    PrinterTemperatureState state;
+    state.init_subjects(false);
+    state.init_extruders({"extruder"});
+
+    SubjectLifetime lt;
+    lv_subject_t* temp = state.get_extruder_temp_subject("extruder", lt);
+    REQUIRE(temp != nullptr);
+    int last = -1;
+    lv_observer_t* obs = lv_subject_add_observer(
+        temp,
+        [](lv_observer_t* o, lv_subject_t* s) {
+            *static_cast<int*>(lv_observer_get_user_data(o)) = lv_subject_get_int(s);
+        },
+        &last);
+    const int version = lv_subject_get_int(state.get_extruder_version_subject());
+
+    state.init_extruders({"extruder"});
+
+    REQUIRE(*lt);
+    state.update_from_status({{"extruder", {{"temperature", 100.0}}}});
+    CHECK(last == 1000);
+    SubjectLifetime again;
+    CHECK(state.get_extruder_temp_subject("extruder", again) == temp);
+    CHECK(lv_subject_get_int(state.get_extruder_version_subject()) == version);
+
+    lv_observer_remove(obs);
+    state.deinit_subjects();
+}
+
+TEST_CASE("PrinterTemperatureState: rediscovery frees removed and adds new extruders",
+          "[core][temperature][rediscovery]") {
+    lv_init_safe();
+    PrinterTemperatureState state;
+    state.init_subjects(false);
+    state.init_extruders({"extruder", "extruder1"});
+
+    SubjectLifetime kept, removed;
+    lv_subject_t* kept_subj = state.get_extruder_temp_subject("extruder", kept);
+    REQUIRE(state.get_extruder_temp_subject("extruder1", removed) != nullptr);
+    REQUIRE(state.extruders().at("extruder").display_name == "Nozzle 1");
+    const int version = lv_subject_get_int(state.get_extruder_version_subject());
+
+    state.init_extruders({"extruder2", "extruder"});
+
+    CHECK_FALSE(*removed);
+    CHECK(*kept);
+    SubjectLifetime again;
+    CHECK(state.get_extruder_temp_subject("extruder", again) == kept_subj);
+    CHECK(state.get_extruder_temp_subject("extruder1") == nullptr);
+    CHECK(state.get_extruder_temp_subject("extruder2") != nullptr);
+    CHECK(state.extruders().at("extruder").display_name == "Nozzle 1");
+    CHECK(state.extruders().at("extruder2").display_name == "Nozzle 2");
+    CHECK(lv_subject_get_int(state.get_extruder_version_subject()) == version + 1);
+
+    // Dropping to one tool relabels the survivor without the number.
+    state.init_extruders({"extruder"});
+    CHECK(state.extruders().at("extruder").display_name == "Nozzle");
+    CHECK(state.get_extruder_temp_subject("extruder", again) == kept_subj);
+
+    state.deinit_subjects();
+}
