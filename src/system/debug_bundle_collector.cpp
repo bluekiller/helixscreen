@@ -41,6 +41,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <set>
 #include <sstream>
 #include <unordered_map>
@@ -1008,6 +1009,8 @@ json DebugBundleCollector::collect_moonraker_info(const PrinterSnapshot& snap) {
         mr["printer_info"] = json{{"error", "Not connected"}};
         mr["system_info"] = json{{"error", "Not connected"}};
         mr["printer_state"] = json{{"error", "Not connected"}};
+        mr["klipper_status"] = json{{"error", "Not connected"}};
+        mr["update_status"] = json{{"error", "Not connected"}};
         mr["config"] = json{{"error", "Not connected"}};
         return mr;
     }
@@ -1047,6 +1050,27 @@ json DebugBundleCollector::collect_moonraker_info(const PrinterSnapshot& snap) {
     } catch (const std::exception& e) {
         spdlog::debug("[DebugBundle] printer_state collection failed: {}", e.what());
         mr["printer_state"] = json{{"error", e.what()}};
+    }
+
+    // Everything else cheap that triage keeps asking for, chosen from what
+    // this printer actually publishes: naming an object Klipper lacks fails
+    // the whole query.
+    try {
+        mr["klipper_status"] =
+            query_objects_bounded(base_url, filter_triage_objects(fetch_object_list(base_url)));
+    } catch (const std::exception& e) {
+        spdlog::debug("[DebugBundle] klipper_status collection failed: {}", e.what());
+        mr["klipper_status"] = json{{"error", e.what()}};
+    }
+
+    // Installed versions and commits of every managed repo (klipper, plugins
+    // such as klipper_openams). Moonraker answers from its cache; no refresh.
+    try {
+        mr["update_status"] =
+            bound_response(moonraker_get(base_url, "/machine/update/status"), "version_info");
+    } catch (const std::exception& e) {
+        spdlog::debug("[DebugBundle] update_status collection failed: {}", e.what());
+        mr["update_status"] = json{{"error", e.what()}};
     }
 
     // Full Moonraker config — heavily sanitized
@@ -1123,7 +1147,17 @@ json DebugBundleCollector::filter_filament_objects(const json& object_list) {
         "AFC", "mmu", "toolchanger", "tool ", "filament_switch_sensor", "filament_motion_sensor",
         // Creality CFS (K2 family): [box] is the CFS controller, [filament_rack]
         // is the slot-occupancy gate. Both expose state via printer.objects.query.
-        "box", "filament_rack"};
+        // QIDI Box publishes box_stepper / box_config / box_extras under the same prefix.
+        "box", "filament_rack",
+        // klipper_openams: oams_manager, [oams N] units, [fps N] pressure sensors,
+        // [filament_group T0] tool groups.
+        "oams", "fps", "filament_group",
+        // ACE: community drivers (ace, ace_manager, ace_instance_N) and
+        // GoKlipper's filament_hub. AD5X IFS: ifs, ifs_materials, zmod_*.
+        "ace", "filament_hub", "ifs", "zmod",
+        // Snapmaker U1, and the dock-sensing extras of hotend changers.
+        "filament_detect", "filament_feed", "filament_entangle", "print_task_config", "pin_watch",
+        "medusahc"};
 
     json result = json::array();
     if (!object_list.is_array())
@@ -1141,6 +1175,130 @@ json DebugBundleCollector::filter_filament_objects(const json& object_list) {
         }
     }
     return result;
+}
+
+json DebugBundleCollector::filter_triage_objects(const json& object_list) {
+    static const std::vector<std::string> bases = {"webhooks",
+                                                   "configfile",
+                                                   "idle_timeout",
+                                                   "pause_resume",
+                                                   "gcode_move",
+                                                   "bed_mesh",
+                                                   "probe",
+                                                   "bltouch",
+                                                   "smart_effector",
+                                                   "beacon",
+                                                   "cartographer",
+                                                   "scanner",
+                                                   "probe_eddy_current",
+                                                   "heaters",
+                                                   "quad_gantry_level",
+                                                   "z_tilt",
+                                                   "z_tilt_ng",
+                                                   "exclude_object",
+                                                   "system_stats",
+                                                   "mcu",
+                                                   "firmware_retraction"};
+
+    json result = json::array();
+    if (!object_list.is_array())
+        return result;
+
+    for (const auto& obj : object_list) {
+        if (!obj.is_string())
+            continue;
+        const std::string name = obj.get<std::string>();
+        for (const auto& base : bases) {
+            if (name == base || name.rfind(base + " ", 0) == 0) {
+                result.push_back(name);
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+std::string DebugBundleCollector::objects_query_path(const json& names) {
+    std::string query = "/printer/objects/query?";
+    bool first = true;
+    for (const auto& n : names) {
+        if (!n.is_string())
+            continue;
+        if (!first)
+            query += '&';
+        first = false;
+        const std::string name = n.get<std::string>();
+        for (char c : name) {
+            if (c == ' ')
+                query += "%20";
+            else
+                query += c;
+        }
+        if (name == "configfile")
+            query += "=warnings";
+    }
+    return query;
+}
+
+json DebugBundleCollector::bound_status(json status, size_t max_field_bytes,
+                                        size_t max_total_bytes) {
+    if (!status.is_object())
+        return status;
+
+    std::vector<std::pair<size_t, std::string>> sizes;
+    size_t total = 0;
+    for (auto obj = status.begin(); obj != status.end(); ++obj) {
+        if (obj.value().is_object()) {
+            for (auto field = obj.value().begin(); field != obj.value().end(); ++field) {
+                const size_t bytes = field.value().dump().size();
+                if (bytes <= max_field_bytes)
+                    continue;
+                json summary{{"omitted_bytes", bytes}};
+                if (field.value().is_array() || field.value().is_object()) {
+                    summary["length"] = field.value().size();
+                }
+                if (field.value().is_array() && !field.value().empty() &&
+                    field.value()[0].is_array()) {
+                    summary["shape"] = json::array({field.value().size(), field.value()[0].size()});
+                }
+                field.value() = summary;
+            }
+        }
+        const size_t bytes = obj.value().dump().size();
+        sizes.emplace_back(bytes, obj.key());
+        total += bytes;
+    }
+
+    std::sort(sizes.begin(), sizes.end(), std::greater<>());
+    for (const auto& [bytes, key] : sizes) {
+        if (total <= max_total_bytes)
+            break;
+        status[key] = json{{"omitted_bytes", bytes}};
+        total -= bytes;
+    }
+    return status;
+}
+
+json DebugBundleCollector::fetch_object_list(const std::string& base_url) {
+    json resp = moonraker_get(base_url, "/printer/objects/list");
+    if (resp.contains("result") && resp["result"].contains("objects") &&
+        resp["result"]["objects"].is_array()) {
+        return resp["result"]["objects"];
+    }
+    return json::array();
+}
+
+json DebugBundleCollector::query_objects_bounded(const std::string& base_url, const json& names) {
+    if (names.empty())
+        return json::object();
+    return bound_response(moonraker_get(base_url, objects_query_path(names)), "status");
+}
+
+json DebugBundleCollector::bound_response(json resp, const char* map_key) {
+    if (resp.contains("result") && resp["result"].contains(map_key)) {
+        resp["result"][map_key] = bound_status(resp["result"][map_key]);
+    }
+    return sanitize_json(resp);
 }
 
 json DebugBundleCollector::extract_gcode_macro_names(const json& object_list) {
@@ -1191,17 +1349,12 @@ json DebugBundleCollector::collect_filament_system_info() {
     json macro_names = json::array();
     size_t total_macros = 0;
     try {
-        auto objects_resp = moonraker_get(base_url, "/printer/objects/list");
-        if (objects_resp.contains("result") && objects_resp["result"].contains("objects")) {
-            const json& objects = objects_resp["result"]["objects"];
-            discovered = filter_filament_objects(objects);
-            macro_names = extract_gcode_macro_names(objects);
-            if (objects.is_array()) {
-                for (const auto& obj : objects) {
-                    if (obj.is_string() && obj.get<std::string>().rfind("gcode_macro ", 0) == 0) {
-                        ++total_macros;
-                    }
-                }
+        const json objects = fetch_object_list(base_url);
+        discovered = filter_filament_objects(objects);
+        macro_names = extract_gcode_macro_names(objects);
+        for (const auto& obj : objects) {
+            if (obj.is_string() && obj.get<std::string>().rfind("gcode_macro ", 0) == 0) {
+                ++total_macros;
             }
         }
     } catch (const std::exception& e) {
@@ -1221,24 +1374,7 @@ json DebugBundleCollector::collect_filament_system_info() {
     // Phase 2: Batch query all discovered objects
     if (!discovered.empty()) {
         try {
-            // Build query string with URL-encoded object names
-            std::string query = "/printer/objects/query?";
-            for (size_t i = 0; i < discovered.size(); ++i) {
-                if (i > 0)
-                    query += '&';
-                // Percent-encode spaces in object names (e.g. "AFC_stepper lane1")
-                std::string name = discovered[i].get<std::string>();
-                std::string encoded;
-                encoded.reserve(name.size());
-                for (char c : name) {
-                    if (c == ' ')
-                        encoded += "%20";
-                    else
-                        encoded += c;
-                }
-                query += encoded;
-            }
-            fs["object_state"] = sanitize_json(moonraker_get(base_url, query));
+            fs["object_state"] = query_objects_bounded(base_url, discovered);
         } catch (const std::exception& e) {
             spdlog::debug("[DebugBundle] filament object_state query failed: {}", e.what());
             fs["object_state"] = json{{"error", e.what()}};

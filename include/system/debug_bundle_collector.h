@@ -307,6 +307,31 @@ class DebugBundleCollector {
     /// Filter a Klipper object list to filament-related objects (public for testing)
     static nlohmann::json filter_filament_objects(const nlohmann::json& object_list);
 
+    /// Filter a Klipper object list to the cheap, triage-worthy objects that
+    /// printer_state does not already carry: klippy state, config warnings,
+    /// probes, leveling, bed mesh, MCUs, host load (public for testing). A base
+    /// name matches itself and its named instances: "mcu" takes "mcu nhk".
+    static nlohmann::json filter_triage_objects(const nlohmann::json& object_list);
+
+    /// The /printer/objects/query path for a list of object names, spaces
+    /// percent-encoded. `configfile` is narrowed to its warnings: the bundle
+    /// already ships the config files, and the parsed config is the largest
+    /// object Klipper publishes.
+    static std::string objects_query_path(const nlohmann::json& names);
+
+    /// Bound an objects/query `status` map (object -> field -> value) for the
+    /// bundle. A field whose JSON exceeds `max_field_bytes` becomes
+    /// {"omitted_bytes", "length", "shape"} (a full-resolution mesh matrix, a
+    /// long exclude_object polygon list); then whole objects are dropped
+    /// largest-first until the map fits `max_total_bytes`.
+    static nlohmann::json bound_status(nlohmann::json status, size_t max_field_bytes = 4096,
+                                       size_t max_total_bytes = 40960);
+
+    /// A Moonraker response with `result.<map_key>` run through bound_status()
+    /// and the whole thing sanitized: the path every Klipper status section and
+    /// the update-manager status take into the bundle.
+    static nlohmann::json bound_response(nlohmann::json resp, const char* map_key);
+
     /// Extract bare `gcode_macro` NAMES from a Klipper object list (public for testing).
     ///
     /// Names only, and deliberately not merged into filter_filament_objects():
@@ -470,6 +495,13 @@ class DebugBundleCollector {
     /// Blocking HTTP GET to a Moonraker endpoint, returns parsed JSON or error object
     static nlohmann::json moonraker_get(const std::string& base_url, const std::string& endpoint,
                                         int timeout_sec = 10);
+
+    /// printer.objects.list as an array; empty when Moonraker cannot answer.
+    static nlohmann::json fetch_object_list(const std::string& base_url);
+
+    /// Query `names` and return the response with its status bounded and sanitized.
+    static nlohmann::json query_objects_bounded(const std::string& base_url,
+                                                const nlohmann::json& names);
 
     /// Get the Moonraker HTTP base URL (from IMoonrakerAPI if connected)
     static std::string get_moonraker_url();
