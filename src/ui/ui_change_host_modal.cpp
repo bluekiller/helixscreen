@@ -202,6 +202,10 @@ void ChangeHostModal::handle_test_connection() {
     EmergencyStopOverlay::instance().suppress_recovery_dialog(RecoverySuppression::NORMAL);
     client->disconnect();
     client_borrowed_ = true;
+    if (!connect_gate_open()) {
+        set_status("icon_close_circle", "danger", "Connection failed");
+        return;
+    }
 
     // Cancel any in-flight test callbacks, get fresh token
     lifetime_.invalidate();
@@ -289,8 +293,8 @@ void ChangeHostModal::handle_save() {
     const int port = *parsed_port;
 
     if (add_callback_) {
-        // The caller takes over the client, which is already on the tested host.
-        client_borrowed_ = false;
+        // The borrow stays: on_hide puts the client back on the saved printer before the
+        // caller runs, so a switch the caller declines or cannot save leaves it there.
         hide();
         auto on_add = add_callback_;
         std::string added_host(ip);

@@ -23,6 +23,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "moonraker_manager.h"
+#include "printer_retarget.h"
 
 #include <lvgl.h>
 #include <memory>
@@ -69,6 +70,7 @@ class ChangeHostRestoreFixture : public XMLTestFixture {
         Config* cfg = Config::get_instance();
         cfg->set<std::string>(host_key_, prev_host_);
         cfg->set<int>(port_key_, prev_port_);
+        helix::set_connect_gate(nullptr);
         installed_.reset();
         set_moonraker_manager(nullptr);
     }
@@ -164,9 +166,11 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
                  "[change_host][connection][multi-printer]") {
     std::string added_host;
     int added_port = 0;
+    std::string url_when_added;
     helix::ui::show_add_printer_modal([&](const std::string& host, int port) {
         added_host = host;
         added_port = port;
+        url_when_added = client_->get_last_url();
     });
     UpdateQueue::instance().drain();
     lv_obj_t* dialog = Modal::get_top();
@@ -192,6 +196,9 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
 
     CHECK(added_host == "10.9.9.9");
     CHECK(added_port == 7125);
+    // The client is back on the saved printer before the caller decides whether to switch,
+    // so a declined or failed switch leaves it where config and UI say it is.
+    CHECK(url_when_added == kSavedUrl);
     Config* cfg = Config::get_instance();
     CHECK(cfg->get<std::string>(cfg->df() + "moonraker_host") == kSavedHost);
 }
@@ -256,4 +263,19 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
 
     CHECK(client_->get_last_url() == kSavedUrl);
     CHECK(helix::AmsState::instance().backend_count() == 1);
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host: Test waits on the connect gate",
+                 "[change_host][connection][multi-printer]") {
+    helix::set_connect_gate([] { return false; });
+    helix::ui::show_change_host_modal();
+    UpdateQueue::instance().drain();
+    lv_obj_t* dialog = Modal::get_top();
+    REQUIRE(dialog != nullptr);
+    lv_subject_copy_string(lv_xml_get_subject(nullptr, "change_host_ip"), "10.9.9.9");
+
+    click(dialog, "btn_test_connection");
+
+    CHECK(client_->get_last_url().empty());
+    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "change_host_testing")) == 0);
 }

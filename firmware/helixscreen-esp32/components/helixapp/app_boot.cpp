@@ -292,7 +292,7 @@ helix::PrinterSwitchFlow& switch_flow() {
         config, lifetime,
         {[] { g_switch_started_us = esp_timer_get_time(); },
          [] {
-             if (!helix::retarget_printer_connection(ws_stack_available)) {
+             if (!helix::retarget_printer_connection()) {
                  restart_into_active_printer();
              }
              arm_switch_watchdog();
@@ -311,6 +311,14 @@ helix::PrinterSwitchFlow& switch_flow() {
 }
 
 void wire_printer_callbacks() {
+    // Every connect after a disconnect waits for the stopped WebSocket task's stack; when it
+    // does not come back the panel restarts rather than run without one.
+    helix::set_connect_gate([] {
+        if (!ws_stack_available()) {
+            restart_into_active_printer();
+        }
+        return true;
+    });
     switch_flow().set_connected_printer_id(helix::Config::get_instance()->get_active_printer_id());
     NavigationManager::instance().set_printer_callbacks(
         [](const std::string& printer_id) { switch_flow().request_switch(printer_id); },
