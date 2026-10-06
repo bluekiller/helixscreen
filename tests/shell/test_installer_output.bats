@@ -176,3 +176,74 @@ _two_redraws() { step "Downloaded"; log_warn a; log_warn b; }
     contains "|" "$output"
     contains "/" "$output"
 }
+
+@test "run_logged is silent on success and returns 0" {
+    run run_logged sh -c 'echo hello; echo world >&2'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "run_logged sends all output to the log" {
+    log_open "$BATS_TEST_TMPDIR/install.log"
+    run_logged sh -c 'echo to-stdout; echo to-stderr >&2'
+    run cat "$BATS_TEST_TMPDIR/install.log"
+    contains "to-stdout" "$output"
+    contains "to-stderr" "$output"
+    contains "RUN sh -c" "$output"
+}
+
+@test "run_logged keeps the command's exit code" {
+    run run_logged sh -c 'exit 100'
+    [ "$status" -eq 100 ]
+}
+
+@test "run_logged prints the command, exit code and the output tail on failure" {
+    RUN_LOGGED_TAIL=2
+    run run_logged sh -c 'for i in 1 2 3; do echo "line-$i"; done; exit 7'
+    [ "$status" -eq 7 ]
+    contains "failed (exit 7)" "$output"
+    contains "sh -c" "$output"
+    contains "line-2" "$output"
+    contains "line-3" "$output"
+    case "$output" in *line-1*) fail "tail leaked an earlier line" ;; esac
+}
+
+@test "run_logged echoes output live when verbose" {
+    HELIX_INSTALL_VERBOSE=1
+    run run_logged sh -c 'echo visible'
+    contains "visible" "$output"
+}
+
+@test "print_failure appends the hint" {
+    printf 'oops\n' > "$BATS_TEST_TMPDIR/out"
+    run print_failure "thing" 5 "$BATS_TEST_TMPDIR/out" "try again"
+    [ "$status" -eq 0 ]
+    contains "thing failed (exit 5)" "$output"
+    contains "oops" "$output"
+    contains "try again" "$output"
+}
+
+_set_e_script() {
+    printf '%s' "set -e; . '$WORKTREE_ROOT/scripts/lib/installer/common.sh'; HELIX_INSTALL_TTY=0 ui_detect; run_logged sh -c 'echo boom; exit 3'; echo after"
+}
+
+@test "run_logged under set -e prints the failure block before the shell exits" {
+    run sh -c "$(_set_e_script)"
+    contains "failed (exit 3)" "$output"
+    contains "boom" "$output"
+    case "$output" in *after*) fail "set -e did not stop the caller" ;; esac
+}
+
+@test "run_logged under set -e works in busybox ash" {
+    command -v busybox >/dev/null || skip "no busybox"
+    run busybox ash -c "$(_set_e_script)"
+    contains "failed (exit 3)" "$output"
+    contains "boom" "$output"
+}
+
+@test "run_logged exit code survives under busybox ash" {
+    command -v busybox >/dev/null || skip "no busybox"
+    run busybox ash -c '. "$1"; HELIX_INSTALL_TTY=0 ui_detect; run_logged sh -c "exit 42"; echo "rc=$?"' \
+        _ "$WORKTREE_ROOT/scripts/lib/installer/common.sh"
+    contains "rc=42" "$output"
+}
