@@ -6,6 +6,7 @@
  * @brief A history page too big for memory is an error, not an abort
  */
 
+#include "../test_helpers/scoped_try_reserve_failure.h"
 #include "moonraker_client_mock.h"
 #include "moonraker_history_api.h"
 #include "try_reserve.h"
@@ -19,11 +20,12 @@ TEST_CASE("a history page that cannot be allocated reports an error", "[history]
 
     int pages = 0;
     std::string error;
-    helix::try_reserve_fails_for_test().store(true);
-    history.get_history_list(
-        50, 0, 0.0, 0.0, [&pages](const std::vector<PrintHistoryJob>&, uint64_t) { ++pages; },
-        [&error](const MoonrakerError& e) { error = e.message; });
-    helix::try_reserve_fails_for_test().store(false);
+    {
+        helix::ScopedTryReserveFailure no_memory;
+        history.get_history_list(
+            50, 0, 0.0, 0.0, [&pages](const std::vector<PrintHistoryJob>&, uint64_t) { ++pages; },
+            [&error](const MoonrakerError& e) { error = e.message; });
+    }
 
     CHECK(pages == 0);
     CHECK(error.find("memory") != std::string::npos);

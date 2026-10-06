@@ -159,7 +159,8 @@ void MoonrakerHistoryAPI::get_history_list(int limit, int start, double since, d
 
                 if (result.contains("jobs") && result["jobs"].is_array()) {
                     // A page's length is the server's to decide; on the firmware
-                    // a vector that cannot grow aborts the board.
+                    // a vector that cannot grow aborts the board. This covers the
+                    // page's buffer; each job's strings still allocate as parsed.
                     if (!helix::try_reserve(jobs, result["jobs"].size())) {
                         moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN,
                                                          "get_history_list",

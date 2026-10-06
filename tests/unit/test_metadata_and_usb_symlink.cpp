@@ -21,8 +21,8 @@
 #include "../../lvgl/lvgl.h"
 #include "../test_helpers/moonraker_file_api_test_access.h"
 #include "../test_helpers/scoped_env.h"
+#include "../test_helpers/scoped_try_reserve_failure.h"
 #include "../ui_test_utils.h"
-#include "try_reserve.h"
 
 #include <atomic>
 #include <chrono>
@@ -415,9 +415,8 @@ TEST_CASE_METHOD(MetadataAPITestFixture, "File list sizes and times sent as JSON
 
     SECTION("a listing too big for memory is reported, not truncated") {
         response["result"] = json::array({{{"path", "a.gcode"}}});
-        helix::try_reserve_fails_for_test().store(true);
+        helix::ScopedTryReserveFailure no_memory;
         const auto files = probe.parse_file_list(response);
-        helix::try_reserve_fails_for_test().store(false);
         CHECK_FALSE(files.has_value());
     }
 }

@@ -91,7 +91,8 @@ void PrintSelectFileProvider::refresh_files(const std::string& current_path,
 
             std::vector<PrintFileData> file_list;
             // Sized up front: on the firmware a vector that cannot grow aborts
-            // the board. A list too big for memory keeps the one on screen.
+            // the board. A list whose buffer does not fit keeps the one on
+            // screen. Each entry's strings still allocate as it is added.
             if (!helix::try_reserve(file_list, files.size() + 1)) {
                 spdlog::error("[FileProvider] No memory for a {}-entry file list; keeping the "
                               "current one",

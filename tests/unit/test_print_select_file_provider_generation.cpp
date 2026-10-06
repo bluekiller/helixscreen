@@ -20,13 +20,13 @@
 
 #include "ui_print_select_file_provider.h"
 
+#include "../test_helpers/scoped_try_reserve_failure.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "moonraker_file_api.h"
 #include "moonraker_types.h"
 #include "print_file_data.h"
 #include "printer_state.h"
-#include "try_reserve.h"
 
 #include <algorithm>
 #include <memory>
@@ -187,9 +187,10 @@ TEST_CASE_METHOD(FileProviderGenFixture,
 
     // PSRAM too fragmented for the list: the build fails instead of aborting,
     // and nothing replaces the list the panel is showing.
-    helix::try_reserve_fails_for_test().store(true);
-    cap->success_cbs[0](one_file("big.gcode"));
-    helix::try_reserve_fails_for_test().store(false);
+    {
+        helix::ScopedTryReserveFailure no_memory;
+        cap->success_cbs[0](one_file("big.gcode"));
+    }
 
     CHECK(ready_calls == 0);
     CHECK_FALSE(error.empty());

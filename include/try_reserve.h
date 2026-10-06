@@ -8,6 +8,11 @@
 // abort(); malloc returns null instead, so these probe with it first. Use them
 // for any container whose size a server decides (a file listing, a page of
 // history), and take the error path on false.
+//
+// What this covers is the container's own buffer: the one large contiguous
+// block, which is what a fragmented heap fails first. Allocations the elements
+// make as they are added (each entry's strings) are separate and small, and can
+// still abort when the heap is all but exhausted.
 
 #include <atomic>
 #include <cstddef>

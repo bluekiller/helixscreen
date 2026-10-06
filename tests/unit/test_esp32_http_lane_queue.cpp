@@ -22,6 +22,7 @@
  * mk/tests.mk's $(INCLUDES)).
  */
 
+#include "../test_helpers/scoped_try_reserve_failure.h"
 #include "firmware/helixscreen-esp32/components/helixnet/http_lane_queue.h"
 
 #include "../catch_amalgamated.hpp"
@@ -175,9 +176,10 @@ TEST_CASE("try_reserve on a vector fails cleanly and leaves it untouched",
           "[esp32][http][lane_buffer][oom]") {
     std::vector<int> v{1, 2, 3};
     const size_t cap = v.capacity();
-    helix::try_reserve_fails_for_test().store(true);
-    CHECK_FALSE(helix::try_reserve(v, 1000));
-    helix::try_reserve_fails_for_test().store(false);
+    {
+        helix::ScopedTryReserveFailure no_memory;
+        CHECK_FALSE(helix::try_reserve(v, 1000));
+    }
     CHECK(v.capacity() == cap);
     CHECK(v.size() == 3);
 
