@@ -137,6 +137,15 @@ guard IPv6 out of the vendored header (invasive), or that component. Meanwhile `
   overlap against the 1.44 MB largest block. A home rebuild must delete before it builds (verify).
 - App slot: a few tens of KB at most (flow move, mdns.h) against 1.47 MB free.
 
+Measured on the device (f7, `systemctl restart moonraker` mid-run, 100 ms heap logger): a WS
+teardown returns its block (~8.7 KB freed, largest 22.5 KB), and the reconnect lands at 38.6 KB
+free / 15.4 KB largest with full discovery and a 98-object subscription; the WS stack peaked with
+1.3 KB of 8 KB spare. At BOOT, right at "connected", the connect and discovery burst briefly drops
+to 14.7 KB free / 7,680 B largest for ~340 ms; mid-run reconnects did not show it. So the 10 KB gate
+passes in steady state, a transport that cannot start makes `retarget_printer_connection` return
+false (restart fallback), and a switch whose discovery has not landed 30 s after a live connection
+restarts into the printer; an unreachable printer stays on the normal reconnect loop.
+
 ## 8. Risks, tests, commits
 
 Risks: R1 stale subjects for A-only objects (section 3). R2 (resolved) thumbnails are keyed by

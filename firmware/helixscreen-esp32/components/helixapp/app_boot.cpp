@@ -257,6 +257,35 @@ bool ws_stack_available() {
     return largest >= WS_STACK_RESERVE_BYTES;
 }
 
+// Discovery right after a connect allocates internal RAM in a burst (at boot the largest
+// block briefly drops below 8 KB). A switch whose discovery never lands on a live connection
+// would leave the panel half-switched, so it restarts into the printer instead. An unreachable
+// printer is left to the normal reconnect loop.
+constexpr uint32_t SWITCH_DISCOVERY_TIMEOUT_MS = 30000;
+
+void arm_switch_watchdog() {
+    static lv_timer_t* timer = nullptr;
+    if (timer) {
+        lv_timer_delete(timer);
+    }
+    timer = lv_timer_create(
+        [](lv_timer_t*) {
+            timer = nullptr; // one-shot: LVGL deletes it after this run
+            if (g_switch_started_us == 0) {
+                return;
+            }
+            helix::IMoonrakerClient* client = g_manager ? g_manager->client() : nullptr;
+            if (client && client->get_connection_state() == helix::ConnectionState::CONNECTED) {
+                ESP_LOGW(TAG, "[switch] connected but no discovery after %u ms",
+                         (unsigned)SWITCH_DISCOVERY_TIMEOUT_MS);
+                restart_into_active_printer();
+            }
+            ESP_LOGW(TAG, "[switch] printer not reachable yet; reconnecting continues");
+        },
+        SWITCH_DISCOVERY_TIMEOUT_MS, nullptr);
+    lv_timer_set_repeat_count(timer, 1);
+}
+
 // The K-Touch's hooks for the shared switch flow: one connection is retargeted in place, and
 // the shell stays built. A printer whose home layout differs gets its home grid rebuilt.
 helix::PrinterSwitchFlow& switch_flow() {
@@ -270,6 +299,7 @@ helix::PrinterSwitchFlow& switch_flow() {
              if (!helix::retarget_printer_connection(ws_stack_available)) {
                  restart_into_active_printer();
              }
+             arm_switch_watchdog();
              // The flow still names the previous printer until the switch completes.
              const std::string& previous_id = switch_flow().connected_printer_id();
              if (config->get<nlohmann::json>("/printers/" + previous_id + "/panel_widgets", {}) !=

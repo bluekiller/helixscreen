@@ -33,7 +33,8 @@ IMoonrakerClient* disconnect_for_retarget() {
     return client;
 }
 
-void connect_active_printer() {
+/// False when the transport could not start, e.g. no internal RAM for its task.
+bool connect_active_printer() {
     Config* config = Config::get_instance();
     const std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
     const int port = config->get<int>(config->df() + "moonraker_port", 7125);
@@ -42,7 +43,11 @@ void connect_active_printer() {
     const std::string http_url = "http://" + host + ":" + std::to_string(port);
 
     spdlog::info("[PrinterRetarget] Connecting to {}:{}", host, port);
-    get_moonraker_manager()->connect(ws_url, http_url);
+    if (get_moonraker_manager()->connect(ws_url, http_url) != 0) {
+        spdlog::error("[PrinterRetarget] Connecting to {}:{} could not start", host, port);
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -51,8 +56,7 @@ bool reconnect_active_printer() {
     if (!disconnect_for_retarget()) {
         return false;
     }
-    connect_active_printer();
-    return true;
+    return connect_active_printer();
 }
 
 bool retarget_printer_connection(const std::function<bool()>& before_connect) {
@@ -70,8 +74,7 @@ bool retarget_printer_connection(const std::function<bool()>& before_connect) {
         spdlog::warn("[PrinterRetarget] Connect vetoed; staying disconnected");
         return false;
     }
-    connect_active_printer();
-    return true;
+    return connect_active_printer();
 }
 
 } // namespace helix
