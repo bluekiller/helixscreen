@@ -106,7 +106,8 @@ All three have dedicated tests: `tests/unit/test_config_migration_v24.cpp`,
    d. Run each kMigrations row whose to_version > version, in order
    e. Set config_version = CURRENT_CONFIG_VERSION
 4. Ensure required sections exist with defaults (printer, display, input, etc.).
-   A /printers map with no printer object gets the default printer
+   A /printers map with no printer object gets the default printer, except in
+   a config from a newer build, which is left as written
 5. Save to disk if anything changed
 ```
 

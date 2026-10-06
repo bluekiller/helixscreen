@@ -989,14 +989,20 @@ void Config::init(const std::string& config_path) {
 
     // Ensure the printers map holds a printer. A versionless document naming none
     // still reaches here with a printers object: normalize_versionless_document()
-    // gives it /printers/show_printer_switcher, which is not a printer.
-    if (!data.contains("printers") || !data["printers"].is_object()) {
-        data["printers"] = json::object();
-    }
-    if (get_printer_ids().empty()) {
-        data["printers"]["default"] = get_default_printer_config("127.0.0.1");
-        data["active_printer_id"] = "default";
-        config_modified = true;
+    // gives it /printers/show_printer_switcher, which is not a printer. A config
+    // from a newer build is exempt: its printers may be in a shape this build
+    // does not read, and it is left as written (see run_versioned_migrations).
+    const bool from_newer_build =
+        helix::json_util::safe_int(data, "config_version", 0) > CURRENT_CONFIG_VERSION;
+    if (!from_newer_build) {
+        if (!data.contains("printers") || !data["printers"].is_object()) {
+            data["printers"] = json::object();
+        }
+        if (get_printer_ids().empty()) {
+            data["printers"]["default"] = get_default_printer_config("127.0.0.1");
+            data["active_printer_id"] = "default";
+            config_modified = true;
+        }
     }
 
     // Load the active printer ID from config (must happen before df() is used),

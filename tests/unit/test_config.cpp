@@ -3417,6 +3417,24 @@ TEST_CASE("Config::init() leaves a config with a printer off the fresh-install p
     }
 }
 
+// A config written by a newer build may keep its printers in a shape this build
+// does not know. It must come through untouched, with no default printer added.
+TEST_CASE("Config::init() adds no default printer to a config from a newer build",
+          "[core][config][moonraker-update]") {
+    TarballTestEnv env("newer_build_printers");
+    const json printers = {{"show_printer_switcher", true},
+                           {"list", json::array({{{"id", "voron"}}})}};
+    env.write_config({{"config_version", CURRENT_CONFIG_VERSION + 1}, {"printers", printers}});
+
+    Config test_config;
+    test_config.init(env.config_path);
+
+    auto on_disk = json::parse(std::ifstream(env.config_path));
+    CHECK(on_disk.value("config_version", 0) == CURRENT_CONFIG_VERSION + 1);
+    CHECK(on_disk["printers"] == printers);
+    CHECK_FALSE(on_disk.contains("active_printer_id"));
+}
+
 TEST_CASE("Config::init() keeps tarball default when backup is also a tarball default",
           "[core][config][moonraker-update]") {
     TarballTestEnv env("tarball_both_default");
