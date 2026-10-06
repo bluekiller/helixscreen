@@ -7,11 +7,13 @@
 #include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
+#include "ui_nav_printer_badge.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "app_globals.h"
 #include "config.h"
+#include "observer_factory.h"
 #include "printer_state.h"
 #include "settings_manager.h"
 #include "static_panel_registry.h"
@@ -108,6 +110,9 @@ void PrinterListOverlay::populate_printer_list() {
         return;
     }
 
+    active_dot_observer_.reset();
+    active_dot_.reset();
+
     // Clean existing children before repopulating (freeze queue to prevent
     // background thread from enqueuing callbacks between drain and destroy)
     {
@@ -143,6 +148,21 @@ void PrinterListOverlay::populate_printer_list() {
             lv_obj_t* check_icon = find_required(row, "active_check", get_name());
             if (check_icon) {
                 lv_obj_set_style_text_opa(check_icon, LV_OPA_COVER, LV_PART_MAIN);
+            }
+            lv_obj_t* dot = find_required(row, "connection_dot", get_name());
+            if (dot) {
+                lv_obj_remove_flag(dot, LV_OBJ_FLAG_HIDDEN);
+                active_dot_ = dot;
+                active_dot_observer_ = observe<int>(
+                    get_printer_state().network_state().get_printer_connection_state_subject(),
+                    this,
+                    [](PrinterListOverlay* self, int state) {
+                        if (self->active_dot_) {
+                            lv_obj_set_style_bg_color(self->active_dot_,
+                                                      connection_dot_color(state), 0);
+                        }
+                    },
+                    get_printer_state().get_subjects_lifetime());
             }
         }
 
