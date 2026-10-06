@@ -116,7 +116,7 @@ The active tool is detected from extruder pin state or `toolhead.extruder`, and
 ### RFID (filament_detect.info)
 
 `parse_rfid_info()` reads per-channel tag fields
-(`src/printer/ams_backend_snapmaker.cpp#parse_rfid_info`):
+(`src/printer/snapmaker_status_parse.cpp#parse_rfid_info`):
 
 | Tag field | Maps to | Notes |
 |-----------|---------|-------|
@@ -135,7 +135,7 @@ of eight known literals ("Basic", "Matte", "SnapSpeed", "Silk", "Support", "HF",
 SUB_TYPE (`src/printer/ams_backend_snapmaker.cpp`, `src/printer/ams_backend_snapmaker.cpp#apply_user_edit`).
 
 Every row above is code-verified against `parse_rfid_info()` and the apply loop
-(`src/printer/ams_backend_snapmaker.cpp#parse_rfid_info`, `1171-1204`): tag identity rides
+(`src/printer/snapmaker_status_parse.cpp#parse_rfid_info`, `src/printer/ams_backend_snapmaker.cpp#apply_rfid_entry_locked`): tag identity rides
 `filament_detect.info[ch].CARD_UID`, and a `MAIN_TYPE == "NONE"` tag skips the field
 apply while its UID is still captured for swap detection (`:1173-1182`). Physical reads
 from real RFID spools remain rig-pending; code-verified is not field-verified.

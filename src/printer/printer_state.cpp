@@ -35,7 +35,6 @@
 #include "settings_manager.h"
 #include "static_subject_registry.h"
 #include "system/crash_handler.h"
-#include "timelapse_state.h"
 #include "unit_conversions.h"
 #include "z_offset_persistence.h"
 
@@ -387,11 +386,6 @@ void PrinterState::update_from_status(const json& state, double eventtime,
     if (!is_blocking_operation_active() && !print_domain_.is_in_print_start()) {
         calibration_state_.arm_busy_queue_toast();
     }
-}
-
-void PrinterState::reset_for_new_print() {
-    print_domain_.reset_for_new_print();
-    helix::TimelapseState::instance().reset();
 }
 
 void PrinterState::set_printer_connection_state(int state, const char* message) {

@@ -432,11 +432,17 @@ inline void destroy_static_panels() {
 // Recursive Widget Flag Utilities
 // ============================================================================
 
+/// Marks an object whose CLICKABLE disable_widget_clicks_recursive() removed,
+/// so enable_widget_clicks_recursive() restores exactly those and leaves an
+/// object that was never clickable alone.
+constexpr lv_obj_flag_t EDIT_CLICK_SUPPRESSED_FLAG = LV_OBJ_FLAG_USER_2;
+
 /**
  * @brief Recursively remove CLICKABLE flag from all descendants of obj
  *
  * Used by edit mode to prevent widget click handlers from firing
- * while grid rearrangement is in progress.
+ * while grid rearrangement is in progress. Each object it disarms is marked
+ * with EDIT_CLICK_SUPPRESSED_FLAG for enable_widget_clicks_recursive().
  *
  * @param obj Parent object whose descendants will have CLICKABLE removed
  */
@@ -448,8 +454,33 @@ inline void disable_widget_clicks_recursive(lv_obj_t* obj) {
         lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
         if (!child)
             continue;
-        lv_obj_remove_flag(child, LV_OBJ_FLAG_CLICKABLE);
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_CLICKABLE)) {
+            lv_obj_remove_flag(child, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(child, EDIT_CLICK_SUPPRESSED_FLAG);
+        }
         disable_widget_clicks_recursive(child);
+    }
+}
+
+/**
+ * @brief Give back CLICKABLE to every descendant of obj that
+ * disable_widget_clicks_recursive() took it from.
+ *
+ * @param obj Parent object whose descendants are restored
+ */
+inline void enable_widget_clicks_recursive(lv_obj_t* obj) {
+    if (!obj)
+        return;
+    uint32_t count = lv_obj_get_child_count(obj);
+    for (uint32_t i = 0; i < count; ++i) {
+        lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
+        if (!child)
+            continue;
+        if (lv_obj_has_flag(child, EDIT_CLICK_SUPPRESSED_FLAG)) {
+            lv_obj_remove_flag(child, EDIT_CLICK_SUPPRESSED_FLAG);
+            lv_obj_add_flag(child, LV_OBJ_FLAG_CLICKABLE);
+        }
+        enable_widget_clicks_recursive(child);
     }
 }
 

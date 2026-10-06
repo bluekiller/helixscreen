@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" ru="Изображение вашего принтера"/>
   <translation tag="A print is in progress - restart still pending" ru="Идёт печать - перезапуск ещё отложен"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." ru="На этом шлюзе идёт печать. HelixScreen очистил свою копию; после окончания печати очистите его снова."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." ru="Печать началась, когда катушки отмечены как лежащие на столе. Если они всё ещё там, немедленно остановите принтер аварийной остановкой."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" ru="Катушка может быть запутана или заклинило приводную шестерню"/>
   <translation tag="A · 1,-1" ru="A · 1,-1"/>
   <translation tag="ABS" ru="ABS"/>
@@ -2802,8 +2803,10 @@
   <translation tag="Spoolman was not configured." ru="Spoolman не был настроен."/>
   <translation tag="Spoolman: %zu Spool%s" ru="Spoolman: %zu катушк%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" ru="Spoolman: %zu/%zu катушк%s"/>
+  <translation tag="Spools are off" ru="Катушки сняты"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" ru="На столе лежат катушки: уберите их и подтвердите, прежде чем двигать принтер"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." ru="На столе катушки: нажмите на баннер сушки, чтобы подтвердить, что они сняты, затем перезапустите."/>
+  <translation tag="Spools on the bed!" ru="Катушки на столе!"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" ru="Катушки на столе: начните сушку или подтвердите, что ничего не положено"/>
   <translation tag="Spools removed" ru="Катушки сняты"/>
   <translation tag="Square Corner Velocity" ru="Скорость прохождения углов"/>

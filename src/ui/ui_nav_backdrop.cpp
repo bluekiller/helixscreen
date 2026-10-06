@@ -35,10 +35,9 @@ bool is_snapshot_backdrop(lv_obj_t* backdrop) {
 
 } // namespace
 
-void OverlayBackdrop::adopt(lv_obj_t* screen, lv_obj_t* arriving, RailEstop& rail_estop,
-                            lv_event_cb_t click_cb) {
+void OverlayBackdrop::adopt(lv_obj_t* screen, lv_obj_t* arriving, lv_event_cb_t click_cb) {
     {
-        RailEstop::ScopedHide estop_hidden(rail_estop);
+        ScopedHideChrome chrome_hidden;
         const bool arriving_shown = arriving && !lv_obj_has_flag(arriving, LV_OBJ_FLAG_HIDDEN);
         if (arriving_shown) {
             lv_obj_add_flag(arriving, LV_OBJ_FLAG_HIDDEN);

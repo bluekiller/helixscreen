@@ -128,6 +128,7 @@ translations:
   A picture of your printer: Ein Bild Ihres Druckers
   A print is in progress - restart still pending: 'Ein Druck läuft - Neustart noch ausstehend'
   A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes.: Auf diesem Gate läuft ein Druck. HelixScreen hat seine eigene Kopie gelöscht; leere ihn nach Druckende erneut.
+  A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop.: "Ein Druck wurde gestartet, während Spulen als auf dem Heizbett liegend markiert sind. Falls sie noch dort liegen, stoppe den Drucker sofort mit dem Notaus."
   A spool may be tangled or the drive gear is jammed: Eine Spule ist möglicherweise verheddert oder das Antriebsrad blockiert
   A · 1,-1: "A · 1,-1"
   ABS: ABS
@@ -3122,9 +3123,11 @@ translations:
   Spoolman was not configured.: Spoolman war nicht konfiguriert.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Spule%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Spule%s'
+  Spools are off: "Spulen sind entnommen"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Spulen liegen auf dem Heizbett: entferne sie und bestätige, bevor der Drucker bewegt wird'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Spulen liegen auf dem Heizbett: Tippe auf das Trocknungsbanner, um zu bestätigen, dass sie entnommen sind, und starte dann neu.'
 
+  Spools on the bed!: "Spulen auf dem Heizbett!"
   'Spools on the bed: start drying, or confirm none were placed': 'Spulen auf dem Heizbett: Trocknung starten oder bestätigen, dass keine eingelegt wurden'
 
   Spools removed: Spulen entnommen

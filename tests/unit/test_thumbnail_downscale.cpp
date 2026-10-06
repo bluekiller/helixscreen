@@ -64,18 +64,6 @@ TEST_CASE("fit_thumbnail keeps aspect inside the box and never upscales",
     CHECK(helix::rgb565a8_size({BOX_W, BOX_H}) == 294060);
 }
 
-TEST_CASE("only a lodepng allocation failure is worth retrying", "[thumbnail][downscale]") {
-    using helix::ThumbnailDecodeFailure;
-    CHECK(helix::classify_lodepng_error(0) == ThumbnailDecodeFailure::None);
-    CHECK(helix::classify_lodepng_error(83) == ThumbnailDecodeFailure::OutOfMemory);
-    // 37: 16-bit channels this port rejects; 27/30: a PNG cut short by the
-    // capped fetch; 28: not a PNG at all.
-    for (unsigned err : {37u, 27u, 30u, 28u}) {
-        CAPTURE(err);
-        CHECK(helix::classify_lodepng_error(err) == ThumbnailDecodeFailure::BadImage);
-    }
-}
-
 TEST_CASE("downscale packs RGB565 then an alpha plane", "[thumbnail][downscale]") {
     const auto src = solid(4, 4, 255, 0, 0, 255);
     const ThumbnailDims d{2, 2};

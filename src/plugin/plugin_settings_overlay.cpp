@@ -7,6 +7,7 @@
 
 #include "ui_callback_helpers.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_utils.h"
 
 #include "helix-xml/src/xml/lv_xml.h"
@@ -162,7 +163,7 @@ PluginSettingsOverlay::~PluginSettingsOverlay() {
 lv_obj_t* PluginSettingsOverlay::create(lv_obj_t* parent) {
     const std::string title = title_.empty() ? plugin_id_ : title_;
     const char* pairs[] = {"title", title.c_str(), nullptr};
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "plugin_settings_overlay", pairs));
+    overlay_root_ = helix::ui::create_xml_hidden(parent, "plugin_settings_overlay", pairs);
     if (!overlay_root_) {
         spdlog::error("[PluginSettings] {}: cannot create plugin_settings_overlay", plugin_id_);
         return nullptr;
@@ -179,7 +180,6 @@ lv_obj_t* PluginSettingsOverlay::create(lv_obj_t* parent) {
     for (const SettingDecl& d : settings_decls_)
         build_row(rows, d, effective_setting(settings_, d)); // a refused row is skipped, not fatal
 
-    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN); // shown by push_overlay
     return overlay_root_;
 }
 

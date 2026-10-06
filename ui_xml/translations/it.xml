@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" it="Immagine della tua stampante"/>
   <translation tag="A print is in progress - restart still pending" it="Stampa in corso - riavvio in attesa"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." it="Una stampa è in corso su questo gate. HelixScreen ha svuotato la propria copia; svuotalo di nuovo a stampa terminata."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." it="È partita una stampa mentre le bobine risultano sul piano. Se sono ancora lì, ferma subito la stampante con l&apos;arresto emergenza."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" it="Una bobina potrebbe essere aggrovigliata o l&apos;ingranaggio di trascinamento è bloccato"/>
   <translation tag="A · 1,-1" it="A · 1,-1"/>
   <translation tag="ABS" it="ABS"/>
@@ -2802,8 +2803,10 @@
   <translation tag="Spoolman was not configured." it="Spoolman non era configurato."/>
   <translation tag="Spoolman: %zu Spool%s" it="Spoolman: %zu bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" it="Spoolman: %zu/%zu bobina%s"/>
+  <translation tag="Spools are off" it="Bobine tolte"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" it="Ci sono bobine sul piano: rimuovile e conferma prima di muovere la stampante"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." it="Ci sono bobine sul piano: tocca il banner dell&apos;essiccazione per confermare di averle tolte, poi riavvia."/>
+  <translation tag="Spools on the bed!" it="Bobine sul piano!"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" it="Bobine sul piano: avvia l&apos;essiccazione o conferma di non averne appoggiata nessuna"/>
   <translation tag="Spools removed" it="Bobine tolte"/>
   <translation tag="Square Corner Velocity" it="Velocità angoli retti"/>

@@ -5,6 +5,7 @@
 #include "ui_effects.h"
 #include "ui_modal.h"
 #include "ui_nav.h"
+#include "ui_panel_common.h"
 #include "ui_row_text.h"
 #include "ui_selector_model.h"
 #include "ui_subject_registry.h"
@@ -77,6 +78,10 @@ struct CatalogState {
     lv_subject_t view = {};        // kCatalogView*; bound by the XML view flip
     lv_subject_t match_count = {}; // visible search rows; drives the empty message
     std::vector<ui::SelectorEntry> entries;
+    // The result rows exist. They are built on the first query, not at open:
+    // a row per registry def is most of what the catalog costs to show, and
+    // most opens never search.
+    bool search_rows_built = false;
 
     // What category_root lists: that category's available widgets, or the
     // unavailable ones when empty. A gate change rebuilds the page from it.
@@ -110,6 +115,7 @@ void release_catalog_state() {
     g_catalog_state.on_select = nullptr;
     g_catalog_state.on_close = nullptr;
     g_catalog_state.fits = nullptr;
+    g_catalog_state.search_rows_built = false;
     if (on_close) {
         on_close();
     }
@@ -404,10 +410,13 @@ static std::vector<ui::SelectorEntry> build_catalog_entries() {
     return entries;
 }
 
-/// Flip the catalog between the category list and the flat search results, and
-/// show/hide result rows by match. Rows are built once per open; a keystroke
-/// only toggles flags, the same treatment the wizard's ~105-row list gets.
-static void apply_catalog_search(const std::string& query) {
+void WidgetCatalogOverlay::build_search_rows(lv_obj_t* results) {
+    g_catalog_state.entries = build_catalog_entries();
+    populate_rows(results, *g_catalog_state.config, all_widget_def_ptrs());
+    g_catalog_state.search_rows_built = true;
+}
+
+void WidgetCatalogOverlay::apply_search(const std::string& query) {
     lv_obj_t* results = lv_obj_find_by_name(g_catalog_state.overlay_root, "search_results");
     if (!results) {
         return;
@@ -415,6 +424,9 @@ static void apply_catalog_search(const std::string& query) {
     if (ui::selector_query_is_blank(query)) {
         lv_subject_set_int(&g_catalog_state.view, kCatalogViewBrowse);
         return;
+    }
+    if (!g_catalog_state.search_rows_built && g_catalog_state.config) {
+        build_search_rows(results);
     }
 
     int visible = 0;
@@ -439,13 +451,13 @@ static void apply_catalog_search(const std::string& query) {
 }
 
 /// Search box handler — the XML textarea's value_changed callback.
-void on_catalog_search_changed(lv_event_t* e) {
+void WidgetCatalogOverlay::on_search_changed(lv_event_t* e) {
     if (!g_catalog_state.overlay_root) {
         return;
     }
     lv_obj_t* ta = static_cast<lv_obj_t*>(lv_event_get_target(e));
     const char* text = lv_textarea_get_text(ta);
-    apply_catalog_search(text ? text : "");
+    apply_search(text ? text : "");
 }
 
 // ============================================================================
@@ -680,7 +692,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     lv_xml_register_event_cb(nullptr, "on_catalog_reset", on_catalog_reset);
     lv_xml_register_event_cb(nullptr, "on_catalog_category_clicked", on_category_row_clicked);
     lv_xml_register_event_cb(nullptr, "on_catalog_unavailable_clicked", on_unavailable_row_clicked);
-    lv_xml_register_event_cb(nullptr, "on_catalog_search_changed", on_catalog_search_changed);
+    lv_xml_register_event_cb(nullptr, "on_catalog_search_changed", on_search_changed);
 
     // Search subjects. Registered before the overlay XML is parsed so its
     // bind_flag_* elements resolve them, and re-initialized per open: entries
@@ -718,8 +730,7 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     g_catalog_state.fits = std::move(fits);
 
     // Create overlay from XML
-    auto* overlay =
-        static_cast<lv_obj_t*>(lv_xml_create(parent_screen, "widget_catalog_overlay", nullptr));
+    auto* overlay = helix::ui::create_xml_hidden(parent_screen, "widget_catalog_overlay");
     if (!overlay) {
         spdlog::error("[WidgetCatalog] Failed to create widget_catalog_overlay from XML");
         release_catalog_state();
@@ -730,9 +741,6 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     // a widget out of it. Neither navigation width class applies, so opt out of
     // push-time width management (#1178).
     helix::nav::set_overlay_width_unmanaged(overlay);
-
-    // Initially hidden (NavigationManager will unhide during push)
-    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
 
     // Store state. on_select/on_close were parked above, before the first thing
     // that can fail — re-moving them here would assign the moved-from empties.
@@ -771,19 +779,13 @@ void WidgetCatalogOverlay::show(lv_obj_t* parent_screen, const PanelWidgetConfig
     g_catalog_state.row_defs = def_row_snapshot();
     populate_category_rows(group);
 
-    // Search results: one row per registry def, in registry order, built once
-    // per open — a keystroke only flips visibility flags (apply_catalog_search),
-    // the same treatment the wizard's ~105-row list gets. Entries are parallel
-    // to these rows.
-    lv_obj_t* results = lv_obj_find_by_name(overlay, "search_results");
-    if (!results) {
+    // Search results are built on the first query (apply_search).
+    if (!lv_obj_find_by_name(overlay, "search_results")) {
         spdlog::error("[WidgetCatalog] search_results not found in XML");
         lv_obj_delete(overlay);
         release_catalog_state();
         return;
     }
-    g_catalog_state.entries = build_catalog_entries();
-    populate_rows(results, config, all_widget_def_ptrs());
 
     // Register with nullptr lifecycle — this overlay is function-based, not class-based
     helix::nav::register_overlay(overlay, nullptr);
@@ -860,8 +862,8 @@ void WidgetCatalogOverlay::show_widget_page(const char* title, const char* title
     // The title is baked in at parse time — overlay_panel forwards $title to its
     // header_bar, so each dive creates a page already carrying its own name.
     const char* attrs[] = {"title", title, "title_tag", title_tag, nullptr};
-    auto* page = static_cast<lv_obj_t*>(
-        lv_xml_create(g_catalog_state.parent_screen, "widget_catalog_category_overlay", attrs));
+    auto* page = helix::ui::create_xml_hidden(g_catalog_state.parent_screen,
+                                              "widget_catalog_category_overlay", attrs);
     if (!page) {
         spdlog::error("[WidgetCatalog] Failed to create widget_catalog_category_overlay from XML");
         return;
@@ -870,7 +872,6 @@ void WidgetCatalogOverlay::show_widget_page(const char* title, const char* title
     // Same 70% opt-out as the catalog beneath it: without this the push would
     // inherit the parent's destination class and go full width (#1178).
     helix::nav::set_overlay_width_unmanaged(page);
-    lv_obj_add_flag(page, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t* scroll = lv_obj_find_by_name(page, "catalog_scroll");
     if (!scroll) {
@@ -928,14 +929,15 @@ void WidgetCatalogOverlay::refresh_gated_rows() {
     // Rebuilt result rows stay parallel to entries (one per def, registry order)
     // and start out visible, so the query still in the box re-filters them.
     // Entries are index-parallel to these rows: rebuilding one without the other
-    // leaves the query filtering rows by the wrong def's name.
-    if (lv_obj_t* results = lv_obj_find_by_name(root, "search_results")) {
+    // leaves the query filtering rows by the wrong def's name. Rows no query has
+    // asked for yet are built by the first one.
+    lv_obj_t* results = lv_obj_find_by_name(root, "search_results");
+    if (results && g_catalog_state.search_rows_built) {
         helix::ui::safe_clean_children(results);
-        g_catalog_state.entries = build_catalog_entries();
-        populate_rows(results, config, all_widget_def_ptrs());
+        build_search_rows(results);
         lv_obj_t* input = lv_obj_find_by_name(root, "catalog_search_input");
         const char* query = input ? lv_textarea_get_text(input) : nullptr;
-        apply_catalog_search(query ? query : "");
+        apply_search(query ? query : "");
     }
 
     if (lv_obj_t* page = g_catalog_state.category_root) {

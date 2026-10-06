@@ -421,14 +421,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Reset UI state when starting a new print
-     *
-     * Clears the print_complete flag and resets progress to prepare for
-     * a new print. Call this BEFORE navigating to print status panel.
-     */
-    void reset_for_new_print();
-
-    /**
      * @brief Firmware-persisted Z-offset in microns, or nullopt when unknown
      *
      * Convenience wrapper over the motion domain's persisted z-offset subjects for the

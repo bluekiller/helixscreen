@@ -54,6 +54,10 @@ void on_bed_drying_banner_clicked();
 /// The cooled-bed "remove the spools" prompt; wired to the controller at startup.
 void show_bed_drying_remove_prompt();
 
+/// The alarm for a print taking hold of the machine while spools are latched
+/// on the bed; wired to the controller at startup.
+void show_spools_on_bed_print_alarm();
+
 /// Registers the XML callbacks the banner and the entry rows use.
 void register_bed_drying_callbacks();
 

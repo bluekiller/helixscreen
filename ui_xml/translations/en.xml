@@ -119,6 +119,7 @@
   <translation tag="A picture of your printer" en="A picture of your printer"/>
   <translation tag="A print is in progress - restart still pending" en="A print is in progress - restart still pending"/>
   <translation tag="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes." en="A print is running on this gate. HelixScreen cleared its own copy; clear it again once the print finishes."/>
+  <translation tag="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop." en="A print started while spools are marked as on the bed. If they are still there, stop the printer now with the E-stop."/>
   <translation tag="A spool may be tangled or the drive gear is jammed" en="A spool may be tangled or the drive gear is jammed"/>
   <translation tag="A · 1,-1" en="A · 1,-1"/>
   <translation tag="ABS" en="ABS"/>
@@ -2802,8 +2803,10 @@
   <translation tag="Spoolman was not configured." en="Spoolman was not configured."/>
   <translation tag="Spoolman: %zu Spool%s" en="Spoolman: %zu Spool%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" en="Spoolman: %zu/%zu Spool%s"/>
+  <translation tag="Spools are off" en="Spools are off"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" en="Spools are on the bed: remove them and confirm before moving the printer"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." en="Spools are on the bed: tap the drying banner to confirm they are off, then restart."/>
+  <translation tag="Spools on the bed!" en="Spools on the bed!"/>
   <translation tag="Spools on the bed: start drying, or confirm none were placed" en="Spools on the bed: start drying, or confirm none were placed"/>
   <translation tag="Spools removed" en="Spools removed"/>
   <translation tag="Square Corner Velocity" en="Square Corner Velocity"/>

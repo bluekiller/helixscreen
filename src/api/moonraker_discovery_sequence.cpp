@@ -748,7 +748,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                 // No camera widget on this platform — explicitly mark unavailable
                 // so any consumer that observes the subject sees a definitive
                 // "no" instead of the default-constructed initial state.
-                get_printer_state().set_webcam_available(false);
+                get_printer_state().capabilities_state().set_webcam_available(false);
 #endif // HELIX_HAS_CAMERA
 
                 // Fire-and-forget power device detection
