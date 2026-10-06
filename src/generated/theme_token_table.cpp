@@ -170,7 +170,7 @@ const TokenEntry k_token_table[] = {
     {"px", "filament_portrait_row_h_large", "64"},
     {"px", "filament_portrait_row_h_xlarge", "72"},
     {"color", "gcode_selection_outline", "#FFFFFF"},
-    {"color", "gcode_selection_excluded", "#FF6B35"},
+    {"color", "gcode_selection_excluded", "#FF3B30"},
     {"color", "gcode_selection_bracket", "#C0C0C0"},
     {"px", "nav_padding", "16"},
     {"px", "modal_backdrop_opacity", "120"},
