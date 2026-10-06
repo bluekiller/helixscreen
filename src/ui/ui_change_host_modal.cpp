@@ -6,7 +6,6 @@
 #include "ui_emergency_stop.h"
 #include "ui_update_queue.h"
 
-#include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
 #include "host_identity.h"
@@ -14,6 +13,7 @@
 #include "i_moonraker_client.h"
 #include "lvgl/lvgl.h"
 #include "moonraker_manager.h"
+#include "printer_retarget.h"
 #include "printer_state.h"
 #include "text_io.h"
 #include "theme_manager.h"
@@ -24,35 +24,6 @@
 #include <string>
 
 using namespace helix;
-
-namespace {
-
-/// Points the live client at the host and port the active printer's config names.
-void reconnect_to_configured_host() {
-    Config* config = Config::get_instance();
-    const std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
-    const int port = config->get<int>(config->df() + "moonraker_port", 7125);
-
-    IMoonrakerClient* client = get_moonraker_client();
-    MoonrakerManager* manager = get_moonraker_manager();
-    if (!client || !manager) {
-        spdlog::error("[ChangeHostModal] Cannot reconnect - client or manager unavailable");
-        return;
-    }
-
-    // The teardown below looks exactly like an unexpected drop; suppress the
-    // recovery dialog so an intentional switch doesn't raise one.
-    EmergencyStopOverlay::instance().suppress_recovery_dialog(RecoverySuppression::SHORT);
-    client->disconnect();
-
-    const std::string ws_url = "ws://" + host + ":" + std::to_string(port) + "/websocket";
-    const std::string http_url = "http://" + host + ":" + std::to_string(port);
-
-    spdlog::info("[ChangeHostModal] Reconnecting to {}:{}", host, port);
-    manager->connect(ws_url, http_url);
-}
-
-} // namespace
 
 // Static member initialization
 bool ChangeHostModal::callbacks_registered_ = false;
@@ -145,7 +116,7 @@ void ChangeHostModal::on_hide() {
     if (client_borrowed_) {
         client_borrowed_ = false;
         helix::ui::queue_update("ChangeHostModal::restore_saved_host",
-                                [] { reconnect_to_configured_host(); });
+                                [] { reconnect_active_printer(); });
     }
 
     // Remove observers NOW rather than relying on auto-removal when dialog
@@ -475,10 +446,8 @@ void show_change_host_modal(std::function<void(bool changed)> extra_on_complete)
         if (extra) {
             extra(true);
         }
-        // A new host is a different printer, and its discovery builds AMS backends only
-        // when none exist.
-        AmsState::instance().clear_backends();
-        reconnect_to_configured_host();
+        // A new host is a different printer.
+        retarget_printer_connection();
     });
 
     modal->show_modal(lv_screen_active());
