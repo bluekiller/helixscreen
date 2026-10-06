@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>1c9c77a87</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>f3256d7a8</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 122 done, 5 in progress, 9 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 123 done, 5 in progress, 8 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -2258,9 +2258,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-14" data-tag="extensibility" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-14</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">ESP32 link-level gate: undefined symbols vs excluded files</span><span class="fimpact">link breaks reach CI unseen</span></summary>
+<details class="f" id="TB-14" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-14</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f3256d7a8</code><span class="ftitle">ESP32 link-level gate: undefined symbols vs excluded files</span><span class="fimpact">link breaks reach CI unseen</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>f3256d7a8</code>: <code>check_esp32_app_srcs.py --link</code> runs <code>nm</code> over the native objects and exempts only symbols a firmware source defines; 40 tolerated edges sit in <code>scripts/esp32_link_baseline.txt</code>, capped and shrink-only. Same merge: 60 existence guards removed from quality-checks.sh (<a href="#TB-6">TB-6</a>, its 1.1 half).</p>
 <dl>
 <dt>Locations</dt><dd><code>scripts/check_esp32_app_srcs.py</code>, ESP32 source manifests</dd>
 <dt>Evidence</dt><dd><a href="#TB-11">TB-11</a> passed every local gate: the source-level checks see calls, not which object files the firmware links. Ties to #1295.</dd>
