@@ -74,6 +74,12 @@ class PWMSoundBackend : public SoundBackend {
         min_note_ms_ = ms;
     }
 
+    /// A user-named buzzer channel: the HELIX_PWM_SOUND override when it is
+    /// set, else the saved setting, each as "<chip>:<channel>". A malformed
+    /// value is skipped with a warning. Returns false when neither names one.
+    static bool resolve_channel(const std::string& setting, const char* env, int& chip,
+                                int& channel);
+
     /// Disable the initialized channel. Async-signal-safe (lseek + write on a
     /// cached fd), for the SIGTERM fast exit.
     static void silence_signal_safe();

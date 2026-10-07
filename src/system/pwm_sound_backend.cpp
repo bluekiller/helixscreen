@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
@@ -88,6 +89,38 @@ namespace {
 // keeps a PWM channel running after its writer dies.
 std::atomic<int> s_signal_enable_fd{-1};
 } // namespace
+
+namespace {
+bool parse_channel(const char* spec, int& chip, int& channel) {
+    int c = -1;
+    int ch = -1;
+    char extra = 0;
+    if (std::sscanf(spec, "%d:%d%c", &c, &ch, &extra) != 2 || c < 0 || ch < 0) {
+        return false;
+    }
+    chip = c;
+    channel = ch;
+    return true;
+}
+} // namespace
+
+bool PWMSoundBackend::resolve_channel(const std::string& setting, const char* env, int& chip,
+                                      int& channel) {
+    if (env && env[0] != '\0') {
+        if (parse_channel(env, chip, channel)) {
+            return true;
+        }
+        spdlog::warn("[PWMSoundBackend] HELIX_PWM_SOUND={} is not <chip>:<channel>, ignored", env);
+    }
+    if (!setting.empty()) {
+        if (parse_channel(setting.c_str(), chip, channel)) {
+            return true;
+        }
+        spdlog::warn("[PWMSoundBackend] sound.pwm_channel '{}' is not <chip>:<channel>, ignored",
+                     setting);
+    }
+    return false;
+}
 
 void PWMSoundBackend::silence_signal_safe() {
     const int fd = s_signal_enable_fd.load(std::memory_order_relaxed);
