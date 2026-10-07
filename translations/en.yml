@@ -309,6 +309,7 @@ translations:
   'Backtrace: {} frames': 'Backtrace: {} frames'
   Backup lane name contains invalid characters: Backup lane name contains invalid characters
   Backup spool switching state unknown: Backup spool switching state unknown
+  Balanced: Balanced
   Barcode Scanner: Barcode Scanner
   Base: Base
   Based on the newest {} prints: Based on the newest {} prints
@@ -1242,6 +1243,7 @@ translations:
   Feeders: Feeders
   Feeding filament forward: Feeding filament forward
   Filament: Filament
+  Filament Buffer: 'Filament Buffer'
   Filament Control: Filament Control
   Filament Detected: Filament Detected
   Filament Grade Mismatch: Filament Grade Mismatch
@@ -1255,6 +1257,7 @@ translations:
   Filament Used: Filament Used
   Filament already exists: Filament already exists
   Filament buffer failure during feed: Filament buffer failure during feed
+  Filament buffer position against its target: 'Filament buffer position against its target'
   Filament buffer stopped moving: Filament buffer stopped moving
   Filament by Type: Filament by Type
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -1272,8 +1275,6 @@ translations:
   Filament is dragging: Filament is dragging
   Filament is loaded at the toolhead. Unload it before enabling bypass.: Filament is loaded at the toolhead. Unload it before enabling bypass.
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.
-  Filament is loose: Filament is loose
-  Filament is pulling tight: Filament is pulling tight
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   Filament is still loaded. Unload it before enabling bypass.: Filament is still loaded. Unload it before enabling bypass.
@@ -1306,7 +1307,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Filament stalled between CFS hub and extruder sensor
   Filament stuck in connector during unload: Filament stuck in connector during unload
   Filament stuck inside the CFS hub: Filament stuck inside the CFS hub
-  Filament tension is balanced: Filament tension is balanced
   Filament tracking & label printing: Filament tracking & label printing
   Filament tracking and inventory: Filament tracking and inventory
   FilamentSensor: FilamentSensor
@@ -2630,6 +2630,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Requires Moonraker-Timelapse plugin
   Requires Multi-Filament System or MMU hardware: Requires Multi-Filament System or MMU hardware
   Requires a filament system with bypass: Requires a filament system with bypass
+  Requires a filament pressure sensor or sync feedback: 'Requires a filament pressure sensor or sync feedback'
   Requires clog detection hardware: Requires clog detection hardware
   Resend write failed at chunk {}: Resend write failed at chunk {}
   Reset: Reset
@@ -2739,6 +2740,8 @@ translations:
   Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.: Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.
   Run the chamber dryer too: Run the chamber dryer too
   Run {}?: Run {}?
+  Running loose: Running loose
+  Running tight: Running tight
   Running {}...: Running {}...
   Runout: Runout
   Runout Sensor: Runout Sensor
@@ -3126,6 +3129,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.
   Switching to MPC requires a config change and Klipper restart.: Switching to MPC
     requires a config change and Klipper restart.
+  Sync: Sync
   Switching to {}: Switching to {}
   Sync during printing: Sync during printing
   Sync with Spoolman: Sync with Spoolman
@@ -3783,6 +3787,7 @@ translations:
   incompatible: incompatible
   invalid: invalid
   just now: just now
+  last 60 s · LOOSE up, TIGHT down: last 60 s · LOOSE up, TIGHT down
   layers: layers
   left: left
   loaded: loaded
@@ -3813,6 +3818,7 @@ translations:
   steppers: steppers
   sweeping: sweeping
   tall: tall
+  target {}%: target {}%
   target {}°: target {}°
   tool(s): tool(s)
   used: used

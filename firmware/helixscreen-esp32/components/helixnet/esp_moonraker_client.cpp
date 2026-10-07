@@ -11,6 +11,7 @@
 #include "helix_version.h" // HELIX_VERSION for server.connection.identify
 #include "http_lane_queue.h"
 #include "json_utils.h"
+#include "link_liveness.h"
 #include "psram_thread_stack.h"
 
 #include <spdlog/spdlog.h>
@@ -847,13 +848,15 @@ void EspMoonrakerClient::process_timeouts() {
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     }
     // Dead-link check, run here on the timer rather than on the websocket task, so it holds
-    // even when that task stops servicing the socket: no PONG for our PINGs means the link
-    // is not carrying traffic both ways, and nothing on that task will say so.
+    // even when that task stops servicing the socket. It is the backstop behind the
+    // component's own pong timeout and mid-frame deadline, so it waits for silence in
+    // both directions: late PONGs on a weak link with frames still arriving are not dead.
     const int64_t last_pong = last_pong_us_.load();
-    if (get_connection_state() == ConnectionState::CONNECTED && last_pong > 0 &&
-        now - last_pong > PONG_DEAD_US && !dead_link_reported_.exchange(true)) {
+    if (get_connection_state() == ConnectionState::CONNECTED &&
+        net::link_dead(now, last_pong, last_rx_us_.load(), LINK_DEAD_US) &&
+        !dead_link_reported_.exchange(true)) {
         ESP_LOGW(TAG,
-                 "no PONG for %llds on a live connection (last frame %llds ago, %u pending, %u "
+                 "no PONG for %llds and no frame for %llds on a live connection (%u pending, %u "
                  "stale frames dropped); reconnecting",
                  (long long)((now - last_pong) / 1000000),
                  (long long)((now - last_rx_us_.load()) / 1000000), (unsigned)pending_n,

@@ -325,6 +325,7 @@ translations:
   'Backtrace: {} frames': 'Trace : {} frames'
   Backup lane name contains invalid characters: 'Le nom de la voie de secours contient des caractères non valides'
   Backup spool switching state unknown: État du passage à la bobine de secours inconnu
+  Balanced: Équilibré
   Barcode Scanner: Scanner de codes-barres
   Base: Référence
   Based on the newest {} prints: 'Basé sur les {} impressions les plus récentes'
@@ -1302,6 +1303,7 @@ translations:
   Feeders: Alimentateurs
   Feeding filament forward: Avancement du filament
   Filament: Filament
+  Filament Buffer: 'Tampon de filament'
   Filament Control: Contrôle du filament
   Filament Detected: Filament détecté
   Filament Grade Mismatch: Grade de filament incompatible
@@ -1315,6 +1317,7 @@ translations:
   Filament Used: Filament utilisé
   Filament already exists: Ce filament existe déjà
   Filament buffer failure during feed: Défaillance du tampon de filament pendant l'alimentation
+  Filament buffer position against its target: 'Position du tampon de filament par rapport à la cible'
   Filament buffer stopped moving: Le tampon de filament ne bouge plus
   Filament by Type: Filament par type
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -1333,8 +1336,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'Du filament est chargé dans la tête d''outil. Déchargez-le avant d''activer le bypass.'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: Du filament est chargé dans la tête d'outil. Déchargez-le d'abord pour qu'il ne ramollisse pas dans l'extrudeur pendant que le plateau chauffe.
 
-  Filament is loose: Le filament est détendu
-  Filament is pulling tight: Le filament est sous tension
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Le filament est encore à la buse après le déchargement. La coupe ou la rétractation n'a peut-être pas abouti. Dégagez la tête d'outil avant de charger une autre bobine.
   Filament is still loaded. Unload it before enabling bypass.: 'Du filament est encore chargé. Déchargez-le avant d''activer le bypass.'
@@ -1367,7 +1368,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Le filament est bloqué entre le hub CFS et le capteur d'extrudeur
   Filament stuck in connector during unload: Filament coincé dans le connecteur pendant le déchargement
   Filament stuck inside the CFS hub: Filament coincé dans le hub CFS
-  Filament tension is balanced: La tension du filament est équilibrée
   Filament tracking & label printing: Suivi du filament & impression d'étiquettes
   Filament tracking and inventory: Suivi et inventaire du filament
   FilamentSensor: Capteur de filament
@@ -2728,6 +2728,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Nécessite le plugin Moonraker-Timelapse
   Requires Multi-Filament System or MMU hardware: 'Nécessite un système multi-filament ou du matériel MMU'
   Requires a filament system with bypass: Nécessite un système de filament avec bypass
+  Requires a filament pressure sensor or sync feedback: 'Nécessite un capteur de pression de filament ou un retour de synchronisation'
   Requires clog detection hardware: 'Nécessite du matériel de détection de bourrage'
   Resend write failed at chunk {}: Échec du renvoi de l'écriture au bloc {}
   Reset: Réinitialiser
@@ -2839,6 +2840,8 @@ translations:
   Run the chamber dryer too: Faire aussi tourner le séchoir de l'enceinte
 
   Run {}?: Exécuter {} ?
+  Running loose: 'Détendu'
+  Running tight: 'Tendu'
   Running {}...: Exécution de {}...
   Runout: 'Fin de filament'
   Runout Sensor: Capteur de fin de filament
@@ -3246,6 +3249,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Le passage à MPC change la façon dont ce chauffage est contrôlé, puis le calibre. Cela prend plusieurs minutes à température.
   Switching to MPC requires a config change and Klipper restart.: Le passage à MPC
     nécessite une modification de la config et un redémarrage de Klipper.
+  Sync: 'Sync'
   Switching to {}: Passage à {}
   Sync during printing: 'Synchroniser pendant l''impression'
   Sync with Spoolman: Synchroniser avec Spoolman
@@ -3931,6 +3935,7 @@ translations:
   incompatible: incompatible
   invalid: non valide
   just now: à l'instant
+  last 60 s · LOOSE up, TIGHT down: '60 dernières s · DÉTENDU en haut, TENDU en bas'
   layers: couches
   left: restant
   loaded: 'chargé'
@@ -3967,6 +3972,7 @@ translations:
   steppers: moteurs pas à pas
   sweeping: en cours de mesure
   tall: de haut
+  target {}%: 'cible {}%'
   target {}°: 'cible {}°'
   tool(s): outil(s)
   used: utilisé

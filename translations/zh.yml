@@ -295,6 +295,7 @@ translations:
   'Backtrace: {} frames': '回溯: {} 帧'
   Backup lane name contains invalid characters: '备用耗材通道名称包含无效字符'
   Backup spool switching state unknown: 备用料盘切换状态未知
+  Balanced: 平衡
   Barcode Scanner: 条码扫描器
   Base: 基准
   Based on the newest {} prints: '基于最近 {} 次打印'
@@ -1198,6 +1199,7 @@ translations:
   Feeders: 送料器
   Feeding filament forward: 正在向前送料
   Filament: 耗材
+  Filament Buffer: '耗材缓冲区'
   Filament Control: 耗材控制
   Filament Detected: 检测到耗材
   Filament Grade Mismatch: 耗材等级不匹配
@@ -1211,6 +1213,7 @@ translations:
   Filament Used: 已用耗材
   Filament already exists: 耗材已存在
   Filament buffer failure during feed: 送料时耗材缓冲器故障
+  Filament buffer position against its target: '耗材缓冲区相对目标的位置'
   Filament buffer stopped moving: 耗材缓冲器停止移动
   Filament by Type: 按类型分类的耗材
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -1228,8 +1231,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: '工具头上已装载耗材。启用旁通前请先卸载。'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: 工具头中已装有耗材。请先卸载,以免热床加热时耗材在挤出机中变软。
 
-  Filament is loose: 耗材松弛
-  Filament is pulling tight: 耗材拉紧
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : 卸载后耗材仍留在喷嘴处。切断或回抽可能未完成。请先清理工具头，再装载其他料盘。
   Filament is still loaded. Unload it before enabling bypass.: '耗材仍处于装载状态。启用旁通前请先卸载。'
@@ -1260,7 +1261,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: 耗材停滞在 CFS 集线器与挤出机传感器之间
   Filament stuck in connector during unload: 退料时耗材卡在接头内
   Filament stuck inside the CFS hub: 耗材卡在 CFS 集线器内
-  Filament tension is balanced: 耗材张力平衡
   Filament tracking & label printing: 耗材跟踪和标签打印
   Filament tracking and inventory: 耗材跟踪和库存
   FilamentSensor: 耗材传感器
@@ -2539,6 +2539,7 @@ translations:
   Requires Moonraker-Timelapse plugin: 需要 Moonraker-Timelapse 插件
   Requires Multi-Filament System or MMU hardware: '需要多耗材系统或 MMU 硬件'
   Requires a filament system with bypass: 需要支持旁路的耗材系统
+  Requires a filament pressure sensor or sync feedback: '需要耗材压力传感器或同步反馈'
   Requires clog detection hardware: '需要堵塞检测硬件'
   Resend write failed at chunk {}: 区块 {} 重发写入失败
   Reset: 重置
@@ -2643,6 +2644,8 @@ translations:
   Run the chamber dryer too: 同时运行腔体烘干器
 
   Run {}?: 运行 {}？
+  Running loose: '偏松'
+  Running tight: '偏紧'
   Running {}...: 正在运行 {}...
   Runout: '用尽'
   Runout Sensor: 断料传感器
@@ -3008,6 +3011,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: 切换到 MPC 会改变此加热器的控制方式，随后会进行校准。这需要在工作温度下耗时数分钟。
   Switching to MPC requires a config change and Klipper restart.: 切换到 MPC 需要修改配置并重启
     Klipper。
+  Sync: '同步'
   Switching to {}: 正在切换到 {}
   Sync during printing: 打印期间同步
   Sync with Spoolman: 与 Spoolman 同步
@@ -3630,6 +3634,7 @@ translations:
   incompatible: 不兼容
   invalid: 无效
   just now: 刚刚
+  last 60 s · LOOSE up, TIGHT down: '最近 60 秒 · 上松下紧'
   layers: 层
   left: 剩余
   loaded: '已加载'
@@ -3665,6 +3670,7 @@ translations:
   steppers: 步进电机
   sweeping: 测量中
   tall: 高
+  target {}%: '目标 {}%'
   target {}°: '目标 {}°'
   tool(s): 工具
   used: 已使用

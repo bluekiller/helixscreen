@@ -292,6 +292,7 @@
   <translation tag="Backtrace: {} frames" pt="Backtrace: {} quadros"/>
   <translation tag="Backup lane name contains invalid characters" pt="O nome do lane de reserva contém caracteres inválidos"/>
   <translation tag="Backup spool switching state unknown" pt="Estado da troca para carretel de reserva desconhecido"/>
+  <translation tag="Balanced" pt="Equilibrado"/>
   <translation tag="Barcode Scanner" pt="Leitor de Código de Barras"/>
   <translation tag="Base" pt="Referência"/>
   <translation tag="Based on the newest {} prints" pt="Com base nas {} impressões mais recentes"/>
@@ -1164,6 +1165,7 @@
   <translation tag="Feeders" pt="Alimentadores"/>
   <translation tag="Feeding filament forward" pt="Avançando filamento"/>
   <translation tag="Filament" pt="Filamento"/>
+  <translation tag="Filament Buffer" pt="Buffer de filamento"/>
   <translation tag="Filament Control" pt="Controle de Filamento"/>
   <translation tag="Filament Detected" pt="Filamento Detectado"/>
   <translation tag="Filament Grade Mismatch" pt="Grau de Filamento Incompatível"/>
@@ -1177,6 +1179,7 @@
   <translation tag="Filament Used" pt="Filamento Usado"/>
   <translation tag="Filament already exists" pt="Filamento já existe"/>
   <translation tag="Filament buffer failure during feed" pt="Falha do buffer de filamento durante a alimentação"/>
+  <translation tag="Filament buffer position against its target" pt="Posição do buffer de filamento em relação ao alvo"/>
   <translation tag="Filament buffer stopped moving" pt="O buffer de filamento parou de se mover"/>
   <translation tag="Filament by Type" pt="Filamento por Tipo"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" pt="Não é possível carregar filamento abaixo da temperatura mínima de extrusão. Defina uma temperatura-alvo do hotend (p. ex. 220 °C para PLA, 240 °C para PETG), aguarde atingi-la e tente novamente"/>
@@ -1192,8 +1195,6 @@
   <translation tag="Filament is dragging" pt="O filamento está com atrito"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." pt="Há filamento carregado no cabeçote. Descarregue-o antes de ativar o bypass."/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." pt="Há filamento carregado no cabeçote. Descarregue-o primeiro para que não amoleça na extrusora enquanto a mesa aquece."/>
-  <translation tag="Filament is loose" pt="O filamento está solto"/>
-  <translation tag="Filament is pulling tight" pt="O filamento está puxando com tensão"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." pt="O filamento ainda está no bico após o descarregamento. O corte ou a retração pode não ter sido concluído. Limpe o cabeçote antes de carregar outro carretel."/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." pt="Ainda há filamento carregado. Descarregue-o antes de ativar o bypass."/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" pt="Ainda há filamento após o corte. A lâmina pode estar cega ou desalinhada"/>
@@ -1222,7 +1223,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" pt="O filamento parou entre o hub do CFS e o sensor do extrusor"/>
   <translation tag="Filament stuck in connector during unload" pt="Filamento preso no conector durante a descarga"/>
   <translation tag="Filament stuck inside the CFS hub" pt="Filamento preso dentro do hub do CFS"/>
-  <translation tag="Filament tension is balanced" pt="A tensão do filamento está equilibrada"/>
   <translation tag="Filament tracking &amp; label printing" pt="Rastreamento de filamento e impressão de etiquetas"/>
   <translation tag="Filament tracking and inventory" pt="Rastreamento e inventário de filamento"/>
   <translation tag="FilamentSensor" pt="Sensor de Filamento"/>
@@ -2449,6 +2449,7 @@
   <translation tag="Requires Moonraker power device" pt="Requer um dispositivo de energia do Moonraker"/>
   <translation tag="Requires Moonraker-Timelapse plugin" pt="Requer plugin Moonraker-Timelapse"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" pt="Requer sistema multi-filamento ou hardware MMU"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" pt="Requer um sensor de pressão de filamento ou feedback de sincronização"/>
   <translation tag="Requires a filament system with bypass" pt="Requer um sistema de filamento com bypass"/>
   <translation tag="Requires clog detection hardware" pt="Requer hardware de detecção de entupimento"/>
   <translation tag="Resend write failed at chunk {}" pt="Falha ao reenviar a escrita no fragmento {}"/>
@@ -2552,6 +2553,8 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." pt="Execute o instalador do HelixScreen com --update em um terminal nesta impressora. Escaneie para ver o comando da sua plataforma."/>
   <translation tag="Run the chamber dryer too" pt="Usar também o secador da câmara"/>
   <translation tag="Run {}?" pt="Executar {}?"/>
+  <translation tag="Running loose" pt="Solto"/>
+  <translation tag="Running tight" pt="Tenso"/>
   <translation tag="Running {}..." pt="Executando {}..."/>
   <translation tag="Runout" pt="Fim de filamento"/>
   <translation tag="Runout Sensor" pt="Sensor de Fim de Filamento"/>
@@ -2898,6 +2901,7 @@
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." pt="Mudar para MPC altera como este aquecedor é controlado e depois o calibra. Isso leva vários minutos em temperatura."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." pt="Mudar para MPC requer alteração de configuração e reinicialização do Klipper."/>
   <translation tag="Switching to {}" pt="Mudando para {}"/>
+  <translation tag="Sync" pt="Sinc."/>
   <translation tag="Sync during printing" pt="Sincronizar durante a impressão"/>
   <translation tag="Sync with Spoolman" pt="Sincronizar com Spoolman"/>
   <translation tag="Sysfs" pt="Sysfs"/>
@@ -3475,6 +3479,7 @@
   <translation tag="incompatible" pt="incompatível"/>
   <translation tag="invalid" pt="inválido"/>
   <translation tag="just now" pt="agora mesmo"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" pt="últimos 60 s · SOLTO em cima, TENSO em baixo"/>
   <translation tag="layers" pt="camadas"/>
   <translation tag="left" pt="restante"/>
   <translation tag="loaded" pt="carregado"/>
@@ -3505,6 +3510,7 @@
   <translation tag="steppers" pt="motores de passo"/>
   <translation tag="sweeping" pt="medindo"/>
   <translation tag="tall" pt="de altura"/>
+  <translation tag="target {}%" pt="alvo {}%"/>
   <translation tag="target {}°" pt="alvo {}°"/>
   <translation tag="tool(s)" pt="ferramenta(s)"/>
   <translation tag="used" pt="usado"/>

@@ -230,9 +230,11 @@ void register_widgets() {
 // The restart fallback of a live switch: boot connects to the active printer, with every
 // heap back at its boot state. The label is the only feedback, drawn synchronously because
 // nothing runs after it.
-// Restarts in a row without a printer connecting in between. Past the cap the panel stays up
-// disconnected instead, so a printer that cannot be reached never becomes a boot loop.
+// Fallback restarts since the panel last stayed connected for HEALTHY_UPTIME_US. Past the
+// cap the panel stays up and keeps reconnecting instead, so neither an unreachable printer
+// nor a weak link that connects briefly between failures becomes a boot loop.
 constexpr int MAX_FALLBACK_RESTARTS = 2;
+constexpr int64_t HEALTHY_UPTIME_US = 10LL * 60 * 1000 * 1000;
 
 void restart_into_active_printer() {
     helix::Config* config = helix::Config::get_instance();
@@ -670,12 +672,6 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 }
                 laps.lap("initial status");
 
-                // A printer answered, so a later fallback restart is not part of a loop.
-                if (helix::Config* cfg = helix::Config::get_instance();
-                    cfg->get<int>("/switch_restart_streak", 0) != 0) {
-                    cfg->set<int>("/switch_restart_streak", 0);
-                    cfg->save();
-                }
                 if (g_switch_started_us != 0) {
                     spdlog::info("[app_boot] printer switch connected in {} ms",
                                  (esp_timer_get_time() - g_switch_started_us) / 1000);
@@ -1202,6 +1198,19 @@ extern "C" void app_boot_tick(void) {
     // discovery, and live status streaming are all up, so this reads budgets
     // under real load. It runs once, so it can afford the largest-block walk
     // log_heap_milestone takes; the per-frame loop never may.
+    // Ten minutes up and connected: a later fallback restart is not part of a loop.
+    static bool restart_streak_cleared = false;
+    if (!restart_streak_cleared && esp_timer_get_time() > HEALTHY_UPTIME_US && g_manager &&
+        g_manager->client() &&
+        g_manager->client()->get_connection_state() == helix::ConnectionState::CONNECTED) {
+        restart_streak_cleared = true;
+        helix::Config* cfg = helix::Config::get_instance();
+        if (cfg->get<int>("/switch_restart_streak", 0) != 0) {
+            cfg->set<int>("/switch_restart_streak", 0);
+            cfg->save();
+        }
+    }
+
     static bool steady_logged = false;
     if (!steady_logged && esp_timer_get_time() > 60000000LL) {
         steady_logged = true;
