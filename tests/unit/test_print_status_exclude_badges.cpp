@@ -99,3 +99,23 @@ TEST_CASE_METHOD(PrintStatusPanelFixture,
     UpdateQueue::instance().drain();
     CHECK(badges_of(viewer).empty());
 }
+
+TEST_CASE_METHOD(PrintStatusPanelFixture,
+                 "The objects button follows a multi-object print and never shows a pick count",
+                 "[exclude_button][print_status][pre_start_exclude]") {
+    lv_obj_t* btn = lv_obj_find_by_name(root_, "btn_objects");
+    REQUIRE(btn != nullptr);
+    auto& objects = state().excluded_objects_state();
+
+    objects.set_defined_objects({"Solo"});
+    UpdateQueue::instance().drain();
+    CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+
+    objects.set_defined_objects({"A", "B"});
+    UpdateQueue::instance().drain();
+    CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_t* count = lv_obj_find_by_name(btn, "objects_pick_count");
+    REQUIRE(count != nullptr);
+    CHECK(lv_obj_has_flag(count, LV_OBJ_FLAG_HIDDEN));
+}
