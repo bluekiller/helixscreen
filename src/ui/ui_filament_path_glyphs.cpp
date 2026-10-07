@@ -205,12 +205,12 @@ void draw_buffer_coil(const RenderCtx& ctx, int32_t cx, int32_t cy, int32_t hub_
             buf_bg = ph_blend(bg_color, filament_color, 0.33f);
         }
     } else if (buffer_fault_state == 1) {
-        border_color = lv_color_hex(0xF59E0B);
+        border_color = theme.color_buffer[1];
         if (has_filament) {
             buf_bg = ph_blend(bg_color, filament_color, 0.33f);
         }
     } else {
-        border_color = lv_color_hex(0x22C55E);
+        border_color = theme.color_success;
         if (has_filament) {
             buf_bg = ph_blend(bg_color, filament_color, 0.33f);
         }
