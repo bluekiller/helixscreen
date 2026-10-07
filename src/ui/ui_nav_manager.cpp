@@ -46,7 +46,6 @@ using helix::ui::observe;
 #include <utility>
 #include <vector>
 
-#if defined(HELIX_PLATFORM_ESP32)
 namespace {
 // "Loading..." pill on the TOP layer, painted before a (possibly multi-second)
 // first build of a panel. STATIC label, NOT a spinner: the build blocks the LVGL
@@ -70,7 +69,10 @@ lv_obj_t* make_loading_scrim() {
     lv_obj_center(pill);
     return pill;
 }
+} // namespace
 
+#if defined(HELIX_PLATFORM_ESP32)
+namespace {
 // RAII busy indicator wrapping a panel transition (the deferred first-build now
 // runs UNDER this scrim — one mechanism, not two). ctor shows the scrim and
 // forces it to paint BEFORE the blocking transition body (the LVGL thread is
@@ -2079,6 +2081,14 @@ bool is_on_top(lv_obj_t* panel) {
 
 bool is_in_stack(lv_obj_t* panel) {
     return NavigationManager::instance().is_panel_in_stack(panel);
+}
+
+void build_under_loading_pill(const std::function<void()>& build) {
+    lv_obj_t* pill = make_loading_scrim();
+    lv_refr_now(lv_display_get_default());
+    build();
+    helix::ui::queue_update("nav::build_under_loading_pill",
+                            [pill]() mutable { helix::ui::safe_delete_deferred(pill); });
 }
 
 bool is_push_pending(lv_obj_t* panel) {

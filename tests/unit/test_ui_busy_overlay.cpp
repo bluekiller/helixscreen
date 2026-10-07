@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "ui_busy_overlay.h"
-#include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
 
@@ -265,57 +264,4 @@ TEST_CASE_METHOD(LVGLTestFixture, "BusyOverlay edge cases", "[ui_busy_overlay][e
 
     BusyOverlay::hide();
     spdlog::set_level(spdlog::level::warn);
-}
-
-// ============================================================================
-// show_during: feedback for a blocking UI-thread job
-// ============================================================================
-
-TEST_CASE_METHOD(LVGLTestFixture, "BusyOverlay::show_during paints before the job runs",
-                 "[ui_busy_overlay][show_during]") {
-    BusyOverlay::hide();
-    helix::ui::UpdateQueue::instance().drain();
-
-    int renders = 0;
-    lv_display_t* disp = lv_display_get_default();
-    lv_event_cb_t count_render = [](lv_event_t* e) {
-        ++*static_cast<int*>(lv_event_get_user_data(e));
-    };
-    lv_display_add_event_cb(disp, count_render, LV_EVENT_RENDER_READY, &renders);
-
-    bool visible_in_work = false;
-    int renders_in_work = 0;
-    bool visible_when_queued_work_ran = false;
-    BusyOverlay::show_during("Loading...", [&]() {
-        visible_in_work = BusyOverlay::is_visible();
-        renders_in_work = renders;
-        // Stands in for an overlay push: queued by the job, run after it.
-        helix::ui::queue_update("test::queued_by_work", [&]() {
-            visible_when_queued_work_ran = BusyOverlay::is_visible();
-        });
-    });
-
-    CHECK(visible_in_work);
-    CHECK(renders_in_work > 0);
-    CHECK(BusyOverlay::is_visible());
-
-    helix::ui::UpdateQueue::instance().drain();
-    CHECK(visible_when_queued_work_ran);
-    CHECK_FALSE(BusyOverlay::is_visible());
-    CHECK_FALSE(BusyOverlay::is_pending());
-
-    lv_display_remove_event_cb_with_user_data(disp, count_render, &renders);
-    BusyOverlay::hide();
-}
-
-TEST_CASE_METHOD(LVGLTestFixture, "BusyOverlay::show_during leaves another operation's overlay up",
-                 "[ui_busy_overlay][show_during]") {
-    BusyOverlay::hide();
-    BusyOverlay::show("Preparing print...", 0);
-
-    BusyOverlay::show_during("Loading...", []() {});
-    helix::ui::UpdateQueue::instance().drain();
-
-    CHECK(BusyOverlay::is_visible());
-    BusyOverlay::hide();
 }

@@ -221,16 +221,6 @@ void BusyOverlay::hide() {
     }
 }
 
-void BusyOverlay::show_during(const std::string& text, const std::function<void()>& work) {
-    const bool owned = !is_visible() && !is_pending();
-    show(text, 0);
-    lv_refr_now(nullptr);
-    work();
-    if (owned) {
-        helix::ui::queue_update("BusyOverlay::show_during", []() { BusyOverlay::hide(); });
-    }
-}
-
 bool BusyOverlay::is_visible() {
     return g_overlay != nullptr;
 }

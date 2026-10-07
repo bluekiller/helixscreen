@@ -240,6 +240,13 @@ TEST_CASE_METHOD(XMLTestFixture, "AmsPanel activation builds its slots once",
     process_lvgl(50);
     CHECK_FALSE(rebuilt);
 
+    // A count that bounces back before the queued rebuild runs leaves the slots alone.
+    lv_subject_t* count = AmsState::instance().get_slot_count_subject();
+    lv_subject_set_int(count, 5);
+    lv_subject_set_int(count, 4);
+    process_lvgl(50);
+    CHECK_FALSE(rebuilt);
+
     panel.clear_panel_reference();
     lv_obj_delete(panel_obj);
     process_lvgl(10);

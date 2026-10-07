@@ -10,7 +10,6 @@
 #include "ui_ams_sidebar.h"
 #include "ui_ams_slot.h"
 #include "ui_ams_slot_layout.h"
-#include "ui_busy_overlay.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_external_spool_menu.h"
@@ -1423,13 +1422,13 @@ void navigate_to_ams_panel() {
     };
 
     // Both panels are destroyed on close, so an open usually builds one: too
-    // slow on the ESP32 to go without a spinner.
+    // slow on the ESP32 to go without feedback.
     const AmsPanel* detail = get_existing_ams_panel();
     const bool built =
         multi_unit ? s_ams_overview_panel_obj != nullptr : detail && detail->get_panel();
     if (built) {
         open();
     } else {
-        helix::BusyOverlay::show_during(lv_tr("Loading..."), open);
+        helix::nav::build_under_loading_pill(open);
     }
 }
