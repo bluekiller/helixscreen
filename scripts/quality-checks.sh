@@ -58,8 +58,10 @@ if [ "$STAGED_ONLY" = true ]; then
   # The firmware/ exclusions mirror the ones above it, which exist because a
   # generated or vendored file is not ours to license. Under firmware/ the same
   # three categories just sit at a different prefix: LVGL font-converter output
-  # (as in assets/fonts/), vendored lv_conf.h, and files vendored from
-  # espressif/esp-bsp that carry their own Apache-2.0 SPDX line. Stamping
+  # (as in assets/fonts/), vendored lv_conf.h, files vendored from
+  # espressif/esp-bsp that carry their own Apache-2.0 SPDX line, and the
+  # vendored esp_websocket_client component (Apache-2.0, upstream's formatting,
+  # see its VENDORED.md). Stamping
   # GPL-3.0 on any of those would be a false licence claim on third-party code.
   # firmware/native-audit is the Phase 0 feasibility audit, self-described
   # throwaway scaffolding committed only for reproducibility.
@@ -71,6 +73,7 @@ if [ "$STAGED_ONLY" = true ]; then
     grep -v '^lv_conf\.h$' | \
     grep -v '/lv_conf\.h$' | \
     grep -v '/simd/esp_lvgl_port_' | \
+    grep -v '^firmware/helixscreen-esp32/components/esp_websocket_client/' | \
     grep -v '^firmware/native-audit/' | \
     grep -v '^node_modules/' | \
     grep -v '^build/' | \

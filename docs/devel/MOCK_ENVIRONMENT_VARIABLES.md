@@ -1139,6 +1139,22 @@ HELIX_MOCK_AMS=afc HELIX_MOCK_BUFFER_STATE=fault ./build/bin/helix-screen --test
 
 Note that `fault` does not report a distinct state string — it reports `Trailing` with a distance deep inside the threshold, which is what a real imminent fault looks like.
 
+### Buffer reading scenarios
+
+Mock scenarios that put a filament buffer reading on the Filament Buffer widget, the loaded-spool card, the path box and the Buffer Status modal. Apply one with `helix-screen ctl scenario <name>` (they drive the mock AMS backend, so the whole reading chain runs). `buffer_fps*` set the pressure sensor on the mock AMS units, so they work with any `HELIX_MOCK_AMS` type but Happy Hare; `sync_feedback_tight` is Happy Hare's. The set point is 50% unless noted.
+
+| Scenario | Reading |
+|----------|---------|
+| `buffer_fps` | Pressure 32%, below the set point: running tight, amber |
+| `buffer_fps_loose` | Pressure 71%, above the set point: running loose, red |
+| `buffer_fps_on_target` | Pressure 52%: balanced, neutral grey |
+| `buffer_fps_danger` | Pressure 8%, pinned near the tight end: red |
+| `buffer_fps_no_target` | Pressure 32% with no set point: "Pressure: 32%" as text, no slider |
+| `buffer_fps_with_clog` | Pressure 32% plus AFC fault detection reporting, so the buffer reading and the clog arc show together |
+| `sync_feedback_tight` | Happy Hare sync feedback at -45%, leaning to tension; labelled "Sync" |
+
+The trace holds each reading as a step, so a scenario change shows as a step in the last minute.
+
 ### `HELIX_MOCK_THROTTLE`
 
 Inject host throttle flags into the mock performance sampler so the performance panel's under-voltage / frequency-capped warnings can be seen without an actually-throttled Pi.

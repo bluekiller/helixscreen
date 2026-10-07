@@ -296,6 +296,7 @@ translations:
   'Backtrace: {} frames': 'バックトレース: {} フレーム'
   Backup lane name contains invalid characters: 'バックアップレーン名に無効な文字が含まれています'
   Backup spool switching state unknown: バックアップスプール切り替えの状態は不明です
+  Balanced: 均衡
   Barcode Scanner: バーコードスキャナー
   Base: 基準
   Based on the newest {} prints: '最新の{}件の印刷に基づく'
@@ -1202,6 +1203,7 @@ translations:
   Feeders: フィーダー
   Feeding filament forward: フィラメントを前方に送り出し中
   Filament: フィラメント
+  Filament Buffer: 'フィラメントバッファー'
   Filament Control: フィラメント制御
   Filament Detected: フィラメント検出
   Filament Grade Mismatch: フィラメントグレード不一致
@@ -1215,6 +1217,7 @@ translations:
   Filament Used: 使用済みフィラメント
   Filament already exists: フィラメントはすでに存在します
   Filament buffer failure during feed: 送り出し中にフィラメントバッファーが異常になりました
+  Filament buffer position against its target: '目標に対するフィラメントバッファーの位置'
   Filament buffer stopped moving: フィラメントバッファーが動かなくなりました
   Filament by Type: 種類別フィラメント
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -1232,8 +1235,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'ツールヘッドにフィラメントが装填されています。バイパスを有効にする前に取り出してください。'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: ツールヘッドにフィラメントがロードされています。ベッドの加熱中にエクストルーダー内で柔らかくならないよう、先に排出してください。
 
-  Filament is loose: フィラメントが緩んでいます
-  Filament is pulling tight: フィラメントが引っ張られています
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : アンロード後もフィラメントがノズルに残っています。カットまたは引き戻しが完了していない可能性があります。別のスプールを装填する前にツールヘッドを空にしてください。
   Filament is still loaded. Unload it before enabling bypass.: 'フィラメントがまだ装填されています。バイパスを有効にする前に取り出してください。'
@@ -1264,7 +1265,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: CFS ハブとエクストルーダーセンサーの間でフィラメントが止まりました
   Filament stuck in connector during unload: アンロード中にコネクター内でフィラメントが詰まりました
   Filament stuck inside the CFS hub: CFS ハブ内でフィラメントが詰まっています
-  Filament tension is balanced: フィラメントの張力が均衡しています
   Filament tracking & label printing: フィラメント追跡とラベル印刷
   Filament tracking and inventory: フィラメント追跡と在庫管理
   FilamentSensor: フィラメントセンサー
@@ -2548,6 +2548,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Moonraker-Timelapse プラグインが必要です
   Requires Multi-Filament System or MMU hardware: 'マルチフィラメントシステムまたはMMUハードウェアが必要です'
   Requires a filament system with bypass: バイパスに対応したフィラメントシステムが必要です
+  Requires a filament pressure sensor or sync feedback: 'フィラメント圧力センサーまたは同期フィードバックが必要です'
   Requires clog detection hardware: '詰まり検出ハードウェアが必要です'
   Resend write failed at chunk {}: チャンク {} で再送信の書き込みに失敗しました
   Reset: リセット
@@ -2652,6 +2653,8 @@ translations:
   Run the chamber dryer too: チャンバーのドライヤーも使う
 
   Run {}?: '{} を実行しますか？'
+  Running loose: '緩み気味'
+  Running tight: '張り気味'
   Running {}...: '{} を実行中...'
   Runout: 'フィラメント切れ'
   Runout Sensor: フィラメント切れセンサー
@@ -3016,6 +3019,7 @@ translations:
   Switching heater control to MPC. Klipper will restart.: ヒーター制御をMPCに切り替えます。Klipperが再起動します。
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。
   Switching to MPC requires a config change and Klipper restart.: MPCへの切り替えには設定変更とKlipperの再起動が必要です。
+  Sync: '同期'
   Switching to {}: '{}に切り替えています'
   Sync during printing: 印刷中に同期
   Sync with Spoolman: Spoolman と同期
@@ -3640,6 +3644,7 @@ translations:
   incompatible: 互換性なし
   invalid: 不正
   just now: たった今
+  last 60 s · LOOSE up, TIGHT down: '直近60秒 · 上が緩み、下が張り'
   layers: レイヤー
   left: 残り
   loaded: '装填済み'
@@ -3675,6 +3680,7 @@ translations:
   steppers: ステッパー
   sweeping: 測定中
   tall: 高さ
+  target {}%: '目標 {}%'
   target {}°: '目標 {}°'
   tool(s): ツール
   used: 使用

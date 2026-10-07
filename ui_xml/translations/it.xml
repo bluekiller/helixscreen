@@ -292,6 +292,7 @@
   <translation tag="Backtrace: {} frames" it="Backtrace: {} frame"/>
   <translation tag="Backup lane name contains invalid characters" it="Il nome della corsia di riserva contiene caratteri non validi"/>
   <translation tag="Backup spool switching state unknown" it="Stato del cambio a bobina di riserva sconosciuto"/>
+  <translation tag="Balanced" it="Bilanciato"/>
   <translation tag="Barcode Scanner" it="Scanner codici a barre"/>
   <translation tag="Base" it="Riferimento"/>
   <translation tag="Based on the newest {} prints" it="Basato sulle {} stampe più recenti"/>
@@ -1164,6 +1165,7 @@
   <translation tag="Feeders" it="Alimentatori"/>
   <translation tag="Feeding filament forward" it="Avanzamento filamento"/>
   <translation tag="Filament" it="Filamento"/>
+  <translation tag="Filament Buffer" it="Buffer filamento"/>
   <translation tag="Filament Control" it="Controllo filamento"/>
   <translation tag="Filament Detected" it="Filamento rilevato"/>
   <translation tag="Filament Grade Mismatch" it="Grado filamento non corrispondente"/>
@@ -1177,6 +1179,7 @@
   <translation tag="Filament Used" it="Filamento utilizzato"/>
   <translation tag="Filament already exists" it="Filamento già esistente"/>
   <translation tag="Filament buffer failure during feed" it="Guasto del buffer del filamento durante l&apos;alimentazione"/>
+  <translation tag="Filament buffer position against its target" it="Posizione del buffer filamento rispetto al target"/>
   <translation tag="Filament buffer stopped moving" it="Il buffer del filamento si è fermato"/>
   <translation tag="Filament by Type" it="Filamento per tipo"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" it="Non è possibile caricare il filamento sotto la temperatura minima di estrusione. Impostare una temperatura obiettivo dell&apos;hotend (ad es. 220 °C per PLA, 240 °C per PETG), attendere che la raggiunga e riprovare"/>
@@ -1192,8 +1195,6 @@
   <translation tag="Filament is dragging" it="Il filamento oppone resistenza"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." it="Il filamento è caricato nella testina. Scaricalo prima di attivare il bypass."/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." it="C&apos;è filamento caricato nella testina. Scaricalo prima, così non si ammorbidisce nell&apos;estrusore mentre il piano si scalda."/>
-  <translation tag="Filament is loose" it="Il filamento è allentato"/>
-  <translation tag="Filament is pulling tight" it="Il filamento è in tensione"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." it="Dopo lo scaricamento il filamento è ancora all&apos;ugello. Il taglio o la retrazione potrebbe non essere completato. Libera la testina prima di caricare un&apos;altra bobina."/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." it="Il filamento è ancora caricato. Scaricalo prima di attivare il bypass."/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" it="Dopo il taglio è ancora presente del filamento. La lama potrebbe essere consumata o disallineata"/>
@@ -1222,7 +1223,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" it="Il filamento si è fermato tra l&apos;hub CFS e il sensore dell&apos;estrusore"/>
   <translation tag="Filament stuck in connector during unload" it="Filamento bloccato nel connettore durante lo scaricamento"/>
   <translation tag="Filament stuck inside the CFS hub" it="Filamento bloccato nell&apos;hub CFS"/>
-  <translation tag="Filament tension is balanced" it="La tensione del filamento è bilanciata"/>
   <translation tag="Filament tracking &amp; label printing" it="Tracciamento filamento e stampa etichette"/>
   <translation tag="Filament tracking and inventory" it="Tracciamento e inventario filamento"/>
   <translation tag="FilamentSensor" it="Sensore filamento"/>
@@ -2449,6 +2449,7 @@
   <translation tag="Requires Moonraker power device" it="Richiede un dispositivo di alimentazione Moonraker"/>
   <translation tag="Requires Moonraker-Timelapse plugin" it="Richiede plugin Moonraker-Timelapse"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" it="Richiede un sistema multi-filamento o hardware MMU"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" it="Richiede un sensore di pressione del filamento o il feedback di sincronizzazione"/>
   <translation tag="Requires a filament system with bypass" it="Richiede un sistema filamento con bypass"/>
   <translation tag="Requires clog detection hardware" it="Richiede hardware per il rilevamento intasamenti"/>
   <translation tag="Resend write failed at chunk {}" it="Reinvio scrittura fallito al chunk {}"/>
@@ -2552,6 +2553,8 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." it="Esegui l&apos;installer di HelixScreen con --update da un terminale su questa stampante. Scansiona per il comando della tua piattaforma."/>
   <translation tag="Run the chamber dryer too" it="Usa anche l&apos;essiccatore della camera"/>
   <translation tag="Run {}?" it="Eseguire {}?"/>
+  <translation tag="Running loose" it="Allentato"/>
+  <translation tag="Running tight" it="Teso"/>
   <translation tag="Running {}..." it="Esecuzione {}..."/>
   <translation tag="Runout" it="Esaurimento"/>
   <translation tag="Runout Sensor" it="Sensore esaurimento"/>
@@ -2898,6 +2901,7 @@
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." it="Il passaggio a MPC cambia come viene controllato questo riscaldatore, poi lo calibra. Richiede diversi minuti a temperatura."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." it="Il passaggio a MPC richiede una modifica alla configurazione e il riavvio di Klipper."/>
   <translation tag="Switching to {}" it="Passaggio a {}"/>
+  <translation tag="Sync" it="Sinc."/>
   <translation tag="Sync during printing" it="Sincronizza durante la stampa"/>
   <translation tag="Sync with Spoolman" it="Sincronizza con Spoolman"/>
   <translation tag="Sysfs" it="Sysfs"/>
@@ -3475,6 +3479,7 @@
   <translation tag="incompatible" it="incompatibile"/>
   <translation tag="invalid" it="non valido"/>
   <translation tag="just now" it="proprio ora"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" it="ultimi 60 s · ALLENTATO in alto, TESO in basso"/>
   <translation tag="layers" it="layer"/>
   <translation tag="left" it="rimanente"/>
   <translation tag="loaded" it="caricato"/>
@@ -3505,6 +3510,7 @@
   <translation tag="steppers" it="motori passo-passo"/>
   <translation tag="sweeping" it="in misurazione"/>
   <translation tag="tall" it="di altezza"/>
+  <translation tag="target {}%" it="target {}%"/>
   <translation tag="target {}°" it="target {}°"/>
   <translation tag="tool(s)" it="utensile/i"/>
   <translation tag="used" it="usato"/>
