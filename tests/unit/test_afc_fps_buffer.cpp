@@ -22,6 +22,7 @@
  */
 
 #include "ams_types.h"
+#include "buffer_reading.h"
 
 #include <optional>
 
@@ -44,7 +45,7 @@ constexpr float kNoData = -1.5f;
 
 TEST_CASE("afc_fps: a switched buffer is untouched", "[ams][afc][fps]") {
     // The BoxTurtle case, and every AFC install before FPS existed. No fields,
-    // no bias, and supports_sync_feedback_visualization() gates on exactly this
+    // no bias, and buffer_reading() gates on exactly this
     // sentinel — so nothing about those printers changes.
     helix::BufferHealth switched;
     CHECK_FALSE(switched.has_fps());
@@ -149,9 +150,16 @@ TEST_CASE("fps: a unit's buffer is drawn from its own sensor", "[ams][afc][fps]"
     info.units = {unit_with(0, std::nullopt), unit_with(4, switched),
                   unit_with(8, fps_buffer(0.3f, 0.5f))};
 
-    // No buffer of its own: the system-level bias (Happy Hare's single buffer).
-    CHECK(info.buffer_bias(0) == Catch::Approx(0.6f));
+    // A unit without a sensor reads the sensor feeding the toolhead.
+    CHECK(helix::buffer_reading(info, 0).source == helix::BufferSource::Fps);
+    CHECK(helix::buffer_reading(info, 0).bias == Catch::Approx(-0.4f));
     // A switched buffer has no proportional reading, whatever another unit says.
-    CHECK(info.buffer_bias(1) == kNoData);
-    CHECK(info.buffer_bias(2) == Catch::Approx(-0.4f));
+    CHECK(!helix::buffer_reading(info, 1).present());
+    CHECK(helix::buffer_reading(info, 2).bias == Catch::Approx(-0.4f));
+
+    // With no sensor anywhere, a unit without one reads the system-level bias
+    // (Happy Hare's single buffer).
+    info.units.pop_back();
+    CHECK(helix::buffer_reading(info, 0).source == helix::BufferSource::Sync);
+    CHECK(helix::buffer_reading(info, 0).bias == Catch::Approx(0.6f));
 }

@@ -354,6 +354,15 @@
     <px name="buffer_mini_h_large" value="52"/>
     <px name="buffer_mini_h_xlarge" value="60"/>
     <px name="buffer_mini_h_xxlarge" value="72"/>
+    <!-- buffer_graph_h: the Buffer Status modal's slider and trace, as tall as the
+         dialog can spare at each size. -->
+    <px name="buffer_graph_h_micro" value="88"/>
+    <px name="buffer_graph_h_tiny" value="104"/>
+    <px name="buffer_graph_h_small" value="124"/>
+    <px name="buffer_graph_h_medium" value="148"/>
+    <px name="buffer_graph_h_large" value="176"/>
+    <px name="buffer_graph_h_xlarge" value="196"/>
+    <px name="buffer_graph_h_xxlarge" value="216"/>
 
     <!-- Spinner arc widths - proportional to size -->
     <px name="spinner_arc_lg_small" value="3"/>

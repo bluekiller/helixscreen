@@ -2,17 +2,18 @@
 
 #include "buffer_status_modal.h"
 
-#include "ui_buffer_meter.h"
 #include "ui_clog_bar.h"
 
 #include "ams_backend.h"
 #include "ams_state.h"
+#include "buffer_reading.h"
 #include "clog_meter_geometry.h"
 #include "observer_factory.h"
 #include "theme_manager.h"
 
 #include <spdlog/fmt/fmt.h>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -27,8 +28,11 @@ lv_subject_t BufferStatusModal::description_subject_;
 lv_subject_t BufferStatusModal::unsupported_subject_;
 char BufferStatusModal::unsupported_buf_[128];
 char BufferStatusModal::description_buf_[128]{};
-lv_subject_t BufferStatusModal::pressure_subject_;
-char BufferStatusModal::pressure_buf_[128]{};
+lv_subject_t BufferStatusModal::show_reading_subject_;
+lv_subject_t BufferStatusModal::value_subject_;
+char BufferStatusModal::value_buf_[64]{};
+lv_subject_t BufferStatusModal::target_subject_;
+char BufferStatusModal::target_buf_[48]{};
 lv_subject_t BufferStatusModal::espooler_value_subject_;
 char BufferStatusModal::espooler_buf_[128]{};
 lv_subject_t BufferStatusModal::gear_sync_value_subject_;
@@ -45,9 +49,9 @@ BufferStatusModal::BufferStatusModal() {
 }
 
 BufferStatusModal::~BufferStatusModal() {
-    // Delete both before Modal::~Modal() destroys the dialog tree, so each
-    // can remove its event callbacks from widgets that still exist.
-    delete meter_;
+    // Both go before Modal::~Modal() destroys the dialog tree, so each can
+    // remove its callbacks from widgets that still exist.
+    slider_.reset();
     delete clog_bar_;
     // Subjects are static — never deinited (persist for the process lifetime)
 }
@@ -64,7 +68,9 @@ void BufferStatusModal::init_subjects() {
 
     lv_subject_init_string(&description_subject_, description_buf_, nullptr,
                            sizeof(description_buf_), "");
-    lv_subject_init_string(&pressure_subject_, pressure_buf_, nullptr, sizeof(pressure_buf_), "");
+    lv_subject_init_int(&show_reading_subject_, 0);
+    lv_subject_init_string(&value_subject_, value_buf_, nullptr, sizeof(value_buf_), "");
+    lv_subject_init_string(&target_subject_, target_buf_, nullptr, sizeof(target_buf_), "");
     lv_subject_init_string(&unsupported_subject_, unsupported_buf_, nullptr,
                            sizeof(unsupported_buf_), "");
     lv_subject_init_string(&espooler_value_subject_, espooler_buf_, nullptr, sizeof(espooler_buf_),
@@ -83,7 +89,9 @@ void BufferStatusModal::init_subjects() {
     lv_xml_register_subject(nullptr, "buf_show_flow", &show_flow_subject_);
     lv_xml_register_subject(nullptr, "buf_show_distance", &show_distance_subject_);
     lv_xml_register_subject(nullptr, "buf_description", &description_subject_);
-    lv_xml_register_subject(nullptr, "buf_pressure", &pressure_subject_);
+    lv_xml_register_subject(nullptr, "buf_show_reading", &show_reading_subject_);
+    lv_xml_register_subject(nullptr, "buf_value", &value_subject_);
+    lv_xml_register_subject(nullptr, "buf_target", &target_subject_);
     lv_xml_register_subject(nullptr, "buf_unsupported", &unsupported_subject_);
     lv_xml_register_subject(nullptr, "buf_espooler_value", &espooler_value_subject_);
     lv_xml_register_subject(nullptr, "buf_gear_sync_value", &gear_sync_value_subject_);
@@ -94,46 +102,23 @@ void BufferStatusModal::init_subjects() {
     subjects_initialized_ = true;
 }
 
-namespace helix {
-namespace {
-
-/// The unit's filament pressure sensor, or nullptr when its buffer reports no
-/// pressure (or it has no buffer).
-const BufferHealth* pressure_sensor(const AmsSystemInfo& info, int unit) {
-    if (unit < 0 || unit >= static_cast<int>(info.units.size())) {
-        return nullptr;
-    }
-    const auto& health = info.units[static_cast<std::size_t>(unit)].buffer_health;
-    return health.has_value() && health->fps_reported ? &*health : nullptr;
-}
-
-/// What a sync-feedback bias means for the filament, whichever backend
-/// produced it: the lean the clog meter's TIGHT / LOOSE ends label.
-const char* bias_description(float bias) {
-    switch (helix::ui::buffer_lean(bias)) {
-    case helix::ui::BufferLean::Tight:
-        return lv_tr("Filament is pulling tight");
-    case helix::ui::BufferLean::Loose:
-        return lv_tr("Filament is loose");
-    case helix::ui::BufferLean::Balanced:
-        break;
-    }
-    return lv_tr("Filament tension is balanced");
-}
-
-} // namespace
-} // namespace helix
-
-void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective_unit) {
+helix::BufferReading BufferStatusModal::populate(const helix::AmsSystemInfo& info,
+                                                 int effective_unit) {
     // Cleared up front: the modal's subjects are static, so a message left from
     // a previous open would otherwise sit under a supported backend's body.
     lv_subject_copy_string(&unsupported_subject_, "");
 
-    // The meter and its description follow whichever buffer this unit has:
-    // Happy Hare's system-level bias, or the unit's own pressure sensor.
-    const float bias = info.buffer_bias(effective_unit);
-    const bool has_bias = bias > -1.5f;
-    lv_subject_copy_string(&description_subject_, has_bias ? helix::bias_description(bias) : "");
+    // The slider and its words follow this unit's buffer, or with -1 the one
+    // feeding the toolhead.
+    const helix::BufferReading r = helix::buffer_reading(info, effective_unit);
+    lv_subject_set_int(&show_meter_subject_, r.has_slider ? 1 : 0);
+    lv_subject_set_int(&show_reading_subject_, r.present() ? 1 : 0);
+    lv_subject_copy_string(&description_subject_, helix::buffer_lean_text(r));
+    const std::string value =
+        r.has_slider ? fmt::format("{} {}", helix::buffer_label(r), helix::buffer_value_text(r))
+                     : helix::buffer_value_text(r);
+    lv_subject_copy_string(&value_subject_, value.c_str());
+    lv_subject_copy_string(&target_subject_, helix::buffer_target_text(r).c_str());
 
     if (info.type == helix::AmsType::HAPPY_HARE) {
         lv_subject_set_int(&type_subject_, 1);
@@ -169,16 +154,15 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
             lv_subject_set_int(&show_flow_subject_, 0);
         }
 
-        // Meter visibility
-        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
-
     } else if (info.type == helix::AmsType::AFC) {
         lv_subject_set_int(&type_subject_, 2);
-        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
 
+        // AFC's rows describe one unit's buffer: the one asked for, else the
+        // one the reading came from.
+        const int unit_index = effective_unit >= 0 ? effective_unit : std::max(r.unit, 0);
         bool found_health = false;
-        if (effective_unit >= 0 && effective_unit < static_cast<int>(info.units.size())) {
-            const auto& unit = info.units[effective_unit];
+        if (unit_index < static_cast<int>(info.units.size())) {
+            const auto& unit = info.units[static_cast<std::size_t>(unit_index)];
             if (unit.buffer_health.has_value()) {
                 const auto& bh = unit.buffer_health.value();
                 found_health = true;
@@ -213,17 +197,9 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
             lv_subject_copy_string(&afc_state_subject_, lv_tr("No buffer data available"));
             lv_subject_set_int(&show_distance_subject_, 0);
         }
-    } else if (const helix::BufferHealth* fps = helix::pressure_sensor(info, effective_unit)) {
-        // The target is the set_point the feeder regulates to; without one the
-        // reading cannot be placed either side of it, so there is no meter.
+    } else if (r.source == helix::BufferSource::Fps) {
+        // A pressure sensor outside AFC (OpenAMS): the reading is all there is.
         lv_subject_set_int(&type_subject_, 3);
-        lv_subject_set_int(&show_meter_subject_, has_bias ? 1 : 0);
-        const int pressure = static_cast<int>(std::lround(fps->fps_value * 100.0f));
-        auto text = fps->fps_set_point > 0.0f
-                        ? fmt::format(fmt::runtime(lv_tr("Pressure: {}% (target {}%)")), pressure,
-                                      static_cast<int>(std::lround(fps->fps_set_point * 100.0f)))
-                        : fmt::format("{} {}%", lv_tr("Pressure:"), pressure);
-        lv_subject_copy_string(&pressure_subject_, text.c_str());
     } else {
         // Neither buffer backend. Stock CFS, AD5X IFS, tool changers, ACE,
         // Snapmaker and QIDI report none of this - see AmsBackendCfs's own note
@@ -234,17 +210,20 @@ void BufferStatusModal::populate(const helix::AmsSystemInfo& info, int effective
         // as well as the tile, so this has to answer rather than rely on the
         // tile's gate.
         lv_subject_set_int(&type_subject_, 0);
-        lv_subject_set_int(&show_meter_subject_, 0);
         lv_subject_copy_string(&unsupported_subject_,
                                lv_tr("This filament system does not report buffer or flow data."));
     }
+    return r;
 }
 
 void BufferStatusModal::on_show() {
-    wire_ok_button("btn_primary");
     wire_cancel_button("btn_close");
-    wire_cancel_button("btn_secondary");
 
+    if (dialog()) {
+        slider_ = std::make_unique<helix::ui::UiBufferSlider>(
+            lv_obj_find_by_name(dialog(), "buf_slider"), lv_obj_find_by_name(dialog(), "buf_trace"),
+            effective_unit_);
+    }
     refresh();
 
     // Apply label/value color distinction AFTER theme_apply_current_palette_to_tree
@@ -284,16 +263,9 @@ void BufferStatusModal::refresh() {
     // message rather than whatever the last backend said.
     auto* backend = helix::AmsState::instance().get_backend();
     const auto info = backend ? backend->get_system_info() : helix::AmsSystemInfo{};
-    populate(info, effective_unit_);
-
-    // The meter column populate() showed, created the first time a bias appears.
-    if (lv_subject_get_int(&show_meter_subject_) != 0 && !meter_ && dialog()) {
-        if (lv_obj_t* meter_col = lv_obj_find_by_name(dialog(), "meter_col")) {
-            meter_ = new helix::ui::UiBufferMeter(meter_col);
-        }
-    }
-    if (meter_) {
-        meter_->set_bias(info.buffer_bias(effective_unit_));
+    const helix::BufferReading r = populate(info, effective_unit_);
+    if (slider_) {
+        slider_->set_reading(r.bias, r.status);
     }
 }
 

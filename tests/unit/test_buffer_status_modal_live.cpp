@@ -6,6 +6,7 @@
  * @brief The Buffer Status modal follows the backend while it is open.
  */
 
+#include "ui_buffer_slider.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
@@ -52,6 +53,14 @@ void land_backend_update() {
 
 } // namespace
 
+/// Reaches the open modal's slider.
+class BufferStatusModalProbe : public BufferStatusModal {
+  public:
+    const ui::UiBufferSlider* slider() const {
+        return slider_.get();
+    }
+};
+
 TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal follows the backend while open",
                  "[modals][buffer_status][live]") {
     AmsState::instance().init_subjects(true);
@@ -66,14 +75,21 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal follows the backend whi
     ui::UpdateQueue::instance().drain();
 
     REQUIRE(subject_int("buf_type") == 3);
-    CHECK(subject_text("buf_pressure") == "Pressure: 32% (target 50%)");
-    CHECK(subject_text("buf_description") == "Filament is pulling tight");
+    CHECK(subject_text("buf_value") == "FPS 32%");
+    CHECK(subject_text("buf_target") == "target 50%");
+    CHECK(subject_text("buf_description") == "Running tight");
 
     SECTION("a new reading lands in the open modal") {
         set_pressure(*mock, 0.71f);
         land_backend_update();
-        CHECK(subject_text("buf_pressure") == "Pressure: 71% (target 50%)");
-        CHECK(subject_text("buf_description") == "Filament is loose");
+        CHECK(subject_text("buf_value") == "FPS 71%");
+        CHECK(subject_text("buf_description") == "Running loose");
+    }
+
+    SECTION("the X is the only way out") {
+        CHECK(lv_obj_find_by_name(modal.dialog(), "btn_close") != nullptr);
+        CHECK(lv_obj_find_by_name(modal.dialog(), "btn_primary") == nullptr);
+        CHECK(lv_obj_find_by_name(modal.dialog(), "btn_secondary") == nullptr);
     }
 
     SECTION("the backend vanishing falls back to the unsupported message") {
@@ -82,6 +98,29 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal follows the backend whi
         CHECK(subject_int("buf_type") == 0);
         CHECK_FALSE(subject_text("buf_unsupported").empty());
     }
+
+    modal.hide();
+    ui::UpdateQueue::instance().drain();
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal trace keeps scrolling while open",
+                 "[modals][buffer_status][live]") {
+    AmsState::instance().init_subjects(true);
+    test::RegisteredBackend<AmsBackendMock> mock(4);
+    mock->set_tool_changer_mode(true);
+    set_pressure(*mock, 0.32f);
+    land_backend_update();
+
+    BufferStatusModalProbe modal;
+    REQUIRE(modal.show(test_screen()));
+    ui::UpdateQueue::instance().drain();
+    REQUIRE(modal.slider() != nullptr);
+    CHECK(modal.slider()->bias() == Catch::Approx(-0.36f));
+
+    // The harness only runs timers with a finite repeat count.
+    lv_timer_set_repeat_count(modal.slider()->timer_for_test(), 3);
+    process_lvgl(2100);
+    CHECK(modal.slider()->trace_ticks() == 2);
 
     modal.hide();
     ui::UpdateQueue::instance().drain();

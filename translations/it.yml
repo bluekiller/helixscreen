@@ -1315,8 +1315,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'Il filamento è caricato nella testina. Scaricalo prima di attivare il bypass.'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: C'è filamento caricato nella testina. Scaricalo prima, così non si ammorbidisce nell'estrusore mentre il piano si scalda.
 
-  Filament is loose: Il filamento è allentato
-  Filament is pulling tight: Il filamento è in tensione
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Dopo lo scaricamento il filamento è ancora all'ugello. Il taglio o la retrazione potrebbe non essere completato. Libera la testina prima di caricare un'altra bobina.
   Filament is still loaded. Unload it before enabling bypass.: 'Il filamento è ancora caricato. Scaricalo prima di attivare il bypass.'
@@ -1349,7 +1347,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Il filamento si è fermato tra l'hub CFS e il sensore dell'estrusore
   Filament stuck in connector during unload: Filamento bloccato nel connettore durante lo scaricamento
   Filament stuck inside the CFS hub: Filamento bloccato nell'hub CFS
-  Filament tension is balanced: La tensione del filamento è bilanciata
   Filament tracking & label printing: Tracciamento filamento e stampa etichette
   Filament tracking and inventory: Tracciamento e inventario filamento
   FilamentSensor: Sensore filamento
@@ -2395,7 +2392,6 @@ translations:
   Press Abort to stop: Premi Interrompi per fermare
   Press Scan to search: Premi Scansiona per cercare
   'Pressure:': 'Pressione:'
-  'Pressure: {}% (target {}%)': 'Pressione: {}% (obiettivo {}%)'
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'Calibrazione pressure advance'

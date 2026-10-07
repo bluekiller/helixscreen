@@ -1230,8 +1230,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'ツールヘッドにフィラメントが装填されています。バイパスを有効にする前に取り出してください。'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: ツールヘッドにフィラメントがロードされています。ベッドの加熱中にエクストルーダー内で柔らかくならないよう、先に排出してください。
 
-  Filament is loose: フィラメントが緩んでいます
-  Filament is pulling tight: フィラメントが引っ張られています
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : アンロード後もフィラメントがノズルに残っています。カットまたは引き戻しが完了していない可能性があります。別のスプールを装填する前にツールヘッドを空にしてください。
   Filament is still loaded. Unload it before enabling bypass.: 'フィラメントがまだ装填されています。バイパスを有効にする前に取り出してください。'
@@ -1262,7 +1260,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: CFS ハブとエクストルーダーセンサーの間でフィラメントが止まりました
   Filament stuck in connector during unload: アンロード中にコネクター内でフィラメントが詰まりました
   Filament stuck inside the CFS hub: CFS ハブ内でフィラメントが詰まっています
-  Filament tension is balanced: フィラメントの張力が均衡しています
   Filament tracking & label printing: フィラメント追跡とラベル印刷
   Filament tracking and inventory: フィラメント追跡と在庫管理
   FilamentSensor: フィラメントセンサー
@@ -2251,7 +2248,6 @@ translations:
   Press Abort to stop: 中止するには「中止」を押してください
   Press Scan to search: スキャンを押して検索
   'Pressure:': '圧力:'
-  'Pressure: {}% (target {}%)': '圧力: {}% (目標 {}%)'
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'プレッシャーアドバンスキャリブレーション'

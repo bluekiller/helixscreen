@@ -1756,18 +1756,6 @@ struct AmsSystemInfo {
         return unit->unit_index;
     }
 
-    /// The bias one unit's buffer is drawn with: that unit's own pressure
-    /// sensor when it has a buffer (-1.5 for a switched one), else the
-    /// system-level sync_feedback_bias, which is how Happy Hare reports its
-    /// single buffer. -1.5 or below = nothing to draw.
-    [[nodiscard]] float buffer_bias(int unit_index) const {
-        const AmsUnit* unit = get_unit(unit_index);
-        if (unit && unit->buffer_health) {
-            return unit->buffer_health->fps_to_bias();
-        }
-        return sync_feedback_bias;
-    }
-
     /// Index of the unit whose filament pressure sensor feeds the toolhead: the
     /// current slot's unit, else the first unit that reports pressure (with
     /// several lanes loaded there is no current slot). -1 when none does. A

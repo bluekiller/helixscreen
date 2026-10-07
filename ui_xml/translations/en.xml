@@ -1190,8 +1190,6 @@
   <translation tag="Filament is dragging" en="Filament is dragging"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." en="Filament is loaded at the toolhead. Unload it before enabling bypass."/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." en="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats."/>
-  <translation tag="Filament is loose" en="Filament is loose"/>
-  <translation tag="Filament is pulling tight" en="Filament is pulling tight"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." en="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool."/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." en="Filament is still loaded. Unload it before enabling bypass."/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" en="Filament is still present after the cut — the blade may be dull or misaligned"/>
@@ -1220,7 +1218,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" en="Filament stalled between CFS hub and extruder sensor"/>
   <translation tag="Filament stuck in connector during unload" en="Filament stuck in connector during unload"/>
   <translation tag="Filament stuck inside the CFS hub" en="Filament stuck inside the CFS hub"/>
-  <translation tag="Filament tension is balanced" en="Filament tension is balanced"/>
   <translation tag="Filament tracking &amp; label printing" en="Filament tracking &amp; label printing"/>
   <translation tag="Filament tracking and inventory" en="Filament tracking and inventory"/>
   <translation tag="FilamentSensor" en="FilamentSensor"/>
@@ -2168,7 +2165,6 @@
   <translation tag="Pressure Advance" en="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" en="Pressure Advance Calibration"/>
   <translation tag="Pressure:" en="Pressure:"/>
-  <translation tag="Pressure: {}% (target {}%)" en="Pressure: {}% (target {}%)"/>
   <translation tag="Preview Sounds" en="Preview Sounds"/>
   <translation tag="Previous" en="Previous"/>
   <translation tag="Price" en="Price"/>

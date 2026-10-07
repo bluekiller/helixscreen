@@ -1190,8 +1190,6 @@
   <translation tag="Filament is dragging" es="El filamento arrastra"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." es="Hay filamento cargado en el cabezal. Descárguelo antes de activar el bypass."/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." es="Hay filamento cargado en el cabezal. Descárgalo primero para que no se ablande en el extrusor mientras la cama se calienta."/>
-  <translation tag="Filament is loose" es="El filamento está suelto"/>
-  <translation tag="Filament is pulling tight" es="El filamento está tirando tenso"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." es="El filamento sigue en la boquilla tras la descarga. Es posible que el corte o la retracción no se hayan completado. Limpie el cabezal antes de cargar otra bobina."/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." es="Todavía hay filamento cargado. Descárguelo antes de activar el bypass."/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" es="Todavía hay filamento después del corte. La cuchilla puede estar desafilada o mal alineada"/>
@@ -1220,7 +1218,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" es="El filamento se detuvo entre el concentrador del CFS y el sensor del extrusor"/>
   <translation tag="Filament stuck in connector during unload" es="Filamento atascado en el conector durante la descarga"/>
   <translation tag="Filament stuck inside the CFS hub" es="Filamento atascado dentro del concentrador del CFS"/>
-  <translation tag="Filament tension is balanced" es="La tensión del filamento está equilibrada"/>
   <translation tag="Filament tracking &amp; label printing" es="Seguimiento de filamento e impresión de etiquetas"/>
   <translation tag="Filament tracking and inventory" es="Seguimiento e inventario de filamento"/>
   <translation tag="FilamentSensor" es="Sensor de filamento"/>
@@ -2168,7 +2165,6 @@
   <translation tag="Pressure Advance" es="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" es="Calibración de Pressure Advance"/>
   <translation tag="Pressure:" es="Presión:"/>
-  <translation tag="Pressure: {}% (target {}%)" es="Presión: {}% (objetivo {}%)"/>
   <translation tag="Preview Sounds" es="Vista previa de sonidos"/>
   <translation tag="Previous" es="Anterior"/>
   <translation tag="Price" es="Precio"/>

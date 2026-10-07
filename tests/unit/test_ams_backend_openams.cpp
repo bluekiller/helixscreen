@@ -10,6 +10,7 @@
 #include "ams_backend_openams.h"
 #include "ams_error.h"
 #include "ams_types.h"
+#include "buffer_reading.h"
 #include "filament_slot_override.h"
 #include "filament_slot_override_store.h"
 #include "lvgl_ui_test_fixture.h"
@@ -299,22 +300,22 @@ TEST_CASE_METHOD(HelixTestFixture, "OpenAMS publishes its FPS as a sync-feedback
     SECTION("above set_point the hub is overfeeding: compression") {
         const auto info = feed_pressure(0.62f, 0.5);
         CHECK(info.sync_feedback_bias == Catch::Approx(0.24f));
-        CHECK(info.buffer_bias(0) == Catch::Approx(0.24f));
-        CHECK(backend.supports_sync_feedback_visualization(info));
+        CHECK(helix::buffer_reading(info, 0).bias == Catch::Approx(0.24f));
+        CHECK(helix::buffer_reading(info, -1).has_slider);
     }
 
     SECTION("below set_point the extruder is pulling: tension") {
         const auto info = feed_pressure(0.3f, 0.5);
         CHECK(info.sync_feedback_bias == Catch::Approx(-0.4f));
-        CHECK(backend.supports_sync_feedback_visualization(info));
+        CHECK(helix::buffer_reading(info, -1).has_slider);
     }
 
     SECTION("no set_point leaves the reading unplaceable: no bias") {
         const auto info = feed_pressure(0.62f, nullptr);
         CHECK(info.units[0].buffer_health->fps_reported);
         CHECK(info.sync_feedback_bias <= -1.5f);
-        CHECK(info.buffer_bias(0) <= -1.5f);
-        CHECK_FALSE(backend.supports_sync_feedback_visualization(info));
+        CHECK_FALSE(helix::buffer_reading(info, 0).has_slider);
+        CHECK_FALSE(helix::buffer_reading(info, -1).has_slider);
     }
 
     SECTION("several lanes: the one feeding the current slot wins") {
@@ -339,8 +340,8 @@ TEST_CASE_METHOD(HelixTestFixture, "OpenAMS publishes its FPS as a sync-feedback
         REQUIRE(info.current_slot == 4);
         CHECK(info.sync_feedback_bias == Catch::Approx(-0.4f));
         // Each unit's own view draws its own lane.
-        CHECK(info.buffer_bias(0) == Catch::Approx(0.8f));
-        CHECK(info.buffer_bias(1) == Catch::Approx(-0.4f));
+        CHECK(helix::buffer_reading(info, 0).bias == Catch::Approx(0.8f));
+        CHECK(helix::buffer_reading(info, 1).bias == Catch::Approx(-0.4f));
     }
 }
 

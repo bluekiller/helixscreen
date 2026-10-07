@@ -1226,8 +1226,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: '工具头上已装载耗材。启用旁通前请先卸载。'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: 工具头中已装有耗材。请先卸载,以免热床加热时耗材在挤出机中变软。
 
-  Filament is loose: 耗材松弛
-  Filament is pulling tight: 耗材拉紧
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : 卸载后耗材仍留在喷嘴处。切断或回抽可能未完成。请先清理工具头，再装载其他料盘。
   Filament is still loaded. Unload it before enabling bypass.: '耗材仍处于装载状态。启用旁通前请先卸载。'
@@ -1258,7 +1256,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: 耗材停滞在 CFS 集线器与挤出机传感器之间
   Filament stuck in connector during unload: 退料时耗材卡在接头内
   Filament stuck inside the CFS hub: 耗材卡在 CFS 集线器内
-  Filament tension is balanced: 耗材张力平衡
   Filament tracking & label printing: 耗材跟踪和标签打印
   Filament tracking and inventory: 耗材跟踪和库存
   FilamentSensor: 耗材传感器
@@ -2243,7 +2240,6 @@ translations:
   Press Abort to stop: 按中止以停止
   Press Scan to search: 按扫描搜索
   'Pressure:': '压力:'
-  'Pressure: {}% (target {}%)': '压力: {}% (目标 {}%)'
   Pressure Adv.: '压力提前'
   Pressure Advance: '压力提前'
   Pressure Advance Calibration: '压力提前校准'

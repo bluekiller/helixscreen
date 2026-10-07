@@ -412,7 +412,6 @@ src/ui/ui_multiselect.cpp
 src/ui/ui_batch_filament_modal.cpp
 src/ui/ui_ams_sidebar.cpp
 src/ui/ui_ams_slot.cpp
-src/ui/ui_buffer_meter.cpp
 src/ui/ui_buffer_slider.cpp
 src/ui/ui_busy_overlay.cpp
 src/ui/ui_button.cpp

@@ -1302,8 +1302,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'Филамент загружен в печатающую головку. Выгрузите его перед включением обхода.'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: В печатающей головке загружен филамент. Сначала выгрузите его, чтобы он не размягчился в экструдере, пока греется стол.
 
-  Filament is loose: Филамент ослаблен
-  Filament is pulling tight: Филамент натянут
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : После выгрузки филамент всё ещё находится у сопла. Отрезание или втягивание могло не завершиться. Очистите печатающую головку перед загрузкой другой катушки.
   Filament is still loaded. Unload it before enabling bypass.: 'Филамент всё ещё загружен. Выгрузите его перед включением обхода.'
@@ -1335,7 +1333,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Филамент остановился между хабом CFS и датчиком экструдера
   Filament stuck in connector during unload: Филамент застрял в разъёме при выгрузке
   Filament stuck inside the CFS hub: Филамент застрял внутри хаба CFS
-  Filament tension is balanced: Натяжение филамента сбалансировано
   Filament tracking & label printing: Учёт филамента и печать этикеток
   Filament tracking and inventory: Отслеживание и учёт филамента
   FilamentSensor: Датчик филамента
@@ -2372,7 +2369,6 @@ translations:
   Press Abort to stop: Нажмите «Прервать», чтобы остановить
   Press Scan to search: Нажмите «Поиск» для сканирования
   'Pressure:': 'Давление:'
-  'Pressure: {}% (target {}%)': 'Давление: {}% (цель {}%)'
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'Калибровка Pressure Advance'

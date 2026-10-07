@@ -1263,10 +1263,10 @@ config-only and never published**, so the tuning range cannot be read at runtime
 advance/trailing triggers compare the smoothed one.
 
 The result is published as `sync_feedback_bias`, the same signal Happy Hare
-reports, so `UiBufferMeter` and the path-canvas tint work on both without knowing
+reports, so `UiBufferSlider` and the path-canvas tint work on both without knowing
 the backend. OpenAMS lanes carry the same sensor and publish it the same way
 (`AmsSystemInfo::pressure_sensor_bias()`); per-unit views draw
-`AmsSystemInfo::buffer_bias(unit)`, the unit's own sensor. A switched buffer sends
+`helix::buffer_reading(info, unit)`, the unit's own sensor. A switched buffer sends
 none of these keys, leaves `fps_reported` false, and is unchanged.
 
 > **Unverified on hardware.** The only AFC rig here is a BoxTurtle with a

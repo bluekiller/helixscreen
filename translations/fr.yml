@@ -1331,8 +1331,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'Du filament est chargé dans la tête d''outil. Déchargez-le avant d''activer le bypass.'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: Du filament est chargé dans la tête d'outil. Déchargez-le d'abord pour qu'il ne ramollisse pas dans l'extrudeur pendant que le plateau chauffe.
 
-  Filament is loose: Le filament est détendu
-  Filament is pulling tight: Le filament est sous tension
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Le filament est encore à la buse après le déchargement. La coupe ou la rétractation n'a peut-être pas abouti. Dégagez la tête d'outil avant de charger une autre bobine.
   Filament is still loaded. Unload it before enabling bypass.: 'Du filament est encore chargé. Déchargez-le avant d''activer le bypass.'
@@ -1365,7 +1363,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Le filament est bloqué entre le hub CFS et le capteur d'extrudeur
   Filament stuck in connector during unload: Filament coincé dans le connecteur pendant le déchargement
   Filament stuck inside the CFS hub: Filament coincé dans le hub CFS
-  Filament tension is balanced: La tension du filament est équilibrée
   Filament tracking & label printing: Suivi du filament & impression d'étiquettes
   Filament tracking and inventory: Suivi et inventaire du filament
   FilamentSensor: Capteur de filament
@@ -2411,7 +2408,6 @@ translations:
   Press Abort to stop: Appuyez sur Abandonner pour arrêter
   Press Scan to search: Appuyez sur Scanner pour rechercher
   'Pressure:': 'Pression :'
-  'Pressure: {}% (target {}%)': 'Pression : {}% (cible {}%)'
   Pressure Adv.: 'Pressure Adv.'
   Pressure Advance: 'Pressure Advance'
   Pressure Advance Calibration: 'Calibration Pressure Advance'

@@ -52,7 +52,7 @@ void register_filament_buffer_widget() {
     lv_xml_register_event_cb(nullptr, "on_filament_buffer_widget_clicked", [](lv_event_t* /*e*/) {
         if (!AmsState::instance().get_backend())
             return;
-        BufferStatusModal::show_for(0);
+        BufferStatusModal::show_for(-1);
     });
 }
 

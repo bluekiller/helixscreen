@@ -1190,8 +1190,6 @@
   <translation tag="Filament is dragging" ja="フィラメントに抵抗がかかっています"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." ja="ツールヘッドにフィラメントが装填されています。バイパスを有効にする前に取り出してください。"/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." ja="ツールヘッドにフィラメントがロードされています。ベッドの加熱中にエクストルーダー内で柔らかくならないよう、先に排出してください。"/>
-  <translation tag="Filament is loose" ja="フィラメントが緩んでいます"/>
-  <translation tag="Filament is pulling tight" ja="フィラメントが引っ張られています"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." ja="アンロード後もフィラメントがノズルに残っています。カットまたは引き戻しが完了していない可能性があります。別のスプールを装填する前にツールヘッドを空にしてください。"/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." ja="フィラメントがまだ装填されています。バイパスを有効にする前に取り出してください。"/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" ja="切断後もフィラメントが残っています。刃が摩耗しているか、位置がずれている可能性があります"/>
@@ -1220,7 +1218,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" ja="CFS ハブとエクストルーダーセンサーの間でフィラメントが止まりました"/>
   <translation tag="Filament stuck in connector during unload" ja="アンロード中にコネクター内でフィラメントが詰まりました"/>
   <translation tag="Filament stuck inside the CFS hub" ja="CFS ハブ内でフィラメントが詰まっています"/>
-  <translation tag="Filament tension is balanced" ja="フィラメントの張力が均衡しています"/>
   <translation tag="Filament tracking &amp; label printing" ja="フィラメント追跡とラベル印刷"/>
   <translation tag="Filament tracking and inventory" ja="フィラメント追跡と在庫管理"/>
   <translation tag="FilamentSensor" ja="フィラメントセンサー"/>
@@ -2168,7 +2165,6 @@
   <translation tag="Pressure Advance" ja="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" ja="プレッシャーアドバンスキャリブレーション"/>
   <translation tag="Pressure:" ja="圧力:"/>
-  <translation tag="Pressure: {}% (target {}%)" ja="圧力: {}% (目標 {}%)"/>
   <translation tag="Preview Sounds" ja="サウンドをプレビュー"/>
   <translation tag="Previous" ja="前回"/>
   <translation tag="Price" ja="価格"/>

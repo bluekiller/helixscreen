@@ -1270,8 +1270,6 @@ translations:
   Filament is dragging: Filament is dragging
   Filament is loaded at the toolhead. Unload it before enabling bypass.: Filament is loaded at the toolhead. Unload it before enabling bypass.
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.
-  Filament is loose: Filament is loose
-  Filament is pulling tight: Filament is pulling tight
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   Filament is still loaded. Unload it before enabling bypass.: Filament is still loaded. Unload it before enabling bypass.
@@ -1304,7 +1302,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Filament stalled between CFS hub and extruder sensor
   Filament stuck in connector during unload: Filament stuck in connector during unload
   Filament stuck inside the CFS hub: Filament stuck inside the CFS hub
-  Filament tension is balanced: Filament tension is balanced
   Filament tracking & label printing: Filament tracking & label printing
   Filament tracking and inventory: Filament tracking and inventory
   FilamentSensor: FilamentSensor
@@ -2325,7 +2322,6 @@ translations:
   Press Abort to stop: Press Abort to stop
   Press Scan to search: Press Scan to search
   'Pressure:': 'Pressure:'
-  'Pressure: {}% (target {}%)': 'Pressure: {}% (target {}%)'
   Pressure Adv.: Pressure Adv.
   Pressure Advance: Pressure Advance
   Pressure Advance Calibration: Pressure Advance Calibration

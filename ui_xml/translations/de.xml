@@ -1190,8 +1190,6 @@
   <translation tag="Filament is dragging" de="Filament läuft schwergängig"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." de="Filament ist im Werkzeugkopf geladen. Entladen Sie es, bevor Sie den Bypass aktivieren."/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." de="Im Werkzeugkopf ist Filament geladen. Entlade es zuerst, damit es im Extruder nicht weich wird, während das Heizbett heizt."/>
-  <translation tag="Filament is loose" de="Filament ist locker"/>
-  <translation tag="Filament is pulling tight" de="Filament zieht straff"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." de="Nach dem Entladen befindet sich noch Filament an der Düse. Schnitt oder Rückzug sind möglicherweise nicht abgeschlossen. Räumen Sie den Werkzeugkopf frei, bevor Sie eine andere Spule laden."/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." de="Filament ist noch geladen. Entladen Sie es, bevor Sie den Bypass aktivieren."/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" de="Nach dem Schnitt ist noch Filament vorhanden. Die Klinge ist möglicherweise stumpf oder falsch ausgerichtet"/>
@@ -1220,7 +1218,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" de="Filament steckt zwischen CFS-Hub und Extruder-Sensor fest"/>
   <translation tag="Filament stuck in connector during unload" de="Filament beim Entladen im Anschluss verklemmt"/>
   <translation tag="Filament stuck inside the CFS hub" de="Filament im CFS-Hub verklemmt"/>
-  <translation tag="Filament tension is balanced" de="Filamentspannung ist ausgeglichen"/>
   <translation tag="Filament tracking &amp; label printing" de="Filamentverfolgung &amp; Etikettendruck"/>
   <translation tag="Filament tracking and inventory" de="Filamentverfolgung und Inventar"/>
   <translation tag="FilamentSensor" de="Filamentsensor"/>
@@ -2168,7 +2165,6 @@
   <translation tag="Pressure Advance" de="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" de="Pressure-Advance-Kalibrierung"/>
   <translation tag="Pressure:" de="Druck:"/>
-  <translation tag="Pressure: {}% (target {}%)" de="Druck: {}% (Ziel {}%)"/>
   <translation tag="Preview Sounds" de="Sounds vorhören"/>
   <translation tag="Previous" de="Zurück"/>
   <translation tag="Price" de="Preis"/>

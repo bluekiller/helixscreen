@@ -1190,8 +1190,6 @@
   <translation tag="Filament is dragging" ru="Филамент идёт с натягом"/>
   <translation tag="Filament is loaded at the toolhead. Unload it before enabling bypass." ru="Филамент загружен в печатающую головку. Выгрузите его перед включением обхода."/>
   <translation tag="Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats." ru="В печатающей головке загружен филамент. Сначала выгрузите его, чтобы он не размягчился в экструдере, пока греется стол."/>
-  <translation tag="Filament is loose" ru="Филамент ослаблен"/>
-  <translation tag="Filament is pulling tight" ru="Филамент натянут"/>
   <translation tag="Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool." ru="После выгрузки филамент всё ещё находится у сопла. Отрезание или втягивание могло не завершиться. Очистите печатающую головку перед загрузкой другой катушки."/>
   <translation tag="Filament is still loaded. Unload it before enabling bypass." ru="Филамент всё ещё загружен. Выгрузите его перед включением обхода."/>
   <translation tag="Filament is still present after the cut — the blade may be dull or misaligned" ru="После реза филамент остался. Возможно, лезвие затупилось или смещено"/>
@@ -1220,7 +1218,6 @@
   <translation tag="Filament stalled between CFS hub and extruder sensor" ru="Филамент остановился между хабом CFS и датчиком экструдера"/>
   <translation tag="Filament stuck in connector during unload" ru="Филамент застрял в разъёме при выгрузке"/>
   <translation tag="Filament stuck inside the CFS hub" ru="Филамент застрял внутри хаба CFS"/>
-  <translation tag="Filament tension is balanced" ru="Натяжение филамента сбалансировано"/>
   <translation tag="Filament tracking &amp; label printing" ru="Учёт филамента и печать этикеток"/>
   <translation tag="Filament tracking and inventory" ru="Отслеживание и учёт филамента"/>
   <translation tag="FilamentSensor" ru="Датчик филамента"/>
@@ -2168,7 +2165,6 @@
   <translation tag="Pressure Advance" ru="Pressure Advance"/>
   <translation tag="Pressure Advance Calibration" ru="Калибровка Pressure Advance"/>
   <translation tag="Pressure:" ru="Давление:"/>
-  <translation tag="Pressure: {}% (target {}%)" ru="Давление: {}% (цель {}%)"/>
   <translation tag="Preview Sounds" ru="Предпросмотр звуков"/>
   <translation tag="Previous" ru="Прежняя"/>
   <translation tag="Price" ru="Цена"/>

@@ -74,14 +74,15 @@ The backend puts the reading on every unit of that lane as its `BufferHealth`
   the same label;
 - `BufferHealth::fps_to_bias()` maps it onto the -1..+1 sync-feedback bias,
   the same conversion AFC uses for an `FPS_PSF` buffer, so the box tints like
-  any other buffer and the buffer modal draws the plunger meter with its
-  balanced / pulling tight / loose description;
+  any other buffer and the buffer modal draws the slider with its
+  balanced / running tight / running loose description;
 - `sync_feedback_bias` carries `AmsSystemInfo::pressure_sensor_bias()`: the
   lane feeding the current slot, else the first unit with a sensor (with
   several lanes loaded there is no current slot). It drives the clog-detection
   widget's buffer page. Per-unit views (path canvas, buffer modal) draw that
-  unit's own lane via `AmsSystemInfo::buffer_bias()`;
-- tapping it opens the buffer modal's pressure view, "Pressure: 62% (target 50%)".
+  unit's own lane via `helix::buffer_reading()`;
+- tapping it opens the Buffer Status modal: the slider with its last minute
+  beside it, "FPS 62%" and "target 50%".
 
 A lane with no `set_point` cannot be placed either side of its target, so it
 gets the pressure reading alone, with no meter or tint. A manager that
