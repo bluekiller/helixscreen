@@ -422,8 +422,6 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
         auto pwm = std::make_shared<PWMSoundBackend>("/sys/class/pwm", chip, channel);
         pwm->set_auto_export(true);
         pwm->set_klippy_shares_channel(false);
-        // Fast enough to step a tracker arpeggio every Game Boy frame.
-        pwm->set_min_note_ms(16.0f);
         if (pwm->initialize()) {
             spdlog::info("[SoundManager] Using PWM sysfs backend ({}) for the named buzzer",
                          pwm->channel_path());
@@ -531,6 +529,10 @@ bool SoundManager::can_mix() const {
     return backend_ && backend_->supports_render_source();
 }
 
+bool SoundManager::can_play_music() const {
+    return backend_ && (backend_->supports_render_source() || backend_->voice_count() > 1);
+}
+
 // ============================================================================
 // Tracker playback (MOD/MED files)
 // ============================================================================
@@ -543,6 +545,11 @@ void SoundManager::play_file(const std::string& path, SoundPriority priority) {
     }
     if (!backend_ || !sequencer_) {
         spdlog::debug("[SoundManager] play_file('{}') skipped - no backend/sequencer", path);
+        return;
+    }
+
+    if (!can_play_music()) {
+        spdlog::debug("[SoundManager] play_file('{}') skipped - backend plays tones only", path);
         return;
     }
 

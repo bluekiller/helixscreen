@@ -42,11 +42,13 @@ void AudioSettingsManager::init_subjects() {
 
     settings_.init(subjects_);
 
-    // Whether an ALSA backend with device selection is active (0/1). Seeded to
-    // 0 here because SoundManager has not picked its backend yet at subject-init
-    // time; refresh_audio_device_available() sets the real value once it has.
+    // Whether an ALSA backend with device selection is active, and whether the
+    // backend plays music (0/1). Seeded to 0 here because SoundManager has not
+    // picked its backend yet at subject-init time; refresh_backend_subjects()
+    // sets the real values once it has.
     UI_MANAGED_SUBJECT_INT(audio_device_available_subject_, 0, "settings_audio_device_available",
                            subjects_);
+    UI_MANAGED_SUBJECT_INT(music_available_subject_, 0, "settings_music_available", subjects_);
 
     subjects_initialized_ = true;
 
@@ -123,10 +125,14 @@ void AudioSettingsManager::set_output_device(const std::string& pcm) {
     config->save();
 }
 
-void AudioSettingsManager::refresh_audio_device_available() {
+void AudioSettingsManager::refresh_backend_subjects() {
     if (!subjects_initialized_)
         return;
-    int available = SoundManager::instance().has_alsa_backend() ? 1 : 0;
-    spdlog::info("[AudioSettingsManager] audio_device_available={}", available);
-    lv_subject_set_int(&audio_device_available_subject_, available);
+    auto& sm = SoundManager::instance();
+    const int device = sm.has_alsa_backend() ? 1 : 0;
+    const int music = sm.can_play_music() ? 1 : 0;
+    spdlog::info("[AudioSettingsManager] audio_device_available={} music_available={}", device,
+                 music);
+    lv_subject_set_int(&audio_device_available_subject_, device);
+    lv_subject_set_int(&music_available_subject_, music);
 }
