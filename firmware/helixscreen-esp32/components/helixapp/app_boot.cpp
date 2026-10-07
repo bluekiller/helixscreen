@@ -67,6 +67,7 @@
 #include "esp_heap_caps.h"
 #include "esp_http_lane.h"
 #include "esp_log.h"
+#include "esp_moonraker_client.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "filament_sensor_manager.h"
@@ -321,13 +322,12 @@ helix::PrinterSwitchFlow& switch_flow() {
 }
 
 void wire_printer_callbacks() {
-    // Every connect after a disconnect waits for the stopped WebSocket task's stack; when it
-    // does not come back the panel restarts rather than run without one.
-    helix::set_connect_gate([] {
-        if (!ws_stack_available()) {
-            restart_into_active_printer();
-        }
-        return true;
+    // The transport worker starts each new WebSocket task only once the stopped one's
+    // stack is back; when it is not, or a task will not stop, the panel restarts onto the
+    // saved printer rather than run without a connection.
+    helix::EspMoonrakerClient::set_before_transport_start(ws_stack_available);
+    helix::EspMoonrakerClient::set_transport_stall_handler([] {
+        helix::ui::queue_update("app_boot::transport_stall", [] { restart_into_active_printer(); });
     });
     switch_flow().set_connected_printer_id(helix::Config::get_instance()->get_active_printer_id());
     NavigationManager::instance().set_printer_callbacks(

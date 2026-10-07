@@ -23,11 +23,6 @@ namespace helix {
 
 namespace {
 
-std::function<bool()>& connect_gate() {
-    static std::function<bool()> gate;
-    return gate;
-}
-
 /// The disconnect looks exactly like an unexpected drop; suppress the recovery dialog so an
 /// intentional one doesn't raise it.
 IMoonrakerClient* disconnect_for_retarget() {
@@ -43,10 +38,6 @@ IMoonrakerClient* disconnect_for_retarget() {
 
 /// False when the transport could not start, e.g. no internal RAM for its task.
 bool connect_active_printer() {
-    if (!connect_gate_open()) {
-        spdlog::warn("[PrinterRetarget] Connect gate closed; staying disconnected");
-        return false;
-    }
     Config* config = Config::get_instance();
     const std::string host = config->get<std::string>(config->df() + "moonraker_host", "");
     const int port = config->get<int>(config->df() + "moonraker_port", 7125);
@@ -87,14 +78,6 @@ std::string active_printer_ws_url() {
     Config* config = Config::get_instance();
     return "ws://" + config->get<std::string>(config->df() + "moonraker_host", "") + ":" +
            std::to_string(config->get<int>(config->df() + "moonraker_port", 7125)) + "/websocket";
-}
-
-void set_connect_gate(std::function<bool()> gate) {
-    connect_gate() = std::move(gate);
-}
-
-bool connect_gate_open() {
-    return !connect_gate() || connect_gate()();
 }
 
 bool reconnect_active_printer() {

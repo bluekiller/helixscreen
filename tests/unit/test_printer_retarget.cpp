@@ -64,7 +64,6 @@ class RetargetFixture : public LVGLTestFixture {
     }
 
     ~RetargetFixture() override {
-        helix::set_connect_gate(nullptr);
         helix::AmsState::instance().set_backend(nullptr);
         helix::ui::UpdateQueue::instance().drain();
         helix::ConfigTestAccess::data(*cfg_) = saved_data_;
@@ -99,30 +98,6 @@ TEST_CASE_METHOD(RetargetFixture, "Retarget: connects to the active printer as a
     CHECK(client_->get_last_url() == "ws://10.0.0.2:7126/websocket");
     CHECK(helix::AmsState::instance().backend_count() == 0);
     CHECK(shown_name() == "Beta");
-}
-
-TEST_CASE_METHOD(RetargetFixture, "Retarget: a closed connect gate leaves it disconnected",
-                 "[multi-printer][retarget]") {
-    bool asked = false;
-    helix::set_connect_gate([&] {
-        asked = true;
-        // The previous printer's state is already gone when the gate is asked.
-        CHECK(helix::AmsState::instance().backend_count() == 0);
-        return false;
-    });
-
-    CHECK_FALSE(helix::retarget_printer_connection());
-
-    CHECK(asked);
-    CHECK(client_->get_last_url().empty());
-}
-
-TEST_CASE_METHOD(RetargetFixture, "Reconnect: a closed connect gate leaves it disconnected",
-                 "[multi-printer][retarget]") {
-    helix::set_connect_gate([] { return false; });
-
-    CHECK_FALSE(helix::reconnect_active_printer());
-    CHECK(client_->get_last_url().empty());
 }
 
 TEST_CASE_METHOD(RetargetFixture, "Reconnect: the same printer keeps its AMS backends",
@@ -168,7 +143,6 @@ TEST_CASE_METHOD(RetargetFixture,
     set_print_history_manager(&history);
     REQUIRE_FALSE(history.get_jobs().empty());
 
-    helix::set_connect_gate([] { return false; }); // B never answers
     helix::retarget_printer_connection();
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
 

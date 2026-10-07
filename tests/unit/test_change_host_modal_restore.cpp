@@ -70,7 +70,6 @@ class ChangeHostRestoreFixture : public XMLTestFixture {
         Config* cfg = Config::get_instance();
         cfg->set<std::string>(host_key_, prev_host_);
         cfg->set<int>(port_key_, prev_port_);
-        helix::set_connect_gate(nullptr);
         installed_.reset();
         set_moonraker_manager(nullptr);
     }
@@ -263,19 +262,4 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
 
     CHECK(client_->get_last_url() == kSavedUrl);
     CHECK(helix::AmsState::instance().backend_count() == 1);
-}
-
-TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host: Test waits on the connect gate",
-                 "[change_host][connection][multi-printer]") {
-    helix::set_connect_gate([] { return false; });
-    helix::ui::show_change_host_modal();
-    UpdateQueue::instance().drain();
-    lv_obj_t* dialog = Modal::get_top();
-    REQUIRE(dialog != nullptr);
-    lv_subject_copy_string(lv_xml_get_subject(nullptr, "change_host_ip"), "10.9.9.9");
-
-    click(dialog, "btn_test_connection");
-
-    CHECK(client_->get_last_url().empty());
-    CHECK(lv_subject_get_int(lv_xml_get_subject(nullptr, "change_host_testing")) == 0);
 }

@@ -23,11 +23,14 @@
 #include "rpc_error_policy.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <pthread.h>
 #include <string>
 
 namespace helix {
@@ -130,7 +133,40 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // --- Lifetime guard ---
     std::weak_ptr<bool> lifetime_weak() const override;
 
+    /// Runs on the transport worker before each new websocket task starts, after the old
+    /// one is gone; false skips the start and reports a stall.
+    /// Process-wide: set once at boot, before the first connect.
+    static void set_before_transport_start(std::function<bool()> check);
+
+    /// Called once, from the transport worker or the housekeeping task, when a transport
+    /// job could not finish: its websocket task would not stop, or a start was refused.
+    /// Process-wide: set once at boot, before the first connect.
+    static void set_transport_stall_handler(std::function<void()> handler);
+
   private:
+    // --- Transport worker ---
+    // Every websocket stop, destroy, init and start runs on this one thread, in order, so
+    // neither the UI thread nor the housekeeping timer ever waits on a websocket task.
+    static constexpr uint32_t TRANSPORT_WORKER_STACK_BYTES = 6 * 1024;
+    static constexpr int64_t TRANSPORT_STALL_US = 5LL * 1000 * 1000;
+    void post_transport_job(const char* what, std::function<void()> job);
+    static void* transport_worker_main(void* self);
+    void transport_worker_loop();
+    bool start_transport(const std::string& url);
+    void retire_transport(esp_websocket_client_handle_t ws);
+    void report_transport_stall();
+    void fail_pending_requests();
+
+    std::mutex transport_mutex_;
+    std::condition_variable transport_cv_;
+    std::deque<std::pair<const char*, std::function<void()>>> transport_jobs_;
+    pthread_t transport_worker_{};
+    bool transport_worker_started_ = false;
+    bool transport_quit_ = false;
+    std::atomic<int64_t> transport_job_started_us_{0};
+    std::atomic<const char*> transport_job_name_{nullptr};
+    std::atomic<bool> transport_stall_reported_{false};
+
     // Reassembly cap: a single WS message larger than this is dropped whole.
     // Moonraker does not chunk at the protocol level, so an oversized response's
     // RPC will simply time out (see brief). 256 KiB.

@@ -202,10 +202,6 @@ void ChangeHostModal::handle_test_connection() {
     EmergencyStopOverlay::instance().suppress_recovery_dialog(RecoverySuppression::NORMAL);
     client->disconnect();
     client_borrowed_ = true;
-    if (!connect_gate_open()) {
-        set_status("icon_close_circle", "danger", "Connection failed");
-        return;
-    }
 
     // Cancel any in-flight test callbacks, get fresh token
     lifetime_.invalidate();
