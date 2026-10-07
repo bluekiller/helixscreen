@@ -80,6 +80,7 @@
 #include "temperature_history_manager.h"
 #include "timelapse_state.h"
 #include "u1_stock_detection_source.h"
+#include "ui/ui_widget_helpers.h"
 #include "upgrade_banner.h"
 #if HELIX_HAS_PLUGINS
 #include "plugin_dir_watcher.h"
@@ -311,11 +312,10 @@ bool PrinterSession::init_ui() {
     NavigationManager::instance().init_overlay_backdrop(m_screen);
 
     // Find navbar and content area
-    lv_obj_t* navbar = lv_obj_find_by_name(m_app_layout, "navbar");
-    lv_obj_t* content_area = lv_obj_find_by_name(m_app_layout, "content_area");
+    lv_obj_t* navbar = helix::ui::find_required(m_app_layout, "navbar", "Application");
+    lv_obj_t* content_area = helix::ui::find_required(m_app_layout, "content_area", "Application");
 
     if (!navbar || !content_area) {
-        spdlog::error("[Application] Failed to find navbar/content_area");
         return false;
     }
 
@@ -328,9 +328,9 @@ bool PrinterSession::init_ui() {
         [this]() { add_printer_via_wizard(); });
 
     // Find panel container
-    lv_obj_t* panel_container = lv_obj_find_by_name(content_area, "panel_container");
+    lv_obj_t* panel_container =
+        helix::ui::find_required(content_area, "panel_container", "Application");
     if (!panel_container) {
-        spdlog::error("[Application] Failed to find panel_container");
         return false;
     }
 

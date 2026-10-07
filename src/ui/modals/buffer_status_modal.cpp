@@ -10,6 +10,7 @@
 #include "clog_meter_geometry.h"
 #include "observer_factory.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 
@@ -222,8 +223,8 @@ void BufferStatusModal::on_show() {
 
     if (dialog()) {
         slider_ = std::make_unique<helix::ui::UiBufferSlider>(
-            lv_obj_find_by_name(dialog(), "buf_slider"), lv_obj_find_by_name(dialog(), "buf_trace"),
-            effective_unit_);
+            helix::ui::find_required(dialog(), "buf_slider", get_name()),
+            helix::ui::find_required(dialog(), "buf_trace", get_name()), effective_unit_);
     }
     refresh();
 

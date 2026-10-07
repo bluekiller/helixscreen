@@ -8,6 +8,7 @@
 
 #include "format_utils.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -105,14 +106,14 @@ void SpoolmanListView::cleanup() {
 static SpoolmanListView::RowWidgets cache_row_widgets(lv_obj_t* row) {
     SpoolmanListView::RowWidgets rw;
     rw.root = row;
-    rw.canvas = lv_obj_find_by_name(row, "spool_canvas");
-    rw.id_label = lv_obj_find_by_name(row, "spool_id_label");
-    rw.name_label = lv_obj_find_by_name(row, "spool_name");
-    rw.vendor_label = lv_obj_find_by_name(row, "spool_vendor");
-    rw.weight_label = lv_obj_find_by_name(row, "weight_text");
-    rw.percent_label = lv_obj_find_by_name(row, "percent_text");
-    rw.low_stock_icon = lv_obj_find_by_name(row, "low_stock_indicator");
-    rw.active_indicator = lv_obj_find_by_name(row, "active_indicator");
+    rw.canvas = helix::ui::find_required(row, "spool_canvas", "SpoolmanListView");
+    rw.id_label = helix::ui::find_required(row, "spool_id_label", "SpoolmanListView");
+    rw.name_label = helix::ui::find_required(row, "spool_name", "SpoolmanListView");
+    rw.vendor_label = helix::ui::find_required(row, "spool_vendor", "SpoolmanListView");
+    rw.weight_label = helix::ui::find_required(row, "weight_text", "SpoolmanListView");
+    rw.percent_label = helix::ui::find_required(row, "percent_text", "SpoolmanListView");
+    rw.low_stock_icon = helix::ui::find_required(row, "low_stock_indicator", "SpoolmanListView");
+    rw.active_indicator = helix::ui::find_required(row, "active_indicator", "SpoolmanListView");
     return rw;
 }
 

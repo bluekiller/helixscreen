@@ -11,6 +11,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "theme_manager.h"
 #include "ui/fan_spin_animation.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -42,8 +43,8 @@ FanDial::FanDial(lv_obj_t* parent, const std::string& name, const std::string& f
 
     // Carousel layout: label below arc
     if (label_bottom) {
-        lv_obj_t* top_label = lv_obj_find_by_name(root_, "name_label");
-        lv_obj_t* bot_label = lv_obj_find_by_name(root_, "name_label_bottom");
+        lv_obj_t* top_label = helix::ui::find_required(root_, "name_label", "FanDial");
+        lv_obj_t* bot_label = helix::ui::find_required(root_, "name_label_bottom", "FanDial");
         if (top_label)
             lv_obj_add_flag(top_label, LV_OBJ_FLAG_HIDDEN);
         if (bot_label)
@@ -51,17 +52,13 @@ FanDial::FanDial(lv_obj_t* parent, const std::string& name, const std::string& f
     }
 
     // Find child widgets by name
-    arc_ = lv_obj_find_by_name(root_, "dial_arc");
-    speed_label_ = lv_obj_find_by_name(root_, "speed_label");
-    fan_icon_ = lv_obj_find_by_name(root_, "fan_icon");
-    onoff_switch_ = lv_obj_find_by_name(root_, "onoff_switch");
-    onoff_label_ = lv_obj_find_by_name(root_, "onoff_label");
+    arc_ = helix::ui::find_required(root_, "dial_arc", "FanDial");
+    speed_label_ = helix::ui::find_required(root_, "speed_label", "FanDial");
+    fan_icon_ = helix::ui::find_required(root_, "fan_icon", "FanDial");
+    onoff_switch_ = helix::ui::find_required(root_, "onoff_switch", "FanDial");
+    onoff_label_ = helix::ui::find_required(root_, "onoff_label", "FanDial");
 
     if (!arc_ || !speed_label_ || !onoff_switch_ || !onoff_label_) {
-        spdlog::error("[FanDial] Failed to find child widgets for '{}': arc={} label={} "
-                      "switch={} state_label={}",
-                      name, arc_ != nullptr, speed_label_ != nullptr, onoff_switch_ != nullptr,
-                      onoff_label_ != nullptr);
         return;
     }
 

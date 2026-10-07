@@ -7,6 +7,7 @@
 
 #include "format_utils.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -225,26 +226,26 @@ void HistoryListView::configure_row(lv_obj_t* row, size_t data_index, const Prin
     }
 
     // Filename label
-    lv_obj_t* filename_label = lv_obj_find_by_name(row, "row_filename");
+    lv_obj_t* filename_label = helix::ui::find_required(row, "row_filename", "HistoryListView");
     if (filename_label) {
         lv_label_set_text(filename_label, job.filename.c_str());
     }
 
     // Date label
-    lv_obj_t* date_label = lv_obj_find_by_name(row, "row_date");
+    lv_obj_t* date_label = helix::ui::find_required(row, "row_date", "HistoryListView");
     if (date_label) {
         lv_label_set_text(date_label, job.date_str.c_str());
     }
 
     // Duration label
-    lv_obj_t* duration_label = lv_obj_find_by_name(row, "row_duration");
+    lv_obj_t* duration_label = helix::ui::find_required(row, "row_duration", "HistoryListView");
     if (duration_label) {
         lv_label_set_text(duration_label,
                           helix::format::duration(static_cast<int>(job.print_duration)).c_str());
     }
 
     // Filament type label
-    lv_obj_t* filament_label = lv_obj_find_by_name(row, "row_filament");
+    lv_obj_t* filament_label = helix::ui::find_required(row, "row_filament", "HistoryListView");
     if (filament_label) {
         lv_label_set_text(filament_label,
                           job.filament_type.empty() ? lv_tr("Unknown") : job.filament_type.c_str());
@@ -254,7 +255,7 @@ void HistoryListView::configure_row(lv_obj_t* row, size_t data_index, const Prin
     const char* status_text = lv_tr(status_to_label(job.status));
     const char* status_color = get_status_color(job.status);
 
-    lv_obj_t* status_label = lv_obj_find_by_name(row, "row_status");
+    lv_obj_t* status_label = helix::ui::find_required(row, "row_status", "HistoryListView");
     if (status_label) {
         lv_label_set_text(status_label, status_text);
         lv_color_t color = parse_hex_color(status_color, theme_manager_get_color("text_muted"));
@@ -262,7 +263,7 @@ void HistoryListView::configure_row(lv_obj_t* row, size_t data_index, const Prin
     }
 
     // Status bar color (left edge indicator)
-    lv_obj_t* status_bar = lv_obj_find_by_name(row, "status_bar");
+    lv_obj_t* status_bar = helix::ui::find_required(row, "status_bar", "HistoryListView");
     if (status_bar) {
         lv_color_t color = parse_hex_color(status_color, theme_manager_get_color("text_muted"));
         lv_obj_set_style_bg_color(status_bar, color, LV_PART_MAIN);
