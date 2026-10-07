@@ -5977,6 +5977,10 @@ TEST_CASE("Happy Hare v4 entry sensor that is disabled reads as not triggered",
     nlohmann::json params = fx["entry_sensors"];
     params["mmu"] = fx["mmu_status"];
     feed_params(helper, params);
+    int state_events = 0;
+    helper.set_event_callback([&](const std::string& name, const std::string&) {
+        state_events += name == helix::AmsBackend::EVENT_STATE_CHANGED ? 1 : 0;
+    });
 
     REQUIRE(helper.slot_has_prep_sensor(3));
     CHECK_FALSE(helper.get_gate_sensor(3)->pre_gate_triggered); // detected, but disabled
@@ -5984,6 +5988,7 @@ TEST_CASE("Happy Hare v4 entry sensor that is disabled reads as not triggered",
     CHECK_FALSE(helper.get_gate_sensor(2)->pre_gate_triggered);
     feed_params(helper, {{"filament_switch_sensor mmu_entry_3", {{"enabled", true}}}});
     CHECK(helper.get_gate_sensor(3)->pre_gate_triggered);
+    CHECK(state_events == 1); // a sensor-only frame still reaches the UI
     CHECK(helper.get_system_info().units[0].has_slot_sensors);
 }
 
@@ -6083,6 +6088,7 @@ std::vector<std::string> unit_scoped_commands(AmsBackendHappyHareTestHelper& hel
     helper.execute_device_action("gear_from_spool_speed", std::any(70.0));
     helper.execute_device_action("extruder_load_speed", std::any(20.0));
     helper.execute_device_action("toolhead_ooze_reduction", std::any(1.0));
+    helper.execute_device_action("sync_to_extruder", std::any(true));
     return helper.captured_gcodes;
 }
 
@@ -6104,7 +6110,8 @@ TEST_CASE("Happy Hare names the unit only where v4 multi-unit requires it",
                                        "MMU_CALIBRATE_GATES", "MMU_CALIBRATE_BOWDEN",
                                        "MMU_TEST_GRIP", "MMU_TEST_CONFIG GEAR_FROM_SPOOL_SPEED=70",
                                        "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
-                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0"});
+                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0",
+                                       "MMU_TEST_CONFIG SYNC_TO_EXTRUDER=1"});
     }
     SECTION("v4 single unit") {
         const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
@@ -6117,7 +6124,8 @@ TEST_CASE("Happy Hare names the unit only where v4 multi-unit requires it",
                                        "MMU_CALIBRATE_GATE ALL=1", "MMU_CALIBRATE_BOWDEN",
                                        "MMU_TEST_GRIP", "MMU_TEST_CONFIG GEAR_LOAD_SPEED=70",
                                        "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
-                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0"});
+                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0",
+                                       "MMU_TEST_CONFIG SYNC_TO_EXTRUDER=1"});
     }
     SECTION("v4 two units, unit 1 selected") {
         const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
@@ -6132,7 +6140,8 @@ TEST_CASE("Happy Hare names the unit only where v4 multi-unit requires it",
                   "MMU_CALIBRATE_GATE ALL=1 UNIT=1", "MMU_CALIBRATE_BOWDEN", "MMU_TEST_GRIP UNIT=1",
                   "MMU_TEST_CONFIG GEAR_LOAD_SPEED=70 UNIT=1",
                   "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
-                  "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0 UNIT=1"});
+                  "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0 UNIT=1",
+                  "MMU_TEST_CONFIG SYNC_TO_EXTRUDER=1 UNIT=1"});
 
         helper.execute_device_action("gear_from_spool_speed", std::any(75.0));
         helper.clear_captured_gcodes();
