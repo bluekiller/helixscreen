@@ -102,6 +102,16 @@ const std::array<const char*, 24> kLanguageNames = {
     "Norsk",   "Dansk",   "Suomi",   "Čeština",  "Magyar",   "Română",     "Українська", "Ελληνικά",
 };
 
+bool listed_non_key(std::string_view text) {
+    for (const char* t : {"true", "false", "xl", "lg", "md", "sm", "xs", "#RRGGBB"})
+        if (text == t)
+            return true;
+    for (const char* name : kLanguageNames)
+        if (text == name)
+            return true;
+    return false;
+}
+
 bool lv_is_translation_key(const char* text) {
     return is_translation_key(text);
 }
@@ -113,12 +123,23 @@ const bool kKeyCallbackRegistered = (lv_xml_set_translation_key_cb(lv_is_transla
 } // namespace
 
 bool is_translation_key(std::string_view text) {
-    // Each rule mirrors one in should_skip_text(), in the same order.
+    // Every rejection mirrors a rule in should_skip_text().
     std::string_view stripped = strip_ascii(text);
     if (stripped.empty())
         return false;
     if (text.find('$') != std::string_view::npos || text.front() == '@')
         return false;
+
+    // The common case, a word or phrase, decided without a regex: it starts
+    // with an ASCII letter and has nothing a pattern rule below needs (`=`, `_`,
+    // a backslash, a newline, `://`, or the trailing digit of "PLA 205").
+    unsigned char first = static_cast<unsigned char>(text.front());
+    bool starts_with_letter = (first | 0x20) >= 'a' && (first | 0x20) <= 'z';
+    unsigned char last = static_cast<unsigned char>(stripped.back());
+    if (starts_with_letter && !(last >= '0' && last <= '9') &&
+        text.find_first_of("=_\\\n") == std::string_view::npos &&
+        text.find("://") == std::string_view::npos)
+        return !listed_non_key(text);
 
     static const Regex const_ref("^#[a-z_][a-z0-9_]*$");
     static const Regex numeric("^[\\d.]+%?$");
@@ -150,10 +171,7 @@ bool is_translation_key(std::string_view text) {
     if (regex_search(text, font_name) || regex_search(text, hex_color) ||
         regex_search(text, size_attr))
         return false;
-    for (const char* t : {"true", "false", "xl", "lg", "md", "sm", "xs", "#RRGGBB"})
-        if (text == t)
-            return false;
-    if (regex_search(text, xml_attr_value))
+    if (listed_non_key(text) || regex_search(text, xml_attr_value))
         return false;
 
     auto stripped_cps = code_points(stripped);
@@ -166,9 +184,6 @@ bool is_translation_key(std::string_view text) {
     }
     if (regex_search(stripped, signed_numeric) && stripped != "+" && stripped != "-")
         return false;
-    for (const char* name : kLanguageNames)
-        if (text == name)
-            return false;
     if (regex_search(stripped, paren_tech) || stripped.front() == '^')
         return false;
     if (text.find("\\n") != std::string_view::npos || text.find('\n') != std::string_view::npos)
