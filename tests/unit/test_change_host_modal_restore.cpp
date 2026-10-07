@@ -366,3 +366,21 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
     REQUIRE(status != nullptr);
     CHECK_FALSE(std::string(lv_label_get_text(status)).empty());
 }
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Add printer: typing a host clears the validation message",
+                 "[change_host][multi-printer]") {
+    AddResult result;
+    lv_obj_t* dialog = open_add_modal(result);
+    lv_subject_t* ip = lv_xml_get_subject(nullptr, "change_host_ip");
+    lv_subject_copy_string(ip, "");
+    click(dialog, "modal_save_btn");
+    lv_obj_t* status = lv_obj_find_by_name(dialog, "status_text");
+    REQUIRE(status != nullptr);
+    REQUIRE_FALSE(std::string(lv_label_get_text(status)).empty());
+
+    lv_subject_copy_string(ip, "10.1.2.3");
+    UpdateQueue::instance().drain();
+
+    CHECK(std::string(lv_label_get_text(status)).empty());
+}

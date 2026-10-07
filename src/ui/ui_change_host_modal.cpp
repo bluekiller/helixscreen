@@ -401,6 +401,10 @@ void ChangeHostModal::set_status(const char* icon_name, const char* color_token,
 // ============================================================================
 
 void ChangeHostModal::on_input_changed_cb(lv_observer_t* /*observer*/, lv_subject_t* /*subject*/) {
+    // A status line describes the address it was shown for, so an edit clears it.
+    if (active_instance_) {
+        active_instance_->set_status(nullptr, nullptr, "");
+    }
     // Reset validation when user edits host or port after a successful test
     lv_subject_t* validated = lv_xml_get_subject(nullptr, "change_host_validated");
     if (validated && lv_subject_get_int(validated) != 0) {
