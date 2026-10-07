@@ -164,6 +164,17 @@ one layout.
 parameters the selected unit (`printer.mmu.unit`). v3's `MMU_TEST_CONFIG` rejects an unknown
 `UNIT`, so it is never sent there.
 
+**Units.** `happy_hare::read_machine_units()` returns every `mmu_machine.unit_N` (v3.4 and v4
+both publish them; an older v3 falls back to configfile's `[mmu_machine]` as one unit). Each
+unit's `num_gates` sets the slot split in preference to `printer.mmu`'s counts or an even
+split; when it arrives after the first `gate_status` frame, `initialize_slots()` re-splits
+the registry with `SlotRegistry::reorganize()` and keeps every gate's state. Each unit gets
+its own topology from its `selector_type` (a mixed ERCF + Box Turtle rig is LINEAR then HUB)
+and its `display_name` (v4) as its name. Enclosure heaters and sensors stay one shared name
+when every unit uses the same one, else become one entry per gate across all units
+(`happy_hare::collect_unit_objects()`). `mmu_machine.unit_N.is_homed` is a boot-time snapshot
+on v4 and is never read.
+
 v4 sends `encoder`, `flowguard`, `tangle_prevention` and the `sync_feedback_*` fields as
 JSON null until a unit has them; every parser reads null as absent, so the last real value
 stands. Clog-detection mode moved to `flowguard_encoder_mode` / `MMU_FLOWGUARD` on v4 and is

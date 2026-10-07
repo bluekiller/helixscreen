@@ -365,3 +365,52 @@ TEST_CASE("Happy Hare v4 null telemetry reads as no data", "[happy_hare][status_
     CHECK_FALSE(inner.espooler_active);
     CHECK_FALSE(happy_hare::parse_telemetry(json{{"espooler", nullptr}}).espooler);
 }
+
+TEST_CASE("Happy Hare units: one entry per mmu_machine unit, configfile as a fallback",
+          "[happy_hare][status_parse][hh_multi_unit]") {
+    const json fx = test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+    const auto units = happy_hare::read_machine_units(fx["configfile_settings"], fx["mmu_machine"]);
+    REQUIRE(units.size() == 2);
+    CHECK(units[0].selector_type == "LinearServoSelector");
+    CHECK(units[0].first_gate == 0);
+    CHECK(units[0].num_gates == 6);
+    CHECK(units[1].display_name == "Box Turtle");
+    CHECK(units[1].first_gate == 6);
+    CHECK(units[1].filament_heaters.size() == 4);
+
+    const json v3_settings = {
+        {"mmu_machine", {{"selector_type", "VirtualSelector"}, {"filament_heaters", "a, b ,c"}}}};
+    const auto v3 = happy_hare::read_machine_units(v3_settings, json::object());
+    REQUIRE(v3.size() == 1);
+    CHECK(v3[0].selector_type == "VirtualSelector");
+    CHECK(v3[0].filament_heaters == std::vector<std::string>{"a", "b", "c"});
+    CHECK(v3[0].first_gate == -1);
+}
+
+TEST_CASE("Happy Hare units: heaters collapse to one name only when every unit shares it",
+          "[happy_hare][status_parse][hh_multi_unit]") {
+    using happy_hare::collect_unit_objects;
+    using happy_hare::MachineUnit;
+    using happy_hare::UnitObjectKind;
+    MachineUnit a;
+    a.num_gates = 2;
+    a.filament_heater = "h";
+    MachineUnit b = a;
+    b.num_gates = 3;
+
+    auto same = collect_unit_objects({a, b}, UnitObjectKind::Heater);
+    CHECK(same.shared == "h");
+    CHECK(same.per_gate.empty());
+
+    b.filament_heater = "g";
+    auto differ = collect_unit_objects({a, b}, UnitObjectKind::Heater);
+    CHECK(differ.shared.empty());
+    CHECK(differ.per_gate == std::vector<std::string>{"h", "h", "g", "g", "g"});
+
+    b.filament_heater.clear();
+    b.environment_sensors = {"s0", "s1", "s2"};
+    auto none = collect_unit_objects({a, b}, UnitObjectKind::EnvironmentSensor);
+    CHECK(none.per_gate == std::vector<std::string>{"", "", "s0", "s1", "s2"});
+    a.filament_heater.clear();
+    CHECK(collect_unit_objects({a, b}, UnitObjectKind::Heater).per_gate.empty());
+}

@@ -53,39 +53,6 @@ std::string display_reason(std::string reason) {
     return reason;
 }
 
-/// The object carrying [mmu_machine] machine-level fields (selector_type,
-/// filament_heater, environment_sensor, and their per-gate list forms).
-///
-/// Two layouts exist and only one of them is in configfile. Happy Hare v3 puts
-/// the fields directly on `configfile.settings.mmu_machine`. v4 leaves that
-/// object holding only `happy_hare_version` and `units`, and publishes the real
-/// values in the LIVE `mmu_machine` status object, one sub-object per unit
-/// (`unit_0`, `unit_1`, ...). Reading configfile alone therefore finds a
-/// populated-looking object with none of the fields in it, which is why the
-/// miss is silent rather than loud.
-///
-/// Every reader asks here instead of testing the version itself, so a later
-/// layout move lands in one place rather than at each call site.
-///
-/// @param live_mmu_machine   the live `mmu_machine` status object (may be empty)
-/// @param config_mmu_machine `configfile.settings.mmu_machine` (may be empty)
-/// @param unit_index         which unit's fields are wanted (v4 only)
-/// @return the field-bearing object, or nullptr when neither shape supplies one
-const nlohmann::json* hh_machine_fields(const nlohmann::json& live_mmu_machine,
-                                        const nlohmann::json& config_mmu_machine, int unit_index) {
-    if (live_mmu_machine.is_object()) {
-        const std::string unit_key = "unit_" + std::to_string(unit_index);
-        const auto it = live_mmu_machine.find(unit_key);
-        if (it != live_mmu_machine.end() && it->is_object()) {
-            return &(*it);
-        }
-    }
-    if (config_mmu_machine.is_object() && !config_mmu_machine.empty()) {
-        return &config_mmu_machine;
-    }
-    return nullptr;
-}
-
 /// Shared empty object so the resolver can be handed a missing source without
 /// every caller minting its own temporary.
 const nlohmann::json& hh_empty_object() {
@@ -316,12 +283,19 @@ bool AmsBackendHappyHare::is_type_b() const {
     return selector_type_ == "VirtualSelector";
 }
 
+bool AmsBackendHappyHare::unit_is_type_b_locked(int unit_index) const {
+    if (unit_index >= 0 && unit_index < static_cast<int>(machine_units_.size()) &&
+        !machine_units_[unit_index].selector_type.empty()) {
+        return machine_units_[unit_index].selector_type == "VirtualSelector";
+    }
+    return is_type_b();
+}
+
 void AmsBackendHappyHare::update_unit_topologies() {
-    auto topo = is_type_b() ? PathTopology::HUB : PathTopology::LINEAR;
-    bool encoder = !is_type_b();
     for (auto& unit : system_info_.units) {
-        unit.topology = topo;
-        unit.has_encoder = encoder;
+        const bool type_b = unit_is_type_b_locked(unit.unit_index);
+        unit.topology = type_b ? PathTopology::HUB : PathTopology::LINEAR;
+        unit.has_encoder = !type_b;
     }
 }
 
@@ -1441,16 +1415,30 @@ HappyHareGateSensor* AmsBackendHappyHare::gate_sensor_mut(int slot_index) {
 }
 
 void AmsBackendHappyHare::initialize_slots(int gate_count) {
-    spdlog::info("[AMS HappyHare] Initializing {} slots across {} units", gate_count, num_units_);
-
-    system_info_.units.clear();
-    gate_sensors_.clear();
+    // A second call (mmu_machine arriving after the first gate_status frame)
+    // re-splits the registry and keeps every gate's state, sensors and tool map.
+    const bool resplit = slots_.is_initialized();
 
     // Determine per-unit gate counts:
-    // 1. Use per_unit_gate_counts_ if available (v4 dissimilar multi-MMU)
-    // 2. Fall back to even split (v3 or identical units)
+    // 1. mmu_machine's own units, when they name counts covering every gate
+    // 2. per_unit_gate_counts_ from printer.mmu (v3 dissimilar multi-MMU)
+    // 3. Fall back to even split (v3 or identical units)
     std::vector<int> unit_counts;
-    if (!per_unit_gate_counts_.empty() &&
+    if (!machine_units_.empty()) {
+        int total = 0;
+        for (const auto& u : machine_units_) {
+            unit_counts.push_back(u.num_gates);
+            total += u.num_gates;
+        }
+        if (total != gate_count ||
+            std::any_of(machine_units_.begin(), machine_units_.end(),
+                        [](const happy_hare::MachineUnit& u) { return u.num_gates <= 0; })) {
+            unit_counts.clear();
+        } else {
+            num_units_ = static_cast<int>(unit_counts.size());
+        }
+    }
+    if (unit_counts.empty() && !per_unit_gate_counts_.empty() &&
         static_cast<int>(per_unit_gate_counts_.size()) == num_units_) {
         // Verify total matches
         int total = 0;
@@ -1477,22 +1465,37 @@ void AmsBackendHappyHare::initialize_slots(int gate_count) {
         }
     }
 
+    spdlog::info("[AMS HappyHare] {} {} slots across {} units",
+                 resplit ? "Re-splitting" : "Initializing", gate_count, num_units_);
+
+    const bool had_slot_sensors =
+        !system_info_.units.empty() && system_info_.units[0].has_slot_sensors;
+    system_info_.units.clear();
+    if (!resplit) {
+        gate_sensors_.clear();
+    }
+
     int global_offset = 0;
     for (int u = 0; u < num_units_; ++u) {
         int unit_gates = unit_counts[u];
 
         AmsUnit unit;
         unit.unit_index = u;
-        unit.name = num_units_ > 1 ? "Unit " + std::to_string(u + 1) : std::string("MMU");
+        const std::string display_name = u < static_cast<int>(machine_units_.size())
+                                             ? machine_units_[u].display_name
+                                             : std::string{};
+        unit.name = !display_name.empty() ? display_name
+                    : num_units_ > 1      ? "Unit " + std::to_string(u + 1)
+                                          : std::string("MMU");
         unit.slot_count = unit_gates;
         unit.first_slot_global_index = global_offset;
         unit.connected = true;
-        unit.has_encoder = !is_type_b();
+        unit.has_encoder = !unit_is_type_b_locked(u);
         unit.has_toolhead_sensor = true;
-        unit.topology = is_type_b() ? PathTopology::HUB : PathTopology::LINEAR;
+        unit.topology = unit_is_type_b_locked(u) ? PathTopology::HUB : PathTopology::LINEAR;
         // has_slot_sensors starts false; updated when sensor data arrives in
         // apply_mmu_sensors_locked()
-        unit.has_slot_sensors = false;
+        unit.has_slot_sensors = resplit && had_slot_sensors;
         unit.has_hub_sensor = true; // HH selector functions as hub equivalent
 
         for (int i = 0; i < unit_gates; ++i) {
@@ -1512,25 +1515,31 @@ void AmsBackendHappyHare::initialize_slots(int gate_count) {
     system_info_.total_slots = gate_count;
 
     // Initialize tool-to-gate mapping (1:1 default)
-    system_info_.tool_to_slot_map.clear();
-    system_info_.tool_to_slot_map.reserve(gate_count);
-    for (int i = 0; i < gate_count; ++i) {
-        system_info_.tool_to_slot_map.push_back(i);
+    if (!resplit) {
+        system_info_.tool_to_slot_map.clear();
+        system_info_.tool_to_slot_map.reserve(gate_count);
+        for (int i = 0; i < gate_count; ++i) {
+            system_info_.tool_to_slot_map.push_back(i);
+        }
     }
 
-    // Initialize SlotRegistry alongside legacy state (uses same unit_counts)
-    {
-        std::vector<std::pair<std::string, std::vector<std::string>>> sr_units;
-        int sr_offset = 0;
-        for (int u = 0; u < num_units_; ++u) {
-            int count = unit_counts[u];
-            std::vector<std::string> names;
-            for (int g = 0; g < count; ++g) {
-                names.push_back(std::to_string(sr_offset + g));
-            }
-            sr_units.push_back({system_info_.units[u].name, names});
-            sr_offset += count;
+    // Initialize SlotRegistry alongside legacy state (uses same unit_counts).
+    // Slots are named by global gate number, which is what reorganize() keys
+    // the preserved entries on.
+    std::vector<std::pair<std::string, std::vector<std::string>>> sr_units;
+    int sr_offset = 0;
+    for (int u = 0; u < num_units_; ++u) {
+        int count = unit_counts[u];
+        std::vector<std::string> names;
+        for (int g = 0; g < count; ++g) {
+            names.push_back(std::to_string(sr_offset + g));
         }
+        sr_units.push_back({system_info_.units[u].name, names});
+        sr_offset += count;
+    }
+    if (resplit) {
+        slots_.reorganize(sr_units);
+    } else {
         slots_.initialize_units(sr_units);
     }
 }
@@ -1583,31 +1592,34 @@ void AmsBackendHappyHare::apply_selector_type_config(const nlohmann::json& setti
                                                      const nlohmann::json& live_mmu_machine) {
     // VirtualSelector = Type B (hub topology: 3MS, Box Turtle, Night Owl, Angry Beaver)
     // LinearSelector/RotarySelector/ServoSelector = Type A (linear: ERCF, Tradrack)
-    // v4 keeps selector_type on the live mmu_machine object, per unit, and leaves
-    // configfile carrying only the version.
-    if (!settings.contains("mmu_machine") || !settings["mmu_machine"].is_object()) {
-        spdlog::debug("[AMS HappyHare] No mmu_machine section in configfile settings");
-        return;
-    }
-
-    const nlohmann::json* machine = hh_machine_fields(live_mmu_machine, settings["mmu_machine"], 0);
-    if (!machine) {
+    // Each unit names its own, so a mixed rig gets one topology per unit.
+    auto units = happy_hare::read_machine_units(settings, live_mmu_machine);
+    if (units.empty()) {
         spdlog::debug("[AMS HappyHare] No mmu_machine fields for selector type");
         return;
     }
-    const auto& mmu_machine = *machine;
-    if (mmu_machine.contains("selector_type") && mmu_machine["selector_type"].is_string()) {
-        std::string type = mmu_machine["selector_type"].get<std::string>();
-        spdlog::info("[AMS HappyHare] Selector type from config: {}", type);
+    for (size_t u = 0; u < units.size(); ++u) {
+        spdlog::info("[AMS HappyHare] Unit {}: selector {}, gates {}+{} '{}'", u,
+                     units[u].selector_type, units[u].first_gate, units[u].num_gates,
+                     units[u].display_name);
+    }
 
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            selector_type_ = type;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!units[0].selector_type.empty()) {
+            selector_type_ = units[0].selector_type;
+        }
+        machine_units_ = std::move(units);
+        if (slots_.is_initialized()) {
+            // The first gate_status frame usually lands before this answer, and
+            // the machine's own split is the one to show.
+            initialize_slots(slots_.slot_count());
+        } else {
             update_unit_topologies();
         }
-
-        emit_event(EVENT_STATE_CHANGED);
     }
+
+    emit_event(EVENT_STATE_CHANGED);
 }
 
 // ============================================================================
@@ -1740,96 +1752,44 @@ bool AmsBackendHappyHare::apply_environment_sensor_status(const nlohmann::json& 
     return any;
 }
 
-// Parse a Happy Hare config-list value (e.g. environment_sensors) into trimmed
-// object names. Moonraker may return it as a JSON array or as a raw
-// comma-separated string, so handle both.
-static std::vector<std::string> parse_hh_config_list(const nlohmann::json& v) {
-    auto trim = [](std::string s) {
-        const auto b = s.find_first_not_of(" \t");
-        const auto e = s.find_last_not_of(" \t");
-        return (b == std::string::npos) ? std::string() : s.substr(b, e - b + 1);
-    };
-    std::vector<std::string> out;
-    if (v.is_array()) {
-        for (const auto& e : v) {
-            if (e.is_string()) {
-                std::string s = trim(e.get<std::string>());
-                if (!s.empty())
-                    out.push_back(std::move(s));
-            }
-        }
-    } else if (v.is_string()) {
-        const std::string str = v.get<std::string>();
-        size_t start = 0;
-        while (start <= str.size()) {
-            const size_t comma = str.find(',', start);
-            std::string tok = trim(
-                str.substr(start, comma == std::string::npos ? std::string::npos : comma - start));
-            if (!tok.empty())
-                out.push_back(std::move(tok));
-            if (comma == std::string::npos)
-                break;
-            start = comma + 1;
-        }
-    }
-    return out;
-}
-
 void AmsBackendHappyHare::apply_heater_config(const nlohmann::json& settings,
                                               const nlohmann::json& live_mmu_machine) {
-    // Parse [mmu_machine] filament_heater — the Klipper heater_generic object name.
-    const nlohmann::json* machine = hh_machine_fields(
-        live_mmu_machine,
-        settings.contains("mmu_machine") ? settings["mmu_machine"] : hh_empty_object(), 0);
-    if (machine != nullptr) {
-        const auto& mmu_machine = *machine;
-        if (mmu_machine.contains("filament_heater") && mmu_machine["filament_heater"].is_string()) {
-            std::lock_guard<std::mutex> lock(mutex_);
-            filament_heater_name_ = mmu_machine["filament_heater"].get<std::string>();
+    // Enclosure heaters and environment sensors, each either one shared object
+    // (filament_heater / environment_sensor) or one per gate (filament_heaters /
+    // environment_sensors). A multi-unit rig whose units differ is read as one
+    // entry per gate across every unit; get_system_info() maps each unit to its own.
+    const auto units = happy_hare::read_machine_units(settings, live_mmu_machine);
+    const auto heaters =
+        happy_hare::collect_unit_objects(units, happy_hare::UnitObjectKind::Heater);
+    const auto sensors =
+        happy_hare::collect_unit_objects(units, happy_hare::UnitObjectKind::EnvironmentSensor);
+    const bool any_per_gate_heater = std::any_of(heaters.per_gate.begin(), heaters.per_gate.end(),
+                                                 [](const std::string& h) { return !h.empty(); });
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!heaters.shared.empty() || any_per_gate_heater) {
+            filament_heater_name_ = heaters.shared;
+            filament_heaters_ = any_per_gate_heater ? heaters.per_gate : std::vector<std::string>{};
             // A named heater is what a dryer IS, on the shared-enclosure form exactly as
             // on the per-gate one.
-            dryer_info_.supported = !filament_heater_name_.empty();
+            dryer_info_.supported = true;
             // MMU_HEATER TEMP=<t> with DRY unset re-sends the setpoint and updates the
             // running cycle's tracked target. TIMER is read only on the DRY=1 path, and
             // DRY=1 during a cycle is refused, so the duration needs a stop and restart.
             dryer_info_.supports_live_temp = true;
             dryer_info_.supports_live_duration = false;
-            spdlog::info("[AMS HappyHare] Filament heater: {}", filament_heater_name_);
+            spdlog::info("[AMS HappyHare] Filament heater: '{}', per-gate heaters: {}",
+                         filament_heater_name_, filament_heaters_.size());
         }
-        // Parse [mmu_machine] environment_sensor — the Klipper object (e.g.
-        // "temperature_sensor box") whose backing humidity chip reports box %RH.
-        if (mmu_machine.contains("environment_sensor") &&
-            mmu_machine["environment_sensor"].is_string()) {
-            std::lock_guard<std::mutex> lock(mutex_);
-            environment_sensor_name_ = mmu_machine["environment_sensor"].get<std::string>();
+        if (!sensors.shared.empty()) {
+            environment_sensor_name_ = sensors.shared;
             spdlog::info("[AMS HappyHare] Environment sensor: {}", environment_sensor_name_);
         }
-        // Per-gate (EMU) form: filament_heaters / environment_sensors are lists with
-        // one entry per gate, mutually exclusive with the scalar form. For multi-MMU
-        // these span all units' gates; get_system_info() maps each unit to its own.
-        if (mmu_machine.contains("filament_heaters")) {
-            auto heaters = parse_hh_config_list(mmu_machine["filament_heaters"]);
-            if (!heaters.empty()) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                filament_heaters_ = std::move(heaters);
-                dryer_info_.supported = true; // per-gate heaters imply a dryer exists
-                // MMU_HEATER TEMP=<t> with DRY unset re-sends the setpoint and updates the
-                // running cycle's tracked target. TIMER is read only on the DRY=1 path, and
-                // DRY=1 during a cycle is refused, so the duration needs a stop and restart.
-                dryer_info_.supports_live_temp = true;
-                dryer_info_.supports_live_duration = false;
-                spdlog::info("[AMS HappyHare] Per-gate filament heaters: {}",
-                             filament_heaters_.size());
-            }
-        }
-        if (mmu_machine.contains("environment_sensors")) {
-            auto sensors = parse_hh_config_list(mmu_machine["environment_sensors"]);
-            if (!sensors.empty()) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                environment_sensors_ = std::move(sensors);
-                spdlog::info("[AMS HappyHare] Per-gate environment sensors: {}",
-                             environment_sensors_.size());
-            }
+        if (std::any_of(sensors.per_gate.begin(), sensors.per_gate.end(),
+                        [](const std::string& n) { return !n.empty(); })) {
+            environment_sensors_ = sensors.per_gate;
+            spdlog::info("[AMS HappyHare] Per-gate environment sensors: {}",
+                         environment_sensors_.size());
         }
     }
 

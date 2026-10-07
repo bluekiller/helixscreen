@@ -6126,8 +6126,9 @@ TEST_CASE("Happy Hare names the unit only where v4 multi-unit requires it",
         CHECK(unit_scoped_commands(helper, 1) ==
               std::vector<std::string>{
                   "MMU_HOME UNIT=ALL", "MMU_MOTORS_ON UNIT=ALL", "MMU_MOTORS_OFF UNIT=ALL",
-                  "MMU_HEATER DRY=1 TEMP=50 TIMER=60 UNIT=1", "MMU_HEATER TEMP=55 UNIT=1",
-                  "MMU_HEATER STOP=1 UNIT=1", "MMU_SERVO POS=up UNIT=1",
+                  "MMU_HEATER DRY=1 TEMP=50 TIMER=60 UNIT=1 GATES=6,7,8,9",
+                  "MMU_HEATER TEMP=55 UNIT=1 GATES=6,7,8,9",
+                  "MMU_HEATER STOP=1 UNIT=1 GATES=6,7,8,9", "MMU_SERVO POS=up UNIT=1",
                   "MMU_CALIBRATE_GATE ALL=1 UNIT=1", "MMU_CALIBRATE_BOWDEN", "MMU_TEST_GRIP UNIT=1",
                   "MMU_TEST_CONFIG GEAR_LOAD_SPEED=70 UNIT=1",
                   "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
@@ -6199,4 +6200,88 @@ TEST_CASE("Happy Hare v4 shows the selected gate's eSpooler operation",
 
     helper.test_parse_mmu_state({{"gate", -1}});
     CHECK(helper.get_system_info().espooler_state.empty());
+}
+
+// ============================================================================
+// Multi-unit from mmu_machine
+// ============================================================================
+
+TEST_CASE("Happy Hare takes each unit's split, name and topology from mmu_machine",
+          "[ams][happy_hare][hh_multi_unit]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+
+    auto check_units = [&] {
+        const auto info = helper.get_system_info();
+        REQUIRE(info.units.size() == 2);
+        CHECK(info.units[0].name == "ERCF");
+        CHECK(info.units[0].first_slot_global_index == 0);
+        CHECK(info.units[0].slot_count == 6);
+        CHECK(info.units[0].topology == PathTopology::LINEAR);
+        CHECK(info.units[0].has_encoder);
+        CHECK(info.units[1].name == "Box Turtle");
+        CHECK(info.units[1].first_slot_global_index == 6);
+        CHECK(info.units[1].slot_count == 4);
+        CHECK(info.units[1].topology == PathTopology::HUB);
+        CHECK_FALSE(info.units[1].has_encoder);
+        CHECK(helper.get_unit_topology(1) == PathTopology::HUB);
+        CHECK(info.total_slots == 10);
+    };
+
+    SECTION("status first: the re-split keeps every gate's state") {
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        helper.test_parse_mmu_state(
+            {{"gate_color", {"FF0000", "", "", "", "", "", "", "", "", "00FF00"}}});
+        REQUIRE(helper.get_system_info().units.size() == 1);
+        connect_with_fixture(helper, client, fx);
+        check_units();
+        CHECK(helper.get_slot_info(0).color_rgb == 0xFF0000u);
+        CHECK(helper.get_slot_info(9).color_rgb == 0x00FF00u);
+        CHECK(helper.get_slot_info(3).status == SlotStatus::EMPTY);
+    }
+    SECTION("config first") {
+        connect_with_fixture(helper, client, fx);
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        check_units();
+    }
+}
+
+TEST_CASE("Happy Hare single v4 unit is named by its display_name",
+          "[ams][happy_hare][hh_multi_unit]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+    connect_with_fixture(helper, client, fx);
+    helper.test_parse_mmu_state(fx["mmu_status"]);
+    const auto info = helper.get_system_info();
+    REQUIRE(info.units.size() == 1);
+    CHECK(info.units[0].name == "QIDI-0");
+    CHECK(info.units[0].topology == PathTopology::HUB);
+}
+
+TEST_CASE("Happy Hare reads every unit's enclosure heaters, not only unit 0's",
+          "[ams][happy_hare][hh_multi_unit]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+    connect_with_fixture(helper, client, fx);
+    helper.test_parse_mmu_state(fx["mmu_status"]);
+
+    CHECK(helper.get_dryer_info().supported);
+    const auto& heaters = HappyHareTestAccess::filament_heaters(helper);
+    REQUIRE(heaters.size() == 10);
+    CHECK(heaters[0].empty());
+    CHECK(heaters[6] == "heater_generic bt_heat0");
+    CHECK(heaters[9] == "heater_generic bt_heat1");
+
+    const auto zones = helper.get_environment_zones(-1);
+    REQUIRE(zones.size() == 2);
+    CHECK(zones[0].gates == std::vector<int>{6, 7});
+    CHECK(zones[0].unit_index == 1);
+    CHECK(zones[1].gates == std::vector<int>{8, 9});
+    CHECK(helper.get_environment_zones(0).empty());
 }

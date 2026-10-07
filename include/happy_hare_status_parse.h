@@ -165,6 +165,35 @@ struct MachineLayout {
     std::optional<bool> has_bypass;
 };
 
+/// One unit's machine fields. v3 and v4 both publish them on the live
+/// `mmu_machine` object as `unit_0`, `unit_1`, ...; an older v3 has them only on
+/// configfile's `[mmu_machine]`, read as a single unit.
+struct MachineUnit {
+    std::string display_name;                     ///< v4 `display_name`; empty when not published
+    std::string selector_type;                    ///< e.g. "VirtualSelector" (Type B)
+    int first_gate = -1;                          ///< -1 when not published
+    int num_gates = 0;                            ///< 0 when not published
+    std::string filament_heater;                  ///< shared enclosure heater
+    std::string environment_sensor;               ///< shared enclosure sensor
+    std::vector<std::string> filament_heaters;    ///< one per gate of THIS unit
+    std::vector<std::string> environment_sensors; ///< one per gate of THIS unit
+};
+
+/// Every unit in order. Lists come as a JSON array or a comma-separated string.
+[[nodiscard]] std::vector<MachineUnit> read_machine_units(const nlohmann::json& settings,
+                                                          const nlohmann::json& live_mmu_machine);
+
+/// Enclosure heaters or environment sensors across every unit: one shared name
+/// when every unit uses the same one, else one entry per gate in global gate
+/// order ("" for a gate with none). A single unit keeps its own form.
+struct UnitObjects {
+    std::string shared;
+    std::vector<std::string> per_gate;
+};
+enum class UnitObjectKind { Heater, EnvironmentSensor };
+[[nodiscard]] UnitObjects collect_unit_objects(const std::vector<MachineUnit>& units,
+                                               UnitObjectKind kind);
+
 /// @param settings         configfile.settings (may be empty)
 /// @param live_mmu_machine the live `mmu_machine` status object (may be empty)
 [[nodiscard]] MachineLayout read_machine_layout(const nlohmann::json& settings,

@@ -187,7 +187,109 @@ std::string read_string_member(const nlohmann::json& obj, const std::string& key
     return v && v->is_string() ? v->get<std::string>() : std::string{};
 }
 
+/// A Happy Hare config list (e.g. environment_sensors) as trimmed names.
+/// Moonraker may return it as a JSON array or as a comma-separated string.
+std::vector<std::string> read_config_list(const nlohmann::json* v) {
+    std::vector<std::string> out;
+    if (!v) {
+        return out;
+    }
+    auto push = [&](std::string_view item) {
+        const auto trimmed = tio::trim(item);
+        if (!trimmed.empty()) {
+            out.emplace_back(trimmed);
+        }
+    };
+    if (v->is_array()) {
+        for (const auto& e : *v) {
+            if (e.is_string()) {
+                push(e.get<std::string>());
+            }
+        }
+    } else if (v->is_string()) {
+        const std::string text = v->get<std::string>();
+        for (std::string_view item : tio::lines(text, ',')) {
+            push(item);
+        }
+    }
+    return out;
+}
+
+MachineUnit read_machine_unit(const nlohmann::json& fields) {
+    MachineUnit u;
+    u.display_name = read_string_member(fields, "display_name");
+    u.selector_type = read_string_member(fields, "selector_type");
+    if (const auto* first = find_member(fields, "first_gate")) {
+        u.first_gate = ams::read_integer(*first).value_or(-1);
+    }
+    if (const auto* count = find_member(fields, "num_gates")) {
+        u.num_gates = std::max(ams::read_integer(*count).value_or(0), 0);
+    }
+    u.filament_heater = read_string_member(fields, "filament_heater");
+    u.environment_sensor = read_string_member(fields, "environment_sensor");
+    u.filament_heaters = read_config_list(find_member(fields, "filament_heaters"));
+    u.environment_sensors = read_config_list(find_member(fields, "environment_sensors"));
+    return u;
+}
+
 } // namespace
+
+std::vector<MachineUnit> read_machine_units(const nlohmann::json& settings,
+                                            const nlohmann::json& live_mmu_machine) {
+    std::vector<MachineUnit> units;
+    for (int u = 0;; ++u) {
+        const auto* fields = find_member(live_mmu_machine, "unit_" + std::to_string(u));
+        if (!fields || !fields->is_object()) {
+            break;
+        }
+        units.push_back(read_machine_unit(*fields));
+    }
+    if (units.empty()) {
+        if (const auto* config = find_member(settings, "mmu_machine");
+            config && config->is_object() && !config->empty()) {
+            units.push_back(read_machine_unit(*config));
+        }
+    }
+    return units;
+}
+
+UnitObjects collect_unit_objects(const std::vector<MachineUnit>& units, UnitObjectKind kind) {
+    const bool heater = kind == UnitObjectKind::Heater;
+    auto scalar = [heater](const MachineUnit& u) -> const std::string& {
+        return heater ? u.filament_heater : u.environment_sensor;
+    };
+    auto list = [heater](const MachineUnit& u) -> const std::vector<std::string>& {
+        return heater ? u.filament_heaters : u.environment_sensors;
+    };
+
+    UnitObjects out;
+    if (units.size() == 1) {
+        out.shared = scalar(units[0]);
+        out.per_gate = list(units[0]);
+        return out;
+    }
+    const bool one_shared =
+        !units.empty() && std::all_of(units.begin(), units.end(), [&](const MachineUnit& u) {
+            return list(u).empty() && scalar(u) == scalar(units[0]);
+        });
+    if (one_shared) {
+        out.shared = scalar(units[0]);
+        return out;
+    }
+    bool any = false;
+    for (const auto& u : units) {
+        if (!list(u).empty()) {
+            out.per_gate.insert(out.per_gate.end(), list(u).begin(), list(u).end());
+        } else {
+            out.per_gate.insert(out.per_gate.end(), static_cast<size_t>(u.num_gates), scalar(u));
+        }
+        any = any || !scalar(u).empty() || !list(u).empty();
+    }
+    if (!any) {
+        out.per_gate.clear();
+    }
+    return out;
+}
 
 MachineLayout read_machine_layout(const nlohmann::json& settings,
                                   const nlohmann::json& live_mmu_machine) {

@@ -546,7 +546,8 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * @brief Initialize slot structures based on gate_status array size
      *
      * Called when we first receive gate_status to create the correct
-     * number of SlotInfo entries.
+     * number of SlotInfo entries, and again when mmu_machine's unit split
+     * arrives after that, which re-splits without losing gate state.
      *
      * @param gate_count Number of gates detected
      */
@@ -627,12 +628,18 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      */
     [[nodiscard]] bool is_type_b() const;
 
+    /// Whether unit @p unit_index is Type B, from its own mmu_machine
+    /// selector_type, else the machine-wide one. Caller holds mutex_.
+    [[nodiscard]] bool unit_is_type_b_locked(int unit_index) const;
+
     /**
      * @brief Update topology on all existing units after selector_type is known
      */
     void update_unit_topologies();
 
-    std::string selector_type_; ///< Selector type from config (e.g., "VirtualSelector" for Type B)
+    std::string selector_type_; ///< Unit 0's selector type (e.g., "VirtualSelector" for Type B)
+    /// Every unit's machine fields from the connect-time query, in unit order.
+    std::vector<happy_hare::MachineUnit> machine_units_;
 
     /// Version and config layout, from the connect-time configfile query. Until
     /// that answers, the v3 layout.
