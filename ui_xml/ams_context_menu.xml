@@ -178,8 +178,7 @@
               hidden="true">
         <text_small text="Tool" translation_tag="Tool"/>
         <lv_dropdown name="tool_dropdown"
-                     width="#ams_context_dropdown_w" height="#button_height_sm" style_radius="#border_radius"
-                     style_border_width="0">
+                     width="#ams_context_dropdown_w" height="#button_height_sm" style_radius="#border_radius">
           <event_cb trigger="value_changed" callback="ams_context_tool_changed_cb"/>
         </lv_dropdown>
       </lv_obj>
@@ -190,8 +189,7 @@
               hidden="true">
         <lv_label name="backup_icon" text="#icon_infinity" style_text_font="mdi_icons_16" style_text_color="#text_muted"/>
         <lv_dropdown name="backup_dropdown"
-                     width="#ams_context_dropdown_w" height="#button_height_sm" style_radius="#border_radius"
-                     style_border_width="0">
+                     width="#ams_context_dropdown_w" height="#button_height_sm" style_radius="#border_radius">
           <event_cb trigger="value_changed" callback="ams_context_backup_changed_cb"/>
         </lv_dropdown>
       </lv_obj>
