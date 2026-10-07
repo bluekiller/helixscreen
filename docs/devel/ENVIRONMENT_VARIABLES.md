@@ -1116,7 +1116,7 @@ HELIX_PWM_SOUND=0:0 ./build/bin/helix-screen
 
 ### `HELIX_PWM_MIN_NOTE_MS`
 
-Audible floor for one theme note on the PWM sysfs buzzer backend (ad5m/ad5m-br, or a `sound.pwm_channel` buzzer on the generic SBC builds, which defaults to 16). The piezo needs ~20 ms of drive to register a tone; the sequencer quantizes every theme step up to this value, so a sub-floor tone+rest pair plays as one floor-length tone instead of a click. Read once at backend `initialize()` — relaunch to change it.
+Audible floor for one theme note on the PWM sysfs buzzer backend (ad5m/ad5m-br, or a `sound.pwm_channel` buzzer on the generic SBC builds). The piezo needs ~20 ms of drive to register a tone; the sequencer quantizes every theme step up to this value, so a sub-floor tone+rest pair plays as one floor-length tone instead of a click. Read once at backend `initialize()` — relaunch to change it.
 
 | Property | Value |
 |----------|-------|
