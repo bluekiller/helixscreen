@@ -925,6 +925,11 @@ Append additional Klipper objects to the mock's advertised object list, so capab
 HELIX_MOCK_OBJECTS="temperature_fan chamber heater_generic chamber_heater" \
   ./build/bin/helix-screen --test -vv
 
+# A filament dryer heater that is not the chamber: graphed as its own
+# series, heats toward a target set with SET_HEATER_TEMPERATURE HEATER=filament_dryer
+HELIX_MOCK_OBJECTS="heater_generic filament_dryer" \
+  ./build/bin/helix-screen --test -vv
+
 # Materialize the dragonbreath chamber-heater trio: heater, diagnostics
 # object, and filter-fan output pin (drives status frames, SET_PIN
 # round-trip, and a configfile max_temp of 75)
@@ -932,7 +937,7 @@ HELIX_MOCK_OBJECTS="heater_generic dragonbreath dragonbreath output_pin dragonbr
   ./build/bin/helix-screen --test -vv
 ```
 
-**Two-word object names are reassembled by prefix.** The parser splits on whitespace, then treats a token starting with `heater_generic`, `temperature_fan`, `temperature_sensor`, or `output_pin` as the start of a *new* object and glues any following tokens onto the current one. So `temperature_fan chamber` becomes the single object `temperature_fan chamber`. A token that is not a prefix glues onto the current object — with one exception: a token that exactly names a chamber-heater backend's diagnostics object (e.g. the bare `dragonbreath` after a completed `heater_generic dragonbreath`) starts a new standalone object instead of appending. A chamber heater accepted from this list also replaces the mock profile's built-in chamber heater. Each accepted object is logged as `[MoonrakerClientMock] Added mock object: <name>`.
+**Two-word object names are reassembled by prefix.** The parser splits on whitespace, then treats a token starting with `heater_generic`, `temperature_fan`, `temperature_sensor`, or `output_pin` as the start of a *new* object and glues any following tokens onto the current one. So `temperature_fan chamber` becomes the single object `temperature_fan chamber`. A token that is not a prefix glues onto the current object — with one exception: a token that exactly names a chamber-heater backend's diagnostics object (e.g. the bare `dragonbreath` after a completed `heater_generic dragonbreath`) starts a new standalone object instead of appending. A chamber heater accepted from this list also replaces the mock profile's built-in chamber heater. Any other `heater_generic` is simulated on its own (`src/api/moonraker_client_mock.cpp#append_aux_heater_status`): it starts at 25°C with no target, steps 1°C per simulated second toward the target `SET_HEATER_TEMPERATURE HEATER=<bare name>` gives it, and reports `temperature`, `target` and `power`. Each accepted object is logged as `[MoonrakerClientMock] Added mock object: <name>`.
 
 ### `HELIX_MOCK_DETECTION_CAPABLE`
 
