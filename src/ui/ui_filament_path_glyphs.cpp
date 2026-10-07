@@ -193,7 +193,10 @@ void draw_buffer_coil(const RenderCtx& ctx, int32_t cx, int32_t cy, int32_t hub_
     lv_color_t border_color;
     lv_color_t buf_bg = bg_color;
 
-    if (buffer_fault_state >= 2) {
+    if (buffer_fault_state < 0) {
+        border_color = theme.color_hub_border;
+        buf_bg = theme.color_hub_bg;
+    } else if (buffer_fault_state >= 2) {
         border_color = theme.color_buffer[2];
         buf_bg = lv_color_mix(theme.color_buffer[2], bg_color, LV_OPA_20);
     } else if (buffer_bias > -1.5f) {

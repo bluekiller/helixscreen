@@ -135,7 +135,9 @@ struct BufferBoxState {
     bool present = false;
     int state = 0;             ///< Coil shape: 0 neutral, 1 compressed, 2 tension
     const char* label = "BUF"; ///< "FPS" for a filament pressure sensor
-    int fault = 0;      ///< ClogMeterStatus: the AFC fault distance or the buffer bands, worse wins
+    /// ClogMeterStatus: the AFC fault distance or the buffer bands, worse wins;
+    /// -1 for a pressure reading with no set point, which draws untinted.
+    int fault = 0;
     float bias = -2.0f; ///< The reading's bias, or -2 with no proportional reading
 };
 

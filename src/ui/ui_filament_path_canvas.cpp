@@ -879,6 +879,11 @@ void ui_filament_path_canvas_set_buffer_fault_state(lv_obj_t* obj, int state) {
     }
 }
 
+int helix::ui::filament_path_canvas_buffer_fault_state(lv_obj_t* obj) {
+    auto* data = get_data(obj);
+    return data ? data->buffer_fault_state : 0;
+}
+
 void ui_filament_path_canvas_set_buffer_info(lv_obj_t* obj, bool present, int state,
                                              const char* label) {
     auto* data = get_data(obj);

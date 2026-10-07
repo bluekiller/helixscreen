@@ -711,6 +711,8 @@ BufferBoxState ams_detail_buffer_box(const AmsSystemInfo& info, int unit_index) 
     if (reading.has_slider) {
         box.bias = reading.bias;
         box.fault = std::max(box.fault, static_cast<int>(reading.status));
+    } else if (reading.source == BufferSource::Fps && box.fault == 0) {
+        box.fault = -1; // no set point: nothing to judge the pressure against
     }
     return box;
 }

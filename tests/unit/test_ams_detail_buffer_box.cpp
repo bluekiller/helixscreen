@@ -40,12 +40,12 @@ TEST_CASE("buffer box: on target is not a fault", "[ams][buffer][path]") {
     CHECK(box.bias == Catch::Approx(0.0f));
 }
 
-TEST_CASE("buffer box: no set point draws the FPS box with no bias", "[ams][buffer][path]") {
+TEST_CASE("buffer box: no set point draws the FPS box untinted", "[ams][buffer][path]") {
     const auto box = ams_detail_buffer_box(test::fps_units({0.62f}, -1.0f), -1);
     CHECK(box.present);
     CHECK(std::string(box.label) == "FPS");
     CHECK(box.bias == -2.0f);
-    CHECK(box.fault == 0);
+    CHECK(box.fault == -1);
 }
 
 TEST_CASE("buffer box: an AFC fault distance outranks a calm reading", "[ams][buffer][path]") {

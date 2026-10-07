@@ -284,7 +284,7 @@ struct FilamentPathData {
     bool eject_mode = false; // true = allow segment to drop below LANE (past slot sensor)
 
     // Buffer element (TurtleNeck / eSpooler visualization)
-    int buffer_fault_state = 0;  // 0=healthy, 1=warning/approaching, 2=fault
+    int buffer_fault_state = 0;  // -1=untinted, 0=healthy, 1=warning/approaching, 2=fault
     bool buffer_present = false; // true = draw buffer box between hub and toolhead
     int buffer_state = 0;        // 0=neutral, 1=compressed, 2=tension (coil icon spacing)
     float buffer_bias = -2.0f;   ///< Proportional bias [-1.0,1.0], -2=unavailable (use discrete)

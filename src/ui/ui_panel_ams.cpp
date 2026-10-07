@@ -356,6 +356,15 @@ void AmsPanel::init_subjects() {
         observe<int>(AmsState::instance().get_path_topology_subject(), this, path_handler,
                      AmsState::instance().get_subjects_lifetime());
 
+    // The path canvas's buffer box follows the buffer reading while the panel is open.
+    auto& ams_state = AmsState::instance();
+    buffer_present_observer_ = observe<int>(ams_state.get_buffer_present_subject(), this,
+                                            path_handler, ams_state.get_subjects_lifetime());
+    buffer_slider_observer_ = observe<int>(ams_state.get_buffer_slider_subject(), this,
+                                           path_handler, ams_state.get_subjects_lifetime());
+    buffer_bias_observer_ = observe<int>(ams_state.get_buffer_bias_pct_subject(), this,
+                                         path_handler, ams_state.get_subjects_lifetime());
+
     // Backend count observer for multi-backend selector
     backend_count_observer_ = observe<int>(
         AmsState::instance().get_backend_count_subject(), this,
@@ -577,6 +586,9 @@ void AmsPanel::clear_panel_reference() {
     slot_count_observer_.reset();
     path_segment_observer_.reset();
     path_topology_observer_.reset();
+    buffer_present_observer_.reset();
+    buffer_slider_observer_.reset();
+    buffer_bias_observer_.reset();
     slot_path_observers_.clear();
     print_state_observer_.reset();
     backend_count_observer_.reset();
