@@ -779,6 +779,7 @@
   <translation tag="Cutting" fr="Coupe"/>
   <translation tag="Cutting filament..." fr="Coupe du filament..."/>
   <translation tag="DETECTED USB PRINTERS" fr="IMPRIMANTES USB DÉTECTÉES"/>
+  <translation tag="DEVICES" fr="PÉRIPHÉRIQUES"/>
   <translation tag="DISABLED" fr="DÉSACTIVÉ"/>
   <translation tag="DISCOVERED PRINTERS" fr="IMPRIMANTES DÉCOUVERTES"/>
   <translation tag="DISPLAY" fr="AFFICHAGE"/>
@@ -1269,6 +1270,7 @@
   <translation tag="Found 1 printer" fr="1 imprimante trouvée"/>
   <translation tag="Framerate" fr="Fréquence d&apos;images"/>
   <translation tag="From Buffer" fr="Depuis tampon"/>
+  <translation tag="From SpoolmanDB" fr="Depuis SpoolmanDB"/>
   <translation tag="From Version" fr="Depuis la version"/>
   <translation tag="Front" fr="Avant"/>
   <translation tag="Front Left" fr="Avant gauche"/>
@@ -1317,7 +1319,7 @@
   <translation tag="Hardware saved to config" fr="Matériel enregistré dans la config"/>
   <translation tag="Hardware was present in previous session but is now missing" fr="Matériel présent lors de la session précédente mais désormais absent"/>
   <translation tag="Have a piece of paper ready." fr="Préparez une feuille de papier."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
   <translation tag="Heading" fr="Titre"/>
   <translation tag="Healthy" fr="En ordre"/>
   <translation tag="Heat Capacity" fr="Capacité thermique"/>
@@ -1334,6 +1336,7 @@
   <translation tag="Heated Bed MPC Calibration" fr="Calibration MPC du plateau chauffant"/>
   <translation tag="Heated Bed PID Tuning" fr="Réglage PID du plateau chauffant"/>
   <translation tag="Heater" fr="Chauffage"/>
+  <translation tag="Heater Calibration" fr="Calibrage du chauffage"/>
   <translation tag="Heater Power" fr="Puissance du chauffage"/>
   <translation tag="Heater connection lost" fr="Connexion au chauffage perdue"/>
   <translation tag="Heater fault" fr="Défaut du chauffage"/>
@@ -1888,6 +1891,7 @@
   <translation tag="No jobs in queue" fr="Aucun travail en file"/>
   <translation tag="No macro devices configured" fr="Aucun appareil de macro configuré"/>
   <translation tag="No macros available" fr="Aucune macro disponible"/>
+  <translation tag="No matches in SpoolmanDB" fr="Aucun résultat dans SpoolmanDB"/>
   <translation tag="No matching prints" fr="Aucune impression correspondante"/>
   <translation tag="No media installed" fr="Aucun média installé"/>
   <translation tag="No mesh data" fr="Pas de données de maillage"/>
@@ -2808,6 +2812,7 @@
   <translation tag="Spoolman was not configured." fr="Spoolman n&apos;était pas configuré."/>
   <translation tag="Spoolman: %zu Spool%s" fr="Spoolman : %zu bobine%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" fr="Spoolman : %zu/%zu bobine%s"/>
+  <translation tag="SpoolmanDB search failed" fr="Échec de la recherche SpoolmanDB"/>
   <translation tag="Spools are off" fr="Bobines retirées"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" fr="Des bobines sont sur le plateau : retirez-les et confirmez avant de déplacer l&apos;imprimante"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." fr="Des bobines sont sur le plateau : touchez le bandeau de séchage pour confirmer qu&apos;elles sont retirées, puis redémarrez."/>
@@ -3297,6 +3302,7 @@
   <translation tag="Volume" fr="Volume"/>
   <translation tag="Volume of filament used during ramming" fr="Volume de filament utilisé pendant le bourrage"/>
   <translation tag="Volume {}%" fr="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" fr="SYNCHRONISATION DU POIDS"/>
   <translation tag="WIDTH SENSORS" fr="CAPTEURS DE LARGEUR"/>
   <translation tag="WLED Preset" fr="Préréglage WLED"/>
   <translation tag="WPA/WPA2" fr="WPA/WPA2"/>

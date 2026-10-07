@@ -653,6 +653,39 @@ extends the inventory - the curated spools the mock backends link against keep t
 HELIX_MOCK_SPOOLMAN_SPOOLS=300 ./build/bin/helix-screen --test -vv
 ```
 
+### `HELIX_MOCK_SPOOLMAN_DB_SEARCH`
+
+Turn off the mock Spoolman's SpoolmanDB search route (`/v1/external/filament/search`), so
+it answers 404 the way a Spoolman older than 0.26.0 does. The spool wizard then hides its
+catalog search.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `0` turns the route off; anything else, or unset, leaves it on |
+| **Default** | on |
+| **File** | `src/api/moonraker_client_mock_spoolman.cpp` (`MockSpoolmanServer`) |
+
+```bash
+HELIX_MOCK_SPOOLMAN_DB_SEARCH=0 ./build/bin/helix-screen --test -vv
+```
+
+### `HELIX_MOCK_SPOOLMAN_DB_SEARCH_LATENCY_MS`
+
+Delay the mock Spoolman's SpoolmanDB search answers and deliver them from a worker
+thread, the way a real response arrives on the WebSocket thread. Use it to watch the
+spool wizard's search drop superseded answers and parse off the UI thread
+(`-vv` logs each step: keystroke, request sent, parsed, rows applied).
+
+| Property | Value |
+|----------|-------|
+| **Values** | milliseconds, 0-10000 |
+| **Default** | 0 (answers at once, on the calling thread) |
+| **File** | `src/api/moonraker_client_mock_server.cpp` (`server.spoolman.proxy`) |
+
+```bash
+HELIX_MOCK_SPOOLMAN_DB_SEARCH_LATENCY_MS=150 ./build/bin/helix-screen --test -vv
+```
+
 ### `HELIX_MOCK_FILAMENT_SENSORS`
 
 Configure custom filament sensor configurations for testing.

@@ -13,10 +13,10 @@
 #include "memory_monitor.h"
 #include "moonraker_api_internal.h"
 #include "spdlog/spdlog.h"
+#include "text_io.h"
 
 #include <algorithm>
 #include <filesystem>
-#include <fstream>
 #include <sstream>
 
 using namespace moonraker_internal;
@@ -297,17 +297,14 @@ void MoonrakerFileTransferAPI::download_thumbnail(const std::string& thumbnail_p
                 return;
             }
 
-            // Write to cache file
-            std::ofstream file(cache_path, std::ios::binary);
-            if (!file) {
-                spdlog::error("[Moonraker API] Failed to create cache file: {}", cache_path);
+            // Replace, never rewrite: a reader of the cached file sees the old
+            // image or the new one, not a partial download.
+            if (!helix::text_io::write_file_atomic(cache_path, resp->body)) {
+                spdlog::error("[Moonraker API] Failed to write cache file: {}", cache_path);
                 report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_thumbnail",
-                             "Failed to create cache file: " + cache_path);
+                             "Failed to write cache file: " + cache_path);
                 return;
             }
-
-            file.write(resp->body.data(), static_cast<std::streamsize>(resp->body.size()));
-            file.close();
 
             spdlog::trace("[Moonraker API] Cached thumbnail {} bytes -> {}", resp->body.size(),
                           cache_path);

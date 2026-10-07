@@ -13,6 +13,9 @@
 #include "ui_panel_print_select.h"
 
 #include "../test_helpers/print_select_panel_fixture.h"
+#include "../test_helpers/print_select_panel_test_access.h"
+
+#include <filesystem>
 
 #include "../catch_amalgamated.hpp"
 
@@ -103,4 +106,40 @@ TEST_CASE_METHOD(PrintSelectPanelFixture,
     REQUIRE(card_h > 0);
     // The rows use the reclaimed height rather than leaving it empty.
     CHECK(card_h * 2 > grown_h / 2);
+}
+
+// A local (mock) thumbnail is drawn from its prescaled .bin, sized to the card;
+// the raw PNG would render at native size and be cropped to the card (#1208).
+// A refresh re-applies metadata to a file that already has its .bin.
+TEST_CASE_METHOD(PrintSelectPanelFixture,
+                 "Print-select keeps a local thumbnail's prescaled image across a refresh",
+                 "[print_select][card_sizing][thumbnail]") {
+    PlantedGcode file("local_thumb_refresh.gcode");
+    panel_->refresh_files(true);
+    drain();
+
+    const std::string png =
+        std::filesystem::absolute("assets/images/benchy_thumbnail_white.png").string();
+    REQUIRE(std::filesystem::exists(png));
+    FileMetadata meta;
+    meta.filename = file.name();
+    meta.thumbnails.push_back(ThumbnailInfo{png, 300, 300});
+
+    auto thumb = [&] {
+        const PrintFileData* row = PrintSelectPanelTestAccess::find_file(*panel_, file.name());
+        REQUIRE(row != nullptr);
+        return row->thumbnail_path;
+    };
+    auto is_bin = [](const std::string& p) {
+        return p.size() > 4 && p.compare(p.size() - 4, 4, ".bin") == 0;
+    };
+
+    PrintSelectPanelTestAccess::apply_metadata(*panel_, file.name(), meta);
+    drain();
+    const std::string first = thumb();
+    REQUIRE(is_bin(first));
+
+    PrintSelectPanelTestAccess::apply_metadata(*panel_, file.name(), meta);
+    drain();
+    CHECK(thumb() == first);
 }

@@ -4634,7 +4634,7 @@ TEST_CASE("Config::init() persists migrations by atomic replace, not truncate-in
     REQUIRE(witness_json.value("brightness", 0) == 55);
 
     // The atomic path must not leave its scratch file behind.
-    REQUIRE_FALSE(fs::exists(cfg.string() + ".tmp"));
+    REQUIRE(helix::test::staging_files_beside(cfg.string()) == 0);
 }
 
 TEST_CASE("Config::init() loads a read-only settings.json instead of condemning it as corrupt",

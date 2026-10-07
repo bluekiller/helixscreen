@@ -52,8 +52,8 @@
                       style_text_align="center"/>
           <!-- Generic text - not hex-key specific -->
           <text_small width="100%"
-                      text="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't adjusted with                              thumb wheels or some other built-in mechanism."
-                      translation_tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't adjusted with                              thumb wheels or some other built-in mechanism."
+                      text="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't adjusted with thumb wheels or some other built-in mechanism."
+                      translation_tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't adjusted with thumb wheels or some other built-in mechanism."
                       style_text_align="center"/>
         </lv_obj>
         <!-- Steps Preview -->

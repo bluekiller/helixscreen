@@ -55,20 +55,9 @@
         </lv_obj>
       </lv_obj>
     </lv_obj>
-    <!-- Divider -->
-    <divider_horizontal/>
-    <!-- Button row -->
-    <lv_obj width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
-      <ui_button name="modal_cancel_btn"
-                 height="100%" text="Cancel" translation_tag="Cancel" flex_grow="1" style_radius="0" focusable="false">
-        <event_cb trigger="clicked" callback="on_change_host_cancel"/>
-      </ui_button>
-      <divider_vertical/>
-      <ui_button name="modal_save_btn"
-                 height="100%" text="Save" translation_tag="Save" flex_grow="1" style_radius="0" focusable="false">
-        <bind_state_if_eq subject="change_host_validated" state="disabled" ref_value="0"/>
-        <event_cb trigger="clicked" callback="on_change_host_save"/>
-      </ui_button>
-    </lv_obj>
+    <modal_button_row secondary_name="modal_cancel_btn"
+                      secondary_text="Cancel" secondary_tag="Cancel" secondary_callback="on_change_host_cancel"
+                      primary_name="modal_save_btn" primary_text="Save" primary_tag="Save"
+                      primary_callback="on_change_host_save" primary_enable_subject="change_host_validated"/>
   </view>
 </component>

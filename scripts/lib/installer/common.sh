@@ -303,6 +303,7 @@ log_open() {
 # fails on a special builtin ends a dash or BusyBox ash script, and /dev/tty
 # fails to open in any run without a controlling terminal.
 tty_can_ask() {
+    # shellcheck disable=SC2217  # the redirect is the probe; true only absorbs it
     { true < "${HELIX_TTY_DEVICE:-/dev/tty}"; } 2>/dev/null || [ -t 0 ]
 }
 
@@ -314,6 +315,7 @@ tty_confirm() { # question default(y|n)
     _tc_dev="${HELIX_TTY_DEVICE:-/dev/tty}"
     _tc_hint="[y/N]"; [ "$2" = y ] && _tc_hint="[Y/n]"
     _tc_ans=""
+    # shellcheck disable=SC2217  # open probe, see tty_can_ask
     if { true < "$_tc_dev"; } 2>/dev/null; then
         printf '%s %s ' "$1" "$_tc_hint" >&2
         IFS= read -r _tc_ans < "$_tc_dev" || [ -n "$_tc_ans" ] || _tc_ans=n

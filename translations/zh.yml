@@ -800,6 +800,7 @@ translations:
   Cutting: 切割中
   Cutting filament...: 正在切断耗材...
   DETECTED USB PRINTERS: 已检测到的 USB 打印机
+  DEVICES: 设备
   DISABLED: 已禁用
   DISCOVERED PRINTERS: 已发现的打印机
   DISPLAY: 显示
@@ -1308,6 +1309,7 @@ translations:
   Found 1 printer: 找到 1 台打印机
   Framerate: 帧率
   From Buffer: 来自缓冲区
+  From SpoolmanDB: '来自 SpoolmanDB'
   From Version: 起始版本
   Front: '前'
   Front Left: '左前'
@@ -1359,7 +1361,7 @@ translations:
   Hardware was present in previous session but is now missing: '硬件在上次会话中存在，但现在缺失'
   Have a piece of paper ready.: 请准备好一张纸。
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : 如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。
   Heading: 标题
@@ -1378,6 +1380,7 @@ translations:
   Heated Bed MPC Calibration: 热床 MPC 校准
   Heated Bed PID Tuning: 热床 PID 调优
   Heater: 加热器
+  Heater Calibration: 加热器校准
   Heater Power: 加热器功率
   Heater connection lost: 加热器连接丢失
   Heater fault: 加热器故障
@@ -1954,6 +1957,7 @@ translations:
   No jobs in queue: 队列中无任务
   No macro devices configured: 未配置宏设备
   No macros available: 无可用宏
+  No matches in SpoolmanDB: 'SpoolmanDB 中无匹配项'
   No matching prints: 没有匹配的打印
   No media installed: 未安装介质
   No mesh data: 没有网格数据
@@ -2911,6 +2915,7 @@ translations:
   Spoolman was not configured.: Spoolman 未配置。
   'Spoolman: %zu Spool%s': 'Spoolman: %zu 个线轴%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu 个线轴%s'
+  SpoolmanDB search failed: 'SpoolmanDB 搜索失败'
   Spools are off: "料盘已取下"
   'Spools are on the bed: remove them and confirm before moving the printer': 热床上有料盘：请先移除并确认，再移动打印机
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 热床上有料盘:点击烘干横幅确认已取下,然后再重启。
@@ -3447,6 +3452,7 @@ translations:
   Volume: 音量
   Volume of filament used during ramming: '填充过程中使用的耗材体积'
   Volume {}%: 音量 {}%
+  WEIGHT SYNC: 重量同步
   WIDTH SENSORS: 宽度传感器
   WLED Preset: WLED 预设
   WPA/WPA2: 'WPA/WPA2'
