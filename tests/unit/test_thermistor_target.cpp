@@ -7,6 +7,7 @@
 
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/thermistor_test_access.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "moonraker_api.h"
 #include "moonraker_client_mock.h"
 #include "panel_widget_manager.h"
@@ -94,4 +95,49 @@ TEST_CASE_METHOD(ThermistorTargetFixture,
     helix::ui::UpdateQueue::instance().drain();
     CHECK_FALSE(ui_keypad_is_visible());
     CHECK(client.gcode_script_history().empty());
+}
+
+namespace {
+/// Build the tile the way the home grid does and attach @p widget to it.
+lv_obj_t* build_tile(ThermistorWidget& widget, lv_obj_t* screen) {
+    auto* tile = static_cast<lv_obj_t*>(
+        lv_xml_create(screen, widget.get_component_name().c_str(), widget.xml_attrs()));
+    REQUIRE(tile != nullptr);
+    widget.attach(tile, screen);
+    helix::ui::UpdateQueue::instance().drain();
+    return tile;
+}
+
+bool shown(lv_obj_t* tile, const char* name) {
+    lv_obj_t* obj = lv_obj_find_by_name(tile, name);
+    REQUIRE(obj != nullptr);
+    return !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN);
+}
+} // namespace
+
+TEST_CASE_METHOD(ThermistorTargetFixture,
+                 "Thermistor tile: a saved sensor the printer does not report reads --",
+                 "[thermistor][heater_generic]") {
+    ThermistorWidget widget("thermistor_missing_test");
+    widget.set_config({{"sensors", {"temperature_sensor gone"}}});
+    lv_obj_t* tile = build_tile(widget, test_screen());
+
+    CHECK(shown(tile, "thermistor_unavailable"));
+    CHECK_FALSE(shown(tile, "thermistor_temp"));
+
+    widget.detach();
+    lv_obj_delete(tile);
+}
+
+TEST_CASE_METHOD(ThermistorTargetFixture, "Thermistor tile: a reported sensor shows its reading",
+                 "[thermistor][heater_generic]") {
+    ThermistorWidget widget("thermistor_present_test");
+    widget.set_config({{"sensors", {"temperature_sensor mcu_temp"}}});
+    lv_obj_t* tile = build_tile(widget, test_screen());
+
+    CHECK_FALSE(shown(tile, "thermistor_unavailable"));
+    CHECK(shown(tile, "thermistor_temp"));
+
+    widget.detach();
+    lv_obj_delete(tile);
 }

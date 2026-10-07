@@ -146,7 +146,6 @@ class ThermistorWidget : public TiledPanelWidget {
 
     lv_obj_t* widget_obj_ = nullptr;
     lv_obj_t* parent_screen_ = nullptr;
-    lv_obj_t* temp_label_ = nullptr;
     lv_obj_t* name_label_ = nullptr;
 
     nlohmann::json config_;
@@ -164,8 +163,10 @@ class ThermistorWidget : public TiledPanelWidget {
     SubjectManager subjects_;
     lv_subject_t temp_subject_{};
     lv_subject_t target_subject_{};
+    lv_subject_t available_subject_{}; ///< 1 while the selected sensor is reported
     std::string temp_subject_name_;
     std::string target_subject_name_;
+    std::string available_subject_name_;
     std::vector<std::string> attr_storage_;
     std::vector<const char*> attrs_;
 

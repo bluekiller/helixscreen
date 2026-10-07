@@ -16,10 +16,6 @@ namespace helix {
 // Follows the tests/test_helpers/ TestAccess pattern ([L088]).
 class ThermistorTestAccess {
   public:
-    static lv_obj_t* temp_label(const ThermistorWidget& widget) {
-        return widget.temp_label_;
-    }
-
     static lv_obj_t* name_label(const ThermistorWidget& widget) {
         return widget.name_label_;
     }

@@ -158,15 +158,18 @@ ThermistorWidget::ThermistorWidget(const std::string& instance_id)
                                            /*label_always_drawn=*/true, TileSizing::IconBox::Glyph,
                                            /*icon_animates=*/false, /*label_is_identity=*/true}),
       instance_id_(instance_id), temp_subject_name_(instance_id + "_thermistor_temp"),
-      target_subject_name_(instance_id + "_thermistor_target") {
+      target_subject_name_(instance_id + "_thermistor_target"),
+      available_subject_name_(instance_id + "_thermistor_available") {
     UI_MANAGED_SUBJECT_INT(temp_subject_, 0, temp_subject_name_.c_str(), subjects_);
     UI_MANAGED_SUBJECT_INT(target_subject_, 0, target_subject_name_.c_str(), subjects_);
+    UI_MANAGED_SUBJECT_INT(available_subject_, 0, available_subject_name_.c_str(), subjects_);
 
     for (const char** a = sizing_.subject_attrs(); *a != nullptr; ++a) {
         attr_storage_.emplace_back(*a);
     }
-    attr_storage_.insert(attr_storage_.end(), {"temp_subject", temp_subject_name_, "target_subject",
-                                               target_subject_name_});
+    attr_storage_.insert(attr_storage_.end(),
+                         {"temp_subject", temp_subject_name_, "target_subject",
+                          target_subject_name_, "available_subject", available_subject_name_});
     for (const auto& s : attr_storage_) {
         attrs_.push_back(s.c_str());
     }
@@ -191,7 +194,6 @@ void ThermistorWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
 
 void ThermistorWidget::attach_single() {
     // Cache label pointers
-    temp_label_ = lv_obj_find_by_name(widget_obj_, "thermistor_temp");
     name_label_ = lv_obj_find_by_name(widget_obj_, "thermistor_name");
 
     // Apply custom icon
@@ -451,7 +453,6 @@ void ThermistorWidget::forget_tile_widgets() {
         page.temp_label = nullptr;
         page.name_label = nullptr;
     }
-    temp_label_ = nullptr;
     name_label_ = nullptr;
     widget_obj_ = nullptr;
     parent_screen_ = nullptr;
@@ -543,7 +544,8 @@ constexpr float TARGET_KEYPAD_FALLBACK_MAX = 120.0f;
 
 void ThermistorWidget::open_target_keypad() {
     auto& tsm = helix::sensors::TemperatureSensorManager::instance();
-    lv_subject_t* target = tsm.get_target_subject(selected_sensor_, temp_lifetime_);
+    SubjectLifetime unused;
+    lv_subject_t* target = tsm.get_target_subject(selected_sensor_, unused);
     auto* controller = get_temperature_controller();
     g_target_keypad_heater = selected_sensor_;
 
@@ -607,6 +609,7 @@ void ThermistorWidget::update_display() {
     SubjectLifetime unused;
     lv_subject_t* temp = tsm.get_temp_subject(selected_sensor_);
     lv_subject_t* target = tsm.get_target_subject(selected_sensor_, unused);
+    lv_subject_set_int(&available_subject_, temp ? 1 : 0);
     lv_subject_set_int(&temp_subject_, temp ? lv_subject_get_int(temp) : 0);
     lv_subject_set_int(&target_subject_, target ? lv_subject_get_int(target) : 0);
 

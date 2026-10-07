@@ -231,7 +231,7 @@ Some widgets have settings you can change directly from Edit Mode. When you sele
 |--------|--------------------------|
 | **Temperatures** | Toggles between Stack and Carousel display mode |
 | **Fan Speeds** | Toggles between Stack and Carousel display mode |
-| **Temperature Sensors** | Opens the sensor list — tick one sensor for the single view or several for the Carousel, and pick an icon |
+| **Temperature Sensors** | Opens the sensor list: tick one sensor for the single view or several for the Carousel, and pick an icon |
 | **Fan** | Opens the fan picker — choose which fan to monitor |
 | **Temperature Graph** | Opens a configuration modal — toggle sensors on/off and customize series colors |
 | **Macro Button** | Opens the config modal — pick the macro, its icon and color, and whether running it asks for confirmation |
