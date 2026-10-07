@@ -9,8 +9,7 @@
     <!-- The home grid paints one fused card behind this widget group, so the spool
          view must not paint its own - two surfaces stack into a nested box. -->
     <ams_mini_status name="ams_mini_status_widget" width="100%" card="false" flex_grow="1"/>
-    <text_tiny text="Multi-Filament"
-               translation_tag="Multi-Filament" style_text_color="#text_muted" style_text_align="center">
+    <text_tiny text="Multi-Filament" style_text_color="#text_muted" style_text_align="center">
       <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>
     </text_tiny>
   </view>

@@ -84,9 +84,8 @@ Inside the content area, each setting is structured consistently (lines 40–66 
           flex_flow="row" style_flex_main_place="space_between"
           style_flex_cross_place="center">
     <lv_obj height="content" flex_flow="column" style_pad_gap="#space_xxs">
-      <text_body text="Retract Length" translation_tag="Retract Length"/>
-      <text_small text="0.4-2mm direct drive, 4-6mm bowden"
-                  translation_tag="0.4-2mm direct drive, 4-6mm bowden"/>
+      <text_body text="Retract Length"/>
+      <text_small text="0.4-2mm direct drive, 4-6mm bowden"/>
     </lv_obj>
     <text_body name="retract_length_label" bind_text="retract_length_display"/>
   </lv_obj>
@@ -98,7 +97,7 @@ Inside the content area, each setting is structured consistently (lines 40–66 
                min_value="0" max_value="600" value="80">
       <event_cb trigger="value_changed" callback="on_retraction_setting_changed"/>
     </lv_slider>
-    <text_small width="40" text="6mm" translation_tag="6mm"/>
+    <text_small width="40" text="6mm"/>
   </lv_obj>
 </lv_obj>
 <divider_horizontal/>
@@ -109,7 +108,7 @@ Things worth noticing:
 - **`bind_text="retract_length_display"`** — this label's text comes from a subject named `retract_length_display`. The C++ side owns that subject and writes to it when the slider moves.
 - **`<event_cb trigger="value_changed" callback="on_retraction_setting_changed"/>`** — when the slider value changes, call the C++ function registered under the name `on_retraction_setting_changed`. **No `lv_obj_add_event_cb()` in C++ — ever.**
 - **Callback naming** — the convention is `on_<component>_<action>`. Generic names like `on_changed` will collide. (See lesson **L039**.)
-- **`translation_tag` on every user-visible string.** Exception: product names, material codes, universal terms. (See `CONTRIBUTOR_GOTCHAS.md`.)
+- **A literal `text=` is translated as written.** The text is its own translation key, so no `translation_tag` is needed; write one only when the key differs from the text. (See `TRANSLATION_SYSTEM.md`.)
 - **`<divider_horizontal/>`** — a semantic widget that applies the standard divider style. Don't roll your own with `lv_obj` + `border_width`.
 
 ### Step 2: The class declaration (`include/ui_overlay_retraction_settings.h`)

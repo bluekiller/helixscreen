@@ -4,8 +4,7 @@
 <component>
   <!-- extends overlay_panel for the shared header, title and back button. An overlay that
        does not extend it renders as a bare box with no way back. -->
-  <view name="ams_zone_overview_overlay"
-        extends="overlay_panel" title="Filament Humidity" title_tag="Filament Humidity" bg_color="#screen_bg">
+  <view name="ams_zone_overview_overlay" extends="overlay_panel" title="Filament Humidity" bg_color="#screen_bg">
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" flex_flow="column" style_pad_all="#space_lg" style_pad_gap="#space_sm"
             scrollable="false">
@@ -30,9 +29,7 @@
               style_flex_cross_place="center" style_pad_gap="#space_md" hidden="true" scrollable="false">
         <bind_flag_if_not_eq subject="zone_ov_count" flag="hidden" ref_value="0"/>
         <icon src="thermometer" size="xl" variant="secondary"/>
-        <text_muted width="content"
-                    text="No filament environment sensors" translation_tag="No filament environment sensors"
-                    style_text_align="center"/>
+        <text_muted width="content" text="No filament environment sensors" style_text_align="center"/>
       </lv_obj>
     </lv_obj>
   </view>

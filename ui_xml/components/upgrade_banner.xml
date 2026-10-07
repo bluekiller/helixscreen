@@ -29,7 +29,7 @@
       <text_body name="upgrade_banner_message" width="1" flex_grow="1" bind_text="upgrade_banner_text" long_mode="dots"/>
     </lv_obj>
     <!-- Right: primary Update CTA + ghost dismiss (matches toast pattern) -->
-    <ui_button name="upgrade_banner_update_btn" text="Update" translation_tag="Update" variant="primary">
+    <ui_button name="upgrade_banner_update_btn" text="Update" variant="primary">
       <event_cb trigger="clicked" callback="on_upgrade_banner_update"/>
     </ui_button>
     <ui_button name="upgrade_banner_dismiss_btn" icon="xmark" variant="ghost">

@@ -502,6 +502,22 @@ Worktrees come from `scripts/setup-worktree.sh` and go away with
 symlinks, submodules or build) and the `git worktree remove` step in
 `superpowers:finishing-a-development-branch`, which refuses here.
 
+Design work overrides `superpowers:brainstorming` and `superpowers:writing-plans` here:
+
+- **Ask in batches.** Put 4-5 independent questions in one round (AskUserQuestion takes four;
+  a companion page can carry more visual ones). Ask one at a time only when an answer changes
+  the next question.
+- **Explain the signal first.** UI for a hardware reading opens with what each signal measures,
+  which hardware and backends publish it, and which printers have none, before any option:
+  two readings from one sensor can still answer different questions and need different UI.
+- **Measure before suggesting.** `ctl geom` every surface an option will occupy (a 1x1 and 2x1
+  home cell, the sidebar card, the path canvas segment, the modal) at 800x480 and the smallest
+  breakpoint, and draw options inside those numbers.
+- **Plans state interfaces, tests and constraints, not finished code.** Give exact signatures,
+  test cases and values; leave the bodies to the implementer. Every header a plan defines gets a
+  `scripts/syntax_check.py` pass before execution starts. A plan of uncompiled code is a second
+  codebase that drifts from the first.
+
 ---
 
 ## Autonomous Sessions

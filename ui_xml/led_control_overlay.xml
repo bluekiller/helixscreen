@@ -38,8 +38,7 @@
     <style name="gap_look" margin_top="#space_md"/>
     <style name="gap_modes" margin_top="#space_lg"/>
   </styles>
-  <view name="led_control_overlay"
-        extends="overlay_panel" title="LEDs" title_tag="LEDs" title_transform="none" bg_color="#screen_bg">
+  <view name="led_control_overlay" extends="overlay_panel" title="LEDs" title_transform="none" bg_color="#screen_bg">
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" flex_flow="column" scrollable="false" style_pad_all="#space_md" style_pad_top="0"
             style_pad_gap="#space_sm">
@@ -128,15 +127,15 @@
           </lv_slider>
           <!-- Macro devices: HelixScreen cannot read their state, so they get
                explicit buttons where the slider would be. -->
-          <led_action_chip name="led_macro_on" width="100%" label="On" label_tag="On" flex_grow="1">
+          <led_action_chip name="led_macro_on" width="100%" label="On" flex_grow="1">
             <bind_flag_if_not_eq subject="led_page_lamp" flag="hidden" ref_value="2"/>
             <event_cb trigger="clicked" callback="led_macro_on_cb"/>
           </led_action_chip>
-          <led_action_chip name="led_macro_off" width="100%" label="Off" label_tag="Off" flex_grow="1">
+          <led_action_chip name="led_macro_off" width="100%" label="Off" flex_grow="1">
             <bind_flag_if_not_eq subject="led_page_lamp" flag="hidden" ref_value="2"/>
             <event_cb trigger="clicked" callback="led_macro_off_cb"/>
           </led_action_chip>
-          <led_action_chip name="led_macro_toggle" width="100%" label="Toggle" label_tag="Toggle" flex_grow="1">
+          <led_action_chip name="led_macro_toggle" width="100%" label="Toggle" flex_grow="1">
             <bind_flag_if_not_eq subject="led_page_lamp" flag="hidden" ref_value="3"/>
             <event_cb trigger="clicked" callback="led_macro_toggle_cb"/>
           </led_action_chip>
@@ -151,16 +150,15 @@
                   width="100%" height="content" flex_flow="column" scrollable="false" style_pad_all="0"
                   style_pad_gap="#space_xs">
             <bind_flag_if_eq subject="led_page_white" flag="hidden" ref_value="0"/>
-            <text_small text="White" translation_tag="White" text_transform="uppercase">
+            <text_small text="White" text_transform="uppercase">
               <style name="section_label"/>
             </text_small>
             <lv_obj width="100%"
                     height="content" flex_flow="row" scrollable="false" style_pad_all="0"
                     style_pad_gap="#led_swatch_gap">
-              <led_white_tone name="led_white_cool" tone="0" label="Cool" label_tag="Cool" color="#led_white_cool"/>
-              <led_white_tone name="led_white_neutral"
-                              tone="1" label="Neutral" label_tag="Neutral" color="#led_white_neutral"/>
-              <led_white_tone name="led_white_warm" tone="2" label="Warm" label_tag="Warm" color="#led_white_warm"/>
+              <led_white_tone name="led_white_cool" tone="0" label="Cool" color="#led_white_cool"/>
+              <led_white_tone name="led_white_neutral" tone="1" label="Neutral" color="#led_white_neutral"/>
+              <led_white_tone name="led_white_warm" tone="2" label="Warm" color="#led_white_warm"/>
             </lv_obj>
           </lv_obj>
 
@@ -170,7 +168,7 @@
                   style_pad_gap="#space_xs">
             <bind_flag_if_eq subject="led_page_color_vis" flag="hidden" ref_value="0"/>
             <bind_style_if name="gap_look" cond="led_page_white ne 0"/>
-            <text_small text="Color" translation_tag="Color" text_transform="uppercase">
+            <text_small text="Color" text_transform="uppercase">
               <style name="section_label"/>
             </text_small>
             <lv_obj width="100%"
@@ -216,7 +214,7 @@
               <style name="section_label"/>
               <bind_flag_if_eq subject="led_page_list" flag="hidden" ref_value="3"/>
             </text_small>
-            <text_small name="led_level_title" text="Level" translation_tag="Level" text_transform="uppercase">
+            <text_small name="led_level_title" text="Level" text_transform="uppercase">
               <style name="section_label"/>
               <bind_flag_if_not_eq subject="led_page_list" flag="hidden" ref_value="3"/>
             </text_small>
@@ -224,8 +222,7 @@
                     width="100%" height="content" flex_flow="row" scrollable="true" scroll_dir="hor"
                     scrollbar_mode="off" style_pad_all="0" style_pad_gap="#led_chip_gap">
               <bind_flag_if_eq subject="led_page_list" flag="hidden" ref_value="3"/>
-              <led_action_chip name="led_chip_none"
-                               label="None" label_tag="None" active_subject="led_active_chip" active_value="-1">
+              <led_action_chip name="led_chip_none" label="None" active_subject="led_active_chip" active_value="-1">
                 <bind_flag_if_not_eq subject="led_page_list" flag="hidden" ref_value="1"/>
                 <event_cb trigger="clicked" callback="led_effects_none_cb"/>
               </led_action_chip>
@@ -274,7 +271,7 @@
               style_flex_cross_place="center" style_pad_all="0" style_pad_gap="#space_md" scrollable="false">
         <bind_flag_if_not_eq subject="led_tab_count" flag="hidden" ref_value="0"/>
         <icon src="lightbulb_outline" size="xl" variant="muted"/>
-        <text_muted width="content" text="No LEDs found" translation_tag="No LEDs found" style_text_align="center"/>
+        <text_muted width="content" text="No LEDs found" style_text_align="center"/>
       </lv_obj>
     </lv_obj>
   </view>

@@ -17,8 +17,8 @@
         hidden="true">
     <!-- Header: no title, just back arrow and OK button -->
     <header_bar name="overlay_header"
-                title="" action_button_text="Set " action_button_text_tag="Set " hide_action_button="false"
-                action_button_height="#button_height" action_button_pad="#space_md"/>
+                title="" action_button_text="Set " hide_action_button="false" action_button_height="#button_height"
+                action_button_pad="#space_md"/>
     <!-- Content -->
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_all="#space_md" scrollable="false" flex_flow="column" style_pad_gap="0"

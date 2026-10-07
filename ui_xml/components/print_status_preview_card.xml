@@ -67,9 +67,8 @@
       <!-- Uses ui_button for auto-contrast text via update_button_text_contrast() -->
       <ui_button name="success_badge"
                  width="content" height="content" variant="success" icon="check_circle" text="Print Complete!"
-                 translation_tag="Print Complete!" clickable="false" focusable="false" style_radius="#space_lg"
-                 style_pad_left="#space_md" style_pad_right="#space_md" style_pad_top="#space_sm"
-                 style_pad_bottom="#space_sm"/>
+                 clickable="false" focusable="false" style_radius="#space_lg" style_pad_left="#space_md"
+                 style_pad_right="#space_md" style_pad_top="#space_sm" style_pad_bottom="#space_sm"/>
     </lv_obj>
 
     <!-- PRINT CANCELLED OVERLAY: shown via show_cancelled_overlay (see COMPLETE above). -->
@@ -84,9 +83,8 @@
       <!-- Uses ui_button for auto-contrast text via update_button_text_contrast() -->
       <ui_button name="cancel_badge"
                  width="content" height="content" variant="warning" icon="cancel" text="Print Cancelled"
-                 translation_tag="Print Cancelled" clickable="false" focusable="false" style_radius="#space_lg"
-                 style_pad_left="#space_md" style_pad_right="#space_md" style_pad_top="#space_sm"
-                 style_pad_bottom="#space_sm"/>
+                 clickable="false" focusable="false" style_radius="#space_lg" style_pad_left="#space_md"
+                 style_pad_right="#space_md" style_pad_top="#space_sm" style_pad_bottom="#space_sm"/>
     </lv_obj>
 
     <!-- PRINT ERROR OVERLAY: shown via show_error_overlay (see COMPLETE above). -->
@@ -101,9 +99,8 @@
       <!-- Uses ui_button for auto-contrast text via update_button_text_contrast() -->
       <ui_button name="error_badge"
                  width="content" height="content" variant="danger" icon="alert_circle" text="Print Failed"
-                 translation_tag="Print Failed" clickable="false" focusable="false" style_radius="#space_lg"
-                 style_pad_left="#space_md" style_pad_right="#space_md" style_pad_top="#space_sm"
-                 style_pad_bottom="#space_sm"/>
+                 clickable="false" focusable="false" style_radius="#space_lg" style_pad_left="#space_md"
+                 style_pad_right="#space_md" style_pad_top="#space_sm" style_pad_bottom="#space_sm"/>
     </lv_obj>
 
     <!-- PRINT PAUSED OVERLAY: shown while print is in PAUSED state. Driven by   -->
@@ -134,7 +131,7 @@
         <lv_obj width="content"
                 height="content" style_pad_all="0" style_pad_gap="0" style_border_width="0" style_bg_opa="0"
                 flex_flow="column" style_flex_cross_place="center" scrollable="false">
-          <lv_label text="Print Paused" translation_tag="Print Paused" style_text_align="center"/>
+          <lv_label text="Print Paused" style_text_align="center"/>
           <lv_label name="paused_badge_reason" bind_text="print_pause_reason" style_text_align="center">
             <bind_flag_if_eq subject="print_pause_reason_visible" flag="hidden" ref_value="0"/>
           </lv_label>

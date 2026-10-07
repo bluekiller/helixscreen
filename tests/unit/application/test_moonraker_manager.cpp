@@ -1111,3 +1111,25 @@ TEST_CASE_METHOD(ManagerCollectorArmingFixture,
     CHECK(lv_subject_get_int(phase_subject) != static_cast<int>(PrintStartPhase::IDLE));
     CHECK(ps.print_state().is_in_print_start());
 }
+
+TEST_CASE_METHOD(ManagerCollectorArmingFixture,
+                 "a homed_axes change reaches the armed collector without a timer tick",
+                 "[application][print_start]") {
+    auto& ps = get_printer_state();
+    lv_subject_copy_string(ps.motion_state().get_homed_axes_subject(), "");
+    // Armed directly: an earlier fixture's print-state observer is released,
+    // not removed, at shutdown and would complete this collector on the edge.
+    auto collector = mgr.print_start_collector();
+    collector->start();
+    collector->enable_fallbacks();
+    // The active flag a phase past INITIALIZING needs to publish.
+    lv_subject_set_int(ps.print_state().get_print_active_subject(), 1);
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+
+    // A cold G28 moves no heater target; only homed_axes changes.
+    lv_subject_copy_string(ps.motion_state().get_homed_axes_subject(), "xy");
+    helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
+    CHECK(lv_subject_get_int(ps.print_state().get_print_start_phase_subject()) ==
+          static_cast<int>(PrintStartPhase::HOMING));
+    collector->stop();
+}

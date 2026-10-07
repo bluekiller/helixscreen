@@ -7,7 +7,7 @@
         extends="ui_dialog" width="70%" height="90%" align="center" flex_flow="column" style_flex_main_place="start"
         style_pad_gap="0">
 
-    <modal_header icon_src="palette" icon_variant="info" title="Filament Mapping" title_tag="Filament Mapping"/>
+    <modal_header icon_src="palette" icon_variant="info" title="Filament Mapping"/>
 
     <!-- Start macro parameters a file-rewrite remap leaves as sliced -->
     <lv_obj name="start_macro_note_row"

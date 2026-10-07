@@ -70,17 +70,15 @@
         <bind_style_if_not_eq name="status_stacked" subject="ui_is_portrait" ref_value="1"/>
         <bind_style_if_eq name="status_slot" subject="ui_is_portrait" ref_value="1"/>
         <!-- Size the status area whatever is showing. -->
-        <text_small text="Printing now" translation_tag="Printing now" style_opa="0" event_bubble="true"/>
-        <text_small text="Excluded" translation_tag="Excluded" style_opa="0" event_bubble="true"/>
+        <text_small text="Printing now" style_opa="0" event_bubble="true"/>
+        <text_small text="Excluded" style_opa="0" event_bubble="true"/>
         <text_small name="status_printing"
-                    text="Printing now" translation_tag="Printing now" style_text_color="#success" hidden="true"
-                    event_bubble="true">
+                    text="Printing now" style_text_color="#success" hidden="true" event_bubble="true">
           <bind_flag_if_not_eq subject="$state_subject" flag="hidden" ref_value="1"/>
           <bind_style_if_eq name="status_in_slot" subject="ui_is_portrait" ref_value="1"/>
         </text_small>
         <text_small name="status_excluded"
-                    text="Excluded" translation_tag="Excluded" style_text_color="#text_muted" hidden="true"
-                    event_bubble="true">
+                    text="Excluded" style_text_color="#text_muted" hidden="true" event_bubble="true">
           <bind_flag_if_lt subject="$state_subject" flag="hidden" ref_value="2"/>
           <bind_style_if_eq name="status_in_slot" subject="ui_is_portrait" ref_value="1"/>
         </text_small>

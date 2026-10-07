@@ -13,10 +13,10 @@
             style_flex_cross_place="center" scrollable="false">
       <lv_obj height="content"
               flex_flow="column" style_pad_all="0" style_pad_gap="#space_xs" scrollable="false" flex_grow="1">
-        <text_heading name="modal_title" text="Run Macro" translation_tag="Run Macro">
+        <text_heading name="modal_title" text="Run Macro">
           <bind_flag_if_eq subject="macro_param_modal_save_mode" flag="hidden" ref_value="1"/>
         </text_heading>
-        <text_heading name="modal_title_save" text="Default Parameters" translation_tag="Default Parameters">
+        <text_heading name="modal_title_save" text="Default Parameters">
           <bind_flag_if_eq subject="macro_param_modal_save_mode" flag="hidden" ref_value="0"/>
         </text_heading>
         <text_muted name="modal_subtitle" text=""/>
@@ -37,10 +37,8 @@
       <bind_flag_if_eq subject="macro_param_modal_save_mode" flag="hidden" ref_value="0"/>
       <divider_horizontal/>
       <setting_toggle_row name="ask_row"
-                          label="Ask for parameters" label_tag="Ask for parameters"
-                          description="Off: runs with these values without asking"
-                          description_tag="Off: runs with these values without asking" subject="macro_param_modal_ask"
-                          callback="macro_param_modal_ask_cb"/>
+                          label="Ask for parameters" description="Off: runs with these values without asking"
+                          subject="macro_param_modal_ask" callback="macro_param_modal_ask_cb"/>
     </lv_obj>
     <!-- Button rows — always pinned at bottom; save mode swaps Run for Save -->
     <modal_button_row name="run_button_row"

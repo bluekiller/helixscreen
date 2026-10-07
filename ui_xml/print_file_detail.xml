@@ -66,8 +66,7 @@
         <bind_style_if_eq name="left_landscape" subject="ui_is_portrait" ref_value="0"/>
         <bind_style_if_eq name="left_portrait" subject="ui_is_portrait" ref_value="1"/>
         <!-- HEADER BAR (left column only) -->
-        <header_bar name="detail_header"
-                    title="Print File" title_tag="Print File" back_button_callback="on_print_detail_back_clicked"/>
+        <header_bar name="detail_header" title="Print File" back_button_callback="on_print_detail_back_clicked"/>
         <!-- File card with reactive bindings                                -->
         <!-- NOTE: Can't reuse print_file_card here because it uses props ($) -->
         <!-- for static data, but detail view needs bindings (bind_*) for     -->
@@ -262,9 +261,7 @@
               <bind_flag_if_eq subject="ams_bypass_active" flag="hidden" ref_value="0"/>
               <icon src="source_branch" size="sm" variant="info" clickable="false"/>
               <text_small name="bypass_source_label"
-                          text="Bypass active — this print runs on the external spool."
-                          translation_tag="Bypass active — this print runs on the external spool." clickable="false"
-                          flex_grow="1"/>
+                          text="Bypass active — this print runs on the external spool." clickable="false" flex_grow="1"/>
             </ui_card>
 
             <!-- Sliced colors toggle. Belongs to the 3D PREVIEW, not the chips:
@@ -287,7 +284,7 @@
                    (thumbnail_hidden above). invert="true" reads as "show when". -->
               <bind_flag_if cond="detail_gcode_viewer_mode eq 1 and detail_viewer_first_frame eq 1"
                             flag="hidden" invert="true"/>
-              <text_small name="sliced_colors_label" text="Sliced colors" translation_tag="Sliced colors"/>
+              <text_small name="sliced_colors_label" text="Sliced colors"/>
               <ui_switch name="sliced_colors_toggle" size="small">
                 <bind_state_if_eq subject="detail_prefer_sliced_colors" state="checked" ref_value="1"/>
                 <event_cb trigger="value_changed" callback="on_toggle_sliced_colors"/>
@@ -320,7 +317,7 @@
               <lv_obj width="100%"
                       height="content" style_pad_all="0" style_pad_gap="#space_xs" flex_flow="row"
                       style_flex_cross_place="center" scrollable="false" clickable="false" event_bubble="true">
-                <text_small text="FILAMENTS" translation_tag="FILAMENTS" clickable="false" event_bubble="true"/>
+                <text_small text="FILAMENTS" clickable="false" event_bubble="true"/>
                 <icon name="filament_mismatch_icon"
                       src="alert" size="sm" variant="warning" clickable="false" event_bubble="true">
                   <bind_flag_if_eq subject="filament_mismatch" flag="hidden" ref_value="0"/>
@@ -417,7 +414,7 @@
                    conjunction, so one cond= rather than two stacked bindings,
                    which OR. -->
               <bind_flag_if cond="print_select_button_mode eq 1 and job_queue_automatic_transition eq 1" flag="hidden"/>
-              <text_small text="PRINT OPTIONS" translation_tag="PRINT OPTIONS"/>
+              <text_small text="PRINT OPTIONS"/>
               <lv_obj name="pre_print_options_container"
                       width="100%" height="content" style_pad_all="0" flex_flow="row_wrap" style_pad_row="#space_xs"
                       style_pad_column="#space_xs" style_flex_main_place="space_between" scrollable="false">
