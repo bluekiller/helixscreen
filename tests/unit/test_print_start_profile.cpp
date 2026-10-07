@@ -1545,7 +1545,7 @@ TEST_CASE("PrintStartProfile: forge_x declares its status-signal rules",
     REQUIRE(objects[1] == "toolhead");
 }
 
-TEST_CASE("PrintStartProfile: default profile carries only the two heating rules",
+TEST_CASE("PrintStartProfile: default profile carries only the heating and extrusion rules",
           "[profile][print][status_signals]") {
     auto profile = get_default_profile();
     REQUIRE(profile != nullptr);
@@ -1554,7 +1554,7 @@ TEST_CASE("PrintStartProfile: default profile carries only the two heating rules
     const auto& rules = profile->status_signals();
     // Deliberately conservative: static predicates only, no position guesses
     // (ambiguous without narration). The count pins "no rules beyond these".
-    REQUIRE(rules.size() == 2);
+    REQUIRE(rules.size() == 3);
 
     using Op = PrintStartProfile::StatusPredicate::Op;
 
@@ -1585,12 +1585,36 @@ TEST_CASE("PrintStartProfile: default profile carries only the two heating rules
     REQUIRE(nozzle.when[1].ref_field == "target");
     REQUIRE(nozzle.when[1].offset == -2.0);
 
+    // Klipper refuses to extrude below min_extrude_temp, so filament moving
+    // forward means a hot nozzle laying down a purge or prime.
+    const auto& purge = rules[2];
+    REQUIRE(purge.name == "purging");
+    REQUIRE(purge.object == "motion_report");
+    REQUIRE(purge.phase == PrintStartPhase::PURGING);
+    REQUIRE(purge.when.size() == 1);
+    REQUIRE(purge.when[0].field == "live_extruder_velocity");
+    REQUIRE(purge.when[0].op == Op::GT);
+    REQUIRE(purge.when[0].value == 0.0);
+    REQUIRE(purge.after_heat);
+    REQUIRE_FALSE(nozzle.after_heat);
+
+    // A display label naming a target sets the phase without narrating.
+    for (const char* label : {"Bed: 90c", "Hotend: 270c"}) {
+        PrintStartProfile::MatchResult result;
+        REQUIRE(profile->try_match_pattern(label, result));
+        CHECK_FALSE(result.narrates);
+    }
+    PrintStartProfile::MatchResult m190;
+    REQUIRE(profile->try_match_pattern("M190 S90", m190));
+    CHECK(m190.narrates);
+
     // The phase object leads, then the rule objects in file order.
     const auto objects = profile->required_status_objects();
-    REQUIRE(objects.size() == 3);
+    REQUIRE(objects.size() == 4);
     REQUIRE(objects[0] == "display_status");
     REQUIRE(objects[1] == "heater_bed");
     REQUIRE(objects[2] == "extruder");
+    REQUIRE(objects[3] == "motion_report");
 }
 
 TEST_CASE("PrintStartProfile: profiles without status_signals declare none",
