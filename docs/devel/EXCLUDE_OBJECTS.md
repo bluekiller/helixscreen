@@ -241,11 +241,12 @@ screen and draw.
   object, so the plate takes the whole card. An object with no bounding box gets no rect
   but keeps its number, so later objects do not renumber.
 - **2D/3D render**: while the side list is open,
-  `src/ui/ui_exclude_mode_controller.cpp#refresh_render_badges`
-  pushes the badges to the viewer (`ui_gcode_viewer_set_object_badges()`), and again on every
+  `src/ui/ui_exclude_mode_controller.cpp#refresh_render_badges` pushes the badges to the
+  viewer (`ui_gcode_viewer_set_object_badges()`), and again on every
   `defined_objects_version` / `excluded_objects_version` bump of the host's state, through
-  the controller's own version observers (the current object bumps the latter). Closing the list pushes an empty set. The viewer draws them in its
-  `LV_EVENT_DRAW_POST` pass after the renderer (`src/ui/ui_gcode_viewer.cpp#draw_object_badges`),
+  the controller's own version observers (the current object bumps the latter). Closing
+  the list pushes an empty set. The viewer draws them in its `LV_EVENT_DRAW_POST`
+  pass after the renderer (`src/ui/ui_gcode_viewer.cpp#draw_object_badges`),
   projecting each anchor through the transform of the image on screen, so they follow pan,
   zoom and rotation. In 2D that is `GCodeLayerRenderer::project_to_screen()`: every 2D
   transform change invalidates both caches, so what is drawn always uses the live transform.
@@ -255,8 +256,9 @@ screen and draw.
   ahead to the live camera. Setting badges equal to the current ones does nothing; a change
   only invalidates the widget, and the renderers repaint from their caches.
 - **Parsed file arriving later**: each host calls
-  `ExcludeModeController::refresh_render_badges()` when its viewer finishes a parse, so a file that finishes loading after the list opened gives
-  its objects parsed anchors and a top Z.
+  `ExcludeModeController::refresh_render_badges()` when its viewer finishes a parse, so a
+  file that finishes loading after the list opened gives its objects parsed anchors and a
+  top Z.
 
 Anchor priority: Klipper `CENTER`, the parsed file's `CENTER`, Klipper's bbox centre, the
 parsed toolpath bbox centre. Parsed objects are looked up by name; `ParsedGCodeFile::objects`
@@ -331,7 +333,10 @@ second model for this: details owns a private `PrinterExcludedObjectsState`
   draws at open, so nothing it holds outlives the viewer's parse.
 - **Offered picks only.** While the skip button is hidden (e.g. after a switch to a printer
   without `[exclude_object]`), `src/ui/ui_print_select_detail_view.cpp#exclude_picks` returns
-  none, so hidden picks are never sent or refused on.
+  none, so hidden picks are never sent or refused on. Both hosts read "has
+  `[exclude_object]`" from one place, `src/ui/pre_start_exclude.cpp#printer_has_exclude_object`
+  (the `printer_has_exclude_object` capability subject), and observe that subject, so a
+  printer switch with details open hides or re-offers the picks at once.
 - **Failures.** A failed send is one error toast naming the objects, unless the print ended
   first; a TIMEOUT is advisory, since the command may still run
   (`src/ui/pre_start_exclude.cpp#send_pre_start_exclusions`).
