@@ -3,12 +3,14 @@
 #include "test_helpers/unique_temp_dir.h"
 #include "text_io.h"
 
+#include <atomic>
 #include <clocale>
 #include <cmath>
 #include <filesystem>
 #include <limits>
 #include <string>
 #include <sys/stat.h>
+#include <thread>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -132,7 +134,7 @@ TEST_CASE("write_file_atomic replaces the target and leaves no tmp", "[text_io]"
         REQUIRE(tio::write_file(target, "old"));
         REQUIRE(tio::write_file_atomic(target, "new", d));
         CHECK(tio::read_file(target) == "new");
-        CHECK_FALSE(fs::exists(target + ".tmp"));
+        CHECK(helix::test::staging_files_beside(target) == 0);
     }
 }
 
@@ -141,13 +143,11 @@ TEST_CASE("write_file_atomic failure keeps the target and removes the tmp", "[te
     const std::string target = dir.file("target");
     REQUIRE(tio::write_file(target, "keep me"));
 
-    // A directory where the tmp should go makes the open fail.
-    fs::create_directories(target + ".tmp");
+    // A missing parent directory makes the open fail.
     errno = 0;
-    CHECK_FALSE(tio::write_file_atomic(target, "clobber"));
-    CHECK(errno != 0);
+    CHECK_FALSE(tio::write_file_atomic(dir.file("no/such/dir/target"), "clobber"));
+    CHECK(errno == ENOENT);
     CHECK(tio::read_file(target) == "keep me");
-    fs::remove_all(target + ".tmp");
 
     // A rename onto a non-empty directory fails after the tmp was written.
     const std::string dir_target = dir.file("occupied");
@@ -155,28 +155,63 @@ TEST_CASE("write_file_atomic failure keeps the target and removes the tmp", "[te
     errno = 0;
     CHECK_FALSE(tio::write_file_atomic(dir_target, "x"));
     CHECK(errno != 0);
-    CHECK_FALSE(fs::exists(dir_target + ".tmp"));
     CHECK(fs::is_directory(dir_target));
+    CHECK(helix::test::staging_files_beside(dir_target) == 0);
 }
 
-TEST_CASE("open_file + write_all + close stream a file", "[text_io]") {
+// Writers of one path (thumbnail downloads are not deduped) each stage into
+// their own tmp, so every write succeeds and a reader only ever sees one
+// writer's whole payload. With a shared staging name, a writer whose tmp was
+// renamed away by another fails, and a lagging writer keeps writing into the
+// file that is already in place. Detection is probabilistic, so the payload is
+// large enough to span many write(2) calls.
+TEST_CASE("write_file_atomic concurrent writers of one path never tear it", "[text_io]") {
     ScratchDir dir;
-    auto f = tio::open_file(dir.file("out"), "wb");
-    REQUIRE(f);
-    CHECK(tio::write_all(f.get(), "line1\n"));
-    CHECK(tio::write_all(f.get(), ""));
-    CHECK(tio::write_all(f.get(), std::string_view("a\0b", 3)));
-    CHECK(tio::close(f));
-    CHECK_FALSE(f);
-    CHECK(tio::read_file(dir.file("out")) == std::string("line1\na\0b", 9));
+    const std::string target = dir.file("contended");
+    constexpr size_t SIZE = 1024 * 1024;
+    constexpr int WRITERS = 8;
+    REQUIRE(tio::write_file_atomic(target, std::string(SIZE, 'a')));
 
-    CHECK_FALSE(tio::open_file(dir.file("no/dir/f"), "wb"));
+    auto whole = [](const std::string& data) {
+        return data.size() == SIZE && data[0] >= 'a' &&
+               data[0] < static_cast<char>('a' + WRITERS) &&
+               data.find_first_not_of(data[0]) == std::string::npos;
+    };
 
-    auto a = tio::open_file(dir.file("out"), "ab");
-    REQUIRE(a);
-    tio::write_all(a.get(), "!");
-    CHECK(tio::close(a));
-    CHECK(tio::read_file(dir.file("out"))->back() == '!');
+    std::atomic<int> failed_writes{0};
+    std::atomic<int> torn_reads{0};
+    std::atomic<bool> done{false};
+    std::thread reader([&] {
+        while (!done) {
+            const auto data = tio::read_file(target);
+            if (data && !whole(*data)) {
+                ++torn_reads;
+            }
+        }
+    });
+    std::vector<std::thread> writers;
+    for (int w = 0; w < WRITERS; ++w) {
+        writers.emplace_back([&, w] {
+            const std::string payload(SIZE, static_cast<char>('a' + w));
+            for (int rep = 0; rep < 30; ++rep) {
+                if (!tio::write_file_atomic(target, payload)) {
+                    ++failed_writes;
+                }
+            }
+        });
+    }
+    for (auto& t : writers) {
+        t.join();
+    }
+    done = true;
+    reader.join();
+
+    CHECK(failed_writes == 0);
+    CHECK(torn_reads == 0);
+    const auto data = tio::read_file(target);
+    REQUIRE(data.has_value());
+    CHECK(whole(*data));
+    CHECK(helix::test::staging_files_beside(target) == 0);
 }
 
 TEST_CASE("lines() splits exactly like a std::getline loop", "[text_io]") {
