@@ -186,6 +186,15 @@ class PanelWidgetManager {
     bool reseat_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
                       std::vector<std::unique_ptr<PanelWidget>>& widgets);
 
+    /// Counts PanelWidget::save_widget_config() calls: a widget that saved its config
+    /// applied it in place, so a record of the config a page was built from is stale.
+    uint64_t widget_config_saves() const {
+        return widget_config_saves_;
+    }
+    void note_widget_config_saved() {
+        ++widget_config_saves_;
+    }
+
     // -- Gate observers --
 
     /// Observe every hardware gate subject so that widgets appear/disappear
@@ -229,6 +238,7 @@ class PanelWidgetManager {
     class PanelWidgetConfig& get_widget_config(const std::string& panel_id);
 
   private:
+    uint64_t widget_config_saves_ = 0;
     bool relayout_tiles_impl(const std::string& panel_id, lv_obj_t* container, int page_index,
                              const std::vector<std::string>& changed_ids,
                              const std::string& resized_id,

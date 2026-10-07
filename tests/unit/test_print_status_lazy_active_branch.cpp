@@ -109,3 +109,48 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     }
     PrintStatusWidget::destroy_formatter_for_test();
 }
+
+// The view subject is shared, so one card's layout change rebuilds every card's active
+// views; a card asked again for the view it already shows must bind the rebuilt ones.
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "print_status rebinds active views another card's change rebuilt",
+                 "[print_status][panel_widget][lazy_branch]") {
+    {
+        PrintStatusWidget a;
+        PrintStatusWidget b;
+        a.set_config({{"layout_style", "library"}});
+        b.set_config({{"layout_style", "library"}});
+        lv_obj_t* comp_a = make_print_status(test_screen());
+        lv_obj_t* comp_b = make_print_status(test_screen());
+        REQUIRE(comp_a != nullptr);
+        REQUIRE(comp_b != nullptr);
+        a.attach(comp_a, test_screen());
+        b.attach(comp_b, test_screen());
+        a.on_size_changed(2, 2, 400, 400);
+        b.on_size_changed(2, 2, 400, 400);
+        get_printer_state().print_state().set_print_thumbnail("a.gcode", kThumbA);
+        set_print(PrintJobState::PRINTING);
+        process_lvgl(30);
+        REQUIRE(Access::active_thumb(a) != nullptr);
+
+        // b goes to detailed and back: a's active views are built twice over.
+        b.set_config({{"layout_style", "detailed"}});
+        b.on_size_changed(2, 2, 401, 400);
+        process_lvgl(30);
+        b.set_config({{"layout_style", "library"}});
+        b.on_size_changed(2, 2, 400, 400);
+        process_lvgl(30);
+        REQUIRE(lv_subject_get_int(PrintStatusWidget::view_subject_for_test()) == 3);
+
+        a.on_size_changed(2, 2, 401, 400);
+        process_lvgl(30);
+        lv_obj_t* current = lv_obj_find_by_name(comp_a, "print_card_active_thumb");
+        REQUIRE(current != nullptr);
+        CHECK(Access::active_thumb(a) == current);
+        CHECK(image_src(current) == kThumbA);
+
+        set_print(PrintJobState::STANDBY);
+        process_lvgl(30);
+    }
+    PrintStatusWidget::destroy_formatter_for_test();
+}

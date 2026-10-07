@@ -576,6 +576,8 @@ void HomePanel::populate_page(int page_index, bool force) {
                         }
                     }
                     pages_[idx].built_configs = configs_for(page_index, snapshot_ids);
+                    pages_[idx].config_saves =
+                        helix::PanelWidgetManager::instance().widget_config_saves();
                     pages_[idx].visible_ids = std::move(snapshot_ids);
                     pages_[idx].widget_gen = gen;
                     populating_widgets_ = false;
@@ -642,6 +644,7 @@ void HomePanel::populate_page(int page_index, bool force) {
     // placement, not a fresh read that could include late-arriving capability flips.
     pages_[idx].widgets = std::move(widgets);
     pages_[idx].built_configs = configs_for(page_index, snapshot_ids);
+    pages_[idx].config_saves = helix::PanelWidgetManager::instance().widget_config_saves();
     pages_[idx].visible_ids = std::move(snapshot_ids);
     pages_[idx].widget_gen = helix::runtime_widget_generation();
 
@@ -678,7 +681,8 @@ bool HomePanel::reseat_widgets() {
         const auto ids = mgr.compute_visible_widget_ids("home", page);
         const CarouselPage& built = pages_[i];
         if (!built.container || !built.visible_ids || *built.visible_ids != ids ||
-            built.widget_gen != gen || built.built_configs != configs_for(page, ids)) {
+            built.widget_gen != gen || built.config_saves != mgr.widget_config_saves() ||
+            built.built_configs != configs_for(page, ids)) {
             return false;
         }
     }

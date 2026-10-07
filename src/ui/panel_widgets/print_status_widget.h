@@ -388,6 +388,7 @@ class PrintStatusWidget : public PanelWidget {
     ObserverGuard job_queue_count_observer_;
     ObserverGuard connection_observer_;
     ObserverGuard breakpoint_observer_;
+    ObserverGuard view_observer_; ///< Rebinds the active views after any card rebuilds them
 
     // Guards async thumbnail callbacks and history observer from use-after-free
     helix::AsyncLifetimeGuard lifetime_;

@@ -2150,8 +2150,9 @@ void PanelWidget::save_widget_config(const nlohmann::json& config) {
         spdlog::warn("[PanelWidget] save_widget_config called with no panel_id set for '{}'", id());
         return;
     }
-    auto& wc = PanelWidgetManager::instance().get_widget_config(panel_id_);
-    wc.set_widget_config(id(), config);
+    auto& mgr = PanelWidgetManager::instance();
+    mgr.get_widget_config(panel_id_).set_widget_config(id(), config);
+    mgr.note_widget_config_saved();
 }
 
 } // namespace helix
