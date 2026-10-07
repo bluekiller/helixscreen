@@ -32,6 +32,7 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/mock_bypass.h"
 #include "../test_helpers/printer_state_test_access.h"
+#include "../test_helpers/scoped_portrait_layout.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_mock.h"
@@ -1703,6 +1704,32 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Picks the skip option no longer offers are 
     REQUIRE(OpenDetail::subject_int("detail_exclude_available") == 0);
     CHECK(d.view.exclude_picks().empty());
     CHECK_FALSE(d.view.all_objects_picked());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "In portrait the details object list covers the options and not the card",
+                 "[print_select][detail_view][pre_start_exclude][portrait]") {
+    // Tall enough that the options fill more than half the column.
+    ScopedPortraitLayout portrait(480, 1000);
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    lv_obj_t* root = d.view.get_widget();
+    process_lvgl(100); // the view settles before the user can tap
+    d.view.toggle_exclude_mode();
+    OpenDetail::settle();
+    process_lvgl(600); // the slide-in
+    REQUIRE(d.view.is_exclude_mode_open());
+    lv_obj_update_layout(root);
+
+    lv_obj_t* rows = lv_obj_find_by_name(root, "rows_container");
+    REQUIRE(rows != nullptr);
+    lv_area_t list, options, card;
+    lv_obj_get_coords(lv_obj_get_parent(rows), &list);
+    lv_obj_get_coords(lv_obj_find_by_name(root, "options_section"), &options);
+    lv_obj_get_coords(lv_obj_find_by_name(root, "detail_card"), &card);
+    INFO("list y1=" << list.y1 << " options y1=" << options.y1 << " card y2=" << card.y2);
+    CHECK(list.y1 <= options.y1);
+    CHECK(list.y1 > card.y2);
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "The pick count counts only picks the file still defines",

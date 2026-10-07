@@ -56,11 +56,12 @@ void ExcludeModeController::show(const ExcludeModeTargets& targets,
     }
 
     // Landscape covers the right-hand column by ratio; portrait sizes the list
-    // to the control stack it covers, so measure it.
+    // to the control stack it covers, up to the preview card, so measure both.
     const bool portrait = helix::is_portrait_layout(helix::LayoutManager::instance().type());
     int32_t controls_h = 0;
     int32_t content_h = 0;
     int32_t gap = 0;
+    int32_t room_h = 0;
     if (portrait) {
         lv_obj_update_layout(targets.columns);
         if (targets.controls_name) {
@@ -70,13 +71,20 @@ void ExcludeModeController::show(const ExcludeModeTargets& targets,
         }
         content_h = lv_obj_get_content_height(targets.columns);
         gap = lv_obj_get_style_pad_row(targets.columns, LV_PART_MAIN);
+        if (targets.card) {
+            lv_area_t columns_area;
+            lv_area_t card_area;
+            lv_obj_get_content_coords(targets.columns, &columns_area);
+            lv_obj_get_coords(targets.card, &card_area);
+            room_h = columns_area.y2 - card_area.y2 - gap;
+        }
     }
 
     side_list_ = std::make_unique<ExcludeObjectSideList>();
     side_list_->set_close_callback([this]() { hide(); });
     side_list_->set_gcode_viewer(viewer_);
     side_list_->create(targets.columns, state_, forward, mode,
-                       exclude_side_list_geometry(portrait, controls_h, content_h, gap));
+                       exclude_side_list_geometry(portrait, controls_h, content_h, gap, room_h));
 
     // Installed whatever the mode, so switching thumbnail -> 2D/3D while open
     // still routes render taps.

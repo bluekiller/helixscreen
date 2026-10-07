@@ -18,7 +18,8 @@ namespace helix::ui {
 
 /// Where a host lets exclude mode draw.
 struct ExcludeModeTargets {
-    lv_obj_t* card = nullptr;            ///< Preview card the top-down map covers in thumbnail mode
+    lv_obj_t* card = nullptr;            ///< Preview card: the map covers it in thumbnail mode; the
+                                         ///< portrait list stops below it
     lv_obj_t* columns = nullptr;         ///< Row the object list floats over
     const char* controls_name = nullptr; ///< Child of columns the list covers in portrait
     lv_obj_t* gcode_viewer = nullptr;    ///< May be null

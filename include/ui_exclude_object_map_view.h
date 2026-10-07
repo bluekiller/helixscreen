@@ -83,10 +83,11 @@ class ExcludeObjectMapView {
     helix::PrinterExcludedObjectsState* state_{nullptr};
     ObjectTapFn on_object_tapped_;
     ExcludeTapMode tap_mode_{ExcludeTapMode::ExcludeOnly};
-    // Copied from the parse at create(): its owner can free it while the map is open.
-    std::unique_ptr<helix::gcode::ParsedGCodeFile>
-        parsed_objects_; ///< objects only; null = no parse
-    std::unordered_map<std::string, std::vector<glm::vec2>> parsed_outlines_; ///< first-layer hulls
+    // Copied from the parse at create(): its owner can free it while the map is
+    // open. parsed_objects_ holds only the objects, and is null with no parse;
+    // parsed_outlines_ holds each object's first-layer hull.
+    std::unique_ptr<helix::gcode::ParsedGCodeFile> parsed_objects_;
+    std::unordered_map<std::string, std::vector<glm::vec2>> parsed_outlines_;
 
     float bed_w_mm_{235.0f};
     float bed_h_mm_{235.0f};

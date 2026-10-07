@@ -9,6 +9,7 @@
 #include "ui_gcode_viewer.h"
 
 #include "../test_helpers/print_status_panel_fixture.h"
+#include "../test_helpers/scoped_portrait_layout.h"
 #include "printer_discovery.h"
 #include "printer_excluded_objects_state.h"
 
@@ -166,4 +167,60 @@ TEST_CASE_METHOD(PrintStatusPanelFixture,
     state().set_hardware(helix::PrinterDiscovery{});
     UpdateQueue::instance().drain();
     CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+}
+
+namespace {
+
+/// Print status built from its portrait layout, on a printer with [exclude_object].
+class PortraitExcludePanelFixture : public PrintStatusPanelFixture {
+  public:
+    PortraitExcludePanelFixture()
+        : PrintStatusPanelFixture([]() -> std::shared_ptr<void> {
+              auto portrait = std::make_shared<ScopedPortraitLayout>(480, 1000);
+              REQUIRE(lv_xml_register_component_from_file(
+                          "A:ui_xml/portrait/print_status_panel.xml") == LV_RESULT_OK);
+              return std::shared_ptr<void>(portrait.get(), [portrait](void*) {
+                  lv_xml_register_component_from_file("A:ui_xml/print_status_panel.xml");
+              });
+          }) {
+        helix::PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json{"exclude_object", "extruder"});
+        state().set_hardware(hw);
+    }
+    ~PortraitExcludePanelFixture() override {
+        state().set_hardware(helix::PrinterDiscovery{});
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(PortraitExcludePanelFixture,
+                 "In portrait the print status object list covers the controls and not the preview",
+                 "[exclude_badges][print_status][pre_start_exclude][portrait]") {
+    state().excluded_objects_state().set_defined_objects_with_geometry(
+        {placed("Zed", 30, 30), placed("Alpha", 90, 30), placed("Mid", 150, 30)});
+    UpdateQueue::instance().drain();
+    process_lvgl(100);
+
+    PrintStatusPanelTestAccess::show_exclude(panel());
+    UpdateQueue::instance().drain();
+    process_lvgl(600); // the slide-in
+    lv_obj_update_layout(root_);
+
+    lv_obj_t* rows = lv_obj_find_by_name(root_, "rows_container");
+    REQUIRE(rows != nullptr);
+    lv_obj_t* controls = lv_obj_find_by_name(root_, "controls_section");
+    lv_obj_t* preview = lv_obj_find_by_name(root_, "thumbnail_section");
+    REQUIRE(controls != nullptr);
+    REQUIRE(preview != nullptr);
+    lv_area_t list, ctl, card;
+    lv_obj_get_coords(lv_obj_get_parent(rows), &list);
+    lv_obj_get_coords(controls, &ctl);
+    lv_obj_get_coords(preview, &card);
+    INFO("list y1=" << list.y1 << " controls y1=" << ctl.y1 << " preview y2=" << card.y2);
+    CHECK(list.y1 <= ctl.y1);
+    CHECK(list.y1 > card.y2);
+
+    PrintStatusPanelTestAccess::hide_exclude(panel());
+    UpdateQueue::instance().drain();
 }
