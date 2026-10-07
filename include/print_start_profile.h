@@ -36,6 +36,10 @@ class PrintStartProfile {
         /// Seconds the matched text says the printer will spend without a
         /// word (a heat soak's G4); 0 when it announces none.
         int hold_seconds = 0;
+        /// Whether the text is the printer narrating its sequence. A label
+        /// that only names a target ("Bed: 90c") says nothing about what runs
+        /// next, so it must not silence the collector's own inference.
+        bool narrates = true;
     };
 
     /**
@@ -57,6 +61,8 @@ class PrintStartProfile {
         /// Capture group holding a number of minutes the printer stays silent
         /// after this text; 0 when the pattern declares no hold.
         int hold_minutes_group = 0;
+        /// False for a label that states a target rather than narrating a step
+        bool narrates = true;
     };
 
     /**
@@ -115,6 +121,10 @@ class PrintStartProfile {
         helix::PrintStartPhase phase = helix::PrintStartPhase::IDLE;
         std::string message;
         int weight = 0;
+        /// Hold only once every heater with a target is at it (the collector's
+        /// at-target band): evidence that also appears earlier in a start
+        /// means this phase only after the heat.
+        bool after_heat = false;
     };
 
     /**

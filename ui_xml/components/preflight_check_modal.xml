@@ -12,7 +12,7 @@
         extends="ui_dialog" width="70%" height="content" align="center" flex_flow="column" style_flex_main_place="start"
         style_pad_gap="0">
     <!-- Header row with warning icon + title -->
-    <modal_header icon_src="alert" icon_variant="warning" title="Check filament" title_tag="Check filament"/>
+    <modal_header icon_src="alert" icon_variant="warning" title="Check filament"/>
 
     <!-- Scrollable per-tool check list. Sizes to its rows (the dialog itself is
          height="content", so flex_grow has no free space to claim and would
@@ -35,7 +35,7 @@
          avoid double-wiring. The tertiary button is hidden from C++ when the
          active backend's remap strategy is None. -->
     <modal_button_row hide_tertiary="false"
-                      tertiary_variant="primary" tertiary_text="Remap…" tertiary_tag="Remap…" secondary_text="Cancel"
-                      secondary_tag="Cancel" primary_text="Print Anyway" primary_tag="Print Anyway"/>
+                      tertiary_variant="primary" tertiary_text="Remap…" secondary_text="Cancel"
+                      primary_text="Print Anyway"/>
   </view>
 </component>

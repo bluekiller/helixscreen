@@ -25,8 +25,7 @@
               width="100%" height="content" flex_flow="column" style_pad_left="#space_sm" style_pad_right="#space_sm"
               style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xxs" clickable="false" event_bubble="true">
         <bind_flag_if_eq subject="print_status_title_hidden" flag="hidden" ref_value="1"/>
-        <text_small text="Print Library"
-                    translation_tag="Print Library" text_transform="uppercase" clickable="false" event_bubble="true"/>
+        <text_small text="Print Library" text_transform="uppercase" clickable="false" event_bubble="true"/>
         <divider_horizontal/>
       </lv_obj>
       <!-- Body: thumbnail left, action list right.
@@ -52,7 +51,7 @@
             <icon src="folder" size="sm" clickable="false" event_bubble="true">
               <bind_flag_if_eq subject="print_status_column_mode" flag="hidden" ref_value="1"/>
             </icon>
-            <text_small text="Print Files" translation_tag="Print Files" clickable="false" event_bubble="true"/>
+            <text_small text="Print Files" clickable="false" event_bubble="true"/>
             <event_cb trigger="clicked" callback="library_files_cb"/>
           </ui_button>
           <ui_button name="library_row_last" width="100%" height="#button_height_sm" variant="outline" layout="row">
@@ -60,8 +59,7 @@
             <icon src="clock" size="sm" clickable="false" event_bubble="true">
               <bind_flag_if_eq subject="print_status_column_mode" flag="hidden" ref_value="1"/>
             </icon>
-            <text_small name="library_last_label"
-                        text="Reprint Last" translation_tag="Reprint Last" clickable="false" event_bubble="true"/>
+            <text_small name="library_last_label" text="Reprint Last" clickable="false" event_bubble="true"/>
             <event_cb trigger="clicked" callback="library_last_cb"/>
           </ui_button>
           <ui_button name="library_row_recent" width="100%" height="#button_height_sm" variant="outline" layout="row">
@@ -69,7 +67,7 @@
             <icon src="star" size="sm" clickable="false" event_bubble="true">
               <bind_flag_if_eq subject="print_status_column_mode" flag="hidden" ref_value="1"/>
             </icon>
-            <text_small text="Recent Prints" translation_tag="Recent Prints" clickable="false" event_bubble="true"/>
+            <text_small text="Recent Prints" clickable="false" event_bubble="true"/>
             <event_cb trigger="clicked" callback="library_recent_cb"/>
           </ui_button>
           <ui_button name="library_row_queue" width="100%" height="#button_height_sm" variant="outline" layout="row">
@@ -77,8 +75,7 @@
             <icon src="progress_clock" size="sm" clickable="false" event_bubble="true">
               <bind_flag_if_eq subject="print_status_column_mode" flag="hidden" ref_value="1"/>
             </icon>
-            <text_small name="library_queue_label"
-                        text="Job Queue" translation_tag="Job Queue" clickable="false" event_bubble="true"/>
+            <text_small name="library_queue_label" text="Job Queue" clickable="false" event_bubble="true"/>
             <event_cb trigger="clicked" callback="library_queue_cb"/>
           </ui_button>
         </lv_obj>
@@ -105,15 +102,11 @@
       <lv_image name="print_card_thumb_compact"
                 width="100%" flex_grow="1" src="A:assets/images/benchy_thumbnail_white.png" inner_align="contain"
                 clickable="false" event_bubble="true"/>
-      <ui_button name="compact_row_files"
-                 width="100%" height="#button_height_sm" variant="outline" text="Print Files"
-                 translation_tag="Print Files">
+      <ui_button name="compact_row_files" width="100%" height="#button_height_sm" variant="outline" text="Print Files">
         <bind_flag_if_eq subject="print_status_files_hidden" flag="hidden" ref_value="1"/>
         <event_cb trigger="clicked" callback="library_files_cb"/>
       </ui_button>
-      <ui_button name="compact_row_last"
-                 width="100%" height="#button_height_sm" variant="outline" text="Reprint Last"
-                 translation_tag="Reprint Last">
+      <ui_button name="compact_row_last" width="100%" height="#button_height_sm" variant="outline" text="Reprint Last">
         <bind_flag_if_eq subject="print_status_last_hidden" flag="hidden" ref_value="1"/>
         <event_cb trigger="clicked" callback="library_last_cb"/>
       </ui_button>
@@ -145,7 +138,7 @@
                  style_pad_top="#space_xxs" style_pad_bottom="#space_xxs" style_pad_gap="#space_xs">
         <bind_flag_if_not_eq subject="print_state_enum" flag="hidden" ref_value="2"/>
         <lv_label text="#icon_pause" style_text_font="mdi_icons_16" event_bubble="true"/>
-        <text_small text="Paused" translation_tag="Paused" event_bubble="true"/>
+        <text_small text="Paused" event_bubble="true"/>
       </ui_button>
       <!-- Library active body — visibility driven by print_status_view (3). -->
       <lv_obj name="print_card_layout"
@@ -165,7 +158,7 @@
                 style_flex_cross_place="center" style_pad_gap="#space_xs" scrollable="false" hidden="true"
                 clickable="false" event_bubble="true">
           <bind_flag_if_eq subject="print_start_phase" flag="hidden" ref_value="0"/>
-          <text_body text="Preparing Print" translation_tag="Preparing Print" clickable="false" event_bubble="true"/>
+          <text_body text="Preparing Print" clickable="false" event_bubble="true"/>
           <progress_bar name="print_start_bar"
                         width="90%" bind_value="print_start_progress" clickable="false" event_bubble="true"/>
           <text_small bind_text="print_start_message" clickable="false" event_bubble="true"/>

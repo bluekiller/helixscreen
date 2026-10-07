@@ -30,8 +30,7 @@
         <bind_tile_rung ladder="value" subject="$tile_icon_subject"/>
       </text_tiny>
       <text_tiny text="Width"
-                 translation_tag="Width" style_text_align="center" style_text_color="#text_muted" clickable="false"
-                 event_bubble="true">
+                 style_text_align="center" style_text_color="#text_muted" clickable="false" event_bubble="true">
         <bind_tile_rung ladder="label" subject="$tile_icon_subject"/>
         <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>
         <bind_flag_if_eq subject="$tile_label_subject" flag="hidden" ref_value="0"/>
