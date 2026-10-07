@@ -230,6 +230,17 @@ stop_forgex_competing_uis() {
     fi
 }
 
+# PIDs of python processes running KlipperScreen's screen.py, one per line.
+# BusyBox ps doesn't support 'aux', so this uses the portable -ef.
+_kmod_klipperscreen_pids() {
+    # shellcheck disable=SC2009
+    ps -ef 2>/dev/null | grep -E 'KlipperScreen.*screen\.py' | grep -v grep | awk '{print $2}'
+}
+
+# Framebuffer contenders on stock K1 firmware. Monitor is listed first: it is
+# a watchdog that respawns display-server moments after a kill.
+K1_STOCK_UI_PROCS="Monitor display-server"
+
 # Stop Klipper Mod-specific competing UIs (Xorg, KlipperScreen)
 stop_kmod_competing_uis() {
     # Stop Xorg first (required for framebuffer access)
@@ -246,9 +257,7 @@ stop_kmod_competing_uis() {
     fi
 
     # Kill python processes running KlipperScreen (common on Klipper Mod)
-    # BusyBox ps doesn't support 'aux', use portable approach
-    # shellcheck disable=SC2009
-    for pid in $(ps -ef 2>/dev/null | grep -E 'KlipperScreen.*screen\.py' | grep -v grep | awk '{print $2}'); do
+    for pid in $(_kmod_klipperscreen_pids); do
         log_info "Killing KlipperScreen python process (PID $pid)..."
         $SUDO kill "$pid" 2>/dev/null || true
         found_any=true
@@ -310,9 +319,8 @@ stop_k1_stock_competing_uis() {
         fi
     fi
 
-    # Kill any remaining framebuffer contenders. Monitor dies first: it is a
-    # watchdog that respawns display-server moments after the kill below.
-    for proc in Monitor display-server; do
+    # Kill any remaining framebuffer contenders, Monitor first.
+    for proc in $K1_STOCK_UI_PROCS; do
         if kill_process_by_name "$proc"; then
             log_info "Killed remaining $proc process"
             found_any=true
@@ -406,16 +414,9 @@ _host_ships_a_stock_ui() {
     command -v _is_qidi_class_sbc >/dev/null 2>&1 && _is_qidi_class_sbc
 }
 
-# Stop the QIDI stock screen in the two shapes COMPETING_UIS cannot name.
-# Sets found_any in the caller's scope, like the sibling handlers.
-stop_qidi_competing_uis() {
-    local bin unit unit_path stopped=false
-
-    # Units before binaries: the stock screen unit sets Restart=always with
-    # StartLimitIntervalSec=0, and its start script runs the client a second
-    # time under taskset when the first exits. A process killed while its unit
-    # is still live comes straight back, once a second, with nothing to
-    # throttle it. Disabling the unit first removes both respawn paths.
+# Units whose ExecStart runs the QIDI stock screen, one per line.
+_qidi_stock_ui_units() {
+    local unit_path unit
     for unit_path in /etc/systemd/system/*.service /lib/systemd/system/*.service; do
         [ -f "$unit_path" ] || continue
         unit=$(basename "$unit_path")
@@ -424,6 +425,21 @@ stop_qidi_competing_uis() {
         case "$unit" in ${SERVICE_NAME:-helixscreen}*) continue ;; esac
         grep -E '^ExecStart=' "$unit_path" 2>/dev/null \
             | grep -qiE "$QIDI_STOCK_UI_EXEC_PATTERN" || continue
+        echo "$unit"
+    done
+}
+
+# Stop the QIDI stock screen in the two shapes COMPETING_UIS cannot name.
+# Sets found_any in the caller's scope, like the sibling handlers.
+stop_qidi_competing_uis() {
+    local bin unit stopped=false
+
+    # Units before binaries: the stock screen unit sets Restart=always with
+    # StartLimitIntervalSec=0, and its start script runs the client a second
+    # time under taskset when the first exits. A process killed while its unit
+    # is still live comes straight back, once a second, with nothing to
+    # throttle it. Disabling the unit first removes both respawn paths.
+    for unit in $(_qidi_stock_ui_units); do
         log_info "Stopping stock QIDI UI unit ($unit)..."
         _take_down_unit "$unit"
         found_any=true
@@ -467,7 +483,7 @@ install_qidi_3mf_thumbs() {
         log_warn "QIDI thumbnail units script missing under ${INSTALL_DIR}/config -- skipping"
         return 0
     fi
-    HELIX_QIDI_HOME="${HELIX_QIDI_HOME:-${KLIPPER_HOME:-}}" \
+    run_logged env HELIX_QIDI_HOME="${HELIX_QIDI_HOME:-${KLIPPER_HOME:-}}" \
         $SUDO "$units_sh" "${KLIPPER_USER:-}" "${KLIPPER_GROUP:-}" || true
     return 0
 }
@@ -666,6 +682,96 @@ stop_cc1_competing_uis() {
     for s in $CC1_SIBLING_UIS; do
         _install_cc1_sibling_wrapper "$s"
     done
+}
+
+# Add a name to COMPETING_UIS_FOUND once.
+_competing_ui_found() {
+    case " $COMPETING_UIS_FOUND " in *" $1 "*) return 0 ;; esac
+    COMPETING_UIS_FOUND="${COMPETING_UIS_FOUND:+$COMPETING_UIS_FOUND }$1"
+}
+
+# What stop_competing_uis would take down, for the plan. Read-only: the same
+# platform gates, with every stop, disable, chmod and kill left out. A stock
+# UI is listed only while it runs or would start at boot: the stop handlers
+# also re-assert a disable an earlier install made, and that is not a UI the
+# plan or the summary should claim to disable. Sets COMPETING_UIS_FOUND
+# (space-separated names, empty if none).
+detect_competing_uis() {
+    local ui initscript bin unit comp dm current_ui proc
+    COMPETING_UIS_FOUND=""
+    _is_self_update && return 0
+    [ "${HOST_OWNS_COMPETING_UIS:-}" = "1" ] && return 0
+    [ "${AD5M_FIRMWARE:-}" = "zmod" ] && return 0
+
+    if [ "${AD5M_FIRMWARE:-}" = "klipper_mod" ]; then
+        [ -x /etc/init.d/S40xorg ] && _competing_ui_found Xorg
+        [ -n "$(_kmod_klipperscreen_pids)" ] && _competing_ui_found KlipperScreen
+    fi
+    # disable_stock_firmware_ui comments the start line out of auto_run.sh.
+    if grep -qs '^/opt/PROGRAM/ffstartup-arm' /opt/auto_run.sh \
+        || pidof firmwareExe >/dev/null 2>&1 || pidof ffstartup-arm >/dev/null 2>&1; then
+        _competing_ui_found FlashForge-UI
+    fi
+    case "${K1_FIRMWARE:-}" in
+        stock_klipper|guilouz)
+            # The disable is chmod a-x on the init script.
+            [ -x /etc/init.d/S99start_app ] && _competing_ui_found Creality-UI
+            for proc in $K1_STOCK_UI_PROCS; do
+                pidof "$proc" >/dev/null 2>&1 && _competing_ui_found Creality-UI
+            done
+            ;;
+    esac
+    # Sovol and QIDI binaries are disabled by chmod a-x on the binary itself.
+    for bin in /home/sovol/printer_data/build/mksclient /home/*/printer_data/build/mksclient; do
+        [ -x "$bin" ] && _competing_ui_found mksclient
+    done
+    pidof mksclient >/dev/null 2>&1 && _competing_ui_found mksclient
+    for unit in $(_qidi_stock_ui_units); do
+        _unit_is_competing "$unit" && _competing_ui_found "${unit%.service}"
+    done
+    for bin in $QIDI_STOCK_UI_BINS; do
+        [ -x "$bin" ] && _competing_ui_found QIDI-UI
+    done
+
+    if [ "${platform:-}" = "cc1" ]; then
+        current_ui=$(config-manager ui screen_ui 2>/dev/null || echo "")
+        if [ -n "$current_ui" ] && [ -x "/etc/init.d/${current_ui}" ]; then
+            _competing_ui_found "$current_ui"
+        fi
+        return 0
+    fi
+
+    if [ -n "$PREVIOUS_UI_SCRIPT" ] && [ -x "$PREVIOUS_UI_SCRIPT" ] 2>/dev/null; then
+        _competing_ui_found "$(basename "$PREVIOUS_UI_SCRIPT")"
+    fi
+
+    for ui in $COMPETING_UIS; do
+        if [ "$INIT_SYSTEM" = "systemd" ] && _unit_is_competing "$ui"; then
+            _competing_ui_found "$ui"
+        fi
+        for initscript in /etc/init.d/S*${ui}* /etc/init.d/${ui}* /opt/config/mod/.root/S*${ui}*; do
+            [ -x "$initscript" ] && _competing_ui_found "$ui"
+        done
+        pidof "$ui" >/dev/null 2>&1 && _competing_ui_found "$ui"
+    done
+
+    for comp in $WAYLAND_COMPOSITORS; do
+        if [ "$INIT_SYSTEM" = "systemd" ]; then
+            for unit in "$comp" "${comp}@tty1"; do
+                _unit_is_competing "$unit" && _competing_ui_found "$unit"
+            done
+        fi
+        if ! _in_graphical_session && pidof "$comp" >/dev/null 2>&1; then
+            _competing_ui_found "$comp"
+        fi
+    done
+
+    if [ "$INIT_SYSTEM" = "systemd" ] && _host_ships_a_stock_ui; then
+        for dm in $DISPLAY_MANAGERS; do
+            _unit_is_competing "$dm" && _competing_ui_found "$dm"
+        done
+    fi
+    return 0
 }
 
 # Stop competing screen UIs (GuppyScreen, KlipperScreen, Xorg, etc.)

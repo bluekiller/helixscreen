@@ -41,6 +41,25 @@ class MockSpoolmanServer {
         return active_spool_id_;
     }
 
+    /// Whether /v1/external/filament/search exists, as on Spoolman 0.26.0 and
+    /// later. HELIX_MOCK_SPOOLMAN_DB_SEARCH=0 starts it off, as an older server.
+    void set_external_search_supported(bool supported) {
+        external_search_supported_ = supported;
+    }
+    /// Delay before a SpoolmanDB search answers, delivered from a worker thread
+    /// the way a real response arrives; 0 answers at once on the caller.
+    /// HELIX_MOCK_SPOOLMAN_DB_SEARCH_LATENCY_MS sets it at start.
+    void set_external_search_latency_ms(int ms) {
+        external_search_latency_ms_ = ms;
+    }
+    [[nodiscard]] int external_search_latency_ms() const {
+        return external_search_latency_ms_;
+    }
+    /// SpoolmanDB search requests answered so far.
+    [[nodiscard]] int external_search_count() const {
+        return external_search_count_;
+    }
+
     /// The inventory, for tests to inspect or reshape.
     std::vector<SpoolInfo>& get_mock_spools() {
         return spools_;
@@ -50,7 +69,8 @@ class MockSpoolmanServer {
     void add_vendor(int id, std::string name);
     /// Seeds a filament served ahead of the ones synthesized from spools; the
     /// vendor-filtered GET returns it only for its own vendor.
-    void add_filament(int id, int vendor_id, std::string material, std::string color_hex);
+    void add_filament(int id, int vendor_id, std::string material, std::string color_hex,
+                      std::string name = "");
 
     // Test inspection: request bodies as they arrived on the wire.
     struct FilamentUpdateRecord {
@@ -93,6 +113,9 @@ class MockSpoolmanServer {
     /// still serves them) but are filtered from list GETs, as Spoolman does.
     std::set<int> archived_spool_ids_;
     int active_spool_id_ = 1;
+    bool external_search_supported_ = true;
+    int external_search_latency_ms_ = 0;
+    int external_search_count_ = 0;
     int next_filament_id_ = 300;
 
     void init_mock_spools();

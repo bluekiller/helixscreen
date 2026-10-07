@@ -870,6 +870,7 @@ translations:
   Cutting: Cortando
   Cutting filament...: Cortando filamento...
   DETECTED USB PRINTERS: IMPRESSORAS USB DETECTADAS
+  DEVICES: DISPOSITIVOS
   DISABLED: DESABILITADO
   DISCOVERED PRINTERS: IMPRESSORAS DESCOBERTAS
   DISPLAY: TELA
@@ -1399,6 +1400,7 @@ translations:
   Found 1 printer: 1 impressora encontrada
   Framerate: Taxa de Quadros
   From Buffer: Do buffer
+  From SpoolmanDB: 'Do SpoolmanDB'
   From Version: Da Versão
   Front: 'Frente'
   Front Left: 'Frente esquerda'
@@ -1451,7 +1453,7 @@ translations:
   Hardware was present in previous session but is now missing: 'O hardware estava presente na sessão anterior, mas agora está ausente'
   Have a piece of paper ready.: Tenha uma folha de papel pronta.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Tenha sua ferramenta de ajuste da mesa (chave de fenda, chave Allen, etc.) pronta
     se sua mesa não for ajustada com                              rodas manuais ou
@@ -1474,6 +1476,7 @@ translations:
   Heated Bed MPC Calibration: Calibração MPC da Mesa Aquecida
   Heated Bed PID Tuning: Ajuste PID da Mesa Aquecida
   Heater: Aquecedor
+  Heater Calibration: Calibração do aquecedor
   Heater Power: Potência do Aquecedor
   Heater connection lost: Conexão do aquecedor perdida
   Heater fault: Falha do aquecedor
@@ -2095,6 +2098,7 @@ translations:
   No jobs in queue: Nenhum trabalho na fila
   No macro devices configured: Nenhum dispositivo de macro configurado
   No macros available: Nenhuma macro disponível
+  No matches in SpoolmanDB: 'Nenhum resultado no SpoolmanDB'
   No matching prints: Nenhuma impressão correspondente
   No media installed: Nenhuma mídia instalada
   No mesh data: Sem dados de malha
@@ -3120,6 +3124,7 @@ translations:
   Spoolman was not configured.: Spoolman não estava configurado.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Bobina%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Bobina%s'
+  SpoolmanDB search failed: 'Falha na busca no SpoolmanDB'
   Spools are off: "Carretéis retirados"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Há carretéis na mesa: remova-os e confirme antes de mover a impressora'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Há carretéis na mesa: toque no aviso de secagem para confirmar que foram retirados e depois reinicie.'
@@ -3704,6 +3709,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: 'Volume de filamento usado durante a compactação'
   Volume {}%: Volume {}%
+  WEIGHT SYNC: SINCRONIZAÇÃO DE PESO
   WIDTH SENSORS: SENSORES DE LARGURA
   WLED Preset: Predefinição WLED
   WPA/WPA2: 'WPA/WPA2'

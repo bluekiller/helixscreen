@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/unique_temp_dir.h"
 #include "app_constants.h"
 #include "config_backup.h"
 #include "text_io.h"
@@ -53,7 +54,7 @@ TEST_CASE("write_backup_file copies source to backup atomically", "[config_backu
     REQUIRE(helix::text_io::read_file(dst).value_or("") == R"({"key":"value"})");
 
     // Tmp file should not linger
-    REQUIRE_FALSE(fs::exists(dst + ".tmp"));
+    REQUIRE(helix::test::staging_files_beside(dst) == 0);
 }
 
 TEST_CASE("write_backup_file returns false when source does not exist", "[config_backup]") {

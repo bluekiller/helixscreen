@@ -49,19 +49,24 @@ static constexpr int32_t CLEAR_BTN_SIZE = 24;
 // ============================================================================
 
 /**
+ * Thread-local flag to prevent reentrancy during two-way binding updates.
+ */
+static thread_local bool g_updating_from_textarea = false;
+
+/**
  * Observer callback - updates textarea when subject changes.
  */
 static void textarea_text_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     if (subject->type == LV_SUBJECT_TYPE_STRING || subject->type == LV_SUBJECT_TYPE_POINTER) {
+        // With max_length set, lv_textarea_set_text() adds one character at a
+        // time and fires VALUE_CHANGED after each. Writing that partial text
+        // back would overwrite the subject buffer it is still reading from.
+        g_updating_from_textarea = true;
         lv_textarea_set_text(static_cast<lv_obj_t*>(observer->target),
                              static_cast<const char*>(subject->value.pointer));
+        g_updating_from_textarea = false;
     }
 }
-
-/**
- * Thread-local flag to prevent reentrancy during two-way binding updates.
- */
-static thread_local bool g_updating_from_textarea = false;
 
 /**
  * Event callback - updates subject when textarea text changes.
@@ -231,8 +236,8 @@ static void* ui_text_input_create(lv_xml_parser_state_t* state, const char** att
         lv_obj_set_style_pad_ver(textarea, padding, 0);
     }
 
-    // Note: Border and background styling is handled by theme_core's apply_cb
-    // which adds input_bg_style (elevated_bg color) to all textareas.
+    // Note: Border and background styling is handled by the theme's apply_cb,
+    // which adds the outlined InputBg style to all textareas.
     // We don't set inline styles here as they would override the theme.
 
     // One-line mode by default for form inputs

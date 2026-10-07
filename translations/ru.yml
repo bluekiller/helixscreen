@@ -857,6 +857,7 @@ translations:
   Cutting: Резка
   Cutting filament...: Обрезка филамента...
   DETECTED USB PRINTERS: ОБНАРУЖЕННЫЕ USB-ПРИНТЕРЫ
+  DEVICES: УСТРОЙСТВА
   DISABLED: ОТКЛЮЧЕНО
   DISCOVERED PRINTERS: НАЙДЕННЫЕ ПРИНТЕРЫ
   DISPLAY: ДИСПЛЕЙ
@@ -1383,6 +1384,7 @@ translations:
   Found 1 printer: Найден 1 принтер
   Framerate: Частота кадров
   From Buffer: Из буфера
+  From SpoolmanDB: 'Из SpoolmanDB'
   From Version: С версии
   Front: 'Спереди'
   Front Left: 'Спереди слева'
@@ -1435,7 +1437,7 @@ translations:
   Hardware was present in previous session but is now missing: 'Оборудование было в прошлом сеансе, но сейчас отсутствует'
   Have a piece of paper ready.: Подготовьте лист бумаги.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Подготовьте инструмент для регулировки стола (отвёртку, шестигранник и т.д.),
     если стол не регулируется                              барашками или другим встроенным
@@ -1457,6 +1459,7 @@ translations:
   Heated Bed MPC Calibration: Калибровка MPC стола
   Heated Bed PID Tuning: Настройка PID стола
   Heater: Нагреватель
+  Heater Calibration: Калибровка нагревателя
   Heater Power: Мощность нагревателя
   Heater connection lost: Потеряна связь с нагревателем
   Heater fault: Неисправность нагревателя
@@ -2073,6 +2076,7 @@ translations:
   No jobs in queue: Очередь пуста
   No macro devices configured: Макро-устройства не настроены
   No macros available: Нет доступных макросов
+  No matches in SpoolmanDB: 'Нет совпадений в SpoolmanDB'
   No matching prints: Нет совпадающих печатей
   No media installed: Носитель не установлен
   No mesh data: Нет данных сетки
@@ -3087,6 +3091,7 @@ translations:
   Spoolman was not configured.: Spoolman не был настроен.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu катушк%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu катушк%s'
+  SpoolmanDB search failed: 'Ошибка поиска в SpoolmanDB'
   Spools are off: "Катушки сняты"
   'Spools are on the bed: remove them and confirm before moving the printer': 'На столе лежат катушки: уберите их и подтвердите, прежде чем двигать принтер'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'На столе катушки: нажмите на баннер сушки, чтобы подтвердить, что они сняты, затем перезапустите.'
@@ -3659,6 +3664,7 @@ translations:
   Volume: Громкость
   Volume of filament used during ramming: 'Объём филамента, расходуемый при рэмминге'
   Volume {}%: Громкость {}%
+  WEIGHT SYNC: СИНХРОНИЗАЦИЯ ВЕСА
   WIDTH SENSORS: ДАТЧИКИ ШИРИНЫ
   WLED Preset: Пресет WLED
   WPA/WPA2: 'WPA/WPA2'

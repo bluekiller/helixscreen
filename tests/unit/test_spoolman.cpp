@@ -602,13 +602,15 @@ TEST_CASE("MoonrakerAPIMock - delete_spoolman_spool", "[filament][mock]") {
             [](const MoonrakerError&) {});
     }
 
-    SECTION("Deleting a non-existent spool answers Spoolman's 404") {
-        int error_code = 0;
+    SECTION("Deleting a non-existent spool answers Spoolman's 404, as Moonraker relays it") {
+        MoonrakerError got;
         api.spoolman().delete_spoolman_spool(
             9999, []() { FAIL("success should not be called"); },
-            [&](const MoonrakerError& err) { error_code = err.code; });
+            [&](const MoonrakerError& err) { got = err; });
 
-        REQUIRE(error_code == 404);
+        CHECK(got.code == -32601);
+        CHECK(got.message == "Not Found");
+        CHECK(got.is_not_found());
     }
 }
 
@@ -671,7 +673,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&](const std::optional<SpoolInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -684,7 +687,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             [&](const std::vector<SpoolInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -699,7 +703,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, patch, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -714,7 +719,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             300, patch, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -728,7 +734,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             9, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -742,7 +749,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, 500.0, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -755,7 +763,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             300, "00FF00", [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -768,7 +777,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             [&](const std::vector<VendorInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -781,7 +791,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             [&](const std::vector<FilamentInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -794,7 +805,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             2, [&](const std::vector<FilamentInfo>&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -809,7 +821,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             vendor, [&](const VendorInfo&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -825,7 +838,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             filament, [&](const FilamentInfo&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -841,7 +855,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             spool, [&](const SpoolInfo&) { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -855,7 +870,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -868,7 +884,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -881,7 +898,8 @@ TEST_CASE("MoonrakerAPIMock - Spoolman-gated methods fail when disabled", "[fila
             1, [&]() { success_called = true; },
             [&](const MoonrakerError& err) {
                 error_called = true;
-                CHECK(err.type == MoonrakerErrorType::JSON_RPC_ERROR);
+                CHECK(err.code == -32601);
+                CHECK_FALSE(err.is_not_found());
             });
         CHECK(error_called);
         CHECK_FALSE(success_called);
@@ -2016,12 +2034,12 @@ TEST_CASE("mock Spoolman has no external vendor route, as Spoolman has none", "[
     // Spoolman's external routes are /external/filament, /external/filament/search
     // and /external/material.
     MoonrakerClientMock client;
-    int code = 0;
+    MoonrakerError got;
     client.send_jsonrpc(
         "server.spoolman.proxy", {{"request_method", "GET"}, {"path", "/v1/external/vendor"}},
         [](const nlohmann::json&) { FAIL("Spoolman serves no external vendor list"); },
-        [&](const MoonrakerError& err) { code = err.code; });
-    CHECK(code == 404);
+        [&](const MoonrakerError& err) { got = err; });
+    CHECK(got.is_not_found());
 }
 
 TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[spoolman][mock]") {
@@ -2043,4 +2061,168 @@ TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[s
     CHECK(created.material == listed.material);
     CHECK(created.vendor == listed.vendor_name);
     CHECK(created.nozzle_temp_recommended == listed.nozzle_temp_max);
+}
+
+// ============================================================================
+// SpoolmanDB search
+// ============================================================================
+
+TEST_CASE("parse_external_filament reads Spoolman's ExternalFilament shape",
+          "[spoolman][spoolman_db]") {
+    using helix::spoolman_detail::parse_external_filament;
+
+    SECTION("a single-colour entry") {
+        auto f = parse_external_filament(nlohmann::json::parse(R"({
+            "id": "polymaker_pla_polyliteplablack_1000_175_n", "manufacturer": "Polymaker",
+            "name": "PolyLite PLA Black", "material": "PLA", "density": 1.24, "weight": 1000,
+            "spool_weight": 140, "diameter": 1.75, "color_hex": "1A1A1A",
+            "extruder_temp": 210, "bed_temp": 60, "translucent": false, "glow": false
+        })"));
+        REQUIRE(f.has_value());
+        CHECK(f->id == "polymaker_pla_polyliteplablack_1000_175_n");
+        CHECK(f->manufacturer == "Polymaker");
+        CHECK(f->name == "PolyLite PLA Black");
+        CHECK(f->material == "PLA");
+        CHECK(f->color_hex == "1A1A1A");
+        CHECK(f->color_hexes.empty());
+        CHECK(f->density == Catch::Approx(1.24f));
+        CHECK(f->diameter == Catch::Approx(1.75f));
+        CHECK(f->weight == Catch::Approx(1000.0f));
+        CHECK(f->spool_weight == Catch::Approx(140.0f));
+        CHECK(f->extruder_temp == 210);
+        CHECK(f->bed_temp == 60);
+    }
+
+    SECTION("a multi-colour entry with the optional fields omitted") {
+        // Spoolman serves the catalog with response_model_exclude_none.
+        auto f = parse_external_filament(nlohmann::json::parse(R"({
+            "id": "esun_silkpla_rainbow", "manufacturer": "eSUN", "name": "Silk PLA Rainbow",
+            "material": "PLA", "density": 1.24, "weight": 1000, "diameter": 1.75,
+            "color_hexes": ["E53935", "FFEB3B"], "multi_color_direction": "coaxial",
+            "translucent": false, "glow": false
+        })"));
+        REQUIRE(f.has_value());
+        CHECK(f->color_hex.empty());
+        CHECK(f->color_hexes == std::vector<std::string>{"E53935", "FFEB3B"});
+        CHECK(f->multi_color_direction == "coaxial");
+        CHECK(f->spool_weight == 0.0f);
+        CHECK(f->extruder_temp == 0);
+        CHECK(f->bed_temp == 0);
+    }
+
+    SECTION("malformed entries never throw") {
+        CHECK_FALSE(parse_external_filament(nlohmann::json::array()).has_value());
+        CHECK_FALSE(parse_external_filament(nlohmann::json("x")).has_value());
+        CHECK_FALSE(parse_external_filament(nlohmann::json::object()).has_value());
+        CHECK_FALSE(parse_external_filament({{"id", 12}, {"name", "numeric id"}}).has_value());
+
+        std::optional<ExternalFilament> f;
+        REQUIRE_NOTHROW(f = parse_external_filament({{"id", "odd"},
+                                                     {"manufacturer", nullptr},
+                                                     {"density", "heavy"},
+                                                     {"extruder_temp", nullptr},
+                                                     {"color_hexes", {"FF0000", 7, nullptr}}}));
+        REQUIRE(f.has_value());
+        CHECK(f->manufacturer.empty());
+        CHECK(f->density == 0.0f);
+        CHECK(f->extruder_temp == 0);
+        CHECK(f->color_hexes == std::vector<std::string>{"FF0000"});
+    }
+}
+
+TEST_CASE("search_spoolman_external_filaments searches the catalog through the proxy",
+          "[spoolman][spoolman_db]") {
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    auto search = [&](const std::string& query, int limit) {
+        std::vector<ExternalFilament> got;
+        bool ok = false;
+        api.spoolman().search_spoolman_external_filaments(
+            query, limit,
+            [&](const std::vector<ExternalFilament>& r) {
+                got = r;
+                ok = true;
+            },
+            [](const MoonrakerError&) {});
+        REQUIRE(ok);
+        return got;
+    };
+
+    SECTION("every word must match, case-insensitively") {
+        auto poly = search("poly", 25);
+        REQUIRE_FALSE(poly.empty());
+        for (const auto& f : poly) {
+            CHECK(f.manufacturer == "Polymaker");
+        }
+        auto petg = search("POLYMAKER petg BLUE", 25);
+        REQUIRE(petg.size() == 1);
+        CHECK(petg[0].name == "PolyLite PETG Blue");
+    }
+
+    SECTION("the limit caps the results") {
+        CHECK(search("pla", 2).size() == 2);
+    }
+
+    SECTION("an older server answers not-found") {
+        client.spoolman_mock().set_external_search_supported(false);
+        MoonrakerError got;
+        api.spoolman().search_spoolman_external_filaments(
+            "poly", 25, [](const std::vector<ExternalFilament>&) { FAIL("no route"); },
+            [&](const MoonrakerError& err) { got = err; });
+        CHECK(got.is_not_found());
+    }
+}
+
+TEST_CASE("mock Spoolman names the vendor of a filament created on a listed vendor",
+          "[spoolman][mock]") {
+    // Spoolman serves a filament with its whole vendor, whichever vendor it was
+    // created under.
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    std::vector<VendorInfo> vendors;
+    api.spoolman().get_spoolman_vendors([&](const std::vector<VendorInfo>& v) { vendors = v; },
+                                        nullptr);
+    REQUIRE_FALSE(vendors.empty());
+
+    FilamentInfo created;
+    api.spoolman().create_spoolman_filament(
+        {{"vendor_id", vendors.front().id},
+         {"material", "PLA"},
+         {"density", 1.24},
+         {"diameter", 1.75}},
+        [&](const FilamentInfo& f) { created = f; }, nullptr);
+    CHECK(created.vendor_name == vendors.front().name);
+}
+
+TEST_CASE("mock Spoolman serves only the asked vendor's filaments", "[spoolman][mock]") {
+    // The spool wizard's filament step lists exactly what /v1/filament?vendor.id= returns.
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    std::vector<VendorInfo> vendors;
+    api.spoolman().get_spoolman_vendors([&](const std::vector<VendorInfo>& v) { vendors = v; },
+                                        nullptr);
+    std::vector<FilamentInfo> all;
+    api.spoolman().get_spoolman_filaments([&](const std::vector<FilamentInfo>& f) { all = f; },
+                                          nullptr);
+    REQUIRE(vendors.size() > 1);
+
+    size_t served = 0;
+    for (const auto& vendor : vendors) {
+        std::vector<FilamentInfo> got;
+        api.spoolman().get_spoolman_filaments(
+            vendor.id, [&](const std::vector<FilamentInfo>& f) { got = f; }, nullptr);
+        for (const auto& f : got) {
+            CHECK(f.vendor_id == vendor.id);
+            CHECK(f.vendor_name == vendor.name);
+        }
+        served += got.size();
+    }
+    // Every listed filament belongs to exactly one vendor.
+    CHECK(served == all.size());
 }

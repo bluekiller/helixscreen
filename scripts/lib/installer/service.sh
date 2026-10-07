@@ -464,7 +464,7 @@ install_service_systemd() {
     _sed_inplace "s|@@HELIX_GROUP@@|${helix_group}|g" "$service_dest"
     _template_install_paths "$service_dest"
 
-    if ! $SUDO systemctl daemon-reload; then
+    if ! run_logged $SUDO systemctl daemon-reload; then
         log_error "Failed to reload systemd daemon."
         exit 1
     fi
@@ -542,8 +542,8 @@ update_watcher_if_stale() {
         $SUDO cp "$path_src" "$path_dest"
         $SUDO cp "$svc_src" "$svc_dest"
         _template_install_paths "$path_dest" "$svc_dest"
-        $SUDO systemctl daemon-reload 2>/dev/null || true
-        $SUDO systemctl restart helixscreen-update.path 2>/dev/null || true
+        run_logged $SUDO systemctl daemon-reload || true
+        run_logged $SUDO systemctl restart helixscreen-update.path || true
         log_success "Updated watcher units ($reason)"
     fi
 }
@@ -564,9 +564,9 @@ install_update_watcher_systemd() {
     $SUDO cp "$svc_src" "$svc_dest"
     _template_install_paths "$path_dest" "$svc_dest"
 
-    $SUDO systemctl daemon-reload
-    $SUDO systemctl enable helixscreen-update.path 2>/dev/null || true
-    $SUDO systemctl start helixscreen-update.path 2>/dev/null || true
+    run_logged $SUDO systemctl daemon-reload
+    run_logged $SUDO systemctl enable helixscreen-update.path || true
+    run_logged $SUDO systemctl start helixscreen-update.path || true
 
     log_info "Installed update watcher (helixscreen-update.path)"
 }
@@ -696,6 +696,14 @@ start_service_snapmaker_u1() {
     log_warn "Check logs: /var/log/helixscreen/launcher.log or ${INSTALL_DIR}/logs/launcher.log"
 }
 
+_enable_helixscreen_unit() {
+    # shellcheck disable=SC2086
+    if ! run_logged $SUDO systemctl enable "$SERVICE_NAME"; then
+        log_error "Failed to enable ${SERVICE_NAME} service."
+        return 1
+    fi
+}
+
 # Start service (systemd)
 start_service_systemd() {
     log_info "Enabling and starting HelixScreen (systemd)..."
@@ -708,10 +716,7 @@ start_service_systemd() {
         return 0
     fi
 
-    if ! $SUDO systemctl enable "$SERVICE_NAME"; then
-        log_error "Failed to enable ${SERVICE_NAME} service."
-        exit 1
-    fi
+    _enable_helixscreen_unit || exit 1
 
     # "systemctl start" is a no-op when the service is already active, which
     # would leave the OLD (pre-upgrade) binary running while we report success
@@ -722,7 +727,7 @@ start_service_systemd() {
         action=restart
     fi
 
-    if ! $SUDO systemctl "$action" "$SERVICE_NAME"; then
+    if ! run_logged $SUDO systemctl "$action" "$SERVICE_NAME"; then
         log_error "Failed to start ${SERVICE_NAME} service."
         log_error "Check logs with: sudo journalctl -u ${SERVICE_NAME} -n 50"
         exit 1
@@ -865,7 +870,7 @@ stop_service() {
             log_info "Skipping service stop (NoNewPrivileges; restart via watchdog)"
         elif systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
             log_info "Stopping existing HelixScreen service (systemd)..."
-            $SUDO systemctl stop "$SERVICE_NAME" || true
+            run_logged $SUDO systemctl stop "$SERVICE_NAME" || true
         fi
     else
         # During in-app self-update, the app must stay running so the user sees

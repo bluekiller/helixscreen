@@ -21,6 +21,13 @@ struct ProbeOverlayTestAccess {
         snprintf(o.probe_config_edit_value_buf_, sizeof(o.probe_config_edit_value_buf_), "%s",
                  value.c_str());
     }
+    /// A printer.cfg value as load_config_values() records it.
+    static void stage_configured(ProbeOverlay& o, const std::string& key, const std::string& v) {
+        o.probe_cfg_configured_[key] = v;
+    }
+    static std::string edit_value(ProbeOverlay& o) {
+        return o.probe_config_edit_value_buf_;
+    }
     static void save(ProbeOverlay& o) {
         o.handle_config_save();
     }

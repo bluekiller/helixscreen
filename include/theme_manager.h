@@ -34,6 +34,7 @@ enum class StyleRole {
     InputBg,
     Disabled,
     Pressed,
+    CardPressed,
     Focused,
     TextPrimary,
     TextMuted,
@@ -100,8 +101,19 @@ struct ThemePalette {
 };
 
 namespace helix {
+enum class PlatformTier;
+
 /// Style configure function type - applies palette colors to a style.
 using StyleConfigureFn = void (*)(lv_style_t* style, const ThemePalette& palette);
+
+/// Pressed state: a scale-down where pressed_scale_allowed(tier). Elsewhere a
+/// non-null `ring` palette adds a primary outline, which renders without
+/// a layer; null adds nothing (buttons keep the LVGL theme's recolor).
+void configure_pressed_for_tier(lv_style_t* style, PlatformTier tier,
+                                const ThemePalette* ring = nullptr);
+
+/// The card Pressed role: configure_pressed_for_tier with the primary ring.
+void configure_card_pressed(lv_style_t* style, const ThemePalette& palette);
 
 /**
  * @brief Breakpoint suffix for the nav_width token, e.g. "_small".
@@ -737,6 +749,17 @@ lv_color_t theme_manager_get_readable_on(lv_color_t fill);
 namespace helix {
 /// WCAG contrast ratio between two colors (1.0 = identical, 21 = black on white).
 double contrast_ratio(lv_color_t a, lv_color_t b);
+
+/// Contrast a field outline must reach on every surface a field can sit on:
+/// WCAG 1.4.11 non-text contrast for a component boundary.
+inline constexpr double kFieldOutlineContrastThreshold = 3.0;
+
+/// Outline colour for unfilled input fields. Starts from the palette's
+/// text_subtle and shifts it the least amount needed to clear 3:1 against the
+/// screen, overlay, card and elevated (dialog) surfaces, since a field has no
+/// fill of its own and shows whichever one is behind it.
+lv_color_t field_outline_color(lv_color_t text_subtle, lv_color_t screen_bg, lv_color_t overlay_bg,
+                               lv_color_t card_bg, lv_color_t elevated_bg);
 } // namespace helix
 
 /// Contrast a text colour must reach on its fill: 4:1, between WCAG AA

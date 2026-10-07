@@ -18,8 +18,8 @@
       <setting_group name="switch_sensors_section">
         <bind_flag_if_eq subject="filament_sensor_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="SWITCH SENSORS"
-                              title_tag="Switch Sensors" icon="electric_switch" badge_name="switch_sensor_count"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
+                              title_tag="SWITCH SENSORS" icon="electric_switch" badge_name="switch_sensor_count"
+                              badge_text="0" hide_badge="false"/>
         <!-- Section content with inner padding -->
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
@@ -51,8 +51,8 @@
       <setting_group name="probe_sensors_section">
         <bind_flag_if_eq subject="probe_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="PROBE SENSORS"
-                              title_tag="Probe Sensors" icon="arrow_down_bold" badge_name="probe_sensor_count_label"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
+                              title_tag="PROBE SENSORS" icon="arrow_down_bold" badge_name="probe_sensor_count_label"
+                              badge_text="0" hide_badge="false"/>
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">
@@ -71,8 +71,8 @@
       <setting_group name="width_sensors_section">
         <bind_flag_if_eq subject="width_sensor_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="WIDTH SENSORS"
-                              title_tag="Width Sensors" icon="ruler" badge_name="width_sensor_count_label"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
+                              title_tag="WIDTH SENSORS" icon="ruler" badge_name="width_sensor_count_label"
+                              badge_text="0" hide_badge="false"/>
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">
@@ -91,8 +91,8 @@
       <setting_group name="humidity_sensors_section">
         <bind_flag_if_eq subject="humidity_sensor_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="HUMIDITY SENSORS"
-                              title_tag="Humidity Sensors" icon="water" badge_name="humidity_sensor_count_label"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
+                              title_tag="HUMIDITY SENSORS" icon="water" badge_name="humidity_sensor_count_label"
+                              badge_text="0" hide_badge="false"/>
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">
@@ -111,8 +111,8 @@
       <setting_group name="accel_sensors_section">
         <bind_flag_if_eq subject="accel_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="ACCELEROMETERS"
-                              title_tag="Accelerometers" icon="waveform" badge_name="accel_sensor_count_label"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
+                              title_tag="ACCELEROMETERS" icon="waveform" badge_name="accel_sensor_count_label"
+                              badge_text="0" hide_badge="false"/>
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">
@@ -131,8 +131,8 @@
       <setting_group name="load_cells_section">
         <bind_flag_if_eq subject="load_cell_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="LOAD CELLS"
-                              title_tag="Load Cells" icon="weight" badge_name="load_cell_count_label" badge_text="0"
-                              hide_badge="false" hide_icon="false"/>
+                              title_tag="LOAD CELLS" icon="weight" badge_name="load_cell_count_label" badge_text="0"
+                              hide_badge="false"/>
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">
@@ -151,8 +151,8 @@
       <setting_group name="temp_sensors_section">
         <bind_flag_if_eq subject="temp_sensor_count" flag="hidden" ref_value="0"/>
         <setting_group_header title="TEMPERATURE SENSORS"
-                              title_tag="Temperature Sensors" icon="thermometer" badge_name="temp_sensor_count_label"
-                              badge_text="0" hide_badge="false" hide_icon="false"/>
+                              title_tag="TEMPERATURE SENSORS" icon="thermometer" badge_name="temp_sensor_count_label"
+                              badge_text="0" hide_badge="false"/>
         <lv_obj width="100%"
                 height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
                 style_pad_bottom="#space_md" scrollable="false" flex_flow="column" style_pad_gap="#space_sm">

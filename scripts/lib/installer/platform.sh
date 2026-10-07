@@ -821,6 +821,10 @@ detect_pi_install_dir() {
 # tries candidates in order, picks first writable dir with >= 100MB free.
 # User can override via TMP_DIR env var.
 # Sets: TMP_DIR
+#
+# Writability is probed as the invoking user, never through sudo: this runs
+# before the confirm point, where sudo must not prompt, and download_release
+# creates TMP_DIR and writes the archive into it as that user anyway.
 detect_tmp_dir() {
     # User already set TMP_DIR — respect it, but only after the ownership and
     # name guards. TMP_DIR is rm -rf'd on both the success and the failure
@@ -902,7 +906,7 @@ detect_tmp_dir() {
         if [ ! -d "$check_dir" ]; then
             continue
         fi
-        if [ ! -w "$check_dir" ] && ! $SUDO test -w "$check_dir" 2>/dev/null; then
+        if [ ! -w "$check_dir" ]; then
             continue
         fi
 
@@ -976,8 +980,9 @@ resolve_chroot_daemon_dir() {
 
 # /data doubles as Moonraker's gcodes root on the AD5M (the gcodes path is a
 # symlink to the whole partition), so anything of ours left at its top level
-# is a folder or file in the user's print-file picker. Swept at install time:
-# the in-app updater removes its own archive, but nothing else ever does.
+# is a folder or file in the user's print-file picker. main() sweeps it after
+# the confirm point: the in-app updater removes its own archive, but nothing
+# else ever does.
 # AD5M_GCODES_ROOT is the test seam; nothing on a device ever sets it.
 cleanup_ad5m_gcodes_root() {
     local _root="${AD5M_GCODES_ROOT:-/data}"
@@ -1070,7 +1075,6 @@ set_install_paths() {
         # plain-named root, once migrate_state_root() has carried it across.
         # shellcheck disable=SC2034  # consumed by release.sh (stale cache reclaim)
         STALE_CACHE_DIRS="/data/helixscreen/cache"
-        cleanup_ad5m_gcodes_root
     elif [ "$platform" = "ad5x" ]; then
         # FlashForge AD5X - uses ZMOD, /usr/data structure, runs as root
         KLIPPER_USER="root"
@@ -1724,7 +1728,8 @@ setup_config_symlink() {
     done
 
     log_success "Config directory: $pd_helix"
-    log_info "You can now edit HelixScreen config from Mainsail/Fluidd"
+    # shellcheck disable=SC2034  # consumed by plan.sh (print_summary)
+    HELIX_CONFIG_EDITABLE="$pd_helix"
     return 0
 }
 
@@ -1768,7 +1773,7 @@ remove_config_symlink() {
 
     # Leave printer_data/config/helixscreen/ directory intact — user's config files
     if [ -d "$pd_helix" ]; then
-        log_info "User config preserved at: $pd_helix"
+        log_note "User config preserved at: $(display_path "$pd_helix")"
     fi
 
     return 0
@@ -1829,7 +1834,7 @@ fix_ad5m_klipper_config() {
     $SUDO mv "$tmp_file" "$target_file"
 
     if grep -qw 'CCW-M4' "$target_file"; then
-        log_success "Fixed AD5M screw_thread: CW-M4 → CCW-M4"
+        log_note "Fixed AD5M screw_thread: CW-M4 → CCW-M4"
     else
         log_warn "Failed to fix screw_thread, restoring backup"
         $SUDO cp "$backup_file" "$target_file"

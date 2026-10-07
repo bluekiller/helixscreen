@@ -778,6 +778,7 @@
   <translation tag="Cutting" en="Cutting"/>
   <translation tag="Cutting filament..." en="Cutting filament..."/>
   <translation tag="DETECTED USB PRINTERS" en="DETECTED USB PRINTERS"/>
+  <translation tag="DEVICES" en="DEVICES"/>
   <translation tag="DISABLED" en="DISABLED"/>
   <translation tag="DISCOVERED PRINTERS" en="DISCOVERED PRINTERS"/>
   <translation tag="DISPLAY" en="DISPLAY"/>
@@ -1267,6 +1268,7 @@
   <translation tag="Found 1 printer" en="Found 1 printer"/>
   <translation tag="Framerate" en="Framerate"/>
   <translation tag="From Buffer" en="From Buffer"/>
+  <translation tag="From SpoolmanDB" en="From SpoolmanDB"/>
   <translation tag="From Version" en="From Version"/>
   <translation tag="Front" en="Front"/>
   <translation tag="Front Left" en="Front Left"/>
@@ -1315,7 +1317,7 @@
   <translation tag="Hardware saved to config" en="Hardware saved to config"/>
   <translation tag="Hardware was present in previous session but is now missing" en="Hardware was present in previous session but is now missing"/>
   <translation tag="Have a piece of paper ready." en="Have a piece of paper ready."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." en="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." en="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism."/>
   <translation tag="Heading" en="Heading"/>
   <translation tag="Healthy" en="Healthy"/>
   <translation tag="Heat Capacity" en="Heat Capacity"/>
@@ -1332,6 +1334,7 @@
   <translation tag="Heated Bed MPC Calibration" en="Heated Bed MPC Calibration"/>
   <translation tag="Heated Bed PID Tuning" en="Heated Bed PID Tuning"/>
   <translation tag="Heater" en="Heater"/>
+  <translation tag="Heater Calibration" en="Heater Calibration"/>
   <translation tag="Heater Power" en="Heater Power"/>
   <translation tag="Heater connection lost" en="Heater connection lost"/>
   <translation tag="Heater fault" en="Heater fault"/>
@@ -1886,6 +1889,7 @@
   <translation tag="No jobs in queue" en="No jobs in queue"/>
   <translation tag="No macro devices configured" en="No macro devices configured"/>
   <translation tag="No macros available" en="No macros available"/>
+  <translation tag="No matches in SpoolmanDB" en="No matches in SpoolmanDB"/>
   <translation tag="No matching prints" en="No matching prints"/>
   <translation tag="No media installed" en="No media installed"/>
   <translation tag="No mesh data" en="No mesh data"/>
@@ -2805,6 +2809,7 @@
   <translation tag="Spoolman was not configured." en="Spoolman was not configured."/>
   <translation tag="Spoolman: %zu Spool%s" en="Spoolman: %zu Spool%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" en="Spoolman: %zu/%zu Spool%s"/>
+  <translation tag="SpoolmanDB search failed" en="SpoolmanDB search failed"/>
   <translation tag="Spools are off" en="Spools are off"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" en="Spools are on the bed: remove them and confirm before moving the printer"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." en="Spools are on the bed: tap the drying banner to confirm they are off, then restart."/>
@@ -3294,6 +3299,7 @@
   <translation tag="Volume" en="Volume"/>
   <translation tag="Volume of filament used during ramming" en="Volume of filament used during ramming"/>
   <translation tag="Volume {}%" en="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" en="WEIGHT SYNC"/>
   <translation tag="WIDTH SENSORS" en="WIDTH SENSORS"/>
   <translation tag="WLED Preset" en="WLED Preset"/>
   <translation tag="WPA/WPA2" en="WPA/WPA2"/>

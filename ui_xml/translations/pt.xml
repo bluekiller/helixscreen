@@ -778,6 +778,7 @@
   <translation tag="Cutting" pt="Cortando"/>
   <translation tag="Cutting filament..." pt="Cortando filamento..."/>
   <translation tag="DETECTED USB PRINTERS" pt="IMPRESSORAS USB DETECTADAS"/>
+  <translation tag="DEVICES" pt="DISPOSITIVOS"/>
   <translation tag="DISABLED" pt="DESABILITADO"/>
   <translation tag="DISCOVERED PRINTERS" pt="IMPRESSORAS DESCOBERTAS"/>
   <translation tag="DISPLAY" pt="TELA"/>
@@ -1267,6 +1268,7 @@
   <translation tag="Found 1 printer" pt="1 impressora encontrada"/>
   <translation tag="Framerate" pt="Taxa de Quadros"/>
   <translation tag="From Buffer" pt="Do buffer"/>
+  <translation tag="From SpoolmanDB" pt="Do SpoolmanDB"/>
   <translation tag="From Version" pt="Da Versão"/>
   <translation tag="Front" pt="Frente"/>
   <translation tag="Front Left" pt="Frente esquerda"/>
@@ -1315,7 +1317,7 @@
   <translation tag="Hardware saved to config" pt="Hardware salvo na configuração"/>
   <translation tag="Hardware was present in previous session but is now missing" pt="O hardware estava presente na sessão anterior, mas agora está ausente"/>
   <translation tag="Have a piece of paper ready." pt="Tenha uma folha de papel pronta."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." pt="Tenha sua ferramenta de ajuste da mesa (chave de fenda, chave Allen, etc.) pronta se sua mesa não for ajustada com                              rodas manuais ou algum outro mecanismo embutido."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." pt="Tenha sua ferramenta de ajuste da mesa (chave de fenda, chave Allen, etc.) pronta se sua mesa não for ajustada com                              rodas manuais ou algum outro mecanismo embutido."/>
   <translation tag="Heading" pt="Título"/>
   <translation tag="Healthy" pt="Em ordem"/>
   <translation tag="Heat Capacity" pt="Capacidade Calorífica"/>
@@ -1332,6 +1334,7 @@
   <translation tag="Heated Bed MPC Calibration" pt="Calibração MPC da Mesa Aquecida"/>
   <translation tag="Heated Bed PID Tuning" pt="Ajuste PID da Mesa Aquecida"/>
   <translation tag="Heater" pt="Aquecedor"/>
+  <translation tag="Heater Calibration" pt="Calibração do aquecedor"/>
   <translation tag="Heater Power" pt="Potência do Aquecedor"/>
   <translation tag="Heater connection lost" pt="Conexão do aquecedor perdida"/>
   <translation tag="Heater fault" pt="Falha do aquecedor"/>
@@ -1886,6 +1889,7 @@
   <translation tag="No jobs in queue" pt="Nenhum trabalho na fila"/>
   <translation tag="No macro devices configured" pt="Nenhum dispositivo de macro configurado"/>
   <translation tag="No macros available" pt="Nenhuma macro disponível"/>
+  <translation tag="No matches in SpoolmanDB" pt="Nenhum resultado no SpoolmanDB"/>
   <translation tag="No matching prints" pt="Nenhuma impressão correspondente"/>
   <translation tag="No media installed" pt="Nenhuma mídia instalada"/>
   <translation tag="No mesh data" pt="Sem dados de malha"/>
@@ -2805,6 +2809,7 @@
   <translation tag="Spoolman was not configured." pt="Spoolman não estava configurado."/>
   <translation tag="Spoolman: %zu Spool%s" pt="Spoolman: %zu Bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" pt="Spoolman: %zu/%zu Bobina%s"/>
+  <translation tag="SpoolmanDB search failed" pt="Falha na busca no SpoolmanDB"/>
   <translation tag="Spools are off" pt="Carretéis retirados"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" pt="Há carretéis na mesa: remova-os e confirme antes de mover a impressora"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." pt="Há carretéis na mesa: toque no aviso de secagem para confirmar que foram retirados e depois reinicie."/>
@@ -3294,6 +3299,7 @@
   <translation tag="Volume" pt="Volume"/>
   <translation tag="Volume of filament used during ramming" pt="Volume de filamento usado durante a compactação"/>
   <translation tag="Volume {}%" pt="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" pt="SINCRONIZAÇÃO DE PESO"/>
   <translation tag="WIDTH SENSORS" pt="SENSORES DE LARGURA"/>
   <translation tag="WLED Preset" pt="Predefinição WLED"/>
   <translation tag="WPA/WPA2" pt="WPA/WPA2"/>

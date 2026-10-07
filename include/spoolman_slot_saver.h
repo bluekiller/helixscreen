@@ -205,18 +205,10 @@ class SpoolmanSlotSaver {
                                ErrorCallback on_error);
 
     /**
-     * @brief Normalize a hex color string for case-insensitive comparison.
-     *        Strips leading "#", upper-cases, returns empty string on invalid input
-     *        (not exactly 6 hex chars).
-     */
-    static std::string normalize_color_hex(const std::string& in);
-
-    /**
      * @brief Resolve a (vendor_id, material, color_hex) triple to a Spoolman filament_id,
      *        creating a new filament if none matches.
      *
-     * Match is: vendor_id exact; material exact (case-sensitive);
-     * color_hex case-insensitive via normalize_color_hex() on both sides.
+     * Match is vendor_id exact plus spoolman::find_matching_filament().
      *
      * On create, POSTs `{vendor_id, material, color_hex, name}`, where `name`
      * is `filament_name` when the slot carries one and falls back to `material`

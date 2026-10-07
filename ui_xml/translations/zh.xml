@@ -778,6 +778,7 @@
   <translation tag="Cutting" zh="切割中"/>
   <translation tag="Cutting filament..." zh="正在切断耗材..."/>
   <translation tag="DETECTED USB PRINTERS" zh="已检测到的 USB 打印机"/>
+  <translation tag="DEVICES" zh="设备"/>
   <translation tag="DISABLED" zh="已禁用"/>
   <translation tag="DISCOVERED PRINTERS" zh="已发现的打印机"/>
   <translation tag="DISPLAY" zh="显示"/>
@@ -1267,6 +1268,7 @@
   <translation tag="Found 1 printer" zh="找到 1 台打印机"/>
   <translation tag="Framerate" zh="帧率"/>
   <translation tag="From Buffer" zh="来自缓冲区"/>
+  <translation tag="From SpoolmanDB" zh="来自 SpoolmanDB"/>
   <translation tag="From Version" zh="起始版本"/>
   <translation tag="Front" zh="前"/>
   <translation tag="Front Left" zh="左前"/>
@@ -1315,7 +1317,7 @@
   <translation tag="Hardware saved to config" zh="硬件已保存到配置"/>
   <translation tag="Hardware was present in previous session but is now missing" zh="硬件在上次会话中存在，但现在缺失"/>
   <translation tag="Have a piece of paper ready." zh="请准备好一张纸。"/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." zh="如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。"/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." zh="如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。"/>
   <translation tag="Heading" zh="标题"/>
   <translation tag="Healthy" zh="正常"/>
   <translation tag="Heat Capacity" zh="热容量"/>
@@ -1332,6 +1334,7 @@
   <translation tag="Heated Bed MPC Calibration" zh="热床 MPC 校准"/>
   <translation tag="Heated Bed PID Tuning" zh="热床 PID 调优"/>
   <translation tag="Heater" zh="加热器"/>
+  <translation tag="Heater Calibration" zh="加热器校准"/>
   <translation tag="Heater Power" zh="加热器功率"/>
   <translation tag="Heater connection lost" zh="加热器连接丢失"/>
   <translation tag="Heater fault" zh="加热器故障"/>
@@ -1886,6 +1889,7 @@
   <translation tag="No jobs in queue" zh="队列中无任务"/>
   <translation tag="No macro devices configured" zh="未配置宏设备"/>
   <translation tag="No macros available" zh="无可用宏"/>
+  <translation tag="No matches in SpoolmanDB" zh="SpoolmanDB 中无匹配项"/>
   <translation tag="No matching prints" zh="没有匹配的打印"/>
   <translation tag="No media installed" zh="未安装介质"/>
   <translation tag="No mesh data" zh="没有网格数据"/>
@@ -2805,6 +2809,7 @@
   <translation tag="Spoolman was not configured." zh="Spoolman 未配置。"/>
   <translation tag="Spoolman: %zu Spool%s" zh="Spoolman: %zu 个线轴%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" zh="Spoolman: %zu/%zu 个线轴%s"/>
+  <translation tag="SpoolmanDB search failed" zh="SpoolmanDB 搜索失败"/>
   <translation tag="Spools are off" zh="料盘已取下"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" zh="热床上有料盘：请先移除并确认，再移动打印机"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." zh="热床上有料盘:点击烘干横幅确认已取下,然后再重启。"/>
@@ -3294,6 +3299,7 @@
   <translation tag="Volume" zh="音量"/>
   <translation tag="Volume of filament used during ramming" zh="填充过程中使用的耗材体积"/>
   <translation tag="Volume {}%" zh="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" zh="重量同步"/>
   <translation tag="WIDTH SENSORS" zh="宽度传感器"/>
   <translation tag="WLED Preset" zh="WLED 预设"/>
   <translation tag="WPA/WPA2" zh="WPA/WPA2"/>

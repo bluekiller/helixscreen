@@ -34,6 +34,8 @@ setup() {
         code="${sig#*:}"
         sig="${sig%%:*}"
         run dash -c "cleanup_on_success() { echo CLEANUP; }
+step_fail() { :; }
+installer_exit_report() { :; }
 $traps
 kill -$sig \$\$
 echo AFTER"

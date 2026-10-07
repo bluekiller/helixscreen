@@ -592,6 +592,13 @@ class ISpoolmanAPI {
 
     virtual void delete_spoolman_filament(int filament_id, SuccessCallback on_success,
                                           ErrorCallback on_error) = 0;
+
+    /// Search SpoolmanDB for up to @p limit filaments matching @p query word by
+    /// word. A server without the search route answers on_error with an error
+    /// whose is_not_found() is true.
+    virtual void search_spoolman_external_filaments(const std::string& query, int limit,
+                                                    helix::ExternalFilamentListCallback on_success,
+                                                    ErrorCallback on_error) = 0;
 };
 
 /**

@@ -50,6 +50,8 @@ setup() {
     local patched="$BATS_TEST_TMPDIR/competing_uis.sh"
     sed -e "s|/etc/systemd/system|$ETC_SYSTEMD|g" \
         "$WORKTREE_ROOT/scripts/lib/installer/competing_uis.sh" > "$patched"
+    # shellcheck disable=SC1091
+    . "$WORKTREE_ROOT/scripts/lib/installer/common.sh"
     unset _HELIX_COMPETING_UIS_SOURCED
     # shellcheck disable=SC1090
     . "$patched"

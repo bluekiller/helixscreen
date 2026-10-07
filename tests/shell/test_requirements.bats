@@ -495,7 +495,8 @@ echo "/dev/mmcblk0p7 4831838 4816000 10240 99% $2"
     # Mock dpkg-query to report all packages as installed
     mock_command_script "dpkg-query" 'echo "install ok installed"'
 
-    run install_runtime_deps "pi"
+    detect_then_install() { detect_missing_runtime_deps "$1" && install_runtime_deps "$1"; }
+    run detect_then_install "pi"
     [ "$status" -eq 0 ]
     contains "Checking runtime dependencies" "$output"
     [[ "$output" == *"already installed"* ]]

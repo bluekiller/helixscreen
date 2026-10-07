@@ -431,7 +431,7 @@ class MoonrakerClient : public hv::WebSocketClient, public IMoonrakerClient {
      * Increments on each connect() call. Can be used to detect stale
      * callbacks from previous connections.
      */
-    uint64_t connection_generation() const {
+    uint64_t connection_generation() const override {
         return connection_generation_.load();
     }
 

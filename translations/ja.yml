@@ -801,6 +801,7 @@ translations:
   Cutting: カット中
   Cutting filament...: フィラメントを切断中...
   DETECTED USB PRINTERS: 検出されたUSBプリンター
+  DEVICES: デバイス
   DISABLED: 無効
   DISCOVERED PRINTERS: 検出されたプリンター
   DISPLAY: ディスプレイ
@@ -1310,6 +1311,7 @@ translations:
   Found 1 printer: プリンター1台を検出
   Framerate: フレームレート
   From Buffer: バッファから
+  From SpoolmanDB: 'SpoolmanDB から'
   From Version: 更新前バージョン
   Front: '手前'
   Front Left: '左手前'
@@ -1361,7 +1363,7 @@ translations:
   Hardware was present in previous session but is now missing: '前回のセッションにあったハードウェアが見つかりません'
   Have a piece of paper ready.: 紙を1枚用意してください。
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。
   Heading: 見出し
@@ -1380,6 +1382,7 @@ translations:
   Heated Bed MPC Calibration: ヒートベッド MPCキャリブレーション
   Heated Bed PID Tuning: ヒートベッド PIDチューニング
   Heater: ヒーター
+  Heater Calibration: ヒーターキャリブレーション
   Heater Power: ヒーター出力
   Heater connection lost: ヒーター接続が切断されました
   Heater fault: ヒーター異常
@@ -1959,6 +1962,7 @@ translations:
   No jobs in queue: キューにジョブがありません
   No macro devices configured: マクロデバイスが設定されていません
   No macros available: 利用可能なマクロがありません
+  No matches in SpoolmanDB: 'SpoolmanDB に一致なし'
   No matching prints: 一致する印刷なし
   No media installed: メディアが挿入されていません
   No mesh data: メッシュデータなし
@@ -2917,6 +2921,7 @@ translations:
   Spoolman was not configured.: Spoolman は設定されていませんでした。
   'Spoolman: %zu Spool%s': 'Spoolman: %zu 個のスプール%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu 個のスプール%s'
+  SpoolmanDB search failed: 'SpoolmanDB の検索に失敗しました'
   Spools are off: "スプールを取り出しました"
   'Spools are on the bed: remove them and confirm before moving the printer': 'ベッドにスプールがあります: 取り除いて確認してからプリンターを動かしてください'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'ベッドにスプールがあります: 乾燥のバナーをタップして取り出したことを確認してから、再起動してください。'
@@ -3453,6 +3458,7 @@ translations:
   Volume: 音量
   Volume of filament used during ramming: 'ラミング時に使用するフィラメント量'
   Volume {}%: 音量 {}%
+  WEIGHT SYNC: 重量同期
   WIDTH SENSORS: 幅センサー
   WLED Preset: WLED プリセット
   WPA/WPA2: 'WPA/WPA2'

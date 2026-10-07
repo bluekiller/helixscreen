@@ -778,6 +778,7 @@
   <translation tag="Cutting" ja="カット中"/>
   <translation tag="Cutting filament..." ja="フィラメントを切断中..."/>
   <translation tag="DETECTED USB PRINTERS" ja="検出されたUSBプリンター"/>
+  <translation tag="DEVICES" ja="デバイス"/>
   <translation tag="DISABLED" ja="無効"/>
   <translation tag="DISCOVERED PRINTERS" ja="検出されたプリンター"/>
   <translation tag="DISPLAY" ja="ディスプレイ"/>
@@ -1267,6 +1268,7 @@
   <translation tag="Found 1 printer" ja="プリンター1台を検出"/>
   <translation tag="Framerate" ja="フレームレート"/>
   <translation tag="From Buffer" ja="バッファから"/>
+  <translation tag="From SpoolmanDB" ja="SpoolmanDB から"/>
   <translation tag="From Version" ja="更新前バージョン"/>
   <translation tag="Front" ja="手前"/>
   <translation tag="Front Left" ja="左手前"/>
@@ -1315,7 +1317,7 @@
   <translation tag="Hardware saved to config" ja="ハードウェアを設定に保存しました"/>
   <translation tag="Hardware was present in previous session but is now missing" ja="前回のセッションにあったハードウェアが見つかりません"/>
   <translation tag="Have a piece of paper ready." ja="紙を1枚用意してください。"/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." ja="ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。"/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." ja="ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。"/>
   <translation tag="Heading" ja="見出し"/>
   <translation tag="Healthy" ja="正常"/>
   <translation tag="Heat Capacity" ja="熱容量"/>
@@ -1332,6 +1334,7 @@
   <translation tag="Heated Bed MPC Calibration" ja="ヒートベッド MPCキャリブレーション"/>
   <translation tag="Heated Bed PID Tuning" ja="ヒートベッド PIDチューニング"/>
   <translation tag="Heater" ja="ヒーター"/>
+  <translation tag="Heater Calibration" ja="ヒーターキャリブレーション"/>
   <translation tag="Heater Power" ja="ヒーター出力"/>
   <translation tag="Heater connection lost" ja="ヒーター接続が切断されました"/>
   <translation tag="Heater fault" ja="ヒーター異常"/>
@@ -1886,6 +1889,7 @@
   <translation tag="No jobs in queue" ja="キューにジョブがありません"/>
   <translation tag="No macro devices configured" ja="マクロデバイスが設定されていません"/>
   <translation tag="No macros available" ja="利用可能なマクロがありません"/>
+  <translation tag="No matches in SpoolmanDB" ja="SpoolmanDB に一致なし"/>
   <translation tag="No matching prints" ja="一致する印刷なし"/>
   <translation tag="No media installed" ja="メディアが挿入されていません"/>
   <translation tag="No mesh data" ja="メッシュデータなし"/>
@@ -2805,6 +2809,7 @@
   <translation tag="Spoolman was not configured." ja="Spoolman は設定されていませんでした。"/>
   <translation tag="Spoolman: %zu Spool%s" ja="Spoolman: %zu 個のスプール%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" ja="Spoolman: %zu/%zu 個のスプール%s"/>
+  <translation tag="SpoolmanDB search failed" ja="SpoolmanDB の検索に失敗しました"/>
   <translation tag="Spools are off" ja="スプールを取り出しました"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" ja="ベッドにスプールがあります: 取り除いて確認してからプリンターを動かしてください"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." ja="ベッドにスプールがあります: 乾燥のバナーをタップして取り出したことを確認してから、再起動してください。"/>
@@ -3294,6 +3299,7 @@
   <translation tag="Volume" ja="音量"/>
   <translation tag="Volume of filament used during ramming" ja="ラミング時に使用するフィラメント量"/>
   <translation tag="Volume {}%" ja="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" ja="重量同期"/>
   <translation tag="WIDTH SENSORS" ja="幅センサー"/>
   <translation tag="WLED Preset" ja="WLED プリセット"/>
   <translation tag="WPA/WPA2" ja="WPA/WPA2"/>

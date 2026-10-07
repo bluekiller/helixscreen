@@ -46,7 +46,7 @@
                  translation_tag="Ignore"/>
       <!-- Save button (add to expected list) - only for INFO severity -->
       <ui_button name="save_btn"
-                 width="content" height="#button_height" hidden="true" style_min_width="64" variant="success"
+                 width="content" height="#button_height" hidden="true" style_min_width="64" variant="primary"
                  text="Save" translation_tag="Save"/>
     </lv_obj>
   </view>

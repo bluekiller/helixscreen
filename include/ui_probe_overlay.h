@@ -12,6 +12,7 @@
 #include "subject_managed_panel.h"
 
 #include <lvgl.h>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -204,6 +205,8 @@ class ProbeOverlay : public OverlayBase {
     helix::system::KlipperConfigEditor config_editor_;
     std::string editing_field_key_; // Current field being edited
     std::string probe_section_;     // Config section name (e.g., "probe", "bltouch")
+    // printer.cfg value per config row key; a key absent here is not set in printer.cfg
+    std::map<std::string, std::string> probe_cfg_configured_;
     lv_obj_t* edit_modal_ = nullptr;
 
     // Widget/client references
@@ -229,6 +232,16 @@ class ProbeOverlay : public OverlayBase {
     // Get the config section name for the current probe type
     std::string get_probe_config_section() const;
 };
+
+namespace helix::ui {
+/// Klipper's value for a [probe]/[bltouch]/[smart_effector] option left out of
+/// printer.cfg. Empty for a key that has no default.
+std::string probe_config_klipper_default(const std::string& key);
+
+/// What a probe config row shows. @p configured is the printer.cfg value,
+/// empty when the option is not set there and Klipper's default applies.
+std::string probe_config_display_value(const std::string& key, const std::string& configured);
+} // namespace helix::ui
 
 // Global instance accessor
 inline ProbeOverlay& get_global_probe_overlay() {

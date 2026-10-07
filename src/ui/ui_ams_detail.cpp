@@ -436,9 +436,7 @@ void ams_detail_update_tray(AmsDetailWidgets& w) {
     // Attach draw callbacks once per object instance. This function runs on every
     // panel rebuild, so remove-then-add is what keeps it idempotent:
     // lv_obj_remove_event_cb() strips every prior registration of that callback
-    // function, leaving exactly one after the add. No object flag is involved -
-    // LV_OBJ_FLAG_USER_1 belongs to ui_dialog, which uses it to mark a dialog root
-    // so ThemeManager::is_on_elevated_surface() can find it by walking parents.
+    // function, leaving exactly one after the add.
     // Neither caller invokes this from inside a draw dispatch of these objects, so
     // mutating their event lists here is safe.
 

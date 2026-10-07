@@ -47,8 +47,8 @@
     <!-- Color swatch -->
     <lv_obj name="spool_swatch"
             width="#spool_swatch_size" height="#spool_swatch_size" style_radius="#border_radius_small"
-            style_bg_color="#text_muted" style_bg_opa="255" style_border_color="#text_muted" style_border_opa="80"
-            scrollable="false" clickable="false"/>
+            style_bg_color="#text_muted" style_bg_opa="255" scrollable="false" clickable="false"
+            style_border_width="#border_width"/>
     <!-- Details column (rich) / details row (compact) -->
     <lv_obj height="content"
             style_pad_all="0" flex_flow="$detail_flow" style_flex_main_place="center" style_flex_cross_place="start"
