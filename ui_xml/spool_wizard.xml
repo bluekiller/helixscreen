@@ -4,6 +4,10 @@
 <!-- Spool Wizard: 3-step overlay for creating new spools in Spoolman -->
 <!-- Steps: 0=Select Vendor, 1=Select Filament, 2=Spool Details -->
 <component>
+  <styles>
+    <style name="vendor_list_fill" flex_grow="1"/>
+    <style name="vendor_list_capped" height="content" flex_grow="0" max_height="35%"/>
+  </styles>
   <view name="spool_wizard"
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_border_width="0"
         style_pad_all="0" style_bg_opa="255" style_bg_color="#card_bg" scrollable="false" flex_flow="column">
@@ -37,12 +41,59 @@
 
         <!-- Vendor list (scrollable) -->
         <lv_obj name="vendor_list"
-                width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
-                style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_sm"/>
+                width="100%" scrollable="true" flex_flow="column" style_pad_left="#space_xs" style_pad_right="#space_xs"
+                style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_sm">
+          <!-- The whole step, or only the matching vendors while SpoolmanDB
+               results share it -->
+          <bind_style_if name="vendor_list_fill" cond="spool_db_available eq 0 or spool_db_state eq 0"/>
+          <bind_style_if name="vendor_list_capped" cond="spool_db_available eq 1 and spool_db_state ne 0"/>
+          <bind_flag_if cond="spool_wizard_vendor_count eq 0 and spool_db_available eq 1 and spool_db_state ne 0"
+                        flag="hidden"/>
+        </lv_obj>
+
+        <!-- SpoolmanDB search: the same query searched in Spoolman's catalog.
+             Hidden on a server without the route and while the query is too short.
+             A new search keeps the last results on screen under a small spinner. -->
+        <lv_obj name="catalog_section"
+                width="100%" flex_grow="1" flex_flow="column" style_pad_all="0" style_pad_gap="#space_xs"
+                scrollable="false" hidden="true">
+          <bind_flag_if cond="spool_db_available eq 0 or spool_db_state eq 0" flag="hidden"/>
+          <lv_obj width="100%"
+                  height="content" flex_flow="row" style_flex_cross_place="center" style_pad_all="0"
+                  style_pad_gap="#space_sm" scrollable="false">
+            <text_small text="From SpoolmanDB" translation_tag="From SpoolmanDB" style_text_color="#text_muted"/>
+            <spinner name="catalog_loading_indicator" size="xs" hidden="true">
+              <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="1"/>
+            </spinner>
+            <text_small name="catalog_error_label"
+                        text="SpoolmanDB search failed" translation_tag="SpoolmanDB search failed"
+                        style_text_color="#text_muted" hidden="true">
+              <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="4"/>
+            </text_small>
+          </lv_obj>
+          <lv_obj name="catalog_results"
+                  width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
+                  style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"
+                  hidden="true">
+            <bind_flag_if_eq subject="spool_db_result_count" flag="hidden" ref_value="0"/>
+            <!-- One row per result slot, built once; a new answer rebinds their
+                 subjects and shows as many as it has. -->
+            <repeat count="25">
+              <wizard_catalog_row index="$i"/>
+            </repeat>
+          </lv_obj>
+          <centered_column name="catalog_empty_state" flex_grow="1" hidden="true">
+            <bind_flag_if_not_eq subject="spool_db_state" flag="hidden" ref_value="3"/>
+            <text_small text="No matches in SpoolmanDB"
+                        translation_tag="No matches in SpoolmanDB" style_text_align="center"
+                        style_text_color="#text_muted"/>
+          </centered_column>
+        </lv_obj>
 
         <!-- Empty state for vendor list -->
         <centered_column name="vendor_empty_state" flex_grow="1" hidden="true">
-          <bind_flag_if_not_eq subject="spool_wizard_vendor_count" flag="hidden" ref_value="0"/>
+          <bind_flag_if cond="spool_wizard_vendor_count ne 0 or (spool_db_available eq 1 and spool_db_state ne 0)"
+                        flag="hidden"/>
           <icon src="inbox_outline" size="xl" variant="secondary"/>
           <text_body text="No vendors found"
                      translation_tag="No vendors found" style_text_align="center" style_text_color="#text_muted"/>
@@ -111,9 +162,10 @@
         <ui_card name="summary_card"
                  width="100%" height="content" style_pad_all="#space_sm" flex_flow="row" style_pad_gap="#space_sm"
                  style_flex_cross_place="center">
-          <lv_obj name="summary_color_swatch"
-                  width="28" height="28" style_radius="14" style_bg_color="#card_bg" style_bg_opa="255"
-                  style_border_width="1" style_border_color="#border"/>
+          <lv_obj name="summary_color_swatch" width="28" height="28" style_radius="14" style_bg_opa="255">
+            <bind_style_prop prop="bg_color" subject="wizard_summary_color"/>
+            <bind_style_if_eq name="styles.contrast_edge" subject="wizard_summary_edge" ref_value="1"/>
+          </lv_obj>
           <lv_obj height="content"
                   flex_grow="1" flex_flow="column" style_pad_all="0" style_pad_gap="0" scrollable="false">
             <text_small name="summary_vendor" bind_text="wizard_summary_vendor"/>

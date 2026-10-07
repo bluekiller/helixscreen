@@ -1311,6 +1311,7 @@ translations:
   Found 1 printer: プリンター1台を検出
   Framerate: フレームレート
   From Buffer: バッファから
+  From SpoolmanDB: 'SpoolmanDB から'
   From Version: 更新前バージョン
   Front: '手前'
   Front Left: '左手前'
@@ -1961,6 +1962,7 @@ translations:
   No jobs in queue: キューにジョブがありません
   No macro devices configured: マクロデバイスが設定されていません
   No macros available: 利用可能なマクロがありません
+  No matches in SpoolmanDB: 'SpoolmanDB に一致なし'
   No matching prints: 一致する印刷なし
   No media installed: メディアが挿入されていません
   No mesh data: メッシュデータなし
@@ -2919,6 +2921,7 @@ translations:
   Spoolman was not configured.: Spoolman は設定されていませんでした。
   'Spoolman: %zu Spool%s': 'Spoolman: %zu 個のスプール%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu 個のスプール%s'
+  SpoolmanDB search failed: 'SpoolmanDB の検索に失敗しました'
   Spools are off: "スプールを取り出しました"
   'Spools are on the bed: remove them and confirm before moving the printer': 'ベッドにスプールがあります: 取り除いて確認してからプリンターを動かしてください'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'ベッドにスプールがあります: 乾燥のバナーをタップして取り出したことを確認してから、再起動してください。'

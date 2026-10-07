@@ -1400,6 +1400,7 @@ translations:
   Found 1 printer: 1 impressora encontrada
   Framerate: Taxa de Quadros
   From Buffer: Do buffer
+  From SpoolmanDB: 'Do SpoolmanDB'
   From Version: Da Versão
   Front: 'Frente'
   Front Left: 'Frente esquerda'
@@ -2097,6 +2098,7 @@ translations:
   No jobs in queue: Nenhum trabalho na fila
   No macro devices configured: Nenhum dispositivo de macro configurado
   No macros available: Nenhuma macro disponível
+  No matches in SpoolmanDB: 'Nenhum resultado no SpoolmanDB'
   No matching prints: Nenhuma impressão correspondente
   No media installed: Nenhuma mídia instalada
   No mesh data: Sem dados de malha
@@ -3122,6 +3124,7 @@ translations:
   Spoolman was not configured.: Spoolman não estava configurado.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu Bobina%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu Bobina%s'
+  SpoolmanDB search failed: 'Falha na busca no SpoolmanDB'
   Spools are off: "Carretéis retirados"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Há carretéis na mesa: remova-os e confirme antes de mover a impressora'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 'Há carretéis na mesa: toque no aviso de secagem para confirmar que foram retirados e depois reinicie.'

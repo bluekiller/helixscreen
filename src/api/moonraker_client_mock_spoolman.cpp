@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <optional>
@@ -59,7 +60,7 @@ json filament_json(const FilamentInfo& f) {
               {"color_hex", or_null(f.color_hex)},
               {"settings_extruder_temp", one_temp(f.nozzle_temp_min, f.nozzle_temp_max)},
               {"settings_bed_temp", one_temp(f.bed_temp_min, f.bed_temp_max)},
-              {"multi_color_hexes", nullptr},
+              {"multi_color_hexes", or_null(f.multi_color_hexes)},
               {"external_id", nullptr},
               {"extra", json::object()}};
     if (f.vendor_id > 0 || !f.vendor_name.empty()) {
@@ -132,10 +133,157 @@ std::string query_value(const std::string& query, const std::string& key) {
     return "";
 }
 
+std::string url_decode(const std::string& s) {
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '%' && i + 2 < s.size()) {
+            out += static_cast<char>(std::strtol(s.substr(i + 1, 2).c_str(), nullptr, 16));
+            i += 2;
+        } else {
+            out += s[i] == '+' ? ' ' : s[i];
+        }
+    }
+    return out;
+}
+
+/// A slice of SpoolmanDB in Spoolman's ExternalFilament shape, enough for
+/// search to have matches across manufacturers, materials and a multi-colour.
+const json& mock_external_catalog() {
+    static const json catalog = json::parse(R"([
+      {"id": "polymaker_pla_polyliteplablack_1000_175_n", "manufacturer": "Polymaker",
+       "name": "PolyLite PLA Black", "material": "PLA", "density": 1.24, "weight": 1000,
+       "spool_weight": 140, "diameter": 1.75, "color_hex": "1A1A1A", "extruder_temp": 210,
+       "bed_temp": 60, "translucent": false, "glow": false},
+      {"id": "polymaker_pla_polyterracottonwhite_1000_175_n", "manufacturer": "Polymaker",
+       "name": "PolyTerra PLA Cotton White", "material": "PLA", "density": 1.31, "weight": 1000,
+       "spool_weight": 140, "diameter": 1.75, "color_hex": "E8E4D8", "extruder_temp": 210,
+       "bed_temp": 55, "translucent": false, "glow": false},
+      {"id": "polymaker_petg_polylitepetgblue_1000_175_n", "manufacturer": "Polymaker",
+       "name": "PolyLite PETG Blue", "material": "PETG", "density": 1.25, "weight": 1000,
+       "spool_weight": 140, "diameter": 1.75, "color_hex": "1E5AA8", "extruder_temp": 240,
+       "bed_temp": 75, "translucent": false, "glow": false},
+      {"id": "polymaker_asa_polyliteasared_1000_175_n", "manufacturer": "Polymaker",
+       "name": "PolyLite ASA Red", "material": "ASA", "density": 1.07, "weight": 1000,
+       "spool_weight": 140, "diameter": 1.75, "color_hex": "C8102E", "extruder_temp": 255,
+       "bed_temp": 100, "translucent": false, "glow": false},
+      {"id": "prusament_pla_galaxyblack_1000_175_n", "manufacturer": "Prusament",
+       "name": "PLA Galaxy Black", "material": "PLA", "density": 1.24, "weight": 1000,
+       "spool_weight": 201, "diameter": 1.75, "color_hex": "26262B", "extruder_temp": 215,
+       "bed_temp": 60, "translucent": false, "glow": false},
+      {"id": "prusament_petg_jetblack_1000_175_n", "manufacturer": "Prusament",
+       "name": "PETG Jet Black", "material": "PETG", "density": 1.27, "weight": 1000,
+       "spool_weight": 201, "diameter": 1.75, "color_hex": "1B1B1B", "extruder_temp": 240,
+       "bed_temp": 85, "translucent": false, "glow": false},
+      {"id": "esun_pla+_white_1000_175_n", "manufacturer": "eSUN", "name": "PLA+ White",
+       "material": "PLA", "density": 1.23, "weight": 1000, "spool_weight": 220, "diameter": 1.75,
+       "color_hex": "F4F4F4", "extruder_temp": 215, "bed_temp": 60, "translucent": false,
+       "glow": false},
+      {"id": "esun_silkpla_rainbow_1000_175_n", "manufacturer": "eSUN",
+       "name": "Silk PLA Rainbow", "material": "PLA", "density": 1.24, "weight": 1000,
+       "spool_weight": 220, "diameter": 1.75,
+       "color_hexes": ["E53935", "FFEB3B", "43A047", "1E88E5"],
+       "multi_color_direction": "coaxial", "extruder_temp": 210,
+       "bed_temp": 60, "translucent": false, "glow": false},
+      {"id": "bambulab_pla_basicorange_1000_175_n", "manufacturer": "Bambu Lab",
+       "name": "PLA Basic Orange", "material": "PLA", "density": 1.26, "weight": 1000,
+       "spool_weight": 250, "diameter": 1.75, "color_hex": "FF6A13", "extruder_temp": 220,
+       "bed_temp": 55, "translucent": false, "glow": false},
+      {"id": "bambulab_tpu_95ablack_1000_175_n", "manufacturer": "Bambu Lab",
+       "name": "TPU 95A Black", "material": "TPU", "density": 1.22, "weight": 1000,
+       "spool_weight": 250, "diameter": 1.75, "color_hex": "000000", "extruder_temp": 230,
+       "bed_temp": 35, "translucent": false, "glow": false},
+      {"id": "overture_abs_grey_1000_175_n", "manufacturer": "Overture", "name": "ABS Grey",
+       "material": "ABS", "density": 1.04, "weight": 1000, "diameter": 1.75,
+       "color_hex": "8A8D8F", "extruder_temp": 250, "bed_temp": 100, "translucent": false,
+       "glow": false},
+      {"id": "sunlu_petg_transparent_1000_175_n", "manufacturer": "Sunlu",
+       "name": "PETG Transparent", "material": "PETG", "density": 1.27, "weight": 1000,
+       "spool_weight": 160, "diameter": 1.75, "color_hex": "FFFFFF33", "translucent": true,
+       "glow": false}
+    ])",
+                                            nullptr, false);
+    return catalog;
+}
+
+std::string lower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+}
+
+/// The curated entries plus synthetic ones, so a common query such as "pla"
+/// or "poly" fills a whole page of results the way the real catalog does.
+const json& mock_external_catalog_full() {
+    static const json catalog = [] {
+        json all = mock_external_catalog();
+        static constexpr const char* kMakers[] = {"Polymaker", "Prusament", "eSUN", "Sunlu"};
+        static constexpr const char* kLines[] = {"PolyLite", "PolyTerra", "Basic", "Matte"};
+        static constexpr const char* kMaterials[] = {"PLA", "PETG", "ASA"};
+        static constexpr const char* kColors[][2] = {
+            {"Red", "C62828"},  {"Orange", "EF6C00"}, {"Yellow", "F9A825"}, {"Green", "2E7D32"},
+            {"Teal", "00838F"}, {"Navy", "1A237E"},   {"Purple", "6A1B9A"}, {"Pink", "AD1457"},
+            {"Grey", "757575"}, {"Brown", "5D4037"}};
+        for (size_t m = 0; m < std::size(kMakers); ++m) {
+            for (const char* material : kMaterials) {
+                for (const auto& color : kColors) {
+                    const std::string name =
+                        std::string(kLines[m]) + " " + material + " " + color[0];
+                    all.push_back({{"id", lower(std::string(kMakers[m]) + "_" + name)},
+                                   {"manufacturer", kMakers[m]},
+                                   {"name", name},
+                                   {"material", material},
+                                   {"density", 1.24},
+                                   {"weight", 1000},
+                                   {"spool_weight", 200},
+                                   {"diameter", 1.75},
+                                   {"color_hex", color[1]},
+                                   {"extruder_temp", 215},
+                                   {"bed_temp", 60},
+                                   {"translucent", false},
+                                   {"glow", false}});
+                }
+            }
+        }
+        return all;
+    }();
+    return catalog;
+}
+
+/// Spoolman's search: every whitespace-separated word of the query must appear,
+/// case-insensitively, in the manufacturer, name and material together.
+bool catalog_matches(const json& entry, const std::string& query) {
+    const std::string haystack = lower(entry.value("manufacturer", "") + " " +
+                                       entry.value("name", "") + " " + entry.value("material", ""));
+    size_t pos = 0;
+    const std::string q = lower(query);
+    while (pos < q.size()) {
+        const size_t start = q.find_first_not_of(' ', pos);
+        if (start == std::string::npos) {
+            break;
+        }
+        const size_t end = q.find(' ', start);
+        const std::string word = q.substr(start, end == std::string::npos ? end : end - start);
+        if (haystack.find(word) == std::string::npos) {
+            return false;
+        }
+        pos = end == std::string::npos ? q.size() : end;
+    }
+    return true;
+}
+
 } // namespace
 
 MockSpoolmanServer::MockSpoolmanServer() {
     init_mock_spools();
+    if (const char* env = std::getenv("HELIX_MOCK_SPOOLMAN_DB_SEARCH");
+        env && std::string(env) == "0") {
+        external_search_supported_ = false;
+        spdlog::info("[MockSpoolman] SpoolmanDB search off via HELIX_MOCK_SPOOLMAN_DB_SEARCH=0 "
+                     "(an older Spoolman)");
+    }
+    if (const char* env = std::getenv("HELIX_MOCK_SPOOLMAN_DB_SEARCH_LATENCY_MS")) {
+        external_search_latency_ms_ = std::clamp(std::atoi(env), 0, 10000);
+    }
 }
 
 void MockSpoolmanServer::add_vendor(int id, std::string name) {
@@ -146,12 +294,13 @@ void MockSpoolmanServer::add_vendor(int id, std::string name) {
 }
 
 void MockSpoolmanServer::add_filament(int id, int vendor_id, std::string material,
-                                      std::string color_hex) {
+                                      std::string color_hex, std::string name) {
     FilamentInfo f;
     f.id = id;
     f.vendor_id = vendor_id;
     f.material = std::move(material);
     f.color_hex = std::move(color_hex);
+    f.filament_name = std::move(name);
     filaments_.push_back(std::move(f));
 }
 
@@ -469,6 +618,7 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         filament.material = body.value("material", "");
         filament.filament_name = body.value("name", "");
         filament.color_hex = body.value("color_hex", "");
+        filament.multi_color_hexes = body.value("multi_color_hexes", "");
         filament.diameter = body.value("diameter", 1.75f);
         filament.weight = body.value("weight", 0.0f);
         filament.spool_weight = body.value("spool_weight", 0.0f);
@@ -482,7 +632,7 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
         }
         if (body.contains("vendor_id") && body["vendor_id"].is_number_integer()) {
             filament.vendor_id = body["vendor_id"].get<int>();
-            for (const auto& v : vendors_) {
+            for (const auto& v : vendor_list()) {
                 if (v.id == filament.vendor_id) {
                     filament.vendor_name = v.name;
                     break;
@@ -529,6 +679,22 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             result = json::object();
             return true;
         }
+    }
+
+    if (method == "GET" && path == "/v1/external/filament/search" && external_search_supported_) {
+        ++external_search_count_;
+        const std::string q = url_decode(query_value(query, "query"));
+        const int limit = std::clamp(std::atoi(query_value(query, "limit").c_str()), 1, 100);
+        result = json::array();
+        for (const auto& entry : mock_external_catalog_full()) {
+            if (static_cast<int>(result.size()) >= limit) {
+                break;
+            }
+            if (catalog_matches(entry, q)) {
+                result.push_back(entry);
+            }
+        }
+        return true;
     }
 
     err = spoolman_error(404);

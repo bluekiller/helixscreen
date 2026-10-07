@@ -1268,6 +1268,7 @@
   <translation tag="Found 1 printer" it="1 stampante trovata"/>
   <translation tag="Framerate" it="Frequenza fotogrammi"/>
   <translation tag="From Buffer" it="Dal buffer"/>
+  <translation tag="From SpoolmanDB" it="Da SpoolmanDB"/>
   <translation tag="From Version" it="Dalla versione"/>
   <translation tag="Front" it="Davanti"/>
   <translation tag="Front Left" it="Davanti sinistra"/>
@@ -1888,6 +1889,7 @@
   <translation tag="No jobs in queue" it="Nessun lavoro in coda"/>
   <translation tag="No macro devices configured" it="Nessun dispositivo macro configurato"/>
   <translation tag="No macros available" it="Nessuna macro disponibile"/>
+  <translation tag="No matches in SpoolmanDB" it="Nessun risultato in SpoolmanDB"/>
   <translation tag="No matching prints" it="Nessuna stampa corrispondente"/>
   <translation tag="No media installed" it="Nessun supporto installato"/>
   <translation tag="No mesh data" it="Nessun dato mesh"/>
@@ -2807,6 +2809,7 @@
   <translation tag="Spoolman was not configured." it="Spoolman non era configurato."/>
   <translation tag="Spoolman: %zu Spool%s" it="Spoolman: %zu bobina%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" it="Spoolman: %zu/%zu bobina%s"/>
+  <translation tag="SpoolmanDB search failed" it="Ricerca in SpoolmanDB non riuscita"/>
   <translation tag="Spools are off" it="Bobine tolte"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" it="Ci sono bobine sul piano: rimuovile e conferma prima di muovere la stampante"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." it="Ci sono bobine sul piano: tocca il banner dell&apos;essiccazione per confermare di averle tolte, poi riavvia."/>
