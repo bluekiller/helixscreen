@@ -6,6 +6,7 @@
 #include "helix_fs.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cerrno>
 #include <cmath>
@@ -131,7 +132,11 @@ bool fail_and_remove(const std::string& tmp) {
 } // namespace
 
 bool write_file_atomic(const std::string& path, std::string_view data, Durability durability) {
-    const std::string tmp = path + ".tmp";
+    // One staging file per call: writers of the same path that shared one
+    // would write into each other's file and rename it out from under each other.
+    static std::atomic<uint64_t> seq{0};
+    const std::string tmp = path + "." + std::to_string(::getpid()) + "." +
+                            std::to_string(seq.fetch_add(1, std::memory_order_relaxed)) + ".tmp";
     File f = open_file(tmp, "wb");
     if (!f) {
         return false;

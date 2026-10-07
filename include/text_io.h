@@ -49,7 +49,9 @@ enum class Durability {
     Fsync, ///< additionally fsync the tmp before rename and the directory after it
 };
 
-/// Replace `path` atomically: write `path + ".tmp"`, close, rename over `path`.
+/// Replace `path` atomically: write a staging file unique to this call
+/// (`path.<pid>.<n>.tmp`), close, rename over `path`. Concurrent writers of one
+/// path each land whole; the last rename wins.
 /// On failure the tmp is removed, `path` is untouched, and errno holds the
 /// failing call's error. `path` is used as given; resolve symlinks
 /// (helix::paths::write_target) before calling if the caller needs that.

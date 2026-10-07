@@ -328,6 +328,11 @@ std::vector<ThumbnailCache::CacheEntry> ThumbnailCache::scan_locked(size_t* tota
         return entries;
     }
 
+    constexpr std::int64_t STALE_STAGING_NS = 10LL * 60 * 1000 * 1000 * 1000;
+    const std::int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count();
+
     // Every per-entry query is non-throwing. A file that vanishes between
     // readdir and stat - the normal case when another thread is evicting -
     // costs only its own entry; this runs on HttpExecutor worker threads.
@@ -344,6 +349,16 @@ std::vector<ThumbnailCache::CacheEntry> ThumbnailCache::scan_locked(size_t* tota
         if (!mtime) {
             spdlog::debug("[ThumbnailCache] Skipping entry with no mtime {}: {}", path,
                           std::strerror(errno));
+            continue;
+        }
+
+        // Staging files (text_io::write_file_atomic, write_lvgl_bin) are writes
+        // in flight or debris from a crash mid-write: never cached content.
+        // Debris past STALE_STAGING_NS no writer can still own.
+        if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tmp") == 0) {
+            if (now_ns - *mtime > STALE_STAGING_NS && helix::fs::remove(path)) {
+                spdlog::debug("[ThumbnailCache] Removed stale staging file {}", path);
+            }
             continue;
         }
 
@@ -1117,11 +1132,10 @@ void ThumbnailCache::process_and_callback(const std::string& png_lvgl_path,
 
 void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx,
                            SuccessCallback on_success, ErrorCallback on_error) {
-    // The caller's success callback runs only if no newer request superseded
-    // this one. The target comes from the request rather than being chosen
-    // here, which is what lets one method serve every call site — the per-view
-    // wrappers this replaced each picked their own and could not be told
-    // otherwise.
+    // The caller's callbacks run only if its owner is alive and no newer
+    // request superseded this one: error and success capture the same owner.
+    // The target comes from the request rather than being chosen here, which
+    // is what lets one method serve every call site.
     auto guarded_success = [ctx, on_success = std::move(on_success)](const std::string& path,
                                                                      bool degraded) {
         if (!ctx.is_valid()) {
@@ -1130,6 +1144,16 @@ void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx
         }
         if (on_success) {
             on_success(path, degraded);
+        }
+    };
+
+    auto guarded_error = [ctx, on_error = std::move(on_error)](const std::string& error) {
+        if (!ctx.is_valid()) {
+            spdlog::debug("[ThumbnailCache] Dropping stale fetch error: {}", error);
+            return;
+        }
+        if (on_error) {
+            on_error(error);
         }
     };
 
@@ -1143,12 +1167,12 @@ void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx
             [guarded_success](const std::string& path, bool /*degraded*/) {
                 guarded_success(path, /*degraded=*/false);
             },
-            std::move(on_error));
+            std::move(guarded_error));
         return;
     }
 
-    fetch_optimized(req.api, req.key, req.target, std::move(guarded_success), std::move(on_error),
-                    req.source_modified);
+    fetch_optimized(req.api, req.key, req.target, std::move(guarded_success),
+                    std::move(guarded_error), req.source_modified);
 }
 
 std::string ThumbnailCache::get_if_cached(const ThumbnailRequest& req) const {
