@@ -82,7 +82,8 @@
             width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
       <!-- Not Now button -->
       <ui_button name="btn_cancel"
-                 height="100%" text="Not Now" translation_tag="Not Now" flex_grow="1" style_radius="0" focusable="false">
+                 height="100%" variant="secondary" text="Not Now" translation_tag="Not Now" flex_grow="1"
+                 style_radius="0" style_border_width="0" focusable="false">
         <event_cb trigger="clicked" callback="on_plugin_install_cancel"/>
       </ui_button>
       <!-- Vertical divider -->
@@ -90,7 +91,7 @@
       <!-- Install button -->
       <ui_button name="btn_install"
                  height="100%" text="Install Plugin" translation_tag="Install Plugin" variant="success" flex_grow="1"
-                 style_radius="0" focusable="false">
+                 style_radius="0" style_border_width="0" focusable="false">
         <event_cb trigger="clicked" callback="on_plugin_install_clicked"/>
       </ui_button>
     </lv_obj>
@@ -101,7 +102,8 @@
             width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row" hidden="true">
       <!-- Done button -->
       <ui_button name="btn_done"
-                 height="100%" text="Done" translation_tag="Done" flex_grow="1" style_radius="0" focusable="false">
+                 height="100%" text="Done" translation_tag="Done" flex_grow="1" style_radius="0" style_border_width="0"
+                 focusable="false">
         <event_cb trigger="clicked" callback="on_plugin_install_cancel"/>
       </ui_button>
       <!-- Vertical divider -->
@@ -109,7 +111,7 @@
       <!-- Copy Command button -->
       <ui_button name="btn_copy"
                  height="100%" text="Copy Command" translation_tag="Copy Command" variant="success" flex_grow="1"
-                 style_radius="0" focusable="false">
+                 style_radius="0" style_border_width="0" focusable="false">
         <event_cb trigger="clicked" callback="on_plugin_copy_clicked"/>
       </ui_button>
     </lv_obj>
@@ -118,7 +120,8 @@
     <!-- ============================================================ -->
     <lv_obj name="result_button_row"
             width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row" hidden="true">
-      <ui_button name="btn_ok" height="100%" text="OK" flex_grow="1" style_radius="0" focusable="false">
+      <ui_button name="btn_ok"
+                 height="100%" text="OK" flex_grow="1" style_radius="0" style_border_width="0" focusable="false">
         <event_cb trigger="clicked" callback="on_plugin_install_ok"/>
       </ui_button>
     </lv_obj>
