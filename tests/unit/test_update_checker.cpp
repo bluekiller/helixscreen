@@ -2965,3 +2965,32 @@ TEST_CASE_METHOD(ChannelSyncFixture, "Channel sync never restarts a busy update_
     CHECK(sync() == conf("beta"));
     CHECK(api.restarts == 0);
 }
+
+TEST_CASE_METHOD(ChannelSyncFixture, "The newest channel sync wins over one still in flight",
+                 "[update_checker][moonraker_channel]") {
+    seed(conf("stable"));
+    set_app_channel(1, true);
+    start_sync(); // downloads inline; its beta upload waits on the queue
+
+    set_app_channel(0, true);
+    start_sync(); // the file already says stable: nothing to write
+
+    CHECK(drain() == conf("stable"));
+    CHECK(api.xfers_.uploads == 0);
+}
+
+TEST_CASE_METHOD(ChannelSyncFixture,
+                 "A job starting during the update status check blocks the restart",
+                 "[update_checker][moonraker_channel]") {
+    seed(conf("stable"));
+    set_app_channel(1, true);
+    client.defer_next("machine.update.status");
+
+    CHECK(sync() == conf("beta"));
+    drive_lifecycle(get_printer_state(), "printing", PrintStartPhase::IDLE);
+    REQUIRE(job_holds_machine(get_printer_state().print_state().get_print_lifecycle()));
+    client.fire_deferred("machine.update.status");
+    drain();
+
+    CHECK(api.restarts == 0);
+}

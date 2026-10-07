@@ -667,8 +667,8 @@ class UpdateChecker {
     std::thread worker_thread_;
     std::atomic<bool> cancelled_{false};
     std::atomic<bool> shutting_down_{false};
-    /// Bumped by detach() so an in-flight moonraker.conf sync abandons the printer
-    /// it started on.
+    /// Bumped by each moonraker.conf sync and by detach(), so an in-flight sync
+    /// yields to a newer one and abandons a printer it was detached from.
     std::atomic<uint64_t> moonraker_sync_generation_{0};
     std::atomic<bool> initialized_{false};
     Callback pending_callback_;

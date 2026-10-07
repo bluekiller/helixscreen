@@ -2858,13 +2858,16 @@ void UpdateChecker::sync_moonraker_channel_for(const std::string& install_root) 
     }
 
     const std::string want = moonraker_channel_name(get_channel());
-    // detach() runs on every printer teardown. A new API can reuse the old one's
-    // address, so the generation, not the pointer, says this sync is still current.
-    const uint64_t gen = moonraker_sync_generation_.load();
+    // The newest sync wins, and detach() (every printer teardown) also bumps the
+    // generation: a new API can reuse the old one's address, so the generation, not
+    // the pointer, says this sync is still current.
+    const uint64_t gen = ++moonraker_sync_generation_;
+    // Taken here on the main thread; the transfer callbacks run on background threads.
+    auto tok = async_lifetime_.token();
 
     api->transfers().download_file(
         "config", kMoonrakerConf,
-        [this, api, want, gen, install_root](const std::string& content) {
+        [this, tok, api, want, gen, install_root](const std::string& content) {
             const std::string path =
                 helix::MoonrakerConfigManager::get_section_value(content, kHelixStanza, "path");
             if (!same_directory(path, install_root)) {
@@ -2877,20 +2880,20 @@ void UpdateChecker::sync_moonraker_channel_for(const std::string& install_root) 
                 content, kHelixStanza, "channel", want);
             if (updated == content)
                 return;
-            async_lifetime_.defer("UpdateChecker::sync_moonraker_channel", [this, api, want, gen,
-                                                                            updated]() {
+            tok.defer("UpdateChecker::sync_moonraker_channel", [this, tok, api, want, gen,
+                                                                updated]() {
                 if (gen != moonraker_sync_generation_.load())
                     return;
                 spdlog::info("[UpdateChecker] Setting moonraker.conf update channel to {}", want);
                 api->transfers().upload_file(
                     "config", kMoonrakerConf, updated,
-                    [this, api, gen]() {
-                        async_lifetime_.defer("UpdateChecker::sync_moonraker_channel_restart",
-                                              [this, api, gen]() {
-                                                  if (gen != moonraker_sync_generation_.load())
-                                                      return;
-                                                  restart_moonraker_for_channel(*api, gen);
-                                              });
+                    [this, tok, api, gen]() {
+                        tok.defer("UpdateChecker::sync_moonraker_channel_restart",
+                                  [this, api, gen]() {
+                                      if (gen != moonraker_sync_generation_.load())
+                                          return;
+                                      restart_moonraker_for_channel(*api, gen);
+                                  });
                     },
                     [](const MoonrakerError& err) {
                         spdlog::warn("[UpdateChecker] Could not write moonraker.conf: {}",
@@ -2906,23 +2909,29 @@ void UpdateChecker::sync_moonraker_channel_for(const std::string& install_root) 
 
 void UpdateChecker::restart_moonraker_for_channel(IMoonrakerAPI& api, uint64_t gen) {
     // Restarting Moonraker drops Klipper's API clients mid-job. The file is already
-    // written, so Moonraker's next start picks the channel up either way.
-    if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
+    // written, so Moonraker's next start picks the channel up either way. Checked
+    // again after the status round-trip, during which a print can start.
+    auto job_blocks_restart = []() {
+        if (!job_holds_machine(get_printer_state().print_state().get_print_lifecycle()))
+            return false;
         spdlog::info("[UpdateChecker] Update channel takes effect at Moonraker's next restart "
                      "(a job holds the machine)");
+        return true;
+    };
+    if (job_blocks_restart())
         return;
-    }
+    auto tok = async_lifetime_.token();
     // Nor mid-update: right after Moonraker updates this app, "Update All" may still
     // be updating Klipper or the OS. An unknown state counts as busy.
     IMoonrakerAPI* api_ptr = &api;
     api.get_client().send_jsonrpc(
         "machine.update.status", json::object(),
-        [this, api_ptr, gen](const json& response) {
+        [this, tok, api_ptr, gen, job_blocks_restart](const json& response) {
             const json* result = helix::json_util::find_member(response, "result");
             const bool busy = !result || helix::json_util::safe_bool(*result, "busy", /*def=*/true);
-            async_lifetime_.defer("UpdateChecker::restart_moonraker_for_channel", [this, api_ptr,
-                                                                                   gen, busy]() {
-                if (gen != moonraker_sync_generation_.load())
+            tok.defer("UpdateChecker::restart_moonraker_for_channel", [this, api_ptr, gen, busy,
+                                                                       job_blocks_restart]() {
+                if (gen != moonraker_sync_generation_.load() || job_blocks_restart())
                     return;
                 if (busy) {
                     spdlog::info("[UpdateChecker] Update channel takes effect at Moonraker's "
