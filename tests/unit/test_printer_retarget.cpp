@@ -12,12 +12,16 @@
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/config_test_access.h"
 #include "../test_helpers/moonraker_manager_test_access.h"
+#include "../test_helpers/print_history_manager_test_access.h"
+#include "../test_helpers/print_state_test_drivers.h"
 #include "../test_helpers/scoped_moonraker_client.h"
+#include "../test_helpers/update_queue_test_access.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
 #include "moonraker_manager.h"
+#include "print_history_manager.h"
 #include "printer_retarget.h"
 #include "printer_state.h"
 
@@ -140,4 +144,38 @@ TEST_CASE_METHOD(RetargetFixture, "Retarget: a transport that cannot start repor
 TEST_CASE_METHOD(RetargetFixture, "Retarget: the active printer's WebSocket URL",
                  "[multi-printer][retarget]") {
     CHECK(helix::active_printer_ws_url() == "ws://10.0.0.2:7126/websocket");
+}
+
+TEST_CASE_METHOD(RetargetFixture,
+                 "Retarget: the previous printer's job, message, temperatures and history go",
+                 "[multi-printer][retarget]") {
+    // An unreachable new printer never sends a status, so what A left must not stand in for it.
+    auto& ps = get_printer_state();
+    helix::test::set_wire_state(ps, helix::PrintJobState::COMPLETE);
+    ps.update_from_status(
+        nlohmann::json{{"display_status", {{"message", "Your part is finished!"}}},
+                       {"heater_bed", {{"temperature", 61.0}, {"target", 60.0}}}});
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+    REQUIRE(ps.print_state().get_print_job_state() == helix::PrintJobState::COMPLETE);
+    REQUIRE(std::string(lv_subject_get_string(ps.print_state().get_display_message_subject())) ==
+            "Your part is finished!");
+    REQUIRE(lv_subject_get_int(ps.temperature_state().get_bed_temp_subject()) != 0);
+
+    PrintHistoryManager history(nullptr, nullptr);
+    PrintHistoryJob job;
+    job.filename = "benchy.gcode";
+    helix::PrintHistoryManagerTestAccess::set_loaded_jobs(history, {job});
+    set_print_history_manager(&history);
+    REQUIRE_FALSE(history.get_jobs().empty());
+
+    helix::set_connect_gate([] { return false; }); // B never answers
+    helix::retarget_printer_connection();
+    helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());
+
+    CHECK(ps.print_state().get_print_job_state() == helix::PrintJobState::STANDBY);
+    CHECK(
+        std::string(lv_subject_get_string(ps.print_state().get_display_message_subject())).empty());
+    CHECK(lv_subject_get_int(ps.temperature_state().get_bed_temp_subject()) == 0);
+    CHECK(history.get_jobs().empty());
+    set_print_history_manager(nullptr);
 }

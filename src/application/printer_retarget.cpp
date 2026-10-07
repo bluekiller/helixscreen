@@ -10,11 +10,14 @@
 #include "config.h"
 #include "i_moonraker_client.h"
 #include "moonraker_manager.h"
+#include "print_history_manager.h"
 #include "printer_state.h"
 
 #include <spdlog/spdlog.h>
 
 #include <string>
+
+#include "hv/json.hpp"
 
 namespace helix {
 
@@ -59,6 +62,25 @@ bool connect_active_printer() {
     return true;
 }
 
+/// The new printer's first status replaces the live values; an unreachable one never sends
+/// any, so the previous printer's job, message, temperatures and history are cleared here
+/// rather than shown as the new printer's.
+void forget_previous_printer() {
+    PrinterState& ps = get_printer_state();
+    nlohmann::json neutral = {
+        {"print_stats", {{"state", "standby"}, {"filename", ""}, {"message", ""}}},
+        {"display_status", {{"message", nullptr}, {"progress", 0.0}}},
+        {"heater_bed", {{"temperature", 0.0}, {"target", 0.0}}}};
+    for (const auto& [name, info] : ps.temperature_state().extruders()) {
+        neutral[name] = {{"temperature", 0.0}, {"target", 0.0}};
+    }
+    ps.update_from_status(neutral);
+
+    if (PrintHistoryManager* history = get_print_history_manager()) {
+        history->forget_printer();
+    }
+}
+
 } // namespace
 
 std::string active_printer_ws_url() {
@@ -91,6 +113,7 @@ bool retarget_printer_connection() {
     get_moonraker_manager()->process_notifications();
 
     AmsState::instance().clear_backends();
+    forget_previous_printer();
     get_printer_state().set_active_printer_name(Config::get_instance()->get_active_printer_name());
 
     return connect_active_printer();
