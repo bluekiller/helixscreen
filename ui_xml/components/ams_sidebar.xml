@@ -72,8 +72,7 @@
            shared compute_op_button_gating() rule: no head worth feeding is the
            existing nothing_to_feed refusal, and a running op or a print owning
            the toolhead disables it like every other filament op. -->
-      <ui_button name="btn_batch_load"
-                 width="100%" variant="secondary" icon="arrow_down" text="Load..." translation_tag="Load...">
+      <ui_button name="btn_batch_load" width="100%" variant="secondary" icon="arrow_down" text="Load...">
         <bind_flag_if_eq subject="ams_sidebar_supports_batch" flag="hidden" ref_value="0"/>
         <bind_state_if_eq subject="ams_sidebar_load_disabled" state="disabled" ref_value="1"/>
         <event_cb trigger="clicked" callback="ams_sidebar_batch_load_clicked"/>
@@ -91,14 +90,12 @@
            the picker's rows read); elsewhere it is the aggregate
            ams_filament_loaded flag. Both fold in an AMS op already running and
            a print owning the toolhead. -->
-      <ui_button name="btn_unload"
-                 width="100%" variant="secondary" icon="tray_arrow_up" text="Unload" translation_tag="Unload">
+      <ui_button name="btn_unload" width="100%" variant="secondary" icon="tray_arrow_up" text="Unload">
         <bind_flag_if cond="ams_is_filament_system eq 0 or ams_sidebar_supports_batch eq 1" flag="hidden"/>
         <bind_state_if_eq subject="ams_sidebar_unload_disabled" state="disabled" ref_value="1"/>
         <event_cb trigger="clicked" callback="ams_sidebar_unload_clicked"/>
       </ui_button>
-      <ui_button name="btn_batch_unload"
-                 width="100%" variant="secondary" icon="tray_arrow_up" text="Unload..." translation_tag="Unload...">
+      <ui_button name="btn_batch_unload" width="100%" variant="secondary" icon="tray_arrow_up" text="Unload...">
         <bind_flag_if_eq subject="ams_sidebar_supports_batch" flag="hidden" ref_value="0"/>
         <bind_state_if_eq subject="ams_sidebar_unload_disabled" state="disabled" ref_value="1"/>
         <event_cb trigger="clicked" callback="ams_sidebar_unload_clicked"/>
@@ -109,7 +106,7 @@
            shared compute_machine_op_gating() rule. Reset is state-only on most
            backends and stays live mid-job so it can clear a latched fault; it
            greys only where reset_moves_filament() is true. -->
-      <ui_button name="btn_reset" width="100%" variant="secondary" icon="refresh" text="Reset" translation_tag="Reset">
+      <ui_button name="btn_reset" width="100%" variant="secondary" icon="refresh" text="Reset">
         <bind_flag_if_eq subject="ams_is_tool_changer" flag="hidden" ref_value="1"/>
         <bind_state_if_eq subject="ams_sidebar_reset_disabled" state="disabled" ref_value="1"/>
         <event_cb trigger="clicked" callback="ams_sidebar_reset_clicked"/>
@@ -118,14 +115,12 @@
       <!-- Probing a slot is a physical move - the firmware parks the toolhead
            and unloads/reloads each lane to test its sensor - so a job owning the
            machine disables it via ams_sidebar_check_gates_disabled. -->
-      <ui_button name="btn_check_gates"
-                 width="100%" variant="secondary" icon="refresh" text="Check slots" translation_tag="Check slots"
-                 hidden="true">
+      <ui_button name="btn_check_gates" width="100%" variant="secondary" icon="refresh" text="Check slots" hidden="true">
         <bind_state_if_eq subject="ams_sidebar_check_gates_disabled" state="disabled" ref_value="1"/>
         <event_cb trigger="clicked" callback="ams_sidebar_check_gates_clicked"/>
       </ui_button>
       <!-- Settings Button (full width) -->
-      <ui_button name="btn_settings" width="100%" icon="settings" text="Settings" translation_tag="Settings">
+      <ui_button name="btn_settings" width="100%" icon="settings" text="Settings">
         <event_cb trigger="clicked" callback="ams_sidebar_settings_clicked"/>
       </ui_button>
     </lv_obj>

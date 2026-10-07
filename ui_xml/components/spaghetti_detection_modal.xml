@@ -10,7 +10,7 @@
         extends="ui_dialog" width="70%" height="content" align="center" flex_flow="column" style_flex_main_place="start"
         style_pad_gap="0">
     <!-- Header row with warning icon + title -->
-    <modal_header icon_src="alert" icon_variant="warning" title="Print issue detected" title_tag="Print issue detected"/>
+    <modal_header icon_src="alert" icon_variant="warning" title="Print issue detected"/>
 
     <!-- Content area: optional camera frame preview + message -->
     <lv_obj width="100%"
@@ -31,10 +31,9 @@
          Wired programmatically; no XML callbacks to avoid double-wiring. -->
     <modal_button_row hide_quaternary="false"
                       quaternary_name="btn_secondary" quaternary_variant="danger" quaternary_text="Abort"
-                      quaternary_tag="Abort" hide_tertiary="false" tertiary_name="btn_tertiary"
-                      tertiary_variant="primary" tertiary_text="Reduce Sensitivity" tertiary_tag="Reduce Sensitivity"
-                      tertiary_show_subject="spaghetti_tune_available" secondary_name="btn_quaternary"
-                      secondary_variant="primary" secondary_text="Turn off detection" secondary_tag="Turn off detection"
-                      primary_text="Resume" primary_tag="Resume"/>
+                      hide_tertiary="false" tertiary_name="btn_tertiary" tertiary_variant="primary"
+                      tertiary_text="Reduce Sensitivity" tertiary_show_subject="spaghetti_tune_available"
+                      secondary_name="btn_quaternary" secondary_variant="primary" secondary_text="Turn off detection"
+                      primary_text="Resume"/>
   </view>
 </component>

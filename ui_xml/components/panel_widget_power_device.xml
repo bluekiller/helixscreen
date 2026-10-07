@@ -43,8 +43,8 @@
       </text_tiny>
       <!-- Device name: always drawn, it says which device this is -->
       <text_tiny name="power_device_name"
-                 width="100%" text="Configure" translation_tag="Configure" style_text_align="center"
-                 style_text_color="#text" long_mode="dots" clickable="false" event_bubble="true">
+                 width="100%" text="Configure" style_text_align="center" style_text_color="#text" long_mode="dots"
+                 clickable="false" event_bubble="true">
         <bind_tile_rung ladder="label" subject="$tile_icon_subject" one_line="true"/>
         <bind_flag_if_eq subject="$tile_label_subject" flag="hidden" ref_value="0"/>
       </text_tiny>

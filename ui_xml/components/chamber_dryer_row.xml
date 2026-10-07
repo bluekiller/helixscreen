@@ -23,18 +23,17 @@
       <bind_flag_if cond="chamber_dryer_active" flag="hidden"/>
     </lv_obj>
     <ui_button name="dryer_start_button"
-               height="#button_height_sm_tiny" text="Start Drying" translation_tag="Start Drying" variant="ghost"
-               style_text_font="#font_small" style_pad_left="#space_xs" style_pad_right="#space_xs"
-               style_border_width="#border_width" style_border_color="#border" style_border_opa="255"
-               moves_machine="true">
+               height="#button_height_sm_tiny" text="Start Drying" variant="ghost" style_text_font="#font_small"
+               style_pad_left="#space_xs" style_pad_right="#space_xs" style_border_width="#border_width"
+               style_border_color="#border" style_border_opa="255" moves_machine="true">
       <bind_flag_if cond="chamber_dryer_active" flag="hidden"/>
       <bind_state_if cond="chamber_heater_offline" state="disabled"/>
       <event_cb trigger="clicked" callback="on_chamber_dryer_start_clicked"/>
     </ui_button>
     <ui_button name="dryer_stop_button"
-               height="#button_height_sm_tiny" text="Stop" translation_tag="Stop" variant="ghost"
-               style_text_font="#font_small" style_pad_left="#space_xs" style_pad_right="#space_xs"
-               style_border_width="#border_width" style_border_color="#border" style_border_opa="255">
+               height="#button_height_sm_tiny" text="Stop" variant="ghost" style_text_font="#font_small"
+               style_pad_left="#space_xs" style_pad_right="#space_xs" style_border_width="#border_width"
+               style_border_color="#border" style_border_opa="255">
       <bind_flag_if cond="chamber_dryer_active" flag="hidden" invert="true"/>
       <event_cb trigger="clicked" callback="on_chamber_dryer_stop_clicked"/>
     </ui_button>

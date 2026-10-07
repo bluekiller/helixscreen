@@ -94,7 +94,7 @@
       <event_cb trigger="clicked" callback="on_edit_add_widget_clicked"/>
     </ui_button>
     <!-- Done button (exits edit mode) — filled primary style -->
-    <ui_button name="nav_btn_edit_done" height="90%" variant="primary" text="Done" translation_tag="Done" hidden="true">
+    <ui_button name="nav_btn_edit_done" height="90%" variant="primary" text="Done" hidden="true">
       <bind_style_if_eq name="nav_btn_edit_done_portrait" subject="ui_is_portrait" ref_value="1"/>
       <bind_style_if_not_eq name="nav_btn_edit_done_landscape" subject="ui_is_portrait" ref_value="1"/>
       <bind_flag_if_eq subject="home_edit_mode" flag="hidden" ref_value="0"/>

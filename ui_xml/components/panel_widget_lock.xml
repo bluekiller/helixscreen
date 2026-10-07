@@ -15,7 +15,7 @@
     <!-- Closed lock while a PIN is set, open lock while none is. -->
     <home_action_tile width="100%"
                       height="100%" icon="lock" icon_variant="secondary" alt_icon="lock_open" alt_icon_variant="muted"
-                      icon_swap_subject="lock_pin_set" label="Lock" label_tag="Lock" callback="lock_screen_clicked_cb"
+                      icon_swap_subject="lock_pin_set" label="Lock" callback="lock_screen_clicked_cb"
                       button_name="lock_button" icon_name="lock_icon_closed" tile_icon_subject="$tile_icon_subject"
                       tile_label_subject="$tile_label_subject" tile_dir_subject="$tile_dir_subject"/>
   </view>

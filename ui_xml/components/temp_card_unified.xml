@@ -26,7 +26,7 @@
       <!-- Icon is always shown; the text label joins it at MEDIUM+ breakpoints -->
       <nozzle_icon size="sm"/>
       <!-- Text label for MEDIUM+ breakpoints -->
-      <text_small text="Nozzle" translation_tag="Nozzle" clickable="false" event_bubble="true">
+      <text_small text="Nozzle" clickable="false" event_bubble="true">
         <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="3"/>
       </text_small>
       <temp_display name="nozzle_temp"
@@ -44,7 +44,7 @@
       <!-- Icon is always shown; the text label joins it at MEDIUM+ breakpoints -->
       <heater_icon src="radiator" glyph_name="bed_icon_glyph" size="sm"/>
       <!-- Text label for MEDIUM+ breakpoints -->
-      <text_small text="Bed" translation_tag="Bed" clickable="false" event_bubble="true">
+      <text_small text="Bed" clickable="false" event_bubble="true">
         <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="3"/>
       </text_small>
       <temp_display name="bed_temp"
@@ -63,7 +63,7 @@
       <!-- Icon is always shown; the text label joins it at MEDIUM+ breakpoints -->
       <heater_icon src="fridge_industrial" glyph_name="chamber_icon_glyph" size="sm"/>
       <!-- Text label for MEDIUM+ breakpoints -->
-      <text_small text="Chamber" translation_tag="Chamber" clickable="false" event_bubble="true">
+      <text_small text="Chamber" clickable="false" event_bubble="true">
         <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="3"/>
       </text_small>
       <temp_display name="chamber_temp_display"
