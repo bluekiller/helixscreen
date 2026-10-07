@@ -179,6 +179,13 @@ class PanelWidgetManager {
                         const std::vector<std::string>& changed_ids, const std::string& resized_id,
                         std::vector<std::unique_ptr<PanelWidget>>& widgets);
 
+    /// relayout_tiles() with every tile counted as moved: re-seats a populated page at
+    /// its entries' cells when the page holds the same widgets with the same config and
+    /// only placement differs, telling each tile whose span changed. Same refusals,
+    /// minus the one about tiles outside the edit.
+    bool reseat_tiles(const std::string& panel_id, lv_obj_t* container, int page_index,
+                      std::vector<std::unique_ptr<PanelWidget>>& widgets);
+
     // -- Gate observers --
 
     /// Observe every hardware gate subject so that widgets appear/disappear
@@ -222,6 +229,10 @@ class PanelWidgetManager {
     class PanelWidgetConfig& get_widget_config(const std::string& panel_id);
 
   private:
+    bool relayout_tiles_impl(const std::string& panel_id, lv_obj_t* container, int page_index,
+                             const std::vector<std::string>& changed_ids,
+                             const std::string& resized_id,
+                             std::vector<std::unique_ptr<PanelWidget>>& widgets, bool reseat_all);
     friend struct PanelWidgetManagerTestAccess;
 
     PanelWidgetManager();
