@@ -959,6 +959,13 @@ void PrintSelectDetailView::cleanup() {
         ui_gcode_viewer_set_paused(gcode_viewer_, true);
     }
     disarm_viewer_callbacks();
+    // The prep manager outlives cleanup() and keeps scanning; its callbacks
+    // reach subjects deinitialised below.
+    if (prep_manager_) {
+        prep_manager_->set_on_scan_answered(nullptr);
+        prep_manager_->set_macro_analysis_callback(nullptr);
+        prep_manager_->set_option_state_provider(nullptr);
+    }
 
     // Expire all outstanding async tokens
     lifetime_.invalidate();

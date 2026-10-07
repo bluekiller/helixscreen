@@ -23,6 +23,7 @@
  */
 
 #include "ui_callback_helpers.h"
+#include "ui_gcode_viewer.h"
 #include "ui_pre_print_options_renderer.h"
 #include "ui_print_select_detail_view.h"
 #include "ui_subject_registry.h"
@@ -1713,7 +1714,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "A parse finishing after cleanup never reach
                  "[print_select][detail_view][pre_start_exclude]") {
     OpenDetail d(test_screen(), "exclude_object_test.gcode", kThreeParts);
     REQUIRE(d.view.get_widget() != nullptr);
-    REQUIRE(lv_obj_find_by_name(d.view.get_widget(), "detail_gcode_viewer") != nullptr);
+    lv_obj_t* viewer = lv_obj_find_by_name(d.view.get_widget(), "detail_gcode_viewer");
+    REQUIRE(viewer != nullptr);
     auto& queue = helix::ui::UpdateQueue::instance();
     helix::ui::UpdateQueueTestAccess::drain_all(queue);
 
@@ -1733,6 +1735,23 @@ TEST_CASE_METHOD(LVGLUITestFixture, "A parse finishing after cleanup never reach
 
     d.view.cleanup();
     helix::ui::UpdateQueueTestAccess::drain_all(queue);
+    // What was queued was the parse result: the viewer installed it.
+    REQUIRE(ui_gcode_viewer_has_content(viewer));
     CHECK(loaded == 0);
     CHECK_FALSE(d.view.is_gcode_loaded());
+}
+
+// The prep manager outlives cleanup(), and a scan it is still running can
+// answer after it.
+TEST_CASE_METHOD(LVGLUITestFixture, "A scan answering after cleanup never reaches the view",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    REQUIRE(d.view.exclude_objects().get_defined_objects().size() == 3);
+    d.view.cleanup();
+    REQUIRE(d.view.exclude_objects().get_defined_objects().size() == 3);
+
+    // With no printer connection the scan answers at once, with no result.
+    d.view.get_prep_manager()->scan_file_for_operations("other.gcode", "", "");
+    OpenDetail::settle();
+    CHECK(d.view.exclude_objects().get_defined_objects().size() == 3);
 }
