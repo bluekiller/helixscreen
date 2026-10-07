@@ -4,6 +4,8 @@
 #include "ui_change_host_modal.h"
 
 #include "ui_emergency_stop.h"
+#include "ui_printer_list_overlay.h"
+#include "ui_printer_switch_menu.h"
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
@@ -494,67 +496,134 @@ void show_change_host_modal(std::function<void(bool changed)> extra_on_complete)
     modal->show_modal(lv_screen_active());
 }
 
-void show_connection_failed_modal(const std::string& title, const std::string& message) {
-    // Callers include MoonrakerClient::on_ws_close on the libhv event-loop
-    // thread. Everything below touches LVGL, so hop to the main thread first —
-    // this mirrors what ui_notification_error() does internally for the
-    // OK-only path this replaces.
-    helix::ui::queue_update(
-        "ui_change_host_modal::show_connection_failed_modal", [title, message]() {
-            // Reconnect first: a wedged transport (reported on Android, where the
-            // process outlives its sockets) cannot be revived from outside the app,
-            // and a full teardown/rebuild re-resolves the host — the one thing the
-            // auto-retry loop cannot do for a changed IP. The prompt's job is to
-            // offer that action; address surgery stays one tap away but secondary.
-            //
-            // The declarative helpers close their own dialog once the callback
-            // returns, so this only has to do the work. The Modal::get_top() guess
-            // it replaces named whatever happened to be on top rather than this
-            // prompt, which is only ever correct by luck of ordering.
-            auto reconnect = [] {
-                if (auto* client = get_moonraker_client()) {
-                    client->force_reconnect();
-                } else {
-                    spdlog::warn("[ChangeHost] Reconnect requested but no client is registered");
-                }
-            };
+namespace {
 
-            // On a printer that runs HelixScreen itself, the address is not the
-            // fault and "Change Address" is a trap: it walks the user into editing
-            // a correct 127.0.0.1 while the real problem is a Moonraker service
-            // that did not start. Retrying those services is the meaningful action.
-            //
-            // Only when we POSITIVELY know the printer is this machine. The default
-            // is deliberately "" rather than "localhost": an unconfigured host is
-            // the one case where changing the address is exactly the right action,
-            // and defaulting to a loopback literal would take that action away from
-            // every user who has not set a host yet.
-            // Locality here must read the ATTEMPTED host, not the live endpoint:
-            // this dialog fires exactly when the connection failed, so the
-            // moonraker_is_remote subject is still at its default (local) and
-            // would suppress "Change Address" for every remote host.
-            std::string host;
-            Config* cfg = Config::get_instance();
-            host = cfg->get<std::string>(cfg->df() + "moonraker_host", "");
+void present_connection_failed(const std::string& title, const std::string& message) {
+    // Reconnect first: a wedged transport (reported on Android, where the
+    // process outlives its sockets) cannot be revived from outside the app,
+    // and a full teardown/rebuild re-resolves the host — the one thing the
+    // auto-retry loop cannot do for a changed IP. The prompt's job is to
+    // offer that action; address surgery stays one tap away but secondary.
+    //
+    // The declarative helpers close their own dialog once the callback
+    // returns, so this only has to do the work. The Modal::get_top() guess
+    // it replaces named whatever happened to be on top rather than this
+    // prompt, which is only ever correct by luck of ordering.
+    auto reconnect = [] {
+        if (auto* client = get_moonraker_client()) {
+            client->force_reconnect();
+        } else {
+            spdlog::warn("[ChangeHost] Reconnect requested but no client is registered");
+        }
+    };
 
-            if (!host.empty() && helix::is_moonraker_on_same_host(host)) {
-                helix::ui::modal_alert(title.c_str(), message.c_str(), ModalSeverity::Error,
-                                       lv_tr("Reconnect"), reconnect);
+    // On a printer that runs HelixScreen itself, the address is not the
+    // fault and "Change Address" is a trap: it walks the user into editing
+    // a correct 127.0.0.1 while the real problem is a Moonraker service
+    // that did not start. Retrying those services is the meaningful action.
+    //
+    // Only when we POSITIVELY know the printer is this machine. The default
+    // is deliberately "" rather than "localhost": an unconfigured host is
+    // the one case where changing the address is exactly the right action,
+    // and defaulting to a loopback literal would take that action away from
+    // every user who has not set a host yet.
+    // Locality here must read the ATTEMPTED host, not the live endpoint:
+    // this dialog fires exactly when the connection failed, so the
+    // moonraker_is_remote subject is still at its default (local) and
+    // would suppress "Change Address" for every remote host.
+    std::string host;
+    Config* cfg = Config::get_instance();
+    host = cfg->get<std::string>(cfg->df() + "moonraker_host", "");
+
+    if (!host.empty() && helix::is_moonraker_on_same_host(host)) {
+        helix::ui::modal_alert(title.c_str(), message.c_str(), ModalSeverity::Error,
+                               lv_tr("Reconnect"), reconnect);
+        return;
+    }
+
+    helix::ui::ConfirmOptions opts;
+    opts.on_cancel = [] {
+        // This prompt closes itself the moment this returns, so the host
+        // form is never left stacked over a live error modal whose
+        // buttons stay pressable behind it.
+        show_change_host_modal();
+    };
+    opts.cancel_text = lv_tr("Change Address");
+
+    helix::ui::modal_confirm(title.c_str(), message.c_str(), ModalSeverity::Error,
+                             lv_tr("Reconnect"), reconnect, opts);
+}
+
+/// A printer list the user is choosing from. A prompt popping over it takes the tap meant
+/// for a row, and the list already shows each printer's connection.
+bool printer_chooser_open() {
+    return ContextMenu::active_as<PrinterSwitchMenu>() != nullptr ||
+           get_printer_list_overlay().is_visible();
+}
+
+/// The newest failure reported while a chooser was open, shown once it closes if the user
+/// stayed on the same printer and it is still not connected.
+struct DeferredFailure {
+    std::string title;
+    std::string message;
+    std::string printer_id;
+    lv_timer_t* timer = nullptr;
+};
+
+DeferredFailure& deferred_failure() {
+    static DeferredFailure d;
+    return d;
+}
+
+constexpr uint32_t CHOOSER_POLL_MS = 300;
+
+void defer_connection_failed(const std::string& title, const std::string& message) {
+    DeferredFailure& d = deferred_failure();
+    d.title = title;
+    d.message = message;
+    d.printer_id = Config::get_instance()->get_active_printer_id();
+    if (d.timer) {
+        return;
+    }
+    // TIMER_DTOR_OK: process-lifetime state with no owner object; the one-shot re-arms itself
+    // while the chooser is open and is deleted by LVGL after its last run.
+    d.timer = lv_timer_create(
+        [](lv_timer_t* t) {
+            if (printer_chooser_open()) {
+                lv_timer_set_repeat_count(t, 1); // look again next period
                 return;
             }
+            // A one-shot, so LVGL deletes it once this returns.
+            DeferredFailure& pending = deferred_failure();
+            pending.timer = nullptr;
+            IMoonrakerClient* client = get_moonraker_client();
+            const bool same_printer =
+                Config::get_instance()->get_active_printer_id() == pending.printer_id;
+            if (!same_printer ||
+                (client && client->get_connection_state() == ConnectionState::CONNECTED)) {
+                spdlog::debug(
+                    "[ChangeHost] Dropping a connection-failed prompt the user moved past");
+                return;
+            }
+            present_connection_failed(pending.title, pending.message);
+        },
+        CHOOSER_POLL_MS, nullptr);
+    lv_timer_set_repeat_count(d.timer, 1);
+}
 
-            helix::ui::ConfirmOptions opts;
-            opts.on_cancel = [] {
-                // This prompt closes itself the moment this returns, so the host
-                // form is never left stacked over a live error modal whose
-                // buttons stay pressable behind it.
-                show_change_host_modal();
-            };
-            opts.cancel_text = lv_tr("Change Address");
+} // namespace
 
-            helix::ui::modal_confirm(title.c_str(), message.c_str(), ModalSeverity::Error,
-                                     lv_tr("Reconnect"), reconnect, opts);
-        });
+void show_connection_failed_modal(const std::string& title, const std::string& message) {
+    // Callers include MoonrakerClient::on_ws_close on the libhv event-loop
+    // thread. Everything below touches LVGL, so hop to the main thread first.
+    helix::ui::queue_update("ui_change_host_modal::show_connection_failed_modal",
+                            [title, message]() {
+                                if (printer_chooser_open()) {
+                                    defer_connection_failed(title, message);
+                                    return;
+                                }
+                                present_connection_failed(title, message);
+                            });
 }
 
 } // namespace helix::ui
