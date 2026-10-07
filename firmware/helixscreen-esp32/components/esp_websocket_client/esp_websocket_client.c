@@ -39,6 +39,11 @@ static const char *TAG = "websocket_client";
 #define WEBSOCKET_KEEP_ALIVE_IDLE       (5)
 #define WEBSOCKET_KEEP_ALIVE_INTERVAL   (5)
 #define WEBSOCKET_KEEP_ALIVE_COUNT      (3)
+/* A frame in progress that receives no payload bytes for this long aborts the connection.
+ * Until a frame completes the task neither reads nor answers PINGs nor checks its own PONG
+ * timeout, and stop() cannot end it, so a payload that stops arriving would hold the client
+ * for good. Kept below Moonraker's 25 s pong timeout. */
+#define WEBSOCKET_MIDFRAME_TIMEOUT_MS   (10*1000)
 
 #ifdef CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK
 #define WEBSOCKET_TX_LOCK_TIMEOUT_MS    (CONFIG_ESP_WS_CLIENT_TX_LOCK_TIMEOUT_MS)
@@ -1081,6 +1086,7 @@ static esp_err_t esp_websocket_client_recv(esp_websocket_client_handle_t client)
         ESP_LOGE(TAG, "Failed to setup rx buffer");
         return ESP_FAIL;
     }
+    uint64_t last_payload_ms = _tick_get_ms();
     do {
         rlen = esp_transport_read(client->transport, client->rx_buffer, client->buffer_size, client->config->network_timeout_ms);
         if (rlen < 0) {
@@ -1104,6 +1110,16 @@ static esp_err_t esp_websocket_client_recv(esp_websocket_client_handle_t client)
             ESP_LOGV(TAG, "esp_transport_read timeouts");
             esp_websocket_free_buf(client, false);
             return ESP_OK;
+        }
+        if (rlen > 0) {
+            last_payload_ms = _tick_get_ms();
+        } else if (client->payload_offset < client->payload_len &&
+                   _tick_get_ms() - last_payload_ms >= WEBSOCKET_MIDFRAME_TIMEOUT_MS) {
+            esp_websocket_free_buf(client, false);
+            esp_websocket_client_error(client, "no payload for %d ms with %d of %d frame bytes read",
+                                       WEBSOCKET_MIDFRAME_TIMEOUT_MS, client->payload_offset,
+                                       client->payload_len);
+            return ESP_FAIL;
         }
         esp_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, rlen);
 
