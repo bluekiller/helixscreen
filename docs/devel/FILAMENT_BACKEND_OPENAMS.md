@@ -78,9 +78,9 @@ The backend puts the reading on every unit of that lane as its `BufferHealth`
   balanced / running tight / running loose description;
 - `sync_feedback_bias` carries `AmsSystemInfo::pressure_sensor_bias()`: the
   lane feeding the current slot, else the first unit with a sensor (with
-  several lanes loaded there is no current slot). It drives the clog-detection
-  widget's buffer page. Per-unit views (path canvas, buffer modal) draw that
-  unit's own lane via `helix::buffer_reading()`;
+  several lanes loaded there is no current slot). The Filament Buffer widget, the loaded-spool card and the Buffer Status modal read it through
+  `helix::buffer_reading()` (the lane feeding the current slot, else the first unit with a
+  sensor); per-unit views (path canvas) draw that unit's own lane;
 - tapping it opens the Buffer Status modal: the slider with its last minute
   beside it, "FPS 62%" and "target 50%".
 
@@ -154,7 +154,7 @@ OpenAMS reports no colour, material or spool identity, so identity is HelixScree
 | Endless spool | Not exposed |
 | Runout surface | No error hook, so the generic runout modal and toast remain (`runtime_config.cpp`) |
 | Environment sensors | No |
-| Filament pressure | Per lane, from `lanes[].pressure` and `set_point`; drawn as the FPS box with bias tint and buffer meter |
+| Filament pressure | Per lane, from `lanes[].pressure` and `set_point`; drawn as the FPS box with bias tint and the buffer slider |
 
 ## Tests
 

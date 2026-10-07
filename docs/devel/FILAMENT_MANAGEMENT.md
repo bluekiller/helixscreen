@@ -1246,8 +1246,8 @@ linear modes** (only Flowguard's two directions mean different faults).
 **Mock scenarios:** `helix-screen ctl scenario <name>` drives the mock *backend*,
 so the whole derivation runs — `clog_healthy`, `clog_warning`, `clog_blocked`,
 `flowguard_neutral`, `flowguard_tangle`, `flowguard_clog`, `buffer_safe`,
-`buffer_fault`, `buffer_fps` / `buffer_fps_loose` (a pressure sensor under / over its
-set point; any mock type but Happy Hare), `sync_feedback_tight` (Happy Hare), `clog_off`.
+`buffer_fault`, `clog_off`. The buffer-reading scenarios are listed under
+[Filament buffer reading](#filament-buffer-reading).
 
 ### AFC buffers: switched vs FPS_PSF
 
@@ -1263,7 +1263,7 @@ config-only and never published**, so the tuning range cannot be read at runtime
 advance/trailing triggers compare the smoothed one.
 
 The result is published as `sync_feedback_bias`, the same signal Happy Hare
-reports, so `UiBufferSlider` and the path-canvas tint work on both without knowing
+reports, so the buffer surfaces work on both without knowing
 the backend. OpenAMS lanes carry the same sensor and publish it the same way
 (`AmsSystemInfo::pressure_sensor_bias()`); per-unit views draw
 `helix::buffer_reading(info, unit)`, the unit's own sensor. A switched buffer sends
@@ -1274,6 +1274,30 @@ none of these keys, leaves `fps_reported` false, and is unchanged.
 > pinned against a source read of AFC v1.2.0 (`a06f14d`) in
 > `tests/unit/test_afc_fps_buffer.cpp` — re-check those against a real FPS_PSF
 > buffer before trusting the scale.
+
+### Filament buffer reading
+
+A buffer reading is where the slack sits between the feeder and the extruder,
+steered toward a set point. It is not clog detection (which accumulates toward a
+pause and feeds the `clog_meter_*` subjects) and has its own path.
+
+| Piece | Where |
+|---|---|
+| FPS to bias | `BufferHealth::fps_to_bias()` (`include/ams_types.h`), used by AFC `FPS_PSF` and OpenAMS |
+| Which sensor | `buffer_reading(info, unit)` (`include/buffer_reading.h`): a unit's own pressure sensor; a switched buffer reads nothing; otherwise, and for unit -1, the sensor feeding the toolhead (`AmsSystemInfo::feeding_pressure_unit()`), else Happy Hare's `sync_feedback_bias` |
+| Bands and colour | `pressure_status()` and `buffer_status_token()` in `include/clog_meter_geometry.h`: below 30 `text_muted`, to 70 `warning`, from 70 `danger`; `buffer_lean()` for the words |
+| Subjects | `AmsState` publishes the system-level reading as `buffer_present`, `buffer_slider`, `buffer_bias_pct`, `buffer_status`, `buffer_label`, `buffer_value_text`, `buffer_lean_text` (`src/printer/ams_state_buffer.cpp`) |
+| History | `AmsState::buffer_trace(unit)`, a `BufferTrace` of about 60 s per unit and for -1, a step line on `buffer_clock_ms()`; dropped with the backend |
+| Renderer | `UiBufferSlider` (`include/ui_buffer_slider.h`) paints the slider and optional trace into XML-authored objects; layout from `buffer_slider_geometry()` / `buffer_trace_polylines()` |
+
+Surfaces: the **Filament Buffer** home widget (`filament_buffer`, 1x1, 2x1 adds
+the trace and lean, gated on `buffer_present`), the loaded-spool card's mini
+slider, the path canvas's buffer box (`ams_detail_buffer_box()`), and the Buffer
+Status modal (`BufferStatusModal::show_for(-1)` opens it on the buffer feeding
+the toolhead). A pressure reading with no set point is text only (`Pressure: N%`)
+on every surface. Mock scenarios: `buffer_fps`, `buffer_fps_loose`,
+`buffer_fps_on_target`, `buffer_fps_danger`, `buffer_fps_no_target`, `buffer_fps_with_clog` (any mock type but Happy Hare),
+`sync_feedback_tight` (Happy Hare).
 
 ### Two error channels
 

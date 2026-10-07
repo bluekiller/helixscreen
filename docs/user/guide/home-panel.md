@@ -314,7 +314,8 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **AMS Status** | A live view of your multi-material spool lanes. At 1x it's a compact row of colored bars — one per lane, each filled to show roughly how much filament is left. At 2x and wider it switches to a detailed view: a small spool for each lane with its lane number, material type (PLA, PETG…), and percent remaining, and the currently loaded lane's number badge is highlighted green. The spools size to fit the widget — 2 across at 2x, 4 across at 4x — and any lanes that don't fit scroll sideways. Tap for the full AMS panel. | 1x1 | 1x1 | 4x2 | Yes | AMS/MMU detected |
 | **Filament Sensor** | Filament runout detection status. Tap to load, unload, or purge filament - what happens depends on what's going on: if the sensor is turned off, tapping opens its settings instead; while a print is running the modal is a status readout only; and if the print is paused you also get **Resume Print** and **Cancel Print**, so a runout pause can be dealt with without leaving the home screen. Cancelling asks you to confirm first. Configurable via the gear icon in Edit Mode - choose which sensor the tile follows. See [Configuring a Widget](#configuring-a-widget) above. | 1x1 | 0.5x1 | Full grid | Yes | Filament sensor |
 | **Width Sensor** | Live filament width reading from a diameter sensor. | 1x1 | 1x1 | 2x2 | Yes | Width sensor |
-| **Clog Detection** | Filament clog and flow health monitor. Shows the FlowGuard bar, and a buffer sync meter on Happy Hare printers. Tap to open the Buffer Status detail modal. Configurable via the gear icon in Edit Mode. See [Clog Detection Widget](#clog-detection-widget) below. | 2x1 | 2x1 | 4x2 | Yes | AMS/MMU detected |
+| **Clog Detection** | Filament clog and flow health monitor. Shows the FlowGuard bar. Tap to open the Buffer Status detail modal. Configurable via the gear icon in Edit Mode. See [Clog Detection Widget](#clog-detection-widget) below. | 2x1 | 2x1 | 4x2 | Yes | AMS/MMU detected |
+| **Filament Buffer** | Where the filament buffer between your feeder and extruder sits against its target: an upright slider (loose up, tight down) with the reading underneath. At 2x1 it adds the last minute as a trace and says whether the filament is running tight, loose or balanced. Tap for Buffer Status. | 1x1 | 1x1 | 2x1 | Yes | A filament pressure sensor or sync feedback |
 | **Bypass** | One-tap toggle for external-spool bypass. Shows the bypass state (icon changes, and the external spool's color and material while engaged) - tap to toggle. Same guards as the AMS panel's bypass toggle: if filament is loaded from a lane it unloads first, and while a job holds the printer (preparing, printing, or paused) the tap is refused with a "Bypass cannot be changed while printing" warning. | 1x1 | 0.5x1 | Full grid | Yes | Filament system with bypass |
 | **Humidity** | Enclosure humidity reading from a connected sensor. | 1x1 | 1x1 | 2x2 | Yes | Humidity sensor |
 
@@ -363,6 +364,7 @@ Some widgets depend on specific hardware being detected by Klipper. If the hardw
 | AMS Status | AMS, AFC (Box Turtle), Happy Hare, ACE (Anycubic ACE Pro), or compatible MMU system |
 | Bypass | A filament system with a bypass — Creality CFS, FlashForge AD5X IFS, AFC (Box Turtle), or Happy Hare with `has_bypass` enabled |
 | Clog Detection | AMS, AFC, Happy Hare, or compatible MMU with clog/flow detection |
+| Filament Buffer | An OpenAMS or AFC filament pressure sensor (FPS), or Happy Hare with sync feedback |
 | LED Light | A light HelixScreen can switch: a Klipper LED (neopixel, dotstar, led), a light `[output_pin]`, a WLED strip, or an On/Off or Toggle macro device |
 | LED Controls | Any of those, or a preset-only macro device |
 | Power | Moonraker power devices (PSU control, smart plugs) |
@@ -430,6 +432,7 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 | Filament Sensor | Opens a load/unload/purge dialog (idle or paused), a status-only dialog (printing), or the sensor's settings (sensor turned off) |
 | Width Sensor | — (display only) |
 | Clog Detection | Opens the Buffer Status detail modal |
+| Filament Buffer | Opens the Buffer Status modal |
 | LED Light | Toggles its light on or off; on a 2x1 or wider tile, the arrow opens the LEDs overlay for it |
 | LED Controls | Opens the LEDs overlay |
 | Macro Button | Runs the configured macro — asking for parameters or confirmation first, unless you turned that off ([details](#macro-button-confirmation)) |
@@ -515,13 +518,11 @@ The job queue is managed by Moonraker, so jobs added from Mainsail, Fluidd, or t
 
 ## Clog Detection Widget
 
-The Clog Detection widget monitors your filament path health in real time — detecting clogs, flow issues, and buffer sync problems. It only appears when a compatible filament system is detected (Happy Hare, AFC, or another MMU with clog detection).
+The Clog Detection widget monitors your filament path health in real time, detecting clogs and flow issues. It only appears when a compatible filament system is detected (Happy Hare, AFC, or another MMU with clog detection).
 
 ### What It Shows
 
-The widget displays a **carousel** with one or two pages depending on your hardware:
-
-**Page 1 — FlowGuard bar** (always shown)
+The widget shows the FlowGuard bar:
 
 ![FlowGuard bar — TANGLE and CLOG end labels, fill running out from the middle, danger shading at both ends](../../images/user/home-flowguard-bar.png)
 
@@ -549,17 +550,6 @@ When there is nothing to report at all — an AFC buffer that is armed but not c
 
 > The same reading is drawn as an arc gauge in the filament sidebar and on the loaded-spool card, where the space is tall and narrow rather than wide and short.
 
-**Page 2 — Buffer Sync Meter** (any printer reporting proportional buffer pressure)
-
-A visual representation of the physical buffer plunger position. Two nested rectangles show the buffer housing and plunger — the plunger slides up or down to indicate filament tension:
-
-- **Center position** = balanced, healthy tension
-- **Shifted up** = filament under compression (being pushed)
-- **Shifted down** = filament under tension (being pulled)
-- Color shifts from green → orange → red as the bias increases
-
-A percentage label shows the exact bias reading (e.g., "+5%", "−10%"). Swipe between pages using the indicator dots at the bottom.
-
 ### Tapping the Widget
 
 Tap the Clog Detection widget to open the **Buffer Status** modal — a detailed read-only view of your filament path health:
@@ -567,15 +557,16 @@ Tap the Clog Detection widget to open the **Buffer Status** modal — a detailed
 The same FlowGuard bar sits across the top, so the modal shows everything the widget did and more - the reading, the danger threshold and the worst value seen this print.
 
 **Happy Hare printers also show:**
-- Filament tension description (e.g., "Slight tension", "Balanced")
+- Filament tension description (e.g., "Running tight", "Balanced")
 - Spool motor state
 - Gear sync status
 - Flow rate
-- Full-size buffer meter visualization
 
 **AFC printers also show:**
 - Advancing/trailing buffer state
 - Distance to fault (in mm)
+
+Where your printer has a filament buffer with a proportional reading, the modal also draws it as a slider with its last minute beside it; see [Filament Buffer Widget](#filament-buffer-widget).
 
 ### Configuring Clog Detection
 
@@ -589,6 +580,14 @@ In Edit Mode, select the Clog Detection widget and tap the **gear icon** to open
 | **Danger Threshold** | Override the computed danger zone percentage |
 
 **Auto** mode is recommended — HelixScreen automatically selects the best source based on your detected hardware.
+
+---
+
+## Filament Buffer Widget
+
+![Filament Buffer widget at 2x1: slider, trace, FPS 71% Running loose](../../images/user/home-filament-buffer.png)
+
+The filament buffer is the slack between your feeder and the extruder, and the feeder steers it toward a target. The widget draws where it sits as an upright slider, with loose filament up and tight filament down. The slider is grey on target, amber as it drifts off, and red near an end. A sensor that reports no target shows the pressure as text only, with no slider.
 
 ---
 

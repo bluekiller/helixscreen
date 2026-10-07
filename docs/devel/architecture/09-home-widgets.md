@@ -103,6 +103,7 @@ The catalog itself, as the registry defines it (gate subjects from the def table
 | `job_queue` | `JobQueueWidget` | — |
 | `tips` | `TipsWidget` | — |
 | `clog_detection` | `ClogDetectionWidget` | `clog_meter_mode` |
+| `filament_buffer` | `FilamentBufferWidget` | `buffer_present` |
 | `print_stats` | `PrintStatsWidget` | — |
 | `gcode_console` | `GcodeConsoleWidget` | — |
 | `camera` | `CameraWidget` — `HELIX_HAS_CAMERA` builds only | — |
