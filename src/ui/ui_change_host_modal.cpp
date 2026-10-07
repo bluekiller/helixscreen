@@ -57,6 +57,7 @@ bool ChangeHostModal::show_modal(lv_obj_t* parent, AddCallback on_add) {
     add_callback_ = std::move(on_add);
     const bool adding = static_cast<bool>(add_callback_);
     lv_subject_set_int(&adding_subject_, adding ? 1 : 0);
+    update_save_lock();
 
     // A new printer starts empty; otherwise the fields show the active printer's host.
     Config* config = Config::get_instance();
@@ -73,6 +74,7 @@ bool ChangeHostModal::show_modal(lv_obj_t* parent, AddCallback on_add) {
         client_borrowed_ = false;
         lv_subject_set_int(&testing_subject_, 0);
         lv_subject_set_int(&validated_subject_, 0);
+        update_save_lock();
 
         // Set active instance for static callback dispatch
         active_instance_ = this;
@@ -141,6 +143,7 @@ void ChangeHostModal::init_subjects() {
     lv_subject_init_int(&testing_subject_, 0);
     lv_subject_init_int(&validated_subject_, 0);
     lv_subject_init_int(&adding_subject_, 0);
+    lv_subject_init_int(&save_locked_subject_, 1);
 
     // Register subjects for XML binding
     subjects_.publish("change_host_ip", &host_ip_subject_);
@@ -148,6 +151,7 @@ void ChangeHostModal::init_subjects() {
     subjects_.publish("change_host_testing", &testing_subject_);
     subjects_.publish("change_host_validated", &validated_subject_);
     subjects_.publish("change_host_adding", &adding_subject_);
+    subjects_.publish("change_host_save_locked", &save_locked_subject_);
 
     subjects_initialized_ = true;
     spdlog::trace("[ChangeHostModal] Subjects initialized");
@@ -179,6 +183,7 @@ void ChangeHostModal::handle_test_connection() {
     spdlog::debug("[ChangeHostModal] Test connection: {}:{}", ip ? ip : "", port_clean);
 
     lv_subject_set_int(&validated_subject_, 0);
+    update_save_lock();
 
     if (!ip || strlen(ip) == 0) {
         set_status(nullptr, nullptr, "Please enter a host address");
@@ -252,6 +257,7 @@ void ChangeHostModal::on_test_success() {
     set_status("icon_check_circle", "success", "Connection successful!");
     lv_subject_set_int(&testing_subject_, 0);
     lv_subject_set_int(&validated_subject_, 1);
+    update_save_lock();
 
     spdlog::info("[ChangeHostModal] Test passed, Save button enabled");
 }
@@ -289,13 +295,19 @@ void ChangeHostModal::handle_save() {
     const int port = *parsed_port;
 
     if (add_callback_) {
-        // The borrow stays: on_hide puts the client back on the saved printer before the
-        // caller runs, so a switch the caller declines or cannot save leaves it there.
-        hide();
-        auto on_add = add_callback_;
-        std::string added_host(ip);
-        helix::ui::queue_update("ChangeHostModal::handle_add",
-                                [on_add, added_host, port]() { on_add(added_host, port); });
+        const std::string host(ip);
+        if (lv_subject_get_int(&validated_subject_) != 0) {
+            commit_add(host, port);
+            return;
+        }
+        // Untested, failed or still testing: the printer may be off right now, so adding it
+        // anyway is allowed, after asking.
+        helix::ui::ConfirmOptions options;
+        options.owner_token = lifetime_.token();
+        helix::ui::modal_confirm(
+            lv_tr("Add Printer"), lv_tr("Can't reach this printer. Save anyway?"),
+            ModalSeverity::Warning, lv_tr("Save"), [this, host, port] { commit_add(host, port); },
+            options);
         return;
     }
 
@@ -322,6 +334,21 @@ void ChangeHostModal::handle_save() {
         auto callback = completion_callback_;
         helix::ui::queue_update("ChangeHostModal::handle_save", [callback]() { callback(true); });
     }
+}
+
+void ChangeHostModal::commit_add(const std::string& host, int port) {
+    // The borrow stays: on_hide puts the client back on the saved printer before the caller
+    // runs, so a switch the caller declines or cannot save leaves it there.
+    hide();
+    auto on_add = add_callback_;
+    helix::ui::queue_update("ChangeHostModal::handle_add",
+                            [on_add, host, port]() { on_add(host, port); });
+}
+
+void ChangeHostModal::update_save_lock() {
+    const bool locked =
+        lv_subject_get_int(&adding_subject_) == 0 && lv_subject_get_int(&validated_subject_) == 0;
+    lv_subject_set_int(&save_locked_subject_, locked ? 1 : 0);
 }
 
 void ChangeHostModal::handle_cancel() {
@@ -371,6 +398,9 @@ void ChangeHostModal::on_input_changed_cb(lv_observer_t* /*observer*/, lv_subjec
     lv_subject_t* validated = lv_xml_get_subject(nullptr, "change_host_validated");
     if (validated && lv_subject_get_int(validated) != 0) {
         lv_subject_set_int(validated, 0);
+        if (active_instance_) {
+            active_instance_->update_save_lock();
+        }
         spdlog::debug("[ChangeHostModal] Input changed, validation reset");
     }
 }

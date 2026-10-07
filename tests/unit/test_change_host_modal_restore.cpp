@@ -263,3 +263,88 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
     CHECK(client_->get_last_url() == kSavedUrl);
     CHECK(helix::AmsState::instance().backend_count() == 1);
 }
+
+namespace {
+
+struct AddResult {
+    int calls = 0;
+    std::string host;
+};
+
+lv_obj_t* open_add_modal(AddResult& result) {
+    helix::ui::show_add_printer_modal([&result](const std::string& host, int) {
+        ++result.calls;
+        result.host = host;
+    });
+    UpdateQueue::instance().drain();
+    lv_obj_t* dialog = Modal::get_top();
+    REQUIRE(dialog != nullptr);
+    lv_subject_copy_string(lv_xml_get_subject(nullptr, "change_host_ip"), "10.9.9.9");
+    return dialog;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture, "Add printer: Save is enabled before any test",
+                 "[change_host][multi-printer]") {
+    AddResult result;
+    lv_obj_t* dialog = open_add_modal(result);
+    lv_obj_t* save = lv_obj_find_by_name(dialog, "modal_save_btn");
+    REQUIRE(save != nullptr);
+    CHECK_FALSE(lv_obj_has_state(save, LV_STATE_DISABLED));
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host: Save stays disabled until a test passes",
+                 "[change_host][multi-printer]") {
+    helix::ui::show_change_host_modal();
+    UpdateQueue::instance().drain();
+    lv_obj_t* save = lv_obj_find_by_name(Modal::get_top(), "modal_save_btn");
+    REQUIRE(save != nullptr);
+    CHECK(lv_obj_has_state(save, LV_STATE_DISABLED));
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Add printer: an untested Save asks, and Save anyway adds",
+                 "[change_host][multi-printer]") {
+    AddResult result;
+    lv_obj_t* dialog = open_add_modal(result);
+
+    click(dialog, "modal_save_btn");
+    lv_obj_t* confirm = Modal::get_top();
+    REQUIRE(confirm != nullptr);
+    REQUIRE(confirm != dialog);
+    CHECK(result.calls == 0);
+
+    click(confirm, "btn_primary");
+    UpdateQueue::instance().drain();
+
+    CHECK(result.calls == 1);
+    CHECK(result.host == "10.9.9.9");
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture, "Add printer: Cancel on the question stays on the form",
+                 "[change_host][multi-printer]") {
+    AddResult result;
+    lv_obj_t* dialog = open_add_modal(result);
+
+    click(dialog, "modal_save_btn");
+    lv_obj_t* confirm = Modal::get_top();
+    REQUIRE(confirm != dialog);
+    click(confirm, "btn_secondary");
+    UpdateQueue::instance().drain();
+
+    CHECK(result.calls == 0);
+    CHECK(Modal::get_top() == dialog);
+}
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture, "Add printer: a passed test saves without asking",
+                 "[change_host][multi-printer]") {
+    AddResult result;
+    lv_obj_t* dialog = open_add_modal(result);
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "change_host_validated"), 1);
+
+    click(dialog, "modal_save_btn");
+    UpdateQueue::instance().drain();
+
+    CHECK(result.calls == 1);
+}

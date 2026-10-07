@@ -114,6 +114,8 @@ class ChangeHostModal : public Modal {
     lv_subject_t testing_subject_{};
     lv_subject_t validated_subject_{};
     lv_subject_t adding_subject_{};
+    /// Save is held disabled: changing a host needs a passed test, adding one does not.
+    lv_subject_t save_locked_subject_{};
 
     char host_ip_buf_[256] = {0};
     char host_port_buf_[8] = {0};
@@ -135,6 +137,8 @@ class ChangeHostModal : public Modal {
     void deinit_subjects();
     void handle_test_connection();
     void handle_save();
+    void update_save_lock();
+    void commit_add(const std::string& host, int port);
     void handle_cancel();
     void set_status(const char* icon_name, const char* color_token, const char* text);
     void on_test_success();

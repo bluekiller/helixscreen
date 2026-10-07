@@ -499,6 +499,7 @@ translations:
     — essayez d'oublier et de réappairer l'imprimante
   Can't move filament while the print is paused: Impossible de déplacer le filament pendant une impression en pause
   Can't read filament RFID tag: Impossible de lire l'étiquette RFID du filament
+  Can't reach this printer. Save anyway?: "Imprimante injoignable. Enregistrer quand même ?"
   Cancel: Annuler
   Cancel Escalation: Annuler l'escalade
   Cancel Print: Annuler l'impression

@@ -73,7 +73,7 @@
       <divider_vertical/>
       <ui_button name="modal_save_btn"
                  height="100%" text="Save" translation_tag="Save" flex_grow="1" style_radius="0" focusable="false">
-        <bind_state_if_eq subject="change_host_validated" state="disabled" ref_value="0"/>
+        <bind_state_if_eq subject="change_host_save_locked" state="disabled" ref_value="1"/>
         <event_cb trigger="clicked" callback="on_change_host_save"/>
       </ui_button>
     </lv_obj>

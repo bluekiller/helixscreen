@@ -456,6 +456,7 @@ translations:
   Can't connect — try forgetting and re-pairing the printer: 无法连接 — 请尝试忘记并重新配对打印机
   Can't move filament while the print is paused: 打印暂停期间无法移动耗材
   Can't read filament RFID tag: 无法读取耗材 RFID 标签
+  Can't reach this printer. Save anyway?: 无法连接到此打印机。仍要保存吗？
   Cancel: 取消
   Cancel Escalation: 取消升级
   Cancel Print: 取消打印
