@@ -7,6 +7,7 @@
 #include "gcode_response_routing.h"
 #include "hardware_setup_prompter.h"
 #include "lvgl/lvgl.h"
+#include "printer_switch_flow.h"
 
 #include <functional>
 #include <memory>
@@ -40,13 +41,9 @@ class PanelFactory;
 /// steps run; the steps themselves arrive as hooks.
 class PrinterSession {
   public:
-    /// The restart work the session sequences. Teardown destroys the current printer's
-    /// scope, rebuild creates the next one, land_home navigates to the home panel.
-    struct Restart {
-        std::function<void()> teardown;
-        std::function<void()> rebuild;
-        std::function<void()> land_home;
-    };
+    /// The restart work the session hands its switch flow. Teardown destroys the current
+    /// printer's scope, rebuild creates the next one, land_home navigates to the home panel.
+    using Restart = PrinterSwitchFlow::Restart;
 
     /// What the owner of the process provides: its state, read at use, and the steps of the
     /// rebuild that belong to the process rather than the printer.
@@ -74,6 +71,9 @@ class PrinterSession {
     /// running; an unknown id changes nothing.
     void switch_printer(const std::string& printer_id);
 
+    /// switch_printer() for a user's pick: asks first when the current printer is printing.
+    void request_switch(const std::string& printer_id);
+
     /// Creates an empty printer entry, makes it active and restarts into its setup wizard.
     void add_printer_via_wizard();
 
@@ -84,12 +84,12 @@ class PrinterSession {
     /// The printer to restore if the add-printer wizard is cancelled; empty when no such
     /// wizard is running.
     [[nodiscard]] const std::string& wizard_previous_printer_id() const {
-        return m_wizard_previous_printer_id;
+        return m_flow.wizard_previous_printer_id();
     }
 
     /// The add-printer wizard finished: there is nothing left to cancel back to.
     void clear_wizard_previous_printer_id() {
-        m_wizard_previous_printer_id.clear();
+        m_flow.clear_wizard_previous_printer_id();
     }
 
     // The phases of bringing a printer scope up. Boot runs them in its own order, around the
@@ -156,13 +156,7 @@ class PrinterSession {
     Config*& m_config;
     AsyncLifetimeGuard& m_async;
     Host m_host;
-    Restart m_restart;
-
-    /// Every restart path is a teardown plus a rebuild that includes a Moonraker connect and
-    /// can throw; while this is set, a second switch or add is a no-op.
-    bool m_soft_restart_in_progress = false;
-
-    std::string m_wizard_previous_printer_id;
+    PrinterSwitchFlow m_flow;
 
     std::unique_ptr<MoonrakerManager> m_moonraker;
     std::unique_ptr<JobQueueState> m_job_queue_state;
