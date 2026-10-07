@@ -778,6 +778,7 @@
   <translation tag="Cutting" ja="カット中"/>
   <translation tag="Cutting filament..." ja="フィラメントを切断中..."/>
   <translation tag="DETECTED USB PRINTERS" ja="検出されたUSBプリンター"/>
+  <translation tag="DEVICES" ja="デバイス"/>
   <translation tag="DISABLED" ja="無効"/>
   <translation tag="DISCOVERED PRINTERS" ja="検出されたプリンター"/>
   <translation tag="DISPLAY" ja="ディスプレイ"/>
@@ -3294,6 +3295,7 @@
   <translation tag="Volume" ja="音量"/>
   <translation tag="Volume of filament used during ramming" ja="ラミング時に使用するフィラメント量"/>
   <translation tag="Volume {}%" ja="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" ja="重量同期"/>
   <translation tag="WIDTH SENSORS" ja="幅センサー"/>
   <translation tag="WLED Preset" ja="WLED プリセット"/>
   <translation tag="WPA/WPA2" ja="WPA/WPA2"/>

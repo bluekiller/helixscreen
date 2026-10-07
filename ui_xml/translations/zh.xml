@@ -778,6 +778,7 @@
   <translation tag="Cutting" zh="切割中"/>
   <translation tag="Cutting filament..." zh="正在切断耗材..."/>
   <translation tag="DETECTED USB PRINTERS" zh="已检测到的 USB 打印机"/>
+  <translation tag="DEVICES" zh="设备"/>
   <translation tag="DISABLED" zh="已禁用"/>
   <translation tag="DISCOVERED PRINTERS" zh="已发现的打印机"/>
   <translation tag="DISPLAY" zh="显示"/>
@@ -3294,6 +3295,7 @@
   <translation tag="Volume" zh="音量"/>
   <translation tag="Volume of filament used during ramming" zh="填充过程中使用的耗材体积"/>
   <translation tag="Volume {}%" zh="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" zh="重量同步"/>
   <translation tag="WIDTH SENSORS" zh="宽度传感器"/>
   <translation tag="WLED Preset" zh="WLED 预设"/>
   <translation tag="WPA/WPA2" zh="WPA/WPA2"/>

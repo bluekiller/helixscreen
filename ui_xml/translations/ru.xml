@@ -778,6 +778,7 @@
   <translation tag="Cutting" ru="Резка"/>
   <translation tag="Cutting filament..." ru="Обрезка филамента..."/>
   <translation tag="DETECTED USB PRINTERS" ru="ОБНАРУЖЕННЫЕ USB-ПРИНТЕРЫ"/>
+  <translation tag="DEVICES" ru="УСТРОЙСТВА"/>
   <translation tag="DISABLED" ru="ОТКЛЮЧЕНО"/>
   <translation tag="DISCOVERED PRINTERS" ru="НАЙДЕННЫЕ ПРИНТЕРЫ"/>
   <translation tag="DISPLAY" ru="ДИСПЛЕЙ"/>
@@ -3294,6 +3295,7 @@
   <translation tag="Volume" ru="Громкость"/>
   <translation tag="Volume of filament used during ramming" ru="Объём филамента, расходуемый при рэмминге"/>
   <translation tag="Volume {}%" ru="Громкость {}%"/>
+  <translation tag="WEIGHT SYNC" ru="СИНХРОНИЗАЦИЯ ВЕСА"/>
   <translation tag="WIDTH SENSORS" ru="ДАТЧИКИ ШИРИНЫ"/>
   <translation tag="WLED Preset" ru="Пресет WLED"/>
   <translation tag="WPA/WPA2" ru="WPA/WPA2"/>

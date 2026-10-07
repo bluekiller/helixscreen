@@ -857,6 +857,7 @@ translations:
   Cutting: Резка
   Cutting filament...: Обрезка филамента...
   DETECTED USB PRINTERS: ОБНАРУЖЕННЫЕ USB-ПРИНТЕРЫ
+  DEVICES: УСТРОЙСТВА
   DISABLED: ОТКЛЮЧЕНО
   DISCOVERED PRINTERS: НАЙДЕННЫЕ ПРИНТЕРЫ
   DISPLAY: ДИСПЛЕЙ
@@ -3659,6 +3660,7 @@ translations:
   Volume: Громкость
   Volume of filament used during ramming: 'Объём филамента, расходуемый при рэмминге'
   Volume {}%: Громкость {}%
+  WEIGHT SYNC: СИНХРОНИЗАЦИЯ ВЕСА
   WIDTH SENSORS: ДАТЧИКИ ШИРИНЫ
   WLED Preset: Пресет WLED
   WPA/WPA2: 'WPA/WPA2'

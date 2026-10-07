@@ -799,6 +799,7 @@ translations:
   Cutting: 切割中
   Cutting filament...: 正在切断耗材...
   DETECTED USB PRINTERS: 已检测到的 USB 打印机
+  DEVICES: 设备
   DISABLED: 已禁用
   DISCOVERED PRINTERS: 已发现的打印机
   DISPLAY: 显示
@@ -3444,6 +3445,7 @@ translations:
   Volume: 音量
   Volume of filament used during ramming: '填充过程中使用的耗材体积'
   Volume {}%: 音量 {}%
+  WEIGHT SYNC: 重量同步
   WIDTH SENSORS: 宽度传感器
   WLED Preset: WLED 预设
   WPA/WPA2: 'WPA/WPA2'

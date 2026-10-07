@@ -778,6 +778,7 @@
   <translation tag="Cutting" fr="Coupe"/>
   <translation tag="Cutting filament..." fr="Coupe du filament..."/>
   <translation tag="DETECTED USB PRINTERS" fr="IMPRIMANTES USB DÉTECTÉES"/>
+  <translation tag="DEVICES" fr="PÉRIPHÉRIQUES"/>
   <translation tag="DISABLED" fr="DÉSACTIVÉ"/>
   <translation tag="DISCOVERED PRINTERS" fr="IMPRIMANTES DÉCOUVERTES"/>
   <translation tag="DISPLAY" fr="AFFICHAGE"/>
@@ -3294,6 +3295,7 @@
   <translation tag="Volume" fr="Volume"/>
   <translation tag="Volume of filament used during ramming" fr="Volume de filament utilisé pendant le bourrage"/>
   <translation tag="Volume {}%" fr="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" fr="SYNCHRONISATION DU POIDS"/>
   <translation tag="WIDTH SENSORS" fr="CAPTEURS DE LARGEUR"/>
   <translation tag="WLED Preset" fr="Préréglage WLED"/>
   <translation tag="WPA/WPA2" fr="WPA/WPA2"/>

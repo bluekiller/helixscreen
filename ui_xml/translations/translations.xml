@@ -778,6 +778,7 @@
   <translation tag="Cutting" de="Schneiden" en="Cutting" es="Cortando" fr="Coupe" it="Taglio" ja="カット中" pt="Cortando" ru="Резка" zh="切割中"/>
   <translation tag="Cutting filament..." de="Filament wird geschnitten..." en="Cutting filament..." es="Cortando filamento..." fr="Coupe du filament..." it="Taglio filamento..." ja="フィラメントを切断中..." pt="Cortando filamento..." ru="Обрезка филамента..." zh="正在切断耗材..."/>
   <translation tag="DETECTED USB PRINTERS" de="ERKANNTE USB-DRUCKER" en="DETECTED USB PRINTERS" es="IMPRESORAS USB DETECTADAS" fr="IMPRIMANTES USB DÉTECTÉES" it="STAMPANTI USB RILEVATE" ja="検出されたUSBプリンター" pt="IMPRESSORAS USB DETECTADAS" ru="ОБНАРУЖЕННЫЕ USB-ПРИНТЕРЫ" zh="已检测到的 USB 打印机"/>
+  <translation tag="DEVICES" de="GERÄTE" en="DEVICES" es="DISPOSITIVOS" fr="PÉRIPHÉRIQUES" it="DISPOSITIVI" ja="デバイス" pt="DISPOSITIVOS" ru="УСТРОЙСТВА" zh="设备"/>
   <translation tag="DISABLED" de="DEAKTIVIERT" en="DISABLED" es="DESACTIVADO" fr="DÉSACTIVÉ" it="DISABILITATO" ja="無効" pt="DESABILITADO" ru="ОТКЛЮЧЕНО" zh="已禁用"/>
   <translation tag="DISCOVERED PRINTERS" de="GEFUNDENE DRUCKER" en="DISCOVERED PRINTERS" es="IMPRESORAS DESCUBIERTAS" fr="IMPRIMANTES DÉCOUVERTES" it="STAMPANTI SCOPERTE" ja="検出されたプリンター" pt="IMPRESSORAS DESCOBERTAS" ru="НАЙДЕННЫЕ ПРИНТЕРЫ" zh="已发现的打印机"/>
   <translation tag="DISPLAY" de="ANZEIGE" en="DISPLAY" es="PANTALLA" fr="AFFICHAGE" it="SCHERMO" ja="ディスプレイ" pt="TELA" ru="ДИСПЛЕЙ" zh="显示"/>
@@ -3294,6 +3295,7 @@
   <translation tag="Volume" de="Lautstärke" en="Volume" es="Volumen" fr="Volume" it="Volume" ja="音量" pt="Volume" ru="Громкость" zh="音量"/>
   <translation tag="Volume of filament used during ramming" de="Beim Ramming verwendetes Filamentvolumen" en="Volume of filament used during ramming" es="Volumen de filamento usado durante la compactación" fr="Volume de filament utilisé pendant le bourrage" it="Volume di filamento usato durante la compattazione" ja="ラミング時に使用するフィラメント量" pt="Volume de filamento usado durante a compactação" ru="Объём филамента, расходуемый при рэмминге" zh="填充过程中使用的耗材体积"/>
   <translation tag="Volume {}%" de="Lautstärke {}%" en="Volume {}%" es="Volumen {}%" fr="Volume {}%" it="Volume {}%" ja="音量 {}%" pt="Volume {}%" ru="Громкость {}%" zh="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" de="GEWICHTSSYNCHRONISIERUNG" en="WEIGHT SYNC" es="SINCRONIZACIÓN DE PESO" fr="SYNCHRONISATION DU POIDS" it="SINCRONIZZAZIONE PESO" ja="重量同期" pt="SINCRONIZAÇÃO DE PESO" ru="СИНХРОНИЗАЦИЯ ВЕСА" zh="重量同步"/>
   <translation tag="WIDTH SENSORS" de="BREITENSENSOREN" en="WIDTH SENSORS" es="SENSORES DE ANCHO" fr="CAPTEURS DE LARGEUR" it="SENSORI DI LARGHEZZA" ja="幅センサー" pt="SENSORES DE LARGURA" ru="ДАТЧИКИ ШИРИНЫ" zh="宽度传感器"/>
   <translation tag="WLED Preset" de="WLED-Voreinstellung" en="WLED Preset" es="Preajuste WLED" fr="Préréglage WLED" it="Preset WLED" ja="WLED プリセット" pt="Predefinição WLED" ru="Пресет WLED" zh="WLED 预设"/>
   <translation tag="WPA/WPA2" de="WPA/WPA2" en="WPA/WPA2" es="WPA/WPA2" fr="WPA/WPA2" it="WPA/WPA2" ja="WPA/WPA2" pt="WPA/WPA2" ru="WPA/WPA2" zh="WPA/WPA2"/>

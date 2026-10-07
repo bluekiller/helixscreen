@@ -870,6 +870,7 @@ translations:
   Cutting: Cortando
   Cutting filament...: Cortando filamento...
   DETECTED USB PRINTERS: IMPRESSORAS USB DETECTADAS
+  DEVICES: DISPOSITIVOS
   DISABLED: DESABILITADO
   DISCOVERED PRINTERS: IMPRESSORAS DESCOBERTAS
   DISPLAY: TELA
@@ -3704,6 +3705,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: 'Volume de filamento usado durante a compactação'
   Volume {}%: Volume {}%
+  WEIGHT SYNC: SINCRONIZAÇÃO DE PESO
   WIDTH SENSORS: SENSORES DE LARGURA
   WLED Preset: Predefinição WLED
   WPA/WPA2: 'WPA/WPA2'
