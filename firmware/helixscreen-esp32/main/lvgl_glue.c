@@ -228,9 +228,8 @@ static void cycle_add_rows(int32_t y1, int32_t y2) {
     }
 }
 
-// A scroll blit moves pixels inside the shadow as LVGL starts the refresh that
-// renders the strip it exposed, so the move joins that cycle and is presented
-// with it.
+// A scroll blit moves pixels inside the shadow as LVGL starts drawing the
+// strip it exposed, so the move joins that cycle and is presented with it.
 static bool scroll_claim_rows(int32_t y1, int32_t y2) {
     cycle_add_rows(y1, y2);
     return s_writer_holds;

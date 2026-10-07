@@ -347,8 +347,9 @@ TEST_CASE_METHOD(ScrollBlitFixture, "scroll blit edge cases still match a full r
     SECTION("a frame that cannot be taken") {
         g_claim_ok = false;
         lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
-        CHECK(render() >= whole);
+        render();
         CHECK(g_claims > 0);
+        CHECK(render() >= whole); // the refresh after repairs the region
     }
     SECTION("more static widgets than are worth tracking") {
         for (int i = 0; i < 9; i++)
@@ -360,5 +361,24 @@ TEST_CASE_METHOD(ScrollBlitFixture, "scroll blit edge cases still match a full r
         lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
         CHECK(render() >= whole);
     }
+    REQUIRE(mismatch() == "0 px differ");
+}
+
+// Layout runs after the refresh starts, and content that shrinks under a
+// scroller parked at its end scrolls it back from inside that layout.
+TEST_CASE_METHOD(ScrollBlitFixture, "scroll blit handles a scroll that layout makes",
+                 "[scroll_blit]") {
+    lv_obj_scroll_to_y(list_, LV_COORD_MAX, LV_ANIM_OFF);
+    render();
+    REQUIRE(lv_obj_get_scroll_bottom(list_) == 0);
+    const int32_t y_before = lv_obj_get_scroll_y(list_);
+
+    for (int i = 0; i < 3; i++)
+        lv_obj_delete(lv_obj_get_parent(labels_[labels_.size() - 1 - i]));
+    labels_.resize(labels_.size() - 3);
+    render();
+    REQUIRE(lv_obj_get_scroll_y(list_) < y_before); // the layout did scroll it
+    REQUIRE(mismatch() == "0 px differ");
+    render();
     REQUIRE(mismatch() == "0 px differ");
 }

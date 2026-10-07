@@ -28,8 +28,9 @@ struct State {
     int32_t pending_dy = 0;
     lv_area_t pending_area{};
     bool in_invalidate = false;
-    // Moves decided since the last refresh, applied when it starts: taking the
-    // frame earlier would hold it from the presenter for a whole frame.
+    // Moves decided since the last render, applied as it starts drawing: after
+    // layout, which can scroll too, and without holding the frame from the
+    // presenter for longer than the render itself.
     struct Shift {
         lv_area_t region;
         int32_t dy;
@@ -37,6 +38,9 @@ struct State {
     static constexpr int kMaxShifts = 4;
     Shift shifts[kMaxShifts];
     int n_shifts = 0;
+    // Regions a refused frame left unmoved, redrawn whole by the next refresh.
+    Shift repairs[kMaxShifts];
+    int n_repairs = 0;
 };
 
 State s_state;
@@ -399,8 +403,9 @@ void track_dragged_scrollers() {
     }
 }
 
-/// Moves the frame's pixels for this refresh's scrolls. A frame that cannot be
-/// taken leaves those regions to render in full.
+/// Moves the frame's pixels for this render's scrolls. The areas to draw are
+/// fixed by now, so a region whose frame cannot be taken shows one frame of
+/// stale pixels and is redrawn whole by the next refresh.
 void apply_shifts() {
     const int n = s_state.n_shifts;
     s_state.n_shifts = 0;
@@ -413,16 +418,31 @@ void apply_shifts() {
             shift_rows(s_state.frame.buf, s_state.frame.stride, px_bytes, sh.region, sh.dy,
                        s_state.frame.scratch, s_state.frame.scratch_bytes);
         } else {
-            lv_inv_area(s_state.disp, &sh.region);
+            s_state.repairs[s_state.n_repairs++] = sh;
         }
     }
 }
 
+void apply_repairs() {
+    const int n = s_state.n_repairs;
+    s_state.n_repairs = 0;
+    for (int i = 0; i < n; i++)
+        lv_inv_area(s_state.disp, &s_state.repairs[i].region);
+}
+
 void on_display_event(lv_event_t* e) {
-    if (lv_event_get_code(e) == LV_EVENT_REFR_START) {
+    switch (lv_event_get_code(e)) {
+    case LV_EVENT_REFR_START:
         s_state.pending_obj = nullptr;
+        return;
+    case LV_EVENT_RENDER_START:
         apply_shifts();
         return;
+    case LV_EVENT_REFR_READY:
+        apply_repairs();
+        return;
+    default:
+        break;
     }
     if (s_state.in_invalidate)
         return;
@@ -489,6 +509,8 @@ void scroll_blit_install(lv_display_t* disp, const RetainedFrame& frame) {
     s_state.frame = frame;
     lv_display_add_event_cb(disp, on_display_event, LV_EVENT_INVALIDATE_AREA, nullptr);
     lv_display_add_event_cb(disp, on_display_event, LV_EVENT_REFR_START, nullptr);
+    lv_display_add_event_cb(disp, on_display_event, LV_EVENT_RENDER_START, nullptr);
+    lv_display_add_event_cb(disp, on_display_event, LV_EVENT_REFR_READY, nullptr);
 }
 
 void scroll_blit_uninstall() {
