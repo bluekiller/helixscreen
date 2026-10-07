@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <ctime>
 #include <map>
@@ -97,6 +98,9 @@ struct PrintFileData {
     /// holding nothing, so a failed thumbnail is tried again only when the card
     /// is next shown.
     bool esp_thumbnail_tried = false;
+    /// Set to cancel the fetch started for this card, should it leave the screen
+    /// first: the lane drops the request unsent, or the decode is skipped.
+    std::shared_ptr<std::atomic<bool>> esp_fetch_cancel;
     /// The print-select sync tick at which its card was last on screen.
     uint32_t esp_thumbnail_shown = 0;
 #endif

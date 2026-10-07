@@ -57,7 +57,7 @@ EspHttpLane& EspHttpLane::instance() {
 }
 
 bool EspHttpLane::submit_get(std::string url, size_t range_max_bytes, FetchSuccessCb on_success,
-                             FetchErrorCb on_error) {
+                             FetchErrorCb on_error, FetchCancelFlag cancelled) {
     const size_t cap = clamp_fetch_cap(range_max_bytes);
 
     {
@@ -67,7 +67,8 @@ bool EspHttpLane::submit_get(std::string url, size_t range_max_bytes, FetchSucce
                      (unsigned)slots_.max_depth(), url.c_str());
             return false;
         }
-        queue_.push_back(Job{std::move(url), cap, std::move(on_success), std::move(on_error)});
+        queue_.push_back(Job{std::move(url), cap, std::move(on_success), std::move(on_error),
+                             std::move(cancelled)});
 
         // The worker is the only thing that drains the queue and releases
         // slots. Without it the job sits forever and its slot is never
@@ -136,7 +137,13 @@ void EspHttpLane::worker_loop() {
             queue_.pop_front();
         }
 
-        run_one(job);
+        if (job.cancelled && job.cancelled->load()) {
+            if (job.on_error) {
+                job.on_error("cancelled");
+            }
+        } else {
+            run_one(job);
+        }
 
         std::lock_guard<std::mutex> lock(mutex_);
         slots_.release();
