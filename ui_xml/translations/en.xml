@@ -177,6 +177,7 @@
   <translation tag="Add" en="Add"/>
   <translation tag="Add Filament" en="Add Filament"/>
   <translation tag="Add Hidden Network" en="Add Hidden Network"/>
+  <translation tag="Add Printer" en="Add Printer"/>
   <translation tag="Add Vendor" en="Add Vendor"/>
   <translation tag="Add Widget" en="Add Widget"/>
   <translation tag="Add custom filament" en="Add custom filament"/>
@@ -449,6 +450,7 @@
   <translation tag="Camera" en="Camera"/>
   <translation tag="Can&apos;t connect — try forgetting and re-pairing the printer" en="Can&apos;t connect — try forgetting and re-pairing the printer"/>
   <translation tag="Can&apos;t move filament while the print is paused" en="Can&apos;t move filament while the print is paused"/>
+  <translation tag="Can&apos;t reach this printer. Save anyway?" en="Can&apos;t reach this printer. Save anyway?"/>
   <translation tag="Can&apos;t read filament RFID tag" en="Can&apos;t read filament RFID tag"/>
   <translation tag="Cancel" en="Cancel"/>
   <translation tag="Cancel Escalation" en="Cancel Escalation"/>
@@ -2895,6 +2897,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." en="Switching heater control to MPC. Klipper will restart."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." en="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." en="Switching to MPC requires a config change and Klipper restart."/>
+  <translation tag="Switching to {}" en="Switching to {}"/>
   <translation tag="Sync during printing" en="Sync during printing"/>
   <translation tag="Sync with Spoolman" en="Sync with Spoolman"/>
   <translation tag="Sysfs" en="Sysfs"/>
@@ -3538,6 +3541,7 @@
   <translation tag="{} is installed but its backup-spool switching is turned off, so no automatic swap will happen." en="{} is installed but its backup-spool switching is turned off, so no automatic swap will happen."/>
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." en="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap."/>
   <translation tag="{} is not set up on this printer" en="{} is not set up on this printer"/>
+  <translation tag="{} is still printing. The print keeps running after you switch." en="{} is still printing. The print keeps running after you switch."/>
   <translation tag="{} lines in helixscreen.env were ignored" en="{} lines in helixscreen.env were ignored"/>
   <translation tag="{} macro not configured" en="{} macro not configured"/>
   <translation tag="{} matches." en="{} matches."/>

@@ -11,7 +11,6 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "theme_manager.h"
 #include "ui/fan_spin_animation.h"
-#include "ui/ui_event_trampoline.h"
 
 #include <spdlog/spdlog.h>
 
@@ -522,13 +521,34 @@ void FanDial::update_fan_animation(int speed_pct) {
 }
 
 // ============================================================================
-// Static Event Trampolines
+// Static Event Callbacks
 // ============================================================================
+// Named rather than lambdas: lv_obj_remove_event_cb finds a callback by its
+// function pointer, and a move re-binds these to the new instance.
 
-DEFINE_EVENT_TRAMPOLINE_SIMPLE(FanDial, on_arc_value_changed, handle_arc_changed)
-DEFINE_EVENT_TRAMPOLINE_SIMPLE(FanDial, on_arc_released, handle_arc_released)
-DEFINE_EVENT_TRAMPOLINE_SIMPLE(FanDial, on_switch_changed, handle_switch_changed)
-DEFINE_EVENT_TRAMPOLINE_SIMPLE(FanDial, on_icon_clicked, handle_icon_clicked)
+void FanDial::on_arc_value_changed(lv_event_t* e) {
+    if (auto* self = static_cast<FanDial*>(lv_event_get_user_data(e))) {
+        self->handle_arc_changed();
+    }
+}
+
+void FanDial::on_arc_released(lv_event_t* e) {
+    if (auto* self = static_cast<FanDial*>(lv_event_get_user_data(e))) {
+        self->handle_arc_released();
+    }
+}
+
+void FanDial::on_switch_changed(lv_event_t* e) {
+    if (auto* self = static_cast<FanDial*>(lv_event_get_user_data(e))) {
+        self->handle_switch_changed();
+    }
+}
+
+void FanDial::on_icon_clicked(lv_event_t* e) {
+    if (auto* self = static_cast<FanDial*>(lv_event_get_user_data(e))) {
+        self->handle_icon_clicked();
+    }
+}
 
 // ============================================================================
 // XML Callback Registration

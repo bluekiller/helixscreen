@@ -177,6 +177,7 @@
   <translation tag="Add" pt="Adicionar"/>
   <translation tag="Add Filament" pt="Adicionar Filamento"/>
   <translation tag="Add Hidden Network" pt="Adicionar Rede Oculta"/>
+  <translation tag="Add Printer" pt="Adicionar Impressora"/>
   <translation tag="Add Vendor" pt="Adicionar Fornecedor"/>
   <translation tag="Add Widget" pt="Adicionar Widget"/>
   <translation tag="Add custom filament" pt="Adicionar filamento personalizado"/>
@@ -449,6 +450,7 @@
   <translation tag="Camera" pt="Câmera"/>
   <translation tag="Can&apos;t connect — try forgetting and re-pairing the printer" pt="Não foi possível conectar — tente esquecer e parear a impressora novamente"/>
   <translation tag="Can&apos;t move filament while the print is paused" pt="Não é possível mover o filamento com a impressão pausada"/>
+  <translation tag="Can&apos;t reach this printer. Save anyway?" pt="Não foi possível alcançar esta impressora. Salvar mesmo assim?"/>
   <translation tag="Can&apos;t read filament RFID tag" pt="Não é possível ler a etiqueta RFID do filamento"/>
   <translation tag="Cancel" pt="Cancelar"/>
   <translation tag="Cancel Escalation" pt="Cancelar Escalação"/>
@@ -2895,6 +2897,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." pt="Alterando controle do aquecedor para MPC. Klipper será reiniciado."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." pt="Mudar para MPC altera como este aquecedor é controlado e depois o calibra. Isso leva vários minutos em temperatura."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." pt="Mudar para MPC requer alteração de configuração e reinicialização do Klipper."/>
+  <translation tag="Switching to {}" pt="Mudando para {}"/>
   <translation tag="Sync during printing" pt="Sincronizar durante a impressão"/>
   <translation tag="Sync with Spoolman" pt="Sincronizar com Spoolman"/>
   <translation tag="Sysfs" pt="Sysfs"/>
@@ -3538,6 +3541,7 @@
   <translation tag="{} is installed but its backup-spool switching is turned off, so no automatic swap will happen." pt="{} está instalado mas sua troca para carretel reserva está desligada, então não haverá troca automática."/>
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." pt="{} está instalado, mas não foi possível ler sua configuração de carretel reserva - não conte com uma troca automática."/>
   <translation tag="{} is not set up on this printer" pt="{} não está configurado nesta impressora"/>
+  <translation tag="{} is still printing. The print keeps running after you switch." pt="{} ainda está imprimindo. A impressão continua depois da troca."/>
   <translation tag="{} lines in helixscreen.env were ignored" pt="{} linhas do helixscreen.env foram ignoradas"/>
   <translation tag="{} macro not configured" pt="Macro {} não configurado"/>
   <translation tag="{} matches." pt="{} corresponde."/>

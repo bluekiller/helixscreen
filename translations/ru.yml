@@ -183,6 +183,7 @@ translations:
   Add: Добавить
   Add Filament: Добавить филамент
   Add Hidden Network: Добавить скрытую сеть
+  Add Printer: Добавить принтер
   Add Vendor: Добавить производителя
   Add Widget: Добавить виджет
   Add custom filament: Добавить свой филамент
@@ -487,6 +488,7 @@ translations:
     — забудьте принтер и выполните сопряжение заново
   Can't move filament while the print is paused: Невозможно перемещать филамент, пока печать на паузе
   Can't read filament RFID tag: Не удаётся прочитать RFID-метку филамента
+  Can't reach this printer. Save anyway?: Принтер недоступен. Всё равно сохранить?
   Cancel: Отмена
   Cancel Escalation: Отменить эскалацию
   Cancel Print: Отменить печать
@@ -3190,6 +3192,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Переход на MPC меняет способ управления этим нагревателем, а затем калибрует его. Это занимает несколько минут при рабочей температуре.
   Switching to MPC requires a config change and Klipper restart.: Переход на MPC требует
     изменения конфига и перезапуска Klipper.
+  Switching to {}: Переключение на {}
   Sync during printing: Синхронизация во время печати
   Sync with Spoolman: Синхронизация со Spoolman
   Sysfs: Sysfs
@@ -3922,6 +3925,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{}: подаёт филамент для текущей печати. Удалите катушку после завершения печати.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} установлен, но переключение на резервную катушку выключено, поэтому автоматической замены не будет.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} установлен, но прочитать его настройку резервной катушки не удалось - не рассчитывайте на автоматическую замену.'
+  '{} is still printing. The print keeps running after you switch.': '{} ещё печатает. Печать продолжится после переключения.'
   '{} is not set up on this printer': '{} не настроен на этом принтере'
   '{} lines in helixscreen.env were ignored': 'В helixscreen.env проигнорировано строк: {}'
   '{} macro not configured': Макрос {} не настроен

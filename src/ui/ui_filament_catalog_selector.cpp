@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ui_filament_catalog_selector.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_icon_codepoints.h"
 #include "ui_utils.h"
 
@@ -63,10 +64,16 @@ void FilamentCatalogSelector::register_callbacks() {
             self->handle_type_changed();
     });
     // Row callbacks fired by the catalog_row / catalog_add_row XML components.
-    lv_xml_register_event_cb(nullptr, "catalog_row_clicked_cb", on_row_clicked_cb);
-    lv_xml_register_event_cb(nullptr, "catalog_row_edit_cb", on_row_edit_cb);
-    lv_xml_register_event_cb(nullptr, "catalog_row_star_cb", on_row_star_cb);
-    lv_xml_register_event_cb(nullptr, "catalog_add_custom_cb", on_add_custom_cb);
+    register_xml_callbacks({
+        {"catalog_row_clicked_cb", on_row_clicked_cb},
+        {"catalog_row_edit_cb", on_row_edit_cb},
+        {"catalog_row_star_cb", on_row_star_cb},
+        {"catalog_add_custom_cb",
+         [](lv_event_t* e) {
+             if (auto* self = from_event(e))
+                 self->handle_add_custom();
+         }},
+    });
     callbacks_registered_ = true;
 }
 
@@ -99,11 +106,6 @@ void FilamentCatalogSelector::on_row_star_cb(lv_event_t* e) {
     FilamentCatalogSelector* self = from_event(e);
     if (self && id)
         self->handle_star_toggled(id);
-}
-
-void FilamentCatalogSelector::on_add_custom_cb(lv_event_t* e) {
-    if (auto* self = from_event(e))
-        self->handle_add_custom();
 }
 
 FilamentCatalogSelector::~FilamentCatalogSelector() {

@@ -186,6 +186,7 @@ translations:
   Add: Agregar
   Add Filament: Agregar Filamento
   Add Hidden Network: Agregar Red Oculta
+  Add Printer: Agregar Impresora
   Add Vendor: Agregar Proveedor
   Add Widget: Agregar widget
   Add custom filament: Añadir filamento personalizado
@@ -494,6 +495,7 @@ translations:
     — prueba a olvidar y volver a emparejar la impresora
   Can't move filament while the print is paused: No se puede mover el filamento con la impresión en pausa
   Can't read filament RFID tag: No se puede leer la etiqueta RFID del filamento
+  Can't reach this printer. Save anyway?: No se puede conectar con esta impresora. ¿Guardar de todos modos?
   Cancel: Cancelar
   Cancel Escalation: Cancelar Escalado
   Cancel Print: Cancelar Impresión
@@ -3220,6 +3222,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Cambiar a MPC cambia cómo se controla este calentador y luego lo calibra. Eso tarda varios minutos a temperatura.
   Switching to MPC requires a config change and Klipper restart.: Cambiar a MPC requiere
     modificar la configuración y reiniciar Klipper.
+  Switching to {}: Cambiando a {}
   Sync during printing: Sincronizar durante la impresión
   Sync with Spoolman: Sincronizar con Spoolman
   Sysfs: Sysfs
@@ -3964,6 +3967,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{}: alimenta la impresión actual. Elimina la bobina cuando termine la impresión.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} está instalado pero su cambio a bobina de reserva está desactivado, así que no habrá ningún cambio automático.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} está instalado, pero no se pudo leer su ajuste de bobina de reserva - no cuentes con un cambio automático.'
+  '{} is still printing. The print keeps running after you switch.': '{} sigue imprimiendo. La impresión continúa después de cambiar.'
   '{} is not set up on this printer': '{} no está configurado en esta impresora'
   '{} lines in helixscreen.env were ignored': '{} líneas de helixscreen.env fueron ignoradas'
   '{} macro not configured': Macro {} no configurado

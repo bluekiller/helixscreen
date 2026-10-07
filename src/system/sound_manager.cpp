@@ -408,6 +408,31 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
     // 2. ALSA PCM available (Linux with audio) -> ALSABackend
     // 3. /sys/class/pwm/pwmchip0 exists -> PWMBackend
     // 4. None -> wait for M300 gate, or sounds disabled
+    //
+    // A buzzer named on a PWM channel (setting sound.pwm_channel, or the
+    // HELIX_PWM_SOUND override) wins over all of them: a Pi with a passive
+    // buzzer on a header pin still has an ALSA headphone jack that opens fine
+    // and plays to nothing.
+
+#ifdef HELIX_HAS_PWM_SOUND
+    int chip = -1;
+    int channel = -1;
+    if (PWMSoundBackend::resolve_channel(AudioSettingsManager::instance().get_pwm_channel(),
+                                         std::getenv("HELIX_PWM_SOUND"), chip, channel)) {
+        auto pwm = std::make_shared<PWMSoundBackend>("/sys/class/pwm", chip, channel);
+        pwm->set_auto_export(true);
+        pwm->set_klippy_shares_channel(false);
+        // Fast enough to step a tracker arpeggio every Game Boy frame.
+        pwm->set_min_note_ms(16.0f);
+        if (pwm->initialize()) {
+            spdlog::info("[SoundManager] Using PWM sysfs backend ({}) for the named buzzer",
+                         pwm->channel_path());
+            return pwm;
+        }
+        spdlog::warn("[SoundManager] Named buzzer {} unavailable, falling back",
+                     pwm->channel_path());
+    }
+#endif
 
 #ifdef HELIX_DISPLAY_SDL
     auto sdl_backend = std::make_shared<SDLSoundBackend>();
@@ -451,15 +476,17 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
     spdlog::debug("[SoundManager] JzPwm DMA not available, falling back");
 #endif
 
-#ifdef HELIX_HAS_PWM_SOUND
+#ifdef HELIX_PWM_AUTO_EXPORT
     // PWM sysfs buzzer. Gated per-platform, NOT probed everywhere: the probe is
     // "does /sys/class/pwm/pwmchip0 exist", which is true on boards that have a
     // PWM controller and no buzzer on it. A CC1 has 8 channels there and no
     // beeper wired to any of them, so an ungated probe means exporting and
     // driving a channel that belongs to something else -- its backlight is a
     // platform device on the same controller. Only enable this where the buzzer
-    // is known to exist (AD5M/AD5X).
+    // is known to exist (AD5M); everywhere else it takes a named channel.
     auto pwm_backend = std::make_shared<PWMSoundBackend>();
+    // The stock AD5M kernel ships the beeper channel (pwm6) unexported.
+    pwm_backend->set_auto_export(true);
     if (pwm_backend->initialize()) {
         spdlog::info("[SoundManager] Using PWM sysfs backend ({})", pwm_backend->channel_path());
         return pwm_backend;

@@ -402,29 +402,14 @@ void PrintSelectListView::update_visible(const std::vector<PrintFileData>& file_
     sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
                       last_trailing_height_);
 
-    // Assign pool rows to visible indices, skipping rows that already show correct file
-    size_t pool_idx = 0;
-    for (int file_idx = first_visible; file_idx < last_visible && pool_idx < list_pool_.size();
-         file_idx++, pool_idx++) {
-        lv_obj_t* row = list_pool_[pool_idx];
-
-        if (data_changed || list_pool_indices_[pool_idx] != file_idx) {
-            configure_row(row, pool_idx, static_cast<size_t>(file_idx), file_list[file_idx]);
-            list_pool_indices_[pool_idx] = file_idx;
-        }
-
-        // Ensure row is in correct position (guard to avoid redundant relayout)
-        int target_index = static_cast<int>(pool_idx) + 1;
-        if (lv_obj_get_index(row) != target_index) {
-            lv_obj_move_to_index(row, target_index);
-        }
-    }
-
-    // Hide unused pool rows
-    for (; pool_idx < list_pool_.size(); pool_idx++) {
-        lv_obj_add_flag(list_pool_[pool_idx], LV_OBJ_FLAG_HIDDEN);
-        list_pool_indices_[pool_idx] = -1;
-    }
+    show_window(
+        container_, list_pool_indices_, first_visible, last_visible, data_changed,
+        [this](size_t slot) { return list_pool_[slot]; },
+        [&](size_t slot, ssize_t file_idx) {
+            configure_row(list_pool_[slot], slot, static_cast<size_t>(file_idx),
+                          file_list[static_cast<size_t>(file_idx)]);
+        },
+        [this](size_t slot) { lv_obj_add_flag(list_pool_[slot], LV_OBJ_FLAG_HIDDEN); });
 
     visible_start_ = first_visible;
     visible_end_ = last_visible;

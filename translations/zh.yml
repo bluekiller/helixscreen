@@ -177,6 +177,7 @@ translations:
   Add: 添加
   Add Filament: 添加耗材
   Add Hidden Network: 添加隐藏网络
+  Add Printer: 添加打印机
   Add Vendor: 添加供应商
   Add Widget: 添加小组件
   Add custom filament: 添加自定义耗材
@@ -456,6 +457,7 @@ translations:
   Can't connect — try forgetting and re-pairing the printer: 无法连接 — 请尝试忘记并重新配对打印机
   Can't move filament while the print is paused: 打印暂停期间无法移动耗材
   Can't read filament RFID tag: 无法读取耗材 RFID 标签
+  Can't reach this printer. Save anyway?: 无法连接到此打印机。仍要保存吗？
   Cancel: 取消
   Cancel Escalation: 取消升级
   Cancel Print: 取消打印
@@ -3006,6 +3008,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: 切换到 MPC 会改变此加热器的控制方式，随后会进行校准。这需要在工作温度下耗时数分钟。
   Switching to MPC requires a config change and Klipper restart.: 切换到 MPC 需要修改配置并重启
     Klipper。
+  Switching to {}: 正在切换到 {}
   Sync during printing: 打印期间同步
   Sync with Spoolman: 与 Spoolman 同步
   Sysfs: Sysfs
@@ -3697,6 +3700,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{} 正在为当前打印供料。请在打印结束后清除。'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} 已安装，但其备用料盘切换已关闭，因此不会自动切换。'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} 已安装，但无法读取其备用料盘设置 - 请勿指望自动切换。'
+  '{} is still printing. The print keeps running after you switch.': '{} 仍在打印。切换后打印会继续进行。'
   '{} is not set up on this printer': '{} 未在此打印机上设置'
   '{} lines in helixscreen.env were ignored': 'helixscreen.env 中有 {} 行被忽略'
   '{} macro not configured': '{} 宏未配置'
