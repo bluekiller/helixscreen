@@ -328,6 +328,14 @@
     <px name="meter_track_h_xlarge" value="16"/>
     <px name="meter_track_h_xxlarge" value="20"/>
 
+    <!-- loaded_swatch_narrow_w: the loaded-spool card's colour bar below the medium
+         breakpoint, where the material name needs the width more than the bar. -->
+    <px name="loaded_swatch_narrow_w_micro" value="14"/>
+    <px name="loaded_swatch_narrow_w_tiny" value="14"/>
+    <px name="loaded_swatch_narrow_w_small" value="14"/>
+    <px name="loaded_swatch_narrow_w_medium" value="14"/>
+    <px name="loaded_swatch_narrow_w_large" value="14"/>
+
     <!-- buffer_slider_w: the width of the upright filament buffer slider's housing
          (UiBufferSlider) on the home widget and in the Buffer Status modal. -->
     <px name="buffer_slider_w_micro" value="14"/>
