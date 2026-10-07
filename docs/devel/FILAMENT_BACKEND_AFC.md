@@ -688,8 +688,7 @@ first unit with a sensor, so the Filament Buffer widget, the loaded-spool card, 
 Buffer Status modal and the path-canvas buffer box all draw it. The fault distance
 (`fault_detection_enabled`) is the separate clog-detection source and feeds the
 `clog_meter_*` subjects. A switched TurtleNeck reports no pressure, so it has no reading.
-The pressure rail is 0..1 by
-declaration but a voltage divider in real hardware, so `has_fps()` keys on
+The pressure rail is 0..1 by declaration but a voltage divider in real hardware, so `has_fps()` keys on
 `fps_reported && fps_set_point > 0` rather than on the value: a reading slightly below zero
 is max tension, the one reading a value-based sentinel would blank exactly. Not yet
 verified on hardware. See

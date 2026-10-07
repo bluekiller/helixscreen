@@ -1301,7 +1301,7 @@ or FlowGuard, clog detection.
 | FPS to bias | `BufferHealth::fps_to_bias()` (`include/ams_types.h`): AFC `FPS_PSF` and OpenAMS carry their sensor as `AmsUnit::buffer_health` and nothing else; no backend writes `sync_feedback_bias` for them |
 | Which sensor | `buffer_reading(info, unit)` (`include/buffer_reading.h`): a unit's own pressure sensor; a unit with a switched buffer reads nothing; any other unit, and -1, reads the system: the sensor feeding the toolhead (`AmsSystemInfo::feeding_pressure_unit()`), else Happy Hare's `sync_feedback_bias` (only Happy Hare writes it) |
 | Which unit's rows | `buffer_view_unit(info, unit)`: the unit itself, else the unit the system reading came from, else 0. The path box and the modal both use it, so they name the same unit's AFC rows |
-| Bands and colour | `pressure_status()` and `buffer_status_token()` in `include/clog_meter_geometry.h`; `buffer_lean()` for the words |
+| Bands and colour | `pressure_status()`, `pressure_status_of_bias()` and `buffer_status_token()` in `include/clog_meter_geometry.h`; `buffer_lean()` for the words |
 | Subjects | `AmsState` publishes the system-level reading as `buffer_present`, `buffer_slider`, `buffer_bias_pct`, `buffer_status`, `buffer_label`, `buffer_value_text`, `buffer_short_text`, `buffer_target_text`, `buffer_lean_text` (`src/printer/ams_state_buffer.cpp`) |
 | Text | `buffer_label()` ("FPS" for a pressure sensor, "Sync" for Happy Hare), `buffer_value_text()` / `buffer_short_text()` / `buffer_target_text()` ("target N%"), `buffer_lean_text()` |
 | History | `AmsState::buffer_trace(unit)`: a `BufferTrace` per unit and for -1, about 60 s stamped on `buffer_clock_ms()` (monotonic). Readings arrive on change, so each point holds until the next (a step line); a reading that never changes still draws across the window. A sensorless unit records the system reading, or a gap when there is none. Main thread only; dropped with the unit |
@@ -1313,6 +1313,24 @@ above `danger`. A switched AFC buffer keeps its own two states, drawn in the `wa
 with no set point (OpenAMS publishes `set_point: null` when no unit reports `fps_target`)
 has nothing to centre on: every surface shows the pressure as text ("Pressure: N%"), with
 no slider, no trace and no tint.
+
+**The number.** For a pressure sensor (AFC `FPS_PSF`, OpenAMS, source "FPS") it is the
+pressure as a percentage, `smoothed_fps * 100` rounded and clamped to 0..100, and the
+target is the sensor's set point on the same scale. They are different quantities: 32%
+against a 50% target means the sensor reads below where the unit tries to hold it, so
+the filament is running tight, and the bias is how far off that is. For Happy Hare
+(source "Sync") it is the sync-feedback bias as a signed percentage (-100 tight .. +100
+loose) and there is no target.
+
+**Modal liveness.** `BufferStatusModal` re-reads the backend, not the tick that woke it,
+on every `ams_data_revision` change and every `backend_count` change, so it follows the
+reading while open. When the backend goes away it reads an empty snapshot and falls back
+to the "does not report buffer or flow data" message instead of the last backend's rows.
+
+**Known gap.** The CFS clog source reads only the fork's `active` flag
+(`src/printer/ams_backend_cfs.cpp#AmsBackendCfs::parse_flat_box_status`'s buffer block), because the other
+buffer fields are undocumented. The Clog Detection widget can therefore appear with no
+distance data behind it.
 
 **The slider.** Drawn upright on every surface, as filament flows top to bottom on the
 path canvas: loose up, tight down. A housing on the filament strand with a dashed target
