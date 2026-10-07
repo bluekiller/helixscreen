@@ -51,6 +51,10 @@ void show_change_host_modal(std::function<void(bool changed)> extra_on_complete 
  */
 void show_add_printer_modal(std::function<void(const std::string& host, int port)> on_add);
 
+/// A printer chooser closed on a selection: the prompt it was holding belongs to the
+/// connection the user just moved away from, so it is dropped rather than shown.
+void drop_held_connection_failed();
+
 /**
  * @brief Prompt that the printer is unreachable, offering to fix the address
  *

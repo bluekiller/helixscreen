@@ -4,6 +4,7 @@
 #include "ui_printer_list_overlay.h"
 
 #include "ui_callback_helpers.h"
+#include "ui_change_host_modal.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav_manager.h"
@@ -189,6 +190,7 @@ void PrinterListOverlay::handle_switch_printer(const std::string& printer_id) {
         return; // Already active
     }
     spdlog::info("[{}] Switching to printer '{}'", get_name(), printer_id);
+    helix::ui::drop_held_connection_failed();
 
     // Defer dismiss + switch — we're inside a click event on a child widget
     helix::ui::queue_update("PrinterListOverlay::handle_switch_printer", [printer_id]() {
@@ -237,6 +239,7 @@ void PrinterListOverlay::handle_delete_printer(const std::string& printer_id) {
 
 void PrinterListOverlay::handle_add_printer() {
     spdlog::info("[{}] Add printer requested", get_name());
+    helix::ui::drop_held_connection_failed();
 
     // Defer dismiss + wizard launch — we're inside a click event on a child widget
     helix::ui::queue_update("PrinterListOverlay::handle_add_printer", []() {

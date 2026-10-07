@@ -567,6 +567,7 @@ struct DeferredFailure {
     std::string title;
     std::string message;
     std::string printer_id;
+    bool held = false;
     lv_timer_t* timer = nullptr;
 };
 
@@ -582,6 +583,7 @@ void defer_connection_failed(const std::string& title, const std::string& messag
     d.title = title;
     d.message = message;
     d.printer_id = Config::get_instance()->get_active_printer_id();
+    d.held = true;
     if (d.timer) {
         return;
     }
@@ -596,6 +598,10 @@ void defer_connection_failed(const std::string& title, const std::string& messag
             // A one-shot, so LVGL deletes it once this returns.
             DeferredFailure& pending = deferred_failure();
             pending.timer = nullptr;
+            if (!pending.held) {
+                return; // dropped when the chooser closed on a selection
+            }
+            pending.held = false;
             IMoonrakerClient* client = get_moonraker_client();
             const bool same_printer =
                 Config::get_instance()->get_active_printer_id() == pending.printer_id;
@@ -612,6 +618,15 @@ void defer_connection_failed(const std::string& title, const std::string& messag
 }
 
 } // namespace
+
+void drop_held_connection_failed() {
+    DeferredFailure& d = deferred_failure();
+    if (d.held) {
+        spdlog::debug("[ChangeHost] Dropping the held connection-failed prompt: the user chose "
+                      "a printer");
+    }
+    d.held = false;
+}
 
 void show_connection_failed_modal(const std::string& title, const std::string& message) {
     // Callers include MoonrakerClient::on_ws_close on the libhv event-loop

@@ -4,6 +4,7 @@
 #include "ui_printer_switch_menu.h"
 
 #include "ui_callback_helpers.h"
+#include "ui_change_host_modal.h"
 #include "ui_event_safety.h"
 #include "ui_icon_codepoints.h"
 #include "ui_row_text.h"
@@ -115,6 +116,10 @@ void PrinterSwitchMenu::handle_add_printer() {
 }
 
 void PrinterSwitchMenu::dispatch_switch_action(MenuAction action, const std::string& printer_id) {
+    // The switch below is queued, so it has not run when the menu closes.
+    if (action != MenuAction::CANCELLED) {
+        drop_held_connection_failed();
+    }
     auto callback = switch_callback_;
     hide(); // Safe: uses lv_obj_delete_async internally
 

@@ -396,3 +396,37 @@ TEST_CASE_METHOD(ConnFailedFixture,
     CHECK(Modal::get_top() == nullptr);
     helix::ConfigTestAccess::active_printer_id(*cfg) = saved_active;
 }
+
+TEST_CASE_METHOD(ConnFailedFixture,
+                 "Connection-failed prompt is dropped when the picker closes on a selection",
+                 "[modal][connection][change_host][multi-printer]") {
+    // The menu closes before the switch it dispatches has run, so the held prompt must not
+    // wait for the active printer to change.
+    ScopedGlobalClient client;
+    REQUIRE(register_component("printer_switch_menu"));
+    REQUIRE(register_component("components/printer_switch_row"));
+    helix::Config* cfg = helix::Config::get_instance();
+    const nlohmann::json saved_data = helix::ConfigTestAccess::data(*cfg);
+    const std::string saved_active = helix::ConfigTestAccess::active_printer_id(*cfg);
+    nlohmann::json data = saved_data;
+    data["printers"]["alpha"]["printer_name"] = "Alpha";
+    data["printers"]["beta"]["printer_name"] = "Beta";
+    helix::ConfigTestAccess::data(*cfg) = data;
+    helix::ConfigTestAccess::active_printer_id(*cfg) = "alpha";
+
+    helix::ui::PrinterSwitchMenu picker;
+    picker.show(test_screen(), test_screen());
+    helix::ui::show_connection_failed_modal("Connection Failed", "Unable to reach printer.");
+    UpdateQueue::instance().drain();
+
+    lv_obj_t* row = lv_obj_find_by_name(test_screen(), "beta");
+    REQUIRE(row != nullptr);
+    lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+    UpdateQueue::instance().drain();
+    process_lvgl(1000);
+    UpdateQueue::instance().drain();
+
+    CHECK(Modal::get_top() == nullptr);
+    helix::ConfigTestAccess::data(*cfg) = saved_data;
+    helix::ConfigTestAccess::active_printer_id(*cfg) = saved_active;
+}
