@@ -3,35 +3,40 @@
 #pragma once
 
 // Which print-file cards hold a decoded thumbnail, decided without the panel:
-// only cards in the visible window hold one, and the window's thumbnails, held
-// and in flight, stay within a byte budget. The panel applies the plan.
+// cards in the visible window come first, cards that left it keep theirs in
+// least-recently-shown order while room is left, and everything held or in
+// flight stays within a byte budget. The panel applies the plan.
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace helix {
 
 /// One file as the planner sees it.
 struct CardThumbnailState {
-    bool fetchable = false; ///< a file (not a directory) with a thumbnail to fetch
-    bool tried = false;     ///< a fetch was started while its card was on screen
-    size_t held = 0;        ///< bytes its decoded thumbnail occupies, 0 when it holds none
+    bool fetchable = false;  ///< a file (not a directory) with a thumbnail to fetch
+    bool tried = false;      ///< a fetch was started while its card was on screen
+    size_t held = 0;         ///< bytes its decoded thumbnail occupies, 0 when it holds none
+    uint32_t last_shown = 0; ///< when its card was last on screen; larger is more recent
 };
 
 struct CardThumbnailPlan {
-    std::vector<size_t> drop;  ///< off-screen files to release: thumbnail and tried mark
+    std::vector<size_t> drop;  ///< off-screen files to release: thumbnail and tried mark, ascending
     std::vector<size_t> fetch; ///< files to start fetching now, in this order
 };
 
 /**
  * @brief Plans thumbnails for the card window [first, end).
  *
- * Every file outside the window that holds a thumbnail or a tried mark is
- * dropped. Inside it, files that are fetchable, untried and hold nothing are
- * fetched in order while the held thumbnails, the fetches already in flight
- * and the ones planned fit @p budget; the rest wait for a later pass. Each
- * counts at least @p estimate, the size of the slot it decodes into, so the
- * plan never starts more decodes than budget / estimate slots can take.
+ * Inside the window, files that are fetchable, untried and hold nothing are
+ * fetched in order while the window's held thumbnails, the fetches already in
+ * flight and the ones planned fit @p budget; the rest wait for a later pass.
+ * Outside it, a file with a tried mark and nothing held is dropped, and files
+ * holding a thumbnail keep it, most recently shown first, in whatever budget
+ * the window and its fetches leave; the rest are dropped. A file on screen is
+ * never dropped. Each counts at least @p estimate, the size of the slot it
+ * decodes into, so the plan never holds more than budget / estimate slots.
  *
  * @p lane_refused says the HTTP lane turned a fetch away and no slot has freed
  * since: nothing is fetched until one does, however often the window is

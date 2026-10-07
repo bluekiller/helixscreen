@@ -541,6 +541,13 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
                     if (should_carry_forward_print_file_metadata(old, new_size, retry_missing)) {
                         // File unchanged — carry forward all cached metadata
+#if defined(HELIX_PLATFORM_ESP32)
+                        // A re-upload of the same size is a different picture.
+                        if (old.modified_timestamp != new_modified) {
+                            old.esp_thumbnail.reset();
+                            old.esp_thumbnail_tried = false;
+                        }
+#endif
                         f = std::move(old);
                         f.modified_timestamp = new_modified;
                         f.file_size_bytes = new_size;
@@ -3791,13 +3798,18 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
     }
     esp_window_first_ = first;
     esp_window_end_ = end;
+    ++esp_show_tick_;
 
     std::vector<helix::CardThumbnailState> states(file_list_.size());
     for (size_t i = 0; i < file_list_.size(); ++i) {
-        const PrintFileData& f = file_list_[i];
+        PrintFileData& f = file_list_[i];
+        if (i >= first && i < end) {
+            f.esp_thumbnail_shown = esp_show_tick_;
+        }
         states[i].fetchable = !f.is_dir && !f.original_thumbnail_url.empty();
         states[i].tried = f.esp_thumbnail_tried;
         states[i].held = f.esp_thumbnail ? f.esp_thumbnail->bytes() : 0;
+        states[i].last_shown = f.esp_thumbnail_shown;
     }
     const helix::CardThumbnailPlan plan = helix::plan_card_thumbnails(
         states, first, end, static_cast<size_t>(std::max(esp_thumbnails_in_flight_, 0)), estimate,
@@ -3810,7 +3822,7 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end) {
             [](void* p) { heap_caps_free(p); });
     }
 
-    // Cards off screen hold nothing; a card coming back fetches again.
+    // A card the plan drops fetches again when it comes back.
     for (size_t i : plan.drop) {
         file_list_[i].esp_thumbnail.reset();
         file_list_[i].esp_thumbnail_tried = false;

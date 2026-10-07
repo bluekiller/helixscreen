@@ -92,9 +92,12 @@ struct PrintFileData {
     // allocation rather than re-copying image bytes.
     std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail;
     /// A fetch was started for this file while its card has been on screen:
-    /// in flight, done, or failed. Cleared when the card leaves the screen, so a
-    /// failed thumbnail is tried again only when the card is next shown.
+    /// in flight, done, or failed. Cleared when the card leaves the screen
+    /// holding nothing, so a failed thumbnail is tried again only when the card
+    /// is next shown.
     bool esp_thumbnail_tried = false;
+    /// The print-select sync tick at which its card was last on screen.
+    uint32_t esp_thumbnail_shown = 0;
 #endif
 
     // ========================================================================

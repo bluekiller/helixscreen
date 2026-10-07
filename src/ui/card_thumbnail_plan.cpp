@@ -13,14 +13,20 @@ CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& fi
     CardThumbnailPlan plan;
     end = std::min(end, files.size());
     first = std::min(first, end);
+    // A thumbnail fills a whole card-sized slot, however small its image.
+    const auto slot = [estimate](const CardThumbnailState& f) {
+        return std::max(f.held, estimate);
+    };
 
     size_t committed = in_flight * estimate;
+    std::vector<size_t> kept; // off screen and holding: kept while the budget has room
     for (size_t i = 0; i < files.size(); ++i) {
         const CardThumbnailState& f = files[i];
         if (i >= first && i < end) {
-            // A thumbnail fills a whole card-sized slot, however small its image.
-            committed += f.held ? std::max(f.held, estimate) : 0;
-        } else if (f.held || f.tried) {
+            committed += f.held ? slot(f) : 0;
+        } else if (f.held) {
+            kept.push_back(i);
+        } else if (f.tried) {
             plan.drop.push_back(i);
         }
     }
@@ -36,6 +42,20 @@ CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& fi
         committed += estimate;
         plan.fetch.push_back(i);
     }
+
+    // Cards on screen and fetches come first; the most recently shown cards
+    // off screen keep what is left, so scrolling back redraws without a decode.
+    std::stable_sort(kept.begin(), kept.end(), [&files](size_t a, size_t b) {
+        return files[a].last_shown > files[b].last_shown;
+    });
+    for (size_t i : kept) {
+        if (committed <= budget && budget - committed >= slot(files[i])) {
+            committed += slot(files[i]);
+        } else {
+            plan.drop.push_back(i);
+        }
+    }
+    std::sort(plan.drop.begin(), plan.drop.end());
     return plan;
 }
 

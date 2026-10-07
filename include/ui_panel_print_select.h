@@ -882,8 +882,11 @@ class PrintSelectPanel : public PanelBase {
     /// The card window [first, end) the last sync saw.
     size_t esp_window_first_ = 0;
     size_t esp_window_end_ = 0;
+    /// Counts syncs; a file in the window records it as when it was last shown.
+    uint32_t esp_show_tick_ = 0;
     /// Applies plan_card_thumbnails() to the card window [first, end): fetches
-    /// within CARD_THUMBNAIL_BUDGET and drops every thumbnail outside it.
+    /// within CARD_THUMBNAIL_BUDGET, and keeps thumbnails outside it, most
+    /// recently shown first, in what the budget leaves.
     void sync_esp_thumbnails(size_t first, size_t end);
     /// Drops every card thumbnail and the slot pool, and empties the window so
     /// nothing fetches until the cards report one again.

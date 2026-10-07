@@ -67,9 +67,10 @@ TEST_CASE("after a lane refusal, re-planning fetches nothing until a slot frees"
         plan_card_thumbnails(f, 0, 10, /*in_flight=*/1, EST, 12 * EST, /*lane_refused=*/true);
     CHECK(resync.fetch.empty());
 
-    // Cards that left the window still go: a refusal holds back fetches only.
+    // A refusal holds back fetches only: a card that left the window with a
+    // fetch in flight still goes, and one holding a thumbnail is kept.
     const CardThumbnailPlan scrolled = plan_card_thumbnails(f, 4, 10, 1, EST, 12 * EST, true);
-    CHECK(scrolled.drop == Indices{0, 1});
+    CHECK(scrolled.drop == Indices{1});
     CHECK(scrolled.fetch.empty());
 
     // A completion frees a slot and clears the refusal: card 2 is fetched again.
@@ -100,17 +101,65 @@ TEST_CASE("a window already over budget starts nothing, even a backlog of refuse
     CHECK(in_flight_pass.fetch.empty());
 }
 
-TEST_CASE("cards leaving the window are dropped, and only those that hold or tried something",
+TEST_CASE("cards leaving the window keep their thumbnails while the budget has room",
           "[card_thumbnail_plan]") {
     auto f = files(12);
-    f[1].held = EST;       // scrolled out, holding
-    f[2].tried = true;     // scrolled out, fetch in flight or failed
+    f[1].held = EST;       // scrolled out, holding: kept for the way back
+    f[2].tried = true;     // scrolled out, fetch in flight or failed: dropped
     f[3].fetchable = true; // scrolled out, never touched
     f[6].held = EST;       // still on screen
     const CardThumbnailPlan plan = plan_card_thumbnails(f, 4, 12, 0, EST, 960 * KB);
-    CHECK(plan.drop == Indices{1, 2});
-    // On-screen bytes alone count: the dropped 80K does not block a fetch.
+    CHECK(plan.drop == Indices{2});
     CHECK(plan.fetch == Indices{4, 5, 7, 8, 9, 10, 11});
+}
+
+TEST_CASE("a card on screen takes the slot of the least recently shown card off it",
+          "[card_thumbnail_plan]") {
+    // Budget of 4 slots: 2 on screen hold, 2 off screen hold, 1 on screen needs one.
+    auto f = files(8);
+    f[0].held = EST;
+    f[0].last_shown = 5; // off screen, shown recently
+    f[1].held = EST;
+    f[1].last_shown = 2; // off screen, shown longest ago
+    f[4].held = EST;
+    f[5].held = EST;
+    const CardThumbnailPlan plan = plan_card_thumbnails(f, 4, 7, 0, EST, 4 * EST);
+    CHECK(plan.fetch == Indices{6});
+    CHECK(plan.drop == Indices{1});
+}
+
+TEST_CASE("off-screen thumbnails beyond the budget go oldest first, even with nothing to fetch",
+          "[card_thumbnail_plan]") {
+    auto f = files(10);
+    for (size_t i = 0; i < 6; ++i) {
+        f[i].held = EST;
+        f[i].last_shown = static_cast<uint32_t>(10 + i); // 0 oldest, 5 newest
+    }
+    f[8].held = EST;
+    f[9].held = EST;
+    // Window 8..10 holds 2 slots; a 5-slot budget keeps the 3 newest off screen.
+    const CardThumbnailPlan plan = plan_card_thumbnails(f, 8, 10, 0, EST, 5 * EST);
+    CHECK(plan.fetch.empty());
+    CHECK(plan.drop == Indices{0, 1, 2});
+}
+
+TEST_CASE("cards on screen are never dropped, even over budget", "[card_thumbnail_plan]") {
+    auto f = files(6);
+    for (auto& x : f) {
+        x.held = EST;
+    }
+    const CardThumbnailPlan plan = plan_card_thumbnails(f, 0, 6, 0, EST, 3 * EST);
+    CHECK(plan.drop.empty());
+    CHECK(plan.fetch.empty());
+}
+
+TEST_CASE("in-flight fetches outrank kept off-screen thumbnails", "[card_thumbnail_plan]") {
+    auto f = files(6);
+    f[0].held = EST; // off screen
+    f[4].tried = true;
+    f[5].tried = true;
+    const CardThumbnailPlan plan = plan_card_thumbnails(f, 4, 6, /*in_flight=*/2, EST, 2 * EST);
+    CHECK(plan.drop == Indices{0});
 }
 
 TEST_CASE("directories, tried and holding files are not fetched", "[card_thumbnail_plan]") {
