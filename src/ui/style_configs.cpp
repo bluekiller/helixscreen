@@ -212,10 +212,7 @@ void configure_button_disabled(lv_style_t* s, const ThemePalette& p) {
 
 void configure_button_pressed(lv_style_t* s, const ThemePalette& p) {
     (void)p;
-    lv_style_set_transform_scale_x(s, 245);
-    lv_style_set_transform_scale_y(s, 245);
-    lv_style_set_transform_pivot_x(s, LV_PCT(50)); // Scale from center
-    lv_style_set_transform_pivot_y(s, LV_PCT(50));
+    helix::configure_pressed_for_tier(s, helix::PlatformCapabilities::detect().tier);
 }
 
 // Severity border styles

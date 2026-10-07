@@ -4,14 +4,11 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "platform_capabilities.h"
+#include "theme_manager.h"
 
 #include "../catch_amalgamated.hpp"
 
 using helix::PlatformTier;
-
-namespace helix {
-void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier);
-}
 
 namespace {
 int32_t pressed_scale_for_tier(lv_obj_t* screen, lv_subject_t* tier, PlatformTier t) {
