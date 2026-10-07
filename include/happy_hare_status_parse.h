@@ -107,6 +107,14 @@ struct MmuTelemetryDelta {
     std::optional<int> number_of_toolchanges;
     std::optional<SpoolmanMode> spoolman_mode;
     std::optional<int> pending_spool_id;
+    /// Fields published as JSON null. v4 sends these for a selected unit that
+    /// has no buffer (sync feedback, flowguard) or no encoder; v3 never does.
+    bool sync_feedback_bias_null = false;
+    bool sync_feedback_bias_raw_null = false;
+    bool flowguard_null = false;
+    bool encoder_null = false;
+    /// `tangle_prevention` was in the frame (null or not): only v4 publishes it.
+    bool v4_marker = false;
 };
 
 /// `sensors`: the pre-gate sensor readings.
@@ -119,6 +127,10 @@ struct MmuSensorsDelta {
     /// The aggregate `mmu_pre_gate` of EMU boxes, which only knows the active
     /// gate.
     std::optional<bool> aggregate_pre_gate;
+    /// Whether the toolhead / extruder-entry sensors are fitted: the dict
+    /// carries their key (null when disabled) whenever they are.
+    bool has_toolhead_sensor = false;
+    bool has_extruder_sensor = false;
 };
 
 struct DryingObjectDelta {
@@ -178,7 +190,28 @@ struct MachineUnit {
     std::string environment_sensor;               ///< shared enclosure sensor
     std::vector<std::string> filament_heaters;    ///< one per gate of THIS unit
     std::vector<std::string> environment_sensors; ///< one per gate of THIS unit
+    std::optional<bool> has_bypass;
+    bool filament_always_gripped = false;
+    std::optional<bool> filament_buffer;
+    /// From the unit's configfile `[mmu_unit <name>] encoder`; nullopt when the
+    /// install does not say (v3)
+    std::optional<bool> has_encoder;
 };
+
+/// A per-unit capability v4 checks before it accepts a command or a
+/// MMU_TEST_CONFIG parameter.
+enum class UnitFeature {
+    Servo,          ///< MMU_SERVO
+    SelectorSpeed,  ///< selector_move_speed
+    Encoder,        ///< encoder calibration, gate calibration, encoder clog mode
+    SyncToExtruder, ///< sync_to_extruder (v4: not on an always-gripped unit)
+    FilamentBuffer, ///< gear_from_filament_buffer_speed (v4)
+};
+
+/// Whether @p unit has @p feature. v3 knows only Type A from Type B, so there
+/// every selector feature means "not a VirtualSelector" and the v4-only guards
+/// always pass. An unknown selector type passes.
+[[nodiscard]] bool unit_supports(const MachineUnit& unit, UnitFeature feature, bool v4);
 
 /// Every unit in order. Lists come as a JSON array or a comma-separated string.
 [[nodiscard]] std::vector<MachineUnit> read_machine_units(const nlohmann::json& settings,

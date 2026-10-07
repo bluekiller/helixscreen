@@ -234,7 +234,7 @@ TEST_CASE("Happy Hare layout: v3 publishes per-unit fields but no version",
     const json settings = {{"mmu", {{"happy_hare_version", 3.42}}}};
     const auto layout = happy_hare::read_machine_layout(settings, live);
     CHECK_FALSE(layout.v4);
-    CHECK(layout.version.empty());
+    CHECK(layout.version == "3.42"); // v3's own [mmu] happy_hare_version
     CHECK(layout.unit_params_section.empty());
 }
 

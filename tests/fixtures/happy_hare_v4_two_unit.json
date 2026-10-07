@@ -70,7 +70,9 @@
    "num_gates": 6,
    "vendor": "ERCF",
    "selector_type": "LinearServoSelector",
-   "toolhead": "default"
+   "toolhead": "default",
+   "encoder": "ercf_encoder",
+   "filament_always_gripped": false
   },
   "mmu_unit bt": {
    "num_gates": 4,

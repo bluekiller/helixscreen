@@ -423,12 +423,16 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// edit and a sync share. Callers hold mutex_.
     void write_gate_locked(int slot_index, SlotInfo& slot, const SlotInfo& info);
 
-    // Build the MMU_HEATER target for @p unit: UNIT= where unit_suffix_locked()
-    // needs one, then " GATES=g0,g1,..." naming the unit's gates on multi-unit
-    // (EMU) rigs. GATES is omitted for a single-unit MMU or unit<0, so HH
-    // defaults to all non-empty gates. Locks mutex_ internally — call with no
-    // lock held.
-    [[nodiscard]] std::string heater_suffix_for_unit(int unit) const;
+    // The MMU_HEATER target for @p unit: UNIT= where unit_suffix_locked() needs
+    // one, then " GATES=g0,g1,..." naming the unit's gates on multi-unit (EMU)
+    // rigs. GATES is omitted for a single-unit MMU or unit<0, so HH defaults to
+    // all non-empty gates. Caller holds mutex_.
+    [[nodiscard]] std::string heater_suffix_locked(int unit) const;
+    /// One heater target per command: @p unit's, or for unit<0 on a multi-unit
+    /// v4, one per unit that has a heater. Locks mutex_.
+    [[nodiscard]] std::vector<std::string> heater_targets_for_unit(int unit) const;
+    /// @p command once per heater target; the first failure stops it.
+    AmsError send_heater_command(const std::string& command, int unit);
 
     /// UNIT value naming every unit; v4 takes UNIT=ALL on its per-unit commands.
     static constexpr int kAllUnits = -1;
@@ -595,16 +599,15 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /**
      * @brief Parse heater config settings into dryer_info_
      *
-     * Reads filament_heater from [mmu_machine] and heater_max_temp from wherever
-     * the install's layout keeps it.
+     * Reads every unit's heaters and environment sensors, and heater_max_temp
+     * from wherever @p layout keeps it.
      * @param settings The configfile.settings JSON object
-     * @param live_mmu_machine The live mmu_machine status object. Happy Hare v4
-     *        publishes filament_heater / environment_sensor there, per unit,
-     *        and leaves configfile carrying only the version; v3 has them in
-     *        settings and passes an empty object here.
+     * @param live_mmu_machine The live mmu_machine status object, which carries
+     *        the per-unit fields (v4 and v3.4); older v3 keeps them in settings
+     * @param layout read_machine_layout() of the same pair
      */
-    void apply_heater_config(const nlohmann::json& settings,
-                             const nlohmann::json& live_mmu_machine = nlohmann::json::object());
+    void apply_heater_config(const nlohmann::json& settings, const nlohmann::json& live_mmu_machine,
+                             const happy_hare::MachineLayout& layout);
 
     /**
      * @brief Parse live heater_generic temperature/target from a status update
@@ -662,9 +665,19 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     bool bypass_support_seen_{false};
     /// Last printer.mmu.has_bypass; the bypass source on v3 only.
     std::optional<bool> status_has_bypass_;
+    /// A printer.mmu frame carried a field only v4 publishes. Known from the
+    /// first frame, before the connect-time query names the version.
+    bool status_v4_{false};
+    /// v4 by either the query's layout or the status frames. Caller holds mutex_.
+    [[nodiscard]] bool is_v4_locked() const {
+        return machine_layout_.v4 || status_v4_;
+    }
     /// supports_bypass from whichever source the install's layout trusts.
     /// Caller holds mutex_.
     void apply_bypass_support_locked();
+    /// Each unit's hub_sensor_triggered from filament_pos_ and the current
+    /// gate. Caller holds mutex_.
+    void refresh_hub_sensors_locked();
 
     /// Last printer.mmu.gate_status array, raw Happy Hare values (-1 unknown,
     /// 0 empty, 1 available, 2 from_buffer). Kept because the array and the
@@ -678,6 +691,11 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// A per-gate sensor object has reported. printer.mmu.sensors' aggregate
     /// `mmu_pre_gate` then adds nothing and must not overwrite the other gates.
     bool entry_sensor_objects_seen_{false};
+    /// Toolhead / extruder-entry sensor fitted, from printer.mmu.sensors; nullopt
+    /// until a frame carries the dict. v4 refuses the toolhead distance tuned
+    /// against a sensor that is not fitted.
+    std::optional<bool> toolhead_sensor_fitted_;
+    std::optional<bool> extruder_sensor_fitted_;
 
     /// What Happy Hare's gate map says about each gate's identity, keyed by
     /// global gate index and accumulated across frames. Moonraker names only
@@ -781,6 +799,20 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// The MMU_TEST_CONFIG parameter for tunable @p key (v3 spelling) on this
     /// install, uppercased; empty when it has none. Caller holds mutex_.
     [[nodiscard]] std::string test_config_param_locked(std::string_view key) const;
+    /// The unit an MMU_TEST_CONFIG of @p key targets: on v4 the selected unit
+    /// when it takes the parameter, else the first unit that does; nullopt when
+    /// none does. v3 has no such guards. Caller holds mutex_.
+    [[nodiscard]] std::optional<int> test_config_unit_locked(std::string_view key) const;
+    /// `MMU_TEST_CONFIG <param>=<value>[ UNIT=n]` for @p key, or nullopt when
+    /// the install would refuse it. Caller holds mutex_.
+    [[nodiscard]] std::optional<std::string>
+    test_config_command_locked(std::string_view key, const std::string& value) const;
+    /// Whether unit @p unit has @p feature, from its mmu_machine fields, else
+    /// the machine-wide selector type. Caller holds mutex_.
+    [[nodiscard]] bool unit_supports_locked(int unit, happy_hare::UnitFeature feature) const;
+    /// The selected unit when it has @p feature, else the first that does.
+    /// Caller holds mutex_.
+    [[nodiscard]] std::optional<int> unit_with_locked(happy_hare::UnitFeature feature) const;
 
     /// Get the config default float for a given action key
     [[nodiscard]] float get_config_default_float(const std::string& key) const;

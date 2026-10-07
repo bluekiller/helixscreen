@@ -1374,6 +1374,7 @@ json MoonrakerDiscoverySequence::build_subscription_objects(
                                                    "pending_spool_id",
                                                    "espooler_active",
                                                    "espooler",
+                                                   "tangle_prevention",
                                                    "num_toolchanges",
                                                    "slicer_tool_map",
                                                    "toolchange_purge_volume",
