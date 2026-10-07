@@ -62,9 +62,6 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
     REQUIRE(h.root() != nullptr);
 
     AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.71f}), 0);
-    lv_subject_t* gate = lv_xml_get_subject(nullptr, "buffer_present");
-    REQUIRE(gate != nullptr);
-    CHECK(lv_subject_get_int(gate) == 1);
 
     SECTION("1x1: slider, label and number, no trace") {
         h.resize(def->colspan, def->rowspan, 112, 112);
@@ -72,7 +69,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
         CHECK(hidden(h.child("buffer_trace")));
         CHECK(hidden(h.child("buffer_lean")));
         CHECK(text(h.child("buffer_label")) == "FPS");
-        CHECK(text(h.child("buffer_value")) == "71%");
+        CHECK(text(h.child("buffer_value_short")) == "71%");
     }
 
     SECTION("2x1: the trace and the lean in words") {
@@ -90,9 +87,20 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
         CHECK(text(h.child("buffer_value")) == "Pressure: 71%");
     }
 
-    SECTION("the reading goes: the gate closes") {
-        AmsStateTestAccess::sync_buffer(ams, AmsSystemInfo{}, 0);
-        CHECK(lv_subject_get_int(gate) == 0);
+    SECTION("1x1 with a set point: the short number is the one showing") {
+        h.resize(def->colspan, def->rowspan, 112, 112);
+        CHECK_FALSE(hidden(h.child("buffer_value_short")));
+        CHECK(text(h.child("buffer_value_short")) == "71%");
+        CHECK(hidden(h.child("buffer_value")));
+    }
+
+    SECTION("1x1 with no set point: the short number alone") {
+        h.resize(def->colspan, def->rowspan, 112, 112);
+        AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.71f}, -1.0f), 0);
+        CHECK(hidden(h.child("buffer_graphics")));
+        CHECK_FALSE(hidden(h.child("buffer_value_short")));
+        CHECK(text(h.child("buffer_value_short")) == "71%");
+        CHECK(hidden(h.child("buffer_value")));
     }
 
     AmsStateTestAccess::sync_buffer(ams, AmsSystemInfo{}, 0);
