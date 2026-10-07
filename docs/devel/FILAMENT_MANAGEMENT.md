@@ -1295,7 +1295,8 @@ the trace and lean, gated on `buffer_present`), the loaded-spool card's mini
 slider, the path canvas's buffer box (`ams_detail_buffer_box()`), and the Buffer
 Status modal (`BufferStatusModal::show_for(-1)` opens it on the buffer feeding
 the toolhead). A pressure reading with no set point is text only (`Pressure: N%`)
-on every surface. Mock scenarios: `buffer_fps`, `buffer_fps_loose`,
+on every surface. The Buffer Status modal is live while open and closes only
+with its X. Mock scenarios: `buffer_fps`, `buffer_fps_loose`,
 `buffer_fps_on_target`, `buffer_fps_danger`, `buffer_fps_no_target`, `buffer_fps_with_clog` (any mock type but Happy Hare),
 `sync_feedback_tight` (Happy Hare).
 

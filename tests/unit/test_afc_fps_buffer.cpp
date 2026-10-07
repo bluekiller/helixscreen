@@ -9,7 +9,7 @@
  * analog pressure sensor and publishes `fps_value`, `smoothed_fps` and
  * `set_point`. That is the same quantity Happy Hare reports as
  * `sync_feedback_bias`, so mapping it onto the same -1..+1 scale lets one
- * buffer meter draw both.
+ * buffer_reading() serve both.
  *
  * NOT VERIFIED ON HARDWARE. The only AFC rig here is a BoxTurtle with a
  * switched TurtleNeck buffer, whose live status carries none of these fields
