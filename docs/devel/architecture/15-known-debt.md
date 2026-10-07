@@ -230,17 +230,6 @@ failed branch as well is the fix, and what blocks it is the test side: the Spool
 fails reads and writes together, so a partial write cannot be staged and the read on that
 branch would ship with nothing able to pin it.
 
-**The mock cannot express a vendor-only filament change.**
-The mock Spoolman server's vendor-filtered `GET /v1/filament?vendor.id=`
-([`src/api/moonraker_client_mock_spoolman.cpp`](../../../src/api/moonraker_client_mock_spoolman.cpp))
-returns every filament it synthesises from the mock spool inventory regardless of the vendor
-asked for, and `SpoolmanSlotSaver::find_or_create_filament()`
-([`src/spoolman/spoolman_slot_saver.cpp#find_or_create_filament`](../../../src/spoolman/spoolman_slot_saver.cpp))
-matches on material and colour alone, trusting the server to have applied the vendor filter.
-A brand-only save therefore resolves back to the linked spool's own filament and the served
-vendor never moves, so no test can observe a brand save through the mock. Honouring `vendor_id`
-in that route is the fix; it changes what several saver cases see, so it is its own change.
-
 ### Deliberate tolerations: C++ that is correct, not debt
 
 The gate does not merely tolerate these cases — it excludes them structurally, so they never appear in the 367: files that call `lv_xml_register_widget` are skipped whole, widgets created with `lv_*_create` in C++ never had an XML layer, events with no declarative equivalent (`DELETE`, draw hooks, size/scroll) are not flagged, and neither are annotated lines. The table (verified against the root [`AGENTS.md`](../../../AGENTS.md) and the code — the bolded entries were spot-checked for this chapter):

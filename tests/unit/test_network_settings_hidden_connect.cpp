@@ -63,11 +63,14 @@ TEST_CASE_METHOD(HiddenConnectFixture,
     REQUIRE(modal != nullptr);
 
     // A hidden SSID is typed, never picked from the scan list; "StealthNet"
-    // is by construction absent from the mock's seeded list. Security stays
-    // at the dropdown's default "None" so the handler needs no password.
+    // is by construction absent from the mock's seeded list. Security is set
+    // to "None" (the modal defaults to WPA) so the handler needs no password.
     lv_obj_t* ssid_input = lv_obj_find_by_name(modal, "ssid_input");
     REQUIRE(ssid_input != nullptr);
     lv_textarea_set_text(ssid_input, "StealthNet");
+    lv_obj_t* security = lv_obj_find_by_name(modal, "security_dropdown");
+    REQUIRE(security != nullptr);
+    lv_dropdown_set_selected(security, 0);
 
     Access::hidden_connect_clicked(*overlay);
 

@@ -109,9 +109,9 @@
             style_pad_bottom="#space_lg">
       <bind_flag_if_not_eq subject="shutdown_view_state" flag="hidden" ref_value="0"/>
       <modal_button_row secondary_icon="restart"
-                        secondary_text="Reboot" secondary_tag="Reboot" secondary_callback="on_reboot_printer_clicked"
-                        primary_icon="power" primary_text="Shutdown" primary_tag="Shutdown"
-                        primary_callback="on_shutdown_printer_clicked" primary_variant="danger"/>
+                        secondary_variant="primary" secondary_text="Reboot" secondary_tag="Reboot"
+                        secondary_callback="on_reboot_printer_clicked" primary_icon="power" primary_text="Shutdown"
+                        primary_tag="Shutdown" primary_callback="on_shutdown_printer_clicked" primary_variant="danger"/>
     </lv_obj>
 
     <!-- Dual-scope buttons: two split buttons (Restart, Shutdown), each with a

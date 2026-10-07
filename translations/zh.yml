@@ -1307,6 +1307,7 @@ translations:
   Found 1 printer: 找到 1 台打印机
   Framerate: 帧率
   From Buffer: 来自缓冲区
+  From SpoolmanDB: '来自 SpoolmanDB'
   From Version: 起始版本
   Front: '前'
   Front Left: '左前'
@@ -1954,6 +1955,7 @@ translations:
   No jobs in queue: 队列中无任务
   No macro devices configured: 未配置宏设备
   No macros available: 无可用宏
+  No matches in SpoolmanDB: 'SpoolmanDB 中无匹配项'
   No matching prints: 没有匹配的打印
   No media installed: 未安装介质
   No mesh data: 没有网格数据
@@ -2910,6 +2912,7 @@ translations:
   Spoolman was not configured.: Spoolman 未配置。
   'Spoolman: %zu Spool%s': 'Spoolman: %zu 个线轴%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu 个线轴%s'
+  SpoolmanDB search failed: 'SpoolmanDB 搜索失败'
   Spools are off: "料盘已取下"
   'Spools are on the bed: remove them and confirm before moving the printer': 热床上有料盘：请先移除并确认，再移动打印机
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': 热床上有料盘:点击烘干横幅确认已取下,然后再重启。

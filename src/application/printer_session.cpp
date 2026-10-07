@@ -68,6 +68,7 @@
 #include "settings_manager.h"
 #include "sound_manager.h"
 #include "spoolman_active_spool_sync.h"
+#include "spoolman_catalog_search.h"
 #include "static_panel_registry.h"
 #include "static_subject_registry.h"
 #include "subject_initializer.h"
@@ -1188,6 +1189,10 @@ void PrinterSession::teardown_printer_scope(TeardownScope scope, DisplayManager*
     // Destroy MoonrakerManager (its ObserverGuards now release without touching freed
     // observer memory thanks to invalidate_all() above).
     m_moonraker.reset();
+
+    // The SpoolmanDB search answer belongs to that client; the next client's
+    // connection generations start over and must not inherit it.
+    helix::SpoolmanCatalogSearch::reset_cache();
 
     if (exiting) {
         // The caller finishes the exit: HTTP executors, display, theme manager.

@@ -1268,6 +1268,7 @@
   <translation tag="Found 1 printer" de="1 Drucker gefunden"/>
   <translation tag="Framerate" de="Bildrate"/>
   <translation tag="From Buffer" de="Aus Puffer"/>
+  <translation tag="From SpoolmanDB" de="Aus SpoolmanDB"/>
   <translation tag="From Version" de="Von Version"/>
   <translation tag="Front" de="Vorne"/>
   <translation tag="Front Left" de="Vorne links"/>
@@ -1888,6 +1889,7 @@
   <translation tag="No jobs in queue" de="Keine Aufträge in der Warteschlange"/>
   <translation tag="No macro devices configured" de="Keine Makro-Geräte konfiguriert"/>
   <translation tag="No macros available" de="Keine Makros verfügbar"/>
+  <translation tag="No matches in SpoolmanDB" de="Keine Treffer in SpoolmanDB"/>
   <translation tag="No matching prints" de="Keine passenden Drucke"/>
   <translation tag="No media installed" de="Kein Medium eingelegt"/>
   <translation tag="No mesh data" de="Keine Mesh-Daten"/>
@@ -2807,6 +2809,7 @@
   <translation tag="Spoolman was not configured." de="Spoolman war nicht konfiguriert."/>
   <translation tag="Spoolman: %zu Spool%s" de="Spoolman: %zu Spule%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" de="Spoolman: %zu/%zu Spule%s"/>
+  <translation tag="SpoolmanDB search failed" de="SpoolmanDB-Suche fehlgeschlagen"/>
   <translation tag="Spools are off" de="Spulen sind entnommen"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" de="Spulen liegen auf dem Heizbett: entferne sie und bestätige, bevor der Drucker bewegt wird"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." de="Spulen liegen auf dem Heizbett: Tippe auf das Trocknungsbanner, um zu bestätigen, dass sie entnommen sind, und starte dann neu."/>

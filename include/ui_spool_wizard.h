@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include "helix/xml/indexed_subject_pool.h"
 #include "overlay_base.h"
+#include "spoolman_catalog_search.h"
 #include "spoolman_types.h"
 #include "static_panel_registry.h"
 #include "subject_managed_panel.h"
@@ -109,6 +111,8 @@ class SpoolWizardOverlay : public OverlayBase {
         int bed_temp_min = 0;
         int bed_temp_max = 0;
         bool from_server = false;
+        std::string multi_color_hexes;     ///< Comma-separated, Spoolman's form
+        std::string multi_color_direction; ///< "coaxial" or "longitudinal"
     };
 
     // ========== Vendor entry ==========
@@ -220,6 +224,39 @@ class SpoolWizardOverlay : public OverlayBase {
         return new_filament_density_;
     }
 
+    // ========== SpoolmanDB search (public for testing) ==========
+
+    /// What the catalog section shows; the spool_db_state subject carries it.
+    enum class CatalogState { Idle = 0, Loading = 1, Results = 2, NoResults = 3, Error = 4 };
+
+    /// The filament a SpoolmanDB result describes, ready to create.
+    static FilamentEntry entry_from_catalog(const helix::ExternalFilament& f);
+
+    /// The server vendor named @p name, compared case-insensitively, or -1.
+    static int find_server_vendor(const std::vector<VendorEntry>& vendors, const std::string& name);
+
+    /// A keystroke in the search box: restarts the debounce and nothing else.
+    void on_search_key();
+
+    /// Searches for @p query, when the server has the route and it is long
+    /// enough. With a search already in flight, @p query waits as the one
+    /// pending search and the in-flight answer is dropped on arrival.
+    void run_catalog_search(const std::string& query);
+
+    /// Show @p results for the current query.
+    void apply_catalog_results(std::vector<helix::ExternalFilament> results);
+
+    /// Take result @p index: the vendor and filament it names, reusing the
+    /// server's when they already exist, then the spool step.
+    void select_catalog_result(int index);
+
+    const std::vector<helix::ExternalFilament>& catalog_results() const {
+        return catalog_results_;
+    }
+    CatalogState catalog_state() const {
+        return catalog_state_;
+    }
+
     // ========== Spool details state (public for testing) ==========
     double spool_remaining_weight() const {
         return spool_remaining_weight_;
@@ -259,6 +296,19 @@ class SpoolWizardOverlay : public OverlayBase {
     lv_subject_t vendors_loading_subject_{};
     lv_subject_t filaments_loading_subject_{};
     lv_subject_t can_create_vendor_subject_{};
+    lv_subject_t summary_color_subject_{};
+    lv_subject_t summary_edge_subject_{};
+    lv_subject_t catalog_available_subject_{};
+    lv_subject_t catalog_state_subject_{};
+    lv_subject_t catalog_count_subject_{};
+    helix::xml::IndexedSubjectPool catalog_titles_{
+        "spool_db_result_title", helix::xml::IndexedSubjectPool::Type::String, 128};
+    helix::xml::IndexedSubjectPool catalog_details_{
+        "spool_db_result_detail", helix::xml::IndexedSubjectPool::Type::String, 128};
+    helix::xml::IndexedSubjectPool catalog_colors_{"spool_db_result_color",
+                                                   helix::xml::IndexedSubjectPool::Type::Color};
+    helix::xml::IndexedSubjectPool catalog_edges_{"spool_db_result_edge",
+                                                  helix::xml::IndexedSubjectPool::Type::Int};
 
     // ========== String buffers for subjects ==========
     char step_label_buf_[64] = {};
@@ -296,6 +346,25 @@ class SpoolWizardOverlay : public OverlayBase {
     double spool_price_ = 0;
     std::string spool_lot_nr_;
     std::string spool_notes_;
+
+    // ========== SpoolmanDB search state ==========
+    helix::SpoolmanCatalogSearch catalog_;
+    std::vector<helix::ExternalFilament> catalog_results_;
+    CatalogState catalog_state_ = CatalogState::Idle;
+    bool catalog_in_flight_ = false;
+    bool catalog_has_pending_ = false;
+    std::string catalog_pending_query_;
+    lv_timer_t* search_timer_ = nullptr; ///< Paused between keystroke bursts
+    static void search_timer_cb(lv_timer_t* timer);
+    void cancel_search_timer();
+    void apply_search_text();
+    void send_catalog_search(std::string query);
+    void set_catalog_state(CatalogState state);
+    void sync_catalog_available();
+    void probe_catalog_search();
+    void enter_spool_details();
+    void publish_vendor_selection();
+    void publish_filament_summary();
 
     // ========== Create vendor modal ==========
     lv_obj_t* create_vendor_dialog_ = nullptr;

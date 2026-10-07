@@ -5,6 +5,7 @@
 #include "filament_database.h"
 #include "i_moonraker_api.h"
 #include "lane_translation.h"
+#include "spoolman_catalog_search.h"
 #include "spoolman_manager.h"
 #include "text_io.h"
 
@@ -427,25 +428,11 @@ void SpoolmanSlotSaver::find_or_create_vendor(const std::string& vendor_name,
         on_error);
 }
 
-std::string SpoolmanSlotSaver::normalize_color_hex(const std::string& in) {
-    std::string s = in;
-    if (!s.empty() && s[0] == '#')
-        s.erase(0, 1);
-    if (s.size() != 6)
-        return "";
-    for (char& c : s) {
-        if (!std::isxdigit(static_cast<unsigned char>(c)))
-            return "";
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    }
-    return s;
-}
-
 void SpoolmanSlotSaver::find_or_create_filament(int vendor_id, const std::string& material,
                                                 const std::string& color_hex,
                                                 const std::string& filament_name,
                                                 FilamentCallback on_found, ErrorCallback on_error) {
-    const std::string needle_color = normalize_color_hex(color_hex);
+    const std::string needle_color = spoolman::normalize_color_hex(color_hex);
     if (needle_color.empty()) {
         spdlog::warn("[SpoolmanSlotSaver] Invalid color hex '{}', aborting find_or_create_filament",
                      color_hex);
@@ -461,15 +448,14 @@ void SpoolmanSlotSaver::find_or_create_filament(int vendor_id, const std::string
         vendor_id,
         [this, vendor_id, material, needle_color, filament_name, on_found,
          on_error](const std::vector<FilamentInfo>& filaments) {
-            for (const auto& f : filaments) {
-                if (f.material == material && normalize_color_hex(f.color_hex) == needle_color) {
-                    spdlog::debug("[SpoolmanSlotSaver] Reusing filament id={} "
-                                  "(vendor={}, material={}, color={})",
-                                  f.id, vendor_id, material, needle_color);
-                    if (on_found)
-                        on_found(f.id);
-                    return;
-                }
+            if (const FilamentInfo* f =
+                    spoolman::find_matching_filament(filaments, material, needle_color)) {
+                spdlog::debug("[SpoolmanSlotSaver] Reusing filament id={} "
+                              "(vendor={}, material={}, color={})",
+                              f->id, vendor_id, material, needle_color);
+                if (on_found)
+                    on_found(f->id);
+                return;
             }
             nlohmann::json payload;
             payload["vendor_id"] = vendor_id;

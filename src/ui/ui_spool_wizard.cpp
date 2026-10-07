@@ -8,14 +8,19 @@
 #include "ui_modal.h"
 #include "ui_nav.h"
 #include "ui_panel_common.h"
+#include "ui_search_debounce.h"
 #include "ui_subject_registry.h"
+#include "ui_swatch.h"
 #include "ui_temperature_utils.h"
+#include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "app_globals.h"
+#include "color_utils.h"
 #include "filament_database.h"
+#include "filament_display_name.h"
 #include "i_moonraker_api.h"
 #include "static_panel_registry.h"
 #include "text_io.h"
@@ -27,6 +32,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <unordered_map>
 
@@ -58,6 +64,7 @@ void set_spoolman_temp(nlohmann::json& data, const char* key, int min_val, int m
 SpoolWizardOverlay::SpoolWizardOverlay() = default;
 
 SpoolWizardOverlay::~SpoolWizardOverlay() {
+    cancel_search_timer();
     deinit_subjects();
 }
 
@@ -91,6 +98,9 @@ void SpoolWizardOverlay::init_subjects() {
                                   "wizard_summary_vendor", subjects_);
         UI_MANAGED_SUBJECT_STRING(summary_filament_subject_, summary_filament_buf_, "",
                                   "wizard_summary_filament", subjects_);
+        UI_MANAGED_SUBJECT_COLOR(summary_color_subject_, lv_color_hex(0x808080),
+                                 "wizard_summary_color", subjects_);
+        UI_MANAGED_SUBJECT_INT(summary_edge_subject_, 0, "wizard_summary_edge", subjects_);
 
         // Create vendor/filament form visibility toggles
         UI_MANAGED_SUBJECT_INT(show_create_vendor_subject_, 0, "spool_wizard_show_create_vendor",
@@ -110,11 +120,26 @@ void SpoolWizardOverlay::init_subjects() {
         // Can create vendor (form validation)
         UI_MANAGED_SUBJECT_INT(can_create_vendor_subject_, 0, "spool_wizard_can_create_vendor",
                                subjects_);
+
+        // SpoolmanDB search: whether this server has it, what the section
+        // shows, and one row's worth of subjects per result
+        UI_MANAGED_SUBJECT_INT(catalog_available_subject_, 0, "spool_db_available", subjects_);
+        UI_MANAGED_SUBJECT_INT(catalog_state_subject_, 0, "spool_db_state", subjects_);
+        UI_MANAGED_SUBJECT_INT(catalog_count_subject_, 0, "spool_db_result_count", subjects_);
+        const size_t rows = static_cast<size_t>(helix::SpoolmanCatalogSearch::kResultLimit);
+        catalog_titles_.ensure_size(rows);
+        catalog_details_.ensure_size(rows);
+        catalog_colors_.ensure_size(rows);
+        catalog_edges_.ensure_size(rows);
     });
 }
 
 void SpoolWizardOverlay::deinit_subjects() {
     deinit_subjects_base(subjects_);
+    catalog_titles_.reclaim();
+    catalog_details_.reclaim();
+    catalog_colors_.reclaim();
+    catalog_edges_.reclaim();
 }
 
 // ============================================================================
@@ -158,11 +183,11 @@ void SpoolWizardOverlay::register_callbacks() {
              }
          }},
         {"on_wizard_vendor_search_changed",
+         [](lv_event_t*) { get_global_spool_wizard().on_search_key(); }},
+        {"on_wizard_catalog_result_selected",
          [](lv_event_t* e) {
-             lv_obj_t* ta = static_cast<lv_obj_t*>(lv_event_get_target(e));
-             const char* text = lv_textarea_get_text(ta);
-             spdlog::debug("[SpoolWizard] Vendor search: '{}'", text ? text : "");
-             get_global_spool_wizard().filter_vendors(text ? text : "");
+             const char* index = static_cast<const char*>(lv_event_get_user_data(e));
+             get_global_spool_wizard().select_catalog_result(index ? std::atoi(index) : -1);
          }},
         {"on_wizard_new_vendor_name_changed",
          [](lv_event_t* e) {
@@ -325,10 +350,17 @@ void SpoolWizardOverlay::on_activate() {
 
     // Load vendors for step 0
     load_vendors();
+    probe_catalog_search();
 }
 
 void SpoolWizardOverlay::on_deactivating(DeactivateReason) {
     spdlog::debug("[{}] on_deactivating()", get_name());
+
+    // A search answering after the wizard closed has nothing to show.
+    cancel_search_timer();
+    catalog_.invalidate();
+    catalog_in_flight_ = false;
+    catalog_has_pending_ = false;
 
     // Close create vendor modal if open
     if (create_vendor_dialog_) {
@@ -374,6 +406,14 @@ void SpoolWizardOverlay::reset_state() {
     spool_lot_nr_.clear();
     spool_notes_.clear();
 
+    // SpoolmanDB search state
+    catalog_.invalidate();
+    catalog_in_flight_ = false;
+    catalog_has_pending_ = false;
+    catalog_pending_query_.clear();
+    catalog_results_.clear();
+    catalog_state_ = CatalogState::Idle;
+
     // Creation flow tracking
     created_vendor_id_ = -1;
     created_filament_id_ = -1;
@@ -390,6 +430,8 @@ void SpoolWizardOverlay::reset_state() {
         lv_subject_set_int(&vendor_count_subject_, -1);
         lv_subject_set_int(&filament_count_subject_, -1);
         lv_subject_set_int(&can_create_vendor_subject_, 0);
+        lv_subject_set_int(&catalog_state_subject_, 0);
+        lv_subject_set_int(&catalog_count_subject_, 0);
     }
 
     spdlog::debug("[{}] State reset for new wizard session", get_name());
@@ -418,33 +460,37 @@ void SpoolWizardOverlay::navigate_next() {
     if (next_step == Step::FILAMENT) {
         load_filaments();
     } else if (next_step == Step::SPOOL_DETAILS) {
-        // Pre-fill remaining weight from selected filament's net weight
-        spool_remaining_weight_ = selected_filament_.weight;
+        enter_spool_details();
+    }
+}
 
-        // Update UI fields if overlay is active
-        if (overlay_root_) {
-            lv_obj_t* weight_input =
-                helix::ui::find_required(overlay_root_, "remaining_weight", get_name());
-            if (weight_input && spool_remaining_weight_ > 0) {
-                char buf[16];
-                std::snprintf(buf, sizeof(buf), "%.0f", spool_remaining_weight_);
-                lv_textarea_set_text(weight_input, buf);
-            }
+void SpoolWizardOverlay::enter_spool_details() {
+    // Pre-fill remaining weight from selected filament's net weight
+    spool_remaining_weight_ = selected_filament_.weight;
 
-            // Update summary color swatch from selected filament
-            lv_obj_t* swatch =
-                helix::ui::find_required(overlay_root_, "summary_color_swatch", get_name());
-            if (swatch && !selected_filament_.color_hex.empty()) {
-                uint32_t color_val =
-                    std::strtoul(selected_filament_.color_hex.c_str(), nullptr, 16);
-                lv_obj_set_style_bg_color(swatch, lv_color_hex(color_val), 0);
-            }
+    // Update UI fields if overlay is active
+    if (overlay_root_) {
+        lv_obj_t* weight_input =
+            helix::ui::find_required(overlay_root_, "remaining_weight", get_name());
+        if (weight_input && spool_remaining_weight_ > 0) {
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%.0f", spool_remaining_weight_);
+            lv_textarea_set_text(weight_input, buf);
         }
+    }
 
-        // Enable proceed if weight is pre-filled
-        if (spool_remaining_weight_ > 0) {
-            set_can_proceed(true);
-        }
+    // The summary swatch, edged where its colour would vanish into the card
+    uint32_t color_val = 0x808080;
+    helix::parse_hex_color(selected_filament_.color_hex.c_str(), color_val);
+    if (subjects_initialized_) {
+        lv_subject_set_color(&summary_color_subject_, lv_color_hex(color_val));
+        lv_subject_set_int(&summary_edge_subject_,
+                           helix::ui::swatch_needs_edge_here(color_val) ? 1 : 0);
+    }
+
+    // Enable proceed if weight is pre-filled
+    if (spool_remaining_weight_ > 0) {
+        set_can_proceed(true);
     }
 }
 
@@ -594,7 +640,12 @@ nlohmann::json SpoolWizardOverlay::filament_create_payload(const FilamentEntry& 
     data["vendor_id"] = vendor_id;
     data["name"] = f.name.empty() ? f.material + " " + f.color_name : f.name;
     data["material"] = f.material;
-    if (!f.color_hex.empty()) {
+    if (!f.multi_color_hexes.empty()) {
+        data["multi_color_hexes"] = f.multi_color_hexes;
+        if (!f.multi_color_direction.empty()) {
+            data["multi_color_direction"] = f.multi_color_direction;
+        }
+    } else if (!f.color_hex.empty()) {
         data["color_hex"] = f.color_hex;
     }
     // density and diameter are REQUIRED by Spoolman (no defaults in their API)
@@ -891,7 +942,12 @@ void SpoolWizardOverlay::select_vendor(int index) {
         }
     }
 
-    // Update subjects for display on filament step
+    publish_vendor_selection();
+    set_can_proceed(true);
+}
+
+void SpoolWizardOverlay::publish_vendor_selection() {
+    // Shown on the filament step header and the spool step summary
     if (subjects_initialized_) {
         std::snprintf(selected_vendor_name_buf_, sizeof(selected_vendor_name_buf_), "%s",
                       selected_vendor_.name.c_str());
@@ -901,8 +957,6 @@ void SpoolWizardOverlay::select_vendor(int index) {
                       selected_vendor_.name.c_str());
         lv_subject_copy_string(&summary_vendor_subject_, summary_vendor_buf_);
     }
-
-    set_can_proceed(true);
 }
 
 void SpoolWizardOverlay::set_new_vendor(const std::string& name, const std::string& url) {
@@ -1220,17 +1274,19 @@ void SpoolWizardOverlay::select_filament(int index) {
         }
     }
 
-    // Update summary subject
+    publish_filament_summary();
+    set_can_proceed(true);
+}
+
+void SpoolWizardOverlay::publish_filament_summary() {
     if (subjects_initialized_) {
-        std::string summary = selected_filament_.material;
-        if (!selected_filament_.name.empty()) {
-            summary += " - " + selected_filament_.name;
-        }
+        // The shared label rule, so a name that already says the material
+        // does not repeat it
+        const std::string summary =
+            helix::compose_filament_label("", selected_filament_.name, selected_filament_.material);
         std::snprintf(summary_filament_buf_, sizeof(summary_filament_buf_), "%s", summary.c_str());
         lv_subject_copy_string(&summary_filament_subject_, summary_filament_buf_);
     }
-
-    set_can_proceed(true);
 }
 
 void SpoolWizardOverlay::set_new_filament_material(const std::string& material) {
@@ -1335,7 +1391,7 @@ void SpoolWizardOverlay::populate_filament_list() {
         lv_obj_t* swatch = lv_obj_find_by_name(row, "color_swatch");
         if (swatch && !fil.color_hex.empty()) {
             uint32_t color_val = std::strtoul(fil.color_hex.c_str(), nullptr, 16);
-            lv_obj_set_style_bg_color(swatch, lv_color_hex(color_val), 0);
+            helix::ui::apply_swatch_color(swatch, color_val, "");
         }
 
         // Set combined material - name label
@@ -1621,4 +1677,314 @@ void SpoolWizardOverlay::confirm_create_filament() {
     creating_new_filament_ = false;
     set_can_proceed(true);
     spdlog::info("[SpoolWizard] New filament '{}' confirmed (will be created on submit)", summary);
+}
+
+// ============================================================================
+// SpoolmanDB Search
+// ============================================================================
+
+SpoolWizardOverlay::FilamentEntry
+SpoolWizardOverlay::entry_from_catalog(const helix::ExternalFilament& f) {
+    FilamentEntry e;
+    e.name = f.name;
+    e.material = f.material;
+    if (!f.color_hexes.empty()) {
+        e.color_hex = f.color_hexes.front();
+        for (const auto& hex : f.color_hexes) {
+            e.multi_color_hexes += (e.multi_color_hexes.empty() ? "" : ",") + hex;
+        }
+        e.multi_color_direction = f.multi_color_direction;
+    } else {
+        e.color_hex = f.color_hex;
+    }
+    e.density = f.density;
+    e.diameter = f.diameter > 0 ? f.diameter : 1.75;
+    e.weight = f.weight;
+    e.spool_weight = f.spool_weight;
+    e.nozzle_temp_min = e.nozzle_temp_max = f.extruder_temp;
+    e.bed_temp_min = e.bed_temp_max = f.bed_temp;
+    return e;
+}
+
+int SpoolWizardOverlay::find_server_vendor(const std::vector<VendorEntry>& vendors,
+                                           const std::string& name) {
+    auto folded = [](const std::string& s) {
+        return helix::text_io::to_lower(std::string(helix::text_io::trim(s)));
+    };
+    const std::string needle = folded(name);
+    for (size_t i = 0; i < vendors.size(); ++i) {
+        if (vendors[i].server_id >= 0 && folded(vendors[i].name) == needle) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+void SpoolWizardOverlay::set_catalog_state(CatalogState state) {
+    catalog_state_ = state;
+    if (subjects_initialized_) {
+        lv_subject_set_int(&catalog_state_subject_, static_cast<int32_t>(state));
+    }
+}
+
+void SpoolWizardOverlay::sync_catalog_available() {
+    IMoonrakerAPI* api = get_moonraker_api();
+    const bool available = api && helix::SpoolmanCatalogSearch::availability(
+                                      api->get_client().connection_generation()) ==
+                                      helix::SpoolmanCatalogSearch::Availability::Available;
+    if (subjects_initialized_) {
+        lv_subject_set_int(&catalog_available_subject_, available ? 1 : 0);
+    }
+}
+
+void SpoolWizardOverlay::probe_catalog_search() {
+    sync_catalog_available();
+    IMoonrakerAPI* api = get_moonraker_api();
+    if (!api) {
+        return;
+    }
+    const uint64_t conn = api->get_client().connection_generation();
+    if (helix::SpoolmanCatalogSearch::availability(conn) !=
+        helix::SpoolmanCatalogSearch::Availability::Unknown) {
+        return;
+    }
+    // The cheapest question the route can answer: does it exist.
+    api->spoolman().search_spoolman_external_filaments(
+        "", 1,
+        lifetime_.bg_cb("SpoolWizard::catalog_probe_ok",
+                        [this, conn](const std::vector<helix::ExternalFilament>&) {
+                            helix::SpoolmanCatalogSearch::record_success(conn);
+                            sync_catalog_available();
+                        }),
+        lifetime_.bg_cb("SpoolWizard::catalog_probe_error",
+                        [this, conn](const MoonrakerError& err) {
+                            helix::SpoolmanCatalogSearch::record_error(conn, err);
+                            sync_catalog_available();
+                            spdlog::debug("[SpoolWizard] SpoolmanDB search probe: {} (code {})",
+                                          err.message, err.code);
+                        }));
+}
+
+void SpoolWizardOverlay::on_search_key() {
+    // One one-shot timer for the session, made on the first keystroke and kept
+    // (not auto-deleted) between bursts, so every later keystroke only re-arms it.
+    if (!search_timer_) {
+        search_timer_ = lv_timer_create(search_timer_cb, helix::ui::kDefaultSearchDebounceMs, this);
+        lv_timer_set_auto_delete(search_timer_, false);
+    }
+    lv_timer_set_repeat_count(search_timer_, 1);
+    lv_timer_reset(search_timer_);
+    lv_timer_resume(search_timer_);
+    spdlog::debug("[SpoolWizard] search keystroke");
+}
+
+void SpoolWizardOverlay::search_timer_cb(lv_timer_t* timer) {
+    static_cast<SpoolWizardOverlay*>(lv_timer_get_user_data(timer))->apply_search_text();
+}
+
+void SpoolWizardOverlay::cancel_search_timer() {
+    if (search_timer_ && lv_is_initialized()) {
+        // A kept one-shot: hand it back to LVGL's reaping, which deletes an
+        // auto-delete timer whose count is spent but never runs a paused one.
+        lv_timer_set_auto_delete(search_timer_, true);
+        lv_timer_resume(search_timer_);
+        helix::ui::lv_timer_cancel_safe(search_timer_);
+    }
+    search_timer_ = nullptr;
+}
+
+void SpoolWizardOverlay::apply_search_text() {
+    lv_obj_t* input = overlay_root_ ? lv_obj_find_by_name(overlay_root_, "vendor_search") : nullptr;
+    const char* text = input ? lv_textarea_get_text(input) : nullptr;
+    const std::string query = text ? text : "";
+    spdlog::debug("[SpoolWizard] search settled on '{}'", query);
+    filter_vendors(query);
+    run_catalog_search(query);
+}
+
+void SpoolWizardOverlay::run_catalog_search(const std::string& query) {
+    IMoonrakerAPI* api = get_moonraker_api();
+    const uint64_t conn = api ? api->get_client().connection_generation() : 0;
+    if (!api ||
+        helix::SpoolmanCatalogSearch::availability(conn) ==
+            helix::SpoolmanCatalogSearch::Availability::Unavailable ||
+        !helix::SpoolmanCatalogSearch::is_searchable(query)) {
+        catalog_.invalidate();
+        catalog_has_pending_ = false;
+        set_catalog_state(CatalogState::Idle);
+        return;
+    }
+
+    if (catalog_in_flight_) {
+        // One search in flight at most: this query waits, and the in-flight
+        // answer is dropped when it lands.
+        catalog_.invalidate();
+        catalog_pending_query_ = query;
+        catalog_has_pending_ = true;
+        set_catalog_state(CatalogState::Loading);
+        return;
+    }
+    send_catalog_search(query);
+}
+
+void SpoolWizardOverlay::send_catalog_search(std::string query) {
+    IMoonrakerAPI* api = get_moonraker_api();
+    if (!api) {
+        return;
+    }
+    const uint64_t conn = api->get_client().connection_generation();
+    const uint64_t ticket = catalog_.begin();
+    catalog_in_flight_ = true;
+    set_catalog_state(CatalogState::Loading);
+    spdlog::debug("[SpoolWizard] SpoolmanDB search #{} sent for '{}'", ticket, query);
+
+    // Whichever way it ends, the in-flight slot frees and a waiting query goes.
+    auto finish = [this]() {
+        catalog_in_flight_ = false;
+        if (catalog_has_pending_) {
+            catalog_has_pending_ = false;
+            send_catalog_search(std::move(catalog_pending_query_));
+            return true;
+        }
+        return false;
+    };
+
+    api->spoolman().search_spoolman_external_filaments(
+        std::string(helix::text_io::trim(query)), helix::SpoolmanCatalogSearch::kResultLimit,
+        lifetime_.bg_cb("SpoolWizard::catalog_results",
+                        [this, ticket, conn, finish](std::vector<helix::ExternalFilament> results) {
+                            helix::SpoolmanCatalogSearch::record_success(conn);
+                            sync_catalog_available();
+                            const bool current = catalog_.is_current(ticket);
+                            if (finish() || !current) {
+                                spdlog::debug("[SpoolWizard] SpoolmanDB search #{} superseded; "
+                                              "answer dropped",
+                                              ticket);
+                                return;
+                            }
+                            apply_catalog_results(std::move(results));
+                        }),
+        lifetime_.bg_cb(
+            "SpoolWizard::catalog_error", [this, ticket, conn, finish](const MoonrakerError& err) {
+                helix::SpoolmanCatalogSearch::record_error(conn, err);
+                sync_catalog_available();
+                const bool current = catalog_.is_current(ticket);
+                if (finish() || !current) {
+                    return;
+                }
+                spdlog::warn("[SpoolWizard] SpoolmanDB search failed: {} (code {})", err.message,
+                             err.code);
+                set_catalog_state(helix::SpoolmanCatalogSearch::availability(conn) ==
+                                          helix::SpoolmanCatalogSearch::Availability::Unavailable
+                                      ? CatalogState::Idle
+                                      : CatalogState::Error);
+            }));
+}
+
+void SpoolWizardOverlay::apply_catalog_results(std::vector<helix::ExternalFilament> results) {
+    const auto started = std::chrono::steady_clock::now();
+    const size_t limit = static_cast<size_t>(helix::SpoolmanCatalogSearch::kResultLimit);
+    if (results.size() > limit) {
+        results.resize(limit);
+    }
+    catalog_results_ = std::move(results);
+
+    if (subjects_initialized_) {
+        // The rows bind to these when the count rebuilds them, so they go first.
+        for (size_t i = 0; i < catalog_results_.size(); ++i) {
+            const auto& f = catalog_results_[i];
+            catalog_titles_.set_string(i, f.name.empty() ? f.id : f.name);
+            catalog_details_.set_string(i, f.material.empty()
+                                               ? f.manufacturer
+                                               : f.manufacturer + " \xC2\xB7 " + f.material);
+            const std::string& hex = f.color_hexes.empty() ? f.color_hex : f.color_hexes.front();
+            uint32_t rgb = 0x808080;
+            helix::parse_hex_color(hex.c_str(), rgb);
+            catalog_colors_.set_color(i, rgb);
+            catalog_edges_.set_int(i, helix::ui::swatch_needs_edge_here(rgb) ? 1 : 0);
+        }
+        lv_subject_set_int(&catalog_count_subject_, static_cast<int32_t>(catalog_results_.size()));
+    }
+    set_catalog_state(catalog_results_.empty() ? CatalogState::NoResults : CatalogState::Results);
+    spdlog::debug("[SpoolWizard] SpoolmanDB rows applied: {} in {} us", catalog_results_.size(),
+                  std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::steady_clock::now() - started)
+                      .count());
+}
+
+void SpoolWizardOverlay::select_catalog_result(int index) {
+    if (index < 0 || index >= static_cast<int>(catalog_results_.size())) {
+        spdlog::warn("[{}] Invalid SpoolmanDB result index: {}", get_name(), index);
+        return;
+    }
+    const helix::ExternalFilament picked = catalog_results_[static_cast<size_t>(index)];
+
+    // The pick ends the search: typing that settles now, or an answer still on
+    // its way, must not run over it.
+    if (search_timer_) {
+        lv_timer_set_repeat_count(search_timer_, 0);
+        lv_timer_pause(search_timer_);
+    }
+    catalog_has_pending_ = false;
+
+    // A vendor the server already has is reused; otherwise it is created on save.
+    const int vendor = find_server_vendor(all_vendors_, picked.manufacturer);
+    selected_vendor_ = vendor >= 0 ? all_vendors_[static_cast<size_t>(vendor)]
+                                   : VendorEntry{picked.manufacturer, -1, false};
+    new_vendor_name_.clear();
+    new_vendor_url_.clear();
+    // The filament step behind the spool step lists this vendor's filaments,
+    // so Back lands on a loaded list. It resets the selection, so it goes first.
+    load_filaments();
+    selected_filament_ = entry_from_catalog(picked);
+    creating_new_filament_ = false;
+    spdlog::info("[{}] Picked SpoolmanDB '{}' ({}; vendor server_id={})", get_name(), picked.name,
+                 picked.id, selected_vendor_.server_id);
+    publish_vendor_selection();
+    publish_filament_summary();
+
+    auto show_details = [this]() {
+        navigate_to_step(Step::SPOOL_DETAILS);
+        enter_spool_details();
+    };
+    IMoonrakerAPI* api = get_moonraker_api();
+    if (selected_vendor_.server_id < 0 || !api) {
+        show_details();
+        return;
+    }
+
+    // An existing vendor may already have this filament; reuse it rather than
+    // create a duplicate.
+    const int vendor_id = selected_vendor_.server_id;
+    const uint64_t ticket = catalog_.begin();
+    api->spoolman().get_spoolman_filaments(
+        vendor_id,
+        lifetime_.bg_cb(
+            "SpoolWizard::catalog_pick_filaments",
+            [this, ticket, vendor_id, show_details](const std::vector<FilamentInfo>& filaments) {
+                if (!catalog_.is_current(ticket)) {
+                    return;
+                }
+                const std::string& colors = selected_filament_.multi_color_hexes.empty()
+                                                ? selected_filament_.color_hex
+                                                : selected_filament_.multi_color_hexes;
+                if (const FilamentInfo* f = helix::spoolman::find_catalog_filament(
+                        filaments, vendor_id, selected_filament_.name, selected_filament_.material,
+                        colors)) {
+                    selected_filament_.server_id = f->id;
+                    selected_filament_.vendor_id = vendor_id;
+                    selected_filament_.from_server = true;
+                }
+                show_details();
+            }),
+        lifetime_.bg_cb("SpoolWizard::catalog_pick_filaments_error",
+                        [this, ticket, show_details](const MoonrakerError& err) {
+                            if (!catalog_.is_current(ticket)) {
+                                return;
+                            }
+                            spdlog::warn("[SpoolWizard] Could not list the vendor's filaments "
+                                         "({}); a new one will be created",
+                                         err.message);
+                            show_details();
+                        }));
 }

@@ -177,8 +177,8 @@ static void update_language_list_selection(lv_obj_t* selected_btn) {
         if (!btn)
             continue;
 
-        // Get the label inside the button (first child)
-        lv_obj_t* label = lv_obj_get_child(btn, 0);
+        // Each row is a flag image followed by its label.
+        lv_obj_t* label = lv_obj_get_child(btn, 1);
         bool is_selected = (btn == selected_btn);
 
         if (is_selected) {
@@ -186,11 +186,9 @@ static void update_language_list_selection(lv_obj_t* selected_btn) {
             lv_obj_set_style_bg_color(btn, theme_manager_get_color("primary"), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
             if (label) {
-                // Contrast text color based on background luminance
-                lv_color_t primary = theme_manager_get_color("primary");
-                uint8_t lum = lv_color_luminance(primary);
-                lv_color_t text_color = (lum > 140) ? lv_color_black() : lv_color_white();
-                lv_obj_set_style_text_color(label, text_color, LV_PART_MAIN);
+                lv_obj_set_style_text_color(
+                    label, theme_manager_get_readable_on(theme_manager_get_color("primary")),
+                    LV_PART_MAIN);
             }
         } else {
             // Unselected: transparent background
