@@ -3,6 +3,7 @@
 
 #include "ui_exclude_object_badges.h"
 #include "ui_observer_guard.h"
+#include "ui_widget_ref.h"
 
 #include "bed_coord_mapper.h"
 #include "gcode_parser.h"
@@ -73,11 +74,13 @@ class ExcludeObjectMapView {
     static void on_close_clicked(lv_event_t* e);
     static void on_object_clicked(lv_event_t* e);
 
-    lv_obj_t* root_{nullptr};
-    lv_obj_t* plate_area_{nullptr};
-    lv_obj_t* key_bar_{nullptr};
-    lv_obj_t* object_container_{nullptr};
-    lv_obj_t* canvas_{nullptr};
+    // Null once LVGL deletes the widget, so a tree deleted under the view is
+    // never touched again.
+    WidgetRef root_;
+    WidgetRef plate_area_;
+    WidgetRef key_bar_;
+    WidgetRef object_container_;
+    WidgetRef canvas_;
     lv_draw_buf_t* canvas_buf_{nullptr};
 
     helix::PrinterExcludedObjectsState* state_{nullptr};

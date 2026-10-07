@@ -172,10 +172,6 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterExcludedObjectsState
 }
 
 void ExcludeObjectSideList::destroy() {
-    if (!root_) {
-        return;
-    }
-
     // Drop observers first — they capture `this` and the caller is about to
     // free us. Row click handlers also capture `this`; we delete the widget
     // tree asynchronously below, but the rows are children and will be torn
@@ -189,8 +185,10 @@ void ExcludeObjectSideList::destroy() {
     // Cancel the slide-in animation (no slide-out — the lv_obj_delete_async
     // handles teardown immediately; animating with stale handlers risks UAF
     // on row taps during the out-anim window).
-    lv_anim_delete(root_, nullptr);
-    lv_obj_delete_async(root_);
+    if (root_) {
+        lv_anim_delete(root_, nullptr);
+        lv_obj_delete_async(root_);
+    }
     // Deinit detaches the rows still bound to these subjects, so the widgets
     // may outlive them until the async delete runs.
     row_states_.reclaim();

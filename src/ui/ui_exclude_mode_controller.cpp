@@ -16,7 +16,7 @@ namespace helix::ui {
 
 ExcludeModeController::~ExcludeModeController() {
     // The viewer can outlive us; it must not call back into a freed controller.
-    if (viewer_ && lv_is_initialized() && lv_obj_is_valid(viewer_)) {
+    if (viewer_ && lv_is_initialized()) {
         ui_gcode_viewer_set_object_tap_callback(viewer_, nullptr, nullptr);
     }
 }
@@ -103,8 +103,7 @@ void ExcludeModeController::show(const ExcludeModeTargets& targets,
 void ExcludeModeController::hide() {
     excluded_obs_.reset();
     defined_obs_.reset();
-    // A host tearing its tree down can call this after the viewer is gone.
-    if (viewer_ && lv_obj_is_valid(viewer_)) {
+    if (viewer_) {
         ui_gcode_viewer_set_object_tap_callback(viewer_, nullptr, nullptr);
         ui_gcode_viewer_set_excluded_badges_pickable(viewer_, false);
         ui_gcode_viewer_set_highlighted_objects(viewer_, {});

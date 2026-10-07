@@ -51,7 +51,7 @@ ExcludeObjectMapView::ExcludeObjectMapView() {
 
 ExcludeObjectMapView::~ExcludeObjectMapView() {
     open_map_views().remove(this);
-    if (root_) {
+    if (root_ || canvas_buf_) {
         destroy();
     }
 }
@@ -245,7 +245,9 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
 // ============================================================================
 
 void ExcludeObjectMapView::destroy() {
-    if (!root_)
+    // A tree deleted under the view leaves root_ null but the buffer and the
+    // observers still held.
+    if (!root_ && !canvas_buf_ && !excluded_version_obs_ && !defined_version_obs_)
         return;
 
     spdlog::debug("[ExcludeObjectMapView] destroy()");
@@ -277,7 +279,7 @@ void ExcludeObjectMapView::destroy() {
         // async delete tick runs. canvas->draw_buf is only dereferenced by
         // explicit canvas API calls (set_px / fill_bg / init_layer), none of
         // which fire during a passive redraw.
-        if (canvas_ && lv_obj_is_valid(canvas_)) {
+        if (canvas_) {
             lv_image_set_src(canvas_, nullptr);
         }
         canvas_ = nullptr;
@@ -294,8 +296,11 @@ void ExcludeObjectMapView::destroy() {
         // batch corrupt LVGL's global event linked list (#776/#190/#80).
         // safe_delete_deferred escapes the batch via lv_obj_delete_async, and
         // is equally correct on the standalone hide_exclude_map_view() path.
-        helix::ui::safe_delete_deferred(root_);
+        lv_obj_t* root = root_;
         root_ = nullptr;
+        if (root) {
+            helix::ui::safe_delete_deferred(root);
+        }
         plate_area_ = nullptr;
         key_bar_ = nullptr;
         object_container_ = nullptr;

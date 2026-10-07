@@ -87,6 +87,19 @@ class ExcludeModeFixture : public LVGLUITestFixture {
     std::vector<std::string> taps;
 };
 
+/// Create widgets with @p make until one lands at @p freed, the address LVGL
+/// just released, so a stale pointer to the deleted widget would hit it.
+/// Returns nullptr when the allocator never hands it back.
+template <typename Make> lv_obj_t* allocate_at(lv_obj_t* freed, Make make) {
+    for (int i = 0; i < 64; ++i) {
+        lv_obj_t* obj = make();
+        if (obj == freed) {
+            return obj;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
 TEST_CASE_METHOD(ExcludeModeFixture,
@@ -155,4 +168,85 @@ TEST_CASE_METHOD(ExcludeModeFixture,
     CHECK(helix::test_access::gcode_viewer_object_badges(viewer).empty());
     helix::test_access::gcode_viewer_fire_object_tap(viewer, "A");
     CHECK(taps.size() == 1);
+}
+
+// A host's tree can be deleted under an open exclude mode (an overlay whose
+// screen went away). LVGL may hand the freed address to the next widget, so
+// teardown must recognise the deletion, not test the address.
+
+TEST_CASE_METHOD(ExcludeModeFixture,
+                 "Hiding after the viewer was deleted leaves a widget at its address untouched",
+                 "[exclude_mode][pre_start_exclude]") {
+    lv_obj_t* viewer = ui_gcode_viewer_create(card);
+    REQUIRE(viewer != nullptr);
+    targets.gcode_viewer = viewer;
+    targets.thumbnail_mode = false;
+    show(ExcludeTapMode::Toggle);
+    REQUIRE(controller.is_open());
+
+    lv_obj_delete(viewer);
+    // A plain widget reaches the freed address first; freeing it again leaves
+    // that address next in line for the new viewer's object.
+    lv_obj_t* probe = allocate_at(viewer, [this] { return lv_obj_create(card); });
+    if (!probe) {
+        SKIP("allocator never reused the deleted viewer's address");
+    }
+    lv_obj_delete(probe);
+    lv_obj_t* fresh = ui_gcode_viewer_create(card);
+    if (fresh != viewer) {
+        SKIP("the new viewer did not land at the deleted viewer's address");
+    }
+    ui_gcode_viewer_set_excluded_badges_pickable(fresh, true);
+    ui_gcode_viewer_set_object_badges(fresh, compute_object_badges(objects, nullptr));
+    REQUIRE(helix::test_access::gcode_viewer_object_badges(fresh).size() == 3);
+
+    controller.hide();
+    settle();
+    CHECK(helix::test_access::gcode_viewer_excluded_badges_pickable(fresh));
+    CHECK(helix::test_access::gcode_viewer_object_badges(fresh).size() == 3);
+}
+
+TEST_CASE_METHOD(ExcludeModeFixture,
+                 "Destroying a side list whose root was deleted leaves a widget at its address",
+                 "[exclude_side_list][pre_start_exclude]") {
+    ExcludeObjectSideList list;
+    list.create(columns, &objects, nullptr, ExcludeTapMode::ExcludeOnly,
+                exclude_side_list_geometry(false));
+    lv_obj_t* root = list.root();
+    REQUIRE(root != nullptr);
+
+    lv_obj_delete(root);
+    CHECK_FALSE(list.is_active());
+    lv_obj_t* fresh = allocate_at(root, [this] { return lv_obj_create(columns); });
+    if (!fresh) {
+        SKIP("allocator never reused the deleted root's address");
+    }
+
+    list.destroy();
+    settle();
+    CHECK(lv_obj_is_valid(fresh));
+    objects.set_excluded_objects({"A"}); // no observer may reach the deleted rows
+    settle();
+}
+
+TEST_CASE_METHOD(ExcludeModeFixture,
+                 "Destroying a map view whose root was deleted leaves a widget at its address",
+                 "[exclude_map][pre_start_exclude]") {
+    ExcludeObjectMapView map;
+    map.create(card, &objects, 235.0f, 235.0f, nullptr, ExcludeTapMode::ExcludeOnly);
+    lv_obj_t* root = map.root();
+    REQUIRE(root != nullptr);
+
+    lv_obj_delete(root);
+    CHECK_FALSE(map.is_active());
+    lv_obj_t* fresh = allocate_at(root, [this] { return lv_obj_create(card); });
+    if (!fresh) {
+        SKIP("allocator never reused the deleted root's address");
+    }
+
+    map.destroy();
+    settle();
+    CHECK(lv_obj_is_valid(fresh));
+    objects.set_defined_objects({"A", "B"}); // no observer may reach the deleted rects
+    settle();
 }

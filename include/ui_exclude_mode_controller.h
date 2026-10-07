@@ -5,6 +5,7 @@
 #include "ui_exclude_object_map_view.h"
 #include "ui_exclude_object_side_list.h"
 #include "ui_observer_guard.h"
+#include "ui_widget_ref.h"
 
 #include <lvgl.h>
 #include <memory>
@@ -53,7 +54,7 @@ class ExcludeModeController {
     std::unique_ptr<ExcludeObjectMapView> map_view_;
     std::unique_ptr<ExcludeObjectSideList> side_list_;
     PrinterExcludedObjectsState* state_ = nullptr;
-    lv_obj_t* viewer_ = nullptr;
+    WidgetRef viewer_; ///< Null once LVGL deletes the viewer
     lv_subject_t* map_active_ = nullptr;
     ObjectTapFn on_tap_;
     ObserverGuard excluded_obs_;

@@ -3,6 +3,7 @@
 
 #include "ui_exclude_object_badges.h"
 #include "ui_observer_guard.h"
+#include "ui_widget_ref.h"
 
 #include "async_lifetime_guard.h"
 #include "helix/xml/indexed_subject_pool.h"
@@ -71,10 +72,12 @@ class ExcludeObjectSideList {
     static void on_row_clicked(lv_event_t* e);
     static void on_close_clicked(lv_event_t* e);
 
-    lv_obj_t* root_{nullptr};
-    lv_obj_t* rows_container_{nullptr};
-    lv_obj_t* empty_state_{nullptr};
-    lv_obj_t* gcode_viewer_{nullptr};
+    // Null once LVGL deletes the widget, so a tree deleted under the list is
+    // never touched again.
+    WidgetRef root_;
+    WidgetRef rows_container_;
+    WidgetRef empty_state_;
+    WidgetRef gcode_viewer_;
 
     PrinterExcludedObjectsState* state_{nullptr};
     ObjectTapFn on_object_tapped_;
