@@ -58,7 +58,7 @@ Happy Hare's `filament_pos` (0-8) maps to `PathSegment` via `path_segment_from_h
 |---------|-----------|----------|
 | Endless Spool | `Available` | `Group` on a single-unit MMU; `ReadOnly` + `MultiUnit` on multi-unit, `ReadOnly` + `NotReady` before the gate registry initialises (see [Endless Spool](FILAMENT_MANAGEMENT.md#endless-spool-shared-model)) |
 | Tool Mapping | Yes | Yes (via `MMU_TTG_MAP`) |
-| Bypass Mode | Yes | Yes (selector position -2), when `[mmu_machine] has_bypass` is set. `has_bypass: 0` hides the UI but `MMU_SELECT_BYPASS` still works - see [the force override](FILAMENT_MANAGEMENT.md#bypass-visibility-and-the-force-override) |
+| Bypass Mode | Yes | Yes (selector position -2), when `[mmu_machine] has_bypass` is set (v4: any unit's `has_bypass`). `has_bypass: 0` hides the UI but `MMU_SELECT_BYPASS` still works - see [the force override](FILAMENT_MANAGEMENT.md#bypass-visibility-and-the-force-override) |
 | Spoolman | Yes | -- (pull mode: the gate map is Spoolman's - Clear Spool clears HelixScreen's copy only and reports partial failure) |
 | Auto-Heat on Load | No | UI manages preheat |
 | Dryer | Yes | `MMU_HEATER` (see [Happy Hare Specifics](FILAMENT_MANAGEMENT.md#happy-hare-specifics)) |
@@ -137,6 +137,37 @@ Two gates on the send itself:
 The wipe only fires when the gate held something. An all-blank edit on an already-blank
 gate (a tool-map-only save) sends no `MMU_GATE_MAP` at all, so an ordinary edit on an
 empty gate stays silent.
+
+### Happy Hare 4
+
+The connect-time query reads `configfile.settings` and the live `mmu_machine` object
+together, and `happy_hare::read_machine_layout()` (`include/happy_hare_status_parse.h`)
+decides which layout they describe. v4 is recognised by `happy_hare_version` on
+`mmu_machine` (the live object, else configfile's `[mmu_machine]`); v3 never publishes it
+there. The version lands in `AmsSystemInfo::version`. Every v3/v4 difference below asks that
+one layout.
+
+| What | v3 | v4 |
+|------|----|----|
+| Machine fields (selector type, heaters, env sensors) | `configfile.settings.mmu_machine` | live `mmu_machine.unit_N` |
+| Tunables (tip macro, speeds, toolhead distances, `heater_max_temp`, `sync_to_extruder`) | `[mmu]` | `[mmu_parameters]`, `[mmu_unit_parameters <unit>]`, `[mmu_toolhead <toolhead of that unit>]`; `happy_hare::find_config_param()` owns which |
+| `MMU_TEST_CONFIG` gear speeds | `GEAR_FROM_SPOOL_SPEED`, `GEAR_FROM_BUFFER_SPEED` | `GEAR_LOAD_SPEED`, `GEAR_FROM_FILAMENT_BUFFER_SPEED`; `happy_hare::param_name()` maps them, and `CLOG_DETECTION` has no v4 parameter |
+| Bypass support | `printer.mmu.has_bypass` | any `mmu_machine.unit_N.has_bypass` (`printer.mmu.has_bypass` is a constant true) |
+| Per-gate pre-gate sensors | `printer.mmu.sensors.mmu_pre_gate_N` | `filament_switch_sensor mmu_entry_N` objects; `printer.mmu.sensors` covers only the selected gate |
+| eSpooler | `espooler_active` | per-gate `espooler` list, the selected gate's entry shown |
+| Calibrate gates | `MMU_CALIBRATE_GATES` | `MMU_CALIBRATE_GATE ALL=1` |
+
+**`UNIT=` on a multi-unit v4.** v4 refuses its per-unit commands without `UNIT=` once
+`mmu_machine.num_units` is above 1. `unit_suffix_locked()` builds it, and only there:
+`MMU_HOME` and `MMU_MOTORS_ON/OFF` take `UNIT=ALL`, `MMU_HEATER` the unit being dried,
+`MMU_SERVO`, `MMU_TEST_GRIP`, `MMU_CALIBRATE_GATE ALL=1` and unit-scoped `MMU_TEST_CONFIG`
+parameters the selected unit (`printer.mmu.unit`). v3's `MMU_TEST_CONFIG` rejects an unknown
+`UNIT`, so it is never sent there.
+
+v4 sends `encoder`, `flowguard`, `tangle_prevention` and the `sync_feedback_*` fields as
+JSON null until a unit has them; every parser reads null as absent, so the last real value
+stands. Clog-detection mode moved to `flowguard_encoder_mode` / `MMU_FLOWGUARD` on v4 and is
+not handled here yet. Golden payloads: `tests/fixtures/happy_hare_v4_*.json`.
 
 ### Reset vs Recover
 
