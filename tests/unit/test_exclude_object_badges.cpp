@@ -466,6 +466,19 @@ TEST_CASE_METHOD(LVGLTestFixture, "An excluded badge is drawn but the tap goes t
     CHECK(v.taps.names[0] == "Left");
 }
 
+TEST_CASE_METHOD(LVGLTestFixture, "With excluded badges pickable, a tap on one picks its object",
+                 "[exclude_badges][gcode_viewer][pick][pre_start_exclude]") {
+    BadgeViewer v;
+    ui_gcode_viewer_set_excluded_badges_pickable(v.viewer, true);
+    ui_gcode_viewer_set_object_badges(
+        v.viewer, {make_badge(1, "Right", kLeftCenter, std::nullopt, /*excluded=*/true)});
+    v.draw();
+    REQUIRE(v.drawn().size() == 1);
+    v.tap_local(v.drawn()[0].center);
+    REQUIRE(v.taps.names.size() == 1);
+    CHECK(v.taps.names[0] == "Right");
+}
+
 TEST_CASE_METHOD(LVGLTestFixture, "Clearing the badges removes them and their pick targets",
                  "[exclude_badges][gcode_viewer][pick]") {
     BadgeViewer v;

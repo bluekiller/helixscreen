@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include "ui_exclude_object_map_view.h"
-#include "ui_exclude_object_side_list.h"
+#include "ui_exclude_mode_controller.h"
 #include "ui_filament_runout_handler.h"
 #include "ui_heater_icon_binder.h"
 #include "ui_modal.h"
@@ -555,8 +554,6 @@ class PrintStatusPanel : public OverlayBase {
     void animate_print_error();     ///< Error animation when print fails
     void show_exclude_map_view();   ///< Show overhead map view of print objects
     void hide_exclude_map_view();   ///< Destroy map view and restore thumbnail/gradient
-    void
-    refresh_render_badges(); ///< Push numbered object badges to the viewer while exclude is open
 
     //
     // === Instance Handlers ===
@@ -696,11 +693,8 @@ class PrintStatusPanel : public OverlayBase {
     /// Manages exclude object feature (extracted from PrintStatusPanel)
     std::unique_ptr<helix::ui::PrintExcludeObjectManager> exclude_manager_;
 
-    /// Overhead map view for exclude objects (shown in thumbnail-only mode)
-    std::unique_ptr<helix::ui::ExcludeObjectMapView> map_view_;
-
-    /// Side-panel companion list (shown alongside map_view_).
-    std::unique_ptr<helix::ui::ExcludeObjectSideList> side_list_;
+    /// Exclude mode over the preview card (list + map or render badges).
+    helix::ui::ExcludeModeController exclude_mode_;
 
     //
     // === Filament Runout Handler ===
