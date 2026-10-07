@@ -1057,6 +1057,9 @@ class AmsState {
     lv_subject_t* get_buffer_value_text_subject() {
         return &buffer_value_text_;
     }
+    lv_subject_t* get_buffer_short_text_subject() {
+        return &buffer_short_text_;
+    }
     lv_subject_t* get_clog_meter_mode_text_subject() {
         return &clog_meter_mode_text_;
     }
@@ -2135,6 +2138,8 @@ class AmsState {
     char buffer_label_buf_[16]{};
     lv_subject_t buffer_value_text_{}; // "32%", "-45%", "Pressure: 32%"
     char buffer_value_text_buf_[48]{};
+    lv_subject_t buffer_short_text_{}; // "32%", "-45%": the number alone, for narrow surfaces
+    char buffer_short_text_buf_[16]{};
 
     lv_subject_t clog_meter_mode_{};  // ClogMeterMode: 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
     lv_subject_t clog_meter_value_{}; // 0-100 (encoder/afc) or -100..+100 (flowguard)

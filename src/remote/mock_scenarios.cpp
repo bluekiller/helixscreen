@@ -215,6 +215,22 @@ static std::vector<MockScenario> clog_scenarios() {
     s.push_back({"buffer_fps_no_target", "Filament pressure sensor with no set point",
                  []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.32f, -1.0f); }); }});
 
+    s.push_back({"buffer_fps_with_clog",
+                 "Filament pressure sensor and AFC fault detection both reporting", []() {
+                     apply_clog_state([](AmsBackendMock& m) {
+                         set_fps(m, 0.32f);
+                         BufferHealth h;
+                         h.fps_value = h.smoothed_fps = 0.32f;
+                         h.fps_set_point = 0.5f;
+                         h.fps_reported = true;
+                         h.fault_detection_enabled = true;
+                         h.error_sensitivity = 7.0f;
+                         h.state = "Trailing";
+                         h.distance_to_fault = 1.5f;
+                         m.set_unit_buffer_health(0, h);
+                     });
+                 }});
+
     s.push_back({"sync_feedback_tight", "Happy Hare sync feedback leaning to tension", []() {
                      apply_clog_state([](AmsBackendMock& m) {
                          clear_clog_sources(m);

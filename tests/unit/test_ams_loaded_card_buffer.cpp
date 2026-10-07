@@ -53,7 +53,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "loaded card draws the buffer beside the mat
         AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.32f}, -1.0f), 0);
         CHECK_FALSE(hidden(card, "buffer_mini"));
         CHECK(hidden(card, "buffer_mini_slider"));
-        CHECK(text(card, "buffer_mini_value") == "Pressure: 32%");
+        CHECK(text(card, "buffer_mini_value") == "32%");
     }
 
     SECTION("no reading: nothing") {

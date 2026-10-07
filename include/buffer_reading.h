@@ -59,6 +59,10 @@ struct BufferReading {
 /// pressure with no set point; empty with no reading.
 [[nodiscard]] std::string buffer_value_text(const BufferReading& r);
 
+/// The number alone, for a surface too narrow for a prefix: "32%", "-45%".
+/// Empty with no reading.
+[[nodiscard]] std::string buffer_short_text(const BufferReading& r);
+
 /// "target 50%" where a set point is known, else empty.
 [[nodiscard]] std::string buffer_target_text(const BufferReading& r);
 

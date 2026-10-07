@@ -54,17 +54,21 @@ const char* buffer_label(const BufferReading& r) {
     return "";
 }
 
-std::string buffer_value_text(const BufferReading& r) {
+std::string buffer_short_text(const BufferReading& r) {
     if (!r.present()) {
         return "";
     }
-    if (!r.has_slider) {
-        return fmt::format("{} {}%", lv_tr("Pressure:"), r.value_pct);
-    }
-    if (r.source == BufferSource::Sync && r.value_pct != 0) {
+    if (r.has_slider && r.source == BufferSource::Sync && r.value_pct != 0) {
         return fmt::format("{:+d}%", r.value_pct);
     }
     return fmt::format("{}%", r.value_pct);
+}
+
+std::string buffer_value_text(const BufferReading& r) {
+    if (r.present() && !r.has_slider) {
+        return fmt::format("{} {}", lv_tr("Pressure:"), buffer_short_text(r));
+    }
+    return buffer_short_text(r);
 }
 
 std::string buffer_target_text(const BufferReading& r) {

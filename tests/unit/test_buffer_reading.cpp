@@ -146,6 +146,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "buffer reading words", "[buffer][reading][tex
     SECTION("pressure without one") {
         const BufferReading r = buffer_reading(test::fps_units({0.32f}, -1.0f), -1);
         CHECK(buffer_value_text(r) == "Pressure: 32%");
+        CHECK(buffer_short_text(r) == "32%");
         CHECK(buffer_target_text(r).empty());
         CHECK(std::string(buffer_lean_text(r)).empty());
     }
@@ -155,6 +156,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "buffer reading words", "[buffer][reading][tex
         BufferReading r = buffer_reading(info, -1);
         CHECK(std::string(buffer_label(r)) == "Sync");
         CHECK(buffer_value_text(r) == "+15%");
+        CHECK(buffer_short_text(r) == "+15%");
         CHECK(buffer_target_text(r).empty());
         CHECK(std::string(buffer_lean_text(r)) == "Running loose");
         info.sync_feedback_bias = 0.0f;
@@ -166,5 +168,6 @@ TEST_CASE_METHOD(LVGLTestFixture, "buffer reading words", "[buffer][reading][tex
         const BufferReading r;
         CHECK(std::string(buffer_label(r)).empty());
         CHECK(buffer_value_text(r).empty());
+        CHECK(buffer_short_text(r).empty());
     }
 }
