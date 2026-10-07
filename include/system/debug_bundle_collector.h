@@ -100,6 +100,13 @@ class DebugBundleCollector {
     using ResultCallback = std::function<void(const BundleResult&)>;
     static void upload_async(const BundleOptions& options, ResultCallback callback);
 
+    /// Replaces collect() inside upload_async's worker, so a test can exercise the
+    /// gate/compress/upload path without walking the host's /proc or asking
+    /// systemd. An empty function restores the real collector. Main thread only;
+    /// upload_async captures the value at submit.
+    using CollectFn = std::function<nlohmann::json(const BundleOptions&)>;
+    static void set_collect_override_for_test(CollectFn fn);
+
     /// Read PrinterState and its LVGL subjects into plain data.
     ///
     /// MAIN THREAD ONLY. lv_subject_get_string() hands back the subject's live
