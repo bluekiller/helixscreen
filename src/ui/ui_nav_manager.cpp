@@ -20,11 +20,14 @@
 #include "connection_state.h" // For ConnectionState enum
 #include "display_settings_manager.h"
 #include "env_knobs.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "layout_manager.h"
+#include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
 #include "overlay_base.h"
 #include "overlay_class.h"
 #include "page_scroll_auto_inject.h"
+#include "platform_capabilities.h"
 #include "printer_state.h" // For KlippyState enum
 #include "settings_manager.h"
 #include "sound_manager.h"
@@ -64,7 +67,7 @@ lv_obj_t* make_loading_scrim() {
     lv_obj_set_style_pad_ver(pill, 12, LV_PART_MAIN);
     lv_obj_remove_flag(pill, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t* lbl = lv_label_create(pill);
-    lv_label_set_text(lbl, "Loading...");
+    lv_label_set_text(lbl, lv_tr("Loading..."));
     lv_obj_set_style_text_color(lbl, lv_color_white(), LV_PART_MAIN);
     lv_obj_center(pill);
     return pill;
@@ -1710,6 +1713,22 @@ bool NavigationManager::go_back() {
     return true;
 }
 
+void NavigationManager::build_under_loading_pill(const std::function<void()>& build) {
+    lv_subject_t* tier = lv_xml_get_subject(nullptr, "platform_tier");
+    const bool limited_tier =
+        tier && !helix::full_style_effects_allowed(
+                    static_cast<helix::PlatformTier>(lv_subject_get_int(tier)));
+    if (!limited_tier || nav_scrim_active_) {
+        build();
+        return;
+    }
+    lv_obj_t* pill = make_loading_scrim();
+    lv_refr_now(lv_display_get_default());
+    build();
+    helix::ui::queue_update("NavigationManager::build_under_loading_pill",
+                            [pill]() mutable { helix::ui::safe_delete_deferred(pill); });
+}
+
 void NavigationManager::close_overlay(lv_obj_t* overlay_panel) {
     if (!overlay_panel) {
         spdlog::error("[NavigationManager] Cannot close NULL overlay panel");
@@ -2084,11 +2103,7 @@ bool is_in_stack(lv_obj_t* panel) {
 }
 
 void build_under_loading_pill(const std::function<void()>& build) {
-    lv_obj_t* pill = make_loading_scrim();
-    lv_refr_now(lv_display_get_default());
-    build();
-    helix::ui::queue_update("nav::build_under_loading_pill",
-                            [pill]() mutable { helix::ui::safe_delete_deferred(pill); });
+    NavigationManager::instance().build_under_loading_pill(build);
 }
 
 bool is_push_pending(lv_obj_t* panel) {

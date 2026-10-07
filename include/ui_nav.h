@@ -88,10 +88,8 @@ bool is_on_top(lv_obj_t* panel);
 /// True when @p panel is anywhere in the overlay stack.
 bool is_in_stack(lv_obj_t* panel);
 
-/// Run @p build, which blocks the UI thread to create an overlay, under the
-/// "Loading..." pill NavigationManager paints for a slow panel switch. The pill is
-/// painted before @p build starts and lifted from the UpdateQueue, after the push
-/// and on_activate() that @p build queued have run.
+/// Build an overlay under the "Loading..." pill on the limited tiers. See
+/// NavigationManager::build_under_loading_pill().
 void build_under_loading_pill(const std::function<void()>& build);
 
 /// True from push_overlay(@p panel) until its queued push runs.
