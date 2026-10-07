@@ -355,7 +355,6 @@ void AmsBackendOpenAms::parse_snapshot_locked() {
     next.filament_loaded = !current_slots.empty();
     next.current_slot = current_slots.size() == 1 ? *current_slots.begin() : -1;
     next.current_tool = current_slots.size() == 1 ? tool_from_group(current_group) : -1;
-    next.sync_feedback_bias = next.pressure_sensor_bias();
 
     remote_slot_ids_ = std::move(next_remote_ids);
     slot_groups_ = std::move(next_slot_groups);

@@ -42,6 +42,10 @@ BufferReading buffer_reading(const AmsSystemInfo& info, int unit) {
     return r;
 }
 
+int buffer_view_unit(const AmsSystemInfo& info, int unit) {
+    return unit >= 0 ? unit : std::max(buffer_reading(info, -1).unit, 0);
+}
+
 const char* buffer_label(const BufferReading& r) {
     switch (r.source) {
     case BufferSource::Fps:

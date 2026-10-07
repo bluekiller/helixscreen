@@ -673,8 +673,9 @@ namespace ui {
 
 BufferBoxState ams_detail_buffer_box(const AmsSystemInfo& info, int unit_index) {
     BufferBoxState box;
-    // The AFC buffer rows describe one unit; the whole-backend view uses unit 0.
-    const AmsUnit* unit = info.get_unit(unit_index >= 0 ? unit_index : 0);
+    // The AFC buffer rows describe one unit: the one asked for, else the one
+    // the system reading came from.
+    const AmsUnit* unit = info.get_unit(buffer_view_unit(info, unit_index));
     if (unit && unit->buffer_health) {
         const BufferHealth& h = *unit->buffer_health;
         box.present = true;

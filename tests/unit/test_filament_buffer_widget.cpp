@@ -98,6 +98,8 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
         h.resize(def->colspan, def->rowspan, 112, 112);
         AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.71f}, -1.0f), 0);
         CHECK(hidden(h.child("buffer_graphics")));
+        CHECK_FALSE(hidden(h.child("buffer_label")));
+        CHECK(text(h.child("buffer_label")) == "FPS");
         CHECK_FALSE(hidden(h.child("buffer_value_short")));
         CHECK(text(h.child("buffer_value_short")) == "71%");
         CHECK(hidden(h.child("buffer_value")));

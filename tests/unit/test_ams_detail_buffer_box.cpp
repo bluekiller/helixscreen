@@ -10,6 +10,7 @@
 #include "ui_ams_detail.h"
 
 #include "../test_helpers/buffer_infos.h"
+#include "buffer_reading.h"
 
 #include <string>
 
@@ -66,4 +67,21 @@ TEST_CASE("buffer box: Happy Hare sync feedback", "[ams][buffer][path]") {
     CHECK(box.state == 2);
     CHECK(std::string(box.label) == "BUF");
     CHECK(box.fault == 2);
+}
+
+// A multi-unit AFC whose only sensor is on unit 1: the all-units box takes its
+// state from that unit, the same one the modal describes.
+static AmsSystemInfo sensor_on_unit_1() {
+    AmsSystemInfo info = test::fps_units({0.5f, 0.5f}, 0.5f, /*current_slot=*/5);
+    info.type = AmsType::AFC;
+    info.units[0].buffer_health.reset();
+    info.units[1].buffer_health->state = "Advancing";
+    return info;
+}
+
+TEST_CASE("buffer box: the all-units view describes the sensor's unit", "[ams][buffer][path]") {
+    const AmsSystemInfo info = sensor_on_unit_1();
+    REQUIRE(buffer_view_unit(info, -1) == 1);
+    CHECK(ams_detail_buffer_box(info, -1).state == ams_detail_buffer_box(info, 1).state);
+    CHECK(ams_detail_buffer_box(info, -1).state == 1);
 }

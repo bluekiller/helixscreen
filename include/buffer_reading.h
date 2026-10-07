@@ -52,6 +52,10 @@ struct BufferReading {
 /// Happy Hare's sync feedback.
 [[nodiscard]] BufferReading buffer_reading(const AmsSystemInfo& info, int unit);
 
+/// The unit whose rows (AFC state, fault distance) describe @p unit's buffer:
+/// @p unit itself, else the unit the system reading came from, else 0.
+[[nodiscard]] int buffer_view_unit(const AmsSystemInfo& info, int unit);
+
 /// "FPS" or "Sync"; empty with no reading.
 [[nodiscard]] const char* buffer_label(const BufferReading& r);
 

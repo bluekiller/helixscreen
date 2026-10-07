@@ -299,21 +299,21 @@ TEST_CASE_METHOD(HelixTestFixture, "OpenAMS publishes its FPS as a sync-feedback
 
     SECTION("above set_point the hub is overfeeding: compression") {
         const auto info = feed_pressure(0.62f, 0.5);
-        CHECK(info.sync_feedback_bias == Catch::Approx(0.24f));
+        CHECK(helix::buffer_reading(info, -1).bias == Catch::Approx(0.24f));
         CHECK(helix::buffer_reading(info, 0).bias == Catch::Approx(0.24f));
         CHECK(helix::buffer_reading(info, -1).has_slider);
     }
 
     SECTION("below set_point the extruder is pulling: tension") {
         const auto info = feed_pressure(0.3f, 0.5);
-        CHECK(info.sync_feedback_bias == Catch::Approx(-0.4f));
+        CHECK(helix::buffer_reading(info, -1).bias == Catch::Approx(-0.4f));
         CHECK(helix::buffer_reading(info, -1).has_slider);
     }
 
     SECTION("no set_point leaves the reading unplaceable: no bias") {
         const auto info = feed_pressure(0.62f, nullptr);
         CHECK(info.units[0].buffer_health->fps_reported);
-        CHECK(info.sync_feedback_bias <= -1.5f);
+        CHECK(info.pressure_sensor_bias() <= -1.5f);
         CHECK_FALSE(helix::buffer_reading(info, 0).has_slider);
         CHECK_FALSE(helix::buffer_reading(info, -1).has_slider);
     }
@@ -338,7 +338,7 @@ TEST_CASE_METHOD(HelixTestFixture, "OpenAMS publishes its FPS as a sync-feedback
         const auto info = backend.get_system_info();
         REQUIRE(info.units.size() == 2);
         REQUIRE(info.current_slot == 4);
-        CHECK(info.sync_feedback_bias == Catch::Approx(-0.4f));
+        CHECK(helix::buffer_reading(info, -1).bias == Catch::Approx(-0.4f));
         // Each unit's own view draws its own lane.
         CHECK(helix::buffer_reading(info, 0).bias == Catch::Approx(0.8f));
         CHECK(helix::buffer_reading(info, 1).bias == Catch::Approx(-0.4f));

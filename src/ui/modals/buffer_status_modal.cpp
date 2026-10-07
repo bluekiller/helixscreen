@@ -159,7 +159,7 @@ helix::BufferReading BufferStatusModal::populate(const helix::AmsSystemInfo& inf
 
         // AFC's rows describe one unit's buffer: the one asked for, else the
         // one the reading came from.
-        const int unit_index = effective_unit >= 0 ? effective_unit : std::max(r.unit, 0);
+        const int unit_index = helix::buffer_view_unit(info, effective_unit);
         bool found_health = false;
         if (unit_index < static_cast<int>(info.units.size())) {
             const auto& unit = info.units[static_cast<std::size_t>(unit_index)];
@@ -202,13 +202,10 @@ helix::BufferReading BufferStatusModal::populate(const helix::AmsSystemInfo& inf
         lv_subject_set_int(&type_subject_, 3);
     } else {
         // Neither buffer backend. Stock CFS, AD5X IFS, tool changers, ACE,
-        // Snapmaker and QIDI report none of this - see AmsBackendCfs's own note
-        // that "Stock CFS reports none of these". Every body section binds
-        // hidden unless buf_type is 1 or 2, so without a message here the dialog
-        // renders as a title and two buttons over an empty box, which is what a
-        // K2 Plus owner actually saw. The modal is reachable from the AMS panel
-        // as well as the tile, so this has to answer rather than rely on the
-        // tile's gate.
+        // Snapmaker and QIDI report none of this. Every body section binds
+        // hidden unless buf_type is 1, 2 or 3, so this message is the dialog's
+        // whole body. The modal is reachable from the AMS panel as well as the
+        // tile, so it has to answer rather than rely on the tile's gate.
         lv_subject_set_int(&type_subject_, 0);
         lv_subject_copy_string(&unsupported_subject_,
                                lv_tr("This filament system does not report buffer or flow data."));

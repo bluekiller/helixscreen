@@ -1033,7 +1033,9 @@ class AmsState {
      * @brief The last minute of one buffer reading, for the trace beside a slider
      * @param unit Unit position, or -1 for the system-level reading (buffer_reading(info, -1))
      *
-     * Empty for a unit that has never had a reading. Main thread only.
+     * A unit with no reading of its own still has a trace: a sensorless unit
+     * mirrors the system reading, or records a gap (one invalid point) when
+     * there is none. Main thread only.
      */
     [[nodiscard]] const BufferTrace& buffer_trace(int unit) const;
 

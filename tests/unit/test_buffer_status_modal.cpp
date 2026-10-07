@@ -510,3 +510,16 @@ TEST_CASE_METHOD(LVGLTestFixture,
         CHECK(modal.show_reading_value() == 0);
     }
 }
+
+TEST_CASE_METHOD(LVGLTestFixture, "BufferStatusModal all-units view describes the sensor's unit",
+                 "[modals][buffer_status]") {
+    TestableBufferStatusModal modal;
+    auto info = helix::test::fps_units({0.5f, 0.5f}, 0.5f, /*current_slot=*/5);
+    info.type = helix::AmsType::AFC;
+    info.units[0].buffer_health.reset();
+    info.units[1].buffer_health->state = "Trailing";
+
+    modal.populate(info, -1);
+
+    REQUIRE(std::string(modal.afc_state_value()) == "Pulling filament back");
+}
