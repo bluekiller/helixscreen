@@ -50,4 +50,11 @@ CardThumbnailPlan plan_card_thumbnails(const std::vector<CardThumbnailState>& fi
                                        size_t end, size_t in_flight, size_t estimate, size_t budget,
                                        bool lane_refused = false, bool keep_off_screen = true);
 
+/// Whether a card whose fetch failed (a stalled or timed-out download, an HTTP
+/// error) is fetched again: once per showing, and only while it is shown and
+/// was not cancelled for leaving the screen.
+inline bool card_thumbnail_refetch_after_error(bool shown, bool cancelled, bool retried) {
+    return shown && !cancelled && !retried;
+}
+
 } // namespace helix

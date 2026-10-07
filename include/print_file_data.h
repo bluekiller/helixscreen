@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <ctime>
 #include <map>
@@ -97,6 +98,11 @@ struct PrintFileData {
     /// holding nothing, so a failed thumbnail is tried again only when the card
     /// is next shown.
     bool esp_thumbnail_tried = false;
+    /// Set to cancel the fetch started for this card, should it leave the screen
+    /// first: the lane drops the request unsent, or the decode is skipped.
+    std::shared_ptr<std::atomic<bool>> esp_fetch_cancel;
+    /// Its fetch failed and was started once more while the card is shown.
+    bool esp_fetch_retried = false;
     /// The print-select sync tick at which its card was last on screen.
     uint32_t esp_thumbnail_shown = 0;
 #endif
@@ -240,8 +246,13 @@ inline void carry_forward_print_file_metadata(std::vector<PrintFileData>& files,
 #if defined(HELIX_PLATFORM_ESP32)
             // A re-upload of the same size is a different picture.
             if (it->second.modified_timestamp != modified) {
+                if (it->second.esp_fetch_cancel) {
+                    it->second.esp_fetch_cancel->store(true);
+                    it->second.esp_fetch_cancel.reset();
+                }
                 it->second.esp_thumbnail.reset();
                 it->second.esp_thumbnail_tried = false;
+                it->second.esp_fetch_retried = false;
             }
 #endif
             f = std::move(it->second);
