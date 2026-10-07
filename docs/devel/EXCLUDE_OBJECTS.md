@@ -66,7 +66,9 @@ UI entry points:
 | `src/ui/ui_exclude_object_side_list.cpp` | List population, tap-to-exclude |
 | `include/ui_exclude_object_map_view.h` | Object map view with 3D selection brackets |
 | `src/ui/ui_exclude_object_map_view.cpp` | Map rendering and hit-testing |
-| `src/api/moonraker_motion_api.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
+| `include/ui_exclude_object_badges.h` | `compute_object_badges()`: each object's number, colour, excluded flag and anchor, plus the shared badge styling and draw call |
+| `src/ui/ui_exclude_object_badges.cpp` | Badge decision (pure) and the disc drawn on the map and the 2D/3D render |
+| `src/api/moonraker_api_controls.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
 | `src/api/moonraker_client_mock.cpp` | Mock mode: EXCLUDE_OBJECT handling and status dispatch |
 
 ---
@@ -199,9 +201,16 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 
 `ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by `PrintStatusPanel`. Each row shows:
 
-- **Status dot** (green = idle/printing, red = excluded)
+- **Numbered chip**: the object's number and colour from `compute_object_badges()` (below), so it matches the badge on the map and the render
 - **Object name**
-- **Status text** ("Printing", "Excluded", or blank)
+- **Status** ("Printing now", "Excluded", or blank); excluded rows are dimmed
+
+One component arranges these by orientation through `ui_is_portrait`. In landscape, where
+the list is a narrow column, the status sits on its own line under the full-width name. In
+portrait, where the list spans the screen, it sits in a slot right of the name. Both status
+strings are always present but invisible inside that area, so it keeps its height when blank
+and, in portrait, is as wide as the longer string in the active language. A row's height
+therefore never changes as the printing object moves.
 
 ### Behavior
 
@@ -210,9 +219,64 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 - The list auto-refreshes via observers on both `excluded_objects_version_` and `defined_objects_version_`
 - The list is accessed from PrintStatusPanel via `on_objects_clicked()` event callback
 
+### Object numbers on the map and the render
+
+The chip number and colour identify an object everywhere it appears. All of them key on
+the object's **defined index**, its position in
+`PrinterExcludedObjectsState::get_defined_objects()`, through one decision:
+`helix::ui::compute_object_badges()` (`include/ui_exclude_object_badges.h`). It returns one
+`ObjectBadge` per defined object with the number text, the palette index, the excluded and
+current flags, and a world anchor. It is pure: callers only map the anchor to their own
+screen and draw.
+
+- **Side list** (`ExcludeObjectSideList`): each row's chip number and colour, and its idle /
+  printing / excluded state.
+- **Thumbnail map** (`ExcludeObjectMapView`): a numbered disc in each object's rect, and the
+  key bar's dot + number. An object with no bounding box gets no rect but keeps its number,
+  so later objects do not renumber.
+- **2D/3D render**: while the side list is open, `PrintStatusPanel::refresh_render_badges()`
+  pushes the badges to the viewer (`ui_gcode_viewer_set_object_badges()`), and again on every
+  `defined_objects_version` / `excluded_objects_version` bump (the current object bumps the
+  latter). Closing the list pushes an empty set. The viewer draws them in its
+  `LV_EVENT_DRAW_POST` pass after the renderer (`src/ui/ui_gcode_viewer.cpp#draw_object_badges`),
+  projecting each anchor through the transform of the image on screen, so they follow pan,
+  zoom and rotation. In 2D that is `GCodeLayerRenderer::project_to_screen()`: every 2D
+  transform change invalidates both caches, so what is drawn always uses the live transform.
+  In 3D it is `GCodeGLESRenderer::project_to_shown_image()`, which uses the MVP latched when
+  the last finished frame was blitted. The 3D renderer keeps showing that frame during VBO
+  upload, render deferral and refinement, and the badges stay on it rather than running
+  ahead to the live camera. Setting badges equal to the current ones does nothing; a change
+  only invalidates the widget, and the renderers repaint from their caches.
+- **Parsed file arriving later**: the preview controller's `parsed_file_loaded` hook calls
+  `refresh_render_badges()` too, so a file that finishes loading after the list opened gives
+  its objects parsed anchors and a top Z.
+
+Anchor priority: Klipper `CENTER`, the parsed file's `CENTER`, Klipper's bbox centre, the
+parsed toolpath bbox centre. Parsed objects are looked up by name; `ParsedGCodeFile::objects`
+is a name-sorted map and never decides a number. The anchor's Z is the top of what is on
+screen: the lower of the object's parsed top and the current layer, so a badge rides the
+print while the object is growing. Streaming 2D has no parsed objects, so it uses Klipper's
+geometry and the current layer's Z.
+
+The badge of the object printing now carries a `success`-coloured outline, `space_xxs` wide.
+The viewer resolves badge colours and styling once per badge list, and again on the next draw
+after the theme or size class changes. A side-list chip takes its number colour from the same
+`object_badge_text_color()` as the badges.
+Excluded objects' badges are drawn at `LV_OPA_30`, the same fade the map applies to an
+excluded rect (`object_badge_opa()`). Anchors that project outside the widget are skipped.
+Badges can overlap when objects sit close together; nothing spreads them apart.
+
+A tap inside a drawn (non-excluded) badge picks that badge's object before the renderer's
+own picker runs, checking badges in reverse paint order so the one on top wins (`src/ui/gcode_viewer_input.cpp#ui_gcode_viewer_pick_object`), since a badge
+can sit over empty space, e.g. the hole of a ring. Badges are drawn, not widgets, so they
+never take input themselves.
+
+The disc's diameter is one line of `font_small`, so it scales with the breakpoint like the
+rest of the UI.
+
 ### XML Layout
 
-The side list is built from `ui_xml/components/exclude_object_side_list.xml`, the map from `ui_xml/components/exclude_object_map.xml`. Rows are populated dynamically in C++ because the object list is not known at compile time (this is an allowed exception to the "no `lv_obj_add_event_cb()`" rule noted in the code).
+The side list is built from `ui_xml/components/exclude_object_side_list.xml`, the map from `ui_xml/components/exclude_object_map.xml`. Rows are populated dynamically in C++ because the object list is not known at compile time (this is an allowed exception to the "no `lv_obj_add_event_cb()`" rule noted in the code). Rows are rebuilt only when the defined object set changes. Exclusions and the printing object restyle the existing rows in place through one int subject per row (`exclude_row_state_<i>`: 0 idle, 1 printing, 2 excluded) that `exclude_object_row.xml` binds to, so the list keeps its scroll position while the printing object changes.
 
 ---
 
@@ -278,6 +342,15 @@ The `MoonrakerClientMock` fully simulates the `exclude_object` feature for testi
 ```
 
 Start a mock print, then long-press objects in the G-code viewer or open the Print Objects side list to test the exclusion flow.
+
+To see the render badges on a real three-object plate, print that file directly. The 3D
+renderer needs a GL context, which `SDL_VIDEODRIVER=dummy` lacks (the viewer falls back to
+2D); `offscreen` provides one without opening a window:
+
+```bash
+HELIX_MOCK_AUTO_PRINT=1 SDL_VIDEODRIVER=offscreen ./build/bin/helix-screen --test \
+  --sim-speed 6 -vv --render-3d --gcode-file assets/test_gcodes/exclude_object_test.gcode
+```
 
 ---
 
@@ -370,6 +443,9 @@ Tests are run with:
 | `tests/unit/test_exclude_object_long_press_gate.cpp` | `[exclude_object]` | Long-press gate: pending object, timer arming, clear |
 | `tests/unit/test_excluded_objects_char.cpp` | `[excluded_objects]` | `PrinterExcludedObjectsState`: version subjects, set change detection, observer notification |
 | `tests/unit/test_moonraker_api_exclude_object.cpp` | `[security]`, `[mock]` | Input validation, injection prevention, mock client integration |
+| `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, map key numbering with a bbox-less object; the viewer's draw pass (drawn-top Z, off-screen skip, no stale pick targets), pick precedence (badge over geometry, top badge wins, excluded not pickable), equal badges not invalidating, exclusion dropping selection, the 3D shown-image transform |
+| `tests/unit/test_print_status_exclude_badges.cpp` | `[exclude_badges]` | Panel lifecycle: badges appear with the side list, match its chips, follow version bumps, clear on close |
+| `tests/unit/test_exclude_object_side_list.cpp` | `[exclude_side_list]` | Rows restyle in place, keep scroll and height as the printing object moves |
 
 ### Test G-code
 
@@ -436,7 +512,7 @@ theme.
 |-------|-----------------|
 | Normal | Default filament color, standard line width |
 | Highlighted (selected) | **Keeps its own filament color**, plus a white silhouette rim tracing the object's contour and the corner-bracket wireframe around its bounding box |
-| Excluded | Shading kept, hue drained to grey (`selection::excluded_grey`), red stripes (`gcode_selection_excluded`, `#FF3B30`) every 6px at 45 degrees. Line width is **unchanged**. Same in 2D, the 2D ghost and 3D; the 3D ghost (about 2% opacity) is left as is, and a 3D frame drawn while the camera is moving shows filament color until the still render lands |
+| Excluded | Selection dropped (`ui_gcode_viewer_set_excluded_objects()` removes it from the highlight and the tap toggle). Shading kept, hue drained to grey (`selection::excluded_grey`), red stripes (`gcode_selection_excluded`, `#FF3B30`) every 6px at 45 degrees. Line width is **unchanged**. Same in 2D, the 2D ghost and 3D; the 3D ghost (about 2% opacity) is left as is, and a 3D frame drawn while the camera is moving shows filament color until the still render lands |
 | Excluded *and* selected | Grey inside the white rim, without stripes: a pixel carries one alpha tag and the selection tag wins, because seeing what you picked matters more |
 | Pending exclusion | Same as excluded (visual preview before API call) |
 

@@ -15,6 +15,8 @@
   <translation tag="%d slots" ja="%d スロット"/>
   <translation tag="%d toolheads" ja="%d ツールヘッド"/>
   <translation tag="%d tools" ja="%d ツール"/>
+  <translation tag="%d-%d" ja="%d〜%d"/>
+  <translation tag="%d-%d°C" ja="%d〜%d°C"/>
   <translation tag="%d:%02d left" ja="残り %d:%02d"/>
   <translation tag="%dh" ja="%d時間"/>
   <translation tag="%dh %02dm" ja="%d時間%02d分"/>
@@ -776,6 +778,7 @@
   <translation tag="Cutting" ja="カット中"/>
   <translation tag="Cutting filament..." ja="フィラメントを切断中..."/>
   <translation tag="DETECTED USB PRINTERS" ja="検出されたUSBプリンター"/>
+  <translation tag="DEVICES" ja="デバイス"/>
   <translation tag="DISABLED" ja="無効"/>
   <translation tag="DISCOVERED PRINTERS" ja="検出されたプリンター"/>
   <translation tag="DISPLAY" ja="ディスプレイ"/>
@@ -783,16 +786,16 @@
   <translation tag="Danger" ja="危険"/>
   <translation tag="Danger Zone" ja="危険ゾーン"/>
   <translation tag="Dark Mode" ja="ダークモード"/>
-  <translation tag="Database" ja="データベース"/>
   <translation tag="Date (newest)" ja="日付（新しい順）"/>
   <translation tag="Date (oldest)" ja="日付（古い順）"/>
   <translation tag="Day" ja="日"/>
   <translation tag="Debug" ja="デバッグ"/>
+  <translation tag="Deep Black" ja="ディープブラック"/>
   <translation tag="Default" ja="デフォルト"/>
   <translation tag="Default Parameters" ja="デフォルトのパラメータ"/>
   <translation tag="Default border thickness" ja="デフォルトの境界線の太さ"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" ja="デフォルト: ノズル %d〜%d°C、ベッド %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" ja="デフォルト: ノズル %d〜%d°C、ベッド %d°C、チャンバー %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" ja="デフォルト: ノズル %s、ベッド %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" ja="デフォルト: ノズル %s、ベッド %d°C、チャンバー %d°C"/>
   <translation tag="Defaults restored" ja="デフォルトを復元しました"/>
   <translation tag="Define macros in your printer.cfg" ja="printer.cfg でマクロを定義してください"/>
   <translation tag="Delete" ja="削除"/>
@@ -1313,7 +1316,7 @@
   <translation tag="Hardware saved to config" ja="ハードウェアを設定に保存しました"/>
   <translation tag="Hardware was present in previous session but is now missing" ja="前回のセッションにあったハードウェアが見つかりません"/>
   <translation tag="Have a piece of paper ready." ja="紙を1枚用意してください。"/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." ja="ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。"/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." ja="ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。"/>
   <translation tag="Heading" ja="見出し"/>
   <translation tag="Healthy" ja="正常"/>
   <translation tag="Heat Capacity" ja="熱容量"/>
@@ -1330,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" ja="ヒートベッド MPCキャリブレーション"/>
   <translation tag="Heated Bed PID Tuning" ja="ヒートベッド PIDチューニング"/>
   <translation tag="Heater" ja="ヒーター"/>
+  <translation tag="Heater Calibration" ja="ヒーターキャリブレーション"/>
   <translation tag="Heater Power" ja="ヒーター出力"/>
   <translation tag="Heater connection lost" ja="ヒーター接続が切断されました"/>
   <translation tag="Heater fault" ja="ヒーター異常"/>
@@ -3296,6 +3300,7 @@
   <translation tag="Volume" ja="音量"/>
   <translation tag="Volume of filament used during ramming" ja="ラミング時に使用するフィラメント量"/>
   <translation tag="Volume {}%" ja="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" ja="重量同期"/>
   <translation tag="WIDTH SENSORS" ja="幅センサー"/>
   <translation tag="WLED Preset" ja="WLED プリセット"/>
   <translation tag="WPA/WPA2" ja="WPA/WPA2"/>

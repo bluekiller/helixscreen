@@ -1,5 +1,7 @@
 locale: fr
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (délai dépassé)'
   ' frames': ' images'
   ' left': ' restant'
@@ -873,6 +875,7 @@ translations:
   Cutting: Coupe
   Cutting filament...: Coupe du filament...
   DETECTED USB PRINTERS: IMPRIMANTES USB DÉTECTÉES
+  DEVICES: PÉRIPHÉRIQUES
   DISABLED: DÉSACTIVÉ
   DISCOVERED PRINTERS: IMPRIMANTES DÉCOUVERTES
   DISPLAY: AFFICHAGE
@@ -880,16 +883,16 @@ translations:
   Danger: Danger
   Danger Zone: Zone dangereuse
   Dark Mode: Mode sombre
-  Database: Base de données
   Date (newest): Date (plus récent)
   Date (oldest): Date (plus ancien)
   Day: Jour
   Debug: Débogage
+  Deep Black: Noir profond
   Default: 'Par défaut'
   Default Parameters: 'Paramètres par défaut'
   Default border thickness: Épaisseur de bordure par défaut
-  'Default: %d-%d°C nozzle, %d°C bed': 'Par défaut : buse %d-%d°C, plateau %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Par défaut : buse %d-%d°C, plateau %d°C, enceinte %d°C'
+  'Default: %s nozzle, %d°C bed': 'Par défaut : buse %s, plateau %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Par défaut : buse %s, plateau %d°C, enceinte %d°C'
   Defaults restored: Valeurs par défaut restaurées
   Define macros in your printer.cfg: Définissez les macros dans votre printer.cfg
   Delete: Supprimer
@@ -1463,7 +1466,7 @@ translations:
   Hardware was present in previous session but is now missing: 'Matériel présent lors de la session précédente mais désormais absent'
   Have a piece of paper ready.: Préparez une feuille de papier.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre
     plateau n'est pas ajusté avec des molettes ou un autre mécanisme intégré.
@@ -1485,6 +1488,7 @@ translations:
   Heated Bed MPC Calibration: Calibration MPC du plateau chauffant
   Heated Bed PID Tuning: Réglage PID du plateau chauffant
   Heater: Chauffage
+  Heater Calibration: Calibrage du chauffage
   Heater Power: Puissance du chauffage
   Heater connection lost: Connexion au chauffage perdue
   Heater fault: Défaut du chauffage
@@ -3734,6 +3738,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: 'Volume de filament utilisé pendant le bourrage'
   Volume {}%: Volume {}%
+  WEIGHT SYNC: SYNCHRONISATION DU POIDS
   WIDTH SENSORS: CAPTEURS DE LARGEUR
   WLED Preset: Préréglage WLED
   WPA/WPA2: 'WPA/WPA2'

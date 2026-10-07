@@ -15,6 +15,8 @@
   <translation tag="%d slots" fr="%d emplacements"/>
   <translation tag="%d toolheads" fr="%d têtes d&apos;outil"/>
   <translation tag="%d tools" fr="%d outils"/>
+  <translation tag="%d-%d" fr="%d-%d"/>
+  <translation tag="%d-%d°C" fr="%d-%d°C"/>
   <translation tag="%d:%02d left" fr="%d:%02d restantes"/>
   <translation tag="%dh" fr="%d h"/>
   <translation tag="%dh %02dm" fr="%d h %02d min"/>
@@ -776,6 +778,7 @@
   <translation tag="Cutting" fr="Coupe"/>
   <translation tag="Cutting filament..." fr="Coupe du filament..."/>
   <translation tag="DETECTED USB PRINTERS" fr="IMPRIMANTES USB DÉTECTÉES"/>
+  <translation tag="DEVICES" fr="PÉRIPHÉRIQUES"/>
   <translation tag="DISABLED" fr="DÉSACTIVÉ"/>
   <translation tag="DISCOVERED PRINTERS" fr="IMPRIMANTES DÉCOUVERTES"/>
   <translation tag="DISPLAY" fr="AFFICHAGE"/>
@@ -783,16 +786,16 @@
   <translation tag="Danger" fr="Danger"/>
   <translation tag="Danger Zone" fr="Zone dangereuse"/>
   <translation tag="Dark Mode" fr="Mode sombre"/>
-  <translation tag="Database" fr="Base de données"/>
   <translation tag="Date (newest)" fr="Date (plus récent)"/>
   <translation tag="Date (oldest)" fr="Date (plus ancien)"/>
   <translation tag="Day" fr="Jour"/>
   <translation tag="Debug" fr="Débogage"/>
+  <translation tag="Deep Black" fr="Noir profond"/>
   <translation tag="Default" fr="Par défaut"/>
   <translation tag="Default Parameters" fr="Paramètres par défaut"/>
   <translation tag="Default border thickness" fr="Épaisseur de bordure par défaut"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" fr="Par défaut : buse %d-%d°C, plateau %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" fr="Par défaut : buse %d-%d°C, plateau %d°C, enceinte %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" fr="Par défaut : buse %s, plateau %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" fr="Par défaut : buse %s, plateau %d°C, enceinte %d°C"/>
   <translation tag="Defaults restored" fr="Valeurs par défaut restaurées"/>
   <translation tag="Define macros in your printer.cfg" fr="Définissez les macros dans votre printer.cfg"/>
   <translation tag="Delete" fr="Supprimer"/>
@@ -1313,7 +1316,7 @@
   <translation tag="Hardware saved to config" fr="Matériel enregistré dans la config"/>
   <translation tag="Hardware was present in previous session but is now missing" fr="Matériel présent lors de la session précédente mais désormais absent"/>
   <translation tag="Have a piece of paper ready." fr="Préparez une feuille de papier."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
   <translation tag="Heading" fr="Titre"/>
   <translation tag="Healthy" fr="En ordre"/>
   <translation tag="Heat Capacity" fr="Capacité thermique"/>
@@ -1330,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" fr="Calibration MPC du plateau chauffant"/>
   <translation tag="Heated Bed PID Tuning" fr="Réglage PID du plateau chauffant"/>
   <translation tag="Heater" fr="Chauffage"/>
+  <translation tag="Heater Calibration" fr="Calibrage du chauffage"/>
   <translation tag="Heater Power" fr="Puissance du chauffage"/>
   <translation tag="Heater connection lost" fr="Connexion au chauffage perdue"/>
   <translation tag="Heater fault" fr="Défaut du chauffage"/>
@@ -3296,6 +3300,7 @@
   <translation tag="Volume" fr="Volume"/>
   <translation tag="Volume of filament used during ramming" fr="Volume de filament utilisé pendant le bourrage"/>
   <translation tag="Volume {}%" fr="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" fr="SYNCHRONISATION DU POIDS"/>
   <translation tag="WIDTH SENSORS" fr="CAPTEURS DE LARGEUR"/>
   <translation tag="WLED Preset" fr="Préréglage WLED"/>
   <translation tag="WPA/WPA2" fr="WPA/WPA2"/>

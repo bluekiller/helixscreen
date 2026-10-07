@@ -39,12 +39,12 @@ struct MockFilament {
     const char* color_name;
     const char* material;
     const char* brand;
-    float remaining_g; // matches MoonrakerSpoolmanAPIMock::init_mock_spools()
+    float remaining_g; // matches MockSpoolmanServer::init_mock_spools()
     float total_g;
 };
 
 // Predefined sample filaments matching Spoolman mock spools 1-8 (moonraker_api_mock.cpp)
-// IMPORTANT: Keep in sync with MoonrakerAPIMock::init_mock_spools()
+// IMPORTANT: Keep in sync with MockSpoolmanServer::init_mock_spools()
 // (guarded by tests/unit/test_mock_spool_consistency.cpp)
 constexpr MockFilament SAMPLE_FILAMENTS[] = {
     {0x1A1A2E, "Jet Black", "PLA", "Polymaker", 850.0f, 1000.0f},        // Spool #1
@@ -2073,7 +2073,7 @@ void AmsBackendMock::set_afc_mode(bool enabled) {
             int spoolman_id;
             float remaining;
         };
-        // Mirrors MoonrakerSpoolmanAPIMock::init_mock_spools() spools 1-7 so a
+        // Mirrors MockSpoolmanServer::init_mock_spools() spools 1-7 so a
         // lane's spoolman_id cross-references consistently (spec §9 drift fix).
         // Lane index 3 is deliberately UNLINKED (spoolman_id=0, Generic PETG)
         // to exercise the untracked-filament path in mock mode. It also carries

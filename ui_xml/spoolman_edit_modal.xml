@@ -115,7 +115,7 @@
     </lv_obj>
     <!-- Action buttons -->
     <modal_button_row secondary_text="Reset"
-                      secondary_callback="spoolman_edit_reset_cb" primary_text="@spoolman_edit_save_text"
-                      primary_callback="spoolman_edit_save_cb"/>
+                      secondary_variant="secondary" secondary_callback="spoolman_edit_reset_cb"
+                      primary_text="@spoolman_edit_save_text" primary_callback="spoolman_edit_save_cb"/>
   </view>
 </component>

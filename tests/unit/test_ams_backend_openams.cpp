@@ -689,14 +689,14 @@ TEST_CASE_METHOD(HelixTestFixture, "OpenAMS persists metered weight and clears s
     REQUIRE(stored.has_value());
     CHECK(stored->remaining_weight_g == 640.0f);
     CHECK(stored->brand == "Polymaker");
-    const json record = api.mock_get_db_value("lane_data", "lane2");
+    const json record = mock_printer.client.mock_db_get("lane_data", "lane2");
     REQUIRE(record.is_object());
     CHECK(record.value("remaining_weight_g", -1.0f) == 640.0f);
 
     backend.clear_slot_override(1);
 
     CHECK_FALSE(helix::OpenAmsTestAccess::get_override(backend, 1).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane2").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane2").is_null());
     const auto info = backend.get_slot_info(1);
     CHECK(info.brand.empty());
     CHECK(info.material.empty());
@@ -720,8 +720,9 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     helix::OpenAmsTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "lane2",
-                          json{{"vendor", "Polymaker"}, {"material", "PLA"}, {"color", "#FF5500"}});
+    mock_printer.client.mock_db_set(
+        "lane_data", "lane2",
+        json{{"vendor", "Polymaker"}, {"material", "PLA"}, {"color", "#FF5500"}});
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
     ovr.material = "PLA";
@@ -759,7 +760,7 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(helix::ui::fire_last_toast_action());
     helix::ui::UpdateQueue::instance().drain();
     CHECK_FALSE(helix::OpenAmsTestAccess::get_override(backend, 1).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane2").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane2").is_null());
 
     helix::ui::set_test_toast_hook(nullptr);
 }

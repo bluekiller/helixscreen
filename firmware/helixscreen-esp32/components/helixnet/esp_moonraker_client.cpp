@@ -15,6 +15,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <atomic>
 #include <utility>
 #include <vector>
 
@@ -32,7 +33,13 @@ int64_t now_us() {
 constexpr uint8_t OP_TEXT = 0x01;
 constexpr uint8_t OP_CONTINUATION = 0x00;
 constexpr uint8_t OP_PONG = 0x0A;
+
+std::atomic<EspMoonrakerClient::LinkDropObserver> s_link_drop_observer{nullptr};
 } // namespace
+
+void EspMoonrakerClient::set_link_drop_observer(LinkDropObserver observer) {
+    s_link_drop_observer.store(observer);
+}
 
 EspMoonrakerClient::EspMoonrakerClient() {
     const esp_timer_create_args_t targs = {
@@ -418,6 +425,7 @@ void EspMoonrakerClient::on_ws_disconnected() {
     // A ping/pong timeout with zero pongs means none reached this client at all;
     // pongs that stopped partway point at the link instead.
     const int64_t now_us = esp_timer_get_time();
+    const bool was_established = get_connection_state() == ConnectionState::CONNECTED;
     ESP_LOGW(TAG, "disconnected from %s (%u pongs this connection, last %llds ago, up %llds)",
              url_.c_str(), pongs_this_connection_,
              last_pong_us_ ? static_cast<long long>((now_us - last_pong_us_) / 1000000) : -1LL,
@@ -439,6 +447,10 @@ void EspMoonrakerClient::on_ws_disconnected() {
         // esp_timer + main-thread app_boot_tick pump — never this task).
         arm_reconnect_intent();
         set_state(ConnectionState::RECONNECTING);
+        LinkDropObserver observer = s_link_drop_observer.load();
+        if (was_established && observer) {
+            observer((now_us - last_rx_us_.load()) / 1000);
+        }
         // A suppressed outage stays silent to its end, even if a failed
         // reconnect attempt lands after the suppression window closes.
         if (was_connected_ && !lost_notified_) {

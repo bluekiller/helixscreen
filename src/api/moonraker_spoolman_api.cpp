@@ -3,7 +3,6 @@
 
 #include "moonraker_spoolman_api.h"
 
-#include "hv/hurl.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
 
@@ -56,20 +55,14 @@ SpoolInfo helix::spoolman_detail::parse_spool_info(const nlohmann::json& spool_j
         info.color_hex = safe_string(filament, "color_hex");
         info.multi_color_hexes = safe_string(filament, "multi_color_hexes");
 
-        // Temperature settings. Spoolman serializes these optional fields as
-        // present-but-null, so a raw .value() would throw type_error.302 on the
-        // whole list; safe_int null-guards each read.
+        // Spoolman stores one temperature per filament, not a range, and
+        // serializes it as present-but-null when unset; safe_int null-guards
+        // each read. The single value is both ends of the range
+        // apply_spool_to_slot() copies onto a slot's nozzle and bed.
         info.nozzle_temp_recommended = safe_int(filament, "settings_extruder_temp", 0);
         info.bed_temp_recommended = safe_int(filament, "settings_bed_temp", 0);
-
-        // The min/max pair is what apply_spool_to_slot() copies onto a slot's
-        // nozzle range; without it every Spoolman-linked slot reads 0/0 while
-        // the bed temperature is real. Same four keys parse_filament_info()
-        // reads off the filament endpoint.
-        info.nozzle_temp_min = safe_int(filament, "settings_extruder_temp_min", 0);
-        info.nozzle_temp_max = safe_int(filament, "settings_extruder_temp_max", 0);
-        info.bed_temp_min = safe_int(filament, "settings_bed_temp_min", 0);
-        info.bed_temp_max = safe_int(filament, "settings_bed_temp_max", 0);
+        info.nozzle_temp_min = info.nozzle_temp_max = info.nozzle_temp_recommended;
+        info.bed_temp_min = info.bed_temp_max = info.bed_temp_recommended;
 
         // Fallback: use filament definition weight when spool initial_weight is null/0.
         // Spoolman's initial_weight is optional; filament.weight is the canonical
@@ -97,7 +90,6 @@ static VendorInfo parse_vendor_info(const nlohmann::json& vendor_json) {
     VendorInfo info;
     info.id = safe_int(vendor_json, "id", 0);
     info.name = safe_string(vendor_json, "name");
-    info.url = safe_string(vendor_json, "url");
     return info;
 }
 
@@ -111,10 +103,10 @@ static FilamentInfo parse_filament_info(const nlohmann::json& filament_json) {
     info.diameter = safe_float(filament_json, "diameter", 1.75f);
     info.weight = safe_float(filament_json, "weight", 0.0f);
     info.spool_weight = safe_float(filament_json, "spool_weight", 0.0f);
-    info.nozzle_temp_min = safe_int(filament_json, "settings_extruder_temp_min", 0);
-    info.nozzle_temp_max = safe_int(filament_json, "settings_extruder_temp_max", 0);
-    info.bed_temp_min = safe_int(filament_json, "settings_bed_temp_min", 0);
-    info.bed_temp_max = safe_int(filament_json, "settings_bed_temp_max", 0);
+    // One temperature per filament in Spoolman; it is both ends of the range.
+    info.nozzle_temp_min = info.nozzle_temp_max =
+        safe_int(filament_json, "settings_extruder_temp", 0);
+    info.bed_temp_min = info.bed_temp_max = safe_int(filament_json, "settings_bed_temp", 0);
 
     // Extract vendor_id from top-level field (always present in Spoolman response)
     info.vendor_id = safe_int(filament_json, "vendor_id", 0);
@@ -227,7 +219,22 @@ void MoonrakerSpoolmanAPI::get_spoolman_spool(int spool_id, SpoolCallback on_suc
                 }
             }
         },
-        on_error, 0, silent);
+        [on_success, on_error, spool_id](const MoonrakerError& err) {
+            // Moonraker's proxy relays Spoolman's 404 for a deleted spool as a
+            // not-found error. That is an answer ("no such spool"), not a
+            // failure to reach the server.
+            if (err.is_not_found()) {
+                spdlog::debug("[SpoolmanAPI] Spool {} not found", spool_id);
+                if (on_success) {
+                    on_success(std::nullopt);
+                }
+                return;
+            }
+            if (on_error) {
+                on_error(err);
+            }
+        },
+        0, silent);
 }
 
 void MoonrakerSpoolmanAPI::set_active_spool(int spool_id, SuccessCallback on_success,
@@ -523,70 +530,6 @@ void MoonrakerSpoolmanAPI::delete_spoolman_spool(int spool_id, SuccessCallback o
             }
         },
         on_error);
-}
-
-void MoonrakerSpoolmanAPI::get_spoolman_external_vendors(VendorListCallback on_success,
-                                                         ErrorCallback on_error) {
-    spdlog::debug("[SpoolmanAPI] get_spoolman_external_vendors()");
-
-    json params;
-    params["request_method"] = "GET";
-    params["path"] = "/v1/external/vendor";
-
-    // Silent: /v1/external/ endpoints require SpoolmanDB integration which
-    // is not available on all Spoolman versions (e.g. v0.22.x)
-    client_.send_jsonrpc(
-        "server.spoolman.proxy", params,
-        [on_success](const json& response) {
-            std::vector<VendorInfo> vendors;
-
-            if (response.contains("result") && response["result"].is_array()) {
-                for (const auto& vendor_json : response["result"]) {
-                    vendors.push_back(parse_vendor_info(vendor_json));
-                }
-            }
-
-            spdlog::debug("[SpoolmanAPI] Got {} external vendors from SpoolmanDB", vendors.size());
-
-            if (on_success) {
-                on_success(vendors);
-            }
-        },
-        on_error, 0, /*silent=*/true);
-}
-
-void MoonrakerSpoolmanAPI::get_spoolman_external_filaments(const std::string& vendor_name,
-                                                           FilamentListCallback on_success,
-                                                           ErrorCallback on_error) {
-    spdlog::debug("[SpoolmanAPI] get_spoolman_external_filaments(vendor={})", vendor_name);
-
-    std::string encoded = HUrl::escape(vendor_name);
-
-    json params;
-    params["request_method"] = "GET";
-    params["path"] = "/v1/external/filament?vendor_name=" + encoded;
-
-    // Silent: /v1/external/ endpoints require SpoolmanDB integration which
-    // is not available on all Spoolman versions (e.g. v0.22.x)
-    client_.send_jsonrpc(
-        "server.spoolman.proxy", params,
-        [on_success, vendor_name](const json& response) {
-            std::vector<FilamentInfo> filaments;
-
-            if (response.contains("result") && response["result"].is_array()) {
-                for (const auto& filament_json : response["result"]) {
-                    filaments.push_back(parse_filament_info(filament_json));
-                }
-            }
-
-            spdlog::debug("[SpoolmanAPI] Got {} external filaments for vendor '{}'",
-                          filaments.size(), vendor_name);
-
-            if (on_success) {
-                on_success(filaments);
-            }
-        },
-        on_error, 0, /*silent=*/true);
 }
 
 void MoonrakerSpoolmanAPI::get_spoolman_filaments(int vendor_id, FilamentListCallback on_success,

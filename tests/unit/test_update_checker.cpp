@@ -22,6 +22,7 @@
 #include "../helix_test_fixture.h"
 #include "../test_helpers/live_thread_count.h"
 #include "../test_helpers/scoped_env.h"
+#include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/scoped_update_urls.h"
 #include "../test_helpers/update_checker_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
@@ -29,12 +30,14 @@
 #include "config.h"
 #include "lvgl.h"
 #include "platform_table.h"
+#include "runtime_config.h"
 #include "version.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -48,6 +51,7 @@
 #include <string>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -750,6 +754,82 @@ static void require_outside_install_root(const std::string& staging,
     REQUIRE(staging.rfind(install_root + "/", 0) != 0);
 }
 
+TEST_CASE("UpdateChecker install_failure_detail names the cause, not the step",
+          "[update_checker][install_failure_detail]") {
+    using UC = UpdateChecker;
+
+    // The installer's step line ("[n/N] <title> ... FAILED") follows the
+    // [ERROR] lines that say why; the touchscreen needs the why.
+    SECTION("an [ERROR] line wins over a later FAILED step line") {
+        const std::vector<std::string> lines = {
+            "[3/6] Downloaded ... ok (40 MB)",
+            "      \033[0;31m[ERROR]\033[0m Not enough space on /opt (12MB free)",
+            "[4/6] Installed files ... FAILED",
+            "Nothing on your printer was changed after this step.",
+        };
+        REQUIRE(UC::install_failure_detail(lines) ==
+                "[ERROR] Not enough space on /opt (12MB free)");
+    }
+
+    SECTION("the last [ERROR] line is the one shown") {
+        const std::vector<std::string> lines = {
+            "[ERROR] first",
+            "[ERROR] second",
+            "[2/6] Downloaded ... FAILED",
+        };
+        REQUIRE(UC::install_failure_detail(lines) == "[ERROR] second");
+    }
+
+    SECTION("without an [ERROR] line, the last ERROR or FAILED line") {
+        const std::vector<std::string> lines = {
+            "[WARN] careful",
+            "[2/6] Downloaded ... FAILED (interrupted)",
+        };
+        REQUIRE(UC::install_failure_detail(lines) == "[2/6] Downloaded ... FAILED (interrupted)");
+    }
+
+    SECTION("an error before a completed step is not the cause") {
+        const std::vector<std::string> lines = {
+            "      [ERROR] Could not seed settings",
+            "[5/6] Connected to Moonraker ... ok (update manager)",
+            "      systemctl enable helixscreen failed (exit 1):",
+            "        Failed to enable unit: Unit file helixscreen.service is masked.",
+            "[6/6] Starting HelixScreen ... FAILED",
+        };
+        REQUIRE(UC::install_failure_detail(lines) ==
+                "systemctl enable helixscreen failed (exit 1):");
+    }
+
+    SECTION("a completed step clears earlier errors and warnings") {
+        const std::vector<std::string> lines = {
+            "[ERROR] stale",
+            "WARNING: stale",
+            "[4/6] Set up service ... ok",
+            "[5/6] Connecting to Moonraker ... FAILED (interrupted)",
+        };
+        REQUIRE(UC::install_failure_detail(lines) ==
+                "[5/6] Connecting to Moonraker ... FAILED (interrupted)");
+    }
+
+    SECTION("a failed command outranks a later FAILED step line") {
+        const std::vector<std::string> lines = {
+            "      apt-get install -y unzip failed (exit 100):",
+            "        E: Unable to locate package unzip",
+            "[2/7] Installing libraries ... FAILED",
+        };
+        REQUIRE(UC::install_failure_detail(lines) == "apt-get install -y unzip failed (exit 100):");
+    }
+
+    SECTION("a WARNING line only when nothing failed louder") {
+        const std::vector<std::string> lines = {"ok", "WARNING: low disk"};
+        REQUIRE(UC::install_failure_detail(lines) == "WARNING: low disk");
+    }
+
+    SECTION("nothing to show") {
+        REQUIRE(UC::install_failure_detail({"all fine"}).empty());
+    }
+}
+
 TEST_CASE("UpdateChecker compute_update_staging_dir derives a safe subdir", "[update_checker]") {
     using UC = UpdateChecker;
 
@@ -1331,6 +1411,50 @@ std::string get_update_fixture_dir() {
 }
 
 } // namespace
+
+TEST_CASE("do_install never runs the installer in test mode",
+          "[update_checker][installer][do_install][test_mode]") {
+    auto tmp = make_temp_dir("helix_install_testmode");
+    REQUIRE(!tmp.empty());
+
+    // An installer that only leaves a marker, so a missing gate shows up as the
+    // marker existing rather than as anything done to the host.
+    const std::string marker = tmp + "/installer_ran";
+    std::string inner = tmp + "/helixscreen";
+    mkdir(inner.c_str(), 0755);
+    create_file(inner + "/install.sh", "#!/bin/sh\ntouch '" + marker + "'\n", true);
+    const std::string tarball = tmp + "/release.tar.gz";
+    std::string cmd =
+        "cd " + tmp + " && COPYFILE_DISABLE=1 tar czf release.tar.gz helixscreen/install.sh";
+    REQUIRE(std::system(cmd.c_str()) == 0);
+
+    // A child process makes the install: past the installer, do_install()
+    // ends the process to restart it, which would take the assertions with it.
+    const pid_t pid = fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ScopedRuntimeConfig scoped_config;
+        get_runtime_config()->test_mode = true;
+        auto& checker = UpdateChecker::instance();
+        UpdateCheckerTestAccess::set_restart_action(checker, [] {});
+        UpdateCheckerTestAccess::set_status_hold_ms(checker, 0, 0);
+        UpdateCheckerTestAccess::do_install(checker, tarball);
+        _exit(0);
+    }
+    int wstatus = 0;
+    for (int i = 0; i < 3000 && waitpid(pid, &wstatus, WNOHANG) == 0; ++i)
+        usleep(10 * 1000);
+    if (waitpid(pid, &wstatus, WNOHANG) == 0) {
+        kill(pid, SIGKILL);
+        waitpid(pid, &wstatus, 0);
+        FAIL("do_install did not return within 30s");
+    }
+
+    CHECK(access(marker.c_str(), F_OK) != 0);
+    CHECK(access(tarball.c_str(), F_OK) != 0);
+
+    remove_dir(tmp);
+}
 
 TEST_CASE("extract_installer_from_tarball: tarball with install.sh",
           "[update_checker][installer][do_install]") {

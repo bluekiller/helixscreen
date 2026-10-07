@@ -69,6 +69,17 @@ std::string path_of(lv_obj_t* o, lv_obj_t* base = nullptr);
  */
 std::string path_segment_for(lv_obj_t* o);
 
+/// A widget whose content reaches past its content area, with the excess in px
+/// on each side. LVGL scrolls a scrollable widget by exactly these amounts and
+/// clips a non-scrollable one.
+struct Overflow {
+    lv_obj_t* obj = nullptr;
+    int32_t top = 0, bottom = 0, left = 0, right = 0;
+};
+
+/// Every widget in @p root's visible subtree, @p root included, that overflows.
+std::vector<Overflow> find_overflow(lv_obj_t* root);
+
 /**
  * @brief Resolve a locator emitted by path_of() back to a live widget.
  *

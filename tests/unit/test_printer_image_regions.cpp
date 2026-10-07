@@ -69,9 +69,9 @@ TEST_CASE("lookup_image_regions: reads the shipped regions.json on first lookup"
           "[printer_image][regions]") {
     const ConfigDirGuard cfg("regions_shipped_read");
     unload_image_regions();
-    const auto* regions = lookup_image_regions("creality-k1c", 1601, 1204);
+    const auto* regions = lookup_image_regions("creality-k1c", 947, 1188);
     REQUIRE(regions != nullptr);
-    CHECK(regions->src_w == 1601);
+    CHECK(regions->src_w == 947);
     unload_image_regions();
 }
 

@@ -238,12 +238,16 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     REQUIRE(def);
     CHECK(def->category == helix::WidgetCategory::Plugins);
     CHECK(def->colspan == 2);     // one cell, in tracks
-    CHECK(def->max_colspan == 4); // two cells
+    CHECK(def->max_colspan == 5); // two and a half cells
+    CHECK(def->supports_half_col);
+    CHECK(def->supports_half_row);
     // A two-cell by one-cell manifest widget registers four by two tracks.
     const helix::PanelWidgetDef* wide = helix::find_widget_def("widget-demo__wide");
     REQUIRE(wide);
     CHECK(wide->colspan == 4);
     CHECK(wide->rowspan == 2);
+    CHECK_FALSE(wide->supports_half_col);
+    CHECK_FALSE(wide->supports_half_row);
 
     auto w = def->factory("widget-demo__tile");
     REQUIRE(w);
@@ -255,6 +259,11 @@ TEST_CASE_METHOD(LVGLTestFixture, "a loaded plugin's widget is in the registry u
     drain();
     CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo__size_label"))) ==
           "2x1");
+    // A half-cell span reaches Lua as a fractional cell count.
+    w->notify_size_changed(3, 2, 150, 100);
+    drain();
+    CHECK(std::string(lv_label_get_text(lv_obj_find_by_name(root, "widget-demo__size_label"))) ==
+          "1.5x1");
 
     rig.host->disable("widget-demo");
     CHECK(helix::find_widget_def("widget-demo__tile") == nullptr);

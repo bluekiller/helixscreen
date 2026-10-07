@@ -5,7 +5,7 @@ first-run configuration wizard (`src/ui/ui_wizard_printer_identify.cpp`), the Pr
 Image picker overlay (`src/ui/ui_overlay_printer_image.cpp`), and the home panel's
 printer widget (`src/ui/panel_widgets/printer_image_widget.cpp`).
 
-78 PNGs, ~25 MB. PNG is the only format here; nothing loads a `.jpg` or `.webp` from
+80 PNGs, ~27 MB. PNG is the only format here; nothing loads a `.jpg` or `.webp` from
 this directory.
 
 ## Which printer gets which image
@@ -65,13 +65,14 @@ kept size.
 
 - **Format:** PNG, RGBA or palette
 - **Background:** transparent preferred
-- **Content:** full printer view, centered
+- **Content:** full printer view, cropped to it: no transparent margin, no aspect padding.
+  `scripts/trim_printer_images.py` crops every PNG here (and remaps `regions.json`);
+  the pre-commit gate runs its `--check`
 
-**Dimensions are not currently standardized.** The shipped set ranges from 169x180 to
-2507x1885, and only 6 of 76 are 750x930. New art should land near the low end: the
-300px tier is the largest any panel asks for, so pixels beyond ~800px on the long edge
-cost disk, RAM and decode time on every platform that falls back to the PNG, and buy
-nothing on the ones that do not.
+**Dimensions are not currently standardized.** The shipped set ranges from 146x176 to
+1929x1869. New art should land near the low end: the 300px tier is the largest any panel
+asks for, so pixels beyond ~800px on the long edge cost disk, RAM and decode time on
+every platform that falls back to the PNG, and buy nothing on the ones that do not.
 
 ```bash
 magick input.jpg -resize 800x800 -background none -gravity center output.png
@@ -82,7 +83,8 @@ magick input.jpg -resize 800x800 -background none -gravity center output.png
 1. Source a product photo, alpha-cut the background
 2. Resize per above, save here with a `vendor-model` filename
 3. Point the `printer_database.json` entry's `image` field at it
-4. `scripts/check_printer_images.py` to confirm it resolves
+4. `scripts/trim_printer_images.py` to crop it to its content
+5. `scripts/check_printer_images.py` to confirm it resolves
 
 ## Tagging parts for live callouts
 
@@ -90,9 +92,9 @@ The home panel's printer widget pins live chips (nozzle, part fan, chamber, ligh
 the image at points hand-tagged in `assets/images/printers/regions.json`:
 
 ```json
-"creality-k1c": {"size": [1601, 1204], "nozzle": [0.513, 0.279], "part_fan": [0.488, 0.206],
-                 "chamber": [0.313, 0.379], "light": [0.321, 0.164],
-                 "bed": [[0.308, 0.571], [0.611, 0.573]]}
+"creality-k1c": {"size": [947, 1188], "nozzle": [0.522, 0.276], "part_fan": [0.48, 0.202],
+                 "chamber": [0.184, 0.377], "light": [0.197, 0.159],
+                 "bed": [[0.175, 0.572], [0.688, 0.574]]}
 ```
 
 - Points are normalized 0..1 over the source PNG. The prerendered tiers and the exact-size
@@ -102,9 +104,9 @@ the image at points hand-tagged in `assets/images/printers/regions.json`:
 - `size`, `nozzle` and `bed` are required; `part_fan`, `chamber` and `light` are optional -
   omit whichever the printer doesn't have.
 - `size` is the source PNG's width and height. `tests/unit/test_printer_image_regions.cpp`
-  (`[regions]`) fails, naming the image, when a PNG no longer matches its recorded size -
-  **re-cropping a tagged PNG (by hand, or via `scripts/trim_printer_images.sh`) needs
-  re-tagging**, because every point on it shifts silently otherwise.
+  (`[regions]`) fails, naming the image, when a PNG no longer matches its recorded size.
+  `scripts/trim_printer_images.py` rewrites the entry when it crops; **re-cropping a tagged
+  PNG by hand needs re-tagging**, because every point on it shifts silently otherwise.
 
 ### Tagging tool
 

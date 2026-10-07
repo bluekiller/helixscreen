@@ -8,19 +8,23 @@
      Pill styling (colors, padding, row_reverse) lives in styles.activity_chip
      so an icon-only chip with no label can borrow the identical look.
      shown_subject is the chip's shown int; its value 2 (a heater off but
-     still hot) greys the text. -->
+     still hot) greys the text. compact_subject's value 1 sets the text in
+     font_xs. -->
 <component>
   <api>
     <prop name="text_subject" type="subject" default=""/>
     <prop name="shown_subject" type="subject" default=""/>
+    <prop name="compact_subject" type="subject" default=""/>
   </api>
   <styles>
     <style name="residual" text_color="#text_subtle"/>
+    <style name="compact" text_font="#font_xs"/>
   </styles>
   <view extends="lv_obj" width="content" height="content" scrollable="false" clickable="true">
     <style name="styles.activity_chip"/>
     <text_small name="chip_text" bind_text="$text_subject" long_mode="dots">
       <bind_style_if_eq name="residual" subject="$shown_subject" ref_value="2"/>
+      <bind_style_if_eq name="compact" subject="$compact_subject" ref_value="1"/>
     </text_small>
   </view>
 </component>

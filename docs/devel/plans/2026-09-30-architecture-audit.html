@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>1c9c77a87</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>4398c983e</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 122 done, 5 in progress, 9 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 126 done, 4 in progress, 6 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -502,10 +502,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="BUG-18" data-tag="bug" data-size="1.1" data-status="open">
-<summary><span class="fid">BUG-18</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">ESP32: api-&gt;hardware() is never populated, so discovery consumers see empty data</span><span class="fimpact">bed_dimensions and friends read an empty discovery</span></summary>
+<details class="f" id="BUG-18" data-tag="bug" data-size="1.1" data-status="progress">
+<summary><span class="fid">BUG-18</span><span class="chip t-bug">bug</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">feature/ktouch-multi-printer</code><span class="ftitle">ESP32: api-&gt;hardware() is never populated, so discovery consumers see empty data</span><span class="fimpact">bed_dimensions and friends read an empty discovery</span></summary>
 <div class="fbody">
-<p class="branch">Not fixed: populating discovery on the firmware path needs K-Touch hardware to verify.</p>
+<p class="branch">Fix on <code>feature/ktouch-multi-printer</code> (<code>3092dff31</code>): firmware discovery assigns <code>api-&gt;hardware()</code> like Linux does. Awaiting the K-Touch device pass. The wider drift (11 subsystems the firmware compiles but never starts) is the shared session-core plan.</p>
 <p><span class="badge unv">unverified</span></p>
 <dl>
 <dt>Locations</dt><dd><code>include/moonraker_api.h#MoonrakerAPI::hardware</code>, <code>src/printer/bed_dimensions.cpp</code>, <code>firmware/</code></dd>
@@ -982,10 +982,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FW-4" data-tag="belt-suspenders" data-size="1.1" data-status="progress">
-<summary><span class="fid">FW-4</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">743eed883</code><span class="ftitle">Double-init guard in 4 spellings plus 29 create() guards, fold into one</span><span class="fimpact">One guard in OverlayBase::show</span></summary>
+<details class="f" id="FW-4" data-tag="belt-suspenders" data-size="1.1" data-status="done">
+<summary><span class="fid">FW-4</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">04c38ebf8</code><span class="ftitle">Double-init guard in 4 spellings plus 29 create() guards, fold into one</span><span class="fimpact">One guard in OverlayBase::show</span></summary>
 <div class="fbody">
-<p class="branch">The one guard lives in <code>OverlayBase::show()</code> (<code>4d4057937</code>). Sweeps keep an init guard where outside code pre-inits the overlay. Three overlay sweeps merged to main (print-misc <code>a1f2c83aa</code>, settings <code>b663be0e8</code>, ams-cal <code>94c107fe5</code>) and the final sweep at <code>743eed883</code> keep one guard in <code>OverlayBase::show</code>. The 8 remaining "already exists" create() guards are the same ratchet baseline as FW-1.</p>
+<p class="branch">Done in <code>04c38ebf8</code>: the one init guard lives in <code>OverlayBase::show()</code>; the 3 remaining &quot;already exists&quot; log guards are deliberate (snake game and busy overlay are not OverlayBase; print-select detail view is created directly).</p>
 <dl>
 <dt>Locations</dt><dd><code>include/overlay_base.h#init_subjects_guarded</code>, <code>src/ui/ui_panel_settings.cpp#handle_spoolman_settings_clicked</code>, <code>#handle_ams_settings_clicked</code>, per-overlay <code>init_subjects()</code>/<code>show()</code>/<code>create()</code></dd>
 <dt>Evidence</dt><dd>87 <code>init_subjects()</code> bodies with an internal <code>if (subjects_initialized_) return</code>; 36 <code>show()</code> pre-checks that init and register; ~10 callers doing the same before calling <code>show()</code>, which does it again; 29 <code>create()</code> "already exists" guards reachable only from a <code>show()</code> that already checked <code>!overlay_root_</code>; 198 <code>if (!overlay_root_) return;</code> in methods that run only after show created the root.</dd>
@@ -1042,10 +1042,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FW-8" data-tag="belt-suspenders" data-size="1.1" data-status="progress">
-<summary><span class="fid">FW-8</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">743eed883</code><span class="ftitle">Settings dropdown/toggle rows re-synced by hand in on_activate; bind in XML</span><span class="fimpact">~-400 C++ and -120 XML lines</span></summary>
+<details class="f" id="FW-8" data-tag="belt-suspenders" data-size="1.1" data-status="done">
+<summary><span class="fid">FW-8</span><span class="chip t-belt-suspenders">belt-suspenders</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">04c38ebf8</code><span class="ftitle">Settings dropdown/toggle rows re-synced by hand in on_activate; bind in XML</span><span class="fimpact">~-400 C++ and -120 XML lines</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: the settings sweep (<code>b663be0e8</code>) binds its setting rows in XML. The final sweep (<code>743eed883</code>) did the same for the settings root and plugin overlays. Rows in overlays outside the merged sweeps remain.</p>
+<p class="branch">Done in <code>04c38ebf8</code>: the safety e-stop, completion alert and sounds rows bind in XML. The rows left imperative are deliberate: display dim/sleep/rotation hold seconds or degrees, not indexes; scale, language, timezone, toolhead, gcode mode, sound theme, audio device, label printer and macro buttons build their options in C++; the update channel stays unbound by design; auto-lock and timelapse have no subject to bind.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_settings_system.cpp#init_telemetry_toggle</code>, <code>#init_log_level_dropdown</code>, <code>src/ui/ui_settings_safety.cpp#init_estop_toggle</code>, <code>#init_completion_alert_dropdown</code>, <code>ui_settings_label_printer.cpp</code> (17 lookups) and 9 more files; <code>ui_xml/setting_toggle_row.xml</code>, <code>ui_xml/setting_dropdown_row.xml</code></dd>
 <dt>Evidence</dt><dd>43 of 46 <code>&lt;setting_dropdown_row&gt;</code> omit <code>bind_selected=</code> and 11 of 35 <code>&lt;setting_toggle_row&gt;</code> omit <code>subject=</code>, though both components forward them and the managers already publish the subjects (<code>settings_estop_confirm</code>, <code>settings_telemetry_enabled</code>, <code>settings_log_level</code>). Instead 59 sites in 14 files find the widget and set state from the getter on every activate, inside two nested null checks.</dd>
@@ -1105,7 +1105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="FW-12" data-tag="extensibility" data-size="later" data-status="open">
 <summary><span class="fid">FW-12</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">Singleton cascade: 77 instance(), 53 app_globals, ~80 lazy panel globals (#1326)</span><span class="fimpact">-350 lines; 14 singletons become members</span></summary>
 <div class="fbody">
-<p class="branch">Step 1 shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) folded <code>DEFINE_GLOBAL_PANEL</code> onto <code>helix::lazy_global</code>. Steps 2 and 3 open.</p>
+<p class="branch">Step 2 re-measured: only CrashReporter, RemoteControlServer and UpgradeBanner are private to Application (TelemetryManager, KeyboardManager and UpdateChecker have 10-24 callers). Narrowed to those 3.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/app_globals.h</code>, <code>include/ui_panel_singleton_macros.h</code>, <code>include/ui_global_panel_helper.h</code>, <code>include/static_panel_registry.h</code>, <code>src/application/application.cpp</code></dd>
 <dt>Evidence</dt><dd>77 <code>static X&amp; instance()</code> classes, 53 app_globals free functions (601-line header), 40 <code>get_global_*_panel()</code> accessors, 80 hand-rolled <code>static std::unique_ptr&lt;X&gt; g_*</code>, 487 call sites. 14 singletons are effectively private to Application (<code>CrashReporter</code>, <code>ScreensaverManager</code>, <code>RemoteControlServer</code>, ...); ~12 are truly cross-cutting (<code>NavigationManager</code> 98 files, <code>AmsState</code> 78) and stay. Two headers define <code>DEFINE_GLOBAL_PANEL</code> with different arity (1 and 6 users); ~70 sites hand-write the 7-line body.</dd>
@@ -1344,9 +1344,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="API-2" data-tag="dup" data-size="later" data-status="open">
-<summary><span class="fid">API-2</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">Database and Spoolman mocked twice: API-level and client-level</span><span class="fimpact">~1.5-2K mock lines; real parsers run in --test</span></summary>
+<details class="f" id="API-2" data-tag="dup" data-size="later" data-status="done">
+<summary><span class="fid">API-2</span><span class="chip t-dup">dup</span><span class="chip sz">later</span><span class="pill st-done">done</span><code class="br">d060595e7</code><span class="ftitle">Database and Spoolman mocked twice: API-level and client-level</span><span class="fimpact">~1.5-2K mock lines; real parsers run in --test</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>d060595e7</code> (Spoolman + database slice, plus a follow-up aligning every Spoolman call with Spoolman's schema): the API-level mocks and their second store are gone; the client mock answers JSON-RPC with generic <code>fail_next</code>/<code>defer_next</code> and is schema-strict; it exposed and fixed production bugs in lane_data 404s, deleted-spool 404s, filament temperatures, spool weight edits and the external catalog. Thumbnail/file-transfer overrides remain.</p>
 <dl>
 <dt>Locations</dt><dd><code>include/moonraker_api_mock.h</code>, <code>src/api/moonraker_api_mock.cpp</code>, <code>src/api/moonraker_client_mock_server.cpp</code>, <code>src/api/moonraker_client_mock.cpp#MoonrakerClientMock::send_jsonrpc</code></dd>
 <dt>Evidence</dt><dd>DB: client mock registers <code>server.database.{get,post,delete}_item</code> with a store; <code>MoonrakerAPIMock</code> overrides them with a second store plus 16 fault-injection methods used by 3 test files. Spoolman: <code>MoonrakerSpoolmanAPIMock</code> overrides 27 methods + a 367-line <code>init_mock_spools</code>, bypassing the real <code>parse_spool_info</code>/<code>parse_filament_info</code>, while <code>server.spoolman.status</code> is answered at client level. Thumbnails: 13 FileTransfer overrides (~450 lines). 76 test files use <code>MoonrakerAPIMock</code>.</dd>
@@ -2074,6 +2075,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="TB-1" data-tag="extensibility" data-size="later" data-status="open">
 <summary><span class="fid">TB-1</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">7,702 TestAccess call sites freeze private state against refactors</span><span class="fimpact">biggest refactor blocker in tests/</span></summary>
 <div class="fbody">
+<p class="branch">Deferred by re-measurement (8,169 sites in 449 files, growing): do it per subsystem right before that subsystem's refactor, not as a sweep.</p>
 <dl>
 <dt>Locations</dt><dd><code>tests/test_helpers/ad5x_ifs_test_access.h</code>, <code>tests/unit/test_home_edit_page_swipe.cpp</code>, 167 <code>friend class *Test*</code> in 157 production files</dd>
 <dt>Evidence</dt><dd>7,702 <code>*TestAccess::</code> sites in 398 files (29% of unit test files). Worst: ad5x_ifs_test_access.h, 633 lines, 103 accessors, 2,051 sites (1,892 in one file), mostly private seeders (<code>set_zcolor_supported</code> 83, <code>set_port_presence</code> 76); only <code>handle_status</code> (250) is the real input path. GridEditMode's private flags read directly (<code>dragging</code> 58x). Others: PrinterState 495, QidiBox 386, Cfs 348, Snapmaker 303.</dd>
@@ -2148,6 +2150,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="TB-6" data-tag="god-class" data-size="later" data-status="open">
 <summary><span class="fid">TB-6</span><span class="chip t-god-class">god-class</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">quality-checks.sh: 3,674 lines, 61 silent-skip branches</span><span class="fimpact">a deleted gate silently skips instead of failing</span></summary>
 <div class="fbody">
+<p class="branch">1.1 half shipped with <a href="#TB-14">TB-14</a>: the 60 existence guards are gone, so a deleted gate script fails. The one-file-per-gate split is deferred.</p>
 <dl>
 <dt>Locations</dt><dd><code>scripts/quality-checks.sh</code>, 13 <code>tests/shell/*.bats</code> files that awk gate sections out of it</dd>
 <dt>Evidence</dt><dd>~75 gates, 234 commits (173 since June, most-churned in the slice). 61 "check_X.py not found, skipping" else-branches (58 <code>[ -f "scripts/..." ]</code> guards) for scripts tracked in the same commit. 13 bats files extract gate bodies by awk-ing text between <code># ====</code> banners, so tests depend on comment layout.</dd>
@@ -2177,6 +2180,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <details class="f" id="TB-8" data-tag="extensibility" data-size="later" data-status="open">
 <summary><span class="fid">TB-8</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">later</span><span class="pill st-open">open</span><span class="ftitle">ESP32 manifests list 828 files one by one because src/ui is flat</span><span class="fimpact">every new src/ file needs a manifest line</span></summary>
 <div class="fbody">
+<p class="branch">Deferred: directory-level manifests need the src/ reorganisation, which would collide with every branch in flight.</p>
 <dl>
 <dt>Locations</dt><dd><code>firmware/helixscreen-esp32/components/helixapp/app_srcs.txt</code>, <code>app_srcs_excluded.txt</code>, <code>scripts/check_esp32_app_srcs.py</code>, <code>helixapp_platform_stubs2.cpp</code></dd>
 <dt>Evidence</dt><dd><code>app_srcs.txt</code> 557 path lines (180 commits), <code>app_srcs_excluded.txt</code> 271 with zero directory entries; together they partition all 852 <code>src/**</code> files. Gate: 651-line checker + 454-line bats. Link stubs for excluded subsystems ~1,575 lines (platform_stubs2 772, excluded_subsystems 378, task10_pending 257, platform_stubs 168). Per-file because camera, screensaver, calibration panels and label printer cannot be excluded as directories in a flat <code>src/ui/</code>.</dd>
@@ -2258,9 +2262,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="TB-14" data-tag="extensibility" data-size="1.1" data-status="open">
-<summary><span class="fid">TB-14</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-open">open</span><span class="ftitle">ESP32 link-level gate: undefined symbols vs excluded files</span><span class="fimpact">link breaks reach CI unseen</span></summary>
+<details class="f" id="TB-14" data-tag="extensibility" data-size="1.1" data-status="done">
+<summary><span class="fid">TB-14</span><span class="chip t-extensibility">extensibility</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">f3256d7a8</code><span class="ftitle">ESP32 link-level gate: undefined symbols vs excluded files</span><span class="fimpact">link breaks reach CI unseen</span></summary>
 <div class="fbody">
+<p class="branch">Shipped in <code>f3256d7a8</code>: <code>check_esp32_app_srcs.py --link</code> runs <code>nm</code> over the native objects and exempts only symbols a firmware source defines; 40 tolerated edges sit in <code>scripts/esp32_link_baseline.txt</code>, capped and shrink-only. Same merge: 60 existence guards removed from quality-checks.sh (<a href="#TB-6">TB-6</a>, its 1.1 half).</p>
 <dl>
 <dt>Locations</dt><dd><code>scripts/check_esp32_app_srcs.py</code>, ESP32 source manifests</dd>
 <dt>Evidence</dt><dd><a href="#TB-11">TB-11</a> passed every local gate: the source-level checks see calls, not which object files the firmware links. Ties to #1295.</dd>

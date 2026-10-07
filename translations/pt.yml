@@ -1,5 +1,7 @@
 locale: pt
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (tempo esgotado)'
   ' frames': ' quadros'
   ' left': ' restante'
@@ -868,6 +870,7 @@ translations:
   Cutting: Cortando
   Cutting filament...: Cortando filamento...
   DETECTED USB PRINTERS: IMPRESSORAS USB DETECTADAS
+  DEVICES: DISPOSITIVOS
   DISABLED: DESABILITADO
   DISCOVERED PRINTERS: IMPRESSORAS DESCOBERTAS
   DISPLAY: TELA
@@ -875,16 +878,16 @@ translations:
   Danger: Perigo
   Danger Zone: Zona de Perigo
   Dark Mode: Modo Escuro
-  Database: Banco de Dados
   Date (newest): Data (mais recente)
   Date (oldest): Data (mais antigo)
   Day: Dia
   Debug: Depuração
+  Deep Black: Preto profundo
   Default: 'Padrão'
   Default Parameters: 'Parâmetros padrão'
   Default border thickness: Espessura padrão da borda
-  'Default: %d-%d°C nozzle, %d°C bed': 'Padrão: %d-%d°C bico, %d°C mesa'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Padrão: %d-%d°C bico, %d°C mesa, %d°C câmara'
+  'Default: %s nozzle, %d°C bed': 'Padrão: %s bico, %d°C mesa'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Padrão: %s bico, %d°C mesa, %d°C câmara'
   Defaults restored: Padrões restaurados
   Define macros in your printer.cfg: Defina macros no seu printer.cfg
   Delete: Excluir
@@ -1449,7 +1452,7 @@ translations:
   Hardware was present in previous session but is now missing: 'O hardware estava presente na sessão anterior, mas agora está ausente'
   Have a piece of paper ready.: Tenha uma folha de papel pronta.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Tenha sua ferramenta de ajuste da mesa (chave de fenda, chave Allen, etc.) pronta
     se sua mesa não for ajustada com                              rodas manuais ou
@@ -1472,6 +1475,7 @@ translations:
   Heated Bed MPC Calibration: Calibração MPC da Mesa Aquecida
   Heated Bed PID Tuning: Ajuste PID da Mesa Aquecida
   Heater: Aquecedor
+  Heater Calibration: Calibração do aquecedor
   Heater Power: Potência do Aquecedor
   Heater connection lost: Conexão do aquecedor perdida
   Heater fault: Falha do aquecedor
@@ -3706,6 +3710,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: 'Volume de filamento usado durante a compactação'
   Volume {}%: Volume {}%
+  WEIGHT SYNC: SINCRONIZAÇÃO DE PESO
   WIDTH SENSORS: SENSORES DE LARGURA
   WLED Preset: Predefinição WLED
   WPA/WPA2: 'WPA/WPA2'

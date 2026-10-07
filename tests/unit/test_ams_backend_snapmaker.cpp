@@ -2025,7 +2025,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     REQUIRE(staged.has_value());
     CHECK(staged->brand == "Polymaker");
     CHECK(staged->spoolman_id == 42);
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 
     // Simulate a subsequent Klipper status update with conflicting firmware
     // data. Pre-Task-12 this wiped the user's edit; the fix is that
@@ -2066,7 +2066,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker sync_external_identity does NOT wr
 
     // No override staged, no DB write.
     CHECK_FALSE(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 
     // Preview edit is still visible via get_slot_info (in-memory only).
     auto info = backend.get_slot_info(0);
@@ -2091,7 +2091,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
 
     // Seed an override AND the corresponding DB entry so we can verify
     // clear_async deletes it on swap.
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "T0",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -2110,7 +2110,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
 
     REQUIRE(SnapmakerTestAccess::get_override(backend, 0).has_value());
     REQUIRE(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "1,2,3,4");
-    REQUIRE(!api.mock_get_db_value("lane_data", "T0").is_null());
+    REQUIRE(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 
     // Second parse: DIFFERENT CARD_UID — physical swap detected. Override
     // must be cleared in-memory AND the Moonraker DB entry deleted.
@@ -2119,7 +2119,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
         make_filament_detect_status(0, "PETG", 0xFF00FF00u, "Generic", json::array({5, 6, 7, 8})));
 
     CHECK_FALSE(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "T0").is_null());
     // Baseline advanced to the new UID.
     CHECK(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "5,6,7,8");
 
@@ -2149,7 +2149,8 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker first RFID UID observation does NO
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     SnapmakerTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "T0", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "T0",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2167,7 +2168,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker first RFID UID observation does NO
     REQUIRE(staged.has_value());
     CHECK(staged->brand == "Polymaker");
     CHECK(staged->spoolman_id == 42);
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 
     // A second parse of the SAME UID stays the baseline — no clear, no
     // "weird state" that fires on unchanged polls.
@@ -2176,7 +2177,7 @@ TEST_CASE_METHOD(SnapmakerFixture, "Snapmaker first RFID UID observation does NO
                                              json::array({99, 99, 99, 99})));
 
     CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 }
 
 TEST_CASE_METHOD(SnapmakerFixture,
@@ -2198,7 +2199,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     saved.material = "PLA";
     saved.color_rgb = 0xFF5500;
     saved.color_set = true;
-    api.mock_set_db_value("lane_data", "T0", helix::ams::to_lane_data_record(0, saved));
+    mock_printer.client.mock_db_set("lane_data", "T0", helix::ams::to_lane_data_record(0, saved));
     {
         helix::test::RegisteredBackend<AmsBackendSnapmaker> session1(&api, nullptr);
         SnapmakerTestAccess::call_on_started(*session1);
@@ -2206,7 +2207,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
         REQUIRE(SnapmakerTestAccess::get_override(*session1, 0).has_value());
         SnapmakerTestAccess::handle_status(
             *session1, make_filament_detect_status(0, "PLA", 0xFFFF5500u, "Polymaker", uid_f1));
-        auto stored = api.mock_get_db_value("lane_data", "T0");
+        auto stored = mock_printer.client.mock_db_get("lane_data", "T0");
         REQUIRE(!stored.is_null());
         REQUIRE(stored.contains("helix_fingerprint"));
         CHECK(stored.at("helix_fingerprint") == "1,2,3,4");
@@ -2222,7 +2223,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
             *session2, make_filament_detect_status(0, "PETG", 0xFF00FF00u, "Generic", uid_f2));
         CHECK(SnapmakerTestAccess::last_rfid_uid(*session2, 0) == "5,6,7,8");
         CHECK_FALSE(SnapmakerTestAccess::get_override(*session2, 0).has_value());
-        CHECK(api.mock_get_db_value("lane_data", "T0").is_null());
+        CHECK(mock_printer.client.mock_db_get("lane_data", "T0").is_null());
     }
 
     SECTION("the same spool across a restart keeps the override") {
@@ -2233,12 +2234,13 @@ TEST_CASE_METHOD(SnapmakerFixture,
         auto ovr = SnapmakerTestAccess::get_override(*session2, 0);
         REQUIRE(ovr.has_value());
         CHECK(ovr->brand == "Polymaker");
-        CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+        CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
     }
 
     SECTION("a record without a stored fingerprint stays a first-observation baseline") {
         // The shape every record written before the field existed has.
-        api.mock_set_db_value("lane_data", "T0", helix::ams::to_lane_data_record(0, saved));
+        mock_printer.client.mock_db_set("lane_data", "T0",
+                                        helix::ams::to_lane_data_record(0, saved));
         helix::test::RegisteredBackend<AmsBackendSnapmaker> session2(&api, nullptr);
         SnapmakerTestAccess::call_on_started(*session2);
         SnapmakerTestAccess::handle_status(
@@ -2250,7 +2252,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
         CHECK(ovr->brand == "Polymaker");
         // The baseline observation itself heals the fingerprint in, so the
         // NEXT restart compares against this spool.
-        auto stored = api.mock_get_db_value("lane_data", "T0");
+        auto stored = mock_printer.client.mock_db_get("lane_data", "T0");
         REQUIRE(!stored.is_null());
         REQUIRE(stored.contains("helix_fingerprint"));
         CHECK(stored.at("helix_fingerprint") == "5,6,7,8");
@@ -2276,7 +2278,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     SnapmakerTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "T0", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "T0",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2297,7 +2300,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
         backend, make_filament_detect_status(0, "PLA", 0xFFFF5500u, "Polymaker", json::array()));
     CHECK(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "M|PLA|FF5500");
     CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 
     // Third parse: the same spool's UID decodes again. The reading changed
     // spelling, but material and colour match what the unreadable pass saw,
@@ -2307,7 +2310,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
         make_filament_detect_status(0, "PLA", 0xFFFF5500u, "Polymaker", json::array({1, 2, 3, 4})));
     CHECK(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "1,2,3,4");
     CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 }
 
 TEST_CASE_METHOD(SnapmakerFixture,
@@ -2330,7 +2333,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     SnapmakerTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "T0", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "T0",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2347,7 +2351,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
         backend, make_filament_detect_status(0, "NONE", 0xFFFF5500u, "Polymaker", json::array()));
 
     CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
     CHECK(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "1,2,3,4");
 
     // A channel the reader cannot answer stays unanswered across reads: the
@@ -2428,7 +2432,8 @@ TEST_CASE_METHOD(
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     SnapmakerTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "T0", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "T0",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2446,7 +2451,7 @@ TEST_CASE_METHOD(
         make_filament_detect_status(0, "PLA", 0xFFFF5500u, "Polymaker", json::array({1, 2, 3, 4})));
 
     CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
     CHECK(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "1,2,3,4");
 }
 
@@ -2467,7 +2472,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     SnapmakerTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "T0", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "T0",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2483,7 +2489,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
             backend, make_filament_detect_status(0, "PETG", 0x00FF00u, "Polymaker", json::array()));
 
         CHECK_FALSE(SnapmakerTestAccess::get_override(backend, 0).has_value());
-        CHECK(api.mock_get_db_value("lane_data", "T0").is_null());
+        CHECK(mock_printer.client.mock_db_get("lane_data", "T0").is_null());
         CHECK(SnapmakerTestAccess::last_rfid_uid(backend, 0) == "M|PETG|00FF00");
     }
 
@@ -2493,7 +2499,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
             make_filament_detect_status(0, "PLA", 0xFFFF5500u, "Polymaker", json::array()));
 
         CHECK(SnapmakerTestAccess::get_override(backend, 0).has_value());
-        CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+        CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
     }
 }
 
@@ -2729,7 +2735,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     auto staged = SnapmakerTestAccess::get_override(backend, 0);
     REQUIRE(staged.has_value());
     CHECK(staged->brand == "Polymaker");
-    CHECK(!api.mock_get_db_value("lane_data", "T0").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "T0").is_null());
 }
 
 TEST_CASE_METHOD(SnapmakerFixture,
@@ -2764,7 +2770,8 @@ TEST_CASE_METHOD(SnapmakerFixture,
     stale.color_rgb = 0xABCDEF;
     stale.material = "PLA";
     SnapmakerTestAccess::seed_override(backend, 0, stale);
-    api.mock_set_db_value("lane_data", "T0", json{{"color", "#ABCDEF"}, {"material", "PLA"}});
+    mock_printer.client.mock_db_set("lane_data", "T0",
+                                    json{{"color", "#ABCDEF"}, {"material", "PLA"}});
 
     // Build a status update that ALSO sets filament_detect.state[0]=1 so the
     // slot resolves to AVAILABLE — the mirror helper short-circuits when the
@@ -2775,7 +2782,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     status["filament_detect"]["state"] = json::array({1, 0, 0, 0});
     SnapmakerTestAccess::handle_status(backend, status);
 
-    auto lane = api.mock_get_db_value("lane_data", "T0");
+    auto lane = mock_printer.client.mock_db_get("lane_data", "T0");
     REQUIRE(!lane.is_null());
     REQUIRE(lane.contains("color"));
     // Firmware-truth color (0x112233) wins over stale lane_data (#ABCDEF).
@@ -2889,7 +2896,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     AmsBackendSnapmaker& backend = *rig.backend_reg;
 
     SnapmakerTestAccess::seed_override(backend, 0, linked_to_spool_42());
-    const int posts_before = rig.api.mock_db_post_count();
+    const int posts_before = rig.client.call_count("server.database.post_item");
 
     SnapmakerTestAccess::handle_status(backend, seated_tag_frame(0xFFFF5500u, "PLA"));
 
@@ -2899,7 +2906,7 @@ TEST_CASE_METHOD(SnapmakerFixture,
     REQUIRE(sources.sensed->present == true);
     REQUIRE(backend.get_slot_info(0).status == SlotStatus::AVAILABLE);
 
-    CHECK(rig.api.mock_db_post_count() == posts_before);
+    CHECK(rig.client.call_count("server.database.post_item") == posts_before);
     CHECK_FALSE(sources.local_user.has_value());
     REQUIRE(sources.spoolman.has_value());
     CHECK(sources.spoolman->color_rgb == 0xFF5500u);

@@ -1,5 +1,7 @@
 locale: zh
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': （超时）
   ' frames': ' 帧'
   ' left': ' 剩余'
@@ -797,6 +799,7 @@ translations:
   Cutting: 切割中
   Cutting filament...: 正在切断耗材...
   DETECTED USB PRINTERS: 已检测到的 USB 打印机
+  DEVICES: 设备
   DISABLED: 已禁用
   DISCOVERED PRINTERS: 已发现的打印机
   DISPLAY: 显示
@@ -804,16 +807,16 @@ translations:
   Danger: 危险
   Danger Zone: 危险区域
   Dark Mode: 深色模式
-  Database: 数据库
   Date (newest): 日期（最新）
   Date (oldest): 日期（最早）
   Day: 日
   Debug: 调试
+  Deep Black: 深黑色
   Default: '默认'
   Default Parameters: '默认参数'
   Default border thickness: 默认边框厚度
-  'Default: %d-%d°C nozzle, %d°C bed': '默认: 喷嘴 %d-%d°C,热床 %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': '默认: 喷嘴 %d-%d°C,热床 %d°C,腔体 %d°C'
+  'Default: %s nozzle, %d°C bed': '默认: 喷嘴 %s,热床 %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': '默认: 喷嘴 %s,热床 %d°C,腔体 %d°C'
   Defaults restored: 已恢复默认设置
   Define macros in your printer.cfg: 在 printer.cfg 中定义宏
   Delete: 删除
@@ -1355,7 +1358,7 @@ translations:
   Hardware was present in previous session but is now missing: '硬件在上次会话中存在，但现在缺失'
   Have a piece of paper ready.: 请准备好一张纸。
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : 如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。
   Heading: 标题
@@ -1374,6 +1377,7 @@ translations:
   Heated Bed MPC Calibration: 热床 MPC 校准
   Heated Bed PID Tuning: 热床 PID 调优
   Heater: 加热器
+  Heater Calibration: 加热器校准
   Heater Power: 加热器功率
   Heater connection lost: 加热器连接丢失
   Heater fault: 加热器故障
@@ -3446,6 +3450,7 @@ translations:
   Volume: 音量
   Volume of filament used during ramming: '填充过程中使用的耗材体积'
   Volume {}%: 音量 {}%
+  WEIGHT SYNC: 重量同步
   WIDTH SENSORS: 宽度传感器
   WLED Preset: WLED 预设
   WPA/WPA2: 'WPA/WPA2'

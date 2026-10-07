@@ -15,6 +15,8 @@
   <translation tag="%d slots" en="%d slots"/>
   <translation tag="%d toolheads" en="%d toolheads"/>
   <translation tag="%d tools" en="%d tools"/>
+  <translation tag="%d-%d" en="%d-%d"/>
+  <translation tag="%d-%d°C" en="%d-%d°C"/>
   <translation tag="%d:%02d left" en="%d:%02d left"/>
   <translation tag="%dh" en="%dh"/>
   <translation tag="%dh %02dm" en="%dh %02dm"/>
@@ -776,6 +778,7 @@
   <translation tag="Cutting" en="Cutting"/>
   <translation tag="Cutting filament..." en="Cutting filament..."/>
   <translation tag="DETECTED USB PRINTERS" en="DETECTED USB PRINTERS"/>
+  <translation tag="DEVICES" en="DEVICES"/>
   <translation tag="DISABLED" en="DISABLED"/>
   <translation tag="DISCOVERED PRINTERS" en="DISCOVERED PRINTERS"/>
   <translation tag="DISPLAY" en="DISPLAY"/>
@@ -783,16 +786,16 @@
   <translation tag="Danger" en="Danger"/>
   <translation tag="Danger Zone" en="Danger Zone"/>
   <translation tag="Dark Mode" en="Dark Mode"/>
-  <translation tag="Database" en="Database"/>
   <translation tag="Date (newest)" en="Date (newest)"/>
   <translation tag="Date (oldest)" en="Date (oldest)"/>
   <translation tag="Day" en="Day"/>
   <translation tag="Debug" en="Debug"/>
+  <translation tag="Deep Black" en="Deep Black"/>
   <translation tag="Default" en="Default"/>
   <translation tag="Default Parameters" en="Default Parameters"/>
   <translation tag="Default border thickness" en="Default border thickness"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" en="Default: %d-%d°C nozzle, %d°C bed"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" en="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber"/>
+  <translation tag="Default: %s nozzle, %d°C bed" en="Default: %s nozzle, %d°C bed"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" en="Default: %s nozzle, %d°C bed, %d°C chamber"/>
   <translation tag="Defaults restored" en="Defaults restored"/>
   <translation tag="Define macros in your printer.cfg" en="Define macros in your printer.cfg"/>
   <translation tag="Delete" en="Delete"/>
@@ -1313,7 +1316,7 @@
   <translation tag="Hardware saved to config" en="Hardware saved to config"/>
   <translation tag="Hardware was present in previous session but is now missing" en="Hardware was present in previous session but is now missing"/>
   <translation tag="Have a piece of paper ready." en="Have a piece of paper ready."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." en="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." en="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism."/>
   <translation tag="Heading" en="Heading"/>
   <translation tag="Healthy" en="Healthy"/>
   <translation tag="Heat Capacity" en="Heat Capacity"/>
@@ -1330,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" en="Heated Bed MPC Calibration"/>
   <translation tag="Heated Bed PID Tuning" en="Heated Bed PID Tuning"/>
   <translation tag="Heater" en="Heater"/>
+  <translation tag="Heater Calibration" en="Heater Calibration"/>
   <translation tag="Heater Power" en="Heater Power"/>
   <translation tag="Heater connection lost" en="Heater connection lost"/>
   <translation tag="Heater fault" en="Heater fault"/>
@@ -3296,6 +3300,7 @@
   <translation tag="Volume" en="Volume"/>
   <translation tag="Volume of filament used during ramming" en="Volume of filament used during ramming"/>
   <translation tag="Volume {}%" en="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" en="WEIGHT SYNC"/>
   <translation tag="WIDTH SENSORS" en="WIDTH SENSORS"/>
   <translation tag="WLED Preset" en="WLED Preset"/>
   <translation tag="WPA/WPA2" en="WPA/WPA2"/>

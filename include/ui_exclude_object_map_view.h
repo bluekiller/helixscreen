@@ -1,6 +1,7 @@
 #pragma once
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_exclude_object_badges.h"
 #include "ui_observer_guard.h"
 
 #include "bed_coord_mapper.h"
@@ -64,9 +65,7 @@ class ExcludeObjectMapView {
     void update_visual_states();
     void build_key_bar();
     void draw_first_layer_outlines();
-    lv_obj_t* create_object_rect(lv_obj_t* parent, int index, const std::string& name,
-                                 const PixelRect& rect);
-    lv_color_t get_object_color(int index) const;
+    lv_obj_t* create_object_rect(lv_obj_t* parent, const ObjectBadge& badge, const PixelRect& rect);
 
     static void on_close_clicked(lv_event_t* e);
     static void on_object_clicked(lv_event_t* e);
@@ -93,6 +92,7 @@ class ExcludeObjectMapView {
 
     struct ObjectRect {
         std::string name;
+        int defined_index{-1}; ///< Keys number and colour; rects skip bbox-less objects
         lv_obj_t* rect{nullptr};
     };
     std::vector<ObjectRect> object_rects_;

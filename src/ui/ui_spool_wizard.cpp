@@ -9,6 +9,7 @@
 #include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
+#include "ui_temperature_utils.h"
 #include "ui_toast_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
@@ -25,7 +26,6 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <cstdio>
 #include <unordered_map>
@@ -38,14 +38,13 @@ namespace {
 constexpr size_t MAX_VENDOR_NAME_LEN = 256;
 constexpr size_t MAX_VENDOR_URL_LEN = 2048;
 
-/// Set a JSON temperature range object, only including fields with positive values
-void set_temp_range(nlohmann::json& data, const char* key, int min_val, int max_val) {
-    if (min_val > 0 || max_val > 0) {
-        data[key] = nlohmann::json::object();
-        if (min_val > 0)
-            data[key]["min"] = min_val;
-        if (max_val > 0)
-            data[key]["max"] = max_val;
+/// Spoolman stores one integer temperature per filament. A catalog range
+/// becomes its midpoint; a range with one end set becomes that end.
+void set_spoolman_temp(nlohmann::json& data, const char* key, int min_val, int max_val) {
+    if (min_val > 0 && max_val > 0) {
+        data[key] = (min_val + max_val) / 2;
+    } else if (min_val > 0 || max_val > 0) {
+        data[key] = std::max(min_val, max_val);
     }
 }
 
@@ -544,6 +543,18 @@ void SpoolWizardOverlay::set_creating(bool val) {
     }
 }
 
+nlohmann::json SpoolWizardOverlay::vendor_create_payload(const std::string& name,
+                                                         const std::string& url) {
+    nlohmann::json data;
+    data["name"] = name;
+    // Spoolman's vendor has no URL field and drops unknown keys, so the
+    // website the user typed goes in the vendor's comment.
+    if (!url.empty()) {
+        data["comment"] = url;
+    }
+    return data;
+}
+
 void SpoolWizardOverlay::create_vendor_then_filament_then_spool() {
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api) {
@@ -551,11 +562,7 @@ void SpoolWizardOverlay::create_vendor_then_filament_then_spool() {
         return;
     }
 
-    nlohmann::json data;
-    data["name"] = selected_vendor_.name;
-    if (!new_vendor_url_.empty()) {
-        data["url"] = new_vendor_url_;
-    }
+    const nlohmann::json data = vendor_create_payload(selected_vendor_.name, new_vendor_url_);
 
     api->spoolman().create_spoolman_vendor(
         data,
@@ -582,6 +589,28 @@ void SpoolWizardOverlay::create_vendor_then_filament_then_spool() {
         }));
 }
 
+nlohmann::json SpoolWizardOverlay::filament_create_payload(const FilamentEntry& f, int vendor_id) {
+    nlohmann::json data;
+    data["vendor_id"] = vendor_id;
+    data["name"] = f.name.empty() ? f.material + " " + f.color_name : f.name;
+    data["material"] = f.material;
+    if (!f.color_hex.empty()) {
+        data["color_hex"] = f.color_hex;
+    }
+    // density and diameter are REQUIRED by Spoolman (no defaults in their API)
+    data["density"] = f.density > 0 ? f.density : 1.24;
+    data["diameter"] = f.diameter > 0 ? f.diameter : 1.75;
+    if (f.weight > 0) {
+        data["weight"] = f.weight;
+    }
+    if (f.spool_weight > 0) {
+        data["spool_weight"] = f.spool_weight;
+    }
+    set_spoolman_temp(data, "settings_extruder_temp", f.nozzle_temp_min, f.nozzle_temp_max);
+    set_spoolman_temp(data, "settings_bed_temp", f.bed_temp_min, f.bed_temp_max);
+    return data;
+}
+
 void SpoolWizardOverlay::create_filament_then_spool(int vendor_id) {
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api) {
@@ -589,28 +618,7 @@ void SpoolWizardOverlay::create_filament_then_spool(int vendor_id) {
         return;
     }
 
-    nlohmann::json data;
-    data["vendor_id"] = vendor_id;
-    data["name"] = selected_filament_.name.empty()
-                       ? selected_filament_.material + " " + selected_filament_.color_name
-                       : selected_filament_.name;
-    data["material"] = selected_filament_.material;
-    if (!selected_filament_.color_hex.empty()) {
-        data["color_hex"] = selected_filament_.color_hex;
-    }
-    // density and diameter are REQUIRED by Spoolman (no defaults in their API)
-    data["density"] = selected_filament_.density > 0 ? selected_filament_.density : 1.24;
-    data["diameter"] = selected_filament_.diameter > 0 ? selected_filament_.diameter : 1.75;
-    if (selected_filament_.weight > 0) {
-        data["weight"] = selected_filament_.weight;
-    }
-    if (selected_filament_.spool_weight > 0) {
-        data["spool_weight"] = selected_filament_.spool_weight;
-    }
-    set_temp_range(data, "settings_extruder_temp", selected_filament_.nozzle_temp_min,
-                   selected_filament_.nozzle_temp_max);
-    set_temp_range(data, "settings_bed_temp", selected_filament_.bed_temp_min,
-                   selected_filament_.bed_temp_max);
+    const nlohmann::json data = filament_create_payload(selected_filament_, vendor_id);
 
     api->spoolman().create_spoolman_filament(
         data,
@@ -737,23 +745,11 @@ void SpoolWizardOverlay::on_creation_error(const std::string& message, int rollb
 // ============================================================================
 
 std::vector<SpoolWizardOverlay::VendorEntry>
-SpoolWizardOverlay::merge_vendors(const std::vector<VendorEntry>& external_vendors,
-                                  const std::vector<VendorEntry>& server_vendors) {
-    // Build a map keyed by lowercased name for deduplication
+SpoolWizardOverlay::sorted_vendors(const std::vector<VendorEntry>& server_vendors) {
+    // Spoolman does not keep vendor names unique; the last of a name wins.
     std::unordered_map<std::string, VendorEntry> by_name;
-
-    // Server vendors first (they have IDs, so they take priority)
     for (const auto& sv : server_vendors) {
         by_name[helix::text_io::to_lower(sv.name)] = sv;
-    }
-
-    // Merge in external DB vendors -- mark from_database, keep server ID if already present
-    for (const auto& ext : external_vendors) {
-        auto [it, inserted] = by_name.try_emplace(helix::text_io::to_lower(ext.name),
-                                                  VendorEntry{ext.name, -1, false, true});
-        if (!inserted) {
-            it->second.from_database = true;
-        }
     }
 
     // Collect and sort alphabetically by name (case-insensitive)
@@ -805,7 +801,6 @@ void SpoolWizardOverlay::load_vendors() {
         lv_subject_set_int(&show_create_vendor_subject_, 0);
     }
 
-    // Get server + external vendors (both async via IMoonrakerAPI)
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api) {
         spdlog::warn("[{}] No API available, showing empty vendors", get_name());
@@ -817,84 +812,44 @@ void SpoolWizardOverlay::load_vendors() {
         return;
     }
 
-    // Shared context to coordinate two async calls (atomic counter for thread safety)
-    struct VendorLoadContext {
-        std::vector<VendorEntry> server_vendors;
-        std::vector<VendorEntry> external_vendors;
-        std::atomic<int> completed{0};
-    };
-    auto ctx = std::make_shared<VendorLoadContext>();
+    // The server's vendors only: Spoolman serves its external database as one
+    // multi-megabyte file with no vendor listing, too heavy to pull here.
+    // Captures a lifetime token rather than touching `this->lifetime_`
+    // off-thread (#707 TOCTOU); the deferred body is skipped outright if the
+    // overlay was deactivated in the meantime.
+    auto apply = [this, tok = lifetime_.token()](std::vector<VendorEntry> server_vendors) {
+        tok.defer("SpoolWizard::load_vendors_apply",
+                  [this, server_vendors = std::move(server_vendors)]() {
+                      all_vendors_ = sorted_vendors(server_vendors);
+                      filtered_vendors_ = filter_vendor_list(all_vendors_, vendor_search_query_);
 
-    // Helper lambda — called by whichever callback completes second, on whichever
-    // background thread got there. Captures a lifetime token rather than touching
-    // `this->lifetime_` off-thread (#707 TOCTOU); the deferred body is skipped
-    // outright if the overlay was deactivated in the meantime.
-    auto finish = [this, ctx, tok = lifetime_.token()]() {
-        tok.defer("SpoolWizard::load_vendors_apply", [this, ctx]() {
-            all_vendors_ = merge_vendors(ctx->external_vendors, ctx->server_vendors);
-            filtered_vendors_ = filter_vendor_list(all_vendors_, vendor_search_query_);
+                      if (subjects_initialized_) {
+                          lv_subject_set_int(&vendors_loading_subject_, 0);
+                          lv_subject_set_int(&vendor_count_subject_,
+                                             static_cast<int32_t>(filtered_vendors_.size()));
+                      }
 
-            if (subjects_initialized_) {
-                lv_subject_set_int(&vendors_loading_subject_, 0);
-                lv_subject_set_int(&vendor_count_subject_,
-                                   static_cast<int32_t>(filtered_vendors_.size()));
-            }
-
-            populate_vendor_list();
-            spdlog::info("[SpoolWizard] Loaded {} vendors total ({} server + {} external)",
-                         all_vendors_.size(), ctx->server_vendors.size(),
-                         ctx->external_vendors.size());
-        });
+                      populate_vendor_list();
+                      spdlog::info("[SpoolWizard] Loaded {} vendors", all_vendors_.size());
+                  });
     };
 
-    // Fetch server vendors
-    // Fetch server vendors
     api->spoolman().get_spoolman_vendors(
-        [ctx, finish](const std::vector<VendorInfo>& server_list) {
-            ctx->server_vendors.reserve(server_list.size());
+        [apply](const std::vector<VendorInfo>& server_list) {
+            std::vector<VendorEntry> server_vendors;
+            server_vendors.reserve(server_list.size());
             for (const auto& vi : server_list) {
                 VendorEntry entry;
                 entry.name = vi.name;
                 entry.server_id = vi.id;
                 entry.from_server = true;
-                entry.from_database = false;
-                ctx->server_vendors.push_back(std::move(entry));
+                server_vendors.push_back(std::move(entry));
             }
-            spdlog::debug("[SpoolWizard] Got {} vendors from server", ctx->server_vendors.size());
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
+            apply(std::move(server_vendors));
         },
-        [ctx, finish](const MoonrakerError& err) {
+        [apply](const MoonrakerError& err) {
             spdlog::warn("[SpoolWizard] Failed to fetch server vendors: {}", err.message);
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
-        });
-
-    // Fetch external DB vendors
-    api->spoolman().get_spoolman_external_vendors(
-        [ctx, finish](const std::vector<VendorInfo>& ext_list) {
-            ctx->external_vendors.reserve(ext_list.size());
-            for (const auto& vi : ext_list) {
-                VendorEntry entry;
-                entry.name = vi.name;
-                entry.server_id = -1;
-                entry.from_server = false;
-                entry.from_database = true;
-                ctx->external_vendors.push_back(std::move(entry));
-            }
-            spdlog::debug("[SpoolWizard] Got {} vendors from external DB",
-                          ctx->external_vendors.size());
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
-        },
-        [ctx, finish](const MoonrakerError& err) {
-            spdlog::warn("[SpoolWizard] Failed to fetch external vendors: {}", err.message);
-            if (ctx->completed.fetch_add(1) == 1) {
-                finish();
-            }
+            apply({});
         });
 }
 
@@ -1001,13 +956,10 @@ void SpoolWizardOverlay::populate_vendor_list() {
         // Set source badge
         lv_obj_t* source_label = lv_obj_find_by_name(row, "vendor_source");
         if (source_label) {
-            if (vendor.from_server && vendor.from_database) {
-                lv_label_set_text(source_label, lv_tr("Both"));
-            } else if (vendor.from_server) {
-                lv_label_set_text(source_label, "Spoolman"); // i18n: product name, do not translate
-            } else {
-                lv_label_set_text(source_label, lv_tr("Database"));
-            }
+            // A vendor not yet on the server is one the user is creating.
+            lv_label_set_text(source_label, vendor.from_server
+                                                ? "Spoolman"
+                                                : ""); // i18n: product name, do not translate
         }
     }
 
@@ -1070,7 +1022,7 @@ void SpoolWizardOverlay::confirm_create_vendor() {
     }
 
     // Set as selected vendor with server_id = -1 (will be created on final submit)
-    VendorEntry new_vendor = {name, -1, false, false};
+    VendorEntry new_vendor = {name, -1, false};
     selected_vendor_ = new_vendor;
 
     // Add to vendor lists and re-sort alphabetically
@@ -1127,99 +1079,6 @@ void SpoolWizardOverlay::confirm_create_vendor() {
 // ============================================================================
 // Filament Step Logic
 // ============================================================================
-
-std::vector<SpoolWizardOverlay::FilamentEntry>
-SpoolWizardOverlay::merge_filaments(const std::vector<FilamentInfo>& server_filaments,
-                                    const std::vector<FilamentInfo>& external_filaments) {
-    // Build a dedup set keyed by lowercase(material) + "|" + lowercase(color_hex)
-    std::unordered_map<std::string, FilamentEntry> by_key;
-
-    auto make_key = [](const std::string& material, const std::string& color_hex) {
-        return helix::text_io::to_lower(material) + "|" + helix::text_io::to_lower(color_hex);
-    };
-
-    // Helper to create a FilamentEntry from a FilamentInfo
-    auto to_entry = [](const FilamentInfo& fi, bool is_server) -> FilamentEntry {
-        FilamentEntry entry;
-        entry.name = fi.display_name();
-        entry.material = fi.material;
-        entry.color_hex = fi.color_hex;
-        // FilamentEntry::color_name means a colour word ("Red") — it is what the
-        // colour picker fills on the create-new path. FilamentInfo::filament_name
-        // is the filament's own name and already reaches the entry through
-        // display_name() above, so it must not be copied here.
-        entry.server_id = is_server ? fi.id : -1;
-        entry.vendor_id = is_server ? fi.vendor_id : -1;
-        entry.density = fi.density;
-        entry.diameter = fi.diameter;
-        entry.weight = fi.weight;
-        entry.spool_weight = fi.spool_weight;
-        entry.nozzle_temp_min = fi.nozzle_temp_min;
-        entry.nozzle_temp_max = fi.nozzle_temp_max;
-        entry.bed_temp_min = fi.bed_temp_min;
-        entry.bed_temp_max = fi.bed_temp_max;
-        entry.from_server = is_server;
-        entry.from_database = !is_server;
-        return entry;
-    };
-
-    // Server filaments first (they have real IDs, so they take priority)
-    for (const auto& sf : server_filaments) {
-        std::string key = make_key(sf.material, sf.color_hex);
-        by_key[key] = to_entry(sf, true);
-    }
-
-    // Merge in external DB filaments — fill in extras, mark from_database
-    for (const auto& ext : external_filaments) {
-        std::string key = make_key(ext.material, ext.color_hex);
-        auto it = by_key.find(key);
-        if (it != by_key.end()) {
-            // Already have this from server — mark as also from external DB
-            it->second.from_database = true;
-            // Fill in missing temperature data from external if server has none
-            if (it->second.nozzle_temp_min == 0 && ext.nozzle_temp_min > 0) {
-                it->second.nozzle_temp_min = ext.nozzle_temp_min;
-            }
-            if (it->second.nozzle_temp_max == 0 && ext.nozzle_temp_max > 0) {
-                it->second.nozzle_temp_max = ext.nozzle_temp_max;
-            }
-            if (it->second.bed_temp_min == 0 && ext.bed_temp_min > 0) {
-                it->second.bed_temp_min = ext.bed_temp_min;
-            }
-            if (it->second.bed_temp_max == 0 && ext.bed_temp_max > 0) {
-                it->second.bed_temp_max = ext.bed_temp_max;
-            }
-            if (it->second.density == 0 && ext.density > 0) {
-                it->second.density = ext.density;
-            }
-            if (it->second.weight == 0 && ext.weight > 0) {
-                it->second.weight = ext.weight;
-            }
-            if (it->second.spool_weight == 0 && ext.spool_weight > 0) {
-                it->second.spool_weight = ext.spool_weight;
-            }
-        } else {
-            // External DB-only entry
-            by_key[key] = to_entry(ext, false);
-        }
-    }
-
-    // Collect and sort by material then name
-    std::vector<FilamentEntry> result;
-    result.reserve(by_key.size());
-    for (auto& [_, entry] : by_key) {
-        result.push_back(std::move(entry));
-    }
-    std::sort(result.begin(), result.end(), [](const FilamentEntry& a, const FilamentEntry& b) {
-        std::string a_mat = helix::text_io::to_lower(a.material);
-        std::string b_mat = helix::text_io::to_lower(b.material);
-        if (a_mat != b_mat)
-            return a_mat < b_mat;
-        return a.name < b.name;
-    });
-
-    return result;
-}
 
 void SpoolWizardOverlay::load_filaments() {
     spdlog::debug("[{}] Loading filaments for vendor '{}' (server_id={})", get_name(),
@@ -1493,11 +1352,9 @@ void SpoolWizardOverlay::populate_filament_list() {
         lv_obj_t* temps_label = lv_obj_find_by_name(row, "filament_temps");
         if (temps_label) {
             char temp_buf[32] = {};
-            if (fil.nozzle_temp_min > 0 && fil.nozzle_temp_max > 0) {
-                std::snprintf(temp_buf, sizeof(temp_buf), "%d-%d\u00B0C", fil.nozzle_temp_min,
-                              fil.nozzle_temp_max);
-            } else if (fil.nozzle_temp_max > 0) {
-                std::snprintf(temp_buf, sizeof(temp_buf), "%d\u00B0C", fil.nozzle_temp_max);
+            if (fil.nozzle_temp_max > 0) {
+                helix::ui::temperature::format_temperature_range(
+                    fil.nozzle_temp_min, fil.nozzle_temp_max, temp_buf, sizeof(temp_buf));
             }
             lv_label_set_text(temps_label, temp_buf);
         }

@@ -34,17 +34,19 @@ struct SettingDecl {
     std::string subject;              ///< Info: subject name, owned by the plugin
 };
 
-/// One entry of the manifest's `widgets` array. Spans are in grid cells.
+/// One entry of the manifest's `widgets` array. Spans are in grid tracks, half
+/// a cell each; the manifest writes them in cells.
 struct WidgetDecl {
     std::string id; ///< <plugin>__<name>
     std::string name;
     std::string icon; ///< icon name; empty when absent
     std::string description;
     std::string component; ///< <plugin>__<name>, a file in ui/
-    int colspan = 1;
-    int rowspan = 1;
+    int colspan = 2;
+    int rowspan = 2;
     int max_colspan = 0; ///< 0: not resizable on this axis
     int max_rowspan = 0;
+    bool half_cells = false; ///< resizes and may be authored in half cells
 };
 
 struct Manifest {

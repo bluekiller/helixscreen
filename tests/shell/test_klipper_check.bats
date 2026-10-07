@@ -7,6 +7,8 @@ WORKTREE_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 
 setup() {
     load helpers
+    # tty_confirm, which the prompt uses
+    . "$WORKTREE_ROOT/scripts/lib/installer/common.sh"
 
     # Override log stubs so we can assert on output
     log_error()   { echo "ERROR: $*"; }
@@ -54,7 +56,7 @@ run_klipper_check() {
 
     export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
 
-    # Run non-interactively (stdin not a tty → non-interactive path)
+    # No terminal to ask: helpers.bash points HELIX_TTY_DEVICE at nothing.
     run check_klipper_ecosystem "$platform"
 }
 
@@ -118,7 +120,7 @@ EOF
     run_klipper_check "ad5m" "$ps_file" 0
     [ "$status" -eq 0 ]
     contains "Klipper does not appear to be running" "$output"
-    [[ "$output" == *"Non-interactive mode"* ]]
+    contains "Continuing installation" "$output"
 }
 
 @test "check_klipper_ecosystem: warns when moonraker not running" {
@@ -131,7 +133,7 @@ EOF
     run_klipper_check "ad5m" "$ps_file" 0
     [ "$status" -eq 0 ]
     contains "Moonraker does not appear to be running" "$output"
-    [[ "$output" == *"Non-interactive mode"* ]]
+    contains "Continuing installation" "$output"
 }
 
 @test "check_klipper_ecosystem: warns when neither running" {
@@ -158,16 +160,15 @@ EOF
     run_klipper_check "ad5m" "$ps_file" 1
     [ "$status" -eq 0 ]
     contains "not responding on http://127.0.0.1:7125" "$output"
-    [[ "$output" == *"Non-interactive mode"* ]]
+    contains "Continuing installation" "$output"
 }
 
 # ===========================================================================
-# Interactive prompt (use HELIX_PREFLIGHT_RESPONSE env var to simulate)
-# Note: We can't truly test tty interaction in bats, but we can test
-# the read path by checking that non-interactive mode works correctly.
+# The prompt reads the terminal device (tty_confirm); with none, it continues.
+# test_installer_plan.bats drives the device and the dry-run skip.
 # ===========================================================================
 
-@test "check_klipper_ecosystem: non-interactive mode continues with warning" {
+@test "check_klipper_ecosystem: with no terminal to ask, continues with warning" {
     local ps_file="$BATS_TEST_TMPDIR/ps_output"
     cat > "$ps_file" <<'EOF'
   PID USER     COMMAND
@@ -176,5 +177,5 @@ EOF
 
     run_klipper_check "ad5m" "$ps_file" 0
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Non-interactive mode: continuing anyway"* ]]
+    contains "Continuing installation" "$output"
 }

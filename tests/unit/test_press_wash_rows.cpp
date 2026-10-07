@@ -96,15 +96,6 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     }
 }
 
-TEST_CASE_METHOD(LVGLUITestFixture, "An excluded object's row is dimmed and takes no taps",
-                 "[press_wash][exclude_object][1297]") {
-    const char* attrs[] = {"row_opa", "150", "row_clickable", "false", nullptr};
-    lv_obj_t* row = create_row(test_screen(), "exclude_object_row", attrs);
-    REQUIRE(row != nullptr);
-    CHECK_FALSE(lv_obj_has_flag(row, LV_OBJ_FLAG_CLICKABLE));
-    CHECK(lv_obj_get_style_opa(row, LV_PART_MAIN) == 150);
-}
-
 TEST_CASE_METHOD(LVGLUITestFixture, "A job queue row starts its job and its trash icon removes it",
                  "[press_wash][job_queue][1297]") {
     JobQueueModalTestAccess::register_callbacks();

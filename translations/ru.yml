@@ -1,5 +1,7 @@
 locale: ru
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (время ожидания истекло)'
   ' frames': ' кадров'
   ' left': ' осталось'
@@ -855,6 +857,7 @@ translations:
   Cutting: Резка
   Cutting filament...: Обрезка филамента...
   DETECTED USB PRINTERS: ОБНАРУЖЕННЫЕ USB-ПРИНТЕРЫ
+  DEVICES: УСТРОЙСТВА
   DISABLED: ОТКЛЮЧЕНО
   DISCOVERED PRINTERS: НАЙДЕННЫЕ ПРИНТЕРЫ
   DISPLAY: ДИСПЛЕЙ
@@ -862,16 +865,16 @@ translations:
   Danger: Опасность
   Danger Zone: Опасная зона
   Dark Mode: Тёмный режим
-  Database: База данных
   Date (newest): Дата (новые)
   Date (oldest): Дата (старые)
   Day: День
   Debug: Отладка
+  Deep Black: Глубокий чёрный
   Default: 'По умолчанию'
   Default Parameters: 'Параметры по умолчанию'
   Default border thickness: Толщина границы по умолчанию
-  'Default: %d-%d°C nozzle, %d°C bed': 'По умолчанию: сопло %d-%d°C, стол %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'По умолчанию: сопло %d-%d°C, стол %d°C, камера %d°C'
+  'Default: %s nozzle, %d°C bed': 'По умолчанию: сопло %s, стол %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'По умолчанию: сопло %s, стол %d°C, камера %d°C'
   Defaults restored: Настройки по умолчанию восстановлены
   Define macros in your printer.cfg: Определите макросы в вашем printer.cfg
   Delete: Удалить
@@ -1433,7 +1436,7 @@ translations:
   Hardware was present in previous session but is now missing: 'Оборудование было в прошлом сеансе, но сейчас отсутствует'
   Have a piece of paper ready.: Подготовьте лист бумаги.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Подготовьте инструмент для регулировки стола (отвёртку, шестигранник и т.д.),
     если стол не регулируется                              барашками или другим встроенным
@@ -1455,6 +1458,7 @@ translations:
   Heated Bed MPC Calibration: Калибровка MPC стола
   Heated Bed PID Tuning: Настройка PID стола
   Heater: Нагреватель
+  Heater Calibration: Калибровка нагревателя
   Heater Power: Мощность нагревателя
   Heater connection lost: Потеряна связь с нагревателем
   Heater fault: Неисправность нагревателя
@@ -3661,6 +3665,7 @@ translations:
   Volume: Громкость
   Volume of filament used during ramming: 'Объём филамента, расходуемый при рэмминге'
   Volume {}%: Громкость {}%
+  WEIGHT SYNC: СИНХРОНИЗАЦИЯ ВЕСА
   WIDTH SENSORS: ДАТЧИКИ ШИРИНЫ
   WLED Preset: Пресет WLED
   WPA/WPA2: 'WPA/WPA2'

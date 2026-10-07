@@ -15,6 +15,8 @@
   <translation tag="%d slots" it="%d slot"/>
   <translation tag="%d toolheads" it="%d testine"/>
   <translation tag="%d tools" it="%d strumenti"/>
+  <translation tag="%d-%d" it="%d-%d"/>
+  <translation tag="%d-%d°C" it="%d-%d°C"/>
   <translation tag="%d:%02d left" it="%d:%02d rimanenti"/>
   <translation tag="%dh" it="%d h"/>
   <translation tag="%dh %02dm" it="%d h %02d min"/>
@@ -776,6 +778,7 @@
   <translation tag="Cutting" it="Taglio"/>
   <translation tag="Cutting filament..." it="Taglio filamento..."/>
   <translation tag="DETECTED USB PRINTERS" it="STAMPANTI USB RILEVATE"/>
+  <translation tag="DEVICES" it="DISPOSITIVI"/>
   <translation tag="DISABLED" it="DISABILITATO"/>
   <translation tag="DISCOVERED PRINTERS" it="STAMPANTI SCOPERTE"/>
   <translation tag="DISPLAY" it="SCHERMO"/>
@@ -783,16 +786,16 @@
   <translation tag="Danger" it="Pericolo"/>
   <translation tag="Danger Zone" it="Zona pericolosa"/>
   <translation tag="Dark Mode" it="Modalità scura"/>
-  <translation tag="Database" it="Database"/>
   <translation tag="Date (newest)" it="Data (più recente)"/>
   <translation tag="Date (oldest)" it="Data (più vecchio)"/>
   <translation tag="Day" it="Giorno"/>
   <translation tag="Debug" it="Debug"/>
+  <translation tag="Deep Black" it="Nero intenso"/>
   <translation tag="Default" it="Predefinito"/>
   <translation tag="Default Parameters" it="Parametri predefiniti"/>
   <translation tag="Default border thickness" it="Spessore bordo predefinito"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" it="Predefinito: %d-%d°C ugello, %d°C piano"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" it="Predefinito: %d-%d°C ugello, %d°C piano, %d°C camera"/>
+  <translation tag="Default: %s nozzle, %d°C bed" it="Predefinito: %s ugello, %d°C piano"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" it="Predefinito: %s ugello, %d°C piano, %d°C camera"/>
   <translation tag="Defaults restored" it="Predefiniti ripristinati"/>
   <translation tag="Define macros in your printer.cfg" it="Definire le macro nel proprio printer.cfg"/>
   <translation tag="Delete" it="Elimina"/>
@@ -1313,7 +1316,7 @@
   <translation tag="Hardware saved to config" it="Hardware salvato nella configurazione"/>
   <translation tag="Hardware was present in previous session but is now missing" it="Hardware presente nella sessione precedente ma ora mancante"/>
   <translation tag="Have a piece of paper ready." it="Tieni pronto un foglio di carta."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." it="Avere pronto lo strumento di regolazione piano (cacciavite, chiave esagonale, ecc.) se il piano non viene regolato con                              manopole o altri meccanismi integrati."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." it="Avere pronto lo strumento di regolazione piano (cacciavite, chiave esagonale, ecc.) se il piano non viene regolato con                              manopole o altri meccanismi integrati."/>
   <translation tag="Heading" it="Intestazione"/>
   <translation tag="Healthy" it="In ordine"/>
   <translation tag="Heat Capacity" it="Capacità termica"/>
@@ -1330,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" it="Calibrazione MPC piano riscaldato"/>
   <translation tag="Heated Bed PID Tuning" it="Regolazione PID piano riscaldato"/>
   <translation tag="Heater" it="Riscaldatore"/>
+  <translation tag="Heater Calibration" it="Calibrazione del riscaldatore"/>
   <translation tag="Heater Power" it="Potenza riscaldatore"/>
   <translation tag="Heater connection lost" it="Connessione al riscaldatore persa"/>
   <translation tag="Heater fault" it="Guasto al riscaldatore"/>
@@ -3296,6 +3300,7 @@
   <translation tag="Volume" it="Volume"/>
   <translation tag="Volume of filament used during ramming" it="Volume di filamento usato durante la compattazione"/>
   <translation tag="Volume {}%" it="Volume {}%"/>
+  <translation tag="WEIGHT SYNC" it="SINCRONIZZAZIONE PESO"/>
   <translation tag="WIDTH SENSORS" it="SENSORI DI LARGHEZZA"/>
   <translation tag="WLED Preset" it="Preset WLED"/>
   <translation tag="WPA/WPA2" it="WPA/WPA2"/>

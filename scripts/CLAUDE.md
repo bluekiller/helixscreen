@@ -11,6 +11,7 @@ what each script is for; the script's own header carries the reasoning behind it
 | `install-dev.sh` | Modular dev installer - uses `lib/installer/` modules. Edit this one |
 | `bundle-installer.sh` | Bundles `lib/installer/*` → `install.sh`, the single-file end-user installer (`curl\|sh`). Run through `make installer` → `build/installer/`; never committed |
 | `bundle-uninstaller.sh` | Bundles uninstall modules → `uninstall.sh` (`make installer` → `build/installer/`) |
+| `render-installer-logo.sh` | Regenerates `lib/installer/logo.sh` (the installer's braille banner) from `assets/images/helix-icon-256.png`. Needs `chafa` and python3 with Pillow; the output is committed, so only re-run it when the icon changes |
 | `helix-launcher.sh` | Systemd-launched watchdog wrapper. Sources `helixscreen.env` for runtime config |
 | `check-deps.sh` | Validates build dependencies. `--minimal` for cross-compile environments |
 | `device-env-set.sh` | Idempotently set one `KEY=VALUE` in a deployed device's `helixscreen.env` over ssh. Deploys exclude that file, so this is the only thing that writes it; `sync-device-features` (`mk/cross.mk`) calls it per `bin/.build-features` |
@@ -40,7 +41,7 @@ what each script is for; the script's own header carries the reasoning behind it
 | `regen_images.sh` | Pre-render splash screen images to LVGL binary format |
 | `regen_placeholder_images.sh` | Generate placeholder/fallback images |
 | `regen_printer_images.sh` | Process printer model images for the printer database |
-| `trim_printer_images.sh` | Crop/trim whitespace from printer images |
+| `trim_printer_images.py` | Crop printer images to their visible content, no aspect padding, and remap `regions.json` to match. `--check` (run by `quality-checks.sh`) fails on any transparent margin; `--dry-run` |
 | `gen_splash_3d.py` | Composite 3D logo onto full-screen splash canvases |
 | `generate_gradient_bg.py` | Pre-render gradient backgrounds for print file cards (perf optimization) |
 | `LVGLImage.py` | Python library for LVGL binary image format conversion |
@@ -127,7 +128,7 @@ elsewhere. Rows carry what a gate fails on and its opt-out marker.
 | `check_installer_step_reachability.py` | Fail if a function in `scripts/lib/installer/*.sh` has no production call site (#1343): the bats suites call steps directly, so a green suite cannot prove one is wired in. Never scans the generated bundles. Opt out `# UNCALLED_OK: reason`. |
 | `check_printer_images.py` | Fail if `printer_database.json` names a printer image not on disk (a dangling reference silently renders `generic-corexy`). `KNOWN_MISSING` is a ratchet that can only shrink. `--list` |
 | `check_pytest_asyncio_deps.py` | Fail if an `async def test_*` exists without pytest-asyncio in `requirements.txt` (plain pytest fails it as a coroutine) or without `@pytest.mark.asyncio` (strict mode SKIPS it). The second rule drops when a pytest config sets `asyncio_mode = auto`. |
-| `check_modal_chrome_budget.py` | Fail if a modal's chrome does not match the content cap it budgets against (#1277): everything but a divider and the first button row lives inside the scroll container, or the container opts into `#dialog_content_pinned_max` / `#dialog_content_tall_chrome_max`; a card raised above the shared 85% cap is also flagged. Opt out `MODAL_CHROME_OK: reason` |
+| `check_modal_chrome_budget.py` | Fail if a modal's chrome does not match the content cap it budgets against (#1277): everything but a divider and the first button row lives inside the scroll container, or the container opts into `#dialog_content_pinned_max`; a card raised above the shared 85% cap is also flagged. Opt out `MODAL_CHROME_OK: reason` |
 | `check_raw_print_job_state.py` | Every read of the raw print wire (`PrintJobState::PRINTING/PAUSED/STANDBY`, `get_print_job_state()`, `get_print_state_enum_subject()`) must carry `// RAW_PRINT_STATE_OK: <real reason>` within 12 lines above; ask `get_print_lifecycle()` / `job_holds_machine()` instead. The derivation layer is allowlisted |
 | `check_cached_widget_pointers.py` | Ratchet on raw `lv_obj_t*` data members in `src/` and `include/` (#1298): a cached widget outlives its widget whenever something other than its owner deletes the tree, and owner-keyed guards still read valid then. Hold it as `helix::ui::WidgetRef`. Counts scalar, static and C-array members with the trailing-underscore name; silent on locals, parameters, comments and containers. Opt out `// WIDGET_PTR_OK: reason` on the line or the one above. `--list` |
 | `check_json_dump_utf8.py` | Reject a bare `.dump()` on a save path — a stream write, an HTTP body or a socket send (#1493). nlohmann's default `error_handler_t::strict` throws on the invalid UTF-8 that SSIDs, printer/tool names, file names and gcode responses routinely carry, costing the whole document; `helix::json_util::safe_dump()` replaces the bytes instead. Silent on log arguments. Opt out `// JSON_DUMP_OK: reason` |

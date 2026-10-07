@@ -1,5 +1,7 @@
 locale: ja
 translations:
+  '%d-%d': '%d〜%d'
+  '%d-%d°C': '%d〜%d°C'
   ' (timed out)': （タイムアウト）
   ' frames': ' フレーム'
   ' left': ' 残り'
@@ -799,6 +801,7 @@ translations:
   Cutting: カット中
   Cutting filament...: フィラメントを切断中...
   DETECTED USB PRINTERS: 検出されたUSBプリンター
+  DEVICES: デバイス
   DISABLED: 無効
   DISCOVERED PRINTERS: 検出されたプリンター
   DISPLAY: ディスプレイ
@@ -806,16 +809,16 @@ translations:
   Danger: 危険
   Danger Zone: 危険ゾーン
   Dark Mode: ダークモード
-  Database: データベース
   Date (newest): 日付（新しい順）
   Date (oldest): 日付（古い順）
   Day: 日
   Debug: デバッグ
+  Deep Black: ディープブラック
   Default: 'デフォルト'
   Default Parameters: 'デフォルトのパラメータ'
   Default border thickness: デフォルトの境界線の太さ
-  'Default: %d-%d°C nozzle, %d°C bed': 'デフォルト: ノズル %d〜%d°C、ベッド %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'デフォルト: ノズル %d〜%d°C、ベッド %d°C、チャンバー %d°C'
+  'Default: %s nozzle, %d°C bed': 'デフォルト: ノズル %s、ベッド %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'デフォルト: ノズル %s、ベッド %d°C、チャンバー %d°C'
   Defaults restored: デフォルトを復元しました
   Define macros in your printer.cfg: printer.cfg でマクロを定義してください
   Delete: 削除
@@ -1359,7 +1362,7 @@ translations:
   Hardware was present in previous session but is now missing: '前回のセッションにあったハードウェアが見つかりません'
   Have a piece of paper ready.: 紙を1枚用意してください。
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。
   Heading: 見出し
@@ -1378,6 +1381,7 @@ translations:
   Heated Bed MPC Calibration: ヒートベッド MPCキャリブレーション
   Heated Bed PID Tuning: ヒートベッド PIDチューニング
   Heater: ヒーター
+  Heater Calibration: ヒーターキャリブレーション
   Heater Power: ヒーター出力
   Heater connection lost: ヒーター接続が切断されました
   Heater fault: ヒーター異常
@@ -3455,6 +3459,7 @@ translations:
   Volume: 音量
   Volume of filament used during ramming: 'ラミング時に使用するフィラメント量'
   Volume {}%: 音量 {}%
+  WEIGHT SYNC: 重量同期
   WIDTH SENSORS: 幅センサー
   WLED Preset: WLED プリセット
   WPA/WPA2: 'WPA/WPA2'

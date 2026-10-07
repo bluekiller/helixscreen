@@ -60,7 +60,6 @@ void FilamentCatalogPickerModal::on_show() {
     selector_.configure(seed_type_, allowed_types_);
     selector_.set_show_edit_affordances(true); // standalone picker allows catalog editing
     selector_.populate();
-    apply_input_surface();
 
     // "Reset to defaults" is the leading (tertiary) action in the button row; gate it and
     // its divider on whether a reset callback was set before show() (preset-editing
@@ -75,22 +74,6 @@ void FilamentCatalogPickerModal::on_show() {
         } else {
             lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
         }
-    }
-}
-
-void FilamentCatalogPickerModal::apply_input_surface() {
-    if (!dialog())
-        return;
-    // Re-assert the darker input surface post palette-reapply (see
-    // BufferStatusModal); the dropdown popup lists persist across open/close.
-    lv_color_t input_bg = theme_manager_get_color("overlay_bg");
-    for (const char* n : {"vendor_dropdown", "type_dropdown"}) {
-        lv_obj_t* dd = lv_obj_find_by_name(dialog(), n);
-        if (!dd)
-            continue;
-        lv_obj_set_style_bg_color(dd, input_bg, LV_PART_MAIN);
-        if (lv_obj_t* list = lv_dropdown_get_list(dd))
-            lv_obj_set_style_bg_color(list, input_bg, LV_PART_MAIN);
     }
 }
 

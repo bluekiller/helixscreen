@@ -15,6 +15,8 @@
   <translation tag="%d slots" ru="%d слотов"/>
   <translation tag="%d toolheads" ru="%d печатающих головок"/>
   <translation tag="%d tools" ru="%d инструментов"/>
+  <translation tag="%d-%d" ru="%d-%d"/>
+  <translation tag="%d-%d°C" ru="%d-%d°C"/>
   <translation tag="%d:%02d left" ru="осталось %d:%02d"/>
   <translation tag="%dh" ru="%d ч"/>
   <translation tag="%dh %02dm" ru="%d ч %02d мин"/>
@@ -776,6 +778,7 @@
   <translation tag="Cutting" ru="Резка"/>
   <translation tag="Cutting filament..." ru="Обрезка филамента..."/>
   <translation tag="DETECTED USB PRINTERS" ru="ОБНАРУЖЕННЫЕ USB-ПРИНТЕРЫ"/>
+  <translation tag="DEVICES" ru="УСТРОЙСТВА"/>
   <translation tag="DISABLED" ru="ОТКЛЮЧЕНО"/>
   <translation tag="DISCOVERED PRINTERS" ru="НАЙДЕННЫЕ ПРИНТЕРЫ"/>
   <translation tag="DISPLAY" ru="ДИСПЛЕЙ"/>
@@ -783,16 +786,16 @@
   <translation tag="Danger" ru="Опасность"/>
   <translation tag="Danger Zone" ru="Опасная зона"/>
   <translation tag="Dark Mode" ru="Тёмный режим"/>
-  <translation tag="Database" ru="База данных"/>
   <translation tag="Date (newest)" ru="Дата (новые)"/>
   <translation tag="Date (oldest)" ru="Дата (старые)"/>
   <translation tag="Day" ru="День"/>
   <translation tag="Debug" ru="Отладка"/>
+  <translation tag="Deep Black" ru="Глубокий чёрный"/>
   <translation tag="Default" ru="По умолчанию"/>
   <translation tag="Default Parameters" ru="Параметры по умолчанию"/>
   <translation tag="Default border thickness" ru="Толщина границы по умолчанию"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" ru="По умолчанию: сопло %d-%d°C, стол %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" ru="По умолчанию: сопло %d-%d°C, стол %d°C, камера %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" ru="По умолчанию: сопло %s, стол %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" ru="По умолчанию: сопло %s, стол %d°C, камера %d°C"/>
   <translation tag="Defaults restored" ru="Настройки по умолчанию восстановлены"/>
   <translation tag="Define macros in your printer.cfg" ru="Определите макросы в вашем printer.cfg"/>
   <translation tag="Delete" ru="Удалить"/>
@@ -1313,7 +1316,7 @@
   <translation tag="Hardware saved to config" ru="Оборудование сохранено в конфигурацию"/>
   <translation tag="Hardware was present in previous session but is now missing" ru="Оборудование было в прошлом сеансе, но сейчас отсутствует"/>
   <translation tag="Have a piece of paper ready." ru="Подготовьте лист бумаги."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." ru="Подготовьте инструмент для регулировки стола (отвёртку, шестигранник и т.д.), если стол не регулируется                              барашками или другим встроенным механизмом."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." ru="Подготовьте инструмент для регулировки стола (отвёртку, шестигранник и т.д.), если стол не регулируется                              барашками или другим встроенным механизмом."/>
   <translation tag="Heading" ru="Заголовок"/>
   <translation tag="Healthy" ru="В порядке"/>
   <translation tag="Heat Capacity" ru="Теплоёмкость"/>
@@ -1330,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" ru="Калибровка MPC стола"/>
   <translation tag="Heated Bed PID Tuning" ru="Настройка PID стола"/>
   <translation tag="Heater" ru="Нагреватель"/>
+  <translation tag="Heater Calibration" ru="Калибровка нагревателя"/>
   <translation tag="Heater Power" ru="Мощность нагревателя"/>
   <translation tag="Heater connection lost" ru="Потеряна связь с нагревателем"/>
   <translation tag="Heater fault" ru="Неисправность нагревателя"/>
@@ -3296,6 +3300,7 @@
   <translation tag="Volume" ru="Громкость"/>
   <translation tag="Volume of filament used during ramming" ru="Объём филамента, расходуемый при рэмминге"/>
   <translation tag="Volume {}%" ru="Громкость {}%"/>
+  <translation tag="WEIGHT SYNC" ru="СИНХРОНИЗАЦИЯ ВЕСА"/>
   <translation tag="WIDTH SENSORS" ru="ДАТЧИКИ ШИРИНЫ"/>
   <translation tag="WLED Preset" ru="Пресет WLED"/>
   <translation tag="WPA/WPA2" ru="WPA/WPA2"/>

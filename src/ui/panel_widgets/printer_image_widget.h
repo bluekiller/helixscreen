@@ -132,8 +132,11 @@ class PrinterImageWidget : public PanelWidget {
     /// (point, elbow, chip edge) live here, one set per CalloutKind from Nozzle to Light.
     std::array<std::array<lv_point_precise_t, 3>, 5> callout_line_pts_{};
     std::vector<ObserverGuard> callout_observers_;
+    /// Each text chip's full text, indexed by CalloutKind. Its subject carries the
+    /// compact form while the chips are pinned; measuring reads this.
+    std::array<std::string, 6> callout_full_text_{};
     SubjectLifetime bed_temp_lt_, bed_target_lt_, chamber_temp_lt_, chamber_target_lt_;
-    helix::ui::HeaterIconBinder nozzle_binder_, bed_binder_, chamber_binder_, toolhead_binder_;
+    helix::ui::HeaterIconBinder nozzle_binder_, bed_binder_, chamber_binder_;
 };
 
 } // namespace helix

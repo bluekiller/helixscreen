@@ -30,14 +30,6 @@ nlohmann::json mock_server_components(bool with_spoolman) {
 
 namespace mock_internal {
 
-// In-memory Moonraker database: one JSON object per namespace, with dotted
-// keys addressing nested records the way Moonraker's own database API does
-// (post_item to "a.b" writes member b of record a, creating a when absent).
-// Reset inside register_server_handlers() so each MoonrakerClientMock
-// construction starts empty — keys written by one test would otherwise leak
-// into the next in the same process.
-static std::map<std::string, json> s_mock_db;
-
 namespace {
 
 /// Splits "a.b.c" into segments; a dotless key yields one segment.
@@ -58,12 +50,12 @@ std::vector<std::string> split_key(const std::string& key) {
 
 /// The record at a dotted key, or null when the namespace, any intermediate
 /// record, or the final member is absent.
-json* find_db_value(const std::string& ns, const std::string& key) {
-    auto ns_it = s_mock_db.find(ns);
-    if (ns_it == s_mock_db.end() || !ns_it->second.is_object()) {
+json* find_db_value(json& db, const std::string& ns, const std::string& key) {
+    auto ns_it = db.find(ns);
+    if (ns_it == db.end() || !ns_it->is_object()) {
         return nullptr;
     }
-    json* node = &ns_it->second;
+    json* node = &ns_it.value();
     for (const auto& segment : split_key(key)) {
         auto member = node->find(segment);
         if (member == node->end()) {
@@ -74,11 +66,41 @@ json* find_db_value(const std::string& ns, const std::string& key) {
     return node;
 }
 
+/// Writes @p value at a dotted key the way Moonraker's post_item does: "a.b"
+/// writes member b of record a, creating a when absent.
+void store_db_value(json& db, const std::string& ns, const std::string& key, const json& value) {
+    const std::vector<std::string> segments = split_key(key);
+    json& root = db[ns];
+    if (!root.is_object()) {
+        root = json::object();
+    }
+    json* node = &root;
+    for (size_t i = 0; i + 1 < segments.size(); ++i) {
+        if (!node->contains(segments[i]) || !(*node)[segments[i]].is_object()) {
+            (*node)[segments[i]] = json::object();
+        }
+        node = &(*node)[segments[i]];
+    }
+    (*node)[segments.back()] = value;
+}
+
+/// Moonraker's database raises ServerError(..., 404), which its JSON-RPC layer
+/// sends as code -32601 with the message kept.
+MoonrakerError db_not_found(const std::string& method, const std::string& what) {
+    return MoonrakerError::from_json_rpc({{"code", -32601}, {"message", what + " not found"}},
+                                         method);
+}
+
+/// Moonraker's answer for a method it has not registered, as when the
+/// spoolman component is not configured.
+MoonrakerError method_not_found(const std::string& method) {
+    return MoonrakerError::from_json_rpc({{"code", -32601}, {"message", "Method not found"}},
+                                         method);
+}
+
 } // namespace
 
 void register_server_handlers(std::unordered_map<std::string, MethodHandler>& registry) {
-    s_mock_db.clear();
-
     // server.config - Moonraker's own configuration.
     // https://moonraker.readthedocs.io/en/latest/web_api/#get-server-configuration
     // job_queue.automatic_transition defaults to false the way Moonraker's
@@ -102,31 +124,44 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         return true;
     };
 
-    // server.database.get_item - read one key from the mock database.
-    // A missing key answers the JSON-RPC 404 the real server does, which is
-    // the signal callers treat as "nothing stored yet".
+    // server.database.get_item - read one key from the mock database, or the
+    // whole namespace when no key is given. A missing key or namespace answers
+    // the JSON-RPC 404 the real server does, which is the signal callers treat
+    // as "nothing stored yet".
     registry["server.database.get_item"] =
-        []([[maybe_unused]] MoonrakerClientMock* self, const json& params,
+        [](MoonrakerClientMock* self, const json& params,
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> error_cb) -> bool {
         if (!params.contains("namespace") || !params["namespace"].is_string() ||
-            !params.contains("key") || !params["key"].is_string()) {
+            (params.contains("key") && !params["key"].is_string())) {
             if (error_cb) {
-                error_cb(MoonrakerError::validation_error(
-                    "server.database.get_item", "get_item: 'namespace' and 'key' are required"));
+                error_cb(MoonrakerError::validation_error("server.database.get_item",
+                                                          "get_item: 'namespace' is required"));
             }
             return true;
         }
         std::string ns = params["namespace"].get<std::string>();
+        json& db = self->mock_db();
+        if (!params.contains("key")) {
+            auto ns_it = db.find(ns);
+            if (ns_it == db.end()) {
+                if (error_cb) {
+                    error_cb(db_not_found("server.database.get_item", "Namespace " + ns));
+                }
+                return true;
+            }
+            if (success_cb) {
+                success_cb(
+                    json{{"result", {{"namespace", ns}, {"key", nullptr}, {"value", *ns_it}}}});
+            }
+            return true;
+        }
         std::string key = params["key"].get<std::string>();
-        json* value = find_db_value(ns, key);
+        json* value = find_db_value(db, ns, key);
         if (value == nullptr) {
             if (error_cb) {
-                MoonrakerError err = MoonrakerError::json_rpc_error(
-                    "server.database.get_item",
-                    "Key '" + key + "' in namespace '" + ns + "' not found");
-                err.code = 404;
-                error_cb(err);
+                error_cb(db_not_found("server.database.get_item",
+                                      "Key '" + key + "' in namespace '" + ns + "'"));
             }
             return true;
         }
@@ -138,7 +173,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
 
     // server.database.post_item - write one key to the mock database.
     registry["server.database.post_item"] =
-        []([[maybe_unused]] MoonrakerClientMock* self, const json& params,
+        [](MoonrakerClientMock* self, const json& params,
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> error_cb) -> bool {
         if (!params.contains("namespace") || !params["namespace"].is_string() ||
@@ -152,19 +187,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         }
         std::string ns = params["namespace"].get<std::string>();
         std::string key = params["key"].get<std::string>();
-        const std::vector<std::string> segments = split_key(key);
-        json& root = s_mock_db[ns];
-        if (!root.is_object()) {
-            root = json::object();
-        }
-        json* node = &root;
-        for (size_t i = 0; i + 1 < segments.size(); ++i) {
-            if (!node->contains(segments[i]) || !(*node)[segments[i]].is_object()) {
-                (*node)[segments[i]] = json::object();
-            }
-            node = &(*node)[segments[i]];
-        }
-        (*node)[segments.back()] = params["value"];
+        store_db_value(self->mock_db(), ns, key, params["value"]);
         spdlog::debug("[MoonrakerClientMock] database post_item: {}/{}", ns, key);
         if (success_cb) {
             success_cb(
@@ -179,7 +202,7 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
     // leaving this unregistered would freeze any caller waiting on either
     // callback, because unimplemented methods invoke neither.
     registry["server.database.delete_item"] =
-        []([[maybe_unused]] MoonrakerClientMock* self, const json& params,
+        [](MoonrakerClientMock* self, const json& params,
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> error_cb) -> bool {
         if (!params.contains("namespace") || !params["namespace"].is_string() ||
@@ -196,22 +219,20 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         const std::vector<std::string> segments = split_key(key);
         // The PARENT record is what erases the child: the namespace object for
         // a dotless key, the intermediate record for a dotted one.
+        json& db = self->mock_db();
         json* parent = nullptr;
         if (segments.size() > 1) {
-            parent = find_db_value(ns, key.substr(0, key.rfind('.')));
+            parent = find_db_value(db, ns, key.substr(0, key.rfind('.')));
         } else {
-            auto ns_it = s_mock_db.find(ns);
-            if (ns_it != s_mock_db.end() && ns_it->second.is_object()) {
-                parent = &ns_it->second;
+            auto ns_it = db.find(ns);
+            if (ns_it != db.end() && ns_it->is_object()) {
+                parent = &ns_it.value();
             }
         }
         if (parent == nullptr || parent->find(segments.back()) == parent->end()) {
             if (error_cb) {
-                MoonrakerError err = MoonrakerError::json_rpc_error(
-                    "server.database.delete_item",
-                    "Key '" + key + "' in namespace '" + ns + "' not found");
-                err.code = 404;
-                error_cb(err);
+                error_cb(db_not_found("server.database.delete_item",
+                                      "Key '" + key + "' in namespace '" + ns + "'"));
             }
             return true;
         }
@@ -254,13 +275,62 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
         [](MoonrakerClientMock* self, const json& /*params*/,
            std::function<void(const json&)> success_cb,
            std::function<void(const MoonrakerError&)> /*error_cb*/) -> bool {
+        const int active = self->spoolman_mock().get_mock_active_spool_id();
         json response = {{"jsonrpc", "2.0"},
                          {"result",
                           {{"spoolman_connected", self->is_mock_spoolman_enabled()},
                            {"pending_reports", json::array()},
-                           {"spool_id", nullptr}}}};
+                           {"spool_id", active > 0 ? json(active) : json(nullptr)}}}};
         if (success_cb) {
             success_cb(response);
+        }
+        return true;
+    };
+
+    // server.spoolman.post_spool_id - set the active spool.
+    registry["server.spoolman.post_spool_id"] =
+        [](MoonrakerClientMock* self, const json& params,
+           std::function<void(const json&)> success_cb,
+           std::function<void(const MoonrakerError&)> error_cb) -> bool {
+        if (!self->is_mock_spoolman_enabled()) {
+            if (error_cb) {
+                error_cb(method_not_found("server.spoolman.post_spool_id"));
+            }
+            return true;
+        }
+        const int id = params.contains("spool_id") && params["spool_id"].is_number_integer()
+                           ? params["spool_id"].get<int>()
+                           : 0;
+        self->spoolman_mock().set_active_spool_id(id);
+        if (success_cb) {
+            success_cb(json{{"jsonrpc", "2.0"},
+                            {"result", {{"spool_id", id > 0 ? json(id) : json(nullptr)}}}});
+        }
+        return true;
+    };
+
+    // server.spoolman.proxy - Spoolman's REST API, answered by the mock
+    // Spoolman server with the JSON Spoolman returns.
+    registry["server.spoolman.proxy"] =
+        [](MoonrakerClientMock* self, const json& params,
+           std::function<void(const json&)> success_cb,
+           std::function<void(const MoonrakerError&)> error_cb) -> bool {
+        if (!self->is_mock_spoolman_enabled()) {
+            if (error_cb) {
+                error_cb(method_not_found("server.spoolman.proxy"));
+            }
+            return true;
+        }
+        json result;
+        MoonrakerError err;
+        if (!self->spoolman_mock().proxy(params, result, err)) {
+            if (error_cb) {
+                error_cb(err);
+            }
+            return true;
+        }
+        if (success_cb) {
+            success_cb(json{{"jsonrpc", "2.0"}, {"result", std::move(result)}});
         }
         return true;
     };
@@ -549,3 +619,13 @@ void register_server_handlers(std::unordered_map<std::string, MethodHandler>& re
 }
 
 } // namespace mock_internal
+
+void MoonrakerClientMock::mock_db_set(const std::string& ns, const std::string& key,
+                                      const json& value) {
+    mock_internal::store_db_value(mock_db_, ns, key, value);
+}
+
+json MoonrakerClientMock::mock_db_get(const std::string& ns, const std::string& key) {
+    json* value = mock_internal::find_db_value(mock_db_, ns, key);
+    return value ? *value : json();
+}

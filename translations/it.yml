@@ -1,5 +1,7 @@
 locale: it
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (tempo scaduto)'
   ' frames': ' fotogrammi'
   ' left': ' rimanente'
@@ -863,6 +865,7 @@ translations:
   Cutting: Taglio
   Cutting filament...: Taglio filamento...
   DETECTED USB PRINTERS: STAMPANTI USB RILEVATE
+  DEVICES: DISPOSITIVI
   DISABLED: DISABILITATO
   DISCOVERED PRINTERS: STAMPANTI SCOPERTE
   DISPLAY: SCHERMO
@@ -870,16 +873,16 @@ translations:
   Danger: Pericolo
   Danger Zone: Zona pericolosa
   Dark Mode: Modalità scura
-  Database: Database
   Date (newest): Data (più recente)
   Date (oldest): Data (più vecchio)
   Day: Giorno
   Debug: Debug
+  Deep Black: Nero intenso
   Default: 'Predefinito'
   Default Parameters: 'Parametri predefiniti'
   Default border thickness: Spessore bordo predefinito
-  'Default: %d-%d°C nozzle, %d°C bed': 'Predefinito: %d-%d°C ugello, %d°C piano'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Predefinito: %d-%d°C ugello, %d°C piano, %d°C camera'
+  'Default: %s nozzle, %d°C bed': 'Predefinito: %s ugello, %d°C piano'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Predefinito: %s ugello, %d°C piano, %d°C camera'
   Defaults restored: Predefiniti ripristinati
   Define macros in your printer.cfg: Definire le macro nel proprio printer.cfg
   Delete: Elimina
@@ -1447,7 +1450,7 @@ translations:
   Hardware was present in previous session but is now missing: 'Hardware presente nella sessione precedente ma ora mancante'
   Have a piece of paper ready.: Tieni pronto un foglio di carta.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Avere pronto lo strumento di regolazione piano (cacciavite, chiave esagonale,
     ecc.) se il piano non viene regolato con                              manopole
@@ -1470,6 +1473,7 @@ translations:
   Heated Bed MPC Calibration: Calibrazione MPC piano riscaldato
   Heated Bed PID Tuning: Regolazione PID piano riscaldato
   Heater: Riscaldatore
+  Heater Calibration: Calibrazione del riscaldatore
   Heater Power: Potenza riscaldatore
   Heater connection lost: Connessione al riscaldatore persa
   Heater fault: Guasto al riscaldatore
@@ -3702,6 +3706,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: 'Volume di filamento usato durante la compattazione'
   Volume {}%: Volume {}%
+  WEIGHT SYNC: SINCRONIZZAZIONE PESO
   WIDTH SENSORS: SENSORI DI LARGHEZZA
   WLED Preset: Preset WLED
   WPA/WPA2: 'WPA/WPA2'

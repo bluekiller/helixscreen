@@ -1,5 +1,7 @@
 locale: en
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (timed out)'
   ' frames': ' frames'
   ' left': ' left'
@@ -835,6 +837,7 @@ translations:
   Cutting: Cutting
   Cutting filament...: Cutting filament...
   DETECTED USB PRINTERS: DETECTED USB PRINTERS
+  DEVICES: DEVICES
   DISABLED: DISABLED
   DISCOVERED PRINTERS: DISCOVERED PRINTERS
   DISPLAY: DISPLAY
@@ -842,16 +845,16 @@ translations:
   Danger: Danger
   Danger Zone: Danger Zone
   Dark Mode: Dark Mode
-  Database: Database
   Date (newest): Date (newest)
   Date (oldest): Date (oldest)
   Day: Day
   Debug: Debug
+  Deep Black: Deep Black
   Default: Default
   Default Parameters: Default Parameters
   Default border thickness: Default border thickness
-  'Default: %d-%d°C nozzle, %d°C bed': 'Default: %d-%d°C nozzle, %d°C bed'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber'
+  'Default: %s nozzle, %d°C bed': 'Default: %s nozzle, %d°C bed'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Default: %s nozzle, %d°C bed, %d°C chamber'
   Defaults restored: Defaults restored
   Define macros in your printer.cfg: Define macros in your printer.cfg
   Delete: Delete
@@ -1400,10 +1403,10 @@ translations:
   Hardware was present in previous session but is now missing: Hardware was present in previous session but is now missing
   Have a piece of paper ready.: Have a piece of paper ready.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   Heading: Heading
   Healthy: Healthy
@@ -1422,6 +1425,7 @@ translations:
   Heated Bed MPC Calibration: Heated Bed MPC Calibration
   Heated Bed PID Tuning: Heated Bed PID Tuning
   Heater: Heater
+  Heater Calibration: Heater Calibration
   Heater Power: Heater Power
   Heater connection lost: 'Heater connection lost'
   Heater fault: 'Heater fault'
@@ -3589,6 +3593,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: Volume of filament used during ramming
   Volume {}%: Volume {}%
+  WEIGHT SYNC: WEIGHT SYNC
   WIDTH SENSORS: WIDTH SENSORS
   WLED Preset: WLED Preset
   WPA/WPA2: WPA/WPA2
