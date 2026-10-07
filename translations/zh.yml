@@ -1022,6 +1022,7 @@ translations:
   Every extruder's temperature at once: 同时查看所有挤出机温度
   Everything else was saved. Change them in Spoolman.: 其他内容均已保存。请在 Spoolman 中修改。
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: '其他内容均已保存。请使用字母、数字、空格以及 + - _ . ( ) / 重命名材料'
+  Every object is set to skip, so there is nothing to print: '所有对象都已设为跳过，没有可打印的内容'
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: 所有工具的偏移将重新测量并替换当前值。之后请保存以保留结果。
   Excellent Accuracy: 精度极佳
   'Exception: {}': '异常: {}'
@@ -2059,6 +2060,7 @@ translations:
   'ON: {} | OFF: {}': '开: {} | 关: {}'
   OS: OS
   'OS: ': '操作系统: '
+  Object picks apply only to prints started now: '对象选择仅适用于现在开始的打印'
   Object positions unavailable: 对象位置不可用
   Objects: 对象
   'Off': 关

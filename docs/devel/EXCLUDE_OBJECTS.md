@@ -70,6 +70,11 @@ UI entry points:
 | `src/ui/ui_exclude_object_badges.cpp` | Badge decision (pure) and the disc drawn on the map and the 2D/3D render |
 | `src/api/moonraker_api_controls.cpp` | `MoonrakerAPI::exclude_object()` with input validation |
 | `src/api/moonraker_client_mock.cpp` | Mock mode: EXCLUDE_OBJECT handling and status dispatch |
+| `include/ui_exclude_mode_controller.h` | `ExcludeModeController`: exclude mode over a preview (list, map, render badges), shared by print status and print details |
+| `src/ui/ui_exclude_mode_controller.cpp` | Opens and closes the list and map over the host's card, routes every tap to the host |
+| `include/pre_start_exclude.h` | Pre-start pick rules (availability, upper-case name matching, every-object check) and the after-start send |
+| `src/ui/pre_start_exclude.cpp` | `with_pre_start_exclusions()` / `send_pre_start_exclusions()`: EXCLUDE_OBJECT for each pick once Moonraker confirms the start |
+| `ui_xml/components/exclude_objects_button.xml` | The skip button in the preview's top-left corner, shared by print status and details |
 
 ---
 
@@ -280,6 +285,46 @@ The side list is built from `ui_xml/components/exclude_object_side_list.xml`, th
 
 ---
 
+## Choosing objects before a print starts
+
+Print details lets the user pick objects to skip before tapping Print. There is no
+second model for this: details owns a private `PrinterExcludedObjectsState`
+(`init_subjects(false)`, so nothing registers globally) and its excluded set *is* the picks.
+
+- **Objects.** `src/ui/ui_print_select_detail_view.cpp#refresh_exclude_objects`
+  fills the defined objects from the file scan's `ScanResult::objects` (the first
+  `PRINTER_STOP_SCAN_BYTES` of the file), merged with any the viewer's full parse found
+  (`src/ui/pre_start_exclude.cpp#merge_defined_objects`).
+- **Taps.** Exclude mode is the same `ExcludeModeController` print status uses, opened with
+  `ExcludeTapMode::Toggle`: a tap picks or un-picks an object, with no confirmation modal.
+  A name the printer cannot be sent is refused at the tap with a toast
+  (`src/ui/ui_print_select_detail_view.cpp#toggle_exclude_pick`).
+- **The button** shows when `src/ui/pre_start_exclude.cpp#pre_start_exclude_available` says
+  so: the printer has `[exclude_object]`, the file is G-code (not 3MF), and it defines at
+  least two objects.
+- **Capture.** `src/ui/ui_panel_print_select.cpp#start_print` reads the
+  picks with the file at the Print tap, so a USB copy that lands after another file opened
+  still sends the tapped file's picks. `PrintStartController::set_exclude_picks` carries
+  them to the next start, which consumes them; a reprint never reads them.
+- **Send.** Klipper resets `exclude_object` as a print starts (`virtual_sdcard:reset_file`),
+  so nothing can be sent ahead of the start. `src/ui/pre_start_exclude.cpp#"with_pre_start_exclusions(std::function"`
+  wraps the callback Moonraker's start confirmation fires and sends `EXCLUDE_OBJECT` for each
+  pick after it. Every start path from details goes through it: the direct start, the
+  plugin-modified start, the pre-start wait and the remap rewrite
+  (`src/ui/ui_panel_print_select.cpp#apply_remap`).
+- **Refusals.** Picking every object refuses the start before anything heats
+  (`src/ui/ui_panel_print_select.cpp#refuse_start_with_every_object_picked`).
+  A tap that queues the file drops the picks with the toast "Object picks apply only to
+  prints started now" and queues without them.
+- **Lifetime.** The start hides details with the picks held, so a start that fails comes
+  back to the same file with them intact. They clear once Moonraker confirms the start, or
+  when the user leaves the file (back to the list, or another file).
+- **Failures.** A failed send is one error toast naming the objects, unless the print ended
+  first; a TIMEOUT is advisory, since the command may still run
+  (`src/ui/pre_start_exclude.cpp#send_pre_start_exclusions`).
+
+---
+
 ## 2D Mode / Streaming Mode Support
 
 ### 2D Layer Renderer
@@ -342,6 +387,33 @@ The `MoonrakerClientMock` fully simulates the `exclude_object` feature for testi
 ```
 
 Start a mock print, then long-press objects in the G-code viewer or open the Print Objects side list to test the exclusion flow.
+
+To check picks made before the start, leave `HELIX_MOCK_EXCLUDE_OBJECTS` unset: it replaces
+the file's object names at print start, so the picks would name objects the mock no longer
+has.
+
+```bash
+unset HELIX_MOCK_EXCLUDE_OBJECTS
+SDL_VIDEODRIVER=dummy ./build/bin/helix-screen --test --sim-speed 6 -vv --render-2d \
+  --remote-socket "$HELIX_SOCK" > /tmp/helix-$TREE.log 2>&1 &
+C="./build/bin/helix-screen ctl -s $HELIX_SOCK"
+$C navigate print-select
+$C ls                                   # the card labelled exclude_object_test.gcode
+$C click <that card's path>
+$C click btn_detail_objects
+$C ls rows_container                    # Cone_id_0_copy_0, Cube_id_1_copy_0, Cylinder_id_2_copy_0
+$C click <row 1's path>
+$C click <row 3's path>
+$C text objects_pick_count              # "2"
+$C click close_btn
+$C click print_button
+# once Printing:
+$C text objects_count_label             # "1/3"
+grep -n "PreStartExclude" /tmp/helix-$TREE.log
+```
+
+The mock log shows `EXCLUDE_OBJECT: 'Cone_id_0_copy_0'` and `'Cylinder_id_2_copy_0'` after
+the `printer.print.start` line, and no `Could not skip` line.
 
 To see the render badges on a real three-object plate, print that file directly. The 3D
 renderer needs a GL context, which `SDL_VIDEODRIVER=dummy` lacks (the viewer falls back to
@@ -446,6 +518,9 @@ Tests are run with:
 | `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, map key numbering with a bbox-less object; the viewer's draw pass (drawn-top Z, off-screen skip, no stale pick targets), pick precedence (badge over geometry, top badge wins, excluded not pickable), equal badges not invalidating, exclusion dropping selection, the 3D shown-image transform |
 | `tests/unit/test_print_status_exclude_badges.cpp` | `[exclude_badges]` | Panel lifecycle: badges appear with the side list, match its chips, follow version bumps, clear on close |
 | `tests/unit/test_exclude_object_side_list.cpp` | `[exclude_side_list]` | Rows restyle in place, keep scroll and height as the printing object moves |
+| `tests/unit/test_exclude_mode_controller.cpp` | `[exclude_mode]` | The shared exclude mode: list and map over the host's card, taps reaching the host |
+| `tests/unit/test_pre_start_exclude.cpp` | `[pre_start_exclude]` | Pick rules (availability, name matching, every-object check, merge) and the after-start send |
+| `tests/unit/test_print_select_pre_start_exclude.cpp` | `[pre_start_exclude][start]` | Picks captured at the Print tap, sent only after the start is confirmed on the direct and remap paths, held across a failed start, refused when every object is picked, dropped by a queued start |
 
 ### Test G-code
 
@@ -457,26 +532,30 @@ Tests are run with:
 
 ### Adding Exclude Objects to a New Panel
 
-If building a panel that needs exclude object support:
+A panel that shows exclude mode over its preview owns an `ExcludeModeController` and hands
+it the widgets it covers, the state it reads, and what a tap does:
 
 ```cpp
-#include "ui_print_exclude_object_manager.h"
+#include "ui_exclude_mode_controller.h"
 
-// In panel construction:
-exclude_manager_ = std::make_unique<helix::ui::PrintExcludeObjectManager>(
-    api, printer_state, gcode_viewer_widget);
-exclude_manager_->init();
+helix::ui::ExcludeModeController exclude_mode_;   // member
 
-// When viewer widget is recreated:
-exclude_manager_->set_gcode_viewer(new_viewer_widget);
+helix::ui::ExcludeModeTargets targets;
+targets.card = card_widget;                        // what the map covers
+targets.columns = columns_row;                     // what the list floats over
+targets.gcode_viewer = gcode_viewer_widget;        // render badges in 2D/3D
+targets.thumbnail_mode = showing_thumbnail;        // map instead of badges
+exclude_mode_.show(targets, &excluded_objects_state, helix::ui::ExcludeTapMode::Toggle,
+                   [this](const std::string& name) { on_object_tapped(name); });
 
-// When API pointer changes:
-exclude_manager_->set_api(new_api);
-
-// Cleanup:
-exclude_manager_->deinit();
-exclude_manager_.reset();
+exclude_mode_.hide();                              // on close and on deactivate
 ```
+
+Print status (`src/ui/ui_panel_print_status.cpp#show_exclude_map_view`)
+routes taps through `PrintExcludeObjectManager`'s confirm-and-undo flow against the
+printer's live state. Print details
+(`src/ui/ui_print_select_detail_view.cpp#toggle_exclude_mode`)
+toggles picks in its own state.
 
 ### Observing Excluded Objects State
 

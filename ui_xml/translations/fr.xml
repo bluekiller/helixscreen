@@ -990,6 +990,7 @@
   <translation tag="Ethernet" fr="Ethernet"/>
   <translation tag="Events appear here after sessions and prints" fr="Les événements apparaissent ici après les sessions et impressions"/>
   <translation tag="Every extruder&apos;s temperature at once" fr="Température de chaque extrudeur"/>
+  <translation tag="Every object is set to skip, so there is nothing to print" fr="Tous les objets sont à ignorer, il n&apos;y a rien à imprimer"/>
   <translation tag="Every tool&apos;s offsets are measured again and replace the current ones. Save afterwards to keep the result." fr="Les offsets de tous les outils sont mesurés à nouveau et remplacent les actuels. Enregistrez ensuite pour conserver le résultat."/>
   <translation tag="Everything else was saved. Change them in Spoolman." fr="Tout le reste a été enregistré. Modifiez-les dans Spoolman."/>
   <translation tag="Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /" fr="Tout le reste a été enregistré. Renommez le matériau en utilisant des lettres, des chiffres, des espaces et + - _ . ( ) /"/>
@@ -1990,6 +1991,7 @@
   <translation tag="ON: {} | OFF: {}" fr="MARCHE : {} | ARRÊT : {}"/>
   <translation tag="OS" fr="OS"/>
   <translation tag="OS: " fr="OS : "/>
+  <translation tag="Object picks apply only to prints started now" fr="La sélection d&apos;objets ne s&apos;applique qu&apos;aux impressions lancées maintenant"/>
   <translation tag="Object positions unavailable" fr="Positions des objets indisponibles"/>
   <translation tag="Objects" fr="Objets"/>
   <translation tag="Off" fr="Éteint"/>

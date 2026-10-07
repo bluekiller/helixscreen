@@ -1108,6 +1108,7 @@ translations:
   Every extruder's temperature at once: Alle Extrudertemperaturen auf einmal
   Everything else was saved. Change them in Spoolman.: Alles Übrige wurde gespeichert. Ändern Sie diese in Spoolman.
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: 'Alles Übrige wurde gespeichert. Benennen Sie das Material mit Buchstaben, Ziffern, Leerzeichen sowie + - _ . ( ) / um'
+  Every object is set to skip, so there is nothing to print: 'Jedes Objekt ist zum Überspringen markiert, es gibt nichts zu drucken'
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: Die Offsets aller Werkzeuge werden neu gemessen und ersetzen die aktuellen. Danach speichern, um das Ergebnis zu behalten.
   Excellent Accuracy: Ausgezeichnete Genauigkeit
   'Exception: {}': 'Ausnahme: {}'
@@ -2211,6 +2212,7 @@ translations:
   'ON: {} | OFF: {}': 'EIN: {} | AUS: {}'
   OS: OS
   'OS: ': 'OS: '
+  Object picks apply only to prints started now: 'Objektauswahl gilt nur für jetzt gestartete Drucke'
   Object positions unavailable: Objektpositionen nicht verfügbar
   Objects: Objekte
   'Off': Aus

@@ -1026,6 +1026,7 @@ translations:
   Every extruder's temperature at once: 全エクストルーダーの温度を一覧表示
   Everything else was saved. Change them in Spoolman.: その他はすべて保存されました。変更は Spoolman で行ってください。
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: 'その他はすべて保存されました。材料名は英字・数字・スペース・+ - _ . ( ) / で構成される名前に変更してください'
+  Every object is set to skip, so there is nothing to print: 'すべてのオブジェクトがスキップ対象のため、印刷するものがありません'
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: すべてのツールのオフセットを再測定し、現在の値を置き換えます。結果を保持するには、その後保存してください。
   Excellent Accuracy: 非常に高精度
   'Exception: {}': '例外: {}'
@@ -2066,6 +2067,7 @@ translations:
   'ON: {} | OFF: {}': 'オン: {} | オフ: {}'
   OS: OS
   'OS: ': 'OS: '
+  Object picks apply only to prints started now: 'オブジェクトの選択は今すぐ開始する印刷にのみ適用されます'
   Object positions unavailable: オブジェクト位置が利用できません
   Objects: オブジェクト
   'Off': オフ

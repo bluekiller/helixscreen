@@ -50,6 +50,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "observe_language.h"
 #include "observer_factory.h"
+#include "pre_start_exclude.h"
 #include "preprint_predictor.h"
 #include "print_history_manager.h"
 #include "print_lifecycle_state.h" // job_holds_machine()
@@ -2665,14 +2666,28 @@ void PrintSelectPanel::create_print_controller() {
     print_controller_ = std::make_unique<helix::ui::PrintStartController>(printer_state_, api_);
     print_controller_->set_can_print_subject(&can_print_subject_);
     print_controller_->set_update_print_button([this]() { update_print_button_state(); });
-    print_controller_->set_hide_detail_view([this]() { hide_detail_view(); });
+    // A start hides details with its picks held, so a failed start comes back to them.
+    print_controller_->set_hide_detail_view([this]() {
+        if (detail_view_) {
+            detail_view_->hold_picks_for_start(true);
+        }
+        hide_detail_view();
+    });
     print_controller_->set_show_detail_view([this]() { show_detail_view(); });
     print_controller_->set_navigate_to_print_status(
         [this]() { PrintStatusPanel::push_overlay(parent_screen_); });
     // The queued-job start consumes its entry here, on Moonraker's
     // confirmation that the print actually started — the tap alone proves
     // nothing (the start can still fail or be backed out).
-    print_controller_->set_on_print_started([this]() { finish_pending_queued_job(); });
+    print_controller_->set_on_print_started([this]() {
+        finish_pending_queued_job();
+        // The picks went with the start. A hold already spent means details
+        // has since shown a file, whose picks are not this start's.
+        if (detail_view_ && detail_view_->picks_held_for_start()) {
+            detail_view_->drop_exclude_picks();
+            detail_view_->hold_picks_for_start(false);
+        }
+    });
 
     // Crash recovery: restore firmware mapping if app restarted mid-print
     print_controller_->recover_pending_remap();
@@ -2867,7 +2882,14 @@ void PrintSelectPanel::start_print(bool force) {
         return;
     }
     if (print_button_mode_ == helix::ui::PrintSelectButtonMode::Queue) {
+        if (detail_view_ && detail_view_->drop_exclude_picks()) {
+            NOTIFY_INFO(lv_tr("Object picks apply only to prints started now"));
+        }
         add_to_queue();
+        return;
+    }
+
+    if (refuse_start_with_every_object_picked()) {
         return;
     }
 
@@ -2914,22 +2936,37 @@ void PrintSelectPanel::start_print(bool force) {
     const std::string filename = selected_filename_buffer_;
     std::vector<std::string> colors = selected_filament_colors_;
     std::string thumbnail = selected_detail_thumbnail_buffer_;
+    std::vector<std::string> exclude_picks =
+        detail_view_ ? detail_view_->exclude_picks() : std::vector<std::string>{};
     if (!selected_local_path_.empty()) {
         copy_usb_file_to_printer([this, colors = std::move(colors),
-                                  thumbnail = std::move(thumbnail)](const std::string& dest) {
+                                  thumbnail = std::move(thumbnail),
+                                  exclude_picks](const std::string& dest) {
             const size_t slash = dest.rfind('/');
-            dispatch_print(dest.substr(slash + 1), dest.substr(0, slash), colors, thumbnail);
+            dispatch_print(dest.substr(slash + 1), dest.substr(0, slash), colors, thumbnail,
+                           exclude_picks);
         });
         return;
     }
-    dispatch_print(filename, current_path_, colors, thumbnail);
+    dispatch_print(filename, current_path_, colors, thumbnail, std::move(exclude_picks));
+}
+
+bool PrintSelectPanel::refuse_start_with_every_object_picked() {
+    if (!detail_view_ || !detail_view_->all_objects_picked()) {
+        return false;
+    }
+    NOTIFY_WARNING(lv_tr("Every object is set to skip, so there is nothing to print"));
+    return true;
 }
 
 void PrintSelectPanel::dispatch_print(const std::string& filename, const std::string& dir,
                                       const std::vector<std::string>& filament_colors,
-                                      const std::string& thumbnail) {
+                                      const std::string& thumbnail,
+                                      std::vector<std::string> exclude_picks) {
     // Pass extracted thumbnail path so USB/embedded thumbnails propagate to print status
     print_controller_->set_file(filename, dir, filament_colors, thumbnail);
+    // The picks seen at the tap: a USB copy can land after another file opened.
+    print_controller_->set_exclude_picks(std::move(exclude_picks));
 
     // A Print tap for the pending queued file puts the removal bookkeeping
     // past the reach of hide_detail_view(): from here only a confirmed start
@@ -3455,10 +3492,23 @@ void PrintSelectPanel::apply_remap(const std::vector<helix::ToolMapping>& update
 
         spdlog::info("[{}] Applying gcode remap: {} tool(s) for {}", get_name(), remap.size(),
                      file_path);
+        if (refuse_start_with_every_object_picked()) {
+            return;
+        }
         // The pipeline guards identity remaps internally (prints the original
-        // unmodified when nothing changed).
+        // unmodified when nothing changed). The callback runs once Moonraker
+        // confirms the start, from whichever thread answered.
         prep->modify_and_print_with_remap(
-            file_path, remap, [this]() { PrintStatusPanel::push_overlay(parent_screen_); });
+            file_path, remap,
+            helix::ui::with_pre_start_exclusions(
+                object_lifetime_.bg_cb("PrintSelectPanel::remap_print_started",
+                                       [this]() {
+                                           PrintStatusPanel::push_overlay(parent_screen_);
+                                           if (detail_view_) {
+                                               detail_view_->drop_exclude_picks();
+                                           }
+                                       }),
+                detail_view_ ? detail_view_->exclude_picks() : std::vector<std::string>{}));
         break;
     }
 

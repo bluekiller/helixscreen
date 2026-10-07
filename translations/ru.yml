@@ -1088,6 +1088,7 @@ translations:
   Every extruder's temperature at once: Температура всех экструдеров
   Everything else was saved. Change them in Spoolman.: Всё остальное сохранено. Измените их в Spoolman.
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: 'Всё остальное сохранено. Переименуйте материал, используя буквы, цифры, пробелы и + - _ . ( ) /'
+  Every object is set to skip, so there is nothing to print: 'Все объекты отмечены для пропуска, печатать нечего'
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: Смещения всех инструментов измеряются заново и заменяют текущие. После этого сохраните, чтобы оставить результат.
   Excellent Accuracy: Отличная точность
   'Exception: {}': 'Исключение: {}'
@@ -2182,6 +2183,7 @@ translations:
   'ON: {} | OFF: {}': 'ВКЛ: {} | ВЫКЛ: {}'
   OS: OS
   'OS: ': 'ОС: '
+  Object picks apply only to prints started now: 'Выбор объектов применяется только к печати, запущенной сейчас'
   Object positions unavailable: Позиции объектов недоступны
   Objects: Объекты
   'Off': Выкл

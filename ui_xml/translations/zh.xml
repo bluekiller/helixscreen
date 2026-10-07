@@ -990,6 +990,7 @@
   <translation tag="Ethernet" zh="以太网"/>
   <translation tag="Events appear here after sessions and prints" zh="会话和打印后事件将显示在此处"/>
   <translation tag="Every extruder&apos;s temperature at once" zh="同时查看所有挤出机温度"/>
+  <translation tag="Every object is set to skip, so there is nothing to print" zh="所有对象都已设为跳过，没有可打印的内容"/>
   <translation tag="Every tool&apos;s offsets are measured again and replace the current ones. Save afterwards to keep the result." zh="所有工具的偏移将重新测量并替换当前值。之后请保存以保留结果。"/>
   <translation tag="Everything else was saved. Change them in Spoolman." zh="其他内容均已保存。请在 Spoolman 中修改。"/>
   <translation tag="Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /" zh="其他内容均已保存。请使用字母、数字、空格以及 + - _ . ( ) / 重命名材料"/>
@@ -1990,6 +1991,7 @@
   <translation tag="ON: {} | OFF: {}" zh="开: {} | 关: {}"/>
   <translation tag="OS" zh="OS"/>
   <translation tag="OS: " zh="操作系统: "/>
+  <translation tag="Object picks apply only to prints started now" zh="对象选择仅适用于现在开始的打印"/>
   <translation tag="Object positions unavailable" zh="对象位置不可用"/>
   <translation tag="Objects" zh="对象"/>
   <translation tag="Off" zh="关"/>

@@ -1037,10 +1037,13 @@ class PrintSelectPanel : public PanelBase {
     void upload_usb_copy(UsbCopyRequest req, const std::map<std::string, uint64_t>& existing);
 
     /// Hand the controller @p filename in Moonraker directory @p dir, with the
-    /// tool colors and thumbnail read when Print was tapped, and start.
+    /// tool colors, thumbnail and object picks read when Print was tapped, and start.
     void dispatch_print(const std::string& filename, const std::string& dir,
                         const std::vector<std::string>& filament_colors,
-                        const std::string& thumbnail);
+                        const std::string& thumbnail, std::vector<std::string> exclude_picks);
+
+    /// True, after a toast, when every object is picked and nothing would print.
+    bool refuse_start_with_every_object_picked();
 
     /// post_job @p filename (Moonraker-relative) with the detail view's options.
     void queue_file(const std::string& filename);

@@ -1060,6 +1060,7 @@ translations:
   Every extruder's temperature at once: Every extruder's temperature at once
   Everything else was saved. Change them in Spoolman.: Everything else was saved. Change them in Spoolman.
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /
+  Every object is set to skip, so there is nothing to print: Every object is set to skip, so there is nothing to print
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.
   Excellent Accuracy: Excellent Accuracy
   'Exception: {}': 'Exception: {}'
@@ -2136,6 +2137,7 @@ translations:
   'ON: {} | OFF: {}': 'ON: {} | OFF: {}'
   OS: OS
   'OS: ': 'OS: '
+  Object picks apply only to prints started now: Object picks apply only to prints started now
   Object positions unavailable: Object positions unavailable
   Objects: Objects
   'Off': 'Off'
