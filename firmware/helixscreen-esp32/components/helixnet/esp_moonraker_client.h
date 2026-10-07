@@ -155,6 +155,7 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     static void* transport_worker_main(void* self);
     void transport_worker_loop();
     esp_websocket_client_handle_t create_transport(const std::string& url);
+    static void log_internal_heap(const char* when);
     void report_transport_stall();
     void fail_pending_requests();
 

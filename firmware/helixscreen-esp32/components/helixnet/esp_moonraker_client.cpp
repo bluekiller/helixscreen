@@ -221,8 +221,19 @@ esp_websocket_client_handle_t EspMoonrakerClient::create_transport(const std::st
 }
 
 void EspMoonrakerClient::post_transport_job(const char* what, std::function<void()> job) {
-    std::lock_guard<std::mutex> lock(transport_mutex_);
+    std::unique_lock<std::mutex> lock(transport_mutex_);
+    // With no transport there is nothing to stop, so a job cannot block the caller: run it
+    // here. The boot connect then allocates the websocket task in the same order, and on
+    // the same thread, as the rest of boot, and the worker's task is only created by the
+    // first operation that can wait.
+    if (!transport_worker_started_ && !transport_.current()) {
+        lock.unlock();
+        job();
+        log_internal_heap(what);
+        return;
+    }
     if (!transport_worker_started_) {
+        log_internal_heap("before transport worker");
         // The stack goes in PSRAM: stop/destroy/init/start touch no flash, and internal
         // RAM is what the websocket task itself needs.
         pthread_attr_t attr;
@@ -247,10 +258,12 @@ void EspMoonrakerClient::post_transport_job(const char* what, std::function<void
         pthread_attr_destroy(&attr);
         if (rc != 0) {
             ESP_LOGE(TAG, "transport worker could not start (%d); running %s inline", rc, what);
+            lock.unlock();
             job();
             return;
         }
         transport_worker_started_ = true;
+        log_internal_heap("after transport worker");
     }
     transport_jobs_.emplace_back(what, std::move(job));
     transport_cv_.notify_one();
@@ -279,10 +292,15 @@ void EspMoonrakerClient::transport_worker_loop() {
         job.second();
         const int64_t took_ms = (esp_timer_get_time() - transport_job_started_us_.load()) / 1000;
         transport_job_started_us_.store(0);
-        ESP_LOGI(TAG, "[transport] %s done in %lld ms | internal free=%u largest=%u", job.first,
-                 (long long)took_ms, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+        ESP_LOGI(TAG, "[transport] %s done in %lld ms", job.first, (long long)took_ms);
+        log_internal_heap(job.first);
     }
+}
+
+void EspMoonrakerClient::log_internal_heap(const char* when) {
+    ESP_LOGI(TAG, "[transport] %s | internal free=%u largest=%u", when,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
 }
 
 void EspMoonrakerClient::set_before_transport_start(std::function<bool()> check) {
