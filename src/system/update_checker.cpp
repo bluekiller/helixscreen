@@ -15,6 +15,7 @@
 
 #include "system/update_checker.h"
 
+#include "ui_emergency_stop.h"
 #include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_notification.h"
@@ -30,9 +31,11 @@
 #include "helix_thread.h"
 #include "helix_version.h"
 #include "hv/requests.h"
+#include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "moonraker_config_manager.h"
 #include "print_lifecycle_state.h"
 #include "printer_state.h"
 #include "replace_method_callback.h"
@@ -2703,6 +2706,7 @@ void UpdateChecker::on_channel_changed() {
 
     spdlog::info("[UpdateChecker] Update channel changed, re-checking");
     check_for_updates();
+    sync_moonraker_channel();
 }
 
 // ============================================================================
@@ -2806,6 +2810,73 @@ void UpdateChecker::do_check() {
 // ============================================================================
 // Channel-specific fetch methods
 // ============================================================================
+
+const char* UpdateChecker::moonraker_channel_name(UpdateChannel channel) {
+    return channel == UpdateChannel::Stable ? "stable" : "beta";
+}
+
+void UpdateChecker::sync_moonraker_channel() {
+    IMoonrakerAPI* api = get_moonraker_api();
+    if (!api)
+        return;
+    static constexpr const char* kConf = "moonraker.conf";
+    static constexpr const char* kSection = "update_manager helixscreen";
+    const std::string want = moonraker_channel_name(get_channel());
+
+    // Each hop re-checks the API: a printer switch while a transfer is in flight
+    // destroys the one this sync started with.
+    api->transfers().download_file(
+        "config", kConf,
+        [this, api, want](const std::string& content) {
+            std::string updated = helix::MoonrakerConfigManager::set_existing_value(
+                content, kSection, "channel", want);
+            if (updated == content)
+                return;
+            async_lifetime_.defer("UpdateChecker::sync_moonraker_channel", [this, api, want,
+                                                                            updated]() {
+                if (get_moonraker_api() != api)
+                    return;
+                spdlog::info("[UpdateChecker] Setting moonraker.conf update channel to {}", want);
+                api->transfers().upload_file(
+                    "config", kConf, updated,
+                    [this, api]() {
+                        async_lifetime_.defer("UpdateChecker::sync_moonraker_channel_restart",
+                                              [api]() {
+                                                  if (get_moonraker_api() != api)
+                                                      return;
+                                                  restart_moonraker_for_channel(*api);
+                                              });
+                    },
+                    [](const MoonrakerError& err) {
+                        spdlog::warn("[UpdateChecker] Could not write moonraker.conf: {}",
+                                     err.message);
+                    });
+            });
+        },
+        [](const MoonrakerError& err) {
+            spdlog::debug("[UpdateChecker] No moonraker.conf to sync the channel into: {}",
+                          err.message);
+        });
+}
+
+void UpdateChecker::restart_moonraker_for_channel(IMoonrakerAPI& api) {
+    // Restarting Moonraker drops Klipper's API clients mid-job. The file is already
+    // written, so Moonraker's next start picks the channel up either way.
+    if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
+        spdlog::info("[UpdateChecker] Update channel takes effect at Moonraker's next restart "
+                     "(a job holds the machine)");
+        return;
+    }
+    // The app's websocket drops with it and reconnects on its own; that rediscovery
+    // syncs again, finds the stanza matching, and stops.
+    EmergencyStopOverlay::instance().suppress_recovery_dialog(RecoverySuppression::LONG);
+    api.restart_moonraker(
+        []() { spdlog::info("[UpdateChecker] Restarting Moonraker to apply the update channel"); },
+        [](const MoonrakerError& err) {
+            spdlog::warn("[UpdateChecker] Moonraker restart for the update channel failed: {}",
+                         err.message);
+        });
+}
 
 UpdateChecker::UpdateChannel UpdateChecker::get_channel() const {
     auto* config = Config::get_instance();

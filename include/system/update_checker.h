@@ -62,6 +62,7 @@ ChannelVersionRelation compare_channel_version(const std::string& installed,
 namespace helix {
 class IMoonrakerClient;
 }
+class IMoonrakerAPI; // NAMESPACE_OK: forward-declares the global interface
 
 /**
  * @brief Async update checker for HelixScreen
@@ -206,6 +207,19 @@ class UpdateChecker {
      * selected channel does not serve.
      */
     void on_channel_changed();
+
+    /**
+     * @brief Point moonraker.conf's [update_manager helixscreen] at the app's channel
+     *
+     * Mainsail and Fluidd offer whatever that stanza's `channel:` names, so a stale one
+     * offers a beta install a "stable" downgrade. Rewrites the line only when a stanza
+     * with a channel line exists and disagrees, then restarts Moonraker, which reads its
+     * config only at startup. While a job holds the machine the file is still written
+     * but the restart is skipped, so the change lands at Moonraker's next start. Called
+     * on every Moonraker discovery and whenever the effective channel changes. Main
+     * thread only.
+     */
+    void sync_moonraker_channel();
 
     /**
      * @brief Initialize the update checker
@@ -399,6 +413,14 @@ class UpdateChecker {
      * bundle's update section cannot drift from each other.
      */
     static const char* channel_name(UpdateChannel channel);
+
+    /**
+     * @brief The `channel:` Moonraker's web updater needs to serve @p channel
+     *
+     * Moonraker knows only GitHub's stable and prerelease tracks; Dev ships
+     * prereleases, so it rides beta (the installer's update_manager_web_channel).
+     */
+    static const char* moonraker_channel_name(UpdateChannel channel);
 
     /**
      * @brief Resolve the R2 base URL the next check will actually use.
@@ -621,6 +643,10 @@ class UpdateChecker {
      * @param error Error message (empty if no error)
      */
     void report_result(Status status, std::optional<ReleaseInfo> info, const std::string& error);
+
+    /// Second half of sync_moonraker_channel(): restart Moonraker unless a job holds
+    /// the machine.
+    static void restart_moonraker_for_channel(IMoonrakerAPI& api);
 
     void init_subjects();
 

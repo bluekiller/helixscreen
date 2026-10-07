@@ -600,4 +600,14 @@ std::string MoonrakerConfigManager::get_section_value(const std::string& content
     return "";
 }
 
+std::string MoonrakerConfigManager::set_existing_value(const std::string& content,
+                                                       const std::string& section_name,
+                                                       const std::string& key,
+                                                       const std::string& value) {
+    const std::string current = get_section_value(content, section_name, key);
+    if (current.empty() || current == value)
+        return content;
+    return upsert_section(content, section_name, {{key, value}});
+}
+
 } // namespace helix

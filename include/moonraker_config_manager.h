@@ -262,5 +262,14 @@ class MoonrakerConfigManager {
                                         const std::string& include_target = "helixscreen.conf");
     static std::string get_section_value(const std::string& content,
                                          const std::string& section_name, const std::string& key);
+
+    /// Replace `key`'s value in `section_name`, only where that line already exists.
+    ///
+    /// Never adds the section or the key: a stanza without the key means whoever wrote
+    /// it chose the default. Returns `content` unchanged when the section or key is
+    /// absent, or when the value already matches.
+    static std::string set_existing_value(const std::string& content,
+                                          const std::string& section_name, const std::string& key,
+                                          const std::string& value);
 };
 } // namespace helix
