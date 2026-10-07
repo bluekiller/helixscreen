@@ -118,7 +118,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal trace keeps scrolling w
     CHECK(modal.slider()->bias() == Catch::Approx(-0.36f));
 
     // The harness only runs timers with a finite repeat count.
-    lv_timer_set_repeat_count(modal.slider()->timer_for_test(), 3);
+    lv_timer_set_repeat_count(modal.slider()->timer_for_test(), 100);
     process_lvgl(2100);
     CHECK(modal.slider()->trace_ticks() == 2);
 

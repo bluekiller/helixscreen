@@ -268,7 +268,7 @@ void AmsState::init_subjects(bool register_xml) {
                      register_xml); // SUBJECT_OK: UiBufferSlider::follow_system_reading observes it
     INIT_SUBJECT_STRING(buffer_label, "", subjects_, register_xml);
     INIT_SUBJECT_STRING(buffer_value_text, "", subjects_,
-                        register_xml); // SUBJECT_OK: the 2x1 widget and the modal bind it
+                        register_xml); // SUBJECT_OK: the 2x1 widget binds it
     INIT_SUBJECT_STRING(buffer_short_text, "", subjects_, register_xml);
     INIT_SUBJECT_STRING(buffer_lean_text, "", subjects_, register_xml);
 
@@ -673,7 +673,7 @@ void AmsState::register_xml_subject_names() {
     helix::xml::register_subject_in_current_scope("buffer_label", &buffer_label_);
     helix::xml::register_subject_in_current_scope(
         "buffer_value_text",
-        &buffer_value_text_); // SUBJECT_OK: the 2x1 widget and the modal bind it
+        &buffer_value_text_); // SUBJECT_OK: the 2x1 widget binds it
     helix::xml::register_subject_in_current_scope("buffer_short_text", &buffer_short_text_);
     helix::xml::register_subject_in_current_scope("buffer_lean_text", &buffer_lean_text_);
 
