@@ -362,23 +362,17 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
         [](PrintStatusPanel* self, int seconds) { self->on_preprint_elapsed_changed(seconds); },
         ps_subjects);
 
-    // Subscribe to defined objects changes (for objects list button visibility + count)
-    exclude_objects_observer_ = observe<int>(
-        printer_state_.excluded_objects_state().get_defined_objects_version_subject(), this,
-        [](PrintStatusPanel* self, int) {
-            // Klipper reports defined objects only from the G-code file it is
-            // printing, so a print is never a 3MF.
-            const int available =
-                helix::ui::pre_start_exclude_available(
-                    self->printer_state_.get_discovery().has_exclude_object(), false,
-                    self->printer_state_.excluded_objects_state().get_defined_objects().size())
-                    ? 1
-                    : 0;
-            lv_subject_set_int(&self->exclude_objects_available_subject_, available);
-            self->update_objects_text();
-            self->update_view_toggle_position(available != 0);
-        },
-        ps_subjects);
+    // The objects button needs [exclude_object] and a multi-object print;
+    // either can arrive first.
+    const auto refresh_available = [](PrintStatusPanel* self, int) {
+        self->refresh_exclude_objects_available();
+    };
+    exclude_objects_observer_ =
+        observe<int>(printer_state_.excluded_objects_state().get_defined_objects_version_subject(),
+                     this, refresh_available, ps_subjects);
+    exclude_object_capability_observer_ = observe<int>(
+        printer_state_.capabilities_state().subject(helix::Capability::HasExcludeObject), this,
+        refresh_available, ps_subjects);
 
     // Subscribe to excluded objects changes (for "X of Y obj" count updates)
     excluded_objects_version_observer_ = observe<int>(
@@ -2733,6 +2727,21 @@ void PrintStatusPanel::update_view_toggle_position(bool objects_visible) {
     } else {
         lv_obj_set_style_translate_x(btn, space_md, LV_PART_MAIN);
     }
+}
+
+void PrintStatusPanel::refresh_exclude_objects_available() {
+    // Klipper reports defined objects only from the G-code file it is
+    // printing, so a print is never a 3MF.
+    const int available =
+        helix::ui::pre_start_exclude_available(
+            lv_subject_get_int(printer_state_.capabilities_state().subject(
+                helix::Capability::HasExcludeObject)) != 0,
+            false, printer_state_.excluded_objects_state().get_defined_objects().size())
+            ? 1
+            : 0;
+    lv_subject_set_int(&exclude_objects_available_subject_, available);
+    update_objects_text();
+    update_view_toggle_position(available != 0);
 }
 
 void PrintStatusPanel::update_objects_text() {

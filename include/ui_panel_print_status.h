@@ -546,6 +546,8 @@ class PrintStatusPanel : public OverlayBase {
     /// the job-state handler derives no transition and returns early.
     void apply_new_print_resets(bool reset_progress_bar, bool clear_excluded_objects);
     void update_objects_text(); ///< Update "X of Y obj" display from exclude state
+    /// Publish whether the objects button shows: [exclude_object] and 2+ defined objects.
+    void refresh_exclude_objects_available();
     void
     update_view_toggle_position(bool objects_visible); ///< Shift view toggle when objects btn shown
     void animate_badge_pop_in(lv_obj_t* badge, const char* label); ///< Pop-in animation for badges
@@ -637,6 +639,7 @@ class PrintStatusPanel : public OverlayBase {
     ObserverGuard preprint_remaining_observer_;
     ObserverGuard preprint_elapsed_observer_;
     ObserverGuard exclude_objects_observer_;
+    ObserverGuard exclude_object_capability_observer_;
     ObserverGuard excluded_objects_version_observer_;
     ObserverGuard ams_color_observer_; ///< Tracks AMS/Spoolman filament color for gcode viewer
     ObserverGuard tool_map_version_observer_; ///< Refreshes gcode viewer colors on tool remap

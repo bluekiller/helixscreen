@@ -145,3 +145,25 @@ TEST_CASE_METHOD(PrintStatusPanelFixture,
     UpdateQueue::instance().drain();
     CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
 }
+
+TEST_CASE_METHOD(PrintStatusPanelFixture,
+                 "The objects button follows the printer's [exclude_object] as hardware changes",
+                 "[exclude_button][print_status][pre_start_exclude]") {
+    lv_obj_t* btn = lv_obj_find_by_name(root_, "btn_objects");
+    REQUIRE(btn != nullptr);
+    state().excluded_objects_state().set_defined_objects({"A", "B"});
+    UpdateQueue::instance().drain();
+    REQUIRE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+
+    // Discovery reports [exclude_object] after the objects are already defined.
+    helix::PrinterDiscovery hw;
+    hw.parse_objects(nlohmann::json{"exclude_object", "extruder"});
+    state().set_hardware(hw);
+    UpdateQueue::instance().drain();
+    CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+
+    // A switch to a printer without it hides the button again.
+    state().set_hardware(helix::PrinterDiscovery{});
+    UpdateQueue::instance().drain();
+    CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+}
