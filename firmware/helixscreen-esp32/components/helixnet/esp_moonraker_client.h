@@ -21,6 +21,7 @@
 #include "i_moonraker_client.h"
 #include "reconnect_backoff.h"
 #include "rpc_error_policy.h"
+#include "transport_lifecycle.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -148,12 +149,12 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // Every websocket stop, destroy, init and start runs on this one thread, in order, so
     // neither the UI thread nor the housekeeping timer ever waits on a websocket task.
     static constexpr uint32_t TRANSPORT_WORKER_STACK_BYTES = 6 * 1024;
-    static constexpr int64_t TRANSPORT_STALL_US = 5LL * 1000 * 1000;
+    static constexpr int64_t TRANSPORT_STALL_US = 10LL * 1000 * 1000;
+    static constexpr int64_t TRANSPORT_STALL_UNCONNECTED_US = 30LL * 1000 * 1000;
     void post_transport_job(const char* what, std::function<void()> job);
     static void* transport_worker_main(void* self);
     void transport_worker_loop();
-    bool start_transport(const std::string& url);
-    void retire_transport(esp_websocket_client_handle_t ws);
+    esp_websocket_client_handle_t create_transport(const std::string& url);
     void report_transport_stall();
     void fail_pending_requests();
 
@@ -327,7 +328,8 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // connect() closes the reachable race window, but the esp_timer dispatch
     // handoff (list-unlock before callback entry) leaves a residual sliver
     // where a stale pass can start; it must observe the fresh nullptr.
-    std::atomic<esp_websocket_client_handle_t> ws_{nullptr};
+    /// The running transport and the order its jobs run in (transport_lifecycle.h).
+    net::TransportLifecycle<esp_websocket_client_handle_t> transport_;
     esp_timer_handle_t housekeeping_timer_ = nullptr;
     std::string url_;
 

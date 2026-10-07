@@ -228,8 +228,17 @@ void register_widgets() {
 // The restart fallback of a live switch: boot connects to the active printer, with every
 // heap back at its boot state. The label is the only feedback, drawn synchronously because
 // nothing runs after it.
-[[noreturn]] void restart_into_active_printer() {
+// Restarts in a row without a printer connecting in between. Past the cap the panel stays up
+// disconnected instead, so a printer that cannot be reached never becomes a boot loop.
+constexpr int MAX_FALLBACK_RESTARTS = 2;
+
+void restart_into_active_printer() {
     helix::Config* config = helix::Config::get_instance();
+    const int streak = config->get<int>("/switch_restart_streak", 0);
+    if (streak >= MAX_FALLBACK_RESTARTS) {
+        ESP_LOGE(TAG, "app_boot: %d fallback restarts without a connection; staying up", streak);
+        return;
+    }
     lv_obj_t* label = lv_label_create(lv_layer_top());
     const std::string text =
         fmt::format(fmt::runtime(lv_tr("Switching to {}")), config->get_active_printer_name());
@@ -237,12 +246,13 @@ void register_widgets() {
     lv_obj_center(label);
     lv_refr_now(nullptr);
 
-    // Counted across restarts: how often a live switch could not get its WebSocket stack.
+    // Counted across restarts: how often a switch fell back, and how many in a row.
     const int fallbacks = config->get<int>("/switch_restart_fallbacks", 0) + 1;
     config->set<int>("/switch_restart_fallbacks", fallbacks);
+    config->set<int>("/switch_restart_streak", streak + 1);
     config->save();
-    ESP_LOGW(TAG, "app_boot: restarting into printer '%s' (switch fallback #%d)",
-             config->get_active_printer_id().c_str(), fallbacks);
+    ESP_LOGW(TAG, "app_boot: restarting into printer '%s' (switch fallback #%d, %d in a row)",
+             config->get_active_printer_id().c_str(), fallbacks, streak + 1);
     esp_restart();
 }
 
@@ -287,6 +297,7 @@ void arm_switch_watchdog() {
                 ESP_LOGW(TAG, "[switch] connected but no discovery after %u ms",
                          (unsigned)SWITCH_DISCOVERY_TIMEOUT_MS);
                 restart_into_active_printer();
+                return;
             }
             ESP_LOGW(TAG, "[switch] printer not reachable yet; reconnecting continues");
         },
@@ -647,6 +658,12 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                     c->dispatch_status_update(*status_snapshot, /*from_cached_snapshot=*/true);
                 }
 
+                // A printer answered, so a later fallback restart is not part of a loop.
+                if (helix::Config* cfg = helix::Config::get_instance();
+                    cfg->get<int>("/switch_restart_streak", 0) != 0) {
+                    cfg->set<int>("/switch_restart_streak", 0);
+                    cfg->save();
+                }
                 if (g_switch_started_us != 0) {
                     spdlog::info("[app_boot] printer switch connected in {} ms",
                                  (esp_timer_get_time() - g_switch_started_us) / 1000);

@@ -46,7 +46,44 @@ void EspMoonrakerClient::set_link_drop_observer(LinkDropObserver observer) {
     s_link_drop_observer.store(observer);
 }
 
-EspMoonrakerClient::EspMoonrakerClient() {
+EspMoonrakerClient::EspMoonrakerClient()
+    : transport_({[this](const char* what, std::function<void()> job) {
+                      post_transport_job(what, std::move(job));
+                  },
+                  [this](const std::string& url) { return create_transport(url); },
+                  [this](esp_websocket_client_handle_t ws) {
+                      // Whatever stopped the previous task is over; this start owns the
+                      // reconnect ladder again.
+                      reconnect_pending_.store(false);
+                      auto_reconnect_.store(true);
+                      const int64_t t0 = esp_timer_get_time();
+                      const esp_err_t err = esp_websocket_client_start(ws);
+                      ESP_LOGI(TAG, "[transport] start -> %s (%lld ms)", esp_err_to_name(err),
+                               (long long)((esp_timer_get_time() - t0) / 1000));
+                      return err == ESP_OK;
+                  },
+                  [](esp_websocket_client_handle_t ws) {
+                      const int64_t t0 = esp_timer_get_time();
+                      // ESP_FAIL ("not started") is normal for a task that already exited.
+                      esp_websocket_client_stop(ws);
+                      ESP_LOGI(TAG, "[transport] stop %lld ms",
+                               (long long)((esp_timer_get_time() - t0) / 1000));
+                  },
+                  [](esp_websocket_client_handle_t ws) { esp_websocket_client_destroy(ws); },
+                  [] { return !s_before_transport_start || s_before_transport_start(); },
+                  [this] {
+                      ESP_LOGE(TAG, "connect: transport start refused (no room for its task)");
+                      set_state(ConnectionState::FAILED);
+                      report_transport_stall();
+                  },
+                  [this] {
+                      // Nothing runs and no disconnect event will come to schedule another
+                      // try, so behave like a disconnect: FAILED plus a fresh intent.
+                      ESP_LOGE(TAG, "transport could not start; retrying in %dms",
+                               next_reconnect_delay_ms_);
+                      set_state(ConnectionState::FAILED);
+                      arm_reconnect_intent();
+                  }}) {
     const esp_timer_create_args_t targs = {
         .callback = &EspMoonrakerClient::housekeeping_trampoline,
         .arg = this,
@@ -83,7 +120,9 @@ EspMoonrakerClient::~EspMoonrakerClient() {
         vTaskDelay(1);
     }
 
-    // Finish the transport worker's queued jobs, then stop it.
+    // Finish the transport worker's queued jobs, then stop it. The client lives for the
+    // whole process on the device (the boot code's static MoonrakerManager owns it), so
+    // this join, which waits on a stuck job like any stop does, is only reached in tests.
     {
         std::lock_guard<std::mutex> lock(transport_mutex_);
         transport_quit_ = true;
@@ -95,7 +134,7 @@ EspMoonrakerClient::~EspMoonrakerClient() {
 
     // Now stop the transport (blocks until the WS task drains); callback maps /
     // tracker are freed last by the member dtors.
-    if (esp_websocket_client_handle_t ws = ws_.exchange(nullptr)) {
+    if (esp_websocket_client_handle_t ws = transport_.current()) {
         esp_websocket_client_stop(ws);
         esp_websocket_client_destroy(ws);
     }
@@ -135,32 +174,17 @@ int EspMoonrakerClient::connect(const char* url, std::function<void()> on_connec
     was_connected_ = false;
     lost_notified_ = false;
 
-    // The previous transport leaves ws_ now, so its events are dropped from here on; the
-    // worker stops and destroys it before starting the new one.
-    esp_websocket_client_handle_t old = ws_.exchange(nullptr);
     set_state(ConnectionState::CONNECTING);
-    const std::string url_copy = url_;
-    post_transport_job("connect", [this, old, url_copy]() {
-        if (old) {
-            retire_transport(old);
-        }
-        if (s_before_transport_start && !s_before_transport_start()) {
-            ESP_LOGE(TAG, "connect: transport start refused (no room for its task)");
-            set_state(ConnectionState::FAILED);
-            report_transport_stall();
-            return;
-        }
-        // Re-arm reconnection for the new connection — a transient
-        // set_auto_reconnect(false) is reset here by contract.
-        auto_reconnect_.store(true);
-        if (!start_transport(url_copy)) {
-            set_state(ConnectionState::FAILED);
-        }
-    });
+    // Re-arm reconnection for the new connection — a transient set_auto_reconnect(false)
+    // is reset here by contract.
+    auto_reconnect_.store(true);
+    // The worker retires the previous transport before starting this one; its events are
+    // stale from this request on (TransportLifecycle::accepts).
+    transport_.connect(url_);
     return 0;
 }
 
-bool EspMoonrakerClient::start_transport(const std::string& url) {
+esp_websocket_client_handle_t EspMoonrakerClient::create_transport(const std::string& url) {
     esp_websocket_client_config_t cfg = {};
     cfg.uri = url.c_str();
     // 4096 default is too small once nlohmann is on the callback path.
@@ -189,31 +213,11 @@ bool EspMoonrakerClient::start_transport(const std::string& url) {
     esp_websocket_client_handle_t ws = esp_websocket_client_init(&cfg);
     if (!ws) {
         ESP_LOGE(TAG, "esp_websocket_client_init failed");
-        return false;
+        return nullptr;
     }
     esp_websocket_register_events(ws, WEBSOCKET_EVENT_ANY, &EspMoonrakerClient::ws_event_trampoline,
                                   this);
-    // Current before it starts, so the new task's first events are not dropped as stale.
-    ws_.store(ws);
-    const int64_t t0 = esp_timer_get_time();
-    const esp_err_t err = esp_websocket_client_start(ws);
-    ESP_LOGI(TAG, "[transport] start %s -> %s (%lld ms)", url.c_str(), esp_err_to_name(err),
-             (long long)((esp_timer_get_time() - t0) / 1000));
-    if (err != ESP_OK) {
-        ws_.store(nullptr);
-        esp_websocket_client_destroy(ws);
-        return false;
-    }
-    return true;
-}
-
-void EspMoonrakerClient::retire_transport(esp_websocket_client_handle_t ws) {
-    const int64_t t0 = esp_timer_get_time();
-    esp_websocket_client_stop(ws);
-    const int64_t t1 = esp_timer_get_time();
-    esp_websocket_client_destroy(ws);
-    ESP_LOGI(TAG, "[transport] retire: stop %lld ms, destroy %lld ms",
-             (long long)((t1 - t0) / 1000), (long long)((esp_timer_get_time() - t1) / 1000));
+    return ws;
 }
 
 void EspMoonrakerClient::post_transport_job(const char* what, std::function<void()> job) {
@@ -310,18 +314,15 @@ void EspMoonrakerClient::disconnect() {
     // The connection's discovery chain, if any, abandons in place.
     connection_generation_.fetch_add(1);
     discovery_in_flight_.store(false);
-    // Out of ws_ now, so nothing it still delivers is applied; the worker stops it, and
-    // this thread never waits on its websocket task.
-    if (esp_websocket_client_handle_t old = ws_.exchange(nullptr)) {
-        post_transport_job("disconnect", [this, old]() { retire_transport(old); });
-    }
+    // Nothing the transport still delivers is applied from here on; the worker stops it,
+    // and this thread never waits on its websocket task. A connect still queued is
+    // cancelled.
+    transport_.disconnect();
     set_state(ConnectionState::DISCONNECTED);
 }
 
 bool EspMoonrakerClient::is_connected() const {
-    // Single load: two separate reads of ws_ could straddle a concurrent
-    // exchange(nullptr) in connect().
-    esp_websocket_client_handle_t ws = ws_;
+    esp_websocket_client_handle_t ws = transport_.current();
     return ws && esp_websocket_client_is_connected(ws);
 }
 
@@ -336,10 +337,6 @@ void EspMoonrakerClient::arm_reconnect_intent() {
 }
 
 void EspMoonrakerClient::execute_reconnect() {
-    if (!ws_) {
-        return;
-    }
-
     // R3: this is a new connection attempt — bump the generation and force-clear
     // the in-flight guard, same as connect() (see discovery_in_flight_).
     connection_generation_.fetch_add(1);
@@ -349,32 +346,8 @@ void EspMoonrakerClient::execute_reconnect() {
     // event the stop() emits cannot arm a second intent on top of this attempt.
     auto_reconnect_.store(false);
 
-    post_transport_job("reconnect", [this]() {
-        esp_websocket_client_handle_t ws = ws_.load();
-        if (!ws) {
-            return; // a disconnect or connect retired it meanwhile
-        }
-        // cfg.disable_auto_reconnect means the component's own abort path already let
-        // the websocket task exit, so stop() usually returns ESP_FAIL ("Client was not
-        // started"). That is the ordinary case and must not abort the restart.
-        const esp_err_t stop_err = esp_websocket_client_stop(ws);
-        if (stop_err != ESP_OK) {
-            ESP_LOGD(TAG, "reconnect: stop returned %s (already stopped is normal here)",
-                     esp_err_to_name(stop_err));
-        }
-        reconnect_pending_.store(false);
-        auto_reconnect_.store(true);
-
-        const esp_err_t start_err = esp_websocket_client_start(ws);
-        if (start_err != ESP_OK) {
-            // Nothing is running and no disconnect event will come to schedule another
-            // try, so behave like a disconnect: FAILED plus a fresh intent.
-            ESP_LOGE(TAG, "reconnect: start failed (%s) — retrying in %dms",
-                     esp_err_to_name(start_err), next_reconnect_delay_ms_);
-            set_state(ConnectionState::FAILED);
-            arm_reconnect_intent();
-        }
-    });
+    // Restarts the transport in place, or connects again when its start failed.
+    transport_.reconnect();
 }
 
 // ---------------------------------------------------------------------------
@@ -437,7 +410,7 @@ void EspMoonrakerClient::ws_event_trampoline(void* arg, esp_event_base_t /*base*
     // A transport retired by connect()/disconnect() keeps running until the worker stops
     // it. What it delivers belongs to the previous connection; only its disconnect still
     // matters, to fail the requests that were waiting on it.
-    const bool current = data && data->client == self->ws_.load();
+    const bool current = data && self->transport_.accepts(data->client);
     const int64_t t_ms = esp_timer_get_time() / 1000;
     switch (event_id) {
     case WEBSOCKET_EVENT_BEFORE_CONNECT:
@@ -456,6 +429,7 @@ void EspMoonrakerClient::ws_event_trampoline(void* arg, esp_event_base_t /*base*
     }
     switch (event_id) {
     case WEBSOCKET_EVENT_CONNECTED:
+        self->transport_.mark_connected(data->client);
         self->on_ws_connected();
         break;
     case WEBSOCKET_EVENT_DISCONNECTED:
@@ -878,7 +852,11 @@ void EspMoonrakerClient::process_timeouts() {
     // A transport job that runs this long is waiting on a websocket task that will not
     // stop; the stall handler (the app's restart fallback) takes over.
     const int64_t job_started = transport_job_started_us_.load();
-    if (job_started != 0 && now_us() - job_started > TRANSPORT_STALL_US) {
+    // Stopping a transport that never connected can mean waiting out its connect attempt
+    // (a host that does not answer), so it gets longer before it counts as stuck.
+    const int64_t stall_us =
+        transport_.retiring_unconnected() ? TRANSPORT_STALL_UNCONNECTED_US : TRANSPORT_STALL_US;
+    if (job_started != 0 && now_us() - job_started > stall_us) {
         const char* what = transport_job_name_.load();
         ESP_LOGE(TAG, "[transport] %s stuck for %lld ms", what ? what : "job",
                  (long long)((now_us() - job_started) / 1000));
@@ -891,7 +869,7 @@ void EspMoonrakerClient::process_timeouts() {
         // is waiting on anymore — drop it instead of restarting on top of
         // whatever the manual path already did.
         const bool current = (reconnect_generation_.load() == connection_generation_.load());
-        if (current && auto_reconnect_.load() && ws_) {
+        if (current && auto_reconnect_.load()) {
             ESP_LOGI(TAG, "auto-reconnect: restarting transport");
             execute_reconnect();
         }
@@ -907,7 +885,11 @@ int EspMoonrakerClient::send_envelope(const json& envelope) {
         return -1;
     }
     std::string payload = helix::json_util::safe_dump(envelope);
-    int sent = esp_websocket_client_send_text(ws_, payload.data(), static_cast<int>(payload.size()),
+    esp_websocket_client_handle_t ws = transport_.current();
+    if (!ws) {
+        return -1;
+    }
+    int sent = esp_websocket_client_send_text(ws, payload.data(), static_cast<int>(payload.size()),
                                               pdMS_TO_TICKS(SEND_TIMEOUT_MS));
     return sent;
 }
@@ -1762,9 +1744,6 @@ void EspMoonrakerClient::set_auto_reconnect(bool enabled) {
 }
 
 void EspMoonrakerClient::force_reconnect() {
-    if (!ws_) {
-        return;
-    }
     // F5 ordering: disarm before the stop inside execute_reconnect() so a
     // DISCONNECTED event it emits can't schedule a redundant auto-reconnect
     // intent on top of this manual one; drop anything already scheduled too.
