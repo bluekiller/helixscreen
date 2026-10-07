@@ -231,7 +231,7 @@ Some widgets have settings you can change directly from Edit Mode. When you sele
 |--------|--------------------------|
 | **Temperatures** | Toggles between Stack and Carousel display mode |
 | **Fan Speeds** | Toggles between Stack and Carousel display mode |
-| **Temperature Sensors** | Toggles between single-sensor and Carousel display mode |
+| **Temperature Sensors** | Opens the sensor list: tick one sensor for the single view or several for the Carousel, and pick an icon |
 | **Fan** | Opens the fan picker — choose which fan to monitor |
 | **Temperature Graph** | Opens a configuration modal — toggle sensors on/off and customize series colors |
 | **Macro Button** | Opens the config modal — pick the macro, its icon and color, and whether running it asks for confirmation |
@@ -300,7 +300,7 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **Bed Temperature** | Live bed temperature with current and target readings. Tap to open the temperature graph overlay. | 1x1 | 0.5x1 | Full grid | Yes | — |
 | **Chamber Temperature** | Live chamber temperature with current and target readings, shown with a chamber icon and an animated heating indicator. Tap to open the temperature graph overlay focused on the chamber. Only available on printers with a chamber temperature sensor or heater. | 1x1 | 0.5x1 | Full grid | Yes | Chamber sensor or heater |
 | **Temperatures** | Stacked view showing nozzle, bed, and chamber temperatures in one widget. Each row shows current temp and target. Also available in Carousel mode (see [Display Modes](#display-modes-stack-vs-carousel) below). Tap any reading to open the temperature graph. | 1x1 | 1x1 | 3x2 | Yes | — |
-| **Temperature Sensors** | Monitor additional temperature sensors (chamber, enclosure heater, etc.) in a single-sensor or carousel view. You can add multiple instances, each configured to a different sensor. Also available in Carousel mode. | 1x1 | 0.5x1 | Full grid | Yes | Extra temp sensors |
+| **Temperature Sensors** | Monitor additional temperature sensors (chamber, enclosure heater, filament dryer, etc.) in a single-sensor or carousel view. A sensor that has a target (a `[heater_generic]` or `[temperature_fan]`) shows current / target, and tapping it opens the keypad to set the target. You can add multiple instances, each configured to a different sensor. Also available in Carousel mode. | 1x1 | 0.5x1 | Full grid | Yes | Extra temp sensors |
 | **Temperature Graph** | Live temperature chart with configurable sensor series. Shows colored lines for each sensor with optional target setpoint lines. Content adapts to size — larger sizes show legends, axis labels, gradients, and temperature readouts. Tap to open the full-screen graph overlay. Configure which sensors to display via the gear icon in Edit Mode. You can add multiple instances. | 2x2 | 1x1 | Full width x4 | Yes | — |
 | **Preheat** | Quick preheat buttons with material selection. Tap a material to instantly set nozzle and bed temperatures to that material's profile. | 3x1 | 2x1 | 4x1 | Horizontal only | — |
 | **Fan Speeds** | Part cooling, hotend, and auxiliary fan speeds at a glance. Fan icons spin when running. Also available in Carousel mode with arc slider controls. Tap to open the Fan Control overlay. You can add multiple instances. | 1x1 | 1x1 | 3x2 | Yes | — |
@@ -371,7 +371,7 @@ Some widgets depend on specific hardware being detected by Klipper. If the hardw
 | Filament Sensor | `[filament_switch_sensor]` or `[filament_motion_sensor]` in Klipper |
 | Humidity | `[temperature_sensor]` with humidity capability |
 | Width Sensor | `[hall_filament_width_sensor]` in Klipper |
-| Temperature Sensors | Extra `[temperature_sensor]` entries beyond nozzle and bed |
+| Temperature Sensors | Extra `[temperature_sensor]`, `[temperature_fan]` or `[heater_generic]` entries beyond nozzle and bed |
 
 ---
 
@@ -396,7 +396,7 @@ Full-size swipeable pages with one item per page. Indicator dots at the bottom s
 
 ### Switching Modes
 
-Long-press the grid to enter Edit Mode, select the Temperatures, Fan Speeds, or Temperature Sensors widget, and tap the **gear icon** in the upper-left corner. Each tap toggles the mode. Your preference is saved per widget and persists across restarts.
+Long-press the grid to enter Edit Mode, select the Temperatures or Fan Speeds widget, and tap the **gear icon** in the upper-left corner. Each tap toggles the mode. For **Temperature Sensors**, the gear icon opens the sensor list instead: tick one sensor for the single view, or several for the Carousel. Your preference is saved per widget and persists across restarts.
 
 ---
 
@@ -421,7 +421,7 @@ While **not** in Edit Mode, widgets respond to taps and other gestures:
 | Bed Temperature | Opens temperature graph overlay |
 | Chamber Temperature | Opens temperature graph overlay focused on the chamber |
 | Temperatures | Opens temperature graph for the tapped sensor |
-| Temperature Sensors | — (display only) |
+| Temperature Sensors | A heater or temperature fan: opens the keypad to set its target. A read-only sensor: opens the sensor picker. Carousel: opens the sensor list. To change which sensor a heater tile shows, use the gear icon in Edit Mode |
 | Temperature Graph | Opens full-screen temperature graph overlay |
 | Preheat | Sets nozzle and bed temperature to the tapped material profile |
 | Humidity | — (display only) |

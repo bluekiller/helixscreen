@@ -16,6 +16,7 @@
 #include "theme_manager.h"
 #include "touch_calibration_layout.h"
 #include "touch_calibration_wrapper.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -190,8 +191,9 @@ lv_obj_t* WizardTouchCalibrationStep::create(lv_obj_t* parent) {
     raised_skip_ = helix::ui::raise_control_above_capture(lv_screen_active(), "next_skip_group");
 
     // Find test area widgets (shown in COMPLETE state)
-    test_area_container_ = lv_obj_find_by_name(screen_root_, "test_area_container");
-    test_touch_area_ = lv_obj_find_by_name(screen_root_, "test_touch_area");
+    test_area_container_ =
+        helix::ui::find_required(screen_root_, "test_area_container", get_name());
+    test_touch_area_ = helix::ui::find_required(screen_root_, "test_touch_area", get_name());
 
     // Center the wizard subtitle for this step (keeps it clear of crosshair targets)
     lv_obj_t* subtitle = lv_obj_find_by_name(lv_screen_active(), "wizard_subtitle");

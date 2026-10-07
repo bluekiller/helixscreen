@@ -9,6 +9,7 @@
 #include "moonraker_error.h"
 #include "panel_widget_config.h"
 #include "panel_widget_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -149,11 +150,11 @@ void ClogDetectionConfigModal::on_show() {
     }
 
     // Set slider initial values
-    auto* slider = lv_obj_find_by_name(dialog(), "threshold_slider");
+    auto* slider = helix::ui::find_required(dialog(), "threshold_slider", get_name());
     if (slider)
         lv_slider_set_value(slider, danger_threshold_, LV_ANIM_OFF);
 
-    auto* det_slider = lv_obj_find_by_name(dialog(), "det_length_slider");
+    auto* det_slider = helix::ui::find_required(dialog(), "det_length_slider", get_name());
     if (det_slider)
         lv_slider_set_value(det_slider, static_cast<int>(detection_length_ + 0.5f), LV_ANIM_OFF);
 
@@ -212,9 +213,9 @@ void ClogDetectionConfigModal::sync_mode_subjects() {
 void ClogDetectionConfigModal::update_source_visibility() {
     if (!dialog())
         return;
-    auto* btn_enc = lv_obj_find_by_name(dialog(), "btn_source_encoder");
-    auto* btn_fg = lv_obj_find_by_name(dialog(), "btn_source_flowguard");
-    auto* btn_afc = lv_obj_find_by_name(dialog(), "btn_source_afc");
+    auto* btn_enc = helix::ui::find_required(dialog(), "btn_source_encoder", get_name());
+    auto* btn_fg = helix::ui::find_required(dialog(), "btn_source_flowguard", get_name());
+    auto* btn_afc = helix::ui::find_required(dialog(), "btn_source_afc", get_name());
 
     if (btn_enc) {
         if (has_encoder_)

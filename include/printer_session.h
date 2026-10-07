@@ -35,6 +35,7 @@ namespace helix {
 struct CliArgs;
 class Config;
 class PanelFactory;
+class UpgradeBanner;
 
 /// The state machine behind switching to another printer, adding one through the wizard, and
 /// backing out of that wizard. It decides what the config says and in which order the restart
@@ -51,6 +52,8 @@ class PrinterSession {
         const CliArgs& args;
         const bool& shutdown_complete;
         bool& wizard_active;
+        /// Process-scoped: shut down only on ProcessExit, before UpdateChecker it observes.
+        UpgradeBanner& upgrade_banner;
         /// Runs the setup wizard when the active printer needs one; true when it started.
         std::function<bool()> run_wizard;
         /// Applies one-shot startup actions requested on the command line.

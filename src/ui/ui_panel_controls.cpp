@@ -329,7 +329,8 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     quick_actions_.setup(panel_, parent_screen, printer_state_, api_);
 
     // Cache dynamic container for secondary fans
-    FIND_WIDGET(secondary_fans_list_, panel_, "secondary_fans_list", get_name());
+    // required-names: controls_panel
+    secondary_fans_list_ = helix::ui::find_required(panel_, "secondary_fans_list", get_name());
 
     // Bind heating icon animators for nozzle/bed/chamber status visualization.
     // The binder owns its own temperature observers, so the panel does not need
@@ -815,7 +816,7 @@ void ControlsPanel::populate_secondary_fans() {
 
         // Track this row for reactive speed updates
         secondary_fan_rows_.push_back(
-            {fan->object_name, lv_obj_find_by_name(row, "fan_speed_label")});
+            {fan->object_name, helix::ui::find_required(row, "fan_speed_label", get_name())});
         visible_count++;
     }
 

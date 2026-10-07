@@ -21,6 +21,7 @@
 #include "static_panel_registry.h"
 #include "system/crash_handler.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 #include "wifi_manager.h"
 #include "wifi_radio_toggle.h"
 #include "wifi_ui_utils.h"
@@ -366,20 +367,20 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
             new WifiWizardNetworkItemData(network, this, band_label_text);
 
         // Bind SSID label to subject (LVGL auto-cleans observers when widget is deleted)
-        lv_obj_t* ssid_label = lv_obj_find_by_name(item, "ssid_label");
+        lv_obj_t* ssid_label = helix::ui::find_required(item, "ssid_label", get_name());
         if (ssid_label) {
             lv_label_bind_text(ssid_label, &item_data->ssid, nullptr);
         }
 
         // Bind the band badge to this row's own subjects
-        lv_obj_t* band_label = lv_obj_find_by_name(item, "band_label");
+        lv_obj_t* band_label = helix::ui::find_required(item, "band_label", get_name());
         if (band_label) {
             lv_label_bind_text(band_label, &item_data->band_text, nullptr);
             lv_obj_bind_flag_if_eq(band_label, &item_data->band_visible, LV_OBJ_FLAG_HIDDEN, 0);
         }
 
         // Set security type text
-        lv_obj_t* security_label = lv_obj_find_by_name(item, "security_label");
+        lv_obj_t* security_label = helix::ui::find_required(item, "security_label", get_name());
         if (security_label) {
             if (network.is_secured) {
                 lv_label_set_text(security_label, network.security_type.c_str());
@@ -390,7 +391,7 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
 
         // Bind signal icons - 8 icons in container, show only the one matching state
         // LVGL automatically removes observers when child widgets are deleted
-        lv_obj_t* signal_icons = lv_obj_find_by_name(item, "signal_icons");
+        lv_obj_t* signal_icons = helix::ui::find_required(item, "signal_icons", get_name());
         if (signal_icons) {
             static const struct {
                 const char* name;
@@ -902,7 +903,8 @@ lv_obj_t* WizardWifiStep::create(lv_obj_t* parent) {
     }
     crash_handler::breadcrumb::note("wifi", "xml_create_ok");
 
-    network_list_container_ = lv_obj_find_by_name(screen_root_, "network_list_container");
+    network_list_container_ =
+        helix::ui::find_required(screen_root_, "network_list_container", get_name());
     if (!network_list_container_) {
         LOG_ERROR_INTERNAL("Network list container not found in XML");
         return nullptr;
@@ -1004,7 +1006,7 @@ void WizardWifiStep::apply_wifi_backend_state() {
     lv_subject_set_int(&wifi_enabled_, enabled ? 1 : 0);
 
     // Reflect the backend state in the toggle's visual checked state.
-    lv_obj_t* wifi_toggle = lv_obj_find_by_name(screen_root_, "wifi_toggle");
+    lv_obj_t* wifi_toggle = helix::ui::find_required(screen_root_, "wifi_toggle", get_name());
     if (wifi_toggle) {
         if (enabled) {
             lv_obj_add_state(wifi_toggle, LV_STATE_CHECKED);

@@ -24,6 +24,7 @@
 #include "lvgl/lvgl.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "static_panel_registry.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -175,7 +176,7 @@ static bool ensure_keypad_built() {
     // header_bar takes its title as a creation-time string and documents that
     // a runtime-varying title is bound by the owning screen rather than by a
     // bind_text inside the shared component. Follow that here.
-    if (lv_obj_t* title = lv_obj_find_by_name(keypad_widget, "header_title")) {
+    if (lv_obj_t* title = helix::ui::find_required(keypad_widget, "header_title", "Keypad")) {
         lv_label_bind_text(title, &keypad_title_subject, nullptr);
     }
 
@@ -319,7 +320,7 @@ static void wire_button_events() {
     }
 
     // Dot button
-    lv_obj_t* btn_dot = lv_obj_find_by_name(keypad_widget, "btn_dot");
+    lv_obj_t* btn_dot = helix::ui::find_required(keypad_widget, "btn_dot", "Keypad");
     if (btn_dot) {
         lv_obj_add_event_cb(
             btn_dot,
@@ -333,7 +334,7 @@ static void wire_button_events() {
     }
 
     // Backspace button
-    lv_obj_t* btn_back = lv_obj_find_by_name(keypad_widget, "btn_backspace");
+    lv_obj_t* btn_back = helix::ui::find_required(keypad_widget, "btn_backspace", "Keypad");
     if (btn_back) {
         lv_obj_add_event_cb(
             btn_back,
@@ -350,7 +351,7 @@ static void wire_button_events() {
     // Do NOT add a second handler here - it would cause double navigation!
 
     // Action button (OK in header_bar) → confirm
-    lv_obj_t* ok_btn = lv_obj_find_by_name(keypad_widget, "action_button");
+    lv_obj_t* ok_btn = helix::ui::find_required(keypad_widget, "action_button", "Keypad");
     if (ok_btn) {
         lv_obj_add_event_cb(
             ok_btn,

@@ -27,6 +27,7 @@
 #include "printer_state.h"
 #include "sensor_state.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -422,10 +423,9 @@ void PowerDeviceWidget::DevicePicker::add_row(lv_obj_t* parent, const char* comp
 }
 
 void PowerDeviceWidget::DevicePicker::on_created(lv_obj_t* backdrop) {
-    lv_obj_t* device_list = lv_obj_find_by_name(backdrop, "device_list");
-    lv_obj_t* icon_grid = lv_obj_find_by_name(backdrop, "icon_grid");
+    lv_obj_t* device_list = helix::ui::find_required(backdrop, "device_list", "PowerDeviceWidget");
+    lv_obj_t* icon_grid = helix::ui::find_required(backdrop, "icon_grid", "PowerDeviceWidget");
     if (!device_list || !icon_grid) {
-        spdlog::error("[PowerDeviceWidget] device_list/icon_grid not found in picker XML");
         return;
     }
 
@@ -449,8 +449,9 @@ void PowerDeviceWidget::DevicePicker::on_created(lv_obj_t* backdrop) {
     helix::ui::populate_icon_grid(icon_grid, POWER_ICONS, POWER_ICON_COUNT, effective_icon,
                                   [this](const char* name) { owner_.select_icon(name); });
 
-    lv_obj_t* sensor_section = lv_obj_find_by_name(backdrop, "sensor_section");
-    lv_obj_t* sensor_grid = lv_obj_find_by_name(backdrop, "sensor_grid");
+    lv_obj_t* sensor_section =
+        helix::ui::find_required(backdrop, "sensor_section", "PowerDeviceWidget");
+    lv_obj_t* sensor_grid = helix::ui::find_required(backdrop, "sensor_grid", "PowerDeviceWidget");
     auto energy_ids = SensorState::instance().energy_sensor_ids();
     if (energy_ids.empty() || !sensor_grid) {
         // Nothing to choose between, so the section is not built at all.
@@ -475,7 +476,8 @@ void PowerDeviceWidget::DevicePicker::on_created(lv_obj_t* backdrop) {
 // DECLARATIVE_OK: the grid cells are created in C++, so their selection border has
 // no XML layer to bind to.
 void PowerDeviceWidget::DevicePicker::refresh_icon_highlights() {
-    lv_obj_t* icon_grid = menu() ? lv_obj_find_by_name(menu(), "icon_grid") : nullptr;
+    lv_obj_t* icon_grid =
+        menu() ? helix::ui::find_required(menu(), "icon_grid", "PowerDeviceWidget") : nullptr;
     if (!icon_grid) {
         return;
     }
@@ -789,10 +791,14 @@ void PowerDeviceWidget::setup_carousel() {
     ui_carousel_add_item(carousel_, energy_container);
 
     // Cache label pointers from the energy page XML
-    energy_power_label_ = lv_obj_find_by_name(energy_page_, "energy_power_label");
-    energy_voltage_label_ = lv_obj_find_by_name(energy_page_, "energy_voltage_label");
-    energy_current_label_ = lv_obj_find_by_name(energy_page_, "energy_current_label");
-    energy_energy_label_ = lv_obj_find_by_name(energy_page_, "energy_energy_label");
+    energy_power_label_ =
+        helix::ui::find_required(energy_page_, "energy_power_label", "PowerDeviceWidget");
+    energy_voltage_label_ =
+        helix::ui::find_required(energy_page_, "energy_voltage_label", "PowerDeviceWidget");
+    energy_current_label_ =
+        helix::ui::find_required(energy_page_, "energy_current_label", "PowerDeviceWidget");
+    energy_energy_label_ =
+        helix::ui::find_required(energy_page_, "energy_energy_label", "PowerDeviceWidget");
 
     // Rebuild indicators to show 2 dots
     ui_carousel_rebuild_indicators(carousel_);
