@@ -3,6 +3,8 @@
 
 #include "thumbnail_slot_pool.h"
 
+#include <algorithm>
+
 namespace helix {
 
 ThumbnailSlotPool::ThumbnailSlotPool(size_t slot_bytes, size_t max_slots, AllocFn alloc,
@@ -44,6 +46,15 @@ void ThumbnailSlotPool::release(uint8_t* slot) {
     }
     std::lock_guard<std::mutex> lock(mutex_);
     free_list_.push_back(slot);
+}
+
+void ThumbnailSlotPool::trim() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (uint8_t* slot : free_list_) {
+        all_.erase(std::find(all_.begin(), all_.end(), slot));
+        free_(slot);
+    }
+    free_list_.clear();
 }
 
 size_t ThumbnailSlotPool::allocated() const {
