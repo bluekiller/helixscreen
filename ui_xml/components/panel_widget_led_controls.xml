@@ -14,7 +14,7 @@
   <view name="panel_widget_led_controls"
         extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" scrollable="false">
     <home_action_tile width="100%"
-                      height="100%" icon="led_strip" icon_variant="muted" label="LEDs" label_tag="LEDs"
+                      height="100%" icon="led_strip" icon_variant="muted" label="LEDs"
                       callback="on_led_controls_clicked" button_name="led_controls_button" icon_name="led_controls_icon"
                       tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
                       tile_dir_subject="$tile_dir_subject" disabled_cond="printer_connection_state ne 2"/>

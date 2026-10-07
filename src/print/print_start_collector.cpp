@@ -172,12 +172,20 @@ void PrintStartCollector::start() {
         lv_subject_get_int(state_.temperature_state().get_bed_temp_subject()));
     cached_ext_temp_.store(start_ext_temp_, std::memory_order_relaxed);
     cached_bed_temp_.store(start_bed_temp_, std::memory_order_relaxed);
+    frame_ext_temp_.store(start_ext_temp_, std::memory_order_relaxed);
+    frame_bed_temp_.store(start_bed_temp_, std::memory_order_relaxed);
     cached_ext_target_.store(helix::ui::temperature::deci_to_degrees(lv_subject_get_int(
                                  state_.temperature_state().get_active_extruder_target_subject())),
                              std::memory_order_relaxed);
     cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(lv_subject_get_int(
                                  state_.temperature_state().get_bed_target_subject())),
                              std::memory_order_relaxed);
+    frame_ext_target_.store(cached_ext_target_.load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+    frame_bed_target_.store(cached_bed_target_.load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+    frame_ext_target_seen_.store(false, std::memory_order_relaxed);
+    frame_bed_target_seen_.store(false, std::memory_order_relaxed);
     // Reset thermal rate models with current temperatures
     {
         auto& mgr = ThermalRateManager::instance();
@@ -590,6 +598,17 @@ void PrintStartCollector::check_fallback_completion() {
                            std::memory_order_relaxed);
     cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(bed_target),
                              std::memory_order_relaxed);
+    // Klipper sends a target only when it changes, so one set just before
+    // start() reaches the subjects after the seed and never comes again as a
+    // frame. Until a frame names a target, the subject's is the live one.
+    if (!frame_ext_target_seen_.load(std::memory_order_relaxed)) {
+        frame_ext_target_.store(cached_ext_target_.load(std::memory_order_relaxed),
+                                std::memory_order_relaxed);
+    }
+    if (!frame_bed_target_seen_.load(std::memory_order_relaxed)) {
+        frame_bed_target_.store(cached_bed_target_.load(std::memory_order_relaxed),
+                                std::memory_order_relaxed);
+    }
 
     // A heater still climbing toward its target is the printer working even
     // when the console is silent: M190 and M109 print nothing a profile can
@@ -630,7 +649,9 @@ void PrintStartCollector::check_fallback_completion() {
     // Also recompute on a substantial RISE (e.g. staged heating: probe temp,
     // then print temp), but never on decreases — temporary M104 S0 (nozzle
     // cooldown for probe cleaning) must not remove the heating phase and
-    // cause progress regression.
+    // cause progress regression. A heater's first measured rate recomputes
+    // too: a bed heating at 5.6 s/C against a 1 s/C size guess otherwise
+    // counts down a sixth of its real wait.
     {
         int new_ext = helix::ui::temperature::deci_to_degrees(ext_target);
         int new_bed = helix::ui::temperature::deci_to_degrees(bed_target);
@@ -639,10 +660,18 @@ void PrintStartCollector::check_fallback_completion() {
         bool bed_newly_set = (weights_bed_target_ == 0 && new_bed > 0);
         bool ext_rose = new_ext > weights_ext_target_ + TARGET_RISE_RECOMPUTE_DEGREES;
         bool bed_rose = new_bed > weights_bed_target_ + TARGET_RISE_RECOMPUTE_DEGREES;
-        if (ext_newly_set || bed_newly_set || ext_rose || bed_rose) {
-            spdlog::info("[PrintStartCollector] Heater targets changed "
-                         "(ext: {}→{}°C, bed: {}→{}°C), recomputing weights",
-                         weights_ext_target_, new_ext, weights_bed_target_, new_bed);
+        auto& rates = ThermalRateManager::instance();
+        const bool ext_first_rate =
+            !weights_ext_measured_ && rates.get_model("extruder").measured_rate().has_value();
+        const bool bed_first_rate =
+            !weights_bed_measured_ && rates.get_model("heater_bed").measured_rate().has_value();
+        if (ext_newly_set || bed_newly_set || ext_rose || bed_rose || ext_first_rate ||
+            bed_first_rate) {
+            spdlog::info("[PrintStartCollector] Heater targets or rates changed "
+                         "(ext: {}→{}°C, bed: {}→{}°C, first measured rate ext={} bed={}), "
+                         "recomputing weights",
+                         weights_ext_target_, new_ext, weights_bed_target_, new_bed, ext_first_rate,
+                         bed_first_rate);
             compute_predicted_weights();
             // The ETA's inputs changed, not just its noise: release the
             // monotonic anchor so the next publish can report the corrected
@@ -678,7 +707,9 @@ void PrintStartCollector::check_fallback_completion() {
         // warm-up as "Heating Bed". We require a NON-empty, partial homed_axes so
         // that a bed-first-heat macro (homed_axes still "" before G28 starts)
         // correctly shows "Heating Bed", and so the proactive heating unit tests
-        // (which don't set homed_axes) are unaffected.
+        // (which don't set homed_axes) are unaffected. Heaters play no part: a
+        // G28 run cold, before either target is set, is homing all the same,
+        // and an already-homed printer ("xyz") never enters it.
         const char* homed = lv_subject_get_string(state_.motion_state().get_homed_axes_subject());
         bool fully_homed = homed != nullptr && strchr(homed, 'x') != nullptr &&
                            strchr(homed, 'y') != nullptr && strchr(homed, 'z') != nullptr;
@@ -690,7 +721,7 @@ void PrintStartCollector::check_fallback_completion() {
         // bed-first-heat printers — they sit in INITIALIZING with homed_axes ""
         // and never ENTER homing from an empty string alone (the partial-axes
         // entry condition gates that).
-        bool homing_active = homed != nullptr && !fully_homed && (bed_heating || nozzle_heating) &&
+        bool homing_active = homed != nullptr && !fully_homed &&
                              (homed[0] != '\0' || current == PrintStartPhase::HOMING);
         if (homing_active) {
             if (current != PrintStartPhase::HOMING) {
@@ -1322,6 +1353,7 @@ void PrintStartCollector::check_phase_patterns(const std::string& line) {
 
 void PrintStartCollector::apply_profile_match(const PrintStartProfile::MatchResult& match,
                                               bool marks_real_signal) {
+    marks_real_signal = marks_real_signal && match.narrates;
     if (marks_real_signal) {
         real_signal_seen_.store(true, std::memory_order_relaxed);
         note_signal(std::chrono::seconds(match.hold_seconds));
@@ -1429,6 +1461,27 @@ void PrintStartCollector::handle_status_signals(const json& status) {
         return;
     }
 
+    // Klipper sends each heater field only when it changes, so the last value
+    // seen per field is the live one.
+    const auto note_heater = [&status](const char* name, std::atomic<int>& temp,
+                                       std::atomic<int>& target, std::atomic<bool>& target_seen) {
+        const auto heater = status.find(name);
+        if (heater == status.end() || !heater->is_object()) {
+            return;
+        }
+        const auto t = heater->find("temperature");
+        if (t != heater->end() && t->is_number()) {
+            temp.store(static_cast<int>(t->get<double>()), std::memory_order_relaxed);
+        }
+        const auto g = heater->find("target");
+        if (g != heater->end() && g->is_number()) {
+            target.store(static_cast<int>(g->get<double>()), std::memory_order_relaxed);
+            target_seen.store(true, std::memory_order_relaxed);
+        }
+    };
+    note_heater("extruder", frame_ext_temp_, frame_ext_target_, frame_ext_target_seen_);
+    note_heater("heater_bed", frame_bed_temp_, frame_bed_target_, frame_bed_target_seen_);
+
     for (const auto& rule : rules) {
         const auto object = status.find(rule.object);
         if (object == status.end() || !object->is_object()) {
@@ -1446,7 +1499,19 @@ void PrintStartCollector::handle_status_signals(const json& status) {
         bool fire = false;
         {
             std::lock_guard<std::mutex> lock(state_mutex_);
-            if (holds) {
+            // An after_heat rule waits for both heaters: forward extrusion
+            // before then is a bucket purge ahead of the mesh or a tool load.
+            // It stays unlatched so a frame after the heat fires it. On a
+            // toolchanger the frames name only the first extruder, so a tool
+            // still heating keeps the rule quiet rather than mislabeled.
+            const bool before_heat =
+                rule.after_heat && !(at_target(frame_ext_temp_.load(std::memory_order_relaxed),
+                                               frame_ext_target_.load(std::memory_order_relaxed)) &&
+                                     at_target(frame_bed_temp_.load(std::memory_order_relaxed),
+                                               frame_bed_target_.load(std::memory_order_relaxed)));
+            if (holds && before_heat) {
+                held_status_signal_rules_.erase(rule.name);
+            } else if (holds) {
                 fire = held_status_signal_rules_.insert(rule.name).second;
             } else {
                 held_status_signal_rules_.erase(rule.name);
@@ -1924,6 +1989,11 @@ int PrintStartCollector::calculate_progress_locked() const {
             progress += share;
         }
     }
+    for (const auto& [phase, share] : predicted_phase_weights_) {
+        if (phase_skipped_locked(phase)) {
+            progress += share;
+        }
+    }
 
     // Partial progress for current phase
     auto cur_it = predicted_phase_weights_.find(static_cast<int>(current_phase_));
@@ -1990,7 +2060,27 @@ std::set<int> PrintStartCollector::get_completed_phase_ints_locked() const {
             result.insert(p);
         }
     }
+    for (const auto& [phase, _] : predicted_phase_weights_) {
+        if (phase_skipped_locked(phase)) {
+            result.insert(phase);
+        }
+    }
     return result;
+}
+
+bool PrintStartCollector::phase_skipped_locked(int phase) const {
+    // The enum is not every macro's order: K1, K2, QIDI and AD5M starts clean
+    // the nozzle before they mesh, and a bucket purge or filament flush can
+    // run before leveling. A phase this printer's own history recorded may
+    // still come at any point until COMPLETE, so with history nothing is
+    // skipped.
+    if (predictor_.has_predictions()) {
+        return false;
+    }
+    const auto p = static_cast<PrintStartPhase>(phase);
+    return phase < static_cast<int>(current_phase_) && p != PrintStartPhase::HEATING_BED &&
+           p != PrintStartPhase::HEATING_NOZZLE &&
+           detected_phases_.find(p) == detected_phases_.end();
 }
 
 int PrintStartCollector::get_current_phase_elapsed_seconds() const {
@@ -2337,9 +2427,11 @@ void PrintStartCollector::compute_predicted_weights() {
             predictor_.has_predictions() ? static_cast<float>(wall_clock_estimate) : durations_sum;
     }
 
-    // Track targets used so we can detect changes and recompute
+    // Track targets and rates used so we can detect changes and recompute
     weights_ext_target_ = ext_target;
     weights_bed_target_ = bed_target;
+    weights_ext_measured_ = mgr.get_model("extruder").measured_rate().has_value();
+    weights_bed_measured_ = mgr.get_model("heater_bed").measured_rate().has_value();
 
     spdlog::debug("[PrintStartCollector] Predicted weights: total={:.0f}s, {} phases "
                   "(ext_target={}°C, bed_target={}°C)",
@@ -2375,23 +2467,21 @@ float PrintStartCollector::compute_heating_fraction_for_locked(helix::PrintStart
     return 0.0f;
 }
 
-bool PrintStartCollector::heating_target_reached_locked(helix::PrintStartPhase phase) const {
+bool PrintStartCollector::at_target(int temp, int target) {
     constexpr int WITHIN_DEGREES = 2;
+    // Target unknown (never observed): we cannot judge, so fall back to
+    // the marker-pass completion semantics rather than stalling the phase.
+    return target <= 0 || temp >= target - WITHIN_DEGREES;
+}
+
+bool PrintStartCollector::heating_target_reached_locked(helix::PrintStartPhase phase) const {
     if (phase == PrintStartPhase::HEATING_NOZZLE) {
-        int target = cached_ext_target_.load(std::memory_order_relaxed);
-        int temp = cached_ext_temp_.load(std::memory_order_relaxed);
-        // Target unknown (never observed): we cannot judge, so fall back to
-        // the marker-pass completion semantics rather than stalling the phase.
-        if (target <= 0)
-            return true;
-        return temp >= target - WITHIN_DEGREES;
+        return at_target(cached_ext_temp_.load(std::memory_order_relaxed),
+                         cached_ext_target_.load(std::memory_order_relaxed));
     }
     if (phase == PrintStartPhase::HEATING_BED) {
-        int target = cached_bed_target_.load(std::memory_order_relaxed);
-        int temp = cached_bed_temp_.load(std::memory_order_relaxed);
-        if (target <= 0)
-            return true;
-        return temp >= target - WITHIN_DEGREES;
+        return at_target(cached_bed_temp_.load(std::memory_order_relaxed),
+                         cached_bed_target_.load(std::memory_order_relaxed));
     }
     return true; // not a heating phase — completion is not temp-gated
 }
@@ -2546,14 +2636,15 @@ void PrintStartCollector::save_prediction_entry() {
         }
     }
 
-    if (phase_durations.empty()) {
-        spdlog::debug("[PrintStartCollector] No phase timings to save");
-        return;
-    }
-
-    // Use wall-clock elapsed time as total — includes heating phases omitted from phase_durations
+    // Use wall-clock elapsed time as total: it includes heating phases omitted from
+    // phase_durations. A start that only heated has no phase timings, but its total is still what
+    // the next prediction needs, and its heating rates are still real.
     int wall_clock_total = static_cast<int>(
         std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count());
+    if (wall_clock_total <= 0) {
+        spdlog::debug("[PrintStartCollector] No pre-print time to save");
+        return;
+    }
 
     // Cold (1) vs Warm (2) based on bed temp at start
     helix::PreprintEntry entry;

@@ -4,8 +4,7 @@
 <!-- Connection Settings Overlay -->
 <!-- How this screen reaches the network and its printers: network, printers, Moonraker host -->
 <component>
-  <view name="settings_connection_overlay"
-        extends="overlay_panel" title="Connection" title_tag="Connection" bg_color="#screen_bg">
+  <view name="settings_connection_overlay" extends="overlay_panel" title="Connection" bg_color="#screen_bg">
     <!-- Content Area - no padding, rows handle their own -->
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_top="0" style_pad_left="0" style_pad_right="0"
@@ -17,22 +16,20 @@
         <lv_obj name="container_network_settings" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="show_network_settings" flag="hidden" ref_value="0"/>
           <setting_action_row name="row_network"
-                              label="Network Settings" label_tag="Network Settings" icon="wifi"
-                              description="WiFi and Ethernet configuration"
-                              description_tag="WiFi and Ethernet configuration" callback="on_network_clicked"/>
+                              label="Network Settings" icon="wifi" description="WiFi and Ethernet configuration"
+                              callback="on_network_clicked"/>
         </lv_obj>
         <!-- ================================================================== -->
         <!-- PRINTERS -->
         <!-- ================================================================== -->
         <setting_action_row name="row_printers"
-                            label="Printers" label_tag="Printers" icon="printer_3d"
-                            description="Manage configured printers" description_tag="Manage configured printers"
+                            label="Printers" icon="printer_3d" description="Manage configured printers"
                             callback="on_printers_clicked"/>
         <!-- ================================================================== -->
         <!-- HOST -->
         <!-- ================================================================== -->
         <setting_action_row name="row_printer_host"
-                            label="Host" label_tag="Host" icon="lan" bind_description="printer_host_value"
+                            label="Host" icon="lan" bind_description="printer_host_value"
                             callback="on_change_host_clicked"/>
       </setting_group>
     </lv_obj>

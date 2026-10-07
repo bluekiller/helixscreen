@@ -45,6 +45,10 @@ struct temp_graph_time_axis_t {
 
 temp_graph_time_axis_t temp_graph_time_axis(const ui_temp_graph_t* graph);
 
+/// The row the legend chips draw in (absolute display coords). Empty (x2 < x1)
+/// when no legend draws: the feature is off, or one series needs no key.
+lv_area_t temp_graph_legend_row(ui_temp_graph_t* graph);
+
 /// Contiguous runs of non-zero target samples in target_deci_buf.
 std::vector<std::pair<int, int>> segment_target_buf(const int16_t* buf, int count);
 

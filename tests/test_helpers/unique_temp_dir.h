@@ -26,6 +26,23 @@ inline std::string unique_temp_dir(const std::string& prefix) {
     return std::filesystem::temp_directory_path().string() + "/" + prefix + "_" + unique_suffix();
 }
 
+/// Staging files text_io::write_file_atomic left beside @p path
+/// (`<name>.<pid>.<n>.tmp`). Zero after every write that returned.
+inline int staging_files_beside(const std::string& path) {
+    const std::filesystem::path p(path);
+    const std::string prefix = p.filename().string() + ".";
+    int count = 0;
+    std::error_code ec;
+    for (const auto& e : std::filesystem::directory_iterator(p.parent_path(), ec)) {
+        const std::string name = e.path().filename().string();
+        if (name.rfind(prefix, 0) == 0 && name.size() > 4 &&
+            name.compare(name.size() - 4, 4, ".tmp") == 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 /// A scratch-file path under the system temp dir, same uniqueness contract.
 inline std::string unique_temp_file(const std::string& prefix, const std::string& ext) {
     return unique_temp_dir(prefix) + "." + ext;

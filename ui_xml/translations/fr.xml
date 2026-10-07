@@ -726,6 +726,7 @@
   <translation tag="Could not save the drying state: nothing was heated" fr="Impossible d&apos;enregistrer l&apos;état du séchage : rien n&apos;a été chauffé"/>
   <translation tag="Could not save the mesh as &apos;{}&apos;: {}" fr="Impossible d&apos;enregistrer le maillage sous &apos;{}&apos; : {}"/>
   <translation tag="Could not save the printer image tags" fr="Échec de l&apos;enregistrement des repères de l&apos;image"/>
+  <translation tag="Could not skip {}" fr="Impossible d&apos;ignorer {}"/>
   <translation tag="Could not start Bluetooth discovery" fr="Impossible de démarrer la découverte Bluetooth"/>
   <translation tag="Could not update filaments" fr="Impossible de mettre à jour les filaments"/>
   <translation tag="Could not verify Spoolman status. Moonraker may still be restarting." fr="Impossible de vérifier l&apos;état de Spoolman. Moonraker est peut-être encore en cours de redémarrage."/>
@@ -991,6 +992,7 @@
   <translation tag="Ethernet" fr="Ethernet"/>
   <translation tag="Events appear here after sessions and prints" fr="Les événements apparaissent ici après les sessions et impressions"/>
   <translation tag="Every extruder&apos;s temperature at once" fr="Température de chaque extrudeur"/>
+  <translation tag="Every object is set to skip, so there is nothing to print" fr="Tous les objets sont à ignorer, il n&apos;y a rien à imprimer"/>
   <translation tag="Every tool&apos;s offsets are measured again and replace the current ones. Save afterwards to keep the result." fr="Les offsets de tous les outils sont mesurés à nouveau et remplacent les actuels. Enregistrez ensuite pour conserver le résultat."/>
   <translation tag="Everything else was saved. Change them in Spoolman." fr="Tout le reste a été enregistré. Modifiez-les dans Spoolman."/>
   <translation tag="Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /" fr="Tout le reste a été enregistré. Renommez le matériau en utilisant des lettres, des chiffres, des espaces et + - _ . ( ) /"/>
@@ -1268,6 +1270,7 @@
   <translation tag="Found 1 printer" fr="1 imprimante trouvée"/>
   <translation tag="Framerate" fr="Fréquence d&apos;images"/>
   <translation tag="From Buffer" fr="Depuis tampon"/>
+  <translation tag="From SpoolmanDB" fr="Depuis SpoolmanDB"/>
   <translation tag="From Version" fr="Depuis la version"/>
   <translation tag="Front" fr="Avant"/>
   <translation tag="Front Left" fr="Avant gauche"/>
@@ -1888,6 +1891,7 @@
   <translation tag="No jobs in queue" fr="Aucun travail en file"/>
   <translation tag="No macro devices configured" fr="Aucun appareil de macro configuré"/>
   <translation tag="No macros available" fr="Aucune macro disponible"/>
+  <translation tag="No matches in SpoolmanDB" fr="Aucun résultat dans SpoolmanDB"/>
   <translation tag="No matching prints" fr="Aucune impression correspondante"/>
   <translation tag="No media installed" fr="Aucun média installé"/>
   <translation tag="No mesh data" fr="Pas de données de maillage"/>
@@ -1991,6 +1995,7 @@
   <translation tag="ON: {} | OFF: {}" fr="MARCHE : {} | ARRÊT : {}"/>
   <translation tag="OS" fr="OS"/>
   <translation tag="OS: " fr="OS : "/>
+  <translation tag="Object picks apply only to prints started now" fr="La sélection d&apos;objets ne s&apos;applique qu&apos;aux impressions lancées maintenant"/>
   <translation tag="Object positions unavailable" fr="Positions des objets indisponibles"/>
   <translation tag="Objects" fr="Objets"/>
   <translation tag="Off" fr="Éteint"/>
@@ -2810,6 +2815,7 @@
   <translation tag="Spoolman was not configured." fr="Spoolman n&apos;était pas configuré."/>
   <translation tag="Spoolman: %zu Spool%s" fr="Spoolman : %zu bobine%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" fr="Spoolman : %zu/%zu bobine%s"/>
+  <translation tag="SpoolmanDB search failed" fr="Échec de la recherche SpoolmanDB"/>
   <translation tag="Spools are off" fr="Bobines retirées"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" fr="Des bobines sont sur le plateau : retirez-les et confirmez avant de déplacer l&apos;imprimante"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." fr="Des bobines sont sur le plateau : touchez le bandeau de séchage pour confirmer qu&apos;elles sont retirées, puis redémarrez."/>
@@ -2914,7 +2920,6 @@
   <translation tag="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge" fr="Appuyez sur Redémarrer le firmware pour récupérer. Sur la K2, cela redémarre aussi le pont MCU rpi"/>
   <translation tag="Tap again to confirm this orientation" fr="Appuyez à nouveau pour confirmer cette orientation"/>
   <translation tag="Tap an empty spot inside the enclosure" fr="Touchez un endroit vide dans le caisson"/>
-  <translation tag="Tap an object to exclude it | {} objects ({} excluded)" fr="Touchez un objet pour l&apos;exclure | {} objets ({} exclus)"/>
   <translation tag="Tap any tile to open its full controls or toggle its state." fr="Appuyez sur n&apos;importe quelle tuile pour ouvrir ses commandes complètes ou basculer son état."/>
   <translation tag="Tap anywhere if this text is right-side up" fr="Appuyez n&apos;importe où si ce texte est à l&apos;endroit"/>
   <translation tag="Tap anywhere to begin" fr="Appuyez n&apos;importe où pour commencer"/>
@@ -3514,6 +3519,7 @@
   <translation tag="{} and {} are both mapped here" fr="{} et {} sont tous deux affectés ici"/>
   <translation tag="{} available" fr="{} disponible"/>
   <translation tag="{} axis homed" fr="Axe {} référencé"/>
+  <translation tag="{} cannot be skipped: its name has characters the printer cannot be sent" fr="{} ne peut pas être exclu : son nom contient des caractères impossibles à envoyer à l&apos;imprimante"/>
   <translation tag="{} changed" fr="{} modifié(s)"/>
   <translation tag="{} command timed out" fr="Délai d&apos;attente dépassé pour la commande {}"/>
   <translation tag="{} complete" fr="{} terminé"/>

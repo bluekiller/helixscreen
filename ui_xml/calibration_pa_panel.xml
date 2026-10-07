@@ -50,7 +50,7 @@
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_bg_opa="255"
         style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" scrollable="false" flex_flow="column">
 
-    <header_bar name="overlay_header" title="Pressure Advance" title_tag="Pressure Advance"/>
+    <header_bar name="overlay_header" title="Pressure Advance"/>
 
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_all="#space_md" flex_flow="row" style_pad_gap="#space_md"
@@ -68,7 +68,7 @@
               style_border_width="0" scrollable="false">
         <bind_flag_if cond="ui_breakpoint le 1 and pa_cal_state ne 0" flag="hidden"/>
 
-        <text_small text="Target" translation_tag="Target" text_transform="uppercase" style_text_color="#text_muted"/>
+        <text_small text="Target" text_transform="uppercase" style_text_color="#text_muted"/>
 
         <!-- Tool. Pressure advance belongs to an extruder, so on a tool
              changer this is the first decision on the screen. On the majority
@@ -115,7 +115,7 @@
           <lv_obj width="100%"
                   height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center" style_bg_opa="0"
                   style_border_width="0" scrollable="false">
-            <text_small text="Nozzle" translation_tag="Nozzle" text_transform="uppercase" style_text_color="#text_muted"/>
+            <text_small text="Nozzle" text_transform="uppercase" style_text_color="#text_muted"/>
             <lv_obj height="1"
                     flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"/>
             <text_small name="pa_temp_note" bind_text="pa_cal_temp_note" style_text_color="#text_muted"/>
@@ -184,14 +184,12 @@
                 style_radius="#border_radius" style_pad_all="#space_md" style_pad_gap="#space_sm" flex_flow="column"
                 scrollable="true">
           <bind_flag_if_not_eq subject="pa_cal_state" flag="hidden" ref_value="0"/>
-          <text_heading text="Automatic calibration" translation_tag="Automatic calibration"/>
+          <text_heading text="Automatic calibration"/>
           <text_body width="100%"
                      text="The printer heats the nozzle, extrudes a few short test moves in a corner of the plate, and measures them itself. It repeats until the readings agree, then reports one number."
-                     translation_tag="The printer heats the nozzle, extrudes a few short test moves in a corner of the plate, and measures them itself. It repeats until the readings agree, then reports one number."
                      style_text_color="#text_muted" long_mode="wrap"/>
           <text_body width="100%"
                      text="A few minutes, nearly all of it heating. You judge nothing by eye."
-                     translation_tag="A few minutes, nearly all of it heating. You judge nothing by eye."
                      style_text_color="#text_muted" long_mode="wrap"/>
           <!-- The last run, when there is one. The most useful thing on a
                return visit, and the reason idle is not one empty card. -->
@@ -199,7 +197,7 @@
                   width="100%" height="content" style_pad_all="0" style_pad_gap="#space_xs" flex_flow="row"
                   style_flex_cross_place="end" style_bg_opa="0" style_border_width="0" scrollable="false">
             <bind_flag_if_eq subject="pa_cal_has_last" flag="hidden" ref_value="0"/>
-            <text_small text="Last measured" translation_tag="Last measured" style_text_color="#text_muted"/>
+            <text_small text="Last measured" style_text_color="#text_muted"/>
             <text_body name="pa_last_value" bind_text="pa_cal_last_value"/>
             <text_small name="pa_last_context" bind_text="pa_cal_last_context" style_text_color="#text_muted"/>
           </lv_obj>
@@ -233,7 +231,7 @@
             <lv_obj width="content"
                     height="content" style_pad_all="0" style_pad_gap="0" flex_flow="column" style_flex_cross_place="end"
                     style_bg_opa="0" style_border_width="0" scrollable="false">
-              <text_small text="Remaining" translation_tag="Remaining" style_text_color="#text_muted"/>
+              <text_small text="Remaining" style_text_color="#text_muted"/>
               <text_body name="pa_remaining" bind_text="pa_cal_remaining"/>
             </lv_obj>
           </lv_obj>
@@ -277,8 +275,7 @@
             <bind_style_if_eq name="pa_stage_good" subject="pa_cal_result_plausible" ref_value="1"/>
             <bind_style_if_eq name="pa_stage_bad" subject="pa_cal_result_plausible" ref_value="0"/>
             <text_small width="100%"
-                        text="Measured pressure advance" translation_tag="Measured pressure advance"
-                        text_transform="uppercase" style_text_align="center">
+                        text="Measured pressure advance" text_transform="uppercase" style_text_align="center">
               <bind_style_if_eq name="pa_text_good" subject="pa_cal_result_plausible" ref_value="1"/>
               <bind_style_if_eq name="pa_text_warn" subject="pa_cal_result_plausible" ref_value="0"/>
             </text_small>
@@ -301,8 +298,7 @@
                         style_text_align="center" long_mode="wrap"/>
           </lv_obj>
           <ui_button name="pa_btn_remeasure"
-                     width="100%" height="#button_height" moves_machine="true" variant="ghost" text="Re-measure"
-                     translation_tag="Re-measure">
+                     width="100%" height="#button_height" moves_machine="true" variant="ghost" text="Re-measure">
             <event_cb trigger="clicked" callback="on_pa_cal_reset"/>
           </ui_button>
         </lv_obj>
@@ -333,8 +329,7 @@
             <lv_obj width="100%"
                     flex_grow="1" style_pad_all="0" style_bg_opa="0" style_border_width="0" scrollable="false"/>
           </lv_obj>
-          <ui_button name="pa_btn_retry"
-                     width="100%" height="#button_height" text="Try again" translation_tag="Try again">
+          <ui_button name="pa_btn_retry" width="100%" height="#button_height" text="Try again">
             <event_cb trigger="clicked" callback="on_pa_cal_start"/>
           </ui_button>
         </lv_obj>

@@ -106,7 +106,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "SpaghettiDetectionModal hides the Tune row 
         REQUIRE(Modal::show_owned(std::move(owned), test_screen()));
 
         lv_obj_t* btn = lv_obj_find_by_name(modal->dialog(), "btn_tertiary");
-        lv_obj_t* div = lv_obj_find_by_name(modal->dialog(), "divider_tune");
+        lv_obj_t* div = lv_obj_find_by_name(modal->dialog(), "div_tertiary");
         REQUIRE(btn != nullptr);
         REQUIRE(div != nullptr);
         CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
@@ -122,7 +122,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "SpaghettiDetectionModal hides the Tune row 
         REQUIRE(Modal::show_owned(std::move(owned), test_screen()));
 
         lv_obj_t* btn = lv_obj_find_by_name(modal->dialog(), "btn_tertiary");
-        lv_obj_t* div = lv_obj_find_by_name(modal->dialog(), "divider_tune");
+        lv_obj_t* div = lv_obj_find_by_name(modal->dialog(), "div_tertiary");
         REQUIRE(btn != nullptr);
         REQUIRE(div != nullptr);
         CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));

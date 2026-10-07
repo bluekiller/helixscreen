@@ -812,6 +812,7 @@ translations:
 
   "Could not save the mesh as '{}': {}": "Impossibile salvare la mesh come '{}': {}"
   Could not save the printer image tags: 'Impossibile salvare i contrassegni dell''immagine'
+  Could not skip {}: 'Impossibile saltare {}'
   Could not start Bluetooth discovery: Impossibile avviare la ricerca Bluetooth
   Could not update filaments: Impossibile aggiornare i filamenti
   Could not verify Spoolman status. Moonraker may still be restarting.: Impossibile
@@ -1101,6 +1102,7 @@ translations:
   Every extruder's temperature at once: Temperatura di ogni estrusore
   Everything else was saved. Change them in Spoolman.: Tutto il resto è stato salvato. Modificali in Spoolman.
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: 'Tutto il resto è stato salvato. Rinomina il materiale usando lettere, cifre, spazi e + - _ . ( ) /'
+  Every object is set to skip, so there is nothing to print: 'Tutti gli oggetti sono da saltare, non c''è niente da stampare'
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: Gli offset di tutti gli strumenti vengono misurati di nuovo e sostituiscono quelli attuali. Salva in seguito per conservare il risultato.
   Excellent Accuracy: Precisione eccellente
   'Exception: {}': 'Eccezione: {}'
@@ -1398,6 +1400,7 @@ translations:
   Found 1 printer: 1 stampante trovata
   Framerate: Frequenza fotogrammi
   From Buffer: Dal buffer
+  From SpoolmanDB: 'Da SpoolmanDB'
   From Version: Dalla versione
   Front: 'Davanti'
   Front Left: 'Davanti sinistra'
@@ -2095,6 +2098,7 @@ translations:
   No jobs in queue: Nessun lavoro in coda
   No macro devices configured: Nessun dispositivo macro configurato
   No macros available: Nessuna macro disponibile
+  No matches in SpoolmanDB: 'Nessun risultato in SpoolmanDB'
   No matching prints: Nessuna stampa corrispondente
   No media installed: Nessun supporto installato
   No mesh data: Nessun dato mesh
@@ -2203,6 +2207,7 @@ translations:
   'ON: {} | OFF: {}': 'ON: {} | OFF: {}'
   OS: OS
   'OS: ': 'OS: '
+  Object picks apply only to prints started now: 'La selezione degli oggetti vale solo per le stampe avviate ora'
   Object positions unavailable: Posizioni oggetti non disponibili
   Objects: Oggetti
   'Off': 'Off'
@@ -3120,6 +3125,7 @@ translations:
   Spoolman was not configured.: Spoolman non era configurato.
   'Spoolman: %zu Spool%s': 'Spoolman: %zu bobina%s'
   'Spoolman: %zu/%zu Spool%s': 'Spoolman: %zu/%zu bobina%s'
+  SpoolmanDB search failed: 'Ricerca in SpoolmanDB non riuscita'
   Spools are off: "Bobine tolte"
   'Spools are on the bed: remove them and confirm before moving the printer': 'Ci sono bobine sul piano: rimuovile e conferma prima di muovere la stampante'
   'Spools are on the bed: tap the drying banner to confirm they are off, then restart.': "Ci sono bobine sul piano: tocca il banner dell'essiccazione per confermare di averle tolte, poi riavvia."
@@ -3239,7 +3245,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: Toccare Riavvia firmware per ripristinare. Sulla K2 questo riavvia anche il bridge MCU rpi
   Tap again to confirm this orientation: Tocca di nuovo per confermare questo orientamento
   Tap an empty spot inside the enclosure: Tocca un punto vuoto dentro la chiusura
-  Tap an object to exclude it | {} objects ({} excluded): 'Tocca un oggetto per escluderlo | {} oggetti ({} esclusi)'
   Tap any tile to open its full controls or toggle its state.: Tocca un riquadro per aprirne i controlli completi o per cambiarne lo stato.
   Tap anywhere if this text is right-side up: Tocca ovunque se questo testo è dritto
   Tap anywhere to begin: Tocca ovunque per iniziare
@@ -3942,6 +3947,7 @@ translations:
   '{} and {} are both mapped here': '{} e {} sono entrambi assegnati qui'
   '{} available': '{} disponibile'
   '{} axis homed': Asse {} in posizione
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} non può essere escluso: il nome contiene caratteri che non possono essere inviati alla stampante'
   '{} changed': '{} modificati'
   '{} command timed out': Comando {} scaduto
   '{} complete': '{} completato'

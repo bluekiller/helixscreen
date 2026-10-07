@@ -285,6 +285,10 @@ class IMoonrakerClient {
 
     /// @brief Get lifetime guard for safe destructor-aware captures
     virtual std::weak_ptr<bool> lifetime_weak() const = 0;
+
+    /// @brief Counter bumped by every connect, so a cached per-connection
+    /// answer can tell it belongs to an earlier connection.
+    virtual uint64_t connection_generation() const = 0;
 };
 
 /**

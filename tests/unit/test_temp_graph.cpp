@@ -1575,3 +1575,51 @@ TEST_CASE_METHOD(LVGLTestFixture, "ui_temp_graph: tearing a graph down leaves no
         ui_temp_graph_destroy(graph);
     }
 }
+
+// The legend is text: the plot (curves, fills, target lines) must never draw under it.
+TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: legend row sits outside the plot area",
+                 "[temp_graph][legend]") {
+    // Home-tile extents at 800x480 (2x2, 4x4) and 480x320 (2x2).
+    auto [w, h] = GENERATE(std::pair{234, 231}, std::pair{470, 464}, std::pair{166, 154});
+    CAPTURE(w, h);
+
+    ui_temp_graph_t* graph = ui_temp_graph_create(screen);
+    REQUIRE(graph != nullptr);
+    lv_obj_t* chart = ui_temp_graph_get_chart(graph);
+    lv_obj_set_size(chart, w, h);
+    ui_temp_graph_set_axis_size(graph, "xs");
+    int nozzle = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF0000));
+    ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x00FFFF));
+    ui_temp_graph_set_features(graph, TEMP_GRAPH_FEATURE_LINES | TEMP_GRAPH_FEATURE_GRADIENTS |
+                                          TEMP_GRAPH_FEATURE_TARGET_LINES |
+                                          TEMP_GRAPH_FEATURE_LEGEND | TEMP_GRAPH_FEATURE_Y_AXIS |
+                                          TEMP_GRAPH_FEATURE_X_AXIS);
+    lv_obj_update_layout(screen);
+
+    auto plot_top = [&] {
+        lv_area_t coords;
+        lv_obj_get_coords(chart, &coords);
+        return coords.y1 + lv_obj_get_style_pad_top(chart, LV_PART_MAIN);
+    };
+
+    lv_area_t row = helix::temp_graph_internal::temp_graph_legend_row(graph);
+    REQUIRE(row.x2 >= row.x1);
+    lv_area_t coords;
+    lv_obj_get_coords(chart, &coords);
+    CHECK(row.y1 >= coords.y1);
+    CHECK(row.y2 < plot_top());
+
+    // With one series visible there is no legend, and the plot takes its row back.
+    int32_t top_with_legend = plot_top();
+    ui_temp_graph_show_series(graph, nozzle, false);
+    lv_obj_update_layout(screen);
+    CHECK(helix::temp_graph_internal::temp_graph_legend_row(graph).x2 <
+          helix::temp_graph_internal::temp_graph_legend_row(graph).x1);
+    CHECK(plot_top() < top_with_legend);
+
+    ui_temp_graph_show_series(graph, nozzle, true);
+    lv_obj_update_layout(screen);
+    CHECK(plot_top() == top_with_legend);
+
+    ui_temp_graph_destroy(graph);
+}

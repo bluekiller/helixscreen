@@ -2339,6 +2339,17 @@ const char* DebugBundleCollector::worker_url() {
     return WORKER_URL;
 }
 
+namespace {
+DebugBundleCollector::CollectFn& collect_override() {
+    static DebugBundleCollector::CollectFn fn;
+    return fn;
+}
+} // namespace
+
+void DebugBundleCollector::set_collect_override_for_test(CollectFn fn) {
+    collect_override() = std::move(fn);
+}
+
 void DebugBundleCollector::upload_async(const BundleOptions& options, ResultCallback callback) {
     // The upload gate, before any collection or worker submission: a build that
     // may not ship diagnostics must not even assemble a bundle off-device
@@ -2366,16 +2377,18 @@ void DebugBundleCollector::upload_async(const BundleOptions& options, ResultCall
     // environment has changed, and an env read at execution time would
     // retarget an upload that was already accepted.
     const std::string url = worker_url();
+    const CollectFn collect_fn = collect_override();
 
     // Large compressed upload — route through HttpExecutor::slow() (1-worker lane)
     // to avoid head-of-line blocking REST calls AND to avoid raw std::thread spawn,
     // which crashes with std::terminate on AD5M under thread exhaustion (#837, #724).
-    helix::http::HttpExecutor::slow().submit([opts, callback = std::move(callback), url]() {
+    helix::http::HttpExecutor::slow().submit([opts, callback = std::move(callback), url,
+                                              collect_fn]() {
         BundleResult result;
 
         try {
             spdlog::info("[DebugBundle] Collecting debug bundle...");
-            json bundle = collect(opts);
+            json bundle = collect_fn ? collect_fn(opts) : collect(opts);
             std::string json_str = helix::json_util::safe_dump(bundle);
 
             spdlog::info("[DebugBundle] Compressing {} bytes...", json_str.size());

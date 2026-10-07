@@ -22,7 +22,6 @@
          filament, so it carries the toolhead guard. Callbacks are wired
          programmatically per-instance (a real Cancel), not via XML. -->
     <modal_button_row secondary_variant="secondary"
-                      secondary_text="Cancel" secondary_tag="Cancel" primary_subject="batch_filament_action_text"
-                      primary_moves_machine="true"/>
+                      secondary_text="Cancel" primary_subject="batch_filament_action_text" primary_moves_machine="true"/>
   </view>
 </component>

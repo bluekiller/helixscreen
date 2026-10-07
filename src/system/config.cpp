@@ -702,10 +702,19 @@ std::string Config::resolve_path(const std::string& config_path) {
     return hfs::join_path(env_dir, hfs::filename(config_path));
 }
 
-/// Copy the Moonraker connection of @p old_doc's active printer into @p fresh's,
-/// so an install whose printer is on another host still reaches it after its
-/// document is replaced by defaults.
-static void carry_moonraker_connection(const json& old_doc, json& fresh) {
+/// Copy what must survive @p old_doc being replaced by defaults into @p fresh:
+/// the active printer's Moonraker connection, so an install whose printer is on
+/// another host still reaches it, and /update/channel, so an install the
+/// installer put on beta does not fall back to stable.
+static void carry_across_migration_floor(const json& old_doc, json& fresh) {
+    if (const auto update = old_doc.find("update");
+        update != old_doc.end() && update->is_object()) {
+        const auto channel = update->find("channel");
+        if (channel != update->end() && channel->is_number_integer()) {
+            fresh["update"]["channel"] = *channel;
+        }
+    }
+
     const json* printer = nullptr;
     if (const auto printers = old_doc.find("printers");
         printers != old_doc.end() && printers->is_object()) {
@@ -964,7 +973,7 @@ void Config::init(const std::string& config_path) {
                              "(oldest: {}); starting from defaults, previous config kept at {}",
                              version_before, MIN_MIGRATABLE_CONFIG_VERSION, snapshot);
                 json fresh = get_default_config("127.0.0.1", false);
-                carry_moonraker_connection(data, fresh);
+                carry_across_migration_floor(data, fresh);
                 data = std::move(fresh);
                 config_modified = true;
             } else {

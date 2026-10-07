@@ -21,7 +21,7 @@
               height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="center"
               style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false">
         <icon src="heat_wave" size="md" variant="primary"/>
-        <text_heading text="Start Drying" translation_tag="Start Drying"/>
+        <text_heading text="Start Drying"/>
       </lv_obj>
       <lv_dropdown name="preset_dropdown" width="100%"/>
       <lv_obj name="bed_assist_row"
@@ -33,7 +33,6 @@
         <ui_switch name="bed_assist_switch" checked="true"/>
       </lv_obj>
     </lv_obj>
-    <modal_button_row primary_text="Start"
-                      primary_tag="Start" secondary_text="Cancel" secondary_tag="Cancel" primary_moves_machine="true"/>
+    <modal_button_row primary_text="Start" secondary_text="Cancel" primary_moves_machine="true"/>
   </view>
 </component>

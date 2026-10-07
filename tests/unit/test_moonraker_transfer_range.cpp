@@ -30,8 +30,11 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <future>
+#include <iterator>
 #include <memory>
 #include <netinet/in.h>
 #include <string>
@@ -350,4 +353,40 @@ TEST_CASE("transfer callbacks run on the executor, not the caller", "[api][trans
 
     REQUIRE(out.ok);
     REQUIRE(out.callback_thread != std::this_thread::get_id());
+}
+
+// A thumbnail lands by rename, so a reader that opened the cache file before
+// the download keeps reading the complete old image instead of a file being
+// truncated and rewritten under it.
+TEST_CASE("thumbnail download replaces the cache file instead of rewriting it",
+          "[api][transfer][thumbnail]") {
+    const std::string payload = make_payload(PAYLOAD_SIZE);
+    RangeResponder server(/*honour_range=*/false, payload);
+    TransferHarness harness(server.base_url());
+
+    char dir_tmpl[] = "/tmp/helix_thumb_dl_XXXXXX";
+    REQUIRE(::mkdtemp(dir_tmpl) != nullptr);
+    const std::string dir = dir_tmpl;
+    const std::string cache_path = dir + "/thumb.png";
+    const std::string old_bytes = "previous thumbnail";
+    {
+        std::ofstream out(cache_path, std::ios::binary);
+        out << old_bytes;
+    }
+    std::ifstream reader(cache_path, std::ios::binary);
+    REQUIRE(reader.good());
+
+    const auto out = await([&](auto ok, auto err) {
+        harness.api->download_thumbnail(".thumbs/a.png", cache_path, ok, err);
+    });
+    REQUIRE(out.ok);
+
+    std::string held((std::istreambuf_iterator<char>(reader)), std::istreambuf_iterator<char>());
+    CHECK((held == old_bytes));
+    std::ifstream fresh(cache_path, std::ios::binary);
+    std::string landed((std::istreambuf_iterator<char>(fresh)), std::istreambuf_iterator<char>());
+    CHECK((landed == payload));
+    CHECK_FALSE(std::filesystem::exists(cache_path + ".tmp"));
+
+    std::filesystem::remove_all(dir);
 }

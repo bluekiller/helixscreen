@@ -368,6 +368,7 @@ void register_xml_components() {
     // Spool wizard components
     register_xml("wizard_vendor_row.xml");
     register_xml("wizard_filament_row.xml");
+    register_xml("wizard_catalog_row.xml");
     register_xml("create_vendor_modal.xml");
     register_xml("create_filament_modal.xml");
     register_xml("spool_wizard.xml");
@@ -400,6 +401,7 @@ void register_xml_components() {
     // file detail view, and the whole print-status preview card shared by the
     // landscape and portrait status layouts. Registered here, ahead of both
     // consumers, because a component must exist before the file that nests it.
+    register_xml("components/exclude_objects_button.xml");
     register_xml("components/preview_stack.xml");
     register_xml("components/print_status_preview_card.xml");
     register_xml("header_bar.xml");

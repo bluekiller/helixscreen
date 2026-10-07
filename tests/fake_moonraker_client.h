@@ -279,6 +279,9 @@ class FakeMoonrakerClient : public helix::IMoonrakerClient {
     std::weak_ptr<bool> lifetime_weak() const override {
         return alive_;
     }
+    uint64_t connection_generation() const override {
+        return 0;
+    }
 
   protected:
     std::string last_url_;

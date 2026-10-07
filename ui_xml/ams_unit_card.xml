@@ -44,7 +44,7 @@
            the centered row, and get clipped at BOTH ends ("HTLF Claymore 1" read as
            "TLF Claym"). long_mode="dots" needs a bounded width to do anything. -->
       <text_body name="unit_name"
-                 width="1" height="#ams_unit_name_h" text="Unit" translation_tag="Unit" flex_grow="1" long_mode="dots"
+                 width="1" height="#ams_unit_name_h" text="Unit" flex_grow="1" long_mode="dots"
                  style_text_align="center"/>
     </lv_obj>
     <!-- Body row: slot content on the left, environment/dryer indicator on the right.
@@ -67,10 +67,10 @@
                 flex_flow="row" style_flex_main_place="center" style_flex_cross_place="end" style_pad_all="0"
                 style_pad_column="#space_xxs" style_bg_opa="0" style_border_width="0"/>
         <!-- Slot count label -->
-        <text_small name="slot_count" text="0 slots" translation_tag="0 slots" event_bubble="true">
+        <text_small name="slot_count" text="0 slots" event_bubble="true">
           <bind_flag_if_eq subject="$absent" flag="hidden" ref_value="1"/>
         </text_small>
-        <text_small name="unit_absent_label" text="Not connected" translation_tag="Not connected" event_bubble="true">
+        <text_small name="unit_absent_label" text="Not connected" event_bubble="true">
           <bind_flag_if_eq subject="$absent" flag="hidden" ref_value="0"/>
         </text_small>
         <!-- Filament runout indicator — only shown on a real runout (print paused).

@@ -726,6 +726,7 @@
   <translation tag="Could not save the drying state: nothing was heated" en="Could not save the drying state: nothing was heated"/>
   <translation tag="Could not save the mesh as &apos;{}&apos;: {}" en="Could not save the mesh as &apos;{}&apos;: {}"/>
   <translation tag="Could not save the printer image tags" en="Could not save the printer image tags"/>
+  <translation tag="Could not skip {}" en="Could not skip {}"/>
   <translation tag="Could not start Bluetooth discovery" en="Could not start Bluetooth discovery"/>
   <translation tag="Could not update filaments" en="Could not update filaments"/>
   <translation tag="Could not verify Spoolman status. Moonraker may still be restarting." en="Could not verify Spoolman status. Moonraker may still be restarting."/>
@@ -991,6 +992,7 @@
   <translation tag="Ethernet" en="Ethernet"/>
   <translation tag="Events appear here after sessions and prints" en="Events appear here after sessions and prints"/>
   <translation tag="Every extruder&apos;s temperature at once" en="Every extruder&apos;s temperature at once"/>
+  <translation tag="Every object is set to skip, so there is nothing to print" en="Every object is set to skip, so there is nothing to print"/>
   <translation tag="Every tool&apos;s offsets are measured again and replace the current ones. Save afterwards to keep the result." en="Every tool&apos;s offsets are measured again and replace the current ones. Save afterwards to keep the result."/>
   <translation tag="Everything else was saved. Change them in Spoolman." en="Everything else was saved. Change them in Spoolman."/>
   <translation tag="Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /" en="Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /"/>
@@ -1268,6 +1270,7 @@
   <translation tag="Found 1 printer" en="Found 1 printer"/>
   <translation tag="Framerate" en="Framerate"/>
   <translation tag="From Buffer" en="From Buffer"/>
+  <translation tag="From SpoolmanDB" en="From SpoolmanDB"/>
   <translation tag="From Version" en="From Version"/>
   <translation tag="Front" en="Front"/>
   <translation tag="Front Left" en="Front Left"/>
@@ -1888,6 +1891,7 @@
   <translation tag="No jobs in queue" en="No jobs in queue"/>
   <translation tag="No macro devices configured" en="No macro devices configured"/>
   <translation tag="No macros available" en="No macros available"/>
+  <translation tag="No matches in SpoolmanDB" en="No matches in SpoolmanDB"/>
   <translation tag="No matching prints" en="No matching prints"/>
   <translation tag="No media installed" en="No media installed"/>
   <translation tag="No mesh data" en="No mesh data"/>
@@ -1991,6 +1995,7 @@
   <translation tag="ON: {} | OFF: {}" en="ON: {} | OFF: {}"/>
   <translation tag="OS" en="OS"/>
   <translation tag="OS: " en="OS: "/>
+  <translation tag="Object picks apply only to prints started now" en="Object picks apply only to prints started now"/>
   <translation tag="Object positions unavailable" en="Object positions unavailable"/>
   <translation tag="Objects" en="Objects"/>
   <translation tag="Off" en="Off"/>
@@ -2810,6 +2815,7 @@
   <translation tag="Spoolman was not configured." en="Spoolman was not configured."/>
   <translation tag="Spoolman: %zu Spool%s" en="Spoolman: %zu Spool%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" en="Spoolman: %zu/%zu Spool%s"/>
+  <translation tag="SpoolmanDB search failed" en="SpoolmanDB search failed"/>
   <translation tag="Spools are off" en="Spools are off"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" en="Spools are on the bed: remove them and confirm before moving the printer"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." en="Spools are on the bed: tap the drying banner to confirm they are off, then restart."/>
@@ -2914,7 +2920,6 @@
   <translation tag="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge" en="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge"/>
   <translation tag="Tap again to confirm this orientation" en="Tap again to confirm this orientation"/>
   <translation tag="Tap an empty spot inside the enclosure" en="Tap an empty spot inside the enclosure"/>
-  <translation tag="Tap an object to exclude it | {} objects ({} excluded)" en="Tap an object to exclude it | {} objects ({} excluded)"/>
   <translation tag="Tap any tile to open its full controls or toggle its state." en="Tap any tile to open its full controls or toggle its state."/>
   <translation tag="Tap anywhere if this text is right-side up" en="Tap anywhere if this text is right-side up"/>
   <translation tag="Tap anywhere to begin" en="Tap anywhere to begin"/>
@@ -3514,6 +3519,7 @@
   <translation tag="{} and {} are both mapped here" en="{} and {} are both mapped here"/>
   <translation tag="{} available" en="{} available"/>
   <translation tag="{} axis homed" en="{} axis homed"/>
+  <translation tag="{} cannot be skipped: its name has characters the printer cannot be sent" en="{} cannot be skipped: its name has characters the printer cannot be sent"/>
   <translation tag="{} changed" en="{} changed"/>
   <translation tag="{} command timed out" en="{} command timed out"/>
   <translation tag="{} complete" en="{} complete"/>

@@ -176,23 +176,40 @@ never does.
 
 ## XML Usage
 
-### Static Text with translation_tag
+### Static Text: the literal is the tag
 
-For labels whose text is known at compile time, use the `translation_tag` attribute:
+A literal `text=` is its own translation key. The engine reads it as if
+`translation_tag=` repeated it, so there is nothing to add:
 
 ```xml
-<!-- Text translates based on current locale -->
-<text_heading text="Temperature" translation_tag="Temperature"/>
-
-<!-- Button with translated label -->
-<ui_button text="Cancel" translation_tag="Cancel" variant="secondary"/>
-
-<!-- Help text -->
-<text_small text="Select 'None' if you don't have a sensor."
-            translation_tag="Select 'None' if you don't have a sensor."/>
+<text_heading text="Temperature"/>
+<ui_button text="Cancel" variant="secondary"/>
 ```
 
-The `text` attribute serves as a fallback if the translation tag isn't found.
+The same holds for a component's `*_tag` props: `label="Fans"` on a component
+that declares `label_tag` implies `label_tag="Fans"`. `X_tag` pairs with `X`,
+else with `X_text` (`primary_tag` with `primary_text`).
+
+- **Write a tag only when it differs from the text**, e.g. a shorter key for a
+  long label. A tag equal to its text fails
+  `tests/python/test_explicit_tag_coverage.py`.
+- **`translation_tag=""` opts out.** An explicit empty tag means "do not
+  translate". Untranslated strings rarely need it: a key absent from the
+  catalog renders as itself.
+- **Nothing is implied** from a `$prop`, `#const` or `${}` value, beside
+  `bind_text`, for a literal that cannot be a key (numbers, short punctuation,
+  icon glyphs, identifiers: `should_skip_text()`), or for `options_tag` and
+  `placeholder_tag` anywhere. Code replaces dropdown options and input
+  placeholders at runtime, and a tagged widget restores its XML value on every
+  language change, so write those two tags out where the value should translate.
+
+The rule lives in `lib/helix-xml/src/xml/lv_xml.c#implied_tag_value` and its
+Python twin `scripts/translations/extractor.py#implied_tag_value`, which the
+extractor and the coverage gate both use. The key verdict is
+`src/system/translation_loader.cpp#is_translation_key`, the engine's key
+callback; `tests/python/test_implied_tags.py` and
+`tests/unit/test_translation_key_filter.cpp` hold the two sides to the same
+answers.
 
 ### Semantic Text Widgets
 
@@ -200,10 +217,10 @@ Use semantic text widgets (`text_heading`, `text_body`, `text_small`, `text_mute
 
 ```xml
 <!-- ✅ Correct -->
-<text_body text="Material" translation_tag="Material"/>
+<text_body text="Material"/>
 
 <!-- ❌ Avoid -->
-<lv_label text="Material" style_text_font="..." translation_tag="Material"/>
+<lv_label text="Material" style_text_font="..."/>
 ```
 
 ### Dynamic Text with bind_text

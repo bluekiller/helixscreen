@@ -153,6 +153,8 @@ struct ui_temp_graph_t {
                                 // so it tracks the per-breakpoint font ladder.
     int32_t y_axis_width_floor; // Lower bound from the axis-size table, also the value used
                                 // before a font/range is known.
+    int32_t axis_top_pad;       // Top padding the Y-axis labels need; the legend row may
+                                // claim more (apply_top_pad).
 
     // Theme change observer (re-applies chart colors on theme toggle)
     lv_observer_t* theme_observer;
