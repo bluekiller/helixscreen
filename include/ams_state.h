@@ -11,6 +11,7 @@
 #include "ams_step_operation.h"
 #include "ams_types.h"
 #include "async_lifetime_guard.h"
+#include "buffer_reading.h"
 #include "filament_consumption_tracker.h"
 #include "filament_mapper.h"
 #include "lvgl/lvgl.h"
@@ -21,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1026,6 +1028,14 @@ class AmsState {
     lv_subject_t* get_clog_meter_label_right_subject() {
         return &clog_meter_label_right_;
     }
+
+    /**
+     * @brief The last minute of one buffer reading, for the trace beside a slider
+     * @param unit Unit position, or -1 for the system-level reading (buffer_reading(info, -1))
+     *
+     * Empty for a unit that has never had a reading. Main thread only.
+     */
+    [[nodiscard]] const BufferTrace& buffer_trace(int unit) const;
     lv_subject_t* get_clog_meter_mode_text_subject() {
         return &clog_meter_mode_text_;
     }
@@ -1747,6 +1757,9 @@ class AmsState {
     /** @brief Sync clog detection meter subjects from system info */
     void sync_clog_meter_from_info(const AmsSystemInfo& info);
 
+    /** @brief Note every buffer reading in its trace */
+    void sync_buffer_from_info(const AmsSystemInfo& info, int64_t now_ms);
+
     /**
      * @brief Sync the endless-spool status subjects from a backend's capabilities.
      *
@@ -2087,6 +2100,9 @@ class AmsState {
     int danger_threshold_override_ = 0; // 0=use computed default
 
     // Clog detection meter subjects
+    /// Buffer reading traces, keyed by unit position, -1 for the system-level reading.
+    std::map<int, BufferTrace> buffer_traces_;
+
     lv_subject_t clog_meter_mode_{};  // ClogMeterMode: 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
     lv_subject_t clog_meter_value_{}; // 0-100 (encoder/afc) or -100..+100 (flowguard)
     lv_subject_t clog_meter_warning_{}; // 0=ok, 1=warning

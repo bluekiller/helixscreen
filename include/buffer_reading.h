@@ -6,7 +6,11 @@
 #include "ams_types.h"
 #include "clog_meter_geometry.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <deque>
 #include <string>
+#include <vector>
 
 namespace helix {
 
@@ -61,5 +65,50 @@ struct BufferReading {
 /// "Running tight" / "Running loose" / "Balanced" from buffer_lean();
 /// empty without a slider.
 [[nodiscard]] const char* buffer_lean_text(const BufferReading& r);
+
+/// Milliseconds on the clock buffer traces are stamped with. Monotonic, so a
+/// wall-clock change cannot move a trace.
+[[nodiscard]] int64_t buffer_clock_ms();
+
+/// One reading in a BufferTrace. A point with valid false starts a gap.
+struct BufferTracePoint {
+    int64_t t_ms = 0;
+    float bias = 0.0f;
+    bool valid = false;
+};
+
+/// About a minute of one buffer's bias, for the trace drawn beside a slider.
+///
+/// Readings arrive only when they change (OpenAMS republishes on a 0.02 move),
+/// so each point holds until the next one: the trace is a step line, and a
+/// reading that never changes still draws across the whole window. Main thread
+/// only.
+class BufferTrace {
+  public:
+    static constexpr int64_t kWindowMs = 60000;
+    /// Bounds memory for a reading that changes on every status update.
+    static constexpr std::size_t kMaxPoints = 512;
+
+    /// Note the reading at @p now_ms. A repeat of the newest point adds
+    /// nothing. A stamp older than the newest means the clock went back, and
+    /// the history it can no longer place is dropped.
+    void record(int64_t now_ms, bool valid, float bias);
+
+    /// The points that draw the kWindowMs ending at @p now_ms, oldest first.
+    /// When history reaches past the window, the first point is the value held
+    /// at its start, stamped now_ms - kWindowMs. Points after @p now_ms are
+    /// left out.
+    [[nodiscard]] std::vector<BufferTracePoint> window(int64_t now_ms) const;
+
+    void clear() {
+        points_.clear();
+    }
+    [[nodiscard]] std::size_t size() const {
+        return points_.size();
+    }
+
+  private:
+    std::deque<BufferTracePoint> points_;
+};
 
 } // namespace helix

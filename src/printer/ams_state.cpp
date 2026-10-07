@@ -366,6 +366,8 @@ void AmsState::clear_backends() {
     runout_grace_.reset();
     // A hold describes an operation on the departing backend.
     optimistic_action_until_.reset();
+    // Every trace describes the departing backend's buffers.
+    buffer_traces_.clear();
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().
@@ -571,6 +573,9 @@ void AmsState::sync_from_backend() {
 
     // Sync clog detection meter subjects
     sync_clog_meter_from_info(info);
+
+    // Sync the filament buffer reading and its traces
+    sync_buffer_from_info(info, buffer_clock_ms());
 
     // Sync "Currently Loaded" display subjects (pass info to avoid re-fetching)
     sync_current_loaded_from_backend(info);

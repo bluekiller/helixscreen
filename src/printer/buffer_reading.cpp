@@ -8,6 +8,7 @@
 #include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace helix {
@@ -86,6 +87,49 @@ const char* buffer_lean_text(const BufferReading& r) {
         break;
     }
     return lv_tr("Balanced");
+}
+
+int64_t buffer_clock_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void BufferTrace::record(int64_t now_ms, bool valid, float bias) {
+    if (!points_.empty() && now_ms < points_.back().t_ms) {
+        points_.clear();
+    }
+    if (!points_.empty()) {
+        const BufferTracePoint& last = points_.back();
+        if (last.valid == valid && (!valid || last.bias == bias)) {
+            return;
+        }
+    }
+    points_.push_back({now_ms, valid ? bias : 0.0f, valid});
+    // One point at or before the window's start stays: it is the value held
+    // into the window.
+    while (points_.size() >= 2 && points_[1].t_ms <= now_ms - kWindowMs) {
+        points_.pop_front();
+    }
+    while (points_.size() > kMaxPoints) {
+        points_.pop_front();
+    }
+}
+
+std::vector<BufferTracePoint> BufferTrace::window(int64_t now_ms) const {
+    std::vector<BufferTracePoint> out;
+    const int64_t start = now_ms - kWindowMs;
+    for (const BufferTracePoint& p : points_) {
+        if (p.t_ms > now_ms) {
+            break;
+        }
+        if (p.t_ms <= start) {
+            out.assign(1, BufferTracePoint{start, p.bias, p.valid});
+        } else {
+            out.push_back(p);
+        }
+    }
+    return out;
 }
 
 } // namespace helix
