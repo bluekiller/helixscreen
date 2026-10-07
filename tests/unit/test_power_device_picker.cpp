@@ -167,3 +167,27 @@ TEST_CASE_METHOD(PowerPickerFixture,
     widget.reset();
     process_lvgl(50);
 }
+
+TEST_CASE_METHOD(PowerPickerFixture,
+                 "Power device picker: a dismissed card dying later leaves a reopened one alone",
+                 "[power_device_widget][picker][teardown]") {
+    auto widget = make_widget("power_device:1");
+    Access::show_picker(*widget);
+    lv_obj_t* first = Access::backdrop(test_screen());
+    REQUIRE(first != nullptr);
+
+    // Reopen inside one async tick: the first card's deferred delete lands while
+    // the second is already on screen.
+    Access::hide_picker(*widget);
+    REQUIRE(lv_obj_is_valid(first));
+    Access::show_picker(*widget);
+    REQUIRE(Access::picker_visible(*widget));
+
+    process_lvgl(50);
+
+    CHECK_FALSE(lv_obj_is_valid(first));
+    CHECK(Access::picker_visible(*widget));
+    CHECK(ContextMenu::active() == Access::picker(*widget));
+    widget.reset();
+    process_lvgl(50);
+}

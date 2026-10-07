@@ -17,6 +17,9 @@ struct PowerDeviceWidgetTestAccess {
     static void show_picker(PowerDeviceWidget& w) {
         w.show_device_picker();
     }
+    static void hide_picker(PowerDeviceWidget& w) {
+        w.picker_.hide();
+    }
     static bool picker_visible(const PowerDeviceWidget& w) {
         return w.picker_.is_visible();
     }
